@@ -1,0 +1,174 @@
+---
+title: 'Getting Started with Go SDK'
+description: 'Start using the RunAgent Go SDK'
+icon: 'golang'
+---
+
+The RunAgent Go SDK provides a simple and powerful interface for interacting with your deployed agents. It supports both synchronous and asynchronous operations, with built-in streaming capabilities.
+
+## Installation
+
+Install the SDK using go get:
+
+```bash
+go get github.com/runagent-dev/runagent-go/pkg/client
+```
+
+<Info>
+  The SDK is available as a Go module. Make sure you have Go 1.18 or later installed.
+</Info>
+
+## Quick Start
+
+### Basic Usage
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/runagent-dev/runagent-go/pkg/client"
+)
+
+func main() {
+	// Initialize the client
+	agentClient, err := client.NewWithAddress(
+		"your-agent-id",
+		"minimal",
+		true,
+		"localhost",
+		8450,
+	)
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+	}
+	defer agentClient.Close()
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	// Simple invocation
+	result, err := agentClient.Run(ctx, map[string]interface{}{
+		"role":    "user",
+		"message": "What's the capital of France?",
+	})
+	if err != nil {
+		log.Fatalf("Failed to run agent: %v", err)
+	}
+
+	fmt.Printf("Result: %v\n", result)
+}
+```
+
+### With Custom Configuration
+
+```go
+// Local development setup
+agentClient, err := client.NewWithAddress(
+	"you_agent_id", // Agent ID
+	"minimal",                              // Entrypoint tag
+	true,                                   // Local flag
+	"localhost",                            // Host
+	8450,                                   // Port
+)
+```
+
+## Authentication
+
+The SDK supports multiple authentication methods:
+
+<Tabs>
+  <Tab title="Environment Variables">
+    ```bash
+    export RUNAGENT_API_KEY="your-api-key"
+    export RUNAGENT_HOST="localhost"
+    export RUNAGENT_PORT="8450"
+    ```
+    
+    ```go
+    // SDK will automatically use the environment variables
+    agentClient, err := client.NewWithAddress(
+        "your-agent-id",
+        "minimal",
+        true,
+        "localhost",
+        8450,
+    )
+    ```
+  </Tab>
+  <Tab title="Direct Configuration">
+    ```go
+    // For production use
+    agentClient, err := client.NewWithAddress(
+        "your-agent-id",
+        "production",
+        false,                    // Not local
+        "api.run-agent.ai",      // Production host
+        443,                     // HTTPS port
+    )
+    ```
+  </Tab>
+  <Tab title="Local Development">
+    ```go
+    // Local development setup
+    agentClient, err := client.NewWithAddress(
+        "your-agent-id",
+        "minimal",
+        true,        // Local flag
+        "localhost",
+        8450,
+    )
+    ```
+  </Tab>
+</Tabs>
+
+## Response Formats
+
+### Standard Response
+
+```go
+result, err := agentClient.Run(ctx, map[string]interface{}{
+	"role":        "user",
+	"message":     "Explain quantum computing",
+})
+if err != nil {
+	log.Fatalf("Failed to run agent: %v", err)
+}
+
+```
+
+### Streaming Response
+
+```go
+// Stream responses for real-time output
+stream, err := agentClient.RunStream(ctx, map[string]interface{}{
+	"role":    "user",
+	"message": "Write a story about AI",
+})
+if err != nil {
+	log.Fatalf("Failed to start stream: %v", err)
+}
+defer stream.Close()
+
+// Read from stream
+for {
+	data, hasMore, err := stream.Next(ctx)
+	if err != nil {
+		log.Printf("Stream error: %v", err)
+		break
+	}
+
+	if !hasMore {
+		fmt.Println("Stream completed")
+		break
+	}
+
+	fmt.Printf("%v", data)
+}
+```
+

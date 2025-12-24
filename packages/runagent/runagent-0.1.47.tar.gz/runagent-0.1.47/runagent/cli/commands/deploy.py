@@ -1,0 +1,103 @@
+"""
+CLI commands that use the restructured SDK internally.
+"""
+import os
+
+from pathlib import Path
+
+import click
+from rich.console import Console
+
+from runagent import RunAgentSDK
+from runagent.sdk.exceptions import (  # RunAgentError,; ConnectionError
+    AuthenticationError,
+)
+console = Console()
+
+
+def format_error_message(error_info):
+    """Format error information from API responses"""
+    if isinstance(error_info, dict) and "message" in error_info:
+        error_message = error_info.get("message", "Unknown error")
+        error_code = error_info.get("code")
+        if error_code:
+            return f"[{error_code}] {error_message}"
+        return error_message
+    return str(error_info) if error_info else "Unknown error"
+
+
+# ============================================================================
+# Config Command Group
+# ============================================================================
+
+
+@click.command()
+@click.option("--overwrite", is_flag=True, help="Overwrite existing agent if it already exists")
+@click.argument(
+    "path",
+    type=click.Path(
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        readable=True,
+        resolve_path=True,
+        path_type=Path,
+    ),
+    default=".",
+)
+def deploy(path: Path, overwrite: bool):
+    """Deploy agent (upload + start) to remote server"""
+
+    try:
+        from runagent.cli.branding import print_header
+        print_header("Deploy Agent")
+        
+        sdk = RunAgentSDK()
+
+        # Check authentication
+        if not sdk.is_configured():
+            console.print(
+                "❌ [red]Not authenticated.[/red] Run [cyan]'runagent setup --api-key <key>'[/cyan] first"
+            )
+            raise click.ClickException("Authentication required")
+
+        # Validate folder
+        if not Path(path).exists():
+            raise click.ClickException(f"Folder not found: {path}")
+
+        console.print(f"[bold]Deploying agent (upload + start)...[/bold]")
+        console.print(f"Source: [cyan]{path}[/cyan]")
+
+        # Deploy agent (framework auto-detected)
+        result = sdk.deploy_remote(folder=str(path), overwrite=overwrite)
+
+        if result.get("success"):
+            agent_id = result.get('agent_id')
+            dashboard_url = result.get('dashboard_url') or f"https://app.run-agent.ai/dashboard/agents/{agent_id}"
+            
+            console.print(f"\n✅ [green]Deployment successful![/green]")
+            console.print(f"Agent ID: [bold magenta]{agent_id}[/bold magenta]")
+            console.print(f"Agent URL: [link]{dashboard_url}[/link]")
+        else:
+            error_info = result.get("error")
+            console.print(f"❌ [red]Deployment failed:[/red] {format_error_message(error_info)}")
+            if isinstance(error_info, dict):
+                suggestion = error_info.get("suggestion")
+                if suggestion:
+                    console.print(f"[cyan]Suggestion: {suggestion}[/cyan]")
+            import sys
+            sys.exit(1)
+
+    except AuthenticationError as e:
+        if os.getenv('DISABLE_TRY_CATCH'):
+            raise
+        console.print(f"❌ [red]Authentication error:[/red] {e}")
+        import sys
+        sys.exit(1)
+    except Exception as e:
+        if os.getenv('DISABLE_TRY_CATCH'):
+            raise
+        console.print(f"❌ [red]Deployment error:[/red] {e}")
+        import sys
+        sys.exit(1)
+
