@@ -1,0 +1,212 @@
+# Django + Vue.js Project Generator
+
+[![PyPI version](https://badge.fury.io/py/django-vue-start.svg)](https://badge.fury.io/py/django-vue-start)
+[![npm version](https://badge.fury.io/js/create-django-vue-app.svg)](https://badge.fury.io/js/create-django-vue-app)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A CLI tool to scaffold **production-ready Django + Vue.js** full-stack applications with authentication, Docker, and CI/CD out of the box.
+
+## Features
+
+- **Django Backend**: DRF, JWT authentication, custom user model, PostgreSQL
+- **Vue.js Frontend**: Vue 3, Vite, Pinia, Vue Router with guards
+- **Complete Auth System**: Login, register, password reset, profile management
+- **Todo CRUD Example**: Full working example with create, read, update, delete
+- **Docker Ready**: Development and production Docker Compose configurations
+- **CI/CD Pipeline**: GitHub Actions with lint, test, and build stages
+- **Code Quality**: Pre-commit hooks with Black, Ruff, ESLint, Prettier
+- **Celery + Redis**: Background task processing (optional)
+- **Production Ready**: Nginx, Gunicorn, WhiteNoise for static files
+
+## Prerequisites
+
+Before you start, ensure you have the following installed on your machine:
+
+| Component | Required Version | Purpose | Check Command |
+|-----------|------------------|---------|---------------|
+| **Python** | 3.10+ | Backend runtime | `python --version` |
+| **Node.js** | 18+ | Frontend runtime | `node --version` |
+| **npm** | 9+ | Package manager | `npm --version` |
+| **Git** | Latest | Version control | `git --version` |
+
+### Optional (for Docker mode)
+To run the project in Docker containers (recommended for production parity):
+- **Docker Engine**: 20.10+
+- **Docker Compose**: 2.0+
+
+> [!NOTE]
+> If you don't have these tools, `django-vue-start` will warn you or attempt to handle dependencies (like creating a virtualenv) automatically where possible.
+
+## Quick Start
+
+### Method 1: Using npx (Recommended)
+
+```bash
+npx create-django-vue-app my_project
+cd my_project
+django-vue-start run dev
+```
+
+### Method 2: Using pip
+
+```bash
+# Install the CLI tool
+pip install django-vue-start
+
+# Create a new project
+django-vue-start new my_project
+
+# Navigate and run
+cd my_project
+django-vue-start run dev
+```
+
+### Method 3: Install npm package globally
+
+```bash
+npm install -g create-django-vue-app
+create-django-vue-app my_project
+```
+
+## Running Your Project
+
+After creating a project:
+
+```bash
+cd my_project
+
+# Start development servers (Django + Vue)
+django-vue-start run dev
+
+# Or with Docker
+django-vue-start run dev --docker
+```
+
+**Access your app:**
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000/api/
+- API Docs: http://localhost:8000/api/schema/swagger-ui/
+- Django Admin: http://localhost:8000/admin/
+
+## CLI Commands
+
+```bash
+# Create new project
+django-vue-start new [project_name]
+
+# Run development servers
+django-vue-start run dev          # Local mode (SQLite)
+django-vue-start run dev --docker # Docker mode (PostgreSQL)
+
+# Run migrations
+django-vue-start run migrate
+
+# Run migrations
+django-vue-start run migrate
+
+# Open Django shell
+django-vue-start run shell
+
+# Create Superuser (Admin)
+cd backend
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+python manage.py createsuperuser
+```
+
+### Project Generation Options
+
+```bash
+django-vue-start new [OPTIONS]
+
+Options:
+  --database [postgresql|sqlite|mysql]  Database backend
+  --auth [jwt|session]                  Authentication type
+  --celery / --no-celery                Include Celery
+  --allauth / --no-allauth              Include social auth
+  --skip-prompts                        Use defaults
+```
+
+## Generated Project Structure
+
+```
+my_project/
+├── backend/
+│   ├── config/settings/     # Django settings
+│   ├── core/                # Custom User model
+│   ├── todos/               # CRUD example app
+│   ├── .env                 # Environment variables
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── api/             # Axios with JWT
+│   │   ├── components/      # AppHeader, AppFooter
+│   │   ├── router/          # Vue Router
+│   │   ├── stores/          # Pinia auth store
+│   │   └── views/           # Pages (Login, Profile, Todos)
+│   └── package.json
+├── docker-compose.yml
+└── README.md
+```
+
+## Built-in Features
+
+### Authentication
+- User registration with email
+- Login/logout with JWT cookies
+- Profile editing (username, email)
+- Password change
+- Password reset via email
+
+### Todo CRUD Example
+- Create, read, update, delete todos
+- Toggle complete/incomplete
+- User-scoped (each user sees only their todos)
+
+## Documentation
+
+- [User Guide](docs/user_guide.md) - Getting started and usage
+- [Authentication](docs/authentication.md) - Auth flow docs
+- [Environment](docs/environment.md) - Configuration reference
+- [Deployment](docs/deployment.md) - Production deployment
+
+## Development
+
+### Setup for Contributors
+
+```bash
+# Clone
+git clone https://github.com/abdullafajal/django-vue-start.git
+cd django-vue-start
+
+# Install
+pip install -e .
+
+# Test
+pytest tests/ -v
+```
+
+## Publishing
+
+### PyPI
+```bash
+pip install build twine
+python -m build
+twine upload dist/*
+```
+
+### npm
+```bash
+npm publish --otp=YOUR_2FA_CODE
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file.
+
+## Credits
+
+- [Django](https://www.djangoproject.com/)
+- [Vue.js](https://vuejs.org/)
+- [Django REST Framework](https://www.django-rest-framework.org/)
+- [Vite](https://vitejs.dev/)
