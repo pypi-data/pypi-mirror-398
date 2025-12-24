@@ -1,0 +1,1 @@
+from tlcurl.url_adapter_registry import UrlAdapterDirEntry as UrlAdapterDirEntry, UrlAdapterRegistry as UrlAdapterRegistry

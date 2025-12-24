@@ -1,0 +1,1 @@
+from tlcurl.url_adapters.http_url_adapter import HttpUrlAdapter as HttpUrlAdapter
