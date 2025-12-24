@@ -1,0 +1,31 @@
+# 中文「四角号码」数据与工具
+
+> 四角号码，汉语词典常用检字方法之一，用最多5个阿拉伯数字来对汉字进行归类。
+
+四角号码最重要的特点之一是字形相似的字具有相同或者相似的编码。比如 `门`（37001）和 `闫`（37101）字形相似，编码也接近。
+
+**这种特性可以被深度学习模型用来作为字的特征之一：字形的特征。**
+
+## 安装
+
+```bash
+pip install four_corner_method
+```
+
+## 使用
+
+```python
+from four_corner_method import FourCornerMethod
+
+fcm = FourCornerMethod()
+print(fcm.query('民'))  # 77747
+print(fcm.query('名'))  # 27602
+```
+
+## 开发
+
+参见 [DEVELOP.md](DEVELOP.md)
+
+## 致谢
+
+四角号码数据来自于 [wangyanhan](http://bbs.unispim.com/home.php?mod=space&uid=59433) @ [资料共享——最全的《四角号码检字表》chm](http://bbs.unispim.com/forum.php?mod=viewthread&tid=31674)
