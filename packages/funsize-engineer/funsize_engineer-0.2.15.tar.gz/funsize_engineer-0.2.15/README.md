@@ -1,0 +1,106 @@
+# funsize-engineer
+
+A personal calling card for Jessica Rudd, Staff Data Engineer at FanDuel.
+
+**Read the story:** [Building funsize-engineer: A Case Study in Agent-First Development](https://jessicarudd.github.io/funsize-engineer/)
+
+## Quick Start
+
+Run this single command in your terminal (requires Python installed):
+
+```bash
+pipx run funsize-engineer
+```
+
+Or install and run:
+
+```bash
+pip install funsize-engineer && funsize-engineer
+```
+
+## Installation
+
+### From PyPI (Production)
+
+```bash
+pip install funsize-engineer
+```
+
+## Usage
+
+Run the command:
+
+```bash
+funsize-engineer
+```
+
+Or import it in Python:
+
+```python
+import funsize_engineer
+funsize_engineer.card()
+```
+
+## "npx-style" Usage
+
+To run the card without installing it globally (similar to `npx`), use `pipx`:
+
+```bash
+pipx run funsize-engineer
+```
+
+## Development & Versioning
+
+This package uses **automated versioning** with GitHub Actions and git tags.
+
+### How It Works
+
+- **Main branch**: Pushes to `main` automatically create a new patch version tag (e.g., `v0.2.10` → `v0.2.11`) and publish to PyPI
+- **Develop branch**: Pushes to `develop` build the package but do not publish (TestPyPI publishing is currently disabled)
+
+### Version Format
+
+- **Production (main branch)**: Clean semantic versions (e.g., `0.2.11`)
+- **Development (develop branch)**: Dev versions (e.g., `0.2.12dev`)
+
+### Creating a Release
+
+1. Make your changes on the `develop` branch
+2. Create a pull request to `main`
+3. Merge the PR
+4. GitHub Actions will automatically:
+   - Bump the patch version (e.g., `v0.2.10` → `v0.2.11`)
+   - Create and push the new tag
+   - Build the package with the clean version
+   - Publish to PyPI
+   - Create a GitHub release
+
+No manual version bumping or tagging required! 🎉
+
+### Manual Version Control
+
+If you need to bump major or minor versions, manually create and push a tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+## Project Structure
+
+```
+funsize-engineer/
+├── funsize_engineer/       # Main package
+│   ├── __init__.py
+│   ├── card.py            # Core display logic
+│   └── assets/            # ASCII art and resources
+├── docs/                  # GitHub Pages blog post
+├── .github/workflows/     # CI/CD automation
+│   ├── publish.yml        # PyPI publishing
+│   └── pages.yml          # GitHub Pages deployment
+└── pyproject.toml         # Package configuration
+```
+
+## License
+
+MIT
