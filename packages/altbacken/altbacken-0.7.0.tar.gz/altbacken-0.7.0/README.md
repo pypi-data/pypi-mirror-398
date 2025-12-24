@@ -1,0 +1,105 @@
+# Altbacken
+
+**Altbacken** is a modular simulated‑annealing framework for Python.  It lets you assemble and run simulated‑annealing optimisation routines by combining flexible building blocks for neighbourhood generation, temperature schedules, stop conditions and energy functions.  The codebase is type annotated and has no hard dependencies.
+
+## Features
+
+Altbacken separates the key components of simulated annealing into composable pieces:
+
+* **Neighbourhood generators** – functions that perturb a candidate solution.  Built‑in implementations operate on numeric and integer vectors by adding random noise within an ε‑band around each element.  You can write your own neighbourhood by supplying a callable that takes a solution and returns a mutated solution.
+* **Temperature schedules** – generators that produce the cooling schedule.  The library provides predefined sequences and exponential cooling, and validates that the initial temperature and cooling rate have sensible values.
+* **Stop conditions** – callables that determine when to halt the search.  Stop conditions can depend on the iteration count, the current temperature or any other state; ready‑made options stop after a fixed number of iterations or when the temperature drops below a threshold.
+* **Energy (acceptance) functions** – functions that compute the probability of accepting a worse solution based on the change in objective value and temperature.  A Boltzmann energy function implementing the Metropolis criterion is included but can be swapped for alternative acceptance schemes.
+
+Because these concepts are represented by simple protocols or callables, you are free to mix and match them or plug in your own implementations without changing the core algorithm.  The optimiser itself imposes no constraints on the type of your solution: continuous vectors, permutations or user‑defined data structures all work as long as your neighbourhood and fitness functions operate on them.
+
+## Installation
+
+Altbacken uses [PEP 621](https://peps.python.org/pep-0621/) metadata and requires Python 3.  The package is not yet published on PyPI, so you should install it directly from the Git repository:
+
+```bash
+pip install git+https://gitlab.com/patrick.daniel.gress/altbacken.git
+```
+
+If you are developing the project locally, clone the repository and install the development dependencies defined in pyproject.toml using pip:
+
+```bash
+git clone https://gitlab.com/patrick.daniel.gress/altbacken.git
+cd altbacken
+# upgrade pip and install dependencies
+pip install --upgrade pip
+pip install -e .[dev]
+```
+
+## Quick start
+
+The following example shows how to use Altbacken to optimise a continuous vector using a simple quadratic objective. 
+It illustrates how to assemble a simulated‑annealing optimiser by choosing a neighbourhood, temperature schedule, stop 
+condition and energy function:
+
+```python
+from altbacken.external.annealing import SimpleSimulatedAnnealing
+from altbacken.external.neighbourhood.numeric import VectorNeighbourhood
+from altbacken.external.temperature import ExponentialCooling
+from altbacken.external.stop import IterationThreshold
+from altbacken.external.energy import BoltzmannAcceptance
+
+
+# Objective function: maximise negative sum of squares → minimise sum of squares
+def fitness(vector: list[float]) -> float:
+    return -sum(x ** 2 for x in vector)
+
+
+initial_solution = [5.0, 3.0, -4.0]
+
+neighbourhood = VectorNeighbourhood(epsilon=0.5)  # random perturbation within ±0.5 on each element
+temperature_schedule = ExponentialCooling(initial_temperature=1000.0, cooling_rate=0.95)
+stop_condition = IterationThreshold(5000)  # stop after 5 000 iterations
+energy_function = BoltzmannAcceptance()  # Metropolis criterion
+
+# Create the optimiser.  You can customise the energy, temperature or stop condition via keywords.
+sa = SimpleSimulatedAnnealing(
+    fitness=fitness,
+    neighbourhood=neighbourhood,
+    temperature=temperature_schedule,
+    stop=stop_condition,
+    acceptance=energy_function,
+)
+
+# Run the optimiser.  The callable returns the best solution and value.
+best_solution, best_value = sa(initial_solution)
+
+print("Best solution:", best_solution)
+print("Best value:", best_value)
+```
+
+## Extending Altbacken
+
+Altbacken encourages you to plug in custom components. Each of the following interfaces is represented by a protocol or callable that you can subclass or implement:
+
+Neighbourhood[T]: a callable that accepts a current solution T and returns a new solution T. Create your own neighbourhood by implementing __call__(self, solution: T) -> T. See altbacken/external/neighbourhood/numeric.py for examples.
+
+TemperatureFunction: a callable with signature () -> Generator[float, None, None]. It yields the temperature values used by the annealer. See PredefinedTemperature and ExponentialCooling in altbacken/external/temperature.py.
+
+StopCondition[T]: a callable that accepts an AnnealingState[T] (iteration number, temperature and current/best values) and returns True when the search should stop. TemperatureThreshold and IterationThreshold illustrate how to use the current state to decide termination.
+
+EnergyFunction: a callable that accepts the current value, new value and current temperature and returns the probability of accepting the new solution. The built‑in BoltzmannEnergy implements the classic Metropolis acceptance probability based on the Boltzmann constant.
+
+Because these interfaces are plain callables, you can write functions or classes that capture problem‑specific behaviour and pass them into SimpleSimulatedAnnealing. The optimiser does not impose any constraints on the type T, so it can handle numeric vectors, discrete structures such as permutations or user‑defined classes.
+
+## Contributing
+
+Contributions are welcome! If you find a bug, have questions or would like to add a feature, please open an issue or merge request on the project’s GitLab page. When submitting code, please ensure that:
+
+Your contributions pass the existing test suite and add tests for new functionality.
+
+Type annotations are added where appropriate. The project uses mypy
+ for static type checking.
+
+You have formatted your code with a tool such as Black
+ and run pytest to ensure tests still pass.
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE
+ file for details. In short, the license permits commercial and private use, modification and distribution, and it comes without warranty. This permissive license encourages reuse and contributions from the community.
