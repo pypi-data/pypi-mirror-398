@@ -1,0 +1,148 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adcp"
+version = "2.14.0"
+description = "Official Python client for the Ad Context Protocol (AdCP)"
+authors = [
+    {name = "AdCP Community", email = "maintainers@adcontextprotocol.org"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+keywords = ["adcp", "mcp", "a2a", "protocol", "advertising"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "httpx>=0.24.0",
+    "pydantic>=2.0.0",
+    "typing-extensions>=4.5.0",
+    "a2a-sdk>=0.3.0",
+    "mcp>=1.23.2",
+    "email-validator>=2.0.0",
+]
+
+[project.scripts]
+adcp = "adcp.__main__:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "mypy>=1.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "datamodel-code-generator[http]>=0.35.0",
+]
+docs = [
+    "pdoc3>=0.10.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/adcontextprotocol/adcp-client-python"
+Documentation = "https://docs.adcontextprotocol.org"
+Repository = "https://github.com/adcontextprotocol/adcp-client-python"
+Issues = "https://github.com/adcontextprotocol/adcp-client-python/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+adcp = ["py.typed", "ADCP_VERSION"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+extend-exclude = "/(tasks)\\.py$"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [
+    "src/adcp/types/_generated.py",
+    "src/adcp/types/tasks.py",
+    "src/adcp/types/generated_poc/",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = [
+    "E402",  # Allow imports after module docstrings
+    "UP038",  # isinstance() doesn't support X | Y syntax, only type hints do
+]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disable_error_code = ["import-not-found", "no-untyped-def", "var-annotated", "operator"]
+
+[[tool.mypy.overrides]]
+module = "tests.integration.*"
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "unit: Unit tests that don't require external services",
+    "integration: Integration tests that hit real endpoints (may be slow/flaky)",
+    "slow: Tests that take significant time to run",
+]
+# By default, skip integration tests for fast local development
+addopts = "-m 'not integration'"
+
+[tool.coverage.run]
+source = ["src/adcp"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+# Maintain current 86% coverage, fail if it drops below 80%
+fail_under = 80
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.bandit]
+exclude_dirs = ["tests", "scripts"]
+skips = ["B101"]  # Allow assert in code (we're not using -O optimization)
+
+[dependency-groups]
+dev = [
+    "datamodel-code-generator>=0.35.0",
+    "pre-commit>=4.4.0",
+]
