@@ -1,0 +1,222 @@
+Metadata-Version: 2.4
+Name: fvgtools
+Version: 0.1.1
+Summary: Data processing tools for Fundamental Vision Group (FVG) of SenseTime Co, Ltd.
+Author-email: Jianan Fan <fanjianan@sensetime.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/SenseTime-FVG
+Project-URL: Issues, https://github.com/SenseTime-FVG/uniad_data_process/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: Pillow>=10.0.0
+Requires-Dist: numpy>=1.19.5
+Requires-Dist: boto3
+Requires-Dist: requests>=2.20.0
+Requires-Dist: coloredlogs
+Requires-Dist: environs
+Requires-Dist: humanize
+Requires-Dist: multiprocessing-logging
+Dynamic: license-file
+
+# fvgtools
+
+一个实用的Python工具包，提供了文件操作、颜色打印、Ceph存储访问等常用功能。所有文件操作均支持本地路径和S3路径。
+
+## 功能特点
+
+- 📦 集成了aoss_client的安装，不用再从官网传输.tar.gz安装了
+- 🎨 彩色终端输出
+- 📁 文件读写工具（支持JSON、Pickle、JSONL、TXT，支持本地和S3路径）
+- ☁️ Ceph/S3的路径操作与相关功能
+- ⏱️ 实用装饰器（重试、计时等）
+- 🌐 完整的中文文档和错误提示
+
+## 安装
+
+```bash
+# 从云安装
+pip install fvgtools
+
+# 从本地安装
+pip install -e .
+```
+
+发布pypi源参考：https://packaging.python.org/en/latest/tutorials/packaging-projects/
+
+## 使用示例
+
+如果你prefer便捷地使用，对库中的函数比较熟悉，推荐使用以下方式：
+```python
+from fvgtools.utils import *
+# load_json("xxx")
+# color.green("xxx")
+```
+
+更加安全的使用方式：
+```python
+from fvgtools import utils
+# utils.load_json("xxx")
+# utils.color.green("xxx")
+```
+
+## 功能示例
+### 彩色输出
+
+```python
+from fvgtools.utils import color
+
+# 基础颜色
+color.red("这是红色文本")
+color.blue("这是蓝色文本")
+color.green("这是绿色文本")
+
+# 自定义颜色
+color.custom("自定义颜色", color="#ff5733")  # 使用HEX颜色
+color.custom("自定义颜色", color=(255, 87, 51))  # 使用RGB颜色
+
+# 文本样式
+color.bold("粗体文本")
+color.underline("下划线文本")
+```
+
+### 文件操作（支持本地和S3路径）
+
+```python
+from fvgtools.utils import load_json, save_json, load_pickle, save_pickle
+from fvgtools.utils import init_client
+
+# 初始化S3客户端（如果需要操作S3路径）
+client = init_client("/path/to/aoss.conf")
+
+# JSON操作
+data = load_json("config.json")  # 读取本地JSON
+data_s3 = load_json("s3://bucket/config.json", client=client)  # 读取S3上的JSON
+save_json(data, "config_new.json", verbose=True)  # 保存到本地
+save_json(data, "s3://bucket/config_new.json", client=client, verbose=True)  # 保存到S3
+
+# Pickle操作
+obj = load_pickle("data.pkl")  # 读取本地Pickle
+obj_s3 = load_pickle("s3://bucket/data.pkl", client=client)  # 读取S3上的Pickle
+save_pickle(obj, "data_new.pkl", verbose=True)  # 保存到本地
+save_pickle(obj, "s3://bucket/data_new.pkl", client=client, verbose=True)  # 保存到S3
+
+# 文本文件操作（仅支持本地文件）
+from fvgtools.utils import load_txt_as_lines, save_lines_to_txt
+lines = load_txt_as_lines("input.txt")
+save_lines_to_txt(lines, "output.txt")
+```
+
+针对JSONL文件，提供了两种读取和存储方式（均支持本地和S3路径）：
+
+1. 列表方式（自动解析JSON）：
+```python
+# JSONL操作
+from fvgtools.utils import load_jsonl_as_list, save_list_to_jsonl
+
+# 读取JSONL文件，每行解析为一个JSON对象
+data_list = load_jsonl_as_list("data.jsonl")  # 本地JSONL
+data_list_s3 = load_jsonl_as_list("s3://bucket/data.jsonl", client=client)  # S3上的JSONL
+
+# 将列表保存为JSONL文件，每个元素转为一行JSON
+save_list_to_jsonl(data_list, "output.jsonl")
+save_list_to_jsonl(data_list, "s3://bucket/output.jsonl", client=client)
+```
+
+2. 字符串行方式（保持原始格式）：
+```python
+from fvgtools.utils import load_jsonl_as_lines, save_lines_to_jsonl
+
+# 读取JSONL文件，保持每行的原始字符串格式
+lines = load_jsonl_as_lines("data.jsonl")  # 本地文件
+lines_s3 = load_jsonl_as_lines("s3://bucket/data.jsonl", client=client)  # S3文件
+
+# 直接保存字符串行，不进行JSON解析
+save_lines_to_jsonl(lines, "output.jsonl")  # 保存到本地
+save_lines_to_jsonl(lines, "s3://bucket/output.jsonl", client=client)  # 保存到S3
+```
+
+特别地，针对S3文件的操作支持跨host base操作，可以在不同的存储集群之间传输数据：
+```python
+# 从section1配置的存储集群读取数据
+data = load_jsonl_as_list("section1:s3://bucket/data.jsonl", client=client)
+
+# 保存到section2配置的存储集群
+save_list_to_jsonl(data, "section2:s3://bucket/data.jsonl", client=client)
+```
+依此类推。这为例如从公有云读取M集群数据，并存储到福建集群，这样的场景提供了便利。
+
+### Ceph/S3的相关操作
+目前主要支持了路径的转换，快速切分桶名和剩余路径；支持多种路径格式的加载图片函数。
+```python
+from fvgtools.utils import general_load_image
+from fvgtools.utils import s3path_to_ads, ads_to_s3path
+
+# 加载图片，此处可以是本地路径，numpy.array，也可以是S3路径
+image = general_load_image("s3://bucket/image.jpg")
+
+# S3路径转换
+ads_path = s3path_to_ads("s3://bucket/file.txt")
+s3_path = ads_to_s3path(ads_path)
+
+# 快速获取桶与剩余路径
+bucket_name, path_left = split_s3path("s3://bucket/file.txt")
+```
+
+### 装饰器
+
+```python
+from fvgtools.utils import retry, timer
+
+# 重试装饰器
+@retry(times=3)
+def may_fail_function():
+    # 可能会失败的函数
+    pass
+
+# 计时装饰器
+@timer
+def slow_function():
+    # 耗时的操作
+    pass
+```
+
+## 目录结构
+
+```
+fvgtools/
+    ├── __init__.py
+    └── utils/
+        ├── __init__.py
+        ├── color.py（颜色打印工具）
+        ├── ceph_related.py（Ceph存储相关功能）
+        ├── load_save.py（文件读写功能）
+        └── decorators.py（装饰器工具）
+```
+
+## 特性
+
+- 统一的文件操作接口，无缝支持本地文件和S3路径
+- 智能路径识别，自动判断是本地路径还是S3路径
+- 丰富的颜色输出选项，支持RGB和HEX颜色代码
+- 完整的中文错误提示和文档
+- 简单易用的API设计
+- 实用的装饰器工具集
+
+## 注意事项
+
+- S3操作需要正确配置AOSS配置文件
+- 使用S3路径时需要提供已初始化的client参数
+- 颜色输出功能依赖于终端的ANSI支持
+- 图片操作需要安装PIL库
+- 建议在使用前查看相关函数的文档字符串了解详细用法
+
+## 贡献
+
+欢迎提交Issue和Pull Request来帮助改进这个工具包。
+
+## 许可证
+
+MIT License 
