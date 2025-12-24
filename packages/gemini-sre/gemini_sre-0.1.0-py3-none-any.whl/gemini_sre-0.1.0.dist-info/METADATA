@@ -1,0 +1,525 @@
+Metadata-Version: 2.4
+Name: gemini-sre
+Version: 0.1.0
+Summary: Example of Production-ready Google Gemini API wrapper with SRE features
+Author: Giorgio C
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/miticojo/gemini-sre-client
+Project-URL: Documentation, https://github.com/miticojo/gemini-sre-client/blob/main/README.md
+Project-URL: Repository, https://github.com/miticojo/gemini-sre-client
+Project-URL: Issues, https://github.com/miticojo/gemini-sre-client/issues
+Keywords: gemini,google,ai,llm,sre,reliability,monitoring,retry,circuit-breaker
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+License-File: LICENSE_GUIDE.md
+Requires-Dist: google-genai>=1.56.0
+Requires-Dist: google-cloud-monitoring>=2.27.0
+Requires-Dist: google-cloud-logging>=3.12.0
+Requires-Dist: pydantic<3.0.0,>=2.12.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: pytest-mock>=3.15.1; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: isort>=5.13.2; extra == "dev"
+Requires-Dist: ruff>=0.8.4; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: bandit>=1.7.10; extra == "dev"
+Requires-Dist: pre-commit>=4.0.0; extra == "dev"
+Provides-Extra: dashboards
+Requires-Dist: google-cloud-monitoring-dashboards>=2.18.0; extra == "dashboards"
+Dynamic: license-file
+
+# Building an Enterprise-Ready Gemini Client
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+
+This repository provides a production-ready Python client for the Google Gemini API, serving as a comprehensive example for building robust, enterprise-grade LLM services. It includes key SRE principles like automatic retries, multi-region failover, a circuit breaker pattern, and deep integration with Google Cloud's observability suite (Monitoring and Logging).
+
+## ✨ Features
+
+- ✅ **Automatic Retry with Exponential Backoff** - Resilient API calls with configurable retry logic
+- ✅ **Multi-Region Failover** - Automatic region switching on failures for high availability
+- ✅ **Circuit Breaker Pattern** - Intelligent region health tracking to avoid wasting time/quota on failing regions
+- ✅ **Cloud Monitoring Integration** - Custom metrics for latency, retry count, success/failure rates
+- ✅ **Structured Output** - Type-safe responses with Pydantic schema validation
+- ✅ **Structured Logging** - Integration with Google Cloud Logging
+- ✅ **Async Support** - Full async/await support with AsyncGeminiSREClient
+- ✅ **Production Ready** - Comprehensive error handling and observability
+- ✅ **File Operations** - Upload and manage files with automatic deduplication
+
+## 📁 Project Structure
+
+```
+gemini-sre-client/
+├── gemini_sre/              # Main package
+│   ├── client.py            # Synchronous client
+│   ├── async_client.py      # Asynchronous client
+│   ├── core/                # Core functionality
+│   │   ├── circuit_breaker.py
+│   │   ├── retry.py
+│   │   ├── monitoring.py
+│   │   ├── logging.py
+│   │   ├── deduplication.py
+│   │   └── streaming.py
+│   └── proxies/             # SDK proxies
+│       ├── models.py
+│       ├── chats.py
+│       ├── files.py
+│       └── async_*.py       # Async versions
+├── examples/                # 16 working examples
+│   ├── basic/               # 4 basic examples
+│   ├── advanced/            # 5 advanced examples
+│   ├── async/               # 4 async examples
+│   └── production/          # 3 production examples
+├── tests/                   # Test suite
+│   ├── unit/                # Unit tests
+│   └── integration/         # Integration tests
+├── docs/                    # Documentation
+│   ├── api/                 # API reference
+│   ├── architecture/        # Technical docs
+│   └── development/         # Dev docs
+├── README.md                # This file
+├── SETUP.md                 # Setup instructions
+├── setup.py                 # Package configuration
+└── requirements.txt         # Dependencies
+```
+
+## 🚀 Quick Start
+
+### 1. Installation
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd gemini-computer-use
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # macOS/Linux
+# .venv\Scripts\activate   # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure authentication
+gcloud auth application-default login
+```
+
+### 2. Configuration
+
+Copy the environment template and configure your project:
+
+```bash
+# Copy template
+cp .env.example .env.local
+
+# Edit .env.local and set your project ID
+echo "GOOGLE_CLOUD_PROJECT=your-project-id" > .env.local
+```
+
+See [SETUP.md](SETUP.md) for detailed setup instructions.
+
+### 3. Run Your First Example
+
+```bash
+# Run basic generation example
+.venv/bin/python examples/basic/01_simple_generation.py
+
+# Try streaming
+.venv/bin/python examples/basic/02_streaming.py
+
+# Explore all examples
+ls examples/
+```
+
+## 📖 Usage
+
+### Basic Content Generation
+
+```python
+import os
+from dotenv import load_dotenv
+from gemini_sre import GeminiSREClient
+
+# Load environment variables
+load_dotenv('.env.local', override=True)
+
+# Initialize client
+client = GeminiSREClient(
+    project_id=os.getenv("GOOGLE_CLOUD_PROJECT"),
+    locations=["us-central1", "europe-west1"],
+    enable_monitoring=False,  # Set to True if you have IAM role
+    enable_logging=False,     # Set to True if you have IAM role
+)
+
+# Generate content
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="Explain quantum computing in simple terms",
+    request_id="example-001",
+)
+
+print(response.text)
+```
+
+### Streaming Responses
+
+```python
+# Stream content for real-time display
+for chunk in client.models.generate_content_stream(
+    model="gemini-2.5-flash",
+    contents="Write a story about a robot learning to paint",
+    request_id="stream-001",
+):
+    print(chunk.text, end="", flush=True)
+```
+
+### Chat Operations
+
+```python
+# Create chat session with context preservation
+chat = client.chats.create(
+    model="gemini-2.5-flash",
+    request_id="chat-001",
+)
+
+# Send messages
+response1 = chat.send_message("Hello! My name is Alice.")
+response2 = chat.send_message("What's my name?")  # Model remembers!
+print(response2.text)  # "Your name is Alice"
+```
+
+### Structured Output with Pydantic
+
+```python
+from pydantic import BaseModel, Field
+from typing import List
+
+# Define your schema
+class Recipe(BaseModel):
+    name: str = Field(description="Recipe name")
+    ingredients: List[str] = Field(description="List of ingredients")
+    steps: List[str] = Field(description="Cooking steps")
+    cooking_time: int = Field(description="Time in minutes")
+
+# Generate structured output
+recipe = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="Give me a recipe for chocolate chip cookies",
+    config={
+        "response_mime_type": "application/json",
+        "response_schema": Recipe,
+    },
+    request_id="recipe-001",
+)
+
+# Access typed fields
+print(recipe.parsed.name)
+print(recipe.parsed.ingredients)
+```
+
+### Async Operations
+
+```python
+import asyncio
+from gemini_sre import AsyncGeminiSREClient
+
+async def main():
+    # Create async client
+    client = AsyncGeminiSREClient(
+        project_id=os.getenv("GOOGLE_CLOUD_PROJECT"),
+        locations=["us-central1"],
+    )
+
+    # Async generation
+    response = await client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents="Explain async programming",
+        request_id="async-001",
+    )
+
+    print(response.text)
+
+asyncio.run(main())
+```
+
+### Concurrent Requests (4.47x Faster!)
+
+```python
+import asyncio
+
+async def make_requests():
+    client = AsyncGeminiSREClient(
+        project_id=os.getenv("GOOGLE_CLOUD_PROJECT"),
+        locations=["us-central1"],
+    )
+
+    # Run 5 requests concurrently
+    tasks = [
+        client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=f"What is {topic}?",
+            request_id=f"req-{i}",
+        )
+        for i, topic in enumerate(["Python", "JavaScript", "Go", "Rust", "TypeScript"])
+    ]
+
+    # Wait for all to complete
+    results = await asyncio.gather(*tasks)
+    return results
+
+# Sequential: ~65s, Concurrent: ~15s (4.47x faster!)
+asyncio.run(make_requests())
+```
+
+## 📚 Examples
+
+We provide 16 comprehensive examples organized by complexity:
+
+### Basic Examples (4)
+- **[01 - Simple Generation](examples/basic/01_simple_generation.py)** - Basic content generation
+- **[02 - Streaming](examples/basic/02_streaming.py)** - Real-time streaming responses
+- **[03 - Chat Operations](examples/basic/03_chat_operations.py)** - Stateful conversations
+- **[04 - Structured Output](examples/basic/04_structured_output.py)** - Pydantic schema validation
+
+### Advanced Examples (5)
+- **[01 - Multi-Region](examples/advanced/01_multi_region.py)** - Multi-region failover
+- **[02 - Circuit Breaker](examples/advanced/02_circuit_breaker.py)** - Circuit breaker pattern
+- **[03 - Custom Retry](examples/advanced/03_custom_retry.py)** - Custom retry strategies
+- **[04 - Monitoring](examples/advanced/04_monitoring.py)** - Cloud Monitoring integration
+- **[05 - File Operations](examples/advanced/05_file_operations.py)** - File upload/management
+
+### Async Examples (4)
+- **[01 - Async Basic](examples/async/01_async_basic.py)** - Basic async operations
+- **[02 - Async Streaming](examples/async/02_async_streaming.py)** - Async streaming
+- **[03 - Concurrent Requests](examples/async/03_concurrent_requests.py)** - Parallel requests (4.47x speedup!)
+- **[04 - Async Chat](examples/async/04_async_chat.py)** - Async chat sessions
+
+### Production Examples (3)
+- **[01 - Error Handling](examples/production/01_error_handling.py)** - Comprehensive error patterns
+- **[02 - Logging Setup](examples/production/02_logging_setup.py)** - Logging configuration
+- **[03 - Best Practices](examples/production/03_best_practices.py)** - Production deployment guide
+
+See [examples/README.md](examples/README.md) for detailed descriptions.
+
+## 🔧 Configuration
+
+### Environment Variables
+
+The client uses standard Google Cloud environment variables for consistency with the genai SDK:
+
+- `GOOGLE_CLOUD_PROJECT` - Your GCP project ID (required)
+- `GOOGLE_CLOUD_LOCATION` - Default region (optional)
+- `GEMINI_ENABLE_MONITORING` - Enable metrics (optional)
+- `GEMINI_ENABLE_LOGGING` - Enable logging (optional)
+
+### Client Configuration
+
+```python
+from gemini_sre import GeminiSREClient
+from gemini_sre.core import RetryConfig
+
+# Full configuration example
+client = GeminiSREClient(
+    project_id=os.getenv("GOOGLE_CLOUD_PROJECT"),
+    locations=["us-central1", "europe-west1", "asia-northeast1"],
+
+    # Monitoring & Logging
+    enable_monitoring=True,   # Requires roles/monitoring.metricWriter
+    enable_logging=True,      # Requires roles/logging.logWriter
+
+    # Retry Configuration
+    retry_config=RetryConfig(
+        max_attempts=5,
+        initial_delay=1.0,
+        max_delay=16.0,
+        multiplier=2.0,
+    ),
+
+    # Circuit Breaker
+    enable_circuit_breaker=True,
+    circuit_breaker_config={
+        "failure_threshold": 5,
+        "success_threshold": 2,
+        "timeout": 60,
+    },
+)
+```
+
+## 📊 Monitoring & Observability
+
+### Cloud Monitoring Metrics
+
+The client automatically sends custom metrics to Cloud Monitoring (when enabled):
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `gemini_sre/request/success` | COUNTER | Successful requests |
+| `gemini_sre/request/error` | COUNTER | Failed requests |
+| `gemini_sre/request/latency` | DISTRIBUTION | Request latency (p50, p95, p99) |
+| `gemini_sre/request/retry_count` | GAUGE | Retry attempts per request |
+| `gemini_sre/circuit_breaker/state` | GAUGE | Circuit breaker state |
+
+All metrics include labels: `location`, `model`, `operation_type`
+
+### Cloud Logging
+
+Structured logs include:
+- Request ID for correlation
+- Latency and retry counts
+- Region information
+- Error details
+- Success/failure status
+
+View logs in [Cloud Console](https://console.cloud.google.com/logs).
+
+## 🔐 IAM Permissions
+
+**Minimum Required:**
+- `roles/aiplatform.user` - Vertex AI API access
+
+**Optional (for full features):**
+- `roles/monitoring.metricWriter` - Cloud Monitoring metrics
+- `roles/logging.logWriter` - Cloud Logging integration
+
+Set up IAM roles:
+```bash
+# Grant minimum role
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+    --member="user:your-email@example.com" \
+    --role="roles/aiplatform.user"
+```
+
+## 📖 Documentation
+
+- **[Setup Guide](SETUP.md)** - Detailed installation and configuration
+- **[API Reference](docs/api/README.md)** - Complete API documentation
+- **[Architecture Docs](docs/architecture/)** - Technical design and decisions
+- **[Development Guide](docs/development/)** - For contributors
+- **[Examples](examples/)** - 16 working code examples
+
+## 🧪 Testing
+
+```bash
+# Run unit tests
+pytest tests/unit/ -v
+
+# Run integration tests (requires GCP credentials)
+pytest tests/integration/ -v
+
+# Run specific test
+pytest tests/unit/test_circuit_breaker.py -v
+```
+
+## 🏗️ Multi-Region Failover
+
+The client automatically switches regions on failures:
+
+1. **Primary Region** - Tries configured primary (e.g., `us-central1`)
+2. **Failover** - Switches to next region on error
+3. **Circuit Breaker** - Opens circuit for failing regions (skips them)
+4. **Recovery** - Tests region health after timeout
+5. **Auto-Close** - Closes circuit when region recovers
+
+**Circuit Breaker States:**
+- **CLOSED** (✅) - Normal operation, region healthy
+- **OPEN** (🔴) - Region failing, automatically skipped
+- **HALF_OPEN** (🟡) - Testing if region recovered
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+**Permission Denied:**
+```bash
+# Verify authentication
+gcloud auth application-default login
+
+# Check project
+gcloud config get-value project
+
+# Verify IAM roles
+gcloud projects get-iam-policy YOUR_PROJECT_ID
+```
+
+**Module Not Found:**
+```bash
+# Install in development mode
+pip install -e .
+```
+
+**Import Errors:**
+```python
+# Correct import
+from gemini_sre import GeminiSREClient  # ✅ Correct
+
+# Incorrect import
+from gemini_client import GeminiClient  # ❌ Old name
+```
+
+See [SETUP.md](SETUP.md) for more troubleshooting tips.
+
+## 📦 Dependencies
+
+Core dependencies:
+```
+google-genai>=1.42.0              # Gemini API SDK
+google-cloud-monitoring>=2.27.0   # Custom metrics
+google-cloud-logging>=3.12.0      # Structured logging
+pydantic>=2.12.0,<3.0.0          # Schema validation
+python-dotenv>=1.0.0             # Environment management
+```
+
+See [requirements.txt](requirements.txt) for full list.
+
+## 🔗 Useful Links
+
+### Google Gemini
+- [Official Docs](https://ai.google.dev/gemini-api/docs)
+- [Python SDK](https://github.com/google/generative-ai-python)
+- [API Reference](https://ai.google.dev/api/python)
+
+### Pydantic
+- [Official Docs](https://docs.pydantic.dev/latest/)
+- [BaseModel](https://docs.pydantic.dev/latest/concepts/models/)
+- [Field Types](https://docs.pydantic.dev/latest/concepts/fields/)
+
+### Google Cloud
+- [Monitoring Docs](https://cloud.google.com/monitoring/docs)
+- [Logging Docs](https://cloud.google.com/logging/docs)
+- [IAM Docs](https://cloud.google.com/iam/docs)
+
+## 🤝 Contributing
+
+Contributions are welcome! Please see our development documentation:
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new features
+4. Ensure all tests pass
+5. Submit a pull request
+
+See [docs/development/](docs/development/) for contributor guidelines.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+**TL;DR**: You can freely use, modify, and distribute this code in commercial or non-commercial projects with no restrictions. The author provides no warranty and accepts no liability.
+
+For more information about the license, including what you can and cannot do, see [LICENSE_GUIDE.md](LICENSE_GUIDE.md).
+
+---
+
+**Ready to get started?** Check out [SETUP.md](SETUP.md) for detailed setup instructions, or dive into [examples/](examples/) to see working code!
