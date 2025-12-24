@@ -1,0 +1,18 @@
+from rest_framework import viewsets, permissions, filters
+from django_filters.rest_framework import DjangoFilterBackend
+from .models import Todo
+from .serializers import TodoSerializer
+
+class TodoViewSet(viewsets.ModelViewSet):
+    serializer_class = TodoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_completed']
+    search_fields = ['title', 'description']
+    ordering_fields = ['created_at', 'is_completed']
+
+    def get_queryset(self):
+        return Todo.objects.filter(owner=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
