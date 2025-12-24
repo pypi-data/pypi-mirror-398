@@ -1,0 +1,656 @@
+---
+description: Advanced agent patterns - streaming, orchestration, LiteLLM, tracing, and usage
+globs: 
+alwaysApply: false
+---
+# Agent Patterns & Advanced Features
+
+This rule covers advanced patterns, streaming, multi-model support, and operational concerns. **Always refer to `agent-services.mdc` first** - these patterns work within that structure.
+
+---
+
+## Orchestration: Manager vs Handoffs
+
+There are two main approaches to multi-agent coordination. **We prefer the Manager pattern** for predictable, linear workflows.
+
+### Manager Pattern (Preferred)
+
+The manager orchestrates agents in a controlled, sequential flow. Each agent completes its task before the next begins.
+
+```python
+class ResearchManager:
+    async def run(self, query: str) -> Report:
+        # Linear flow - manager controls everything
+        plan = await self._plan(query)           # Step 1
+        results = await self._search(plan)       # Step 2
+        report = await self._write(results)      # Step 3
+        return report
+```
+
+**Advantages:**
+- Predictable execution order
+- Easy to debug and trace
+- Clear progress tracking
+- Deterministic costs/latency
+
+### Handoff Pattern
+
+Agents delegate control to other agents dynamically. The LLM decides the flow.
+
+```python
+from agents import Agent
+
+billing_agent = Agent(name="Billing", instructions="Handle billing")
+support_agent = Agent(name="Support", instructions="Handle support")
+
+triage_agent = Agent(
+    name="Triage",
+    instructions="Route to the right specialist",
+    handoffs=[billing_agent, support_agent],
+)
+```
+
+**Use handoffs sparingly** - they're best for:
+- User-facing triage (routing to specialists)
+- Dynamic task delegation where flow can't be predetermined
+- Escalation patterns
+
+### Combining Both: Handoffs Within Manager Flow
+
+Use handoffs **inside** a manager step when you need dynamic routing within a controlled phase:
+
+```python
+class CustomerServiceManager:
+    async def run(self, query: str) -> Response:
+        # Phase 1: Triage (uses handoffs internally)
+        specialist_response = await self._triage_and_handle(query)
+        
+        # Phase 2: Quality check (manager control resumes)
+        final = await self._quality_check(specialist_response)
+        
+        return final
+    
+    async def _triage_and_handle(self, query: str) -> str:
+        # This phase uses handoffs - LLM picks the specialist
+        result = await Runner.run(self.triage_agent, query)
+        return result.final_output
+```
+
+---
+
+## Agents as Tools
+
+Use agents as tools when the orchestrator needs to retain control while delegating subtasks.
+
+### Basic Pattern
+
+```python
+from agents import Agent
+
+translator_agent = Agent(
+    name="Translator",
+    instructions="Translate text to the requested language",
+)
+
+orchestrator = Agent(
+    name="Orchestrator",
+    instructions="Handle translation requests using your tools",
+    tools=[
+        translator_agent.as_tool(
+            tool_name="translate",
+            tool_description="Translate text to another language",
+        ),
+    ],
+)
+```
+
+### Custom Output Extraction
+
+Extract specific data from the sub-agent's result:
+
+```python
+from agents import RunResult
+
+async def extract_summary(run_result: RunResult) -> str:
+    """Extract just the summary from a detailed response."""
+    return run_result.final_output.summary
+
+research_tool = research_agent.as_tool(
+    tool_name="research",
+    tool_description="Research a topic",
+    custom_output_extractor=extract_summary,
+)
+```
+
+### Services as Tools
+
+You can wrap entire services (managers) as tools. **Note: This can be time-consuming** since you're running a full workflow as a single tool call.
+
+```python
+from agents import function_tool
+from ..research_agents.manager import ResearchManager
+
+@function_tool
+async def run_research_service(query: str) -> str:
+    """Run the full research service on a query.
+    
+    Args:
+        query: The research question to investigate.
+    
+    Note: This runs a complete multi-agent workflow and may take time.
+    """
+    manager = ResearchManager()
+    result = await manager.run(query)
+    return result.summary
+
+# Use in an orchestrator
+meta_orchestrator = Agent(
+    name="MetaOrchestrator",
+    instructions="Coordinate multiple services",
+    tools=[run_research_service],
+)
+```
+
+---
+
+## Streaming
+
+Streaming provides real-time feedback during agent execution. Essential for user-facing applications.
+
+### Basic Streaming
+
+```python
+from agents import Agent, Runner
+
+agent = Agent(name="Writer", instructions="Write detailed content")
+
+async def stream_response(query: str):
+    result = Runner.run_streamed(agent, query)
+    
+    async for event in result.stream_events():
+        if event.type == "raw_response_event":
+            # Raw LLM tokens
+            if hasattr(event.data, 'delta') and hasattr(event.data.delta, 'content'):
+                print(event.data.delta.content, end="", flush=True)
+        
+        elif event.type == "run_item_stream_event":
+            # Structured items: tool calls, messages, etc.
+            item = event.item
+            if hasattr(item, 'type'):
+                print(f"\n[{item.type}]")
+    
+    # After streaming, result has complete data
+    return result.final_output
+```
+
+### Streaming with Progress Updates
+
+```python
+async def stream_with_progress(query: str, update_ui: Callable):
+    result = Runner.run_streamed(agent, query)
+    
+    collected_text = ""
+    async for event in result.stream_events():
+        if event.type == "raw_response_event":
+            delta = getattr(event.data, 'delta', None)
+            if delta and hasattr(delta, 'content') and delta.content:
+                collected_text += delta.content
+                update_ui(partial_text=collected_text)
+        
+        elif event.type == "run_item_stream_event":
+            if hasattr(event.item, 'type') and event.item.type == "tool_call":
+                update_ui(status=f"Using tool: {event.item.name}")
+    
+    return result.final_output
+```
+
+### Streaming in Manager Pattern
+
+Integrate streaming into your manager's final phase:
+
+```python
+class ServiceManager:
+    async def _write_streamed(self, data: str, on_token: Callable[[str], None]) -> Report:
+        """Write report with streaming output."""
+        result = Runner.run_streamed(writer_agent, data)
+        
+        async for event in result.stream_events():
+            if event.type == "raw_response_event":
+                delta = getattr(event.data, 'delta', None)
+                if delta and hasattr(delta, 'content') and delta.content:
+                    on_token(delta.content)
+        
+        return result.final_output_as(Report)
+```
+
+### Streaming from Nested Agents (Agent Tools)
+
+Stream events from agents used as tools:
+
+```python
+from agents import AgentToolStreamEvent
+
+async def handle_nested_stream(event: AgentToolStreamEvent) -> None:
+    print(f"[{event['agent']['name']}] {event['event'].type}")
+
+research_tool = research_agent.as_tool(
+    tool_name="research",
+    tool_description="Research a topic",
+    on_stream=handle_nested_stream,  # Receive nested stream events
+)
+```
+
+---
+
+## Parallel Execution
+
+Run independent tasks concurrently for faster execution.
+
+### Basic Parallel Pattern
+
+```python
+import asyncio
+from agents import Runner
+
+async def parallel_search(queries: list[str]) -> list[str]:
+    """Search multiple queries in parallel."""
+    tasks = [
+        asyncio.create_task(Runner.run(search_agent, q))
+        for q in queries
+    ]
+    
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    return [
+        r.final_output if not isinstance(r, Exception) else f"Error: {r}"
+        for r in results
+    ]
+```
+
+### Parallel with Progress Tracking
+
+```python
+async def parallel_with_progress(
+    items: list[str],
+    on_progress: Callable[[int, int], None],
+) -> list[str]:
+    """Execute in parallel with progress updates."""
+    tasks = [asyncio.create_task(self._process(item)) for item in items]
+    results = []
+    completed = 0
+    
+    for task in asyncio.as_completed(tasks):
+        result = await task
+        results.append(result)
+        completed += 1
+        on_progress(completed, len(tasks))
+    
+    return results
+```
+
+### Parallel in Manager Pattern
+
+```python
+class ResearchManager:
+    async def _perform_searches(self, plan: SearchPlan) -> list[str]:
+        """Execute searches in parallel."""
+        tasks = [
+            asyncio.create_task(self._search(item))
+            for item in plan.searches
+        ]
+        
+        results = []
+        for task in asyncio.as_completed(tasks):
+            result = await task
+            if result is not None:
+                results.append(result)
+        
+        return results
+    
+    async def _search(self, item: SearchItem) -> str | None:
+        """Single search with error handling."""
+        try:
+            result = await Runner.run(search_agent, item.query)
+            return str(result.final_output)
+        except Exception:
+            return None  # Skip failed searches
+```
+
+---
+
+## Tracing
+
+Tracing captures all events for debugging and monitoring.
+
+### Basic Tracing
+
+```python
+from agents import Runner, trace, gen_trace_id
+
+async def run_with_tracing(query: str):
+    trace_id = gen_trace_id()
+    
+    with trace("My Workflow", trace_id=trace_id):
+        result = await Runner.run(agent, query)
+        print(f"Trace: https://platform.openai.com/traces/trace?trace_id={trace_id}")
+        return result
+```
+
+### Custom Spans
+
+Add custom spans for specific operations:
+
+```python
+from agents import trace, custom_span, gen_trace_id
+
+async def complex_workflow(query: str):
+    trace_id = gen_trace_id()
+    
+    with trace("Complex Workflow", trace_id=trace_id):
+        with custom_span("Planning Phase"):
+            plan = await self._plan(query)
+        
+        with custom_span("Execution Phase"):
+            results = await self._execute(plan)
+        
+        with custom_span("Writing Phase"):
+            report = await self._write(results)
+        
+        return report
+```
+
+### Tracing Configuration
+
+```python
+from agents import set_tracing_disabled, set_tracing_export_api_key, RunConfig
+
+# Disable tracing globally
+set_tracing_disabled(True)
+
+# Disable for single run
+result = await Runner.run(
+    agent,
+    query,
+    run_config=RunConfig(tracing_disabled=True),
+)
+
+# Use separate API key for tracing (useful with non-OpenAI models)
+set_tracing_export_api_key("sk-your-openai-key")
+```
+
+### Trace Metadata
+
+Add metadata for filtering and organization:
+
+```python
+result = await Runner.run(
+    agent,
+    query,
+    run_config=RunConfig(
+        workflow_name="Research Bot",
+        trace_id=gen_trace_id(),
+        group_id="user_123",  # Group related traces
+        trace_metadata={"environment": "production"},
+    ),
+)
+```
+
+---
+
+## Usage Tracking
+
+Track token usage and costs.
+
+### Basic Usage Tracking
+
+```python
+from agents import Runner, RunResult
+
+async def run_with_usage(query: str) -> tuple[str, dict]:
+    result = await Runner.run(agent, query)
+    
+    usage = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+    }
+    
+    for response in result.raw_responses:
+        if hasattr(response, 'usage') and response.usage:
+            usage["input_tokens"] += response.usage.input_tokens
+            usage["output_tokens"] += response.usage.output_tokens
+    
+    return result.final_output, usage
+```
+
+### Usage in Manager Pattern
+
+```python
+class ServiceManager:
+    def __init__(self):
+        self.total_usage = {"input_tokens": 0, "output_tokens": 0}
+    
+    async def run(self, query: str) -> Report:
+        with trace("Workflow"):
+            plan = await self._plan(query)
+            results = await self._execute(plan)
+            report = await self._write(results)
+        
+        return report
+    
+    def _track_usage(self, result: RunResult):
+        for response in result.raw_responses:
+            if hasattr(response, 'usage') and response.usage:
+                self.total_usage["input_tokens"] += response.usage.input_tokens
+                self.total_usage["output_tokens"] += response.usage.output_tokens
+    
+    async def _plan(self, query: str):
+        result = await Runner.run(planner_agent, query)
+        self._track_usage(result)
+        return result.final_output
+```
+
+---
+
+## LiteLLM Integration
+
+Use any model from any provider with LiteLLM.
+
+### Installation
+
+```bash
+pip install "openai-agents[litellm]"
+```
+
+### Basic Usage
+
+```python
+from agents import Agent
+
+# Use Anthropic Claude 4.5
+claude_agent = Agent(
+    name="Claude Agent",
+    model="litellm/anthropic/claude-sonnet-4-5-20250929",
+    instructions="You are a helpful assistant",
+)
+
+# Use Google Gemini 3
+gemini_agent = Agent(
+    name="Gemini Agent",
+    model="litellm/gemini/gemini-3-flash",
+    instructions="You are a helpful assistant",
+)
+
+# Use xAI Grok 4.1
+grok_agent = Agent(
+    name="Grok Agent",
+    model="litellm/xai/grok-4.1-fast",
+    instructions="You are a helpful assistant",
+)
+
+# Use OpenRouter (access any model via single API)
+openrouter_agent = Agent(
+    name="OpenRouter Agent",
+    model="litellm/openrouter/anthropic/claude-sonnet-4.5",
+    instructions="You are a helpful assistant",
+)
+
+# Use local Ollama
+local_agent = Agent(
+    name="Local Agent",
+    model="litellm/ollama/llama4-maverick",
+    instructions="You are a helpful assistant",
+)
+```
+
+### With API Keys
+
+```python
+import os
+from agents import Agent
+
+# Set provider API keys (environment variables)
+os.environ["ANTHROPIC_API_KEY"] = "your-key"
+os.environ["GEMINI_API_KEY"] = "your-key"
+os.environ["XAI_API_KEY"] = "your-key"
+os.environ["OPENROUTER_API_KEY"] = "your-key"
+
+claude_agent = Agent(
+    name="Claude",
+    model="litellm/anthropic/claude-sonnet-4-5-20250929",
+)
+```
+
+### Mixing Models in a Workflow
+
+```python
+from agents import Agent, Runner
+
+# Use different models for different tasks
+planner = Agent(
+    name="Planner",
+    model="gpt-5",  # OpenAI for planning
+    instructions="Create execution plans",
+)
+
+executor = Agent(
+    name="Executor", 
+    model="litellm/anthropic/claude-sonnet-4-5-20250929",  # Claude 4.5 for execution
+    instructions="Execute the plan",
+)
+
+researcher = Agent(
+    name="Researcher",
+    model="litellm/gemini/gemini-3-pro",  # Gemini 3 for research
+    instructions="Research the topic",
+)
+
+fast_agent = Agent(
+    name="FastAgent",
+    model="litellm/xai/grok-4.1-fast",  # Grok for speed-critical tasks
+    instructions="Quick analysis",
+)
+
+writer = Agent(
+    name="Writer",
+    model="gpt-5.2",  # Best OpenAI for final output
+    instructions="Write the final report",
+)
+```
+
+### Tracing with Non-OpenAI Models
+
+When using LiteLLM, set an OpenAI key for tracing:
+
+```python
+from agents import Agent, set_tracing_export_api_key
+
+# Use OpenAI key just for tracing (free)
+set_tracing_export_api_key("sk-your-openai-key")
+
+# Now LiteLLM agents will still get traced
+claude_agent = Agent(
+    name="Claude",
+    model="litellm/anthropic/claude-sonnet-4-5-20250929",
+)
+
+gemini_agent = Agent(
+    name="Gemini",
+    model="litellm/gemini/gemini-3-flash",
+)
+```
+
+### Common LiteLLM Providers & Models
+
+| Provider | Model String | Docs |
+|----------|-------------|------|
+| **Anthropic** | `litellm/anthropic/claude-sonnet-4-5-20250929` | [Anthropic Docs](https://docs.litellm.ai/docs/providers/anthropic) |
+| Anthropic | `litellm/anthropic/claude-opus-4-5-20251101` | |
+| **Google Gemini** | `litellm/gemini/gemini-3-flash` | [Gemini Docs](https://docs.litellm.ai/docs/providers/gemini) |
+| Google Gemini | `litellm/gemini/gemini-3-pro` | |
+| **xAI (Grok)** | `litellm/xai/grok-4.1-fast` | [xAI Docs](https://docs.litellm.ai/docs/providers/xai) |
+| xAI (Grok) | `litellm/xai/grok-4.1` | |
+| **OpenRouter** | `litellm/openrouter/anthropic/claude-sonnet-4.5` | [OpenRouter Docs](https://docs.litellm.ai/docs/providers/openrouter) |
+| OpenRouter | `litellm/openrouter/google/gemini-3-pro` | |
+| **Ollama (Local)** | `litellm/ollama/llama4-maverick` | [Ollama Docs](https://docs.litellm.ai/docs/providers/ollama) |
+| Ollama (Local) | `litellm/ollama/qwen3` | |
+| Ollama (Local) | `litellm/ollama/deepseek-r1` | |
+
+> **Note:** OpenRouter is great for accessing multiple providers through a single API key. Check [LiteLLM Providers](https://docs.litellm.ai/docs/providers) for the full list of 100+ supported providers.
+
+### Limitations with Non-OpenAI Models
+
+Be aware of feature differences:
+
+- **Structured outputs**: Some providers don't support JSON schema
+- **Tools**: Tool calling support varies by provider
+- **Streaming**: May behave differently
+- **Multimodal**: Image support varies
+
+```python
+# For providers without structured output support
+from agents import AgentOutputSchema
+
+agent = Agent(
+    name="Flexible Agent",
+    model="litellm/some-provider/model",
+    output_type=AgentOutputSchema(MyModel, strict_json_schema=False),
+)
+```
+
+---
+
+## Best Practices Summary
+
+### Orchestration
+- **Use Manager pattern** for predictable, linear workflows
+- **Use Handoffs** only for dynamic routing (triage, escalation)
+- **Combine both**: Handoffs within manager phases when needed
+
+### Streaming
+- Always stream user-facing output
+- Handle both raw events and structured items
+- Integrate streaming into the final output phase
+
+### Parallel Execution
+- Use `asyncio.gather` for independent tasks
+- Handle errors gracefully (don't let one failure break all)
+- Track progress with `asyncio.as_completed`
+
+### Tracing
+- Always wrap runs in `trace()` context
+- Use meaningful workflow names
+- Add `group_id` to link related conversations
+
+### LiteLLM
+- Great for cost optimization and model diversity
+- Set OpenAI key for tracing even with other providers
+- Be aware of feature limitations
+
+---
+
+## Reference
+
+- `openai-agents-sdk.mdc` - SDK primitives and concepts
+- `agent-services.mdc` - Our service building conventions
+- [OpenAI Agents SDK Docs](https://openai.github.io/openai-agents-python/)
+- [LiteLLM Providers](https://docs.litellm.ai/docs/providers)
