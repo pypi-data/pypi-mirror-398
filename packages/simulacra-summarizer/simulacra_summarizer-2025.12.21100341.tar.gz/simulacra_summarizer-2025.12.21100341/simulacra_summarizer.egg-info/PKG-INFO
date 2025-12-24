@@ -1,0 +1,164 @@
+Metadata-Version: 2.4
+Name: simulacra-summarizer
+Version: 2025.12.21100341
+Summary: A new package would provide a structured, reliable way to analyze and summarize user-provided text on topics like the simulation hypothesis, using an LLM to generate concise, pattern-validated outputs
+Author-email: simulacra-summarizer <hi@eugene.plus>
+License: MIT
+Project-URL: Homepage, https://github.com/chigwell/simulacra-summarizer
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: langchain-llm7>=0.0.0
+Requires-Dist: llmatch-messages>=0.0.0
+Requires-Dist: langchain-core>=0.3.0
+
+# simulacra-summarizer
+[![PyPI version](https://badge.fury.io/py/simulacra-summarizer.svg)](https://badge.fury.io/py/simulacra-summarizer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/simulacra-summarizer)](https://pepy.tech/project/simulacra-summarizer)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**simulacra-summarizer** provides a lightweight, reliable way to analyze and summarize user‑provided text (e.g., articles, queries, or any free‑form prose) using a language model.  
+The package validates the LLM output against a regular‑expression pattern, retrying automatically until a correct, well‑structured summary is produced.
+
+---
+
+## Features
+
+- **One‑function API** – just call `simulacra_summarizer()` with the text you want summarized.  
+- **Regex‑based validation** – ensures the output follows the expected format.  
+- **Built‑in retry logic** – keeps querying the LLM until a valid response is returned.  
+- **Pluggable LLMs** – defaults to `ChatLLM7` (from `langchain_llm7`) but any LangChain‑compatible chat model can be supplied.  
+- **Simple installation** – pure‑Python package, no extra system dependencies.
+
+---
+
+## Installation
+
+```bash
+pip install simulacra_summarizer
+```
+
+---
+
+## Quick Start
+
+```python
+from simulacra_summarizer import simulacra_summarizer
+
+# Basic usage – uses the default ChatLLM7 (API key taken from env LLM7_API_KEY)
+summary = simulacra_summarizer(
+    user_input="The simulation hypothesis suggests that our reality might be a sophisticated computer simulation..."
+)
+
+print(summary)   # -> List of strings that match the predefined pattern
+```
+
+### Using a custom LLM
+
+You can pass any LangChain `BaseChatModel` instance (e.g., OpenAI, Anthropic, Google) if you prefer a different provider.
+
+#### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from simulacra_summarizer import simulacra_summarizer
+
+llm = ChatOpenAI()
+response = simulacra_summarizer(
+    user_input="Explain the simulation hypothesis in simple terms.",
+    llm=llm
+)
+```
+
+#### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from simulacra_summarizer import simulacra_summarizer
+
+llm = ChatAnthropic()
+response = simulacra_summarizer(
+    user_input="What are the philosophical implications of living in a simulation?",
+    llm=llm
+)
+```
+
+#### Google Generative AI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from simulacra_summarizer import simulacra_summarizer
+
+llm = ChatGoogleGenerativeAI()
+response = simulacra_summarizer(
+    user_input="Summarize recent research on simulation theory.",
+    llm=llm
+)
+```
+
+### Supplying a custom API key for LLM7
+
+```python
+from simulacra_summarizer import simulacra_summarizer
+
+summary = simulacra_summarizer(
+    user_input="Why do some scientists argue that we might be living in a simulation?",
+    api_key="your-llm7-api-key"
+)
+```
+
+You can also set the environment variable `LLM7_API_KEY` and omit the argument.
+
+---
+
+## API Reference
+
+```python
+def simulacra_summarizer(
+    user_input: str,
+    api_key: Optional[str] = None,
+    llm: Optional[BaseChatModel] = None
+) -> List[str]:
+```
+
+| Parameter   | Type                     | Description |
+|-------------|--------------------------|-------------|
+| **user_input** | `str` | The raw text you want to be summarized. |
+| **api_key**    | `Optional[str]` | API key for `ChatLLM7`. If omitted, the function reads `LLM7_API_KEY` from the environment; if still missing, a placeholder `"None"` is used (which will cause an authentication error). |
+| **llm**        | `Optional[BaseChatModel]` | A LangChain chat model instance. When provided, `api_key` is ignored and the supplied LLM is used instead. |
+
+**Returns**: `List[str]` – a list of strings that match the predefined regex pattern (`simulacra_summarizer.pattern`). If the LLM cannot produce a valid output, a `RuntimeError` is raised.
+
+---
+
+## Under the Hood
+
+- **LLM**: By default the function creates a `ChatLLM7` instance from the `langchain_llm7` package (see https://pypi.org/project/langchain-llm7).  
+- **Prompting**: System and human prompts are defined in `simulacra_summarizer.prompts`.  
+- **Validation**: The LLM response is matched against a compiled regular expression (`simulacra_summarizer.pattern`). Only a successful match is returned to the caller.  
+- **Retry Logic**: The helper `llmatch` from `llmatch_messages` handles repeated calls until the pattern matches or a hard failure occurs.
+
+---
+
+## Rate Limits
+
+The free tier of LLM7 provides generous rate limits for most typical summarization workloads.  
+If you require higher throughput, supply your own API key (via the environment variable `LLM7_API_KEY` or the `api_key` argument). Free API keys can be obtained by registering at https://token.llm7.io/.
+
+---
+
+## Contributing & Support
+
+- **Bug reports / Feature requests**: <https://github....>  
+- **Author**: Eugene Evstafev  
+- **Email**: hi@euegne.plus  
+- **GitHub**: [chigwell](https://github.com/chigwell)
+
+Feel free to open an issue or submit a pull request—contributions are welcome!
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
