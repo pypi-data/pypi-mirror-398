@@ -1,0 +1,176 @@
+Metadata-Version: 2.4
+Name: yahoomail
+Version: 1.0.1
+Summary: A high-performance, async Yahoo Mail login automator.
+Home-page: https://github.com/anarchy223/yahoomail
+Author: anarchy223
+License: CC BY-NC-SA 4.0
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: Free For Home Use
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Requires-Dist: httpx>=0.24.0
+Requires-Dist: h2>=4.1.0
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+## yahoomail
+
+⚡ A fast and stealthy Python login checker for Yahoo Mail accounts bypasses multi-step login flow, device fingerprint challenges, and delivers accurate status in milliseconds.
+
+---
+
+## 🚀 Features
+
+- 🔁 Fully asynchronous (via `httpx.AsyncClient`)
+- 🔍 Fast-path + fallback HTML form parsing
+- 🔐 Bypasses Yahoo's anti-bot login system
+- 🎯 Precise detection: `SUCCESS`, `INVALID`, `2FA`, `ERROR`, `UNKNOWN`
+- 🧠 Regex-based turbo form extraction (1-pass)
+- 🌐 Proxy support: `http`, `socks5`, with multiple formats
+- 📡 Optimized headers & fingerprint handling
+- 🧪 Debug-ready (optional HTML dumps at every step)
+- 📦 Includes batch checker with configurable concurrency
+
+---
+
+## 📦 Installation
+
+pip install yahoomail
+Or clone locally:
+
+```bash
+git clone https://github.com/anarchy223/yahoomail.git
+cd yahoomail
+pip install -r requirements.txt
+```
+
+## ⚙️ Usage
+## ✅ Basic login check
+
+```python
+from yahoomail import login
+
+email = input("Enter Yahoo email: ")
+password = input("Enter password: ")
+
+status, message, duration_ms = login(email, password)
+print(f"[{status}] {message} ({duration_ms}ms)")
+
+```
+
+## 🌍 Set a proxy
+You can use the function: <code>set_proxies("YOUR PROXY")</code> to set a proxy. Here an example: 
+
+```python
+import asyncio
+from yahoomail import set_proxies, run_batch
+
+set_proxies("user:pass@host:port")
+
+def load_combos(file_path):
+    combos = []
+    with open(file_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or ":" not in line:
+                continue
+            email, password = line.split(":", 1)
+            combos.append((email, password))
+    return combos
+
+creds = load_combos("combo.txt")
+results = asyncio.run(run_batch(creds, concurrency=10))
+
+for email, status, message in results:
+    print(f"{email} → {status}: {message}")
+
+```
+<p2>Supports formats </p2>:
+``` 
+```
+
+*  user:pass@host:port
+* host:port
+* host,port,user,pass
+* host:port:user:pass
+
+## 🚀 Batch checking (async)
+
+```python
+import asyncio
+from yahoomail import run_batch
+
+def load_acc(file_path):
+    combos = []
+    with open(file_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or ":" not in line:
+                continue  
+            email, password = line.split(":", 1)
+            combos.append((email, password))
+    return combos
+
+creds = load_acc("accounts.txt")
+results = asyncio.run(run_batch(creds, concurrency=10))
+for email, status, message in results:
+    print(f"{email} → {status}: {message}")
+
+```
+
+| Code  | Meaning      |  
+|-----------|-----------
+| SUCCESS  | Valid login detected (your accounts is mostly valid!) | 
+| Invalid  | Invalid account  |
+| 2FA | 2-Factor Authentification (or means other errors)
+| Error | Proxy / network / internal error (Or just Yahoo maybe implemented another level cap of security (ya need to check).   
+| Unkown | I fucked up... | 
+ 
+
+## 🧰 Advanced
+> Enable debug HTML saves:
+> Uncomment or modify the global flag in your script:
+
+```python
+ENABLE_DEBUG_FILES = True
+```
+It will save HTML dumps per stage for inspection (eg: new security...)
+
+## 🧠 How it works
+This module emulates Yahoo Mail login behavior by reproducing:
+
+* Initial tokenized form loads
+*	Username + password flow separation
+*	Dynamic fingerprinting step
+*	Cookie-based login validation
+*	Full proxy routing with timeout handling
+*   No Selenium. No headless browser. Just pure, clean HTTP emulation.
+
+## 📜 License
+
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 (CC BY-NC-SA 4.0)
+
+- ✅ You can **use**, **study**, **modify**, and **share** this project.
+- ❌ **Commercial use** (resale, SaaS integration, paid API, etc.) is **strictly prohibited**.
+- 🧠 You **must give credit** to the original author.
+- 🔁 If you modify it, you must release your version under the same license.
+
+🔗 [Read the full license terms here](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+
+## ☕ A note
+This project was born from one simple idea:
+"If there's no public API... then I become the API."
+
+
+Enjoy.
