@@ -1,0 +1,215 @@
+[build-system]
+requires = ["hatchling>=1.25,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fastflowtransform"
+version = "0.6.14"
+description = "Python framework for SQL & Python data transformation, ETL pipelines, and dbt-style data modeling"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [ { name = "Marko Lekic" } ]
+requires-python = ">=3.12"
+keywords = [
+  "etl",
+  "data transformation",
+  "sql",
+  "data modeling",
+  "duckdb",
+  "postgres",
+  "bigquery",
+  "spark",
+  "snowflake",
+  "dbt alternative",
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Intended Audience :: Developers",
+  "Topic :: Database",
+  "Topic :: Software Development :: Build Tools",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+  "Operating System :: OS Independent",
+  "License :: OSI Approved :: Apache Software License",
+]
+dependencies = [
+  "typer>=0.12",
+  "jinja2>=3.1",
+  "duckdb>=1.0",
+  "pandas>=2.0",
+  "pyyaml>=6.0",
+  "sqlalchemy>=2.0",
+  "pydantic>=2.8",
+  "pydantic-settings>=2.4",
+  "python-dotenv>=1.0",
+  "httpx>=0.28.1",
+]
+
+[project.optional-dependencies]
+postgres = [
+  "psycopg[binary]>=3.1",
+  "psycopg2-binary>=2.9",
+]
+
+bigquery = [
+  "google-cloud-bigquery>=3.25",
+]
+
+bigquery_bf = [
+  "bigframes>=2.24.0",
+  "google-cloud-bigquery>=3.25",
+]
+
+spark = [
+  "pyspark>=4.0.1",
+  "delta-spark>=4.0.0",
+]
+
+snowflake = [
+  "snowflake-connector-python>=4.0.0",
+  "snowflake-snowpark-python>=1.40.0",
+]
+
+full = [
+  "psycopg[binary]>=3.1",
+  "psycopg2-binary>=2.9",
+  "google-cloud-bigquery>=3.25",
+  "bigframes>=2.24.0",
+  "pyspark>=4.0.1",
+  "delta-spark>=4.0.0",
+  "snowflake-connector-python>=4.0.0",
+  "snowflake-snowpark-python>=1.40.0",
+]
+
+dev = [
+  "pytest==8.4.*",
+  "pytest-cov==7.0.*",
+  "pytest-rerunfailures==14.0.*",
+  "ruff==0.14.*",
+  "mypy==1.18.*",
+  "pre-commit==3.*",
+  "pandas-stubs>=2.1",
+  "types-PyYAML>=6.0.12",
+]
+
+docs = [
+  "mkdocs>=1.6",
+  "mkdocs-material>=9.5",
+  "pymdown-extensions>=10.0",
+  "mkdocstrings[python]>=0.25",
+  "mkdocs-autorefs>=1.0",
+  "mkdocs-section-index>=0.3",
+  "mkdocs-gen-files>=0.5",
+  "mkdocs-literate-nav>=0.6",
+]
+
+[project.urls]
+Homepage = "https://github.com/MirrorsAndMisdirections/FastFlowTransform"
+Documentation = "https://fastflowtransform.com"
+Repository = "https://github.com/MirrorsAndMisdirections/FastFlowTransform.git"
+Source = "https://github.com/MirrorsAndMisdirections/fastflowtransform"
+Issues = "https://github.com/MirrorsAndMisdirections/fastflowtransform/issues"
+
+[project.scripts]
+fft = "fastflowtransform.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fastflowtransform"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/fastflowtransform/**", "pyproject.toml", "README.md"]
+
+[tool.black]
+line-length = 100
+
+# ---------------------------
+# Ruff (linter + formatter)
+# ---------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "F",   # pyflakes
+  "E", "W",  # pycodestyle
+  "I",   # isort
+  "UP",  # pyupgrade
+  "B",   # bugbear
+  "SIM", # flake8-simplify
+  "PL",  # pylint-ish checks
+  "RUF", # ruff-specific
+]
+ignore = [
+  "E203", # whitespace before ':', compatible with black-like formatting
+  "PLR2004",
+]
+fixable = ["ALL"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["fastflowtransform"]
+known-third-party = ["duckdb", "pandas"]
+combine-as-imports = true
+
+[tool.ruff.lint.pylint]
+max-args = 15
+max-returns = 15
+max-branches = 20
+max-statements = 60
+
+# Keep __init__.py tidy without false positives on re-exports.
+[tool.ruff.lint.per-file-ignores]
+"src/fastflowtransform/__init__.py" = ["F401"]
+
+# ---------------------------
+# MyPy (type checker)
+# ---------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true
+pretty = true
+show_error_codes = true
+color_output = true
+# 3rd-party libs can be noisy; keep focused on your codebase first:
+ignore_missing_imports = true
+follow_imports = "silent"
+
+# Only type-check your src by default (tests can be added incrementally)
+files = ["src"]
+
+# module/package-specific overrides (examples)
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
+[tool.twine]
+repository = "pypi"
+
+[tool.pytest.ini_options]
+addopts = "-q --cov=src/fastflowtransform --cov-report=term-missing --cov-report=xml --cov-report=html"
+testpaths = ["tests"]
+markers = [
+  "flaky: tests that may be rerun on failure",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src/fastflowtransform"]
+omit = [
+  "src/**/__main__.py",
+  "src/**/_version.py",
+  "tests/**",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 80 
