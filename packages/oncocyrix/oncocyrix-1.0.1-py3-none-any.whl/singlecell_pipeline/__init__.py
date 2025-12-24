@@ -1,0 +1,1 @@
+print("singlecell_pipeline package initialized")
