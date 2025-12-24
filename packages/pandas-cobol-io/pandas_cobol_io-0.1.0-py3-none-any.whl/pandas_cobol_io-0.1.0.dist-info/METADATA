@@ -1,0 +1,119 @@
+Metadata-Version: 2.4
+Name: pandas-cobol-io
+Version: 0.1.0
+Summary: Pandas extension for COBOL-style fixed-width files handling multibyte encoding.
+Author-email: jianwu <yi1meir4@gmail.com>
+License-Expression: MIT
+License-File: LICENSE
+Requires-Python: >=3.10
+Requires-Dist: pandas
+Description-Content-Type: text/markdown
+
+# pandas-cobol-io
+Pandas extension for COBOL-style fixed-width files (FWF).
+## Installation
+```bash
+pip install pandas-cobol-io
+```
+## Usage
+### To import df.to_fwf and pd.parse_fwf
+```python
+import pandas as pd
+import pandas_cobol_io
+```
+When user imports **pandas_cobol_io**, these two functions are added to pandas objects.
+### df.to_fwf (DataFrame -> Fixed Width Format Text)
+**to_fwf** method is added to DataFrame.
+```python
+df = pd.DataFrame({
+    "ID": [1, 20],
+    "NAME": ["A", "B"],
+})
+
+# Metadata: List of (Type, Length)
+# "9": Zero padding (Right aligned)
+# "X": Space padding (Left aligned)
+
+metadata = [
+    ("9", 5),
+    ("X", 10),
+]
+
+# Convert to fixed-width strings
+lines = df.to_fwf(metadata, enc="cp932")
+
+# Save to file
+with open("output.txt", "w", encoding="cp932") as f:
+    f.writelines(lines)
+# output.txt
+# 00001A         # <- White spaces exist here.
+# 00020B         # <-
+# 123456789111111
+#          012345
+```
+### pd.parse_fwf (Fixed Width Format Text -> DataFrame)
+**parse_fwf** function is added to **pd**.
+```python
+params = {
+    "ID": 5,
+    "NAME": 10,
+}
+result = pd.parse_fwf("output.txt", params, enc="cp932")
+df, errors, lines = (result[x] for x in ("df", "errors", "lines"))
+
+print(df)
+#       ID        NAME
+# 0  00001  A         
+# 1  00020  B         
+```
+### miscellaneous
+
+```python
+from pprint import pprint
+
+from pandas_cobol_io import Fwf, fwf_row
+
+fwf = Fwf(enc := "cp932")
+
+# header
+header_info = {
+    "data-distinction": (1, "9", 2),
+    "dummy": (" ", "X", 13),
+}
+fwf.header = fwf_row(header_info, enc)
+
+# contents
+df = pd.DataFrame({
+    "ID": [1, 20],
+    "NAME": ["A", "B"],
+})
+metadata = [
+    ("9", 5),
+    ("X", 10),
+]
+fwf.contents = df.to_fwf(metadata, enc)
+
+# footer
+tracker_info = {
+    "data-distinction": (9, "9", 2),
+    "dummy": (" ", "X", 13),
+}
+end_info = {
+    "dummy": ("EOF", "X", 15),
+}
+fwf.footer = [fwf_row(x, enc) for x in (tracker_info, end_info)]
+
+pprint(fwf)
+pprint(fwf.data)
+# Fwf(encoding='cp932',
+#     header=['01             \n'],
+#     contents=['00001A         \n', '00020B         \n'],
+#     footer=[['09             \n'], ['EOF            \n']])
+# ['01             \n',
+#  '00001A         \n',
+#  '00020B         \n',
+#  '09             \n',
+#  'EOF            \n']
+```
+## License
+MIT License
