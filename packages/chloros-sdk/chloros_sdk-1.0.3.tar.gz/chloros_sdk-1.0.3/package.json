@@ -1,0 +1,204 @@
+{
+    "name":  "chloros",
+    "version":  "1.0.2",
+    "description":  "MAPIR Chloros",
+    "main":  "main.cjs",
+    "scripts":  {
+                    "start":  "node start.js",
+                    "dev":  "electron . --dev --disable-http-cache",
+                    "build":  "electron-builder",
+                    "build-ui":  "esbuild ui/ts/main.ts --bundle --format=esm --outfile=ui/js/components.js --external:plotly.js-dist-min --sourcemap",
+                    "build-webpack":  "npx webpack --config webpack.config.js",
+                    "build:win-installer":  "electron-builder --win nsis msi",
+                    "build:win-nsis":  "electron-builder --win nsis",
+                    "build:win-nsis-prebuilt":  "electron-builder --win nsis --prepackaged dist\\win-unpacked",
+                    "build:win-msi":  "electron-builder --win msi",
+                    "build:win-portable":  "electron-builder --win portable",
+                    "build:win-all":  "electron-builder --win",
+                    "pack":  "electron-builder --dir",
+                    "build-ts":  "tsc",
+                    "build-all":  "npm run build-ts \u0026\u0026 npm run build",
+                    "package-win":  "electron-packager . Chloros --platform=win32 --arch=x64 --out=chloros-electron-app/dist2 --overwrite --icon=ui/corn_logo_single_256.ico --ignore=\"dist|build|venv.*|\\.pyc|__pycache__|\\.git|\\.py$|mip|references|hooks|\\.ps1$|\\.bat$|\\.vbs$|\\.log$|\\.md$|requirements.*\\.txt|pyrightconfig\\.json|tsconfig\\.json|webpack\\.config\\.js|rollup\\.config\\.js|\\.spec$|debug\\.txt|chloros_backend_ray_fixed\\.exe|chloros-backend-working\\.exe|chloros-electron-app|\\.cs$|flatFields|ui/.*test.*|ui/.*backup.*|ui/.*temp.*|ui/.*splash.*|ui/.*quality.*|ui/ts|ui/svg/cursor|assets|web|exiftool\\.exe|\\.ts$|\\.map$|ui/js/.*\\.map$|ui/js/.*\\.d\\.ts$|node_modules/.*\\.ts$|node_modules/.*\\.map$|\\.ccache|\\.vscode|src/.*\\.ts$|chloros-electron-app/src|bundle-entry\\.js|error-dialog\\.js|file-browser\\.js|image-viewer\\.js|layout.*\\.js|login\\.js|process.*\\.js|progress.*\\.js|project.*\\.js|scan-viewer\\.js|settings\\.js|title\\.js|\\.dll$|test$|test/|examples$|examples/|.*\\.txt$|test.*\\.png$|sampling.*\\.png$|debug.*\\.html$|test.*\\.html$|fix-exe-icon\\.js|nonexistent\\.daq|timestamp\\.txt|electron_debug_log\\.txt|console\\.error|how --name-only HEAD|tatus --porcelain\" \u0026\u0026 npm run post-build",
+                    "package-win-clean":  "node build-clean-electron.js",
+                    "post-build":  "powershell -Command \"Write-Host \u0027Post-build: Copying updated files\u0027; Copy-Item -Path \u0027main.cjs\u0027 -Destination \u0027chloros-electron-app/dist2/Chloros-win32-x64/resources/app/main.cjs\u0027 -Force; Copy-Item -Path \u0027electron-backend.cjs\u0027 -Destination \u0027chloros-electron-app/dist2/Chloros-win32-x64/resources/app/electron-backend.cjs\u0027 -Force; Write-Host \u0027Fixing missing nested dependencies\u0027; New-Item -Path \u0027chloros-electron-app/dist2/Chloros-win32-x64/resources/app/node_modules/webidl-conversions\u0027 -ItemType Directory -Force | Out-Null; Copy-Item -Path \u0027node_modules/webidl-conversions/*\u0027 -Destination \u0027chloros-electron-app/dist2/Chloros-win32-x64/resources/app/node_modules/webidl-conversions/\u0027 -Recurse -Force; Write-Host \u0027Fixing package.json for CommonJS\u0027; (Get-Content \u0027chloros-electron-app/dist2/Chloros-win32-x64/resources/app/package.json\u0027) -replace \u0027\\\"main\\\": \\\"main.js\\\",\u0027, \u0027\\\"main\\\": \\\"main.cjs\\\",\u0027 -replace \u0027\\\"type\\\": \\\"module\\\",\u0027, \u0027\u0027 | Set-Content \u0027chloros-electron-app/dist2/Chloros-win32-x64/resources/app/package.json\u0027; Write-Host \u0027Cleaning up duplicate files\u0027; Remove-Item -Path \u0027chloros-electron-app/dist2/Chloros-win32-x64/resources/app/chloros-backend-working.exe\u0027 -Force -ErrorAction SilentlyContinue; Remove-Item -Path \u0027chloros-electron-app/dist2/Chloros-win32-x64/resources/app/*.dll\u0027 -Force -ErrorAction SilentlyContinue; Write-Host \u0027Copying UI to backend for Browser Mode\u0027; powershell -ExecutionPolicy Bypass -File scripts/Copy-UI-To-Backend.ps1; Write-Host \u0027Post-build completed\u0027\"",
+                    "package-mac":  "electron-packager . Chloros --platform=darwin --arch=x64 --out=dist --overwrite --icon=ui/corn_logo_single_256.ico",
+                    "package-linux":  "electron-packager . Chloros --platform=linux --arch=x64 --out=dist --overwrite --icon=ui/corn_logo_single_256.ico"
+                },
+    "keywords":  [
+                     "image-processing",
+                     "hyperspectral",
+                     "chloros",
+                     "desktop-app"
+                 ],
+    "author":  "MAPIR, Inc",
+    "license":  "UNLICENSED",
+    "devDependencies":  {
+                            "@rollup/plugin-alias":  "^6.0.0",
+                            "@rollup/plugin-commonjs":  "^28.0.6",
+                            "@rollup/plugin-json":  "^6.1.0",
+                            "@rollup/plugin-node-resolve":  "^16.0.1",
+                            "@rollup/plugin-typescript":  "^12.1.4",
+                            "electron":  "^32.0.0",
+                            "electron-builder":  "^25.0.0",
+                            "electron-packager":  "^17.1.2",
+                            "esbuild":  "^0.27.0",
+                            "rcedit":  "^4.0.1",
+                            "rollup":  "^4.47.1",
+                            "ts-loader":  "^9.5.2",
+                            "tslib":  "^2.8.1",
+                            "typescript":  "^5.9.2",
+                            "webpack":  "^5.101.3",
+                            "webpack-cli":  "^6.0.1",
+                            "winresourcer":  "^0.9.0"
+                        },
+    "dependencies":  {
+                         "cors":  "^2.8.5",
+                         "express":  "^4.19.0",
+                         "lit":  "^3.3.1",
+                         "node-fetch":  "^2.7.0",
+                         "plotly.js-dist-min":  "^3.1.0",
+                         "socket.io":  "^4.8.0",
+                         "tex-to-svg":  "^0.2.0"
+                     },
+    "build":  {
+                  "appId":  "com.mapir.chloros",
+                  "productName":  "Chloros",
+                  "directories":  {
+                                      "output":  "dist",
+                                      "buildResources":  "build"
+                                  },
+                  "files":  [
+                                "main.cjs",
+                                "electron-backend.cjs",
+                                "preload.js",
+                                "package.json",
+                                "ui/**/*",
+                                "renderer/**/*",
+                                "node_modules/**/*",
+                                "!node_modules/**/*.ts",
+                                "!node_modules/**/*.map",
+                                "!node_modules/.cache",
+                                "!**/*.pyc",
+                                "!**/__pycache__",
+                                "!*.py",
+                                "!*.md",
+                                "!*.bat",
+                                "!*.ps1",
+                                "!*.log",
+                                "!*.txt",
+                                "!test*.{png,jpg,jpeg}",
+                                "!sampling*.{png,jpg,jpeg}",
+                                "!debug*.{html,txt}",
+                                "!test*",
+                                "!test/**/*",
+                                "!examples/**/*",
+                                "!fix-exe-icon.js",
+                                "!nonexistent.daq",
+                                "LICENSE",
+                                "THIRD-PARTY-NOTICES"
+                            ],
+                  "extraResources":  [
+                                         {
+                                             "from":  "chloros-electron-app/dist2/Chloros-win32-x64/resources/backend",
+                                             "to":  "backend",
+                                             "filter":  [
+                                                            "**/*"
+                                                        ]
+                                         },
+                                         {
+                                             "from":  "chloros-electron-app/dist2/Chloros-win32-x64/resources/cli",
+                                             "to":  "cli",
+                                             "filter":  [
+                                                            "**/*"
+                                                        ]
+                                         },
+                                         {
+                                             "from":  "ui",
+                                             "to":  "backend/ui",
+                                             "filter":  [
+                                                            "**/*"
+                                                        ]
+                                         }
+                                     ],
+                  "extraFiles":  [
+                                     "launch_browser_hidden.vbs",
+                                     "launch_browser.ps1",
+                                     "browser_splash.html",
+                                     "icon.ico",
+                                     "manifest.json",
+                                     "Chloros_Browser_Hidden.bat",
+                                     "Chloros_CLI.bat",
+                                     "Chloros_CLI.ps1",
+                                     "Chloros_CLI_Launcher.bat",
+                                     "Chloros_CLI_Launcher.vbs"
+                                 ],
+                  "win":  {
+                              "target":  [
+                                             {
+                                                 "target":  "nsis",
+                                                 "arch":  [
+                                                              "x64"
+                                                          ]
+                                             },
+                                             {
+                                                 "target":  "msi",
+                                                 "arch":  [
+                                                              "x64"
+                                                          ]
+                                             },
+                                             {
+                                                 "target":  "portable",
+                                                 "arch":  [
+                                                              "x64"
+                                                          ]
+                                             }
+                                         ],
+                              "icon":  "ui/corn_logo_single_256.ico",
+                              "publisherName":  "MAPIR",
+                              "verifyUpdateCodeSignature":  false
+                          },
+                  "mac":  {
+                              "target":  "dmg",
+                              "icon":  "assets/icon.icns"
+                          },
+                  "linux":  {
+                                "target":  "AppImage",
+                                "icon":  "assets/icon.png"
+                            },
+                  "nsis":  {
+                               "oneClick":  false,
+                               "perMachine":  true,
+                               "allowToChangeInstallationDirectory":  true,
+                               "allowElevation":  true,
+                               "createDesktopShortcut":  true,
+                               "createStartMenuShortcut":  false,
+                               "shortcutName":  "Chloros",
+                               "installerIcon":  "ui/corn_logo_single_256.ico",
+                               "uninstallerIcon":  "ui/corn_logo_single_256.ico",
+                               "installerHeader":  "ui/corn_logo_single_256.ico",
+                               "license":  "LICENSE",
+                               "deleteAppDataOnUninstall":  false,
+                               "runAfterFinish":  false,
+                               "menuCategory":  "MAPIR",
+                               "displayLanguageSelector":  true,
+                               "language":  "2052",
+                               "artifactName":  "Chloros Installer ${version}.exe",
+                               "differentialPackage":  false,
+                               "uninstallDisplayName":  "Chloros",
+                               "include":  "build/installer.nsh",
+                               "warningsAsErrors":  false,
+                               "removeDefaultUninstallWelcomePage":  true
+                           },
+                  "msi":  {
+                              "createDesktopShortcut":  true,
+                              "createStartMenuShortcut":  true,
+                              "shortcutName":  "Chloros",
+                              "warningsAsErrors":  false,
+                              "artifactName":  "Chloros Installer ${version}.msi"
+                          },
+                  "portable":  {
+                                   "artifactName":  "Chloros Installer ${version} Portable.exe"
+                               },
+                  "forceCodeSigning":  false
+              }
+}
