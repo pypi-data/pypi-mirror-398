@@ -1,0 +1,385 @@
+# Changelog
+
+## 3.6.0 (2025-12-21)
+
+Full Changelog: [v3.5.0...v3.6.0](https://github.com/scorecard-ai/scorecard-python/compare/v3.5.0...v3.6.0)
+
+### Features
+
+* Add telemetry wrappers around Anthropic and OpenAI SDKs ([#26](https://github.com/scorecard-ai/scorecard-python/issues/26)) ([ed9c8ef](https://github.com/scorecard-ai/scorecard-python/commit/ed9c8ef6cf77d4ebb1527a2b120b7621da6bb390))
+
+
+### Bug Fixes
+
+* ensure streams are always closed ([4c5fd3c](https://github.com/scorecard-ai/scorecard-python/commit/4c5fd3c69f1281504a5e8eb7247362e1d676256d))
+* **types:** allow pyright to infer TypedDict types within SequenceNotStr ([196cfaf](https://github.com/scorecard-ai/scorecard-python/commit/196cfaff6d77e549897059cc9d6de4bf7c4223bd))
+* use async_to_httpx_files in patch method ([144f401](https://github.com/scorecard-ai/scorecard-python/commit/144f4012bdb9ed7bc3cf7aba1322dc7325ab2e11))
+
+
+### Chores
+
+* add missing docstrings ([5482beb](https://github.com/scorecard-ai/scorecard-python/commit/5482bebbbe23b3035637a2c7d699f7a67822eff0))
+* **deps:** mypy 1.18.1 has a regression, pin to 1.17 ([68d4195](https://github.com/scorecard-ai/scorecard-python/commit/68d4195da9521fe19d56915ce6505964b7914239))
+* **docs:** use environment variables for authentication in code snippets ([b63402c](https://github.com/scorecard-ai/scorecard-python/commit/b63402cbb6ae227e83a0461485d086926be1cc10))
+* **internal:** add `--fix` argument to lint script ([3fa3895](https://github.com/scorecard-ai/scorecard-python/commit/3fa3895fdfc3dda7712657b28cec1fbff554e51e))
+* **internal:** add missing files argument to base client ([5e9f032](https://github.com/scorecard-ai/scorecard-python/commit/5e9f03250d3cb81a5861c783d36cad5298efc686))
+* speedup initial import ([11876d7](https://github.com/scorecard-ai/scorecard-python/commit/11876d71767578d09ba182527679147619b715d8))
+* update lockfile ([e098aad](https://github.com/scorecard-ai/scorecard-python/commit/e098aad5e32132b7905ddd67b491d6fcf692c9b1))
+
+## 3.5.0 (2025-11-22)
+
+Full Changelog: [v3.4.0...v3.5.0](https://github.com/scorecard-ai/scorecard-python/compare/v3.4.0...v3.5.0)
+
+### Features
+
+* **api:** api update ([d89b4f8](https://github.com/scorecard-ai/scorecard-python/commit/d89b4f80606dad1852a05f357cfe029d16e8f746))
+
+
+### Bug Fixes
+
+* compat with Python 3.14 ([67369fc](https://github.com/scorecard-ai/scorecard-python/commit/67369fc5d8db97f9a71a2ddb964cbb3bf9c33c79))
+* **compat:** update signatures of `model_dump` and `model_dump_json` for Pydantic v1 ([6bca5ea](https://github.com/scorecard-ai/scorecard-python/commit/6bca5eaf1447b3c4c8f19b5cc7da105a840d28ef))
+
+
+### Chores
+
+* add Python 3.14 classifier and testing ([79e4d7b](https://github.com/scorecard-ai/scorecard-python/commit/79e4d7bdfc4cc10e7e88253a241ecd97580897bf))
+* **internal/tests:** avoid race condition with implicit client cleanup ([8458c77](https://github.com/scorecard-ai/scorecard-python/commit/8458c77f9fa9754c35b0acab2378cfad2717d2d7))
+* **internal:** grammar fix (it's -&gt; its) ([2ef4347](https://github.com/scorecard-ai/scorecard-python/commit/2ef43471730d342560f781e4a2315d2d86611d02))
+* **package:** drop Python 3.8 support ([1641026](https://github.com/scorecard-ai/scorecard-python/commit/1641026dc60e62e84cbf4d42808029221d790cf4))
+
+## 3.4.0 (2025-10-30)
+
+Full Changelog: [v3.3.0...v3.4.0](https://github.com/scorecard-ai/scorecard-python/compare/v3.3.0...v3.4.0)
+
+### Features
+
+* **api:** api update ([6197746](https://github.com/scorecard-ai/scorecard-python/commit/6197746cf1feea96bd9bc3d066c4b70e710ffe6f))
+
+
+### Bug Fixes
+
+* **client:** close streams without requiring full consumption ([0139877](https://github.com/scorecard-ai/scorecard-python/commit/013987733bc1f040544da47376be8837fdce6d1e))
+
+## 3.3.0 (2025-10-18)
+
+Full Changelog: [v3.2.1...v3.3.0](https://github.com/scorecard-ai/scorecard-python/compare/v3.2.1...v3.3.0)
+
+### Features
+
+* **api:** api update ([619342f](https://github.com/scorecard-ai/scorecard-python/commit/619342f3fe0b9950bad0e7ccd4775752cab81667))
+* **api:** api update ([659c61f](https://github.com/scorecard-ai/scorecard-python/commit/659c61ffb43886da647326a42f47fde807c3a070))
+* **api:** api update ([5d3b449](https://github.com/scorecard-ai/scorecard-python/commit/5d3b4499b0136f594d88b5f566094b64c0f42f94))
+* **api:** api update ([e952932](https://github.com/scorecard-ai/scorecard-python/commit/e95293281726af21db5e9d803e35ec82fa837cdc))
+* improve future compat with pydantic v3 ([c19bb04](https://github.com/scorecard-ai/scorecard-python/commit/c19bb04f7af6490fd5a5f2f349ab3bfaf5bc0c5f))
+* **types:** replace List[str] with SequenceNotStr in params ([98903f5](https://github.com/scorecard-ai/scorecard-python/commit/98903f5a8b58fc96cfd95920eb6022b4f82a5268))
+
+
+### Bug Fixes
+
+* avoid newer type syntax ([6d137a3](https://github.com/scorecard-ai/scorecard-python/commit/6d137a355cbb71c15b3a84d3211722fbd1057dbf))
+* **types:** add missing types to method arguments ([6f6fb94](https://github.com/scorecard-ai/scorecard-python/commit/6f6fb9453f7fec6ca6cdafe0b140cc85047c681b))
+
+
+### Chores
+
+* bump `httpx-aiohttp` version to 0.1.9 ([edcf290](https://github.com/scorecard-ai/scorecard-python/commit/edcf290b79916558cf35dbbf778639e10bb3b3ab))
+* do not install brew dependencies in ./scripts/bootstrap by default ([7fd26a7](https://github.com/scorecard-ai/scorecard-python/commit/7fd26a7256a3539e0974a160347ce7b47219543a))
+* Fix types in helper functions ([916268e](https://github.com/scorecard-ai/scorecard-python/commit/916268e1c017bfe3d8a301ff12fcb07d9fe01eea))
+* **internal:** add Sequence related utils ([eca421b](https://github.com/scorecard-ai/scorecard-python/commit/eca421b64f61b52189d3335602ca0498d3efd544))
+* **internal:** change ci workflow machines ([5db60cd](https://github.com/scorecard-ai/scorecard-python/commit/5db60cddc16188a8ea8512d88bd24ffcaf3bc2e8))
+* **internal:** detect missing future annotations with ruff ([cc6f494](https://github.com/scorecard-ai/scorecard-python/commit/cc6f494bb101c57df9d071600c2ca774b1baeeec))
+* **internal:** move mypy configurations to `pyproject.toml` file ([d010781](https://github.com/scorecard-ai/scorecard-python/commit/d0107815913bd48a463c5e4a885eee6af333d184))
+* **internal:** update comment in script ([0d65747](https://github.com/scorecard-ai/scorecard-python/commit/0d657475b0da00b35efb4e1812b0dbf6d91dfd5a))
+* **internal:** update pydantic dependency ([932d192](https://github.com/scorecard-ai/scorecard-python/commit/932d192d7c49e92c46495376cd166f1b534ce5f2))
+* **internal:** update pyright exclude list ([fb450c7](https://github.com/scorecard-ai/scorecard-python/commit/fb450c747f6c3d46406cfa32b1086e3898676bc9))
+* **tests:** simplify `get_platform` test ([030c06a](https://github.com/scorecard-ai/scorecard-python/commit/030c06af412a4c1e08fbfc46cc2fe8662879a529))
+* **types:** change optional parameter type from NotGiven to Omit ([ad1edcb](https://github.com/scorecard-ai/scorecard-python/commit/ad1edcbab5ce88c3e618249c0a3ec3379466bd85))
+* update @stainless-api/prism-cli to v5.15.0 ([345ac7a](https://github.com/scorecard-ai/scorecard-python/commit/345ac7a7c89a36f1b440dfaf35295d1bf73817e1))
+* update github action ([f458891](https://github.com/scorecard-ai/scorecard-python/commit/f458891ba6d2ea465f8ae5e7dfc753c15d92a0ea))
+
+## 3.2.1 (2025-08-06)
+
+Full Changelog: [v3.2.0...v3.2.1](https://github.com/scorecard-ai/scorecard-python/compare/v3.2.0...v3.2.1)
+
+### Bug Fixes
+
+* **simulation:** Allow initial_messages to be a callable ([96d8781](https://github.com/scorecard-ai/scorecard-python/commit/96d87816274ac17ca45fbea9bbcb0d1bb83ea30d))
+
+
+### Chores
+
+* **internal:** fix ruff target version ([c4585ae](https://github.com/scorecard-ai/scorecard-python/commit/c4585ae52d4e6f56cd888840c1f4e0945cd384aa))
+
+## 3.2.0 (2025-08-06)
+
+Full Changelog: [v3.1.0...v3.2.0](https://github.com/scorecard-ai/scorecard-python/compare/v3.1.0...v3.2.0)
+
+### Features
+
+* Add multi-turn simulation helper ([ea2f8eb](https://github.com/scorecard-ai/scorecard-python/commit/ea2f8eb15496dfa2ee3c1b8f11bf8df97714a7ca))
+* Allow stopping the conversation with custom stop checks ([a4a836e](https://github.com/scorecard-ai/scorecard-python/commit/a4a836e8b9633a48f2c5e597c0f003544fef7d75))
+
+
+### Bug Fixes
+
+* Handle unspecified initial_messages in multi_turn_simulation ([403af47](https://github.com/scorecard-ai/scorecard-python/commit/403af47c1f70b36feded94c23aeb312fd308118e))
+
+## 3.1.0 (2025-07-31)
+
+Full Changelog: [v3.0.0...v3.1.0](https://github.com/scorecard-ai/scorecard-python/compare/v3.0.0...v3.1.0)
+
+### Features
+
+* clean up environment call outs ([da50a3a](https://github.com/scorecard-ai/scorecard-python/commit/da50a3a72f278d6a8c01d14fecc6adccb87b4512))
+* **client:** support file upload requests ([89bf1f3](https://github.com/scorecard-ai/scorecard-python/commit/89bf1f3a8d7e4e837c193bd2e86ec1c4924d1e02))
+
+
+### Bug Fixes
+
+* **parsing:** ignore empty metadata ([00a1102](https://github.com/scorecard-ai/scorecard-python/commit/00a1102b80f4cd313e49b47c5f85885f74e95578))
+* **parsing:** parse extra field types ([48a8a2f](https://github.com/scorecard-ai/scorecard-python/commit/48a8a2f178986cdca3bea5084e3e71f96a22073f))
+
+
+### Chores
+
+* **project:** add settings file for vscode ([398d1ec](https://github.com/scorecard-ai/scorecard-python/commit/398d1ecdec735a25cb862f5ab9b9696d9bccc5b5))
+
+## 3.0.0 (2025-07-12)
+
+Full Changelog: [v2.2.0...v3.0.0](https://github.com/scorecard-ai/scorecard-python/compare/v2.2.0...v3.0.0)
+
+### ⚠ BREAKING CHANGES
+
+* **systems:** Make systems easier to use in the SDK
+
+### Features
+
+* **systems:** Make systems easier to use in the SDK ([0f026d6](https://github.com/scorecard-ai/scorecard-python/commit/0f026d686db7945c2874e29dbc72ba9c0b01a12e))
+
+
+### Bug Fixes
+
+* **ci:** correct conditional ([59f3204](https://github.com/scorecard-ai/scorecard-python/commit/59f320491f8496019b40747412aa8b45c7b1384a))
+* **ci:** release-doctor — report correct token name ([2ff8123](https://github.com/scorecard-ai/scorecard-python/commit/2ff8123d4950b3a283f7b220d1dcadd64717a0b2))
+* **client:** don't send Content-Type header on GET requests ([3563441](https://github.com/scorecard-ai/scorecard-python/commit/35634414ce120650ea80249a268ebd35ac73ced4))
+* **parsing:** correctly handle nested discriminated unions ([4cb4d6f](https://github.com/scorecard-ai/scorecard-python/commit/4cb4d6f3dc42b4fc8c2ae517e1c63c82cf2a3ec3))
+
+
+### Chores
+
+* **ci:** change upload type ([4a3022a](https://github.com/scorecard-ai/scorecard-python/commit/4a3022a467edb5f4864a4aee7bbbeca8e6c1d45b))
+* **ci:** only run for pushes and fork pull requests ([d3674a3](https://github.com/scorecard-ai/scorecard-python/commit/d3674a30ad0b7647ab8e69cf09df5e1e48c7f7ac))
+* **internal:** bump pinned h11 dep ([f412d95](https://github.com/scorecard-ai/scorecard-python/commit/f412d953611fd569f2e48c447a4ae3981b711a7b))
+* **internal:** codegen related update ([a46bb96](https://github.com/scorecard-ai/scorecard-python/commit/a46bb96dee38e9238ead066564d72459149c9e68))
+* **internal:** codegen related update ([2e2e4f0](https://github.com/scorecard-ai/scorecard-python/commit/2e2e4f0b2cd33c9d47ceece9eb7d986feef1fb0f))
+* **package:** mark python 3.13 as supported ([32a41c5](https://github.com/scorecard-ai/scorecard-python/commit/32a41c5605d848a6c3be35345281b455b66f674e))
+* **readme:** fix version rendering on pypi ([cc77b2d](https://github.com/scorecard-ai/scorecard-python/commit/cc77b2d36ec9e6f52da7716e46a27dffc57f984e))
+
+## 2.2.0 (2025-06-24)
+
+Full Changelog: [v2.1.0...v2.2.0](https://github.com/scorecard-ai/scorecard-python/compare/v2.1.0...v2.2.0)
+
+### Features
+
+* **api:** api update ([79af4fe](https://github.com/scorecard-ai/scorecard-python/commit/79af4fe2ff1e557f1d17f62edd94f795c287094a))
+* **client:** add support for aiohttp ([d6bd45d](https://github.com/scorecard-ai/scorecard-python/commit/d6bd45ddd2ee2f3270c76271631313e057061f3a))
+
+
+### Bug Fixes
+
+* **auth:** Use bearer auth for API keys ([617d233](https://github.com/scorecard-ai/scorecard-python/commit/617d2332d38c14b7cc7261d7256dcbf2c0edbde4))
+* **tests:** fix: tests which call HTTP endpoints directly with the example parameters ([c572597](https://github.com/scorecard-ai/scorecard-python/commit/c572597f078e962d88b5f48c2ea8af55f71e16be))
+
+
+### Chores
+
+* **ci:** enable for pull requests ([35500a1](https://github.com/scorecard-ai/scorecard-python/commit/35500a1eec0133f0cb70364f23e497bd75363550))
+* **internal:** codegen related update ([88e8b62](https://github.com/scorecard-ai/scorecard-python/commit/88e8b6284e8ae486f8eb4b303aa76c5d82db3807))
+* **internal:** codegen related update ([332a067](https://github.com/scorecard-ai/scorecard-python/commit/332a0679e89bb9c6f3df862c4c5a66d7b7ff7b8a))
+* **internal:** update conftest.py ([5b724c8](https://github.com/scorecard-ai/scorecard-python/commit/5b724c89f9ed7c747ce963370a6ac21f58ed6d26))
+* **readme:** update badges ([dc4ba78](https://github.com/scorecard-ai/scorecard-python/commit/dc4ba78a4f38b2e787e6846f4eb4d3b928d2da80))
+* **tests:** add tests for httpx client instantiation & proxies ([b636d85](https://github.com/scorecard-ai/scorecard-python/commit/b636d8561196355f6d845ca1c8a35f7f44ebe402))
+* **tests:** skip some failing tests on the latest python versions ([b12904b](https://github.com/scorecard-ai/scorecard-python/commit/b12904b4a565ac07fc334d7d54d04aeb619e2e77))
+
+
+### Documentation
+
+* **client:** fix httpx.Timeout documentation reference ([2e7310b](https://github.com/scorecard-ai/scorecard-python/commit/2e7310b1087e14191d1f7341cdfafcf527f383cf))
+
+## 2.1.0 (2025-06-13)
+
+Full Changelog: [v2.0.0...v2.1.0](https://github.com/scorecard-ai/scorecard-python/compare/v2.0.0...v2.1.0)
+
+### Features
+
+* **api:** api update ([170af0b](https://github.com/scorecard-ai/scorecard-python/commit/170af0b39abe5188424bd2bab0e186e85d4bb8db))
+* **api:** api update ([2481dd6](https://github.com/scorecard-ai/scorecard-python/commit/2481dd69294191e48c2911ace4ffebe753d35d01))
+* **sdk:** Support Clerk API Keys in SDK ([b38f23a](https://github.com/scorecard-ai/scorecard-python/commit/b38f23a81f934331b528c918ac30444385078f66))
+
+
+### Bug Fixes
+
+* **client:** correctly parse binary response | stream ([84e32e8](https://github.com/scorecard-ai/scorecard-python/commit/84e32e8614afbad852d68a036f09742c7d0bc2d4))
+
+
+### Chores
+
+* **auth:** Add backwards-compatibility for bearer token auth ([ab40bf9](https://github.com/scorecard-ai/scorecard-python/commit/ab40bf9ddaee277d982055bce569f79b08c1d3af))
+* **internal:** version bump ([cff1e89](https://github.com/scorecard-ai/scorecard-python/commit/cff1e8930895827c110116300a95e1419f71a161))
+* **tests:** run tests in parallel ([b88cd20](https://github.com/scorecard-ai/scorecard-python/commit/b88cd203c7022ebdc6f4d9c0859a0c1f9dad845f))
+
+## 2.0.0 (2025-06-10)
+
+Full Changelog: [v2.0.0-alpha.5...v2.0.0](https://github.com/scorecard-ai/scorecard-python/compare/v2.0.0-alpha.5...v2.0.0)
+
+### ⚠ BREAKING CHANGES
+
+* **api:** Add trials option to run_and_evaluate
+
+### Features
+
+* **api:** Add trials option to run_and_evaluate ([c8794c1](https://github.com/scorecard-ai/scorecard-python/commit/c8794c1cf84b2f2facde2254237184262e689833))
+* **api:** api update ([569ba09](https://github.com/scorecard-ai/scorecard-python/commit/569ba09f85d63ed35430897b77d85e689fe1e705))
+* **api:** api update ([3f7e7a1](https://github.com/scorecard-ai/scorecard-python/commit/3f7e7a12c47c60d3c42e9dd5f603cce85aa6e0bc))
+* **api:** api update ([811f551](https://github.com/scorecard-ai/scorecard-python/commit/811f551a9ca03fb61e44d6a02832eadbefab2e90))
+
+
+### Chores
+
+* **api:** Improve variant names in SDK for creating metrics ([4504014](https://github.com/scorecard-ai/scorecard-python/commit/450401401330863b016716adce6ea2a2b7344ad1))
+
+## 2.0.0-alpha.5 (2025-06-09)
+
+Full Changelog: [v2.0.0-alpha.4...v2.0.0-alpha.5](https://github.com/scorecard-ai/scorecard-python/compare/v2.0.0-alpha.4...v2.0.0-alpha.5)
+
+### Features
+
+* **api:** api update ([e927a6c](https://github.com/scorecard-ai/scorecard-python/commit/e927a6c84273c69b8d21beba277a5a801447d779))
+* **api:** api update ([324d17c](https://github.com/scorecard-ai/scorecard-python/commit/324d17c99d3913bbf8f8a0208ffba001bcf7d402))
+* **api:** api update ([8444914](https://github.com/scorecard-ai/scorecard-python/commit/8444914f5195a57d3802da51038cfeb8c3373380))
+* **api:** api update ([7639408](https://github.com/scorecard-ai/scorecard-python/commit/76394084ab80d5b9275c55977ce8cf76eed9a1e4))
+* **api:** api update ([253902a](https://github.com/scorecard-ai/scorecard-python/commit/253902ae8a1d41521892f87eca3b5d31012fac1d))
+* **api:** Simplify usage of run_and_evaluate ([f423a5a](https://github.com/scorecard-ai/scorecard-python/commit/f423a5aec1e54d6dd144fd11fbc34b0a1f168704))
+* **client:** add follow_redirects request option ([38c7bcf](https://github.com/scorecard-ai/scorecard-python/commit/38c7bcfb9ac52dfc5f38c7be259a6d924347a732))
+
+
+### Chores
+
+* **docs:** grammar improvements ([aee246f](https://github.com/scorecard-ai/scorecard-python/commit/aee246f6247dc5d9d76ee18ce66c8a784f9d92d1))
+* **docs:** remove reference to rye shell ([69ae784](https://github.com/scorecard-ai/scorecard-python/commit/69ae784503ad7bca43b4e7fb9ce3a667a584a67a))
+* **internal:** codegen related update ([0c76111](https://github.com/scorecard-ai/scorecard-python/commit/0c76111261cca794ede13ee53ccf0d5b41fd6ea0))
+* **internal:** codegen related update ([e236a2f](https://github.com/scorecard-ai/scorecard-python/commit/e236a2f4957145a2709002864f504b87799ae4ec))
+* **internal:** codegen related update ([2e7476d](https://github.com/scorecard-ai/scorecard-python/commit/2e7476d536ee31f073dbf0d2944bbe4dabb40b4a))
+
+## 2.0.0-alpha.4 (2025-05-16)
+
+Full Changelog: [v2.0.0-alpha.3...v2.0.0-alpha.4](https://github.com/scorecard-ai/scorecard-python/compare/v2.0.0-alpha.3...v2.0.0-alpha.4)
+
+### Features
+
+* **api:** api update ([4778c95](https://github.com/scorecard-ai/scorecard-python/commit/4778c9537c5f04425826faf026cdc84d9bb7e427))
+* **api:** api update ([2bceebf](https://github.com/scorecard-ai/scorecard-python/commit/2bceebf71408effc2a8e296bbedccb08d9a5f139))
+
+
+### Bug Fixes
+
+* **package:** support direct resource imports ([466f46c](https://github.com/scorecard-ai/scorecard-python/commit/466f46c619f6436d25cf81955bee4a1fa34cddb6))
+
+
+### Chores
+
+* **ci:** fix installation instructions ([d171f53](https://github.com/scorecard-ai/scorecard-python/commit/d171f53463694efe215b3921022ca46d689db355))
+* **ci:** upload sdks to package manager ([cead646](https://github.com/scorecard-ai/scorecard-python/commit/cead6467c7d10102f8a51ffe2f4cf79502418c27))
+* **internal:** avoid errors for isinstance checks on proxies ([d9af712](https://github.com/scorecard-ai/scorecard-python/commit/d9af712c49b829af32d760b2588654bdd2b12d75))
+* Update example to use apiKey ([e5982af](https://github.com/scorecard-ai/scorecard-python/commit/e5982afffc1b4eefd8bd3ab14f9db1ee1c657aee))
+
+
+### Documentation
+
+* **readme:** Fix example in README ([369739a](https://github.com/scorecard-ai/scorecard-python/commit/369739a595851ad455773726eec8d65aae13f597))
+* **readme:** Update documentation URL ([a196328](https://github.com/scorecard-ai/scorecard-python/commit/a196328649dd507c2a9c87a9c4346368a377f359))
+
+## 2.0.0-alpha.3 (2025-05-06)
+
+Full Changelog: [v2.0.0-alpha.2...v2.0.0-alpha.3](https://github.com/scorecard-ai/scorecard-python/compare/v2.0.0-alpha.2...v2.0.0-alpha.3)
+
+### Features
+
+* **api:** api update ([c737926](https://github.com/scorecard-ai/scorecard-python/commit/c737926eb7498570facd77953d51d75a48609491))
+
+## 2.0.0-alpha.2 (2025-05-03)
+
+Full Changelog: [v2.0.0-alpha.1...v2.0.0-alpha.2](https://github.com/scorecard-ai/scorecard-python/compare/v2.0.0-alpha.1...v2.0.0-alpha.2)
+
+### Features
+
+* Add run_and_evaluate and async_run_and_evaluate helpers ([#3](https://github.com/scorecard-ai/scorecard-python/issues/3)) ([86a5a98](https://github.com/scorecard-ai/scorecard-python/commit/86a5a986d480a441803b2fed7be0c54d498cf280))
+* **api:** api update ([006296d](https://github.com/scorecard-ai/scorecard-python/commit/006296dbcb7d442f6d8388bace5ddb73a528b42d))
+* **api:** api update ([e4b2e8f](https://github.com/scorecard-ai/scorecard-python/commit/e4b2e8f61ad7b4e5885b379833003b03783c7381))
+
+
+### Chores
+
+* configure new SDK language ([4342e2a](https://github.com/scorecard-ai/scorecard-python/commit/4342e2a1e0f5ae92ec4310361e0205e0cb4d087d))
+
+## 2.0.0-alpha.1 (2025-04-29)
+
+Full Changelog: [v2.0.0-alpha.0...v2.0.0-alpha.1](https://github.com/scorecard-ai/scorecard-python/compare/v2.0.0-alpha.0...v2.0.0-alpha.1)
+
+### Features
+
+* **api:** api update ([5e473d6](https://github.com/scorecard-ai/scorecard-python/commit/5e473d64f8186a9d62810ac048678fc203ef20d8))
+* **api:** api update ([9a4652a](https://github.com/scorecard-ai/scorecard-python/commit/9a4652a759b7775fe66ec342f0caccc94f453f7a))
+* **api:** api update ([81984ae](https://github.com/scorecard-ai/scorecard-python/commit/81984ae3bf6525ee7c984fe0b3c8667c12fffae9))
+* **api:** api update ([1fce544](https://github.com/scorecard-ai/scorecard-python/commit/1fce5445bb6b25141f0ed1388e09c59697af68d5))
+* **api:** manual updates ([8657406](https://github.com/scorecard-ai/scorecard-python/commit/8657406d9146452ef54fb98f950768660bbc659c))
+* **api:** manual updates ([20e0920](https://github.com/scorecard-ai/scorecard-python/commit/20e0920ac5aab7e426f36da73106be316aa3a111))
+* **api:** manual updates ([4f586ff](https://github.com/scorecard-ai/scorecard-python/commit/4f586ff229a9c902d3ae89e7bcc3d0a123c2cfb2))
+
+
+### Bug Fixes
+
+* read from SCORECARD_API_KEY ([77e2b5b](https://github.com/scorecard-ai/scorecard-python/commit/77e2b5bbfa61e2f2444b8b0668a81e5fca259d41))
+* readme typo ([#27](https://github.com/scorecard-ai/scorecard-python/issues/27)) ([ad53388](https://github.com/scorecard-ai/scorecard-python/commit/ad53388f910b4d22defa62878e0989c68385587f))
+
+
+### Chores
+
+* update SDK settings ([41a425c](https://github.com/scorecard-ai/scorecard-python/commit/41a425c3cabd3f0c37fe6a2d47533fe91e8d9853))
+* update SDK settings ([69f0c97](https://github.com/scorecard-ai/scorecard-python/commit/69f0c9790a7587ac1244e52dace7caf6ef92e1b3))
+
+## 2.0.0-alpha.0 (2025-04-25)
+
+Full Changelog: [v0.0.1-alpha.1...v2.0.0-alpha.0](https://github.com/scorecard-ai/scorecard-python/compare/v0.0.1-alpha.1...v2.0.0-alpha.0)
+
+### Features
+
+* **api:** api update ([953ed07](https://github.com/scorecard-ai/scorecard-python/commit/953ed077b6059b88dc4e3c0dccab17c6df87e5c8))
+
+
+### Chores
+
+* update SDK settings ([57e6222](https://github.com/scorecard-ai/scorecard-python/commit/57e62221e5902d18d65b5a57f61035f3aa2c8033))
+* update SDK settings ([60e3076](https://github.com/scorecard-ai/scorecard-python/commit/60e307667ce5f774eb81544677c338b9c09a3c6c))
+* update SDK settings ([94b35b3](https://github.com/scorecard-ai/scorecard-python/commit/94b35b3244f743264cf040feae2a10f07ec0f637))
+* update SDK settings ([a1958c7](https://github.com/scorecard-ai/scorecard-python/commit/a1958c782fa89e16cd29e98eeda7c7aeab712293))
+* update SDK settings ([ce0a9dc](https://github.com/scorecard-ai/scorecard-python/commit/ce0a9dc789311e2864c144f528b6699a0533dcf3))
+
+## 0.0.1-alpha.1 (2025-04-25)
+
+Full Changelog: [v0.0.1-alpha.0...v0.0.1-alpha.1](https://github.com/scorecard-ai/scorecard-python/compare/v0.0.1-alpha.0...v0.0.1-alpha.1)
+
+### Bug Fixes
+
+* read from SCORECARD_API_KEY ([77e2b5b](https://github.com/scorecard-ai/scorecard-python/commit/77e2b5bbfa61e2f2444b8b0668a81e5fca259d41))
+* readme typo ([#27](https://github.com/scorecard-ai/scorecard-python/issues/27)) ([ad53388](https://github.com/scorecard-ai/scorecard-python/commit/ad53388f910b4d22defa62878e0989c68385587f))
+
+
+### Chores
+
+* sync repo ([d5b7e71](https://github.com/scorecard-ai/scorecard-python/commit/d5b7e7190196be95c0f9fcf767dce0271d19bafc))
+* update SDK settings ([185f9d7](https://github.com/scorecard-ai/scorecard-python/commit/185f9d7c2b9bb4c1dcb1bcdd83792f69f3765a98))
+* update SDK settings ([5cd9d74](https://github.com/scorecard-ai/scorecard-python/commit/5cd9d7486eef8af4186c0e0b28a62822e87484c8))
+* update SDK settings ([4ac7794](https://github.com/scorecard-ai/scorecard-python/commit/4ac7794d03138b23be02f2aa4b11f75c665c1490))
+* update SDK settings ([b443783](https://github.com/scorecard-ai/scorecard-python/commit/b443783ee8ff75118db6ceefa5532c0d10d2b346))
