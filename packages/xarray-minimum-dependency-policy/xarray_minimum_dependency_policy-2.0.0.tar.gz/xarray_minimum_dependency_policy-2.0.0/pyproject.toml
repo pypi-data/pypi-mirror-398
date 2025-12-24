@@ -1,0 +1,92 @@
+[project]
+name = "xarray-minimum-dependency-policy"
+authors = [
+  { name = "Justus Magin" },
+]
+readme = "README.md"
+license = "Apache-2.0"
+description = "Validate minimum dependency environments according to xarray's policy scheme"
+requires-python = ">=3.11"
+dependencies = [
+  "rich>=14.2.0",
+  "rich-click>=1.9.0",
+  "pyyaml>=6.0.0",
+  "cytoolz>=1.1.0",
+  "py-rattler>=0.20.0",
+  "python-dateutil>=2.9.0",
+  "jsonschema>=4.25.0",
+]
+dynamic = ["version"]
+
+[project.scripts]
+minimum-versions = "minimum_versions.main:main"
+
+[project.urls]
+Repository = "https://github.com/xarray-contrib/minimum-dependency-versions"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch]
+version.source = "vcs"
+
+[tool.hatch.metadata.hooks.vcs]
+
+[tool.hatch.build.targets.sdist]
+only-include = ["minimum_versions"]
+
+[tool.hatch.build.targets.wheel]
+only-include = ["minimum_versions"]
+
+[tool.ruff]
+target-version = "py311"
+builtins = ["ellipsis"]
+exclude = [
+  ".git",
+  ".eggs",
+  "build",
+  "dist",
+  "__pycache__",
+]
+line-length = 100
+
+[tool.ruff.lint]
+ignore = [
+  "E402", # E402: module level import not at top of file
+  "E501", # E501: line too long - let black worry about that
+  "E731", # E731: do not assign a lambda expression, use a def
+  # ignore for now, fix in a later PR
+  "E722",  # bare except
+  "UP031", # percent-based string interpolation
+]
+select = [
+  "F",   # Pyflakes
+  "E",   # Pycodestyle
+  "I",   # isort
+  "UP",  # Pyupgrade
+  "TID", # flake8-tidy-imports
+  "W",
+]
+extend-safe-fixes = [
+  "TID252", # absolute imports
+]
+fixable = ["I", "TID252"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+# Disallow all relative imports.
+ban-relative-imports = "all"
+
+[tool.coverage.run]
+source = ["minimum_versions"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING"]
+
+[dependency-groups]
+dev = [
+  "pytest>=9.0.2",
+  "pytest-cov>=7.0.0",
+]
