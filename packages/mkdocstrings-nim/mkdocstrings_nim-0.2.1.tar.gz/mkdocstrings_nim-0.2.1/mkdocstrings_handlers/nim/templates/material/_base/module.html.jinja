@@ -1,0 +1,40 @@
+{#- Template for Nim modules.
+
+Context:
+  module (NimModule): The module to render.
+  root (bool): Whether this is the root object.
+  heading_level (int): The HTML heading level to use.
+  config (dict): The configuration options.
+-#}
+
+<div class="doc doc-object doc-module">
+  {% set html_id = module.module %}
+
+  {% filter heading(heading_level, id=html_id, class="doc doc-heading", toc_label=module.module) %}
+    <code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>
+    <span class="doc doc-object-name doc-module-name">{{ module.module }}</span>
+  {% endfilter %}
+
+  <div class="doc doc-contents first">
+    {% if module.doc %}
+      <div class="doc-description">
+        {{ module.doc | convert_markdown(heading_level, html_id) }}
+      </div>
+    {% endif %}
+
+    {% for entry in module.entries %}
+      {% set template_name = entry.kind ~ ".html.jinja" %}
+      {% with heading_level = heading_level + 1 %}
+        {% include template_name %}
+      {% endwith %}
+    {% endfor %}
+
+    {% if config.show_attribution %}
+    <div class="doc-attribution">
+      <small>
+        Generated with <a href="https://github.com/elijahr/mkdocstrings-nim" target="_blank" rel="noopener">mkdocstrings-nim</a>
+      </small>
+    </div>
+    {% endif %}
+  </div>
+</div>

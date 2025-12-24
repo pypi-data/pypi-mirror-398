@@ -1,0 +1,130 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mkdocstrings-nim"
+version = "0.2.1"
+description = "A Nim handler for mkdocstrings"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    { name = "Elijah Rutschman" }
+]
+keywords = ["mkdocstrings", "nim", "documentation", "mkdocs", "api-docs"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Documentation",
+    "Topic :: Software Development :: Documentation",
+    "Typing :: Typed",
+]
+dependencies = [
+    "mkdocstrings>=0.20",
+    "Jinja2>=3.0",
+    "docstring-parser>=0.15",
+    "Pygments>=2.0",
+    "MarkupSafe>=2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/elijahr/mkdocstrings-nim"
+Documentation = "https://elijahr.github.io/mkdocstrings-nim/"
+Repository = "https://github.com/elijahr/mkdocstrings-nim"
+Issues = "https://github.com/elijahr/mkdocstrings-nim/issues"
+Changelog = "https://github.com/elijahr/mkdocstrings-nim/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-xdist",
+    "pytest-asyncio",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pre-commit>=4.0",
+    "types-Pygments",
+]
+docs = [
+    "mkdocs>=1.5",
+    "mkdocs-material>=9.0",
+    "mike>=2.0",
+    "mkdocs-git-revision-date-localized-plugin>=1.2",
+    "mkdocs-glightbox>=0.3",
+    "pymdown-extensions>=10.0",
+]
+
+[project.entry-points."mkdocstrings.handlers"]
+nim = "mkdocstrings_handlers.nim:get_handler"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mkdocstrings_handlers"]
+
+[tool.hatch.build]
+include = [
+    "mkdocstrings_handlers/**/*.py",
+    "mkdocstrings_handlers/**/*.jinja",
+    "mkdocstrings_handlers/**/*.css",
+    "mkdocstrings_handlers/**/*.nim",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--last-failed"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+    "SIM108", # use ternary operator instead of if-else
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["mkdocstrings_handlers"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "normal"
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = [
+    "docstring_parser.*",
+    "mkdocstrings.*",
+]
+ignore_missing_imports = true
