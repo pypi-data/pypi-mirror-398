@@ -1,0 +1,179 @@
+[build-system]
+requires        = ["hatchling", "versioningit"]
+build-backend   = "hatchling.build"
+
+
+##################################################
+# Generic project information
+##################################################
+
+[project]
+name            = "overity"
+dynamic         = ["version"]
+description     = 'MLOps oriented framework for trustworthy Edge-AI'
+readme          = "README.md"
+requires-python = ">=3.8"
+license         = "Apache-2.0"
+keywords        = []
+
+authors = [
+  { name = "Florian Dupeyron", email = "florian.dupeyron@elsys-design.com" },
+]
+
+classifiers = [
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+
+dependencies = [
+	"jsonschema==4.23.0",
+	"toml==0.10.2",
+	"parsimonious==0.10.0",
+	"nbformat==5.10.4",
+	"Jinja2==3.1.6",
+]
+
+
+[project.urls]
+Documentation = "https://overity.ai"
+Issues        = "https://github.com/fdmysterious/overity/issues"
+Source        = "https://github.com/fdmysterious/overity"
+
+[project.scripts]
+overity = "overity.frontend:main"
+
+[tool.hatch.version]
+#path = "src/overity/__about__.py"
+source = "versioningit"
+
+
+##################################################
+# Versioning configuration
+##################################################
+
+[tool.versioningit.format]
+# Format used when there have been commits since the most recent tag:
+distance = "{base_version}.post{distance}+{vcs}{rev}"
+# Example formatted version: 1.2.3.post42+ge174a1f
+
+# Format used when there are uncommitted changes:
+dirty = "{base_version}+d{build_date:%Y%m%d}"
+# Example formatted version: 1.2.3+d20230922
+
+# Format used when there are both commits and uncommitted changes:
+distance-dirty = "{base_version}.post{distance}+{vcs}{rev}.d{build_date:%Y%m%d}"
+# Example formatted version: 1.2.3.post42+ge174a1f.d20230922
+
+
+##################################################
+# Tools configuration
+##################################################
+
+## ---------------------------- Coverage
+
+[tool.coverage.run]
+source_pkgs = ["overity", "tests"]
+branch      = true
+parallel    = true
+omit        = [
+	"src/overity/__about__.py"
+]
+
+[tool.coverage.paths]
+overity = ["src/overity", "*/overity-python/src/overity"]
+tests  = ["tests", "*/test-template/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
+[tool.pyright]
+executionEnvironments = [{root = "src"}]
+venvPath = ".hatch"
+venv = "hatch-test.py3.13"
+
+
+##################################################
+# Environments configuration
+##################################################
+
+## ---------------------------- Default environment
+
+[tool.hatch.envs.default]
+
+python = "3.12"
+
+
+## ---------------------------- Program testing environment
+
+[tool.hatch.envs.program_test]
+
+python = "3.12"
+
+extra-dependencies = [
+	"tensorflow==2.19.0",
+	"keras==3.9.2",
+	"pandas==2.2.3",
+	"scikit-learn==1.6.1",
+	"onnx==1.19.0",
+	"tf2onnx",
+	"onnxruntime"
+]
+
+
+## ---------------------------- Type-checking environment
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/overity tests}"
+
+
+## ---------------------------- Documentation generation environment
+
+[tool.hatch.envs.docs]
+dependencies = [
+	"mkdocs",
+	"mkdocs-material",
+	"mkdocs-roamlinks-plugin",
+	"mkdocstrings",
+	"mkdocstrings[python]",
+	"mkdocs-gen-files",
+	"mkdocs-literate-nav"
+]
+
+[tool.hatch.envs.docs.scripts]
+build = "mkdocs build"
+
+
+## ---------------------------- Linting environment
+
+[tool.hatch.envs.lint]
+
+dependencies = [
+	"ruff",
+	"black",
+	"parsimonious", # For the header checker
+]
+
+
+[tool.hatch.envs.lint.scripts]
+
+code-rules       = "ruff check src"
+code-format      = "black src"
+code-headers     = "scripts/header_check.py src"
+
+# Linting report using SARIF format for automation
+code-rules-sarif = "ruff check src --output-format sarif -o .lint.sarif"
