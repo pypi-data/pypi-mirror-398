@@ -1,0 +1,193 @@
+# RDWORKS
+
+Rdworks is inspired by pandas. 
+Many rdworks functions work like pandas and can be chained into a workflow.
+
+
+## Installation
+
+```sh
+$ pip install rdworks
+
+# or build from the source
+$ pip install git+https://github.com/sunghunbae/rdworks.git
+
+# or if you use uv package/project manager
+$ uv add rdworks
+```
+
+## Usage
+
+### Process Compound Library
+
+```py
+from rdworks import MolLibr
+
+# initialize the library
+libr = MolLibr(drug_smiles[:5], drug_names[:5])
+libr = MolLibr([Chem.MolFromSmiles(_) for _ in drug_smiles[5:10]], drug_names[5:10])
+libr = MolLibr([Mol(smi, name) for smi, name in zip(drug_smiles[10:15], drug_names[10:15])])
+
+# libr will be changed by +=, -=, &= operators
+libr += other_libr
+
+# remove redundant compounds
+libr_unique = libr.unique()
+
+# select compounds satisfying ZINC druglike rules
+drug_like_libr = libr.drop("~ZINC_druglike") 
+
+# select compounds CNS compliant
+cns_compliant_libr = libr.drop("~CNS") 
+cns_compliant_libr = libr.drop("CNS", invert=True)
+
+# select compounds compliant to a custom rule defined in a xml file
+custom_rule_compliant_libr = libr.drop(custom_rul_xml_path, invert=True)
+
+# select neural network potential applicable compounds
+ani_2x_applicable_libr = libr.nnp_ready("ANI-2x", progress=False)
+
+# select compounds similar to query with a threshold
+sim = libr.similar(query_Mol, threshold=0.2)
+```
+
+### Complete Stereoisomers
+
+```py
+from rdworks import Mol, MolLibr
+from rdworks.complete import complete_stereoisomers
+
+mol = Mol(cmpd.smiles)
+stereoisomers = complete_stereoisomers(mol)
+```
+
+### Complete Tautomers
+
+```py
+m = Mol("Oc1c(cccc3)c3nc2ccncc12", "tautomer")
+libr = complete_tautomers(m)
+assert libr.count() == 3
+expected_names = ["tautomer.1", "tautomer.2", "tautomer.3"]
+names = [_.name for _ in libr]
+assert names == expected_names
+expected_canonical_smiles = [
+    "O=c1c2c[nH]ccc-2nc2ccccc12",
+    "O=c1c2ccccc2[nH]c2ccncc12",
+    "Oc1c2ccccc2nc2ccncc12",
+]
+canonical_smiles = [_.smiles for _ in libr]
+difference = set(expected_canonical_smiles) - set(canonical_smiles)
+assert len(difference) == 0
+```
+
+### Generate Conformer
+
+```py
+from rdworks import Mol
+from batchopt import BatchOptimizer
+
+
+mol = Mol(smiles, name)
+mol = mol.make_confs(n=n, method='ETKDG') # optimize with MMFF94
+mol = mol.optimize_confs()
+# remove similar conformers (RMSD <0.3) [and stereo-flipped conformers by default]
+mol = mol.drop_confs(similar=True, similar_rmsd=0.3)
+mol = mol.optimize_confs(calculator=BatchOptimizer, batchsize_atoms=16384)
+mol = mol.sort_confs().rename()
+mol = mol.align_confs().cluster_confs(sort='energy')
+```
+
+### Serialize/deserialize Molecule or Conformer
+
+`Mol` and `Conf` objects have `serialize()` and `deserialize()` functions to
+exchange and reproduce the exact objects.
+
+```py
+from rdworks import Conf
+
+
+mol_serialized = mol.serialize()
+lowest_energy_conf_serialized = mol.confs[0].serialize() 
+# lowest energy conformer
+# serialized conformer is regular string can be easily exchanged
+conf = Conf().deserialize(lowest_energy_conf_serialized)
+```
+
+### Profile Torsion Angle Energies
+```py
+from batchopt import BatchSinglePointer
+
+
+conf = conf.calculate_sp_torsion_energies(
+        calculator = BatchSinglePointer,
+        torsion_angle_idx = torsion_angle_idx,
+        simplify = simplify,
+        interval = interval,
+        water = water,
+        batchsize_atoms = batchsize_atoms,
+    )
+results = conf.serialize()
+```
+
+### Generate Microstates
+
+Microstates are molecular states that have defined protonation states. 
+A molecule exists as an ensemble of microstates at a given pH condition.
+
+```py
+import logging
+import math
+import numpy as np
+from rdworks import State, StateNetwork
+
+
+logger = logging.getLogger(__name__)
+original_state = State(smiles=smiles)
+num_ionizable_sites = len(original_state.sites)
+logger.info(f"found {num_ionizable_sites} ionizable sites.")
+state_net = StateNetwork()
+
+if num_ionizable_sites > 6:
+    state_net.build(smiles=smiles,
+                    max_formal_charge=3,
+                    protomer_rule='simple',
+                    tautomer_rule=None)
+else:
+    state_net.build(smiles=smiles,
+                    max_formal_charge=3,
+                    protomer_rule='default',
+                    tautomer_rule=None)
+
+state_ens = state_net.get_state_ensemble()
+logger.info(f'generated {state_ens.size()} microstates.')
+```
+
+### Calculate Microstate Population with External dG Predictor
+
+```py
+from unipka.deltaG import UniMolFreeEnergy
+
+
+dG_dict = dG_predictor.predict([st.smiles for st in state_ens])
+
+# set state energies via Uni-pKa model
+# Uni-pka model specific variable for pH dependent deltaG
+# Training might be conducted with a dataset in which raw pKa values
+# were subtracted by the mean value (TRANSLATE_PH), 6.504894871171601.
+dG = [dG_dict[st.smiles] for st in state_ens]
+state_ens.set_energies(dG, ref_ph=6.504894871171601)
+
+ph_values = np.linspace(-2, 16, 180)
+p = state_ens.get_population(ph_values, C=math.log(10), beta=1.0)
+state_ens = state_ens.trim(p, threshold=0.05)
+
+# representative state(s) at pH 7.4, a subset of state_ens
+ph_74 = np.array([7.4])
+p_74 = state_ens.get_population(ph_74)
+# p_74.shape == (self.size(), pH.shape[0] or number of pH)
+ph74_pop = {state_idx: p.item() for state_idx, p in enumerate(p_74)}
+dictdata = {
+    'ensemble' : state_ens.serialize(), # str
+    'ph74_pop' : ph74_pop, # dict
+    }
+```
