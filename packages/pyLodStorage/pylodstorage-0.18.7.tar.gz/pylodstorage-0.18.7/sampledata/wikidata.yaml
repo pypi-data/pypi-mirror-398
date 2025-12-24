@@ -1,0 +1,274 @@
+#
+# Sample Queries for Wikidata
+#
+# WF 2022-02-19
+'MountainsHigher8000m':
+    title:  Mountains higher than 8000 m
+    description: https://qlever.cs.uni-freiburg.de/wikidata/F7JXq3
+    sparql: |
+      # Mountains higher than 8000 m
+      # fixes:
+      # https://qlever.cs.uni-freiburg.de/wikidata/F7JXq3
+      # see https://github.com/ad-freiburg/qlever/issues/604
+      PREFIX wd: <http://www.wikidata.org/entity/>
+      PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+      PREFIX p: <http://www.wikidata.org/prop/>
+      PREFIX psn: <http://www.wikidata.org/prop/statement/value-normalized/>
+      PREFIX wikibase: <http://wikiba.se/ontology#>
+      PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+      SELECT ?mountain ?mountain_label (MAX(?elevationValues) AS ?elevation) (SAMPLE(?coordinateValues) AS ?coordinates) WHERE {
+        ?mountain wdt:P31 wd:Q8502 .
+        ?mountain p:P2044/psn:P2044/wikibase:quantityAmount ?elevationValues .
+        ?mountain wdt:P625 ?coordinateValues .
+        ?mountain rdfs:label ?mountain_label .
+        FILTER(?elevationValues >= 8000.0) .
+        FILTER (LANG(?mountain_label) = "en")
+      }
+      GROUP BY ?mountain ?mountain_label
+      ORDER BY DESC(?elevation)
+'HumansWithLibrisEntryAndImageAndMap':
+     title: Humans with Entry in Swedish National Library and Image and Map available
+     description: |
+       see https://github.com/ad-freiburg/qlever/issues/615 see
+       https://qlever.cs.uni-freiburg.de/wikidata/5sDHUw
+       String functions URI and CONCAT not yet supported [reported by @dpriskorn on 15.10.2022]
+       variant of query that works: https://qlever.cs.uni-freiburg.de/wikidata/aIbGvo
+
+     sparql: |
+        # humans with images and maps in swedish national library
+        # 53142 results in 20.6 seconds on Wikidata Query Service
+        PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+        PREFIX wd: <http://www.wikidata.org/entity/>
+        PREFIX wikibase: <http://wikiba.se/ontology#>
+        SELECT ?item ?librisuri ?coord (sample(?img) AS ?image) (sample(?map) AS ?map) WHERE {
+          # humans with a Libris-URI (swedish national library) and a known birthplace
+          ?item wdt:P5587 ?librisid;
+                wdt:P31 wd:Q5;
+                wdt:P19 ?birthplace.
+          # birthplace coordinates
+          ?birthplace wdt:P625 ?coord.
+          # image of the subject
+          OPTIONAL {?item wdt:P18 ?img}.
+          # map of the subject
+          OPTIONAL {?item wdt:P242 ?map}.
+          BIND(URI(CONCAT("https://libris.kb.se/katalogisering/",?librisid)) AS ?librisuri)
+        }
+        group by ?item ?librisuri ?coord
+'GermanFIFA2014WorldCupTeam':
+     title: German FIFA 2014 World Cup Team
+     description:  German football players participating in the FIFA World GermanFIFA2014WorldCupTeam
+     sparql: |
+        # German FIFA 2014 Worldcup Team
+        #
+        PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+        PREFIX p: <http://www.wikidata.org/prop/>
+        PREFIX wd: <http://www.wikidata.org/entity/>
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+        SELECT  ?player ?playerLabel
+        WHERE
+          {
+            #SERVICE  <https://query.wikidata.org/bigdata/namespace/wdq/sparql>
+            #SERVICE  <http://sun.bitplan.com:7001/>
+            {                           #a working example query for wikidata:
+              ?player wdt:P31 wd:Q5.         #humans
+              ?player wdt:P54 wd:Q43310.     #germans
+              ?player wdt:P1344 wd:Q79859.   #part of world cup 2014
+              ?player rdfs:label ?playerLabel.
+              FILTER(LANG(?playerLabel) = "en")
+            }
+        }
+        ORDER BY(?playerLabel)
+'Top200HumanSettlementClasses':
+    title: top 200 human settlement classes https://www.wikidata.org/wiki/Q486972
+    description: based on wdtaxonomy Q486972 -c -d -m = using https://www.npmjs.com/package/wikidata-taxonomy
+    formats:
+        - item:wikidata
+    sparql: |
+      # relevant human settlement classes in wikidata
+      # based on wdtaxonomy Q486972 -c -d -m = -s
+      # WF 2021-08-25
+      SELECT ?item ?itemLabel ?itemDescription ?instances ?sites  WITH {
+          SELECT DISTINCT ?item { ?item wdt:P279* wd:Q486972 }
+        } AS %items WHERE {
+          INCLUDE %items .
+          {
+            SELECT ?item (count(distinct ?element) as ?instances) {
+              INCLUDE %items.
+              OPTIONAL { ?element wdt:P31 ?item }
+            } GROUP BY ?item
+          }
+          {
+            SELECT ?item (count(distinct ?site) as ?sites) {
+              INCLUDE %items.
+              OPTIONAL { ?site schema:about ?item }
+            } GROUP BY ?item
+          }
+          SERVICE wikibase:label {
+            bd:serviceParam wikibase:language "en"
+          }
+
+          FILTER(?instances>700)
+        } ORDER BY DESC (?instances)
+      LIMIT 200
+'AcademicConferenceItemLabel':
+  sparql: |
+      # get the label for the given item
+      PREFIX p: <http://www.wikidata.org/prop/>
+      PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+      PREFIX wd: <http://www.wikidata.org/entity/>
+      SELECT ?itemLabel
+      WHERE
+      {
+        VALUES (?item) {
+          (wd:Q2020153)
+        }
+        ?item rdfs:label ?itemLabel.
+        filter (lang(?itemLabel) = "en").
+      }
+'UniversityLogos':
+  sparql: |
+    # University Logos
+    # WF 2023-03-11
+    SELECT ?item ?itemLabel ?logo
+    WHERE
+    {
+      ?item wdt:P31 wd:Q3918.
+      ?item rdfs:label ?itemLabel.
+      FILTER(LANG(?itemLabel)="en")
+      ?item wdt:P154 ?logo
+    }
+    ORDER BY ?itemLabel
+'MachadoDeAssis':
+# https://stackoverflow.com/questions/71809883/sparql-query-dates-json-results-in-the-same-format-that-in-web-portal
+  sparql: |
+    # modified by WF 2022-07-22
+    PREFIX wd: <http://www.wikidata.org/entity/>
+    PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?author ?authorLabel ?birthDate
+    WHERE
+    {
+      VALUES ?authorLabel {
+        "Machado de Assis"@pt
+      }
+      # Instance of Human
+      ?author wdt:P31 wd:Q5 .
+      # Joaquim Maria Machado de Assis
+      ?author rdfs:label ?authorLabel.
+      FILTER (LANG(?authorLabel) = "pt").
+      # birthDate
+      ?author wdt:P569 ?birthDate .
+    }
+'PythonWebFrameworks':
+  sparql: |
+    # Python web frameworks
+    # WF 2024-01-14
+    # see https://w.wiki/8qJi
+
+    SELECT
+      (?itemLabel AS ?project)
+      (SAMPLE(?homepage) AS ?homepage) # Adding homepage link
+      (SAMPLE(?article) AS ?wikipedia) # Adding Wikipedia link
+      (?item AS ?wikidata)
+      (GROUP_CONCAT(DISTINCT ?instanceOf; separator=", ") AS ?tags) # Tags derived from instanceof
+      ?pypi
+    WHERE {
+      # web framework
+      ?item wdt:P31/wdt:P279* wd:Q1330336.
+      # programmed in Python
+      ?item wdt:P277 wd:Q28865.
+      ?item rdfs:label ?itemLabel.
+      OPTIONAL { ?item wdt:P31 ?instanceOfId. ?instanceOfId rdfs:label ?instanceOf. FILTER(LANG(?instanceOf) = "en") }
+      OPTIONAL {
+        # official website
+        ?item wdt:P856 ?homepage.
+      }
+      OPTIONAL {
+        ?article schema:about ?item.
+        ?article schema:inLanguage "en".
+        ?article schema:isPartOf <https://en.wikipedia.org/>.
+      }
+      FILTER(LANG(?itemLabel) = "en")
+      OPTIONAL {
+        # PyPi Packet
+        ?item wdt:P5568 ?pypi
+      }
+
+    }
+    GROUP BY ?item ?itemLabel ?pypi
+    ORDER BY ?project
+'author_events_fan':
+#https://github.com/WDscholia/scholia/issues/2412
+  sparql: |
+    PREFIX target: <http://www.wikidata.org/entity/Q20980928>
+
+    SELECT
+      (xsd:date(MIN(?start)) AS ?date)
+      ?event ?eventLabel
+      (CONCAT("/event/", SUBSTR(STR(?event), 32)) AS ?eventUrl)
+      (GROUP_CONCAT(DISTINCT ?role; separator=", ") AS ?roles)
+      (GROUP_CONCAT(DISTINCT ?location_label; separator=", ") AS ?locations)
+    WHERE {
+        BIND(target: AS ?person)
+        {  # speaker
+          ?event wdt:P823 ?person .
+          BIND("speaker" AS ?role)
+        } UNION {  # organizer
+          ?event wdt:P664 ?person .
+          BIND("organizer" AS ?role)
+        } UNION {  # participant
+          ?person wdt:P1344 | ^wdt:P710 ?event  .
+          BIND("participant" AS ?role)
+        } UNION {  # editor
+          ?person ^wdt:P98 / wdt:P4745 ?event  .
+          BIND("editor of proceedings" AS ?role)
+        } UNION {  # author
+          ?person ^wdt:P50 / wdt:P1433 / wdt:P4745 ?event  .
+          BIND("author" AS ?role)
+        } UNION {  # program committee member
+          ?event wdt:P5804 ?person .
+          BIND("program committee member" AS ?role)
+        }
+        OPTIONAL { ?event wdt:P276 ?location . ?location rdfs:label ?location_label . FILTER (LANG(?location_label) = 'en')}
+        OPTIONAL { ?event wdt:P580 | wdt:P585 ?start }
+
+        SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en,da,de,es,fr,jp,no,ru,sv,zh". }
+    }
+    GROUP BY ?event ?eventLabel
+    ORDER BY DESC(?date)
+'WikidataItemsNearItem':
+  # This query finds Wikidata items near a specified Wikidata item.
+  # It uses the Wikidata Query Service to find places within a given radius
+  # of the specified item and returns them ordered by distance.
+  param_list:
+    - name: item
+      type: WikidataItem
+      default_value: Q878253  # Schloss Weimar
+    - name: radius
+      type: float
+      default_value: 0.5 # 0.5 km
+    - name: limit
+      type: int
+      default_value: 50
+  sparql: |
+    #defaultView:Map
+    SELECT ?place ?placeLabel ?location ?dist
+    WHERE {
+      # coordinates of the item
+      wd:{{ item }} wdt:P625 ?itemLoc .
+      SERVICE wikibase:around {
+        ?place wdt:P625 ?location .
+        bd:serviceParam wikibase:center ?itemLoc .
+        bd:serviceParam wikibase:radius "{{ radius }}" .
+        bd:serviceParam wikibase:distance ?dist.
+      }
+      # Optional: Filter for specific types of places
+      # FILTER EXISTS {
+      #   ?place wdt:P31/wdt:P279* wd:Q41176 . # Instance of building or subclass of building
+      # }
+      FILTER(?place != wd:{{item}}) # Exclude item itself
+      SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
+    }
+    ORDER BY ASC(?dist)
+    LIMIT {{ limit }}
