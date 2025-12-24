@@ -1,0 +1,79 @@
+name: Build and Upload Release Assets
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  build-assets:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        ai:
+          - claude
+          - gemini
+          - copilot
+          - cursor-agent
+          - qwen
+          - opencode
+          - codex
+          - windsurf
+          - kilocode
+          - auggie
+          - codebuddy
+          - amp
+          - shai
+          - q
+          - bob
+          - qoder
+        script:
+          - sh
+          - ps
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Create release assets directory
+        run: mkdir -p release-assets
+
+      - name: Build template package
+        run: |
+          mkdir -p temp-pkg/.specify/templates
+          mkdir -p temp-pkg/.specify/scripts/bash
+          mkdir -p temp-pkg/.specify/scripts/powershell
+
+          # Copy templates
+          cp templates/decide-template.md temp-pkg/.specify/templates/
+          cp templates/commands/decide.md temp-pkg/.specify/templates/
+          cp templates/vscode-settings.json temp-pkg/.specify/
+
+          # Copy scripts
+          cp scripts/bash/*.sh temp-pkg/.specify/scripts/bash/
+          cp scripts/powershell/*.ps1 temp-pkg/.specify/scripts/powershell/
+
+          # Get version from tag
+          VERSION=${GITHUB_REF#refs/tags/}
+
+          # Create zip file
+          cd temp-pkg
+          zip -r "../release-assets/madrkit-template-${{ matrix.ai }}-${{ matrix.script }}-${VERSION}.zip" .
+          cd ..
+
+          # List created file
+          ls -lh "release-assets/madrkit-template-${{ matrix.ai }}-${{ matrix.script }}-${VERSION}.zip"
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-assets/*
+          token: ${{ github.token }}
