@@ -1,0 +1,45 @@
+# -*- coding: utf-8; -*-
+################################################################################
+#
+#  Wutta-Continuum -- SQLAlchemy Versioning for Wutta Framework
+#  Copyright © 2024 Lance Edgar
+#
+#  This file is part of Wutta Framework.
+#
+#  Wutta Framework is free software: you can redistribute it and/or modify it
+#  under the terms of the GNU General Public License as published by the Free
+#  Software Foundation, either version 3 of the License, or (at your option) any
+#  later version.
+#
+#  Wutta Framework is distributed in the hope that it will be useful, but
+#  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+#  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+#  more details.
+#
+#  You should have received a copy of the GNU General Public License along with
+#  Wutta Framework.  If not, see <http://www.gnu.org/licenses/>.
+#
+################################################################################
+"""
+App Provider
+"""
+
+from wuttjamaican.app import AppProvider
+
+
+class WuttaContinuumAppProvider(AppProvider):
+    """
+    The :term:`app provider` for WuttaWeb.  This adds some methods to
+    the :term:`app handler`, which are specific to Wutta-Continuum.
+    """
+
+    def continuum_is_enabled(self):
+        """
+        Returns boolean indicating if Wutta-Continuum is enabled.
+
+        This checks the config value as described in
+        :doc:`/narr/install`; default will be ``False``.
+        """
+        return self.config.get_bool(
+            "wutta_continuum.enable_versioning", usedb=False, default=False
+        )
