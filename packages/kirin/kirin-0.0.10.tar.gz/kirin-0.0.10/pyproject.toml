@@ -1,0 +1,156 @@
+# https://setuptools.pypa.io/en/latest/userguide/quickstart.html
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+include = '\.pyi?$'
+exclude = '''
+
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+  )/
+  | foo.py           # also separately exclude a file named foo.py in
+                     # the root of the project
+)
+'''
+
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = false
+ignore-magic = false
+ignore-semiprivate = false
+ignore-private = false
+ignore-property-decorators = false
+ignore-module = false
+fail-under = 100
+exclude = ["setup.py", "docs", "build", "examples"]
+ignore-regex = ["^get$", "^mock_.*", ".*BaseClass.*"]
+verbose = 2
+quiet = false
+whitelist-regex = []
+color = true
+
+[tool.pytest.ini_options]
+addopts = "-v --cov --cov-report term-missing"
+testpaths = [
+    "tests",
+]
+
+[tool.isort]
+profile = "black"
+
+[tool.ruff]
+# See https://docs.astral.sh/ruff/rules/ for a list of rules.
+# See https://docs.astral.sh/ruff/configuration/#using-pyprojecttoml for configuration documentation
+select = ["E", "F", "I"]
+exclude = ["notebooks/*", "scripts/*"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[project]
+name = "kirin"
+version = "0.0.10"
+dependencies = [
+    "pyprojroot",
+    "python-dotenv",
+    "typer",
+    "json5",
+    "fsspec",
+    "s3fs",  # For S3 support
+    "gcsfs",  # For Google Cloud Storage support
+    "fastapi",
+    "jinja2",
+    "python-multipart",
+    "python-slugify",
+    "keyring",
+    "boto3",
+    "loguru",  # Runtime logging
+    "uvicorn",  # Web server for CLI
+    "ipynbname",  # Jupyter notebook filename detection
+    "pillow",  # For image thumbnails and WebP encoding in web UI
+    "anywidget",
+]
+readme = "README.md"
+
+[project.scripts]
+kirin = "kirin.cli:app"
+
+[tool.coverage.run]
+omit = [
+    "tests/*",
+    "notebooks/*",
+]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "linux-64"]
+
+[tool.pixi.pypi-dependencies]
+kirin = { path = ".", editable = true }
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+docs = { features = ["docs"], solve-group = "default" }
+tests = { features = ["tests"], solve-group = "default" }
+
+[tool.pixi.feature.tests.tasks]
+test = "pytest --durations=10 --tb=short -v"
+
+[tool.pixi.feature.tests.dependencies]
+# Conda packages for testing
+pytest = "*"
+pytest-cov = "*"
+matplotlib = "*"
+pillow = "*"
+plotly = "*"
+httpx = "*"
+scikit-learn = "*"
+
+[tool.pixi.feature.tests.pypi-dependencies]
+# PyPI-only packages for testing
+kaleido = "*"
+
+[tool.pixi.feature.docs.dependencies]
+mkdocs-material = "*"
+mkdocs = "*"
+
+[tool.pixi.feature.docs.pypi-dependencies]
+mkdocstrings = { extras = ["python"] }
+
+[tool.pixi.feature.docs.tasks]
+build-docs = "mkdocs build --clean"
+serve-docs = "mkdocs serve"
+
+
+[tool.pixi.tasks]
+setup-ssl = "python -m kirin.setup_ssl"
+
+[tool.pixi.dependencies]
+# NOTE: Only add dependencies here if absolutely necessary.
+# This section is for conda packages that cannot be installed via PyPI.
+#
+# - Runtime dependencies are automatically installed via editable kirin package
+#   (from [project.dependencies] in pyproject.toml)
+# - Notebooks manage their own dependencies via PEP 723 inline script metadata
+# - Test dependencies go in [tool.pixi.feature.tests.dependencies]
+# - Docs dependencies go in [tool.pixi.feature.docs.dependencies]
+#
+# Prefer adding dependencies to [project.dependencies] or feature-specific sections
+# rather than here, unless you specifically need a conda-only package.
