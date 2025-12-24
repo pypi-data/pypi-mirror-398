@@ -1,0 +1,107 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, develop, feature/*]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install linters
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Run ruff check
+        run: ruff check src/ tests/
+
+      - name: Run ruff format check
+        run: ruff format --check src/ tests/
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        fastapi-version:
+          - ">=0.100.0,<0.115.0"
+          - ">=0.115.0,<0.120.0"
+          - ">=0.120.0,<1.0"
+        exclude:
+          # 最新FastAPIバージョンは新しいPythonでのみテスト
+          - python-version: "3.9"
+            fastapi-version: ">=0.120.0,<1.0"
+          - python-version: "3.10"
+            fastapi-version: ">=0.120.0,<1.0"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "fastapi${{ matrix.fastapi-version }}"
+          pip install -e .[dev]
+
+      - name: Run tests
+        run: |
+          pytest --cov=fapi_cli --cov-report=term-missing -v
+
+  install-check:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+          python -m build --wheel
+
+      - name: Install from wheel (clean venv)
+        shell: bash
+        run: |
+          WHEEL="$(ls dist/*.whl | head -n 1)"
+          python -m venv .venv_install_check
+          source .venv_install_check/bin/activate
+          pip install --upgrade pip
+          pip install "$WHEEL"
+          fapi-cli --help
+          fapi-cli request --help
+
+      - name: Install from wheel with extras (clean venv)
+        shell: bash
+        run: |
+          WHEEL="$(ls dist/*.whl | head -n 1)"
+          python -m venv .venv_install_check_form
+          source .venv_install_check_form/bin/activate
+          pip install --upgrade pip
+          pip install "$WHEEL[form]"
+          python -c "import python_multipart"
+          fapi-cli --help
