@@ -1,0 +1,143 @@
+Metadata-Version: 2.4
+Name: socialtextlytics
+Version: 2025.12.21131030
+Summary: A new package that analyzes social media post text to extract structured insights about audience engagement patterns, such as identifying common themes in highly liked content or predicting potential
+Author-email: socialtextlytics <hi@eugene.plus>
+License: MIT
+Project-URL: Homepage, https://github.com/chigwell/socialtextlytics
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: langchain-llm7>=0.0.0
+Requires-Dist: llmatch-messages>=0.0.0
+Requires-Dist: langchain-core>=0.3.0
+
+# socialtextlytics
+[![PyPI version](https://badge.fury.io/py/socialtextlytics.svg)](https://badge.fury.io/py/socialtextlytics)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/socialtextlytics)](https://pepy.tech/project/socialtextlytics)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**socialtextlytics** is a Python package that analyzes social‑media post text and returns structured insights about audience engagement patterns. It can identify common themes in highly liked content, suggest language that may drive subscriber growth, and more—without handling media files directly.
+
+## Features
+
+- Extracts categorized feedback from post text, comments, or descriptions.  
+- Uses a powerful LLM (ChatLLM7 by default) with regex‑based extraction for reliable outputs.  
+- Easily replace the LLM with any LangChain‑compatible model (OpenAI, Anthropic, Google, etc.).  
+- Simple, typed API.
+
+## Installation
+
+```bash
+pip install socialtextlytics
+```
+
+## Quick Start
+
+```python
+from socialtextlytics import socialtextlytics
+
+# Example social‑media post text
+user_input = """
+Just launched our new feature! 🎉 10k likes already.
+What do you think? #innovation #tech
+"""
+
+# Call the analyzer with default LLM (ChatLLM7)
+results = socialtextlytics(user_input)
+
+print(results)
+# → ['...extracted insight strings...']
+```
+
+## Advanced Usage – Providing Your Own LLM
+
+If you prefer to use a different language model, pass a LangChain `BaseChatModel` instance:
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from socialtextlytics import socialtextlytics
+
+llm = ChatOpenAI()          # configure with your OpenAI key as usual
+response = socialtextlytics(user_input, llm=llm)
+print(response)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from socialtextlytics import socialtextlytics
+
+llm = ChatAnthropic()
+response = socialtextlytics(user_input, llm=llm)
+print(response)
+```
+
+### Google Generative AI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from socialtextlytics import socialtextlytics
+
+llm = ChatGoogleGenerativeAI()
+response = socialtextlytics(user_input, llm=llm)
+print(response)
+```
+
+## Parameters
+
+| Name        | Type                     | Description |
+|-------------|--------------------------|-------------|
+| `user_input`| `str`                    | The text to analyze (post, comment, description, etc.). |
+| `llm`       | `Optional[BaseChatModel]`| A LangChain LLM instance. If omitted, the package creates a default **ChatLLM7** instance. |
+| `api_key`   | `Optional[str]`         | API key for ChatLLM7. If not supplied, the function reads `LLM7_API_KEY` from the environment. |
+
+### Default LLM – ChatLLM7
+
+When no `llm` is given, `socialtextlytics` creates a `ChatLLM7` instance:
+
+```python
+from langchain_llm7 import ChatLLM7
+resolved_llm = ChatLLM7(
+    api_key=api_key,
+    base_url="https://..."
+)
+```
+
+*ChatLLM7* is available on PyPI: <https://pypi.org/project/langchain-llm7/> (link provided in the source).  
+The free tier’s rate limits are sufficient for typical usage. For higher limits, supply your own API key via the `LLM7_API_KEY` environment variable or the `api_key` argument.
+
+You can obtain a free API key by registering at <https://token.llm7.io/>.
+
+## How It Works
+
+1. **Prompt Construction** – The package builds system and human prompts (`system_prompt`, `human_prompt`).  
+2. **LLM Call** – The LLM processes the prompts and returns a raw response.  
+3. **Regex Extraction** – `llmatch` validates the response against a predefined regular expression (`pattern`) and extracts the structured data.  
+4. **Result** – A list of extracted insight strings is returned, or an empty list on failure.
+
+## Error Handling
+
+If the LLM call fails or the response does not match the expected pattern, a `RuntimeError` is raised with an informative message.
+
+## Contributing & Issues
+
+Bug reports, feature requests, and pull requests are welcome! Please open an issue at: <https://github.com/chigwell/socialtextlytics/issues>
+
+## License
+
+This project is licensed under the MIT License.
+
+## Author
+
+**Eugene Evstafev**  
+Email: <hi@euegne.plus>  
+GitHub: <https://github.com/chigwell>
+
+---
+
+*Enjoy extracting insights from your social media content with **socialtextlytics**!*
