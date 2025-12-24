@@ -1,0 +1,139 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openscvx"
+dynamic = ["version"]
+description = "A general Python-based successive convexification implementation which uses a JAX backend."
+readme = "README.md"
+license = {text = "Apache Software License"}
+authors = [
+    {name = "Chris Hayner and Griffin Norris", email = "haynec@uw.edu"},
+]
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+]
+dependencies = [
+    "cvxpy>=1.6",
+    "qoco",
+    "numpy",
+    "jax",
+    "plotly",
+    "termcolor",
+    "diffrax",
+    "absl-py",
+    "flatbuffers",
+    "viser",
+    "matplotlib",
+]
+
+[project.urls]
+Homepage = "https://haynec.github.io/openscvx/"
+
+[project.optional-dependencies]
+gui = [
+    "pyqtgraph",
+    "PyQt5",
+    "scipy",
+    "PyOpenGL",
+    "PyOpenGL_accelerate",
+]
+cvxpygen = [
+    "cvxpygen",
+    "qocogen",
+]
+stl = [
+    "stljax",
+]
+test = [
+    "pytest",
+    "scipy",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["openscvx*"]
+exclude = ["tests*", "examples*", "figures*"]
+
+[tool.setuptools_scm]
+write_to      = "openscvx/_version.py"
+version_scheme = "guess-next-dev"   # e.g. 1.2.4.dev3
+local_scheme   = "no-local-version" # drops the "+node-and-date"
+
+[tool.ruff]
+# Line length (CVXPY-compatible)
+line-length = 100
+
+# Target Python version
+target-version = "py39"
+
+# Exclude patterns
+exclude = [
+    ".git",
+    ".ruff_cache",
+    ".pytest_cache",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    "site-packages",
+    "venv",
+    ".venv",
+    "node_modules",
+]
+
+[tool.ruff.lint]
+# CVXPY-inspired conservative ruleset
+select = [
+    "E",      # pycodestyle errors (essential)
+    "F",      # pyflakes (essential)
+    "I",      # isort (import organization)
+    "NPY201", # numpy-specific rules (like CVXPY)
+    "W605",  # Check for invalid escape sequences in docstrings (errors in py >= 3.11)
+]
+
+ignore = [
+    "E721" # Do not compare types, use 'isinstance()'
+]
+
+
+# Allow autofix for most rules
+fixable = ["ALL"]
+unfixable = ["E402", "F401"]  # Don't auto-fix these intentional violations
+
+# Per-file ignores for examples
+per-file-ignores = { "examples/**/*.py" = ["E402"] }
+
+# Import sorting configuration (CVXPY-style)
+[tool.ruff.lint.isort]
+known-first-party = ["opencsvx"]
+known-third-party = ["numpy", "jax", "cvxpy", "plotly", "termcolor", "diffrax", "absl", "flatbuffers"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+# Quote configuration (CVXPY-style)
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "double"
+multiline-quotes = "double"
+docstring-quotes = "double"
+
+# Naming configuration (scientific computing friendly)
+[tool.ruff.lint.pep8-naming]
+ignore-names = [
+    "PTR_init",      # Domain-specific function names
+    "SSMP",          # Domain-specific names
+    "SSM",           # Domain-specific names
+    "qdcm",          # Domain-specific names
+    "gen_vertices",  # Domain-specific names
+    "get_kp_pose",   # Domain-specific names
+    "cp",            # CVXPY alias
+    "np",            # NumPy alias
+    "jnp",           # JAX NumPy alias
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: expensive integration tests that solve full examples",
+]
