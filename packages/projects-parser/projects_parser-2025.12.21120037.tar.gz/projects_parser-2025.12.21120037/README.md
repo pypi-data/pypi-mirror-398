@@ -1,0 +1,135 @@
+# Projects Parser
+[![PyPI version](https://badge.fury.io/py/projects-parser.svg)](https://badge.fury.io/py/projects-parser)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/projects-parser)](https://pepy.tech/project/projects-parser)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A robust package for extracting structured insights from project titles and descriptions using advanced pattern matching with retries. This tool helps developers parse and organize project information (like names, programming languages, and key features) from text snippets without handling raw code, images, or videos.
+
+---
+
+## 📦 Installation
+
+Install the package via pip:
+
+```bash
+pip install projects_parser
+```
+
+---
+
+## 🚀 Features
+
+- **Structured Extraction**: Parses project names, programming languages, and key features from user input.
+- **Flexible LLM Integration**: Works with default `ChatLLM7` or any LangChain-compatible LLM (e.g., OpenAI, Anthropic, Google).
+- **Retry Mechanism**: Built-in resilience for reliable parsing.
+- **Regex Validation**: Ensures extracted data matches predefined patterns.
+
+---
+
+## 🔧 Usage
+
+### Basic Usage (Default LLM: `ChatLLM7`)
+```python
+from projects_parser import projects_parser
+
+user_input = "A Python web app with Flask and React for data visualization."
+response = projects_parser(user_input)
+print(response)  # Extracted structured data
+```
+
+### Custom LLM Integration
+Replace the default `ChatLLM7` with any LangChain-compatible LLM (e.g., OpenAI, Anthropic, Google):
+
+#### Example with OpenAI:
+```python
+from langchain_openai import ChatOpenAI
+from projects_parser import projects_parser
+
+llm = ChatOpenAI()
+response = projects_parser(user_input, llm=llm)
+```
+
+#### Example with Anthropic:
+```python
+from langchain_anthropic import ChatAnthropic
+from projects_parser import projects_parser
+
+llm = ChatAnthropic()
+response = projects_parser(user_input, llm=llm)
+```
+
+#### Example with Google Generative AI:
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from projects_parser import projects_parser
+
+llm = ChatGoogleGenerativeAI()
+response = projects_parser(user_input, llm=llm)
+```
+
+---
+
+## 🔑 API Key Configuration
+
+### Default Behavior (LLM7 Free Tier)
+- Uses `LLM7_API_KEY` from environment variables or falls back to a default key.
+- Suitable for most use cases (check [LLM7 free tier limits](https://token.llm7.io/)).
+
+### Custom API Key
+Pass your API key directly or via environment variable:
+```python
+# Directly
+response = projects_parser(user_input, api_key="your_api_key_here")
+
+# Via environment variable
+os.environ["LLM7_API_KEY"] = "your_api_key_here"
+response = projects_parser(user_input)
+```
+
+**Get a free API key**: [Register at LLM7](https://token.llm7.io/).
+
+---
+
+## 📝 Function Signature
+
+```python
+projects_parser(
+    user_input: str,
+    api_key: Optional[str] = None,
+    llm: Optional[BaseChatModel] = None
+) -> List[str]
+```
+
+### Parameters:
+- **`user_input`** (`str`): Text containing project details (e.g., title/description).
+- **`api_key`** (`Optional[str]`): LLM7 API key (optional if using environment variable).
+- **`llm`** (`Optional[BaseChatModel]`): Custom LangChain LLM (optional; defaults to `ChatLLM7`).
+
+### Returns:
+- `List[str]`: Extracted structured data (e.g., project name, language, features).
+
+---
+
+## 🔄 Rate Limits
+- **LLM7 Free Tier**: Sufficient for most use cases.
+- **Upgrade**: Use a custom API key for higher limits.
+
+---
+
+## 📜 License
+MIT License (see [LICENSE](https://github.com/chigwell/projects-parser/blob/main/LICENSE)).
+
+---
+
+## 📢 Support & Issues
+For bugs/feature requests, open an issue on GitHub:
+🔗 [GitHub Issues](https://github.com/chigwell/projects-parser/issues)
+
+---
+
+## 👤 Author
+**Eugene Evstafev**
+📧 [hi@euegne.plus](mailto:hi@euegne.plus)
+🔗 [GitHub: chigwell](https://github.com/chigwell)
