@@ -1,0 +1,84 @@
+.. image:: https://readthedocs.org/projects/spharapy/badge/?version=latest
+   :target: https://spharapy.readthedocs.io/en/latest/
+   :alt: Read the Docs
+
+.. image:: https://img.shields.io/pypi/v/spharapy.svg
+   :target: https://pypi.org/project/spharapy/
+   :alt: PyPI version
+
+.. image:: https://img.shields.io/pypi/pyversions/spharapy.svg
+   :target: https://pypi.org/project/spharapy/
+   :alt: Supported Python versions
+
+.. image:: https://img.shields.io/pypi/l/spharapy.svg
+   :target: https://pypi.org/project/spharapy/
+   :alt: License
+
+.. image:: https://img.shields.io/badge/tests-passing-brightgreen.svg
+   :alt: Tests
+
+.. image:: https://img.shields.io/badge/coverage-high-brightgreen.svg
+   :alt: Coverage
+
+
+	 
+Sphara Implementation in Python
+===============================
+
+SpharaPy is a Python implementation of the SPHARA framework
+(Spatial Harmonic Analysis), an extension of classical spatial Fourier
+analysis to non-uniformly positioned samples on arbitrary surfaces in
+``R^3``. For details, see Graichen et al. (2015).
+
+The basis functions used by SPHARA are obtained from the eigenanalysis
+of a discrete Laplace–Beltrami operator defined on a triangular mesh
+of the spatial sample locations.
+
+The SpharaPy toolbox provides:
+
+- Tools to compute SPHARA basis functions
+- Routines to perform SPHARA analysis and synthesis (SPHARA transform)
+- Methods for spatial filtering in the SPHARA domain
+- Additional helper functions to design SPHARA-domain filters
+  (ideal, Gaussian and Butterworth; low-pass, high-pass and band-pass)
+
+These filters can be used directly with the class
+``spharapy.spharafilter.SpharaFilter``.
+
+Requirements and Installation
+-----------------------------
+
+Required software and packages:
+
+- Python >= 3.10
+- NumPy >= 1.23.5
+- SciPy >= 1.14
+- Matplotlib >= 3.6
+
+Installation via pip:
+
+``pip install spharapy``
+
+Examples and Usage
+------------------
+
+Minimal examples are included within the source code.
+More detailed tutorial examples are provided in the documentation.
+
+Citing SpharaPy
+---------------
+
+If you find this toolbox useful and publish results obtained using it,
+please consider citing the following publications:
+
+- **Graichen, U., Eichardt, R., & Haueisen, J. (2019).**
+  *SpharaPy: A Python toolbox for spatial harmonic analysis of non-uniformly
+  sampled data.* SoftwareX, 10, Article 100289.  
+  https://doi.org/10.1016/j.softx.2019.100289
+
+- **Graichen, U., Eichardt, R., Fiedler, P., Strohmeier, D., Zanow, F.,
+  & Haueisen, J. (2015).**
+  *SPHARA – A generalized spatial Fourier analysis for multi-sensor
+  systems with non-uniformly arranged sensors: Application to EEG.*  
+  PLOS ONE, 10(4), e0121741.  
+  https://doi.org/10.1371/journal.pone.0121741
