@@ -1,0 +1,163 @@
+Metadata-Version: 2.4
+Name: WinToastCreator
+Version: 0.3.5
+Summary: WinToastCreator — модуль для отправки уведомлений в Windows
+Author-email: Timofey <timofey1166@gmail.com>
+License-Expression: MIT
+Keywords: windows,notifications,toast,system-notifications
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: keyboard
+Requires-Dist: winrt-runtime
+Requires-Dist: winrt-Windows.Data.Xml.Dom
+Requires-Dist: winrt-Windows.Foundation
+Requires-Dist: winrt-Windows.Foundation.Collections
+Requires-Dist: winrt-Windows.Globalization
+Requires-Dist: winrt-Windows.Graphics.Imaging
+Requires-Dist: winrt-Windows.Media
+Requires-Dist: winrt-Windows.Media.Core
+Requires-Dist: winrt-Windows.Media.Ocr
+Requires-Dist: winrt-Windows.Media.Playback
+Requires-Dist: winrt-Windows.Media.SpeechSynthesis
+Requires-Dist: winrt-Windows.Storage
+Requires-Dist: winrt-Windows.Storage.Streams
+Requires-Dist: winrt-Windows.UI.Notifications
+Dynamic: license-file
+
+# WinToastCreator — модуль для отправки уведомлений в Windows
+
+Легковесный Python‑модуль (8-12 КБ) для создания и управления всплывающими уведомлениями (toast) в Windows через WinRT API.
+
+# Что нового в версии 0.3.5:
+
+- Исправлен метод available_recognizer_languages
+
+## Возможности
+
+- Отправка простых уведомлений с заголовком и текстом.  
+- Добавление иконок, изображений, прогресса.  
+- Воспроизведение звуков и речи (TTS).  
+- Обработка кликов, закрытия и ошибок.  
+- Поддержка ввода и выбора в уведомлениях.  
+- Обновление прогресса и очистка уведомлений.  
+- Асинхронный и синхронный интерфейсы.
+
+## Установка
+
+Модуль не требует установки внешних зависимостей — использует встроенные WinRT‑библиотеки Windows.
+
+`pip install WinToastCreator`
+
+В таблице ниже перечислены все параметры, доступные в методах `toast` и `toast_async`.
+
+| Параметр | Тип | Описание |
+|--------|------|--------|
+| `title` | `str` | Заголовок уведомления. Отображается крупным шрифтом в верхней части. |
+| `body` | `str` | Основной текст уведомления. Располагается под заголовком. |
+| `on_click` | `callable` | Функция‑обработчик, вызываемая при клике по уведомлению. Принимает аргументы события. |
+| `icon` | `str` / `dict` | Иконка уведомления: <br>– строка — путь к файлу иконки; <br>– словарь — с ключами `placement`, `hint-crop`, `src`. |
+| `image` | `str` / `dict` | Дополнительное изображение: <br>– строка — путь к файлу; <br>– словарь — с ключами `src`, `placement`. |
+| `progress` | `dict` | Параметры индикатора прогресса: ключи `value` (доля, напр. `0.5`), `title` (заголовок прогресса), `status` (текст статуса). |
+| `audio` | `str` / `dict` | Звук уведомления: <br>– строка — путь к аудиофайлу или системный префикс `ms-` (напр. `ms-wakeup`); <br>– словарь — с ключом `src`. |
+| `dialogue` | `str` | Текст для озвучивания через синтез речи (TTS). Будет произнесён при показе уведомления. |
+| `duration` | `str` | Длительность отображения: `"short"` (короткий) или `"long"` (длинный). |
+| `input` | `str` / `dict` | Поле ввода: <br>– строка — ID поля; <br>– словарь — с ключами `id`, `type` (`"text"` и др.), `placeHolderContent` (подсказка). |
+| `inputs` | `list` | Список полей ввода (каждый элемент — строка или словарь, как для `input`). |
+| `selection` | `str` / `list` | Элемент выбора: <br>– строка — значение элемента; <br>– список — набор вариантов (каждый — строка или словарь с `id`, `content`). |
+| `selections` | `list` | Список элементов выбора (каждый — строка или словарь с `id`, `content`). |
+| `button` | `str` / `dict` | Кнопка: <br>– строка — текст кнопки (и аргумент запуска); <br>– словарь — с ключами `content` (текст), `activationType` (тип активации), `arguments` (аргументы запуска). |
+| `buttons` | `list` | Список кнопок (каждый элемент — строка или словарь, как для `button`). |
+| `xml` | `str` | Шаблон XML для уведомления. По умолчанию — стандартный toast‑шаблон. |
+| `app_id` | `str` | ID приложения, под которым показывается уведомление. По умолчанию: `"import WinToastCreator.creator"`. |
+| `ocr` | `str` / `dict` | Путь к изображению для распознавания текста (OCR): <br>– строка — путь к файлу; <br>– словарь — с ключом `ocr` (путь) и опционально `lang` (язык). |
+| `on_dismissed` | `callable` | Функция‑обработчик, вызываемая при закрытии уведомления. Принимает аргумент события. |
+| `on_failed` | `callable` | Функция‑обработчик, вызываемая при ошибке показа уведомления. Принимает аргумент ошибки. |
+| `scenario` | `str` | Сценарий уведомления (напр., `"email"`, `"im"`, `"reminder"`). Влияет на поведение и внешний вид. |
+| `tag` | `str` | Тег уведомления. Используется для идентификации при обновлении или удалении. |
+| `group` | `str` | Группа уведомлений. Позволяет управлять набором уведомлений по группе (очистка, обновление). |
+| `timeout` | `float` | Тайм‑аут в секундах для ожидания событий (клик, закрытие и т.п.). По истечении — функция завершается. |
+
+В таблице ниже перечислены все методы, доступные в `WinToastCreator.settings`.
+
+| Параметр | Тип | Описание |
+|--------|------|--------|
+| `toggle_focus` | `method` | Переключает режим «Не беспокоить». Если этот режим включен значит выключит или наоборот, был выключен а теперь включен. |
+| `toggle_notify_icon_on_the_taskbar` | `method` | Включает/выключает иконку уведомления на панели задач (в правом краю). |
+
+**Примечания:**
+- Для обновления прогресса или очистки уведомлений обязательно указывайте `group` (иначе возникнет ошибка).
+- Параметры `tag` и `group` работают совместно: чтобы удалить/обновить конкретное уведомление, нужны оба значения.
+- Системные звуки (`audio` с префиксом `ms-`) зависят от локализации и версии Windows.
+
+Примеры использования
+
+# 1. Простое уведомление
+from WinToastCreator.creator import toast
+toast("Готово!", "Файл загружен успешно")
+
+# 2. Уведомление с кнопкой
+WinToastCreator.creator.toast(
+    "Открыть сайт",
+    "Перейдите на наш ресурс",
+    button="https://example.com",
+    on_click=lambda e: print("Клик:", e['arguments'])
+)
+# 3. Уведомление с прогрессом
+WinToastCreator.creator.toast("Загрузка...", "Идет загрузка файла", progress={'value': '0.5', 'title': 'Прогресс', 'status': '50%'})
+
+# 4. Обновление прогресса
+WinToastCreator.creator.toast("Загрузка", "Начата...", tag="download", group="files")
+WinToastCreator.creator.update_progress({'value': '0.8', 'status': '80%'}, tag="download", group="files")
+
+# 5. Очистка уведомлений
+WinToastCreator.creator.clear_toast(group="files")  # Удалить все уведомления группы "files"
+WinToastCreator.creator.clear_toast(tag="download", group="files")  # Удалить по тегу и группе
+
+# 6. Асинхронное уведомление с TTS
+async def show_notification():
+    await WinToastCreator.creator.toast_async("Внимание", "Это сообщение будет озвучено", dialogue="Привет, это TTS!")
+asyncio.run(show_notification())
+
+# 7. Распознавание текста с изображения (OCR)
+WinToastCreator.creator.toast("OCR", ocr=r"path\to\image.png")
+
+# 8. Переключение режима «Не беспокоить»
+WinToastCreator.settings.toggle_focus()
+
+# 9. Отображение иконки уведомления на панели задач (в правом конце панели задач)
+WinToastCreator.settings.toggle_notify_icon_on_the_taskbar(True)
+
+# Для работы OCR может потребоваться установка языковых пакетов (см. available_recognizer_languages()).
+
+# Звуки (audio) могут быть локальными файлами или системными (ms‑wakeup, ms‑call, и т.п.).
+
+# Поля ввода и выбора работают только в поддерживаемых сценариях Windows.
+
+# Для обновления/очистки уведомлений обязательно указывайте group (иначе возникнет ошибка).
+
+# Вспомогательные функции
+# available_recognizer_languages() — выводит список доступных языков OCR.
+
+# play_sound(audio) — воспроизводит звук (асинхронно).
+
+# speak(text) — озвучивает текст (TTS, асинхронно).
+
+# recognize(ocr) — распознаёт текст с изображения (OCR).
+
+# Лицензия
+MIT — свободно используйте, модифицируйте и распространяйте.
+
+# Версия: 0.3.5
