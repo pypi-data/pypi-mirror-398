@@ -1,0 +1,59 @@
+# Kafka Ops Guide
+
+Structured Summaries for Kafka Operations
+=====================================
+
+A new package that provides reliable summaries of technical concepts related to Kafka operations, such as partition management.
+
+## Installation
+
+```bash
+pip install kafka-ops-guide
+```
+
+## Usage
+
+```python
+from kafka-ops-guide import kafka_ops_guide
+
+user_input = "How to increase Kafka partitions?"
+response = kafka_ops_guide(user_input=user_input)
+print(response)
+```
+
+## Input Parameters
+
+- `user_input: str`: The user input text to process.
+- `llm: Optional[BaseChatModel]`: The langchain LLM instance to use. If not provided, the default `ChatLLM7` will be used.
+- `api_key: Optional[str]`: The API key for LLM7. If not provided, the default free tier API key will be used.
+
+## Custom LLMs
+
+You can safely pass your own LLM instance based on [langchain](https://docs.langchain.com/) if you want to use another LLM.
+
+For example, to use the OpenAI LLM:
+```python
+from langchain_openai import ChatOpenAI
+from kafka-ops-guide import kafka_ops_guide
+
+llm = ChatOpenAI()
+response = kafka_ops_guide(user_input="How to increase Kafka partitions?", llm=llm)
+print(response)
+```
+
+Similarly, you can use the Anthropic LLM or Google GenAI LLM.
+
+## API Key and Rate Limits
+
+The default rate limits for LLM7 free tier are sufficient for most use cases of this package. If you want higher rate limits for LLM7, you can pass your own API key via environment variable `LLM7_API_KEY` or via passing it directly like `kafka_ops_guide(api_key="your_api_key")`.
+
+You can get a free API key by registering at https://token.llm7.io/
+
+## Author and Licensing
+
+This package is released under the MIT license. It was created by Eugene Evstafev (chigwell) and is available on GitHub at https://github.com/chigwell/kafka-ops-guide
+
+[![PyPI version](https://img.shields.io/pypi/v/kafka-ops-guide)](https://pypi.org/project/kafka-ops-guide/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://img.shields.io/pypi/dm/kafka-ops-guide)](https://pypi.org/project/kafka-ops-guide/)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue)](https://www.linkedin.com/in/chigwell/)
