@@ -1,0 +1,44 @@
+"""Pydantic models for {{ resource.name }}."""
+
+from __future__ import annotations
+
+from typing import Any, Literal, Optional
+
+from pydantic import Field
+
+from f5xc_py_substrate.models import F5XCBaseModel
+
+
+{% for method in resource.methods %}
+{% if method.list_item_model %}
+class {{ method.list_item_model }}(F5XCBaseModel):
+    """List item for {{ resource.name }} resources."""
+
+
+{% endif %}
+{% endfor %}
+{% for model in resource.models %}
+class {{ model.class_name }}(F5XCBaseModel):
+    {% if model.description %}
+    """{{ model.description | replace('\n', ' ') | replace('\r', '') | replace('"', "'") | truncate(76) }}"""
+
+    {% endif %}
+    {% if model.fields %}
+    {% for field in model.fields %}
+    {{ field.python_name }}: {{ field.type_hint }}{% if field.default is not none %} = {% if field.alias %}Field(default={{ field.default }}, alias="{{ field.alias }}"){% else %}{{ field.default }}{% endif %}{% elif field.alias %} = Field(..., alias="{{ field.alias }}"){% endif %}
+
+    {% endfor %}
+    {% else %}
+    pass
+    {% endif %}
+
+
+{% endfor %}
+# Convenience aliases
+{% for model in resource.models %}
+{% if model.name.endswith('CreateRequest') or model.name.endswith('GetSpecType') or 'Spec' in model.name %}
+{% if 'Spec' in model.class_name and model.class_name != 'Spec' %}
+Spec = {{ model.class_name }}
+{% endif %}
+{% endif %}
+{% endfor %}

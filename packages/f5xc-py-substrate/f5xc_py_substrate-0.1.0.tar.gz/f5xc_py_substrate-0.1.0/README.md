@@ -1,0 +1,221 @@
+# f5xc-py-substrate
+
+<p align="center">
+  <img src="./docs/substrate.png" alt="imge-substrate" width="80%" />
+</p>
+
+
+Python SDK for F5 Distributed Cloud (XC) APIs that can be regenerated when the XC Open API Spec is updated.
+
+This SDK aims to be a "safe" layer to build upon to prevent having to rework downstream dependencies post release/API changes. 
+
+## Features
+
+- **Full API coverage**: 250+ resources generated from F5 XC OpenAPI specs
+- **All operations**: Both standard CRUD and CustomAPI operations are supported
+- **Typed models**: Pydantic v2 models with IDE autocomplete support
+- **Lazy loading**: Resources load on first access for fast startup
+
+## Installation
+
+```bash
+pip install f5xc-py-substrate
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/your-org/f5xc-py-substrate.git
+cd f5xc-py-substrate
+pip install -e .
+```
+
+## Quick Start
+
+```python
+from f5xc_py_substrate import Client
+
+# Initialize with explicit credentials
+client = Client(
+    tenant_url="https://your-tenant.console.ves.volterra.io",
+    token="your-api-token"
+)
+
+# Or use environment variables (F5XC_TENANT_URL, F5XC_API_TOKEN)
+client = Client()
+
+# List resources
+lbs = client.http_loadbalancer.list(namespace="default")
+for lb in lbs:
+    print(lb.metadata.name)
+```
+
+## API Design Pattern
+
+F5 XC uses a metadata/spec pattern similar to Kubernetes:
+
+| Field | Purpose |
+|-------|---------|
+| `metadata` | Identity and organization: `name`, `namespace`, `labels`, `annotations`, `description` |
+| `spec` | Configuration: the actual resource settings |
+| `status` | Runtime state (read-only, returned by API) |
+
+```python
+# Creating a resource - you provide metadata + spec
+client.http_loadbalancer.create(
+    namespace="default",       # metadata.namespace
+    name="my-lb",              # metadata.name
+    labels={"env": "prod"},    # metadata.labels
+    spec=...,                  # The configuration
+)
+
+# Reading a resource - you get metadata + spec + status
+lb = client.http_loadbalancer.get(namespace="default", name="my-lb")
+lb.metadata.name        # "my-lb"
+lb.metadata.namespace   # "default"
+lb.metadata.labels      # {"env": "prod"}
+lb.spec                 # The configuration you provided
+lb.status               # Runtime state from the system
+```
+
+If you've used kubectl, this will feel familiar. The SDK's `create()` and `replace()` methods accept metadata fields as top-level parameters for convenience.
+
+## Usage Examples
+
+### Get a Resource
+
+```python
+lb = client.http_loadbalancer.get(namespace="default", name="my-lb")
+
+# Access metadata and spec
+print(lb.metadata.name)       # "my-lb"
+print(lb.metadata.namespace)  # "default"
+print(lb.metadata.labels)     # {"env": "prod"}
+print(lb.spec)
+```
+
+### Create a Resource
+
+```python
+# Access spec models directly from the resource (no import needed)
+client.http_loadbalancer.create(
+    namespace="default",
+    name="my-lb",
+    spec=client.http_loadbalancer.CreateSpecType(
+        domains=["example.com"],
+    ),
+    labels={"env": "prod"},
+    description="Production load balancer",
+)
+
+# Or using raw body for full control
+client.http_loadbalancer.create(
+    namespace="default",
+    name="my-lb",
+    body={
+        "metadata": {
+            "name": "my-lb",
+            "namespace": "default",
+            "labels": {"env": "prod"},
+        },
+        "spec": {
+            "domains": ["example.com"],
+        },
+    },
+)
+```
+
+### List with Filters
+
+```python
+# Filter by labels
+lbs = client.http_loadbalancer.list(
+    namespace="default",
+    label_filter="env in (staging, production)"
+)
+```
+
+### Replace a Resource
+
+```python
+# Replace requires the complete spec, not just the changed fields
+client.http_loadbalancer.replace(
+    namespace="default",
+    name="my-lb",
+    spec=client.http_loadbalancer.ReplaceSpecType(
+        domains=["example.com", "www.example.com"],
+    ),
+    description="Updated load balancer",
+)
+```
+
+### Delete a Resource
+
+```python
+client.http_loadbalancer.delete(namespace="default", name="my-lb")
+```
+
+## Serialization
+
+All models include helper methods for serialization:
+
+```python
+lb = client.http_loadbalancer.get(namespace="default", name="my-lb")
+
+# To dictionary (excludes None values by default)
+data = lb.to_dict()
+
+# To JSON string (compact by default)
+json_str = lb.to_json()
+json_str = lb.to_json(indent=2)  # Pretty print
+
+# To YAML (requires: pip install f5xc-py-substrate[yaml])
+yaml_str = lb.to_yaml()
+```
+
+### get() Response Filtering
+
+By default, `get()` excludes verbose fields (forms, references, system_metadata) for cleaner output. Use `include_all=True` when you need the complete response:
+
+```python
+# Default: clean response without verbose fields
+lb = client.http_loadbalancer.get(namespace="default", name="my-lb")
+
+# Full response with all fields
+lb = client.http_loadbalancer.get(
+    namespace="default",
+    name="my-lb",
+    include_all=True
+)
+```
+
+See [Advanced Usage](docs/advanced-usage.md) for more details.
+
+## Available Resources
+
+The SDK includes 250+ resources. Access any resource as an attribute on the client:
+
+```python
+client.http_loadbalancer
+client.origin_pool
+client.healthcheck
+client.namespace
+client.virtual_host
+# ... and many more
+```
+
+## Documentation
+
+- [Advanced Usage](docs/advanced-usage.md) - Error handling, custom HTTP client configuration
+- [Regenerating the SDK](docs/regenerating-sdk.md) - How to regenerate from OpenAPI specs
+- [Testing](docs/testing.md) - Running unit and integration tests
+
+## Requirements
+
+- Python 3.9+
+- httpx
+- pydantic v2
+
+## License
+
+This is free and unencumbered software released into the public domain. See [LICENSE](LICENSE) for details.

@@ -1,0 +1,61 @@
+resource: http_loadbalancer
+is_namespaced: true
+dependencies:
+- app_firewall
+- origin_pool
+status: generated
+notes: Auto-generated from API docs
+spec:
+  create:
+    domains:
+    - www.bookinfo.com
+    https:
+      port: 0
+    default_route_pools:
+    - pool:
+        name: sdk-test-http_loadbalancer
+    waf_exclusion_rules:
+    - path_regex: ''
+      methods:
+      - ANY
+      metadata:
+        name: sdk-test-http_loadbalancer
+      app_firewall_detection_control:
+        exclude_signature_contexts:
+        - signature_id: 10000000
+        exclude_violation_contexts:
+        - exclude_violation: VIOL_ASM_COOKIE_MODIFIED
+        exclude_attack_type_contexts:
+        - exclude_attack_type: ATTACK_TYPE_ABUSE_OF_FUNCTIONALITY
+    l7_ddos_protection:
+      rps_threshold: 5000
+  replace:
+    domains:
+    - www.bookinfo.com
+    https:
+      tls_cert_params:
+        use_mtls:
+          trusted_ca_url: string:///<Base64>
+          crl:
+            namespace: '{test_namespace}'
+            name: sdk-test-http_loadbalancer
+      port_ranges: 80,443
+    default_route_pools:
+    - pool:
+        name: sdk-test-http_loadbalancer
+    waf_exclusion_rules:
+    - path_regex: ''
+      methods:
+      - ANY
+      metadata:
+        name: sdk-test-http_loadbalancer
+      app_firewall_detection_control:
+        exclude_signature_contexts:
+        - signature_id: 10000000
+        exclude_violation_contexts:
+        - exclude_violation: VIOL_ASM_COOKIE_MODIFIED
+        exclude_attack_type_contexts:
+        - exclude_attack_type: ATTACK_TYPE_ABUSE_OF_FUNCTIONALITY
+    l7_ddos_protection:
+      rps_threshold: 5000
+    description: SDK test - replaced

@@ -1,0 +1,66 @@
+"""Integration tests for user_identification resource."""
+
+from __future__ import annotations
+
+import pytest
+
+from f5xc_py_substrate import Client
+from tests.integration.fixtures.spec_registry import SPEC_REGISTRY
+
+
+class TestUserIdentification:
+    """Test user_identification CRUD operations.
+
+    Status: missing
+    """
+
+    RESOURCE_NAME = "sdk-test-user-identification"
+
+    @pytest.mark.skip(reason="No spec template available for user_identification")
+    @pytest.mark.order(2130)
+    @pytest.mark.dependency(name="test_create")
+    def test_create(self, client: Client, test_namespace: str) -> None:
+        """Test creating a user_identification."""
+        body = SPEC_REGISTRY.get_spec("user_identification", "create", test_namespace)
+        result = client.user_identification.create(
+            namespace=test_namespace,
+            name=self.RESOURCE_NAME,
+            body=body,
+        )
+        assert result.metadata.name == self.RESOURCE_NAME
+
+    @pytest.mark.skip(reason="No spec template available for user_identification")
+    @pytest.mark.order(2131)
+    def test_get(self, client: Client, test_namespace: str) -> None:
+        """Test getting a user_identification by name."""
+        result = client.user_identification.get(
+            namespace=test_namespace,
+            name=self.RESOURCE_NAME,
+        )
+        assert result.metadata.name == self.RESOURCE_NAME
+        assert result.metadata.namespace == test_namespace
+
+    @pytest.mark.skip(reason="No spec template available for user_identification")
+    @pytest.mark.order(2132)
+    def test_list(self, client: Client, test_namespace: str) -> None:
+        """Test listing user_identification resources in namespace."""
+        items = client.user_identification.list(namespace=test_namespace)
+        names = [item.name for item in items if item.name is not None]
+        assert self.RESOURCE_NAME in names
+
+    @pytest.mark.skip(reason="No spec template available for user_identification")
+    @pytest.mark.order(2133)
+    def test_replace(self, client: Client, test_namespace: str) -> None:
+        """Test replacing a user_identification."""
+        body = SPEC_REGISTRY.get_spec("user_identification", "replace", test_namespace)
+        client.user_identification.replace(
+            namespace=test_namespace,
+            name=self.RESOURCE_NAME,
+            body=body,
+        )
+
+        updated = client.user_identification.get(
+            namespace=test_namespace,
+            name=self.RESOURCE_NAME,
+        )
+        assert updated.metadata.name == self.RESOURCE_NAME

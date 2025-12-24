@@ -1,0 +1,40 @@
+"""F5 XC API resources.
+
+Resources are lazy-loaded when accessed via the Client.
+Import specific resources directly for type hints:
+
+    from f5xc_py_substrate.resources import http_loadbalancer
+
+    spec = http_loadbalancer.Spec(domains=["example.com"])
+
+Available resources:
+{% for resource in resources %}
+- {{ resource.name }}
+{% endfor %}
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+{% for resource in resources %}
+    from f5xc_py_substrate.resources import {{ resource.name }}
+{% endfor %}
+
+
+# Lazy loading for resource modules
+def __getattr__(name: str):
+    """Lazy load resource modules."""
+    try:
+        import importlib
+        return importlib.import_module(f"f5xc_py_substrate.resources.{name}")
+    except ModuleNotFoundError:
+        raise AttributeError(f"module 'f5xc_py_substrate.resources' has no attribute '{name}'")
+
+
+__all__ = [
+{% for resource in resources %}
+    "{{ resource.name }}",
+{% endfor %}
+]

@@ -1,0 +1,79 @@
+"""Integration tests for {{ resource }} resource."""
+
+from __future__ import annotations
+
+import pytest
+
+from f5xc_py_substrate import Client
+from tests.integration.fixtures.spec_registry import SPEC_REGISTRY
+
+
+@pytest.mark.order({{ order }})
+class Test{{ class_name }}:
+    """Test {{ resource }} CRUD operations.
+
+    Status: {{ spec.status }}
+{% if spec.notes %}    Notes: {{ spec.notes | truncate(60) }}
+{% endif %}    """
+
+    RESOURCE_NAME = "sdk-test-{{ resource | replace('_', '-') }}"
+
+{% if spec.status == 'missing' %}
+    @pytest.mark.skip(reason="No spec template available for {{ resource }}")
+{% elif spec.status == 'blocked' %}
+    @pytest.mark.skip(reason="Resource blocked: {{ spec.notes | truncate(50) }}")
+{% endif %}
+    def test_create(self, client: Client, test_namespace: str) -> None:
+        """Test creating a {{ resource }}."""
+        body = SPEC_REGISTRY.get_spec("{{ resource }}", "create", test_namespace)
+        result = client.{{ resource }}.create(
+            namespace=test_namespace,
+            name=self.RESOURCE_NAME,
+            body=body,
+        )
+        assert result.metadata.name == self.RESOURCE_NAME
+
+{% if spec.status == 'missing' %}
+    @pytest.mark.skip(reason="No spec template available for {{ resource }}")
+{% elif spec.status == 'blocked' %}
+    @pytest.mark.skip(reason="Resource blocked: {{ spec.notes | truncate(50) }}")
+{% endif %}
+    def test_get(self, client: Client, test_namespace: str) -> None:
+        """Test getting a {{ resource }} by name."""
+        result = client.{{ resource }}.get(
+            namespace=test_namespace,
+            name=self.RESOURCE_NAME,
+        )
+        assert result.metadata.name == self.RESOURCE_NAME
+        assert result.metadata.namespace == test_namespace
+
+{% if spec.status == 'missing' %}
+    @pytest.mark.skip(reason="No spec template available for {{ resource }}")
+{% elif spec.status == 'blocked' %}
+    @pytest.mark.skip(reason="Resource blocked: {{ spec.notes | truncate(50) }}")
+{% endif %}
+    def test_list(self, client: Client, test_namespace: str) -> None:
+        """Test listing {{ resource }} resources in namespace."""
+        items = client.{{ resource }}.list(namespace=test_namespace)
+        names = [item.name for item in items if item.name is not None]
+        assert self.RESOURCE_NAME in names
+
+{% if spec.status == 'missing' %}
+    @pytest.mark.skip(reason="No spec template available for {{ resource }}")
+{% elif spec.status == 'blocked' %}
+    @pytest.mark.skip(reason="Resource blocked: {{ spec.notes | truncate(50) }}")
+{% endif %}
+    def test_replace(self, client: Client, test_namespace: str) -> None:
+        """Test replacing a {{ resource }}."""
+        body = SPEC_REGISTRY.get_spec("{{ resource }}", "replace", test_namespace)
+        client.{{ resource }}.replace(
+            namespace=test_namespace,
+            name=self.RESOURCE_NAME,
+            body=body,
+        )
+
+        updated = client.{{ resource }}.get(
+            namespace=test_namespace,
+            name=self.RESOURCE_NAME,
+        )
+        assert updated.metadata.name == self.RESOURCE_NAME

@@ -1,0 +1,66 @@
+[project]
+name = "f5xc-py-substrate"
+version = "0.1.0"
+description = "Python SDK for F5 Distributed Cloud APIs"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Unlicense" }
+authors = [{ name = "Kevin" }]
+
+dependencies = [
+    "httpx>=0.25.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-httpx>=0.21.0",
+    "pytest-json-report>=1.5.0",
+    "pytest-cov>=4.0.0",
+    "pytest-order>=1.0.0",
+    "pytest-dependency>=0.5.0",
+    "python-dotenv>=1.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+generator = [
+    "jinja2>=3.0.0",
+]
+yaml = [
+    "pyyaml>=6.0",
+]
+all = [
+    "f5xc-py-substrate[dev,generator,yaml]",
+]
+
+[project.scripts]
+f5xc-generate = "generator:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["f5xc_py_substrate"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Pydantic model fields require Optional[X] syntax for Python 3.9 runtime evaluation
+"tests/unit/test_models.py" = ["UP045", "UP037"]
+# Generated resource code - be lenient on style/import issues
+"f5xc_py_substrate/resources/**/*.py" = ["I001", "F401", "F403", "F405", "F811", "F821", "E501", "UP045"]
+# Generator, scripts, and integration tests - be lenient on style issues
+"generator/**/*.py" = ["E402", "E501", "F541", "I001"]
+"scripts/**/*.py" = ["E402", "E501", "F541", "I001"]
+"tests/integration/**/*.py" = ["I001", "E501"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true

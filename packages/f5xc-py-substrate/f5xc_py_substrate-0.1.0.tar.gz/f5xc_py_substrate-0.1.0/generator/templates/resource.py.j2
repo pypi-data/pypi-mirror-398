@@ -1,0 +1,385 @@
+"""{{ resource.class_name }} resource API."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from pydantic import ValidationError
+
+from f5xc_py_substrate._http import HTTPClient
+from f5xc_py_substrate.exceptions import F5XCError, F5XCPartialResultsError, F5XCValidationError
+from f5xc_py_substrate.resources.{{ resource.name }}.models import (
+{% for method in resource.methods %}
+{% if method.list_item_model %}
+    {{ method.list_item_model }},
+{% endif %}
+{% endfor %}
+{% for model in resource.models %}
+    {{ model.class_name }},
+{% endfor %}
+)
+
+
+# Exclusion group mappings for get() method
+_EXCLUDE_GROUPS: dict[str, set[str]] = {
+    "forms": {"create_form", "replace_form"},
+    "references": {"referring_objects", "deleted_referred_objects", "disabled_referred_objects"},
+    "system_metadata": {"system_metadata"},
+}
+
+
+def _resolve_exclude_groups(groups: list[str]) -> set[str]:
+    """Resolve exclusion group names to field names."""
+    fields: set[str] = set()
+    for group in groups:
+        if group in _EXCLUDE_GROUPS:
+            fields.update(_EXCLUDE_GROUPS[group])
+        else:
+            # Allow direct field names for flexibility
+            fields.add(group)
+    return fields
+
+
+class {{ resource.class_name }}Resource:
+    """API methods for {{ resource.name }}.
+
+    {{ resource.description | truncate(72) }}
+    """
+
+    # Expose commonly-used models as class attributes for convenient access
+    # Usage: client.{{ resource.name }}.CreateSpecType(...)
+{% for model in resource.models %}
+{% if model.class_name in ['CreateSpecType', 'ReplaceSpecType', 'GetResponse', 'GetSpecType'] %}
+    {{ model.class_name }} = {{ model.class_name }}
+{% endif %}
+{% endfor %}
+
+    def __init__(self, http: HTTPClient) -> None:
+        self._http = http
+
+{% for method in resource.methods %}
+{% if method.name == 'get' %}
+    def get(
+        self,
+        {% for param in method.path_params %}
+        {{ param }}: str,
+        {% endfor %}
+        {% for qp in method.query_params %}
+        {{ qp.python_name }}: {% if not qp.required %}{{ qp.type_hint }} | None = None{% else %}{{ qp.type_hint }}{% endif %},
+        {% endfor %}
+        *,
+        exclude: list[str] | None = None,
+        include_all: bool = False,
+    ) -> {{ method.response_model or 'dict[str, Any]' }}:
+        """Get a {{ resource.name }} by name.
+
+        {{ method.description | replace('\n', ' ') | replace('"', "'") | truncate(72) }}
+
+        By default, excludes verbose fields (forms, references, system_metadata).
+        Use include_all=True to get the complete response.
+
+        Args:
+            exclude: Additional field groups to exclude from response.
+                - 'forms': Excludes create_form, replace_form
+                - 'references': Excludes referring_objects, deleted/disabled_referred_objects
+                - 'system_metadata': Excludes system_metadata
+                You can also pass individual field names directly.
+            include_all: If True, return all fields without default exclusions.
+        """
+        path = "{{ method.path_template }}"
+        {% for param in method.path_params %}
+        path = path.replace("{{ '{' }}{%- if 'metadata.' in method.path_template %}metadata.{{ param }}{%- else %}{{ param }}{%- endif %}{{ '}' }}", {{ param }})
+        {% endfor %}
+
+        params: dict[str, Any] = {}
+        {% for qp in method.query_params %}
+        if {{ qp.python_name }} is not None:
+            params["{{ qp.name }}"] = {{ qp.python_name }}
+        {% endfor %}
+
+        try:
+            response = self._http.get(path, params=params if params else None)
+        except F5XCError as e:
+            raise type(e)(e.status_code, e.message, e.body) from None
+{% if method.response_model %}
+
+        # Apply default exclusions unless include_all=True
+        if not include_all:
+            default_exclude = ["forms", "references", "system_metadata"]
+            exclude = (exclude or []) + default_exclude
+
+        if exclude:
+            exclude_fields = _resolve_exclude_groups(exclude)
+            # Remove excluded fields entirely from response
+            filtered_response = {
+                k: v for k, v in response.items()
+                if k not in exclude_fields
+            }
+        else:
+            filtered_response = response
+
+        try:
+            return {{ method.response_model }}(**filtered_response)
+        except ValidationError as e:
+            raise F5XCValidationError("{{ resource.name }}", "get", e, response) from e
+{% else %}
+        return response
+{% endif %}
+
+{% elif method.name == 'list' %}
+    def list(
+        self,
+        {% for param in method.path_params %}
+        {{ param }}: str,
+        {% endfor %}
+        {% for qp in method.query_params %}
+        {{ qp.python_name }}: {% if not qp.required %}{{ qp.type_hint }} | None = None{% else %}{{ qp.type_hint }}{% endif %},
+        {% endfor %}
+    ) -> list[{{ method.list_item_model if method.list_item_model else 'dict[str, Any]' }}]:
+        """List {{ resource.name }} resources in a namespace.
+
+        {{ method.description | replace('\n', ' ') | replace('"', "'") | truncate(72) }}
+
+        Raises:
+            F5XCPartialResultsError: If the response contains errors alongside items.
+        """
+        path = "{{ method.path_template }}"
+        {% for param in method.path_params %}
+        path = path.replace("{{ '{' }}{%- if 'metadata.' in method.path_template %}metadata.{{ param }}{%- else %}{{ param }}{%- endif %}{{ '}' }}", {{ param }})
+        {% endfor %}
+
+        params: dict[str, Any] = {}
+        {% for qp in method.query_params %}
+        if {{ qp.python_name }} is not None:
+            params["{{ qp.name }}"] = {{ qp.python_name }}
+        {% endfor %}
+
+        try:
+            response = self._http.get(path, params=params if params else None)
+        except F5XCError as e:
+            raise type(e)(e.status_code, e.message, e.body) from None
+
+        items = response.get("items", [])
+        errors = response.get("errors", [])
+
+        if errors:
+            raise F5XCPartialResultsError(items=items, errors=errors)
+
+        try:
+            return [{{ method.list_item_model if method.list_item_model else 'item' }}(**item) for item in items]
+        except ValidationError as e:
+            raise F5XCValidationError("{{ resource.name }}", "list", e, response) from e
+
+{% elif method.name == 'create' %}
+    def create(
+        self,
+        namespace: str,
+        name: str,
+        spec: {{ resource.models[0].class_name if resource.models else 'dict[str, Any]' }} | None = None,
+        *,
+        body: dict[str, Any] | None = None,
+        labels: dict[str, str] | None = None,
+        annotations: dict[str, str] | None = None,
+        description: str | None = None,
+        disable: bool | None = None,
+    ) -> {{ method.response_model or 'dict[str, Any]' }}:
+        """Create a new {{ resource.name }}.
+
+        {{ method.description | replace('\n', ' ') | replace('"', "'") | truncate(72) }}
+
+        Args:
+            namespace: The namespace to create the resource in.
+            name: The name of the resource.
+            spec: The resource specification (typed model).
+            body: Raw JSON body (alternative to spec, for advanced use).
+            labels: Optional labels for the resource.
+            annotations: Optional annotations for the resource.
+            description: Optional description.
+            disable: Whether to create the resource in disabled state.
+        """
+        path = "{{ method.path_template }}"
+        path = path.replace("{metadata.namespace}", namespace)
+
+        if body is not None:
+            request_body = body
+        else:
+            request_body: dict[str, Any] = {
+                "metadata": {
+                    "name": name,
+                    "namespace": namespace,
+                },
+            }
+            if labels:
+                request_body["metadata"]["labels"] = labels
+            if annotations:
+                request_body["metadata"]["annotations"] = annotations
+            if description:
+                request_body["metadata"]["description"] = description
+            if disable is not None:
+                request_body["metadata"]["disable"] = disable
+            # Always include spec - API requires it even if empty
+            if spec is not None:
+                request_body["spec"] = spec.model_dump(by_alias=True, exclude_none=True)
+            else:
+                request_body["spec"] = {}
+
+        try:
+            response = self._http.post(path, json=request_body)
+        except F5XCError as e:
+            raise type(e)(e.status_code, e.message, e.body) from None
+{% if method.response_model %}
+        try:
+            return {{ method.response_model }}(**response)
+        except ValidationError as e:
+            raise F5XCValidationError("{{ resource.name }}", "create", e, response) from e
+{% else %}
+        return response
+{% endif %}
+
+{% elif method.name == 'replace' %}
+    def replace(
+        self,
+        namespace: str,
+        name: str,
+        spec: {{ resource.models[0].class_name if resource.models else 'dict[str, Any]' }} | None = None,
+        *,
+        body: dict[str, Any] | None = None,
+        labels: dict[str, str] | None = None,
+        annotations: dict[str, str] | None = None,
+        description: str | None = None,
+        disable: bool | None = None,
+    ) -> {{ method.response_model or 'dict[str, Any]' }}:
+        """Replace an existing {{ resource.name }}.
+
+        {{ method.description | replace('\n', ' ') | replace('"', "'") | truncate(72) }}
+
+        Args:
+            namespace: The namespace of the resource.
+            name: The name of the resource to replace.
+            spec: The new resource specification (typed model).
+            body: Raw JSON body (alternative to spec, for advanced use).
+            labels: Optional labels for the resource.
+            annotations: Optional annotations for the resource.
+            description: Optional description.
+            disable: Whether to disable the resource.
+        """
+        path = "{{ method.path_template }}"
+        path = path.replace("{metadata.namespace}", namespace)
+        path = path.replace("{metadata.name}", name)
+
+        if body is not None:
+            request_body = body
+        else:
+            request_body: dict[str, Any] = {
+                "metadata": {
+                    "name": name,
+                    "namespace": namespace,
+                },
+            }
+            if labels:
+                request_body["metadata"]["labels"] = labels
+            if annotations:
+                request_body["metadata"]["annotations"] = annotations
+            if description:
+                request_body["metadata"]["description"] = description
+            if disable is not None:
+                request_body["metadata"]["disable"] = disable
+            # Always include spec - API requires it even if empty
+            if spec is not None:
+                request_body["spec"] = spec.model_dump(by_alias=True, exclude_none=True)
+            else:
+                request_body["spec"] = {}
+
+        try:
+            response = self._http.put(path, json=request_body)
+        except F5XCError as e:
+            raise type(e)(e.status_code, e.message, e.body) from None
+{% if method.response_model %}
+        try:
+            return {{ method.response_model }}(**response)
+        except ValidationError as e:
+            raise F5XCValidationError("{{ resource.name }}", "replace", e, response) from e
+{% else %}
+        return response
+{% endif %}
+
+{% elif method.name == 'delete' %}
+    def delete(
+        self,
+        namespace: str,
+        name: str,
+    ) -> None:
+        """Delete a {{ resource.name }}.
+
+        {{ method.description | truncate(72) }}
+
+        Args:
+            namespace: The namespace of the resource.
+            name: The name of the resource to delete.
+        """
+        path = "{{ method.path_template }}"
+        path = path.replace("{namespace}", namespace)
+        path = path.replace("{name}", name)
+
+        try:
+            self._http.delete(path)
+        except F5XCError as e:
+            raise type(e)(e.status_code, e.message, e.body) from None
+
+{% else %}
+{# Generic handler for all other operations #}
+    def {{ method.name }}(
+        self,
+        {% for param in method.path_params %}
+        {{ param }}: str,
+        {% endfor %}
+        {% for qp in method.query_params %}
+        {{ qp.python_name }}: {% if not qp.required %}{{ qp.type_hint }} | None = None{% else %}{{ qp.type_hint }}{% endif %},
+        {% endfor %}
+        {% if method.http_method in ['POST', 'PUT', 'PATCH'] %}
+        body: dict[str, Any] | None = None,
+        {% endif %}
+    ) -> {% if method.response_model %}{{ method.response_model }}{% else %}dict[str, Any]{% endif %}:
+        """{{ method.name | replace('_', ' ') | title }} for {{ resource.name }}.
+
+        {{ method.description | replace('\n', ' ') | replace('"', "'") | truncate(72) }}
+        """
+        path = "{{ method.path_template }}"
+        {% for param in method.path_params %}
+        path = path.replace("{{ '{' }}{%- if 'metadata.' in method.path_template %}metadata.{{ param }}{%- else %}{{ param }}{%- endif %}{{ '}' }}", {{ param }})
+        {% endfor %}
+
+        {% if method.query_params %}
+        params: dict[str, Any] = {}
+        {% for qp in method.query_params %}
+        if {{ qp.python_name }} is not None:
+            params["{{ qp.name }}"] = {{ qp.python_name }}
+        {% endfor %}
+        {% endif %}
+
+        try:
+            {% if method.http_method == 'GET' %}
+            response = self._http.get(path{% if method.query_params %}, params=params if params else None{% endif %})
+            {% elif method.http_method == 'POST' %}
+            response = self._http.post(path, json=body or {})
+            {% elif method.http_method == 'PUT' %}
+            response = self._http.put(path, json=body or {})
+            {% elif method.http_method == 'PATCH' %}
+            response = self._http.patch(path, json=body or {})
+            {% elif method.http_method == 'DELETE' %}
+            self._http.delete(path)
+            return {}
+            {% endif %}
+        except F5XCError as e:
+            raise type(e)(e.status_code, e.message, e.body) from None
+{% if method.response_model %}
+        try:
+            return {{ method.response_model }}(**response)
+        except ValidationError as e:
+            raise F5XCValidationError("{{ resource.name }}", "{{ method.name }}", e, response) from e
+{% else %}
+        return response
+{% endif %}
+
+{% endif %}
+{% endfor %}
