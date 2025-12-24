@@ -1,0 +1,462 @@
+<div align="center">
+
+<img src="https://s3.amazonaws.com/pix.iemoji.com/images/emoji/apple/ios-12/256/frog-face.png" width=120 alt="crapaud"/>
+
+## Welcome to LeCrapaud
+
+**An all-in-one machine learning framework**
+
+<!-- [![GitHub stars](https://img.shields.io/github/stars/pierregallet/lecrapaud.svg?style=flat&logo=github&colorB=blue&label=stars)](https://github.com/pierregallet/lecrapaud/stargazers) -->
+[![PyPI version](https://badge.fury.io/py/lecrapaud.svg)](https://badge.fury.io/py/lecrapaud)
+[![Python versions](https://img.shields.io/pypi/pyversions/lecrapaud.svg)](https://pypi.org/project/lecrapaud)
+<!-- [![License](https://img.shields.io/github/license/pierregallet/lecrapaud.svg)](https://github.com/pierregallet/lecrapaud/blob/main/LICENSE) -->
+<!-- [![codecov](https://codecov.io/gh/pierregallet/lecrapaud/branch/main/graph/badge.svg)](https://codecov.io/gh/pierregallet/lecrapaud) -->
+
+</div>
+
+## 🚀 Introduction
+
+LeCrapaud is a high-level Python library for end-to-end machine learning workflows on tabular or time series data. It provides a simple API to handle feature engineering, model selection, training, and prediction, all in a reproducible and modular way.
+
+## ✨ Key Features
+
+- 👋 End-to-end machine learning training in one command, with feature engineering, feature selection, preprocessing, model selection, and prediction
+- 🧩 Modular pipeline: Feature engineering, preprocessing, selection, and modeling can also be runned as independent steps
+- 🤖 Automated model selection and hyperparameter optimization
+- 📊 Easy integration with pandas DataFrames
+- 🔬 Supports both regression and classification tasks
+- 🛠️ Simple API for both full pipeline and step-by-step usage
+- 📦 Ready for production and research workflows
+
+## ⚡ Quick Start
+
+
+### Install the package
+
+```sh
+pip install lecrapaud
+```
+
+### How it works
+
+This package provides a high-level API to manage experiments for feature engineering, model selection, and prediction on tabular data. It can also work with time series or panel data (mutliple time series grouped by a common column).
+
+### Typical workflow
+
+```python
+from lecrapaud import LeCrapaud
+
+# Create a new experiment with data
+experiment = LeCrapaud(
+    data=your_dataframe,
+    target_numbers=[1, 2],
+    target_clf=[2],  # TARGET_2 is classification
+    columns_drop=[...],
+    columns_date=[...],
+    # ... other config options
+)
+
+# Train the model(s)
+experiment.fit(your_dataframe)
+
+# Make predictions
+predictions, reg_scores, clf_scores = experiment.predict(new_data)
+
+# Load existing experiment by ID
+experiment = LeCrapaud(id=123)
+
+# Or get best experiment by name
+best_exp = LeCrapaud.get_best_experiment_by_name('my_experiment')
+```
+
+#### Expected data format
+
+- Both `your_dataframe` and `new_data` should be pandas `DataFrame` objects.
+- `your_dataframe` must contain all feature columns **plus one column per target** named `TARGET_i` (e.g., `TARGET_1`, `TARGET_2`). LeCrapaud trains one model per target listed in `target_numbers`; classification targets are those listed in `target_clf`.
+- `new_data` should include only the feature columns (no `TARGET_i`, unless you want to evaluate on an extra test set — models are already hyperoptimized on train + val and evaluated on test set in `fit`, but you can still want to keep another testset for final evaluation). You can reuse the same feature set or any subset consistent with training (features that was selected by feature selection).
+- experiment.predict will outputs:
+    - `predictions` dataframe, with:
+        - Regression targets: the returned DataFrame has an added column `TARGET_{i}_PRED`.
+        - Classification targets: the returned DataFrame has `TARGET_{i}_PRED` (predicted class) and one probability column per class: `TARGET_{i}_{class_value}` (e.g., `TARGET_2_0`, `TARGET_2_1` for binary).
+    - `reg_scores` and `clf_scores` dataframes, only if new_data includes `TARGET_i` (for instance, if you have a testset). If not, it will be None values, but you still need to unpack them with `prediction, _, _ = experiment.predict(new_data)`
+- See the examples for end-to-end code: [`examples/basic_usage.py`](examples/basic_usage.py) and [`examples/advanced_usage.py`](examples/advanced_usage.py).
+
+### Supported models
+
+- Classical/ensembles: `linear`, `sgd`, `naive_bayes`, `bagging_naive_bayes`, `svm`, `tree`, `forest`, `adaboost`, `xgb`, `lgb`, `catboost`.
+- Recurrent/DL:
+  - `LSTM-1`: single-layer LSTM head on tabular sequences.
+  - `LSTM-2`: two stacked LSTM layers.
+  - `LSTM-2-Deep`: deeper head on top of stacked LSTMs.
+  - `BiLSTM-1`: bidirectional single-layer LSTM.
+  - `GRU-1`: single-layer GRU.
+  - `BiGRU-1`: bidirectional GRU.
+  - `TCN-1`: Temporal Convolutional Network baseline.
+  - `Seq2Seq`: encoder-decoder with attention for sequences.
+  - `Transformer`: transformer encoder stack for tabular sequences.
+
+### Database Configuration (Required)
+
+LeCrapaud requires access to a MySQL database to store experiments and results. You can configure the database by:
+
+- Passing a valid MySQL URI to the constructor:
+  ```python
+  experiment = LeCrapaud(uri="mysql+pymysql://user:password@host:port/dbname", data=df, ...)
+  ```
+- **OR** setting environment variables:
+  - `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`
+  - Or set `DB_URI` directly with your full connection string.
+
+If neither is provided, database operations will not work.
+
+#### Quick MySQL setup (local, macOS)
+
+Pick one:
+
+- Docker (fastest):  
+  ```sh
+  docker run --name lecrapaud-mysql -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=lecrapaud -p 3306:3306 -d mysql:8
+  ```
+- Homebrew MySQL:  
+  ```sh
+  brew install mysql
+  brew services start mysql
+  mysql -uroot
+  CREATE DATABASE lecrapaud;
+  CREATE USER 'lecrapaud'@'localhost' IDENTIFIED BY 'lecrapaud';
+  GRANT ALL PRIVILEGES ON lecrapaud.* TO 'lecrapaud'@'localhost';
+  FLUSH PRIVILEGES;
+  ```
+
+Then set your env vars:
+```sh
+export DB_USER=lecrapaud
+export DB_PASSWORD=lecrapaud
+export DB_HOST=127.0.0.1
+export DB_PORT=3306
+export DB_NAME=lecrapaud
+export DB_URI="mysql+pymysql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+```
+
+### Using OpenAI Embeddings (Optional)
+
+If you want to use the `columns_pca` embedding feature (for advanced feature engineering), you must set the `OPENAI_API_KEY` environment variable with your OpenAI API key:
+
+```sh
+export OPENAI_API_KEY=sk-...
+```
+
+If this variable is not set, features relying on OpenAI embeddings will not be available.
+
+### Experiment Context Arguments
+
+The experiment context is a dictionary containing all configuration parameters for your ML pipeline. Parameters are stored in the experiment's database record and automatically retrieved when loading an existing experiment.
+
+#### Required Parameters
+
+| Parameter         | Type      | Description                                        | Example              |
+| ----------------- | --------- | -------------------------------------------------- | -------------------- |
+| `data`            | DataFrame | Input dataset (required for new experiments only)  | `pd.DataFrame(...)`  |
+| `date_column`     | str       | Name of the date column (required for time series) | `'DATE'`             |
+| `experiment_name` | str       | Unique name for the experiment                     | `'stock_prediction'` |
+| `group_column`    | str       | Name of the group column (required for panel data) | `'STOCK'`            |
+
+#### Feature Engineering Parameters
+
+| Parameter            | Type | Default | Description                                |
+| -------------------- | ---- | ------- | ------------------------------------------ |
+| `columns_boolean`    | list | `[]`    | Columns to convert to boolean features     |
+| `columns_date`       | list | `[]`    | Date columns for cyclic encoding           |
+| `columns_drop`       | list | `[]`    | Columns to drop during feature engineering |
+| `columns_te_groupby` | list | `[]`    | Groupby columns for target encoding        |
+| `columns_te_target`  | list | `[]`    | Target columns for target encoding         |
+
+#### Preprocessing Parameters
+
+| Parameter             | Type  | Default | Description                                      |
+| --------------------- | ----- | ------- | ------------------------------------------------ |
+| `columns_binary`      | list  | `[]`    | Columns for binary encoding                      |
+| `columns_frequency`   | list  | `[]`    | Columns for frequency encoding                   |
+| `columns_onehot`      | list  | `[]`    | Columns for one-hot encoding                     |
+| `columns_ordinal`     | list  | `[]`    | Columns for ordinal encoding                     |
+| `columns_pca`         | list  | `[]`    | Columns for PCA transformation                   |
+| `pca_cross_sectional` | list  | `[]`    | Cross-sectional PCA config (e.g., market regime) |
+| `pca_temporal`        | list  | `[]`    | Temporal PCA config (e.g., lag features)         |
+| `test_size`           | float | `0.2`   | Test set size (fraction)                         |
+| `time_series`         | bool  | `False` | Whether data is time series                      |
+| `val_size`            | float | `0.2`   | Validation set size (fraction)                   |
+
+#### Feature Selection Parameters
+
+| Parameter                 | Type  | Default | Description                                              |
+| ------------------------- | ----- | ------- | -------------------------------------------------------- |
+| `corr_threshold`          | float | `80`    | Maximum correlation threshold (%) between features       |
+| `max_features`            | int   | `50`    | Maximum number of final features                         |
+| `max_p_value_categorical` | float | `0.05`  | Maximum p-value for categorical feature selection (Chi2) |
+| `percentile`              | float | `20`    | Percentage of features to keep per selection method      |
+
+#### Model Selection Parameters
+
+| Parameter               | Type | Default | Description                                               |
+| ----------------------- | ---- | ------- | --------------------------------------------------------- |
+| `max_timesteps`         | int  | `120`   | Maximum timesteps for recurrent models                    |
+| `models_idx`            | list | `[]`    | Model indices or names to use (e.g., `[1, 'xgb', 'lgb']`) |
+| `number_of_trials`      | int  | `20`    | Number of hyperopt trials                                 |
+| `perform_crossval`      | bool | `False` | Whether to use cross-validation during hyperopt           |
+| `perform_hyperopt`      | bool | `True`  | Whether to perform hyperparameter optimization            |
+| `plot`                  | bool | `True`  | Whether to generate plots                                 |
+| `preserve_model`        | bool | `True`  | Whether to save the best model                            |
+| `target_clf_thresholds` | dict | `{}`    | Classification thresholds per target                      |
+| `target_clf`            | list | `[]`    | Classification target indices                             |
+| `target_numbers`        | list | `[]`    | List of target indices to predict                         |
+
+
+#### Example context (time series)
+
+```python
+context = {
+    "experiment_name": "energy_forecast_demo",
+    "date_column": "timestamp",
+    "group_column": "site_id",   # per-site time series
+    "time_series": True,
+    "val_size": 0.2,
+    "test_size": 0.2,
+
+    # Feature engineering
+    "columns_drop": ["equipment_id"],
+    "columns_boolean": ["is_weekend"],
+    "columns_date": ["timestamp"],
+    "columns_onehot": ["weather_condition"],
+    "columns_binary": ["region"],
+    "columns_ordinal": [],
+
+    # PCA on temporal blocks (auto-creates lags)
+    "pca_temporal": [
+        {"name": "LAST_48_LOAD", "column": "load_kw", "lags": 48},
+        {"name": "LAST_24_TEMP", "column": "temperature_c", "lags": 24},
+    ],
+    # Optional cross-sectional PCA across sites at each timestamp
+    "pca_cross_sectional": [
+        {"name": "SITE_LOAD_FACTORS", "index": "timestamp", "columns": "site_id", "value": "load_kw"}
+    ],
+
+    # Feature selection
+    "corr_threshold": 80,
+    "max_features": 30,
+    "percentile": 30,
+
+    # Model selection
+    "target_numbers": [1],        # Expect a column TARGET_1 (e.g., next-hour load)
+    "target_clf": [],             # regression
+    "models_idx": ["lgb", "xgb"], # boosted trees for tabular time series
+    "perform_hyperopt": True,
+    "number_of_trials": 40,
+}
+
+experiment = LeCrapaud(data=your_dataframe, **context)
+```
+
+#### Important Notes
+
+1. **Context Persistence**: All context parameters are saved in the database when creating an experiment and automatically restored when loading it.
+
+2. **Parameter Precedence**: When loading an existing experiment, the stored context takes precedence over any parameters passed to the constructor.
+
+3. **PCA Time Series**: 
+   - For time series data, both `pca_cross_sectional` and `pca_temporal` automatically use an expanding window approach with periodic refresh (default: every 90 days) to prevent data leakage.
+   - The system fits PCA only on historical data (lookback window of 365 days by default) and avoids look-ahead bias.
+   - For panel data (e.g., multiple stocks), lag features are created per group when using the simplified `pca_temporal` format.
+   - Missing PCA values are handled with forward-fill followed by zero-fill to ensure compatibility with downstream models.
+
+4. **PCA Temporal Simplified Format**: 
+   - Instead of manually listing lag columns: `{"name": "LAST_20_RET", "columns": ["RET_-1", "RET_-2", ..., "RET_-20"]}`
+   - Use the simplified format: `{"name": "LAST_20_RET", "column": "RET", "lags": 20}`
+   - The system automatically creates the lag columns, handling panel data correctly with `group_column`.
+
+5. **OpenAI Embeddings**: If using `columns_pca` with text columns, ensure `OPENAI_API_KEY` is set as an environment variable.
+
+6. **Model Indices**: The `models_idx` parameter accepts both integer indices and string names (e.g., `'xgb'`, `'lgb'`, `'catboost'`).
+
+
+
+## 🔍 Explainability Features
+
+LeCrapaud provides comprehensive model explainability tools to help you understand and interpret your machine learning models. All explainability methods are accessible through the main `LeCrapaud` class after training your models.
+
+### Feature Importance Visualization
+
+```python
+# Plot feature importance for any trained model
+experiment.plot_feature_importance(target_number=1)
+```
+
+### LIME (Local Interpretable Model-agnostic Explanations)
+
+LIME provides local explanations for individual predictions by perturbing input features and observing the effect on predictions.
+
+```python
+# Generate LIME explanation for a specific instance
+experiment.plot_lime_explanation(
+    target_number=1,
+    instance_idx=0,  # Index of the instance to explain
+    num_features=10  # Number of top features to show
+)
+```
+
+### SHAP (SHapley Additive exPlanations)
+
+SHAP values provide a unified framework for interpreting model predictions with game theory foundations.
+
+```python
+# SHAP summary plots with multiple visualization types
+experiment.plot_shap_values(
+    target_number=1,
+    plot_type="dot",        # Options: "bar", "dot", "violin", "beeswarm"
+    max_display=20,         # Number of features to display
+    figsize=(10, 8)
+)
+
+# SHAP waterfall plot for individual predictions
+experiment.plot_shap_waterfall(
+    target_number=1,
+    instance_idx=0,         # Index of the instance to explain
+    figsize=(10, 6)
+)
+```
+
+**SHAP Plot Types:**
+- **`"bar"`**: Shows mean absolute SHAP values for feature importance ranking
+- **`"dot"`**: Summary plot showing SHAP value distribution and feature values
+- **`"violin"`**: Shows the full distribution of SHAP values for each feature
+- **`"beeswarm"`**: Detailed scatter plot showing SHAP values vs feature values
+
+### Tree Model Visualization
+
+For tree-based models (sklearn, XGBoost, LightGBM, CatBoost), visualize the actual decision trees:
+
+```python
+# Visualize decision trees from any tree-based model
+experiment.plot_tree(
+    target_number=1,
+    tree_index=0,           # Which tree to visualize (for ensemble models)
+    max_depth=3,            # Maximum depth to display
+    figsize=(20, 10)
+)
+```
+
+### PCA Visualization
+
+Visualize PCA transformations used in feature engineering:
+
+```python
+# 2D scatter plot of PCA components colored by target class
+experiment.plot_pca_scatter(
+    target_number=1,
+    pca_type="all",         # Options: "embedding", "cross_sectional", "temporal", "all"
+    components=(0, 1),      # Which PCA components to plot
+    figsize=(12, 5)
+)
+
+# PCA variance explained visualization
+experiment.plot_pca_variance(
+    pca_type="all",         # Options: "embedding", "cross_sectional", "temporal", "all"
+    figsize=(15, 5)
+)
+```
+
+### Additional Explainability Techniques
+
+Beyond the built-in functions, LeCrapaud models support various other explainability approaches:
+
+- **Permutation Importance**: Measure feature importance by shuffling feature values
+- **Partial Dependence Plots (PDP)**: Show the marginal effect of features on predictions  
+- **Individual Conditional Expectation (ICE)**: Show prediction changes for individual instances
+- **ANCHOR Explanations**: Rule-based explanations for local interpretability
+- **Tree SHAP**: Optimized SHAP values specifically for tree models
+- **Deep SHAP**: Specialized SHAP implementation for neural networks
+
+### Requirements
+
+Explainability features require additional dependencies that are automatically installed:
+- `lime>=0.2.0.1` for LIME explanations
+- `shap>=0.50.0` for SHAP values and visualizations
+
+### Modular usage with sklearn-compatible components
+
+You can also use individual pipeline components:
+
+```python
+from lecrapaud import FeatureEngineer, FeaturePreprocessor, FeatureSelector
+
+# Create components with experiment context
+feature_eng = FeatureEngineer(experiment=experiment)
+feature_prep = FeaturePreprocessor(experiment=experiment)
+feature_sel = FeatureSelector(experiment=experiment, target_number=1)
+
+# Use sklearn fit/transform pattern
+feature_eng.fit(data)
+data_eng = feature_eng.get_data()
+
+feature_prep.fit(data_eng)
+data_preprocessed = feature_prep.transform(data_eng)
+
+feature_sel.fit(data_preprocessed)
+
+# Or use in sklearn Pipeline
+from sklearn.pipeline import Pipeline
+pipeline = Pipeline([
+    ('feature_eng', FeatureEngineer(experiment=experiment)),
+    ('feature_prep', FeaturePreprocessor(experiment=experiment))
+])
+```
+
+## ⚠️ Using Alembic in Your Project (Important for Integrators)
+
+If you use Alembic for migrations in your own project and you share the same database with LeCrapaud, you must ensure that Alembic does **not** attempt to drop or modify LeCrapaud tables (those prefixed with `{LECRAPAUD_TABLE_PREFIX}_`).
+
+By default, Alembic's autogenerate feature will propose to drop any table that exists in the database but is not present in your project's models. To prevent this, add the following filter to your `env.py`:
+
+```python
+def include_object(object, name, type_, reflected, compare_to):
+    if type_ == "table" and name.startswith(f"{LECRAPAUD_TABLE_PREFIX}_"):
+        return False  # Ignore LeCrapaud tables
+    return True
+
+context.configure(
+    # ... other options ...
+    include_object=include_object,
+)
+```
+
+This will ensure that Alembic ignores all tables created by LeCrapaud when generating migrations for your own project.
+
+## 🤝 Contributing
+
+### How we work
+
+- Use conventional commits (e.g., `feat: add lgbm tuner`, `fix: handle missing target`).
+- Create feature branches (`feat/…`, `fix/…`) off `main`; keep PRs focused and small.
+- Before opening a PR: `make format && make lint && make test` (or at least run the relevant test subset). If you skip, explain why in the PR.
+- Write/adjust tests when changing behavior or adding features; include fixtures/data updates when needed.
+- Documentation is part of the change: update README/examples/docstrings when APIs or flows change.
+- PRs should include:
+  - A short summary of the change and rationale.
+  - Screenshots or sample outputs when UI/notebook outputs are affected.
+  - Validation notes (commands run, datasets used).
+  - Any follow-ups or known gaps.
+
+### Setup (dev)
+
+```sh
+python -m venv .venv
+source .venv/bin/activate
+make install
+# optional gpu deps
+make install-gpu
+```
+
+When done: `deactivate`.
+
+---
+
+Pierre Gallet © 2025
