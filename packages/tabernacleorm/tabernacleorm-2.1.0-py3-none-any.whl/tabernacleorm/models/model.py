@@ -1,0 +1,504 @@
+"""
+Base Model class for TabernacleORM.
+"""
+
+import asyncio
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
+
+from ..core.connection import get_connection
+from ..fields.base import Field
+from .meta import ModelMeta
+from .hooks import HookMixin
+
+
+class Model(HookMixin, metaclass=ModelMeta):
+    """
+    Base class for all models.
+    
+    Provides CRUD operations, validation, and hook integration.
+    """
+    
+    # Config options (override in subclasses)
+    __collection__: str
+    __engine__: Optional[str] = None  # Force specific engine
+    
+    def __init__(self, **kwargs):
+        self._modified_fields = set()
+        self._is_new = True
+        
+        # Initialize fields with defaults
+        for name, field in self._fields.items():
+            if name in kwargs:
+                setattr(self, name, kwargs[name])
+            else:
+                # Set default directly to avoid marking as modified
+                # Store in __dict__ so descriptors can find it
+                default = field.get_default()
+                self.__dict__[name] = default
+        
+        # Handle implicit Primary Key if provided (e.g. from DB for implicit 'id')
+        # If 'id' is not in _fields, the loop above missed it.
+        pk = self._primary_key
+        if pk not in self._fields and pk in kwargs:
+            setattr(self, pk, kwargs[pk])
+    
+    def __repr__(self) -> str:
+        try:
+            return f"<{self.__class__.__name__}: {self.id}>"
+        except Exception:
+            return f"<{self.__class__.__name__}>"
+
+    
+    @property
+    def is_new(self) -> bool:
+        """True if document has not been saved yet."""
+        return self._is_new
+    
+    @property
+    def id(self) -> Any:
+        """Get ID (alias for primary key)."""
+        pk_field = self._primary_key
+        if pk_field == "id":
+            return self.__dict__.get("id")
+        return getattr(self, pk_field)
+    
+    @id.setter
+    def id(self, value: Any):
+        """Set ID."""
+        pk_field = self._primary_key
+        if pk_field == "id":
+            self.__dict__["id"] = value
+        else:
+            setattr(self, pk_field, value)
+    
+    def is_modified(self, field: str) -> bool:
+        """Check if a field has been modified."""
+        return field in self._modified_fields
+    
+    def get_changes(self) -> Dict[str, Any]:
+        """Get dictionary of modified fields and their new values."""
+        return {
+            field: getattr(self, field)
+            for field in self._modified_fields
+        }
+    
+    def to_dict(self, exclude: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Convert model to dictionary."""
+        data = {}
+        exclude = exclude or []
+        for name, field in self._fields.items():
+            if name in exclude:
+                continue
+            value = getattr(self, name)
+            # Basic serialization logic available in field.to_db usually handles this,
+            # but to_dict might want a python-native dict.
+            # For now return as-is or serialized? Usually to_dict returns serializable data.
+            data[name] = field.to_db(value)
+        return data
+    
+    @classmethod
+    def find(cls, query: Optional[Dict[str, Any]] = None) -> "QuerySet":
+        """
+        Start a query.
+        
+        Args:
+            query: Optional filter conditions
+            
+        Returns:
+            QuerySet instance
+        """
+        from ..query.queryset import QuerySet
+        qs = QuerySet(cls)
+        if query:
+            qs = qs.filter(query)
+        return qs
+    
+    @classmethod
+    async def findOne(cls, query: Dict[str, Any]) -> Optional["Model"]:
+        """Find a single document."""
+        return await cls.find(query).first()
+    
+    @classmethod
+    async def findById(cls, id: Any) -> Optional["Model"]:
+        """Find a document by ID."""
+        return await cls.find({"id": id}).first()
+    
+    @classmethod
+    async def findMany(cls, query: Optional[Dict[str, Any]] = None) -> List["Model"]:
+        """Find multiple documents."""
+        return await cls.find(query).exec()
+    
+    @classmethod
+    async def create(cls, **kwargs) -> "Model":
+        """Create and save a new document."""
+        instance = cls(**kwargs)
+        await instance.save()
+        return instance
+    
+    async def save(self) -> None:
+        """Save the document (insert or update)."""
+        # Run pre-validation hooks
+        await self._run_hooks("pre_validate")
+        
+        # Validate all fields
+        self.validate()
+        
+        # Run post-validation hooks
+        await self._run_hooks("post_validate")
+        
+        # Run pre-save hooks
+        await self._run_hooks("pre_save")
+        
+        db = self._get_db()
+        collection = self.__collection__
+        
+        data = self._to_db_data()
+        
+        if self._is_new:
+            # Insert
+            await self._run_hooks("pre_insert")
+            
+            # If ID is set, allow it (for custom UUIDs/IDs)
+            # If not, let DB handle it (auto-increment/ObjectId)
+            
+            new_id = await db.insertOne(collection, data)
+            
+            if new_id is not None:
+                # Update ID on instance
+                # We need to handle engine-specific ID normalization
+                 # denormalizeId expects ID from DB and potentially converts it
+                 # For example ObjectId -> str
+                 normalized_id = db.denormalizeId(new_id)
+                 setattr(self, "id", normalized_id)
+            
+            self._is_new = False
+            self._modified_fields.clear()
+            
+            await self._run_hooks("post_insert")
+        else:
+            # Update
+            await self._run_hooks("pre_update")
+            
+            # Only update modified fields
+            if self._modified_fields:
+                update_data = {
+                    k: data[k] for k in self._modified_fields
+                    if k != "id"  # Never update ID
+                }
+                
+                if update_data:
+                    query = {"id": self.id}
+                    await db.updateOne(collection, query, {"$set": update_data})
+            
+            self._modified_fields.clear()
+            
+            await self._run_hooks("post_update")
+            
+        await self._run_hooks("post_save")
+    
+    async def delete(self) -> None:
+        """Delete the document."""
+        if self._is_new:
+            return
+            
+        await self._run_hooks("pre_delete")
+        
+        db = self._get_db()
+        await db.deleteOne(self.__collection__, {"id": self.id})
+        
+        await self._run_hooks("post_delete")
+        self._is_new = True  # Mark as new if deleted (so it could be re-saved as new)
+    
+    def validate(self) -> None:
+        """Validate all fields."""
+        for name, field in self._fields.items():
+            value = getattr(self, name)
+            field.validate(value)
+    
+    def _to_db_data(self) -> Dict[str, Any]:
+        """Convert fields to DB storage format."""
+        data = {}
+        for name, field in self._fields.items():
+            value = getattr(self, name)
+            data[name] = field.to_db(value)
+        return data
+    
+    @classmethod
+    async def insertMany(
+        cls,
+        documents: List[Union["Model", Dict[str, Any]]],
+        batch_size: int = 100
+    ) -> List[Any]:
+        """Insert multiple documents."""
+        # TODO: Handle Model instances vs dicts
+        # For now assume dicts or Model instances that need serialization
+        raw_docs = []
+        for doc in documents:
+            if isinstance(doc, Model):
+                doc.validate()
+                raw_docs.append(doc._to_db_data())
+            else:
+                raw_docs.append(doc)
+        
+        db = cls._get_db()
+        ids = await db.insertMany(cls.__collection__, raw_docs, batch_size)
+        return [db.denormalizeId(i) for i in ids]
+    
+    @classmethod
+    async def updateMany(
+        cls,
+        query: Dict[str, Any],
+        update: Dict[str, Any]
+    ) -> int:
+        """Update multiple documents."""
+        db = cls._get_db()
+        return await db.updateMany(cls.__collection__, query, update)
+    
+    @classmethod
+    async def deleteMany(cls, query: Dict[str, Any]) -> int:
+        """Delete multiple documents."""
+        db = cls._get_db()
+        return await db.deleteMany(cls.__collection__, query)
+    
+    @classmethod
+    async def count(cls, query: Optional[Dict[str, Any]] = None) -> int:
+        """Count documents."""
+        db = cls._get_db()
+        return await db.count(cls.__collection__, query or {})
+    
+    @classmethod
+    async def aggregate(cls, pipeline: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Run aggregation pipeline."""
+        db = cls._get_db()
+        return await db.aggregate(cls.__collection__, pipeline)
+    
+    @classmethod
+    async def findOneAndUpdate(
+        cls,
+        query: Dict[str, Any],
+        update: Dict[str, Any],
+        *,
+        new: bool = False,
+        upsert: bool = False
+    ) -> Optional["Model"]:
+        """
+        Find a document and update it atomically.
+        
+        Args:
+            query: Filter to find document
+            update: Update operations (e.g., {"$set": {"name": "John"}})
+            new: If True, return updated document; if False, return original
+            upsert: If True, create document if it doesn't exist
+            
+        Returns:
+            Model instance (original or updated based on 'new' parameter)
+        """
+        db = cls._get_db()
+        
+        # Get original document if needed
+        if not new:
+            original = await cls.findOne(query)
+        
+        # Perform update
+        result = await db.updateOne(cls.__collection__, query, update, upsert=upsert)
+        
+        if not new:
+            return original
+        
+        # Fetch and return updated document
+        return await cls.findOne(query)
+    
+    @classmethod
+    async def findByIdAndUpdate(
+        cls,
+        id: Any,
+        update: Dict[str, Any],
+        *,
+        new: bool = False,
+        upsert: bool = False
+    ) -> Optional["Model"]:
+        """
+        Find a document by ID and update it atomically.
+        
+        Args:
+            id: Document ID
+            update: Update operations
+            new: If True, return updated document
+            upsert: If True, create document if it doesn't exist
+            
+        Returns:
+            Model instance
+        """
+        return await cls.findOneAndUpdate(
+            {"id": id}, update, new=new, upsert=upsert
+        )
+    
+    @classmethod
+    async def findOneAndDelete(cls, query: Dict[str, Any]) -> Optional["Model"]:
+        """
+        Find a document and delete it atomically.
+        
+        Args:
+            query: Filter to find document
+            
+        Returns:
+            Deleted document or None
+        """
+        doc = await cls.findOne(query)
+        if doc:
+            await doc.delete()
+        return doc
+    
+    @classmethod
+    async def findByIdAndDelete(cls, id: Any) -> Optional["Model"]:
+        """
+        Find a document by ID and delete it atomically.
+        
+        Args:
+            id: Document ID
+            
+        Returns:
+            Deleted document or None
+        """
+        return await cls.findOneAndDelete({"id": id})
+    
+    @classmethod
+    async def exists(cls, query: Dict[str, Any]) -> Union[bool, Any]:
+        """
+        Check if a document exists.
+        
+        Args:
+            query: Filter conditions
+            
+        Returns:
+            Document ID if exists, None otherwise
+        """
+        doc = await cls.findOne(query)
+        return doc.id if doc else None
+    
+    @classmethod
+    async def countDocuments(cls, query: Optional[Dict[str, Any]] = None) -> int:
+        """
+        Count documents (Mongoose alias for count).
+        
+        Args:
+            query: Optional filter conditions
+            
+        Returns:
+            Number of documents
+        """
+        return await cls.count(query)
+    
+    @classmethod
+    async def distinct(cls, field: str, query: Optional[Dict[str, Any]] = None) -> List[Any]:
+        """
+        Get distinct values for a field.
+        
+        Args:
+            field: Field name
+            query: Optional filter conditions
+            
+        Returns:
+            List of distinct values
+        """
+        db = cls._get_db()
+        
+        # Fetch all matching documents
+        docs = await cls.find(query).exec() if query else await cls.findMany()
+        
+        # Extract unique values
+        values = set()
+        for doc in docs:
+            val = getattr(doc, field, None)
+            if val is not None:
+                # Handle lists
+                if isinstance(val, list):
+                    values.update(val)
+                else:
+                    values.add(val)
+        
+        return list(values)
+    
+    @classmethod
+    def where(cls, field: str) -> "QuerySet":
+        """
+        Start a query with a field condition (chainable).
+        
+        Usage:
+            User.where("age").gt(18)
+            
+        Returns:
+            QuerySet instance
+        """
+        from ..query.queryset import QuerySet
+        qs = QuerySet(cls)
+        qs._current_field = field  # Store for chaining
+        return qs
+    
+    
+    @classmethod
+    async def createTable(cls) -> None:
+        """Create the table/collection for this model."""
+        schema = {}
+        for name, field in cls._fields.items():
+            field_type = "string"
+            cls_name = field.__class__.__name__
+            
+            if "Integer" in cls_name or "ForeignKey" in cls_name:
+                field_type = "integer"
+            elif "Boolean" in cls_name:
+                field_type = "boolean"
+            elif "Float" in cls_name:
+                field_type = "float"
+            elif "Date" in cls_name:
+                if "Time" in cls_name:
+                    field_type = "datetime"
+                else:
+                    field_type = "date"
+            elif "JSON" in cls_name:
+                field_type = "json"
+            elif "Array" in cls_name:
+                field_type = "array"
+            
+            spec = {
+                "type": field_type,
+                "primary_key": field.primary_key,
+                "unique": field.unique,
+                "default": field.default,
+            }
+            if not field.nullable:
+                spec["required"] = True
+            
+            if hasattr(field, "auto_increment") and field.auto_increment:
+                spec["auto_increment"] = True
+                
+            schema[name] = spec
+            
+        db = cls._get_db()
+        await db.createCollection(cls.__collection__, schema)
+
+    @classmethod
+    def _get_db(cls):
+        """Get database connection."""
+        conn = get_connection()
+        if not conn or not conn.is_connected:
+            raise RuntimeError("Database not connected")
+        
+        return conn.engine
+
+
+class EmbeddedModel(Model):
+    """
+    Model meant to be embedded in another document.
+    Does not have a collection or direct CRUD (save/delete).
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Embedded models don't have _is_new tracking in the same way
+        # But fields still track modifications
+    
+    async def save(self):
+        raise NotImplementedError("EmbeddedModel cannot be saved directly")
+    
+    async def delete(self):
+        raise NotImplementedError("EmbeddedModel cannot be deleted directly")
