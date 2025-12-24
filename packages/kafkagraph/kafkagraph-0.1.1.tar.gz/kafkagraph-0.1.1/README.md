@@ -1,0 +1,57 @@
+# KafkaGraph
+
+Licensed Kafka to Neo4j ingestion SDK.
+
+## Install
+
+```bash
+pip install .
+```
+
+## Usage
+
+```python
+from kafkagraph import KafkaGraph
+
+kg = KafkaGraph(
+    license_file="license.json",
+    kafka_config={"brokers": ["localhost:9092"], "group_id": "kafkagraph"},
+    neo4j_config={"uri": "bolt://localhost:7687", "user": "neo4j", "password": "pass"},
+    topics_config_path="topics.yaml",
+    batch_size=500
+)
+
+kg.start()
+```
+
+## API Key Mode (Test)
+
+Set API keys via environment or a file. If none are provided, 10 deterministic test keys are available.
+
+Environment:
+```bash
+export KAFKAGRAPH_API_KEYS="key1,key2,key3"
+# or from a file with one key per line
+export KAFKAGRAPH_API_KEYS_FILE=/path/to/apikeys.txt
+```
+
+Use with API key:
+```python
+from kafkagraph import KafkaGraph
+
+kg = KafkaGraph(
+    api_key="your_api_key",
+    kafka_config={"brokers": ["localhost:9092"], "group_id": "kafkagraph"},
+    neo4j_config={"uri": "bolt://localhost:7687", "user": "neo4j", "password": "pass"},
+    topics_config_path="topics.yaml",
+    batch_size=500
+)
+
+kg.start()
+```
+
+Default test keys can be generated programmatically:
+```python
+from kafkagraph.license.api_keys import default_test_keys
+print(default_test_keys())  # 10 keys for local testing
+```
