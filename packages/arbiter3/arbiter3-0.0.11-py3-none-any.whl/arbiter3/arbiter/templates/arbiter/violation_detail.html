@@ -1,0 +1,84 @@
+{% extends "arbiter/base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block extrastyle %}
+    {{block.super}}
+    <script src="{% static 'js/htmx.min.js' %}"></script>
+    <script src="{% static 'js/plotly.min.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'css/change-form.css' %}?v=1.2">
+{% endblock %}
+
+{% block content %}
+<form action="{{ request.path }}" method="post">
+    <div class="form-row">
+        <label>Violator:</label> 
+        <div class= "field-value">
+            <span>{{violation.target.username}}@{{violation.target.host}}</span> <a href="{% url 'arbiter:user-breakdown' violation.target.username%}">[See user breakdown]</a>
+        </div>
+    </div>
+    <div class="form-row">
+        <label>Name:</label> <div class= "field-value">{{ realname }}</div>
+    </div>
+    <div class="form-row">
+        <label>Policy:</label> 
+        <div class= "field-value">
+        {% if violation.policy.is_base_policy %}
+            <a href="{% url 'arbiter:change-base-policy' violation.policy.id%}">{{violation.policy.name}}</a>
+        {% else %}    
+            <a href="{% url 'arbiter:change-usage-policy' violation.policy_id%}">{{violation.policy.name}}</a>
+        {% endif %}
+        </div>
+    </div>
+    <div class="form-row">
+        <label>Expiration:</label> <div class= "field-value">{{ violation.expiration }}</div>
+    </div>
+    <div class="form-row">
+        <label>Timestamp:</label> <div class= "field-value">{{ violation.timestamp }}</div>
+    </div>
+    <div class="form-row">
+        <label>Offense:</label> <div class= "field-value">{{ violation.offense_count | ordinal}}</div>
+    </div>
+    <div class="form-row">
+        <label>Is Base Status:</label> <div class= "field-value">{{ violation.is_base_status}}</div>
+    </div>
+
+    {% if not violation.policy.is_base_policy %}
+        <div class="form-row">
+            <label>Recorded Usage:</label> 
+            <div class="field-value">
+                <div class="graph-list">
+                    <div hx-get="{% url 'arbiter:violation-proc-cpu-graph' violation.id%}" hx-vals="js:{...getPlotParams()}" hx-trigger="load" hx-target="this" hx-swap="innerHTML" ></div>
+                    <div hx-get="{% url 'arbiter:violation-proc-memory-graph' violation.id%}"  hx-vals="js:{...getPlotParams()}" hx-trigger="load" hx-target="this" hx-swap="innerHTML" ></div>
+                    <div>
+                        <i class="helptext">
+                            *Processes marked like this are on the whitelist and are not counted against the user when evaluating policies. 
+                            The process is included in this report to show usage holistically.
+                        </i>
+                    </div>
+                    <div>
+                        <i class="helptext">**This accounts for the difference between the overall usage and the collected PID usage (which can be less accurate)
+                            as well as an aggregate for processes that aren't in the top 7 processes in usage.
+                            This may be large if there are a lot of short-lived processes (such as compilers or quick commands) 
+                            that account for a significant fraction of the total usage.
+                        </i>    
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if can_change %}
+
+        {% csrf_token %}
+
+        {% if not violation.expired and violation.expiration%}
+            <input type="submit" name="expire" value="expire"/>
+        {% endif %}
+        <input type="submit" name="delete" value="delete"/>
+    
+    {% endif %}
+</form>
+{% endblock content %}
+
+
