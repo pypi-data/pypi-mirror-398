@@ -1,0 +1,232 @@
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional, List, Dict, Any, Literal
+from .memory import (
+    BackgroundMemory,
+    EffectMemory,
+    ParticleMemory,
+    SkinMemory,
+    EngineMemory,
+    LevelMemory,
+    PostMemory
+)
+from .model.items import (
+    BackgroundItem,
+    EffectItem,
+    ParticleItem,
+    SkinItem,
+    EngineItem,
+    LevelItem,
+    PostItem
+)
+from .backend import StorageBackend, StoreFactory
+from .model.ServerOption import ServerForm
+from .model.items import ItemType
+from .utils.item_namespace import ItemNamespace
+from .utils.server_namespace import ServerNamespace
+from .utils.pack import set_pack_memory
+from .utils.context import SonolusContext
+from .utils.query import Query
+from .utils.session import SessionStore, MemorySessionStore
+from .router.sonolus_api import SonolusApi
+
+class Sonolus:
+    Kind = Literal["info", "list", "detail"]
+    
+    def __init__(
+        self,
+        address: str,
+        port: int,
+        dev: bool = False,
+        session_store: Optional[SessionStore] = None,
+        level_search: Optional[ServerForm] = None,
+        skin_search: Optional[ServerForm] = None,
+        background_search: Optional[ServerForm] = None,
+        effect_search: Optional[ServerForm] = None,
+        particle_search: Optional[ServerForm] = None,
+        engine_search: Optional[ServerForm] = None,
+        version: str = "1.0.2",
+        enable_cors: bool = True,
+        backend: StorageBackend = StorageBackend.MEMORY,
+        **backend_options,
+    ):
+        """
+        
+        Args:
+            address: サーバーアドレス Server address
+            port: サーバーポート Server port
+            level_search: レベル検索フォーム Level search form
+            skin_search: スキン検索フォーム Skin search form
+            background_search: 背景検索フォーム Background search form
+            effect_search: エフェクト検索フォーム Effect search form
+            particle_search: パーティクル検索フォーム Particle search form
+            engine_search: エンジン検索フォーム Engine search form
+            enable_cors: CORSを有効にするかどうか Whether to enable CORS
+        """
+        factory = StoreFactory(backend, **backend_options)
+        
+        self.app = FastAPI()
+        self.port = port
+        self.address = address
+        self.dev = dev
+        self.version = version
+        self.items = ItemStores(factory)
+        
+        self._handlers: dict[ItemType, dict[str, object]] = {}
+        self._server_handlers: dict[str, object] = {}
+        self._repository_paths: List[str] = []
+        
+        self.server = ServerNamespace(self)
+        self.level = ItemNamespace(self, ItemType.level)
+        self.skin = ItemNamespace(self, ItemType.skin)
+        self.engine = ItemNamespace(self, ItemType.engine)
+        self.background = ItemNamespace(self, ItemType.background)  
+        self.effect = ItemNamespace(self, ItemType.effect)
+        self.particle = ItemNamespace(self, ItemType.particle)
+        self.post = ItemNamespace(self, ItemType.post)
+        self.replay = ItemNamespace(self, ItemType.replay)
+
+        self.session_store = session_store or MemorySessionStore()
+        
+        # リポジトリファイルを提供するカスタムエンドポイントを先に追加
+        self._setup_repository_handler()
+        
+        self.api = SonolusApi(self)
+        self.api.register(self.app)
+
+        @self.app.middleware('http')
+        async def sonolus_version_middleware(request: Request, call_next):
+            response = await call_next(request)
+            
+            if request.url.path.startswith('/sonolus'):
+                response.headers['Sonolus-Version'] = self.version
+            
+            return response
+
+        if enable_cors:
+            self.app.add_middleware(
+                CORSMiddleware,
+                allow_origins=["*"],
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+            
+    def build_context(self, request: Request, request_body: Any = None) -> SonolusContext:
+        return SonolusContext(
+            user_session=request.headers.get("Sonolus-Session"),
+            request=request_body,
+            is_dev=self.dev
+        )
+    
+    def build_query(self, item_type: ItemType, request: Request) -> Query:
+        # クエリパラメータを取得してQueryオブジェクトを構築
+        return Query(dict(request.query_params))
+
+    def _register_handler(self, item_type: ItemType, kind: Kind, descriptor: object):
+        self._handlers.setdefault(item_type, {})[kind] = descriptor
+        
+    def _register_server_handler(self, kind: str, descriptor: object):
+        self._server_handlers[kind] = descriptor
+        
+    def get_handler(self, item_type: ItemType, kind: Kind):
+        return self._handlers.get(item_type, {}).get(kind)
+        
+    def get_server_handler(self, kind: str):
+        return self._server_handlers.get(kind)
+    
+    def _setup_repository_handler(self):
+        """リポジトリファイルを提供するハンドラーをセットアップ"""
+        from fastapi import HTTPException
+        from fastapi.responses import FileResponse
+        import os
+        
+        @self.app.get("/sonolus/repository/{file_hash}")
+        async def get_repository_file(file_hash: str):
+            """リポジトリファイルを検索して提供"""
+            # 各リポジトリパスでファイルを検索
+            for repo_path in self._repository_paths:
+                file_path = os.path.join(repo_path, file_hash)
+                if os.path.exists(file_path) and os.path.isfile(file_path):
+                    return FileResponse(file_path)
+            
+            # ファイルが見つからない場合は404エラー
+            raise HTTPException(status_code=404, detail="File not found")
+            
+    def load(self, path: str):
+        """
+        Sonolus packでパックされたものを読み込みます。
+        Load a pack packed with Sonolus pack.
+        """
+        import os
+        repository_path = os.path.join(path, 'repository')
+        db_path = os.path.join(path, 'db.json')
+        set_pack_memory(db_path, self)
+        
+        if repository_path not in self._repository_paths:
+            self._repository_paths.append(repository_path)
+            
+    def run(self):
+        import uvicorn
+        print(f"Starting Sonolus server on port {self.port}...")
+        uvicorn.run(self.app, host='0.0.0.0', port=self.port)
+
+
+# -------------------------
+
+
+class SonolusSpa:
+    def __init__(
+        self,
+        app: FastAPI,
+        path: str,
+        mount: str = "/",
+        fallback: str = "index.html"
+    ):
+        """
+        SPA配信
+        """
+
+        self.app = app
+        self.path = path
+        self.mount = mount
+        self.fallback = fallback
+
+    def mount_spa(self):
+        import os
+        from fastapi import HTTPException
+        from fastapi.responses import FileResponse
+        
+        self.app.mount(
+            "/static", StaticFiles(directory=self.path), name="static"
+        )
+        
+        @self.app.get("/{full_path:path}")
+        async def spa_handler(full_path: str):
+            file_path = os.path.join(self.path, full_path)
+            
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                return FileResponse(file_path)
+            
+            fallback_path = os.path.join(self.path, self.fallback)
+            if os.path.exists(fallback_path):
+                return FileResponse(fallback_path)
+            
+            raise HTTPException(status_code=404, detail="File not found")
+        
+# -------------------------
+
+class ItemStores:
+    def __init__(self, factory: StoreFactory):
+        self.post = factory.create(PostItem)
+        self.level = factory.create(LevelItem)
+        self.engine = factory.create(EngineItem)
+        self.skin = factory.create(SkinItem)
+        self.background = factory.create(BackgroundItem)
+        self.effect = factory.create(EffectItem)
+        self.particle = factory.create(ParticleItem)
+    
+    def override(self, **stores):
+        for key, store in stores.items():
+            setattr(self, key, store)
