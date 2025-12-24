@@ -1,0 +1,2 @@
+from contextualproperties.contextual_property import contextualproperty
+from contextualproperties.contextual_property import ContextualObject
