@@ -1,0 +1,66 @@
+plugins {
+    id 'java'
+    id 'base'
+}
+
+
+repositories {
+    maven { url 'https://artifactory.apps.bancolombia.com/maven-bancolombia/' }
+    //mavenCentral()
+}
+
+dependencies {
+    
+    implementation platform('software.amazon.awssdk:bom:2.15.0')
+    implementation 'software.amazon.awssdk:secretsmanager'
+    implementation 'software.amazon.awssdk:dynamodb'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation 'com.intuit.karate:karate-junit5:1.4.1'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
+    testImplementation 'net.masterthought:cucumber-reporting:5.7.5'
+    testImplementation 'org.apache.commons:commons-io:1.3.2'
+    testImplementation 'org.postgresql:postgresql:42.7.2'
+}
+
+sourceSets {
+    test {
+        resources {
+            srcDir file('src/test/java')
+            exclude '**/*.java'
+        }
+    }
+}
+
+task cleanReports(type: Delete) {
+    delete 'build/reports/tests'
+}
+
+task createReportsDirectory {
+    doLast {
+        mkdir 'build/reports/tests'
+    }
+}
+
+test {
+    useJUnitPlatform()
+    
+    systemProperties = System.properties
+
+    systemProperty 'urlBase', System.properties.getProperty('urlBase')
+
+    testLogging {
+        events 'failed' // Solo mostrar fallos cuando fallen
+        showStandardStreams = true
+        showStackTraces = false
+        exceptionFormat = 'short'
+        // Filtrar para mostrar solo el resumen de Karate
+        afterSuite { desc, result ->
+            if (!desc.parent) { // Solo para el suite principal
+                // No mostrar nada aquí, el output de Karate ya se maneja en STANDARD_OUT
+            }
+        }
+    }
+
+    dependsOn cleanReports, createReportsDirectory
+}

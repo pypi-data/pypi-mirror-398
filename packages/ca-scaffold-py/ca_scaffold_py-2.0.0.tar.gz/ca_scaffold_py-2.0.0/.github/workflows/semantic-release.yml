@@ -1,0 +1,33 @@
+name: Semantic-Release
+
+on:
+  push:
+    branches:
+        - trunk
+        - main
+        - '**.x'
+        - 'stable/**'
+        - alpha
+        - beta
+    paths-ignore:
+        - 'docs/**'
+
+permissions:
+  contents: write # to be able to publish a GitHub release
+  issues: write # to be able to comment on released issues
+  pull-requests: write # to be able to comment on released pull requests
+  id-token: write # to enable use of OIDC for npm provenance
+
+jobs:
+  load-vars:
+    uses: bancolombia/semantic-release-reusable-workflows/.github/workflows/tool-load_properties_repository.yaml@trunk
+    secrets: inherit
+
+  call-workflow-semantic-release:
+    needs: load-vars
+    if: ${{ needs.load-vars.outputs.SEMREL_MODE != 'disabled' }}
+    uses: bancolombia/semantic-release-reusable-workflows/.github/workflows/tool-semantic-release.yaml@trunk
+    secrets: inherit
+    with:
+      semantic_version: ${{ needs.load-vars.outputs.SEMREL_VERSION }}
+      semantic_release_mode: ${{ needs.load-vars.outputs.SEMREL_MODE }}

@@ -1,0 +1,164 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: #{component}#-#{version}#
+  namespace: #{namespace}#
+  labels:
+    app: #{component}#-#{version}#
+    version: #{version}#
+    app.bancolombia.com.co/env: #{env}#
+    app.bancolombia.com.co/cost-center: #{cost-center}#
+    app.bancolombia.com.co/application-code: #{application-code}#
+    app.bancolombia.com.co/project: #{project-name}#
+    app.bancolombia.com.co/responsible: #{responsible}#
+spec:
+  replicas: #{min-replicas}#
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: #{max-surge}#
+      maxUnavailable: #{max-unavailable}#
+  selector:
+    matchLabels:
+      app: #{component}#-#{version}#
+      version: #{version}#
+  template:
+    metadata:
+      name: #{component}#-#{version}#
+      labels:
+        app: #{component}#-#{version}#
+        app.bancolombia.com.co/project: #{project-name}#
+        version: #{version}#
+      annotations:
+        fluentbit.io/exclude: "true"
+    spec:
+      serviceAccountName: #{service-account-name}#
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: #{run-as-non-root}#
+        runAsUser: #{python-uid}#
+        runAsGroup: #{python-gid}#
+        fsGroup: #{python-gid}#
+      containers:
+        - name: #{component}#-#{version}#
+          image: #{image-name}#
+          volumeMounts:
+            - name: temp-volume
+              mountPath: #{python-temp-mount-path}#
+          envFrom:
+            - configMapRef:
+                name: #{component}#-#{version}#-config-map
+          securityContext:
+            readOnlyRootFilesystem: #{read-only-root-filesystem}#
+            runAsNonRoot: #{run-as-non-root}#
+            allowPrivilegeEscalation: #{allow-privilege-escalation}#
+            capabilities:
+              drop:
+                - all
+              add:
+                - NET_BIND_SERVICE
+          startupProbe:
+            httpGet:
+              path: #{startup-path-probe}#
+              port: #{container-port}#
+            initialDelaySeconds: #{startup-initialdelay-probe}#
+            periodSeconds: #{startup-period-probe}#
+            timeoutSeconds: #{startup-timeout-probe}#
+            failureThreshold: #{startup-failure-threshold-probe}#
+          livenessProbe:
+            httpGet:
+              path: #{liveness-path-probe}#
+              port: #{container-port}#
+            initialDelaySeconds: #{initialdelay-probe}#
+            periodSeconds: #{period-probe}#
+            timeoutSeconds: #{timeout-probe}#
+          readinessProbe:
+            httpGet:
+              path: #{readiness-path-probe}#
+              port: #{container-port}#
+            initialDelaySeconds: #{initialdelay-probe}#
+            periodSeconds: #{period-probe}#
+            timeoutSeconds: #{timeout-probe}#
+            failureThreshold: #{failure-threshold-probe}#
+          resources:
+            limits:
+              cpu: "#{cpu-limits}#"
+              memory: "#{memory-limits}#"
+            requests:
+              cpu: "#{cpu-requests}#"
+              memory: "#{memory-requests}#"
+          ports:
+            - name: http
+              containerPort: #{container-port}#
+      volumes:
+        - name: temp-volume
+          emptyDir: {}
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: #{component}#-#{version}#
+            version: #{version}#
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: #{component}#-#{version}#
+            version: #{version}#
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: #{component}#-#{version}#-service
+  namespace: #{namespace}#
+  labels:
+    app: #{component}#-#{version}#-service
+    version: #{version}#
+    app.bancolombia.com.co/env: #{env}#
+    app.bancolombia.com.co/cost-center: #{cost-center}#
+    app.bancolombia.com.co/application-code: #{application-code}#
+    app.bancolombia.com.co/project: #{project-name}#
+    app.bancolombia.com.co/responsible: #{responsible}#
+spec:
+  selector:
+    app: #{component}#-#{version}#
+    version: #{version}#
+  ports:
+    - protocol: TCP
+      port: #{service-port}#
+      targetPort: #{container-port}#
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: #{component}#-#{version}#-hpa
+  namespace: #{namespace}#
+  labels:
+    app.bancolombia.com.co/env: #{env}#
+    app.bancolombia.com.co/cost-center: #{cost-center}#
+    app.bancolombia.com.co/application-code: #{application-code}#
+    app.bancolombia.com.co/project: #{project-name}#
+    app.bancolombia.com.co/responsible: #{responsible}#
+spec:
+  minReplicas: #{min-replicas}#
+  maxReplicas: #{max-replicas}#
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: #{component}#-#{version}#
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: #{cpu-scaling-threshold}#
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: #{memory-scaling-threshold}#

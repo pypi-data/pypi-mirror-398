@@ -1,0 +1,57 @@
+steps:
+  - task: SonarQubePrepare@7
+    displayName: Prepare analysis on SonarQube
+    inputs:
+      SonarQube: SonarQube
+      scannerMode: CLI
+      configMode: manual
+      cliProjectKey: $(Build.Repository.Name)_$(component-name)
+      cliProjectName: $(Build.Repository.Name)_$(component-name)
+      cliProjectVersion: $(Build.BuildNumber)
+      cliSources:  $(System.DefaultWorkingDirectory)/$(Build.Repository.Name)/$(component-name)
+      extraProperties: |
+        sonar.sourceEncoding=UTF-8
+        sonar.exclusions=**/coverage/**,$(component-name)/tests/**,**/test-reports/**,$(component-name)/deployment/**,$(component-name)/local_handler.py,$(component-name)/handler.py
+        sonar.sources=$(System.DefaultWorkingDirectory)/$(component-name)
+        sonar.python.coverage.reportPaths=$(System.DefaultWorkingDirectory)/$(component-name)/coverage.xml
+        sonar.language=py
+        sonar.python.version=$(pythonVersion)
+
+  - script: |
+      sudo apt-get update
+      sudo apt-get install --only-upgrade sqlite3 libgcrypt20 tar gnupg2
+    displayName: Update and Patch System Packages
+
+  - script: |
+      curl https://pyenv.run | bash
+      export PATH="$HOME/.pyenv/bin:$PATH"
+      eval "$(pyenv init --path)"
+      eval "$(pyenv virtualenv-init -)"
+      pyenv install $(pythonVersion)
+      pyenv global $(pythonVersion)
+      python --version
+    displayName: 'Install Python 3.13 with pyenv'
+
+  - script: |
+      curl -LsSf https://astral.sh/uv/install.sh | sh
+      export PATH="$HOME/.local/bin:$PATH"
+      uv sync
+      export PYTHONPATH=src
+      uv run pytest --full-trace -vv -x --cov=src --cov-config=.coveragerc tests/
+      uv run coverage html
+      uv run coverage xml
+    workingDirectory: $(component-name)
+    displayName: 'Run test UV'
+
+  - task: PublishCodeCoverageResults@2
+    displayName: Publish code coverage from $(System.DefaultWorkingDirectory)/$(component-name)/coverage.xml
+    inputs:
+      summaryFileLocation: $(System.DefaultWorkingDirectory)/$(component-name)/coverage.xml
+
+  - task: SonarQubeAnalyze@7
+    displayName: Run Code Analysis
+
+  - task: Sonar-buildbreaker@8
+    displayName: Break build on quality gate failure
+    inputs:
+      SonarQube: SonarQube

@@ -1,0 +1,68 @@
+name: Build and Test (PR)
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install uv
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install uv
+
+    - name: Install dependencies (including dev)
+      run: |
+        python -m uv sync
+
+    - name: Install Bandit (Security Linter)
+      run: |
+        python -m uv pip install bandit
+
+    - name: Run Bandit
+      run: |
+        echo "Running Bandit Security Scan..."
+        python -m uv run bandit -r project_generator/ -lll -s B101
+
+    - name: Run unit tests with coverage
+      run: |
+        echo "Running Pytest..."
+        python -m uv run pytest --full-trace -vv -x --cov=project_generator --cov-config=.coveragerc tests/unit
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./coverage.xml
+        fail_ci_if_error: false
+      continue-on-error: true
+
+    - name: Install build tools
+      run: |
+        python -m pip install build
+
+    - name: Build Python wheel package
+      run: |
+        python -m build
+
+    - name: Test wheel installation
+      run: |
+        echo "Testing wheel installation..."
+        ls -la dist/
+        python -m uv pip install dist/*.whl
+        scaffold-py --help
+        echo "Wheel installation test successful!"
