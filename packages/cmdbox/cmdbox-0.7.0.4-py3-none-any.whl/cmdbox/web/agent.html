@@ -1,0 +1,245 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style type="text/css">
+    .card-hover:hover {
+        box-shadow: 0 0 8px gray;
+    }
+    .filer-pane-divider {
+        border: 1px solid var(--bs-border-color-translucent) !important;
+        /**background-color: #F0F0F0 !important;*/
+        border-radius: 1px;
+        /*left: 50%;*/
+    }
+    .chat-container {
+        overflow-y: auto;
+        background-color: var(--bs-body-bg);
+    }
+    .message {
+        padding: 10px;
+        /**border: 1px solid var(--bs-border-color-translucent);*/
+        margin-bottom: 10px;
+        border-radius: 5px;
+        clear: both;
+    }
+    .user-message {
+        background-color: var(--bs-tertiary-bg);
+        color: var(--bs-body-color);
+        /**float: right;*/
+        border-bottom-left-radius: 24px;
+        border-bottom-right-radius: 24px;
+        border-top-left-radius: 24px;
+        border-top-right-radius: 4px;
+    }
+    .bot-message {
+        background-color: var(--bs-body-bg);
+        color: var(--bs-body-color);
+        float: left;
+    }
+    .chat-input {
+        border-radius: 16px;
+        border: 1px solid var(--bs-border-color);
+    }
+    :root {
+        --cmdbox-width: 800px;
+    }
+    pre {
+        width: var(--cmdbox-width);
+        overflow-wrap: break-all;
+    }
+    .btn_hover {
+        border-radius: 24px !important;
+    }
+    .btn_hover:hover {
+        background-color: var(--bs-tertiary-bg) !important;
+    }
+    </style>
+</head>
+<body lang="ja" class="overflow-hidden p-2" style="background-color:rgb(33, 37, 41)">
+    <script type="text/javascript" src="assets/cmdbox/svgicon.js"></script>
+    <!-- ナビゲーションバー -->
+    <nav class="navbar navbar-expand-sm fixed-top p-2">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">cmdbox</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNavDropdown">
+                <ul class="navbar-nav me-auto">
+                    <!--li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="toolMenuLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Tool
+                        </a>
+                        <ul class="dropdown-menu toolmenu" aria-labelledby="toolMenuLink">
+                            <li><a class="dropdown-item" href="#" onclick="agent.llmsetting();">LLM Setting</a></li>
+                        </ul>
+                    </li-->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="viewMenuLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            View
+                        </a>
+                        <ul class="dropdown-menu viewmenu">
+                            <li class="nav-item dropdown">
+                                <span class="dropdown-item">
+                                    Change Dark Mode
+                                    <select class="d-inline-block change_color_mode" onchange="cmdbox.change_color_mode($(this).val());">
+                                        <option value="dark" selected>Dark</option>
+                                        <option value="midnight">midnight</option>
+                                        <option value="deepsea">deepsea</option>
+                                        <option value="verdant">verdant</option>
+                                        <option value="bumblebee">bumblebee</option>
+                                        <option value="crimson">crimson</option>
+                                        <option value="light">light</option>
+                                    </select>
+                                </span>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="aboutMenuLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            About
+                        </a>
+                        <ul class="dropdown-menu aboutmenu" aria-labelledby="aboutMenuLink">
+                            <li><a class="dropdown-item" href="#" onclick="$(`#versions_modal`).modal(`show`);">Versions</a></li>
+                        </ul>
+                    </li>
+                </ul>
+                <div class="d-none dropdown user_info">
+                    <a href="#" class="d-block link-body-emphasis text-decoration-none dropdown-toggle show" data-bs-toggle="dropdown" aria-expanded="true" style="fill:gray;">
+                        <svg class="m-1" width="24" height="24" viewBox="0 0 16 16">
+                            <use href="#svg_signin_ico"></use>
+                        </svg>
+                        <span class="username">UserName</span>
+                    </a>
+                    <ul class="dropdown-menu text-small shadow" style="position: absolute; inset: 0px 0px auto auto; margin: 0px; transform: translate(0px, 34px);" data-popper-placement="bottom-end">
+                        <div class="user_info_note ps-3 pe-3"></div>
+                        <li><hr class="dropdown-divider"></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <!-- メインコンテナ -->
+    <div id="main_container" class="container-fluid overflow-auto split-pane fixed-left" style="margin-top:66px;height:calc(100vh - 120px);">
+        <!-- 履歴側ペイン -->
+        <div id="left_container" class="split-pane-component filer-pane-left" style="width:15%;">
+            <div id="newchat_container" class="w-100 d-flex justify-content-center">
+                <button id="btn_newchat" class="btn_hover btn me-3 p-2" type="button" style="border:0px;">
+                    <svg class="bi bi-plus" width="24" height="24" fill="currentColor"><use href="#btn_plus"></use></svg>
+                    <span class="btn_text">New Chat&nbsp;</span>
+                </button>
+            </div>
+            <h6 style="float:left;">
+                Histories
+            </h6>
+            <div id="history_container" class="w-100 d-flex justify-content-center" style="height:calc(100% - 80px);overflow-y:auto;">
+                <div id="histories" class="w-100 p-2">
+                </div>
+            </div>
+        </div>
+        <!-- 左右のスプリッター -->
+        <div class="split-pane-divider filer-pane-divider" style="left:15%;"></div>
+        <!-- チャット側ペイン -->
+        <div id="right_container" class="split-pane-component chat-container " style="left:15%;">
+            <div id="message_container" class="w-100 d-flex justify-content-center" style="height:calc(100% - 80px);overflow-y:auto;">
+                <div id="messages" class="ps-2 pe-2" style="width:var(--cmdbox-width);">
+                </div>
+            </div>
+            <div class="w-100 d-flex justify-content-center">
+                <div class="chat-input mt-2" style="width:800px;">
+                    <div class="chat-group w-100 p-2">
+                        <button id="btn_say" class="btn btn_hover p-1" type="button" style="border:0px;" disabled="disabled">
+                            <svg class="bi bi-say" width="24" height="24" fill="currentColor"><use href="#btn_megaphone"></use></svg>
+                        </button>
+                        <textarea id="user_msg" class="form-control d-inline-block align-middle" rows="1" style="width:calc(100% - 120px);border:0px;box-shadow:none;resize:none;field-sizing:content;"></textarea>
+                        <button id="btn_user_msg" class="btn btn_hover p-1" type="button" style="border:0px;" disabled="disabled">
+                            <svg class="bi bi-send" width="24" height="24" fill="currentColor"><use href="#btn_send"></use></svg>
+                        </button>
+                        <button id="btn_rec" class="btn btn_hover p-1" type="button" style="border:0px;" disabled="disabled">
+                            <svg class="bi bi-mic" width="24" height="24" fill="currentColor"><use href="#btn_mic"></use></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <form id="filter_form" class="d-none filer_form">
+            <input name="filer_host" type="hidden" class="filer_host">
+            <input name="filer_port" type="hidden" class="filer_port">
+            <input name="filer_password" type="hidden" class="filer_password">
+            <input name="filer_svname" type="hidden" class="filer_svname">
+            <input name="filer_scope" type="hidden" class="filer_scope">
+            <input name="filer_client_data" type="hidden" class="filer_client_data">
+        </form>
+    </div>
+    <!-- versionsモーダル -->
+    <div id="versions_modal" class="modal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <form id="version_form" class="modal-content novalidate">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        Versions
+                    </h5>
+                    <button type="button" class="btn btn_window_stack">
+                        <svg width="16" height="16" fill="currentColor" class="bi bi-window-stack">
+                            <use href="#btn_window_stack"></use>
+                        </svg>
+                    </button>
+                    <button type="button" class="btn btn_window">
+                        <svg width="16" height="16" fill="currentColor" class="bi bi-window">
+                            <use href="#btn_window"></use>
+                        </svg>
+                    </button>
+                    <button type="button" class="btn btn_close p-0 m-0" data-bs-dismiss="modal" aria-label="Close" style="margin-left: 0px;">
+                        <svg class="bi bi-x" width="24" height="24" fill="currentColor"><use href="#btn_x"></use></svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs version-tabs" role="tablist"></ul>
+                    <div class="tab-content version-content"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- ローディングマスク -->
+    <div id="loading" class="position-absolute top-0 start-0 w-100 h-100 d-none" style="background:rgba(0, 0, 0, 0.3);z-index:10000;">
+        <div class="text-center position-absolute top-50 start-50 w-100 translate-middle">
+            <div class="spinner-border text-light" role="status">
+                <span class="sr-only"></span>
+            </div>
+            <div>
+                <button type="button" class="btn btn-outline-danger mt-3 bbforce">Back by force</button>
+            </div>
+        </div>
+    </div>
+    <!-- フッター -->
+    <footer class="fixed-bottom text-center p-2 copyright"></footer>
+</body>
+<script type="text/javascript">
+    // jqueryの読込み完了までbodyの背景色を設定
+    document.querySelector(`body`).style.setProperty(`--bs-body-bg`, `#212529`);
+    document.querySelector(`body`).style.setProperty(`--bs-tertiary-bg`, `#2b3035`);
+    document.querySelector(`body`).style.setProperty(`--bs-tertiary-bg-rgb`, `43,48,53`);
+    document.querySelector(`body`).style.setProperty(`--bs-secondary-bg`, `#343a40`);
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelector(`body`).style.setProperty(`--bs-body-bg`, null);
+        document.querySelector(`body`).style.setProperty(`--bs-tertiary-bg`, null);
+        document.querySelector(`body`).style.setProperty(`--bs-tertiary-bg-rgb`, null);
+        document.querySelector(`body`).style.setProperty(`--bs-secondary-bg`, null);
+    });
+</script>
+<link rel="stylesheet" href="assets/bootstrap/bootstrap.min.5.3.0.css">
+<link rel="stylesheet" href="assets/cmdbox/color_mode.css">
+<link rel="stylesheet" href="assets/split-pane/split-pane.css">
+<script type="text/javascript" src="assets/bootstrap/bootstrap.bundle.min.5.3.0.js"></script>
+<script type="text/javascript" src="assets/jquery/jquery.min.3.2.0.js"></script>
+<script type="text/javascript" src="assets/jquery-ui/jquery-ui.min.js"></script>
+<script type="text/javascript" src="assets/jquery-resizable/jquery-resizable.min.js"></script>
+<script type="text/javascript" src="assets/split-pane/split-pane.js"></script>
+<script type="text/javascript" src="assets/cmdbox/common.js"></script>
+<script type="text/javascript" src="assets/cmdbox/view_result.js"></script>
+<script type="text/javascript" src="assets/cmdbox/agent.js"></script>
+</html>
