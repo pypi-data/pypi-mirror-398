@@ -1,0 +1,144 @@
+# TechFlops-Analyzer
+
+![PyPI version](https://img.shields.io/pypi/v/techflops-analyzer)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Downloads](https://img.shields.io/pypi/dm/techflops-analyzer)
+![LinkedIn](https://img.shields.io/badge/LinkedIn-connect-blue)
+
+A Python package that processes text-based news headlines or article snippets and extracts structured information about technology failures (flops). It returns a standardized summary including key details like technology name, reason for failure, and impact.
+
+---
+
+## 📌 Overview
+TechFlops-Analyzer uses **LLM7** (by default) to parse and structure information from text inputs about technology failures. The output follows a consistent **XML-like format** (enforced via regex validation) for easy parsing and integration into automated workflows.
+
+---
+
+## 🚀 Installation
+
+Install via pip:
+
+```bash
+pip install techflops-analyzer
+```
+
+---
+
+## 🔧 Usage
+
+### Basic Usage (Default LLM: LLM7)
+```python
+from techflops_analyzer import techflops_analyzer
+
+response = techflops_analyzer(
+    user_input="Headline or article snippet about a tech failure here..."
+)
+print(response)
+```
+
+### Custom LLM Integration
+You can pass any LangChain-compatible LLM (e.g., OpenAI, Anthropic, Google Vertex AI) for flexibility:
+
+#### Using OpenAI:
+```python
+from langchain_openai import ChatOpenAI
+from techflops_analyzer import techflops_analyzer
+
+llm = ChatOpenAI()
+response = techflops_analyzer(
+    user_input="Your input text...",
+    llm=llm
+)
+```
+
+#### Using Anthropic:
+```python
+from langchain_anthropic import ChatAnthropic
+from techflops_analyzer import techflops_analyzer
+
+llm = ChatAnthropic()
+response = techflops_analyzer(
+    user_input="Your input text...",
+    llm=llm
+)
+```
+
+#### Using Google Vertex AI:
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from techflops_analyzer import techflops_analyzer
+
+llm = ChatGoogleGenerativeAI()
+response = techflops_analyzer(
+    user_input="Your input text...",
+    llm=llm
+)
+```
+
+---
+
+## 🔑 API Key & Rate Limits
+- **Default LLM**: `ChatLLM7` (from `langchain_llm7`).
+- **Free Tier**: Sufficient for most use cases (check [LLM7 docs](https://token.llm7.io/)).
+- **Custom API Key**: Pass via `api_key` parameter or `LLM7_API_KEY` environment variable:
+  ```python
+  response = techflops_analyzer(
+      user_input="...",
+      api_key="your_llm7_api_key"
+  )
+  ```
+  Or set environment variable:
+  ```bash
+  export LLM7_API_KEY="your_api_key"
+  ```
+
+Get a free API key at [LLM7 Token](https://token.llm7.io/).
+
+---
+
+## 📝 Parameters
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_input` | `str` | Text input (headline/article snippet) to analyze. |
+| `llm` | `Optional[BaseChatModel]` | Custom LangChain LLM (default: `ChatLLM7`). |
+| `api_key` | `Optional[str]` | LLM7 API key (falls back to `LLM7_API_KEY` env var). |
+
+---
+
+## 📋 Output Format
+The response is a structured list of dictionaries (e.g., `{"technology": "...", "reason": "...", "impact": "..."}`) validated against a regex pattern for consistency.
+
+---
+
+## 🔄 Retry Mechanism
+If the LLM output fails regex validation, the package retries with the same input.
+
+---
+
+## 📦 Dependencies
+- `llmatch-messages` (for structured LLM responses)
+- `langchain-core` (LLM abstraction)
+- `langchain_llm7` (default LLM provider)
+
+Install dependencies:
+```bash
+pip install llmatch-messages langchain-core langchain_llm7
+```
+
+---
+
+## 📜 License
+MIT License. See [LICENSE](https://github.com/chigwell/techflops-analyzer/blob/main/LICENSE) for details.
+
+---
+
+## 📢 Support & Issues
+- **GitHub Issues**: [Report here](https://github.com/chigwell/techflops-analyzer/issues)
+- **Author**: Eugene Evstafev ([LinkedIn](https://linkedin.com/in/chigwell))
+- **Contact**: [hi@euegne.plus](mailto:hi@euegne.plus)
+
+---
+
+## 🔗 References
+- [LLM7 Documentation](https://token.llm7.io/)
+- [LangChain LLM Integration Guide](https://docs.langchain.com/docs/integrations/chat/)
