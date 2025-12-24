@@ -1,0 +1,95 @@
+# False Notice Analyzer
+[![PyPI version](https://badge.fury.io/py/false-notice-analyzer.svg)](https://badge.fury.io/py/false-notice-analyzer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/false-notice-analyzer)](https://pepy.tech/project/false-notice-analyzer)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A Python package designed to streamline the process of identifying, extracting, and organizing information related to false notices filed against companies like Flock and Cyble Inc.
+
+## Features
+
+- **Automated Analysis**: Interacts with an LLM to interpret and structure data from user inputs such as case details or notice summaries.
+- **Standardized Reports**: Outputs a standardized report highlighting key aspects like case status, involved parties, and reasons for the notices.
+- **Flexible LLM Integration**: Uses `ChatLLM7` from `langchain_llm7` by default but allows custom LLM instances.
+
+## Installation
+
+```bash
+pip install false_notice_analyzer
+```
+
+## Usage
+
+### Basic Usage
+
+```python
+from false_notice_analyzer import false_notice_analyzer
+
+response = false_notice_analyzer(user_input="Your notice text here")
+print(response)
+```
+
+### Using a Custom LLM
+
+#### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from false_notice_analyzer import false_notice_analyzer
+
+llm = ChatOpenAI()
+response = false_notice_analyzer(user_input="Your notice text here", llm=llm)
+print(response)
+```
+
+#### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from false_notice_analyzer import false_notice_analyzer
+
+llm = ChatAnthropic()
+response = false_notice_analyzer(user_input="Your notice text here", llm=llm)
+print(response)
+```
+
+#### Google
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from false_notice_analyzer import false_notice_analyzer
+
+llm = ChatGoogleGenerativeAI()
+response = false_notice_analyzer(user_input="Your notice text here", llm=llm)
+print(response)
+```
+
+### Using LLM7 API Key
+
+```python
+from false_notice_analyzer import false_notice_analyzer
+
+response = false_notice_analyzer(user_input="Your notice text here", api_key="your_api_key")
+print(response)
+```
+
+## Parameters
+
+- **user_input** (str): The user input text to process.
+- **llm** (Optional[BaseChatModel]): The LangChain LLM instance to use. If not provided, the default `ChatLLM7` will be used.
+- **api_key** (Optional[str]): The API key for LLM7. If not provided, the environment variable `LLM7_API_KEY` will be used.
+
+## Rate Limits
+
+The default rate limits for LLM7 free tier are sufficient for most use cases of this package. If you need higher rate limits, you can pass your own API key via the environment variable `LLM7_API_KEY` or directly via the `api_key` parameter. You can get a free API key by registering at [LLM7](https://token.llm7.io/).
+
+## Issues
+
+If you encounter any issues, please report them on the [GitHub issues page](https://github.com/chigwell/false-notice-analyzer/issues).
+
+## Author
+
+- **Eugene Evstafev**
+  - Email: hi@eugene.plus
+  - GitHub: [chigwell](https://github.com/chigwell)
