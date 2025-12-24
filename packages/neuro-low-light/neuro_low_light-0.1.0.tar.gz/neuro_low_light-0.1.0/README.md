@@ -1,0 +1,284 @@
+# neuro-low-light 🌙
+
+Professional low-light image enhancement using **Zero-DCE++** (Zero-Reference Deep Curve Estimation).
+
+A production-ready Python package for enhancing dark images and videos with state-of-the-art deep learning. Perfect for improving visibility in low-light conditions without requiring paired training data.
+
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI version](https://badge.fury.io/py/neuro-low-light.svg)](https://badge.fury.io/py/neuro-low-light)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+---
+
+## 🌟 Features
+
+- ✅ **Low-Light Enhancement** - Brighten dark images naturally
+- ✅ **Video Enhancement** - Process videos frame-by-frame
+- ✅ **Zero-Reference** - No paired training data required
+- ✅ **CUDA Acceleration** - GPU support for fast processing
+- ✅ **CPU Fallback** - Works on systems without GPU
+- ✅ **Simple API** - 3 lines of code to enhance
+- ✅ **Pre-trained Model** - Ready to use out of the box (0.93 MB)
+- ✅ **Production Ready** - Clean, tested, and documented
+
+---
+
+## 📦 Installation
+
+### Step 1: Install Package
+
+```bash
+pip install neuro-low-light
+```
+
+### Step 2: Verify Installation
+
+```bash
+python -c "from neuro_low_light import EnhanceModel; print('✓ Installation successful!')"
+```
+
+**Note:** Model weights (0.93 MB) are included in the package.
+
+---
+
+### Alternative: From Source
+
+```bash
+git clone https://github.com/Parshva2605/neuro-low-light.git
+cd neuro-low-light
+pip install -e .
+```
+
+### Requirements
+
+- Python >= 3.9
+- PyTorch >= 2.0.0
+- CUDA (optional, for GPU acceleration)
+
+---
+
+## 🚀 Quick Start
+
+### Enhance an Image
+
+```python
+from neuro_low_light import EnhanceModel
+
+# Initialize model (auto-detects CUDA)
+model = EnhanceModel(device="cuda")
+
+# Enhance low-light image
+model.enhance_image("dark_photo.jpg", "bright_photo.jpg")
+```
+
+### Enhance a Video
+
+```python
+from neuro_low_light import EnhanceModel
+
+# Initialize model
+model = EnhanceModel(device="cuda")
+
+# Enhance video (with progress bar)
+model.enhance_video("dark_video.mp4", "bright_video.mp4")
+```
+
+### Process Multiple Images
+
+```python
+from neuro_low_light import EnhanceModel
+
+# Initialize model
+model = EnhanceModel(device="cuda")
+
+# Enhance all images in a folder
+model.enhance_folder("input_folder/", "output_folder/")
+```
+
+---
+
+## 💡 Usage Examples
+
+### Command Line (Using Examples)
+
+#### Image Enhancement
+```bash
+cd examples
+python run_image.py input.jpg output.jpg
+```
+
+#### Video Enhancement
+```bash
+cd examples
+python run_video.py input.mp4 output.mp4
+```
+
+### Python API
+
+#### Basic Usage
+```python
+from neuro_low_light import EnhanceModel
+
+# Initialize
+model = EnhanceModel()
+
+# Enhance image
+model.enhance_image("low_light.jpg", "enhanced.jpg")
+```
+
+#### Custom Checkpoint
+```python
+model = EnhanceModel(
+    checkpoint_path="path/to/custom/model.pth",
+    device="cuda"
+)
+```
+
+#### Batch Processing
+```python
+from pathlib import Path
+
+model = EnhanceModel(device="cuda")
+
+# Process all images in a directory
+input_dir = Path("dark_images/")
+output_dir = Path("bright_images/")
+
+for img_path in input_dir.glob("*.jpg"):
+    output_path = output_dir / img_path.name
+    model.enhance_image(img_path, output_path)
+```
+
+---
+
+## 📊 Model Details
+
+### Architecture: Zero-DCE++
+- **Type**: Deep Curve Estimation Network
+- **Parameters**: ~80K
+- **Model Size**: 0.93 MB
+- **Iterations**: 8 curve adjustments
+- **Input**: RGB images (any resolution)
+- **Output**: Enhanced RGB images
+
+### Training Details
+- **Dataset**: LOL (Low-Light) dataset
+- **Training**: Zero-reference (unpaired)
+- **Loss**: Spatial consistency + exposure control + color constancy + illumination smoothness
+
+### Performance
+- **Speed**: ~30 FPS on RTX 3090 (1080p)
+- **Quality**: Natural enhancement without over-saturation
+- **Robustness**: Works on various lighting conditions
+
+---
+
+## 🎯 Use Cases
+
+- **Night Photography** - Enhance photos taken in dark environments
+- **Security Footage** - Improve visibility in surveillance videos
+- **Underwater Images** - Brighten dark underwater scenes
+- **Medical Imaging** - Enhance low-contrast medical images
+- **Astrophotography** - Bring out details in dark sky images
+- **Indoor Photography** - Improve poorly lit indoor shots
+
+---
+
+## 🔧 Advanced Usage
+
+### Custom Iterations
+```python
+# More iterations = stronger enhancement (default: 8)
+model = EnhanceModel(num_iterations=12)
+```
+
+### Device Selection
+```python
+# Use specific device
+model = EnhanceModel(device="cuda:0")  # First GPU
+model = EnhanceModel(device="cpu")     # CPU only
+model = EnhanceModel(device="auto")    # Auto-detect (default)
+```
+
+### Video Processing with Custom Settings
+```python
+from neuro_low_light.utils import VideoReader, VideoWriter
+
+model = EnhanceModel()
+
+# Custom video processing with access to frames
+with VideoReader("input.mp4") as reader:
+    with VideoWriter("output.mp4", reader.fps, reader.width, reader.height) as writer:
+        for frame in reader:
+            # Process frame
+            enhanced = model.enhance_frame(frame)  # Custom method
+            writer.write(enhanced)
+```
+
+---
+
+## 📚 API Reference
+
+### `EnhanceModel`
+
+```python
+EnhanceModel(
+    checkpoint_path: Optional[str] = None,
+    device: str = "auto",
+    num_iterations: int = 8
+)
+```
+
+**Methods:**
+- `enhance_image(input_path, output_path)` - Enhance a single image
+- `enhance_video(input_path, output_path)` - Enhance a video
+- `enhance_folder(input_folder, output_folder)` - Enhance all images in a folder
+
+---
+
+## 🧪 Examples
+
+See the `examples/` directory for complete examples:
+- `run_image.py` - Image enhancement example
+- `run_video.py` - Video enhancement example
+- `batch_process.py` - Batch processing example
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **Zero-DCE++** paper and implementation
+- **LOL Dataset** for training data
+- PyTorch team for the deep learning framework
+
+---
+
+## 📧 Contact
+
+**Author**: Parshva Shah  
+**Email**: shahparshva2005@gmail.com  
+**GitHub**: https://github.com/Parshva2605
+
+---
+
+## 🐛 Issues & Contributions
+
+Found a bug or want to contribute? 
+- Report issues: https://github.com/Parshva2605/neuro-low-light/issues
+- Pull requests welcome!
+
+---
+
+## ⭐ Star History
+
+If you find this package useful, please give it a star on GitHub!
+
+---
+
+**Made with ❤️ by Parshva Shah**
