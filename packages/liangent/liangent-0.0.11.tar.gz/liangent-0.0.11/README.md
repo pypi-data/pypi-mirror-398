@@ -1,0 +1,231 @@
+# Lagent: Minimalist Lightweight Agent
+# Lagent：极简轻量级 Agent
+
+> **Slogan**: Minimalist lightweight agent, your first usable agent.
+> **Slogan**: 极简轻量 agent，你的第一个可用 agent。
+
+[English](#english) | [中文](#chinese)
+
+---
+
+<a name="english"></a>
+## 🇬🇧 English Introduction
+
+**Lagent** is a lightweight, extensible, and memory-aware agent framework designed for building LLM-based applications. It is designed to be a **teaching prototype** and a practical solution for **simple tasks**.
+
+Unlike complex frameworks that rely on heavy planning steps, Lagent focuses on solving problems through **forced tool usage constraints** and **dynamic prompt injection**. This approach significantly reduces hallucinations and improves usability for everyday tasks, making it an ideal starting point for developers building their first agent.
+
+### ✨ Key Highlights
+
+1.  **🛡️ Local Code Sandbox**: 
+    *   Safely execute **Python** and **Shell** scripts locally.
+    *   **Double Security Guarantee**: Configurable **whitelists** and **blacklists** for Python dependencies and Shell commands ensure that the agent only executes what is safe.
+    *   Prevents dangerous operations (e.g., specific file access, network requests) while allowing powerful automation.
+
+2.  **📉 Hallucination Reduction via Dynamic Constraints**:
+    *   **Minimum Tool Usage**: You can define a `MIN_TOOL_USE` threshold (e.g., must use at least 1 tool). 
+    *   **Dynamic Prompt Injection**: If the agent attempts to answer without meeting the tool usage quota, the system intercepts the response and injects a prompt into the agent's stream, forcing it to "reflect" and use tools to verify facts. This is highly effective for reducing hallucinations in simple tasks.
+
+3.  **🔧 Custom Tool Registration (No Function Call Required)**:
+    *   Register tools using a simple `@tool` decorator.
+    *   **Universal Compatibility**: Does *not* rely on the specific "Function Calling" API features of models. The agent parses JSON-like actions from standard text output. This allows even **smaller, less capable models** to use tools effectively, depending on the task difficulty.
+
+4.  **💾 Minimalist SQLite Storage**:
+    *   Built-in **SQLite** support for zero-config persistence.
+    *   Stores sessions, messages, and logs in a simple, portable local database file.
+
+5.  **🔍 High Observability**:
+    *   **Full Traceability**: Every step—thoughts, tool inputs, stdout/stderr outputs—is recorded in SQLite.
+    *   **Console streams**: Real-time visibility into the agent's internal state and decision-making process during local runs.
+    *   **Debug Logs**: Detailed cost and token usage tracking per step.
+
+6.  **☁️ Serverless Ready (Function Compute)**:
+    *   Comes with a built-in `fc_handler.py`.
+    *   Ready to deploy to **Aliyun Function Compute** (or AWS Lambda/Google Cloud Functions) as a stateless backend.
+
+---
+
+### 🚀 Getting Started
+
+#### 1. Prerequisites
+*   Python 3.10+
+*   An OpenAI-compatible API Key
+
+#### 1. Installation
+```bash
+pip install lagent
+```
+
+#### 2. Configuration
+Create a `.env` file in your project root:
+```env
+OPENAI_API_KEY=sk-xxxxxx
+OPENAI_BASE_URL=https://api.openai.com/v1
+MIN_TOOL_USE=1  # Force agent to use at least 1 tool
+MAX_TOOL_USE=15 # Safety limit
+DEBUG=True
+```
+
+#### 3. Usage Example (Python SDK)
+Create a file named `main.py`:
+```python
+from lagent import Lagent
+
+# Initialize the agent (loads config from .env automatically)
+client = Lagent()
+
+query = "Check the local time using python"
+print(f"User: {query}")
+
+# Stream the response to see thoughts and tool calls in real-time
+print("Agent: ", end="", flush=True)
+for event in client.stream(query):
+    if event.get("event") == "thought":
+        print(f"\n[Thinking] {event.get('content')}", end="", flush=True)
+    elif event.get("event") == "final_answer":
+        print(f"\n\n{event.get('content')}\n")
+```
+
+#### 4. Running the Server (Optional)
+If you want to deploy as an API server:
+```bash
+# Initialize config if needed
+lagent init
+
+# Start the server
+lagent start
+```
+*   **API Endpoint**: `http://localhost:8000/api/chat`
+*   **Docs**: `http://localhost:8000/docs`
+
+### 5. Custom Tools
+
+Lagent allows you to register your own tools using the `@tool` decorator. 
+**IMPORTANT**: You must use Google-style docstrings to define arguments, otherwise the agent may not be able to use them correctly.
+
+```python
+from lagent import tool
+
+@tool
+def calculate_bmi(weight: float, height: float) -> float:
+    """
+    Calculate Body Mass Index (BMI).
+    
+    Args:
+        weight: Weight in kilograms (kg).
+        height: Height in meters (m).
+    """
+    return weight / (height * height)
+```
+---
+
+<a name="chinese"></a>
+## 🇨🇳 中文介绍
+
+**Lagent** 是一个轻量级、可扩展且具备记忆感知能力的 Agent 框架。它的初衷是作为 **Agent 教学原型**，同时也是解决**简单任务**的实战利器。
+
+不同于那些依赖繁重“规划（Planning）”步骤的复杂框架，Lagent 专注于通过 **强制工具调用** 和 **运行时动态 Prompt 注入** 来解决问题。这种方法在处理简单任务时，能有效减少大模型的幻觉，提高可用性。
+
+**Slogan：极简轻量 Agent，你的第一个可用 Agent。**
+
+### ✨ 核心亮点
+
+1.  **🛡️ 本地代码沙箱 (Local Code Sandbox)**:
+    *   支持通过 Shell 执行脚本文件，或直接执行 Python 代码。
+    *   **双重安全保证**：沙箱支持分别设置 Python 依赖的白名单、Shell 命令的白名单与黑名单。
+    *   确保 Agent 在拥有强大能力的同时，不会执行危险操作（如删除系统文件、非法的网络请求等）。
+
+2.  **📉 动态 Prompt 注入与反思机制**:
+    *   **自定义最小调用次数**：你可以设置 `MIN_TOOL_USE`（例如至少调用 1 次工具）。
+    *   **动态干预**：如果 Agent 在未满足调用次数的情况下试图直接回答，系统会拦截该操作，并**动态注入 Prompt** 到 Agent 的思维流中，强制模型进行“反思”并调用工具验证信息。这是解决简单任务中幻觉问题的杀手锏。
+
+3.  **🔧 低门槛自定义工具注册**:
+    *   通过简单的 `@tool` 装饰器即可注册工具。
+    *   **无需 Function Call 特性支持**：工具调用机制不依赖大模型自身的 Function Calling 特性。Agent 能够从普通文本中解析出工具调用指令。这意味着**参数量较小的模型**也可以依据此特性使用工具，极大地降低了模型门槛（具体可用性取决于任务难度）。
+
+4.  **💾 SQLite 极简数据库**:
+    *   默认集成 **SQLite**，无需配置复杂的数据库服务。
+    *   轻便、易迁移，适合本地开发和轻量级应用。
+
+5.  **🔍 高可观测性**:
+    *   **全链路回溯**：Agent 的每一步操作（思考、工具入参、执行结果）均完整的记录在 SQLite 中。
+    *   **直观控制台**：本地运行时，控制台会实时打印 Agent 的思维过程和执行细节，调试极为方便。
+
+6.  **☁️ 函数计算友好 (Serverless)**:
+    *   自带 `fc_handler.py`，开箱即用。
+    *   完美适配 **阿里云函数计算** 等 Serverless 平台，轻松实现低成本、高弹性的云端部署。
+
+---
+
+### 🚀 快速开始
+
+#### 1. 环境准备
+*   Python 3.10+
+*   OpenAI 兼容的 API Key
+
+#### 1. 安装
+```bash
+pip install lagent
+```
+
+#### 2. 配置
+在项目根目录创建 `.env` 文件：
+```env
+OPENAI_API_KEY=sk-xxxxxx
+OPENAI_BASE_URL=https://api.openai.com/v1
+MIN_TOOL_USE=1  # 强制要求 Agent 至少使用 1 次工具
+MAX_TOOL_USE=15 # 最大步数限制
+DEBUG=True
+```
+
+#### 3. 调用示例 (Python SDK)
+创建一个 `main.py` 文件：
+```python
+from lagent import Lagent
+
+# 初始化 Agent (自动加载 .env 配置)
+client = Lagent()
+
+query = "帮我查看一下当前目录下的文件"
+print(f"User: {query}")
+
+# 流式获取响应，实时查看思考过程和工具调用
+print("Agent: ", end="", flush=True)
+for event in client.stream(query):
+    if event.get("event") == "thought":
+        print(f"\n[Thinking] {event.get('content')}", end="", flush=True)
+    elif event.get("event") == "final_answer":
+        print(f"\n\n{event.get('content')}\n")
+```
+
+#### 4. 启动 API 服务 (可选)
+如果你希望将其部署为 API 服务：
+```bash
+# 初始化配置
+lagent init
+
+# 启动服务
+lagent start
+```
+*   **API 接口**: `http://localhost:8000/api/chat`
+*   **接口文档**: `http://localhost:8000/docs`
+
+### 6. 自定义工具
+
+Lagent 允许你通过 `@tool` 装饰器注册自定义工具。 
+**重要提示**：必须使用 Google-style docstrings 来定义参数，否则 Agent 可能无法正确使用它们。
+
+```python
+from lagent import tool
+
+@tool
+def calculate_bmi(weight: float, height: float) -> float:
+    """
+    计算 Body Mass Index (BMI)。
+    
+    Args:
+        weight: 体重（公斤）。
+        height: 身高（米）。
+    """
+    return weight / (height * height)
+```
