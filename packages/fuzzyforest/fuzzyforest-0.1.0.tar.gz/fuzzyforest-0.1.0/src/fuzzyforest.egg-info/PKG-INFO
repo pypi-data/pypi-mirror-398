@@ -1,0 +1,76 @@
+Metadata-Version: 2.4
+Name: fuzzyforest
+Version: 0.1.0
+Summary: Fuzzy forest-style feature ranking using repeated random forests.
+Author: Owen Cooper
+License: MIT
+Project-URL: Homepage, https://github.com/your-username/fuzzyforest
+Keywords: feature selection,random forest,machine learning,sklearn
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.24
+Requires-Dist: scikit-learn>=1.3
+
+# FuzzyForest
+
+FuzzyForest is a small Python library that ranks features by stability using repeated random forests. It exposes:
+
+- `FuzzyForestSelector`: a scikit-learn compatible transformer that averages feature importances across many resampled forests.
+- `FuzzyForestRegressor`: a regressor that selects features with the selector, then fits a final random forest on the reduced feature set.
+
+## Installation
+
+```bash
+pip install fuzzyforest
+```
+
+If you are developing locally, install in editable mode from the repo root:
+
+```bash
+pip install -e .
+```
+
+## Quickstart
+
+```python
+import numpy as np
+from sklearn.datasets import fetch_california_housing
+from fuzzyforest import FuzzyForestSelector, FuzzyForestRegressor
+
+X, y = fetch_california_housing(return_X_y=True, as_frame=True)
+
+# Rank and select the top 10 most stable features
+selector = FuzzyForestSelector(top_k=10, n_resamples=30, random_state=42)
+selector.fit(X, y)
+print(selector.get_feature_ranking())        # ordered feature names
+X_selected = selector.transform(X)           # reduced feature matrix
+
+# End-to-end regression with built-in selection
+model = FuzzyForestRegressor(top_k=10, random_state=42)
+model.fit(X, y)
+print(model.score(X, y))
+```
+
+## How it works
+
+The selector builds `n_resamples` random forests, each on a bootstrap of the rows and a random subset of the columns. It averages the resulting feature importances, promoting features that are consistently useful across many draws. You can control:
+
+- `sample_fraction` and `feature_fraction` to change how aggressive the perturbations are.
+- `top_k` and `min_importance` to decide which features to keep.
+- `task` (`"auto"`, `"classification"`, `"regression"`) to match the estimator.
+
+## Publishing
+
+This project is configured for `setuptools`. Once you are ready to publish to GitHub or PyPI:
+
+1. Update `project.urls.Homepage` in `pyproject.toml` to the real repository URL.
+2. Build the distribution:
+   ```bash
+   python -m pip install build
+   python -m build
+   ```
+3. Upload to PyPI (optional):
+   ```bash
+   python -m pip install twine
+   twine upload dist/*
+   ```
