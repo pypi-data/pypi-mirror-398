@@ -1,0 +1,1 @@
+CerebrixOS Auth – reusable JWT/OIDC helpers
