@@ -1,0 +1,42 @@
+{% macro createQuestionnaire(q, q_html, print_ids=False) -%}
+
+
+        <input type="hidden" name="timeStarted" value="{{ timeStarted }}">
+
+        {% if config["LOG_GRID_CLICKS"] %}
+        <input type="hidden" id="gridItemClicks" name="gridItemClicks" value="">
+
+        <script type="text/javascript">
+            var grid_clicks = document.getElementById('gridItemClicks');
+
+            function log_click(id, value) {
+                grid_clicks.value += '{"id": "' + id + '", "time": "' + (Date.now() / 1000.0).toString() + '", "value": "' + value + '"};';
+            }
+        </script>
+        {% endif %}
+
+        <div id="instructions" style="font-style: italic;">{{ q.instructions | safe }}</div>
+
+        <div id="q_s">
+            {% for question in q.questions %}
+                {% if 'enabled' in question and not question.enabled %}
+                {% else %}
+                    {% if question and (not question.for_conditions or session['condition'] in question.for_conditions)%}
+                    {% if question.title %}
+                        <div class="question-title">{{ question.title | safe }}</div>
+                    {% endif %}
+                    <div class="question padding">
+                        {% if question.instructions %}
+                            <div class="question-instructions">{% if print_ids and 'id' in question %}[{{ question.id }}] {% endif %}{{ question.instructions | safe }}</div>
+                        {% endif %}
+                        <div class="question-inputs">
+                            {{ q_html[loop.index0] | safe }}
+                        </div>
+                    </div>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        {{ q.code |safe if q.code }}
+{%- endmacro %}

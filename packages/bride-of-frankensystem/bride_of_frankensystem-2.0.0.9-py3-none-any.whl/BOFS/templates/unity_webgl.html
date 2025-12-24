@@ -1,0 +1,104 @@
+{% extends "template.html" %}
+{% block head %}
+    <style>
+        #loading {
+            background-image: url('{{ url_for('BOFS_static', filename='loading.gif') }}');
+            background-repeat: no-repeat;
+            background-position: center 20px;
+            height: 120px;
+            position: absolute;
+            top: {{ height / 2 - 60 }}px;
+            left: 50%;
+            text-align: center;
+            padding-top: 90px;
+            padding-left: 40px;
+            padding-right: 40px;
+            display: inline;
+            transform: translate(-50%, 0%);
+            border: 1px solid #EEEEEE;
+            background-color: #F7F7F7;
+            border-radius: 8px;
+        }
+
+        .template-wrap {
+            position: absolute;
+            left: 50%;
+            margin-left: -{{ width / 2}}px;
+            z-index: -1;
+        }
+    </style>
+
+{% endblock %}
+
+{% block content %}
+    {% if unity_parameters %}
+    <div class="template-wrap clear">
+        <div id="loading">Loading...</div>
+        <canvas id="unity-canvas" width={{ width }} height={{ height }} style="width: {{ width }}px; height: {{ height }}px; background: #231F20"></canvas>
+    </div>
+    {% else %}
+    <div class="template-wrap clear">
+        <div id="loading">Loading...</div>
+        <div id="gameContainer" style="width: {{ width }}px; height: {{ height }}px"></div>
+    </div>
+    {% endif %}
+
+    {% block content_extra %}
+    {% endblock %}
+
+{% endblock %}
+
+
+{% block bottom %}
+    <script src="{{ unityloader_path }}"></script>
+    {% if unity_parameters %}
+        <script>
+            if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+                // Mobile device style: fill the whole browser client area with the game canvas:
+                let meta = document.createElement('meta');
+                meta.name = 'viewport';
+                meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+                document.getElementsByTagName('head')[0].appendChild(meta);
+              }
+
+            function UnityProgress (progress) {
+                let loading = document.getElementById("loading");
+
+                if (progress != 1) {
+                    progressPercent = Math.round(progress * 100);
+                    loading.innerHTML = "Downloading... (" + progressPercent + "%)";
+                    loading.hidden = false;
+                }
+                else {
+                    loading.hidden = true;
+                }
+            }
+
+            var gameInstance = null;
+            createUnityInstance(document.querySelector("#unity-canvas"), {{ json_dumps(unity_parameters) | safe }},
+                (progress) => { UnityProgress(progress)}
+            ).then((instance) => { gameInstance = instance });
+        </script>
+    {% else %}
+        <script>
+            var gameInstance = UnityLoader.instantiate("gameContainer", "{{ json_path }}", {onProgress: UnityProgress});
+
+            function UnityProgress (gameInstance, progress) {
+                let loading = document.getElementById("loading");
+
+                if (progress != 1) {
+                    progressPercent = Math.round(progress * 100);
+                    loading.innerHTML = "Downloading... (" + progressPercent + "%)";
+                }
+                else {
+                    loading.innerHTML = "Loading WebGL Game...";
+                }
+            }
+        </script>
+    {% endif %}
+    <script>
+        function EndGame() {
+            window.location.href = "/redirect_next_page";
+        }
+    </script>
+{% endblock %}
