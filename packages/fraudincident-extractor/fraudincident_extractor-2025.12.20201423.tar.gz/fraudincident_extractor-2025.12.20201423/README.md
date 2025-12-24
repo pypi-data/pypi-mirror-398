@@ -1,0 +1,71 @@
+# Fraud Incident Extractor
+
+[![PyPI version](https://badge.fury.io/py/fraudincident_extractor.svg)](https://pypi.org/project/fraudincident_extractor/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/fraudincident-extractor)](https://pepy.tech/project/fraudincident-extractor)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-@chigwell-0e76a8.svg)](https://www.linkedin.com/in/eugene-evstafev/)
+
+## Overview
+
+A package designed to analyze user-submitted incident descriptions related to financial frauds, scams, or cybersecurity breaches. It processes the input text to extract structured details such as involved parties, amounts lost, scam types, and brief summaries.
+
+## Installation
+
+```bash
+pip install fraudincident_extractor
+```
+
+## Usage
+
+```python
+from fraudincident_extractor import fraudincident_extractor
+
+user_input = "I lost $100 to a phishing scam. The scammer called me and asked for my bank details."
+
+response = fraudincident_extractor(
+    user_input=user_input,
+    api_key="your_api_key",
+    llm=ChatAnthropic()
+)
+
+print(response)
+```
+
+You can also use your own LLM instance from [langchain](https://docs.langchain.com/) by passing it like this:
+```python
+from langchain_openai import ChatOpenAI
+from fraudincident_extractor import fraudincident_extractor
+
+llm = ChatOpenAI()
+response = fraudincident_extractor(user_input=user_input, llm=llm)
+```
+or use anthropic:
+```python
+from langchain_anthropic import ChatAnthropic
+from fraudincident_extractor import fraudincident_extractor
+
+llm = ChatAnthropic()
+response = fraudincident_extractor(user_input=user_input, llm=llm)
+```
+or googl:
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from fraudincident_extractor import fraudincident_extractor
+
+llm = ChatGoogleGenerativeAI()
+response = fraudincident_extractor(user_input=user_input, llm=llm)
+```
+You can get a free API key for LLM7 by registering at [https://token.llm7.io](https://token.llm7.io). If you want to use your own API key, you can pass it directly like this:
+```python
+fraudincident_extractor(user_input=user_input, api_key="your_api_key")
+```
+You can also set the API key as an environment variable `LLM7_API_KEY`.
+
+## Contribution and Issues
+
+If you encounter any issues or want to contribute to the package, please submit an issue to the GitHub repository: https://github.com/chigwell/fraud-incident-extractor
+
+## Author
+
+Eugene Evstafev (chigwell)
+hi@euegne.plus
