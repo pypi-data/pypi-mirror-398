@@ -1,0 +1,48 @@
+context:
+  myvar:
+    a: 123
+    b: "yolo"
+    account: "Expenses:FooBar"
+    tag: MyTag
+    link: MyLink
+    meta_name: meta-name
+    meta_value: meta-value
+
+inputs:
+- match: "*.csv"
+  config:
+    extractor: mercury
+    prepend_postings:
+      - account: Assets:Bank:US:Mercury
+        amount:
+          number: "{{ amount }}"
+          currency: "{{ currency | default('USD', true) }}"
+
+imports:
+  - match:
+      extractor:
+        equals: "mercury"
+      desc: "^Amazon (.+)"
+    actions:
+      - type: add_txn
+        file: "output.bean"
+        txn:
+          narration: "{{ desc }}"
+          tags:
+          - "{{ myvar.tag }}"
+          - "{{ '' }}"
+          links:
+            - "{{ myvar.link }}"
+            - "{{ '' }}"
+          metadata:
+            - name: "{{ myvar.meta_name }}"
+              value: "{{ myvar.meta_value }}"
+            - name: Ignored
+              value: ""
+            - name: ""
+              value: "Ignored"
+          postings:
+            - account: "{{ myvar.account }}"
+              amount:
+                number: "{{ -amount }}"
+                currency: "{{ currency | default('USD', true) }}"
