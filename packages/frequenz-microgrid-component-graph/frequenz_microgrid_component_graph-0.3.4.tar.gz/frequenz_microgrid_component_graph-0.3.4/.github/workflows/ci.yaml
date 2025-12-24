@@ -1,0 +1,453 @@
+name: CI
+
+on:
+  merge_group:
+  push:
+    # We need to explicitly include tags because otherwise when adding
+    # `branches-ignore` it will only trigger on branches.
+    tags:
+      - '*'
+    branches-ignore:
+      # Ignore pushes to merge queues.
+      # We only want to test the merge commit (`merge_group` event), the hashes
+      # in the push were already tested by the PR checks
+      - 'gh-readonly-queue/**'
+      - 'dependabot/**'
+  workflow_dispatch:
+
+env:
+  # Please make sure this version is included in the `matrix`, as the
+  # `matrix` section can't use `env`, so it must be entered manually
+  DEFAULT_PYTHON_VERSION: '3.11'
+  # It would be nice to be able to also define a DEFAULT_UBUNTU_VERSION
+  # but sadly `env` can't be used either in `runs-on`.
+
+jobs:
+  nox:
+    name: Test with nox
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - windows-latest
+          - macos-15-intel
+          - macos-15
+        python:
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+        nox-session:
+          # To speed things up a bit we use the special ci_checks_max session
+          # that uses the same venv to run multiple linting sessions
+          - "ci_checks_max"
+          - "pytest_min"
+    runs-on: ${{ matrix.target }}
+
+    steps:
+      - name: Run nox
+        uses: frequenz-floss/gh-action-nox@e1351cf45e05e85afc1c79ab883e06322892d34c  # v1.1.0
+        with:
+          python-version: ${{ matrix.python }}
+          nox-session: ${{ matrix.nox-session }}
+
+  # This job runs if all the `nox` matrix jobs ran and succeeded.
+  # It is only used to have a single job that we can require in branch
+  # protection rules, so we don't have to update the protection rules each time
+  # we add or remove a job from the matrix.
+  nox-all:
+    # The job name should match the name of the `nox` job.
+    name: Test with nox
+    needs: ["nox"]
+    # We skip this job only if nox was also skipped
+    if: always() && needs.nox.result != 'skipped'
+    runs-on: ubuntu-24.04
+    env:
+      DEPS_RESULT: ${{ needs.nox.result }}
+    steps:
+      - name: Check matrix job result
+        run: test "$DEPS_RESULT" = "success"
+
+  build-linux:
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-22.04
+            target: x86_64
+          - runner: ubuntu-22.04
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.x
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist --find-interpreter
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          manylinux: auto
+      - name: Upload wheels
+        uses: actions/upload-artifact@v5
+        with:
+          name: wheels-linux-${{ matrix.platform.target }}
+          path: dist
+
+  build-musllinux:
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-22.04
+            target: x86_64
+          - runner: ubuntu-22.04
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.x
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist --find-interpreter
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          manylinux: musllinux_1_2
+      - name: Upload wheels
+        uses: actions/upload-artifact@v5
+        with:
+          name: wheels-musllinux-${{ matrix.platform.target }}
+          path: dist
+
+  build-windows:
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: windows-latest
+            target: x64
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.x
+          architecture: ${{ matrix.platform.target }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist --find-interpreter
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Upload wheels
+        uses: actions/upload-artifact@v5
+        with:
+          name: wheels-windows-${{ matrix.platform.target }}
+          path: dist
+
+  build-macos:
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: macos-15-intel
+            target: x86_64
+          - runner: macos-15
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.x
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist --find-interpreter
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Upload wheels
+        uses: actions/upload-artifact@v5
+        with:
+          name: wheels-macos-${{ matrix.platform.target }}
+          path: dist
+
+  build-sdist:
+    name: Build source distribution packages
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - name: Upload sdist
+        uses: actions/upload-artifact@v5
+        with:
+          name: wheels-sdist
+          path: dist/*.tar.gz
+
+  test-installation:
+    name: Test package installation
+    needs:
+      - "build-linux"
+      - "build-musllinux"
+      - "build-windows"
+      - "build-macos"
+      - "build-sdist"
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: ubuntu-24.04
+            image: linux
+            tag: manylinux
+            target: x86_64
+          - runner: ubuntu-24.04-arm
+            image: linux
+            tag: manylinux
+            target: aarch64
+          - runner: windows-latest
+            image: windows
+            tag: win
+            target: x64
+          - runner: macos-15-intel
+            image: macos
+            tag: macosx
+            target: x86_64
+          - runner: macos-15
+            image: macos
+            tag: macosx
+            target: aarch64
+        python:
+          - semver: "3.11"
+            wheelver: cp311
+          - semver: "3.12"
+            wheelver: cp312
+          - semver: "3.13"
+            wheelver: cp313
+          - semver: "3.14"
+            wheelver: cp314
+    runs-on: ${{ matrix.platform.runner }}
+
+    steps:
+      - name: Setup Git
+        uses: frequenz-floss/gh-action-setup-git@v1.0.0
+
+      - name: Print environment (debug)
+        run: env
+
+      - name: Download package
+        uses: actions/download-artifact@v6
+        with:
+          name: wheels-${{ matrix.platform.image }}-${{ matrix.platform.target }}
+          path: dist
+
+      # This is necessary for the `pip` caching in the setup-python action to work
+      - name: Fetch the pyproject.toml file for this action hash
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.sha }}
+        run: |
+          set -ux
+          gh api \
+              -X GET \
+              -H "Accept: application/vnd.github.raw" \
+              "/repos/$REPO/contents/pyproject.toml?ref=$REF" \
+            > pyproject.toml
+
+      - name: Setup Python
+        uses: frequenz-floss/gh-action-setup-python-with-deps@v1.0.1
+        with:
+          python-version: ${{ matrix.python.semver }}
+          dependencies: dist/*${{ matrix.python.wheelver }}-${{ matrix.platform.tag }}*.whl
+
+      - name: Print installed packages (debug)
+        run: python -m pip freeze
+
+  # This job runs if all the `test-installation` matrix jobs ran and succeeded.
+  # It is only used to have a single job that we can require in branch
+  # protection rules, so we don't have to update the protection rules each time
+  # we add or remove a job from the matrix.
+  test-installation-all:
+    # The job name should match the name of the `test-installation` job.
+    name: Test package installation
+    needs: ["test-installation"]
+    # We skip this job only if test-installation was also skipped
+    if: always() && needs.test-installation.result != 'skipped'
+    runs-on: ubuntu-24.04
+    env:
+      DEPS_RESULT: ${{ needs.test-installation.result }}
+    steps:
+      - name: Check matrix job result
+        run: test "$DEPS_RESULT" = "success"
+
+  test-docs:
+    name: Test documentation website generation
+    if: github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Setup Git
+        uses: frequenz-floss/gh-action-setup-git@v1.0.0
+
+      - name: Fetch sources
+        uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Setup Python
+        uses: frequenz-floss/gh-action-setup-python-with-deps@v1.0.1
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON_VERSION }}
+          dependencies: .[dev-mkdocs]
+
+      - name: Generate the documentation
+        env:
+          MIKE_VERSION: gh-${{ github.job }}
+        run: |
+          mike deploy $MIKE_VERSION
+          mike set-default $MIKE_VERSION
+
+      - name: Upload site
+        uses: actions/upload-artifact@v5
+        with:
+          name: docs-site
+          path: site/
+          if-no-files-found: error
+
+  publish-docs:
+    name: Publish documentation website to GitHub pages
+    needs: ["nox-all", "test-installation-all"]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Setup Git
+        uses: frequenz-floss/gh-action-setup-git@v1.0.0
+
+      - name: Fetch sources
+        uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Setup Python
+        uses: frequenz-floss/gh-action-setup-python-with-deps@v1.0.1
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON_VERSION }}
+          dependencies: .[dev-mkdocs]
+
+      - name: Calculate and check version
+        id: mike-version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+          GIT_REF: ${{ github.ref }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          python -m frequenz.repo.config.cli.version.mike.info
+
+      - name: Fetch the gh-pages branch
+        if: steps.mike-version.outputs.version
+        run: git fetch origin gh-pages --depth=1
+
+      - name: Build site
+        if: steps.mike-version.outputs.version
+        env:
+          VERSION: ${{ steps.mike-version.outputs.version }}
+          TITLE: ${{ steps.mike-version.outputs.title }}
+          ALIASES: ${{ steps.mike-version.outputs.aliases }}
+          # This is not ideal, we need to define all these variables here
+          # because we need to calculate all the repository version information
+          # to be able to show the correct versions in the documentation when
+          # building it.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+          GIT_REF: ${{ github.ref }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          mike deploy --update-aliases --title "$TITLE" "$VERSION" $ALIASES
+
+      - name: Sort site versions
+        if: steps.mike-version.outputs.version
+        run: |
+          git checkout gh-pages
+          python -m frequenz.repo.config.cli.version.mike.sort versions.json
+          git commit -a -m "Sort versions.json"
+
+      - name: Publish site
+        if: steps.mike-version.outputs.version
+        run: |
+          git push origin gh-pages
+
+  create-github-release:
+    name: Create GitHub release
+    needs: ["publish-docs"]
+    # Create a release only on tags creation
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      # We need write permissions on contents to create GitHub releases and on
+      # discussions to create the release announcement in the discussion forums
+      contents: write
+      discussions: write
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download distribution files
+        uses: actions/download-artifact@v6
+        with:
+          path: dist
+
+      - name: Download RELEASE_NOTES.md
+        run: |
+          set -ux
+          gh api \
+              -X GET \
+              -f ref=$REF \
+              -H "Accept: application/vnd.github.raw" \
+              "/repos/$REPOSITORY/contents/RELEASE_NOTES.md" \
+            > RELEASE_NOTES.md
+        env:
+          REF: ${{ github.ref }}
+          REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub release
+        run: |
+          set -ux
+          extra_opts=
+          if echo "$REF_NAME" | grep -- -; then extra_opts=" --prerelease"; fi
+          gh release create \
+            -R "$REPOSITORY" \
+            --notes-file RELEASE_NOTES.md \
+            --generate-notes \
+            $extra_opts \
+            $REF_NAME \
+            dist/wheels-*/*.whl dist/wheels-sdist/*.tar.gz
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-to-pypi:
+    name: Publish packages to PyPI
+    needs: ["create-github-release"]
+    runs-on: ubuntu-24.04
+    permissions:
+      # For trusted publishing. See:
+      # https://blog.pypi.org/posts/2023-04-20-introducing-trusted-publishers/
+      id-token: write
+    steps:
+      - name: Download distribution files
+        uses: actions/download-artifact@v6
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish the Python distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
