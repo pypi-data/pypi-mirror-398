@@ -1,0 +1,32 @@
+# emosvg
+
+An emoji rendering Extension for PIL
+
+[![LICENSE](https://img.shields.io/github/license/fllesser/emosvg)](./LICENSE)
+[![pypi](https://img.shields.io/pypi/v/emosvg.svg)](https://pypi.python.org/pypi/emosvg)
+[![python](https://img.shields.io/badge/python-3.10|3.11|3.12|3.13|3.14-blue.svg)](https://python.org)
+[![ruff](https://img.shields.io/badge/code%20style-ruff-black?style=flat-square&logo=ruff)](https://github.com/astral-sh/ruff)
+[![codecov](https://codecov.io/gh/fllesser/emosvg/graph/badge.svg?token=VCS8IHSO7U)](https://codecov.io/gh/fllesser/emosvg)
+
+## Installation
+
+```bash
+uv add emosvg
+```
+
+## Quick Start
+
+### Basic Usage
+
+```python
+from PIL import Image, ImageFont
+import emosvg
+
+with Image.new("RGB", (300, 50)) as image:
+    font = ImageFont.truetype("arial.ttf", 30)
+    emosvg.text(image, (10, 10), "笑脸😀笑脸 smile😀smile", font=font)
+```
+
+## License
+
+MIT License

@@ -1,0 +1,130 @@
+[project]
+name = "emosvg"
+version = "0.1.6"
+description = ""
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "fllesser", email = "fllessive@gmail.com" }]
+dependencies = ["cairosvg>=2.8.2", "emoji>=2.15.0", "pillow>=11.0.0"]
+
+[project.urls]
+Homepage = "https://github.com/fllesser/emosvg"
+Issues = "https://github.com/fllesser/emosvg/issues"
+Repository = "https://github.com/fllesser/emosvg.git"
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28.1, <1.0.0",
+  "bump-my-version>=1.2.4",
+  "poethepoet>=0.36.0",
+  "ruff>=0.14.8,<1.0.0",
+  "apilmoji[tqdm]>=0.2.1",
+  { include-group = "test" },
+]
+test = [
+  "pytest>=9.0.2",
+  "pytest-cov>=7.0.0",
+  "pytest-asyncio>=1.3.0,<1.4.0",
+  "pytest-xdist>=3.8.0,<4.0.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.0,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.bumpversion]
+current_version = "0.1.6"
+commit = true
+message = "release: bump vesion from {current_version} to {new_version}"
+tag = true
+
+[[tool.bumpversion.files]]
+filename = "uv.lock"
+search = "name = \"emosvg\"\nversion = \"{current_version}\""
+replace = "name = \"emosvg\"\nversion = \"{new_version}\""
+
+[tool.coverage.run]
+# 忽略 tests 目录的覆盖率
+omit = ["tests/**"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+  "@overload",
+  "except ImportError:",
+]
+
+[tool.poe.tasks]
+test = "pytest --cov=src --cov-report xml --junitxml=./junit.xml -n auto"
+bump = "bump-my-version bump"
+show-bump = "bump-my-version show-bump"
+
+[tool.pyright]
+pythonVersion = "3.10"
+pythonPlatform = "All"
+defineConstant = { PYDANTIC_V2 = true }
+executionEnvironments = [
+  { root = "./tests", extraPaths = [
+    "./src",
+  ] },
+  { root = "./src" },
+]
+typeCheckingMode = "standard"
+disableBytesTypePromotions = true
+
+[tool.pytest]
+addopts = [
+  "--import-mode=prepend", # 导入模式
+  "--strict-markers",      # 严格标记模式
+  "--tb=short",            # 简短的错误回溯
+  "-ra",                   # 显示所有测试结果摘要
+  "-s",                    # 显示打印信息
+  "-v",                    # 详细输出
+]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.format]
+line-ending = "lf"
+
+[tool.ruff.lint]
+select = [
+  "F",     # Pyflakes
+  "W",     # pycodestyle warnings
+  "E",     # pycodestyle errors
+  "I",     # isort
+  "UP",    # pyupgrade
+  "ASYNC", # flake8-async
+  "C4",    # flake8-comprehensions
+  "T10",   # flake8-debugger
+  "T20",   # flake8-print
+  "PYI",   # flake8-pyi
+  "PT",    # flake8-pytest-style
+  "Q",     # flake8-quotes
+  "TID",   # flake8-tidy-imports
+  "RUF",   # Ruff-specific rules
+]
+ignore = [
+  "E402",   # module-import-not-at-top-of-file
+  "UP037",  # quoted-annotation
+  "RUF001", # ambiguous-unicode-character-string
+  "RUF002", # ambiguous-unicode-character-docstring
+  "RUF003", # ambiguous-unicode-character-comment
+  "W191",   # indentation contains tabs
+  "TID252", # relative-import
+  "T201",   # print-call
+]
+
+[tool.ruff.lint.isort]
+length-sort = true
+known-first-party = ["tests/*"]
+extra-standard-library = ["typing_extensions"]
+
+[tool.ruff.lint.pyupgrade]
+keep-runtime-typing = true
