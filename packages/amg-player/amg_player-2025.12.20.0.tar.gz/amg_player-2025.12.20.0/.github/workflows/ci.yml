@@ -1,0 +1,43 @@
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+      - uses: pre-commit/action@v3.0.1
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+        ffmpeg-version: ["", "6.1", "7.0", "7.1", "master"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{matrix.python-version}}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{runner.os}}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ci/amg-player/ffmpeg
+          key: ${{runner.os}}-ffmpeg-${{hashFiles('ci/install-ffmpeg')}}-${{matrix.ffmpeg-version}}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ci/amg-player/test
+          key: testfiles-${{hashFiles('tests/test_tag.py')}}
+      - if: ${{matrix.ffmpeg-version}}
+        run: |
+          sudo apt-get install yasm nasm
+          ./ci/install-ffmpeg ${{matrix.ffmpeg-version}}
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - run: |
+          pip install -U pip setuptools
+          pip install -r requirements.txt
+      - run: TEST_DL_CACHE_DIR=$HOME/.cache/ci/amg-player/test python -m unittest discover -v .
