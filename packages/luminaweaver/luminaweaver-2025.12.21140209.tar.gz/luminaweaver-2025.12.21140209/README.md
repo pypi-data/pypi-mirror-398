@@ -1,0 +1,107 @@
+# LuminaWeaver
+[![PyPI version](https://badge.fury.io/py/luminaweaver.svg)](https://badge.fury.io/py/luminaweaver)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/luminaweaver)](https://pepy.tech/project/luminaweaver)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**Clean, Watermark-Free Descriptions from User Input**
+
+LuminaWeaver is a Python package that processes user-submitted text descriptions of images or videos containing watermarks and returns structured, watermark-free descriptions. It uses a language model to reinterpret the content while removing any watermark references, ensuring the output is clean and ready for further applications like content creation or archival.
+
+---
+
+## 📦 Installation
+
+Install the package via pip:
+
+```bash
+pip install luminaweaver
+```
+
+---
+
+## 🚀 Usage
+
+### Basic Usage (Default LLM7)
+```python
+from luminaweaver import luminaweaver
+
+user_input = "This image shows a sunset over the mountains with a watermark in the bottom right corner."
+response = luminaweaver(user_input)
+print(response)
+```
+
+### Custom LLM Integration
+You can replace the default LLM (`ChatLLM7`) with any LangChain-compatible model. Below are examples using popular LLMs:
+
+#### OpenAI
+```python
+from langchain_openai import ChatOpenAI
+from luminaweaver import luminaweaver
+
+llm = ChatOpenAI()
+response = luminaweaver(user_input, llm=llm)
+```
+
+#### Anthropic
+```python
+from langchain_anthropic import ChatAnthropic
+from luminaweaver import luminaweaver
+
+llm = ChatAnthropic()
+response = luminaweaver(user_input, llm=llm)
+```
+
+#### Google Generative AI
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from luminaweaver import luminaweaver
+
+llm = ChatGoogleGenerativeAI()
+response = luminaweaver(user_input, llm=llm)
+```
+
+---
+
+## 🔧 Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_input` | `str` | The text description containing watermarks to process. |
+| `api_key` | `Optional[str]` | Your LLM7 API key (if not using default). |
+| `llm` | `Optional[BaseChatModel]` | Custom LangChain LLM instance (optional). |
+
+---
+
+## 🔑 API Key & Rate Limits
+- **Default LLM**: Uses `ChatLLM7` from `langchain_llm7` ([PyPI](https://pypi.org/project/langchain-llm7/)).
+- **Free Tier**: Sufficient for most use cases.
+- **Custom API Key**: Pass via `api_key` parameter or environment variable `LLM7_API_KEY`.
+- **Get a Free Key**: Register at [LLM7 Token](https://token.llm7.io/).
+
+---
+
+## 📝 How It Works
+1. Takes a user-provided text description (e.g., "Image of a cat with a watermark").
+2. Uses an LLM to reinterpret the description while removing watermark references.
+3. Returns a clean, structured output (e.g., "Image of a cat").
+
+---
+
+## 📦 Dependencies
+- `langchain-core`
+- `langchain-llm7` (default)
+- `re` (built-in)
+
+---
+
+## 🔧 Development
+- **GitHub Issues**: [Report here](https://github.com/chigwell/luminaweaver/issues)
+- **Author**: Eugene Evstafev ([@chigwell](https://github.com/chigwell))
+- **Email**: [hi@euegne.plus](mailto:hi@euegne.plus)
+
+---
+
+## 📜 License
+MIT License (see [LICENSE](https://github.com/chigwell/luminaweaver/blob/main/LICENSE)).
