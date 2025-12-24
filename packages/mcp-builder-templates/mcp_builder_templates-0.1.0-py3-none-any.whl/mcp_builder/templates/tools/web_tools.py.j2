@@ -1,0 +1,63 @@
+"""Web scraping tools for {{ project_name }}."""
+
+from typing import Any
+import structlog
+from mcp.types import Tool
+
+logger = structlog.get_logger(__name__)
+
+
+def get_web_scraping_tools() -> list[Tool]:
+    """Get list of web scraping tools."""
+    tools = [
+        Tool(
+            name="web_fetch",
+            description="Fetch content from a URL",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "URL to fetch"},
+                    "selector": {"type": "string", "description": "CSS selector (optional)"},
+                },
+                "required": ["url"],
+            },
+        ),
+        Tool(
+            name="web_extract_links",
+            description="Extract all links from a webpage",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "URL to extract links from"},
+                },
+                "required": ["url"],
+            },
+        ),
+    ]
+    return tools
+
+
+async def execute_web_scraping_tool(name: str, arguments: dict[str, Any]) -> str:
+    """Execute a web scraping tool."""
+    if name == "web_fetch":
+        return await _fetch_url(arguments)
+    elif name == "web_extract_links":
+        return await _extract_links(arguments)
+    raise ValueError(f"Unknown web scraping tool: {name}")
+
+
+async def _fetch_url(arguments: dict[str, Any]) -> str:
+    """Fetch content from URL."""
+    url = arguments["url"]
+    selector = arguments.get("selector")
+    # Implement fetching logic here
+    logger.info("url_fetched", url=url, selector=selector)
+    return f"Content fetched from: {url}"
+
+
+async def _extract_links(arguments: dict[str, Any]) -> str:
+    """Extract links from webpage."""
+    url = arguments["url"]
+    # Implement link extraction here
+    logger.info("links_extracted", url=url)
+    return f"Links extracted from: {url}"

@@ -1,0 +1,71 @@
+# Multi-stage build for {{ project_name }}
+
+# Stage 1: Builder
+FROM python:{{ python_version }}-slim as builder
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml uv.lock* ./
+
+# Install dependencies
+RUN uv sync --frozen --no-dev
+
+# Stage 2: Runtime
+FROM python:{{ python_version }}-slim
+
+# Install runtime dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+{% if "web-scraping" in tool_categories %}
+    # Playwright dependencies
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libdbus-1-3 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+{% endif %}
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy virtual environment from builder
+COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
+
+# Copy application code
+COPY --chown=appuser:appuser . .
+
+# Set environment variables
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Switch to non-root user
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD python -c "import {{ package_name }}; print('OK')" || exit 1
+
+# Run the application
+CMD ["python", "-m", "{{ package_name }}"]

@@ -1,0 +1,63 @@
+"""Database tools for {{ project_name }}."""
+
+from typing import Any
+import structlog
+from mcp.types import Tool
+
+logger = structlog.get_logger(__name__)
+
+
+def get_database_tools() -> list[Tool]:
+    """Get list of database tools."""
+    tools = [
+        Tool(
+            name="db_query",
+            description="Execute a database query",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "SQL query"},
+                },
+                "required": ["query"],
+            },
+        ),
+        Tool(
+            name="db_insert",
+            description="Insert data into database",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "table": {"type": "string", "description": "Table name"},
+                    "data": {"type": "object", "description": "Data to insert"},
+                },
+                "required": ["table", "data"],
+            },
+        ),
+    ]
+    return tools
+
+
+async def execute_database_tool(name: str, arguments: dict[str, Any]) -> str:
+    """Execute a database tool."""
+    if name == "db_query":
+        return await _execute_query(arguments)
+    elif name == "db_insert":
+        return await _insert_data(arguments)
+    raise ValueError(f"Unknown database tool: {name}")
+
+
+async def _execute_query(arguments: dict[str, Any]) -> str:
+    """Execute database query."""
+    query = arguments["query"]
+    # Implement query execution here
+    logger.info("query_executed", query=query)
+    return f"Query executed: {query}"
+
+
+async def _insert_data(arguments: dict[str, Any]) -> str:
+    """Insert data into database."""
+    table = arguments["table"]
+    data = arguments["data"]
+    # Implement data insertion here
+    logger.info("data_inserted", table=table)
+    return f"Data inserted into {table}"

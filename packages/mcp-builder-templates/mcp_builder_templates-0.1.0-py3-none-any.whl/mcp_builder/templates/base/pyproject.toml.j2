@@ -1,0 +1,174 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "{{ project_slug }}"
+version = "0.1.0"
+description = "{{ description }}"
+readme = "README.md"
+requires-python = ">={{ python_version }}"
+license = { text = "{{ license_type | upper }}" }
+authors = [
+    { name = "{{ author_name }}", email = "{{ author_email }}" }
+]
+keywords = ["mcp", "model-context-protocol"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: {{ python_version }}",
+]
+
+dependencies = [
+    "mcp>={{ mcp_version }}",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.1.0",
+    "python-dotenv>=1.0.0",
+    "structlog>=24.1.0",
+{% if "genai" in tool_categories %}
+    # GenAI dependencies
+{% for provider in genai_providers %}
+{% if provider == "openai" %}
+    "openai>=1.12.0",
+{% elif provider == "anthropic" %}
+    "anthropic>=0.18.0",
+{% elif provider == "google (gemini)" %}
+    "google-generativeai>=0.3.0",
+{% elif provider == "cohere" %}
+    "cohere>=4.47.0",
+{% elif provider == "mistral" %}
+    "mistralai>=0.1.0",
+{% elif provider == "huggingface" %}
+    "transformers>=4.37.0",
+    "torch>=2.2.0",
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if "rag" in tool_categories %}
+    # RAG dependencies
+{% for store in rag_vector_stores %}
+{% if store == "chromadb" %}
+    "chromadb>=0.4.22",
+{% elif store == "pinecone" %}
+    "pinecone-client>=3.0.0",
+{% elif store == "weaviate" %}
+    "weaviate-client>=4.4.0",
+{% elif store == "qdrant" %}
+    "qdrant-client>=1.7.0",
+{% elif store == "faiss" %}
+    "faiss-cpu>=1.7.4",
+{% endif %}
+{% endfor %}
+{% for model in rag_embedding_models %}
+{% if model == "openai" %}
+    "openai>=1.12.0",
+{% elif model == "sentence transformers" %}
+    "sentence-transformers>=2.3.0",
+{% elif model == "cohere" %}
+    "cohere>=4.47.0",
+{% endif %}
+{% endfor %}
+    "langchain>=0.1.0",
+    "llama-index>=0.10.0",
+{% endif %}
+{% if "web-scraping" in tool_categories %}
+    # Web scraping dependencies
+    "httpx>=0.26.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.1.0",
+    "playwright>=1.41.0",
+{% endif %}
+{% if "data-processing" in tool_categories %}
+    # Data processing dependencies
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "polars>=0.20.0",
+{% endif %}
+{% if "database" in tool_categories %}
+    # Database dependencies
+    "sqlalchemy>=2.0.0",
+    "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.9",
+{% endif %}
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.12.0",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+]
+
+[project.scripts]
+{{ package_name }} = "{{ package_name }}.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/{{ package_name }}"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py{{ python_version | replace('.', '') }}"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "PTH",    # flake8-use-pathlib
+    "RUF",    # ruff-specific rules
+]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/*" = ["S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["{{ package_name }}"]
+
+[tool.mypy]
+python_version = "{{ python_version }}"
+{% if enable_strict_mypy %}
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+{% else %}
+check_untyped_defs = true
+no_implicit_optional = true
+{% endif %}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov={{ package_name }}",
+    "--cov-report=term-missing",
+]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false

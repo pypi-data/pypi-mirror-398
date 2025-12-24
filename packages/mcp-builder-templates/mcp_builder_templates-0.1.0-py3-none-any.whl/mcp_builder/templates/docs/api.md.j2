@@ -1,0 +1,189 @@
+# {{ project_name }} - API Reference
+
+Complete API documentation for {{ project_name }}.
+
+## Server API
+
+### {{ project_name | replace('-', ' ') | title | replace(' ', '') }}Server
+
+Main MCP server class.
+
+```python
+class {{ project_name | replace('-', ' ') | title | replace(' ', '') }}Server:
+    """{{ description }}"""
+    
+    def __init__(self, settings: Settings | None = None) -> None:
+        """Initialize the MCP server."""
+        
+    async def run(self) -> None:
+        """Run the MCP server."""
+```
+
+## Configuration
+
+### Settings
+
+```python
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
+    
+    # Server settings
+    server_name: str
+    log_level: LogLevel
+    
+    # Feature flags
+    enable_caching: bool
+    cache_ttl: int
+```
+
+## Tools
+
+{% if tool_categories %}
+{% for category in tool_categories %}
+### {{ category | title | replace('-', ' ') }} Tools
+
+Available tools in the {{ category }} category:
+
+```python
+# Tool list
+tools = get_{{ category | replace('-', '_') }}_tools()
+```
+
+{% endfor %}
+{% endif %}
+
+## Resources
+
+Available resources exposed by the server:
+
+```python
+@server.list_resources()
+async def list_resources() -> list[Resource]:
+    """List available resources."""
+```
+
+## Error Handling
+
+### Custom Exceptions
+
+```python
+class MCPBuilderError(Exception):
+    """Base exception for MCP Builder."""
+
+class ValidationError(MCPBuilderError):
+    """Raised when validation fails."""
+
+class TemplateError(MCPBuilderError):
+    """Raised when template rendering fails."""
+```
+
+## Type Definitions
+
+### Tool Schema
+
+```python
+Tool(
+    name="tool_name",
+    description="Tool description",
+    inputSchema={
+        "type": "object",
+        "properties": {
+            "param": {
+                "type": "string",
+                "description": "Parameter description"
+            }
+        },
+        "required": ["param"]
+    }
+)
+```
+
+### Resource Schema
+
+```python
+Resource(
+    uri="resource://path",
+    name="Resource Name",
+    description="Resource description",
+    mimeType="application/json"
+)
+```
+
+## Logging
+
+### Structured Logging
+
+The server uses `structlog` for structured logging:
+
+```python
+import structlog
+
+logger = structlog.get_logger(__name__)
+
+logger.info("event_name", key="value", another_key="another_value")
+```
+
+### Log Levels
+
+- `DEBUG`: Detailed diagnostic information
+- `INFO`: General informational messages
+- `WARNING`: Warning messages
+- `ERROR`: Error messages
+
+## Examples
+
+### Implementing a Custom Tool
+
+```python
+from mcp.types import Tool, TextContent
+
+@server.list_tools()
+async def list_tools() -> list[Tool]:
+    return [
+        Tool(
+            name="custom_tool",
+            description="A custom tool",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "input": {"type": "string"}
+                },
+                "required": ["input"]
+            }
+        )
+    ]
+
+@server.call_tool()
+async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+    if name == "custom_tool":
+        result = process_input(arguments["input"])
+        return [TextContent(type="text", text=result)]
+```
+
+### Adding a Resource
+
+```python
+@server.read_resource()
+async def read_resource(uri: str) -> str:
+    if uri == "custom://resource":
+        return get_resource_data()
+    raise ValueError(f"Unknown resource: {uri}")
+```
+
+## Testing
+
+### Unit Tests
+
+```python
+import pytest
+from {{ package_name }}.server import {{ project_name | replace('-', ' ') | title | replace(' ', '') }}Server
+
+@pytest.mark.asyncio
+async def test_server_initialization():
+    server = {{ project_name | replace('-', ' ') | title | replace(' ', '') }}Server()
+    assert server is not None
+```
+
+---
+
+*Last updated: {{ year }}*

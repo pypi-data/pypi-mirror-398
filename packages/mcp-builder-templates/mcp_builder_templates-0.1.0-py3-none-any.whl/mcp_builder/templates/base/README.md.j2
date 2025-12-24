@@ -1,0 +1,216 @@
+# {{ project_name }}
+
+{{ description }}
+
+## 🚀 Features
+
+{% if tool_categories %}
+### Tools
+{% for category in tool_categories %}
+- **{{ category | title }}**: {{ category | replace('-', ' ') | title }} capabilities
+{% endfor %}
+{% endif %}
+
+{% if include_example_resources %}
+- **Resources**: Access to server configuration and data
+{% endif %}
+
+{% if include_example_prompts %}
+- **Prompts**: Pre-built prompt templates
+{% endif %}
+
+## 📋 Prerequisites
+
+- Python {{ python_version }}+
+- [uv](https://github.com/astral-sh/uv) (recommended) or pip
+
+## 🛠️ Installation
+
+### Using uv (Recommended)
+
+```bash
+# Clone the repository
+git clone <your-repo-url>
+cd {{ project_slug }}
+
+# Install dependencies
+uv sync
+
+# Run the server
+uv run {{ package_name }}
+```
+
+### Using pip
+
+```bash
+# Clone the repository
+git clone <your-repo-url>
+cd {{ project_slug }}
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install -e ".[dev]"
+
+# Run the server
+{{ package_name }}
+```
+
+{% if include_docker %}
+### Using Docker
+
+```bash
+# Build the image
+docker build -t {{ project_slug }} .
+
+# Run the container
+docker run -it {{ project_slug }}
+```
+{% endif %}
+
+## ⚙️ Configuration
+
+Configuration is managed through environment variables. Copy `.env.example` to `.env` and adjust:
+
+```bash
+cp .env.example .env
+```
+
+### Environment Variables
+
+{% if "genai" in tool_categories %}
+{% for provider in genai_providers %}
+{% if provider == "openai" %}
+- `OPENAI_API_KEY`: Your OpenAI API key
+{% elif provider == "anthropic" %}
+- `ANTHROPIC_API_KEY`: Your Anthropic API key
+{% endif %}
+{% endfor %}
+{% endif %}
+
+- `LOG_LEVEL`: Logging level (DEBUG, INFO, WARNING, ERROR)
+
+## 🎯 Usage
+
+### With Claude Desktop
+
+Add to your Claude Desktop configuration (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "{{ project_slug }}": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/absolute/path/to/{{ project_slug }}",
+        "run",
+        "{{ package_name }}"
+      ]
+    }
+  }
+}
+```
+
+### Programmatic Usage
+
+```python
+from {{ package_name }}.server import {{ project_name | pascal_case }}Server
+
+async def main():
+    server = {{ project_name | pascal_case }}Server()
+    await server.run()
+```
+
+## 🧪 Testing
+
+```bash
+# Run tests
+uv run pytest
+
+# Run tests with coverage
+uv run pytest --cov={{ package_name }} --cov-report=html
+
+# Run tests with watch mode
+uv run pytest-watch
+```
+
+## 🔍 Code Quality
+
+```bash
+# Run linter
+uv run ruff check .
+
+# Format code
+uv run ruff format .
+
+# Type checking
+uv run mypy src
+```
+
+{% if include_makefile %}
+### Using Makefile
+
+```bash
+make install    # Install dependencies
+make test       # Run tests
+make lint       # Run linter
+make format     # Format code
+make typecheck  # Type checking
+make all        # Run all checks
+```
+{% endif %}
+
+## 📖 Documentation
+
+- [Usage Guide](docs/usage.md)
+- [API Reference](docs/api.md)
+{% if include_contributing_guide %}
+- [Contributing Guide](CONTRIBUTING.md)
+{% endif %}
+
+## 🏗️ Project Structure
+
+```
+{{ project_slug }}/
+├── src/
+│   └── {{ package_name }}/
+│       ├── __init__.py
+│       ├── __main__.py
+│       ├── server.py          # Main MCP server
+│       ├── config.py          # Configuration
+│       ├── tools/             # Tool implementations
+│       ├── resources/         # Resource handlers
+│       └── prompts/           # Prompt templates
+├── tests/                     # Test suite
+├── docs/                      # Documentation
+├── pyproject.toml            # Project dependencies
+└── README.md                 # This file
+```
+
+## 🤝 Contributing
+
+{% if include_contributing_guide %}
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on contributing to this project.
+{% else %}
+Contributions are welcome! Please feel free to submit a Pull Request.
+{% endif %}
+
+## 📝 License
+
+This project is licensed under the {{ license_type | upper }} License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- Built with [MCP](https://modelcontextprotocol.io)
+- Generated using [mcp-builder](https://github.com/yourusername/mcp-builder)
+
+## 📧 Contact
+
+**{{ author_name }}** - {{ author_email }}
+
+---
+
+Made with ❤️ using MCP Builder

@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  {{ project_slug }}:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: {{ project_slug }}
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=$${LOG_LEVEL:-INFO}
+{% if "genai" in tool_categories %}
+{% for provider in genai_providers %}
+{% if provider == "openai" %}
+      - OPENAI_API_KEY=$${OPENAI_API_KEY}
+{% elif provider == "anthropic" %}
+      - ANTHROPIC_API_KEY=$${ANTHROPIC_API_KEY}
+{% endif %}
+{% endfor %}
+{% endif %}
+    volumes:
+      - ./data:/app/data
+    stdin_open: true
+    tty: true
+{% if "database" in tool_categories %}
+    depends_on:
+      - postgres
+{% endif %}
+{% if "rag" in tool_categories and "chromadb" in rag_vector_stores %}
+    depends_on:
+      - chromadb
+{% endif %}
+
+{% if "database" in tool_categories %}
+  postgres:
+    image: postgres:16-alpine
+    container_name: {{ project_slug }}-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB={{ project_slug }}
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=$${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+{% endif %}
+
+{% if "rag" in tool_categories %}
+{% if "chromadb" in rag_vector_stores %}
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: {{ project_slug }}-chromadb
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_AUTH_CREDENTIALS=admin:admin
+{% endif %}
+{% endif %}
+
+volumes:
+{% if "database" in tool_categories %}
+  postgres-data:
+{% endif %}
+{% if "rag" in tool_categories and "chromadb" in rag_vector_stores %}
+  chroma-data:
+{% endif %}

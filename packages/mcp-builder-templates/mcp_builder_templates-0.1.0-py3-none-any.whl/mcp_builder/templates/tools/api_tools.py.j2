@@ -1,0 +1,48 @@
+"""API integration tools for {{ project_name }}."""
+
+from typing import Any
+import structlog
+from mcp.types import Tool
+
+logger = structlog.get_logger(__name__)
+
+
+def get_api_integration_tools() -> list[Tool]:
+    """Get list of API integration tools."""
+    tools = [
+        Tool(
+            name="api_call",
+            description="Make an API call",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "API endpoint URL"},
+                    "method": {
+                        "type": "string",
+                        "enum": ["GET", "POST", "PUT", "DELETE"],
+                        "default": "GET",
+                    },
+                    "data": {"type": "object", "description": "Request data"},
+                },
+                "required": ["url"],
+            },
+        ),
+    ]
+    return tools
+
+
+async def execute_api_integration_tool(name: str, arguments: dict[str, Any]) -> str:
+    """Execute an API integration tool."""
+    if name == "api_call":
+        return await _make_api_call(arguments)
+    raise ValueError(f"Unknown API integration tool: {name}")
+
+
+async def _make_api_call(arguments: dict[str, Any]) -> str:
+    """Make API call."""
+    url = arguments["url"]
+    method = arguments.get("method", "GET")
+    # Implement API call logic here
+    logger.info("api_call_made", url=url, method=method)
+    return f"API call to {url} using {method}"
+

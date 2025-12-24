@@ -1,0 +1,107 @@
+"""Custom tools for {{ project_name }}."""
+
+from typing import Any
+
+import structlog
+from mcp.types import Tool
+
+logger = structlog.get_logger(__name__)
+
+
+def get_custom_tools() -> list[Tool]:
+    """Get list of custom tools."""
+    tools = [
+        Tool(
+            name="custom_echo",
+            description="Echo back the input message",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "description": "Message to echo back",
+                    }
+                },
+                "required": ["message"],
+            },
+        ),
+        Tool(
+            name="custom_calculate",
+            description="Perform basic arithmetic operations",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "operation": {
+                        "type": "string",
+                        "description": "Operation to perform",
+                        "enum": ["add", "subtract", "multiply", "divide"],
+                    },
+                    "a": {
+                        "type": "number",
+                        "description": "First operand",
+                    },
+                    "b": {
+                        "type": "number",
+                        "description": "Second operand",
+                    },
+                },
+                "required": ["operation", "a", "b"],
+            },
+        ),
+    ]
+
+    return tools
+
+
+async def execute_custom_tool(name: str, arguments: dict[str, Any]) -> str:
+    """
+    Execute a custom tool.
+
+    Args:
+        name: Tool name
+        arguments: Tool arguments
+
+    Returns:
+        Execution result
+    """
+    if name == "custom_echo":
+        return await _echo(arguments)
+    elif name == "custom_calculate":
+        return await _calculate(arguments)
+
+    raise ValueError(f"Unknown custom tool: {name}")
+
+
+async def _echo(arguments: dict[str, Any]) -> str:
+    """Echo back the message."""
+    message = arguments["message"]
+    logger.info("echo_executed", message=message)
+    return f"Echo: {message}"
+
+
+async def _calculate(arguments: dict[str, Any]) -> str:
+    """Perform calculation."""
+    operation = arguments["operation"]
+    a = float(arguments["a"])
+    b = float(arguments["b"])
+
+    try:
+        if operation == "add":
+            result = a + b
+        elif operation == "subtract":
+            result = a - b
+        elif operation == "multiply":
+            result = a * b
+        elif operation == "divide":
+            if b == 0:
+                return "Error: Division by zero"
+            result = a / b
+        else:
+            return f"Error: Unknown operation {operation}"
+
+        logger.info("calculation_executed", operation=operation, a=a, b=b, result=result)
+        return f"{a} {operation} {b} = {result}"
+
+    except Exception as e:
+        logger.error("calculation_failed", error=str(e))
+        return f"Error: {e}"
