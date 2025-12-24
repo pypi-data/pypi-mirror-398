@@ -1,0 +1,115 @@
+name: main
+
+on:
+  push:
+    branches:
+      - main
+      - development
+      - release/candidate
+  pull_request:
+    branches:
+      - main
+
+env:
+  FORCE_COLOR: 1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+        resolution: [highest]
+        include:
+          - python: "3.10"
+            resolution: lowest
+
+      fail-fast: true
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7
+        with:
+          version: 0.9.18
+      - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6
+        id: setup-python
+        with:
+          python-version: ${{ matrix.python }}
+      - run: echo "UV_PYTHON=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
+      - name: resolve dependencies to lowest possible version
+        if: matrix.resolution == 'lowest'
+        run: |
+          echo "UV_RESOLUTION=lowest-direct" >> "$GITHUB_ENV"
+          uv lock --resolution lowest-direct --upgrade
+      - run: uv sync --all-extras --locked
+      - run: uv run ruff format --check
+      - run: uv run ruff check
+      - run: uv run pyright --warnings
+      - run: uv run ./dev/build_readme.py && git diff --exit-code -- README.md
+      - uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5
+        with:
+          path: |
+            ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('uv.lock') }}
+      - run: uv run playwright install chromium
+      - run: uv run pytest
+      - run: uv run sphinx-build --fail-on-warning docs docs/dist
+      - run: uv build
+      - if: matrix.python == '3.14'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  build-container-image:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: python-package-distributions
+          path: dist/
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        if: github.ref == 'refs/heads/release/candidate'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        with:
+          context: .
+          load: true
+          push: ${{ github.ref == 'refs/heads/release/candidate' }}
+          tags: |
+            ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Run smoke test
+        run: |
+          set -e
+          trap 'docker stop oidc-test >/dev/null 2>&1 || true; docker rm oidc-test >/dev/null 2>&1 || true' EXIT
+          docker run -d --name oidc-test -p 9400:9400 "${IMAGE}" || { echo "docker run failed"; exit 1; }
+          for i in {1..5}; do
+            sleep 1
+            if curl -sf http://localhost:9400/; then
+              echo "Successfully connected to container"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying..."
+          done
+          echo "Failed to connect to container"
+          docker logs oidc-test || true
+          exit 1
