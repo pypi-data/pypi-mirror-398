@@ -1,0 +1,140 @@
+\BLOCK{ set _code_cfg = code if code is not none else {} }
+\BLOCK{ if _code_cfg is mapping }
+\BLOCK{ set _code_engine = (_code_cfg.get("engine") or "pygments") | lower }
+\BLOCK{ set _code_style = _code_cfg.get("style") or "bw" }
+\BLOCK{ else }
+\BLOCK{ set _code_engine = (_code_cfg or "pygments") | string | lower }
+\BLOCK{ set _code_style = "bw" }
+\BLOCK{ endif }
+
+\ProvidesPackage{ts-code}[2025/11/21 TeXSmith Code listings (generated)]
+
+\RequirePackage{xparse}
+
+\makeatletter
+\@ifpackageloaded{tcolorbox}{}{%
+  \RequirePackage{tcolorbox}%
+}
+\makeatother
+
+\tcbuselibrary{many}
+
+\BLOCK{ if _code_engine == "minted" }
+\makeatletter
+\@ifpackageloaded{minted}{}{%
+  \RequirePackage{minted}%
+}
+\makeatother
+\tcbuselibrary{minted}
+\usemintedstyle{\VAR{_code_style}}
+
+\newtcblisting[auto counter,number within=section,
+  list inside=mypyg]{code}[4][]{%
+  breakable,
+  listing only,
+  enhanced,
+  colback=white,
+  colframe=black!90,
+  colbacktitle=white,
+  coltitle=black,
+  pad at break*=1mm,
+  toptitle=0.15em,
+  bottomtitle=0.1em,
+  boxrule=0.07em,
+  fonttitle=\bfseries,
+  minted language=#2,
+  top=1mm,
+  arc=0.5mm,
+  bottom=1mm,
+  minted options={%
+      tabsize=4,
+      breaklines,
+      xleftmargin=-0.75em,
+      fontsize=\footnotesize,
+      highlightcolor=gray!30,
+      ignorelexererrors,
+      #4
+    },
+  before title={\hspace*{-0.9em}},
+  title={#3},
+  list entry={\protect\numberline{\thetcbcounter}#3},
+  #1
+}
+\BLOCK{ elif _code_engine == "listings" }
+\RequirePackage{xcolor}
+\makeatletter
+\@ifpackageloaded{listings}{}{%
+  \RequirePackage{listings}%
+}
+\makeatother
+\tcbuselibrary{listings,skins}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  columns=fullflexible,
+}
+
+\newtcblisting[auto counter,number within=section,
+  list inside=mypyg]{code}[4][]{%
+  breakable,
+  enhanced,
+  listing only,
+  colback=white,
+  colframe=black!90,
+  colbacktitle=white,
+  coltitle=black,
+  pad at break*=1mm,
+  toptitle=0.15em,
+  bottomtitle=0.1em,
+  boxrule=0.07em,
+  fonttitle=\bfseries,
+  top=1mm,
+  left=1mm,
+  arc=0.5mm,
+  bottom=1mm,
+  title={#3},
+  list entry={\protect\numberline{\thetcbcounter}#3},
+  listing options={language=#2, breaklines=true, columns=fullflexible #4},
+  #1
+}
+\BLOCK{ else }
+\RequirePackage{fancyvrb}
+\RequirePackage{fvextra}
+\BLOCK{ if _code_engine == "pygments" }
+\RequirePackage{color}
+\BLOCK{ endif }
+
+\newtcolorbox[auto counter,number within=section,
+  list inside=mypyg]{code}[4][]{%
+  breakable,
+  enhanced,
+  colback=white,
+  colframe=black!90,
+  colbacktitle=white,
+  coltitle=black,
+  pad at break*=1mm,
+  toptitle=0.15em,
+  bottomtitle=0.1em,
+  boxrule=0.07em,
+  fonttitle=\bfseries,
+  top=1mm,
+  left=1mm,
+  arc=0.5mm,
+  bottom=1mm,
+  title={#3},
+  list entry={\protect\numberline{\thetcbcounter}#3},
+  #1
+}
+
+\RecustomVerbatimEnvironment{Verbatim}{Verbatim}{
+    breaklines,
+    breakanywhere,
+    commandchars=\\\{\},
+    highlightcolor=gray!20,
+}
+
+\BLOCK{ if _code_engine == "pygments" }
+\VAR{pygments_style_defs|default('')}
+\BLOCK{ endif }
+\BLOCK{ endif }

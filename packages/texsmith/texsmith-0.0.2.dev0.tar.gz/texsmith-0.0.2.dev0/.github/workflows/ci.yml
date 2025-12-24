@@ -1,0 +1,239 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  lint:
+    name: Ruff (lint + format check)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-python: false
+        env:
+          UV_CACHE_SAVE: "false"
+
+      - name: Sync dependencies (dev + docs)
+        run: uv sync --all-groups --frozen
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format . --check
+
+  tests:
+    name: Pytest matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13", "3.14"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-python: false
+        env:
+          UV_CACHE_SAVE: "false"
+
+      - name: Sync dependencies (dev + docs)
+        run: uv sync --all-groups --frozen
+
+      - name: Run pytest
+        run: uv run pytest
+
+  build-artifacts:
+    name: Build dists & docs
+    needs: [lint, tests]
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/texsmith/playwright/browsers
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      # Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Install system dependencies (Playwright, cairo, etc.)
+      - name: Install system dependencies
+        run: |
+          sudo apt-get install -y libglib2.0-0 libnspr4 libnss3 libatk1.0-0 \
+          libatk-bridge2.0-0 libcups2 libxkbcommon0 libatspi2.0-0 libxcomposite1 \
+          libxdamage1 libxfixes3 libxrandr2 libgbm1 libcairo2 libpango-1.0-0
+
+      # Install uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-python: false
+
+      # Install full dependency set
+      - name: Sync dependencies (dev + docs)
+        run: uv sync --all-groups --frozen
+
+      # Install Playwright browser binaries + system deps
+      - name: Install Playwright browsers
+        run: |
+          uv run playwright install-deps
+          uv run playwright install chromium
+
+      # Build all examples (clean + all)
+      - name: Build examples
+        run: |
+          make examples
+
+      # Package example PDFs into a single archive
+      - name: Package example PDFs
+        run: |
+          mkdir -p examples
+          zip -j examples/examples.zip examples/build/*.pdf
+
+      # Build MkDocs HTML documentation
+      - name: Build documentation (HTML + LaTeX)
+        run: |
+          make docs
+
+      # Build the main Python package distribution
+      - name: Build distributions (texsmith)
+        run: uv build
+
+      # Build the MkDocs plugin distribution
+      - name: Build distributions (mkdocs_texsmith)
+        working-directory: packages/mkdocs_texsmith
+        run: uv build
+
+      # Upload all artifacts needed for the release job
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: texsmith-release-assets
+          path: |
+            dist/*
+            packages/mkdocs_texsmith/dist/*
+            press/texsmith-docs/texsmith-docs.pdf
+            examples/examples.zip
+          if-no-files-found: error
+
+  release:
+    name: Release (Docs + PyPI)
+    needs: [build-artifacts]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write       # Required for GitHub Pages and GitHub Releases
+      id-token: write
+      pages: write
+      actions: read
+
+    environment:
+      name: pypi
+      url: https://pypi.org/project/texsmith/
+
+    steps:
+      # Checkout repository (needed by mike deploy)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Download all build artifacts generated previously
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: texsmith-release-assets
+          path: .
+
+      # Place artifacts at repository root where publish steps expect them
+      - name: Unpack release artifacts
+        run: |
+          set -euo pipefail
+          if [ -d texsmith-release-assets ]; then
+            shopt -s dotglob
+            mv texsmith-release-assets/* .
+            rmdir texsmith-release-assets
+          fi
+
+      # Ensure expected paths exist for publish steps (artifact layout may vary)
+      - name: Normalize artifact paths
+        run: |
+          set -euo pipefail
+          mkdir -p packages/mkdocs_texsmith/dist
+          shopt -s nullglob
+          # If plugin dists landed at repo root or under dist/, move them into the expected folder.
+          for f in mkdocs_texsmith-* mkdocs-texsmith-* dist/mkdocs_texsmith-* dist/mkdocs-texsmith-*; do
+            [ -e "$f" ] || continue
+            dest="packages/mkdocs_texsmith/dist/$(basename "$f")"
+            mv "$f" "$dest"
+          done
+      # Install uv for deploying the docs
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-python: false
+        env:
+          UV_CACHE_SAVE: "false"
+
+      # Publish versioned documentation to GitHub Pages using mike
+      - name: Publish documentation to GitHub Pages (mike)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages || true
+          uv sync --group docs --frozen
+          uv run mike deploy --push --branch gh-pages --remote origin --update-aliases "$VERSION" latest
+          uv run mike set-default --push --branch gh-pages --remote origin latest
+
+      # Publish the package to PyPI from prebuilt dists
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+      # Publish the MkDocs plugin to PyPI from prebuilt dists
+      - name: Publish mkdocs-texsmith package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/mkdocs_texsmith/dist
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+      # create a GitHub Release and attach artifacts
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*
+            packages/mkdocs_texsmith/dist/*
+            press/texsmith-docs/texsmith-docs.pdf
+            examples/examples.zip
