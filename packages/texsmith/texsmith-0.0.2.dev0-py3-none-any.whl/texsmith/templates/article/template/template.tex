@@ -1,0 +1,74 @@
+\BLOCK{ set base_docclass_options = documentclass_options|default('', true) }
+\BLOCK{ set combined_docclass_options = base_docclass_options[1:-1] if base_docclass_options else '' }
+\BLOCK{ set column_count = columns|default(1)|int }
+\BLOCK{ set option_parts = [] }
+\BLOCK{ if combined_docclass_options }\BLOCK{ set option_parts = option_parts + [combined_docclass_options] }\BLOCK{ endif }
+\BLOCK{ if column_count > 1 }\BLOCK{ set option_parts = option_parts + ['twocolumn'] }\BLOCK{ endif }
+\BLOCK{ set effective_documentclass_options = '[' ~ option_parts|join(',') ~ ']' if option_parts else '' }
+\documentclass\VAR{effective_documentclass_options}{article}
+
+\usepackage[svgnames,dvipsnames,x11names]{xcolor}
+\VAR{extra_packages}
+\usepackage{graphicx}
+\usepackage[\VAR{language|default('english')}]{babel}
+\usepackage[colorlinks=true, linkcolor=NavyBlue, urlcolor=NavyBlue, citecolor=NavyBlue]{hyperref}
+
+\usepackage{lastpage} % pour le label LastPage
+\usepackage{refcount} % pour \getpagerefnumber
+\makeatletter
+\def\ps@plain{%
+  \let\@oddhead\@empty
+  \let\@evenhead\@empty
+  \def\@oddfoot{%
+    \hfil
+    % Afficher le numéro seulement si le document a plus d’une page
+    \ifnum\getpagerefnumber{LastPage}>1\relax
+      \thepage
+    \fi
+    \hfil}%
+  \let\@evenfoot\@oddfoot
+}
+\makeatother
+
+\BLOCK{ set has_title_metadata = title|default('')|trim }
+\BLOCK{ set effective_date = date|default('')|trim }
+\BLOCK{ if has_title_metadata }
+\title{\VAR{title}\BLOCK{ if subtitle }\\\large \VAR{subtitle}\BLOCK{ endif }}
+\BLOCK{ if author }\author{\VAR{author}}\BLOCK{ else }\author{}\BLOCK{ endif }
+\BLOCK{ if effective_date }\date{\VAR{date}}\BLOCK{ else }\date{\today}\BLOCK{ endif }
+\BLOCK{ endif }
+
+\begin{document}
+
+\BLOCK{ if has_title_metadata }
+\maketitle
+\BLOCK{ endif }
+\BLOCK{ if not page_numbers }
+\pagenumbering{gobble}
+\thispagestyle{empty}
+\pagestyle{empty}
+\BLOCK{ endif }
+\BLOCK{ if numbering is defined and not numbering }
+\setcounter{secnumdepth}{-1}
+\BLOCK{ endif }
+
+\BLOCK{ if abstract }
+\begin{abstract}
+\VAR{abstract}
+\end{abstract}
+\BLOCK{ endif }
+\BLOCK{ if toc }
+\tableofcontents
+\BLOCK{ endif }
+
+\VAR{mainmatter}
+
+\BLOCK{ if appendix }
+\appendix
+\VAR{appendix}
+\BLOCK{ endif }
+
+\VAR{backmatter}
+\VAR{fragment_backmatter}
+
+\end{document}
