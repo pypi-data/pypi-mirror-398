@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>{{ application.version }} {{ application.title }}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/slth.css">
+  <link rel="stylesheet" href="/static/css/fontawesome.min.css">
+  <link rel="stylesheet" href="/static/css/solid.min.css">
+  <link rel="stylesheet" href="/static/css/leaflet-1.9.4.css">
+  <script type="module" src="/static/js/vanilla-masker.min.js"></script>
+  <script type="module" src="/static/js/react-trigger-change.js"></script>
+  <script type="module" src="/static/js/default-passive-events.min.js"></script>
+  <!-- <script type="module" src="/static/js/qrcode.min.js"></script> -->
+  <script type="module" src="/static/js/peerjs.min.js"></script>
+  <script type="module" src="/static/js/echarts.min.js"></script>
+  <script type="module" src="/static/js/leaflet-1.9.4.js"></script>
+
+  <link rel="manifest" href="/api/manifest/">
+  <link rel="icon" type="image/png" href="{{ application.icon }}">
+  <link rel="apple-touch-icon" sizes="128x128" href="{{ application.icon }}">
+  <link rel="icon" sizes="192x192" href="{{ application.icon }}">
+
+  <script src='/static/js/jitsi.min.js'></script>
+
+  <script>
+    if ("serviceWorker" in navigator && "PushManager" in window) {
+      navigator.serviceWorker
+        .register("/service-worker.js")
+        .then(function (swRegistration) {
+          console.log("Service worker registered!");
+        })
+        .catch(function (error) {
+          console.error("Service worker error:", error);
+        });
+    } else {
+      console.log("Push messaging is not supported!");
+    }
+  </script>
+
+  {% if vite %}
+  <script type="module" src="http://localhost:5173/@vite/client"></script>
+  <script type="module">
+    import RefreshRuntime from 'http://localhost:5173/@react-refresh'
+    if (RefreshRuntime) {
+      RefreshRuntime.injectIntoGlobalHook(window)
+      window.$RefreshReg$ = () => { }
+      window.$RefreshSig$ = () => (type) => type
+      window.__vite_plugin_react_preamble_installed__ = true
+    }
+  </script>
+  {% endif %}
+
+  
+  {% if 0 and request.COOKIES.theme == "dark" %}
+    <style>html { filter: invert(1); }</style>
+  {% endif %}
+  {{ application.theme.light.to_css|safe }}
+  
+
+</head>
+
+<body class="{{ request.COOKIES.theme|default:'light' }}">
+  <div id="root"></div>
+</body>
+
+{% if vite %}
+  <script type="module" src="http://localhost:5173/src/main.jsx"></script>
+{% else %}
+  <script type="module" src="/static/js/react.min.js"></script>
+  <script type="module" src="/static/js/slth.min.js"></script>
+  <script type="module" src="/static/js/index.min.js"></script>
+{% endif %}
+</html>
