@@ -1,0 +1,117 @@
+# GitStack Helper
+[![PyPI version](https://badge.fury.io/py/gitstack-helper.svg)](https://badge.fury.io/py/gitstack-helper)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/gitstack-helper)](https://pepy.tech/project/gitstack-helper)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+GitStack Helper is a Python package designed to help developers manage and organize their Git branches and commit stacks more efficiently. It takes a description of the current branch state or a developer's intended changes as input and returns structured suggestions for branch naming, stacking strategies, or rebase workflows.
+
+## Features
+
+- Simplifies complex version control tasks
+- Provides structured suggestions for branch management
+- Supports custom LLM integration
+- Easy to use with a simple API
+
+## Installation
+
+```bash
+pip install gitstack_helper
+```
+
+## Usage
+
+### Basic Usage
+
+```python
+from gitstack_helper import gitstack_helper
+
+response = gitstack_helper("I need to fix a bug in the login feature")
+print(response)
+```
+
+### Using a Custom LLM
+
+You can use any LLM compatible with LangChain. Here are examples with different LLMs:
+
+#### Using OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from gitstack_helper import gitstack_helper
+
+llm = ChatOpenAI()
+response = gitstack_helper("I need to fix a bug in the login feature", llm=llm)
+print(response)
+```
+
+#### Using Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from gitstack_helper import gitstack_helper
+
+llm = ChatAnthropic()
+response = gitstack_helper("I need to fix a bug in the login feature", llm=llm)
+print(response)
+```
+
+#### Using Google
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from gitstack_helper import gitstack_helper
+
+llm = ChatGoogleGenerativeAI()
+response = gitstack_helper("I need to fix a bug in the login feature", llm=llm)
+print(response)
+```
+
+### Using LLM7 API Key
+
+By default, GitStack Helper uses the LLM7 API. You can pass your API key directly or via an environment variable.
+
+#### Using Environment Variable
+
+```python
+import os
+from gitstack_helper import gitstack_helper
+
+os.environ["LLM7_API_KEY"] = "your_api_key"
+response = gitstack_helper("I need to fix a bug in the login feature")
+print(response)
+```
+
+#### Passing API Key Directly
+
+```python
+from gitstack_helper import gitstack_helper
+
+response = gitstack_helper("I need to fix a bug in the login feature", api_key="your_api_key")
+print(response)
+```
+
+## Parameters
+
+- `user_input` (str): The user input text to process.
+- `llm` (Optional[BaseChatModel]): The LangChain LLM instance to use. If not provided, the default ChatLLM7 will be used.
+- `api_key` (Optional[str]): The API key for LLM7. If not provided, the environment variable `LLM7_API_KEY` will be used.
+
+## Rate Limits
+
+The default rate limits for LLM7 free tier are sufficient for most use cases of this package. If you need higher rate limits, you can pass your own API key via the environment variable `LLM7_API_KEY` or directly in the function call.
+
+## Getting an API Key
+
+You can get a free API key by registering at [LLM7](https://token.llm7.io/).
+
+## Issues
+
+If you encounter any issues, please report them on the [GitHub issues page](https://github.com/chigwell/gitstack-helper/issues).
+
+## Author
+
+- **Eugene Evstafev**
+- **Email**: hi@eugene.plus
+- **GitHub**: [chigwell](https://github.com/chigwell)
