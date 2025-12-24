@@ -1,0 +1,272 @@
+<!-- History Tab Content -->
+<div class="space-y-6">
+    <!-- Python Access Code -->
+    <div class="code-snippet collapsed" id="history-code-snippet">
+        <div class="code-snippet-header">
+            <div class="code-snippet-title code-snippet-toggle" onclick="toggleCodeSnippet('history-code-snippet')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6,9 12,15 18,9"></polyline>
+                </svg>
+                Python Access Code
+            </div>
+            <button class="copy-btn" onclick="copyCode('history-code')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                Copy
+            </button>
+        </div>
+        <div class="code-snippet-content">
+            <pre><code id="history-code">from kirin import Dataset
+
+dataset = Dataset(
+    root_dir="{{ catalog.root_dir }}",
+    name="{{ dataset_name }}"{% if catalog.aws_profile %},
+    aws_profile="{{ catalog.aws_profile }}"{% endif %}{% if catalog.gcs_token %},
+    gcs_token="{{ catalog.gcs_token }}"{% endif %}{% if catalog.gcs_project %},
+    gcs_project="{{ catalog.gcs_project }}"{% endif %}{% if catalog.azure_account_name %},
+    azure_account_name="{{ catalog.azure_account_name }}"{% endif %}{% if catalog.azure_account_key %},
+    azure_account_key="{{ catalog.azure_account_key }}"{% endif %}{% if catalog.azure_connection_string %},
+    azure_connection_string="{{ catalog.azure_connection_string }}"{% endif %}
+)
+
+{% if checkout_commit %}
+# Checkout to specific commit
+dataset.checkout("{{ checkout_commit }}")
+{% elif current_commit %}
+# Checkout to latest commit (HEAD)
+dataset.checkout("{{ current_commit }}")
+{% else %}
+# Checkout to latest commit (HEAD)
+dataset.checkout()
+
+# Or checkout to a specific commit
+# dataset.checkout("commit_hash")
+{% endif %}</code></pre>
+        </div>
+    </div>
+
+    <!-- Commits List -->
+    <div class="space-y-4">
+    {% if commits %}
+    <div class="space-y-2">
+        {% for commit in commits %}
+        <div class="commit-item">
+            <div class="commit-header">
+                <span class="commit-hash">{{ commit.short_hash }}</span>
+                {% if loop.first %}
+                <span class="badge badge-primary">HEAD</span>
+                {% endif %}
+                <span class="commit-message">{{ commit.message }}</span>
+            </div>
+
+            {% if commit.tags %}
+            <div class="commit-tags">
+                {% for tag in commit.tags %}
+                <span class="badge badge-tag">{{ tag }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="commit-meta">
+                <span class="commit-timestamp">{{ commit.timestamp }}</span>
+
+                <div class="commit-stats">
+                    {% if commit.files_added > 0 %}
+                    <span class="commit-stat">+{{ commit.files_added }} files</span>
+                    {% endif %}
+                    {% if commit.files_removed > 0 %}
+                    <span class="commit-stat">-{{ commit.files_removed }} files</span>
+                    {% endif %}
+                    {% if commit.total_size > 0 %}
+                    <span class="commit-stat">{{ "%.1f"|format(commit.total_size / (1024*1024)) }} MB</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if commit.metadata %}
+            <div class="metadata-section collapsed" id="metadata-{{ commit.short_hash }}" data-metadata='{{ commit.metadata | tojson }}'>
+                <button class="metadata-toggle" onclick="toggleMetadata('{{ commit.short_hash }}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9,18 15,12 9,6"></polyline>
+                    </svg>
+                    Show Metadata
+                </button>
+                <div class="metadata-content">
+                    <div class="json-viewer">
+                        <pre id="json-{{ commit.short_hash }}"></pre>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="flex gap-2 mt-3">
+                <a href="/catalog/{{ catalog_id }}/{{ dataset_name }}/checkout/{{ commit.hash }}"
+                   class="btn btn-ghost btn-sm">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    Browse Files
+                </a>
+                <button onclick="copyHash('{{ commit.hash }}')" class="btn btn-ghost btn-sm">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    Copy Hash
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Load More Button -->
+    <div class="text-center py-4">
+        <button class="btn btn-ghost" onclick="loadMoreCommits()">
+            Load More Commits
+        </button>
+    </div>
+    {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-12">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="mx-auto mb-4 text-muted-foreground">
+            <path d="M3 3v18h18"></path>
+            <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+        </svg>
+        <h3 class="text-lg font-semibold mb-2">No commit history</h3>
+        <p class="text-muted-foreground mb-4">
+            This dataset has no commits yet.
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function toggleMetadata(commitHash) {
+    const section = document.getElementById('metadata-' + commitHash);
+    if (section) {
+        const isExpanding = !section.classList.contains('expanded');
+        section.classList.toggle('expanded');
+        const toggle = section.querySelector('.metadata-toggle');
+        const jsonElement = document.getElementById('json-' + commitHash);
+
+        if (isExpanding && jsonElement && !jsonElement.dataset.formatted) {
+            // Format JSON when first expanded
+            try {
+                const metadata = JSON.parse(section.dataset.metadata);
+                jsonElement.innerHTML = formatJSON(JSON.stringify(metadata, null, 2));
+                jsonElement.dataset.formatted = 'true';
+            } catch (e) {
+                jsonElement.innerHTML = '<span class="text-destructive">Error formatting metadata</span>';
+            }
+        }
+
+        if (section.classList.contains('expanded')) {
+            toggle.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="18,15 12,9 6,15"></polyline>
+                </svg>
+                Hide Metadata
+            `;
+        } else {
+            toggle.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9,18 15,12 9,6"></polyline>
+                </svg>
+                Show Metadata
+            `;
+        }
+    }
+}
+
+function formatJSON(jsonString) {
+    // Simple JSON syntax highlighting
+    return jsonString
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
+            let cls = 'json-number';
+            if (/^"/.test(match)) {
+                if (/:$/.test(match)) {
+                    cls = 'json-key';
+                } else {
+                    cls = 'json-string';
+                }
+            } else if (/true|false/.test(match)) {
+                cls = 'json-boolean';
+            } else if (/null/.test(match)) {
+                cls = 'json-null';
+            }
+            return '<span class="' + cls + '">' + match + '</span>';
+        });
+}
+
+function copyHash(hash) {
+    navigator.clipboard.writeText(hash).then(() => {
+        // Show a temporary success message
+        const button = event.target.closest('button');
+        const originalText = button.innerHTML;
+        button.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20,6 9,17 4,12"></polyline>
+            </svg>
+            Copied!
+        `;
+        setTimeout(() => {
+            button.innerHTML = originalText;
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy hash: ', err);
+        alert('Failed to copy hash to clipboard');
+    });
+}
+
+function loadMoreCommits() {
+    // In a real implementation, this would load more commits via HTMX
+    alert('Load more commits functionality would be implemented here');
+}
+
+// Code snippet functionality
+function toggleCodeSnippet(snippetId) {
+    const snippet = document.getElementById(snippetId);
+    snippet.classList.toggle('collapsed');
+}
+
+async function copyCode(codeId) {
+    const codeElement = document.getElementById(codeId);
+    const code = codeElement.textContent;
+
+    try {
+        await navigator.clipboard.writeText(code);
+
+        // Visual feedback
+        const button = event.target.closest('.copy-btn');
+        const originalText = button.innerHTML;
+        button.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20,6 9,17 4,12"></polyline>
+            </svg>
+            Copied!
+        `;
+        button.classList.add('copied');
+
+        // Reset after 2 seconds
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.classList.remove('copied');
+        }, 2000);
+    } catch (err) {
+        console.error('Failed to copy code: ', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = code;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+    }
+}
+</script>

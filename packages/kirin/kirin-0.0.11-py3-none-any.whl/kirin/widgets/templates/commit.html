@@ -1,0 +1,76 @@
+<div class="kirin-commit-view-static">
+<style>{{ css_content }}</style>
+{% from 'macros.html' import render_file_item, render_file_preview %}
+
+<!-- Header panel -->
+<div class="panel">
+    <div class="panel-header">
+        <h2 class="panel-title">Commit</h2>
+    </div>
+    <div class="panel-content">
+        <div class="space-y-4">
+            <div>
+                <span class="text-sm text-muted-foreground">Hash:</span>
+                <span class="commit-hash">{{ data.hash }}</span>
+            </div>
+
+            <div>
+                <span class="text-sm text-muted-foreground">Message:</span>
+                <span class="commit-message">{{ data.message }}</span>
+            </div>
+
+            <div>
+                <span class="text-sm text-muted-foreground">Timestamp:</span>
+                <span class="commit-timestamp">{{ data.timestamp }}</span>
+            </div>
+
+            {% if data.parent_hash %}
+            <div>
+                <span class="text-sm text-muted-foreground">Parent:</span>
+                <span class="commit-hash">{{ data.parent_hash }}</span>
+            </div>
+            {% else %}
+            <div><span class="badge">Initial Commit</span></div>
+            {% endif %}
+
+            <div class="flex items-center gap-4">
+                <span class="text-sm text-muted-foreground">Files: {{ data.file_count }}</span>
+                <span class="text-sm text-muted-foreground">Size: {{ data.size }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Files panel -->
+{% if data.files %}
+<div class="panel">
+    <div class="panel-header">
+        <h3 class="panel-title">Files</h3>
+    </div>
+    <div class="panel-content">
+        <div class="kirin-file-list">
+            {% for file_info in data.files %}
+            {% set index = loop.index0 %}
+            {% set code_id = "code-" ~ index %}
+            {% set preview_id = "preview-" ~ index %}
+            {% set variable_name = data.get('variable_name', 'dataset') %}
+            {% set commit_hash = data.get('full_hash', data.hash) %}
+            {% set code_snippet = '# Checkout this commit first\n' ~ variable_name ~ '.checkout("' ~ commit_hash ~ '")\n# Get path to local clone of file\nwith ' ~ variable_name ~ '.local_files() as files:\n    file_path = files["' ~ file_info.name ~ '"]' %}
+            {{ render_file_item(file_info, index, code_id, preview_id, code_snippet, variable_name) }}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="panel">
+    <div class="panel-content">
+        <p class="text-muted-foreground">No files in this commit</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- JavaScript for file interactions -->
+<script>
+{{ file_interactions_js | safe }}
+</script>
+</div>

@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}{{ file_name }} - {{ dataset_name }} - Kirin{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-separator">></span>
+<a href="/catalog/{{ catalog_id }}">{{ catalog_id }}</a>
+<span class="breadcrumb-separator">></span>
+<a href="/catalog/{{ catalog_id }}/{{ dataset_name }}">{{ dataset_name }}</a>
+<span class="breadcrumb-separator">></span>
+<span>{{ file_name }}</span>
+{% endblock %}
+
+{% block header_title %}{{ file_name }}{% endblock %}
+{% block header_description %}
+    {{ "%.1f"|format(file_size / 1024) }} KB •
+    {% if is_binary %}
+    Binary file ({{ content_type or "unknown type" }})
+    {% else %}
+    Text preview
+    {% if truncated %}
+    • First 1000 lines
+    {% endif %}
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <!-- Source File Link (if plot has source) -->
+    {% if file_metadata and file_metadata.source_file %}
+    <div class="panel">
+        <div class="panel-content">
+            <div class="flex items-center gap-2 text-sm">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14,2 14,8 20,8"></polyline>
+                </svg>
+                <span class="text-muted-foreground">Generated from:</span>
+                <a href="/catalog/{{ catalog_id }}/{{ dataset_name }}/file/{{ file_metadata.source_file }}/preview"
+                   class="text-primary hover:underline font-medium">
+                    {{ file_metadata.source_file }}
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- File Actions -->
+    <div class="flex justify-between items-center">
+        <div class="flex gap-2">
+            <a href="/catalog/{{ catalog_id }}/{{ dataset_name }}/file/{{ file_name }}/download" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7,10 12,15 17,10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download File
+            </a>
+        </div>
+
+        <a href="/catalog/{{ catalog_id }}/{{ dataset_name }}" class="btn btn-ghost">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14"></path>
+                <path d="M12 5l7 7-7 7"></path>
+            </svg>
+            Back to Dataset
+        </a>
+    </div>
+
+    <!-- Python Code Snippet -->
+    <div class="code-snippet collapsed" id="file-code-snippet">
+        <div class="code-snippet-header">
+            <div class="code-snippet-title code-snippet-toggle" onclick="toggleCodeSnippet('file-code-snippet')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6,9 12,15 18,9"></polyline>
+                </svg>
+                Python Access Code
+            </div>
+            <button class="copy-btn" onclick="copyCode('file-code')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                Copy
+            </button>
+        </div>
+        <div class="code-snippet-content">
+            <pre><code id="file-code">from kirin import Dataset
+
+dataset = Dataset(
+    root_dir="{{ catalog.root_dir }}",
+    name="{{ dataset_name }}"{% if catalog.aws_profile %},
+    aws_profile="{{ catalog.aws_profile }}"{% endif %}{% if catalog.gcs_token %},
+    gcs_token="{{ catalog.gcs_token }}"{% endif %}{% if catalog.gcs_project %},
+    gcs_project="{{ catalog.gcs_project }}"{% endif %}{% if catalog.azure_account_name %},
+    azure_account_name="{{ catalog.azure_account_name }}"{% endif %}{% if catalog.azure_account_key %},
+    azure_account_key="{{ catalog.azure_account_key }}"{% endif %}{% if catalog.azure_connection_string %},
+    azure_connection_string="{{ catalog.azure_connection_string }}"{% endif %}
+)
+
+{% if checkout_commit %}
+# Checkout to specific commit
+dataset.checkout("{{ checkout_commit }}")
+{% elif current_commit %}
+# Checkout to latest commit (HEAD)
+dataset.checkout("{{ current_commit }}")
+{% else %}
+# Checkout to latest commit (HEAD)
+dataset.checkout()
+{% endif %}
+
+# Access files as local paths
+with dataset.local_files() as local_files:
+    file_path = local_files["{{ file_name }}"]
+    # Process file at file_path
+    # Note: Files are temporary and will be deleted when exiting this context</code></pre>
+        </div>
+    </div>
+
+    <!-- File Content -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2 class="panel-title">File Content</h2>
+        </div>
+        <div class="panel-content">
+            {% if is_image %}
+            <div class="image-preview-wrapper">
+                <div class="image-view-toggle">
+                    <button class="image-view-toggle-btn active" data-mode="fit" onclick="toggleImageView('fit')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <path d="M8 8h8v8H8z"></path>
+                        </svg>
+                        Fit to View
+                    </button>
+                    <button class="image-view-toggle-btn" data-mode="scroll" onclick="toggleImageView('scroll')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <path d="M9 9h6v6H9z"></path>
+                            <path d="M9 3v6M15 15v6M3 9h6M15 15h6"></path>
+                        </svg>
+                        Scroll
+                    </button>
+                </div>
+                <div class="image-preview-container" id="image-preview-container" data-mode="fit">
+                    <img src="/catalog/{{ catalog_id }}/{{ dataset_name }}/file/{{ file_name }}/image{% if checkout_commit %}?checkout={{ checkout_commit }}{% endif %}"
+                         alt="{{ file_name }}"
+                         class="preview-image">
+                </div>
+            </div>
+            <script>
+                // Initialize image view mode from localStorage
+                (function() {
+                    const savedMode = localStorage.getItem('kirin-image-view-mode') || 'fit';
+                    const container = document.getElementById('image-preview-container');
+                    const buttons = document.querySelectorAll('.image-view-toggle-btn');
+
+                    if (container) {
+                        container.setAttribute('data-mode', savedMode);
+                        buttons.forEach(btn => {
+                            if (btn.dataset.mode === savedMode) {
+                                btn.classList.add('active');
+                            } else {
+                                btn.classList.remove('active');
+                            }
+                        });
+                    }
+                })();
+
+                function toggleImageView(mode) {
+                    const container = document.getElementById('image-preview-container');
+                    const buttons = document.querySelectorAll('.image-view-toggle-btn');
+
+                    if (container) {
+                        container.setAttribute('data-mode', mode);
+                        localStorage.setItem('kirin-image-view-mode', mode);
+
+                        buttons.forEach(btn => {
+                            if (btn.dataset.mode === mode) {
+                                btn.classList.add('active');
+                            } else {
+                                btn.classList.remove('active');
+                            }
+                        });
+                    }
+                }
+            </script>
+            {% elif is_binary %}
+            <div class="text-center py-12">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="mx-auto mb-4 text-muted-foreground">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14,2 14,8 20,8"></polyline>
+                </svg>
+                <h3 class="text-lg font-semibold mb-2">Binary File</h3>
+                <p class="text-muted-foreground mb-4">
+                    This file cannot be previewed as text. Download the file to view its contents.
+                </p>
+                <p class="text-sm text-muted-foreground">
+                    File type: {{ content_type or "unknown" }}<br>
+                    Size: {{ "%.1f"|format(file_size / 1024) }} KB
+                </p>
+            </div>
+            {% else %}
+            <div class="p-0">
+                <pre class="p-4 bg-muted text-sm overflow-auto max-h-96"><code>{{ content }}</code></pre>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if truncated %}
+    <div class="alert alert-warning">
+        <strong>Preview limited:</strong> Showing first 1000 lines only. Download the full file to see all content.
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Code snippet functionality
+function toggleCodeSnippet(snippetId) {
+    const snippet = document.getElementById(snippetId);
+    snippet.classList.toggle('collapsed');
+}
+
+async function copyCode(codeId) {
+    const codeElement = document.getElementById(codeId);
+    const code = codeElement.textContent;
+
+    try {
+        await navigator.clipboard.writeText(code);
+
+        // Visual feedback
+        const button = event.target.closest('.copy-btn');
+        const originalText = button.innerHTML;
+        button.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20,6 9,17 4,12"></polyline>
+            </svg>
+            Copied!
+        `;
+        button.classList.add('copied');
+
+        // Reset after 2 seconds
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.classList.remove('copied');
+        }, 2000);
+    } catch (err) {
+        console.error('Failed to copy code: ', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = code;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+    }
+}
+</script>
+{% endblock %}
