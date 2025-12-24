@@ -1,0 +1,46 @@
+
+test-create-user:
+  steps:
+    - id: create-user
+      path: /api/user/create
+      method: POST
+      data:
+        username: $vars.sample-user
+        password: $vars.sample-password
+      assert:
+        status-code: 200
+        body:
+          token: +str
+          len(token): '<=20'
+
+    - id: check-token
+      path: /api/token/check
+      method: POST
+      #headers:
+      #  API-Token: $create-user.response.token
+      data:
+        token: $create-user.response.token
+      assert:
+        status-code: 200
+        body:
+          success: true
+
+    - id: check-bad-token
+      path: /api/token/check
+      method: POST
+      data:
+        token: asdf234
+      assert:
+        # status-code: 200
+        status-code: 2xx
+        body:
+          success: false
+
+test-healthz:
+  steps:
+    - id: health-check
+      path: /api/healthz
+      assert:
+        status-code: 200
+
+
