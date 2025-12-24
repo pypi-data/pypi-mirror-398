@@ -1,0 +1,232 @@
+Metadata-Version: 2.3
+Name: pyppur
+Version: 0.4.0
+Summary: Advanced Projection Pursuit implementation with tied/untied weights, nonlinear/linear distance distortion, and comprehensive documentation
+Author: Gaurav Sood
+Author-email: Gaurav Sood <gsood07@gmail.com>
+License: MIT License
+         
+         Copyright (c) 2025 goji+
+         
+         Permission is hereby granted, free of charge, to any person obtaining a copy
+         of this software and associated documentation files (the "Software"), to deal
+         in the Software without restriction, including without limitation the rights
+         to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+         copies of the Software, and to permit persons to whom the Software is
+         furnished to do so, subject to the following conditions:
+         
+         The above copyright notice and this permission notice shall be included in all
+         copies or substantial portions of the Software.
+         
+         THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+         IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+         FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+         AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+         LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+         OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+         SOFTWARE.
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+Classifier: Topic :: Scientific/Engineering :: Mathematics
+Requires-Dist: numpy>=1.20.0
+Requires-Dist: scipy>=1.7.0
+Requires-Dist: scikit-learn>=1.0.0
+Requires-Dist: matplotlib>=3.3.0
+Requires-Dist: sphinx>=7.0 ; extra == 'docs'
+Requires-Dist: furo>=2024.1.29 ; extra == 'docs'
+Requires-Dist: sphinx-autodoc-typehints>=1.25 ; extra == 'docs'
+Requires-Dist: sphinx-copybutton>=0.5 ; extra == 'docs'
+Requires-Dist: myst-parser>=2.0 ; extra == 'docs'
+Requires-Python: >=3.11
+Project-URL: Bug Tracker, https://github.com/gojiplus/pyppur/issues
+Project-URL: Homepage, https://github.com/gojiplus/pyppur
+Provides-Extra: docs
+Description-Content-Type: text/markdown
+
+### 🪈 pyppur: **P**ython **P**rojection **P**ursuit **U**nsupervised **R**eduction
+
+[![PyPI](https://img.shields.io/pypi/v/pyppur.svg)](https://pypi.org/project/pyppur/)
+[![Python](https://img.shields.io/badge/dynamic/toml?url=https://raw.githubusercontent.com/finite-sample/pyppur/main/pyproject.toml&query=$.project.requires-python&label=Python)](https://github.com/finite-sample/pyppur)
+[![PyPI Downloads](https://static.pepy.tech/badge/pyppur)](https://pepy.tech/projects/pyppur)
+[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg)](https://finite-sample.github.io/pyppur/)
+[![CI](https://github.com/finite-sample/pyppur/workflows/CI/badge.svg)](https://github.com/finite-sample/pyppur/actions/workflows/ci.yml)
+
+## Overview
+
+`pyppur` is a Python package that implements projection pursuit methods for dimensionality reduction. Unlike traditional methods such as PCA, `pyppur` focuses on finding interesting non-linear projections by minimizing either reconstruction loss or distance distortion.
+
+## Installation
+
+```bash
+pip install pyppur
+```
+
+## Features
+
+- Two optimization objectives:
+  - **Distance Distortion**: Preserves pairwise distances between data points
+  - **Reconstruction**: Minimizes reconstruction error using ridge functions
+- Multiple initialization strategies (PCA-based and random)
+- Full scikit-learn compatible API
+- Supports standardization and custom weighting
+
+## Usage
+
+### Basic Example
+
+```python
+import numpy as np
+from pyppur import ProjectionPursuit, Objective
+from sklearn.datasets import load_digits
+
+# Load data
+digits = load_digits()
+X = digits.data
+y = digits.target
+
+# Projection pursuit with distance distortion
+pp_dist = ProjectionPursuit(
+    n_components=2,
+    objective=Objective.DISTANCE_DISTORTION,
+    alpha=1.5,  # Steepness of the ridge function
+    n_init=3,   # Number of random initializations
+    verbose=True
+)
+
+# Fit and transform
+X_transformed = pp_dist.fit_transform(X)
+
+# Projection pursuit with reconstruction loss (tied weights)
+pp_recon_tied = ProjectionPursuit(
+    n_components=2,
+    objective=Objective.RECONSTRUCTION,
+    alpha=1.0,
+    tied_weights=True
+)
+
+# Projection pursuit with reconstruction loss (free decoder)
+pp_recon_free = ProjectionPursuit(
+    n_components=2,
+    objective=Objective.RECONSTRUCTION,
+    alpha=1.0,
+    tied_weights=False,
+    l2_reg=0.01
+)
+
+# Fit and transform
+X_transformed_recon_tied = pp_recon_tied.fit_transform(X)
+X_transformed_recon_free = pp_recon_free.fit_transform(X)
+
+# Evaluate the methods
+dist_metrics = pp_dist.evaluate(X, y)
+recon_tied_metrics = pp_recon_tied.evaluate(X, y)
+recon_free_metrics = pp_recon_free.evaluate(X, y)
+
+print("Distance distortion method:")
+print(f"  Trustworthiness: {dist_metrics['trustworthiness']:.4f}")
+print(f"  Silhouette: {dist_metrics['silhouette']:.4f}")
+print(f"  Distance distortion: {dist_metrics['distance_distortion']:.4f}")
+print(f"  Reconstruction error: {dist_metrics['reconstruction_error']:.4f}")
+
+print("\nReconstruction method (tied weights):")
+print(f"  Trustworthiness: {recon_tied_metrics['trustworthiness']:.4f}")
+print(f"  Silhouette: {recon_tied_metrics['silhouette']:.4f}")
+print(f"  Distance distortion: {recon_tied_metrics['distance_distortion']:.4f}")
+print(f"  Reconstruction error: {recon_tied_metrics['reconstruction_error']:.4f}")
+
+print("\nReconstruction method (free decoder):")
+print(f"  Trustworthiness: {recon_free_metrics['trustworthiness']:.4f}")
+print(f"  Silhouette: {recon_free_metrics['silhouette']:.4f}")
+print(f"  Distance distortion: {recon_free_metrics['distance_distortion']:.4f}")
+print(f"  Reconstruction error: {recon_free_metrics['reconstruction_error']:.4f}")
+```
+
+
+## API Reference
+
+The main class in `pyppur` is `ProjectionPursuit`, which provides the following methods:
+
+- `fit(X)`: Fit the model to data
+- `transform(X)`: Apply dimensionality reduction to new data
+- `fit_transform(X)`: Fit the model and transform data
+- `reconstruct(X)`: Reconstruct data from projections
+- `reconstruction_error(X)`: Compute reconstruction error
+- `distance_distortion(X)`: Compute distance distortion
+- `compute_trustworthiness(X, n_neighbors)`: Measure how well local structure is preserved
+- `compute_silhouette(X, labels)`: Measure how well clusters are separated
+- `evaluate(X, labels, n_neighbors)`: Compute all evaluation metrics at once
+
+## Theory
+
+Projection pursuit finds interesting low-dimensional projections of multivariate data. When used for dimensionality reduction, it aims to optimize an "interestingness" index which can be:
+
+1. **Distance Distortion**: Minimizes the difference between pairwise distances in original and projected spaces (optionally with nonlinearity)
+2. **Reconstruction Error**: Minimizes the error when reconstructing the data using ridge functions
+
+### Mathematical Formulations
+
+#### Tied-Weights Ridge Autoencoder (Default)
+```
+Z = g(X A^T)
+X̂ = Z A
+```
+
+#### Free Decoder Ridge Autoencoder (Available with tied_weights=False)
+```
+Z = g(X A^T)  
+X̂ = Z B
+```
+
+Where:
+- `X` is the input data matrix (n_samples × n_features)
+- `A` are the encoder projection directions (n_components × n_features)
+- `B` are the decoder weights (n_components × n_features, when untied)
+- `g(z) = tanh(α * z)` is the ridge function with steepness parameter α
+- `Z` is the projected data (n_samples × n_components)
+- `X̂` is the reconstructed data
+
+#### Distance Distortion Options
+- **With nonlinearity**: Compares distances between original space and `g(X A^T)`
+- **Without nonlinearity**: Compares distances between original space and linear projections `X A^T`
+
+## Requirements
+
+- Python 3.10+
+- NumPy (>=1.20.0)
+- SciPy (>=1.7.0)  
+- scikit-learn (>=1.0.0)
+- matplotlib (>=3.3.0)
+
+## License
+
+MIT
+
+## Citation
+
+If you use `pyppur` in your research, please cite it as:
+
+```
+@software{pyppur,
+  author = {Gaurav Sood},
+  title = {pyppur: Python Projection Pursuit Unsupervised Reduction},
+  url = {https://github.com/gojiplus/pyppur},
+  version = {0.2.0},
+  year = {2025},
+}
+```
+
+## 🔗 Adjacent Repositories
+
+- [gojiplus/get-weather-data](https://github.com/gojiplus/get-weather-data) — Get weather data for a list of zip codes for a range of dates
+- [gojiplus/text-as-data](https://github.com/gojiplus/text-as-data) — Pipeline for Analyzing Text Data: Acquire, Preprocess, Analyze
+- [gojiplus/calibre](https://github.com/gojiplus/calibre) — Advanced Calibration Models
+- [gojiplus/skiplist_join](https://github.com/gojiplus/skiplist_join)
+- [gojiplus/rmcp](https://github.com/gojiplus/rmcp) — R MCP Server
