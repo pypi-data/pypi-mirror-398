@@ -1,0 +1,198 @@
+[project]
+name = "hexswitch"
+version = "0.1.3"
+description = "Hexagonal runtime switchboard for config-driven microservices"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+keywords = [
+    "hexagonal-architecture",
+    "microservices",
+    "runtime",
+    "adapter-pattern",
+    "ports-adapters",
+    "http",
+    "grpc",
+    "websocket",
+    "mcp",
+    "fastapi",
+    "opentelemetry",
+]
+authors = [
+    {name = "HexSwitch Contributors"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: System :: Networking",
+]
+dependencies = [
+    "requests>=2.31.0",
+    "grpcio>=1.60.0",
+    "grpcio-tools>=1.60.0",
+    "websockets>=12.0",
+    # OpenTelemetry
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp>=1.20.0",
+    "opentelemetry-semantic-conventions>=0.60b0",
+    "opentelemetry-instrumentation-fastapi>=0.42b0",
+    # FastAPI
+    "fastapi>=0.104.0",
+    "httpx>=0.25.0",
+    "uvicorn[standard]>=0.24.0",
+    # Pydantic
+    "pydantic>=2.5.0",
+    # NATS
+    "nats-py>=2.6.0",
+]
+
+# Project URLs
+[project.urls]
+Homepage = "https://r0bes.github.io/hexSwitch/"
+Documentation = "https://r0bes.github.io/hexSwitch/"
+Repository = "https://github.com/R0bes/hexSwitch"
+Issues = "https://github.com/R0bes/hexSwitch/issues"
+
+[project.scripts]
+hexswitch = "hexswitch.app:main"
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.1.0",
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-timeout>=2.1.0",
+    "pytest-order>=1.0.0",
+    "pytest-xdist>=3.0.0",
+    "mypy>=1.5.0",
+    "radon>=6.0.0",
+    "typer>=0.9.0",
+    "tomli>=2.0.0; python_version < '3.11'",
+    "tomli-w>=1.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+hexswitch = ["py.typed"]
+
+[tool.ruff]
+line-length = 200
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+force-wrap-aliases = true
+known-first-party = ["hexswitch"]
+split-on-trailing-comma = true
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # unused imports in __init__.py are common
+"tests/**/*.py" = ["B017", "B011", "E402", "F841"]  # pytest patterns and test-specific patterns
+"visual-test-lab/**/*.py" = ["F401"]  # unused imports in test scripts
+"src/hexswitch/ports/*.py" = ["F821"]  # forward references in type hints
+"src/hexswitch/runtime.py" = ["B023"]  # loop variable binding in closures
+"src/hexswitch/adapters/websocket/outbound_adapter.py" = ["B904"]  # exception chaining
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# Configure asyncio mode for pytest-asyncio (required for parallel execution)
+asyncio_mode = "auto"
+addopts = [
+    "--strict-markers",
+    "--cov=src/hexswitch",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--cov-report=html",
+    # Parallel execution (only if pytest-xdist is installed)
+    # Use -n 0 to disable or -n <num> to override
+    "-n", "auto",
+    "--dist=loadscope",  # Group tests by class/module for better isolation
+    "--maxfail=5",  # Stop after 5 failures for faster feedback
+    # Filter RuntimeWarning for unawaited coroutines from AsyncMock garbage collection
+    # (Also handled in conftest.py for more reliable filtering)
+    "-W", "ignore:coroutine.*was never awaited:RuntimeWarning",
+    "-W", "ignore::RuntimeWarning:_pytest.unraisableexception",
+]
+markers = [
+    "basic: Basic tests (run first)",
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "e2e: End-to-end tests (run last)",
+    "docker: Docker integration tests",
+    "timeout: Test timeout marker (requires pytest-timeout)",
+    "asyncio: Async tests (requires pytest-asyncio)",
+    "order: Test ordering (requires pytest-order)",
+    "fast: Fast tests (< 1s)",
+    "security: Security-focused tests",
+    "stress: Stress and robustness tests",
+    "slow: Slow tests (< 60s)",
+    "edge_cases: Edge case tests",
+]
+
+[tool.coverage.run]
+source = ["src/hexswitch"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+fail_under = 80
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+
+[tool.radon]
+exclude = [
+    "tests/*",
+    "*/test_*.py",
+]
+
