@@ -1,0 +1,58 @@
+import warnings
+
+from v0.relationalai.semantics.metamodel import (types, util, ir, factory, helpers, builtins, compiler, executor, dependency,
+                                              Node, Model, Capability, Engine, Type, ScalarType, ListType, UnionType,
+                                              Field, Relation, Task, Logical, Union, Sequence, Match, Until, Wait, Not,
+                                              Exists, ForAll, Loop, Break, Var, Literal, Value, Annotation, Effect,
+                                              Update, Lookup, Output, Construct, Aggregate)
+
+__all__ = [
+    "types",
+    "util",
+    "ir",
+    "factory",
+    "helpers",
+    "builtins",
+    "compiler",
+    "executor",
+    "dependency",
+    "Node",
+    "Model",
+    "Capability",
+    "Engine",
+    "Type",
+    "ScalarType",
+    "ListType",
+    "UnionType",
+    "Field",
+    "Relation",
+    "Task",
+    "Logical",
+    "Union",
+    "Sequence",
+    "Match",
+    "Until",
+    "Wait",
+    "Not",
+    "Exists",
+    "ForAll",
+    "Loop",
+    "Break",
+    "Var",
+    "Literal",
+    "Value",
+    "Annotation",
+    "Effect",
+    "Update",
+    "Lookup",
+    "Output",
+    "Construct",
+    "Aggregate",
+]
+
+warnings.warn(
+    "relationalai.early_access.metamodel.* is deprecated. "
+    "Please migrate to relationalai.semantics.metamodel.*",
+    DeprecationWarning,
+    stacklevel=2,
+)
