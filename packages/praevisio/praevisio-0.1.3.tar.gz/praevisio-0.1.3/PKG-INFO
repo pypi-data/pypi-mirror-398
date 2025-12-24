@@ -1,0 +1,270 @@
+Metadata-Version: 2.4
+Name: praevisio
+Version: 0.1.3
+Summary: A CLI tool for AI governance through verifiable promises.
+Project-URL: Homepage, https://praevisio.promise.foundation
+Project-URL: Repository, https://github.com/Promise-Foundation/praevisio
+Author: Praevisio Maintainers
+License-File: LICENSE
+Classifier: License :: Other/Proprietary License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.9
+Requires-Dist: abductio-core>=0.1.1
+Requires-Dist: pytest>=7.4
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: semgrep
+Requires-Dist: typer>=0.12
+Description-Content-Type: text/markdown
+
+# praevisio
+
+A CLI tool for AI governance through verifiable promises.
+
+This repository follows Readme-Driven Development and an outside-in approach. The white paper is the source of truth for behavior and outcomes we intend to deliver; we implement from the boundary inward until the tool matches the spec.
+
+- White paper: docs/white-paper.md (rendered by Sphinx)
+- Built docs entry point: docs/index.md
+
+## Install (PyPI)
+
+```bash
+pip install praevisio
+```
+
+Create a config:
+
+```bash
+praevisio install --config-path .praevisio.yaml
+```
+
+Run an evaluation:
+
+```bash
+praevisio evaluate-commit . --config .praevisio.yaml --json
+```
+
+Run the CI gate:
+
+```bash
+praevisio ci-gate --config .praevisio.yaml --severity high --fail-on-violation
+```
+
+## CI quickstart
+
+Example GitHub Actions workflow:
+
+```yaml
+name: Praevisio Governance Gate
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  governance-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install praevisio
+          npm install -g promptfoo
+      - name: Generate config if missing
+        run: |
+          praevisio install --config-path .praevisio.yaml
+      - name: Run governance gate
+        run: |
+          praevisio ci-gate \
+            --severity high \
+            --fail-on-violation \
+            --output logs/ci-gate-report.json \
+            --config .praevisio.yaml
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: praevisio-run
+          path: |
+            logs/ci-gate-report.json
+            .praevisio/runs/**
+```
+
+## .praevisio.yaml template
+
+```yaml
+evaluation:
+  promise_id: llm-input-logging
+  threshold: 0.95
+  severity: high
+  thresholds:
+    high: 0.95
+    medium: 0.90
+  pytest_targets:
+    - tests/test_logging.py
+  semgrep_rules_path: governance/evidence/semgrep_rules.yaml
+  semgrep_callsite_rule_id: llm-call-site
+  semgrep_violation_rule_id: llm-call-must-log
+  run_dir: .praevisio/runs
+hooks: []
+```
+
+## Quickstart (uv)
+
+0) Install uv (see https://docs.astral.sh/uv/)
+
+1) Create a virtual environment and install dependencies
+
+- uv venv
+- uv sync --all-groups  # installs docs dependencies too
+
+2) Build the docs
+
+- uv run sphinx-build -b html docs docs/_build/html
+- Open docs/_build/html/index.html in your browser
+
+## Alternative (pip/venv)
+
+1) Create and activate a virtual environment
+
+- macOS/Linux
+  - python3 -m venv .venv
+  - source .venv/bin/activate
+- Windows (PowerShell)
+  - py -3 -m venv .venv
+  - .venv\Scripts\Activate.ps1
+
+2) Install dependencies
+
+- pip install -e .
+
+3) Build the docs
+
+- make -C docs html
+- Open docs/_build/html/index.html in your browser
+
+## Build and publish (uv)
+
+- Build artifacts (sdist/wheel):
+  - uv build
+- Publish to PyPI (requires a token):
+  - uv publish --token $PYPI_API_TOKEN
+
+## Architecture overview
+
+Layers
+- Domain (src/praevisio/domain): Core concepts and rules
+  - Entities: EvaluationResult, StaticAnalysisResult, CommitContext
+  - Value Objects: HookType, ExitCode, FilePattern
+  - Ports: StaticAnalyzer, TestRunner, ConfigLoader, PromiseLoader
+- Application (src/praevisio/application): Use cases/orchestration
+  - EvaluationService: evidence collection + ABDUCTIO evaluation
+  - PraevisioEngine: orchestration and gating
+  - InstallationService: write a default .praevisio.yaml
+  - services.py: compatibility re-exports for older imports
+- Infrastructure (src/praevisio/infrastructure): Adapters to ports
+  - SemgrepStaticAnalyzer, SubprocessPytestRunner, YamlConfigLoader, YamlPromiseLoader
+  - EvidenceStore for audit artifacts
+- Presentation (src/praevisio/presentation): CLI
+  - Typer-based CLI (praevisio). Commands map to application services
+
+Configuration as a domain concept
+- Canonical file: .praevisio.yaml
+- Example:
+
+  evaluation:
+    promise_id: llm-input-logging
+    threshold: 0.95
+    pytest_targets:
+      - tests/test_logging.py
+    semgrep_rules_path: governance/evidence/semgrep_rules.yaml
+    semgrep_callsite_rule_id: llm-call-site
+    semgrep_violation_rule_id: llm-call-must-log
+  hooks: []
+
+Error handling
+- Configuration errors are surfaced by the CLI with non-zero exit codes.
+- Evaluation errors surface in the JSON output under `details.promise_error` or tool-specific error fields.
+
+Dependency injection
+- Application services accept ports via constructor injection for easy testing and swapping infrastructure adapters.
+
+## BDD with Behave
+
+- Install dev dependencies (includes behave):
+  - uv sync --group dev  # or uv sync --all-groups
+- Run the feature tests:
+  - uv run behave -f progress
+
+Example feature implemented
+- Run pre-commit hooks: Skip hooks when no files match pattern
+  - Given a repository with staged Python files (only .py)
+  - And a hook configured for "*.js"
+  - When I run pre-commit hooks
+  - Then the hook should be skipped
+
+Architecture notes:
+- The project uses a layered architecture:
+  - domain: core business objects and abstractions (no infra/presentation deps)
+  - application: orchestrates use cases via domain and ports
+  - infrastructure: adapter implementations (e.g., repositories)
+  - presentation: CLI/HTTP adapters (to be added)
+- Application services return domain objects or simple data structures, keeping them reusable across interfaces.
+
+CLI entry point
+- praevisio (Typer-based):
+  - praevisio install --config .praevisio.yaml
+  - praevisio evaluate-commit . --config .praevisio.yaml --json
+  - praevisio ci-gate --config .praevisio.yaml --severity high --fail-on-violation
+  - praevisio replay-audit --latest
+  - python -m praevisio
+
+
+## Development approach
+
+- Readme-Driven Development: We capture intent and interfaces up front in this README and the white paper. We will keep both current as we iterate.
+- Outside-in: We will define user-visible CLI behavior first, then drive implementation via tests and thin slices until the internals satisfy the external contracts.
+- Documentation-first: Sphinx is set up from day one; every significant change should be reflected in the docs.
+
+## Documentation system
+
+- Sphinx with MyST Markdown allows us to keep the white paper in Markdown while using Sphinx features.
+- Theme: sphinx_rtd_theme
+- Extensions enabled for future self-documentation work:
+  - autodoc and napoleon (for API docs from docstrings)
+  - viewcode (source links)
+  - todo (TODO directives can be toggled in output)
+  - autosectionlabel (stable xrefs)
+  - intersphinx (cross-project linking)
+
+Structure:
+- docs/index.md: Site landing page and ToC
+- docs/white-paper.md: Includes the white_paper.md via Sphinx include
+- white_paper.md: Your authored white paper at the repo root
+
+Build commands:
+- make -C docs html
+- Or directly: sphinx-build -b html docs docs/_build/html
+
+## Next steps (planned)
+
+- Multi-promise evaluation and per-promise gating
+- Collector plugins beyond pytest/semgrep
+- Calibrated evidence weighting and tuning guides
+
+## Contributing
+
+- Keep changes small and focused on an outcome.
+- Update docs alongside code changes. If an interface changes, update examples in the README and white paper sections that reference it.
+- Prefer tests that exercise the CLI surface area.
+
+## License
+
+- TBD by the repository owner. No license is included yet.
