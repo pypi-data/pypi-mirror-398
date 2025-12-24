@@ -1,0 +1,54 @@
+
+MAX_FILE_DESCRIPTORS = $OPEN_FILES
+
+CCB_HEARTBEAT_INTERVAL = 90
+
+# IDTOKENS
+# use security:get_htcondor_idtokens
+use security:recommended_v9_0
+SEC_DEFAULT_AUTHENTICATION_METHODS = FS_REMOTE, IDTOKENS, FS
+SEC_READ_AUTHENTICATION_METHODS = FS_REMOTE, IDTOKENS, FS
+# FS_REMOTE_DIR = /sdf/home/d/daues/condor-authenticate
+FS_REMOTE_DIR = /sdf/group/rubin/services/htcondor/shared
+
+SEC_TOKEN_DIRECTORY=$USERHOME/condor/tokens.d/
+SEC_PASSWORD_DIRECTORY=$USERHOME/condor/passwords.d/
+SEC_TOKEN_POOL_SIGNING_KEY_FILE=$USERHOME/condor/passwords.d/s3df_token_key
+
+ALLOW_READ = *
+ALLOW_WRITE = *
+ALLOW_DAEMON = *
+ALLOW_ADMINISTRATOR = $USER_NAME@sdfmilan*.sdf.slac.stanford.edu/sdfiana012.sdf.slac.stanford.edu
+ALLOW_ADMINISTRATOR = $(ALLOW_ADMINISTRATOR), $USER_NAME@sdfmilan*.sdf.slac.stanford.edu/sdfiana013.sdf.slac.stanford.edu
+ALLOW_ADMINISTRATOR = $(ALLOW_ADMINISTRATOR), $USER_NAME@sdfmilan*.sdf.slac.stanford.edu/sdfiana014.sdf.slac.stanford.edu
+ALLOW_ADMINISTRATOR = $(ALLOW_ADMINISTRATOR), $USER_NAME@sdfmilan*.sdf.slac.stanford.edu/sdfiana028.sdf.slac.stanford.edu
+ALLOW_ADMINISTRATOR = $(ALLOW_ADMINISTRATOR), $USER_NAME@sdfmilan*.sdf.slac.stanford.edu/sdfiana029.sdf.slac.stanford.edu
+ALLOW_ADMINISTRATOR = $(ALLOW_ADMINISTRATOR), $USER_NAME@sdfmilan*.sdf.slac.stanford.edu/sdfiana030.sdf.slac.stanford.edu
+ALLOW_ADMINISTRATOR = $(ALLOW_ADMINISTRATOR), $USER_NAME@sdfmilan*.sdf.slac.stanford.edu/sdfiana031.sdf.slac.stanford.edu
+ALLOW_ADMINISTRATOR = $(ALLOW_ADMINISTRATOR), $USER_NAME@sdfmilan*.sdf.slac.stanford.edu/sdfiana032.sdf.slac.stanford.edu
+ALLOW_ADMINISTRATOR = $(ALLOW_ADMINISTRATOR), $USER_NAME@sdfmilan*.sdf.slac.stanford.edu/sdfiana033.sdf.slac.stanford.edu
+ALLOW_ADMINISTRATOR = $(ALLOW_ADMINISTRATOR), $USER_NAME@sdfmilan*.sdf.slac.stanford.edu/sdfiana034.sdf.slac.stanford.edu
+ALLOW_ADMINISTRATOR = $(ALLOW_ADMINISTRATOR), $USER_NAME@sdfmilan*.sdf.slac.stanford.edu/sdfiana035.sdf.slac.stanford.edu
+
+use role:execute
+
+AUTO_INCLUDE_SHARED_PORT_IN_DAEMON_LIST=False
+USE_SHARED_PORT=False
+
+# START = ( (Owner == "$USER_NAME") && (JOB_NODE_SET ==  "$NODE_SET" ) )
+# START = (Owner == "$USER_NAME")
+
+$DYNAMIC_SLOTS_BLOCK
+
+$PACK_BLOCK
+
+STARTD_NOCLAIM_SHUTDOWN=$GLIDEIN_SHUTDOWN
+
+STARTD_ATTRS = ALLOCATED_NODE_SET
+
+# hold jobs that the startd detects have exceeded assigned memory
+MEMORY_EXCEEDED = ((MemoryUsage > Memory) =!= TRUE)
+WANT_HOLD = $(MEMORY_EXCEEDED)
+WANT_HOLD_REASON = ifThenElse( $(MEMORY_EXCEEDED), \
+               "Your job used too much virtual memory.", \
+               undefined )

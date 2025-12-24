@@ -1,0 +1,97 @@
+#!/bin/bash -l
+nodeset=$NODE_SET
+numcpus=$CPUS
+
+export VERY_RNUM=$RANDOM
+
+if [ $COLLECTOR ]; then
+    echo "COLLECTOR is set."
+    export RUBIN_COLLECTOR_HOST=$COLLECTOR
+else
+    echo "COLLECTOR is empty; using USDF default"
+    export RUBIN_COLLECTOR_HOST="sdfiana012.sdf.slac.stanford.edu"
+fi
+
+export RUBIN_COLLECTOR_PORT=$CPORT
+echo "Using RUBIN_COLLECTOR_HOST $RUBIN_COLLECTOR_HOST"
+echo "Using RUBIN_COLLECTOR_PORT $RUBIN_COLLECTOR_PORT"
+
+echo USER_NAME
+echo $USER_NAME
+myuser=$USER_NAME
+echo ${myuser}
+
+myhost=`hostname`
+echo ${myhost}
+
+# NEW
+# REMOTE_DIR=$LOCAL_SCRATCH/$CONFIGURATION_ID/${myhost}
+REMOTE_DIR=$LOCAL_SCRATCH/$DATE_STRING/$CONFIGURATION_ID/${myhost}/${VERY_RNUM}
+mkdir -p ${REMOTE_DIR}/config
+mkdir -p ${REMOTE_DIR}/log
+mkdir -p ${REMOTE_DIR}/spool
+EXEC_DIR=${LSCRATCH}/slurm_job_id_${SLURM_JOB_ID}/condor/execute
+mkdir -p ${EXEC_DIR}
+
+# NEW
+# cp $SCRATCH_DIR/configs/$GENERATED_CONFIG ${REMOTE_DIR}/config/$GENERATED_CONFIG
+cp $LOCAL_SCRATCH/$DATE_STRING/$CONFIGURATION_ID/configs/$GENERATED_CONFIG ${REMOTE_DIR}/config/$GENERATED_CONFIG
+condorConfig="${REMOTE_DIR}/config/$GENERATED_CONFIG"
+
+condorLocal=${REMOTE_DIR}
+
+echo ${condorConfig}
+
+
+export CONDOR_CONFIG=${condorConfig}
+
+export _condor_LOCAL_DIR=${condorLocal}
+export _condor_EXECUTE=${EXEC_DIR}
+export _condor_MAXJOBRETIREMENTTIME=43200
+export _condor_COLLECTOR_PORT=${RUBIN_COLLECTOR_PORT}
+export _condor_CONDOR_HOST=${RUBIN_COLLECTOR_HOST}
+export _condor_COLLECTOR_HOST=${RUBIN_COLLECTOR_HOST}
+export _condor_CCB_ADDRESS=${RUBIN_COLLECTOR_HOST}
+
+export RELEASE_DIR=/sdf/group/rubin/sw/htcondor
+export _CONDOR_RELEASE_DIR=${RELEASE_DIR}
+export _CONDOR_SBIN=${RELEASE_DIR}/sbin
+export _CONDOR_FILETRANSFER_PLUGINS=${RELEASE_DIR}/libexec/curl_plugin
+
+# export _CONDOR_STARTD_RESOURCE_PREFIX=slot_${VERY_RNUM}_
+export _CONDOR_STARTD_RESOURCE_PREFIX=slot_${myuser}_${VERY_RNUM}_
+
+SPAN_MEMORY=1000
+LOWER_BOUND=$((SLURM_MEM_PER_NODE - SPAN_MEMORY))
+UPPER_BOUND=$((SLURM_MEM_PER_NODE + SPAN_MEMORY))
+common_job_name=glide_${myuser}
+if [ $SLURM_JOB_NAME == ${common_job_name} ]; then
+   export _CONDOR_START="(Owner == \"${myuser}\")"
+else
+   export _CONDOR_START="(Owner == \"${myuser}\") && (RequestMemory>${LOWER_BOUND}) && (RequestMemory<${UPPER_BOUND})"
+fi
+echo _CONDOR_START
+echo ${_CONDOR_START}
+
+export GNUMCORES=$1
+export GMEM=$2
+
+####################################################################################
+
+myid=`id -u`
+mygp=`id -g`
+export _condor_CONDOR_IDS="${myid}.${mygp}"
+
+echo _condor_CONDOR_IDS
+echo ${_condor_CONDOR_IDS}
+
+###############################################################################
+# Start htcondor, in the foreground
+
+# echo "about to run condor_master"
+# exec ${_condor_SBIN}/condor_master -f -n ${USER}_${VERY_RNUM}
+
+export PATH=${CONDOR_ROOT}/sbin:${PATH}
+export PATH=${CONDOR_ROOT}/bin:${PATH}
+
+${_CONDOR_SBIN}/condor_master -f -n ${USER}_compute_condor_${VERY_RNUM}
