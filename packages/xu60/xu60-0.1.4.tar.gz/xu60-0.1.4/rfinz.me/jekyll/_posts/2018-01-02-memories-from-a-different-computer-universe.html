@@ -1,0 +1,170 @@
+---
+layout: wide
+title: Memories from a Different Computer Universe
+categories: technomancy
+---
+
+<div id="outline-container-orgdf136d3" class="outline-2">
+<h2 id="orgdf136d3">Memories from a Different Computer Universe</h2>
+<div class="outline-text-2" id="text-orgdf136d3">
+</div><div id="outline-container-org09bb173" class="outline-3">
+<h3 id="org09bb173">Part 1 - What do I remember?</h3>
+<div class="outline-text-3" id="text-org09bb173">
+<p>
+Since the 1970s, Ted Nelson's software teams have probably spent
+most of their time contemplating memory. By his own account, a team
+"bogged down over a four-year period as the group attempted to
+optimize the [ent] structure", which was used in one of Ted's
+hypertext systems.
+</p>
+
+<p>
+As far as I can tell, however, the zzstructured universe remains
+free of any memory mandate. Computers are fast now that it's 2017 (2018),
+and at least initially (and probably in perpetuity) this is a
+personal project, so I don't have to worry too much about
+performance.
+</p>
+
+<p>
+That said, I want a reliable and at least workably efficient way to
+serialize my topologies to disk and load them back up again. XML
+seems inefficient, though there was at least one mid-2000s attempt
+at software similar to this that could <i>load</i> XML(thornyscript?)
+into legitimate zzstructure (not that <i>my</i> different computer
+universe is identical to Ted's, but he's a big inspiration for the
+project, so, shoutout to Ted).
+</p>
+
+<p>
+I could rely on sqlite or mongo or some other database software to
+keep track of stuff when I'm not looking. Honestly, sqlite, despite
+then imposing structure on what is supposed to be mostly fluid,
+seems like a good option.
+</p>
+
+<p>
+I would need a way to create UUIDs for Cells, Dimensions, and
+Topologies, which, not coincidentally, would be our tables. Links
+(unlike in most of the <a href="http://cs.brown.edu/memex/ACM_HypertextTestbed/papers/60.html">Xanalogical</a> structures), are not first
+class, and so must be represented in a translation table that can
+bind two cells together over a link.
+</p>
+
+<p>
+Maybe that's not actually the best course of action, and the same can
+be achieved via the filesystem. Simple filenames for each cell, and
+predictable file contents that capture content and dimensional links
+would work just fine.
+</p>
+
+<p>
+I'm also pretty certain that I don't need to worry too much about
+ents, <a href="https://en.wikipedia.org/wiki/Enfilade_(Xanadu)">enfilades</a>, and such &#x2013; at least not initially. When the unit
+of editing I'm worried about is the <code>Cell</code>, I don't need to keep
+explicit track of individual bytes. I have some ideas for bytes,
+but that can wait.
+</p>
+</div>
+</div>
+
+<div id="outline-container-orgb2981c7" class="outline-3">
+<h3 id="orgb2981c7">Part 2 - Quick Implementation (Write)</h3>
+<div class="outline-text-3" id="text-orgb2981c7">
+<p>
+In order to get this project off the ground I'm going to go with the
+fastest (to implement) solution I can think of. I'm just going to
+write a single function to write files for each of the cells in the
+single dimension. Ultimately I'll keep track of all new and changed
+cells in a dedicated dimension called something like <code>d.dirty</code> so that
+I make sure I don't miss anything.
+</p>
+
+<p>
+I can implement something more complicated later. This is elegant, at
+least, and I won't waste too much time worrying about the nits and
+grits of it.
+</p>
+
+<p>
+Classic UUIDs still make decent filenames, and it gives me a way to
+easily disambiguate cells and reference them outside of my little
+zzstructured universe as well. I'd like to use domain based UUIDs
+eventually, but random works just fine for now. There's a Rust crate
+for the Uuids, and version 4 is random bits.
+</p>
+
+<p>
+Here's the file format I'd like to use:
+</p>
+
+<pre class="example">
+ContentType
+Content
+negward-&gt;Dimension1-&gt;posward
+negward-&gt;Dimension2-&gt;posward
+negward-&gt;Dimension3-&gt;posward
+...
+</pre>
+
+<p>
+Human readable, relatively semantic, no frills. Not bad. Not good
+either, but, meh. I would love to implement something more performant
+in the future. We'll see.
+</p>
+
+<p>
+Getting this done isn't so bad. Writing out can be gradual, and there
+aren't many contingencies to plan for at this stage.
+</p>
+
+<p>
+Reading, however&#x2026;
+</p>
+</div>
+</div>
+
+<div id="outline-container-orgaa84934" class="outline-3">
+<h3 id="orgaa84934">Part 3 - See, the thing is (Read)</h3>
+<div class="outline-text-3" id="text-orgaa84934">
+<p>
+Okay, so writing can be gradual, but reading has to create valid
+links&#x2013; which means that I either have to fully load the <code>Cell</code> on the
+<i>other side</i> of that link, or I have to build the infrastructure for
+some sort of "preloaded" state. Let me know if there are more options
+that I haven't thought of.
+</p>
+
+<p>
+I think to "preload", I can create a new member of the <code>enum CellType</code>
+that encapsulates that idea. I can then create new <code>Cells</code> with the
+Uuids that I loaded from the file format I specified above, and
+whenever the final programs hit a <code>Cell</code> with <code>CellType</code> "preloaded",
+it can be smart enough to request the rest of that <code>Cell</code> and update
+the <code>CellType</code> to whatever the file specifies. Again, this isn't
+rocket science.
+</p>
+
+<p>
+This solution works. It's a very general solution, and should
+minimally meet the needs of any front end that my stupid dumb hands
+can write. Next time I'll work on some sort of socket server for this
+thing, and implement the logic to actually run something zzstructured
+(and xanalogical?).
+</p>
+
+<p>
+For now, all of these memories exist in their own <a href="https://github.com/rfinz/slumberland/blob/master/memories/src/lib.rs">module.</a>
+</p>
+</div>
+</div>
+
+<div id="outline-container-org6422e36" class="outline-3">
+<h3 id="org6422e36">Part 4 - So what does this get us?</h3>
+<div class="outline-text-3" id="text-org6422e36">
+<p>
+Very little. Another step done.
+</p>
+</div>
+</div>
+</div>

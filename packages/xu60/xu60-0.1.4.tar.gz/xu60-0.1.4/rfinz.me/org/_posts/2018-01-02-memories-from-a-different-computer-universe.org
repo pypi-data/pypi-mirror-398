@@ -1,0 +1,123 @@
+#+STARTUP: showall indent
+#+STARTUP: hidestars
+#+OPTIONS: H:2 num:nil tags:nil toc:nil timestamps:nil
+#+BEGIN_EXPORT html
+---
+layout: wide
+title: Memories from a Different Computer Universe
+categories: technomancy
+---
+#+END_EXPORT
+
+* Memories from a Different Computer Universe
+
+** Part 1 - What do I remember?
+
+Since the 1970s, Ted Nelson's software teams have probably spent
+most of their time contemplating memory. By his own account, a team
+"bogged down over a four-year period as the group attempted to
+optimize the [ent] structure", which was used in one of Ted's
+hypertext systems.
+
+As far as I can tell, however, the zzstructured universe remains
+free of any memory mandate. Computers are fast now that it's 2017 (2018),
+and at least initially (and probably in perpetuity) this is a
+personal project, so I don't have to worry too much about
+performance.
+
+That said, I want a reliable and at least workably efficient way to
+serialize my topologies to disk and load them back up again. XML
+seems inefficient, though there was at least one mid-2000s attempt
+at software similar to this that could /load/ XML(thornyscript?)
+into legitimate zzstructure (not that /my/ different computer
+universe is identical to Ted's, but he's a big inspiration for the
+project, so, shoutout to Ted).
+
+I could rely on sqlite or mongo or some other database software to
+keep track of stuff when I'm not looking. Honestly, sqlite, despite
+then imposing structure on what is supposed to be mostly fluid,
+seems like a good option.
+
+I would need a way to create UUIDs for Cells, Dimensions, and
+Topologies, which, not coincidentally, would be our tables. Links
+(unlike in most of the [[http://cs.brown.edu/memex/ACM_HypertextTestbed/papers/60.html][Xanalogical]] structures), are not first
+class, and so must be represented in a translation table that can
+bind two cells together over a link.
+
+Maybe that's not actually the best course of action, and the same can
+be achieved via the filesystem. Simple filenames for each cell, and
+predictable file contents that capture content and dimensional links
+would work just fine.
+
+I'm also pretty certain that I don't need to worry too much about
+ents, [[https://en.wikipedia.org/wiki/Enfilade_(Xanadu)][enfilades]], and such -- at least not initially. When the unit
+of editing I'm worried about is the =Cell=, I don't need to keep
+explicit track of individual bytes. I have some ideas for bytes,
+but that can wait.
+
+** Part 2 - Quick Implementation (Write)
+
+In order to get this project off the ground I'm going to go with the
+fastest (to implement) solution I can think of. I'm just going to
+write a single function to write files for each of the cells in the
+single dimension. Ultimately I'll keep track of all new and changed
+cells in a dedicated dimension called something like =d.dirty= so that
+I make sure I don't miss anything.
+
+I can implement something more complicated later. This is elegant, at
+least, and I won't waste too much time worrying about the nits and
+grits of it.
+
+Classic UUIDs still make decent filenames, and it gives me a way to
+easily disambiguate cells and reference them outside of my little
+zzstructured universe as well. I'd like to use domain based UUIDs
+eventually, but random works just fine for now. There's a Rust crate
+for the Uuids, and version 4 is random bits.
+
+Here's the file format I'd like to use:
+
+#+BEGIN_SRC
+ContentType
+Content
+negward->Dimension1->posward
+negward->Dimension2->posward
+negward->Dimension3->posward
+...
+#+END_SRC
+
+Human readable, relatively semantic, no frills. Not bad. Not good
+either, but, meh. I would love to implement something more performant
+in the future. We'll see.
+
+Getting this done isn't so bad. Writing out can be gradual, and there
+aren't many contingencies to plan for at this stage.
+
+Reading, however...
+
+** Part 3 - See, the thing is (Read)
+
+Okay, so writing can be gradual, but reading has to create valid
+links-- which means that I either have to fully load the =Cell= on the
+/other side/ of that link, or I have to build the infrastructure for
+some sort of "preloaded" state. Let me know if there are more options
+that I haven't thought of.
+
+I think to "preload", I can create a new member of the =enum CellType=
+that encapsulates that idea. I can then create new =Cells= with the
+Uuids that I loaded from the file format I specified above, and
+whenever the final programs hit a =Cell= with =CellType= "preloaded",
+it can be smart enough to request the rest of that =Cell= and update
+the =CellType= to whatever the file specifies. Again, this isn't
+rocket science.
+
+This solution works. It's a very general solution, and should
+minimally meet the needs of any front end that my stupid dumb hands
+can write. Next time I'll work on some sort of socket server for this
+thing, and implement the logic to actually run something zzstructured
+(and xanalogical?).
+
+For now, all of these memories exist in their own [[https://github.com/rfinz/slumberland/blob/master/memories/src/lib.rs][module.]]
+
+** Part 4 - So what does this get us?
+
+Very little. Another step done.

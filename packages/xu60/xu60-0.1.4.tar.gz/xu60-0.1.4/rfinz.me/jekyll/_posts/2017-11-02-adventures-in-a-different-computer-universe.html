@@ -1,0 +1,260 @@
+---
+layout: wide
+title: Adventures in a Different Computer Universe
+categories: technomancy
+---
+
+<div id="outline-container-org5a704e9" class="outline-2">
+<h2 id="org5a704e9">Adventures in a Different Computer Universe</h2>
+<div class="outline-text-2" id="text-org5a704e9">
+</div><div id="outline-container-org31d5a62" class="outline-3">
+<h3 id="org31d5a62">Part 1 - What's the idea here?</h3>
+<div class="outline-text-3" id="text-org31d5a62">
+<p>
+The great <a href="http://ted.hyperland.com/">Ted Nelson</a>, now a ripe 80 years old, has spent the better
+part of 60 years detailing a new and exciting computer universe. He's
+managed teams, written books, and published papers about the technical
+details, overall feel, goals of the project, and the obstacles that
+blocked the path to implementation. He's written and spoken at length
+about the political and artistic decisions that have made computers
+and technology what they are today. I won't rehash too much of what
+he's said &#x2013; there are much more reliable sources than me, and many of
+the ideas are available straight from the horse's mouth, so to
+speak. If you're interested in Ted's life story, general attitude, and
+understanding, I'd recommend his recent video <a href="https://www.youtube.com/watch?v=mmfjM-SGlGs">Here I Stand, at Age 80</a>,
+and his series <a href="https://www.youtube.com/watch?v=KdnGPQaICjk">Computers for Cynics</a>. Further reading of his
+autobiography, <i>Possiplex</i>, and other miscellany is also highly
+recommended.
+</p>
+
+<p>
+The aspects of his work that I'll be exploring now are detailed
+explicitly in a few papers. There's <a href="http://cs.brown.edu/memex/ACM_HypertextTestbed/papers/60.html">Xanalogical Structure, Needed Now
+More Than Ever</a>, Ted Nelson's Phd thesis <i>Philosophy of Hypertext</i>, and
+the main design document for this series &#x2013; the titular paper &#x2013;
+<a href="http://xanadu.com/zigzag/ZZdnld/zzRefDef/">Cosmology for a Different Computer Universe</a>.
+</p>
+
+<p>
+Ted's computer universe does not hide the interconnected nature of
+knowledge. It blurs the lines between source and substance as
+references, transpointing windows, visible links, and infinite
+versioning collide. Books (and blogs) become a little less <a href="https://www.ribbonfarm.com/2017/06/01/why-books-are-fake/">fake</a>, and
+writing becomes a task of harnessing the infinite, rather than wending
+a narrow path through a wide reality.
+</p>
+
+<p>
+This is a big vision, and I'm not even going to <i>begin</i> to touch all
+of it in one blog post. What I'm going to do instead is implement just
+one small part: zzstructure. No views, no IO, nothing like that
+yet. Just going to get warmed up, get my toes wet, and make something
+that will be useful later.
+</p>
+
+<hr />
+
+<p>
+I have several big hurdles to overcome in order to commence this
+project:
+</p>
+
+<ol class="org-ol">
+<li>I'm not very smart</li>
+<li>I have no idea what I'm doing</li>
+</ol>
+
+<p>
+Since Ted Nelson's original vision for a zzstructured universe wishes
+for a program that lays alongside the operating system, I'll need to
+do some systems programming. I do not usually do systems
+programming. Fuck it. Let's try Rust. I've heard good things &#x2013; and
+maybe it'll stop me from breaking as much stuff as I would trying to
+write safe code in C. Another time.
+</p>
+
+<p>
+Of course, all bets are off as soon as I start using unsafe methods
+from the nightly builds in order to make Rust more pythonic so that I
+can wrap my tiny brain around it.
+</p>
+
+<p>
+Anyway. Let's state some expectations, starting with the ones I'll be
+implementing right now.
+</p>
+
+<ol class="org-ol">
+<li>zzstructured datatypes
+<ol class="org-ol">
+<li>cells</li>
+<li>links (implicit and anonymous)</li>
+<li>dimensions (axes upon which links are established)</li>
+<li>topology (contains the entire structure)</li>
+</ol></li>
+
+<li>utility functions for dealing with cells and links
+<ol class="org-ol">
+<li>iterate over the space</li>
+<li>insert "posward" in a dimension</li>
+<li>insert "negward" in a dimension</li>
+<li>delete cell and update neighbors</li>
+<li>update cell contents</li>
+</ol></li>
+
+<li>engine to "run" cells if that is their purpose</li>
+
+<li>way to serialize the entire topology to disk</li>
+
+<li>socket connection to data backend so that any UI can be generalized</li>
+</ol>
+
+<p>
+I'm going to call this project "Slumberland" after the ill fated anime
+<i>Little Nemo: Adventures in Slumberland</i> that was a staple of my
+childhood, and as a nod to the utopian pantheon that Ted Nelson
+established as the basis for his work on hypertext systems.
+</p>
+</div>
+</div>
+
+<div id="outline-container-orgc88a753" class="outline-3">
+<h3 id="orgc88a753">Part 2 - Rusty Beginnings</h3>
+<div class="outline-text-3" id="text-orgc88a753">
+<p>
+Items 1 and 2 seem like one discrete task that I can work on.
+</p>
+
+<p>
+First things first, Ted Nelson's zzstructure (despite any objections)
+is essentially, from an implementation standpoint, "doubly linked
+lists in n-dimensions," where any cell can be part of any list in any
+dimension at any time, but cells cannot exist more than once in a
+single dimension.
+</p>
+
+<p>
+Ted views this zzstructure as a generalization of spreadsheets, and I
+happen to agree with him. We've got <i>a)</i> dimensions as a semantic
+space, <i>b)</i> cells for content, and <i>c)</i> linearizability for
+comprehension.
+</p>
+
+<p>
+Regardless of what zzstructure is, building doubly-linked lists in
+Rust is Non-Trivial™, because of single ownership (a concept that
+keeps Rust memory-safe). Cells or nodes owning a "posward" cell and
+that "posward" cell owning the original cell right back via the
+"negward" link is #problematic.
+</p>
+
+<p>
+Here's some Rust-y pseudocode. If Rust were an interpreted language,
+we'd be done. It's not, so we're not. Also, ugh, I picked "cell" as
+one of these datatype's name. There's a <code>std::cell::*</code>, but please
+don't get mad. Maybe I'll change it in future versions.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-rust"><span style="color: #F0DFAF; font-weight: bold;">pub</span> <span style="color: #F0DFAF; font-weight: bold;">enum</span> <span style="color: #7CB8BB;">CellType</span> {
+    <span style="color: #7CB8BB;">Value</span>(<span style="color: #7CB8BB;">String</span>), <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">Text, Numeral, File, Image, etc.</span>
+    <span style="color: #7CB8BB;">Function</span>(<span style="color: #7CB8BB;">String</span>), <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">Transforms previous cell with code</span>
+    <span style="color: #7CB8BB;">Monad</span>(<span style="color: #7CB8BB;">String</span>), <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">Performs some cell-independent function ("side-effects")</span>
+    <span style="color: #7CB8BB;">Vertex</span> <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">Holds a place in a topology without representing data</span>
+    <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">More?</span>
+}
+
+<span style="color: #F0DFAF; font-weight: bold;">pub</span> <span style="color: #F0DFAF; font-weight: bold;">struct</span> <span style="color: #7CB8BB;">Cell</span> {
+    <span style="color: #DFAF8F;">posward</span>: <span style="color: #7CB8BB;">HashMap</span>&lt;<span style="color: #7CB8BB;">Dimension</span>, <span style="color: #7CB8BB;">Cell</span>&gt;, <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">Links to posward cells</span>
+    <span style="color: #DFAF8F;">negward</span>: <span style="color: #7CB8BB;">HashMap</span>&lt;<span style="color: #7CB8BB;">Dimension</span>, <span style="color: #7CB8BB;">Cell</span>&gt;, <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">Links to negward cells</span>
+    <span style="color: #DFAF8F;">content</span>: <span style="color: #7CB8BB;">CellType</span> <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">what's in the cell!?</span>
+}
+
+<span style="color: #F0DFAF; font-weight: bold;">pub</span> <span style="color: #F0DFAF; font-weight: bold;">struct</span> <span style="color: #7CB8BB;">Dimension</span>(<span style="color: #7CB8BB;">String</span>); <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">dimension can literally just be a String</span>
+
+<span style="color: #F0DFAF; font-weight: bold;">pub</span> <span style="color: #F0DFAF; font-weight: bold;">struct</span> <span style="color: #7CB8BB;">Topology</span> {
+    <span style="color: #DFAF8F;">d_cursor</span>: <span style="color: #7CB8BB;">Dimension</span>, <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">which dimension always links to the accursed cell?</span>
+    <span style="color: #DFAF8F;">accursed</span>: <span style="color: #7CB8BB;">Cell</span>, <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">that first cell</span>
+    <span style="color: #DFAF8F;">dimensions</span>: <span style="color: #7CB8BB;">Vec</span>&lt;<span style="color: #7CB8BB;">Dimension</span>&gt; <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">list(Vec) of all dimensions in the topology</span>
+}
+</pre>
+</div>
+
+<p>
+Let's use a Rust-y pattern to give us shared references to those
+attributes instead. There's <code>std::ptr::Shared</code>, but that's still
+experimental. The classic way to do it is with Reference Counted
+pointers and Reference Cells. You can learn about why <a href="https://doc.rust-lang.org/book/second-edition/ch15-05-interior-mutability.html">here.</a> Basically,
+though, we can pass around references and then borrow the data when we
+need to interact with it. Here are our datatypes now. I've added some
+derived traits for ease of use.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-rust"><span style="color: #94BFF3;">#[derive(Clone, Debug)]</span>
+<span style="color: #F0DFAF; font-weight: bold;">pub</span> <span style="color: #F0DFAF; font-weight: bold;">enum</span> <span style="color: #7CB8BB;">CellType</span> {
+    <span style="color: #7CB8BB;">Value</span>(<span style="color: #7CB8BB;">String</span>),
+    <span style="color: #7CB8BB;">Function</span>(<span style="color: #7CB8BB;">String</span>),
+    <span style="color: #7CB8BB;">Monad</span>(<span style="color: #7CB8BB;">String</span>),
+    <span style="color: #7CB8BB;">Vertex</span>
+}
+
+<span style="color: #94BFF3;">#[derive(Clone, Debug)]</span>
+<span style="color: #F0DFAF; font-weight: bold;">pub</span> <span style="color: #F0DFAF; font-weight: bold;">struct</span> <span style="color: #7CB8BB;">Cell</span> {
+    <span style="color: #DFAF8F;">posward</span>: <span style="color: #7CB8BB;">Option</span>&lt;<span style="color: #7CB8BB;">HashMap</span>&lt;<span style="color: #7CB8BB;">Dimension</span>, <span style="color: #7CB8BB;">Rc</span>&lt;<span style="color: #7CB8BB;">RefCell</span>&lt;<span style="color: #7CB8BB;">Cell</span>&gt;&gt;&gt;&gt;,
+    <span style="color: #DFAF8F;">negward</span>: <span style="color: #7CB8BB;">Option</span>&lt;<span style="color: #7CB8BB;">HashMap</span>&lt;<span style="color: #7CB8BB;">Dimension</span>, <span style="color: #7CB8BB;">Rc</span>&lt;<span style="color: #7CB8BB;">RefCell</span>&lt;<span style="color: #7CB8BB;">Cell</span>&gt;&gt;&gt;&gt;,
+    <span style="color: #DFAF8F;">content</span>: <span style="color: #7CB8BB;">CellType</span>
+}
+
+<span style="color: #94BFF3;">#[derive(Debug, Clone, PartialEq, Eq, Hash)]</span>
+<span style="color: #F0DFAF; font-weight: bold;">pub</span> <span style="color: #F0DFAF; font-weight: bold;">struct</span> <span style="color: #7CB8BB;">Dimension</span>(<span style="color: #7CB8BB;">String</span>);
+
+<span style="color: #F0DFAF; font-weight: bold;">pub</span> <span style="color: #F0DFAF; font-weight: bold;">struct</span> <span style="color: #7CB8BB;">Topology</span> {
+    <span style="color: #DFAF8F;">d_cursor</span>: <span style="color: #7CB8BB;">Dimension</span>,
+    <span style="color: #DFAF8F;">accursed</span>: <span style="color: #7CB8BB;">Rc</span>&lt;<span style="color: #7CB8BB;">RefCell</span>&lt;<span style="color: #7CB8BB;">Cell</span>&gt;&gt;,
+    <span style="color: #DFAF8F;">dimensions</span>: <span style="color: #7CB8BB;">Vec</span>&lt;<span style="color: #7CB8BB;">Dimension</span>&gt;
+}
+</pre>
+</div>
+
+<p>
+These are better! Done? Probably not, but they work! I've <a href="https://github.com/rfinz/slumberland/blob/master/zz/src/topology.rs">implemented</a>
+a few of the utility functions I mentioned above to confirm that I can
+build and move around a zzstructured data structure. Much of the
+design was informed by the <a href="https://doc.rust-lang.org/src/alloc/linked_list.rs.html">source code</a> for the new LinkedList
+collection type in the standard library. Everything had to be
+generalized into <i>n</i> dimensions, and I probably sacrificed on speed
+and efficiency to maintain safety. Keep in mind that this project is
+evolving continuously and names / implementations are unlikely to
+stick around for long. Also: I'm new to Rust, so I'll take
+suggestions.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org640356e" class="outline-3">
+<h3 id="org640356e">Part 3 - What does that get us?</h3>
+<div class="outline-text-3" id="text-org640356e">
+<p>
+Well, very little. I have a data structure. It was convoluted enough
+that despite my best efforts I understand pointers now, and I
+understand more of Rust. Next I'll have to serialize the datastructure
+to and from disk, so that a workspace can become "permanent". I really
+can't wait. This is an exciting project with exciting
+implications. Nelson's focus on mental constructs and how to represent
+them on the computer will never cease to intrigue and delight.
+</p>
+
+<p>
+I just hope that as I implement features the Rust can get Rustier and
+the structure can get Nelsonier along the way.
+</p>
+
+<hr />
+
+<p>
+<i>All code on this page is GPL v3, as per the license in my git repository</i>
+</p>
+</div>
+</div>
+</div>
