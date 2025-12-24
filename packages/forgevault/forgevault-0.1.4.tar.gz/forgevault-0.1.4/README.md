@@ -1,0 +1,434 @@
+<p align="center">
+  <img src="https://forgevault.netlify.app/logo.png" alt="ForgeVault" width="180">
+</p>
+
+<h1 align="center">ForgeVault Python SDK</h1>
+
+<p align="center">
+  <strong>Prompt management for production AI applications</strong>
+</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/forgevault/"><img src="https://img.shields.io/pypi/v/forgevault" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/forgevault/"><img src="https://img.shields.io/pypi/pyversions/forgevault" alt="Python versions"></a>
+  <img src="https://img.shields.io/badge/license-Proprietary-red" alt="License">
+</p>
+
+<p align="center">
+  <a href="https://forgevault.netlify.app">Website</a> •
+  <a href="https://forgevault.netlify.app/docs">Documentation</a> •
+  <a href="mailto:forgevault.app@gmail.com">Support</a>
+</p>
+
+---
+
+## What is ForgeVault?
+
+**ForgeVault** is a prompt management platform designed for teams building AI-powered applications. It solves the challenge of managing, versioning, and deploying prompts in production environments.
+
+### The Problem
+
+When building LLM applications, prompts are often:
+- Hardcoded in your codebase, requiring redeployment for every change
+- Scattered across multiple files with no version history
+- Difficult to test, compare, and iterate on
+- Impossible to collaborate on across team members
+
+### The Solution
+
+ForgeVault provides a centralized platform where you can:
+- **Create and edit prompts** with a dedicated UI
+- **Version control** every change with commit messages (like Git for prompts)
+- **Deploy instantly** - update prompts without redeploying your app
+- **Compare models** - test the same prompt across different LLMs
+- **Collaborate** - share prompts with your team with role-based access
+- **Monitor** - track token usage, costs, and performance
+
+---
+
+## Why Use This SDK?
+
+This Python SDK connects your application to ForgeVault, enabling you to:
+
+| Feature | Benefit |
+|---------|---------|
+| **Live Prompts** | Change prompts in ForgeVault UI → your app uses them instantly, no redeploy |
+| **Version Pinning** | Lock production to a specific version while iterating on development |
+| **Caching** | Built-in caching reduces API calls and latency |
+| **Fallback** | Offline fallback ensures your app works even if ForgeVault is unreachable |
+| **Streaming** | Real-time streaming support for LLM responses |
+| **Async Support** | Full async/await support for high-performance apps |
+| **CLI** | Command-line interface for testing and automation |
+
+---
+
+## Installation
+
+```bash
+# Core SDK
+pip install forgevault
+
+# With CLI support
+pip install forgevault[cli]
+```
+
+## Quick Start
+
+```python
+from forgevault import Forge
+
+# Initialize with your API key
+forge = Forge(api_key="fv_your_api_key")
+
+# Get a prompt by name
+prompt = forge.get_prompt(prompt_name="customer-support-reply")
+
+# Run with variables (model is required)
+response = prompt.run(
+    model="gpt-4o",
+    customer_name="Sarah",
+    issue="refund request"
+)
+
+print(response)
+```
+
+## Getting Your API Key
+
+1. Sign up at [forgevault.netlify.app](https://forgevault.netlify.app)
+2. Create a workspace and add your first prompt
+3. Go to **Settings → API Keys** and generate a new key
+4. Use the key with this SDK or set `FORGEVAULT_API_KEY` environment variable
+
+---
+
+## CLI Usage
+
+The SDK includes a command-line interface for managing prompts.
+
+### Setup
+
+```bash
+# Login (one time) - prompts for API key securely
+forgevault login
+
+# Check status
+forgevault whoami
+```
+
+### Commands
+
+```bash
+# List all prompts
+forgevault list
+
+# Get prompt details
+forgevault get "My Prompt Name"
+forgevault get "My Prompt Name" --full    # Show full content
+forgevault get "My Prompt Name" --json    # JSON output
+
+# Run a prompt
+forgevault run "My Prompt Name" --model gpt-4o --var "input=hello world"
+forgevault run "My Prompt Name" -m gpt-4o -V "name=John" -V "query=test"
+forgevault run "My Prompt Name" --model gpt-4o --stream  # Stream output
+
+# Render without executing (preview)
+forgevault render "My Prompt Name" --var "input=test"
+
+# View prompt version history
+forgevault prompt-versions "My Prompt Name"
+
+# Cache management
+forgevault cache clear
+forgevault cache stats
+
+# Logout
+forgevault logout
+```
+
+### Environment Variables
+
+```bash
+export FORGEVAULT_API_KEY=fv_your_api_key
+```
+
+---
+
+## Configuration
+
+```python
+from forgevault import Forge
+
+forge = Forge(
+    api_key="fv_xxx",           # Required (or set FORGEVAULT_API_KEY, or use 'forgevault login')
+    timeout=120,                # Request timeout in seconds (default: 120)
+    cache_ttl=300,              # Cache TTL in seconds (default: 300)
+    cache_enabled=True,         # Enable caching (default: True)
+    fallback_enabled=True,      # Enable offline fallback (default: True)
+)
+```
+
+---
+
+## Usage
+
+### Fetch by ID or Name
+
+```python
+# By name
+prompt = forge.get_prompt(prompt_name="email-classifier")
+
+# By ID
+prompt = forge.get_prompt(prompt_id="507f1f77bcf86cd799439011")
+
+# Specific version
+prompt = forge.get_prompt(prompt_name="email-classifier", version="abc123")
+```
+
+### Run a Prompt
+
+```python
+# Using prompt object (model is required)
+prompt = forge.get_prompt(prompt_name="my-prompt")
+result = prompt.run(
+    model="gpt-4o",
+    email_content="I want a refund"
+)
+
+# With temperature and max_tokens
+result = prompt.run(
+    model="gpt-4o",
+    email_content="I want a refund",
+    temperature=0.7,
+    max_tokens=500
+)
+```
+
+### Run Directly (Without Getting Prompt First)
+
+```python
+# Run by prompt name
+result = forge.run_prompt(
+    model="gpt-4o",
+    prompt_name="email-classifier",
+    variables={"email_content": "I want a refund"}
+)
+
+# Run by prompt ID
+result = forge.run_prompt(
+    model="gpt-4o",
+    prompt_id="507f1f77bcf86cd799439011",
+    variables={"email_content": "I want a refund"}
+)
+
+# With version and overrides
+result = forge.run_prompt(
+    model="gpt-4o",
+    prompt_name="email-classifier",
+    variables={"email_content": "I want a refund"},
+    version="abc123",
+    temperature=0.5
+)
+```
+
+### Render Without Executing
+
+```python
+# Get formatted messages (OpenAI format)
+messages = prompt.render(email_content="I want a refund")
+# Returns: {"messages": [{"role": "system", "content": "..."}, ...]}
+
+# Or render directly
+messages = forge.render_prompt(
+    prompt_name="email-classifier",
+    variables={"email_content": "I want a refund"}
+)
+```
+
+### List All Prompts
+
+```python
+prompts = forge.list_prompts()
+for p in prompts:
+    print(f"{p['name']} - {p['version']}")
+```
+
+### Get Version History
+
+```python
+versions = forge.get_versions(prompt_name="my-prompt")
+for v in versions:
+    print(f"{v['version']}: {v['commit_message']}")
+```
+
+### Streaming
+
+```python
+# Stream response chunks as they arrive
+for chunk in forge.run_prompt_stream(
+    model="gpt-4o",
+    prompt_name="my-prompt",
+    variables={"input": "hello"}
+):
+    print(chunk, end="", flush=True)
+
+# Async streaming
+async for chunk in forge.run_prompt_stream_async(
+    model="gpt-4o",
+    prompt_name="my-prompt",
+    variables={"input": "hello"}
+):
+    print(chunk, end="", flush=True)
+```
+
+### Async Usage
+
+```python
+import asyncio
+from forgevault import Forge
+
+async def main():
+    forge = Forge(api_key="fv_xxx")
+    
+    prompt = await forge.get_prompt_async(prompt_name="my-prompt")
+    result = await prompt.run_async(model="gpt-4o", name="John")
+    
+    print(result)
+    await forge.aclose()
+
+asyncio.run(main())
+```
+
+---
+
+## Prompt Object
+
+```python
+prompt = forge.get_prompt(prompt_name="my-prompt")
+
+# Metadata
+print(prompt.id)           # Prompt ID
+print(prompt.name)         # Prompt name
+print(prompt.description)  # Prompt description
+print(prompt.use_case)     # Use case (e.g., "Customer Support", "Code Generation")
+print(prompt.version)      # Current version (commit ID)
+print(prompt.prompt_type)  # "System User", "User Only", etc.
+print(prompt.variables)    # List of PromptVariable objects
+print(prompt.created_at)   # Creation timestamp
+print(prompt.updated_at)   # Last update timestamp
+
+# Content
+print(prompt.system_prompt)
+print(prompt.user_prompt)
+print(prompt.few_shot_examples)
+
+# Validate variables
+missing = prompt.validate_variables({"name": "John"})
+if missing:
+    print(f"Missing: {missing}")
+```
+
+---
+
+## Caching
+
+```python
+# Disable caching
+forge = Forge(api_key="fv_xxx", cache_enabled=False)
+
+# Custom TTL (10 minutes)
+forge = Forge(api_key="fv_xxx", cache_ttl=600)
+
+# Invalidate cache
+forge.invalidate_cache("my-prompt")  # Specific prompt
+forge.invalidate_cache()              # All prompts
+
+# Check cache stats
+stats = forge.cache_stats()
+print(stats)  # {"total_entries": 5, "valid_entries": 4, ...}
+```
+
+---
+
+## Error Handling
+
+```python
+from forgevault import (
+    Forge,
+    ForgeVaultError,
+    AuthenticationError,
+    PromptNotFoundError,
+    ExecutionError,
+    RateLimitError
+)
+
+try:
+    prompt = forge.get_prompt(prompt_name="nonexistent")
+except PromptNotFoundError as e:
+    print(f"Prompt not found: {e}")
+except AuthenticationError as e:
+    print(f"Auth failed: {e}")
+except RateLimitError as e:
+    print(f"Rate limited. Retry after: {e.details['retry_after']}s")
+except ForgeVaultError as e:
+    print(f"Error [{e.error_code}]: {e.message}")
+```
+
+---
+
+## Best Practices
+
+### 1. Use Environment Variables
+
+```python
+# Don't hardcode API keys
+forge = Forge()  # Uses FORGEVAULT_API_KEY env var
+```
+
+### 2. Pin Versions in Production
+
+```python
+# Development: use latest
+prompt = forge.get_prompt(prompt_name="my-prompt")
+
+# Production: pin to specific version
+prompt = forge.get_prompt(prompt_name="my-prompt", version="abc123def456")
+```
+
+### 3. Handle Failures Gracefully
+
+```python
+from forgevault.exceptions import ConnectionError
+
+try:
+    prompt = forge.get_prompt(prompt_name="my-prompt")
+except ConnectionError:
+    # Fallback will be used automatically if enabled
+    # Or handle manually
+    prompt = get_hardcoded_fallback()
+```
+
+### 4. Use Context Manager
+
+```python
+with Forge(api_key="fv_xxx") as forge:
+    prompt = forge.get_prompt(prompt_name="my-prompt")
+    result = prompt.run(model="gpt-4o", name="John")
+# Connections automatically closed
+```
+
+---
+
+## Support
+
+- 📧 Email: [forgevault.app@gmail.com](mailto:forgevault.app@gmail.com)
+- 🌐 Website: [forgevault.netlify.app](https://forgevault.netlify.app)
+- 📖 Docs: [forgevault.netlify.app/docs](https://forgevault.netlify.app/docs)
+
+---
+
+## License
+
+Copyright (c) 2025 ForgeVault. All Rights Reserved.
+
+This is proprietary software. See [LICENSE](LICENSE) file for terms.
