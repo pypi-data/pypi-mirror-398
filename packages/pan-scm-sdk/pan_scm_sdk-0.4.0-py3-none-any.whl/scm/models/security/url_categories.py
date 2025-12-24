@@ -1,0 +1,118 @@
+"""URL Categories security models for Strata Cloud Manager SDK.
+
+Contains Pydantic models for representing URL category objects and related data.
+"""
+
+# scm/models/security/url_categories.py
+
+from enum import Enum
+from typing import List, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+# Enums
+class URLCategoriesListTypeEnum(str, Enum):
+    """Enumeration of allowed types within a list."""
+
+    url_list = "URL List"
+    category_match = "Category Match"
+
+
+class URLCategoriesBaseModel(BaseModel):
+    """URL Category base model."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
+        arbitrary_types_allowed=True,
+        populate_by_name=True,
+    )
+
+    # Required Fields
+    name: str = Field(
+        ...,
+        description="URL Category Name",
+    )
+    list: List[str] = Field(
+        default_factory=list,
+        description="Lists of URL categories",
+    )
+
+    # Optional Fields
+    description: Optional[str] = Field(
+        None,
+        description="Description",
+    )
+    type: Optional[URLCategoriesListTypeEnum] = Field(
+        default=URLCategoriesListTypeEnum.url_list,
+        description="Type of the URL category",
+    )
+
+    # Configuration containers
+    folder: Optional[str] = Field(
+        None,
+        description="Folder",
+        max_length=64,
+        pattern=r"^[a-zA-Z\d\-_. ]+$",
+    )
+    snippet: Optional[str] = Field(
+        None,
+        description="Snippet",
+        max_length=64,
+        pattern=r"^[a-zA-Z\d\-_. ]+$",
+    )
+    device: Optional[str] = Field(
+        None,
+        description="Device",
+        max_length=64,
+        pattern=r"^[a-zA-Z\d\-_. ]+$",
+    )
+
+
+class URLCategoriesCreateModel(URLCategoriesBaseModel):
+    """Model for creating a new URL Category."""
+
+    @model_validator(mode="after")
+    def validate_container_type(self) -> "URLCategoriesCreateModel":
+        """Ensure exactly one container field (folder, snippet, or device) is set.
+
+        Returns:
+            URLCategoriesCreateModel: The validated model instance.
+
+        Raises:
+            ValueError: If zero or more than one container field is set.
+
+        """
+        container_fields = [
+            "folder",
+            "snippet",
+            "device",
+        ]
+        provided_containers = [
+            field for field in container_fields if getattr(self, field) is not None
+        ]
+        if len(provided_containers) != 1:
+            raise ValueError("Exactly one of 'folder', 'snippet', or 'device' must be provided.")
+        return self
+
+
+class URLCategoriesUpdateModel(URLCategoriesBaseModel):
+    """Model for updating an existing URL Category."""
+
+    id: UUID = Field(
+        ...,
+        description="UUID of the resource",
+        examples=["123e4567-e89b-12d3-a456-426655440000"],
+    )
+
+
+class URLCategoriesResponseModel(URLCategoriesBaseModel):
+    """Model for URL Category API responses."""
+
+    id: UUID = Field(
+        ...,
+        description="UUID of the resource",
+        examples=["123e4567-e89b-12d3-a456-426655440000"],
+    )
