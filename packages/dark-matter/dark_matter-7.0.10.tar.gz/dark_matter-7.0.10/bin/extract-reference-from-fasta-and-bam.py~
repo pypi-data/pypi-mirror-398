@@ -1,0 +1,116 @@
+import sys
+import argparse
+from pathlib import Path
+
+from dark.fasta import FastaReads
+from dark.process import Executor
+
+
+def get_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Extract a reference sequence from a FASTA file and its matches "
+            "from a BAM file."
+        ),
+    )
+
+    parser.add_argument(
+        "--reference", required=True, help="The ID of the reference sequence."
+    )
+
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        required=True,
+        help="The directory into which to put the output files.",
+    )
+
+    parser.add_argument(
+        "--bam", "--sam", type=Path, required=True, help="The BAM or SAM file."
+    )
+
+    parser.add_argument("--fasta", type=Path, required=True, help="The FASTA file.")
+
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = get_args()
+
+    if not args.out_dir.exists():
+        args.out_dir.mkdir()
+
+    reference_id = args.reference
+
+    for read in FastaReads(args.fasta):
+        if read.id.split()[0] == args.reference:
+            reference_len = len(read)
+            fasta_id = read.id
+            # Make sure the read has the same id as the reference we're going to look
+            # for in the BAM file.
+            read.id = reference_id
+            break
+    else:
+        sys.exit(f"Could not find reference {args.reference!r} in {str(args.fasta)!r}.")
+
+    new_reference = args.out_dir / "reference.fasta"
+
+    with open(new_reference, "w") as fp:
+        print(read.toString(), end="", file=fp)
+
+    e = Executor()
+
+    e.execute(f"samtools faidx {str(new_reference)!r}")
+
+    sam = args.out_dir / args.bam.with_suffix(".sam").name
+
+    e.execute(f"samtools view -h -O SAM {str(args.bam)!r} --output {str(sam)!r}")
+
+    new_sam = args.out_dir / "reference.sam"
+
+    read_count = 0
+    with open(sam) as sam_in, open(new_sam, "w") as sam_out:
+        for line in sam_in:
+            line = line.strip()
+            fields = line.split("\t", maxsplit=3)
+            if line.startswith("@"):
+                if fields[0] == "@SQ":
+                    if fields[1] == f"SN:{args.reference}":
+                        if fields[2] == f"LN:{reference_len}":
+                            print(line, file=sam_out)
+                        else:
+                            sys.exit(
+                                f"Found reference {args.reference!r} in "
+                                f"{str(args.sam)!r} but the length field in the SAM "
+                                f"file is {fields[2]!r} whereas the length of the "
+                                f"reference in {str(args.reference)!r} is "
+                                f"{reference_len}."
+                            )
+                else:
+                    # A non-@SQ header line.
+                    print(line, file=sam_out)
+            else:
+                # A non-header line. Print it if this is a match on the reference.
+                if fields[2] == args.reference:
+                    read_count += 1
+                    print(line, file=sam_out)
+
+    new_bam = new_sam.with_suffix(".bam")
+    e.execute(f"samtools sort -O BAM {str(new_sam)!r} -o {str(new_bam)!r}")
+    e.execute(f"samtools index {str(new_bam)!r}")
+
+    sam.unlink()
+    new_sam.unlink()
+
+    outd = args.out_dir / f"results_{reference_id}"
+    title = f"{fasta_id} ({read_count:,} reads)"
+    command = (
+        f"mapDamage -t {title!r} -d {str(outd)!r} --ymax=0.4 "
+        f"-i {str(new_bam)!r} -r {str(new_reference)!r}"
+    )
+    print(f"Running command: {command}")
+    e.execute(command)
+
+
+if __name__ == "__main__":
+    main()
