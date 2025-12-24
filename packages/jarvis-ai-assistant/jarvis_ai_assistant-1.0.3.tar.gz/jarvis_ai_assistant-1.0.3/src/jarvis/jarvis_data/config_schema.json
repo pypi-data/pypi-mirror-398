@@ -1,0 +1,666 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Jarvis环境变量配置模式",
+  "description": "Jarvis系统配置模式",
+  "type": "object",
+  "properties": {
+    "mcp": {
+      "type": "array",
+      "description": "MCP工具配置列表",
+      "default": [],
+      "items": {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["type", "base_url"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["sse", "streamable"],
+                "description": "MCP客户端类型"
+              },
+              "base_url": {
+                "type": "string",
+                "format": "uri",
+                "description": "MCP服务器基础URL"
+              },
+              "auth_token": {
+                "type": "string",
+                "description": "认证令牌(可选)"
+              },
+              "headers": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "额外的HTTP头(可选)"
+              },
+              "name": {
+                "type": "string",
+                "description": "工具名称(可选)"
+              },
+              "enable": {
+                "type": "boolean",
+                "default": true,
+                "description": "是否启用该工具(可选)"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["type", "command"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["stdio"],
+                "description": "MCP客户端类型"
+              },
+              "command": {
+                "type": "string",
+                "description": "要执行的命令"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "命令参数列表(可选)"
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "环境变量(可选)"
+              },
+              "name": {
+                "type": "string",
+                "description": "工具名称(可选)"
+              },
+              "enable": {
+                "type": "boolean",
+                "default": true,
+                "description": "是否启用该工具(可选)"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "ENV": {
+      "type": "object",
+      "description": "需要设置的额外环境变量",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
+    },
+    "git_commit_prompt": {
+      "type": "string",
+      "description": "Git提交信息生成提示模板",
+      "default": ""
+    },
+    "max_input_token_count": {
+      "type": "number",
+      "description": "模型能处理的最大输入token数量。其他token限制基于此值计算：最大token数量=此值×100，最大大内容尺寸=此值×5",
+      "default": 32000
+    },
+    "platform": {
+      "type": "string",
+      "description": "常规操作平台名称",
+      "default": "openai"
+    },
+    "model": {
+      "type": "string",
+      "description": "常规操作模型名称",
+      "default": "gpt-5"
+    },
+    "cheap_platform": {
+      "type": "string",
+      "description": "廉价操作的平台名称。如未配置，则使用 platform 的值",
+      "default": ""
+    },
+    "cheap_model": {
+      "type": "string",
+      "description": "廉价操作的模型名称。如未配置，则使用 model 的值",
+      "default": ""
+    },
+    "cheap_max_input_token_count": {
+      "type": "number",
+      "description": "廉价模型允许的最大输入token数量。如未配置，则使用 max_input_token_count 的值",
+      "default": 0
+    },
+    "smart_platform": {
+      "type": "string",
+      "description": "智能操作的平台名称。如未配置，则使用 platform 的值",
+      "default": ""
+    },
+    "smart_model": {
+      "type": "string",
+      "description": "智能操作的模型名称。如未配置，则使用 model 的值",
+      "default": ""
+    },
+    "smart_max_input_token_count": {
+      "type": "number",
+      "description": "智能模型允许的最大输入token数量。如未配置，则使用 max_input_token_count 的值",
+      "default": 0
+    },
+    "web_search_platform": {
+      "type": "string",
+      "description": "Web搜索使用的平台名称",
+      "default": ""
+    },
+    "web_search_model": {
+      "type": "string",
+      "description": "Web搜索使用的模型名称",
+      "default": ""
+    },
+    "llms": {
+      "type": "object",
+      "description": "可复用的LLM配置定义，可以在llm_groups中通过引用名称来使用",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "description": "平台名称",
+            "default": "openai"
+          },
+          "model": {
+            "type": "string",
+            "description": "模型名称"
+          },
+          "max_input_token_count": {
+            "type": "number",
+            "description": "最大输入token数量",
+            "default": 32000
+          },
+          "llm_config": {
+            "type": "object",
+            "description": "LLM特定的配置参数，会传递给LLM客户端",
+            "additionalProperties": true,
+            "default": {}
+          }
+        },
+        "required": [
+          "platform",
+          "model"
+        ]
+      },
+      "default": {}
+    },
+    "embeddings": {
+      "type": "object",
+      "description": "可复用的嵌入模型配置定义，可以在rag_groups中通过引用名称来使用",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "embedding_model": {
+            "type": "string",
+            "description": "嵌入模型的名称"
+          },
+          "embedding_type": {
+            "type": "string",
+            "description": "嵌入模型的实现类型，如 'LocalEmbeddingModel', 'OpenAIEmbeddingModel', 'CohereEmbeddingModel', 'EdgeFnEmbeddingModel' 等"
+          },
+          "embedding_max_length": {
+            "type": "number",
+            "description": "嵌入模型的最大输入长度（token数），用于文档分割"
+          },
+          "embedding_config": {
+            "type": "object",
+            "description": "嵌入模型的额外配置参数，会传递给模型的构造函数",
+            "additionalProperties": true,
+            "default": {}
+          }
+        },
+        "required": [
+          "embedding_model",
+          "embedding_type"
+        ]
+      },
+      "default": {}
+    },
+    "rerankers": {
+      "type": "object",
+      "description": "可复用的重排模型配置定义，可以在rag_groups中通过引用名称来使用",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "rerank_model": {
+            "type": "string",
+            "description": "重排模型的名称"
+          },
+          "reranker_type": {
+            "type": "string",
+            "description": "重排模型的实现类型，如 'LocalReranker', 'CohereReranker', 'JinaReranker', 'EdgeFnReranker' 等"
+          },
+          "reranker_max_length": {
+            "type": "number",
+            "description": "重排模型的最大输入长度（token数）"
+          },
+          "reranker_config": {
+            "type": "object",
+            "description": "重排模型的额外配置参数，会传递给模型的构造函数",
+            "additionalProperties": true,
+            "default": {}
+          }
+        },
+        "required": [
+          "rerank_model",
+          "reranker_type"
+        ]
+      },
+      "default": {}
+    },
+    "llm_group": {
+      "type": "string",
+      "description": "选择一个预定义的模型组",
+      "default": ""
+    },
+    "llm_groups": {
+      "type": "object",
+      "description": "预定义的模型配置组，使用组名作为 key。每个组必须通过 normal_llm、cheap_llm、smart_llm 引用 llms 中定义的配置，不再支持直接定义 platform、model 等参数",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "normal_llm": {
+            "type": "string",
+            "description": "引用 llms 中定义的常规操作LLM配置名称（必需）"
+          },
+          "cheap_llm": {
+            "type": "string",
+            "description": "引用 llms 中定义的廉价操作LLM配置名称（可选）"
+          },
+          "smart_llm": {
+            "type": "string",
+            "description": "引用 llms 中定义的智能操作LLM配置名称（可选）"
+          },
+          "ENV": {
+            "type": "object",
+            "description": "该模型组特定的环境变量，会覆盖全局 ENV 配置",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["normal_llm"]
+      },
+      "default": {}
+    },
+    "execute_tool_confirm": {
+      "type": "boolean",
+      "description": "执行工具前是否需要确认",
+      "default": false
+    },
+    "tool_filter_threshold": {
+      "type": "number",
+      "description": "AI工具筛选阈值：当可用工具数量超过此值时触发AI筛选",
+      "default": 30
+    },
+    "script_execution_timeout": {
+      "type": "number",
+      "description": "脚本执行的超时时间（秒），仅在非交互模式下生效。",
+      "default": 300
+    },
+    "confirm_before_apply_patch": {
+      "type": "boolean",
+      "description": "应用补丁前是否需要确认",
+      "default": false
+    },
+    "data_path": {
+      "type": "string",
+      "description": "Jarvis数据存储目录路径",
+      "default": "~/.jarvis"
+    },
+    "pretty_output": {
+      "type": "boolean",
+      "description": "是否启用美化输出",
+      "default": true
+    },
+    "use_methodology": {
+      "type": "boolean",
+      "description": "是否启用方法论",
+      "default": true
+    },
+    "use_analysis": {
+      "type": "boolean",
+      "description": "是否启用任务分析",
+      "default": true
+    },
+    "tool_load_dirs": {
+      "type": "array",
+      "description": "自定义工具加载目录",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "methodology_dirs": {
+      "type": "array",
+      "description": "方法论加载目录",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "agent_definition_dirs": {
+      "type": "array",
+      "description": "agent 定义加载目录",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "multi_agent_dirs": {
+      "type": "array",
+      "description": "multi_agent 加载目录",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "roles_dirs": {
+      "type": "array",
+      "description": "roles 加载目录",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "after_tool_call_cb_dirs": {
+      "type": "array",
+      "description": "工具调用后回调函数实现目录",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "central_methodology_repo": {
+      "type": "string",
+      "description": "中心方法论仓库路径或Git仓库地址。支持本地目录（含git子路径）：若为本地目录将直接加入方法论加载路径；若为Git URL则会克隆到数据目录后加载。",
+      "default": ""
+    },
+    "central_tool_repo": {
+      "type": "string",
+      "description": "中心工具仓库路径或Git仓库地址。支持本地目录（含git子路径）：若为本地目录将直接加载其中的工具；若为Git URL则会克隆到数据目录并加载。",
+      "default": ""
+    },
+    "print_prompt": {
+      "type": "boolean",
+      "description": "是否打印提示",
+      "default": false
+    },
+    "print_error_traceback": {
+      "type": "boolean",
+      "description": "是否在错误输出时打印回溯调用链",
+      "default": false
+    },
+    "enable_static_analysis": {
+      "type": "boolean",
+      "description": "是否启用静态代码分析",
+      "default": true
+    },
+    "enable_build_validation": {
+      "type": "boolean",
+      "description": "是否启用构建验证。在代码编辑后自动验证代码能否成功编译/构建，确保编辑不会破坏项目构建。",
+      "default": true
+    },
+    "build_validation_timeout": {
+      "type": "number",
+      "description": "构建验证的超时时间（秒）。当构建验证执行时间超过此值时，将终止验证并报告超时。",
+      "default": 30
+    },
+    "enable_impact_analysis": {
+      "type": "boolean",
+      "description": "是否启用编辑影响范围分析。分析代码编辑的影响范围，识别可能受影响的文件、函数、测试等，帮助评估编辑风险。",
+      "default": true
+    },
+    "force_save_memory": {
+      "type": "boolean",
+      "description": "是否强制保存记忆",
+      "default": false
+    },
+    "enable_git_jca_switch": {
+      "type": "boolean",
+      "description": "在初始化环境前检测Git仓库并提示可切换到代码开发模式（jca）",
+      "default": true
+    },
+    "enable_startup_config_selector": {
+      "type": "boolean",
+      "description": "在进入默认通用代理前，列出可用配置（agent/multi_agent/roles）供选择",
+      "default": true
+    },
+    "immediate_abort": {
+      "type": "boolean",
+      "description": "是否启用立即中断：在对话迭代中检测到中断信号时立即返回",
+      "default": false
+    },
+    "save_session_history": {
+      "type": "boolean",
+      "description": "是否保存会话记录",
+      "default": false
+    },
+    "skip_predefined_tasks": {
+      "type": "boolean",
+      "description": "是否跳过预定义任务加载（不读取 pre-command 列表）",
+      "default": false
+    },
+    "addon_prompt_threshold": {
+      "type": "number",
+      "description": "附加提示的触发阈值（字符数）。当消息长度超过此值时，会自动添加默认的附加提示",
+      "default": 1024
+    },
+    "enable_intent_recognition": {
+      "type": "boolean",
+      "description": "是否启用意图识别功能。用于智能上下文推荐中的LLM意图提取和语义分析",
+      "default": true
+    },
+    "enable_memory_organizer": {
+      "type": "boolean",
+      "description": "是否启用自动记忆整理功能。在任务完成后自动检测记忆库状态，当记忆数量超过200条且存在重叠时提示用户整理",
+      "default": false
+    },
+    "tool_group": {
+      "type": "string",
+      "description": "选择一个预定义的工具配置组",
+      "default": ""
+    },
+    "tool_groups": {
+      "type": "array",
+      "description": "预定义的工具配置组",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "use": {
+              "type": "array",
+              "description": "要使用的工具名称列表",
+              "items": {
+                "type": "string"
+              }
+            },
+            "dont_use": {
+              "type": "array",
+              "description": "不使用的工具名称列表",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "rag_group": {
+      "type": "string",
+      "description": "选择一个预定义的RAG配置组",
+      "default": ""
+    },
+    "rag_groups": {
+      "type": "object",
+      "description": "预定义的RAG配置组，使用组名作为 key。每个组必须通过 embedding 引用 embeddings 中定义的配置，可选通过 reranker 引用 rerankers 中定义的配置，不再支持直接定义 embedding_model、embedding_type 等参数",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "embedding": {
+            "type": "string",
+            "description": "引用 embeddings 中定义的嵌入模型配置名称（必需）"
+          },
+          "reranker": {
+            "type": "string",
+            "description": "引用 rerankers 中定义的重排模型配置名称（可选）"
+          },
+          "use_bm25": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否使用BM25进行检索"
+          },
+          "use_rerank": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否使用重排模型"
+          }
+        },
+        "required": ["embedding"]
+      },
+      "default": {
+        "text": {
+          "embedding": "default-text-embedding",
+          "reranker": "default-text-reranker",
+          "use_bm25": true,
+          "use_rerank": true
+        },
+        "code": {
+          "embedding": "default-code-embedding",
+          "use_bm25": false,
+          "use_rerank": false
+        }
+      }
+    },
+    "rag": {
+      "type": "object",
+      "description": "RAG框架的顶层配置。注意：此处的设置将覆盖任何由rag_group选择的组配置。",
+      "properties": {
+        "embedding_model": {
+          "type": "string",
+          "default": "BAAI/bge-m3",
+          "description": "用于RAG的嵌入模型的名称, 默认为 'BAAI/bge-m3'"
+        },
+        "embedding_type": {
+          "type": "string",
+          "default": "LocalEmbeddingModel",
+          "description": "嵌入模型的实现类型，如 'LocalEmbeddingModel', 'OpenAIEmbeddingModel', 'CohereEmbeddingModel', 'EdgeFnEmbeddingModel' 等，默认为 'LocalEmbeddingModel'"
+        },
+        "embedding_max_length": {
+          "type": "number",
+          "default": 512,
+          "description": "嵌入模型的最大输入长度（token数），用于文档分割，默认为 512"
+        },
+        "embedding_config": {
+          "type": "object",
+          "description": "嵌入模型的额外配置参数，会传递给模型的构造函数。对于在线模型，可包含 api_key 等参数",
+          "additionalProperties": true,
+          "default": {}
+        },
+        "rerank_model": {
+          "type": "string",
+          "default": "BAAI/bge-reranker-v2-m3",
+          "description": "用于RAG的rerank模型的名称, 默认为 'BAAI/bge-reranker-v2-m3'"
+        },
+        "reranker_type": {
+          "type": "string",
+          "default": "LocalReranker",
+          "description": "重排模型的实现类型，如 'LocalReranker', 'CohereReranker', 'JinaReranker', 'EdgeFnReranker' 等，默认为 'LocalReranker'"
+        },
+        "reranker_max_length": {
+          "type": "number",
+          "default": 512,
+          "description": "重排模型的最大输入长度（token数），默认为 512"
+        },
+        "reranker_config": {
+          "type": "object",
+          "description": "重排模型的额外配置参数，会传递给模型的构造函数。对于在线模型，可包含 api_key 等参数",
+          "additionalProperties": true,
+          "default": {}
+        },
+        "use_bm25": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否在RAG中为检索使用BM25, 默认为 true"
+        },
+        "use_rerank": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否在RAG中为检索使用rerank, 默认为 true"
+        }
+      },
+      "default": {
+        "embedding_model": "BAAI/bge-m3",
+        "embedding_type": "LocalEmbeddingModel",
+        "embedding_max_length": 512,
+        "embedding_config": {},
+        "rerank_model": "BAAI/bge-reranker-v2-m3",
+        "reranker_type": "LocalReranker",
+        "reranker_max_length": 512,
+        "reranker_config": {},
+        "use_bm25": true,
+        "use_rerank": true
+      }
+    },
+    "replace_map": {
+      "type": "object",
+      "description": "自定义替换映射表配置",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "append": {
+            "type": "boolean",
+            "description": "Whether to append to existing template"
+          },
+          "template": {
+            "type": "string",
+            "description": "Replacement template content"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the replacement"
+          }
+        },
+        "required": ["template"]
+      },
+      "default": {}
+    },
+    "SHELL": {
+      "type": "string",
+      "description": "系统Shell路径，用于获取当前使用的shell类型",
+      "default": "/bin/bash"
+    },
+    "conversation_turn_threshold": {
+      "type": "number",
+      "description": "对话轮次阈值，用于触发总结。当对话轮次超过此值时，系统会自动触发对话总结",
+      "default": 50,
+      "minimum": 1,
+      "maximum": 1000
+    },
+    "diff_visualization_mode": {
+      "type": "string",
+      "description": "Diff可视化模式。side_by_side: 左右分栏对比显示；unified: 统一diff格式；syntax: 语法高亮模式；compact: 紧凑模式",
+      "enum": ["side_by_side", "unified", "syntax", "compact"],
+      "default": "side_by_side"
+    },
+    "diff_show_line_numbers": {
+      "type": "boolean",
+      "description": "是否在 diff 中显示行号",
+      "default": true
+    },
+    "diff_large_file_threshold": {
+      "type": "number",
+      "description": "大文件阈值（超过此行数只显示统计）",
+      "default": 300
+    }
+  },
+  "additionalProperties": true
+}
