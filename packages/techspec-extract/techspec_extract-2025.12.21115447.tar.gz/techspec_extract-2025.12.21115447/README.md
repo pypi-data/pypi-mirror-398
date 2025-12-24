@@ -1,0 +1,87 @@
+# techspec-extract
+[![PyPI version](https://badge.fury.io/py/techspec-extract.svg)](https://badge.fury.io/py/techspec-extract)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/techspec-extract)](https://pepy.tech/project/techspec-extract)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A Python package designed to process user input descriptions of technical products or components and generate structured summaries or specifications. It leverages LLMs to interpret the input text and extract key details such as features, return status, or related media references, enabling consistent data extraction for product management, customer support, or inventory tracking without handling the actual media files.
+
+## Installation
+
+```bash
+pip install techspec_extract
+```
+
+## Usage
+
+```python
+from techspec_extract import techspec_extract
+
+user_input = "Your user input text here"
+response = techspec_extract(user_input)
+print(response)
+```
+
+## Parameters
+
+- `user_input` (str): The user input text to process.
+- `llm` (Optional[BaseChatModel]): The LangChain LLM instance to use. If not provided, the default `ChatLLM7` will be used.
+- `api_key` (Optional[str]): The API key for LLM7. If not provided, the environment variable `LLM7_API_KEY` will be used.
+
+## Using Different LLMs
+
+You can safely pass your own LLM instance if you want to use another LLM. Here are examples of how to use different LLMs:
+
+### Using OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from techspec_extract import techspec_extract
+
+llm = ChatOpenAI()
+response = techspec_extract(user_input, llm=llm)
+```
+
+### Using Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from techspec_extract import techspec_extract
+
+llm = ChatAnthropic()
+response = techspec_extract(user_input, llm=llm)
+```
+
+### Using Google
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from techspec_extract import techspec_extract
+
+llm = ChatGoogleGenerativeAI()
+response = techspec_extract(user_input, llm=llm)
+```
+
+## Rate Limits
+
+The default rate limits for LLM7 free tier are sufficient for most use cases of this package. If you want higher rate limits for LLM7, you can pass your own API key via the environment variable `LLM7_API_KEY` or directly via the `api_key` parameter:
+
+```python
+from techspec_extract import techspec_extract
+
+user_input = "Your user input text here"
+response = techspec_extract(user_input, api_key="your_api_key")
+```
+
+You can get a free API key by registering at [LLM7](https://token.llm7.io/).
+
+## Issues
+
+If you encounter any issues, please report them on the [GitHub issues page](https://github.com/chigwell/techspec-extract/issues).
+
+## Author
+
+- **Eugene Evstafev**
+- **Email**: hi@eugene.plus
+- **GitHub**: [chigwell](https://github.com/chigwell)
