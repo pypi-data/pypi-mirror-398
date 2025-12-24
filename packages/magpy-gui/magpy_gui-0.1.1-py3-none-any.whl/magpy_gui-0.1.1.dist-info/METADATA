@@ -1,0 +1,186 @@
+Metadata-Version: 2.4
+Name: magpy-gui
+Version: 0.1.1
+Summary: MagPy Bioacoustics
+Project-URL: Homepage, https://github.com/jmcmeen/magpy
+Project-URL: Repository, https://github.com/jmcmeen/magpy
+Author: John McMeen
+License-Expression: GPL-3.0-or-later
+License-File: LICENSE
+Keywords: annotation,audio,bioacoustics,sound analysis,spectrogram
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Multimedia :: Sound/Audio :: Analysis
+Classifier: Topic :: Scientific/Engineering
+Requires-Python: >=3.10
+Requires-Dist: bioamla
+Requires-Dist: librosa>=0.10.0
+Requires-Dist: matplotlib>=3.7.0
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: pyqt6>=6.5.0
+Requires-Dist: pyqtgraph>=0.13.0
+Requires-Dist: scipy>=1.10.0
+Requires-Dist: sounddevice>=0.4.6
+Requires-Dist: soundfile>=0.12.0
+Provides-Extra: dev
+Requires-Dist: black>=23.0.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest-qt>=4.2.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Provides-Extra: ml
+Requires-Dist: tensorflow>=2.13.0; extra == 'ml'
+Requires-Dist: torch>=2.0.0; extra == 'ml'
+Description-Content-Type: text/markdown
+
+# MagPy
+
+A Python bioacoustics analysis application.
+
+## Features
+
+- **Sound Visualization**
+  - Waveform display with amplitude vs. time
+  - Configurable spectrograms with multiple window functions (Blackman, Hamming, Hann, Kaiser, Rectangular, Triangular)
+  - Eight colormap options for spectrogram display
+  - Synchronized view navigation between waveform and spectrogram
+
+- **Comprehensive Acoustic Measurements**
+  - Time-domain: Begin/End Time, Duration, energy percentiles (5%, 25%, 50%, 75%, 95%)
+  - Frequency: Low/High Frequency, Bandwidth, Center Frequency, Peak Frequency
+  - Peak Frequency Contour tracking with slope analysis
+  - Power measurements: RMS, Peak, Average Power, Leq, SEL
+  - Entropy measurements for tonal vs. noise characterization
+
+- **Selection and Annotation**
+  - Time-frequency selection boxes
+  - Selection tables with customizable annotation columns
+  - Keyboard shortcuts for rapid annotation
+  - Export to tab-delimited format (TSV/CSV)
+
+- **Audio Playback**
+  - Play, pause, stop controls
+  - Variable playback speed (0.25x to 2x)
+  - Loop mode
+  - Position seeking
+
+- **File Format Support**
+  - Input: WAV, AIFF, FLAC, MP3
+  - Export: WAV, AIFF
+  - Selection tables: TSV, CSV
+
+## Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/jmcmeen/magpy.git
+cd magpy
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install with dependencies
+pip install -e ".[dev]"
+```
+
+## Usage
+
+### GUI Application
+
+```bash
+# Launch the GUI
+magpy-gui
+
+# Open a file directly
+magpy-gui recording.wav
+```
+
+### Command Line
+
+```bash
+# Show version
+magpy --version
+
+# Compute spectrogram and save as image
+magpy recording.wav --headless --compute-spectrogram output.png
+
+# Compute measurements for selections
+magpy recording.wav --headless --measure selections.txt
+```
+
+### Python API
+
+```python
+from magpy.core import AudioFile, SpectrogramGenerator, MeasurementCalculator
+from magpy.core.measurements import SelectionBounds
+
+# Load audio
+audio = AudioFile("recording.wav")
+print(f"Duration: {audio.duration:.2f}s")
+print(f"Sample rate: {audio.sample_rate} Hz")
+
+# Generate spectrogram
+generator = SpectrogramGenerator()
+result = generator.compute(audio.data, audio.sample_rate)
+
+# Compute measurements for a selection
+calc = MeasurementCalculator()
+bounds = SelectionBounds(start_time=1.0, end_time=2.0, low_freq=500, high_freq=5000)
+measurements = calc.compute_all(audio.data, audio.sample_rate, bounds)
+print(f"Peak frequency: {measurements.frequency.peak_freq:.1f} Hz")
+print(f"RMS amplitude: {measurements.amplitude.rms_amplitude:.4f}")
+```
+
+## Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=magpy
+
+# Run only core tests
+pytest tests/core/
+
+# Run only UI tests (requires display)
+pytest tests/ui/
+```
+
+## Project Structure
+
+```
+magpy/
+├── src/
+│   └── magpy/
+│       ├── core/           # Core analysis modules
+│       │   ├── audio.py        # Audio file handling
+│       │   ├── spectrogram.py  # Spectrogram generation
+│       │   ├── measurements.py # Acoustic measurements
+│       │   └── selection.py    # Selection and annotation
+│       ├── ui/             # User interface
+│       │   ├── main_window.py  # Main application window
+│       │   └── widgets/        # Custom widgets
+│       ├── app.py          # GUI entry point
+│       └── cli.py          # CLI entry point
+└── tests/
+    ├── core/              # Core module tests
+    └── ui/                # UI tests
+```
+
+## Dependencies
+
+- **Core**: numpy, scipy, librosa, soundfile, pandas
+- **UI**: PyQt6, pyqtgraph, matplotlib
+- **Audio**: sounddevice
+
+## License
+
+MIT License - see LICENSE file for details.
