@@ -1,0 +1,112 @@
+# ILLUSION: Agentic Programming Assistant
+
+ILLUSION is a CLI-based agentic programming assistant is meant to mainly help Termux users expericence no hands programmming to create and manage projects using AI-powered code generation via OpenRouter.
+
+## Features
+
+- Flexible model support: Use any model available on OpenRouter
+- Project-based workflow: Create and manage multiple projects
+- Full project context awareness: LLM sees current file contents for precise updates
+- Memory management: Tracks project history without hallucinations
+- Cross-platform: Works on Termux, Linux, and Windows
+- Git integration: Automatic version control for projects
+- Sensible file organization: Projects created in current directory
+
+## Installation
+
+### Fast (Recommended):
+1. Run `pip install illusion-cli` to install Illusion as a python pacakge
+
+### OR (WHEN source files get released on my official github page)
+
+1. Clone or download this repository
+2. Install dependencies: `pip install openai rich`
+3. Create `config.py` with your OpenRouter API key and preferred model
+
+## Configuration
+
+### For Fast Method (Recomended):
+1. Run `illusion config` in your terminal
+2. Paste your OpenRouter API key
+3. Paste your choise of modle e.g. "anthropic/claude-3-haiku"
+4. Leave Provider as OpenRouter
+
+### OR (WHEN source files get released on my official github page)
+
+Create a `config.py` file in the same directory as `illusion.py`:
+
+```python
+# ILLUSION Configuration File
+# Paste your OpenRouter API key here
+OPENROUTER_API_KEY = "your-api-key-here"
+
+# Choose the model you want to use (e.g., "deepseek/deepseek-r1:free", "anthropic/claude-3-haiku", etc.)
+MODEL = "deepseek/deepseek-r1:free"
+
+# LLM Provider (currently only openrouter is supported)
+LLM_PROVIDER = "openrouter"
+```
+
+## Usage
+
+### For Fast Method (Recomended):
+1. Run `illusion` in your terminal - ensure configuration file is set
+
+### OR (WHEN source files get released on my official github page):
+Run the application:
+
+```bash
+python illusion.py
+```
+
+### Commands
+
+- `np <project_name> e.g. np my_project`: Create a new project
+- `op <project_name>`: Open an existing project
+- `config OR illusion config`: View current configuration
+- `illusion`: Enter chat interface for the active project
+- `help`: Show help menu
+- `exit`: Exit the application
+
+### In Chat Interface
+
+Describe what you want to build, and ILLUSION will generate the code. For example:
+
+- "Create a simple HTML page with a button"
+- "Add a Python script to calculate fibonacci numbers"
+- "Make the button change color when clicked"
+
+ILLUSION will create files in the `src/` directory and can execute Python and shell scripts with user approval ofcourse.
+
+## Project Structure
+
+Projects are created in the current working directory:
+
+```
+my_project/
+├── .illusion/
+│   ├── chat_history.json
+│   └── vector.db
+├── src/
+│   └── (generated files)
+├── README.md
+├── .gitignore
+└── .git/
+```
+
+## Cross-Platform Notes
+- On Windows, projects are saved in `Users/<user_name>/Illusions`path
+- On Linux or Termux, projects are saved in `~Illusions` at home directory
+
+### OR (WHEN source files get released on my official github page)
+- On Windows, uses `python` instead of `python3`
+- On Windows, shell scripts use `cmd` instead of `bash`
+- Logs are written to `%TEMP%\illusion.log` on Windows, `/tmp/illusion.log` on Unix-like systems
+
+## Requirements
+
+- Python 3.6+
+- OpenRouter API key
+- Git (optional, for version control)
+- Termux `proot-distro` if you are using Termux `login debian` or any other distro of your choise (Recommeneded to allow quick and easy installation of PC native pacakages like OpenAI wrapper)
+- Internet connection for API calls
