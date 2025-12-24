@@ -1,0 +1,196 @@
+Metadata-Version: 2.4
+Name: mycursordata
+Version: 0.1.0
+Summary: Extract and export your Cursor IDE conversation history
+Project-URL: Homepage, https://github.com/joancabezas/mycursordata
+Project-URL: Repository, https://github.com/joancabezas/mycursordata
+Project-URL: Issues, https://github.com/joancabezas/mycursordata/issues
+Author-email: Joan Cabezas <joan.santiago.cabezas@gmail.com>
+License: MIT
+License-File: LICENSE
+Keywords: ai,chat,conversations,cursor,export,ide,sqlite
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Documentation
+Classifier: Topic :: Utilities
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+
+# 🔍 MyCursorData
+
+Extract and export your Cursor IDE conversation history.
+
+**MyCursorData** reads Cursor's internal SQLite database and exports all your AI conversations to readable text files, organized by project.
+
+## ✨ Features
+
+- 🔍 **Auto-discovery** - Automatically finds your Cursor databases on macOS, Linux, and Windows
+- 📁 **Project organized** - Exports conversations grouped by workspace/project
+- 🛠️ **Tool call tracking** - Includes full tool call details (file edits, terminal commands, searches)
+- ✅ **Approval tracking** - Shows which changes were approved/rejected by the user
+- 📊 **Statistics** - Get quick stats about your conversation history
+
+## 📦 Installation
+
+### With pip
+
+```bash
+pip install mycursordata
+```
+
+### With uv (recommended)
+
+```bash
+uv pip install mycursordata
+```
+
+### Run directly with uvx
+
+```bash
+uvx mycursordata ~/my-cursor-export
+```
+
+## 🚀 Usage
+
+### Quick Export
+
+Export all conversations to a directory:
+
+```bash
+# Export to a directory
+mycursordata export ~/cursor-export
+
+# Or simply (export is the default command)
+mycursordata ~/cursor-export
+```
+
+### Discover Databases
+
+Find all available Cursor databases on your system:
+
+```bash
+mycursordata discover
+```
+
+Output:
+```
+🔍 Searching for Cursor databases...
+
+Default search paths:
+  ✅ /Users/you/Library/Application Support/Cursor/User/globalStorage/state.vscdb
+  ❌ /Users/you/Library/Application Support/Cursor Nightly/User/globalStorage/state.vscdb
+  ...
+
+📊 Found 1 database(s):
+
+  1. [GLOBAL] cursor/global
+     Path: /Users/you/Library/Application Support/Cursor/User/globalStorage/state.vscdb
+     Conversations: 42, Messages: 1337
+```
+
+### View Statistics
+
+Get quick stats about your conversation history:
+
+```bash
+mycursordata info
+```
+
+### Export with Options
+
+```bash
+# Use a specific database file
+mycursordata export ~/output -d /path/to/state.vscdb
+
+# Show summary before exporting
+mycursordata export ~/output --summary
+
+# Verbose output for debugging
+mycursordata export ~/output -v
+```
+
+## 📄 Output Format
+
+Conversations are exported as text files organized by project:
+
+```
+output/
+├── my-project/
+│   ├── 2024-01-15_10-30-00_Add_dark_mode_toggle.txt
+│   └── 2024-01-16_14-22-10_Fix_login_bug.txt
+├── another-project/
+│   └── 2024-01-17_09-00-00_Refactor_API.txt
+└── unknown/
+    └── 2024-01-18_11-45-00_abc123.txt
+```
+
+Each file contains:
+- Conversation metadata (name, timestamps, message count)
+- Full message history with thinking blocks
+- Tool calls with arguments and results
+- Code blocks and diffs
+- Approval summary (what was approved/rejected)
+
+## 🔧 How It Works
+
+Cursor stores its conversation history in a SQLite database called `state.vscdb`. This tool:
+
+1. **Discovers** the database by checking common locations for your OS
+2. **Parses** the key-value store to extract conversation data
+3. **Groups** conversations by project/workspace
+4. **Formats** everything into readable text files
+
+### Database Locations
+
+| OS | Path |
+|---|---|
+| macOS | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` |
+| Linux | `~/.config/Cursor/User/globalStorage/state.vscdb` |
+| Windows | `%APPDATA%\Cursor\User\globalStorage\state.vscdb` |
+
+## 🐍 Python API
+
+You can also use MyCursorData as a library:
+
+```python
+from mycursordata import CursorDataParser, discover_cursor_databases
+
+# Discover databases
+databases = discover_cursor_databases()
+for db in databases:
+    print(f"Found: {db['path']} ({db['source']})")
+
+# Parse and export
+with CursorDataParser("/path/to/state.vscdb") as parser:
+    # Get stats
+    stats = parser.get_bubble_stats()
+    print(f"Total conversations: {stats['conversations']}")
+    
+    # Export all conversations
+    parser.export_all("./output")
+    
+    # Or get raw data
+    conversations = parser.get_all_conversations()
+    for project, convs in conversations.items():
+        print(f"Project: {project}, Conversations: {len(convs)}")
+```
+
+## 📋 Requirements
+
+- Python 3.11+
+- No external dependencies (uses only stdlib!)
+
+## 🤝 Contributing
+
+Contributions are welcome! Please open an issue or PR on GitHub.
+
+## 📜 License
+
+MIT License - see [LICENSE](LICENSE) for details.
