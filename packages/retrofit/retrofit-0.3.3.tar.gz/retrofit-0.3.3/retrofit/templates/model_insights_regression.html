@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Model Insights: {{ bundle.model_name }}</title>
+  <style>
+    /* Base layout */
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 16px 24px;
+    }
+
+    h3 {
+      margin-top: 0;
+    }
+
+    /* Gradient main title */
+    h1 {
+      margin-top: 1.2rem;
+      background: linear-gradient(90deg, #ff00aa, #38bdf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    h2 {
+      margin-top: 2.2rem;
+      margin-bottom: 0.8rem;
+    }
+
+    table {
+      border-collapse: collapse;
+      margin-bottom: 1.5rem;
+      width: 100%;
+    }
+
+    th, td {
+      border: 1px solid;
+      padding: 4px 8px;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+
+    .section {
+      margin-bottom: 1.4rem;
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin-bottom: 2rem;
+      padding: 16px 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.03); /* Very subtle universal bg */
+      box-shadow:
+          0 4px 12px rgba(0,0,0,0.25),
+          0 1px 2px rgba(255,255,255,0.05) inset;
+      backdrop-filter: blur(4px);     /* Adds the glassy "floating" effect */
+      -webkit-backdrop-filter: blur(4px);
+      overflow: hidden;
+    }
+
+    .section:hover {
+      transform: translateY(-2px);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      box-shadow:
+          0 6px 18px rgba(0,0,0,0.35),
+          0 1px 3px rgba(255,255,255,0.06) inset;
+    }
+
+    body.theme-dark .section {
+      background: rgba(30, 30, 30, 0.65);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    body.theme-light .section {
+      background: rgba(255,255,255,0.9);
+      border: 1px solid rgba(0,0,0,0.05);
+    }
+
+    body.theme-neon .section {
+      background: rgba(15, 23, 42, 0.55);
+      border: 1px solid rgba(56,189,248,0.25);
+      box-shadow:
+          0 0 12px rgba(56,189,248,0.15),
+          0 4px 12px rgba(0,0,0,0.4);
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-right: 6px;
+      font-size: 0.75rem;
+    }
+
+    .chart-wrapper {
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 24px;
+    }
+
+    /* Make all pyecharts charts responsive */
+    .chart-wrapper div[id^="chart_"] {
+      display: block;
+      width: 100% !important;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .table-scroll {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    /* Give wide tables a minimum width so scroll actually does something */
+    .table-scroll table {
+      min-width: 800px;
+    }
+
+    /* ------------------------
+       Theme: DARK (default)
+       ------------------------ */
+    body.theme-dark {
+      background: #111;
+      color: #f5f5f5;
+    }
+
+    body.theme-dark h2,
+    body.theme-dark h3 {
+      color: #ff00aa;
+    }
+
+    body.theme-dark th {
+      background: #1f1f1f;
+      border-color: #333;
+    }
+
+    body.theme-dark td {
+      border-color: #333;
+    }
+
+    body.theme-dark .tag {
+      background: #222;
+      color: #f5f5f5;
+      border: 1px solid #444;
+    }
+
+    body.theme-dark .section {
+      background: rgba(17, 24, 39, 0.85);
+      border: 1px solid #1f2933;
+    }
+
+    /* ------------------------
+       Theme: LIGHT
+    ------------------------ */
+    body.theme-light {
+      background: #f7f7f9;
+      color: #222;
+    }
+
+    body.theme-light h2,
+    body.theme-light h3 {
+      color: #0052cc;
+    }
+
+    body.theme-light th {
+      background: #e1e7f0;
+      border-color: #c5cede;
+    }
+
+    body.theme-light td {
+      border-color: #c5cede;
+    }
+
+    body.theme-light .tag {
+      background: #ffffff;
+      color: #222;
+      border: 1px solid #c5cede;
+    }
+
+    body.theme-light .section {
+      background: #ffffff;
+      border: 1px solid #d4d4d8;
+    }
+
+    /* ------------------------
+       Theme: NEON
+    ------------------------ */
+    body.theme-neon {
+      background: radial-gradient(circle at top, #111827 0%, #020617 40%, #000000 100%);
+      color: #e5e7eb;
+    }
+
+    /* keep gradient for h1, just add glow */
+    body.theme-neon h1 {
+      text-shadow:
+          0 0 8px rgba(255, 0, 170, 0.75),
+          0 0 2px rgba(255, 0, 170, 1);
+    }
+
+    body.theme-neon h2 {
+      color: #38bdf8;
+      text-shadow: 0 0 6px rgba(56, 189, 248, 0.8);
+      position: relative;
+      padding-left: 10px;
+    }
+
+    body.theme-neon th {
+      background: rgba(0, 255, 255, 0.08);
+      border-bottom: 2px solid rgba(0, 255, 255, 0.4);
+      color: #e5e7eb;
+      text-shadow: 0 0 6px rgba(56, 189, 248, 0.7);
+      font-weight: 600;
+    }
+
+    body.theme-neon td {
+      border-color: #374151;
+      color: #cbd5f5;
+    }
+
+    body.theme-neon .tag {
+      background: rgba(15, 23, 42, 0.95);
+      color: #e5e7eb;
+      border: 1px solid #38bdf8;
+      box-shadow: 0 0 6px rgba(56, 189, 248, 0.7);
+    }
+
+    body.theme-neon .section {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      box-shadow: 0 0 12px rgba(0, 200, 255, 0.1);
+    }
+
+    /* Report header */
+    .report-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 40px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid;
+    }
+
+    .report-logo {
+      width: 200px;
+      height: auto;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+
+    .report-title {
+      margin: 0;
+      font-size: 1.8rem;
+      font-weight: 700;
+    }
+
+    .report-subtitle {
+      margin-top: 4px;
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+
+    /* Theme-specific header overrides */
+    body.theme-dark .report-header {
+      border-color: #333;
+    }
+
+    body.theme-light .report-header {
+      border-color: #ccd2dd;
+    }
+
+    body.theme-neon .report-header {
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+    }
+
+    .logo-glow {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px;
+      background: radial-gradient(circle, rgba(255,0,255,0.3), rgba(0,0,0,0));
+      border-radius: 16px;
+    }
+
+    body.theme-neon .chart-wrapper {
+      padding: 12px;
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      box-shadow: 0 0 8px rgba(15, 23, 42, 0.9);
+      transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
+    }
+
+    /* Hover effect for plot containers */
+    body.theme-neon .chart-wrapper:hover {
+      transform: translateY(-2px);
+      box-shadow:
+        0 0 16px rgba(56, 189, 248, 0.5),
+        0 0 26px rgba(244, 114, 182, 0.4);
+      border-color: rgba(56, 189, 248, 0.9);
+    }
+
+    body.theme-neon .chart-wrapper {
+      background: radial-gradient(circle at top left, rgba(56,189,248,0.18), transparent 55%),
+                  radial-gradient(circle at bottom right, rgba(244,114,182,0.16), transparent 55%),
+                  rgba(15, 23, 42, 0.9);
+    }
+
+    .table-pager {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+    }
+
+    .table-pager button {
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid #555;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .table-pager button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    .table-pager .pager-info {
+      opacity: 0.7;
+    }
+
+    .table-pager .pager-size-wrapper {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .table-pager select {
+      font-size: 0.85rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #555;
+      background: transparent;
+      color: inherit;
+    }
+
+    /* Light / neon tweaks */
+    body.theme-light .table-pager button,
+    body.theme-light .table-pager select {
+      border-color: #999;
+    }
+
+    body.theme-neon .table-pager button,
+    body.theme-neon .table-pager select {
+      border-color: #38bdf8;
+      color: #38bdf8;
+      box-shadow: 0 0 6px rgba(56,189,248,0.6);
+    }
+
+    /* Force dropdown menu colors (Chrome/Firefox/Edge) */
+    .table-pager select {
+      background-color: #1e293b;   /* slate-800 */
+      color: #e5e7eb;              /* text-gray-200 */
+      border: 1px solid #64748b;   /* gray-500 */
+    }
+
+    body.theme-light .table-pager select {
+      background-color: #ffffff;
+      color: #111;
+      border-color: #999;
+    }
+
+    body.theme-neon .table-pager select {
+      background-color: #0f172a;   /* neon slate-blue */
+      color: #38bdf8;              /* neon cyan text */
+      border-color: #38bdf8;
+      box-shadow: 0 0 6px rgba(56,189,248,0.6);
+    }
+
+    body.theme-neon h2::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 70%;
+      background: linear-gradient(#38bdf8, #f472b6);
+      border-radius: 999px;
+    }
+
+    body.theme-neon h2::after {
+      content: "";
+      display: block;
+      margin-top: 6px;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, #38bdf8, #f472b6 40%, transparent 90%);
+      opacity: 0.35;
+    }
+
+    .filter-tags {
+      margin-top: -6px;   /* or -10px depending on feel */
+    }
+
+    /* Make the actual dropdown options match the theme */
+    .table-pager select option {
+      background-color: #1e293b;
+      color: #e5e7eb;
+    }
+
+    body.theme-light .table-pager select option {
+      background-color: #ffffff;
+      color: #111;
+    }
+
+    body.theme-neon .table-pager select option {
+      background-color: #0f172a;
+      color: #38bdf8;
+    }
+
+    @keyframes neonPulse {
+      0%   { text-shadow: 0 0 6px rgba(56,189,248,0.6); }
+      50%  { text-shadow: 0 0 14px rgba(56,189,248,1); }
+      100% { text-shadow: 0 0 6px rgba(56,189,248,0.6); }
+    }
+
+    body.theme-neon h2 {
+      animation: neonPulse 3s ease-in-out infinite;
+      text-shadow: 0 0 6px rgba(56, 189, 248, 0.6),
+               0 0 12px rgba(244, 114, 182, 0.4);
+    }
+
+    .title-divider-1 {
+      height: 3px;
+      width: 100%;
+      background: linear-gradient(90deg, #ff00aa, #38bdf8, #ff00aa);
+      background-size: 300% 100%;
+      animation: sweep 6s linear infinite;
+      border-radius: 3px;
+    }
+
+    .title-divider-2 {
+      height: 3px;
+      width: 100%;
+      background: linear-gradient(90deg, #ff00aa, #38bdf8, #ff00aa);
+      background-size: 300% 100%;
+      animation: sweep 6s linear infinite;
+      border-radius: 3px;
+      margin-bottom: 30px;
+    }
+
+    @keyframes sweep {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 300% 0%; }
+    }
+
+    body.theme-neon .section {
+      border: 1px solid rgba(56,189,248,0.3);
+      position: relative;
+    }
+
+    body.theme-neon .section::before,
+    body.theme-neon .section::after {
+      content: "";
+      position: absolute;
+      height: 2px;
+      width: 40px;
+      background: linear-gradient(90deg, rgba(56,189,248,1), rgba(255,0,255,0));
+      top: -1px;
+    }
+
+    body.theme-neon .section::after {
+      right: 0;
+      left: auto;
+      transform: scaleX(-1);
+    }
+
+    body.theme-neon {
+      background-image:
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px),
+        radial-gradient(circle at top, #111827 0%, #020617 40%, #000000 100%);
+      background-size: 50px 50px, 50px 50px, auto;
+    }
+
+    body.theme-neon table:hover {
+      box-shadow: 0 0 12px rgba(56,189,248,0.4);
+    }
+
+    body.theme-neon .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid #38bdf8;
+      padding: 4px 10px;
+      border-radius: 999px;
+      box-shadow: 0 0 8px rgba(56,189,248,0.8);
+    }
+
+    body.theme-neon {
+      opacity: 0;
+      animation: fadeIn 1.2s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      to { opacity: 1; }
+    }
+
+    body.theme-neon ::-webkit-scrollbar {
+      width: 10px;
+    }
+    body.theme-neon ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    body.theme-neon ::-webkit-scrollbar-thumb {
+      background: #38bdf8;
+      border-radius: 6px;
+      box-shadow: 0 0 10px rgba(56,189,248,0.8);
+    }
+    body.theme-neon ::-webkit-scrollbar-thumb:hover {
+      background: #7dd3fc;
+    }
+
+    body.theme-neon table tbody tr:hover {
+      background: rgba(56, 189, 248, 0.08);
+      transition: 0.25s ease;
+    }
+
+    .footer {
+      margin-top: 32px;
+      padding: 10px 16px;
+      text-align: center;
+      font-size: 0.8rem;
+      opacity: 0.7;
+      border-top: 1px solid rgba(56,189,248,0.3);
+      text-shadow: 0 0 4px rgba(56,189,248,0.6);
+    }
+
+    .footer .back-to-top {
+      color: #38bdf8;
+      text-decoration: none;
+      margin-left: 6px;
+    }
+
+    .footer .back-to-top:hover {
+      color: #f472b6;
+      text-shadow: 0 0 6px #f472b6;
+    }
+
+    .neon-divider {
+      height: 2px;
+      margin-top: 6px;
+      margin-bottom: 20px;
+      background: linear-gradient(90deg, #ff00aa, #38bdf8);
+      box-shadow: 0 0 6px rgba(255,0,170,0.6), 0 0 6px rgba(56,189,248,0.6);
+    }
+
+    h1.model-title {
+        margin-bottom: 18px;
+    }
+
+    h1.model-title::after {
+      content: "";
+      display: block;
+      height: 100%;
+      width: 100%;
+      background: repeating-linear-gradient(
+          to bottom,
+          transparent 0px,
+          transparent 3px,
+          rgba(255,255,255,0.03) 3px,
+          rgba(255,255,255,0.03) 6px
+      );
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+
+    /* Dark mode */
+    body.theme-dark .pdp-var-label {
+        color: #38bdf8;
+    }
+
+    /* Light mode */
+    body.theme-light .pdp-var-label {
+        color: #0052cc;
+    }
+
+    /* Neon mode */
+    body.theme-neon .pdp-var-label {
+        color: #38bdf8;
+        text-shadow: 0 0 6px rgba(56,189,248,0.85);
+    }
+
+    body.theme-neon .pdp-var-label::after {
+        content: "";
+        display: block;
+        height: 2px;
+        width: 140px;
+        margin-top: 2px;
+        background: linear-gradient(90deg, #38bdf8, #ff00aa);
+        box-shadow: 0 0 6px rgba(56,189,248,0.5);
+    }
+
+    .pdp-var-label {
+        margin: 6px 0 10px 2px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+
+    .jump-links {
+      margin: 6px 0 18px 2px;
+      font-size: 0.9rem;
+    }
+
+    .jump-links a {
+      margin-right: 14px;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    /* Dark theme jump links */
+    body.theme-dark .jump-links a {
+      color: #38bdf8;
+    }
+
+    /* Light theme jump links */
+    body.theme-light .jump-links a {
+      color: #0052cc;
+    }
+
+    /* Neon theme jump links */
+    body.theme-neon .jump-links a {
+      color: #38bdf8;
+      text-shadow: 0 0 4px rgba(56,189,248,0.7);
+    }
+
+    body.theme-neon .jump-links a:hover {
+      color: #f472b6 !important;
+      text-shadow: 0 0 6px #f472b6 !important;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+
+
+    /* Collapsible container */
+    .collapsible {
+      margin-bottom: 1.75rem;
+    }
+
+    /* Clickable header bar */
+    .collapsible-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      padding: 10px 14px;
+      border-radius: 10px;
+
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(56,189,248,0.45);
+      box-shadow: 0 0 10px rgba(56,189,248,0.25);
+
+      transition: background 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
+    }
+
+    /* Use your h2 neon styling inside the header */
+    .collapsible-header h2 {
+      margin: 0;
+    }
+
+    /* Optional hover flare */
+    .collapsible-header:hover {
+      background: rgba(56,189,248,0.16);
+      box-shadow: 0 0 16px rgba(56,189,248,0.6),
+                  0 0 20px rgba(244,114,182,0.4);
+      transform: translateY(-1px);
+    }
+
+    /* Chevon icon rotation */
+    .collapse-icon {
+      transition: transform 0.25s ease, color 0.25s ease;
+    }
+
+    /* Body area that hides/shows */
+    .collapsible-body {
+      overflow: hidden;
+      max-height: 0;
+      opacity: 0;
+      transform: translateY(-4px);
+      margin-top: 0;
+      transition:
+        max-height 0.45s cubic-bezier(0.22, 0.61, 0.36, 1),
+        opacity 0.35s ease-out,
+        transform 0.35s ease-out;
+      will-change: max-height, opacity, transform;
+    }
+
+    /* Closed state */
+    .collapsible.closed .collapsible-body {
+      max-height: 0;
+      margin-top: 0;
+    }
+
+    /* When open, reveal with margin, fade + slide */
+    .collapsible.open .collapsible-body {
+      margin-top: 10px;
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Extra glow when open in neon mode (optional but fun) */
+    body.theme-neon .collapsible.open .collapsible-header {
+      box-shadow:
+        0 0 18px rgba(56,189,248,0.75),
+        0 0 28px rgba(244,114,182,0.55);
+    }
+
+    /* Keep your icon rotation rule as-is */
+    .collapsible.closed .collapse-icon {
+      transform: rotate(-90deg);
+      color: #64748b;
+    }
+
+
+  </style>
+</head>
+<body class="theme-{{ theme | default('neon') }}">
+<header class="report-header" id="top">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <div class="logo-glow">
+    <img src="{{ logo_path }}" alt="RetroFit Logo" class="report-logo">
+    <h1 class="report-title">RetroFit Model Insights Report</h1>
+  </div>
+</header>
+<div class="title-divider-1"></div>
+<h1>Model Insights: {{ bundle.model_name }}</h1>
+<div class="title-divider-2"></div>
+
+<div class="section">
+  <div class="tag">Type: {{ bundle.problem_type }}</div>
+  <div class="tag">Algo: {{ bundle.model_type }}</div>
+  <div class="tag">Target: {{ bundle.target_col }}</div>
+  {% if bundle.run_id %}
+    <div class="tag">Run ID: {{ bundle.run_id }}</div>
+  {% endif %}
+</div>
+
+<div class="jump-links">
+  <a href="#data-summary">Data</a>
+  <a href="#feature-summary">Features</a>
+  <a href="#core-metrics">Metrics</a>
+
+  {% if bundle.problem_type == "classification" and bundle.deciles_table %}
+    <a href="#deciles-table">Deciles Table</a>
+  {% endif %}
+  <a href="#feature-importance">Importance</a>
+
+  {% if bundle.problem_type == "regression" %}
+    <a href="#interaction-importance">Interaction Importance</a>
+    <a href="#calibration">Model Calibration</a>
+    <a href="#actual-vs-predicted">Actual vs Predicted</a>
+    <a href="#residuals-vs-predicted">Residuals vs Predicted</a>
+    <a href="#residuals">Residual Distribution</a>
+    <a href="#prediction-distribution-overlay">Prediction Distribution Overlay</a>
+  {% else %}
+    <a href="#calibration">Model Calibration</a>
+    <a href="#roc-curve">ROC Curve</a>
+    <a href="#pr-curve">Precision–Recall Curve</a>
+    <a href="#metrics-vs-threshold">Metrics vs Threshold</a>
+  {% endif %}
+
+  <a href="#shap-summary">SHAP Summary</a>
+  <a href="#shap-dependence">SHAP Dependence</a>
+  <a href="#pdp-numeric">Partial Dependence: Numeric</a>
+  <a href="#pdp-categorical">Partial Dependence: Categorical</a>
+</div>
+
+<div class="section">
+  <h2 id="data-summary">Data Summary</h2>
+  <table>
+    <thead>
+      <tr>
+        {% for c in bundle.data_summary.columns %}
+        <th>{{ c }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in bundle.data_summary.rows %}
+      <tr>
+        {% for c in bundle.data_summary.columns %}
+        <td>{{ row[c] }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h2 id="feature-summary">Feature Summary</h2>
+  <table class="paginated" data-page-size="10">
+    <thead>
+      <tr>
+        {% for c in bundle.feature_summary.columns %}
+        <th>{{ c }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in bundle.feature_summary.rows %}
+      <tr>
+        {% for c in bundle.feature_summary.columns %}
+        <td>{{ row[c] }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="section" id="core-metrics-section">
+  <h2 id="core-metrics">Core Metrics</h2>
+  <table class="paginated sortable" data-page-size="10">
+    <thead>
+      <tr>
+        {% for c in bundle.metrics.table.columns %}
+        <th>{{ c }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in bundle.metrics.table.rows %}
+      <tr>
+        {% for c in bundle.metrics.table.columns %}
+        <td>{{ row[c] }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if bundle.problem_type == "classification" and bundle.deciles_table %}
+<div class="section" id="deciles-section">
+  <h2 id="deciles-table">Deciles Table (by predicted probability band)</h2>
+
+  <table class="paginated sortable" data-page-size="10">
+    <thead>
+      <tr>
+        {% for c in bundle.deciles_table.columns %}
+        <th>{{ c }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in bundle.deciles_table.rows %}
+      <tr>
+        {% for c in bundle.deciles_table.columns %}
+        <td>{{ row[c] }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="section">
+  <h2 id="feature-importance">Feature Importance</h2>
+  <table class="paginated" data-page-size="10">
+    <thead>
+      <tr>
+        {% for c in bundle.feature_importance_table.columns %}
+        <th>{{ c }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in bundle.feature_importance_table.rows %}
+      <tr>
+        {% for c in bundle.feature_importance_table.columns %}
+        <td>{{ row[c] }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if bundle.interaction_importance_table and bundle.interaction_importance_table.columns %}
+<div class="section">
+  <h2 id="interaction-importance">Interaction Importance (CatBoost)</h2>
+  <table class="paginated" data-page-size="10">
+    <thead>
+      <tr>
+        {% for c in bundle.interaction_importance_table.columns %}
+        <th>{{ c }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in bundle.interaction_importance_table.rows %}
+      <tr>
+        {% for c in bundle.interaction_importance_table.columns %}
+        <td>{{ row[c] }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if bundle.problem_type == "classification" and bundle.threshold_metrics_plot %}
+<div class="collapsible closed">
+  <div class="collapsible-header">
+    <h2 id="threshold-metrics">Threshold Metrics (by threshold)</h2>
+    <i class="fa-solid fa-chevron-down collapse-icon"></i>
+  </div>
+  <div class="collapsible-body">
+    <div class="section">
+      <div class="chart-wrapper">
+        {{ bundle.threshold_metrics_plot | safe }}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if bundle.calibration_table or bundle.calibration_plot %}
+<div class="collapsible closed">
+  <div class="collapsible-header">
+    <h2 id="calibration">Calibration</h2>
+    <i class="fa-solid fa-chevron-down collapse-icon"></i>
+  </div>
+
+  <div class="collapsible-body">
+    <div class="section">
+
+      {% if bundle.calibration_plot %}
+      <div class="chart-wrapper" style="margin-bottom: 20px;">
+        {{ bundle.calibration_plot | safe }}
+      </div>
+      {% endif %}
+
+      {% if bundle.calibration_table %}
+      <h3>Calibration Table</h3>
+      <table class="paginated" data-page-size="25">
+        <thead>
+          <tr>
+            {% for c in bundle.calibration_table.columns %}
+            <th>{{ c }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in bundle.calibration_table.rows %}
+          <tr>
+            {% for c in bundle.calibration_table.columns %}
+            <td>{{ row[c] }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if bundle.actual_vs_pred_plot %}
+<div class="collapsible closed">
+  <div class="collapsible-header">
+    <h2 id="actual-vs-predicted">Actual vs Predicted</h2>
+    <i class="fa-solid fa-chevron-down collapse-icon"></i>
+  </div>
+  <div class="collapsible-body">
+    <div class="section">
+      <div class="chart-wrapper">
+        {{ bundle.actual_vs_pred_plot | safe }}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if bundle.residuals_plot %}
+<div class="collapsible closed">
+  <div class="collapsible-header">
+    <h2 id="residuals-vs-predicted">Residuals vs Predicted</h2>
+    <i class="fa-solid fa-chevron-down collapse-icon"></i>
+  </div>
+  <div class="collapsible-body">
+    <div class="section">
+      <div class="chart-wrapper">
+        {{ bundle.residuals_plot | safe }}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if bundle.residual_dist_plot %}
+<div class="collapsible closed">
+  <div class="collapsible-header">
+    <h2 id="residuals">Residual Distribution</h2>
+    <i class="fa-solid fa-chevron-down collapse-icon"></i>
+  </div>
+  <div class="collapsible-body">
+    <div class="section">
+      <div class="chart-wrapper">
+        {{ bundle.residual_dist_plot | safe }}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if bundle.prediction_dist_plot %}
+<div class="collapsible closed">
+  <div class="collapsible-header">
+    <h2 id="prediction-distribution-overlay">Prediction Distribution Overlay</h2>
+    <i class="fa-solid fa-chevron-down collapse-icon"></i>
+  </div>
+  <div class="collapsible-body">
+    <div class="section">
+      <div class="chart-wrapper">
+        {{ bundle.prediction_dist_plot | safe }}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if bundle.roc_plot %}
+<div class="collapsible closed">
+  <div class="collapsible-header">
+    <h2 id="roc-curve">ROC Curve</h2>
+    <i class="fa-solid fa-chevron-down collapse-icon"></i>
+  </div>
+  <div class="collapsible-body">
+    <div class="chart-wrapper">
+      {{ bundle.roc_plot | safe }}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if bundle.pr_plot %}
+<div class="collapsible closed">
+  <div class="collapsible-header">
+    <h2 id="pr-curve">PR Curve</h2>
+    <i class="fa-solid fa-chevron-down collapse-icon"></i>
+  </div>
+  <div class="collapsible-body">
+    <div class="chart-wrapper">
+      {{ bundle.pr_plot | safe }}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if bundle.shap_summary_table %}
+<div class="collapsible closed">
+  <div class="collapsible-header">
+    <h2 id="shap-summary">SHAP Summary</h2>
+    <i class="fa-solid fa-chevron-down collapse-icon"></i>
+  </div>
+  <div class="collapsible-body">
+    <div class="section">
+      {% if bundle.shap_summary_plot %}
+      <div class="chart-wrapper" style="margin-bottom: 20px;">
+        {{ bundle.shap_summary_plot | safe }}
+      </div>
+      {% endif %}
+
+      <h3>Top Features by mean(|SHAP|)</h3>
+      <table class="paginated" data-page-size="10">
+        <thead>
+          <tr>
+            {% for c in bundle.shap_summary_table.columns %}
+            <th>{{ c }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in bundle.shap_summary_table.rows %}
+          <tr>
+            {% for c in bundle.shap_summary_table.columns %}
+            <td>{{ row[c] }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if bundle.shap_dependence_plots %}
+<div class="collapsible closed">
+  <div class="collapsible-header">
+    <h2 id="shap-dependence">SHAP Dependence Plots</h2>
+    <i class="fa-solid fa-chevron-down collapse-icon"></i>
+  </div>
+  <div class="collapsible-body">
+    <div class="section">
+      {% for dep in bundle.shap_dependence_plots %}
+        <div class="pdp-var-label">{{ dep.feature }}</div>
+        <div class="chart-wrapper">
+          {{ dep.html | safe }}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if bundle.pdp_numeric_plots %}
+<div class="collapsible closed">
+  <div class="collapsible-header">
+    <h2 id="pdp-numeric">Partial Dependence: Numeric Features</h2>
+    <i class="fa-solid fa-chevron-down collapse-icon"></i>
+  </div>
+  <div class="collapsible-body">
+    <div class="section">
+      {% for pdp in bundle.pdp_numeric_plots %}
+        <div class="pdp-var-label">{{ pdp.feature }}</div>
+        <div class="chart-wrapper">
+          {{ pdp.html | safe }}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if bundle.pdp_categorical_plots %}
+<div class="collapsible closed">
+  <div class="collapsible-header">
+    <h2 id="pdp-categorical">Partial Dependence: Categorical Features</h2>
+    <i class="fa-solid fa-chevron-down collapse-icon"></i>
+  </div>
+  <div class="collapsible-body">
+    <div class="section">
+      {% for pdp in bundle.pdp_categorical_plots %}
+        <div class="pdp-var-label">{{ pdp.feature }}</div>
+        <div class="chart-wrapper">
+          {{ pdp.html | safe }}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<footer class="footer">
+  RetroFit Model Insights • {{ bundle.model_name }}
+  {% if bundle.generated_at %} • Generated {{ bundle.generated_at }}{% endif %}
+  • <a href="#top" class="back-to-top">Back to top ↑</a>
+</footer>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+
+    // Smooth, height-aware collapsible sections
+    const collapsibles = document.querySelectorAll(".collapsible");
+
+    collapsibles.forEach((collapsible) => {
+      const header = collapsible.querySelector(".collapsible-header");
+      const body   = collapsible.querySelector(".collapsible-body");
+      if (!header || !body) return;
+
+      // Initial state
+      if (collapsible.classList.contains("closed")) {
+        body.style.maxHeight = "0px";
+      } else {
+        collapsible.classList.add("open");
+        body.style.maxHeight = body.scrollHeight + "px";
+      }
+
+      header.addEventListener("click", () => {
+        const isClosed = collapsible.classList.contains("closed");
+
+        if (isClosed) {
+          // OPEN
+          collapsible.classList.remove("closed");
+          collapsible.classList.add("open");
+          body.style.maxHeight = body.scrollHeight + "px";
+        } else {
+          // CLOSE
+          body.style.maxHeight = body.scrollHeight + "px";
+
+          requestAnimationFrame(() => {
+            collapsible.classList.add("closed");
+            collapsible.classList.remove("open");
+            body.style.maxHeight = "0px";
+          });
+        }
+      });
+
+      // Keep height correct if charts resize / window resizes while open
+      window.addEventListener("resize", () => {
+        if (collapsible.classList.contains("open")) {
+          body.style.maxHeight = body.scrollHeight + "px";
+        }
+      });
+    });
+
+    // Add Rows-Per-Page option + sorting
+    function paginateTable(table) {
+      const tbody = table.querySelector("tbody");
+      if (!tbody) return;
+
+      const rows = Array.from(tbody.querySelectorAll("tr"));
+      if (rows.length === 0) return;
+
+      // ---------- SORTING: header click ----------
+      const thead = table.querySelector("thead");
+      if (thead) {
+        const headerCells = Array.from(thead.querySelectorAll("th"));
+
+        headerCells.forEach((th, colIndex) => {
+          let sortDir = 1; // 1 = asc, -1 = desc
+          th.style.cursor = "pointer";
+
+          th.addEventListener("click", () => {
+            // Detect if column is numeric
+            const isNumericColumn = rows.every((tr) => {
+              const cell = tr.children[colIndex];
+              if (!cell) return true;
+              const txt = cell.textContent.trim();
+              if (txt === "") return true;
+              return !isNaN(parseFloat(txt));
+            });
+
+            rows.sort((a, b) => {
+              const aCell = a.children[colIndex]?.textContent.trim() ?? "";
+              const bCell = b.children[colIndex]?.textContent.trim() ?? "";
+
+              if (isNumericColumn) {
+                const aNum = parseFloat(aCell);
+                const bNum = parseFloat(bCell);
+
+                if (isNaN(aNum) && isNaN(bNum)) return 0;
+                if (isNaN(aNum)) return 1;
+                if (isNaN(bNum)) return -1;
+                return (aNum - bNum) * sortDir;
+              } else {
+                return aCell.localeCompare(bCell) * sortDir;
+              }
+            });
+
+            // Flip direction next click
+            sortDir *= -1;
+
+            // Re-attach rows in sorted order
+            rows.forEach((tr) => tbody.appendChild(tr));
+
+            // Reset to first page with new order
+            renderPage(1);
+          });
+        });
+      }
+      // ---------- END SORTING SETUP ----------
+
+      // Default page size from attribute or fallback
+      const sizeAttr = table.getAttribute("data-page-size");
+      let defaultPageSize = parseInt(sizeAttr, 10);
+      if (isNaN(defaultPageSize) || defaultPageSize <= 0) {
+        defaultPageSize = 25;
+      }
+
+      let currentPage = 1;
+      let pageSize = defaultPageSize;   // null means "All"
+
+      const totalRows = rows.length;
+
+      // Pager container
+      const pager = document.createElement("div");
+      pager.className = "table-pager";
+
+      // Page size selector
+      const sizeLabel = document.createElement("span");
+      sizeLabel.textContent = "Rows per page:";
+
+      const sizeSelect = document.createElement("select");
+      const sizeOptions = [
+        { label: "10", value: "10" },
+        { label: "25", value: "25" },
+        { label: "50", value: "50" },
+        { label: "100", value: "100" },
+        { label: "All", value: "all" },
+      ];
+
+      sizeOptions.forEach(opt => {
+        const o = document.createElement("option");
+        o.value = opt.value;
+        o.textContent = opt.label;
+
+        // Initial selection based on default page size
+        if (opt.value !== "all" && parseInt(opt.value, 10) === defaultPageSize) {
+          o.selected = true;
+        }
+        sizeSelect.appendChild(o);
+      });
+
+      sizeSelect.addEventListener("change", function () {
+        const val = this.value;
+        if (val === "all") {
+          pageSize = null;      // special mode: show all rows
+        } else {
+          const parsed = parseInt(val, 10);
+          pageSize = isNaN(parsed) || parsed <= 0 ? null : parsed;
+        }
+        // Reset to first page on change
+        renderPage(1);
+      });
+
+      // Prev / Next / Info
+      const prevBtn = document.createElement("button");
+      prevBtn.textContent = "Prev";
+
+      const nextBtn = document.createElement("button");
+      nextBtn.textContent = "Next";
+
+      const pageInfo = document.createElement("span");
+      pageInfo.className = "pager-info";
+
+      prevBtn.addEventListener("click", function () {
+        if (pageSize === null) return;  // no paging in "All" mode
+        const newPage = Math.max(1, currentPage - 1);
+        if (newPage !== currentPage) {
+          renderPage(newPage);
+        }
+      });
+
+      nextBtn.addEventListener("click", function () {
+        if (pageSize === null) return;
+        const totalPages = Math.ceil(totalRows / pageSize);
+        const newPage = Math.min(totalPages, currentPage + 1);
+        if (newPage !== currentPage) {
+          renderPage(newPage);
+        }
+      });
+
+      function renderPage(page) {
+        currentPage = page;
+
+        if (pageSize === null) {
+          // "All" mode: show all rows, disable paging buttons
+          rows.forEach(row => {
+            row.style.display = "";
+          });
+          prevBtn.disabled = true;
+          nextBtn.disabled = true;
+          pageInfo.textContent = `All ${totalRows} rows`;
+          return;
+        }
+
+        const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+        const start = (page - 1) * pageSize;
+        const end = start + pageSize;
+
+        rows.forEach((row, idx) => {
+          row.style.display = (idx >= start && idx < end) ? "" : "none";
+        });
+
+        prevBtn.disabled = currentPage === 1;
+        nextBtn.disabled = currentPage === totalPages;
+
+        pageInfo.textContent = `Page ${currentPage} of ${totalPages} (total ${totalRows} rows)`;
+      }
+
+      // Assemble pager
+      const sizeWrapper = document.createElement("span");
+      sizeWrapper.className = "pager-size-wrapper";
+      sizeWrapper.appendChild(sizeLabel);
+      sizeWrapper.appendChild(sizeSelect);
+
+      pager.appendChild(sizeWrapper);
+      pager.appendChild(prevBtn);
+      pager.appendChild(pageInfo);
+      pager.appendChild(nextBtn);
+
+      // Insert pager after the table
+      table.insertAdjacentElement("afterend", pager);
+
+      // Initial render
+      renderPage(1);
+    }
+
+    // Apply pagination (and sorting) to all marked tables
+    const paginatedTables = document.querySelectorAll("table.paginated");
+    paginatedTables.forEach((tbl) => {
+      paginateTable(tbl);
+    });
+  });
+</script>
+
+</body>
+</html>
