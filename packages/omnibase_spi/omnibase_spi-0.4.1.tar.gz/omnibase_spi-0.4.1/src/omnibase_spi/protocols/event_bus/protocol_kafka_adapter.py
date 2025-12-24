@@ -1,0 +1,286 @@
+"""Kafka Event Bus Adapter Protocol - ONEX SPI Interface.
+
+This module provides protocol definitions for Kafka backend implementations in the
+ONEX event bus system. It defines the contract for Kafka-specific event bus adapters
+including configuration, connection management, and core messaging operations.
+
+Key Protocols:
+    - ProtocolKafkaConfig: Configuration parameters for Kafka clients.
+    - ProtocolKafkaAdapter: Kafka-based event bus adapter interface.
+
+The Kafka adapter provides environment-aware topic naming, consumer group coordination,
+and full support for Kafka's publish/subscribe messaging patterns with proper
+partitioning and offset management.
+
+Example:
+    ```python
+    from omnibase_spi.protocols.event_bus import ProtocolKafkaAdapter
+
+    # Get Kafka adapter from dependency injection
+    adapter: ProtocolKafkaAdapter = get_kafka_adapter()
+
+    # Build environment-aware topic name
+    topic = await adapter.build_topic_name("user-events")
+    # Returns: "prod-user-events" if environment is "prod"
+
+    # Publish event
+    await adapter.publish(
+        topic=topic,
+        key=b"user:123",
+        value=b'{"event": "user_created"}',
+        headers={"correlation_id": "abc123"}
+    )
+
+    # Subscribe to events
+    async def handle_message(msg: ProtocolEventMessage) -> None:
+        print(f"Received: {msg}")
+
+    unsubscribe = await adapter.subscribe(
+        topic=topic,
+        group_id="my-consumer-group",
+        on_message=handle_message
+    )
+
+    # Cleanup
+    await adapter.close()
+    ```
+
+See Also:
+    - ProtocolRedpandaAdapter: Redpanda-specific adapter with optimized defaults.
+    - ProtocolEventBusService: Service layer for event bus operations.
+    - ProtocolEventBusProvider: Factory for obtaining event bus instances.
+"""
+
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from omnibase_spi.protocols.types.protocol_event_bus_types import (
+        ProtocolEventMessage,
+    )
+
+# Type aliases to avoid namespace violations
+EventBusHeaders = Any  # Generic headers type
+EventMessage = Any  # Generic event message type
+
+
+@runtime_checkable
+class ProtocolKafkaConfig(Protocol):
+    """
+    Protocol for Kafka client configuration parameters.
+
+    Defines security, authentication, and operational settings for
+    Kafka connections including SASL/SSL configuration, consumer
+    group behavior, and timeout management.
+
+    Attributes:
+        security_protocol: Security protocol (PLAINTEXT, SSL, SASL_SSL)
+        sasl_mechanism: SASL auth mechanism (PLAIN, SCRAM-SHA-256, etc.)
+        sasl_username: SASL authentication username
+        sasl_password: SASL authentication password
+        ssl_cafile: Path to CA certificate file for SSL
+        auto_offset_reset: Consumer offset reset behavior (earliest, latest)
+        enable_auto_commit: Whether to auto-commit consumer offsets
+        session_timeout_ms: Consumer session timeout in milliseconds
+        request_timeout_ms: Request timeout in milliseconds
+
+    Example:
+        ```python
+        adapter: ProtocolKafkaAdapter = get_kafka_adapter()
+        config = adapter.kafka_config
+
+        print(f"Security: {config.security_protocol}")
+        print(f"SASL: {config.sasl_mechanism}")
+        print(f"Auto-commit: {config.enable_auto_commit}")
+        print(f"Session timeout: {config.session_timeout_ms}ms")
+        ```
+
+    See Also:
+        - ProtocolKafkaAdapter: Kafka adapter using this config
+        - ProtocolKafkaClient: Low-level Kafka client
+    """
+
+    security_protocol: str
+    sasl_mechanism: str
+    sasl_username: str | None
+    sasl_password: str | None
+    ssl_cafile: str | None
+    auto_offset_reset: str
+    enable_auto_commit: bool
+    session_timeout_ms: int
+    request_timeout_ms: int
+
+
+@runtime_checkable
+class ProtocolKafkaAdapter(Protocol):
+    """
+    Protocol for Kafka-based event bus adapter implementations.
+
+    Provides Kafka-specific configuration, connection management, and
+    core event bus operations for publishing events and subscribing
+    to topics with environment and group isolation.
+
+    Example:
+        ```python
+        adapter: ProtocolKafkaAdapter = get_kafka_adapter()
+
+        # Access configuration
+        print(f"Servers: {adapter.bootstrap_servers}")
+        print(f"Environment: {adapter.environment}")
+        print(f"Group: {adapter.group}")
+
+        # Build environment-aware topic name
+        topic = await adapter.build_topic_name("user-events")
+
+        # Publish event
+        await adapter.publish(
+            topic=topic,
+            key=b"user:123",
+            value=b'{"event": "user_created"}',
+            headers={"correlation_id": "abc123"}
+        )
+
+        # Subscribe to events
+        async def handle_message(msg: ProtocolEventMessage):
+            print(f"Received: {msg}")
+
+        unsubscribe = await adapter.subscribe(
+            topic=topic,
+            group_id="my-consumer-group",
+            on_message=handle_message
+        )
+
+        # Cleanup
+        await adapter.close()
+        ```
+
+    See Also:
+        - ProtocolKafkaConfig: Configuration parameters
+        - ProtocolEventBusProvider: ONEX event bus interface
+        - ProtocolKafkaClient: Low-level Kafka operations
+    """
+
+    @property
+    def bootstrap_servers(self) -> str:
+        """Kafka bootstrap servers connection string.
+
+        Returns:
+            Comma-separated list of broker addresses (e.g., "kafka1:9092,kafka2:9092").
+        """
+        ...
+
+    @property
+    def environment(self) -> str:
+        """Environment name for topic isolation.
+
+        Returns:
+            Environment identifier (e.g., "dev", "staging", "prod").
+        """
+        ...
+
+    @property
+    def group(self) -> str:
+        """Consumer group identifier.
+
+        Returns:
+            Group ID for consumer group coordination.
+        """
+        ...
+
+    @property
+    def config(self) -> ProtocolKafkaConfig | None:
+        """Optional Kafka configuration overrides.
+
+        Returns:
+            Kafka configuration object or None for defaults.
+        """
+        ...
+
+    @property
+    def kafka_config(self) -> ProtocolKafkaConfig:
+        """Complete Kafka configuration with all settings.
+
+        Returns:
+            Full Kafka configuration object including security and timeout settings.
+        """
+        ...
+
+    async def build_topic_name(self, topic: str) -> str:
+        """
+        Build environment-aware topic name with prefixes.
+
+        Args:
+            topic: Base topic name.
+
+        Returns:
+            Fully qualified topic name with environment/group prefixes.
+        """
+        ...
+
+    # Core event bus adapter interface methods
+    async def publish(
+        self,
+        topic: str,
+        key: bytes | None,
+        value: bytes,
+        headers: EventBusHeaders,
+    ) -> None:
+        """
+        Publish event message to Kafka topic.
+
+        Args:
+            topic: Target topic name.
+            key: Optional message key for partitioning.
+            value: Message payload as bytes.
+            headers: Event headers/metadata.
+
+        Raises:
+            PublishError: If message publication fails.
+        """
+        ...
+
+    async def subscribe(
+        self,
+        topic: str,
+        group_id: str,
+        on_message: Callable[["ProtocolEventMessage"], Awaitable[None]],
+    ) -> Callable[[], Awaitable[None]]:
+        """
+        Subscribe to Kafka topic with consumer group.
+
+        Args:
+            topic: Topic to subscribe to.
+            group_id: Consumer group identifier.
+            on_message: Async callback for message handling.
+
+        Returns:
+            Async callable to unsubscribe from the topic.
+
+        Raises:
+            SubscriptionError: If subscription fails.
+        """
+        ...
+
+    async def close(self, timeout_seconds: float = 30.0) -> None:
+        """Close Kafka adapter and release resources.
+
+        Cleanly shuts down producer and consumer connections, flushes
+        pending messages, and releases network resources.
+
+        Args:
+            timeout_seconds: Maximum time to wait for cleanup to complete.
+                Defaults to 30.0 seconds.
+
+        Raises:
+            TimeoutError: If cleanup does not complete within the specified timeout.
+
+        Example:
+            ```python
+            # Close with default timeout
+            await adapter.close()
+
+            # Close with custom timeout
+            await adapter.close(timeout_seconds=60.0)
+            ```
+        """
+        ...
