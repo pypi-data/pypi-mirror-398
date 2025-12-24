@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate-pr-title:
+    runs-on: ubuntu-slim
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  markdownlint:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v6
+      - uses: DavidAnson/markdownlint-cli2-action@v22
+        with:
+          globs: "**/*.md"
+
+  ruff:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/ruff-action@v3
+        with:
+          version-file: "pyproject.toml"
+          args: "--version"
+      - run: ruff check --verbose
+      - run: ruff format --check --diff --verbose
+
+  uvlock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@v7
+      - run: uv lock --check
+
+  basedpyright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@v7
+      - name: basedpyright
+        run: uv run --frozen --all-extras basedpyright --verbose
+
+  test:
+    needs:
+      - validate-pr-title
+      - markdownlint
+      - uvlock
+      - ruff
+      - basedpyright
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          # - macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@v7
+      - name: Setup llama.cpp to PATH
+        if: false # inference is too slow
+        uses: pbrisbin/setup-tool-action@v2
+        with:
+          name: llama
+          url: "https://github.com/ggml-org/llama.cpp/releases/download/{version}/{name}-{version}-bin-{os}-{arch}.{ext}"
+          os-win32: win-cpu
+          os-linux: ubuntu
+          os-darwin: macos
+          subdir-linux: "{name}-{version}"
+          subdir-darwin: "{name}-{version}"
+      - name: pytest
+        run: uv run --frozen --all-extras pytest --verbose
