@@ -1,0 +1,105 @@
+Metadata-Version: 2.4
+Name: darkseid
+Version: 7.2.1
+Summary: A library to interact with comic archives
+Project-URL: Homepage, https://github.com/Metron-Project/darkseid
+Project-URL: Bug Tracker, https://github.com/Metron-Project/darkseid/issues
+Author-email: Brian Pepple <bpepple@metron.cloud>
+Maintainer-email: Brian Pepple <bpepple@metron.cloud>
+License-Expression: GPL-3.0-or-later
+License-File: LICENSE
+Keywords: cb7,cbr,cbt,cbz,comic,comicinfo,metadata,metroninfo,pdf
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Natural Language :: English
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: POSIX :: BSD
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Utilities
+Requires-Python: >=3.10
+Requires-Dist: defusedxml<0.8,>=0.7.1
+Requires-Dist: natsort<9,>=8.0.0
+Requires-Dist: pycountry<25,>=24.6.1
+Requires-Dist: rarfile>=4.2
+Requires-Dist: xmlschema>=4
+Requires-Dist: zipremove>=0.8.0
+Provides-Extra: 7zip
+Requires-Dist: py7zr>=1.0.0; extra == '7zip'
+Provides-Extra: pdf
+Requires-Dist: pymupdf>=1.26.6; extra == 'pdf'
+Provides-Extra: pillow
+Requires-Dist: pillow>=11.3.0; extra == 'pillow'
+Description-Content-Type: text/markdown
+
+# Darkseid
+
+[![PyPI - Version](https://img.shields.io/pypi/v/darkseid.svg)](https://pypi.org/project/darkseid/)
+[![PyPI - Python](https://img.shields.io/pypi/pyversions/darkseid.svg)](https://pypi.org/project/darkseid/)
+[![Ruff](https://img.shields.io/badge/Linter-Ruff-informational)](https://github.com/charliermarsh/ruff)
+[![Pre-Commit](https://img.shields.io/badge/Pre--Commit-Enabled-informational?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
+
+A [Python](https://www.python.org/) library to interact with comic archives.
+
+## Installation
+
+```bash
+pip install darkseid
+```
+
+There are optional dependencies which can be installed by specifying one or more
+of them in braces e.g. darkseid[7zip]
+
+The optional dependencies are:
+
+- **7zip**: Provides support for reading/writing to CB7 files.
+- **pillow**: Provides support for getting page information that is used with
+  ComicInfo.xml metadata.
+- **pdf**: Provides support for reading/writing metadata in PDF comics and
+  exporting them to CBZ format.
+
+  The pymupdf dependency includes pre-built wheels for most platforms. On some
+  platforms (e.g., Linux ARM, Windows), installation may require libstdc++ and
+  C/C++ build tools to compile libmupdf. See the
+  [pymupdf documentation](https://pymupdf.readthedocs.io/) for details.
+
+## Example
+
+```python
+from pathlib import Path
+from darkseid.comic import Comic, MetadataFormat
+
+comic = Comic(Path("my_comic.cbz"))
+
+# Check if it's a valid comic
+if comic.is_valid_comic():
+    print(f"Comic '{comic.name}' has {comic.get_number_of_pages()} pages")
+
+# Read metadata
+if comic.has_metadata(MetadataFormat.COMIC_INFO):
+    metadata = comic.read_metadata(MetadataFormat.COMIC_INFO)
+    print(f"Series: {metadata.series.name}")
+
+# Get a page
+page_data = comic.get_page(0)  # First page
+if page_data:
+    with open("cover.jpg", "wb") as f:
+        f.write(page_data)
+```
+
+## Documentation
+
+[Read the project documentation](https://darkseid.readthedocs.io/en/stable/?badge=latest)
+
+## Bugs/Requests
+
+Please use the
+[GitHub issue tracker](https://github.com/Metron-Project/darkseid/issues) to
+submit bugs or request features.
