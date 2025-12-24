@@ -1,0 +1,80 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>DIV清单设计</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1,IE=edge"/>
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=0"/>
+    <link rel="icon"  href="/static/smartui/img/favicon.ico">
+    <link rel="stylesheet" href="/static/smartchart/editor/modal.css">
+    <link rel="stylesheet" href="/static/smartchart/icon/iconfont.css">
+    <link rel="stylesheet" href="/static/smartchart/editor/editor.css">
+</head>
+
+<body>
+<div class="editor_head">
+        <span class="label">{{name|safe}}</span>
+        <span class="devhead"><span class="iconfont iconzhutise"></span>
+        <select id="ace-theme">
+        </select></span><a class="iconfont icondrag-drop-line"  onclick="insert_drag()">拖拽</a>
+        <a class="submit-btn" id="submit">保存DIV</a>
+        <span id="printlog" >带#号的行为标识位,不要修改</span>
+        <a class="iconfont iconed_setting"  style="float:right" id="editor_menu"></a>
+        <a class="iconfont iconhelp" title="帮助" style="color: rgb(155, 205, 60);float:right" onclick="load_help('help_divlist')"></a>
+        <a class="iconfont iconcc-magic" title="转化为数据集" style="color: green;float:right" onclick="transform_html()"></a>
+        <a class="iconfont icondownload" title="可视化布局"  href="https://www.smartchart.cn/echart/layout/?id={{name}}"
+           style="color: green;float:right" target="_blank"></a>
+    </div>
+  <div style="padding:0.5% 0.5%;height: calc(100% - 28px)">
+    <div class="editor">
+        <div id="editor1" class="edit-area"></div>
+    </div>
+</div>
+
+<div class="modal modal-s" id="myModal">
+        <div class="modal-content">
+          <header class="modal-header"><span class="close" onclick="hideModal('#myModal')">×</span></header>
+            <div class="modal-body">
+                <pre id="preHelp"></pre>
+            </div>
+        </div>
+</div>
+
+<script src="/static/smartchart/js/jquery.js"></script>
+<script type="text/javascript" src="/static/ace/ace.js"></script>
+<script type="text/javascript" src="/static/ace/ext-language_tools.js"></script>
+<script type="text/javascript" src="/static/smartchart/editor/common.js"></script>
+<script type="text/javascript">
+editor1=init_editor('html');
+editor1.setValue(`{{div_str|safe}}`);
+$('#submit').click(function () {
+    let e = editor1.getValue();
+    console.log(e);
+    $.ajax({type: "POST", url: "/echart/save_divlist/", data: {dashid: GetQueryString('dashid'), div: e},
+        success: function (data) {
+            $('#printlog').html(data['msg']);
+            if (GetQueryString('r')) {try {getParent().dev_smartcss();getParent().location.reload();} catch (e) {
+                    console.log('no opener');
+                }
+            }
+        }
+    });
+});
+function transform_html() {
+        let e = editor1.getValue();
+        $.ajax({
+            type: "POST",
+            url: "/echart/divlist_editor_transform/",
+            data: {dashid: GetQueryString('dashid'), div: e},
+            success: function (data) {
+                if(data['div']!==''){editor1.setValue(data['div'])}
+                $('#printlog').html(data['msg']);
+            }
+        });
+}
+</script>
+</body>
+</html>

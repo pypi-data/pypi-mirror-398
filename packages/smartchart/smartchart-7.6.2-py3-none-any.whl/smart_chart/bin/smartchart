@@ -1,0 +1,50 @@
+#!/usr/bin/env python
+import os
+import sys
+
+
+def main():
+    from smart_chart.echart import get_version
+    SMARTCHART = f'''
+     _____       ___  ___       ___   _____    _____   _____   _   _       ___   _____    _____
+    /  ___/     /   |/   |     /   | |  _  \  |_   _| /  ___| | | | |     /   | |  _  \  |_   _|
+    | |___     / /|   /| |    / /| | | |_| |    | |   | |     | |_| |    / /| | | |_| |    | |
+    \___  \   / / |__/ | |   / / | | |  _  /    | |   | |     |  _  |   / / | | |  _  /    | |
+     ___| |  / /       | |  / /  | | | | \ \    | |   | |___  | | | |  / /  | | | | \ \    | |
+    /_____/ /_/        |_| /_/   |_| |_|  \_\   |_|   \_____| |_| |_| /_/   |_| |_|  \_\   |_|
+    www.smartchart.cn   version: {get_version()}
+'''
+    """Run administrative tasks."""
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'smart_chart.smartchart.settings')
+    try:
+        from django.core.management import execute_from_command_line
+    except ImportError as exc:
+        raise ImportError(
+            "Couldn't import Django. Are you sure it's installed and "
+            "available on your PYTHONPATH environment variable? Did you "
+            "forget to activate a virtual environment?"
+        ) from exc
+    if len(sys.argv) == 1:
+        sys.argv.extend(['runserver', '--insecure', '--noreload'])
+    elif sys.argv[1] == 'wsgi':
+        from waitress import serve
+        from smart_chart.smartchart.wsgi import application
+        try:
+            from smart_chart.smartchart.settings import STATIC_ROOT
+        except ImportError as e:
+            from smart_chart.smartchart.settings import BASE_DIR
+            print(f'Need Edit File\n{os.path.join(BASE_DIR, "config.ini")}\nTo set wsgi = True')
+            return
+        print(f'Run: smartchart collectstatic\nStatic: {STATIC_ROOT}')
+        if len(sys.argv) > 2:
+            host, port = sys.argv[2].split(':')
+        else:
+            host, port = '0.0.0.0', 8000
+        serve(application, host=host, port=port)
+        return
+    print(SMARTCHART)
+    execute_from_command_line(sys.argv)
+
+
+if __name__ == '__main__':
+    main()

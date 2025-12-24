@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+{% load i18n static simpletags %}
+{% get_current_language as LANGUAGE_CODE %}{% get_current_language_bidi as LANGUAGE_BIDI %}
+<html lang="{{ LANGUAGE_CODE|default:'en-us' }}" {% if LANGUAGE_BIDI %}dir="rtl" {% endif %}>
+<head>
+    <title>{% block title %}{% endblock %}</title>
+
+    {% include 'admin/includes/css-part.html' %}
+    <link rel="stylesheet" type="text/css" href="{% static 'admin/css/base.css' %}?_=2.7">
+    <link rel="stylesheet" type="text/css" href="{% static 'smartui/css/base.css' %}?_=3">
+    <link rel="stylesheet" type="text/css" href="{% static 'smartui/theme/simpleui.css' %}">
+    {% include 'admin/includes/js-part.html' %}
+
+    <script type="text/javascript" src="{% static 'smartui/js/language.js' %}?_=2.1.2"></script>
+    <script type="text/javascript" src="{% static 'smartui/locale/en-us.js' %}?_=2.1.2"></script>
+    <script type="text/javascript" src="{% static 'smartui/locale/' %}{% get_language %}.js"></script>
+
+    {% if ""|get_language_code != 'zh-hans' %}
+
+    <script type="text/javascript"
+            src="{% static 'smartui/elementui/umd/locale/en.js' %}?_=2.1.2"></script>
+    <script type="text/javascript">
+        ELEMENT.locale(ELEMENT.lang.en)
+    </script>
+
+    {% endif %}
+    {% block extrastyle %}{% endblock %}
+    {% if LANGUAGE_BIDI %}
+    <link rel="stylesheet" type="text/css" href="{% block stylesheet_rtl %}{% static 'admin/css/rtl.css' %}{% endblock %}?_=20180905"/>{% endif %}
+    {% block extrahead %}{% endblock %}
+    {% block responsive %}
+    <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="{% static 'admin/css/responsive.css' %}?_=20180905"/>
+    {% if LANGUAGE_BIDI %}
+    <link rel="stylesheet" type="text/css" href="{% static 'admin/css/responsive_rtl.css' %}?_=20180905"/>
+    {% endif %}
+    {% endblock %}
+    {% block blockbots %}
+    <meta name="robots" content="NONE,NOARCHIVE"/>
+    {% endblock %}
+    <script type="text/javascript" src="{% static 'admin/js/vendor/jquery/jquery.min.js' %}"></script>
+</head>
+{% load i18n %}
+
+<body class="{% if is_popup %}popup {% endif %}{% block bodyclass %}{% endblock %}"
+      data-admin-utc-offset="{% now ' Z' %}">
+
+{% verbatim dynamicCss %}
+{% endverbatim dynamicCss %}
+
+<div id="theme">
+    <link v-if="theme && theme!=''" rel="stylesheet" :href="theme">
+    {% if "ADMIN_DEFAULT_THEME"|get_config %}
+    <link v-else rel="stylesheet"
+          href="{% static 'smartui/theme/' %}{{ "ADMIN_DEFAULT_THEME"|get_config }}">
+    {% endif %}
+<el-drawer :visible.sync="drawerVisible" :close-on-press-escape="false" direction="rtl" :size="mobile?'750px':'98%'">
+    <template v-slot:title><div class="drawer-title"><i class="el-icon-setting"></i><span v-text="name"></span></div>
+    <div class="drawer-actions">
+        <i class="el-icon-refresh action-icon" @click="refreshIframe"></i>
+        <i class="el-icon-mobile-phone action-icon" @click="()=>{mobile=!mobile}"></i>
+    </div>
+    </template>
+<iframe :src="drawerURL" :key="iframeKey" style="height:calc(100% - 5px);width:100%;border:none"></iframe>
+</el-drawer>
+<el-dialog  :visible.sync="dialogVisible" width="60%"><iframe :src="dialogURL" style="height:600px;width:100%;border:none"></iframe></el-dialog>
+</div>
+<script type="text/javascript">
+var fontConfig = new Vue({
+    data: {
+        fontSize: null
+    },
+    watch: {
+        fontSize: function (newValue) {
+            if (newValue != 0) {
+                var fontStyle = document.getElementById('fontStyle');
+                if (!fontStyle) {
+                    fontStyle = document.createElement('style');
+                    fontStyle.id = 'fontStyle';
+                    fontStyle.type = 'text/css';
+                    document.head.append(fontStyle);
+                }
+                fontStyle.innerHTML = '*{font-size:' + newValue + 'px!important;}'
+
+            } else {
+                var fontStyle = document.getElementById('fontStyle');
+                if (fontStyle) {
+                    fontStyle.remove();
+                }
+            }
+        }
+    },
+    created: function () {
+        var val = localStorage.getItem('fontSize');
+        if (val) {
+            this.fontSize = parseInt(val);
+        } else {
+            this.fontSize = 0;
+        }
+    },
+    methods: {}
+});
+var myapp=new Vue({
+    el: '#theme',
+    data: {
+        theme: '',
+        drawerVisible:false,
+        drawerURL:'',
+        dialogVisible:false,
+        dialogURL:'',
+        iframeKey: Date.now(),
+        name:'',
+        mobile:false,
+    },
+    created: function () {
+        this.theme = localStorage.getItem('theme');
+        var self = this;
+        //向父组件注册事件
+        if (parent.addEvent) {
+            parent.addEvent('theme', function (theme) {
+                self.theme = theme;
+            });
+
+            parent.addEvent('font', function (font) {
+                fontConfig.fontSize = font;
+            });
+        }
+    },
+  methods: {
+   refreshIframe() {
+        this.iframeKey = Date.now();
+        this.$message({
+            message: '已刷新',
+            type: 'success',
+            duration: 1500
+        });
+    },
+  }
+})
+window.addEventListener('beforeunload', () => {
+    if (window.beforeLoad) {
+        window.beforeLoad();
+    }
+});
+function opendrawer(url,name=''){
+    myapp.drawerVisible = true;
+    myapp.name = name;
+    if(url!==myapp.drawerURL){
+        myapp.drawerURL=url;
+    }
+}
+function opendialog(url){
+    myapp.dialogVisible = true;
+    if(url!==myapp.dialogURL){
+        myapp.dialogURL=url;
+    }
+}
+</script>
+<!-- Container -->
+<div id="container">
+
+    {% block messages %}
+    {% autoescape off %}
+    {% load_message %}
+    {% endautoescape %}
+    <script type="text/javascript">
+        new Vue({
+            created: function () {
+                var self = this;
+                messages.forEach(item => {
+                    setTimeout(function () {
+                        self.$notify({
+                            title: getLanuage('Tips'),
+                            message: item.msg,
+                            type: item.tag,
+                            dangerouslyUseHTMLString: true
+                        });
+                    }, 200);
+                });
+            }
+        })
+    </script>
+
+    {% endblock messages %}
+
+    <div class="menu-content">
+        {% for app in app_list %}
+        {{ app }}
+        {% endfor %}
+    </div>
+    <!-- Content -->
+    <div id="content" class="{% block coltype %}colM{% endblock %}">
+        {% has_admindoc_page as has_page %}
+        {% if has_page %}
+        {% url 'django-admindocs-docroot' as rooturl %}
+        {% if request.path != rooturl %}
+        <a href="{% url 'django-admindocs-docroot' %}">{% trans 'Back to View documentation' %}</a>
+        {% endif %}
+        {% endif %}
+
+        {% block pretitle %}{% endblock %}
+        {% block content_title %}
+        {% if title %}
+        <div style="display: none">{{ title }}</div>
+        {% endif %}
+        {% endblock %}
+        {% block content %}
+        {% block object-tools %}{% endblock %}
+        {{ content }}
+        {% endblock %}
+        {% block sidebar %}{% endblock %}
+        <br class="clear"/>
+    </div>
+    <!-- END Content -->
+
+    {% block footer %}
+    <div id="footer"></div>
+    {% endblock %}
+</div>
+<!-- END Container -->
+</body>
+</html>

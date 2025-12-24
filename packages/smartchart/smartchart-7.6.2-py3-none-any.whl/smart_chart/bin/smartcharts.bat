@@ -1,0 +1,1 @@
+python "%~dp0smartcharts" %1 %2 %3 %4

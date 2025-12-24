@@ -1,0 +1,102 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>资源管理</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1,IE=edge"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=0"/>
+    <link rel="icon"  href="/static/smartui/img/favicon.ico">
+    <script src="/static/smartui/js/vue.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="/static/smartui/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/static/smartui/elementui/theme-chalk/index.css">
+    <script src="/static/smartui/elementui/index.js"></script>
+<style>
+.custom-tree-node {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+    padding-right: 8px;
+  }
+</style>
+</head>
+<body>
+<vue id="vue_app">
+  <el-tabs v-model="tabname" @tab-click="handleTabClick">
+    <el-tab-pane label="资源上传" name="upload">
+        <div class="el-col-xs-24 el-col-md-24" style="text-align:center;">
+        <el-upload
+          class="upload-demo"
+          drag
+          :data="{'typename':dashid,'s':'1'}"
+          action="/echart/upload_file/"
+          :show-file-list="true"
+          :on-success="handleUpload"
+          multiple>
+          <i class="el-icon-upload"></i>
+          <div class="el-upload__text">将文件拖到此处，支持批量或<em>点击上传</em></div>
+          <div class="el-upload__tip" slot="tip">切换到资源页,点击列表获取引用地址</div>
+        </el-upload>
+        </div>
+    </el-tab-pane>
+    <el-tab-pane label="我的资源" name="mystatic">
+        <el-tree :data="treeData" :node-key="nodeKey" :props="defaultProps" @node-click="handleNodeClick" v-show="template">
+         <span class="custom-tree-node" slot-scope="{ node, data }"><i :class="data.children?'el-icon-folder-opened':get_fileclass(data.label)">{[ data.label ]}</i>
+            <span>
+            <el-button v-if="photoCheck(data.label)" type="text" size="mini" @click.stop="handleView(data.path)"  icon="el-icon-view" ></el-button>
+            <el-button v-if="!data.children" type="text" size="mini" @click.stop="handleDelete(node,data)"  icon="el-icon-delete" ></el-button>
+           </span>
+         </span>
+       </el-tree>
+    </el-tab-pane>
+       <el-tab-pane label="所有资源" name="allstatic">
+        <el-tree :data="treeData" :node-key="nodeKey" :props="defaultProps" @node-click="handleNodeClick" v-show="template">
+        <span class="custom-tree-node" slot-scope="{ node, data }">
+        <i :class="data.children?'el-icon-folder-opened':get_fileclass(data.label)">{[ data.label ]}</i>
+        <span>
+        <el-button v-if="photoCheck(data.label)" type="text" size="mini" @click.stop="handleView(data.path)"  icon="el-icon-view" ></el-button>
+        </span>
+        </span>
+        </el-tree>
+    </el-tab-pane>
+    <el-tab-pane label="仪表盘管理" name="dash">
+          <el-tree v-show="!template" :data="treeData1" :node-key="nodeKey1" :props="defaultProps1" @node-click=""
+              @node-drop="handleDrop"
+              draggable
+              :allow-drop="allowDrop"
+              :allow-drag="allowDrag"
+          >
+          <span class="custom-tree-node" slot-scope="{ node, data }">
+          <i :class="data.models?'el-icon-folder-opened':'el-icon-eleme'">{[ data.name ]}</i>
+        <span v-if="!data.models">
+         <el-button  type="text" :style="'color:'+data.color" size="mini" @click.stop="save_dash(data)"  :icon="data.icon" ></el-button>
+         <el-button  type="text" size="mini" @click.stop="copy_dash(data.name)"  icon="el-icon-document-copy" ></el-button>
+         <el-button  type="text" size="mini" @click.stop="open_dash(data)"  icon="el-icon-position" ></el-button>
+         <el-button  type="text" size="mini" @click.stop="open_dashTemplate(data.name)"  icon="el-icon-tickets" ></el-button>
+         <el-button  type="text" size="mini" @click.stop="handleDownload($event,data.name)"  icon="el-icon-download" ></el-button>
+        </span>
+       </span>
+        </el-tree>
+    </el-tab-pane>
+    <el-tab-pane label="其它" name="others">
+        <el-popconfirm confirm-button-text='好的' cancel-button-text='不用了' icon="el-icon-info" icon-color="red" title="确定重置数据集的顺序吗？" @confirm="reset_seq">
+          <el-button type="warning" slot="reference" >数据集重置顺序<i class="el-icon-upload el-icon--right"></i></el-button>
+        </el-popconfirm>
+
+        <el-button type="danger" @click.stop="datasetRole">数据集批量授权<i class="el-icon-upload el-icon--right"></i></el-button>
+    </el-tab-pane>
+  </el-tabs>
+
+
+<el-dialog :visible.sync="dialogVisible">
+  <img width="100%" :src="previewImage" alt="">
+</el-dialog>
+</vue>
+</body>
+<script src="/static/smartchart/js/jquery.js"></script>
+<script type="text/javascript" src="/static/smartchart/editor/upload.js?_=2"></script>
+</body>
+</html>

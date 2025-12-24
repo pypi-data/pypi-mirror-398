@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SmartChartConnect</title>
+    <link rel="stylesheet" media="all" href="/static/smartui/css/input.css">
+    <style>
+        #msg span{
+            padding: 0 2px;
+        }
+        .submitlocal {
+            color: #bd890a;
+        }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <form>
+        <h1>DashBoard</h1>
+        <h5 id="msg"><span>FORCE</span><span>DATASET</span><span>CHART</span><span><a href="https://www.smartchart.cn/echart/show/">模板商城</a></span></h5>
+        <div class="group">
+            <input id='id_title' placeholder="Input The KEY" required="required" /><span class="highlight"></span><span class="bar"></span>
+        </div>
+    </form>
+        <div class="btn-box">
+            <button id='submitup'  class="btn btn-submit">商城上传</button>
+            <button id='submitdown'  class="btn btn-submit">商城下载</button>
+            <button id='submitlocalup'  class="btn btn-cancel submitlocal">本地备份</button>
+            <button id='submitlocaldown'  class="btn btn-cancel submitlocal">本地恢复</button>
+            <h5><span>FORCE强制更新|</span><span>DATASET数据集更新|</span><span>CHART图形更新</span></h5>
+        </div>
+</div></body>
+</html>
+
+<script src="/static/smartchart/js/jquery.js"></script>
+
+<script>
+    let status = 0;
+    $("#submitup").click(function (){commitAction('','UP')});
+    $("#submitlocalup").click(function (){commitAction(1,'UP')});
+    $("#submitdown").click(function (){commitAction('','DOWN')});
+    $("#submitlocaldown").click(function (){commitAction(1,'DOWN')});
+    function commitAction(l,up){
+    if(status===1){$('#msg').html('已提交, 不要重复点击');return}
+    let title = $.trim($("#id_title").val());
+			if(title === ""){
+                if(l){title='keys'}
+                else{document.getElementById("msg").innerHTML="你可以从模板商店获取KEY";return;}
+			}
+			status=1
+			$.ajax({
+            type: "POST",
+            url: "/echart/dash_connect/",
+            data: {id: {{id}}, a: up, 'key': title, 'l':l, 'u':window.location.protocol + '//'+ window.location.host},
+            success: function (data) {
+                if(data['status']===2 && self!==top){
+                    parent.location.reload()
+                }
+                $('#msg').html(data['msg']);status=0;
+            }
+        });
+    }
+</script>
