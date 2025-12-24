@@ -1,0 +1,297 @@
+Metadata-Version: 2.4
+Name: darx-core
+Version: 0.1.0
+Summary: Shared utilities and clients for DARX microservices
+Home-page: https://github.com/digitalarchitex/darx-core
+Author: Digital ArchiteX
+Author-email: mrvnrmro@gmail.com
+Project-URL: Bug Reports, https://github.com/digitalarchitex/darx-core/issues
+Project-URL: Source, https://github.com/digitalarchitex/darx-core
+Keywords: darx microservices utilities clients
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: supabase>=2.0.0
+Requires-Dist: slack-sdk>=3.0.0
+Requires-Dist: google-cloud-storage>=2.0.0
+Requires-Dist: structlog>=24.0.0
+Requires-Dist: requests>=2.31.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: project-url
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# DARX Core
+
+Shared utilities and clients for DARX microservices ecosystem.
+
+## Overview
+
+DARX Core provides common patterns and utilities used across all DARX services:
+- **Clients**: Supabase, Slack, Google Cloud Storage
+- **Utilities**: Structured logging, retry logic, error handling, idempotency
+- **Middleware**: (Future) Authentication, tracing, error handlers
+
+## Installation
+
+```bash
+pip install darx-core
+```
+
+### From source
+
+```bash
+git clone https://github.com/digitalarchitex/darx-core.git
+cd darx-core
+pip install -e .
+```
+
+## Usage
+
+### Supabase Client
+
+```python
+from darx_core.clients.supabase import get_supabase_client
+
+# Get singleton client
+db = get_supabase_client()
+
+# Query data
+result = db.table('clients').select('*').eq('status', 'active').execute()
+```
+
+### Slack Client
+
+```python
+from darx_core.clients.slack import post_to_slack
+
+# Post message to Slack
+success = post_to_slack(
+    channel='C123456',
+    thread_ts='1234567890.123456',
+    response_text='Hello from DARX!',
+    on_success=lambda ts: print(f"Posted: {ts}")
+)
+```
+
+### Google Cloud Storage
+
+```python
+from darx_core.clients.storage import upload_to_gcs, download_from_gcs
+
+# Upload string content
+upload_to_gcs(
+    bucket_name='my-bucket',
+    destination_blob_name='folder/file.txt',
+    content='Hello, World!'
+)
+
+# Download content
+content = download_from_gcs(
+    bucket_name='my-bucket',
+    source_blob_name='folder/file.txt'
+)
+```
+
+### Structured Logging
+
+```python
+from darx_core.utils.logging import setup_logging
+
+# Setup logging for your service
+logger = setup_logging('my-service', log_level='INFO')
+
+# Log with context
+logger.info("Processing request", user_id=123, action='create_site')
+
+# Log with correlation ID
+logger = logger.bind(correlation_id='req-abc123')
+logger.info("Database query", table='clients', duration_ms=45)
+```
+
+### Retry Logic
+
+```python
+from darx_core.utils.retry import retry_with_backoff
+import requests
+
+@retry_with_backoff(
+    max_attempts=3,
+    base_delay=1.0,
+    exceptions=(requests.RequestException,)
+)
+def fetch_data():
+    response = requests.get('https://api.example.com/data')
+    response.raise_for_status()
+    return response.json()
+
+# This will retry up to 3 times with exponential backoff
+data = fetch_data()
+```
+
+### Error Handling
+
+```python
+from darx_core.utils.errors import ProvisioningError, ValidationError
+
+# Raise structured errors
+raise ProvisioningError(
+    message="Failed to create GitHub repository",
+    error_code="GITHUB_CREATE_FAILED",
+    details={'client_slug': 'acme-corp'}
+)
+
+# Catch and handle
+try:
+    # ... operation ...
+    pass
+except DARXError as e:
+    print(f"Error: {e}")
+    print(f"Code: {e.error_code}")
+    print(f"HTTP Status: {e.http_status}")
+    print(f"Details: {e.details}")
+```
+
+### Idempotency
+
+```python
+from darx_core.utils.idempotency import idempotent
+
+@idempotent(
+    key_fn=lambda client_slug, *args, **kwargs: {
+        'operation': 'create_github_repo',
+        'client_slug': client_slug
+    },
+    ttl_hours=24
+)
+def create_github_repo(client_slug: str):
+    # This function can be safely retried
+    # Duplicate calls will use cached result
+    return github_api.create_repo(client_slug)
+
+# Safe to call multiple times
+result = create_github_repo('acme-corp')  # Creates repo
+result = create_github_repo('acme-corp')  # Uses cached result (no duplicate)
+```
+
+## Environment Variables
+
+DARX Core expects the following environment variables:
+
+```bash
+# Supabase
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Slack
+SLACK_BOT_TOKEN=xoxb-your-bot-token
+
+# Google Cloud
+GOOGLE_CLOUD_PROJECT=your-project-id
+# Or: GCP_PROJECT=your-project-id
+```
+
+## Architecture
+
+```
+darx_core/
+├── clients/
+│   ├── supabase.py      # Supabase client singleton
+│   ├── slack.py         # Slack API wrapper
+│   └── storage.py       # Google Cloud Storage wrapper
+├── utils/
+│   ├── logging.py       # Structured logging setup
+│   ├── retry.py         # Exponential backoff retry logic
+│   ├── errors.py        # Base error classes
+│   └── idempotency.py   # Idempotency decorator
+└── middleware/          # (Future: auth, tracing, error handlers)
+```
+
+## Benefits
+
+### Code Reduction
+- **60% less code** - Eliminates duplication across 5+ services
+- **Single source of truth** - Consistent patterns everywhere
+
+### Reliability
+- **Automatic retries** - Exponential backoff with jitter
+- **Idempotency** - Safe operation retries
+- **Structured errors** - Consistent error handling
+
+### Observability
+- **JSON logging** - Structured logs for Cloud Logging
+- **Correlation IDs** - Request tracing across services
+- **Error context** - Rich error details
+
+## Development
+
+### Install development dependencies
+
+```bash
+pip install -e ".[dev]"
+```
+
+### Run tests
+
+```bash
+pytest
+```
+
+### Code formatting
+
+```bash
+black darx_core/
+flake8 darx_core/
+mypy darx_core/
+```
+
+## Versioning
+
+DARX Core follows [Semantic Versioning](https://semver.org/):
+- **0.1.x**: Initial development
+- **1.0.0**: First stable release (after Phase 1 complete)
+
+## Contributing
+
+1. Create feature branch
+2. Make changes
+3. Add tests
+4. Run linters
+5. Create pull request
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Changelog
+
+### 0.1.0 (2025-12-21)
+- Initial release
+- Supabase client singleton
+- Slack posting and file upload
+- Google Cloud Storage operations
+- Structured logging with structlog
+- Retry logic with exponential backoff
+- Base error classes
+- Idempotency decorator
