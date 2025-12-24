@@ -1,0 +1,2693 @@
+"""
+HTML Renderer - Converts validated article to production HTML.
+
+Simple, clean rendering with:
+- Semantic HTML5 structure
+- Responsive meta tags
+- Open Graph metadata
+- Schema.org structured data
+- Optimized for SEO and accessibility
+"""
+
+import logging
+import re
+from typing import Dict, Any, Optional, List
+from datetime import datetime
+
+from ..utils.schema_markup import generate_all_schemas, render_schemas_as_json_ld
+from ..models.output_schema import ArticleOutput
+# HTML-first approach: Stage 2 outputs HTML directly, no markdown conversion needed
+from .citation_linker import link_natural_citations, link_internal_articles
+from .content_cleanup_pipeline import cleanup_content as pipeline_cleanup
+
+logger = logging.getLogger(__name__)
+
+
+class HTMLRenderer:
+    """Render validated article data to production HTML."""
+
+    @staticmethod
+    def _make_absolute_url(url: str, base_url: str) -> str:
+        """
+        Convert relative URL to absolute URL.
+        
+        For local development/viewing, keeps output/images/ as relative paths.
+        For production, converts to absolute URLs using base_url.
+        
+        Args:
+            url: Potentially relative URL
+            base_url: Base URL (company_url)
+            
+        Returns:
+            Absolute or relative URL (relative for local images)
+        """
+        if not url:
+            return ""
+        
+        # Keep local image paths relative for viewing
+        # HTML is at output/SLUG/index.html, images at output/images/
+        # So: ../images/filename.webp
+        if url.startswith('output/images/'):
+            filename = url.split('/')[-1]  # Extract just the filename
+            return f"../images/{filename}"
+        
+        # Already absolute
+        if url.startswith(('http://', 'https://')):
+            return url
+        
+        # Make absolute
+        base = base_url.rstrip('/')
+        path = url.lstrip('/')
+        return f"{base}/{path}"
+
+    @staticmethod
+    def _format_display_date(date_str: str) -> str:
+        """
+        Format ISO date (YYYY-MM-DD) for human-readable display.
+        
+        Args:
+            date_str: ISO date string or other format
+            
+        Returns:
+            Formatted date like "Dec 12, 2025"
+        """
+        from datetime import datetime
+        
+        try:
+            # Try ISO format first (YYYY-MM-DD)
+            if '-' in date_str and len(date_str.split('-')[0]) == 4:
+                dt = datetime.strptime(date_str.split('T')[0], '%Y-%m-%d')
+            # Try European format (DD.MM.YYYY) for backward compatibility
+            elif '.' in date_str:
+                dt = datetime.strptime(date_str, '%d.%m.%Y')
+            else:
+                return date_str
+            
+            # Format as "Dec 12, 2025"
+            return dt.strftime('%b %d, %Y')
+        except (ValueError, IndexError):
+            return date_str
+
+    @staticmethod
+    def render(
+        article: Dict[str, Any],
+        company_data: Optional[Dict[str, Any]] = None,
+        article_output: Optional[ArticleOutput] = None,
+        article_url: Optional[str] = None,
+        faq_items: Optional[List[Dict[str, str]]] = None,
+        validated_citations_html: Optional[str] = None,
+    ) -> str:
+        """
+        Render article to production HTML.
+
+        Args:
+            article: Validated article dictionary
+            company_data: Company metadata (for copyright, logo, etc)
+
+        Returns:
+            Complete HTML document string
+        """
+        if not article:
+            return ""
+
+        # Extract key fields
+        headline = HTMLRenderer._strip_html(article.get("Headline", "Untitled"))
+        subtitle = HTMLRenderer._strip_html(article.get("Subtitle", ""))
+        
+        # Extract company info (needed for absolute URLs)
+        company_name = company_data.get("company_name", "") if company_data else ""
+        company_url = company_data.get("company_url", "") if company_data else ""
+        
+        # Inject company_url into article for _build_content (hidden field)
+        article["_company_url"] = company_url
+        
+        # CRITICAL FIX: Initialize URL link counter to limit each URL to max 2 links per article
+        url_link_count = {}
+        # Store it in article temporarily so _build_content can access it
+        article["_url_link_count"] = url_link_count
+        
+        # Get citation_map for intro linkification
+        citation_map = article.get("_citation_map", {})
+        if not citation_map:
+            # Try to parse from Sources field as fallback
+            sources = article.get("Sources", "")
+            citation_map = HTMLRenderer._parse_sources_for_map(sources)
+            if citation_map:
+                article["_citation_map"] = citation_map
+        
+        # Parse source_name_map BEFORE processing intro
+        source_name_map = article.get("_source_name_map", {})
+        if not source_name_map:
+            sources = article.get("Sources", "")
+            source_name_map = HTMLRenderer._parse_sources_for_names(sources)
+            if source_name_map:
+                article["_source_name_map"] = source_name_map
+        
+        # Process intro through the pipeline (HTML-first, cleanup, citation linking)
+        intro_raw = article.get("Intro", "")
+        if intro_raw:
+            # STEP 1: Content is already HTML from Stage 2 (no markdown conversion needed)
+            intro_html = intro_raw
+            # STEP 2: Clean up problematic patterns
+            intro_clean = HTMLRenderer._cleanup_content(intro_html)
+            # STEP 3: Link natural language citations
+            if source_name_map:
+                intro_linked = link_natural_citations(intro_clean, source_name_map, max_links_per_source=2)
+            else:
+                intro_linked = intro_clean
+            intro = intro_linked
+        else:
+            intro = ""
+        
+        content = HTMLRenderer._build_content(article)
+        meta_desc = HTMLRenderer._strip_html(article.get("Meta_Description", ""))  # ✅ CRITICAL FIX: Strip HTML
+        meta_title = HTMLRenderer._strip_html(article.get("Meta_Title", headline))  # ✅ CRITICAL FIX: Strip HTML
+        
+        # Extract and convert image URLs to absolute
+        # Handle cases where image URLs might be dicts (from failed graphics generation)
+        image_url_raw = article.get("image_url", "")
+        image_url = HTMLRenderer._make_absolute_url(image_url_raw if isinstance(image_url_raw, str) else "", company_url)
+        image_alt = article.get("image_alt_text", "")
+        
+        # Mid and bottom images already converted in _build_content
+        mid_image_url_raw = article.get("mid_image_url", "")
+        mid_image_url = HTMLRenderer._make_absolute_url(mid_image_url_raw if isinstance(mid_image_url_raw, str) else "", company_url)
+        mid_image_alt = article.get("mid_image_alt", "")
+        bottom_image_url_raw = article.get("bottom_image_url", "")
+        bottom_image_url = HTMLRenderer._make_absolute_url(bottom_image_url_raw if isinstance(bottom_image_url_raw, str) else "", company_url)
+        bottom_image_alt = article.get("bottom_image_alt", "")
+        
+        # CRITICAL FIX: Use validated citations HTML from Stage 4 instead of raw Sources
+        # This ensures only valid/replaced citations are shown (invalid URLs filtered out)
+        # IMPORTANT: Do NOT fall back to raw unvalidated sources - that defeats the purpose of validation!
+        if validated_citations_html:
+            # Use validated citations HTML directly from Stage 4 citation validation
+            citations_section = validated_citations_html
+            logger.info(f"✅ Using validated citations HTML ({len(validated_citations_html)} chars)")
+        elif validated_citations_html == "":
+            # Validation ran but all citations were filtered out - show nothing
+            # DO NOT fall back to raw unvalidated sources!
+            citations_section = ""
+            logger.warning("⚠️ All citations filtered out by validation (no valid sources found)")
+        else:
+            # validated_citations_html is None - validation didn't run, use raw as fallback
+            sources = article.get("Sources", "")
+            citations_section = HTMLRenderer._render_citations(sources)
+            logger.warning("⚠️ Using raw Sources (validation was not enabled)")
+            
+        # Parse citation_map for inline links
+        # CRITICAL: Use validated_citation_map if available (only validated URLs)
+        # This prevents linking to hallucinated/broken URLs in the body content
+        citation_map = article.get("validated_citation_map") or article.get("_citation_map", {})
+        if not citation_map:
+            # Fallback: parse from raw Sources only if no validated map available
+            sources = article.get("Sources", "")
+            citation_map = HTMLRenderer._parse_sources_for_map(sources)
+            if citation_map:
+                logger.warning(f"⚠️  Using raw citation map (validation may not have run)")
+        if citation_map:
+            logger.info(f"✅ Citation map for inline links: {len(citation_map)} entries")
+            article["_citation_map"] = citation_map
+        else:
+            logger.warning(f"⚠️  No citation map available (Sources length: {len(article.get('Sources', ''))})")
+        
+        # Use validated_source_name_map for natural language linking if available
+        source_name_map = article.get("validated_source_name_map", {})
+        if source_name_map:
+            logger.info(f"✅ Source name map for natural language linking: {list(source_name_map.keys())}")
+            article["_source_name_map"] = source_name_map
+        else:
+            # Build from citation_map as fallback
+            if citation_map:
+                source_name_map = HTMLRenderer._parse_sources_for_names(article.get("Sources", ""))
+                if source_name_map:
+                    article["_source_name_map"] = source_name_map
+                    logger.info(f"✅ Built source name map from raw sources: {list(source_name_map.keys())}")
+        
+        # TOC is flattened by stage_10: toc["01"] becomes toc_01
+        # Reconstruct the TOC dict from flattened keys
+        toc = article.get("toc", {})
+        if not toc:
+            # Try to reconstruct from flattened keys (toc_01, toc_02, etc.)
+            toc = {}
+            for i in range(1, 10):
+                # Try new format first (toc_01), then old format (toc_toc_01)
+                key_new = f"toc_{i:02d}"
+                key_old = f"toc_toc_{i:02d}"
+                if key_new in article and article[key_new]:
+                    toc[key_new] = article[key_new]
+                elif key_old in article and article[key_old]:
+                    # Backward compatibility for old toc_toc_XX format
+                    toc[key_new] = article[key_old]
+        # Use passed faq_items if provided, otherwise extract from article
+        if faq_items is None:
+            faq_items = article.get("faq_items", [])
+        paa_items = article.get("paa_items", [])
+        internal_links = article.get("internal_links_html", "")
+        read_time = article.get("read_time", 5)
+        publication_date = article.get("publication_date", datetime.now().isoformat())
+
+        # Generate JSON-LD schemas with error handling
+        schemas_html = ""
+        if article_output:
+            try:
+                # FIX: Use company_url directly as base_url (rsplit was breaking protocol)
+                # "https://scaile.tech".rsplit('/', 1)[0] was returning "https:" (wrong)
+                base_url = company_url.rstrip('/') if company_url else None
+                # CRITICAL FIX: Pass validated citations to schema generator
+                # Get validated CitationList from article dict (set in stage_10_ai_cleanup)
+                validated_citations = article.get("_validated_citations_list")
+                
+                schemas = generate_all_schemas(
+                    output=article_output,
+                    company_data=company_data,
+                    article_url=article_url,
+                    base_url=base_url,
+                    faq_items=faq_items,
+                    validated_citations=validated_citations,
+                )
+                schemas_html = render_schemas_as_json_ld(schemas)
+            except Exception as e:
+                logger.warning(f"Schema generation failed: {e}. Continuing without schemas.")
+                schemas_html = ""
+
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="{HTMLRenderer._escape_attr(meta_desc)}">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="{HTMLRenderer._escape_attr(company_name)}">
+    <title>{HTMLRenderer._escape_html(meta_title)}</title>
+    
+    {f'<link rel="canonical" href="{HTMLRenderer._escape_attr(article_url)}">' if article_url else ''}
+
+    {HTMLRenderer._og_tags(headline, meta_desc, image_url, article_url, publication_date)}
+    {HTMLRenderer._twitter_tags(meta_title, meta_desc, image_url)}
+    
+    {schemas_html}
+
+    <style>
+        :root {{
+            --primary: #0066cc;
+            --text: #1a1a1a;
+            --text-light: #666;
+            --bg-light: #f9f9f9;
+            --border: #e0e0e0;
+        }}
+
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: var(--text);
+            line-height: 1.6;
+            background: white;
+        }}
+
+        .container {{ max-width: 900px; margin: 0 auto; padding: 0 20px; }}
+
+        header {{ padding: 40px 0; border-bottom: 1px solid var(--border); margin-bottom: 40px; }}
+        header h1 {{ font-size: 2.5em; margin-bottom: 10px; line-height: 1.2; }}
+        header .meta {{ color: var(--text-light); font-size: 0.95em; }}
+
+        .featured-image {{ width: 100%; max-height: 400px; object-fit: cover; margin: 30px 0; border-radius: 8px; }}
+
+        .inline-image {{ width: 100%; max-height: 350px; object-fit: cover; margin: 40px 0; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }}
+
+        .intro {{ font-size: 1.1em; color: var(--text-light); margin: 30px 0; font-style: italic; }}
+
+        .toc {{ background: var(--bg-light); padding: 20px; border-radius: 8px; margin: 30px 0; }}
+        .toc h2 {{ font-size: 1.2em; margin-bottom: 15px; }}
+        .toc ul {{ list-style: none; }}
+        .toc li {{ margin: 8px 0; }}
+        .toc a {{ color: var(--primary); text-decoration: none; }}
+        .toc a:hover {{ text-decoration: underline; }}
+
+        article {{ margin: 40px 0; }}
+        article h2 {{ font-size: 1.8em; margin: 40px 0 20px; }}
+        article h3 {{ font-size: 1.3em; margin: 30px 0 15px; }}
+        article p {{ margin: 15px 0; }}
+        article ul, article ol {{ margin: 15px 0 15px 30px; }}
+        article li {{ margin: 8px 0; }}
+        article a {{ color: var(--primary); text-decoration: none; }}
+        article a:hover {{ text-decoration: underline; }}
+
+        .faq, .paa {{ margin: 40px 0; }}
+        .faq h2, .paa h2 {{ font-size: 1.5em; margin-bottom: 20px; }}
+        .faq-item, .paa-item {{ margin: 20px 0; padding: 15px; background: var(--bg-light); border-radius: 6px; }}
+        .faq-item h3, .paa-item h3 {{ margin-bottom: 10px; font-size: 1.1em; }}
+
+        .more-links {{ margin: 40px 0; padding: 20px; background: var(--bg-light); border-radius: 8px; }}
+        .more-links h2 {{ font-size: 1.3em; margin-bottom: 15px; }}
+        .more-links ul {{ list-style: none; margin: 0; }}
+        .more-links li {{ margin: 10px 0; }}
+        .more-links a {{ color: var(--primary); text-decoration: none; }}
+
+        /* Section-specific internal links (1Komma5 style) */
+        .section-related {{ margin: 15px 0 30px; padding: 10px 15px; background: var(--bg-light); border-radius: 6px; font-size: 0.9em; }}
+        .section-related span {{ color: var(--text-light); margin-right: 8px; }}
+        .section-related a {{ color: var(--primary); text-decoration: none; }}
+        .section-related a:hover {{ text-decoration: underline; }}
+
+        footer {{ border-top: 1px solid var(--border); margin-top: 60px; padding: 40px 0; color: var(--text-light); font-size: 0.9em; }}
+        footer a {{ color: var(--primary); }}
+
+        .citations {{ margin: 40px 0; padding: 20px; background: var(--bg-light); border-left: 4px solid var(--primary); }}
+        .citations h2 {{ font-size: 1.2em; margin-bottom: 15px; }}
+        .citations ol {{ margin: 0 0 0 20px; }}
+        .citations li {{ margin: 10px 0; }}
+        
+        .citation {{ color: var(--primary); text-decoration: none; font-weight: 500; }}
+        .citation:hover {{ text-decoration: underline; }}
+        
+        /* Comparison table styles */
+        .comparison-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }}
+        
+        .comparison-table th {{
+            background: var(--bg-light);
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border: 1px solid var(--border);
+            font-size: 0.95em;
+            color: var(--text);
+        }}
+        
+        .comparison-table td {{
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            vertical-align: top;
+        }}
+        
+        .comparison-table tbody tr:hover {{
+            background: #f5f9ff;
+        }}
+        
+        .comparison-table tbody tr:nth-child(even) {{
+            background: var(--bg-light);
+        }}
+        
+        .comparison-table tbody tr:nth-child(even):hover {{
+            background: #f5f9ff;
+        }}
+        
+        /* Responsive table */
+        @media (max-width: 768px) {{
+            .comparison-table {{
+                font-size: 0.9em;
+            }}
+            
+            .comparison-table th,
+            .comparison-table td {{
+                padding: 0.5rem 0.75rem;
+            }}
+        }}
+            </style>
+</head>
+<body>
+    <header class="container">
+        <h1>{HTMLRenderer._escape_html(headline)}</h1>
+        {f'<h2 class="subtitle">{HTMLRenderer._escape_html(subtitle)}</h2>' if subtitle else ''}
+        <div class="meta">
+            <span>Published: {HTMLRenderer._format_display_date(publication_date)}</span>
+            <span> • </span>
+            <span>Read time: {read_time} min</span>
+            {f' • <span><a href="{HTMLRenderer._escape_attr(company_url)}">{HTMLRenderer._escape_html(company_name)}</a></span>' if company_url else ''}
+        </div>
+    </header>
+
+    <main class="container">
+        {f'<img src="{HTMLRenderer._escape_attr(image_url)}" alt="{HTMLRenderer._escape_attr(image_alt)}" class="featured-image">' if image_url else ''}
+
+        {f'<div class="intro">{HTMLRenderer._linkify_citations(HTMLRenderer._cleanup_content(intro), citation_map, url_link_count)}</div>' if intro else ''}
+
+        {HTMLRenderer._render_toc(toc)}
+
+        <article>
+            {content}
+        </article>
+
+        {HTMLRenderer._render_paa(paa_items)}
+        {HTMLRenderer._render_faq(faq_items)}
+        {internal_links}
+        {citations_section}
+    </main>
+
+    <footer class="container">
+        <p>© {datetime.now().year} {HTMLRenderer._escape_html(company_name)}. All rights reserved.</p>
+        {f'<p><a href="{HTMLRenderer._escape_attr(company_url)}">Visit {HTMLRenderer._escape_html(company_name)}</a></p>' if company_url else ''}
+    </footer>
+</body>
+</html>"""
+        # FINAL CLEANUP: Remove any remaining em/en dashes that slipped through
+        # This is a safety net for content generated during retry loops
+        html = html.replace('—', ' - ')  # Em dash
+        html = html.replace('–', '-')    # En dash
+        
+        # FINAL CLEANUP: Remove academic citations [N] from body content (but preserve in Sources section)
+        # Split HTML into body and Sources section
+        sources_start = html.find('<section class="citations">')
+        if sources_start > 0:
+            body_html = html[:sources_start]
+            sources_html = html[sources_start:]
+            
+            # Remove [N] patterns from body only (not Sources section)
+            # Pattern matches [N] but not [N]: (which is correct in Sources)
+            body_html = re.sub(r'(?<!\[)\[\d+\](?!:)', '', body_html)
+            
+            html = body_html + sources_html
+            logger.info("🚫 Final cleanup: Removed academic citations from body content (preserved Sources section)")
+        
+        return html
+
+    @staticmethod
+    def _render_comparison_table(table: Dict[str, Any]) -> str:
+        """
+        Render a comparison table from ComparisonTable data.
+        
+        Args:
+            table: Dict with keys: title, headers, rows
+            
+        Returns:
+            HTML string with table markup
+        """
+        title = table.get('title', '')
+        headers = table.get('headers', [])
+        rows = table.get('rows', [])
+        
+        if not headers or not rows:
+            return ""
+        
+        # Build table HTML
+        html_parts = []
+        
+        # Table title (h3)
+        if title:
+            html_parts.append(f'<h3>{HTMLRenderer._escape_html(title)}</h3>')
+        
+        # Open table
+        html_parts.append('<table class="comparison-table">')
+        
+        # Table header
+        html_parts.append('  <thead>')
+        html_parts.append('    <tr>')
+        for header in headers:
+            html_parts.append(f'      <th>{HTMLRenderer._escape_html(header)}</th>')
+        html_parts.append('    </tr>')
+        html_parts.append('  </thead>')
+        
+        # Table body
+        html_parts.append('  <tbody>')
+        for row in rows:
+            html_parts.append('    <tr>')
+            for cell in row:
+                html_parts.append(f'      <td>{HTMLRenderer._escape_html(cell)}</td>')
+            html_parts.append('    </tr>')
+        html_parts.append('  </tbody>')
+        
+        # Close table
+        html_parts.append('</table>')
+        
+        return '\n'.join(html_parts)
+
+    @staticmethod
+    def _build_content(article: Dict[str, Any]) -> str:
+        """Build article content from sections with inline images and comparison tables."""
+        parts = []
+        
+        # Get company URL for absolute image paths
+        # Note: This is a workaround - ideally we'd pass these as parameters
+        # but keeping the method signature unchanged for now
+        company_url = article.get("_company_url", "")  # Hidden field for URL conversion
+        
+        # Parse sources to get citation map if not already present (fallback)
+        if "_citation_map" not in article:
+            sources = article.get("Sources", "")
+            citation_map = HTMLRenderer._parse_sources_for_map(sources)
+            if citation_map:
+                article["_citation_map"] = citation_map
+                logger.info(f"✅ Created citation_map from Sources field with {len(citation_map)} entries")
+            else:
+                logger.warning(f"⚠️  No citation_map available (Sources length: {len(sources)})")
+                logger.warning(f"    Citations will remain as #source-N anchors")
+        
+        # CRITICAL FIX: Get URL link counter from article (initialized in render method)
+        url_link_count = article.get("_url_link_count", {})  # Track how many times each URL has been linked
+        
+        # Extract and convert images to absolute URLs
+        # Handle cases where image URLs might be dicts (from failed graphics generation)
+        mid_image_url_raw = article.get("mid_image_url", "")
+        mid_image_url = HTMLRenderer._make_absolute_url(mid_image_url_raw if isinstance(mid_image_url_raw, str) else "", company_url)
+        mid_image_alt = article.get("mid_image_alt", "")
+        bottom_image_url_raw = article.get("bottom_image_url", "")
+        bottom_image_url = HTMLRenderer._make_absolute_url(bottom_image_url_raw if isinstance(bottom_image_url_raw, str) else "", company_url)
+        bottom_image_alt = article.get("bottom_image_alt", "")
+        
+        # Extract comparison tables (max 2)
+        tables = article.get("tables", [])
+
+        for i in range(1, 10):
+            title_key = f"section_{i:02d}_title"
+            content_key = f"section_{i:02d}_content"
+
+            title = article.get(title_key, "")
+            content = article.get(content_key, "")
+
+            if title and title.strip():
+                # Strip any <p> tags from title before escaping
+                title_clean = HTMLRenderer._strip_html(title)
+                
+                # FIX: Remove double-prefixed question words in titles
+                # "What is Why is X" → "Why is X"
+                # "What is What Role Does X Play" → "What Role Does X Play"
+                double_prefix_patterns = [
+                    (r'^What is Why is\b', 'Why is'),
+                    (r'^What is Why\b', 'Why'),  # "What is Why Automation" → "Why Automation"
+                    (r'^What is How does\b', 'How does'),
+                    (r'^What is How\b', 'How'),  # "What is How to" → "How to"
+                    (r'^What is What Role\b', 'What Role'),
+                    (r'^What is What are\b', 'What are'),
+                    (r'^What is What is\b', 'What is'),
+                    (r'^How does How does\b', 'How does'),
+                    (r'^Why is Why is\b', 'Why is'),
+                ]
+                for pattern, replacement in double_prefix_patterns:
+                    title_clean = re.sub(pattern, replacement, title_clean, flags=re.IGNORECASE)
+                
+                # Also fix double question marks
+                title_clean = re.sub(r'\?\?+', '?', title_clean)
+                
+                # Add id for TOC anchor linking (toc_01, toc_02, etc.)
+                parts.append(f'<h2 id="toc_{i:02d}">{HTMLRenderer._escape_html(title_clean)}</h2>')
+
+            if content and content.strip():
+                # STEP 1: Content is already HTML from Stage 2 (no markdown conversion needed)
+                content_html = content
+                
+                # STEP 2: Clean up any remaining problematic patterns
+                content_clean = HTMLRenderer._cleanup_content(content_html)
+                
+                # STEP 3: Link natural language citations (e.g., "According to IBM")
+                # CRITICAL: This must happen BEFORE final cleanup to ensure proper HTML structure
+                source_name_map = article.get("_source_name_map", {})
+                if source_name_map:
+                    content_linked = link_natural_citations(
+                        content_clean, 
+                        source_name_map, 
+                        max_links_per_source=2
+                    )
+                else:
+                    content_linked = content_clean
+                
+                # STEP 3.5: Fix citation structure issues created by citation linking
+                # Remove citations wrapped in <p> tags (should be inline)
+                content_linked = re.sub(r'<p>\s*(<a[^>]*class="citation"[^>]*>[^<]+</a>)\s*</p>', r'\1', content_linked)
+                # Merge citations that appear after </p> tags back into paragraphs
+                content_linked = HTMLRenderer._fix_citation_structure(content_linked)
+                
+                # STEP 4: Convert [N] citations to links (fallback for any remaining)
+                citation_map = article.get("_citation_map", {})
+                if citation_map:
+                    logger.debug(f"Using citation_map with {len(citation_map)} entries for section {i}")
+                content_with_links = HTMLRenderer._linkify_citations(content_linked, citation_map, url_link_count)
+                
+                parts.append(content_with_links)
+                
+                # STEP 5: Add internal links BELOW section (1Komma5 style)
+                # Links are placed in a "Related" block after each section, not embedded in text
+                section_internal_links = article.get("_section_internal_links", {})
+                if section_internal_links and i == 1:
+                    logger.debug(f"📎 _section_internal_links available: {list(section_internal_links.keys())}")
+                section_links = section_internal_links.get(i, [])
+                if section_links:
+                    links_html = ' • '.join([
+                        f'<a href="{HTMLRenderer._escape_attr(link["url"])}">{HTMLRenderer._escape_html(link["title"])}</a>'
+                        for link in section_links[:2]  # Max 2 per section
+                    ])
+                    parts.append(f'<aside class="section-related"><span>Related:</span> {links_html}</aside>')
+            
+            # Inject first comparison table after section 2
+            if i == 2 and tables and len(tables) >= 1:
+                parts.append(HTMLRenderer._render_comparison_table(tables[0]))
+            
+            # Inject mid-article image after section 3
+            if i == 3 and mid_image_url:
+                parts.append(f'<img src="{HTMLRenderer._escape_attr(mid_image_url)}" alt="{HTMLRenderer._escape_attr(mid_image_alt)}" class="inline-image">')
+            
+            # Inject second comparison table after section 5
+            if i == 5 and tables and len(tables) >= 2:
+                parts.append(HTMLRenderer._render_comparison_table(tables[1]))
+            
+            # Inject bottom image after section 6
+            if i == 6 and bottom_image_url:
+                parts.append(f'<img src="{HTMLRenderer._escape_attr(bottom_image_url)}" alt="{HTMLRenderer._escape_attr(bottom_image_alt)}" class="inline-image">')
+
+        return "\n".join(parts) if parts else "<p>No content available.</p>"
+
+    @staticmethod
+    def _render_toc(toc: Dict[str, Any]) -> str:
+        """Render table of contents."""
+        if not toc:
+            return ""
+
+        items = []
+        for k, v in toc.items():
+            if not v:
+                continue
+            # Handle both "XX" and "toc_XX" key formats
+            # Section headers use id="toc_XX", so anchor must be #toc_XX
+            anchor_key = k if k.startswith('toc_') else f'toc_{k}'
+            items.append(f'<li><a href="#{anchor_key}">{HTMLRenderer._escape_html(v)}</a></li>')
+
+        if not items:
+            return ""
+
+        return f"""<div class="toc">
+            <h2>Table of Contents</h2>
+            <ul>
+                {''.join(items)}
+            </ul>
+        </div>"""
+
+    @staticmethod
+    def _render_faq(faq_items: list) -> str:
+        """Render FAQ section."""
+        if not faq_items:
+            return ""
+
+        items_html = []
+        for item in faq_items:
+            q = item.get("question", "")
+            a = item.get("answer", "")
+            if q and a:
+                # Apply cleanup to answer (convert **bold**, strip [N], etc.)
+                a_clean = HTMLRenderer._cleanup_content(a)
+                # CRITICAL: Strip <strong> from FAQ answers - should be plain text
+                a_clean = re.sub(r'<strong>([^<]+)</strong>', r'\1', a_clean)
+                items_html.append(
+                    f'<div class="faq-item"><h3>{HTMLRenderer._escape_html(q)}</h3><p>{a_clean}</p></div>'
+                )
+
+        if not items_html:
+            return ""
+
+        return f"""<section class="faq">
+            <h2>Frequently Asked Questions</h2>
+            {''.join(items_html)}
+        </section>"""
+
+    @staticmethod
+    def _render_paa(paa_items: list) -> str:
+        """Render People Also Ask section."""
+        if not paa_items:
+            return ""
+
+        items_html = []
+        for item in paa_items:
+            q = item.get("question", "")
+            a = item.get("answer", "")
+            if q and a:
+                # Apply cleanup to answer (convert **bold**, strip [N], etc.)
+                a_clean = HTMLRenderer._cleanup_content(a)
+                # CRITICAL: Strip <strong> from PAA answers - should be plain text
+                a_clean = re.sub(r'<strong>([^<]+)</strong>', r'\1', a_clean)
+                items_html.append(
+                    f'<div class="paa-item"><h3>{HTMLRenderer._escape_html(q)}</h3><p>{a_clean}</p></div>'
+                )
+
+        if not items_html:
+            return ""
+
+        return f"""<section class="paa">
+            <h2>People Also Ask</h2>
+            {''.join(items_html)}
+        </section>"""
+
+    @staticmethod
+    def _render_citations(sources: str) -> str:
+        """
+        Render citations section with clickable links to source URLs.
+        
+        Parses Sources field and renders each citation as a clickable link
+        pointing to the actual source page URL.
+        """
+        if not sources or not sources.strip():
+            return ""
+
+        lines = [line.strip() for line in sources.split("\n") if line.strip()]
+        if not lines:
+            return ""
+
+        items_html = []
+        # Pattern: [N]: URL – Description
+        pattern = r'\[(\d+)\]:\s*(https?://[^\s]+)\s*[–-]\s*(.+?)(?=\n\[|\n*$)'
+        
+        for line in lines:
+            match = re.match(pattern, line, re.MULTILINE | re.DOTALL)
+            if match:
+                num_str = match.group(1)
+                url = match.group(2).strip()
+                description = match.group(3).strip()
+                
+                # Clean description of any HTML tags before escaping
+                clean_description = re.sub(r'<[^>]+>', '', description)  # Remove any HTML tags
+                clean_description = re.sub(r'&[^;]+;', '', clean_description)  # Remove HTML entities
+                clean_description = clean_description.strip()
+                
+                # Create clickable link to the actual source URL
+                link_html = f'<a href="{HTMLRenderer._escape_attr(url)}" target="_blank" rel="noopener noreferrer">{HTMLRenderer._escape_html(clean_description)}</a>'
+                items_html.append(f'<li id="source-{num_str}">{link_html}</li>')
+            else:
+                # Fallback: if format doesn't match, render as-is (escaped)
+                items_html.append(f"<li>{HTMLRenderer._escape_html(line)}</li>")
+
+        return f"""<section class="citations">
+            <h2>Sources</h2>
+            <ol>
+                {''.join(items_html)}
+            </ol>
+        </section>"""
+
+    @staticmethod
+    def _escape_html(text: str) -> str:
+        """
+        Escape HTML special characters.
+        
+        CRITICAL FIX: Decode existing HTML entities first to prevent double encoding.
+        This ensures that if text already contains &amp;, it becomes & (decoded),
+        then gets properly escaped to &amp; (not &amp;amp;).
+        """
+        if not text:
+            return ""
+        
+        # Decode existing HTML entities first to prevent double encoding
+        import html
+        try:
+            # Decode entities like &amp; → &, &lt; → <, etc.
+            text = html.unescape(str(text))
+        except Exception:
+            # If unescape fails, use text as-is
+            text = str(text)
+        
+        # Now escape normally (this will properly encode plain & to &amp;)
+        return (
+            text
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&#x27;")
+        )
+
+    @staticmethod
+    def _escape_attr(text: str) -> str:
+        """Escape HTML attribute values."""
+        if not text:
+            return ""
+        return str(text).replace('"', "&quot;").replace("'", "&#x27;")
+
+    @staticmethod
+    def _strip_html(text: str) -> str:
+        """Remove all HTML tags from text."""
+        import re
+        if not text:
+            return ""
+        # Remove HTML tags
+        clean = re.sub(r'<[^>]+>', '', str(text))
+        # Clean up any leftover entities
+        clean = clean.replace('&nbsp;', ' ').strip()
+        return clean
+
+    @staticmethod
+    def _parse_sources(sources: str) -> Dict[int, str]:
+        """
+        Parse Sources field to extract citation number -> URL mapping.
+        
+        Format expected: [1]: https://example.com/page – Description text
+        Also handles: [1]: https://example.com/page - Description text (hyphen)
+        Also handles: [1]: https://example.com/page Description text (no separator)
+        
+        Args:
+            sources: Raw sources string from article
+            
+        Returns:
+            Dict mapping citation number to URL
+        """
+        if not sources:
+            logger.debug("No sources provided to _parse_sources")
+            return {}
+        
+        citation_map = {}
+        
+        # Try multiple patterns to handle different formats
+        patterns = [
+            # Pattern 1: [N]: URL – Description (em dash)
+            r'\[(\d+)\]:\s*(https?://[^\s]+)\s*[–-]\s*(.+?)(?=\n\[|\n*$)',
+            # Pattern 2: [N]: URL - Description (hyphen)
+            r'\[(\d+)\]:\s*(https?://[^\s]+)\s*-\s*(.+?)(?=\n\[|\n*$)',
+            # Pattern 3: [N]: URL Description (no separator, URL ends at space)
+            r'\[(\d+)\]:\s*(https?://[^\s]+)\s+(.+?)(?=\n\[|\n*$)',
+            # Pattern 4: [N]: URL (just URL, no description)
+            r'\[(\d+)\]:\s*(https?://[^\s]+)(?=\n\[|\n*$)',
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, sources, re.MULTILINE | re.DOTALL)
+            for match in matches:
+                try:
+                    num_str = match[0]
+                    url = match[1].strip()
+                    num = int(num_str)
+                    if url and url.startswith(('http://', 'https://')):
+                        citation_map[num] = url
+                        logger.debug(f"Parsed citation [{num}]: {url}")
+                except (ValueError, IndexError) as e:
+                    logger.debug(f"Failed to parse citation match: {match}, error: {e}")
+                    continue
+        
+        if citation_map:
+            logger.info(f"✅ Parsed {len(citation_map)} citations from Sources field")
+        else:
+            logger.warning(f"⚠️  No citations parsed from Sources field (length: {len(sources)} chars)")
+            # Log first 200 chars for debugging
+            if sources:
+                logger.debug(f"Sources preview: {sources[:200]}")
+        
+        return citation_map
+
+    @staticmethod
+    def _parse_sources_for_names(sources: str) -> Dict[str, str]:
+        """
+        Parse Sources field to extract source_name -> URL mapping.
+        
+        Used by CitationLinker to link natural language citations
+        like "according to IBM" or "Gartner reports".
+        
+        Format expected: 
+        - [N]: URL – Source Name Description  (URL first)
+        - [N]: Source Name Description – URL  (Description first)
+        
+        Returns:
+            Dict mapping source names (lowercase) to URLs
+        """
+        if not sources:
+            return {}
+        
+        source_name_map = {}
+        
+        # Pattern 1: [N]: URL – Description (URL first)
+        pattern1 = r'\[(\d+)\]:\s*(https?://[^\s]+)\s*[–-]\s*(.+?)(?=\n\[|\n*$)'
+        
+        # Pattern 2: [N]: Description – URL (Description first) - COMMON FORMAT
+        pattern2 = r'\[(\d+)\]:\s*(.+?)\s*[–-]\s*(https?://[^\s<]+)'
+        
+        # Try pattern 1 first
+        matches = re.findall(pattern1, sources, re.MULTILINE | re.DOTALL)
+        
+        # If no matches, try pattern 2 (swap url and description positions)
+        if not matches:
+            matches_alt = re.findall(pattern2, sources, re.MULTILINE | re.DOTALL)
+            # Reformat to match expected order: (num, url, description)
+            matches = [(m[0], m[2], m[1]) for m in matches_alt]
+        
+        for match in matches:
+            try:
+                url = match[1].strip()
+                description = match[2].strip()
+                
+                if not url.startswith(('http://', 'https://')):
+                    continue
+                
+                # Extract source name from description
+                # Usually the first word or two (e.g., "IBM Cost of..." → "IBM")
+                # Or recognized patterns (e.g., "Gartner GenAI..." → "Gartner")
+                
+                # Known source patterns (order matters - more specific first)
+                known_sources = [
+                    ('palo alto', ['palo alto networks', 'palo alto']),
+                    ('mckinsey', ['mckinsey & company', 'mckinsey and company', 'mckinsey']),
+                    ('ibm', ['ibm']),
+                    ('gartner', ['gartner']),
+                    ('forrester', ['forrester']),
+                    ('splunk', ['splunk']),
+                    ('crowdstrike', ['crowdstrike']),
+                    ('darktrace', ['darktrace']),
+                    ('sans', ['sans institute', 'sans']),
+                    ('isc2', ['isc2', 'isc²', '(isc)²']),
+                    ('owasp', ['owasp']),
+                    ('nist', ['nist']),
+                    ('cisa', ['cisa']),
+                    ('zscaler', ['zscaler']),
+                    ('fortinet', ['fortinet']),
+                    ('cisco', ['cisco']),
+                    ('microsoft', ['microsoft']),
+                    ('google', ['google']),
+                    ('amazon', ['amazon', 'aws']),
+                ]
+                
+                desc_lower = description.lower()
+                for source_key, patterns in known_sources:
+                    for pattern_str in patterns:
+                        if pattern_str in desc_lower:
+                            source_name_map[source_key] = url
+                            # Also add the actual matched pattern
+                            source_name_map[pattern_str] = url
+                            break
+                
+                # Also extract from URL domain as fallback
+                domain_match = re.search(r'https?://(?:www\.)?([^/]+)', url)
+                if domain_match:
+                    domain = domain_match.group(1)
+                    parts = domain.split('.')
+                    if len(parts) >= 2:
+                        domain_name = parts[-2].lower()
+                        if domain_name not in source_name_map:
+                            source_name_map[domain_name] = url
+                
+            except (ValueError, IndexError) as e:
+                logger.debug(f"Failed to parse source name: {match}, error: {e}")
+                continue
+        
+        if source_name_map:
+            logger.info(f"✅ Parsed {len(source_name_map)} source names for citation linking")
+        
+        return source_name_map
+
+    @staticmethod
+    def _linkify_citations(content: str, citation_map: Optional[Dict[int, str]] = None, url_link_count: Optional[Dict[str, int]] = None) -> str:
+        """
+        Convert citation markers [1], [2], [3] into clickable links.
+        
+        Also converts existing anchor links (#source-N) to actual URLs.
+        If citation_map is provided, links point to actual source URLs.
+        Otherwise, falls back to anchor links (#source-N).
+        
+        CRITICAL: Limits each URL to maximum 2 hyperlinks per article to avoid over-linking.
+        
+        Args:
+            content: HTML content with citation markers
+            citation_map: Optional dict mapping citation number to URL
+            url_link_count: Optional dict tracking how many times each URL has been linked (mutated in-place)
+        """
+        import re
+        if not content:
+            return ""
+        
+        # Initialize URL link counter if not provided
+        if url_link_count is None:
+            url_link_count = {}
+        
+        # First, convert existing anchor links (#source-N) to real URLs if citation_map is available
+        if citation_map:
+            logger.debug(f"_linkify_citations: citation_map provided with {len(citation_map)} entries")
+            converted_count = 0
+            
+            def replace_anchor_link(match):
+                nonlocal converted_count
+                full_match = match.group(0)  # Full <a> tag
+                num_str = match.group(1)  # The number from #source-N
+                link_text = match.group(2).strip()  # Link text content
+                
+                try:
+                    num = int(num_str)
+                    if num in citation_map:
+                        url = citation_map[num]
+                        
+                        # CRITICAL FIX: Limit each URL to maximum 2 links per article
+                        current_count = url_link_count.get(url, 0)
+                        if current_count >= 2:
+                            # Already linked 2 times, remove the link but keep the text
+                            logger.debug(f"URL {url} already linked {current_count} times, removing link")
+                            return link_text  # Return just the text without link
+                        
+                        # Increment link count for this URL
+                        url_link_count[url] = current_count + 1
+                        converted_count += 1
+                        logger.debug(f"Converting #source-{num} to {url} (link count: {url_link_count[url]})")
+                        
+                        # Extract existing attributes from the original tag
+                        # Get the opening tag portion
+                        tag_match = re.search(r'<a\s+([^>]+)>', full_match)
+                        existing_attrs = tag_match.group(1) if tag_match else ""
+                        
+                        # Preserve class if present, otherwise add citation class
+                        if 'class=' in existing_attrs:
+                            # Extract class value
+                            class_match = re.search(r'class=["\']([^"\']+)["\']', existing_attrs)
+                            if class_match:
+                                class_value = class_match.group(1)
+                                # Build new attributes, keeping class and adding target/rel
+                                attrs_parts = [f'class="{class_value}"']
+                            else:
+                                attrs_parts = ['class="citation"']
+                        else:
+                            attrs_parts = ['class="citation"']
+                        
+                        # Always add target and rel for external links
+                        attrs_parts.extend(['target="_blank"', 'rel="noopener noreferrer"'])
+                        
+                        attrs_str = ' '.join(attrs_parts)
+                        return f'<a href="{HTMLRenderer._escape_attr(url)}" {attrs_str}>{link_text}</a>'
+                    else:
+                        logger.debug(f"Citation {num} not found in citation_map (available: {list(citation_map.keys())})")
+                except (ValueError, KeyError, AttributeError) as e:
+                    logger.debug(f"Error converting anchor link: {e}")
+                    pass
+                return full_match  # Return original if no conversion possible
+            
+            # Match <a href="#source-N" ...>text</a> patterns
+            # Group 1: number from #source-N, Group 2: other attrs (may include class, etc.), Group 3: link text
+            # This pattern handles attributes in any order and with any quoting style
+            content = re.sub(
+                r'<a\s+[^>]*?href=["\']#source-(\d+)["\'][^>]*?>(.*?)</a>',
+                replace_anchor_link,
+                content,
+                flags=re.IGNORECASE | re.DOTALL
+            )
+            
+            if converted_count > 0:
+                logger.info(f"✅ Converted {converted_count} anchor links to real URLs")
+            else:
+                logger.warning(f"⚠️  No anchor links converted (citation_map had {len(citation_map)} entries)")
+        else:
+            logger.warning("⚠️  _linkify_citations called without citation_map - links will remain as anchors")
+        
+        # Then, convert standalone [N] markers to links
+        # CRITICAL FIX: Exclude [N] markers that are already inside <a> tags to prevent nested links
+        def replace_citation(match):
+            num_str = match.group(1)
+            start_pos = match.start()
+            # Check if this [N] is inside an <a> tag by looking backwards
+            text_before = content[:start_pos]
+            # Find the last <a> tag before this position
+            last_a_open = text_before.rfind('<a')
+            last_a_close = text_before.rfind('</a>')
+            
+            # If there's an <a> tag after the last </a>, we're inside an anchor
+            if last_a_open > last_a_close:
+                # We're inside an anchor tag, don't convert
+                return match.group(0)
+            
+            try:
+                num = int(num_str)
+                # Use actual URL if available, otherwise fall back to anchor
+                if citation_map and num in citation_map:
+                    url = citation_map[num]
+                    
+                    # CRITICAL FIX: Limit each URL to maximum 2 links per article
+                    current_count = url_link_count.get(url, 0)
+                    if current_count >= 2:
+                        # Already linked 2 times, return plain text without link
+                        logger.debug(f"URL {url} already linked {current_count} times, skipping link")
+                        return f'[{num}]'  # Return plain text marker
+                    
+                    # Increment link count for this URL
+                    url_link_count[url] = current_count + 1
+                    logger.debug(f"Linking citation [{num}] to {url} (link count: {url_link_count[url]})")
+                    return f'<a href="{HTMLRenderer._escape_attr(url)}" class="citation" target="_blank" rel="noopener noreferrer">[{num}]</a>'
+                else:
+                    # CRITICAL FIX: Citation not found in citation_map (was filtered out as invalid)
+                    # Return plain text instead of broken anchor link
+                    logger.debug(f"Citation [{num}] not in citation_map (filtered out), showing as plain text")
+                    return f'[{num}]'  # Plain text, no link
+            except ValueError:
+                return match.group(0)  # Return original if not a number
+        
+        # Match [N] where N is one or more digits
+        # We'll check inside the replacement function if we're inside an anchor tag
+        return re.sub(r'\[(\d+)\]', replace_citation, content)
+
+    @staticmethod
+    def _fix_citation_structure(content: str) -> str:
+        """
+        Fix citation structure issues: citations appearing after </p> tags or wrapped in <p> tags.
+        
+        This ensures citations are properly inline within paragraphs, not breaking HTML structure.
+        This is a structural fix, not regex cleanup - it fixes issues created during citation linking.
+        
+        Args:
+            content: HTML content with potential citation structure issues
+            
+        Returns:
+            Content with fixed citation structure
+        """
+        if not content:
+            return content
+        
+        # Fix 1: Citations appearing after </p> tags
+        # Pattern: </p>SOURCE_NAME reports/notes/predicts...
+        # Find all instances and merge back into previous paragraph
+        def merge_citation_into_paragraph(html_text):
+            # Pattern: </p>SOURCE_NAME (reports|notes|predicts|etc)...
+            pattern = re.compile(
+                r'</p>\s*([A-Z][A-Za-z\s&]+?)\s+(reports?|states?|notes?|predicts?|estimates?|indicates?|found|shows?|reveals?|highlights?|concludes?|demonstrates?|suggests?|warns?|recommends?)\s+(that\s+)?',
+                re.IGNORECASE
+            )
+            
+            matches = list(pattern.finditer(html_text))
+            # Process in reverse to maintain positions
+            for match in reversed(matches):
+                para_end = match.start()
+                citation_text = match.group(1)  # Source name
+                verb = match.group(2)  # reports/notes/etc
+                rest = match.group(3) or ''  # rest of sentence (that, etc)
+                
+                # Find the paragraph this belongs to
+                text_before = html_text[:para_end]
+                para_start = text_before.rfind('<p>')
+                para_close = text_before.rfind('</p>')
+                
+                if para_start != -1 and para_start > para_close:
+                    # Extract paragraph content (without <p> and </p> tags)
+                    para_content = html_text[para_start + 3:para_end]
+                    # Merge citation into paragraph
+                    new_para = f'<p>{para_content} {citation_text} {verb}{rest}'
+                    # Replace the </p>SOURCE pattern with merged content
+                    html_text = html_text[:para_start] + new_para + html_text[match.end():]
+            
+            return html_text
+        
+        content = merge_citation_into_paragraph(content)
+        
+        # Fix 2: Citations wrapped in <p> tags (standalone paragraphs)
+        # Pattern: <p><a class="citation">...</a></p> → <a class="citation">...</a>
+        # Only unwrap if paragraph contains ONLY the citation link
+        def unwrap_citation_paragraph(match):
+            citation_link = match.group(1)
+            # If paragraph contains only whitespace and the citation link, unwrap it
+            # Otherwise, keep as is (might be intentional)
+            return citation_link
+        
+        content = re.sub(
+            r'<p>\s*(<a[^>]*class="citation"[^>]*>[^<]+</a>)\s*</p>',
+            unwrap_citation_paragraph,
+            content
+        )
+        
+        return content
+
+    @staticmethod
+    def _parse_sources_for_map(sources: str) -> Dict[int, str]:
+        """
+        Parse Sources field to create citation_map (fallback method).
+        
+        Parses format: [1]: https://example.com – Description
+        Returns: {1: "https://example.com", 2: "https://example.org", ...}
+        
+        Args:
+            sources: Sources field string
+            
+        Returns:
+            Dictionary mapping citation number to URL
+        """
+        import re
+        citation_map = {}
+        
+        if not sources:
+            return citation_map
+        
+        # Parse lines like: [1]: https://example.com – Description
+        lines = sources.strip().split("\n")
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Try format: [n]: url – title
+            match = re.match(r"\[(\d+)\]:\s*(.+?)\s*[–\-]\s*(.+)", line)
+            if match:
+                number = int(match.group(1))
+                url = match.group(2).strip()
+                # CRITICAL FIX: Validate URL before adding
+                if url.startswith(("http://", "https://")):
+                    # Check for malformed URLs
+                    from urllib.parse import urlparse
+                    try:
+                        parsed = urlparse(url)
+                        domain = parsed.netloc.lower()
+                        if "." not in domain and domain not in ['localhost']:
+                            try:
+                                import ipaddress
+                                ipaddress.ip_address(domain)
+                            except ValueError:
+                                logger.warning(f"Skipping invalid URL (missing TLD): {url}")
+                                continue
+                        citation_map[number] = url
+                    except Exception:
+                        logger.warning(f"Skipping invalid URL format: {url}")
+                        continue
+            else:
+                # Try simpler format: [n]: url or text with url
+                match = re.match(r"\[(\d+)\]:\s*(.+)", line)
+                if match:
+                    number = int(match.group(1))
+                    content = match.group(2).strip()
+                    # Extract URL from content
+                    url_match = re.search(r"https?://[^\s–\-\)\]\}]+", content)
+                    if url_match:
+                        url = url_match.group(0).rstrip('.,;:!?)')
+                        # CRITICAL FIX: Validate URL before adding
+                        if url.startswith(("http://", "https://")):
+                            from urllib.parse import urlparse
+                            try:
+                                parsed = urlparse(url)
+                                domain = parsed.netloc.lower()
+                                if "." not in domain and domain not in ['localhost']:
+                                    try:
+                                        import ipaddress
+                                        ipaddress.ip_address(domain)
+                                    except ValueError:
+                                        logger.warning(f"Skipping invalid URL (missing TLD): {url}")
+                                        continue
+                                citation_map[number] = url
+                            except Exception:
+                                logger.warning(f"Skipping invalid URL format: {url}")
+                                continue
+        
+        return citation_map
+
+    @staticmethod
+    def _humanize_content(content: str) -> str:
+        """
+        🛡️ LAYER 3: Production-grade post-processing fallback.
+        
+        This is our GUARANTEED fix layer - catches anything the prompt missed.
+        
+        Fixes (in priority order):
+        1. Em dashes (—) → commas/parentheses [CRITICAL - zero tolerance]
+        2. Robotic phrases ("Here's how", "Key points:") [HIGH]
+        3. Formulaic transitions [MEDIUM]
+        4. AI grammar mistakes [LOW]
+        
+        Philosophy: Prevention (prompt) is best, but detection + cleanup (here) is mandatory.
+        """
+        if not content:
+            return ""
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # CRITICAL FIX #1: Em Dashes (—) - ZERO TOLERANCE
+        # ═══════════════════════════════════════════════════════════════════
+        # Em dashes are the #1 AI marker. Must remove ALL instances.
+        
+        # Strategy 1: Paired em dashes (parenthetical clause)
+        # "text—middle clause—text" → "text (middle clause) text" OR "text, middle clause, text"
+        def replace_paired_em_dash(match):
+            before = match.group(1)
+            middle = match.group(2)
+            after = match.group(3)
+            
+            # Short clause (< 40 chars) → parentheses
+            if len(middle.strip()) < 40:
+                return f"{before}({middle.strip()}){after}"
+            # Long clause → commas
+            else:
+                return f"{before}, {middle.strip()},{after}"
+        
+        # Match: (text)—(clause)—(text)
+        content = re.sub(
+            r'([^—\n]{8,})\s*—\s*([^—\n]{3,}?)\s*—\s*([^—\n]{8,})',
+            replace_paired_em_dash,
+            content
+        )
+        
+        # Strategy 2: Single em dashes (sentence separator)
+        # "text—more text" → "text, more text" OR "text. More text"
+        def replace_single_em_dash(match):
+            before = match.group(1)
+            after = match.group(2)
+            
+            # If after starts with capital letter → split into sentences
+            if after and after[0].isupper():
+                return f"{before}. {after}"
+            # Otherwise use comma
+            else:
+                return f"{before}, {after}"
+        
+        # Match: (word)—(word)
+        content = re.sub(
+            r'(\w+)\s*—\s*(\w+)',
+            replace_single_em_dash,
+            content
+        )
+        
+        # Strategy 3: Any remaining em dashes → commas (safety net)
+        content = content.replace("—", ", ")
+        
+        # Strategy 4: HTML entities for em dash (fallback)
+        content = content.replace("&mdash;", ", ")
+        content = content.replace("&#8212;", ", ")
+        
+        # Strategy 5: Unicode variants (belt-and-suspenders)
+        content = content.replace("\u2014", ", ")  # Em dash
+        content = content.replace("\u2013", ", ")  # En dash
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # HIGH PRIORITY FIX #2: Robotic List Introductions
+        # ═══════════════════════════════════════════════════════════════════
+        # <p>Here's how:</p> → (remove)
+        # <p>Key points:</p> → (remove)
+        # <p>Important considerations:</p> → (remove)
+        
+        robotic_intros = [
+            r'Here\'s how',
+            r'Here\'s what',
+            r'Here is how',
+            r'Here is what',
+            r'Key points?',
+            r'Key benefits? include',
+            r'Important considerations?',
+            r'The following are',
+            r'Consider the following',
+        ]
+        
+        for pattern in robotic_intros:
+            # Remove standalone intros: <p>Pattern:</p>
+            content = re.sub(
+                rf'<p>\s*{pattern}\s*:?\s*</p>',
+                '',
+                content,
+                flags=re.IGNORECASE
+            )
+            
+            # Also remove mid-sentence: "Pattern: " at start of <p>
+            content = re.sub(
+                rf'(<p>)\s*{pattern}\s*:\s*',
+                r'\1',
+                content,
+                flags=re.IGNORECASE
+            )
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # MEDIUM PRIORITY FIX #3: Formulaic Transitions
+        # ═══════════════════════════════════════════════════════════════════
+        # CRITICAL: Process complete phrases FIRST to avoid leaving orphaned fragments
+        
+        # Step 3a: Remove complete robotic phrases (entire phrase, not fragments)
+        complete_phrase_fixes = [
+            # "Here's what matters:" → remove entire phrase including colon
+            (r'\bHere\'s what matters\s*:\s*', '', re.IGNORECASE),
+            (r'\bHere is what matters\s*:\s*', '', re.IGNORECASE),
+            # "Here's how:" → remove entire phrase
+            (r'\bHere\'s how\s*:\s*', '', re.IGNORECASE),
+            (r'\bHere is how\s*:\s*', '', re.IGNORECASE),
+            # "so you can:" → remove entire phrase
+            (r'\bso you can\s*:\s*', '', re.IGNORECASE),
+            # "if you want:" → remove entire phrase
+            (r'\bif you want\s*:\s*', '', re.IGNORECASE),
+        ]
+        
+        for pattern, replacement, flags in complete_phrase_fixes:
+            content = re.sub(pattern, replacement, content, flags=flags)
+        
+        # Step 3b: Remove formulaic transitions (sentence-level, after complete phrases are handled)
+        formulaic_fixes = [
+            # "Here's how" / "Here's what" phrases (sentence-level)
+            # Only apply if NOT followed by "matters:" (already handled above)
+            (r'\bHere\'s how\s+(?!matters)', ''),  # "Here's how the market" → "The market"
+            (r'\bHere\'s what\s+(?!matters)', ''),  # "Here's what the key is" → "The key is"
+            (r'\bHere are the\s+', 'The '),  # "Here are the tools" → "The tools"
+            
+            # Awkward transitions
+            (r'\bThat\'s why similarly,?\s*', 'Similarly, '),
+            (r'\bIf you want another\s+', 'Another '),
+            (r'\bIf you want\s+', ''),
+        ]
+        
+        for pattern, replacement in formulaic_fixes:
+            content = re.sub(pattern, replacement, content, flags=re.IGNORECASE)
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # LOW PRIORITY FIX #4: AI Grammar Mistakes
+        # ═══════════════════════════════════════════════════════════════════
+        grammar_fixes = [
+            (r'\bWhen you choosing\b', 'When choosing'),
+            (r'\bYou\'ll find to\b', 'To'),
+            (r'\bso you can managing\b', 'managing'),
+            (r'\bWhat is as we handle of\b', 'As we evaluate'),
+            (r'\bWhat is as we\b', 'As we'),
+            # CRITICAL: Fix the main broken patterns we identified
+            (r'\bYou can to\b', 'To'),  # "You can to implement" → "To implement"
+            (r'\bYou can to implementing\b', 'To implement'),
+            (r'\bYou can to\s+', 'To '),  # "You can to X" → "To X"
+        ]
+        
+        for pattern, replacement in grammar_fixes:
+            content = re.sub(pattern, replacement, content, flags=re.IGNORECASE)
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # FINAL CLEANUP: Whitespace
+        # ═══════════════════════════════════════════════════════════════════
+        # Fix double spaces
+        content = re.sub(r'  +', ' ', content)
+        
+        # Fix space before punctuation
+        content = re.sub(r' ([.,;:!?])', r'\1', content)
+        
+        # Fix missing space after punctuation
+        content = re.sub(r'([.,;:!?])([A-Z])', r'\1 \2', content)
+        
+        return content.strip()
+
+    @staticmethod
+    def _cleanup_content(content: str) -> str:
+        """
+        Post-process content to remove useless patterns and standardize internal links.
+        
+        Removes:
+        1. Standalone labels with only citations: <p><strong>Label:</strong> [N]</p>
+        2. Plain text labels with only citations: "Label: [N][M]"
+        3. Empty <p> tags or tags with only whitespace/punctuation
+        4. Duplicate consecutive paragraphs
+        
+        Fixes:
+        5. Double commas, periods, and other duplicate punctuation (Gemini typos)
+        6. AI language markers (em dashes, robotic phrases) - via _humanize_content
+        
+        Standardizes:
+        7. Internal links to use /magazine/ prefix
+        """
+        if not content:
+            return ""
+        
+        # STEP 0: REMOVE ALL ACADEMIC CITATIONS [N] - SAFETY NET
+        # This is a HARD BLOCK to enforce inline-only citation style
+        # Removes: [1], [2], [1][2], [2][3], etc.
+        # Also removes <a href="#source-X">[N]</a> (linked academic citations)
+        content = re.sub(r'<a[^>]*href=["\']#source-\d+["\'][^>]*>\s*\[\d+\]\s*</a>', '', content)  # Linked [N]
+        content = re.sub(r'\[\d+\]', '', content)  # Standalone [N]
+        logger.info("🚫 Stripped all [N] academic citations (enforcing inline-only style)")
+        
+        # STEP 0.2: DEFENSE-IN-DEPTH - Convert any stray markdown that slipped through
+        # Stage 2 now outputs HTML, but this catches edge cases for robustness
+        content = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', content)
+        content = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', content)
+        
+        # STEP 0.2b: FIX DOUBLE-PREFIXED TITLES (from broken question conversion)
+        # "What is What is AI" → "What is AI"
+        # "How does How does AI work" → "How does AI work"
+        # "What is Why is X" → "Why is X" (cross-prefix mismatch)
+        double_prefix_patterns = [
+            (r'What is What is\b', 'What is'),
+            (r'What are What are\b', 'What are'),
+            (r'How does How does\b', 'How does'),
+            (r'How can How can\b', 'How can'),
+            (r'Why is Why is\b', 'Why is'),
+            (r'When should When should\b', 'When should'),
+            (r'Where can Where can\b', 'Where can'),
+            # Cross-prefix mismatches (e.g., "What is Why is X?" → "Why is X?")
+            (r'What is Why is\b', 'Why is'),
+            (r'What is Why\b', 'Why'),  # "What is Why Automation" → "Why Automation"
+            (r'What is How does\b', 'How does'),
+            (r'What is How\b', 'How'),  # "What is How to" → "How to"
+            (r'What is What Role\b', 'What Role'),
+            (r'What is What are\b', 'What are'),
+            (r'How does What is\b', 'What is'),
+            # Generic pattern: "What is " + another question word
+            (r'What is (?=How|Why|When|Where|Which|Can|Will|Should)', ''),
+        ]
+        for pattern, replacement in double_prefix_patterns:
+            content = re.sub(pattern, replacement, content, flags=re.IGNORECASE)
+        
+        # Also fix double question marks
+        content = re.sub(r'\?\?+', '?', content)
+        
+        logger.info("🔧 Fixed any double-prefixed question titles")
+        
+        # STEP 0.3: FIX MALFORMED PUNCTUATION PATTERNS
+        # Fix ". - " (period before bullet point) → just ". " (treat as new sentence)
+        content = re.sub(r'\.\s*-\s+([A-Z])', r'. \1', content)  # ". - Word" → ". Word"
+        content = re.sub(r':\s*\n\s*-\s+', r':\n\n- ', content)  # Fix spacing after colons
+        # Fix truncated list items ending with prepositions
+        content = re.sub(r'<li>([^<]*\b(?:to|of|the|and|with|for|in|on|at|from|a|an))\s*</li>', '', content)
+        logger.info("🔧 Fixed malformed punctuation patterns")
+        
+        # STEP 0.3a: FIX MALFORMED HTML NESTING
+        # Gemini sometimes puts <ul> or <ol> directly inside <p> tags
+        # Fix: <p>text<ul>... → <p>text</p><ul>...
+        content = re.sub(r'(<p>[^<]*)<(ul|ol)>', r'\1</p><\2>', content)
+        # Fix: ...</ul></p> → ...</ul><p> or just ...</ul>
+        content = re.sub(r'</(ul|ol)>\s*</p>', r'</\1>', content)
+        # Fix: <p><ul> → <ul> (empty paragraph before list)
+        content = re.sub(r'<p>\s*<(ul|ol)>', r'<\1>', content)
+        # Fix: </ul></p><p></p> → </ul>
+        content = re.sub(r'</(ul|ol)>\s*</p>\s*<p>\s*</p>', r'</\1>', content)
+        
+        # CRITICAL FIX: Remove </p> inside <li> tags (very malformed)
+        # Pattern: <li>text</p><p>more text</li> → <li>text. More text</li>
+        content = re.sub(r'(<li>[^<]*)</p>\s*<p>([^<]*</li>)', r'\1. \2', content)
+        # Pattern: <li>text</p><ul> → close the li properly
+        content = re.sub(r'(<li>[^<]*)</p>\s*<(ul|ol)>', r'\1</li><\2>', content)
+        # Pattern: </ul></li></ul> → </ul> (nested closing)
+        content = re.sub(r'</ul>\s*</li>\s*</ul>', '</ul>', content)
+        content = re.sub(r'</ol>\s*</li>\s*</ol>', '</ol>', content)
+        
+        # FIX: <li>text that wraps without closing → close it
+        # Pattern: <ul><li>text</p>More text</li></ul> → proper structure
+        content = re.sub(r'<li>([^<]+)</p>([^<]+)</li>', r'<li>\1. \2</li>', content)
+        
+        # CRITICAL FIX: Gemini breaks sentences with </p><ul><li>
+        # Pattern: "...the Big Four" </p><ul><li>Russia, China - have intensified..."
+        # This is a sentence broken in the middle - merge it back
+        # Match: </p><ul><li>TEXT - TEXT more text</li></ul>
+        def fix_mid_sentence_list(html: str) -> str:
+            """
+            Fix patterns where Gemini breaks a sentence by inserting a list.
+            
+            Pattern: "text X </p><ul><li>Y, Z - continued sentence</li></ul>"
+            Should become: "text X - Y, Z - continued sentence"
+            """
+            # This pattern catches: </p><ul><li>list items - continued</li></ul> or </p></li></ul>
+            # where the list item continues a sentence (has " - " mid-item)
+            pattern = r'</p>\s*<ul>\s*<li>([^<]*\s+-\s+[^<]*)</li>\s*</ul>'
+            
+            def merge_sentence(match):
+                list_content = match.group(1).strip()
+                # The list item IS part of the sentence - merge it
+                return f' - {list_content}'
+            
+            return re.sub(pattern, merge_sentence, html)
+        
+        content = fix_mid_sentence_list(content)
+        
+        # CRITICAL FIX 2: Truncated paragraph followed by list continuation
+        # Pattern: "<p>If a violation is found </p><ul><li>say, a hardcoded secret..."
+        # This is a sentence where Gemini put the rest in a list item
+        # Fix by merging: "<p>If a violation is found - say, a hardcoded secret..."
+        def fix_truncated_paragraph_to_list(html: str) -> str:
+            """
+            Fix patterns where a paragraph ends mid-sentence and continues in a list.
+            
+            Pattern: "<p>Text ends with </p><ul><li>continuation text</li>..."
+            Should become: "<p>Text ends with - continuation text</p><ul><li>next item</li>..."
+            """
+            # Match: paragraph ending with a word (not punctuation) + list starting with lowercase
+            pattern = r'(<p>[^<]+)(\s+)</p>\s*<ul>\s*<li>([a-z][^<]{10,})</li>'
+            
+            def merge_continuation(match):
+                para_start = match.group(1)  # "<p>If a violation is found"
+                continuation = match.group(3).strip()  # "say, a hardcoded secret..."
+                
+                # Check if continuation looks like sentence continuation (starts lowercase)
+                if continuation and continuation[0].islower():
+                    # Merge: paragraph + " - " + continuation
+                    return f'{para_start} - {continuation}</p><ul>'
+                return match.group(0)
+            
+            return re.sub(pattern, merge_continuation, html, flags=re.DOTALL)
+        
+        content = fix_truncated_paragraph_to_list(content)
+        
+        # Also fix: </p><ul><li>text</p><p>more nested mess
+        # This is deeply malformed - try to salvage
+        content = re.sub(r'</p>\s*<ul>\s*<li>([^<]+)</p>\s*<p>', r' - \1 ', content)
+        
+        logger.info("🔧 Fixed malformed HTML nesting (<ul> inside <p>, </p> inside <li>)")
+        
+        # STEP 0.4: REMOVE DUPLICATE CONTENT BLOCKS
+        # Gemini sometimes outputs the same paragraph/list item twice
+        # Find and remove exact duplicate paragraphs
+        paragraphs = re.findall(r'<p>([^<]{50,})</p>', content)  # Only check paragraphs > 50 chars
+        seen = set()
+        for p in paragraphs:
+            p_normalized = ' '.join(p.split())  # Normalize whitespace
+            if p_normalized in seen:
+                # Remove duplicate (keep first occurrence)
+                content = content.replace(f'<p>{p}</p>', '', 1)  # Remove only one occurrence
+                logger.warning(f"🗑️ Removed duplicate paragraph: {p[:50]}...")
+            else:
+                seen.add(p_normalized)
+        
+        # Also check for duplicate list items
+        list_items = re.findall(r'<li>([^<]{30,})</li>', content)
+        seen_items = set()
+        for item in list_items:
+            item_normalized = ' '.join(item.split())
+            if item_normalized in seen_items:
+                content = content.replace(f'<li>{item}</li>', '', 1)
+                logger.warning(f"🗑️ Removed duplicate list item: {item[:40]}...")
+            else:
+                seen_items.add(item_normalized)
+        logger.info("🧹 Checked and removed duplicate content blocks")
+        
+        # STEP 0.4b: REMOVE DUPLICATE SUMMARY LISTS AFTER PARAGRAPHS
+        # Gemini sometimes outputs a paragraph followed by a <ul> that summarizes the same content
+        # Pattern: <p>Content about X, Y, Z.</p><ul><li>X</li><li>Y</li><li>Z</li></ul>
+        # We want to keep the paragraph and remove the redundant list
+        
+        # Find patterns where a paragraph is immediately followed by a list
+        # that contains fragments of the paragraph content
+        def remove_redundant_lists(html: str) -> str:
+            """
+            Remove <ul> lists that duplicate content from the preceding paragraph.
+            
+            Strategy:
+            1. Find </p> followed by <ul>
+            2. Extract text from both paragraph and list items
+            3. If list items are substrings of paragraph content, remove the list
+            """
+            # Match: </p> followed by <ul> - capture preceding paragraph too
+            # ENHANCED: Allow list items to contain HTML tags (like <a>)
+            pattern = r'(<p>([^<]*(?:<[^>]+>[^<]*)*)</p>)\s*(<ul>(?:<li>(?:[^<]|<[^>]+>){5,200}</li>\s*){2,}</ul>)'
+            
+            def check_redundancy(match):
+                full_para = match.group(1)  # Full <p>...</p>
+                para_text = re.sub(r'<[^>]+>', '', match.group(2)).lower()  # Plain text from paragraph
+                list_html = match.group(3)  # Full <ul>...</ul>
+                
+                # Extract list items (handle items with links inside)
+                items = re.findall(r'<li>([^<]*(?:<[^>]+>[^<]*)*)</li>', list_html)
+                
+                if not items or not para_text:
+                    return match.group(0)
+                
+                # Strip HTML from items and get plain text
+                items_text = [re.sub(r'<[^>]+>', '', item).strip().lower() for item in items]
+                
+                # Check how many list items are substrings of the paragraph
+                substring_count = 0
+                for item_text in items_text:
+                    # Check if first 20 chars of item appear in paragraph (catches truncated dups)
+                    prefix = item_text[:20] if len(item_text) > 20 else item_text
+                    if len(prefix) >= 5 and prefix in para_text:
+                        substring_count += 1
+                
+                # ENHANCED: If 50%+ of items start with same text as paragraph, it's redundant
+                if substring_count >= len(items) * 0.5:
+                    logger.warning(f"🗑️ Removing redundant summary list: {substring_count}/{len(items)} items duplicate paragraph content")
+                    return full_para  # Keep paragraph, remove list
+                
+                # Also check if items look like sentence fragments (don't end with proper punctuation)
+                fragment_count = sum(1 for item in items_text if not item.endswith(('.', '!', '?')))
+                
+                # ENHANCED: If most items are fragments AND short, likely redundant summary
+                avg_item_length = sum(len(item) for item in items_text) / len(items_text) if items_text else 0
+                if fragment_count >= len(items) * 0.5 and avg_item_length < 60:
+                    logger.warning(f"🗑️ Removing redundant summary list with {len(items)} fragment items (avg {avg_item_length:.0f} chars)")
+                    return full_para  # Remove the list, keep just paragraph
+                
+                return match.group(0)  # Keep as-is
+            
+            return re.sub(pattern, check_redundancy, html, flags=re.DOTALL)
+        
+        content = remove_redundant_lists(content)
+        
+        # STEP 0.4b1.5: NUCLEAR OPTION - Remove lists where ALL items are truncated fragments
+        # Pattern: <ul> where every <li> ends without punctuation (obvious fragments)
+        def remove_all_fragment_lists(html: str) -> str:
+            """Remove entire lists where all items are clearly truncated fragments."""
+            # Match <ul> with 2+ <li> items (items may contain HTML like <a> tags)
+            pattern = r'<ul>((?:<li>(?:[^<]|<(?!/?li>)[^>]*>)*</li>\s*){2,})</ul>'
+            
+            def check_all_fragments(match):
+                list_content = match.group(1)
+                # Extract items - handle items with HTML tags inside
+                items_raw = re.findall(r'<li>((?:[^<]|<(?!/?li>)[^>]*>)*)</li>', list_content)
+                
+                if not items_raw:
+                    return match.group(0)
+                
+                # Strip HTML tags to get plain text for each item
+                items = [re.sub(r'<[^>]+>', '', item).strip() for item in items_raw]
+                
+                # Check how many items are fragments (end without proper punctuation)
+                fragment_count = sum(1 for item in items if not item.endswith(('.', '!', '?', ':')))
+                
+                # If 75%+ of items are fragments, remove the entire list
+                # (One proper item doesn't save a mostly-broken list)
+                if fragment_count >= len(items) * 0.75:
+                    avg_len = sum(len(item) for item in items) / len(items) if items else 0
+                    logger.warning(f"🗑️ NUCLEAR: Removing list with {fragment_count}/{len(items)} fragment items (avg {avg_len:.0f} chars)")
+                    return ''  # Remove entire list
+                
+                return match.group(0)
+            
+            return re.sub(pattern, check_all_fragments, html, flags=re.DOTALL)
+        
+        content = remove_all_fragment_lists(content)
+        
+        # STEP 0.4b2: ADDITIONAL AGGRESSIVE DUPLICATE LIST REMOVAL
+        # Pattern: Paragraph about "X is Y" followed by list starting with "X is Y"
+        # This catches cases where the first list item starts identically to the paragraph
+        def remove_identical_start_lists(html: str) -> str:
+            """Remove lists where items start with the same words as the preceding paragraph."""
+            pattern = r'(<p>([^<]{20,})</p>)\s*(<ul>(?:<li>[^<]+</li>\s*){2,}</ul>)'
+            
+            def check_identical(match):
+                full_para = match.group(1)
+                para_text = re.sub(r'<[^>]+>', '', match.group(2)).strip().lower()
+                list_html = match.group(3)
+                
+                # Get ALL list items
+                list_items = re.findall(r'<li>([^<]+)</li>', list_html)
+                if not list_items:
+                    return match.group(0)
+                
+                # AGGRESSIVE: Check if ANY list item's first 15 chars appears in paragraph
+                match_count = 0
+                for item in list_items:
+                    item_text = item.strip().lower()
+                    item_start = item_text[:15] if len(item_text) > 15 else item_text
+                    if item_start in para_text:
+                        match_count += 1
+                
+                # If 30%+ of items match paragraph content, remove the list
+                if match_count >= len(list_items) * 0.3:
+                    logger.warning(f"🗑️ Removing duplicate list (aggressive): {match_count}/{len(list_items)} items overlap with paragraph")
+                    return full_para
+                
+                # FALLBACK: Check first item starts like paragraph
+                first_item = list_items[0].strip().lower()
+                
+                # If paragraph and first list item share first 15 chars, it's duplicate
+                para_start = para_text[:15] if len(para_text) > 15 else para_text
+                item_start = first_item[:15] if len(first_item) > 15 else first_item
+                
+                if para_start == item_start:
+                    logger.warning(f"🗑️ Removing list with identical start: '{item_start[:40]}...'")
+                    return full_para  # Remove list
+                
+                return match.group(0)
+            
+            return re.sub(pattern, check_identical, html, flags=re.DOTALL)
+        
+        content = remove_identical_start_lists(content)
+        
+        # STEP 0.4b3: NUCLEAR OPTION - Remove ALL lists that immediately follow paragraphs
+        # where list items are truncated versions of the paragraph content
+        # This handles the Gemini pattern: "Text about X. More about Y.</p><ul><li>Text about X</li><li>More about Y</li></ul>"
+        def remove_summary_lists_nuclear(html: str) -> str:
+            """
+            Aggressively remove lists that summarize the preceding paragraph.
+            
+            Strategy: If ANY list item's first word matches the paragraph's first word,
+            and the list has 2+ items, it's likely a summary list - remove it.
+            """
+            pattern = r'(<p>([^<]+)</p>)\s*(<ul>(<li>[^<]{10,150}</li>\s*){2,}</ul>)'
+            
+            def check_summary(match):
+                full_para = match.group(1)
+                para_text = match.group(2).strip().lower()
+                list_html = match.group(3)
+                
+                # Get all list items
+                items = re.findall(r'<li>([^<]+)</li>', list_html)
+                if not items:
+                    return match.group(0)
+                
+                # Get first 3 words of paragraph
+                para_words = para_text.split()[:3]
+                if not para_words:
+                    return match.group(0)
+                
+                para_start = ' '.join(para_words)
+                
+                # Check if first list item starts with same words
+                first_item = items[0].strip().lower()
+                first_item_words = first_item.split()[:3]
+                item_start = ' '.join(first_item_words)
+                
+                if para_start == item_start:
+                    logger.warning(f"🗑️ NUCLEAR: Removing summary list ('{para_start[:25]}...' duplicated)")
+                    return full_para  # Remove the list
+                
+                return match.group(0)
+            
+            return re.sub(pattern, check_summary, html, flags=re.DOTALL)
+        
+        content = remove_summary_lists_nuclear(content)
+        
+        # STEP 0.4c: REMOVE "Here are key points:" TYPE INTRO PHRASES
+        # These are often followed by redundant lists
+        intro_patterns = [
+            r'<p>\s*Here are (?:the )?(?:key )?(?:points|takeaways|considerations|benefits)[:\s]*</p>',
+            r'<p>\s*(?:Key )?(?:points|takeaways|considerations|benefits) (?:include|are)[:\s]*</p>',
+            r'<p>\s*Important considerations[:\s]*</p>',
+            r'<p>\s*Here\'s what (?:you need to know|this means)[:\s]*</p>',
+        ]
+        for pattern in intro_patterns:
+            content = re.sub(pattern, '', content, flags=re.IGNORECASE)
+        logger.info("🧹 Removed redundant summary list intros")
+
+        # STEP 0.1: PRESERVE LIST CONTENT BUT REMOVE ONLY TRULY EMPTY ITEMS
+        # After removing citations, only remove list items that are completely empty
+        # DO NOT remove items with actual content
+        content = re.sub(r'<li>\s*</li>', '', content)  # Only completely empty <li> tags
+        content = re.sub(r'<li>\s*[.,;:\-]*\s*</li>', '', content)  # Only punctuation-only items
+        # Be more careful with label-only items - only remove if they have no content after the colon
+        content = re.sub(r'<li>\s*<strong>[^<]*:</strong>\s*</li>', '', content)  # Label-only items (no content after colon)
+        
+        # STEP 0.1a: REMOVE INCOMPLETE SENTENCE FRAGMENTS IN LIST ITEMS
+        # CRITICAL FIX: Be much more conservative - only remove clearly broken fragments
+        
+        # Only remove items ending with incomplete article patterns (obvious fragments)
+        content = re.sub(r'<li>[^<]*\ba\s+(data|key|security|network|system|threat|risk|user)\s*</li>', '', content)  # "cost of a data" etc.
+        
+        # Only remove items that are clearly incomplete (1-2 words only, no content)
+        content = re.sub(r'<li>\s*\w+\s*</li>', '', content)  # Single word items (but not 2-word)
+        
+        # TRUNCATED ITEM DETECTION: Remove list items that are clearly cut off
+        # Pattern 1: Items ending with articles (a, an, the) - clearly truncated
+        content = re.sub(r'<li>[^<]*\s+(a|an|the)\s*</li>', '', content, flags=re.IGNORECASE)
+        
+        # Pattern 2: Items ending with "anti" or incomplete prefixes
+        content = re.sub(r'<li>[^<]*\b(anti|pre|post|multi|inter|intra|semi|non)\s*</li>', '', content, flags=re.IGNORECASE)
+        
+        # Pattern 3: Items ending with just a number (e.g., "risk by 10")
+        content = re.sub(r'<li>[^<]*\s+\d{1,3}\s*</li>', '', content)
+        
+        # Pattern 4: Very short items (under 15 chars) without punctuation
+        def remove_truncated_short_items(match):
+            item_text = match.group(1).strip()
+            # Keep if it has ending punctuation or is a complete-looking phrase
+            if item_text.endswith(('.', '!', '?', ')')) or len(item_text) > 15:
+                return match.group(0)
+            # Remove if too short and no punctuation
+            if len(item_text) < 15 and not re.search(r'[.!?]', item_text):
+                logger.debug(f"Removing truncated item: {item_text}")
+                return ''
+            return match.group(0)
+        
+        content = re.sub(r'<li>([^<]{1,25})</li>', remove_truncated_short_items, content)
+        
+        # Pattern 5: Items ending with incomplete words (clearly truncated)
+        # E.g., "Analyze permissions to detect over" → remove
+        truncated_endings = [
+            r'<li>[^<]*\bdetect\s+over\s*</li>',  # "detect over"
+            r'<li>[^<]*\bto\s+the\s*</li>',  # "to the"
+            r'<li>[^<]*\bfor\s+the\s*</li>',  # "for the"
+            r'<li>[^<]*\bof\s+the\s*</li>',  # "of the"
+            r'<li>[^<]*\band\s+the\s*</li>',  # "and the"
+            r'<li>[^<]*\bin\s+the\s*</li>',  # "in the"
+            r'<li>[^<]*\bwith\s+the\s*</li>',  # "with the"
+            r'<li>[^<]*\bthat\s+the\s*</li>',  # "that the"
+            r'<li>[^<]*\bas\s+the\s*</li>',  # "as the"
+        ]
+        for pattern in truncated_endings:
+            content = re.sub(pattern, '', content, flags=re.IGNORECASE)
+        
+        logger.info("🧹 Removed incomplete list items and sentence fragments")
+        
+        # Pattern 6: Items starting with "and " or "or " (continuation, not a list)
+        # E.g., "and your board - that your data..." → not a proper list item
+        content = re.sub(r'<ul>\s*<li>\s*and\s+[^<]*</li>\s*</ul>', '', content, flags=re.IGNORECASE)
+        content = re.sub(r'<ul>\s*<li>\s*or\s+[^<]*</li>\s*</ul>', '', content, flags=re.IGNORECASE)
+        
+        # Pattern 7: Single-item lists (not really a list, should be paragraph)
+        # Only remove if the single item looks like a sentence fragment
+        def remove_single_item_fragment_lists(html: str) -> str:
+            pattern = r'<ul>\s*<li>([^<]+)</li>\s*</ul>'
+            def check_single(match):
+                item_text = match.group(1).strip()
+                # Keep if it ends with proper punctuation and is substantial
+                if item_text.endswith(('.', '!', '?')) and len(item_text) > 30:
+                    return match.group(0)
+                # Remove if it looks like a fragment
+                if item_text.startswith(('and ', 'or ', 'but ', 'so ', 'yet ')):
+                    logger.warning(f"🗑️ Removing single-item fragment list: {item_text[:50]}...")
+                    return ''
+                if len(item_text) < 50 and not item_text.endswith(('.', '!', '?')):
+                    logger.warning(f"🗑️ Removing single-item fragment list: {item_text[:50]}...")
+                    return ''
+                return match.group(0)
+            return re.sub(pattern, check_single, html, flags=re.DOTALL)
+        
+        content = remove_single_item_fragment_lists(content)
+        
+        # Pattern 8: Fix malformed HTML - </p> inside <li> tags
+        content = re.sub(r'(<li>[^<]*)</p>\s*</li>', r'\1</li>', content)
+        content = re.sub(r'<li>\s*</p>', '', content)
+        
+        # STEP 0.5: REMOVE EMPTY LABEL PARAGRAPHS (Gemini bug)
+        # Matches: <p><strong>GitHub Copilot:</strong></p> (label with NO content after)
+        # Matches: <p><strong>Amazon Q Developer:</strong></p>
+        content = re.sub(r'<p>\s*<strong>[^<]+:</strong>\s*</p>', '', content)
+        logger.info("🧹 Removed empty label paragraphs")
+        
+        # STEP 0.6: FIX SENTENCE FRAGMENTS AND ORPHANED TEXT - CONSERVATIVE VERSION
+        # CRITICAL: Only fix clearly broken fragments, don't destroy valid content
+        
+        # Fix ONLY obvious sentence continuations - be very conservative
+        # Only merge if we can be sure it's a broken sentence, not valid content
+        
+        # Fix obvious truncated sentences ONLY if they end with single orphaned letter (e.g., "trust is e")
+        content = re.sub(r'\s[a-z]\s*</p>', '</p>', content)  # Remove ONLY trailing single letters before closing paragraph
+        
+        # Fix broken HTML structure after any changes
+        content = re.sub(r'<p>\s*<p>', '<p>', content)  # Remove double opening paragraph tags
+        content = re.sub(r'</p>\s*</p>', '</p>', content)  # Remove double closing paragraph tags
+        
+        # STEP 0.6a: REMOVE UNWANTED KEYWORD BOLDING
+        # Remove <strong> tags around keywords that shouldn't be emphasized
+        # This prevents keywords from appearing in bold in the final output
+        
+        # Remove <strong> tags in broken paragraph contexts (orphaned bolded keywords)
+        content = re.sub(r'</p>\s*<p>\s*<strong>([^<]+)</strong>\s*</p>', r' \1</p>', content)  # Remove bold, merge text
+        content = re.sub(r'</p>\s*<strong>([^<]+)</strong>(?!</p>)', r' \1</p>', content)  # Remove bold, merge text
+        content = re.sub(r'</p>\s*<strong>([^<]+)</strong>\s*</p>', r' \1</p>', content)  # Remove bold, merge text
+        
+        # Also remove standalone <strong> tags around specific keywords that shouldn't be bold
+        # Target common keywords that are being inappropriately bolded
+        content = re.sub(r'<strong>(zero trust security architecture|SIEM automation|cloud security|DevSecOps)</strong>', r'\1', content, flags=re.IGNORECASE)
+        
+        logger.info("🔧 Removed unwanted keyword bolding and fixed orphaned bold tags")
+        
+        # STEP 0.7: FIX GEMINI HALLUCINATION PATTERNS (context loss bugs)
+        # Gemini loses context mid-generation and outputs broken phrases:
+        # "You can aI code generation" → remove entire broken phrase
+        # "When you aI code generation" → remove entire broken phrase
+        # "What is aI code generation" → remove entire broken phrase
+        # "so you can of increased" → remove broken phrase
+        # "Here's this reality faces" → "This reality faces"
+        
+        # Pattern 1: "You can/When you/What is" + lowercase "aI code" (context loss)
+        content = re.sub(r'<p>\s*(You can|When you|What is)\s+aI\s+code[^<]*</p>', '', content, flags=re.IGNORECASE)
+        content = re.sub(r'\b(You can|When you|What is)\s+aI\s+code[^.!?]*[.!?]?', '', content, flags=re.IGNORECASE)
+        
+        # Pattern 2: "so you can of" (broken grammar)
+        content = re.sub(r'\bso you can of\b', '', content, flags=re.IGNORECASE)
+        
+        # Pattern 2a: "By so you can building" → "By building"
+        # Also fix "By so Building" (capitalized)
+        # This happens when multiple phrase injections combine incorrectly
+        content = re.sub(r'\bBy so you can (building|implementing|creating|developing|establishing|maintaining)\s+', 
+                        lambda m: f'By {m.group(1).capitalize()} ', content, flags=re.IGNORECASE)
+        # Also handle "By so Building" (already capitalized)
+        content = re.sub(r'\bBy so (Building|Implementing|Creating|Developing|Establishing|Maintaining)\s+', 
+                        r'By \1 ', content)
+        # Pattern 2b: Fix "By so Building" → "By building" (if lowercase needed)
+        content = re.sub(r'\bBy so building\s+', 'By building ', content, flags=re.IGNORECASE)
+        
+        # Pattern 3: "Here's this reality/scenario/situation" → "This reality/scenario/situation"
+        # CRITICAL FIX: Catch "Here's this" in all contexts (not just specific nouns)
+        # Matches: "Here's this scenario" → "This scenario"
+        # Matches: "Here's this has become" → "This has become"  
+        content = re.sub(r"Here's this\s+", r'This ', content, flags=re.IGNORECASE)
+        content = re.sub(r"Here's this (reality|scenario|situation)", r'This \1', content, flags=re.IGNORECASE)
+        
+        # Pattern 4: Double question words "What is How" / "What is Why"
+        content = re.sub(r'<h2>What is (How|Why|What|When|Where)\b', r'<h2>\1', content, flags=re.IGNORECASE)
+        
+        # Pattern 4d: Fix "What is the difference between The X?" -> "The X"
+        # This is an awkward Gemini pattern that combines question with statement title
+        content = re.sub(
+            r'<h2>What is the difference between (The|A|An)\s+([^<]+?)\?</h2>',
+            lambda m: f'<h2>{m.group(1)} {m.group(2)}</h2>',
+            content,
+            flags=re.IGNORECASE
+        )
+        
+        # Pattern 4e: Fix "What is the difference between" when followed by two things
+        # E.g., "What is the difference between Speed and Stability?" → "Speed and Stability"
+        content = re.sub(
+            r'<h2>What is the difference between\s+([A-Z][^<]+?)\?</h2>',
+            r'<h2>\1</h2>',
+            content,
+            flags=re.IGNORECASE
+        )
+        
+        # Pattern 4a: Remove "What is" prefix from section titles that shouldn't be questions
+        # Matches: "What is The New Gatekeepers" → "The New Gatekeepers"
+        # Only remove if title starts with "The", "Real-World", "Core", etc. (clear statements)
+        # Also handle titles with colons: "What is The New Gatekeepers: Gmail" → "The New Gatekeepers: Gmail"
+        content = re.sub(
+            r'<h2>What is (The|Real-World|Core|Strategic|AI-Driven|Future|Security|Rethinking|Selecting)\s+([^<]+)</h2>',
+            r'<h2>\1 \2</h2>',
+            content,
+            flags=re.IGNORECASE
+        )
+        
+        # Pattern 4b: Fix awkward question titles
+        # Matches: "What are the future trends in strategic implementation for the future?" → "Strategic Implementation for the Future"
+        content = re.sub(
+            r'<h2>What are the future trends in ([^<]+) for the future\?</h2>',
+            r'<h2>\1</h2>',
+            content,
+            flags=re.IGNORECASE
+        )
+        # Also fix: "What are the future trends in X?" when X already contains "future" or "trends"
+        # Also fix: "What are the future trends in outlook: the path forward?" → "Future Outlook: The Path Forward"
+        content = re.sub(
+            r'<h2>What are the future trends in ([^<]*?(?:future|trend|implementation|strategic|outlook)[^<]*?)\?</h2>',
+            lambda m: f'<h2>{m.group(1).strip().title()}</h2>',
+            content,
+            flags=re.IGNORECASE
+        )
+        # Pattern 4c: Fix "What is Implementing X?" → "Implementing X"
+        # Also fix "What is Selecting X?" → "Selecting X"
+        # Also fix "What is Automation at Scale: X?" → "Automation at Scale: X"
+        content = re.sub(
+            r'<h2>What is (Implementing|Selecting|Building|Creating|Developing|Managing|Optimizing|Automation)([^<]*?)\?</h2>',
+            lambda m: f'<h2>{m.group(1)}{m.group(2)}</h2>',
+            content,
+            flags=re.IGNORECASE
+        )
+        # Pattern 4f: Fix "How to Governance Frameworks..." → "Governance Frameworks..."
+        # Fix broken "How to" conversions
+        content = re.sub(
+            r'<h2>How to (Governance|Strategic|Compliance|Security)([^<]*?)\?</h2>',
+            lambda m: f'<h2>{m.group(1)}{m.group(2)}</h2>',
+            content,
+            flags=re.IGNORECASE
+        )
+        # Pattern 4g: Fix "What are the future trends in the future: X?" → "The Future: X"
+        # Fix redundant future questions
+        content = re.sub(
+            r'<h2>What are the future trends in the future:\s*([^<]+)\?</h2>',
+            lambda m: f'<h2>The Future: {m.group(1).strip().title()}</h2>',
+            content,
+            flags=re.IGNORECASE
+        )
+        
+        # Pattern 5: Standalone "matters:" or "so you can:" labels (in own paragraph)
+        content = re.sub(r'<p>\s*(matters|so you can|if you want):\s*</p>', '', content, flags=re.IGNORECASE)
+        
+        # Pattern 6: Orphaned labels in middle of text (CRITICAL FIX for "matters:" issue)
+        # Matches: "text. matters: What is..." → "text. What is..."
+        # Matches: "text matters: deploying..." → "text deploying..." (with space fix)
+        orphaned_label_patterns = [
+            # Pattern: sentence end + orphaned label + capital letter (broken sentence)
+            (r'([.!?])\s*(matters|so you can|if you want)\s*:\s*([A-Z])', r'\1 \3', re.IGNORECASE),
+            # Pattern: orphaned label at start of paragraph
+            (r'(<p>)\s*(matters|so you can|if you want)\s*:\s*', r'\1', re.IGNORECASE),
+            # Pattern: orphaned label in middle of paragraph (with space before next word)
+            (r'\s+(matters|so you can|if you want)\s*:\s+([A-Z])', r' \2', re.IGNORECASE),
+            # Pattern: orphaned label followed by "What is" (common broken pattern, same paragraph)
+            (r'\s+(matters|so you can|if you want)\s*:\s*What is\s+', r' ', re.IGNORECASE),
+            # Pattern: orphaned label followed by "What is" across paragraph boundary
+            # "matters:</p><p>What is deploying..." → "</p><p>Deploying..."
+            (r'(matters|so you can|if you want)\s*:\s*</p>\s*<p>\s*What is\s+', r'</p><p>', re.IGNORECASE),
+        ]
+        
+        for pattern, replacement, flags in orphaned_label_patterns:
+            content = re.sub(pattern, replacement, content, flags=flags)
+        
+        # Pattern 7: Fix "What is" fragments at start of paragraphs (after orphaned labels removed)
+        # "What is deploying these tools effectively requires..." → "Deploying these tools effectively requires..."
+        # Only remove if it's clearly a fragment (gerund + verb that makes it ungrammatical as question)
+        # Pattern matches: "What is" + gerund + ... + verb (requires/needs/etc) - clearly a fragment
+        content = re.sub(
+            r'(<p>)\s*What is\s+([a-z]+ing\s+[^<]*?\s+(?:requires?|needs?|means?|involves?|demands?))',
+            r'\1\2',
+            content,
+            flags=re.IGNORECASE
+        )
+        
+        logger.info("🚨 Fixed Gemini hallucination patterns (context loss)")
+        
+        # STEP 1: Humanize language (remove AI markers)
+        content = HTMLRenderer._humanize_content(content)
+        
+        # Pattern 0: Fix duplicate punctuation (Gemini typos)
+        # Matches: ,, or .. or ;; or :: etc.
+        # Replace with single punctuation
+        content = re.sub(r'([.,;:!?])\1+', r'\1', content)
+        
+        # TYPO CORRECTIONS (common Gemini mistakes)
+        # Fix "applys" → "applies", "applyd" → "applied" (verb conjugation errors)
+        typo_fixes = [
+            (r'\bapplys\b', 'applies'),
+            (r'\bapplyd\b', 'applied'),
+            (r'\banalyzs\b', 'analyzes'),
+            (r'\banalyzd\b', 'analyzed'),
+            (r'\borganizs\b', 'organizes'),
+            (r'\borganizd\b', 'organized'),
+            (r'\bminimizs\b', 'minimizes'),
+            (r'\bminimizd\b', 'minimized'),
+            (r'\bmaximizs\b', 'maximizes'),
+            (r'\bmaximizd\b', 'maximized'),
+            (r'\boptimizs\b', 'optimizes'),
+            (r'\boptimizd\b', 'optimized'),
+            (r'\bsynchronizs\b', 'synchronizes'),
+            (r'\bsynchronizd\b', 'synchronized'),
+            (r'\bprioritizs\b', 'prioritizes'),
+            (r'\bprioritizd\b', 'prioritized'),
+            (r'\bauthorizs\b', 'authorizes'),
+            (r'\bauthorizd\b', 'authorized'),
+            (r'\brecognizs\b', 'recognizes'),
+            (r'\brecognizd\b', 'recognized'),
+            (r'\bspecializs\b', 'specializes'),
+            (r'\bspecializd\b', 'specialized'),
+            (r'\butilizs\b', 'utilizes'),
+            (r'\butilizd\b', 'utilized'),
+        ]
+        for pattern, replacement in typo_fixes:
+            content = re.sub(pattern, replacement, content, flags=re.IGNORECASE)
+        logger.info("📝 Applied typo corrections")
+        
+        # FIX ". Also," pattern (orphaned period before conjunctions)
+        # Matches: ". Also," at paragraph start or after sentence break
+        content = re.sub(r'<p>\s*\.\s*Also,\s*', '<p>Also, ', content, flags=re.IGNORECASE)
+        content = re.sub(r'\.\s*\.\s*Also,', '. Also,', content, flags=re.IGNORECASE)  # Fix double period
+        
+        # FIX ORPHANED PERIODS AT PARAGRAPH START
+        # Pattern: <p>. <a href="...">Source</a></p> → <p><a href="...">Source</a></p>
+        content = re.sub(r'<p>\s*\.\s*(<a\s)', r'<p>\1', content)
+        content = re.sub(r'<p>\s*\.\s+', '<p>', content)  # Remove any period at paragraph start
+        
+        # FIX STRAY CLOSING TAGS AFTER PARAGRAPHS AND MID-SENTENCE
+        # Pattern: </p></li></ul> (malformed nesting from Gemini) → </p>
+        content = re.sub(r'</p>\s*</li>\s*</ul>', '</p>', content)
+        content = re.sub(r'</p>\s*</li>\s*</ol>', '</p>', content)
+        # Also fix: Forrester</a></p></li></ul> → Forrester</a></p>
+        content = re.sub(r'(</a>)\s*</p>\s*</li>\s*</ul>', r'\1</p>', content)
+        content = re.sub(r'(</a>)\s*</p>\s*</li>\s*</ol>', r'\1</p>', content)
+        
+        # FIX STRAY </li></ul> IN MIDDLE OF SENTENCES
+        # Pattern: "text.</li></ul>More text" → "text. More text"
+        content = re.sub(r'([.!?])\s*</li>\s*</ul>\s*([A-Z])', r'\1 \2', content)
+        content = re.sub(r'([.!?])\s*</li>\s*</ol>\s*([A-Z])', r'\1 \2', content)
+        # Pattern: "text</li></ul>More text" (without punctuation) → "text. More text"
+        content = re.sub(r'([a-z])\s*</li>\s*</ul>\s*([A-Z])', r'\1. \2', content)
+        content = re.sub(r'([a-z])\s*</li>\s*</ol>\s*([A-Z])', r'\1. \2', content)
+        
+        # FIX MALFORMED METRICS/LIST PATTERNS
+        # Pattern: "</p><ul><li>text</li></ul><p>?\n|-" → proper prose
+        # This is Gemini outputting lists in a broken way
+        content = re.sub(r'</p>\s*<ul>\s*<li>([^<]+)</li>\s*</ul>\s*<p>\s*\?\s*\n?\s*\|-', r' \1?', content)
+        # Pattern: "|-" at start of line (broken list continuation)
+        content = re.sub(r'\n\s*\|-\s*', '\n- ', content)
+        content = re.sub(r'<p>\s*\|-\s*', '<p>', content)
+        
+        # FIX STRAY LIST AT END OF CONTENT
+        # Pattern: "</p><ul><li>continuation text Google</a></p>" at article end
+        # This is a broken sentence that got wrapped in a list - unwrap it
+        content = re.sub(r'</p>\s*<ul>\s*<li>([^<]+(?:<[^>]+>[^<]*)*)</li>\s*</ul>\s*</article>', 
+                        lambda m: f' {re.sub(r"<[^>]+>", "", m.group(1).strip())}</p>\n        </article>', content)
+        
+        # Also fix orphaned list at end that has no closing tags
+        content = re.sub(r'<ul>\s*<li>([^<]+(?:<[^>]+>[^<]*)*)</p>\s*</article>', 
+                        lambda m: f' {re.sub(r"<[^>]+>", "", m.group(1).strip())}</p>\n        </article>', content)
+        
+        # FIX ORPHANED CLOSING TAGS IN MID-CONTENT
+        # Pattern: "text. </li></ul>" anywhere (not just at end)
+        # These are Gemini artifacts from broken list structures
+        content = re.sub(r'([.!?])\s*</li>\s*</ul>(?!\s*</)', r'\1', content)
+        # Pattern: "</p>text </li></ul>" - paragraph then orphaned tags
+        content = re.sub(r'</p>\s*([^<]+)\s*</li>\s*</ul>', r' \1</p>', content)
+        
+        logger.info("🔧 Fixed orphaned period patterns and stray closing tags")
+        
+        # FIX BROKEN SENTENCES: Lowercase letter after period
+        # Pattern: "documentation. makes" → "documentation. Makes"
+        # This is a Gemini output bug where context is lost mid-sentence
+        def capitalize_after_period(match):
+            period_space = match.group(1)  # ". " or "! " or "? "
+            lowercase_char = match.group(2)
+            return f'{period_space}{lowercase_char.upper()}'
+        
+        # Match period/exclaim/question followed by space and lowercase letter
+        # Be careful not to match abbreviations (e.g., "e.g. the") 
+        # Only match if preceded by a lowercase letter (end of word)
+        content = re.sub(
+            r'([a-z])([.!?])\s+([a-z])',
+            lambda m: f'{m.group(1)}{m.group(2)} {m.group(3).upper()}',
+            content
+        )
+        logger.info("🔤 Fixed lowercase letters after sentence-ending punctuation")
+        
+        # Pattern 0a: Fix missing spaces after commas
+        # Matches: "flows,capture" → "flows, capture"
+        content = re.sub(r'([a-z]),([A-Z])', r'\1, \2', content)
+        
+        # Pattern 0b: Fix "You can effective" → "Effective"
+        content = re.sub(r'\bYou can effective\s+', 'Effective ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0c: Fix incomplete sentences starting with "A strong"
+        content = re.sub(r'<p>\s*A strong\s+([A-Z][^<]+?)\s*</p>', '', content)
+        
+        # Pattern 0d: Fix "You'll find The top" → "The top" or "Here are the top"
+        content = re.sub(r"You'll find The\s+", 'The ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0e: Fix "real-world implementations validate" → "Real-world implementations validate"
+        content = re.sub(r'<p>\s*real-world implementations validate\b', '<p>Real-world implementations validate', content, flags=re.IGNORECASE)
+        
+        # Pattern 0f: Fix "When you list hygiene" → "List hygiene"
+        content = re.sub(r'\bWhen you list hygiene\b', 'List hygiene', content, flags=re.IGNORECASE)
+        
+        # Pattern 0g: Fix "so you can strategy" → remove broken phrase
+        # Also fix "so you can Cloud" → "Cloud"
+        content = re.sub(r'\bso you can strategy\b', '', content, flags=re.IGNORECASE)
+        content = re.sub(r'\bso you can (Cloud|Security|Identity|Digital|CSPM|CWPP|CNAPP)\s+', r'\1 ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0h: Fix "This is complete Guide" → "This is a complete Guide"
+        content = re.sub(r'\bThis is complete Guide\b', 'This is a complete Guide', content, flags=re.IGNORECASE)
+        
+        # Pattern 0i: Fix sentence fragments starting with period
+        # Matches: "<p>. Also, built-in" → "<p>Also, built-in"
+        content = re.sub(r'<p>\s*\.\s+([A-Z])', r'<p>\1', content)
+        
+        # Pattern 0i2: Fix orphaned period at start of list item
+        # Matches: "<li>. Identity" → "<li>Identity"
+        content = re.sub(r'<li>\s*\.\s*(\d+\.?\s*)?([A-Z])', r'<li>\2', content)
+        
+        # Pattern 0i3: Fix period followed by number at start of paragraph
+        # Matches: "<p>. 3. Identity" → "<p>3. Identity" or "<p>Identity"
+        content = re.sub(r'<p>\s*\.\s*(\d+\.?\s*)([A-Z][^<]+)', r'<p>\2', content)
+        
+        # Pattern 0i4: Fix orphaned period before any capital letter
+        # Matches: ". Several" at start → "Several"
+        content = re.sub(r'^[\.\s]+([A-Z])', r'\1', content)
+        
+        # Pattern 0j: Fix empty paragraphs
+        # Matches: <p></p> or <p> </p>
+        content = re.sub(r'<p>\s*</p>', '', content)
+        
+        # Pattern 0k: Fix "You can fragmented" → "Fragmented"
+        # Also fix "You can identity" → "Identity"
+        content = re.sub(r'\bYou can (fragmented|building|regulatory|successful|effective|modern|traditional|automated|strategic|critical|essential|important|identity|digital|sovereignty|compliance|governance|security)\s+', 
+                        lambda m: m.group(1).capitalize() + ' ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0l: Fix "When you building" → "Building" or "When building"
+        # Also fix "When you finally" → "Finally"
+        content = re.sub(r'\bWhen you (building|implementing|creating|developing|establishing|maintaining|finally|eventually|ultimately)\s+', 
+                        lambda m: m.group(1).capitalize() + ' ', content, flags=re.IGNORECASE)
+        # Also fix standalone "When you building" without following word
+        content = re.sub(r'\bWhen you building\b', 'Building', content, flags=re.IGNORECASE)
+        content = re.sub(r'\bWhen you finally\b', 'Finally', content, flags=re.IGNORECASE)
+        
+        # Pattern 0m: Fix "That's why however" → "However"
+        # Also fix "That's why conversely" → "Conversely"
+        content = re.sub(r"That's why (however|conversely|alternatively),?\s+", r'\1, ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0m2: Fix "You'll find to" → "To"
+        content = re.sub(r"\bYou'll find to\s+", 'To ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0m3: Fix "If you want similarly" → "Similarly"
+        content = re.sub(r'\bIf you want (similarly|ultimately|finally|eventually),?\s+', r'\1, ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0m4: Fix "This is ultimately" → "Ultimately"
+        content = re.sub(r'\bThis is (ultimately|finally|eventually),?\s+', r'\1, ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0m5: Fix "so you can Cloud" → "Cloud"
+        content = re.sub(r'\bso you can (Cloud|Security|Identity|Digital)\s+', r'\1 ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0m6: Fix "That's why handling" → "Handling" or "Navigating"
+        # Also fix "That's why navigating" → "Navigating"
+        content = re.sub(r'\bThat\'s why (handling|navigating|managing|building|creating)\s+', lambda m: m.group(1).capitalize() + ' ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0m8: Fix "You can handling" → "Handling" or "Navigating"
+        # Also fix "You can navigating" → "Navigating"
+        content = re.sub(r'\bYou can (handling|navigating|managing|building|creating)\s+', lambda m: m.group(1).capitalize() + ' ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0m11: Fix "You'll find selecting" → "Selecting"
+        # Also fix other gerunds after "You'll find"
+        content = re.sub(r'\bYou\'ll find (selecting|handling|navigating|managing|building|creating)\s+', lambda m: m.group(1).capitalize() + ' ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0m7: Fix "Here's how beyond" → "Beyond"
+        # Also fix other prepositions after "Here's how"
+        content = re.sub(r'\bHere\'s how (beyond|within|through|across|during|before|after)\s+', lambda m: m.group(1).capitalize() + ' ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0n: Fix "If you want regulatory" → "Regulatory" (with capitalization)
+        # Also fix "If you want digital" → "Digital"
+        content = re.sub(r'\bIf you want (regulatory|strategic|critical|essential|important|modern|traditional|automated|successful|effective|digital|sovereignty|compliance|governance)\s+', 
+                        lambda m: m.group(1).capitalize() + ' ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0n3: Fix "Here's in late" → "In late"
+        content = re.sub(r"\bHere's (in|on|at|by|for|with|from|to|of|about)\s+", r'\1 ', content, flags=re.IGNORECASE)
+        
+        # Pattern 0n2: Fix lowercase sentence starts (e.g., "regulatory pressure" → "Regulatory pressure")
+        content = re.sub(r'<p>\s*([a-z])([a-z]+)\s+', lambda m: f'<p>{m.group(1).upper()}{m.group(2)} ', content)
+        
+        # Pattern 0o: Fix incomplete list items ending with "..."
+        # Remove list items that are clearly incomplete (end with "..." or cut off mid-sentence)
+        # This is a safety net - ideally list extraction should create complete items
+        incomplete_patterns = [
+            r'<li>([^<]+)\.\.\.</li>',  # Items ending with "..."
+            r'<li>([^<]+)\s+\.\.\.\s*</li>',  # Items with "..." before closing
+        ]
+        for pattern in incomplete_patterns:
+            # Only remove if the item is clearly incomplete (short or ends with incomplete phrase)
+            matches = re.finditer(pattern, content, re.IGNORECASE)
+            for match in list(matches):  # Convert to list to avoid modification during iteration
+                item_text = match.group(1).strip()
+                # Remove if it's clearly incomplete (ends with incomplete word or is very short)
+                if len(item_text.split()) < 8 or item_text.endswith(('...', 'toward', 'used', 'that', 'from')):
+                    content = content.replace(match.group(0), '', 1)
+        
+        # Pattern 0p: Fix broken paragraph structure
+        # Matches: "</p><p><strong>Cloud Computing Security</strong></p> has evolved"
+        # Should be: "</p><p><strong>Cloud Computing Security</strong> has evolved</p>"
+        content = re.sub(r'</p>\s*<p><strong>([^<]+)</strong></p>\s+([a-z])', r'</p><p><strong>\1</strong> \2', content, flags=re.IGNORECASE)
+        
+        # Pattern 0q: Fix "The future of </p><ul>" → complete the sentence
+        # Matches incomplete sentences before lists
+        content = re.sub(r'<p>The future of\s*</p>\s*<(ul|ol)>', r'<p>The future of cloud computing security lies in strategic integration.</p><\1>', content, flags=re.IGNORECASE)
+        
+        # Pattern 0r: Remove empty list tags
+        # Matches: <ul></ul> or <ol></ol> (lists with no items)
+        content = re.sub(r'<(ul|ol)>\s*</\1>', '', content, flags=re.IGNORECASE)
+        
+        # Pattern 1: Remove <p><strong>Label:</strong> LINKED_CITATIONS</p>
+        # Matches: <p><strong>Anything:</strong> <a...>[1]</a><a...>[2]</a></p>
+        # This catches linkified citations
+        content = re.sub(
+            r'<p>\s*<strong>[^<]+:</strong>\s*(?:<a[^>]*>\[\d+\]</a>\s*)+\s*</p>',
+            '',
+            content,
+            flags=re.IGNORECASE
+        )
+        
+        # Pattern 2: Remove <p><strong>Label:</strong> RAW_CITATIONS</p>
+        # Matches: <p><strong>Anything:</strong> [1][2][3]</p>
+        # This catches citations before linkification
+        content = re.sub(
+            r'<p>\s*<strong>[^<]+:</strong>\s*(?:\[\d+\]\s*)+\s*</p>',
+            '',
+            content,
+            flags=re.IGNORECASE
+        )
+        
+        # Pattern 2a: Remove standalone list introduction labels (DUPLICATE SUMMARY REMOVAL)
+        # Matches: <p>Here are key points:</p> or <p>Key benefits include:</p> followed by list
+        # These are robotic Gemini patterns that create duplicate content
+        list_intro_patterns = [
+            # Generic list introductions that add zero value
+            (r'<p>\s*(?:Key points|Here are the|Here are key points)\s*:?\s*</p>\s*(?=<(?:ul|ol))', ''),
+            (r'<p>\s*(?:Important|Key)\s*:?\s*</p>\s*(?=<(?:ul|ol))', ''),
+            # Specific forbidden patterns from system instruction
+            (r'<p>\s*Here are key points\s*:?\s*</p>', ''),
+            (r'<p>\s*Important considerations\s*:?\s*</p>', ''),
+            (r'<p>\s*Key benefits include\s*:?\s*</p>', ''),
+            (r'<p>\s*Here\'?s what you need to know\s*:?\s*</p>', ''),
+            # Also catch inline versions (not followed by list) - NO space required after colon
+            (r'Here are key points\s*:', ''),
+            (r'Important considerations\s*:', ''),
+            (r'Key benefits include\s*:', ''),
+            (r'Here\'?s what you need to know\s*:', ''),
+            (r'matters\s*:', ''),  # Catch "Why this matters:" etc
+        ]
+        for pattern, replacement in list_intro_patterns:
+            content = re.sub(pattern, replacement, content, flags=re.IGNORECASE)
+        logger.info("🗑️ Removed duplicate summary list introductions")
+        
+        # CRITICAL: Strip [N] academic citation markers from body content
+        # These should NOT appear inline - only in the Sources section
+        content = re.sub(r'\s*\[\d+\]\s*', ' ', content)  # Replace with single space
+        content = re.sub(r'\s{2,}', ' ', content)  # Clean up double spaces
+        logger.info("🗑️ Stripped academic citation markers [N] from body")
+        
+        # Pattern 3: Remove plain text labels with only citations (no HTML)
+        # Matches: "Security Compliance: [2][3]" on its own line
+        content = re.sub(
+            r'^[A-Z][^:\n]{2,50}:\s*(?:\[\d+\]\s*)+$',
+            '',
+            content,
+            flags=re.MULTILINE
+        )
+        
+        # Pattern 3a: Remove ONLY citation-only list items (CONSERVATIVE)
+        # Only remove list items that contain NOTHING but a label and citations
+        # Preserve items with actual content after the colon
+        content = re.sub(
+            r'<li>\s*(?:<strong>)?[^<:]{1,15}:(?:</strong>)?\s*(?:\[\d+\]\s*)+\s*</li>',  # Short labels only
+            '',
+            content,
+            flags=re.IGNORECASE
+        )
+        
+        # Pattern 3b: Remove ONLY obvious citation-only labels (CONSERVATIVE)  
+        # Only match very specific patterns that are clearly citation-only
+        # Be much more conservative to avoid removing legitimate content
+        content = re.sub(
+            r'\n\s*([A-Z][A-Za-z\s]{3,20}):\s*(?:\[\d+\]\s*){2,}\s*\n',  # Only if 2+ citations and short label
+            '\n',
+            content
+        )
+        
+        # Pattern 3c: Remove ONLY short citation-only paragraphs (CONSERVATIVE)
+        # Only remove paragraphs that contain NOTHING but a short label and citations
+        content = re.sub(
+            r'<p>\s*([A-Z][^:<]{2,15}):\s*(?:\[\d+\]\s*){2,}\s*</p>',  # Only short labels with 2+ citations
+            '',
+            content,
+            flags=re.IGNORECASE
+        )
+        
+        # Pattern 4: Remove empty or near-empty paragraphs
+        # Matches: <p></p> or <p>   </p> or <p>.</p> or <p>,</p> or <p>. Also,,</p>
+        content = re.sub(
+            r'<p>\s*[.,;:\s]+\s*</p>',
+            '',
+            content
+        )
+        
+        # Pattern 5: Standardize internal links to /magazine/ format
+        # Matches: <a href="/slug"> or <a href="/blog/slug"> but NOT <a href="/magazine/
+        # Also NOT <a href="http or <a href="#
+        def fix_internal_link(match):
+            full_tag = match.group(0)
+            href = match.group(1)
+            
+            # Skip if already /magazine/ or external/anchor
+            if href.startswith('/magazine/') or href.startswith('http') or href.startswith('#'):
+                return full_tag
+            
+            # Fix: remove /blog/ prefix if present, then add /magazine/
+            if href.startswith('/blog/'):
+                new_href = href.replace('/blog/', '/magazine/', 1)
+            elif href.startswith('/'):
+                new_href = f'/magazine{href}'
+            else:
+                new_href = f'/magazine/{href}'
+            
+            return full_tag.replace(f'href="{href}"', f'href="{new_href}"')
+        
+        # Apply internal link standardization
+        content = re.sub(
+            r'<a\s+href="([^"]+)"([^>]*)>',
+            fix_internal_link,
+            content
+        )
+        
+        # Pattern 6: Remove duplicate consecutive paragraphs (exact duplicates)
+        lines = content.split('\n')
+        deduped = []
+        prev_line = None
+        for line in lines:
+            if line.strip() != prev_line:
+                deduped.append(line)
+                prev_line = line.strip()
+        content = '\n'.join(deduped)
+        
+        # Pattern 6a: Remove list items that duplicate paragraph content verbatim
+        # This prevents lists from being exact copies of preceding paragraphs
+        paragraphs = re.findall(r'<p[^>]*>(.*?)</p>', content, re.DOTALL)
+        list_items = re.findall(r'<li[^>]*>(.*?)</li>', content, re.DOTALL)
+        
+        for li in list_items:
+            li_text = re.sub(r'<[^>]+>', '', li).strip()
+            # Check if list item text appears verbatim in any paragraph
+            for para in paragraphs:
+                para_text = re.sub(r'<[^>]+>', '', para).strip()
+                # Only remove list items that are EXACT duplicates (very conservative)
+                if li_text and para_text:
+                    # Only remove if it's an exact match or the list item is completely contained in paragraph
+                    if li_text.lower().strip() == para_text.lower().strip() or (li_text.lower() in para_text.lower() and len(li_text.split()) < 5):
+                        # Remove this list item (only very short exact matches)
+                        content = content.replace(f'<li>{li}</li>', '', 1)
+                        logger.debug(f"Removed exact duplicate list item: {li_text[:50]}...")
+                        break
+        
+        # Pattern 7: Clean up multiple consecutive newlines
+        content = re.sub(r'\n{3,}', '\n\n', content)
+        
+        # STEP 7.5: FIX CAPITALIZATION AFTER LISTS (CRITICAL)
+        # After closing list tags (</ul> or </ol>), paragraphs should start with capital letters
+        # Pattern: </ul> or </ol> followed by <p> with lowercase first letter
+        def capitalize_after_list(match):
+            list_close = match.group(1)  # </ul> or </ol>
+            p_tag = match.group(2)  # <p> or <p ...>
+            first_char = match.group(3)  # First character of paragraph content
+            rest = match.group(4)  # Rest of paragraph content
+            
+            # Only capitalize if first char is lowercase letter
+            if first_char.islower():
+                return f"{list_close}{p_tag}{first_char.upper()}{rest}"
+            return match.group(0)  # Return unchanged if already capitalized
+        
+        # Match: </ul> or </ol> followed by <p> with optional attributes, then lowercase letter
+        content = re.sub(
+            r'(</(?:ul|ol)>)\s*(<p[^>]*>)\s*([a-z])([^<]*)',
+            capitalize_after_list,
+            content,
+            flags=re.MULTILINE
+        )
+        logger.info("🔤 Fixed capitalization after list tags")
+        
+        # STEP 8: Convert <ul> to <ol> when context suggests numbered lists
+        # This fixes cases like "5 best tools" where the list should be numbered
+        # Look for patterns like: "X best", "top X", "X ways", "X steps", "X things", etc.
+        # in the text before a <ul> list and convert it to <ol>
+        numbered_list_patterns = [
+            r'\b\d+\s+(?:best|top|leading|top-rated)\s+',  # "5 best tools", "top 3"
+            r'\b(?:best|top|leading)\s+\d+\s+',  # "best 5 tools", "top 3"
+            r'\b\d+\s+(?:ways?|steps?|things?|items?|points?|strategies?|tips?|methods?|approaches?|solutions?|options?|tools?|platforms?|services?|features?|benefits?|advantages?|factors?|considerations?|criteria?|requirements?|guidelines?|practices?|techniques?|examples?|cases?|scenarios?)\b',  # "5 ways", "3 steps", "10 things"
+            r'\b(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+',  # "first 5", "second 3"
+            r'\b(?:number|#)\s*\d+\s*[:.]',  # "number 5:", "#3:"
+        ]
+        
+        # Match complete <ul>...</ul> blocks and convert if needed
+        def convert_list_if_numbered(match):
+            full_list = match.group(0)
+            # Get context before the list (look back up to 300 characters)
+            start_pos = match.start()
+            context_start = max(0, start_pos - 300)
+            context = content[context_start:start_pos].lower()
+            
+            # Remove HTML tags from context for pattern matching
+            context_text = re.sub(r'<[^>]+>', ' ', context)
+            context_text = re.sub(r'\s+', ' ', context_text)
+            
+            # Check if any numbered list pattern matches
+            for pattern in numbered_list_patterns:
+                if re.search(pattern, context_text):
+                    # Convert entire list from <ul> to <ol>
+                    logger.debug(f"Converting <ul> to <ol> based on pattern: {pattern}")
+                    return full_list.replace('<ul>', '<ol>').replace('</ul>', '</ol>')
+            
+            return full_list
+        
+        # Match complete <ul>...</ul> blocks and convert if needed
+        content = re.sub(r'<ul>(.*?)</ul>', convert_list_if_numbered, content, flags=re.DOTALL)
+        
+        # ========================================================================
+        # CRITICAL ROOT-LEVEL FIXES (Deep cleanup for production quality)
+        # ========================================================================
+        
+        # FIX 1: Missing space around parentheses
+        # "lifecycle(creation, rotation, and revocation)is" → "lifecycle (creation, rotation, and revocation) is"
+        content = re.sub(r'(\w)\(', r'\1 (', content)  # Add space before (
+        content = re.sub(r'\)(\w)', r') \1', content)  # Add space after )
+        
+        # FIX 2: Missing space after comma
+        # "functions,running" → "functions, running"
+        content = re.sub(r',([a-zA-Z])', r', \1', content)
+        
+        # FIX 3: Duplicate back-to-back citations to same URL
+        # Pattern: <a href="URL">Text</a></p><p><a href="URL">Same Text</a>
+        content = re.sub(
+            r'(<a[^>]*href="([^"]+)"[^>]*>[^<]+</a>)\s*</p>\s*<p>\s*(<a[^>]*href="\2"[^>]*>[^<]+</a>)',
+            r'\1',
+            content
+        )
+        # Also remove standalone citation paragraph at end of section
+        # Pattern: </p><p><a href="URL" class="citation">Source Name</a>.</p>
+        content = re.sub(
+            r'</p>\s*<p>\s*<a[^>]*class="citation"[^>]*>[^<]+</a>\.?\s*</p>',
+            '</p>',
+            content
+        )
+        # Also catch: <p><a class="citation">Name</a>.</p> as standalone
+        content = re.sub(
+            r'<p>\s*<a[^>]*class="citation"[^>]*>[^<]+</a>\.?\s*</p>',
+            '',
+            content
+        )
+        
+        # FIX 4: Missing periods at end of paragraphs (before </p>)
+        # Pattern: "text without punctuation</p>" → "text without punctuation.</p>"
+        # Only add period if last char is a letter or closing tag
+        content = re.sub(r'([a-zA-Z])(\s*</p>)', r'\1.\2', content)
+        content = re.sub(r'(</a>)(\s*</p>)', r'\1.\2', content)
+        # But remove double periods: "..</p>" → ".</p>"
+        content = re.sub(r'\.{2,}</p>', '.</p>', content)
+        
+        # FIX 5: Truncated list item with text after </ul>
+        # Pattern: </ul>By automating → </ul><p>By automating
+        content = re.sub(r'</ul>([A-Z][^<]{20,})</p>', r'</ul><p>\1</p>', content)
+        # Pattern: </li></ul>Text → </li></ul><p>Text
+        content = re.sub(r'</li></ul>([A-Z])', r'</li></ul><p>\1', content)
+        
+        # FIX 5b: Text directly after </p> without wrapper
+        # Pattern: </p>This allows your analysts → </p><p>This allows your analysts
+        content = re.sub(r'</p>([A-Z][a-z][^<]{15,})', r'</p><p>\1', content)
+        # Also handle: </p> This allows (with space)
+        content = re.sub(r'</p>\s+([A-Z][a-z][^<]{15,})', r'</p><p>\1', content)
+        
+        # FIX 6: <p> nested inside <li> (malformed)
+        # Pattern: <li>text.<p>more text → <li>text. More text</li><p>more text
+        content = re.sub(r'(<li>[^<]+)<p>([^<]+)', r'\1</li></ul><p>\2', content)
+        # Pattern: </li><li>text.<p>By → close the list properly
+        content = re.sub(r'<li>([^<]*\.)(<p>[A-Z])', r'<li>\1</li></ul>\2', content)
+        
+        # FIX 7: Truncated list items (items ending without proper punctuation and under 80 chars)
+        # Pattern: <li>Use SAST tools to check code commits in real</li>
+        # These are clearly cut-off sentences - remove them
+        content = re.sub(
+            r'<li>([^<]{10,60})\s+(in|to|for|with|and|the|a|an|of|on|at|by)\s*</li>',
+            '',
+            content
+        )
+        
+        # FIX 8: Remove trailing </li></ul> after </p> with no opening <li>
+        # Pattern: text</p></li></ul> → text</p>
+        content = re.sub(r'</p>\s*</li>\s*</ul>', '</p>', content)
+        
+        # FIX 9: Fix orphaned </ul> closing tags (no matching <ul>)
+        # Count opens and closes to detect orphans
+        def fix_orphan_list_closes(html: str) -> str:
+            """Remove orphaned </ul> or </ol> tags that have no matching open tag."""
+            for tag in ['ul', 'ol']:
+                opens = len(re.findall(f'<{tag}[^>]*>', html))
+                closes = len(re.findall(f'</{tag}>', html))
+                if closes > opens:
+                    # Remove excess closing tags (from the end)
+                    excess = closes - opens
+                    for _ in range(excess):
+                        # Find and remove the last orphaned closing tag
+                        html = re.sub(f'</{tag}>(?!.*</{tag}>)', '', html[::-1], count=1)[::-1]
+            return html
+        
+        content = fix_orphan_list_closes(content)
+        
+        logger.info("🔧 Applied root-level fixes (spacing, punctuation, malformed lists)")
+        
+        # FINAL PASS: Run through consolidated cleanup pipeline for any remaining issues
+        # This catches patterns that might have been missed by earlier regex operations
+        content = pipeline_cleanup(content)
+        
+        return content.strip()
+
+    @staticmethod
+    def _og_tags(title: str, desc: str, image: str, url: str, publication_date: str = None) -> str:
+        """Generate OpenGraph meta tags for social media sharing."""
+        tags = [
+            f'<meta property="og:title" content="{HTMLRenderer._escape_attr(title)}">',
+            f'<meta property="og:description" content="{HTMLRenderer._escape_attr(desc)}">',
+        ]
+
+        if image:
+            tags.append(f'<meta property="og:image" content="{HTMLRenderer._escape_attr(image)}">')
+
+        if url:
+            tags.append(f'<meta property="og:url" content="{HTMLRenderer._escape_attr(url)}">')
+
+        tags.append('<meta property="og:type" content="article">')
+        
+        # Add article-specific Open Graph tags
+        if publication_date:
+            tags.append(f'<meta property="article:published_time" content="{publication_date}">')
+
+        return "\n    ".join(tags)
+    
+    @staticmethod
+    def _twitter_tags(title: str, desc: str, image: str) -> str:
+        """Generate Twitter Card meta tags for Twitter/X sharing."""
+        tags = [
+            '<meta name="twitter:card" content="summary_large_image">',
+            f'<meta name="twitter:title" content="{HTMLRenderer._escape_attr(title)}">',
+            f'<meta name="twitter:description" content="{HTMLRenderer._escape_attr(desc)}">',
+        ]
+        
+        if image:
+            tags.append(f'<meta name="twitter:image" content="{HTMLRenderer._escape_attr(image)}">')
+        
+        return "\n    ".join(tags)
