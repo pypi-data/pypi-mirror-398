@@ -1,0 +1,300 @@
+Metadata-Version: 2.4
+Name: mend_project_cleanup_tool
+Version: 25.12.2
+Summary: Mend Cleanup Tool
+Home-page: https://github.com/mend-toolkit/mend-project-cleanup-tool
+Author: Mend Professional Services
+Author-email: ps@whitesourcesoftware.com
+License: LICENSE.txt
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: configparser==7.2.0
+Requires-Dist: DateTime~=4.3
+Requires-Dist: setuptools==78.1.1
+Requires-Dist: requests~=2.32.5
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+[![Logo](https://mend-toolkit-resources-public.s3.amazonaws.com/img/mend-io-logo-horizontal.svg)](https://www.mend.io/)  
+[![License](https://img.shields.io/badge/License-Apache%202.0-yellowgreen.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Mend projects cleanup](https://github.com/mend-toolkit/project-cleanup-tool/actions/workflows/Test%20and%20Deploy%20Mend.yml/badge.svg)](https://github.com/mend-toolkit/project-cleanup-tool/actions/workflows/Test%20and%20Deploy%20Mend.yml)
+[![Python 3.6](https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Blue_Python_3.6%2B_Shield_Badge.svg/86px-Blue_Python_3.6%2B_Shield_Badge.svg.png)](https://www.python.org/downloads/release/python-360/)
+[![PyPI](https://img.shields.io/pypi/v/mend-project-cleanup-tool?style=plastic)](https://pypi.org/project/mend-project-cleanup-tool/)
+
+# Mend Project Cleanup Tool
+
+## Key Features
+* The self-hosted CLI tool features cleaning up projects and generating reports before deletion in 3 modes:
+  * By stating _OperationMode=FilterProjectsByUpdateTime_ and how many days to keep (-r/ DaysToKeep=)
+  * By stating _OperationMode=FilterProjectsByLastCreatedCopies_ and how many copies to keep (-r/ DaysToKeep=)
+  * By stating _OperationMode=FilterProjectsByLastScanDate_ and providing a specific date (-d/ LastScanDate= in MMDDYYYY format)
+* **Multi-API Support**: Leverages Mend API 3.0, 2.0, and 1.4 for optimal functionality:
+  * **API 3.0**: Primary API for listing applications/projects with cursor-based pagination, UUID-based identification, and native label support
+  * **API 2.0**: Used for authentication (JWT tokens) and project deletion
+  * **API 1.4**: Legacy fallback for specific report types not available in newer APIs
+* **Enhanced Filtering**: Support for filtering by:
+  * Application UUIDs (included/excluded)
+  * Application labels (included/excluded)
+  * Application tags with exact match or regex pattern matching (included/excluded)
+  * Project UUIDs (excluded)
+  * Project name patterns (excluded)
+  * Project labels (included/excluded)
+  * Project tags with exact match or regex pattern matching (included/excluded)
+* **Comprehensive Reporting**: Generates SCA, SAST, and Container reports organized in type-specific folders
+  * Reports are saved as: _[Output_DIR]/[APPLICATION NAME]/[PROJECT NAME]/[REPORT TYPE]/[REPORT NAME]_
+  * The default location is: _[WORKING DIRECTORY]/Mend/Reports/[APPLICATION NAME]/[PROJECT NAME]/[REPORT TYPE]/[REPORT NAME]_
+  * Automatic data availability checks to skip report generation for projects without relevant data
+* **Dry Run Mode**: Use _-y true_ / _DryRun=True_ flag to preview changes without deletion. Creates a CSV file with projects marked for deletion
+* By default, the tool generates all possible project-level reports. Specify specific reports with (_-t_ / _ReportTypes=_)
+* Two configuration methods:
+  * Configure _params.config_ in the execution directory or pass a path to the file
+  * Use command line parameters as specified in the usage below
+  
+## Supported Operating Systems
+- **Linux (Bash):**	CentOS, Debian, Ubuntu, RedHat
+- **Windows (PowerShell):**	10, 2012, 2016
+
+## Pre-requisites 
+* Python 3.8+
+
+## Permissions
+* The user used to execute the tool must have "Organization Administrator" or "Application Administrator" permissions on all maintained applications, plus "Organization Auditor" permissions. 
+* It is recommended to use a service user.
+* The tool requires:
+  * **Mend User Key**: For API authentication
+  * **Mend Organization UUID**: For API 3.0 operations (replaces legacy Organization Token)
+  * **Mend Email**: For API 2.0 JWT authentication
+
+## Installation and Execution from PyPi (recommended):
+1. Install by executing: `pip install mend-project-cleanup-tool`
+2. Configure the appropriate parameters either by using the command line or in `params.config`.
+3. Execute the tool (`mend_project_cleanup_tool ...`).
+4. In order to update the tool please run `pip install mend-project-cleanup-tool --upgrade`
+
+## Installation and Execution from GitHub:
+1. Download and unzip **mend-project-cleanup-tool.zip** from the most recent tagged release.
+2. Install requirements: `pip install -r requirements.txt`
+3. Configure the appropriate parameters either by using the command line or `params.config`.
+4. Execute: `python project_cleanup_tool.py <CONFIG_FILE>` 
+
+## Examples:
+Perform dry run check to preview which projects would be deleted:  
+`mend_project_cleanup_tool -r 30 -m FilterProjectsByUpdateTime -u <USER_KEY> -k <ORG_UUID> -e <MEND_EMAIL> -y true`
+
+---
+
+Keep the last 60 days in each application, excluding specific application UUIDs:  
+`mend_project_cleanup_tool -r 60 -m FilterProjectsByUpdateTime -u <USER_KEY> -k <ORG_UUID> -e <MEND_EMAIL> --excludedApplicationUuids <APP_UUID_1>,<APP_UUID_2>`
+
+---
+
+Keep only two of the newest projects in specific applications:  
+`mend_project_cleanup_tool -r 2 -m FilterProjectsByLastCreatedCopies -u <USER_KEY> -k <ORG_UUID> -e <MEND_EMAIL> --includedApplicationUuids <APP_UUID_1>,<APP_UUID_2>`
+
+---
+
+Analyze only projects with specific Mend tag and keep the newest project in each application:  
+`mend_project_cleanup_tool -r 1 -m FilterProjectsByLastCreatedCopies -u <USER_KEY> -k <ORG_UUID> -e <MEND_EMAIL> --includedProjectTag <KEY>:<VALUE>`
+
+---
+
+Keep the last 2 weeks and analyze only projects whose tag value matches a regex pattern:  
+`mend_project_cleanup_tool -r 14 -m FilterProjectsByUpdateTime -u <USER_KEY> -k <ORG_UUID> -e <MEND_EMAIL> --includedProjectTagRegexInValue <KEY>:<REGEX_PATTERN>`
+
+---
+
+Delete projects with last scan before a specific date (e.g., January 15, 2025):  
+`mend_project_cleanup_tool -m FilterProjectsByLastScanDate -d 01152025 -u <USER_KEY> -k <ORG_UUID> -e <MEND_EMAIL>`
+
+---
+
+Keep the last 100 days, but exclude specific projects by UUID:  
+`mend_project_cleanup_tool -r 100 -m FilterProjectsByUpdateTime -u <USER_KEY> -k <ORG_UUID> -e <MEND_EMAIL> --excludedProjectUuids <PROJECT_UUID_1>,<PROJECT_UUID_2>`
+
+---
+
+Keep the last month but exclude projects with specific name patterns:  
+`mend_project_cleanup_tool -r 31 -m FilterProjectsByUpdateTime -u <USER_KEY> -k <ORG_UUID> -e <MEND_EMAIL> --excludedProjectNamePatterns CI_,-test`
+
+---
+
+Filter by application labels (keep only applications with specific labels):  
+`mend_project_cleanup_tool -r 30 -m FilterProjectsByUpdateTime -u <USER_KEY> -k <ORG_UUID> -e <MEND_EMAIL> --includedApplicationLabels production,staging`
+
+---
+
+Filter by project labels (exclude projects with specific labels):  
+`mend_project_cleanup_tool -r 30 -m FilterProjectsByUpdateTime -u <USER_KEY> -k <ORG_UUID> -e <MEND_EMAIL> --excludedProjectLabels deprecated,archived`
+
+---
+
+Filter by application tags (keep only applications with specific tag):  
+`mend_project_cleanup_tool -r 30 -m FilterProjectsByUpdateTime -u <USER_KEY> -k <ORG_UUID> -e <MEND_EMAIL> --includedApplicationTag environment:production`
+
+---
+
+Filter by application tag regex (exclude applications with tag matching pattern):  
+`mend_project_cleanup_tool -r 30 -m FilterProjectsByUpdateTime -u <USER_KEY> -k <ORG_UUID> -e <MEND_EMAIL> --excludedApplicationTagRegexInValue team:.*test.*`
+
+---
+
+## Removing >5k Projects
+If attempting to delete a large number of projects, the following configuration is recommended: 
+
+`mend_project_cleanup_tool -r 5 -m FilterProjectsByLastCreatedCopies -u <USER_KEY> -k <ORG_UUID> -e <MEND_EMAIL> -ss true -s true` 
+
+This configuration will keep the last 5 projects in any given application, skip report generation, and skip the summary at the end of script execution. If you wish to generate reports, it is recommended to do so for 1 application at a time using the `--includedApplicationUuids` parameter.
+
+## Full Usage flags:
+```shell
+usage: mend_project_cleanup_tool [-h] -u MEND_USER_KEY -k ORGANIZATION_UUID -e MEND_EMAIL [-a MEND_URL] 
+                    [-m {FilterProjectsByUpdateTime,FilterProjectsByLastCreatedCopies,FilterProjectsByLastScanDate}] 
+                    [-r DAYS_TO_KEEP] [-d LAST_SCAN_DATE]
+                    [--includedApplicationUuids] [--excludedApplicationUuids] 
+                    [--includedApplicationLabels] [--excludedApplicationLabels]
+                    [--includedApplicationTag] [--includedApplicationTagRegexInValue]
+                    [--excludedApplicationTag] [--excludedApplicationTagRegexInValue]
+                    [--excludedProjectUuids] [--excludedProjectNamePatterns] 
+                    [--includedProjectLabels] [--excludedProjectLabels]
+                    [--includedProjectTag] [--includedProjectTagRegexInValue] 
+                    [--excludedProjectTag] [--excludedProjectTagRegexInValue]
+                    [-t REPORT_TYPES] [-o OUTPUT_DIR] [-p PROJECT_PARALLELISM_LEVEL] 
+                    [-y DRY_RUN] [-s SKIP_REPORT_GENERATION] [-j SKIP_PROJECT_DELETION] [-ss SKIP_SUMMARY]
+                    [-pr PROXY_URL]
+
+Mend Cleanup Tool
+
+Required arguments:
+  -u MEND_USER_KEY, --userKey 
+                    Mend User Key
+  -k ORGANIZATION_UUID, --organizationUuid
+                    Mend Organization UUID (from API 3.0)
+  -e MEND_EMAIL, --mendEmail
+                    Mend Email (required for API 2.0 JWT authentication)
+
+Optional arguments:
+  -h, --help            Show this help message and exit
+  -a MEND_URL, --mendUrl
+                    Mend URL. Defaults to saas.mend.io
+  -m OPERATION_MODE, --operationMode {FilterProjectsByUpdateTime,FilterProjectsByLastCreatedCopies,FilterProjectsByLastScanDate}
+                    Cleanup operation mode (default: FilterProjectsByUpdateTime)
+  -r DAYS_TO_KEEP, --daysToKeep
+                    Number of days to keep (FilterProjectsByUpdateTime) or number of copies (FilterProjectsByLastCreatedCopies)
+                    Not used with FilterProjectsByLastScanDate. Default: 21
+  -d LAST_SCAN_DATE, --lastScanDate
+                    Specific date in MMDDYYYY format (e.g., 01152025 for January 15, 2025)
+                    Required when using FilterProjectsByLastScanDate mode
+                    Projects with last scan before this date will be deleted
+
+Application Filtering:
+  --includedApplicationUuids
+                    Comma-separated list of application UUIDs to include (only these will be processed)
+  --excludedApplicationUuids
+                    Comma-separated list of application UUIDs to exclude
+  --includedApplicationLabels
+                    Comma-separated list of labels - only applications with at least one of these labels will be processed
+  --excludedApplicationLabels
+                    Comma-separated list of labels - applications with any of these labels will be excluded
+  --includedApplicationTag
+                    Include only applications with specific tag (format: key:value, case sensitive)
+  --includedApplicationTagRegexInValue
+                    Include only applications where tag value matches regex (format: key:regex_pattern, case sensitive)
+  --excludedApplicationTag
+                    Exclude applications with specific tag (format: key:value, case sensitive)
+  --excludedApplicationTagRegexInValue
+                    Exclude applications where tag value matches regex (format: key:regex_pattern, case sensitive)
+
+Project Filtering:
+  --excludedProjectUuids
+                    Comma-separated list of project UUIDs to exclude from deletion
+  --excludedProjectNamePatterns
+                    Comma-separated list of name patterns to exclude (case sensitive)
+  --includedProjectLabels
+                    Comma-separated list of labels - only projects with at least one of these labels will be processed
+  --excludedProjectLabels
+                    Comma-separated list of labels - projects with any of these labels will be excluded
+  --includedProjectTag
+                    Include only projects with specific tag (format: key:value, case sensitive)
+  --includedProjectTagRegexInValue
+                    Include only projects where tag value matches regex (format: key:regex_pattern, case sensitive)
+  --excludedProjectTag
+                    Exclude projects with specific tag (format: key:value, case sensitive)
+  --excludedProjectTagRegexInValue
+                    Exclude projects where tag value matches regex (format: key:regex_pattern, case sensitive)
+
+Report Options:
+  -t REPORT_TYPES, --reportTypes
+                    Comma-separated list of report types to generate (see Available Reports below)
+  -s SKIP_REPORT_GENERATION, --skipReportGeneration
+                    Skip report generation step (default: False)
+  -o OUTPUT_DIR, --outputDir
+                    Output directory for reports (default: ./Mend/Reports)
+
+Execution Options:
+  -y DRY_RUN, --dryRun
+                    Preview mode - logs projects that would be deleted without actually deleting them or creating reports
+                    Creates a CSV file with projects marked for deletion (default: False)
+  -j SKIP_PROJECT_DELETION, --skipProjectDeletion
+                    Skip project deletion step (default: False)
+  -p PROJECT_PARALLELISM_LEVEL, --projectParallelismLevel
+                    Maximum number of parallel threads for processing (default: 5)
+  -ss SKIP_SUMMARY, --skipSummary
+                    Skip the summary of deleted projects at the end
+                    Recommended when processing a large number of projects (default: False)
+  -pr PROXY_URL, --proxy
+                    Proxy URL format: <proxy_ip>:<proxy_port>
+                    For Basic Auth: <username>:<password>@<proxy_ip>:<proxy_port>
+                    Defaults to http:// if no prefix provided
+                          
+```
+
+## Available Reports
+The following Mend project reports are available through the clean-up tool. These values can be specified with the `-t` flag to generate specific reports. Reports are organized into type-specific folders (SCA, SAST, Container) for better organization.
+
+### SCA Reports (API 3.0 & 1.4)
+* **due_diligence** - Due diligence report (API 3.0, JSON format)
+* **sbom_spdx** - SBOM in SPDX 2.3 format (API 3.0, JSON)
+* **sbom_cyclonedx** - SBOM in CycloneDX 1.5 format (API 3.0, JSON)
+* **attribution** - Attribution report (API 1.4, HTML)
+* **inventory** - Library inventory report (API 1.4, Excel)
+* **alerts** - Security alerts report (API 1.4, Excel)
+* **ignored_alerts** - Ignored security alerts (API 1.4, Excel)
+* **resolved_alerts** - Resolved security alerts (API 1.4, Excel)
+* **alerts_rejected_by_policy** - Alerts rejected by policy (API 1.4, JSON)
+* **bugs** - Bug report (API 1.4, Excel)
+* **in_house_libraries** - In-house libraries report (API 1.4, Excel)
+* **license_compatibility** - License compatibility report (API 1.4, Excel)
+* **request_history** - Request history report (API 1.4, Excel)
+* **source_files** - Source files report (API 1.4, Excel)
+* **source_file_inventory** - Source file inventory report (API 1.4, Excel)
+* **vulnerability** - Vulnerability report (API 1.4, Excel)
+
+### SAST Reports (API 3.0)
+* **sast_findings** - SAST code findings report (CSV)
+* **sast_suppressions** - SAST suppressions report (CSV)
+
+### Container Reports (API 3.0)
+* **container_due_diligence** - Container due diligence report (JSON)
+* **container_attribution** - Container attribution report (JSON)
+* **container_sbom** - Container SBOM in SPDX 2.3 format (JSON)
+
+**Note**: The tool automatically checks for data availability before generating reports. If a project has no SCA libraries, SAST findings, or Container image packages, the corresponding reports will be skipped.
+
+**Note**: The optimal cleanup scope is derived from the size of the environment, Mend scope size (memory and CPU) allocated for the server, and runtime time constraints.    
+
+
