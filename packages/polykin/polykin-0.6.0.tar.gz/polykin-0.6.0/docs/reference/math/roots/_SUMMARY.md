@@ -1,0 +1,7 @@
+* [](index.md)
+* [root_brent](root_brent.md)
+* [root_newton](root_newton.md)
+* [root_secant](root_secant.md)
+* [rootvec_qnewton](rootvec_qnewton.md)
+* [RootResult](RootResult.md)
+* [VectorRootResult](VectorRootResult.md)
