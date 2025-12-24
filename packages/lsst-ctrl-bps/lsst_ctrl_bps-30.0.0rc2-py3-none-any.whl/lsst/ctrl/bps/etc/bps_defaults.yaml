@@ -1,0 +1,152 @@
+#USER pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml#processCcd"
+#  OR
+#USER qgraphFile: "/path/to/existing/file.qg"
+
+
+# At minimum, following group used in bps report and can be
+# used in WMS queries.  Users can use in other things such as "output".
+#USER operator: special_name    # defaults to login on submit machine
+#USER project: dev
+#USER campaign: quick
+
+# Any extra site-specific settings needed for WMS
+#USER computeSite: ncsapool
+
+# Options that go between executable and command (e.g., between pipetask and run)
+defaultPreCmdOpts: "--long-log --log-level=VERBOSE"
+# for createQuantumGraph
+qgraphPreCmdOpts: "{defaultPreCmdOpts}"
+# for pipetaskInit
+initPreCmdOpts: "{defaultPreCmdOpts}"
+# for running Quanta
+runPreCmdOpts: "{defaultPreCmdOpts}"
+# for updateQuantumGraph
+updateQgraphPreCmdOpts: "{defaultPreCmdOpts}"
+
+# Values defining input dataset as well as collection names of output
+payload:
+  #USER payloadName: pipelines_check    # Used in bps report, and default output collection
+  #USER butlerConfig: ${PIPELINES_CHECK_DIR}/DATA_REPO/butler.yaml
+  #USER inCollection: HSC/calib,HSC/raw/all,refcats
+  #USER dataQuery: exposure=903342 AND detector=10
+  runInit: true
+  output: "u/{operator}/{payloadName}"
+  outputRun: "{output}/{timestamp}"
+
+# Mid-level values, rarely overridden other than by plugins or tools
+pipetaskOutput: "-o {output}"
+pipetaskInput: "-i {inCollection}"
+pipetaskDataQuery: '-d "{dataQuery}"'
+fileDistributionEndPoint: ""   # Needed by PanDA plugin, must end in / if non-empty string
+
+pipetask:
+  pipetaskInit:
+    runQuantumCommand: >-
+      ${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} pre-exec-init-qbb
+      {butlerConfig}
+      {fileDistributionEndPoint}{qgraphFile}
+      {extraInitOptions}
+  #OPT myTask:
+  #OPT   requestCpus:
+  #OPT   requestMemory:
+  #OPT   requestDisk:
+  #OPT   requestWalltime:
+  #OPT   runQuantumCommand:
+  #OPT   memoryMultiplier:
+  #OPT   numberOfRetries:
+
+# Default commands and usage requests for creating QuantumGraph, running Quantum.
+# Defaults to using full workflow QuantumGraph instead of per-job QuantumGraphs.
+whenSaveJobQgraph: "NEVER"
+createQuantumGraph: >-
+  ${CTRL_MPEXEC_DIR}/bin/pipetask {qgraphPreCmdOpts} qgraph
+  --butler-config {butlerConfig}
+  {pipetaskInput}
+  {pipetaskOutput}
+  --output-run {outputRun}
+  --pipeline {pipelineYaml}
+  --save-qgraph {qgraphFile}
+  --qgraph-datastore-records
+  {pipetaskDataQuery}
+  {extraQgraphOptions}
+runQuantumCommand: >-
+  ${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run-qbb
+  {butlerConfig}
+  {fileDistributionEndPoint}{qgraphFile}
+  --qgraph-node-id {qgraphNodeId}
+  {extraRunQuantumOptions}
+updateQuantumGraph: >-
+  ${CTRL_MPEXEC_DIR}/bin/pipetask {updateQgraphPreCmdOpts} update-graph-run
+  {inputQgraphFile}
+  {outputRun}
+  {qgraphFile}
+  {extraUpdateQgraphOptions}
+preemptible: True
+requestMemory: 2048
+requestCpus: 1
+numberOfRetries: 5
+retryUnlessExit: [1, 2]
+memoryMultiplier: 2
+
+wmsServiceClass: lsst.ctrl.bps.htcondor.HTCondorService
+bpsUseShared: True
+clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
+
+# Templates for bps filenames
+submitPath: ${PWD}/submit/{outputRun}
+qgraphFileTemplate: "{uniqProcName}.qg"
+subDirTemplate: "{label}/{tract}/{patch}/{band}/{subfilter}/{physical_filter}/{visit}/{exposure}"
+templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
+
+# Whether to output bps-specific intermediate files
+saveDot: False
+saveGenericWorkflow: False
+saveClusteredQgraph: False
+
+# Whether to run checks on generated ClusteredQuantumGraph
+validateClusteredQgraph: False
+
+# Temporary backward-compatibility settings
+useLazyCommands: True
+
+# Disable creation of the execution Butler (EB). May be removed once EB
+# is retired.
+executionButler:
+  whenCreate: "NEVER"
+
+extraAggregateOptions: ""
+finalJob:
+  retryUnlessExit: 2
+  updateOutputChain: "--update-output-chain"
+  whenSetup: "NEVER"
+  whenRun: "ALWAYS"
+  # Added for future flexibility, e.g., if prefer workflow instead of shell
+  # script.
+  implementation: JOB
+  concurrencyLimit: db_limit
+  finalPreCmdOpts: "{defaultPreCmdOpts}"
+  requestCpus: 16
+  requestMemory: 32768
+  command1: >-
+    ${DAF_BUTLER_DIR}/bin/butler {finalPreCmdOpts} aggregate-graph
+    {fileDistributionEndPoint}{qgraphFile}
+    {butlerConfig}
+    -j {requestCpus}
+    --register-dataset-types
+    {updateOutputChain}
+    {extraAggregateOptions}
+
+# Set a global default memory limit (in MiB) for the automatic memory scaling
+# mechanism. The value, 480 GiB, picked based on the cluster specifications
+# available at
+#
+#     https://s3df.slac.stanford.edu/public/doc/#/batch-compute
+#
+# When DM-44110 is completed, BPS plugins will be able to provide their
+# own defaults.  Currently, needs to be override in user's config
+# if a different limit needs to be used.
+memoryLimit: 491520
+
+# Default values for making id soft link to submit directory
+makeIdLink: False
+idLinkPath: "${PWD}/bps_links"
