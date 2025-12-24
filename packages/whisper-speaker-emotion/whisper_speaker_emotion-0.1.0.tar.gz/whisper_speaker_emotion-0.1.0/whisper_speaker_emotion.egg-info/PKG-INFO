@@ -1,0 +1,189 @@
+Metadata-Version: 2.4
+Name: whisper-speaker-emotion
+Version: 0.1.0
+Summary: Emotion-aware speaker tone analysis using pitch and RMS from Whisper diarized VTT with timestamps
+Author: Ashwin B
+License-Expression: MIT
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: scipy
+Requires-Dist: librosa
+Dynamic: license-file
+
+# whisper-speaker-emotion
+
+Emotion-aware speaker analysis using audio pitch and loudness aligned with Whisper diarized VTT transcripts.
+
+## What this package does
+
+This package enriches Whisper-generated transcripts with **acoustic emotion cues** by analyzing how something was said, not just what was said.
+
+Given:
+- an audio file (`.mp3`, `.wav`)
+- a Whisper-generated WEBVTT file with speaker diarization (`.vtt`)
+
+It:
+- aligns audio with transcript timestamps
+- extracts weighted pitch (F0) and RMS (loudness)
+- computes speaker-wise baselines
+- measures deviation from each speaker’s norm
+- returns a **text-only emotion-enriched transcript**
+
+## Purpose
+
+Large Language Models (LLMs) are very good at understanding **what was said**, but they lack awareness of **how it was said**.
+
+In real conversations, emotion is often conveyed through:
+- voice tone
+- pitch variation
+- loudness
+- sudden changes in speaking energy
+
+Text-only transcripts lose this information. For example, the sentence *“I’m fine”* can sound calm, irritated, or angry depending on the speaker’s tone — but all of these look identical in text.
+
+This package exists to **add missing acoustic context** back into the transcript so that LLMs can make more confident and accurate sentiment judgments.
+
+### Context Engineering for LLMs
+
+Instead of asking an LLM to infer emotion from text alone, this approach enriches the input with:
+- weighted pitch (F0)
+- loudness (RMS)
+- speaker-normalized deviations from baseline
+
+By providing this additional context, LLMs can:
+- distinguish low vs high speech
+- identify emotionally intense moments
+- detect worst emotional spikes in conversations
+- make sentiment analysis more reliable and explainable
+
+This is an example of **context engineering** — improving LLM outputs not by changing the model, but by improving the quality and richness of the input context.
+
+## Supported Inputs
+
+- Audio: `.mp3`, `.wav`
+- Transcript: `.vtt` (Whisper format with `<v SpeakerX>` tags and timestamps with `HH:MM:SS.mmm --> HH:MM:SS.mmm` format)
+
+## Installation
+
+```bash
+pip install whisper-speaker-emotion
+```
+
+## Usage
+
+```python
+from whisper_speaker_emotion import analyze_speaker_emotion
+
+text_output = analyze_speaker_emotion(
+    audio_path="call.mp3",
+    vtt_path="call.vtt"
+)
+
+print(text_output)
+```
+
+## Output
+
+- Returned as a **string**
+- No files are created or modified
+- Includes speaker-wise average pitch and RMS values
+- Includes per-utterance pitch and RMS measurements
+- Includes deviation from each speaker’s baseline
+- Output is human-readable and suitable for LLM analysis pipelines
+
+## Sample Input
+
+### Whisper-generated VTT
+
+```vtt
+WEBVTT
+
+00:00:00.000 --> 00:00:04.000
+<v Speaker0> Hi, I just wanted to give some feedback about my cab ride this morning.
+
+00:00:04.000 --> 00:00:07.000
+<v Speaker1> Sure, I can help you with that. Could you tell me what happened?
+
+00:00:07.000 --> 00:00:13.000
+<v Speaker0> Yeah, the driver was polite, but the car wasn’t clean. It kind of smelled bad inside.
+
+00:00:13.000 --> 00:00:17.000
+<v Speaker1> Oh, I’m really sorry to hear that. I’ll make a note of it.
+
+00:00:17.000 --> 00:00:22.000
+<v Speaker0> Also, he took a much longer route even after I gave him the right location. That was really annoying.
+
+00:00:22.000 --> 00:00:25.000
+<v Speaker1> I understand. We’ll check the route and talk to the driver.
+
+00:00:25.000 --> 00:00:31.000
+<v Speaker0> Okay, thanks. I just wanted to make sure this doesn’t happen again.
+
+00:00:31.000 --> 00:00:34.000
+<v Speaker1> Thanks for letting us know. We’ll ensure better service next time.
+```
+
+## Sample Tone Analysis Output
+
+```vtt
+WEBVTT
+
+Average Pitch:
+Speaker0: 230.45 Hz
+Speaker1: 190.78 Hz
+
+Average RMS:
+Speaker0: 0.068
+Speaker1: 0.061
+
+00:00:00.000 --> 00:00:04.000
+<v Speaker0> Hi, I just wanted to give some feedback about my cab ride this morning.
+Pitch: 236.22 Hz | RMS: 0.066
+Pitch Difference with Average: +5.77 Hz
+RMS Difference with Average: -0.002
+
+00:00:04.000 --> 00:00:07.000
+<v Speaker1> Sure, I can help you with that. Could you tell me what happened?
+Pitch: 192.45 Hz | RMS: 0.062
+Pitch Difference with Average: +1.67 Hz
+RMS Difference with Average: +0.001
+
+00:00:07.000 --> 00:00:13.000
+<v Speaker0> Yeah, the driver was polite, but the car wasn’t clean. It kind of smelled bad inside.
+Pitch: 225.89 Hz | RMS: 0.072
+Pitch Difference with Average: -4.56 Hz
+RMS Difference with Average: +0.004
+
+00:00:13.000 --> 00:00:17.000
+<v Speaker1> Oh, I’m really sorry to hear that. I’ll make a note of it.
+Pitch: 188.74 Hz | RMS: 0.059
+Pitch Difference with Average: -2.04 Hz
+RMS Difference with Average: -0.002
+
+00:00:17.000 --> 00:00:22.000
+<v Speaker0> Also, he took a much longer route even after I gave him the right location. That was really annoying.
+Pitch: 276.83 Hz | RMS: 0.081
+Pitch Difference with Average: +46.38 Hz
+RMS Difference with Average: +0.013
+```
+
+## Roadmap
+
+### v0.1.0 (Current)
+- CPU-only execution
+- Designed for accuracy and correctness over speed
+- Suitable for offline analysis and batch processing
+
+### v0.2.0 (Planned)
+- GPU acceleration support
+- Faster pitch and RMS computation for large-scale audio workloads
+- Optimized performance for high-volume and real-time pipelines
+
+The roadmap focuses on improving **performance and scalability** while keeping the package and output format stable.
+
+## License
+
+MIT License
