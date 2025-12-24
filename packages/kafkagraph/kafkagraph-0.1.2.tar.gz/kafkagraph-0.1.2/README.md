@@ -1,0 +1,146 @@
+# KafkaGraph
+
+Licensed Kafka to Neo4j ingestion SDK.
+
+## Overview
+
+KafkaGraph is a production-grade SDK that ingests events from Kafka and materializes them into a Neo4j graph. It includes enterprise features such as signed license enforcement, machine binding, throughput and partition limits, feature gating, and pluggable mapping modes. It is suitable for embedding into customer systems and selling as a commercial SDK.
+
+## Problem It Solves
+
+- Converts high-volume Kafka event streams into navigable Neo4j graph structures without bespoke pipelines.
+- Provides a consistent ingestion engine with batching, error safety, and transactional commits.
+- Enforces enterprise-grade licensing, rate limits, and partition caps to align with commercial agreements.
+- Offers simple-to-extend mapping modes to transform JSON events to nodes and relationships rapidly.
+
+## Features
+
+- License enforcement with signed license files and machine fingerprint binding.
+- API key mode for testing with default deterministic keys.
+- Feature gating: `simple`, `autograph`, `sequence` mappers.
+- Batching for efficient writes and offset commits.
+- Partition monitoring to enforce per-topic and total caps.
+- Extensible dispatcher for new mapping modes and features.
+
+## Install
+
+```bash
+pip install .
+```
+
+## Usage
+
+```python
+from kafkagraph import KafkaGraph
+
+kg = KafkaGraph(
+    license_file="license.json",
+    kafka_config={"brokers": ["localhost:9092"], "group_id": "kafkagraph"},
+    neo4j_config={"uri": "bolt://localhost:7687", "user": "neo4j", "password": "pass"},
+    topics_config_path="topics.yaml",
+    batch_size=500
+)
+
+kg.start()
+```
+
+## Topics Configuration
+
+Provide a `topics.yaml` that declares how events should be mapped:
+
+```yaml
+orders:
+  mode: simple
+  nodes:
+    order:
+      label: Order
+      id: orderId
+    customer:
+      label: Customer
+      id: customerId
+  relationships:
+    - type: PLACED_BY
+      from: order
+      to: customer
+      properties: [createdAt, source]
+
+profiles:
+  mode: sequence
+  base:
+    label: User
+    id: userId
+  sequences:
+    - field: devices
+      label: Device
+      id_field: deviceId
+      type: OWNS
+      properties: [model, os]
+```
+
+## License Mode (Enterprise)
+
+Provide a signed license JSON and set `PUBLIC_KEY_B64` in `kafkagraph/license/signed.py`. The engine validates signature, machine binding, expiry, and enforces limits.
+
+```python
+kg = KafkaGraph(
+  license_file="license.json",
+  kafka_config={...},
+  neo4j_config={...},
+  topics_config_path="topics.yaml"
+)
+```
+
+## API Key Mode (Test)
+
+Set API keys via environment or a file. If none are provided, 10 deterministic test keys are available.
+
+Environment:
+```bash
+export KAFKAGRAPH_API_KEYS="key1,key2,key3"
+# or from a file with one key per line
+export KAFKAGRAPH_API_KEYS_FILE=/path/to/apikeys.txt
+```
+
+Use with API key:
+```python
+from kafkagraph import KafkaGraph
+
+kg = KafkaGraph(
+    api_key="your_api_key",
+    kafka_config={"brokers": ["localhost:9092"], "group_id": "kafkagraph"},
+    neo4j_config={"uri": "bolt://localhost:7687", "user": "neo4j", "password": "pass"},
+    topics_config_path="topics.yaml",
+    batch_size=500
+)
+
+kg.start()
+```
+
+Default test keys can be generated programmatically:
+```python
+from kafkagraph.license.api_keys import default_test_keys
+print(default_test_keys())  # 10 keys for local testing
+```
+
+## Neo4j Write Semantics
+
+- Nodes are merged by `label` and `id`.
+- Relationships are merged by `type` and endpoints, then properties are set from each event batch.
+- Writes happen when `batch_size` is reached, followed by consumer offset commits.
+
+## Extensibility
+
+- Add new mapping modes under `kafkagraph/mappers/` and extend `core/dispatcher.py`.
+- Adjust license limits and feature flags per enterprise tier in license manager classes.
+- Swap batching strategy (size/time) by modifying `core/batcher.py`.
+
+## Security
+
+- Do not hardcode private keys. `PUBLIC_KEY_B64` must be provided securely in deployments.
+- API keys can be loaded via environment or file; rotate keys as needed.
+
+## Author
+
+Siddhappa Birajdar  
+Software Developer @FirstCry.com | Ex-Founder & CEO @Punarvspace Inc | Entrepreneurship | Python, Django, Flask, FastAPI, AI/ML, Generative AI, Quantum Computing, Blockchain | AWS Certified Solution Architect Associate  
+LinkedIn: https://www.linkedin.com/in/siddhappabirajdar
