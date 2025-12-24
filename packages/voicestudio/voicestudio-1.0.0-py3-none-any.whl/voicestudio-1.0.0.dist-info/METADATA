@@ -1,0 +1,258 @@
+Metadata-Version: 2.4
+Name: voicestudio
+Version: 1.0.0
+Summary: VoiceStudio: A unified toolkit for text-style prompted speech synthesis, voice adaptation, and editing
+Project-URL: Homepage, https://github.com/LatentForge/VoiceStudio
+Project-URL: Repository, https://github.com/LatentForge/VoiceStudio
+Author-email: LatentForge <brew.airesearch@gmail.com>
+License: MIT
+License-File: LICENSE
+Keywords: audio-generation,hypernetworks,lora,text-to-speech,voice-synthesis
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Multimedia :: Sound/Audio :: Speech
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.11
+Requires-Dist: accelerate>=1.10.0
+Requires-Dist: datasets>=4.0.0
+Requires-Dist: hf-xet>=1.1.8
+Requires-Dist: ipywidgets>=8.1.7
+Requires-Dist: librosa>=0.11.0
+Requires-Dist: matplotlib>=3.10.5
+Requires-Dist: notebook>=7.4.5
+Requires-Dist: peft>=0.18.0
+Requires-Dist: torch; platform_system == 'Windows'
+Requires-Dist: torch>=2.8.0
+Requires-Dist: torchaudio; platform_system == 'Windows'
+Requires-Dist: torchaudio>=2.8.0
+Requires-Dist: torchcodec>=0.9.1
+Requires-Dist: tqdm>=4.67.1
+Requires-Dist: transformers>=5.0.0rc1
+Requires-Dist: wandb>=0.21.1
+Provides-Extra: all
+Requires-Dist: voicestudio-higgs-audio; extra == 'all'
+Requires-Dist: voicestudio-parler-tts; extra == 'all'
+Provides-Extra: higgs
+Requires-Dist: voicestudio-higgs-audio; extra == 'higgs'
+Provides-Extra: parler
+Requires-Dist: voicestudio-parler-tts; extra == 'parler'
+Provides-Extra: web
+Requires-Dist: fastapi>=0.126.0; extra == 'web'
+Description-Content-Type: text/markdown
+
+# VoiceStudio
+
+<div align="center">
+
+**Your Complete Voice Adaptation Workspace**
+
+[![PyPI version](https://badge.fury.io/py/voicestudio.svg)](https://badge.fury.io/py/voicestudio)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Documentation](https://img.shields.io/badge/docs-passing-brightgreen.svg)](https://latentforge.github.io/VoiceStudio)
+
+[**Installation**](#installation) | [**Quick Start**](#quick-start) | [**Documentation**](https://latentforge.github.io/VoiceStudio) | [**Papers**](#publications)
+
+</div>
+
+---
+
+## 🎯 Overview
+
+VoiceStudio is a unified toolkit for **text-style prompted speech synthesis**, enabling instant voice adaptation and editing through natural language descriptions. Built on cutting-edge research in voice style prompting, LoRA adaptation, and language-audio models.
+
+**Key Features:**
+- 🎨 **Text-Style Prompting**: Control voice characteristics with natural language
+- ⚡ **Instant Adaptation**: Real-time LoRA generation for any TTS model
+- ✂️ **Voice Editing**: Modify existing voices with simple instructions
+- 🔧 **Architecture Agnostic**: Works with multiple TTS architectures
+- 🚀 **Production Ready**: Optimized for both research and deployment
+
+---
+
+## 🆕 What's New
+
+**v0.1.0** (2025)
+- 🔍 Speaker consistency analysis tools
+- 🎨 BOS token P-tuning
+- 📊 Attention visualization
+
+---
+
+## 🚀 Installation
+
+### From PyPI (Recommended)
+
+```bash
+uv add voicestudio[all]
+```
+
+### From Source
+
+```bash
+uv add git+https://github.com/LatentForge/voicestudio.git
+```
+
+### Requirements
+
+- Python 3.8+
+- PyTorch 2.0+
+- CUDA 11.8+ (for GPU acceleration)
+
+---
+
+## 📚 Advanced Usage
+
+### Custom TTS Model Integration
+
+VoiceStudio supports any TTS model through a simple adapter interface:
+
+```python
+from voicestudio import TTSAdapter, LoRAGenerator
+
+# Wrap your TTS model
+class MyTTSAdapter(TTSAdapter):
+    def __init__(self, model):
+        self.model = model
+    
+    def get_lora_target_modules(self):
+        return ["attention.q_proj", "attention.v_proj"]
+    
+    def forward(self, text, lora_weights=None):
+        if lora_weights:
+            self.apply_lora(lora_weights)
+        return self.model(text)
+
+# Use with VoiceStudio
+adapter = MyTTSAdapter(my_tts_model)
+generator = LoRAGenerator.from_pretrained("voicestudio/t2a-lora-base")
+
+lora = generator("professional news anchor voice")
+audio = adapter(text="Breaking news tonight...", lora_weights=lora)
+```
+
+### Multi-Speaker Voice Blending
+
+```python
+from voicestudio import VoiceBlender
+
+blender = VoiceBlender()
+
+# Blend multiple voice characteristics
+blended_lora = blender.blend([
+    ("warm and friendly", 0.6),
+    ("professional and clear", 0.4)
+])
+
+audio = tts_model.synthesize(text, lora=blended_lora)
+```
+
+### Fine-tuning on Custom Data
+
+```python
+from voicestudio import LoRAGenerator
+from voicestudio.training import Trainer
+
+# Load pre-trained generator
+generator = LoRAGenerator.from_pretrained("voicestudio/t2a-lora-base")
+
+# Fine-tune on your data
+trainer = Trainer(
+    model=generator,
+    train_dataset=your_dataset,
+    output_dir="./checkpoints"
+)
+
+trainer.train()
+```
+
+---
+
+## 📊 Supported Models
+
+VoiceStudio works with various TTS architectures:
+
+| Model | Status | Notes |
+|-------|--------|-------|
+| VITS | ✅ Supported | Fully tested |
+| FastSpeech2 | ✅ Supported | Fully tested |
+| Tacotron2 | ✅ Supported | Requires adapter |
+| VALL-E | 🔄 Experimental | Work in progress |
+| Bark | 🔄 Experimental | Coming soon |
+| YourTTS | ✅ Supported | Community contributed |
+
+**Add your own model**: See our [Integration Guide](docs/integration.md)
+
+---
+
+```bibtex
+@inproceedings{voicestudio2027lam,
+  title={T2A-LoRA2: Text-Guided Voice Editing with Language-Audio Models},
+  author={Your Name},
+  booktitle={ICML},
+  year={2027}
+}
+```
+
+---
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+**Areas we need help with:**
+- 🔧 Additional TTS model adapters
+- 📚 Documentation improvements
+- 🐛 Bug fixes and testing
+- 🌍 Multi-language support
+- 🎨 New voice editing techniques
+
+---
+
+## 📝 License
+
+This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **CLAP**: Microsoft & LAION-AI for CLAP model
+- **LoRA**: Microsoft for LoRA technique
+- **HuggingFace**: For transformers library and model hub
+- **LatentForge Team**: For research support and infrastructure
+
+---
+
+## 🌟 Citation
+
+If you use VoiceStudio in your research, please cite:
+
+```bibtex
+@software{voicestudio2026,
+  title={VoiceStudio: A Unified Toolkit for Voice Style Adaptation},
+  author={Your Name},
+  year={2026},
+  url={https://github.com/LatentForge/voicestudio}
+}
+```
+
+---
+
+<div align="center">
+
+**Made with ❤️ by the LatentForge Team**
+
+[⭐ Star us on GitHub](https://github.com/LatentForge/voicestudio) | [📖 Read the Docs](https://latentforge.github.io/VoiceStudio) | [🤗 HuggingFace](https://huggingface.co/LatentForge)
+
+</div>
