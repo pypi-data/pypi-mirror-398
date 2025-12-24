@@ -1,0 +1,285 @@
+Metadata-Version: 2.4
+Name: langchain-apiverve
+Version: 0.1.0
+Summary: LangChain integration for APIVerve - Access 310+ utility APIs for AI agents
+License: MIT
+License-File: LICENSE
+Keywords: langchain,langchain-integration,apiverve,api,ai,llm,agents,tools,validation,utilities
+Author: APIVerve
+Author-email: hello@apiverve.com
+Requires-Python: >=3.9
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Provides-Extra: dev
+Requires-Dist: langchain-core (>=0.2.0)
+Requires-Dist: mypy (>=1.0.0) ; extra == "dev"
+Requires-Dist: pydantic (>=2.0.0)
+Requires-Dist: pytest (>=7.0.0) ; extra == "dev"
+Requires-Dist: pytest-asyncio (>=0.21.0) ; extra == "dev"
+Requires-Dist: requests (>=2.28.0)
+Requires-Dist: ruff (>=0.1.0) ; extra == "dev"
+Project-URL: Changelog, https://github.com/apiverve/langchain-apiverve/releases
+Project-URL: Documentation, https://docs.apiverve.com
+Project-URL: Homepage, https://apiverve.com
+Project-URL: Issues, https://github.com/apiverve/langchain-apiverve/issues
+Project-URL: Repository, https://github.com/apiverve/langchain-apiverve
+Description-Content-Type: text/markdown
+
+# langchain-apiverve
+
+[![PyPI version](https://img.shields.io/pypi/v/langchain-apiverve.svg)](https://pypi.org/project/langchain-apiverve/)
+[![Python versions](https://img.shields.io/pypi/pyversions/langchain-apiverve.svg)](https://pypi.org/project/langchain-apiverve/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![LangChain](https://img.shields.io/badge/LangChain-Integration-blue)](https://python.langchain.com/)
+
+**LangChain integration for [APIVerve](https://apiverve.com)** - Access 310+ utility APIs for AI agents and LLM applications.
+
+Build powerful AI agents with access to validation, conversion, generation, analysis, and lookup APIs.
+
+---
+
+## Features
+
+- **310+ APIs** - Email validation, DNS lookup, IP geolocation, QR codes, currency conversion, and more
+- **29 Categories** - Data Lookup, News, Domain Data, Data Conversion, Entertainment, and more
+- **LangChain Native** - Works with any LangChain agent or chain
+- **Type Safe** - Full Pydantic schemas for inputs and outputs
+- **Async Support** - Both sync and async API calls
+- **Flexible** - Use individual tools or the "run any" meta-tool
+
+---
+
+## Installation
+
+```bash
+pip install langchain-apiverve
+```
+
+## Quick Start
+
+```python
+from langchain_apiverve import APIVerveToolkit
+from langchain_openai import ChatOpenAI
+from langchain.agents import create_tool_calling_agent, AgentExecutor
+from langchain_core.prompts import ChatPromptTemplate
+
+# Initialize toolkit with your API key
+toolkit = APIVerveToolkit(api_key="your-api-key")
+# Or set APIVERVE_API_KEY environment variable
+
+# Get tools
+tools = toolkit.get_tools()
+
+# Create an agent
+llm = ChatOpenAI(model="gpt-4")
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful assistant with access to various utility APIs."),
+    ("human", "{input}"),
+    ("placeholder", "{agent_scratchpad}"),
+])
+
+agent = create_tool_calling_agent(llm, tools, prompt)
+executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+# Use the agent
+result = executor.invoke({"input": "Is test@example.com a valid email?"})
+print(result["output"])
+```
+
+---
+
+## Usage Examples
+
+### Using Individual Tools
+
+```python
+from langchain_apiverve import APIVerveToolkit
+
+toolkit = APIVerveToolkit(api_key="your-api-key")
+
+# Get specific tools
+tools = toolkit.get_tools(include_apis=["emailvalidator", "dnslookup"])
+
+# Use a tool directly
+email_tool = tools[0]
+result = email_tool.invoke({"email": "user@example.com"})
+print(result)
+```
+
+### Using the "Run Any" Tool
+
+```python
+from langchain_apiverve import APIVerveToolkit
+
+toolkit = APIVerveToolkit(api_key="your-api-key")
+
+# Get the flexible run-any tool
+run_any = toolkit.get_run_any_tool()
+
+# Call any API dynamically
+result = run_any.invoke({
+    "api_id": "qrcodegenerator",
+    "parameters": {"value": "https://example.com"}
+})
+print(result)
+```
+
+### Filtering Tools by Category
+
+```python
+from langchain_apiverve import APIVerveToolkit
+
+toolkit = APIVerveToolkit(api_key="your-api-key")
+
+# Get only validation tools
+validation_tools = toolkit.get_tools(categories=["Validation"])
+
+# Get only lookup tools
+lookup_tools = toolkit.get_tools(categories=["Lookup"])
+```
+
+### Low-Level Client Usage
+
+```python
+from langchain_apiverve import APIVerveClient
+
+client = APIVerveClient(api_key="your-api-key")
+
+# Make API calls directly
+result = client.call_api("emailvalidator", {"email": "test@example.com"})
+print(result)
+
+# Async usage
+import asyncio
+
+async def main():
+    result = await client.acall_api("dnslookup", {"domain": "example.com"})
+    print(result)
+
+asyncio.run(main())
+```
+
+---
+
+## Available APIs
+
+APIVerve provides 310+ APIs across 29 categories:
+
+| Category | APIs | Examples |
+|----------|------|----------|
+| **Data Lookup** | 15 | World Time, Thesaurus, Emoji Lookup |
+| **News** | 1 | World News |
+| **Domain Data** | 15 | DNS Lookup, WHOIS Lookup, SSL Certificate Checker |
+| **Data Conversion** | 32 | Unit Converter, Number to Words, Words to Numbers |
+| **Entertainment** | 24 | Chuck Norris Jokes, Historical Events, Random Facts |
+| **Weather** | 8 | Air Quality, Marine Weather, Weather |
+| **Science** | 4 | Meteorite Landings, Stars Lookup, Periodic Table |
+| **Finance** | 13 | Mortgage Calculator, Loan Calculator, Currency Symbols |
+| **Transportation** | 4 | Airports Lookup, Airline Lookup, Car Models |
+| **Data Generation** | 32 | Baby Name Generator, Random Word, Random User Generator |
+
+[Browse all APIs →](https://apiverve.com/marketplace)
+
+---
+
+## API Response Format
+
+All APIVerve APIs return a consistent response format:
+
+```json
+{
+  "status": "ok",
+  "error": null,
+  "data": {
+    // API-specific response data
+  }
+}
+```
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `APIVERVE_API_KEY` | Your APIVerve API key |
+
+### Toolkit Options
+
+```python
+toolkit = APIVerveToolkit(
+    api_key="...",           # API key (or use env var)
+    base_url="...",          # Custom API base URL
+)
+
+tools = toolkit.get_tools(
+    categories=["..."],      # Filter by category
+    include_apis=["..."],    # Only include specific APIs
+    exclude_apis=["..."],    # Exclude specific APIs
+    include_run_any=True,    # Include the "run any" tool
+    include_popular=True,    # Include pre-built popular tools
+)
+```
+
+---
+
+## Development
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/apiverve/langchain-apiverve.git
+cd langchain-apiverve
+
+# Install with Poetry
+poetry install
+
+# Or with pip
+pip install -e ".[dev]"
+```
+
+### Running Tests
+
+```bash
+pytest
+```
+
+### Linting
+
+```bash
+ruff check .
+mypy src/
+```
+
+---
+
+## Resources
+
+| Resource | Link |
+|----------|------|
+| APIVerve Website | [apiverve.com](https://apiverve.com) |
+| API Documentation | [docs.apiverve.com](https://docs.apiverve.com) |
+| API Marketplace | [apiverve.com/marketplace](https://apiverve.com/marketplace) |
+| LangChain Docs | [python.langchain.com](https://python.langchain.com) |
+| GitHub Issues | [github.com/apiverve/langchain-apiverve/issues](https://github.com/apiverve/langchain-apiverve/issues) |
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+Copyright (c) 2025 [APIVerve](https://apiverve.com)
+
