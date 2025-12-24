@@ -1,0 +1,117 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reveal-cli"
+version = "0.25.0"
+description = "Semantic code exploration with progressive disclosure - explore directories, files, and code elements with smart defaults"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Progressive Reveal Contributors", email = "scottsen@users.noreply.github.com"}
+]
+keywords = ["cli", "file-explorer", "ai", "agentic", "progressive-disclosure", "code-analysis"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Markup",
+]
+dependencies = [
+    "pyyaml>=6.0",
+    "rich>=13.0.0",  # For beautiful terminal output
+    "tree-sitter==0.21.3",  # Semantic parsing for all languages
+    "tree-sitter-languages>=1.10.0",  # Language grammar support (JS, TS, Rust, Go, etc.)
+    "beautifulsoup4>=4.12.0",  # HTML parsing for HTML analyzer
+    "lxml>=4.9.0",  # Fast XML/HTML parser backend for BeautifulSoup
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+]
+# DEPRECATED in v0.8.0: tree-sitter is now included by default
+# Kept for backward compatibility (install commands with [treesitter] still work)
+treesitter = []
+# Future: xlsx support
+excel = [
+    "openpyxl>=3.0",
+]
+# Future: enhanced syntax highlighting
+syntax = [
+    "pygments>=2.0",
+]
+# Database adapter support (mysql://, postgres://, etc.)
+database = [
+    "pymysql>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Semantic-Infrastructure-Lab/reveal"
+Repository = "https://github.com/Semantic-Infrastructure-Lab/reveal"
+Documentation = "https://github.com/Semantic-Infrastructure-Lab/reveal/tree/main/docs"
+"Bug Tracker" = "https://github.com/Semantic-Infrastructure-Lab/reveal/issues"
+Discussions = "https://github.com/Semantic-Infrastructure-Lab/reveal/discussions"
+Changelog = "https://github.com/Semantic-Infrastructure-Lab/reveal/releases"
+
+[project.scripts]
+reveal = "reveal.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["reveal*", "plugins"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+plugins = ["*.yaml", "*.yml"]
+reveal = ["../plugins/*.yaml", "*.md"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# Disable plugins that reveal doesn't use (prevents auto-load failures)
+addopts = "-v --cov=reveal --cov-report=term-missing -p no:postgresql -p no:redis"
+
+[tool.coverage.run]
+source = ["reveal"]
+omit = ["*/tests/*", "*/test_*.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
