@@ -1,0 +1,89 @@
+[project]
+name = "EnhancedPolars"
+dynamic = ["version"]
+description = "Enhanced utilities for Polars DataFrames"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.13.2"
+
+# Core dependencies - required for basic functionality
+dependencies = [
+    "polars>=1.33.0,<2.0.0",
+    "numpy>=2.3.0,<3.0.0",
+    "pandas>=2.3.0,<3.0.0",
+    "pyarrow>=21.0.0,<25.0.0",
+    "tqdm>=4.67.0,<5.0.0",
+    "python-dateutil>=2.9.0,<3.0.0",
+    "SQLUtilities>=0.1.1,<2.0.0",
+    "CoreUtilities>=0.0.6,<2.0.0",
+    "joblib>=1.5.0,<2.0.0",
+]
+
+# Optional dependencies for extended functionality
+[project.optional-dependencies]
+# Scientific computing - required for interpolation, hypothesis tests, statistics
+sci = [
+    "scipy>=1.16.0,<2.0.0",
+]
+# Machine learning - required for ML preprocessing, scalers, encoders
+ml = [
+    "scikit-learn>=1.7.0,<2.0.0",
+]
+# All optional dependencies
+all = [
+    "scipy>=1.16.0,<2.0.0",
+    "scikit-learn>=1.7.0,<2.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.4.0,<8.0.0",
+    "pytest-asyncio>=0.21.0",
+    # Database drivers for integration tests
+    "pymysql>=1.1.0",
+    "psycopg2-binary>=2.9.0",
+    "oracledb>=2.0.0",
+    "pyodbc>=5.0.0",
+    "scikit-learn>=1.8.0",
+    "xlsxwriter>=3.2.9",
+    "fastexcel>=0.18.0",
+]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "enhancedpolars/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["enhancedpolars"]
+
+[tool.pytest.ini_options]
+testpaths = ["UNIT_TESTS"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "integration: tests that require external database connections",
+    "slow: tests that take a long time to run",
+    "mysql: tests that require MySQL database",
+    "postgres: tests that require PostgreSQL database",
+    "oracle: tests that require Oracle database",
+    "sqlserver: tests that require SQL Server database",
+]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.uv.sources]
+SQLUtilities = { path = "../SQLUtils-Python", editable = true }
+CoreUtilities = { path = "../CoreUtils-Python", editable = true }
