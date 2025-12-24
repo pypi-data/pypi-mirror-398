@@ -1,0 +1,50 @@
+from datetime import datetime as dt
+from setuptools import find_packages, setup
+
+PROJECT_NAME = "robomotion"
+PROJECT_PACKAGE_NAME = "robomotion"
+PROJECT_LICENSE = "Apache License 2.0"
+PROJECT_AUTHOR = "Robomotion IO"
+PROJECT_COPYRIGHT = f" 2020-{dt.now().year}, {PROJECT_AUTHOR}"
+PROJECT_URL = "https://robomotion.io/"
+PROJECT_EMAIL = "support@robomotion.io"
+
+PROJECT_GITHUB_USERNAME = "robomotionio"
+PROJECT_GITHUB_REPOSITORY = "python-lib"
+
+PYPI_URL = f"https://pypi.org/project/{PROJECT_PACKAGE_NAME}"
+GITHUB_PATH = f"{PROJECT_GITHUB_USERNAME}/{PROJECT_GITHUB_REPOSITORY}"
+GITHUB_URL = f"https://github.com/{GITHUB_PATH}"
+
+PROJECT_URLS = {
+    "Bug Reports": f"{GITHUB_URL}/issues",
+    "Dev Docs": "https://docs.robomotion.io/",
+    "Slack": "https://slack.robomotion.io",
+    "Forum": "https://forum.robomotion.io/",
+    "Discord": "https://community.robomotion.io/",
+}
+
+PACKAGES = find_packages(exclude=["tests", "tests.*"])
+
+REQUIRES = [
+    "protobuf==6.30.2",
+    "grpcio==1.72.0",
+    "grpcio-tools==1.72.0",
+    "jsonpath-ng==1.6.1",
+    "zipp==3.21.0",
+]
+
+setup(
+    name=PROJECT_PACKAGE_NAME,
+    version="1.10.1",
+    url=PROJECT_URL,
+    project_urls=PROJECT_URLS,
+    author=PROJECT_AUTHOR,
+    author_email=PROJECT_EMAIL,
+    packages=PACKAGES,
+    include_package_data=True,
+    zip_safe=False,
+    install_requires=REQUIRES,
+    python_requires=">=3.6",
+    test_suite="tests",
+)
