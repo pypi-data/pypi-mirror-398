@@ -1,0 +1,33 @@
+steps:
+  - task: PublishBuildArtifacts@1
+    displayName: "Publish Acceptance Karate Test"
+    inputs:
+      PathtoPublish: "$(component-name)/tests/acceptance-test"
+      ArtifactName: AcceptanceTest
+
+  - task: CopyFiles@2
+    displayName: "Copy source code"
+    inputs:
+      sourceFolder: "$(System.DefaultWorkingDirectory)/$(component-name)/"
+      contents: |
+        main.py
+        requirements.txt
+        src/**
+        deployment/Dockerfile
+        deployment/k8s/**
+      targetFolder: $(Build.ArtifactStagingDirectory)/$(component-name)/dist
+
+  - task: ArchiveFiles@2
+    displayName: "Archive Files"
+    inputs:
+      rootFolderOrFile: "$(Build.ArtifactStagingDirectory)/$(component-name)/dist"
+      includeRootFolder: false
+      archiveType: "zip"
+      archiveFile: "$(Build.ArtifactStagingDirectory)/$(component-name)_$(Build.BuildNumber).zip"
+      replaceExistingArchive: true
+
+  - task: PublishBuildArtifacts@1
+    displayName: "Publish Artifact"
+    inputs:
+      PathtoPublish: $(Build.ArtifactStagingDirectory)/$(component-name)_$(Build.BuildNumber).zip
+      ArtifactName: Artifact

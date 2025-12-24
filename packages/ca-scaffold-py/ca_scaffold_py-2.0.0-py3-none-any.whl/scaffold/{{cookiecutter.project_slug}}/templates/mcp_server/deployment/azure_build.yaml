@@ -1,0 +1,36 @@
+name: "$(Build.SourceBranchName).$(date:yyyyMMdd)$(rev:.r)"
+trigger:
+  branches:
+    include:
+      - trunk
+      - feature/*
+  paths:
+    include:
+      - {{cookiecutter.project_slug}}/*
+resources:
+  - repo: self
+    clean: "true"
+    fetchDepth: "1"
+
+variables:
+  - group: nu1041001-mcp-server-scaffold-python-dev-cors-settings
+  - name: pythonVersion
+    value: '3.13'
+  - name: component-name
+    value: {{cookiecutter.project_slug}}
+  - name: project-name
+    value: plataforma-ia
+
+stages:
+  - stage: Build
+    displayName: Build and Publish
+    jobs:
+      - job: Linux
+        displayName: Build and publication of artifact
+        pool:
+          name: Build
+          demands:
+            - Agent.OS -equals Linux
+        steps:
+          - template: /{{cookiecutter.project_slug}}/deployment/pipelines/build.yml
+          - template: /{{cookiecutter.project_slug}}/deployment/pipelines/deploy.yml

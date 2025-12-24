@@ -1,0 +1,37 @@
+########################### Request Authentication ###########################
+## Define el método de autenticación soportado en este caso es jwt           #
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: #{component}#-#{version}#-jwt-validator
+  namespace: #{namespace}#
+spec:
+  selector:
+    matchLabels:
+      app: #{component}#-#{version}#
+      version: #{version}#
+  jwtRules:
+  - issuer: #{jwt-issuer}#
+    jwksUri: #{jwt-jwk-uri}#
+---
+############################ Authorization Policy ############################
+## Habilita el control de acceso a los servicios que cumplen las condiciones #
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: #{component}#-#{version}#-jwt-validator-policy
+  namespace: #{namespace}#
+spec:
+  selector:
+    matchLabels:
+      app: #{component}#-#{version}#
+      version: #{version}#
+  rules:
+  - from:
+    - source:
+        requestPrincipals: #{jwt-allowed-request-principals}#
+    - source:
+        namespaces: #{jwt-allowed-namespaces}#
+  - to:
+    - operation:
+       paths: #{jwt-allowed-paths}#
