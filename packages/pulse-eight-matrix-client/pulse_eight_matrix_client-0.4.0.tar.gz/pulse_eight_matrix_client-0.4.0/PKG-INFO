@@ -1,0 +1,372 @@
+Metadata-Version: 2.3
+Name: pulse-eight-matrix-client
+Version: 0.4.0
+Summary: An async Python client for controlling Pulse8 HDBaseT Matrix devices via their REST API.
+Author: foxy82
+Author-email: foxy82 <foxy82.github@gmail.com>
+Requires-Dist: aiohttp>=3.9.0
+Requires-Dist: pydantic>=2.12.5
+Requires-Dist: pytest>=7.0.0 ; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0 ; extra == 'dev'
+Requires-Dist: pytest-aiohttp>=1.1.0 ; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0 ; extra == 'dev'
+Requires-Python: >=3.12
+Project-URL: Homepage, https://github.com/designer-living/pulse-eight-matrix-client
+Project-URL: Issues, https://github.com/designer-living/pulse-eight-matrix-client/issues
+Project-URL: Repository, https://github.com/designer-living/pulse-eight-matrix-client
+Provides-Extra: dev
+Description-Content-Type: text/markdown
+
+# Pulse8 HDBaseT Matrix Client
+
+An async Python client for controlling Pulse8 HDBaseT Matrix devices via their REST API.
+
+## Features
+
+- ✅ Fully async using `aiohttp`
+- ✅ Type hints throughout
+- ✅ Comprehensive data models
+- ✅ Easy-to-use API
+- ✅ Route by port number or name
+- ✅ Context manager support
+- ✅ Proper error handling
+
+## Installation
+
+Using uv:
+
+```bash
+uv pip install -e .
+```
+
+Or with pip:
+
+```bash
+pip install -e .
+```
+
+## Quick Start
+
+```python
+import asyncio
+from pulse_eight_matrix_client import PulseEightMatrixClient
+
+async def main():
+    # Connect to your matrix
+    async with PulseEightMatrixClient(host="192.168.1.150") as client:
+        # Get system info
+        details = await client.get_system_details()
+        print(f"Model: {details.model}, Version: {details.version}")
+        
+        # List all ports
+        ports = await client.get_ports()
+        for port in ports:
+            print(f"{port.mode} {port.bay}: {port.name}")
+        
+        # Route input to output
+        await client.set_port(input_bay=7, output_bay=5)
+        
+        # Or route by name
+        await client.route_by_name("Sky", "Bedroom TV")
+
+asyncio.run(main())
+```
+
+## Auto-Polling for Instant State Access
+
+Enable background polling to maintain cached state. This eliminates HTTP calls when querying routing information:
+
+```python
+import asyncio
+from pulse_eight_matrix_client import CachingPulseEightMatrixClient
+
+async def main():
+    # Enable auto-polling (polls every 5 seconds by default)
+    async with CachingPulseEightMatrixClient(
+        host="192.168.1.150",
+        poll_interval=5
+    ) as client:
+        # All get_ports() calls now return from cache instantly!
+        ports = await client.get_ports()
+        
+        # Check routing from cache (no HTTP call)
+        routing = client.get_cached_routing_map()
+        
+        # See which input feeds an output (instant)
+        source = client.get_cached_output_source(output_bay=5)
+        
+        # Find where an input is going (instant)
+        destinations = client.get_cached_input_destinations(input_bay=7)
+        
+        # Changes automatically update the cache
+        await client.set_port(7, 5)
+```
+
+**Benefits of auto-polling:**
+- **Zero latency** for state queries - no HTTP overhead
+- **Always up-to-date** - background polling keeps state fresh
+- **Automatic updates** - cache refreshes after routing changes
+- **Real-time monitoring** - detect changes as they happen
+
+## API Reference
+
+### Client Initialization
+
+```python
+from pulse_eight_matrix_client import PulseEightMatrixClient
+
+client = PulseEightMatrixClient(
+    host="192.168.1.150",
+    port=80,
+    timeout=10,
+)
+```
+
+Parameters:
+- `host`: IP address or hostname of the matrix
+- `port`: HTTP port (default: 80)
+- `timeout`: Request timeout in seconds (default: 10)
+
+### System Methods
+
+#### `get_system_details() -> SystemDetails`
+Get system information including model, version, serial number, and status.
+
+```python
+details = await client.get_system_details()
+print(f"Model: {details.model}")
+print(f"Version: {details.version}")
+print(f"Serial: {details.serial}")
+print(f"Status: {details.status_message}")
+```
+
+#### `get_system_features() -> SystemFeatures`
+Get system features and capabilities.
+
+```python
+features = await client.get_system_features()
+print(f"HDBaseT: {features.hdbaset}")
+print(f"Input Bays: {features.video.input['Bays']}")
+```
+
+### Port Methods
+
+#### `get_ports() -> List[Port]`
+Get list of all ports (inputs and outputs).
+
+When using `CachingPulseEightMatrixClient`, use `get_cached_ports()` to return cached data instantly. `get_ports()` will always perform a live HTTP call.
+
+```python
+ports = await client.get_ports()
+for port in ports:
+    print(f"{port.mode} {port.bay}: {port.name}")
+```
+
+#### `get_ports()` on `CachingPulseEightMatrixClient`
+Get list of all ports with a fresh HTTP call, bypassing cache.
+
+```python
+# Always fetches from the matrix, even with auto_poll enabled
+ports = await client.get_ports()
+
+#### `get_input_ports() -> List[Port]`
+Get list of input ports only.
+
+#### `get_output_ports() -> List[Port]`
+Get list of output ports only.
+
+#### `get_input_details(bay: int) -> PortDetails`
+Get detailed information about an input port.
+
+```python
+details = await client.get_input_details(7)
+print(f"Has Signal: {details.has_signal}")
+print(f"Signal: {details.signal}")
+```
+
+#### `get_output_details(bay: int) -> PortDetails`
+Get detailed information about an output port.
+
+### Routing Methods
+
+#### `set_port(input_bay: int, output_bay: int) -> SetPortResponse`
+Route an input to an output by bay numbers.
+
+```python
+response = await client.set_port(input_bay=7, output_bay=5)
+print(response.message)  # "Changed"
+```
+
+#### `route_by_name(input_name: str, output_name: str) -> SetPortResponse`
+Route an input to an output by port names (case-insensitive).
+
+```python
+await client.route_by_name("Sky", "Bedroom TV")
+```
+
+#### `get_port_by_name(name: str) -> Optional[Port]`
+Find a port by its name.
+
+```python
+port = await client.get_port_by_name("Kitchen TV")
+if port:
+    print(f"Found: {port.mode} bay {port.bay}")
+```
+
+### Cached Query Methods
+
+These methods only work when `auto_poll=True` and return data instantly from the cache without making HTTP calls.
+
+#### `get_cached_output_source(output_bay: int) -> Optional[int]`
+Get which input is currently routed to an output.
+
+```python
+# Requires auto_poll=True
+source = client.get_cached_output_source(5)
+if source is not None:
+    print(f"Output 5 is receiving from Input {source}")
+```
+
+#### `get_cached_input_destinations(input_bay: int) -> List[int]`
+Get which outputs are receiving from an input.
+
+```python
+# Requires auto_poll=True
+destinations = client.get_cached_input_destinations(7)
+print(f"Input 7 is routed to outputs: {destinations}")
+```
+
+#### `get_cached_routing_map() -> Dict[int, int]`
+Get a complete mapping of all outputs to their source inputs.
+
+```python
+# Requires auto_poll=True
+routing = client.get_cached_routing_map()
+# Returns: {output_bay: input_bay, ...}
+# Example: {0: 1, 2: 0, 5: 7}
+```
+
+#### `get_last_poll_time() -> Optional[float]`
+Get the Unix timestamp of the last successful poll.
+
+```python
+timestamp = client.get_last_poll_time()
+```
+
+#### `get_cache_age() -> Optional[float]`
+Get the age of the cached data in seconds.
+
+```python
+age = client.get_cache_age()
+print(f"Cache is {age:.1f} seconds old")
+```
+
+#### `get_cached_ports() -> List[Port]`
+Get all ports from the cached state.
+
+```python
+# Only available on CachingPulseEightMatrixClient
+ports = client.get_cached_ports()
+for port in ports:
+    print(f"{port.mode} {port.bay}: {port.name}")
+```
+
+
+### SystemDetails
+- `model`: Device model (e.g., "FF88A")
+- `version`: Firmware version
+- `serial`: Serial number
+- `mac`: MAC address
+- `status_message`: Current status
+- `status`: Status code
+
+### Port
+- `bay`: Port bay number
+- `mode`: "Input" or "Output"
+- `type`: Port type (e.g., "HDMI2", "HDBT-TXLITE")
+- `status`: Connection status
+- `name`: User-assigned name
+- `receive_from`: (Output only) Which input it's receiving from
+
+### PortDetails
+Extends Port with additional fields:
+- `has_signal`: Whether signal is detected
+- `signal`: Signal information
+- `hdcp`: HDCP status
+- `allowed_sinks`: List of allowed output bays
+
+## Error Handling
+
+The client raises specific exceptions for different error types:
+
+```python
+from pulse_eight_matrix_client import (
+    PulseEightConnectionError,
+    PulseEightAPIError
+)
+
+try:
+    async with PulseEightMatrixClient(host="192.168.1.150") as client:
+        await client.set_port(7, 5)
+except PulseEightConnectionError as e:
+    print(f"Connection failed: {e}")
+except PulseEightAPIError as e:
+    print(f"API error: {e}")
+```
+
+## Context Manager
+
+The client supports async context managers for automatic session management:
+
+```python
+# Session is automatically created and closed
+async with PulseEightMatrixClient(host="192.168.1.150") as client:
+    await client.get_ports()
+```
+
+Or manage the session manually:
+
+```python
+client = PulseEightMatrixClient(host="192.168.1.150")
+await client.connect()
+try:
+    await client.get_ports()
+finally:
+    await client.close()
+```
+
+## Monitoring Example
+
+Below is a minimal example using `CachingPulseEightMatrixClient`. It polls in the background and allows instant reads from the cache.
+
+```python
+async def monitor_matrix():
+    async with CachingPulseEightMatrixClient(
+        host="192.168.1.150",
+        poll_interval=5,
+    ) as client:
+        while True:
+            routing = client.get_cached_routing_map()
+            print(f"Routing map: {routing}")
+            await asyncio.sleep(1)
+```
+
+
+
+## Development
+
+Install development dependencies:
+
+```bash
+uv pip install -e ".[dev]"
+```
+
+Run tests:
+
+```bash
+pytest
+```
+
+## License
+
+MIT
