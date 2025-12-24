@@ -1,0 +1,105 @@
+# perfbenchify
+[![PyPI version](https://badge.fury.io/py/perfbenchify.svg)](https://badge.fury.io/py/perfbenchify)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/perfbenchify)](https://pepy.tech/project/perfbenchify)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A lightweight package that converts unstructured text descriptions of software performance benchmarks into standardized, comparable metrics.
+The library uses the `llmatch-messages` framework to extract key performance indicators—like speed improvements, latency reductions, and throughput increases—from natural‑language benchmark descriptions.
+Once extracted, the results are returned in a consistent format, enabling developers to easily compare different software frameworks or libraries and make informed performance optimization decisions.
+
+## 📦 Installation
+
+```bash
+pip install perfbenchify
+```
+
+## 🚀 Quick Start
+
+```python
+from perfbenchify import perfbenchify
+
+user_input = """ Compared to version 2.1, the new algorithm processes fifty thousand transactions per second while reducing the average latency from 12ms to 7ms. The speed improvement is a 15% increase. """
+
+results = perfbenchify(user_input)
+print(results)
+# Example output:
+# ['Speed improvement: 15%']
+```
+
+## ✨ Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_input` | `str` | The free‑form text containing benchmark information |
+| `llm` | `Optional[BaseChatModel]` | A LangChain LLM instance to use. If omitted, the package defaults to `ChatLLM7` from `langchain_llm7`. |
+| `api_key` | `Optional[str]` | API key for ChatLLM7. If omitted, the package checks the environment variable `LLM7_API_KEY`; otherwise it falls back to a placeholder `"None"` (which triggers the free tier of LLM7). |
+
+## 🛠️ Using a Custom LLM
+`perfbenchify` can work with any LabChain-compliant LLM. Below are examples for three popular providers.
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from perfbenchify import perfbenchify
+
+llm = ChatOpenAI()
+# Uses your OpenAI API key from environment
+response = perfbenchify(user_input, llm=llm)
+print(response)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from perfbenchify import perfbenchify
+
+llm = ChatAnthropic()
+# Uses your Anthropic API key from environment
+response = perfbenchify(user_input, llm=llm)
+print(response)
+```
+
+### Google Generative AI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from perfbenchify import perfbenchify
+
+llm = ChatGoogleGenerativeAI()
+# Uses your Google API key from environment
+response = perfbenchify(user_input, llm=llm)
+print(response)
+```
+
+## 🔐 API Key and Rate Limits
+- **Free tier** of LLM7 is sufficient for most use cases.
+- To increase rate limits, supply your own key:
+```bash
+export LLM7_API_KEY="your_key_here"
+```
+or pass it directly:
+```python
+response = perfbenchify(user_input, api_key="your_key_here")
+```
+Free keys can be obtained by registering at <https://token.llm7.io/>.
+
+## 💡 Features
+- **LLM-agnostic**: Works with any LangChain LLM (OpenAI, Anthropic, Google, etc.) or the default ChatLLM7.
+- **Pattern-based validation**: Uses a compiled regex to guarantee the extracted metrics match a predefined format.
+- **Automatic retries**: Handles unreliable LLM responses by retrying until the output matches the expected pattern.
+- **Easy integration**: Returned data is a simple Python list of strings, ready for downstream processing or visualisation.
+
+## 📄 License
+MIT License – see `LICENSE` file for details.
+
+## 📬 Support & Issues
+Have questions or encountered a bug? Report them on the GitHub issue tracker: <https://github.com/chigwell/perfbenchify>
+
+## 👤 Author
+**Eugene Evstafev**
+Email: <hi@eugene.plus>
+GitHub: `chigwell`
