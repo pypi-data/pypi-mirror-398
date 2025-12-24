@@ -1,0 +1,153 @@
+
+# RAEP: Rapid Enzyme/Non-Enzyme Prediction
+
+[![PyPI version](https://img.shields.io/pypi/v/raep.svg)](https://pypi.org/project/raep/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/badge/python-3.7-blue.svg)](https://www.python.org/)
+
+**RAEP (Rapid Enzyme/Non-Enzyme Prediction)** is an efficient enzyme/non-enzyme prediction tool for protein sequences. It is built on multi-physicochemical property features and the XGBoost machine learning algorithm.
+
+## 🚀 Features
+
+* **Efficient Prediction**: Achieves fast and accurate enzyme/non-enzyme classification using optimized feature extraction and the XGBoost model.
+* **Multi-Mode Support**: Supports single-sequence prediction, multi-sequence batch prediction, and FASTA file batch prediction.
+* **Rich Feature Set**: Utilizes multi-physicochemical property pseudo-amino acid composition (Pseudo-AAC), CTD features, and windowed amino acid composition.
+* **User-Friendly**: Offers a concise Python API that is easy to integrate into existing projects.
+* **Multi-Process Optimization**: Employs multi-process parallel processing in the feature extraction step to improve processing efficiency for large-scale datasets.
+
+## 📦 Dependencies
+
+* `joblib`: Used for model saving/loading and parallel processing.
+* `numpy`: Numerical computation.
+* `pandas`: Data processing.
+* `scikit-learn`: Machine learning utilities and evaluation metrics.
+* `xgboost`: Implementation of the gradient boosting tree algorithm.
+
+  **Requirements**: Python 3.7 or higher.
+
+
+## 📥 Installation
+
+### Install from PyPI (Recommended)
+
+```bash
+pip install raep
+````
+
+## 💻 Basic Usage
+
+### Import and Initialization
+
+```python
+from raep import RAEP
+
+# Default initialization (uses built-in model)
+predictor = RAEP()
+
+# Initialization with a custom model path (optional)
+# predictor = RAEP(model_path="path/to/your/model.pkl")
+```
+### Quick start with CLI
+
+```bash
+
+raep --input /your_fasta/file.fasta --output /path_to_your_result/result.json
+
+```
+
+### Single Sequence Prediction
+
+```python
+# Predict a single protein sequence
+sequence = "MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNALSALSDLHAHKLRVDPVNFKLLSHCLLVTLAAHLPAEFTPAVHASLDKFLASVSTVLTSKYR"
+
+prediction = predictor.predict(sequence)
+probability = predictor.predict_proba(sequence)
+
+print(f"Prediction result: {'Enzyme' if prediction == 1 else 'Non-Enzyme'}")
+print(f"Prediction probabilities: Non-Enzyme={probability[0]:.4f}, Enzyme={probability[1]:.4f}")
+```
+
+### Batch Prediction from FASTA Files
+
+```python
+# Batch predict from a FASTA file
+fasta_path = "test_sequences.fasta"
+results = predictor.predict_fasta(fasta_path)
+
+print(f"Prediction results ({len(results)} sequences):")
+for i, (pred, prob) in enumerate(results, 1):
+    print(f"Sequence {i}: {'Enzyme' if pred == 1 else 'Non-Enzyme'} (Enzyme probability: {prob[1]:.4f})")
+```
+
+## 📚 API Reference
+
+### `RAEP` Class
+
+#### Initialization
+
+`RAEP(model_path=None)`
+
+  * **Purpose**: Instantiates the RAEP predictor, automatically loads the model and initializes feature extraction parameters (e.g., `LAG=10`, `W=0.05`), ensuring consistency in subsequent prediction workflows.
+  * **Parameters**:
+      * `model_path`: Optional. Path to a custom model file. If not provided, the built-in `enzyme_xgb_model.pkl` model will be used.
+
+#### Methods
+
+**`predict(sequence)`**
+
+  * **Purpose**: Predicts whether a single protein sequence is an enzyme.
+  * **Parameters**:
+      * `sequence` (String): The protein sequence to be predicted.
+  * **Returns**: 
+      * `prediction` (Int): 0 = Non-enzyme, 1 = Enzyme.
+      
+**`predict_proba(sequence)`**
+
+  * **Purpose**: Predicts whether a single protein sequence is an enzyme.
+  * **Parameters**:
+      * `sequence` (String): The protein sequence to be predicted.
+  * **Returns**: 
+      * `probability` (float): Probability of the sequence being an enzyme.     
+
+**`predict_fasta(fasta_path)`**
+
+  * **Purpose**: Performs batch prediction for protein sequences from a FASTA file.
+  * **Parameters**:
+      * `fasta_path` (String): Path to the FASTA file.
+  * **Returns**: List of `(prediction, probability)` tuples corresponding to the sequences in the file.
+
+## 📝 Notes
+
+1.  **Sequence Format Requirements**: Input sequences should only contain single-letter codes (uppercase) for the 20 standard amino acids.
+2.  **Sequence Length**: The tool automatically processes sequences of different lengths, but excessively short sequences (e.g., \< 10 amino acids) may affect prediction accuracy.
+3.  **Multi-Process Processing**: The feature extraction process uses multi-processing acceleration by default, which automatically adjusts based on the number of CPU cores in the system.
+4.  **Model File**: Ensure the model file exists and is accessible, especially when using a custom model path.
+
+## 🔧 Troubleshooting
+
+  * **Failed to import the RAEP package**: Ensure the package is correctly installed in the current Python environment (`pip show raep`).
+  * **Model loading failure**: Verify that the model file path is correct and the file exists at the specified location.
+  * **Prediction errors**: Check if the input sequence format is valid and contains only standard amino acid characters.
+  * **Performance issues**: For extremely large datasets, consider processing in batches to avoid memory overflow.
+
+## 🤝 Getting Help
+
+If you encounter any problems, please contact the author:
+
+  * **Author**: DHY
+  * **Email**: dhy.scut@outlook.com
+
+## 📄 License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
+
+## 🙏 Acknowledgments
+
+The development of this project is supported by several open-source tools, especially machine learning libraries such as **XGBoost** and **scikit-learn**.
+
+-----
+
+*Version: 1.0.0 | Last updated: 2025*
+
+```
