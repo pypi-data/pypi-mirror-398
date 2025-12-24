@@ -1,0 +1,363 @@
+Metadata-Version: 2.4
+Name: django-fastapi-async
+Version: 0.2.1
+Summary: Django-like framework built on FastAPI - 100% async
+Project-URL: Homepage, https://github.com/TWFBusiness/fastdjango
+Project-URL: Documentation, https://github.com/TWFBusiness/fastdjango#readme
+Project-URL: Repository, https://github.com/TWFBusiness/fastdjango.git
+Project-URL: Issues, https://github.com/TWFBusiness/fastdjango/issues
+Author: FastDjango Team
+License: MIT
+License-File: LICENSE
+Keywords: async,django,fastapi,framework,web
+Classifier: Development Status :: 3 - Alpha
+Classifier: Framework :: FastAPI
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Internet :: WWW/HTTP :: HTTP Servers
+Requires-Python: >=3.11
+Requires-Dist: aerich>=0.7.2
+Requires-Dist: aiofiles>=23.2.1
+Requires-Dist: email-validator>=2.1.0
+Requires-Dist: fastapi>=0.109.0
+Requires-Dist: httpx>=0.26.0
+Requires-Dist: itsdangerous>=2.1.2
+Requires-Dist: jinja2>=3.1.3
+Requires-Dist: passlib[bcrypt]>=1.7.4
+Requires-Dist: pydantic-settings>=2.1.0
+Requires-Dist: pydantic>=2.5.0
+Requires-Dist: python-jose[cryptography]>=3.3.0
+Requires-Dist: python-multipart>=0.0.6
+Requires-Dist: rich>=13.7.0
+Requires-Dist: tortoise-orm[aiosqlite,asyncmy,asyncpg]>=0.20.0
+Requires-Dist: typer[all]>=0.9.0
+Requires-Dist: uvicorn[standard]>=0.27.0
+Requires-Dist: websockets>=12.0
+Provides-Extra: dev
+Requires-Dist: black>=24.1.0; extra == 'dev'
+Requires-Dist: mypy>=1.8.0; extra == 'dev'
+Requires-Dist: pre-commit>=3.6.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.1.0; extra == 'dev'
+Requires-Dist: pytest>=7.4.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.14; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# FastDjango
+
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![GitHub Stars](https://img.shields.io/github/stars/TWFBusiness/fastdjango.svg)](https://github.com/TWFBusiness/fastdjango/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/TWFBusiness/fastdjango.svg)](https://github.com/TWFBusiness/fastdjango/issues)
+
+**Django-like framework built on FastAPI - 100% async**
+
+FastDjango combina a facilidade de uso do Django com a performance do FastAPI. WebSocket nativo, ORM async, admin automático, e tudo que você precisa para construir aplicações web modernas.
+
+## Features
+
+- **100% Async** - Baseado em FastAPI/Starlette, totalmente assíncrono
+- **ORM Django-like** - Sintaxe familiar: `Model.objects.filter(...)`
+- **Admin Automático** - CRUD gerado automaticamente dos models
+- **Autenticação Completa** - User, Group, Permission, sessions, JWT
+- **WebSocket Nativo** - Sem precisar de Channels
+- **Templates Jinja2** - Com filtros e tags estilo Django
+- **CLI Completo** - startproject, startapp, migrate, runserver, etc.
+- **Forms/Schemas** - Pydantic integrado com API Django-like
+
+## Instalação
+
+```bash
+pip install django-fastapi-async
+```
+
+## Quick Start
+
+### Criar projeto
+
+```bash
+fastdjango startproject meusite
+cd meusite
+```
+
+### Criar app
+
+```bash
+fastdjango startapp blog
+```
+
+### Definir models
+
+```python
+# blog/models.py
+from fastdjango.db.models import Model
+from fastdjango.db import fields
+
+class Post(Model):
+    title = fields.CharField(max_length=200)
+    content = fields.TextField()
+    published = fields.BooleanField(default=False)
+    created_at = fields.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        table = "blog_post"
+        ordering = ["-created_at"]
+
+    class Admin:
+        list_display = ["title", "published", "created_at"]
+        search_fields = ["title", "content"]
+```
+
+### Criar rotas
+
+```python
+# blog/routes.py
+from fastapi import Request, WebSocket
+from fastdjango.routing import Router
+from fastdjango.templates import render
+from fastdjango.contrib.auth.decorators import login_required
+
+from .models import Post
+
+router = Router()
+
+# HTML view
+@router.get("/")
+async def index(request: Request):
+    posts = await Post.objects.filter(published=True)
+    return render("blog/index.html", {"posts": posts}, request=request)
+
+# API endpoint
+@router.get("/api/posts")
+async def list_posts():
+    return await Post.objects.filter(published=True)
+
+# Protected route
+@router.post("/api/posts")
+@login_required
+async def create_post(request: Request, data: PostCreate):
+    return await Post.objects.create(**data.model_dump(), author=request.state.user)
+
+# WebSocket
+@router.websocket("/ws/live")
+async def live_updates(websocket: WebSocket):
+    await websocket.accept()
+    async for message in websocket.iter_text():
+        await websocket.send_text(f"Received: {message}")
+```
+
+### Configurar admin
+
+```python
+# blog/admin.py
+from fastdjango.contrib.admin import register, ModelAdmin
+from .models import Post
+
+@register(Post)
+class PostAdmin(ModelAdmin):
+    list_display = ["title", "published", "created_at"]
+    list_filter = ["published"]
+    search_fields = ["title", "content"]
+```
+
+### Rodar
+
+```bash
+fastdjango migrate
+fastdjango createsuperuser
+fastdjango runserver
+```
+
+Acesse:
+- Site: http://localhost:8000
+- Admin: http://localhost:8000/admin
+- API Docs: http://localhost:8000/api/docs
+
+## Comparação com Django
+
+| Feature | Django | FastDjango |
+|---------|--------|------------|
+| ORM | Síncrono | **Async nativo** |
+| Performance | Boa | **Excelente** |
+| WebSocket | Channels (separado) | **Nativo** |
+| API | DRF (separado) | **Integrado (FastAPI)** |
+| Tipagem | Parcial | **Completa (Pydantic)** |
+| Docs API | Manual | **Automática (OpenAPI)** |
+| Admin | Excelente | Bom (em desenvolvimento) |
+| Maturidade | Alta | Inicial |
+
+## Estrutura do Projeto
+
+```
+meusite/
+├── manage.py
+├── meusite/
+│   ├── __init__.py
+│   ├── settings.py      # Configurações (igual Django)
+│   ├── urls.py          # URL patterns
+│   └── asgi.py          # ASGI application
+├── blog/
+│   ├── __init__.py
+│   ├── models.py        # Models ORM
+│   ├── routes.py        # Views/API endpoints
+│   ├── schemas.py       # Pydantic schemas
+│   ├── admin.py         # Admin config
+│   └── templates/
+│       └── blog/
+│           └── index.html
+└── templates/
+    └── base.html
+```
+
+## Settings
+
+```python
+# settings.py
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+SECRET_KEY = "your-secret-key"
+DEBUG = True
+
+INSTALLED_APPS = [
+    "fastdjango.contrib.admin",
+    "fastdjango.contrib.auth",
+    "fastdjango.contrib.sessions",
+    "blog",
+]
+
+MIDDLEWARE = [
+    "fastdjango.middleware.SessionMiddleware",
+    "fastdjango.middleware.AuthMiddleware",
+    "fastdjango.middleware.CSRFMiddleware",
+]
+
+DATABASES = {
+    "default": {
+        "ENGINE": "asyncpg",  # ou aiosqlite, asyncmy
+        "NAME": "meusite",
+        "USER": "postgres",
+        "PASSWORD": "senha",
+        "HOST": "localhost",
+    }
+}
+```
+
+## ORM
+
+```python
+# Queries (igual Django, mas async)
+posts = await Post.objects.all()
+posts = await Post.objects.filter(published=True)
+posts = await Post.objects.filter(title__icontains="python")
+posts = await Post.objects.exclude(published=False)
+posts = await Post.objects.order_by("-created_at")
+
+# Relacionamentos
+posts = await Post.objects.select_related("author")
+posts = await Post.objects.prefetch_related("comments")
+
+# CRUD
+post = await Post.objects.create(title="Hello", content="World")
+post = await Post.objects.get(pk=1)
+post = await Post.objects.get_or_404(pk=1)
+await post.save()
+await post.delete()
+
+# Aggregations
+from tortoise.functions import Count, Avg
+posts = await Post.objects.annotate(comment_count=Count("comments"))
+```
+
+## Autenticação
+
+```python
+from fastdjango.contrib.auth import authenticate, login, logout
+from fastdjango.contrib.auth.decorators import login_required, permission_required
+
+# Login
+user = await authenticate(request, username="john", password="secret")
+if user:
+    await login(request, user)
+
+# Logout
+await logout(request)
+
+# Decorators
+@router.get("/profile")
+@login_required
+async def profile(request: Request):
+    return {"user": request.state.user.username}
+
+@router.post("/admin/posts")
+@permission_required("blog.add_post")
+async def admin_create_post(request: Request):
+    ...
+```
+
+## WebSocket
+
+```python
+from fastdjango.routing.websocket import ConnectionManager
+
+manager = ConnectionManager()
+
+@router.websocket("/ws/chat/{room}")
+async def chat(websocket: WebSocket, room: str):
+    await manager.connect(websocket, group=room)
+    try:
+        async for message in websocket.iter_text():
+            # Broadcast para todos no room
+            await manager.broadcast(message, room)
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, room)
+```
+
+## CLI Commands
+
+```bash
+fastdjango startproject <name>    # Criar projeto
+fastdjango startapp <name>        # Criar app
+fastdjango runserver              # Rodar servidor
+fastdjango migrate                # Aplicar migrations
+fastdjango makemigrations         # Criar migrations
+fastdjango createsuperuser        # Criar superusuário
+fastdjango shell                  # Shell interativo
+fastdjango collectstatic          # Coletar static files
+```
+
+## Roadmap
+
+- [x] Core framework
+- [x] ORM wrapper (Tortoise)
+- [x] Admin completo (com filtros e inlines)
+- [x] Auth completo (User, Group, Permission, JWT)
+- [x] Sessions (cookie e database)
+- [x] Middleware (CSRF, CORS, Auth)
+- [x] Templates (Jinja2)
+- [x] WebSocket nativo
+- [x] CLI completo
+- [x] Forms/Schemas (Pydantic)
+- [x] Migrations (Aerich)
+- [x] Signals async
+- [x] Cache (Memory, Redis, File, Database)
+- [x] Email (SMTP, Console, File)
+- [x] Testes
+- [x] Documentação completa
+
+## Contribuindo
+
+Contribuições são bem-vindas! Veja [CONTRIBUTING.md](CONTRIBUTING.md) para detalhes.
+
+## Links
+
+- **GitHub**: https://github.com/TWFBusiness/fastdjango
+- **Issues**: https://github.com/TWFBusiness/fastdjango/issues
+- **Discussions**: https://github.com/TWFBusiness/fastdjango/discussions
+
+## Licença
+
+MIT License - veja [LICENSE](LICENSE) para detalhes.
