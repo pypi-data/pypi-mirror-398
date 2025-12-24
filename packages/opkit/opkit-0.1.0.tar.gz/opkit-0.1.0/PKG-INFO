@@ -1,0 +1,366 @@
+Metadata-Version: 2.4
+Name: opkit
+Version: 0.1.0
+Summary: Effortlessly extend NumPy and pandas with custom operators using Python AST magic — replace verbose code with concise, expressive operations for advanced data workflows.
+Author-email: mihaicezar <mihaicezar@users.noreply.github.com>
+License-Expression: MIT
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.20
+Requires-Dist: pandas>=1.3
+Provides-Extra: jupyter
+Requires-Dist: ipython>=7.0; extra == "jupyter"
+Provides-Extra: dev
+Requires-Dist: pytest>=8.3; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Requires-Dist: flake8; extra == "dev"
+Requires-Dist: build; extra == "dev"
+Provides-Extra: all
+Requires-Dist: ipython>=7.0; extra == "all"
+Requires-Dist: pytest>=8.3; extra == "all"
+Requires-Dist: black; extra == "all"
+Requires-Dist: mypy; extra == "all"
+Requires-Dist: flake8; extra == "all"
+Requires-Dist: build; extra == "all"
+Dynamic: license-file
+
+# opkit
+
+Custom operators for NumPy and Pandas via AST transformation. For example, concat two matrices with +: (vertically) or +.. (horizontally); stack them in depth with /. or vertically with /:
+
+## Installation
+
+```bash
+pip install opkit
+
+# Enable (one-time setup)
+python -m opkit install
+```
+
+Restart Python, and custom operators work everywhere!
+
+
+
+## Operators Reference
+
+
+
+### Unary Operators
+
+#### Unary `$`
+
+This suffix creates typed data structures: 
+
+| Input | Output |
+|-------|--------|
+| `[1, 2, 3]$` | `np.array([1, 2, 3])` |
+| `(1, 2, 3)$` | `np.array((1, 2, 3))` |
+| `{'a': 1, 'b': 2}$` | `pd.DataFrame({'a': [1], 'b': [2]})` |
+
+#### Unary `_` and `|`
+
+***Limited use**. Convenience ops introduced for vectors; their effect may be obtained with `$` and extra `[]`.*
+
+These suffixes are reshape operators for converting vectors to matrices:
+
+| Operator | Name | Description | Example |
+|----------|------|-------------|---------|
+| `_` | as_row | Reshapes (n,) vector to (1, n) row matrix | `[1, 2, 3]_` → `[[1, 2, 3]]` |
+| `\|` | as_column | Reshapes (n,) vector to (n, 1) column matrix | `[1, 2, 3]\|` → `[[1], [2], [3]]` |
+
+**Note:** For nD arrays, `_` inserts an axis at position 0, and `|` inserts an axis at position 1.
+
+### Binary Operators for NumPy
+
+#### Concatenation Operators (`+` prefix)
+
+Concatenation operators combine arrays along existing axes without adding dimensions. They use `np.concatenate` internally.
+
+| Operator | Name | Description | Example |
+|----------|------|-------------|---------|
+| `+..` | horizontal concat | Concatenates along axis 1 (horizontal) | `[[1], [2]]$ +.. [[3], [4]]$` → `[[1, 3], [2, 4]]` |
+| `+:` | vertical concat | Concatenates along axis 0 (vertical) | `[[1, 2]]$ +: [[3, 4]]$` → `[[1, 2], [3, 4]]` |
+| `+.` | last-axis concat | Concatenates along axis -1 (last) | `[1, 2]$ +. [3, 4]$` → `[1, 2, 3, 4]` |
+
+**Important:** `+:` and `+..` reject two 1D arrays (vectors have no vertical/horizontal axis). For vectors, use `+.` to concatenate along the last axis, or use stacking operators (`/:`, `/..`, `/.`). One operand can be 1D if the other is 2D+ (the 1D array will be expanded appropriately).
+
+#### Stacking Operators (`/` prefix)
+
+Stacking operators add a new dimension and require operands to have the same shape. They use `np.stack` internally.
+
+| Operator | Name | Description | Example |
+|----------|------|-------------|---------|
+| `/:` | vertical stack | Stacks along axis 0 (adds new vertical axis) | `[1, 2]$ /: [3, 4]$` → `[[1, 2], [3, 4]]` |
+| `/..` | horizontal stack | Stacks along axis 1 (adds new horizontal axis) | `[[1], [2]]$ /.. [[3], [4]]$` → `[[[1], [3]], [[2], [4]]]` |
+| `/.` | last-axis stack | Stacks along axis -1 (adds new last axis) | `[1, 2]$ /. [3, 4]$` → `[[1, 3], [2, 4]]` |
+
+**Note:** For 1D arrays (vectors), `/..` and `/.` produce the same result since they both add the horizontal axis first.
+
+#### Conceptual Clarification
+
+- `:` and `..` in operators refer to the **vertical axis (axis 0)** and **horizontal axis (axis 1)** respectively; because of the operator-suggested orientation, an nD array with at least two dimensions is required as operand.
+- `.` (single dot) refers to the **last axis (axis -1)**.
+- `+` in operators means **concatenation (spreading)** and does not increase dimensionality.
+- `/` in operators means **stacking (layering)** and adds one new dimension.
+- `*` in operators means **tiling (repeating)** along a specified axis.
+
+#### Tiling Operators (* prefix)
+
+Tiling operators repeat an array n times along a specified axis using `np.tile` internally.
+
+| Operator | Name | Description | Example |
+|----------|------|-------------|---------|
+| `*:` | vertical tile | Tiles along axis 0 (vertical) | `[[1, 2]]$ *: 3` → `[[1, 2], [1, 2], [1, 2]]` |
+| `*..` | horizontal tile | Tiles along axis 1 (horizontal) | `[[1], [2]]$ *.. 3` → `[[1, 1, 1], [2, 2, 2]]` |
+| `*.` | last axis tile | Tiles along axis -1 (last) | `[1, 2, 3]$ *. 2` → `[1, 2, 3, 1, 2, 3]` |
+| `*:.` | 2D tile | Tiles (m, n) times vertically and horizontally | `[[1, 2]]$ *:. (3, 2)` → tiles 3×2 |
+
+**Important:** `*:` and `*..` reject 1D arrays (vectors have no preset orientation). Only `*.` accepts 1D arrays. For vectors, either:
+- Use `*.` to tile along the last axis
+- Stack the vector first, then tile: `[1, 2]$ /: 3 *.. 5` (row tiling) or `[1, 2]$ /.. 3 *: 5` (column tiling)
+- Reshape to a matrix first: `[1, 2]_ *: 3` or `[1, 2]| *.. 7`
+
+### Binary `+:` for Pandas
+
+Vertical stack (vstack) for DataFrames with typed operands only:
+
+```python
+df = pd.DataFrame({'a': [1, 2], 'b': [3, 4]})
+
+# Append dict (convert to DataFrame with $)
+df = df +: {'a': 5, 'b': 6}$
+
+# Append list (convert to numpy array with $, length must match columns)
+df = df +: [7, 8]$
+
+# Append DataFrame directly
+df = df +: pd.DataFrame({'a': [9], 'b': [10]})
+
+# Append 1-D numpy array (length must match columns)
+df = df +: np.array([11, 12])
+
+# Append 2-D numpy array (width must match columns)
+df = df +: np.array([[13, 14], [15, 16]])
+```
+
+**Note**: The `+:` operator for DataFrames requires typed operands. Use the `$` operator to convert dict/list/tuple literals before appending. pd.Series is not directly supported - convert using `dict(series)$` or `series.values`.
+
+## Examples
+
+### NumPy Operations
+
+```python
+import numpy as np
+
+# Create arrays with $
+v1 = [1, 2, 3, 4]$        # 1D vector
+v2 = [5, 6, 7, 8]$        # 1D vector
+
+# Concatenation along last axis (for vectors)
+result = v1 +. v2
+print(result)             # [1 2 3 4 5 6 7 8]
+
+# Stacking creates new dimension
+result = v1 /: v2         # Stack vertically
+print(result)             # [[1 2 3 4]
+                          #  [5 6 7 8]]
+
+result = v1 /. v2         # Stack along last axis
+print(result)             # [[1 5]
+                          #  [2 6]
+                          #  [3 7]
+                          #  [4 8]]
+
+# For 2D arrays, concatenation works along specified axis
+m1 = [[1, 2], [3, 4]]$
+m2 = [[5, 6], [7, 8]]$
+
+result = m1 +: m2         # Vertical concatenation
+print(result)             # [[1 2]
+                          #  [3 4]
+                          #  [5 6]
+                          #  [7 8]]
+
+result = m1 +.. m2        # Horizontal concatenation
+print(result)             # [[1 2 5 6]
+                          #  [3 4 7 8]]
+
+# Tiling repeats arrays (whole array, not individual elements)
+v = [1, 2, 3]$
+result = v *. 2           # Tile vector along last axis
+print(result)             # [1 2 3 1 2 3]
+
+m = [[1, 2]]$
+result = m *: 3           # Tile matrix vertically 3 times
+print(result)             # [[1 2]
+                          #  [1 2]
+                          #  [1 2]]
+
+result = m *:. (2, 3)     # Tile 2 times vertically, 3 times horizontally
+print(result)             # [[1 2 1 2 1 2]
+                          #  [1 2 1 2 1 2]]
+
+# Reshape operators for vectors
+v = [1, 2, 3]$
+row = v_                  # Convert to row matrix (1, 3)
+print(row)                # [[1 2 3]]
+
+col = v|                  # Convert to column matrix (3, 1)
+print(col)                # [[1]
+                          #  [2]
+                          #  [3]]
+
+# Combined usage
+result = v_ *: 4          # Convert to row, then tile vertically
+print(result)             # [[1 2 3]
+                          #  [1 2 3]
+                          #  [1 2 3]
+                          #  [1 2 3]]
+```
+
+### Pandas Operations
+
+```python
+import pandas as pd
+
+# Start with a DataFrame
+df = {'name': 'Alice', 'age': 25}$
+
+# Append rows (use $ to convert literals)
+df = df +: {'name': 'Bob', 'age': 30}$
+df = df +: ['Charlie', 35]$
+df = df +: {'name': 'Diana', 'age': 28}$
+
+print(df)
+#       name  age
+# 0    Alice   25
+# 1      Bob   30
+# 2  Charlie   35
+# 3    Diana   28
+```
+
+## Where It Works
+
+After `python -m opkit install`: 
+- ✅ **Python scripts**: `python my_script.py` - Custom operators work via automatic syntax error recovery
+- ✅ **Standard Python REPL**: `python` interactive shell - Launches custom console with opkit syntax support
+- ✅ **Imported modules**: Works automatically via import hook
+- ✅ **Dynamic code**: `eval()`, `exec()`, `compile()` with custom operators
+- ✅ **Jupyter notebooks** (with optional setup - see below)
+
+**Note**: `python -c "..."` commands are not supported due to parsing limitations.
+
+### Limitations
+
+- Custom binary operators split across lines using a trailing `\` do **not** work in piped/automated REPL input (the REPL processes each piped line separately). Use single-line expressions or parentheses for multi-line REPL input. This does not affect scripts or modules, which are fully transformed before execution.
+
+## Jupyter Support
+
+```bash
+# Install with Jupyter support
+pip install opkit[jupyter]
+```
+
+Then in your notebook first cell:
+```python
+%load_ext opkit
+```
+
+All subsequent cells will support custom operators!
+
+## How It Works
+
+opkit uses AST (Abstract Syntax Tree) transformation to intercept and transform your custom operator syntax before Python compiles it. The transformation happens automatically via a `sitecustomize.py` hook that's installed in your Python environment.
+
+No magic comments or special imports needed - just write code with custom operators!
+
+### Advanced: Custom sitecustomize.py
+
+The `python -m opkit install` command writes a simple stub to your site-packages `sitecustomize.py`:
+
+```python
+# opkit auto-activation
+try:
+    import opkit
+except ImportError:
+    pass
+```
+
+When Python starts, it imports opkit, which calls `opkit.activate()`. This function installs all necessary hooks:
+- **Import hook**: Transforms modules you import that use custom operators
+- **compile() hook**: Transforms code in REPL and dynamic execution
+- **eval() hook**: Enables `eval()` to work with custom operators
+- **excepthook**: Catches script syntax errors and retransforms them
+- **Runtime operators**: Registers `__opkit_dollar__`, etc. in builtins
+
+**Installation lifecycle:**
+
+```bash
+# Install - writes stub to sitecustomize.py
+python -m opkit install
+
+# Python startup → sitecustomize runs → imports opkit → activate() runs → hooks installed
+python my_script.py  # ✓ Works
+python               # ✓ REPL works
+
+# Uninstall - removes opkit stub from sitecustomize.py
+python -m opkit uninstall
+
+# Temporary opt-out for one session
+OPKIT_DISABLE_SITECUSTOMIZE=1 python my_script.py
+```
+
+**Advanced customization:**
+
+If you need full control, you can manually copy `src/sitecustomize.py` to your site-packages directory. This is a reference implementation showing exactly how opkit works. Most users don't need this.
+
+## Uninstall
+
+To remove opkit's automatic activation:
+
+```bash
+# Remove opkit hook from sitecustomize.py
+python -m opkit uninstall
+
+# If you manually installed the example sitecustomize.py, remove it:
+# python -c "import site, os; print(os.path.join(site.getsitepackages()[0], 'sitecustomize.py'))"
+# Then manually delete or edit that file to remove opkit configuration
+```
+
+Restart Python for changes to take effect.
+
+## Limitations
+
+- Custom operators only work after `python -m opkit install`
+- Requires Python 3.8+
+- NumPy 1.20+ and Pandas 1.3+
+- Code portability: Other developers need opkit installed
+- Not suitable for published libraries (use for applications/scripts)
+- `python -c "..."` commands are not supported due to parsing limitations
+
+## Testing
+
+opkit includes comprehensive test coverage:
+
+```bash
+# Run all tests
+python -m pytest tests/ -v
+
+# Run only REPL tests
+python -m pytest tests/test_repl.py -v
+```
+
+**Test Summary:**
+- **100 total tests** across all modules
+- **98 passing** - Core functionality, operators, transforms
+- **2 skipped** - REPL multi-line input edge cases
+- **11 REPL-specific tests** - Custom operators in interactive console
+
+The REPL tests verify that custom operators work correctly when using `python` interactively, including:
+- Unary `$` operator
+- Binary operators (`+..`, `+:`, `+.`)
+- Nested expressions
+- Module imports
+- Error handling
