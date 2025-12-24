@@ -1,0 +1,277 @@
+# -*- coding: utf-8 -*-
+
+
+from typing import Literal
+from typing import List
+from typing import Tuple, Optional
+from mod.client.ui.controls.baseUIControl import BaseUIControl
+from mod.client.ui.richText import RichTextItem
+
+
+class ScreenNode(object):
+    def __init__(self, namespace, name, param=None):
+        # type: (str, str, Optional[dict]) -> None
+        self.namespace = namespace
+        self.name = name
+        self.full_name = namespace + "." + name
+        self.screen_name = ""
+        self.component_path = ""
+        self.parent = None
+        self.children = []
+        self.visible = True
+        self.enable = True
+        self.removed = False
+        self.def_key = ""
+        self.org_key = ""
+        self.input_mode = 1
+        self._button_state = {}
+        self._uiId = -1
+        self._bindEntityId = None
+        self._bindOffset = (0, 1, 0)
+        self._bindAutoScale = 1
+        self._bindScaleRate = -1
+        self._bindDimension = -1
+        self._bindPosition = None
+        self._touchEvents = {}
+        self._hoverEvents = {}
+        self._cachePathToUIControl = {}
+        self.is_push_screen = False
+        self.touch_with_mouse = False
+        self.dirty = False
+        self.fresh_async = False
+        self._is_create_by_ui_preset = False
+        self._origin_screen_visible = None
+
+    def SetBindWorldPosition(self, dimension, position):
+        # type: (int, Tuple[float, float, float]) -> bool
+        """
+        设置UI绑定的worldPosition
+        """
+        pass
+
+    def Update(self):
+        """
+        客户端每帧调用，1秒有30帧
+        """
+        pass
+
+    def Destroy(self):
+        """
+        UI生命周期函数，当UI销毁时调用。
+        """
+        pass
+
+    def Create(self):
+        """
+        UI生命周期函数，当UI创建成功时调用。
+        """
+        pass
+
+    def OnDeactive(self):
+        """
+        UI生命周期函数，当栈顶UI有其他UI入栈时调用。
+        """
+        pass
+
+    def OnActive(self):
+        """
+        UI生命周期函数，当UI重新回到栈顶时调用。
+        """
+        pass
+
+    def SetScreenVisible(self, visible):
+        # type: (bool) -> None
+        """
+        设置是否显示本界面
+        """
+        pass
+
+    def ChangeBindEntityId(self, entityId):
+        # type: (str) -> bool
+        """
+        修改绑定的实体id，**只对已绑定实体的UI界面生效，如何将UI与实体绑定详见CreateUI接口**
+        """
+        pass
+
+    def BindVirtualWorldModel(self, bindToObjId, offset):
+        # type: (int, Tuple[float, float, float]) -> bool
+        """
+        绑定虚拟世界中的模型
+        """
+        pass
+
+    def ChangeBindOffset(self, offset):
+        # type: (Tuple[float, float, float]) -> bool
+        """
+        修改与绑定实体之间的偏移量，**只对已绑定实体的UI界面生效，如何将UI与实体绑定详见CreateUI接口**
+        """
+        pass
+
+    def ChangeBindAutoScale(self, autoScale):
+        # type: (Literal[0, 1]) -> bool
+        """
+        设置已绑定实体的UI是否根据绑定实体与本地玩家间的距离动态缩放，**只对已绑定实体的UI界面生效，如何将UI与实体绑定详见CreateUI接口**
+        """
+        pass
+
+    def GetBindEntityId(self):
+        # type: () -> str
+        """
+        获取该UI绑定的实体id，未绑定的UI将传回默认值None
+        """
+        pass
+
+    def GetBindWorldPosition(self):
+        # type: () -> Tuple[int, Tuple[float, float, float]]
+        """
+        获取该UI绑定的worldPosition，未绑定返回默认值None
+        """
+        pass
+
+    def GetBindOffset(self):
+        # type: () -> Tuple[float, float, float]
+        """
+        获取该UI绑定实体的偏移量，未绑定的UI将传回默认值(0, 0, 0)
+        """
+        pass
+
+    def GetBindAutoScale(self):
+        # type: () -> Literal[0, 1]
+        """
+        获取该绑定实体的UI是否动态缩放，未绑定的UI将传回默认值1
+        """
+        pass
+
+    def Clone(self, componentPath, parentPath, newName, syncRefresh=True, forceUpdate=True):
+        # type: (str, str, str, bool, bool) -> bool
+        """
+        克隆一个已有的控件，修改它的名称，并将它挂接到指定的父节点上，目前文本、图片、按钮控件的克隆控件表现正常，其他复杂控件的克隆控件可能存在运行问题，建议在json编写的过程中，手动复制一份对应控件使用。
+        """
+        pass
+
+    def GetChildrenName(self, parentPath):
+        # type: (str) -> List[str]
+        """
+        获取子节点的名称list
+        """
+        pass
+
+    def GetAllChildrenPath(self, parentPath):
+        # type: (str) -> List[str]
+        """
+        获取所有子节点的路径list
+        """
+        pass
+
+    def RemoveComponent(self, componentPath, parentPath):
+        # type: (str, str) -> None
+        """
+        动态删除某一控件
+        """
+        pass
+
+    def SetRemove(self):
+        # type: () -> None
+        """
+        删除本界面节点
+        """
+        pass
+
+    def CreateChildControl(self, defName, childName, parentControl=None, forceUpdate=True):
+        # type: (str, str, Optional[BaseUIControl], bool) -> Optional[BaseUIControl]
+        """
+        在当前画布中创建子控件，如果该子控件已经存在则返回已存在的子控件
+        """
+        pass
+
+    def RemoveChildControl(self, childControl):
+        # type: (BaseUIControl) -> bool
+        """
+        移除当前画布中的子控件
+        """
+        pass
+
+    def SetUiModel(self, componentPath, modelName, animateName='idle', looped=True):
+        # type: (str, str, str, bool) -> bool
+        """
+        设置PaperDoll控件需要显示的模型,PaperDoll控件的配置方式详见控件介绍PaperDoll
+        """
+        pass
+
+    def SetUiEntity(self, componentPath, entityIdentifier):
+        # type: (str, str) -> None
+        """
+        设置PaperDoll控件需要显示的生物模型,PaperDoll控件的配置方式详见控件介绍PaperDoll
+        """
+        pass
+
+    def SetUiModelScale(self, componentPath, scale=1.0):
+        # type: (str, float) -> None
+        """
+        设置PaperDoll控件模型的缩放比例
+        """
+        pass
+
+    def UpdateScreen(self, syncRefresh=True):
+        # type: (bool) -> None
+        """
+        刷新界面，重新计算各个控件的相关数据
+        """
+        pass
+
+    def SetStackGridCount(self, componentPath, count):
+        # type: (str, int) -> None
+        """
+        设置StackGrid控件的大小
+        """
+        pass
+
+    def SetSelectControl(self, componentPath, enable):
+        # type: (str, bool) -> None
+        """
+        设置当前焦点所在的控件,当设置控件为文本输入框时会弹出系统小键盘
+        """
+        pass
+
+    def GetRichTextItem(self, componentPath):
+        # type: (str) -> RichTextItem
+        """
+        返回一个富文本控件实例
+        """
+        pass
+
+    def SetIsHud(self, isHud):
+        # type: (int) -> None
+        """
+        设置本界面的输入模式
+        """
+        pass
+
+    def GetIsHud(self):
+        # type: () -> int
+        """
+        获得本界面的输入模式
+        """
+        pass
+
+    def GetScreenName(self):
+        # type: () -> str
+        """
+        获得本界面的名称
+        """
+        pass
+
+    def GetSelf(self):
+        # type: () -> 'ScreenNode'
+        """
+        获取零件界面自身
+        """
+        pass
+
+    def GetBaseUIControl(self, path):
+        # type: (str) -> Optional[BaseUIControl]
+        """
+        根据路径获取BaseUIControl实例
+        """
+        pass
+
