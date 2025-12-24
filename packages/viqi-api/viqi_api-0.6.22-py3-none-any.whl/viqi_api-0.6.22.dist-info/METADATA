@@ -1,0 +1,161 @@
+Metadata-Version: 2.4
+Name: viqi_api
+Version: 0.6.22
+Summary: ViQi Python API
+Author-email: ViQi Inc <info@viqi.org>
+Project-URL: homepage, https://www.viqi.org
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.10
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: configparser
+Requires-Dist: bisque-metadoc>=0.6.4.16
+Requires-Dist: tifffile
+Requires-Dist: furl
+Requires-Dist: simplejson
+Requires-Dist: shortuuid>=1.0.8
+Requires-Dist: tenacity
+Requires-Dist: importlib-metadata; python_version < "3.10"
+Requires-Dist: boto3>=1.28.52
+Requires-Dist: urllib3>=2.0.0
+Requires-Dist: requests>=2.32.0
+Requires-Dist: requests-cache>=1.1.0
+Requires-Dist: requests-toolbelt>=1.0.0
+Provides-Extra: test
+Requires-Dist: pytest; extra == "test"
+Requires-Dist: pytest-cov; extra == "test"
+Requires-Dist: webtest; extra == "test"
+Provides-Extra: image-service
+Requires-Dist: tifffile; extra == "image-service"
+Requires-Dist: tables; extra == "image-service"
+Provides-Extra: table-service
+Requires-Dist: numpy; extra == "table-service"
+Requires-Dist: pandas; extra == "table-service"
+Requires-Dist: tables; extra == "table-service"
+
+# ViQi API
+
+Low level interface to ViQi services
+
+
+## Install
+
+
+`pip install viqi-api `
+
+## Configuration
+
+For command line tools create `~/.config/viqi/profiles`  or `~/config/viqi/profiles`` (windows) with the following
+
+```
+[default]
+host=https://science.viqiai.cloud
+user=myuser
+password=mysecret
+
+[science-user2]
+host=https://science.viqiai.cloud
+user=myuser2
+password=mysecret2
+
+# Admin can switch to another user
+[science-secret-user]
+host=https://science.viqiai.cloud
+user=admin@viqi.org
+password=admin_secret
+alias=secret-user@viqi.org
+```
+
+## Documentation
+* [viqi-api](https://viqi.gitlab.io/viqi-common/bisque-api/)
+  1. [Service-oriented API](https://viqi.gitlab.io/viqi-common/bisque-api/soapi.html)
+  1. [Object-oriented API](https://viqi.gitlab.io/viqi-common/bisque-api/ooapi.html)
+
+
+## Usage & Initialization
+
+The `viqi_session` helper provides a flexible way to initialize a session, whether from command line arguments, configuration files, or direct parameters in Python.
+
+### 1. From Command Line Arguments (Scripts)
+
+When used in a script without arguments, `viqi_session()` automatically parses `sys.argv`. This is the standard way to write scripts that can be configured via flags or config files.
+
+**myscript.py**:
+```python
+from vqapi import viqi_session
+session = viqi_session()
+
+if session:
+    # Session is ready and connected
+    print(f"Connected to {session.bqServer} as {session.user}")
+
+    # Access services
+    meta = session.service("meta")
+    # ...
+```
+
+**Run it:**
+```bash
+# Using explicit credentials
+python myscript.py --host https://science.viqiai.cloud --user myuser --password mysecret
+
+# Using a profile defined in ~/.config/viqi/profiles
+python myscript.py --profile default
+```
+
+### 2. From Python Parameters (Interactive/Library)
+
+You can pass arguments directly as keyword arguments. This is useful for interactive sessions (like IPython/Jupyter) or when embedding the library.
+
+```python
+from vqapi import viqi_session
+
+# Using a profile defined in ~/.config/viqi/profiles
+session = viqi_session(profile="science-user2")
+
+# Using explicit credentials
+session = viqi_session(
+    host="https://science.viqiai.cloud",
+    user="myuser",
+    password="mysecret"
+)
+
+# Using an auth token
+session = viqi_session(
+    host="https://science.viqiai.cloud",
+    authtoken="YOUR_AUTH_TOKEN"
+)
+```
+
+### 3. Simulating Command Line Arguments
+
+You can pass a list of strings to `args` to simulate command line input.
+
+```python
+session = viqi_session(args=["--host", "https://science.viqiai.cloud", "--user", "admin", "--password", "secret"])
+```
+
+### 4. Custom Argument Parser
+
+If your script requires its own custom arguments, you can extend the standard ViQi parser.
+
+```python
+import argparse
+from vqapi import viqi_session, viqi_argument_parser
+
+# 1. Start with the standard ViQi parser
+parser = viqi_argument_parser()
+
+# 2. Add your custom arguments
+parser.add_argument("--dataset-id", required=True, help="ID of dataset to process")
+
+# 3. Parse args (handles both ViQi args and custom args)
+args = parser.parse_args()
+
+# 4. Initialize session using the parsed arguments
+session = viqi_session(args=args)
+
+# 5. Use your custom argument
+print(f"Processing dataset: {args.dataset_id}")
+```
