@@ -1,0 +1,138 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "mocksmith"
+version = "7.1.0"
+description = "Type-safe data validation and mocking for Python dataclasses and Pydantic models"
+authors = ["Gurmeet Saran <gurmeetx@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+keywords = ["mock", "validation", "dataclass", "pydantic", "testing", "faker", "types", "sql"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+packages = [{include = "mocksmith", from = "src"}]
+
+[tool.poetry.urls]
+"Homepage" = "https://github.com/gurmeetsaran/mocksmith"
+"Repository" = "https://github.com/gurmeetsaran/mocksmith"
+"Bug Tracker" = "https://github.com/gurmeetsaran/mocksmith/issues"
+
+[tool.poetry.dependencies]
+python = ">=3.9"
+faker = ">=33.2,<38.0"
+
+[tool.poetry.extras]
+pydantic = ["pydantic"]  # Add Pydantic validation support
+
+[tool.poetry.group.pydantic]
+optional = true
+
+[tool.poetry.group.pydantic.dependencies]
+pydantic = ">=2.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+pytest-cov = ">=6,<8"
+black = ">=24.10,<26.0"
+isort = ">=5.13.2,<7.0.0"
+ruff = ">=0.8.4,<0.15.0"
+pre-commit = "^4.0.1"
+pyright = "^1.1.390"
+
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    # "I",    # isort - disabled as we use standalone isort
+    "N",    # pep8-naming
+    "W",    # pycodestyle warnings
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "DTZ",  # flake8-datetimez
+    "RUF",  # ruff-specific rules
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["mocksmith"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/mocksmith/annotations.py" = ["N802"]  # Allow PascalCase function names for clean API
+"tests/*.py" = ["N806"]  # Allow uppercase variable names in tests for type classes
+
+[tool.pyright]
+pythonVersion = "3.9"
+typeCheckingMode = "basic"
+include = ["src"]
+exclude = ["**/__pycache__", "**/.pytest_cache", "venv", ".venv", "tests", "examples"]
+reportInvalidTypeForm = false
+reportArgumentType = false
+reportAssignmentType = false
+reportConstantRedefinition = false
+reportAttributeAccessIssue = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-ra --strict-markers"
+
+[tool.coverage.run]
+source = ["src/mocksmith"]
+omit = ["*/_version.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+fail_under = 59
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["mocksmith"]
+skip_gitignore = true
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "$version"
+version_scheme = "pep440"
+version_provider = "poetry"
+update_changelog_on_bump = true
+major_version_zero = false
+changelog_merge_prerelease = true
+changelog_start_rev = "3.0.0"
+version_files = [
+    "src/mocksmith/__init__.py:__version__",
+    "pyproject.toml:tool.poetry.version"
+]
