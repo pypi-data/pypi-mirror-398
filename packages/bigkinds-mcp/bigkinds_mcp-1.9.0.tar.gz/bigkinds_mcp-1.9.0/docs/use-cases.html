@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="BigKinds MCP 활용 사례 - 직업군별 실전 시나리오">
+    <title>BigKinds MCP 활용 사례 - 당신의 업무를 180배 빠르게</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- AOS Animation -->
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #8b5cf6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --dark: #1f2937;
+            --gray: #6b7280;
+            --light-gray: #f3f4f6;
+            --white: #ffffff;
+
+            --gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-2: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --gradient-3: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        body {
+            font-family: 'Noto Sans KR', 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--dark);
+            background: var(--white);
+            overflow-x: hidden;
+        }
+
+        /* Hero Section */
+        .hero {
+            background: var(--gradient-1);
+            color: white;
+            padding: 100px 20px 80px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.3;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 900;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 1;
+            animation: fadeInDown 1s ease;
+        }
+
+        .hero .subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 40px;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+            animation: fadeInUp 1s ease 0.2s both;
+        }
+
+        .hero .stats {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+            margin-top: 40px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .stat-item {
+            text-align: center;
+            animation: fadeInUp 1s ease 0.4s both;
+        }
+
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 800;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Section */
+        .section {
+            padding: 80px 20px;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            text-align: center;
+            margin-bottom: 50px;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Job Selector */
+        .job-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 60px;
+        }
+
+        .job-card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .job-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--gradient-1);
+            transform: scaleY(0);
+            transition: transform 0.3s ease;
+        }
+
+        .job-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(99, 102, 241, 0.2);
+        }
+
+        .job-card:hover::before {
+            transform: scaleY(1);
+        }
+
+        .job-card.active {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(139, 92, 246, 0.05));
+        }
+
+        .job-card.active::before {
+            transform: scaleY(1);
+        }
+
+        .job-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .job-name {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .job-description {
+            color: var(--gray);
+            font-size: 0.9rem;
+        }
+
+        /* Use Case Card */
+        .use-case {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .use-case.active {
+            display: block;
+        }
+
+        .use-case-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: var(--primary);
+        }
+
+        .use-case-situation {
+            background: var(--light-gray);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            border-left: 4px solid var(--warning);
+        }
+
+        .use-case-situation strong {
+            display: block;
+            margin-bottom: 10px;
+            color: var(--warning);
+        }
+
+        .use-case-query {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            font-family: 'Courier New', monospace;
+            font-size: 1.1rem;
+            border-left: 4px solid var(--primary);
+        }
+
+        .use-case-result {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.1));
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid var(--success);
+        }
+
+        .use-case-result strong {
+            display: block;
+            margin-bottom: 10px;
+            color: var(--success);
+        }
+
+        /* Efficiency Chart */
+        .efficiency-section {
+            background: var(--light-gray);
+        }
+
+        .chart-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Testimonials */
+        .testimonials {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+
+        .testimonial-card {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            position: relative;
+        }
+
+        .testimonial-quote {
+            font-size: 3rem;
+            color: var(--primary);
+            opacity: 0.2;
+            position: absolute;
+            top: 10px;
+            left: 20px;
+        }
+
+        .testimonial-text {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .testimonial-author {
+            font-weight: 600;
+            color: var(--gray);
+        }
+
+        /* CTA Section */
+        .cta-section {
+            background: var(--gradient-1);
+            color: white;
+            text-align: center;
+            padding: 80px 20px;
+        }
+
+        .cta-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 30px;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .btn-primary {
+            background: white;
+            color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: white;
+            border-color: white;
+        }
+
+        .btn-outline:hover {
+            background: white;
+            color: var(--primary);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero .subtitle {
+                font-size: 1.2rem;
+            }
+
+            .stat-number {
+                font-size: 2rem;
+            }
+
+            .section-title {
+                font-size: 2rem;
+            }
+
+            .job-selector {
+                grid-template-columns: 1fr;
+            }
+
+            .hero .stats {
+                gap: 20px;
+            }
+        }
+
+        /* Loading Animation */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--gray);
+        }
+
+        .spinner {
+            border: 3px solid var(--light-gray);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1>당신의 업무를 180배 빠르게</h1>
+            <p class="subtitle">BigKinds MCP로 뉴스 검색과 분석을 자동화하세요</p>
+
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="stat-number">180x</span>
+                    <span class="stat-label">더 빠른 검색</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">890K+</span>
+                    <span class="stat-label">뉴스 기사</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">100%</span>
+                    <span class="stat-label">무료 오픈소스</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Job Selector Section -->
+    <section class="section">
+        <div class="container">
+            <h2 class="section-title">당신의 직업을 선택하세요</h2>
+
+            <div class="job-selector">
+                <div class="job-card" data-job="journalist" data-aos="fade-up" data-aos-delay="0">
+                    <span class="job-icon">📰</span>
+                    <h3 class="job-name">기자/언론인</h3>
+                    <p class="job-description">과거 기사 검색, 경쟁사 분석</p>
+                </div>
+
+                <div class="job-card" data-job="marketer" data-aos="fade-up" data-aos-delay="100">
+                    <span class="job-icon">📊</span>
+                    <h3 class="job-name">마케터/PR</h3>
+                    <p class="job-description">브랜드 모니터링, 위기 관리</p>
+                </div>
+
+                <div class="job-card" data-job="investor" data-aos="fade-up" data-aos-delay="200">
+                    <span class="job-icon">💹</span>
+                    <h3 class="job-name">투자자/애널리스트</h3>
+                    <p class="job-description">종목 뉴스, 섹터 트렌드</p>
+                </div>
+
+                <div class="job-card" data-job="researcher" data-aos="fade-up" data-aos-delay="300">
+                    <span class="job-icon">🎓</span>
+                    <h3 class="job-name">학생/연구자</h3>
+                    <p class="job-description">논문 자료, 여론 연구</p>
+                </div>
+
+                <div class="job-card" data-job="executive" data-aos="fade-up" data-aos-delay="400">
+                    <span class="job-icon">💼</span>
+                    <h3 class="job-name">경영진/전략기획</h3>
+                    <p class="job-description">산업 트렌드, 신사업 검토</p>
+                </div>
+
+                <div class="job-card" data-job="developer" data-aos="fade-up" data-aos-delay="500">
+                    <span class="job-icon">👨‍💻</span>
+                    <h3 class="job-name">개발자</h3>
+                    <p class="job-description">데이터 파이프라인, API 활용</p>
+                </div>
+            </div>
+
+            <!-- Use Cases Container -->
+            <div id="useCasesContainer">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>직업을 선택하면 실전 활용 사례를 확인할 수 있습니다</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Efficiency Section -->
+    <section class="section efficiency-section">
+        <div class="container">
+            <h2 class="section-title">업무 효율 개선 효과</h2>
+
+            <div class="chart-container" data-aos="zoom-in">
+                <canvas id="efficiencyChart"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials Section -->
+    <section class="section">
+        <div class="container">
+            <h2 class="section-title">실제 사용자 후기</h2>
+
+            <div class="testimonials">
+                <div class="testimonial-card" data-aos="fade-up" data-aos-delay="0">
+                    <div class="testimonial-quote">"</div>
+                    <p class="testimonial-text">과거 기사 검색에 30분 걸렸는데, 이제 10초면 끝나요. 마감 시간 여유가 생겼습니다.</p>
+                    <p class="testimonial-author">— 기자 A씨</p>
+                </div>
+
+                <div class="testimonial-card" data-aos="fade-up" data-aos-delay="100">
+                    <div class="testimonial-quote">"</div>
+                    <p class="testimonial-text">경쟁사 캠페인을 실시간으로 추적할 수 있어서, 대응 속도가 3배 빨라졌어요.</p>
+                    <p class="testimonial-author">— 마케터 B씨</p>
+                </div>
+
+                <div class="testimonial-card" data-aos="fade-up" data-aos-delay="200">
+                    <div class="testimonial-quote">"</div>
+                    <p class="testimonial-text">종목 리서치 시간이 2시간 → 30분으로 단축. 더 많은 종목을 분석할 수 있게 됐습니다.</p>
+                    <p class="testimonial-author">— 투자자 C씨</p>
+                </div>
+
+                <div class="testimonial-card" data-aos="fade-up" data-aos-delay="300">
+                    <div class="testimonial-quote">"</div>
+                    <p class="testimonial-text">논문 문헌 조사에 2주 걸렸는데, 이제 하루면 끝나요. 데이터 정제 시간이 확 줄었습니다.</p>
+                    <p class="testimonial-author">— 연구원 D씨</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <h2 class="cta-title">지금 바로 시작하세요</h2>
+            <p style="font-size: 1.2rem; margin-bottom: 40px; opacity: 0.9;">5분 설치, 평생 무료</p>
+
+            <div class="cta-buttons">
+                <a href="https://github.com/seolcoding/bigkinds-mcp" class="btn btn-primary" target="_blank">
+                    GitHub에서 시작하기 →
+                </a>
+                <a href="https://github.com/seolcoding/bigkinds-mcp/blob/main/docs/GETTING_STARTED.md" class="btn btn-outline" target="_blank">
+                    설치 가이드 보기
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        // Use Cases Data
+        const useCases = {
+            journalist: [
+                {
+                    title: '과거 기사 빠르게 찾기',
+                    situation: '5년 전 비슷한 사건 기사 참고 필요',
+                    query: '"2020년 카카오 먹통 사건 관련 기사 찾아줘"',
+                    result: '수백 건 중 관련 기사 즉시 검색 → 참고 자료 확보'
+                },
+                {
+                    title: '경쟁사 보도 경향 분석',
+                    situation: '타 언론사는 이 이슈를 어떻게 다뤘을까?',
+                    query: '"오늘 금리 동결 관련해서 조선일보, 한겨레, 경향신문이 각각 어떤 프레임으로 보도했는지 비교해줘"',
+                    result: '3개 언론사 기사 자동 수집 → 프레임 차이 분석 → 균형 잡힌 보도 작성'
+                },
+                {
+                    title: '팩트 체크용 과거 데이터',
+                    situation: '정치인 발언 팩트 체크',
+                    query: '"이재명이 2023년부터 \'반도체 클러스터\'를 몇 번이나 언급했는지 월별로 집계해줘"',
+                    result: '월별 언급 횟수 → 공약 일관성 검증 자료'
+                }
+            ],
+            marketer: [
+                {
+                    title: '브랜드 모니터링 (일일)',
+                    situation: '우리 브랜드 언급 뉴스 매일 체크',
+                    query: '"오늘 \'토스\' 언급된 기사 중 부정적 이슈 있어?"',
+                    result: '10초 안에 전체 기사 스캔 → 이슈 조기 발견 → 대응 시간 확보'
+                },
+                {
+                    title: '경쟁사 캠페인 추적',
+                    situation: '경쟁사가 새 광고 캠페인 시작',
+                    query: '"지난 2주간 \'네이버페이 플러스\' 관련 기사 추이와 주요 이슈 정리해줘"',
+                    result: '경쟁사 PR 전략 파악 → 대응 전략 수립'
+                },
+                {
+                    title: '위기 관리',
+                    situation: '우리 회사 관련 부정 기사 확산 중',
+                    query: '"최근 3일간 \'[우리 회사]\' + \'논란\' 키워드 기사를 시간대별로 정리하고, 주요 이슈 요약해줘"',
+                    result: '이슈 확산 속도 파악 → 대응 타이밍 결정 → 보도자료 준비'
+                }
+            ],
+            investor: [
+                {
+                    title: '종목 뉴스 타임라인',
+                    situation: '삼성전자 주가 급등, 원인 파악 필요',
+                    query: '"최근 1개월 삼성전자 관련 뉴스를 일별로 집계하고, 주가 변동과 연관된 주요 이슈 찾아줘"',
+                    result: '날짜별 기사 수 + 주요 이벤트 → 주가 변동 원인 분석'
+                },
+                {
+                    title: '섹터 트렌드 비교',
+                    situation: '어느 섹터에 투자할까?',
+                    query: '"올해 \'반도체\', \'2차전지\', \'바이오\' 뉴스량을 월별로 비교하고, 각 섹터 주요 이슈 정리"',
+                    result: '반도체: 508,450건 (HBM, 파운드리)\n2차전지: 342,120건 (미국 IRA, 중국 경쟁)\n바이오: 198,340건 (신약 승인, M&A)\n\n→ 투자 우선순위 결정'
+                },
+                {
+                    title: '공시 전후 반응 분석',
+                    situation: '실적 발표 후 언론 반응은?',
+                    query: '"SK하이닉스 3분기 실적 발표일(10월 24일) 전후 3일간 기사 추이와 주요 헤드라인 정리"',
+                    result: '발표 전 예상 기사 vs 발표 후 평가 비교 → 시장 기대치 파악'
+                }
+            ],
+            researcher: [
+                {
+                    title: '논문 문헌 조사',
+                    situation: '"한국의 기후변화 담론" 논문 준비',
+                    query: '"2020-2025년 \'기후변화\' 관련 전체 기사를 CSV로 내보내고, 연도별 기사 수 추이도 정리해줘"',
+                    result: '• 25,450건 기사 CSV 파일\n• 2020: 3,200건 → 2025: 7,800건 (143% 증가)\n• Python 분석 코드 자동 생성\n\n→ 담론 변화 정량 분석 가능'
+                },
+                {
+                    title: '여론 변화 연구',
+                    situation: '"원전에 대한 한국 언론의 프레임 변화" 연구',
+                    query: '"\'원자력발전\' 키워드로 2010-2025년 기사를 5년 단위로 샘플링해서 200건씩 뽑아줘"',
+                    result: '시기별 대표 기사 샘플 → 프레임 변화 질적 분석'
+                },
+                {
+                    title: '학위논문 자료 수집',
+                    situation: '"한국 핀테크 산업 발전 과정" 박사논문',
+                    query: '"2015년부터 현재까지 \'핀테크\' 관련 기사를 분기별로 집계하고, 각 분기별 주요 이벤트 정리"',
+                    result: '10년간 산업 변화 타임라인 → 논문 2장 "산업 현황" 작성'
+                }
+            ],
+            executive: [
+                {
+                    title: '산업 트렌드 보고서',
+                    situation: '이사회 보고용 "AI 산업 동향" 자료 필요',
+                    query: '"2025년 \'AI\' 관련 뉴스 트렌드 리포트를 작성해줘. 월별 기사량, 주요 연관 키워드, 분기별 핫이슈 포함"',
+                    result: '• Executive Summary 자동 생성\n• 월별 그래프, 키워드 클라우드\n• 분기별 Top 3 이슈 정리\n\n→ 30분 만에 10페이지 리포트 초안 완성'
+                },
+                {
+                    title: '신사업 검토',
+                    situation: '"메타버스 플랫폼" 진출 검토 중',
+                    query: '"최근 2년간 \'메타버스\' 기사 추이를 보고, 성공 사례/실패 사례를 각각 10건씩 요약해줘"',
+                    result: '• 2023년 9월 피크 (3,200건) → 2024년 12월 (450건) 급감\n• 실패 사례: 네이버 제페토 MAU 감소, 메타 호라이즌 철수\n• 성공 사례: 로블록스 한국 진출, 제페토 패션 협업\n\n→ 신사업 리스크 재평가 → 진출 보류 결정'
+                }
+            ],
+            developer: [
+                {
+                    title: '뉴스 데이터 파이프라인',
+                    situation: '자동 뉴스 수집 시스템 구축',
+                    query: '"매일 아침 9시에 \'블록체인\' 관련 전날 뉴스를 JSON으로 저장하는 Python 스크립트 만들어줘"',
+                    result: 'GitHub Actions / Cron으로 자동화 가능한 스크립트 생성'
+                },
+                {
+                    title: '감성 분석 학습 데이터',
+                    situation: '한국어 뉴스 감성 분석 모델 훈련',
+                    query: '"2024년 \'영화\' 관련 긍정/부정 기사를 각각 1,000건씩 샘플링해줘"',
+                    result: '• 긍정 키워드: "흥행", "성공", "감동"\n• 부정 키워드: "실패", "논란", "비판"\n\n→ 라벨링 작업 → BERT 파인튜닝'
+                },
+                {
+                    title: '실시간 모니터링 대시보드',
+                    situation: '회사 브랜드 모니터링 대시보드',
+                    query: '"우리 회사와 경쟁사 3곳의 오늘 뉴스를 30분마다 수집해서 Slack으로 알려줘"',
+                    result: 'Python + MCP + Slack API 연동 → 실시간 알림 시스템'
+                }
+            ]
+        };
+
+        // Initialize AOS
+        AOS.init({
+            duration: 800,
+            once: true,
+            offset: 100
+        });
+
+        // Job Card Click Handler
+        document.querySelectorAll('.job-card').forEach(card => {
+            card.addEventListener('click', function() {
+                const job = this.dataset.job;
+
+                // Remove active class from all cards
+                document.querySelectorAll('.job-card').forEach(c => c.classList.remove('active'));
+
+                // Add active class to clicked card
+                this.classList.add('active');
+
+                // Show use cases
+                showUseCases(job);
+            });
+        });
+
+        // Show Use Cases Function
+        function showUseCases(job) {
+            const container = document.getElementById('useCasesContainer');
+            const cases = useCases[job];
+
+            if (!cases) return;
+
+            let html = '';
+            cases.forEach((useCase, index) => {
+                html += `
+                    <div class="use-case active" data-aos="fade-up" data-aos-delay="${index * 100}">
+                        <h3 class="use-case-title">${useCase.title}</h3>
+
+                        <div class="use-case-situation">
+                            <strong>상황:</strong>
+                            ${useCase.situation}
+                        </div>
+
+                        <div class="use-case-query">
+                            "${useCase.query}"
+                        </div>
+
+                        <div class="use-case-result">
+                            <strong>결과:</strong>
+                            ${useCase.result.replace(/\n/g, '<br>')}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+
+            // Reinitialize AOS for new elements
+            AOS.refresh();
+        }
+
+        // Efficiency Chart
+        const ctx = document.getElementById('efficiencyChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['과거 기사 검색', '경쟁사 모니터링', '트렌드 리포트', '대용량 데이터 수집'],
+                datasets: [{
+                    label: 'Before (시간)',
+                    data: [30, 60, 180, 2880],
+                    backgroundColor: 'rgba(239, 68, 68, 0.5)',
+                    borderColor: 'rgba(239, 68, 68, 1)',
+                    borderWidth: 2
+                }, {
+                    label: 'After (시간)',
+                    data: [0.17, 1, 30, 5],
+                    backgroundColor: 'rgba(16, 185, 129, 0.5)',
+                    borderColor: 'rgba(16, 185, 129, 1)',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    title: {
+                        display: true,
+                        text: '업무 소요 시간 비교 (분)',
+                        font: {
+                            size: 18,
+                            weight: 'bold'
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y < 1) {
+                                    label += (context.parsed.y * 60).toFixed(0) + '초';
+                                } else {
+                                    label += context.parsed.y + '분';
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '소요 시간 (분, 로그 스케일)',
+                            font: {
+                                size: 14
+                            }
+                        },
+                        type: 'logarithmic'
+                    }
+                }
+            }
+        });
+
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

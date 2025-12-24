@@ -1,0 +1,51 @@
+services:
+  # BigKinds MCP Remote Server (HTTP/SSE)
+  bigkinds-mcp:
+    build: .
+    command: ["uv", "run", "bigkinds-mcp-remote"]
+    ports:
+      - "58002:58002"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - MCP_PORT=58002
+      - MCP_API_KEYS=${MCP_API_KEYS:-bigkinds_mcp_secret_key_2025}
+      - BIGKINDS_USER_ID=${BIGKINDS_USER_ID:-}
+      - BIGKINDS_USER_PASSWORD=${BIGKINDS_USER_PASSWORD:-}
+      - BIGKINDS_TIMEOUT=${BIGKINDS_TIMEOUT:-30}
+      - BIGKINDS_MAX_RETRIES=${BIGKINDS_MAX_RETRIES:-3}
+      - BIGKINDS_RETRY_DELAY=${BIGKINDS_RETRY_DELAY:-1.0}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:58002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - mcp-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "56379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - mcp-network
+
+volumes:
+  redis-data:
+
+networks:
+  mcp-network:
+    driver: bridge
