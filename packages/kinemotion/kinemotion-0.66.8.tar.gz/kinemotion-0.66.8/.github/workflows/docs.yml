@@ -1,0 +1,79 @@
+name: Documentation
+
+on:
+  # Build docs on PRs for validation (not deployed)
+  pull_request:
+    branches: [main]
+  # Called by release workflow for deployment
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.8.17"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+
+      - name: Build documentation
+        run: |
+          uv run mkdocs build --strict
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs
+          path: site/
+
+  deploy:
+    name: Deploy to GitHub Pages
+    # Only deploy when called from release workflow, not on PRs
+    if: github.event_name == 'workflow_call'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.8.17"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Deploy to GitHub Pages
+        run: uv run mkdocs gh-deploy --force
