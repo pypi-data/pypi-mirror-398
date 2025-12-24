@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+
+print('Importing all Skilleter-thingy modules')
+import addpath
+import console_colours
+import ffind
+import ggit
+import ggrep
+import git_br
+import git_ca
+import git_cleanup
+import git_co
+import git_common
+import git_hold
+import git_parent
+import git_retag
+import git_review
+import git_update
+import git_wt
+import gitcmp_helper
+import gitprompt
+import linecount
+import multigit
+import py_audit
+import remdir
+import rpylint
+import strreplace
+import tfm
+import tfparse
+import trimpath
+import venv_create
+import xchmod
+import yamlcheck
+print('Import successful')
