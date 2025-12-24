@@ -1,0 +1,135 @@
+# go-concise-summary
+[![PyPI version](https://badge.fury.io/py/go-concise-summary.svg)](https://badge.fury.io/py/go-concise-summary)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/go-concise-summary)](https://pepy.tech/project/go-concise-summary)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A lightweight helper library that takes a technical description or code snippet about Go concurrency concepts and returns a structured, concise summary. It is especially useful for extracting key details such as purpose, usage, and implementation notes from a fair, cancelable semaphore or other concurrency patterns.
+
+The package is available on PyPI as `go_concise_summary` and works as a drop‑in function that can use the default **ChatLLM7** model or any LangChain compatible LLM.
+
+---
+
+## Installation
+
+```bash
+pip install go_concise_summary
+```
+
+---
+
+## Basic Usage
+
+```python
+from go_concise_summary import go_concise_summary
+
+user_text = """
+A fair, cancelable semaphore in Go can be implemented using a counting semaphore
+pattern with a context for cancellation. Its purpose is to limit concurrent
+access to a resource while ensuring that waiting goroutines are notified when
+the semaphore is released or when the context is cancelled.
+"""
+
+summary = go_concise_summary(
+    user_input=user_text
+)
+
+print(summary)
+# Output will be a list of strings matching the expected regex pattern.
+```
+
+---
+
+## Function Signature
+
+```python
+def go_concise_summary(
+    user_input: str,
+    api_key: Optional[str] = None,
+    llm: Optional[BaseChatModel] = None
+) -> List[str]
+```
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `user_input` | `str` | The Go concurrency description or code that you want summarized. |
+| `api_key` | `Optional[str]` | API key for the default **ChatLLM7** service. If omitted, the function will look for an environment variable `LLM7_API_KEY`. |
+| `llm` | `Optional[BaseChatModel]` | A LangChain LLM instance. If supplied, the function will use this LLM instead of the default **ChatLLM7**. |
+
+---
+
+## Overriding the LLM
+
+The library ships with a bundled **ChatLLM7** instance, but you can pass any LangChain LLM that implements `BaseChatModel`.
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from go_concise_summary import go_concise_summary
+
+llm = ChatOpenAI()
+summary = go_concise_summary(user_input=text, llm=llm)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from go_concise_summary import go_concise_summary
+
+llm = ChatAnthropic()
+summary = go_concise_summary(user_input=text, llm=llm)
+```
+
+### Google Gemini
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from go_concise_summary import go_concise_summary
+
+llm = ChatGoogleGenerativeAI()
+summary = go_concise_summary(user_input=text, llm=llm)
+```
+
+---
+
+## Using a Custom LLM7 API Key
+
+If you require higher rate limits than the default free tier, create or export an LLM7 API key:
+
+```bash
+export LLM7_API_KEY="your-api-key-here"
+```
+
+or pass it directly:
+
+```python
+summary = go_concise_summary(user_input=text, api_key="your_api_key_here")
+```
+
+Free LLM7 API keys can be obtained at <https://token.llm7.io/>.
+
+---
+
+## How It Works
+
+1. **Prompting** – The function composes a system prompt (`system_prompt`) and a user prompt (`human_prompt`) that instruct the model to produce a concise, structured summary of the Go concurrency snippet.
+2. **LLM Call** – It sends the prompts to the configured LLM.
+3. **Regex Extraction** – Using the pre‑defined `pattern`, the response is validated and formatted. The extracted information is returned as a `List[str]`.
+
+---
+
+## Issues & Support
+
+Found a bug or have a feature request? Open an issue here:
+<https://github.com/chigwell/go-concise-summary/issues>
+
+---
+
+## Author
+
+- **Eugene Evstafev**  
+- Email: hi@euegne.plus  
+- GitHub: @chigwell
