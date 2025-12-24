@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  PYTHONUTF8: 1
+  PYTHONIOENCODING: "utf-8"
+
+jobs:
+  tests:
+    name: Tests (${{ matrix.os }} / py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: "3.10"
+          - os: ubuntu-latest
+            python: "3.11"
+          - os: ubuntu-latest
+            python: "3.12"
+            coverage: true
+          - os: ubuntu-latest
+            python: "3.13"
+          - os: windows-latest
+            python: "3.12"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install dependencies
+        run: pip install -e .[dev-all]
+
+      - name: Run tests
+        working-directory: ${{ github.workspace }}
+        run: |
+            python -X utf8 -m pytest ${{ matrix.coverage && matrix.os == 'ubuntu-latest' && '-nauto --dist loadfile --cov=pdftl --cov-report=xml' || '' }}
+
+      - name: Upload coverage artifact
+        if: matrix.coverage && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+
+  codecov:
+    name: Upload coverage (Linux 3.12)
+    needs: tests
+    runs-on: ubuntu-latest
+    if: success()
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.xml
