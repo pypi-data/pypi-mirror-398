@@ -1,0 +1,136 @@
+Metadata-Version: 2.4
+Name: mokaccino
+Version: 0.6.0
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: Development Status :: 4 - Beta
+Classifier: Topic :: Software Development :: Libraries
+Requires-Dist: pytest ; extra == 'dev'
+Provides-Extra: dev
+Home-Page: https://github.com/jeteve/mokaccino_py
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Documentation, https://github.com/jeteve/mokaccino_py#readme
+Project-URL: Issues, https://github.com/jeteve/mokaccino_py/issues
+Project-URL: Source, https://github.com/jeteve/mokaccino_py
+
+# About Mokaccino
+[![CI](https://github.com/jeteve/mokaccino_py/actions/workflows/CI.yml/badge.svg)](https://github.com/jeteve/mokaccino_py/actions/workflows/CI.yml) ![PyPI - Version](https://img.shields.io/pypi/v/mokaccino)
+
+
+This is a Python binding for https://crates.io/crates/mokaccino.
+
+Mokaccino is a Percolator.
+
+A Percolator is a component that allows the matching of a stream of documents (for instance representing events) against a set of queries (representing specific interests in events).
+
+# Install/Usage
+
+Install via pip compatible tools as usual.
+
+Example Usage (taken from a test):
+
+```python
+
+def test_percolator():
+    p = Percolator()
+    assert p is not None
+    qids = [
+        p.add_query(Query.from_kv("name", "sausage")),
+        p.add_query(Query.from_kprefix("name", "amaz")),
+        p.add_query(Query.from_kgt("price", 12)),
+        p.add_query(Query.from_kv("name", "sausage") | Query.from_kgt("price", 12)),
+    ]
+
+    assert p.percolate_list(Document()) == []
+    assert p.percolate_list(Document().with_value("name", "burger")) == []
+    assert p.percolate_list(Document().with_value("name", "sausage")) == [qids[0], qids[3]]
+    assert p.percolate_list(Document().with_value("name", "amaz")) == [qids[1]]
+    assert p.percolate_list(Document().with_value("name", "amazing")) == [qids[1]]
+    assert p.percolate_list(Document().with_value("name", "amazon")) == [qids[1]]
+    assert p.percolate_list(Document().with_value("price", "12")) == []
+    assert p.percolate_list(Document().with_value("price", "13")) == [qids[2], qids[3]]
+    assert p.percolate_list(
+        Document().with_value("price", "13").with_value("name", "amazed")
+    ) == [qids[1], qids[2], qids[3]]
+
+```
+
+## H3 Geography support
+
+You can match documents based on their location within an H3 cell.
+
+```python
+    # Matches documents whose "location" field is inside the given H3 cell
+    # (or inside any child cell)
+    q = Query.from_h3in("location", "85283473fffffff")
+
+    # Or using parsing:
+    q = Query.parse("location H3IN 85283473fffffff")
+```
+
+## Using query parsing.
+
+If you plan to have free formed queries, you can use query parsing to build
+queries:
+
+```python
+   qids = [
+        p.add_query(Query.parse("name:sausage")),
+        p.add_query(Query.parse("name:amaz*")),
+        p.add_query(Query.parse("price>12")),
+        p.add_query(Query.parse("name:sausage OR price>12")),
+    ]
+```
+
+Query parsing works as you expect, with boolean `AND`, `OR` and `NOT` and `( )` to
+work around precedence.
+
+Non-word values can be enclosed in `"`s (for example `field:"non word value"`) and the
+escape character is `\`.
+
+More extensive documentation will be provided, but in the meanwhile, have a look
+at the unit tests, which cover everything you can do with this:
+
+https://github.com/jeteve/mokaccino_py/tree/main/tests
+
+
+# Development
+
+This uses uv/uvx to handle the python side of things
+
+1. Prepare the venv
+
+```sh
+uv venv --python 3.13
+uv sync --extra dev
+
+```
+
+2. Compile everything using maturin
+
+```sh
+# To regenerate the mokaccino.pyi stub:
+cargo run -F stub-gen --bin stub_gen
+
+uvx maturin develop
+```
+
+3. Run some examples or unit tests
+
+```sh
+uv sync --extra dev
+pytest
+uv run examples/...
+```
+
+
+In development, loop through 3 and 2:
+
+```sh
+uvx maturin develop && pytest
+```
+
+This is developed at https://github.com/jeteve/mokaccino_py
+
