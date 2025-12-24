@@ -1,0 +1,337 @@
+Metadata-Version: 2.3
+Name: task-context-mcp
+Version: 0.1.6
+Summary: MCP server for managing task contexts.
+Keywords: mcp,model-context-protocol,developer-tools,fastmcp
+Author: l0kifs
+Author-email: l0kifs <l0kifs91@gmail.com>
+License: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Environment :: Plugins
+Classifier: Natural Language :: English
+Requires-Dist: fastmcp>=2.13.3
+Requires-Dist: loguru>=0.7.3
+Requires-Dist: sqlalchemy>=2.0.44
+Requires-Dist: alembic>=1.17.2
+Requires-Dist: pydantic>=2.12.5
+Requires-Dist: pydantic-settings>=2.12.0
+Maintainer: l0kifs
+Maintainer-email: l0kifs <l0kifs91@gmail.com>
+Requires-Python: >=3.12
+Project-URL: Changelog, https://github.com/l0kifs/task-context-mcp/blob/main/CHANGELOG.md
+Project-URL: Documentation, https://github.com/l0kifs/task-context-mcp/blob/main/README.md
+Project-URL: Homepage, https://github.com/l0kifs/task-context-mcp
+Project-URL: Issues, https://github.com/l0kifs/task-context-mcp/issues
+Project-URL: Repository, https://github.com/l0kifs/task-context-mcp.git
+Description-Content-Type: text/markdown
+
+<div align="center">
+  <img src="assets/banner.svg" alt="Task Context MCP Server Banner" width="100%">
+  
+  <p align="center">
+    <a href="https://pypi.org/project/task-context-mcp/">
+      <img src="https://img.shields.io/pypi/v/task-context-mcp.svg" alt="PyPI version">
+    </a>
+    <a href="https://pypi.org/project/task-context-mcp/">
+      <img src="https://img.shields.io/pypi/pyversions/task-context-mcp.svg" alt="Python versions">
+    </a>
+    <a href="https://opensource.org/licenses/MIT">
+      <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
+    </a>
+  </p>
+</div>
+
+# Task Context MCP Server
+
+An MCP (Model Context Protocol) server for managing task contexts and artifacts to enable AI agents to autonomously manage and improve execution processes for repetitive task types.
+
+## Overview
+
+**Important Distinction:** This system manages **task contexts** (reusable task types/categories), NOT individual task instances.
+
+For example:
+- **Task Context**: "Analyze applicant CV for Python developer of specific stack"
+- **NOT stored**: Individual applicant details or specific CV analyses
+- **Stored**: Reusable artifacts (practices, rules, prompts, learnings) applicable to ANY CV analysis of this type
+
+This MCP server provides a SQLite-based storage system that enables AI agents to:
+
+- **Store and retrieve task contexts** with associated artifacts (practices, rules, prompts, learnings)
+- **Perform full-text search** across historical learnings and best practices using SQLite FTS5
+- **Manage artifact lifecycles** with active/archived status tracking
+- **Enable autonomous process improvement** with minimal user intervention
+- **Store multiple artifacts of each type** per task context
+
+## Features
+
+### Core Functionality
+- **Task Context Management**: Create, update, archive, and retrieve task contexts (reusable task types)
+- **Artifact Storage**: Store multiple practices, rules, prompts, and learnings for each task context
+- **Full-Text Search**: Efficient search across all artifacts using SQLite FTS5
+- **Lifecycle Management**: Track active vs archived artifacts with reasons
+- **Transaction Safety**: ACID compliance for all database operations
+
+### MCP Tools Available
+
+1. **`get_active_task_contexts`** - Get all currently active task contexts
+2. **`create_task_context`** - Create a new task context with summary and description
+3. **`get_artifacts_for_task_context`** - Retrieve all artifacts for a specific task context
+4. **`create_artifact`** - Create a new artifact (multiple per type allowed)
+5. **`update_artifact`** - Update an existing artifact's summary and/or content
+6. **`archive_artifact`** - Archive artifacts with optional reason
+7. **`search_artifacts`** - Full-text search across all artifacts
+8. **`reflect_and_update_artifacts`** - Reflect on learnings and get prompted to update artifacts
+
+## Installation
+
+### Prerequisites
+- Python 3.12+
+- uv package manager
+
+### Setup
+```bash
+# Clone the repository
+git clone https://github.com/l0kifs/task-context-mcp.git
+cd task-context-mcp
+
+# Install dependencies
+uv sync
+
+# Run tests
+uv run pytest
+```
+
+## Usage
+
+### Running the MCP Server
+
+```bash
+# Run directly
+uv run python src/task_context_mcp/main.py
+
+# Or with uv run script
+uv run task-context-mcp
+```
+
+### MCP Client Configuration
+
+#### For VS Code/Cursor
+Add to your `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "task-context": {
+      "command": "uvx",
+      "args": ["task-context-mcp@latest"]
+    }
+  }
+}
+```
+
+### MCP Tools Available
+
+The server provides the following tools via MCP:
+
+#### 1. `get_active_task_contexts`
+Get all active task contexts in the system with their metadata.
+- **Returns**: List of active task contexts with id, summary, description, creation/update dates
+
+#### 2. `create_task_context`
+Create a new task context (reusable task type) with summary and description.
+- **Parameters**: 
+  - `summary` (string): Brief task context description (e.g., "CV Analysis for Python Developer")
+  - `description` (string): Detailed task context description
+- **Returns**: Created task context information
+
+#### 3. `get_artifacts_for_task_context`
+Retrieve all active artifacts for a specific task context.
+- **Parameters**:
+  - `task_context_id` (string): ID of the task context
+  - `artifact_types` (optional list): Types to retrieve ('practice', 'rule', 'prompt', 'result')
+  - `include_archived` (boolean): Whether to include archived artifacts
+- **Returns**: All matching artifacts with content
+
+#### 4. `create_artifact`
+Create a new artifact for a task context. Multiple artifacts of the same type are allowed.
+- **Parameters**:
+  - `task_context_id` (string): Associated task context ID
+  - `artifact_type` (string): Type ('practice', 'rule', 'prompt', 'result')
+  - `summary` (string): Brief description
+  - `content` (string): Full artifact content
+- **Returns**: Created artifact information
+
+**Artifact Types:**
+- **practice**: Best practices and guidelines for executing the task type
+- **rule**: Specific rules and constraints to follow
+- **prompt**: Template prompts useful for the task type
+- **result**: General patterns and learnings from past work (NOT individual execution results)
+
+#### 5. `update_artifact`
+Update an existing artifact's summary and/or content.
+- **Parameters**:
+  - `artifact_id` (string): ID of the artifact to update
+  - `summary` (optional string): New summary
+  - `content` (optional string): New content
+- **Returns**: Updated artifact information
+
+#### 6. `archive_artifact`
+Archive an artifact, marking it as no longer active.
+- **Parameters**:
+  - `artifact_id` (string): ID of artifact to archive
+  - `reason` (optional string): Reason for archiving
+- **Returns**: Archived artifact information
+
+#### 7. `search_artifacts`
+Perform full-text search across all artifacts.
+- **Parameters**:
+  - `query` (string): Search query
+  - `limit` (integer): Maximum results (default: 10)
+- **Returns**: Matching artifacts ranked by relevance
+
+#### 8. `reflect_and_update_artifacts`
+Reflect on task execution learnings and get prompted to update artifacts autonomously.
+- **Parameters**:
+  - `task_context_id` (string): ID of the task context used for this work
+  - `learnings` (string): What was learned during task execution (mistakes, corrections, patterns, etc.)
+- **Returns**: Reflection summary with current artifacts and required actions
+- **Purpose**: Ensures agents autonomously manage artifacts by explicitly prompting them to create/update/archive based on their learnings
+
+## Architecture
+
+### Database Schema
+
+- **task_contexts**: Task context definitions with metadata and status tracking
+- **artifacts**: Artifact storage with lifecycle management (multiple per type per context)
+- **artifacts_fts**: FTS5 virtual table for full-text search indexing
+
+**Database Migrations**: The project uses [Alembic](https://alembic.sqlalchemy.org/) for automatic schema migrations. When you modify the database models, Alembic automatically detects changes and updates the database. See [docs/MIGRATIONS.md](docs/MIGRATIONS.md) for details.
+
+### Key Components
+
+- `src/task_context_mcp/main.py`: MCP server implementation with FastMCP
+- `src/task_context_mcp/database/models.py`: SQLAlchemy ORM models
+- `src/task_context_mcp/database/database.py`: Database operations and FTS5 management
+- `src/task_context_mcp/database/migrations.py`: Alembic migration utilities
+- `src/task_context_mcp/config/`: Configuration management with Pydantic settings
+- `alembic/`: Database migration scripts and configuration
+
+### Technology Stack
+
+- **Database**: SQLite 3.35+ with FTS5 extension
+- **ORM**: SQLAlchemy 2.0+ for type-safe database operations
+- **Migrations**: Alembic 1.17+ for automatic schema migrations
+- **MCP Framework**: FastMCP for Model Context Protocol implementation
+- **Configuration**: Pydantic Settings for environment-based config
+- **Logging**: Loguru for structured, multi-level logging
+- **Development**: UV for Python package and dependency management
+
+### Business Requirements Alignment
+
+This implementation fulfills all requirements from `docs/BRD.md`:
+
+- ✅ **Task Context Catalog**: UUID-based task context identification with metadata
+- ✅ **Artifact Storage**: Lifecycle management with active/archived status, multiple per type
+- ✅ **Full-Text Search**: FTS5-based search with BM25 ranking
+- ✅ **Context Loading**: Automatic retrieval based on task context matching
+- ✅ **Autonomous Updates**: Agent-driven improvements with feedback loops
+- ✅ **ACID Compliance**: Transaction-based operations with SQLite
+- ✅ **Minimal Query Processing**: Support for natural language task context matching
+
+## Use Case Scenarios
+
+### Scenario 1: Working on a New Task Type
+1. **User Request**: "Help me analyze this CV for a Python developer position"
+2. **Agent Analysis**: Agent analyzes the request and identifies it as a CV analysis task type
+3. **Task Context Discovery**: Agent calls `get_active_task_contexts` to check for existing similar contexts
+4. **Task Context Creation**: No matching context found, so agent calls `create_task_context` with:
+   - Summary: "CV Analysis for Python Developer"
+   - Description: "Analyze applicant CVs for Python developer positions with specific tech stack requirements"
+5. **Context Loading**: Agent calls `get_artifacts_for_task_context` to load any existing artifacts
+6. **Task Execution**: Agent uses loaded artifacts (practices, rules, prompts) to analyze the CV
+7. **Artifact Creation**: Based on learnings, agent calls `create_artifact` to store successful approaches
+
+### Scenario 2: Continuing Work on Existing Task Type
+1. **User Request**: "Analyze another CV for a Python developer"
+2. **Task Context Matching**: Agent calls `get_active_task_contexts` and finds matching context by summary/description
+3. **Context Retrieval**: Agent calls `get_artifacts_for_task_context` with the context ID to load all relevant artifacts
+4. **Task Execution**: Agent uses the loaded context (practices, rules, prompts, learnings) to analyze the new CV
+5. **Process Improvement**: Agent refines artifacts based on current execution and user feedback
+
+### Scenario 3: Finding Similar Past Work
+1. **User Request**: "Help me optimize this database query"
+2. **Search for Inspiration**: Agent calls `search_artifacts` with keywords like "database optimization" or "query performance"
+3. **Review Results**: Agent examines returned artifacts for similar past approaches
+4. **Adapt Patterns**: Agent adapts successful patterns from historical artifacts to current task
+5. **Store New Artifacts**: Agent creates new artifacts documenting the current successful approach
+
+### Scenario 4: Autonomous Process Improvement
+1. **Task Completion**: Agent completes a task and receives user feedback
+2. **Success Analysis**: Agent analyzes whether the execution was successful
+3. **Artifact Updates**: 
+   - Successful approaches: `create_artifact` to add new practices/rules/learnings
+   - Refinements needed: `update_artifact` to improve existing artifacts
+   - Outdated methods: `archive_artifact` with reason for archival
+4. **Future Benefit**: Subsequent tasks of the same type automatically benefit from the improved artifacts
+
+## Configuration
+
+The server uses the following configuration (via environment variables or `.env` file):
+
+- `TASK_CONTEXT_MCP__DATA_DIR`: Data directory path (default: `./data`)
+- `TASK_CONTEXT_MCP__DATABASE_URL`: Database URL (default: `sqlite:///./data/task_context.db`)
+- `TASK_CONTEXT_MCP__LOGGING_LEVEL`: Logging level (default: `INFO`)
+
+## Data Model
+
+### Task Contexts
+- **id**: Unique UUID identifier
+- **summary**: Brief task context description for matching
+- **description**: Detailed task context description
+- **creation_date**: When task context was created
+- **updated_date**: When task context was last modified
+- **status**: 'active' or 'archived'
+
+### Artifacts
+- **id**: Unique UUID identifier
+- **task_context_id**: Reference to associated task context
+- **artifact_type**: 'practice', 'rule', 'prompt', or 'result'
+- **summary**: Brief artifact description
+- **content**: Full artifact content
+- **status**: 'active' or 'archived'
+- **archived_at**: Timestamp when archived (if applicable)
+- **archivation_reason**: Reason for archiving
+- **created_at**: When artifact was created
+
+**Note**: Multiple artifacts of the same type can exist per task context. For example, a CV analysis context might have 5 different rules, 3 practices, 2 prompts, and several learnings.
+
+## Development
+
+### Running Tests
+```bash
+uv run pytest
+```
+
+### Code Quality
+```bash
+# Lint and format
+uv run ruff check
+uv run ruff format
+
+# Type checking
+uv run ty
+```
+
+## License
+
+MIT License - see LICENSE file for details.
