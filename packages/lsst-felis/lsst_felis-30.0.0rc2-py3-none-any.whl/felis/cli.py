@@ -1,0 +1,596 @@
+"""Click command line interface."""
+
+# This file is part of felis.
+#
+# Developed for the LSST Data Management System.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Iterable
+from typing import IO
+
+import click
+from pydantic import ValidationError
+
+from . import __version__
+from .datamodel import Schema
+from .db.database_context import create_database_context
+from .diff import DatabaseDiff, FormattedSchemaDiff, SchemaDiff
+from .metadata import create_metadata
+from .tap_schema import DataLoader, MetadataInserter, TableManager
+
+__all__ = ["cli"]
+
+logger = logging.getLogger("felis")
+
+loglevel_choices = ["CRITICAL", "FATAL", "ERROR", "WARNING", "INFO", "DEBUG"]
+
+
+@click.group()
+@click.version_option(__version__)
+@click.option(
+    "--log-level",
+    type=click.Choice(loglevel_choices),
+    envvar="FELIS_LOGLEVEL",
+    help="Felis log level",
+    default=logging.getLevelName(logging.INFO),
+)
+@click.option(
+    "--log-file",
+    type=click.Path(),
+    envvar="FELIS_LOGFILE",
+    help="Felis log file path",
+)
+@click.option(
+    "--id-generation/--no-id-generation",
+    is_flag=True,
+    help="Generate IDs for all objects that do not have them",
+    default=True,
+)
+@click.pass_context
+def cli(ctx: click.Context, log_level: str, log_file: str | None, id_generation: bool) -> None:
+    """Felis command line tools"""
+    ctx.ensure_object(dict)
+    ctx.obj["id_generation"] = id_generation
+    if ctx.obj["id_generation"]:
+        logger.info("ID generation is enabled")
+    else:
+        logger.info("ID generation is disabled")
+    if log_file:
+        logging.basicConfig(filename=log_file, level=log_level)
+    else:
+        logging.basicConfig(level=log_level)
+
+
+@cli.command("create", help="Create database objects from the Felis file")
+@click.option("--engine-url", envvar="FELIS_ENGINE_URL", help="SQLAlchemy Engine URL", default="sqlite://")
+@click.option("--schema-name", help="Alternate schema name to override Felis file")
+@click.option(
+    "--initialize",
+    is_flag=True,
+    help="Create the schema in the database if it does not exist (error if already exists)",
+)
+@click.option(
+    "--drop", is_flag=True, help="Drop schema if it already exists in the database (implies --initialize)"
+)
+@click.option("--echo", is_flag=True, help="Echo database commands as they are executed")
+@click.option("--dry-run", is_flag=True, help="Dry run only to print out commands instead of executing")
+@click.option(
+    "--output-file", "-o", type=click.File(mode="w"), help="Write SQL commands to a file instead of executing"
+)
+@click.option("--ignore-constraints", is_flag=True, help="Ignore constraints when creating tables")
+@click.option("--skip-indexes", is_flag=True, help="Skip creating indexes when building metadata")
+@click.argument("file", type=click.File())
+@click.pass_context
+def create(
+    ctx: click.Context,
+    engine_url: str,
+    schema_name: str | None,
+    initialize: bool,
+    drop: bool,
+    echo: bool,
+    dry_run: bool,
+    output_file: IO[str] | None,
+    ignore_constraints: bool,
+    skip_indexes: bool,
+    file: IO[str],
+) -> None:
+    """Create database objects from the Felis file.
+
+    Parameters
+    ----------
+    engine_url
+        SQLAlchemy Engine URL.
+    schema_name
+        Alternate schema name to override Felis file.
+    initialize
+        Create the schema in the database if it does not exist.
+    drop
+        Drop schema if it already exists in the database.
+    echo
+        Echo database commands as they are executed.
+    dry_run
+        Dry run only to print out commands instead of executing.
+    output_file
+        Write SQL commands to a file instead of executing.
+    ignore_constraints
+        Ignore constraints when creating tables.
+    skip_indexes
+        Skip creating indexes when building metadata.
+    file
+        Felis file to read.
+    """
+    try:
+        metadata = create_metadata(
+            file,
+            id_generation=ctx.obj["id_generation"],
+            schema_name=schema_name,
+            ignore_constraints=ignore_constraints,
+            skip_indexes=skip_indexes,
+            engine_url=engine_url,
+        )
+
+        with create_database_context(
+            engine_url,
+            metadata,
+            echo=echo,
+            dry_run=dry_run,
+            output_file=output_file,
+        ) as db_ctx:
+            if drop and initialize:
+                raise ValueError("Cannot drop and initialize schema at the same time")
+
+            if drop:
+                logger.debug("Dropping schema if it exists")
+                db_ctx.drop()
+                initialize = True  # If schema is dropped, it needs to be recreated.
+
+            if initialize:
+                logger.debug("Creating schema if not exists")
+                db_ctx.initialize()
+
+            db_ctx.create_all()
+
+    except Exception as e:
+        logger.exception(e)
+        raise click.ClickException(str(e))
+
+
+@cli.command("create-indexes", help="Create database indexes defined in the Felis file")
+@click.option("--engine-url", envvar="FELIS_ENGINE_URL", help="SQLAlchemy Engine URL", default="sqlite://")
+@click.option("--schema-name", help="Alternate schema name to override Felis file")
+@click.argument("file", type=click.File())
+@click.pass_context
+def create_indexes(
+    ctx: click.Context,
+    engine_url: str,
+    schema_name: str | None,
+    file: IO[str],
+) -> None:
+    """Create indexes from a Felis YAML file in a target database.
+
+    Parameters
+    ----------
+    engine_url
+        SQLAlchemy Engine URL.
+    file
+        Felis file to read.
+    """
+    try:
+        metadata = create_metadata(
+            file, id_generation=ctx.obj["id_generation"], schema_name=schema_name, engine_url=engine_url
+        )
+        with create_database_context(engine_url, metadata) as db_ctx:
+            db_ctx.create_indexes()
+    except Exception as e:
+        logger.exception(e)
+        raise click.ClickException("Error creating indexes: " + str(e))
+
+
+@cli.command("drop-indexes", help="Drop database indexes defined in the Felis file")
+@click.option("--engine-url", envvar="FELIS_ENGINE_URL", help="SQLAlchemy Engine URL", default="sqlite://")
+@click.option("--schema-name", help="Alternate schema name to override Felis file")
+@click.argument("file", type=click.File())
+@click.pass_context
+def drop_indexes(
+    ctx: click.Context,
+    engine_url: str,
+    schema_name: str | None,
+    file: IO[str],
+) -> None:
+    """Drop indexes from a Felis YAML file in a target database.
+
+    Parameters
+    ----------
+    engine_url
+        SQLAlchemy Engine URL.
+    schema-name
+        Alternate schema name to override Felis file.
+    file
+        Felis file to read.
+    """
+    try:
+        metadata = create_metadata(
+            file, id_generation=ctx.obj["id_generation"], schema_name=schema_name, engine_url=engine_url
+        )
+        with create_database_context(engine_url, metadata) as db:
+            db.drop_indexes()
+    except Exception as e:
+        logger.exception(e)
+        raise click.ClickException("Error dropping indexes: " + str(e))
+
+
+@cli.command("load-tap-schema", help="Load metadata from a Felis file into a TAP_SCHEMA database")
+@click.option("--engine-url", envvar="FELIS_ENGINE_URL", help="SQLAlchemy Engine URL")
+@click.option(
+    "--tap-schema-name", "-n", help="Name of the TAP_SCHEMA schema in the database (default: TAP_SCHEMA)"
+)
+@click.option(
+    "--tap-tables-postfix",
+    "-p",
+    help="Postfix which is applied to standard TAP_SCHEMA table names",
+    default="",
+)
+@click.option("--tap-schema-index", "-i", type=int, help="TAP_SCHEMA index of the schema in this environment")
+@click.option("--dry-run", "-D", is_flag=True, help="Execute dry run only. Does not insert any data.")
+@click.option("--echo", "-e", is_flag=True, help="Print out the generated insert statements to stdout")
+@click.option(
+    "--output-file", "-o", type=click.File(mode="w"), help="Write SQL commands to a file instead of executing"
+)
+@click.option(
+    "--force-unbounded-arraysize",
+    is_flag=True,
+    help="Use unbounded arraysize by default for all variable length string columns"
+    ", e.g., ``votable:arraysize: *`` (workaround for astropy bug #18099)",
+)  # DM-50899: Variable-length bounded strings are not handled correctly in astropy
+@click.option(
+    "--unique-keys",
+    "-u",
+    is_flag=True,
+    help="Generate unique key_id values for keys and key_columns tables by prepending the schema name",
+    default=False,
+)
+@click.argument("file", type=click.File())
+@click.pass_context
+def load_tap_schema(
+    ctx: click.Context,
+    engine_url: str,
+    tap_schema_name: str,
+    tap_tables_postfix: str,
+    tap_schema_index: int,
+    dry_run: bool,
+    echo: bool,
+    output_file: IO[str] | None,
+    force_unbounded_arraysize: bool,
+    unique_keys: bool,
+    file: IO[str],
+) -> None:
+    """Load TAP metadata from a Felis file.
+
+    Parameters
+    ----------
+    engine_url
+        SQLAlchemy Engine URL.
+    tap_tables_postfix
+        Postfix which is applied to standard TAP_SCHEMA table names.
+    tap_schema_index
+        TAP_SCHEMA index of the schema in this environment.
+    dry_run
+        Execute dry run only. Does not insert any data.
+    echo
+        Print out the generated insert statements to stdout.
+    output_file
+        Output file for writing generated SQL.
+    file
+        Felis file to read.
+
+    Notes
+    -----
+    The TAP_SCHEMA database must already exist or the command will fail. This
+    command will not initialize the TAP_SCHEMA tables.
+    """
+    # Create TableManager with automatic dialect detection
+    mgr = TableManager(
+        engine_url=engine_url,
+        schema_name=tap_schema_name,
+        table_name_postfix=tap_tables_postfix,
+    )
+
+    # Create DatabaseContext using TableManager's metadata
+    with create_database_context(
+        engine_url, mgr.metadata, echo=echo, dry_run=dry_run, output_file=output_file
+    ) as db_ctx:
+        schema = Schema.from_stream(
+            file,
+            context={
+                "id_generation": ctx.obj["id_generation"],
+                "force_unbounded_arraysize": force_unbounded_arraysize,
+            },
+        )
+
+        DataLoader(
+            schema,
+            mgr,
+            db_context=db_ctx,
+            tap_schema_index=tap_schema_index,
+            dry_run=dry_run,
+            print_sql=echo,
+            output_file=output_file,
+            unique_keys=unique_keys,
+        ).load()
+
+
+@cli.command("init-tap-schema", help="Initialize a standard TAP_SCHEMA database")
+@click.option("--engine-url", envvar="FELIS_ENGINE_URL", help="SQLAlchemy Engine URL", required=True)
+@click.option("--tap-schema-name", help="Name of the TAP_SCHEMA schema in the database")
+@click.option(
+    "--extensions",
+    type=str,
+    default=None,
+    help=(
+        "Optional path to extensions YAML file (system path or resource:// URI). "
+        "If not provided, no extensions will be applied. "
+        "Example (default packaged extensions): "
+        "--extensions resource://felis/config/tap_schema/tap_schema_extensions.yaml"
+    ),
+)
+@click.option(
+    "--tap-tables-postfix", help="Postfix which is applied to standard TAP_SCHEMA table names", default=""
+)
+@click.option(
+    "--insert-metadata/--no-insert-metadata",
+    is_flag=True,
+    help="Insert metadata describing TAP_SCHEMA itself",
+    default=True,
+)
+@click.pass_context
+def init_tap_schema(
+    ctx: click.Context,
+    engine_url: str,
+    tap_schema_name: str,
+    extensions: str | None,
+    tap_tables_postfix: str,
+    insert_metadata: bool,
+) -> None:
+    """Initialize a standard TAP_SCHEMA database.
+
+    Parameters
+    ----------
+    engine_url
+        SQLAlchemy Engine URL.
+    tap_schema_name
+        Name of the TAP_SCHEMA schema in the database.
+    extensions
+        Extensions YAML file.
+    tap_tables_postfix
+        Postfix which is applied to standard TAP_SCHEMA table names.
+    insert_metadata
+        Insert metadata describing TAP_SCHEMA itself.
+        If set to False, only the TAP_SCHEMA tables will be created, but no
+        metadata will be inserted.
+    """
+    # Create TableManager with automatic dialect detection
+    mgr = TableManager(
+        engine_url=engine_url,
+        schema_name=tap_schema_name,
+        table_name_postfix=tap_tables_postfix,
+        extensions_path=extensions,
+    )
+
+    # Create DatabaseContext using TableManager's metadata
+    with create_database_context(engine_url, mgr.metadata) as db_ctx:
+        mgr.initialize_database(db_context=db_ctx)
+        if insert_metadata:
+            MetadataInserter(mgr, db_context=db_ctx).insert_metadata()
+
+
+@cli.command("validate", help="Validate one or more Felis YAML files")
+@click.option(
+    "--check-description", is_flag=True, help="Check that all objects have a description", default=False
+)
+@click.option(
+    "--check-redundant-datatypes", is_flag=True, help="Check for redundant datatype overrides", default=False
+)
+@click.option(
+    "--check-tap-table-indexes",
+    is_flag=True,
+    help="Check that every table has a unique TAP table index",
+    default=False,
+)
+@click.option(
+    "--check-tap-principal",
+    is_flag=True,
+    help="Check that at least one column per table is flagged as TAP principal",
+    default=False,
+)
+@click.argument("files", nargs=-1, type=click.File())
+@click.pass_context
+def validate(
+    ctx: click.Context,
+    check_description: bool,
+    check_redundant_datatypes: bool,
+    check_tap_table_indexes: bool,
+    check_tap_principal: bool,
+    files: Iterable[IO[str]],
+) -> None:
+    """Validate one or more felis YAML files.
+
+    Parameters
+    ----------
+    check_description
+        Check that all objects have a valid description.
+    check_redundant_datatypes
+        Check for redundant type overrides.
+    check_tap_table_indexes
+        Check that every table has a unique TAP table index.
+    check_tap_principal
+        Check that at least one column per table is flagged as TAP principal.
+    files
+        The Felis YAML files to validate.
+
+    Raises
+    ------
+    click.exceptions.Exit
+        Raised if any validation errors are found. The ``ValidationError``
+        which is thrown when a schema fails to validate will be logged as an
+        error message.
+
+    Notes
+    -----
+    All of the ``check`` flags are turned off by default and represent
+    optional validations controlled by the Pydantic context.
+    """
+    rc = 0
+    for file in files:
+        file_name = getattr(file, "name", None)
+        logger.info(f"Validating {file_name}")
+        try:
+            Schema.from_stream(
+                file,
+                context={
+                    "check_description": check_description,
+                    "check_redundant_datatypes": check_redundant_datatypes,
+                    "check_tap_table_indexes": check_tap_table_indexes,
+                    "check_tap_principal": check_tap_principal,
+                    "id_generation": ctx.obj["id_generation"],
+                },
+            )
+        except ValidationError as e:
+            logger.error(e)
+            rc = 1
+    if rc:
+        raise click.exceptions.Exit(rc)
+
+
+@cli.command(
+    "diff",
+    help="""
+    Compare two schemas or a schema and a database for changes
+
+    Examples:
+
+      felis diff schema1.yaml schema2.yaml
+
+      felis diff -c alembic schema1.yaml schema2.yaml
+
+      felis diff --engine-url sqlite:///test.db schema.yaml
+    """,
+)
+@click.option("--engine-url", envvar="FELIS_ENGINE_URL", help="SQLAlchemy Engine URL")
+@click.option(
+    "-c",
+    "--comparator",
+    type=click.Choice(["alembic", "deepdiff"], case_sensitive=False),
+    help="Comparator to use for schema comparison",
+    default="deepdiff",
+)
+@click.option("-E", "--error-on-change", is_flag=True, help="Exit with error code if schemas are different")
+@click.argument("files", nargs=-1, type=click.File())
+@click.pass_context
+def diff(
+    ctx: click.Context,
+    engine_url: str | None,
+    comparator: str,
+    error_on_change: bool,
+    files: Iterable[IO[str]],
+) -> None:
+    files_list = list(files)
+    schemas = [
+        Schema.from_stream(file, context={"id_generation": ctx.obj["id_generation"]}) for file in files_list
+    ]
+    diff: SchemaDiff
+    if len(schemas) == 2:
+        if comparator == "alembic":
+            # Reset file stream to beginning before re-reading
+            files_list[0].seek(0)
+            metadata = create_metadata(
+                files_list[0], id_generation=ctx.obj["id_generation"], engine_url=engine_url
+            )
+            with create_database_context(
+                engine_url if engine_url else "sqlite:///:memory:", metadata
+            ) as db_ctx:
+                db_ctx.initialize()
+                db_ctx.create_all()
+                diff = DatabaseDiff(schemas[1], db_ctx.engine)
+        else:
+            diff = FormattedSchemaDiff(schemas[0], schemas[1])
+    elif len(schemas) == 1 and engine_url is not None:
+        # Create minimal metadata for the context manager
+        from sqlalchemy import MetaData
+
+        metadata = MetaData()
+
+        with create_database_context(engine_url, metadata) as db_ctx:
+            diff = DatabaseDiff(schemas[0], db_ctx.engine)
+    else:
+        raise click.ClickException(
+            "Invalid arguments - provide two schemas or a single schema and a database engine URL"
+        )
+
+    diff.print()
+
+    if diff.has_changes and error_on_change:
+        raise click.ClickException("Schema was changed")
+
+
+@cli.command(
+    "dump",
+    help="""
+    Dump a schema file to YAML or JSON format
+
+    Example:
+
+      felis dump schema.yaml schema.json
+
+      felis dump schema.yaml schema_dump.yaml
+    """,
+)
+@click.option(
+    "--strip-ids/--no-strip-ids",
+    is_flag=True,
+    help="Strip IDs from the output schema",
+    default=False,
+)
+@click.argument("files", nargs=2, type=click.Path())
+@click.pass_context
+def dump(
+    ctx: click.Context,
+    strip_ids: bool,
+    files: list[str],
+) -> None:
+    if strip_ids:
+        logger.info("Stripping IDs from the output schema")
+    if files[1].endswith(".json"):
+        format = "json"
+    elif files[1].endswith(".yaml"):
+        format = "yaml"
+    else:
+        raise click.ClickException("Output file must have a .json or .yaml extension")
+    schema = Schema.from_uri(files[0], context={"id_generation": ctx.obj["id_generation"]})
+    with open(files[1], "w") as f:
+        if format == "yaml":
+            schema.dump_yaml(f, strip_ids=strip_ids)
+        elif format == "json":
+            schema.dump_json(f, strip_ids=strip_ids)
+
+
+if __name__ == "__main__":
+    cli()
