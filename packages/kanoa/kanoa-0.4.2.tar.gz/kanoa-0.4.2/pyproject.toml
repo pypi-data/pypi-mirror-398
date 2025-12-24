@@ -1,0 +1,204 @@
+[build-system]
+requires = ["setuptools>=42", "wheel", "setuptools_scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+# Default: exclude integration tests (cost-incurring). Run with: pytest -m integration
+addopts = "-ra -v -m 'not integration'"
+markers = [
+  "caching: marks tests that test context caching",
+  "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "gemini: marks tests that use the Gemini backend",
+  "claude: marks tests that use the Claude backend",
+  "openai: marks tests that use the OpenAI backend",
+  "molmo: marks tests that use the Molmo backend",
+  "vertex: marks tests that use the Vertex AI backend",
+  "streaming: marks tests that test streaming functionality",
+]
+
+# =============================================================================
+# Ruff - Replaces black, isort, flake8
+# =============================================================================
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+# Fix violations automatically where possible
+fix = true
+
+# Exclude common non-source directories
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
+select = [
+    # pyflakes
+    "F",
+    # pycodestyle
+    "E", "W",
+    # isort
+    "I",
+    # flake8-bugbear
+    "B",
+    # flake8-quotes
+    "Q",
+    # flake8-debugger
+    "T10",
+    # pylint
+    "PLC", "PLE", "PLW", "PLR",
+    # flake8-pytest-style
+    "PT",
+    # flake8-type-checking
+    "TC",
+    # flake8-pie (misc lints)
+    "PIE",
+    # flake8-simplify
+    "SIM",
+    # flake8-comprehensions
+    "C4",
+    # perflint (performance)
+    "PERF",
+    # pygrep-hooks
+    "PGH",
+    # flynt (f-string conversion)
+    "FLY",
+    # Ruff-specific rules
+    "RUF",
+]
+
+ignore = [
+    # Line too long - formatter handles this
+    "E501",
+    # Conflicts with formatter (black-style)
+    "E203",
+    # Allow non-abstract empty methods in abstract base classes
+    "B027",
+    # Allow boolean positional values in function calls (e.g., mock.patch)
+    "FBT003",
+    # Allow global statements for module-level caching patterns
+    "PLW0603",
+    # Allow unsorted __all__ (we group by category for readability)
+    "RUF022",
+    # Allow mutable class attributes without ClassVar (common pattern for PRICING dicts)
+    "RUF012",
+    # Allow TYPE_CHECKING imports used in __all__ (lazy loading pattern)
+    "TC004",
+    # Allow ambiguous unicode characters in docstrings (non-breaking hyphens)
+    "RUF002",
+    # Pylint complexity rules - too strict for library code (pandas/sklearn ignore these)
+    "PLR0911",  # too-many-return-statements
+    "PLR0912",  # too-many-branches
+    "PLR0913",  # too-many-arguments
+    "PLR0914",  # too-many-locals
+    "PLR0915",  # too-many-statements
+    "PLR0917",  # too-many-positional-arguments
+    "PLR2004",  # magic-value-comparison (allow in main code, stricter in tests)
+    # Allow imports not at top-level (lazy loading/optional dependencies pattern)
+    "PLC0415",
+    # Allow manual list building in loops (extend not always clearer)
+    "PERF401",
+]
+
+# Allow autofix for all enabled rules (when `--fix` is provided)
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+# Allow unused imports in __init__.py (re-exports)
+"__init__.py" = ["F401"]
+# Tests can use assert, magic values, unused variables, ambiguous unicode (Greek letters)
+"tests/**" = ["PLR2004", "PT011", "F841", "SIM117", "RUF001"]
+# Examples/notebooks can be more relaxed
+"examples/**" = ["E722", "T201", "PLR2004", "F841", "C408"]
+# setup.py uses open() without context manager (setuptools pattern)
+"setup.py" = ["SIM115"]
+# notebook.py intentionally uses Unicode Greek letters for LaTeX normalization
+"kanoa/utils/notebook.py" = ["RUF001"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["kanoa"]
+force-single-line = false
+combine-as-imports = true
+
+[tool.ruff.format]
+# Use double quotes for strings (black default)
+quote-style = "double"
+# Indent with spaces (black default)
+indent-style = "space"
+# Respect magic trailing commas (black default)
+skip-magic-trailing-comma = false
+# Auto-detect line ending
+line-ending = "auto"
+
+# =============================================================================
+# Mypy - Type checking (Ruff doesn't replace this)
+# =============================================================================
+
+[tool.mypy]
+python_version = "3.11"
+
+# Disallow dynamic typing (STRICTER than pandas)
+disallow_any_unimported = true
+disallow_any_generics = true
+warn_return_any = true
+
+# Untyped definitions and calls
+disallow_untyped_defs = false
+disallow_incomplete_defs = true
+check_untyped_defs = false
+disallow_untyped_decorators = false
+
+# None and Optional handling
+no_implicit_optional = true
+strict_optional = true
+
+# Configuring warnings
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+warn_unused_configs = true
+
+# Miscellaneous strictness flags (from pandas)
+strict_equality = true
+enable_error_code = "ignore-without-code"
+
+
+[[tool.mypy.overrides]]
+module = ["setuptools.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+  "matplotlib.*",
+  "pandas.*",
+  "google.genai.*",
+  "google.cloud.*",
+  "anthropic.*",
+  "IPython.*",
+  "vertexai.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pytest", "_pytest", "_pytest.*"]
+ignore_missing_imports = true
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "examples.*"]
+disallow_untyped_defs = false
+check_untyped_defs = false
+disallow_any_decorated = false
+disallow_any_generics = false
