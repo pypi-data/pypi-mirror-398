@@ -1,0 +1,1 @@
+YOLO4R_VERSION = "1.1.10"
