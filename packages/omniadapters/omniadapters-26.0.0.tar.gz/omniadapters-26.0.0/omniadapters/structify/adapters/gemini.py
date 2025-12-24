@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Literal, overload
+
+import instructor
+
+from ...core.constants import GEMINI_IMPORT_ERROR
+
+try:
+    from google import genai
+    from google.genai.types import GenerateContentConfig, GenerateContentResponse
+except ImportError as e:
+    raise ImportError(GEMINI_IMPORT_ERROR) from e
+
+from ...core.models import GeminiProviderConfig
+from ..hooks import CompletionTrace, ahook_instructor
+from .base import BaseAdapter
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from openai.types.chat import ChatCompletionMessageParam
+
+    from ...core.types import StructuredResponseT
+    from ..models import CompletionResult
+
+
+class GeminiAdapter(BaseAdapter[GeminiProviderConfig, genai.Client, GenerateContentResponse]):
+    def _create_client(self) -> genai.Client:
+        return genai.Client(**self.provider_config.get_client_kwargs())
+
+    def _with_instructor(self) -> instructor.AsyncInstructor:
+        client: genai.Client = self.client
+        result: instructor.AsyncInstructor = instructor.from_genai(
+            client, use_async=True, mode=self.instructor_config.mode
+        )
+        assert isinstance(result, instructor.AsyncInstructor)
+        return result
+
+    @overload
+    async def acreate(
+        self,
+        messages: list[ChatCompletionMessageParam],
+        response_model: type[StructuredResponseT],
+        *,
+        with_hooks: Literal[False] = False,
+        **kwargs: Any,
+    ) -> StructuredResponseT: ...
+
+    @overload
+    async def acreate(
+        self,
+        messages: list[ChatCompletionMessageParam],
+        response_model: type[StructuredResponseT],
+        *,
+        with_hooks: Literal[True],
+        **kwargs: Any,
+    ) -> CompletionResult[StructuredResponseT, GenerateContentResponse]: ...
+
+    async def acreate(
+        self,
+        messages: list[ChatCompletionMessageParam],
+        response_model: type[StructuredResponseT],
+        with_hooks: bool = False,
+        **kwargs: Any,
+    ) -> StructuredResponseT | CompletionResult[StructuredResponseT, GenerateContentResponse]:
+        model = self.completion_params.model
+        config = GenerateContentConfig(**self.completion_params.model_dump(exclude={"model"}))
+
+        captured: CompletionTrace[GenerateContentResponse]
+        async with ahook_instructor(self.instructor, enable=with_hooks) as captured:
+            response = await self.instructor.create(
+                model=model,
+                response_model=response_model,
+                messages=messages,
+                **self.instructor_config.model_dump(exclude={"mode"}),
+                config=config,
+                **kwargs,
+            )
+            return self._assemble(response, captured, with_hooks)
+
+    async def _astream(
+        self,
+        messages: list[ChatCompletionMessageParam],
+        response_model: type[StructuredResponseT],
+        with_hooks: bool = False,
+        **kwargs: Any,
+    ) -> AsyncIterator[StructuredResponseT | CompletionResult[StructuredResponseT, GenerateContentResponse]]:
+        model = self.completion_params.model
+        config = GenerateContentConfig(**self.completion_params.model_dump(exclude={"model"}))
+
+        captured: CompletionTrace[GenerateContentResponse]
+        async with ahook_instructor(self.instructor, enable=with_hooks) as captured:
+            async for partial in self.instructor.create_partial(
+                model=model,
+                response_model=response_model,
+                messages=messages,
+                **self.instructor_config.model_dump(exclude={"mode"}),
+                config=config,
+                **kwargs,
+            ):
+                yield self._assemble(partial, captured, with_hooks)
