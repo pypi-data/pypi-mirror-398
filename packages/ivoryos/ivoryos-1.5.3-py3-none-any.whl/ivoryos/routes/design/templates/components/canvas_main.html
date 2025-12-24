@@ -1,0 +1,40 @@
+{# Action list component #}
+
+<!-- partials/canvas_content.html -->
+
+
+<div class="list-group" id="list" style="margin-top: 20px">
+    <ul class="reorder">
+
+    {% if script.editing_type == "prep" %}
+        {% set buttons = buttons_dict["prep"] or [] %}
+    {% elif script.editing_type == "script" %}
+        {% set buttons = buttons_dict["script"] or []  %}
+    {% elif script.editing_type == "cleanup" %}
+        {% set buttons = buttons_dict["cleanup"] or [] %}
+    {% endif %}
+
+    {% for button in buttons %}
+        <li id="{{ button['id'] }}" style="list-style-type: none;" class="d-flex align-items-center mb-1">
+            <span class="line-number d-none">{{ button['id'] }}.</span>
+{#            <input type="checkbox" class="form-check-input me-2 action-checkbox" value="{{ button['id'] }}" style="margin-right: 10px;">#}
+            <a href="#" onclick="editAction('{{ button['uuid'] }}'); return false;" type="button" class="btn btn-light flex-grow-1 text-start" style="{{ button['style'] }}">{{ button['label'] }}</a>
+            {% if not button["instrument"] in ["if","while","repeat"] %}
+                <button onclick="duplicateAction('{{ button['id'] }}')" type="button" class="btn btn-light"><span class="bi bi-copy"></span></button>
+
+            {% endif %}
+                <button onclick="deleteAction('{{ button['id'] }}')" type="button" class="btn btn-light">
+                    <span class="bi bi-trash"></span>
+                </button>
+        </li>
+    {% endfor %}
+    </ul>
+</div>
+<div class="python-code-wrapper" id="python-code-wrapper">
+    {% include 'components/python_code_overlay.html' %}
+</div>
+
+
+{% if warning %}
+<div id="warning" style="display:none;">{{ warning }}</div>
+{% endif %}
