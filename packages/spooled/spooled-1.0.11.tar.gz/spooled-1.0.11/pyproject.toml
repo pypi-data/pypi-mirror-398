@@ -1,0 +1,133 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "spooled"
+version = "1.0.11"
+description = "Official Python SDK for Spooled Cloud job queue service"
+readme = "README.md"
+license = "Apache-2.0"
+authors = [
+    { name = "Spooled Cloud", email = "support@spooled.cloud" }
+]
+keywords = [
+    "spooled",
+    "job-queue",
+    "task-queue",
+    "background-jobs",
+    "webhooks",
+    "cron",
+    "scheduler",
+    "workflow"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+requires-python = ">=3.10"
+
+dependencies = [
+    "httpx>=0.25.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+grpc = [
+    "grpcio>=1.60.0",
+    "grpcio-tools>=1.60.0",
+    "protobuf>=4.25.0",
+]
+realtime = [
+    "websockets>=12.0",
+    "sseclient-py>=1.8.0",
+]
+worker = []
+all = [
+    "spooled[grpc,realtime,worker]",
+]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "respx>=0.21.0",
+    "mypy>=1.8.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.6.0",
+]
+
+[project.urls]
+Homepage = "https://spooled.cloud"
+Documentation = "https://spooled.cloud/docs/"
+Repository = "https://github.com/spooled-cloud/spooled-sdk-python"
+Changelog = "https://github.com/spooled-cloud/spooled-sdk-python/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/spooled"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/proto",
+    "/LICENSE",
+    "/README.md",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-v --cov=spooled --cov-report=term-missing"
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = false
+exclude = ["tests", "examples", "src/spooled/grpc/stubs"]
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+    "grpc",
+    "grpc.*",
+    "websockets",
+    "websockets.*",
+    "sseclient",
+    "httpx",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "spooled.grpc.stubs.*"
+ignore_errors = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+# Exclude auto-generated protobuf files
+exclude = ["src/spooled/grpc/stubs/*_pb2*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+ignore = [
+    "E501",    # Line too long
+    "SIM102",  # Nested if statements - sometimes clearer with comments
+    "SIM105",  # Use contextlib.suppress - not always appropriate for async
+    "SIM117",  # Nested with statements - sometimes clearer in tests
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Auto-generated protobuf stubs use gRPC naming conventions
+"src/spooled/grpc/stubs/*.py" = ["N802", "N803", "N806"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["spooled"]
