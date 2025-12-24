@@ -1,0 +1,256 @@
+Metadata-Version: 2.4
+Name: dashwebmcp
+Version: 0.1.0
+Summary: MCP (Model Context Protocol) bridge for Dash applications - Expose any Dash page as an MCP server
+Author-email: Cemberk <cemberk@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/Cemberk/dashwebmcp
+Project-URL: Repository, https://github.com/Cemberk/dashwebmcp.git
+Project-URL: Issues, https://github.com/Cemberk/dashwebmcp/issues
+Keywords: mcp,dash,plotly,ai,agent,model-context-protocol
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Scientific/Engineering :: Visualization
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: starlette>=0.35.0
+Provides-Extra: mcp
+Requires-Dist: mcp>=1.0.0; extra == "mcp"
+Provides-Extra: server
+Requires-Dist: uvicorn>=0.25.0; extra == "server"
+Requires-Dist: websockets>=12.0; extra == "server"
+Provides-Extra: all
+Requires-Dist: dashwebmcp[mcp,server]; extra == "all"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+
+# DashWebMCP
+
+MCP (Model Context Protocol) bridge for Dash applications - Expose any Dash page as an MCP server for AI agents.
+
+## Overview
+
+DashWebMCP enables AI agents (Claude, GPT, Cursor, etc.) to interact with your Dash dashboards through the [Model Context Protocol](https://modelcontextprotocol.io/). It provides:
+
+- **WebSocket bridge** between browser tabs and MCP server
+- **Automatic tool registration** from browser pages
+- **Built-in UI tools** for common interactions (click, setValue, getText, etc.)
+- **Custom tool registration** via JavaScript API
+- **Human-in-the-loop confirmation** support
+
+## Installation
+
+### From GitHub (recommended until published to PyPI)
+
+```bash
+# With MCP SDK support
+pip install "dashwebmcp[mcp] @ git+https://github.com/Cemberk/dashwebmcp.git"
+
+# With server (uvicorn) support
+pip install "dashwebmcp[server] @ git+https://github.com/Cemberk/dashwebmcp.git"
+
+# Everything (recommended)
+pip install "dashwebmcp[all] @ git+https://github.com/Cemberk/dashwebmcp.git"
+```
+
+### From Local Clone
+
+```bash
+git clone https://github.com/Cemberk/dashwebmcp.git
+cd dashwebmcp
+pip install -e .[all]  # Editable install with all dependencies
+```
+
+### From PyPI (when published)
+
+```bash
+pip install dashwebmcp[all]
+```
+
+## Quick Start
+
+### Server Setup
+
+```python
+import contextlib
+from starlette.applications import Starlette
+from starlette.routing import Mount
+from dashwebmcp import MCPRelay, create_mcp_routes, mcp_lifespan
+
+# Create MCP relay
+mcp_relay = MCPRelay()
+
+# Create lifespan handler
+@contextlib.asynccontextmanager
+async def lifespan(app):
+    async with mcp_lifespan(app, mcp_relay):
+        yield
+
+# Create routes
+routes = create_mcp_routes(mcp_relay)
+
+# Add to your Starlette/ASGI app
+app = Starlette(routes=routes, lifespan=lifespan)
+```
+
+### Include JavaScript Bridge
+
+Copy the JavaScript bridge to your Dash assets folder:
+
+```python
+from dashwebmcp import get_js_bridge_path
+import shutil
+
+# Copy to your assets folder
+shutil.copy(get_js_bridge_path(), "assets/dash_mcp_bridge.js")
+```
+
+Or include the content directly:
+
+```python
+from dashwebmcp import get_js_bridge_content
+
+js_content = get_js_bridge_content()
+```
+
+### Connect AI Agent
+
+Configure your AI agent (e.g., Claude Desktop) with the MCP endpoint:
+
+```json
+{
+  "mcpServers": {
+    "my-dashboard": {
+      "url": "http://localhost:8050/mcp"
+    }
+  }
+}
+```
+
+## Built-in Tools
+
+The JavaScript bridge provides these tools automatically:
+
+| Tool | Description | Read-only |
+|------|-------------|-----------|
+| `page.info` | Get page URL, title, viewport size | Yes |
+| `page.snapshot` | Get page DOM snapshot | Yes |
+| `page.elements` | List interactive elements | Yes |
+| `page.navigate` | Navigate to a path | No |
+| `ui.getText` | Get element text content | Yes |
+| `ui.waitFor` | Wait for element to appear | Yes |
+| `ui.setValue` | Set input value | No |
+| `ui.click` | Click an element | No |
+| `ui.select` | Select dropdown option | No |
+| `ui.scrollTo` | Scroll element into view | No |
+
+## Custom Tools
+
+Register custom tools from your Dash pages:
+
+```javascript
+window.DashMCP.registerTool(
+    'getData',
+    {
+        description: 'Get data from the current dashboard',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                format: {
+                    type: 'string',
+                    enum: ['json', 'csv'],
+                    description: 'Output format'
+                }
+            }
+        },
+        annotations: { readOnly: true }
+    },
+    async ({ format }) => {
+        const data = await fetchDashboardData();
+        return format === 'csv' ? toCsv(data) : data;
+    }
+);
+```
+
+## Tool Namespacing
+
+Tools are namespaced by browser session:
+- `dash.sessions.list` - List all active sessions
+- `dash.<session_id>.<tool_name>` - Session-specific tools
+
+Example:
+```
+dash.tab_abc123.page.info
+dash.tab_abc123.getData
+```
+
+## Human-in-the-Loop
+
+Enable confirmation dialogs for tool calls:
+
+```javascript
+// Confirm all tool calls
+window.DashMCP.policy.confirmAll = true;
+
+// Only confirm mutations (non-readonly tools)
+window.DashMCP.policy.confirmMutations = true;
+```
+
+## Configuration
+
+### Environment Variables
+
+- `MCP_ALLOWED_ORIGINS` - Comma-separated list of allowed WebSocket origins
+
+```bash
+export MCP_ALLOWED_ORIGINS="http://localhost:8050,https://mydash.example.com"
+```
+
+### Debug Mode
+
+Enable verbose logging:
+
+```javascript
+window.DashMCP.debug = true;
+```
+
+## Architecture
+
+```
+AI Agent (Claude/GPT)
+        ↓
+   MCP Protocol (HTTP)
+        ↓
+   MCP Relay Server
+        ↓
+   WebSocket Bridge
+        ↓
+   Browser Tab (JavaScript)
+        ↓
+   Tool Execution
+        ↓
+   Result → Agent
+```
+
+## Security
+
+- Tools execute in browser context only
+- Server never runs tool logic directly
+- WebSocket origin validation
+- Optional human confirmation
+- Read-only annotations for safe tools
+
+## License
+
+MIT License
