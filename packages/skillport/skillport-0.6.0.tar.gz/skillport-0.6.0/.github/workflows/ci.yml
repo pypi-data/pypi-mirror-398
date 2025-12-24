@@ -1,0 +1,44 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.x"
+      - run: uv sync --dev
+      - run: uv run ruff check .
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.x"
+      - run: uv sync --dev
+      - run: uv run pytest -q
+
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.x"
+      - run: uv sync
+      - name: Verify MCP Server
+        run: uv run verify_server.py
+        env:
+          SKILLS_DIR: .agent/skills
+          EMBEDDING_PROVIDER: none
