@@ -1,0 +1,502 @@
+"""Panel for displaying execution run details, traces, and logs."""
+
+from typing import Any
+
+from textual.app import ComposeResult
+from textual.containers import Container, Horizontal, Vertical
+from textual.reactive import reactive
+from textual.widgets import (
+    Button,
+    RichLog,
+    TabbedContent,
+    TabPane,
+    Tree,
+)
+from textual.widgets.tree import TreeNode
+
+from uipath.dev.models.execution import ExecutionMode, ExecutionRun
+from uipath.dev.models.messages import ChatMessage, LogMessage, TraceMessage
+from uipath.dev.ui.panels.chat_panel import ChatPanel
+
+
+class SpanDetailsDisplay(Container):
+    """Widget to display details of a selected span."""
+
+    def compose(self) -> ComposeResult:
+        """Compose the UI layout."""
+        yield RichLog(
+            id="span-details",
+            max_lines=1000,
+            highlight=True,
+            markup=True,
+            classes="span-detail-log",
+        )
+
+    def show_span_details(self, trace_msg: TraceMessage):
+        """Display detailed information about a trace span."""
+        details_log = self.query_one("#span-details", RichLog)
+        details_log.clear()
+
+        details_log.write(f"[bold cyan]Span: {trace_msg.span_name}[/bold cyan]")
+
+        details_log.write("")
+
+        color_map = {
+            "started": "blue",
+            "running": "yellow",
+            "completed": "green",
+            "failed": "red",
+            "error": "red",
+        }
+        color = color_map.get(trace_msg.status.lower(), "white")
+        details_log.write(f"Status: [{color}]{trace_msg.status.upper()}[/{color}]")
+
+        details_log.write(
+            f"Started: [dim]{trace_msg.timestamp.strftime('%H:%M:%S.%f')[:-3]}[/dim]"
+        )
+
+        if trace_msg.duration_ms is not None:
+            details_log.write(
+                f"Duration: [yellow]{trace_msg.duration_ms:.2f}ms[/yellow]"
+            )
+
+        if trace_msg.attributes:
+            details_log.write("")
+            details_log.write("[bold]Attributes:[/bold]")
+            for key, value in trace_msg.attributes.items():
+                details_log.write(f"  {key}: {value}")
+
+        details_log.write("")
+
+        details_log.write(f"[dim]Trace ID: {trace_msg.trace_id}[/dim]")
+        details_log.write(f"[dim]Span ID: {trace_msg.span_id}[/dim]")
+        details_log.write(f"[dim]Run ID: {trace_msg.run_id}[/dim]")
+
+        if trace_msg.parent_span_id:
+            details_log.write(f"[dim]Parent Span: {trace_msg.parent_span_id}[/dim]")
+
+
+class RunDetailsPanel(Container):
+    """Panel showing traces and logs for selected run with tabbed interface."""
+
+    current_run: reactive[ExecutionRun | None] = reactive(None)
+
+    def __init__(self, **kwargs):
+        """Initialize RunDetailsPanel."""
+        super().__init__(**kwargs)
+        self.span_tree_nodes = {}
+        self.current_run = None
+        self._chat_panel: ChatPanel | None = None
+        self._spans_tree: Tree[Any] | None = None
+        self._logs: RichLog | None = None
+        self._details: RichLog | None = None
+        self._debug_controls: Container | None = None
+
+    def compose(self) -> ComposeResult:
+        """Compose the UI layout."""
+        with TabbedContent():
+            with TabPane("Details", id="run-tab"):
+                yield RichLog(
+                    id="run-details-log",
+                    max_lines=1000,
+                    highlight=True,
+                    markup=True,
+                    classes="detail-log",
+                )
+
+            with TabPane("Traces", id="traces-tab"):
+                with Horizontal(classes="traces-content"):
+                    # Left side - Span tree
+                    with Vertical(
+                        classes="spans-tree-section", id="spans-tree-container"
+                    ):
+                        yield Tree("Trace", id="spans-tree", classes="spans-tree")
+
+                    # Right side - Span details
+                    with Vertical(classes="span-details-section"):
+                        yield SpanDetailsDisplay(id="span-details-display")
+
+            with TabPane("Logs", id="logs-tab"):
+                yield RichLog(
+                    id="logs-log",
+                    max_lines=1000,
+                    highlight=True,
+                    markup=True,
+                    classes="detail-log",
+                )
+
+            with TabPane("Chat", id="chat-tab"):
+                yield ChatPanel(id="chat-panel")
+
+        # Global debug controls (hidden by default, shown when debug mode active)
+        with Container(id="debug-controls", classes="debug-controls hidden"):
+            with Horizontal(classes="debug-actions-row"):
+                yield Button(
+                    "▶ Step",
+                    id="debug-step-btn",
+                    variant="primary",
+                    classes="action-btn",
+                )
+                yield Button(
+                    "⏭ Continue",
+                    id="debug-continue-btn",
+                    variant="success",
+                    classes="action-btn",
+                )
+                yield Button(
+                    "⏹ Stop", id="debug-stop-btn", variant="error", classes="action-btn"
+                )
+
+    def on_mount(self) -> None:
+        """Cache frequently used child widgets after mount."""
+        self._chat_panel = self.query_one("#chat-panel", ChatPanel)
+        self._spans_tree = self.query_one("#spans-tree", Tree)
+        self._logs = self.query_one("#logs-log", RichLog)
+        self._details = self.query_one("#run-details-log", RichLog)
+        self._debug_controls = self.query_one("#debug-controls", Container)
+
+    def watch_current_run(
+        self, old_value: ExecutionRun | None, new_value: ExecutionRun | None
+    ):
+        """Watch for changes to the current run."""
+        if new_value is not None:
+            if old_value != new_value:
+                self.current_run = new_value
+                self.show_run(new_value)
+
+    def update_run(self, run: ExecutionRun):
+        """Update the displayed run information."""
+        self.current_run = run
+
+    def show_run(self, run: ExecutionRun):
+        """Display traces and logs for a specific run."""
+        assert self._logs is not None
+
+        self._show_run_details(run)
+
+        self._show_run_chat(run)
+
+        self._logs.clear()
+        for log in run.logs:
+            self.add_log(log)
+
+        self._rebuild_spans_tree()
+
+    def switch_tab(self, tab_id: str) -> None:
+        """Switch to a specific tab by id (e.g. 'run-tab', 'traces-tab')."""
+        tabbed = self.query_one(TabbedContent)
+        tabbed.active = tab_id
+
+    def update_debug_controls_visibility(self, run: ExecutionRun):
+        """Show or hide debug controls based on whether run is in debug mode."""
+        assert self._debug_controls is not None
+
+        if run.mode == ExecutionMode.DEBUG:
+            self._debug_controls.remove_class("hidden")
+            is_enabled = run.status == "suspended"
+            for button in self._debug_controls.query(Button):
+                button.disabled = not is_enabled
+        else:
+            self._debug_controls.add_class("hidden")
+
+    def _flatten_values(self, value: object, prefix: str = "") -> list[str]:
+        """Flatten nested dict/list structures into dot-notation paths."""
+        lines: list[str] = []
+
+        if value is None:
+            lines.append(f"{prefix}: [dim]—[/dim]" if prefix else "[dim]—[/dim]")
+
+        elif isinstance(value, dict):
+            if not value:
+                lines.append(f"{prefix}: {{}}" if prefix else "{}")
+            else:
+                for k, v in value.items():
+                    new_prefix = f"{prefix}.{k}" if prefix else k
+                    lines.extend(self._flatten_values(v, new_prefix))
+
+        elif isinstance(value, list):
+            if not value:
+                lines.append(f"{prefix}: []" if prefix else "[]")
+            else:
+                for i, item in enumerate(value):
+                    new_prefix = f"{prefix}[{i}]"
+                    lines.extend(self._flatten_values(item, new_prefix))
+
+        elif isinstance(value, str):
+            if prefix:
+                split_lines = value.splitlines()
+                if split_lines:
+                    lines.append(f"{prefix}: {split_lines[0]}")
+                    for line in split_lines[1:]:
+                        lines.append(f"{' ' * 2}{line}")
+            else:
+                lines.extend(value.splitlines())
+
+        else:
+            if prefix:
+                lines.append(f"{prefix}: {value}")
+            else:
+                lines.append(str(value))
+
+        return lines
+
+    def _write_block(
+        self, log: RichLog, title: str, data: object, style: str = "white"
+    ) -> None:
+        """Pretty-print a block with flattened dot-notation paths."""
+        log.write(f"[bold {style}]{title.upper()}:[/bold {style}]")
+        log.write("[dim]" + "=" * 50 + "[/dim]")
+
+        for line in self._flatten_values(data):
+            log.write(line)
+
+        log.write("")
+
+    def _show_run_details(self, run: ExecutionRun):
+        """Display detailed information about the run in the Details tab."""
+        assert self._details is not None
+
+        self.update_debug_controls_visibility(run)
+
+        self._details.clear()
+
+        self._details.write(f"[bold cyan]Run ID: {run.id}[/bold cyan]")
+        self._details.write("")
+
+        status_color_map = {
+            "started": "blue",
+            "running": "yellow",
+            "completed": "green",
+            "failed": "red",
+            "error": "red",
+        }
+        status = getattr(run, "status", "unknown")
+        color = status_color_map.get(status.lower(), "white")
+        self._details.write(f"[bold]Status:[/bold] [{color}]{status.upper()}[/{color}]")
+
+        if hasattr(run, "start_time") and run.start_time:
+            self._details.write(
+                f"[bold]Started:[/bold] [dim]{run.start_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}[/dim]"
+            )
+
+        if hasattr(run, "end_time") and run.end_time:
+            self._details.write(
+                f"[bold]Ended:[/bold] [dim]{run.end_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}[/dim]"
+            )
+
+        if (
+            hasattr(run, "start_time")
+            and hasattr(run, "end_time")
+            and run.start_time
+            and run.end_time
+        ):
+            duration = (run.end_time - run.start_time).total_seconds() * 1000
+            self._details.write(
+                f"[bold]Duration:[/bold] [yellow]{duration:.2f}ms[/yellow]"
+            )
+
+        self._details.write("")
+
+        if hasattr(run, "input_data"):
+            self._write_block(self._details, "Input", run.input_data, style="green")
+
+        if hasattr(run, "resume_data") and run.resume_data:
+            self._write_block(self._details, "Resume", run.resume_data, style="green")
+
+        if hasattr(run, "output_data"):
+            self._write_block(self._details, "Output", run.output_data, style="magenta")
+
+        if hasattr(run, "error") and run.error:
+            self._details.write("[bold red]ERROR:[/bold red]")
+            self._details.write("[dim]" + "=" * 50 + "[/dim]")
+            if run.error.code:
+                self._details.write(f"[red]Code: {run.error.code}[/red]")
+            self._details.write(f"[red]Title: {run.error.title}[/red]")
+            self._details.write(f"[red]\n{run.error.detail}[/red]")
+            self._details.write("")
+
+    def _show_run_chat(self, run: ExecutionRun) -> None:
+        assert self._chat_panel is not None
+
+        self._chat_panel.refresh_messages(run)
+
+    def _rebuild_spans_tree(self):
+        """Rebuild the spans tree from current run's traces."""
+        if self._spans_tree is None or self._spans_tree.root is None:
+            return
+
+        self._spans_tree.root.remove_children()
+
+        self.span_tree_nodes.clear()
+
+        if not self.current_run or not self.current_run.traces:
+            return
+
+        self._build_spans_tree(self.current_run.traces)
+
+        # Expand the root "Trace" node
+        self._spans_tree.root.expand()
+
+    def _build_spans_tree(self, trace_messages: list[TraceMessage]):
+        """Build the spans tree from trace messages."""
+        assert self._spans_tree is not None
+
+        root = self._spans_tree.root
+
+        # Filter out spans without parents (artificial root spans)
+        spans_by_id = {
+            msg.span_id: msg for msg in trace_messages if msg.parent_span_id is not None
+        }
+
+        # Build parent-to-children mapping once upfront
+        children_by_parent: dict[str, list[TraceMessage]] = {}
+        for msg in spans_by_id.values():
+            if msg.parent_span_id:
+                if msg.parent_span_id not in children_by_parent:
+                    children_by_parent[msg.parent_span_id] = []
+                children_by_parent[msg.parent_span_id].append(msg)
+
+        # Find root spans (parent doesn't exist in our filtered data)
+        root_spans = [
+            msg
+            for msg in trace_messages
+            if msg.parent_span_id and msg.parent_span_id not in spans_by_id
+        ]
+
+        # Build tree recursively for each root span
+        for root_span in sorted(root_spans, key=lambda x: x.timestamp):
+            self._add_span_with_children(root, root_span, children_by_parent)
+
+    def _add_span_with_children(
+        self,
+        parent_node: TreeNode[str],
+        trace_msg: TraceMessage,
+        children_by_parent: dict[str, list[TraceMessage]],
+    ):
+        """Recursively add a span and all its children."""
+        color_map = {
+            "started": "🔵",
+            "running": "🟡",
+            "completed": "🟢",
+            "failed": "🔴",
+            "error": "🔴",
+        }
+        status_icon = color_map.get(trace_msg.status.lower(), "⚪")
+        duration_str = (
+            f" ({trace_msg.duration_ms:.1f}ms)" if trace_msg.duration_ms else ""
+        )
+        label = f"{status_icon} {trace_msg.span_name}{duration_str}"
+
+        node = parent_node.add(label)
+        node.data = trace_msg.span_id
+        self.span_tree_nodes[trace_msg.span_id] = node
+        node.expand()
+
+        # Get children from prebuilt mapping - O(1) lookup
+        children = children_by_parent.get(trace_msg.span_id, [])
+        for child in sorted(children, key=lambda x: x.timestamp):
+            self._add_span_with_children(node, child, children_by_parent)
+
+    def on_tree_node_selected(self, event: Tree.NodeSelected[str]) -> None:
+        """Handle span selection in the tree."""
+        # Check if this is our spans tree
+        if event.control != self._spans_tree:
+            return
+
+        # Get the selected span data
+        if hasattr(event.node, "data") and event.node.data:
+            span_id = event.node.data
+            # Find the trace in current_run.traces
+            trace_msg = None
+            if self.current_run:
+                for trace in self.current_run.traces:
+                    if trace.span_id == span_id:
+                        trace_msg = trace
+                        break
+
+            if trace_msg:
+                span_details_display = self.query_one(
+                    "#span-details-display", SpanDetailsDisplay
+                )
+                span_details_display.show_span_details(trace_msg)
+
+    def update_run_details(self, run: ExecutionRun):
+        """Update run details if it matches the current run."""
+        if not self.current_run or run.id != self.current_run.id:
+            return
+
+        self._show_run_details(run)
+
+    def add_chat_message(
+        self,
+        chat_msg: ChatMessage,
+    ) -> None:
+        """Add a chat message to the display."""
+        assert self._chat_panel is not None
+
+        if not self.current_run or chat_msg.run_id != self.current_run.id:
+            return
+
+        self._chat_panel.add_chat_message(chat_msg)
+
+    def add_trace(self, trace_msg: TraceMessage):
+        """Add trace to current run if it matches."""
+        if not self.current_run or trace_msg.run_id != self.current_run.id:
+            return
+
+        # Rebuild the tree to include new trace
+        self._rebuild_spans_tree()
+
+    def add_log(self, log_msg: LogMessage):
+        """Add log to current run if it matches."""
+        assert self._logs is not None
+
+        if not self.current_run or log_msg.run_id != self.current_run.id:
+            return
+
+        color_map = {
+            "DEBUG": "dim cyan",
+            "INFO": "blue",
+            "WARN": "yellow",
+            "WARNING": "yellow",
+            "ERROR": "red",
+            "CRITICAL": "bold red",
+        }
+
+        color = color_map.get(log_msg.level.upper(), "white")
+        timestamp_str = log_msg.timestamp.strftime("%H:%M:%S")
+        level_short = log_msg.level[:4].upper()
+
+        if isinstance(log_msg.message, str):
+            log_text = (
+                f"[dim]{timestamp_str}[/dim] "
+                f"[{color}]{level_short}[/{color}] "
+                f"{log_msg.message}"
+            )
+            self._logs.write(log_text)
+        else:
+            self._logs.write(log_msg.message)
+
+    def clear_display(self):
+        """Clear both traces and logs display."""
+        assert self._details is not None
+        assert self._logs is not None
+        assert self._spans_tree is not None
+
+        self._details.clear()
+        self._logs.clear()
+        self._spans_tree.clear()
+
+        self.current_run = None
+        self.span_tree_nodes.clear()
+
+        span_details_display = self.query_one(
+            "#span-details-display", SpanDetailsDisplay
+        )
+        span_details_log = span_details_display.query_one("#span-details", RichLog)
+        span_details_log.clear()
+
+    def refresh_display(self):
+        """Refresh the display with current run data."""
+        if self.current_run:
+            self.show_run(self.current_run)
