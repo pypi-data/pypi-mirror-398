@@ -1,0 +1,544 @@
+# CoreUtils-Python
+
+A comprehensive collection of Python utility functions and modules for data science, file operations, serialization, encryption, and general-purpose programming tasks.
+
+[![Python Version](https://img.shields.io/badge/python-3.13.2+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](UNIT_TESTS/)
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Module Documentation](#module-documentation)
+  - [Core Utilities](#core-utilities)
+  - [Data Processing](#data-processing)
+  - [Security & Encryption](#security--encryption)
+  - [File Operations](#file-operations)
+  - [Testing](#testing)
+- [Running Tests](#running-tests)
+- [Requirements](#requirements)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Overview
+
+CoreUtils-Python is a modular collection of well-documented, tested utility functions designed to streamline common programming tasks across data science, system operations, and application development.
+
+**Key Features:**
+
+- 🔧 **Comprehensive Utilities** - Functions, lists, strings, numbers, dictionaries
+- 📊 **Data Processing** - pandas, NumPy, Polars, PyArrow integration
+- 🔒 **Security** - Encryption, signing, secure serialization, CSV-compatible integrity
+- 🧪 **Well Tested** - 418+ unit tests with pytest
+- 📝 **Documented** - NumPy-style docstrings throughout
+- ⚡ **Performance** - Optimized for large-scale data operations
+
+## Installation
+
+### Basic Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/Ruppert20/CoreUtils-Python.git
+cd CoreUtils-Python
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Requirements
+
+- **Python** 3.13.2+
+- **numpy** >= 2.3.2
+- **pandas** >= 2.2.3
+- **PyYAML** >= 6.0.2
+- **cryptography** >= 45.0.7
+- **tqdm** >= 4.67.0
+
+### Optional Dependencies
+
+```bash
+# Install with optional dependencies
+pip install "CoreUtilities[optional]"
+
+# Install with development tools
+pip install "CoreUtilities[dev]"
+```
+
+- **`[dev]`**: black >= 24.0.0, mypy >= 1.8.0, flake8 >= 7.0.0, pytest >= 8.4.2, pytest-cov >= 4.1.0
+- **`[optional]`**: polars >= 1.33.0, pyarrow >= 21.0.0
+
+## Quick Start
+
+```python
+# Import utilities
+from src.generics import notnull, coalesce
+from src.lists import chunk_list, flatten_list
+from src.strings import convert_identifier_case
+from src.numbers import extract_num, isfloat
+from src.signature import SignedFile
+from datetime import datetime
+
+# Use null checking
+if notnull(value):
+    process(value)
+
+# Coalesce values
+result = coalesce(None, '', default_value)
+
+# Chunk data for batch processing
+for chunk in chunk_list(large_list, 100):
+    process_batch(chunk)
+
+# Convert naming conventions
+camel = convert_identifier_case('user_name', 'camelCase')
+
+# Write signed file with header metadata
+header = {"version": "1.0", "created": datetime.now(), "author": "alice"}
+SignedFile.write("data.bin", {"key": "value"}, header=header)
+
+# Write CSV with integrity signature (pandas-compatible)
+csv_data = b"name,age\nAlice,30\nBob,25\n"
+SignedFile.write("data.csv", csv_data, signature_as_comment=True)
+
+# Read back with verification and header
+data, meta = SignedFile.read("data.bin", return_header=True)
+print(f"Created by {meta['author']} on {meta['created']}")
+```
+
+## Module Documentation
+
+### Core Utilities
+
+#### generics.py
+
+Generic utility functions for null handling and object operations.
+
+**Key Functions:**
+
+- `notnull(v)` - Comprehensive null checking (None, empty containers, pd.NA, np.nan)
+- `isnull(v)` - Inverse of notnull
+- `coalesce(*values)` - Return first non-null value
+- `get_name(obj)` - Extract object name
+
+[📝 Code](src/generics.py) | [🧪 Tests](UNIT_TESTS/test_generics.py) | [📖 Documentation](Documentation/generics.md)
+
+---
+
+#### functions.py
+
+Function utilities including dynamic loading, introspection, and debugging.
+
+**Key Functions:**
+
+- `get_func(func_path)` - Dynamically load functions from string paths
+- `filter_kwargs(func, kwargs)` - Filter kwargs to match function parameters
+- `get_function_signature(func)` - Extract comprehensive function metadata
+- `inspect_class(cls)` - Extract class properties and methods
+- `is_pickleable(obj)` - Check if object can be pickled
+
+[📝 Code](src/functions.py) | [🧪 Tests](UNIT_TESTS/test_functions.py) | [📖 Documentation](Documentation/functions.md)
+
+---
+
+#### lists.py
+
+List manipulation utilities for chunking, intersection, and flattening.
+
+**Key Functions:**
+
+- `convert_list_to_string(lst, encapsulate=False)` - Convert list to comma-separated string
+- `chunk_list(lst, n)` - Split list into equal-sized chunks
+- `list_intersection(lst1, lst2)` - Find common elements preserving order
+- `flatten_list(nested)` - Recursively flatten nested lists
+
+[📝 Code](src/lists.py) | [🧪 Tests](UNIT_TESTS/test_lists.py) | [📖 Documentation](Documentation/lists.md)
+
+---
+
+#### strings.py
+
+String manipulation including case conversion, cleaning, and parsing.
+
+**Key Functions:**
+
+- `remove_illegal_characters(s, case='snake_case')` - Clean strings for identifiers
+- `convert_identifier_case(id, target_format)` - Convert between naming conventions
+- `snake_to_camel_case(s)` - Convert snake_case to camelCase
+- `camel_to_snake_case(s)` - Convert camelCase to snake_case
+- `get_file_name_components(path)` - Parse file paths into components
+- `tokenize_id(id_str, token_index)` - Split and extract tokens from IDs
+
+[📝 Code](src/strings.py) | [🧪 Tests](UNIT_TESTS/test_strings.py) | [📖 Documentation](Documentation/strings.md)
+
+---
+
+#### numbers.py
+
+Numerical operations, extraction, and validation.
+
+**Key Functions:**
+
+- `extract_num(input_str, return_pos=0)` - Extract numbers from strings
+- `isfloat(value)` - Check if value can be converted to float
+- `convert_to_comma_seperated_integer_list(val)` - Convert to comma-separated integers
+
+[📝 Code](src/numbers.py) | [🧪 Tests](UNIT_TESTS/test_numbers.py) | [📖 Documentation](Documentation/numbers.md)
+
+---
+
+#### dictionaries.py
+
+Dictionary utilities for pandas aggregation operations.
+
+**Key Functions:**
+
+- `create_aggregation_dict(col_action_dict, start_col, end_col)` - Create pandas groupby aggregation dictionaries
+
+[📝 Code](src/dictionaries.py) | [🧪 Tests](UNIT_TESTS/test_dictionaries.py) | [📖 Documentation](Documentation/dictionaries.md)
+
+---
+
+#### git.py
+
+Git repository metadata extraction.
+
+**Key Functions:**
+
+- `get_git_metadata()` - Extract comprehensive git repository information
+
+[📝 Code](src/git.py) | [📖 Documentation](Documentation/git.md)
+
+---
+
+### Data Processing
+
+#### core_types.py
+
+Cross-library type classification and detection system.
+
+**Key Features:**
+
+- `CoreDataType` enum - Universal type classification
+- Type detection from objects and strings
+- Support for pandas, NumPy, Polars, PyArrow
+- String representation parsing (JSON, XML, UUID, dates)
+
+[📝 Code](src/core_types.py) | [📖 Documentation](Documentation/core_types.md)
+
+---
+
+#### iterables.py
+
+Memory profiling and object analysis utilities.
+
+**Key Functions:**
+
+- `deep_stats(obj)` - Calculate deep memory size with cycle detection
+- `find_large_objects(obj, threshold_kb)` - Identify memory-intensive objects
+
+[📝 Code](src/iterables.py) | [📖 Documentation](Documentation/iterables.md)
+
+---
+
+#### serialization.py
+
+Extended serialization with multi-format support (JSON, YAML, CBOR, Pickle).
+
+**Key Features:**
+
+- XSer class - Destination-aware serialization
+- Automatic fallback chain: Structured → CBOR → Pickle
+- NumPy array support
+- HDF5 and Parquet metadata support
+
+[📝 Code](src/serialization.py) | [📖 Documentation](Documentation/serialization.md)
+
+---
+
+#### enhanced_logging.py
+
+Advanced logging with emoji support, progress bars, and structured output.
+
+**Key Features:**
+
+- Enhanced logger with emoji integration
+- Progress bar support
+- Structured logging for metrics
+- Context managers for scoped logging
+
+[📝 Code](src/enhanced_logging.py) | [📖 Documentation](Documentation/enhanced_logging.md)
+
+---
+
+#### parrallelization.py
+
+Parallel processing utilities with comprehensive error handling.
+
+**Key Features:**
+
+- ParallelProcessor class
+- Support for serial, thread-based, and process-based execution
+- Metrics collection and reporting
+- Integration with enhanced logging
+
+[📝 Code](src/parrallelization.py) | [📖 Documentation](Documentation/parrallelization.md)
+
+---
+
+### Security & Encryption
+
+#### encrypt.py
+
+Encryption utilities using Fernet symmetric encryption.
+
+**Key Features:**
+
+- Encryptor class for data encryption/decryption
+- CryptoYAML for encrypted YAML configuration files
+- Key generation and management
+
+[📝 Code](src/encrypt.py) | [🧪 Tests](UNIT_TESTS/test_encrypt.py) | [📖 Documentation](Documentation/encrypt.md)
+
+---
+
+#### signature.py
+
+Atomic file writing with cryptographic integrity verification, encryption, and metadata support.
+
+**Key Features:**
+
+- SignedFile class for signed file operations
+- SHA-256/HMAC-SHA256 signatures with integrity verification
+- Optional Fernet encryption with authenticated HMAC
+- **Python object serialization** (via XSer) - auto-serializes dicts, lists, numpy, datetime
+- **Optional header metadata** - Store version info, timestamps, and structured metadata
+- **CSV-compatible commented signatures** - Write `#` comment signatures for pandas/Excel compatibility
+- Atomic writes with platform-independent fsync
+- Chunked reading for large files
+
+[📝 Code](src/signature.py) | [🧪 Tests](UNIT_TESTS/test_signature.py) | [📖 Documentation](Documentation/signature.md)
+
+---
+
+### File Operations
+
+#### search.py
+
+Flexible file search utilities with pattern matching and filtering.
+
+**Key Features:**
+
+- FileSearcher class for advanced file searching
+- Pattern matching with regex support
+- File type filtering and exclusion patterns
+- Recursive and non-recursive search modes
+
+[📝 Code](src/search.py) | [🧪 Tests](UNIT_TESTS/test_search.py) | [📖 Documentation](Documentation/search.md)
+
+---
+
+### Testing
+
+#### debugging.py
+
+Testing utilities for random data generation.
+
+**Key Functions:**
+
+- `generate_random_sequence(dtype, n, percent_null, seed)` - Generate deterministic test data
+- Random generators for all common data types (TEXT, UUID, INTEGER, FLOAT, DATE, JSON, XML, etc.)
+- `debug_print(*args)` - Print debug output with visual separators
+
+[📝 Code](src/debugging.py) | [🧪 Tests](UNIT_TESTS/test_debugging.py) | [📖 Documentation](Documentation/debugging.md)
+
+---
+
+## Running Tests
+
+All tests use pytest and follow the `test_*.py` naming convention.
+
+### Run All Tests
+
+```bash
+cd UNIT_TESTS
+python run_all_tests.py
+```
+
+### Run with Verbose Output
+
+```bash
+python run_all_tests.py -v
+```
+
+### Run with Coverage
+
+```bash
+python run_all_tests.py --coverage
+```
+
+### Run Specific Tests
+
+```bash
+# Run tests matching a pattern
+python run_all_tests.py -k test_generics
+
+# Run a specific test file
+pytest test_functions.py -v
+
+# Run a specific test class
+pytest test_functions.py::TestGetFunc -v
+
+# Run a specific test method
+pytest test_functions.py::TestGetFunc::test_get_builtin_function -v
+```
+
+### Test Statistics
+
+- **Total Tests:** 223+
+- **Coverage:** Comprehensive coverage of public APIs
+- **Frameworks:** pytest (supports both pytest and unittest styles)
+- **Status:** ✅ All tests passing
+
+[📖 View Test Documentation](UNIT_TESTS/README.md) | [📊 View Test Summary](UNIT_TESTS/TEST_SUMMARY.md)
+
+---
+
+## Requirements
+
+### Core Dependencies
+
+```
+numpy>=2.3.2          # Numerical computing
+pandas>=2.2.3         # Data manipulation
+```
+
+### Serialization
+
+```
+cbor2>=5.7.0          # CBOR encoding
+PyYAML>=6.0.2         # YAML support
+```
+
+### Security
+
+```
+cryptography>=45.0.7  # Encryption and signing
+```
+
+### Testing
+
+```
+pytest>=8.4.2         # Test framework
+pytest-cov>=4.1.0     # Coverage plugin
+```
+
+[📖 View Full Requirements](requirements.txt)
+
+---
+
+## Project Structure
+
+```
+CoreUtils-Python/
+├── src/                          # Source modules
+│   ├── core_types.py            # Type classification system
+│   ├── debugging.py             # Testing and debugging utilities
+│   ├── dictionaries.py          # Dictionary operations
+│   ├── encrypt.py               # Encryption utilities
+│   ├── encrypted_signature.py  # Combined encryption + signing
+│   ├── enhanced_logging.py     # Advanced logging
+│   ├── functions.py            # Function utilities
+│   ├── generics.py             # Generic utilities
+│   ├── git.py                  # Git metadata
+│   ├── iterables.py            # Memory profiling
+│   ├── lists.py                # List operations
+│   ├── numbers.py              # Numerical utilities
+│   ├── parrallelization.py     # Parallel processing
+│   ├── search.py               # Search utilities
+│   ├── serialization.py        # Extended serialization
+│   ├── signature.py            # File signing
+│   └── strings.py              # String manipulation
+│
+├── UNIT_TESTS/                  # Test suite
+│   ├── test_*.py               # Test modules (223+ tests)
+│   ├── run_all_tests.py        # Test runner
+│   ├── README.md               # Test documentation
+│   └── TEST_SUMMARY.md         # Test results summary
+│
+├── requirements.txt             # Project dependencies
+└── README.md                    # This file
+```
+
+---
+
+## Contributing
+
+Contributions are welcome! Please follow these guidelines:
+
+1. **Fork the repository**
+2. **Create a feature branch** (`git checkout -b feature/amazing-feature`)
+3. **Write tests** for new functionality
+4. **Ensure all tests pass** (`python run_all_tests.py`)
+5. **Follow existing code style** (NumPy-style docstrings)
+6. **Commit changes** (`git commit -m 'Add amazing feature'`)
+7. **Push to branch** (`git push origin feature/amazing-feature`)
+8. **Open a Pull Request**
+
+### Code Style
+
+- NumPy-style docstrings for all functions and classes
+- Type hints where appropriate
+- Comprehensive test coverage
+- Clear, descriptive variable names
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## Author
+
+**@Ruppert20**
+
+---
+
+## AI Authorship Disclaimer
+
+This package was developed with the assistance of LLM-based coding tools (Claude Code by Anthropic). AI tools were used for the following activities:
+
+- **Code authorship** - Implementation of utilities, functions, and classes
+- **Test development** - Creation of comprehensive unit tests
+- **Documentation** - Generation of NumPy-style docstrings and README content
+- **Code review** - Identification of bugs, edge cases, and improvements
+
+Users should evaluate the code for their specific use cases and report any issues through the GitHub issue tracker.
+
+---
+
+## Acknowledgments
+
+- Built with modern Python 3.13.2+
+- Integrates with pandas, NumPy, Polars, and PyArrow
+- Inspired by the need for clean, reusable utility functions
+- Comprehensive testing ensures reliability
+- Developed with assistance from Claude Code (Anthropic)
+
+---
+
+## Quick Links
+
+- [📖 Full Documentation](src/)
+- [🧪 Test Suite](UNIT_TESTS/)
+- [📊 Test Results](UNIT_TESTS/TEST_SUMMARY.md)
+- [📋 Requirements](requirements.txt)
+- [🐛 Issue Tracker](https://github.com/Ruppert20/CoreUtils-Python/issues)
+
+---
+
+**Made with ❤️ for the Python community**
