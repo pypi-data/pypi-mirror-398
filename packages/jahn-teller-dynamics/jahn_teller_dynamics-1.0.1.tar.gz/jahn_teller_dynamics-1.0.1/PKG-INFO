@@ -1,0 +1,330 @@
+Metadata-Version: 2.1
+Name: jahn_teller_dynamics
+Version: 1.0.1
+Summary: Dynamic Jahn-Teller Effect Calculator
+Home-page: https://github.com/tbalu98/Jahn-Teller-Dynamics
+Author: Balázs Tóth
+Author-email: toth.balazs@wigner.hun-ren.hu
+License: GPLv3
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Physics
+Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
+﻿# Jahn-Teller-Dynamics - Dynamic Jahn-Teller Effect Calculator
+
+
+[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Email](https://img.shields.io/badge/Email-toth.balazs%40wigner.hun--ren.hu-blue)](mailto:toth.balazs@wigner.hun-ren.hu)
+
+
+
+
+## Table of Contents
+
+- [About the Project](#about-the-project)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Configuration Examples](#configuration-examples)
+- [Output Options](#output-options)
+- [Eigenstates](#eigenstates)
+
+
+<a id="about-the-project"></a>
+## About the project
+A Python framework for implementing and calculating dynamic Jahn-Teller effects, spin-orbit interactions, and energy splitting of degenerate electron states from DFT calculations.
+
+This codebase serves as a foundation for implementing dynamic Jahn-Teller (DJT) problems, providing:
+* Core mathematical infrastructure (matrix mechanics, eigenvalue solvers, bra-ket formalism)
+* Quantum system construction and management
+* Hamiltonian building blocks (DJT, spin-orbit, field interactions)
+* Flexible I/O system for configuration and results
+
+**In this version, the E⊗e dynamic Jahn-Teller problem is fully implemented for point defects and molecules.** The framework provides a complete solution for:
+* The E⊗e dynamic Jahn-Teller effect in point defects (e.g., group-IV vacancies in diamond/SiC)
+* The E⊗e dynamic Jahn-Teller effect in molecules
+* Spin-orbit interaction and coupling
+* Energy splitting of degenerate electron states
+* ZPL (zero phonon line) shift in magnetic field
+* Reduction factor calculations
+* Model Hamiltonian parameter extraction
+
+
+
+This project was built with Python 3.10.
+
+<a id="installation"></a>
+## Installation
+
+
+
+### Installation directly from PyPI:
+
+```
+pip install jahn-teller-dynamics
+```
+### Installation from Github
+
+
+1. Download the project:
+   ```bash
+   git clone https://github.com/tbalu98/Jahn-Teller-Dynamics.git
+   ```
+   or download the [zip file](https://github.com/tbalu98/Jahn-Teller-Dynamics/archive/refs/heads/main.zip)
+
+2. Install dependencies:
+   ```bash
+   pip3 install -r requirements.txt
+   ```
+
+
+
+
+<a id="usage"></a>
+## Usage
+
+To run a calculation, you need to:
+
+1. Create a configuration file (.cfg) that specifies your Jahn-Teller active system parameters
+2. Run the following command, replacing configuration_file.cfg with your config file name:
+
+```bash
+Exe configuration_file.cfg
+```
+
+### Test Data
+
+To test the code, download the `config_files` and `data` folder that contains the vasprunxml files for the negatively charged tin vacancy (SnV) from:
+[Google Drive](https://drive.google.com/drive/folders/1_L-j08JW8fuGhRihFijjS_vfALAPvC43?usp=sharing)
+
+<a id="configuration-examples"></a>
+## Configuration Examples
+
+This section provides an introduction to configuration files. **For complete, working examples with detailed comments and all available options, see the `.cfg` files in the `config_files` folder.** The examples below highlight the key concepts and structure; refer to the actual config files for comprehensive documentation.
+
+### Configuration File Structure
+
+Configuration files use INI format with the following sections:
+
+1. **`[essentials]`** - Always first section
+   - Basic settings: vibrational quanta, output paths, orbital basis representation
+   - Output options: which files to save
+   - Basis vectors for E⊗e coordinate system
+
+2. **`[atom_structure_parameters]`** - Second section (when using CSV files)
+   - Atomic masses (in Da), chemical symbols, atom counts
+   - Lattice basis vectors (in Angstrom)
+
+3. **`[system_parameters]`** or **`[ground_state_parameters]`/`[excited_state_parameters]`**
+   - Geometry files (vasprun.xml or CSV)
+   - Spin-orbit coupling from DFT (`λ_DFT`) in meV
+   - Orbital reduction factor (`g_L`)
+   - Energies from DFT (in eV)
+
+4. **`[magnetic_field]`** - Optional
+   - Field strength range and direction
+
+**Common Parameters**:
+- `maximum_number_of_vibrational_quanta`: Size of vibrational basis (typically 10-15)
+- `orbital_basis_states`: `'real'` or `'complex'` - basis representation
+- `orbital_reduction_factor` (gL): Typically 0-1, accounts for covalency
+- `DFT_spin-orbit_coupling`: Spin-orbit coupling from DFT (in meV, negative for holes)
+
+### 1. Single Case Calculation (vasprun.xml input)
+
+**Purpose**: Calculate Jahn-Teller dynamics for a single state using vasprun.xml files.
+
+**Key sections**:
+- `[essentials]`: Basic settings and output options
+- `[system_parameters]`: Geometry files (vasprun.xml), spin-orbit coupling, orbital reduction factor
+- `[magnetic_field]`: Optional magnetic field parameters
+
+**See**: `SnV_gnd_vasprunxml.cfg` in `config_files/` for a complete example.
+
+**Output**: The program calculates and displays:
+- Jahn-Teller energy (E_JT), barrier energy (δ), Taylor coefficients (F, G)
+- Ham reduction factor (p), theoretical energy splitting (λ_theory)
+- Saves eigenenergies, eigenstates, and magnetic field dependence (if specified)
+
+
+
+
+### 2. ZPL (Zero Phonon Line) Shift Calculation
+
+**Purpose**: Calculate zero phonon line shift in magnetic field for transitions between ground and excited states.
+
+**Key sections**:
+- `[essentials]`: Must include basis vectors for E⊗e coordinate system
+- `[ground_state_parameters]`: Ground state geometries, SOC, gL
+- `[excited_state_parameters]`: Excited state geometries, SOC, gL
+- `[magnetic_field]`: Magnetic field parameters
+
+**See**: `SnV_ZPL_shift_vasprunxml.cfg` or `SnV_ZPL_shift_csv.cfg` in `config_files/` for complete examples.
+
+### 3. Using CSV Geometry Files
+
+**Purpose**: Use previously saved CSV geometry files instead of vasprun.xml files.
+
+**Key difference**: Requires `[atom_structure_parameters]` section with atomic masses (in Da), chemical symbols, and lattice basis vectors.
+
+**Note**: When `save_raw_parameters = true`, the program automatically saves geometries as CSV files and creates a configuration file with all structural parameters.
+
+**See**: `SnV_gnd_csv.cfg` or `SnV_ZPL_shift_csv.cfg` in `config_files/` for complete examples.
+
+### 4. Direct Jahn-Teller Parameter Input
+
+**Purpose**: Specify Jahn-Teller parameters directly (E_JT, δ, ℏω) instead of using geometry files.
+
+**Key parameters**:
+- `Jahn-Teller_energy` (E_JT) - in meV
+- `barrier_energy` (δ) - in meV
+- `vibrational_energy_quantum` (ℏω) - in meV
+- Distances between geometries - in Å√(Da)
+
+**See**: `SnV_gnd_JT_pars.cfg` or `SnV_ZPL_shift_JT_pars.cfg` in `config_files/` for complete examples.
+
+### 5. Four-State Model Hamiltonian
+
+**Purpose**: Use a simplified four-state model Hamiltonian (faster than full dynamic Jahn-Teller calculation).
+
+**Key parameters**:
+- `spin-orbit_splitting_energy` (λ) - in meV
+- `orbital_reduction_factor` (gL)
+- `f` and `delta_f` - model Hamiltonian parameters
+
+**Note**: When `save_model_hamiltonian_cfg = true`, the code saves model config files without the `model_hamiltonian` option. These saved files contain only the model parameters and can be used directly.
+
+**See**: `SnV_gnd_model.cfg` or `SnV_ZPL_shift_model.cfg` in `config_files/` for complete examples.
+
+<a id="output-options"></a>
+## Output Options
+
+The tool can generate various output files based on configuration:
+
+- `save_raw_parameters = true`: Saves geometries in CSV format and generates the corresponding configuration file with atomic parameters such as chemical symbol, mass, basis vector of the supercell.
+- `save_model_hamiltonian_cfg = true`: Generates four state model Hamiltonian configuration
+- `save_taylor_coeffs_cfg = true`: Saves .cfg files that contains Taylor coefficients for the dynamic Jahn-Teller interaction
+
+<a id="eigenstates"></a>
+## Eigenstates
+
+The script can save eigenstates using real or complex basis to represent the orbital states:
+
+- Complex basis (e<sub>+</sub>, e<sub>-</sub>): Superpositions of degenerate orbitals (e<sub>x</sub>, e<sub>y</sub>)
+  - e<sub>+</sub> = -(e<sub>x</sub>+ie<sub>y</sub>)
+  - e<sub>-</sub> = e<sub>x</sub>-ie<sub>y</sub>
+
+To use complex eigenstates, set:
+```
+orbital_basis_states = complex
+```
+## Directory Structure
+
+```
+Jahn-Teller-Dynamics/
+├── src/
+│   └── jahn_teller_dynamics/          # Main package
+│       ├── __init__.py
+│       ├── Exe.py                     # Main executable script
+│       ├── io/                        # Input/Output modules
+│       │   ├── __init__.py
+│       │   ├── config/                # Configuration parsing
+│       │   │   ├── __init__.py
+│       │   │   ├── parser.py          # Main config parser
+│       │   │   ├── reader.py          # File reading utilities
+│       │   │   ├── writer.py          # Config file writing
+│       │   │   ├── constants.py       # Configuration constants
+│       │   │   ├── atom_parser.py     # Atomic structure parsing
+│       │   │   ├── field_parser.py    # Field vector parsing
+│       │   │   ├── parameter_extractor.py  # Parameter extraction
+│       │   │   └── section_detector.py    # Section type detection
+│       │   ├── file_io/               # File I/O operations
+│       │   │   ├── __init__.py
+│       │   │   ├── csv_writer.py     # CSV output handling
+│       │   │   ├── results_formatter.py  # Results formatting
+│       │   │   ├── vasp.py            # VASP file handling
+│       │   │   └── xml_parser.py      # XML parsing
+│       │   ├── theory/                # Theory building and calculations
+│       │   │   ├── __init__.py
+│       │   │   ├── builder.py         # Theory builder
+│       │   │   └── calculator.py      # Calculation helper
+│       │   ├── workflow/              # Workflow orchestration
+│       │   │   ├── __init__.py
+│       │   │   └── orchestrator.py    # Main orchestrator
+│       │   ├── utils/                 # I/O utilities
+│       │   │   ├── __init__.py
+│       │   │   ├── file_utils.py      # File utility functions
+│       │   │   └── path_manager.py    # Path management
+│       │   └── visualization/         # Plotting and visualization
+│       │       ├── __init__.py
+│       │       └── plotter.py         # Plotting functionality
+│       ├── math/                      # Mathematical utilities
+│       │   ├── __init__.py
+│       │   ├── matrix_mechanics.py    # Matrix operators, eigenstates
+│       │   ├── eigen_solver.py        # Eigenvalue/eigenvector solvers
+│       │   ├── braket_formalism.py    # Bra-ket notation
+│       │   └── maths.py              # Math utilities
+│       ├── physics/                   # Physics modules
+│       │   ├── __init__.py
+│       │   ├── jahn_teller_theory.py  # JT theory calculations
+│       │   ├── quantum_physics.py     # Main execution tree (Exe_tree)
+│       │   ├── quantum_system.py      # Quantum system tree structure
+│       │   ├── constants.py           # Physical constants
+│       │   ├── hamiltonians/          # Hamiltonian construction
+│       │   │   ├── __init__.py
+│       │   │   ├── djt_hamiltonian.py      # DJT Hamiltonians
+│       │   │   ├── spin_orbit.py           # Spin-orbit coupling
+│       │   │   └── field_interactions.py   # Field interactions
+│       │   ├── models/                # Model building
+│       │   │   ├── __init__.py
+│       │   │   ├── system_builder.py       # System tree construction
+│       │   │   ├── reduction_factors.py    # Reduction factor calculations
+│       │   │   └── operator_manager.py     # Operator management
+│       │   └── numerics/              # Numerical calculations
+│       │       ├── __init__.py
+│       │       └── observables.py          # Observable calculations
+├── config_files/                      # Example configuration files
+│   ├── SnV_gnd_csv.cfg
+│   ├── SnV_ZPL_shift_csv.cfg
+│   ├── SnV_gnd_model.cfg
+│   └── ... (other config examples)
+├── data/                             # Data directory (user-provided)
+├── results/                          # Output results directory (user-provided)
+├── requirements.txt                  # Python dependencies
+├── setup.py                          # Package installation script
+└── README.md                         # This file
+```
+
+### Key Components:
+
+- **`src/jahn_teller_dynamics/`**: Main package containing all Python modules
+- **`io/`**: Input/Output modules organized by functionality:
+  - **`config/`**: Configuration file parsing and writing (parser, reader, writer, field/atom parsers, parameter extraction)
+  - **`file_io/`**: File I/O operations (CSV, VASP, XML, results formatting)
+  - **`theory/`**: Theory building and calculation helpers
+  - **`workflow/`**: Workflow orchestration
+  - **`utils/`**: I/O utility functions (file utilities, path management)
+  - **`visualization/`**: Plotting and visualization
+- **`math/`**: Mathematical utilities for braket formalism, matrix mechanics, and Hilbert spaces:
+  - **`matrix_mechanics.py`**: Matrix operators, ket/bra vectors, Hilbert space bases
+  - **`eigen_solver.py`**: Extensible eigenvalue/eigenvector solver framework (supports dense matrices, extensible for sparse)
+  - **`braket_formalism.py`**: Bra-ket notation implementation
+  - **`maths.py`**: Core mathematical operations and matrix utilities
+- **`physics/`**: Core physics modules organized by functionality:
+  - **Core modules**: Jahn-Teller theory, quantum physics, quantum systems
+  - **`hamiltonians/`**: Hamiltonian construction (DJT, spin-orbit, fields)
+  - **`models/`**: Model building (system construction, reduction factors, operators)
+  - **`numerics/`**: Numerical calculations (observables, transitions)
+- **`config_files/`**: Example configuration files for different calculation types
+- **`data/`**: Directory for user input data (VASP files, CSV files, etc.)
+- **`results/`**: Output directory for calculation results
+
