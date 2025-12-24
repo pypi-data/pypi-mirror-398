@@ -1,0 +1,122 @@
+Metadata-Version: 2.4
+Name: fastflowtransform
+Version: 0.6.14
+Summary: Python framework for SQL & Python data transformation, ETL pipelines, and dbt-style data modeling
+Project-URL: Homepage, https://github.com/MirrorsAndMisdirections/FastFlowTransform
+Project-URL: Documentation, https://fastflowtransform.com
+Project-URL: Repository, https://github.com/MirrorsAndMisdirections/FastFlowTransform.git
+Project-URL: Source, https://github.com/MirrorsAndMisdirections/fastflowtransform
+Project-URL: Issues, https://github.com/MirrorsAndMisdirections/fastflowtransform/issues
+Author: Marko Lekic
+License: Apache-2.0
+Keywords: bigquery,data modeling,data transformation,dbt alternative,duckdb,etl,postgres,snowflake,spark,sql
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Database
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+Classifier: Topic :: Software Development :: Build Tools
+Classifier: Topic :: Software Development :: Libraries
+Requires-Python: >=3.12
+Requires-Dist: duckdb>=1.0
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: jinja2>=3.1
+Requires-Dist: pandas>=2.0
+Requires-Dist: pydantic-settings>=2.4
+Requires-Dist: pydantic>=2.8
+Requires-Dist: python-dotenv>=1.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: sqlalchemy>=2.0
+Requires-Dist: typer>=0.12
+Provides-Extra: bigquery
+Requires-Dist: google-cloud-bigquery>=3.25; extra == 'bigquery'
+Provides-Extra: bigquery-bf
+Requires-Dist: bigframes>=2.24.0; extra == 'bigquery-bf'
+Requires-Dist: google-cloud-bigquery>=3.25; extra == 'bigquery-bf'
+Provides-Extra: dev
+Requires-Dist: mypy==1.18.*; extra == 'dev'
+Requires-Dist: pandas-stubs>=2.1; extra == 'dev'
+Requires-Dist: pre-commit==3.*; extra == 'dev'
+Requires-Dist: pytest-cov==7.0.*; extra == 'dev'
+Requires-Dist: pytest-rerunfailures==14.0.*; extra == 'dev'
+Requires-Dist: pytest==8.4.*; extra == 'dev'
+Requires-Dist: ruff==0.14.*; extra == 'dev'
+Requires-Dist: types-pyyaml>=6.0.12; extra == 'dev'
+Provides-Extra: docs
+Requires-Dist: mkdocs-autorefs>=1.0; extra == 'docs'
+Requires-Dist: mkdocs-gen-files>=0.5; extra == 'docs'
+Requires-Dist: mkdocs-literate-nav>=0.6; extra == 'docs'
+Requires-Dist: mkdocs-material>=9.5; extra == 'docs'
+Requires-Dist: mkdocs-section-index>=0.3; extra == 'docs'
+Requires-Dist: mkdocs>=1.6; extra == 'docs'
+Requires-Dist: mkdocstrings[python]>=0.25; extra == 'docs'
+Requires-Dist: pymdown-extensions>=10.0; extra == 'docs'
+Provides-Extra: full
+Requires-Dist: bigframes>=2.24.0; extra == 'full'
+Requires-Dist: delta-spark>=4.0.0; extra == 'full'
+Requires-Dist: google-cloud-bigquery>=3.25; extra == 'full'
+Requires-Dist: psycopg2-binary>=2.9; extra == 'full'
+Requires-Dist: psycopg[binary]>=3.1; extra == 'full'
+Requires-Dist: pyspark>=4.0.1; extra == 'full'
+Requires-Dist: snowflake-connector-python>=4.0.0; extra == 'full'
+Requires-Dist: snowflake-snowpark-python>=1.40.0; extra == 'full'
+Provides-Extra: postgres
+Requires-Dist: psycopg2-binary>=2.9; extra == 'postgres'
+Requires-Dist: psycopg[binary]>=3.1; extra == 'postgres'
+Provides-Extra: snowflake
+Requires-Dist: snowflake-connector-python>=4.0.0; extra == 'snowflake'
+Requires-Dist: snowflake-snowpark-python>=1.40.0; extra == 'snowflake'
+Provides-Extra: spark
+Requires-Dist: delta-spark>=4.0.0; extra == 'spark'
+Requires-Dist: pyspark>=4.0.1; extra == 'spark'
+Description-Content-Type: text/markdown
+
+# FastFlowTransform
+
+[![CI](https://github.com/MirrorsAndMisdirections/FastFlowTransform/actions/workflows/ci.yml/badge.svg)](https://github.com/MirrorsAndMisdirections/FastFlowTransform/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/fastflowtransform.svg)](https://pypi.org/project/fastflowtransform/)
+
+FastFlowTransform (FFT) is a SQL + Python data modeling engine with a deterministic DAG, level-wise parallelism, optional caching, incremental builds, auto-docs, and built-in data-quality tests. Projects are plain directories containing models, seeds, and YAML config; the `fft` CLI handles compilation, execution, docs, and validation across multiple execution engines.
+
+## Highlights
+- SQL or Python models (`*.ff.sql` / `*.ff.py`) wired with `ref()` / `source()` / `deps=[...]`.
+- Executors for DuckDB, Postgres, BigQuery (pandas + BigFrames), Databricks/Spark, and Snowflake Snowpark.
+- Level-wise parallel scheduler with cache fingerprints, rebuild flags, and state/result selectors.
+- Incremental and materialized models with engine-specific merge/append hooks.
+- Tests everywhere: schema/YAML checks, reconciliation rules, and fast model unit tests (`fft utest`).
+- Docs on demand: `fft dag --html` and `fft docgen` generate a browsable site plus JSON artifacts; optional `sync-db-comments` to push descriptions to Postgres/Snowflake.
+- HTTP helpers for Python models (`fastflowtransform.api.http`) and Jinja macros/config for templating.
+
+## Requirements
+- Python 3.12+
+- Engine extras installed only as needed (e.g. BigQuery, Snowflake, Spark/Delta, Postgres drivers). The core DuckDB path works out of the box.
+
+## Install & Quickstart
+- Pick the engine extras you need (combine as `pkg[a,b]`):
+  - DuckDB/core: `pip install fastflowtransform`
+  - Postgres: `pip install fastflowtransform[postgres]`
+  - BigQuery (pandas): `pip install fastflowtransform[bigquery]`
+  - BigQuery (BigFrames): `pip install fastflowtransform[bigquery_bf]`
+  - Databricks/Spark + Delta: `pip install fastflowtransform[spark]`
+  - Snowflake Snowpark: `pip install fastflowtransform[snowflake]`
+  - Everything: `pip install fastflowtransform[full]`
+- Installation and first run: see `docs/Quickstart.md` (venv + editable install, DuckDB demo, and init walkthrough).
+- CLI usage and flags: see `docs/CLI_Guide.md`.
+- Makefile shortcut: `make demo` runs the simple DuckDB example end-to-end and opens the DAG (`examples/simple_duckdb`).
+
+## Docs & examples
+- Docs hub: `docs/index.md` or https://fastflowtransform.com.
+- Operational guide & architecture: `docs/Technical_Overview.md`.
+- Modeling reference & macros: `docs/Config_and_Macros.md`.
+- Parallelism, cache, and state selection: `docs/Cache_and_Parallelism.md`, `docs/State_Selection.md`.
+- Incremental models: `docs/Incremental.md`.
+- Data-quality + YAML tests: `docs/Data_Quality_Tests.md`, `docs/YAML_Tests.md`, `docs/Unit_Tests.md`.
+- CLI details and troubleshooting: `docs/CLI_Guide.md`, `docs/Troubleshooting.md`.
+- Runnable demos live under `examples/` (basic, materializations, incremental, DQ, macros, cache, env matrix, API, events).
+
+## Contributing
+Issues and PRs are welcome. See `Contributing.md` for development setup, testing (`make demo`, `uv run pytest`, `fft utest`), and code-style guidelines.
+
+## License
+Apache 2.0 — see `License.md`.
