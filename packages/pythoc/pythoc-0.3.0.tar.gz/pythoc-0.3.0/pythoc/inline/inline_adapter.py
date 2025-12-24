@@ -1,0 +1,246 @@
+"""
+Inline Adapter - Bridges @inline decorator with universal kernel
+
+Pure AST adapter - generates AST only, no IR/builder operations.
+The only interaction with visitor is registering temporary argument variables.
+"""
+
+import ast
+from typing import Dict, Optional, Any, TYPE_CHECKING
+from .kernel import InlineKernel, InlineResult
+from .exit_rules import ReturnExitRule
+from .scope_analyzer import ScopeContext
+from ..valueref import ValueRef, wrap_value
+from ..context import VariableInfo
+from ..logger import logger
+from ..utils import get_next_id
+
+if TYPE_CHECKING:
+    from ..ast_visitor.visitor_impl import LLVMIRVisitor
+
+
+class InlineAdapter:
+    """
+    Adapter for @inline decorator using universal kernel
+    
+    Strategy:
+    1. Create temporary variable names for each argument ValueRef
+    2. Register these temporary variables in visitor scope
+    3. Use kernel to generate AST with references to these temp vars
+    4. Return AST for visitor to process
+    
+    This adapter only touches visitor.ctx.var_registry (read-only for scope, write for temp vars).
+    All IR generation happens in visitor when it processes the returned AST.
+    """
+    
+    def __init__(self, parent_visitor: 'LLVMIRVisitor', param_bindings: Dict[str, Any],
+                 func_globals: Dict[str, Any] = None):
+        """
+        Initialize adapter
+        
+        Args:
+            parent_visitor: The visitor that's calling the inline function
+            param_bindings: Dict mapping parameter names to ValueRefs or Python objects
+            func_globals: The inline function's __globals__ (for name resolution)
+        """
+        self.visitor = parent_visitor
+        self.param_bindings = param_bindings
+        self.func_globals = func_globals
+        self.kernel = InlineKernel()
+    
+    def execute_inline(self, func_ast: ast.FunctionDef) -> Optional[ValueRef]:
+        """
+        Execute function inline using universal kernel
+        
+        Args:
+            func_ast: The function AST to execute inline
+            
+        Returns:
+            ValueRef of the return value, or None if no return
+        """
+        logger.debug(f"InlineAdapter: executing inline for {func_ast.name}")
+        
+        # Determine result variable name using global ID
+        result_var = f"_inline_result_{get_next_id()}"
+        
+        # Create exit rule
+        exit_rule = ReturnExitRule(result_var=result_var)
+        
+        # Create temporary variables for arguments and register them
+        # This allows kernel-generated AST to reference these temps
+        arg_temps = self._create_arg_temps()
+        
+        # Create AST argument expressions (Name nodes referencing temp vars)
+        arg_exprs = [ast.Name(id=temp_name, ctx=ast.Load()) for temp_name in arg_temps.values()]
+        
+        # Build caller context from current scope
+        caller_context = self._build_caller_context()
+        
+        # Create dummy call site
+        call_site = ast.Call(
+            func=ast.Name(id=func_ast.name, ctx=ast.Load()),
+            args=arg_exprs,
+            keywords=[]
+        )
+        
+        # Create inline operation with func_globals
+        try:
+            inline_op = self.kernel.create_inline_op(
+                callee_func=func_ast,
+                call_site=call_site,
+                call_args=arg_exprs,
+                caller_context=caller_context,
+                exit_rule=exit_rule,
+                callee_globals=self.func_globals
+            )
+        except Exception as e:
+            logger.error(f"InlineAdapter: failed to create inline op: {e}")
+            raise
+        
+        # Execute inline transformation - get InlineResult
+        try:
+            inline_result = self.kernel.execute_inline(inline_op)
+        except Exception as e:
+            logger.error(f"InlineAdapter: kernel execution failed: {e}")
+            raise
+        
+        inlined_stmts = inline_result.stmts
+        
+        # Merge required_globals into visitor's user_globals
+        # Order: old_user_globals first, then required_globals
+        # This ensures intrinsics like 'move' from kernel take precedence
+        old_user_globals = self.visitor.ctx.user_globals
+        merged_globals = {}
+        if old_user_globals:
+            merged_globals.update(old_user_globals)
+        merged_globals.update(inline_result.required_globals)
+        self.visitor.ctx.user_globals = merged_globals
+        
+        # Fix AST locations
+        for stmt in inlined_stmts:
+            ast.fix_missing_locations(stmt)
+        
+        # Debug hook - accumulate inlined statements at function level
+        from ..utils.ast_debug import ast_debugger
+        if not hasattr(self.visitor, '_all_inlined_stmts'):
+            self.visitor._all_inlined_stmts = []
+        self.visitor._all_inlined_stmts.extend(inlined_stmts)
+        
+        # Visit all statements generated by kernel
+        # Kernel already generated:
+        # 1. Parameter bindings: a = _arg_0, b = _arg_1
+        # 2. Result declaration: _result: RetType (if has return)
+        # 3. Flag declaration: _flag: bool = False (for ReturnExitRule)
+        # 4. Wrapped body in while True with transformed returns
+        import ast as ast_module
+        for i, stmt in enumerate(inlined_stmts):
+            stmt_str = ast_module.unparse(stmt) if hasattr(ast_module, 'unparse') else str(stmt)
+            self.visitor.visit(stmt)
+        
+        # Restore user_globals
+        self.visitor.ctx.user_globals = old_user_globals
+        
+        # Return result if function has return value
+        has_return = self._has_return_value(func_ast)
+        if has_return:
+            return self._lookup_result_var(result_var)
+        
+        # For void functions, return a void ValueRef
+        from ..builtin_entities import void
+        return wrap_value(None, kind='python', type_hint=void)
+    
+    def _create_arg_temps(self) -> Dict[str, str]:
+        """
+        Create temporary variables for arguments and register in visitor scope
+        
+        Returns:
+            Mapping of parameter names to temporary variable names
+            
+        Example:
+            param_bindings = {'a': ValueRef(value_of_x), 'b': ValueRef(value_of_10)}
+            Returns: {'a': '_arg_inline_1_0', 'b': '_arg_inline_1_1'}
+            And registers these temps in visitor scope
+            
+        IMPORTANT: These temps have NO alloca - they are pure value references.
+        When visitor processes "a = _temp", it will load/use the value directly.
+        
+        CRITICAL for linear types: We clear var_name from the ValueRef so that
+        the temporary variable is not tracked for consumption. The ownership
+        was already transferred when the caller evaluated the arguments.
+        """
+        arg_temps = {}
+        inline_id = get_next_id()
+        
+        for i, (param_name, param_value) in enumerate(self.param_bindings.items()):
+            # Create unique temp variable name
+            temp_name = f"_arg_inline_{inline_id}_{i}"
+            arg_temps[param_name] = temp_name
+            
+            # Wrap non-ValueRef as python ValueRef
+            if not isinstance(param_value, ValueRef):
+                from ..builtin_entities.python_type import PythonType
+                param_value = wrap_value(param_value, kind="python", 
+                                     type_hint=PythonType.wrap(param_value, is_constant=True))
+            else:
+                # Create a fresh ValueRef without var_name tracking
+                # This is critical for linear types: the ownership was already
+                # transferred when the caller evaluated the arguments
+                param_value = wrap_value(
+                    param_value.value,
+                    kind=param_value.kind,
+                    type_hint=param_value.type_hint,
+                    address=param_value.address if hasattr(param_value, 'address') else None
+                )
+            
+            # Register temp variable WITHOUT alloca
+            # This ensures visit_Name returns the ValueRef directly
+            temp_info = VariableInfo(
+                name=temp_name,
+                value_ref=param_value,
+                alloca=None,  # CRITICAL: No alloca!
+                source="inline_arg_temp",
+                is_parameter=False
+            )
+            self.visitor.ctx.var_registry.declare(temp_info, allow_shadow=True)
+        
+        return arg_temps
+    
+    def _build_caller_context(self) -> ScopeContext:
+        """Build caller scope context from current visitor state"""
+        available_vars = set()
+        
+        if hasattr(self.visitor, 'ctx') and hasattr(self.visitor.ctx, 'var_registry'):
+            registry = self.visitor.ctx.var_registry
+            for var_info in registry.get_all_in_current_scope():
+                available_vars.add(var_info.name)
+        
+        return ScopeContext(available_vars=available_vars)
+    
+    def _has_return_value(self, func_ast: ast.FunctionDef) -> bool:
+        """Check if function has non-void return value"""
+        if func_ast.returns:
+            # Check if return type is void
+            if isinstance(func_ast.returns, ast.Name) and func_ast.returns.id == 'void':
+                return False
+            return True
+        for node in ast.walk(func_ast):
+            if isinstance(node, ast.Return) and node.value:
+                return True
+        return False
+    
+    def _lookup_result_var(self, var_name: str) -> Optional[ValueRef]:
+        """Look up result variable and load its value"""
+        var_info = self.visitor.ctx.var_registry.lookup(var_name)
+        if not var_info:
+            # Debug: print all variables in all scopes
+            logger.warning(f"Result variable {var_name} not found")
+            logger.warning(f"Current scopes: {len(self.visitor.ctx.var_registry.scopes)}")
+            for i, scope in enumerate(self.visitor.ctx.var_registry.scopes):
+                logger.warning(f"  Scope {i}: {list(scope.keys())}")
+            return None
+        
+        # Load the value from the alloca
+        alloca = var_info.alloca
+        loaded_value = self.visitor.builder.load(alloca)
+        return wrap_value(loaded_value, kind='value', type_hint=var_info.type_hint)
+
