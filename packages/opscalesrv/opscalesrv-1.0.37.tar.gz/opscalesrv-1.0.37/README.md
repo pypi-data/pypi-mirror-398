@@ -1,0 +1,1038 @@
+# OpScaleSrv - Serial Port HTTP Service with GUI
+
+<div align="center">
+
+![Version](https://img.shields.io/badge/version-1.0.36-blue.svg)
+![Python](https://img.shields.io/badge/python-3.7+-green.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)
+
+**A powerful Python HTTP service for reading serial port data with modern GUI management, ANPR support, and SAP ABAP integration**
+
+[Features](#features) • [Installation](#installation) • [Quick Start](#quick-start) • [Documentation](#documentation) • [Screenshots](#screenshots)
+
+---
+
+**By Altay Kireççi**  
+[opriori](https://www.opriori.com) © 2025  
+[GitHub](https://github.com/altaykirecci) • [PyPI](https://pypi.org/project/opscalesrv/) • [LinkedIn](https://www.linkedin.com/in/altaykireci)
+
+</div>
+
+---
+
+## 📋 Table of Contents
+
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Screenshots](#screenshots)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [GUI Interface](#gui-interface)
+- [HTTP API](#http-api)
+- [ANPR Integration](#anpr-integration)
+- [ABAP Integration](#abap-integration)
+- [Command Line Options](#command-line-options)
+- [Use Cases](#use-cases)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+- [Support](#support)
+
+---
+
+## 🎯 Overview
+
+**OpScaleSrv** is a comprehensive solution for reading data from serial devices (Arduino, sensors, scales, PLCs) and providing it via a RESTful HTTP API. It features a modern dark-themed GUI for management, ANPR (Automatic Number Plate Recognition) camera integration, and ready-to-use ABAP code for SAP integration.
+
+### What Makes OpScaleSrv Special?
+
+- 🎨 **Modern GUI** - Beautiful dark-themed interface with real-time monitoring
+- 📸 **ANPR Support** - Integrate IP cameras for automatic license plate recognition
+- 🔐 **Security** - Host-based access control with optional password protection
+- 🌍 **Multi-language** - Supports 7 languages (EN, TR, DE, FR, RU, JA, KO)
+- 🔌 **SAP Integration** - Ready-to-use ABAP code included
+- ⚡ **Real-time** - Live data visualization with traffic light indicators
+- 🔧 **Flexible** - Full pyserial parameter support for any serial device
+
+---
+
+## ✨ Key Features
+
+### Core Functionality
+
+- ✅ **Serial Port Reading** - Support for all pyserial parameters
+- ✅ **HTTP REST API** - JSON responses with CORS support
+- ✅ **Modern GUI** - PySide6-based management interface
+- ✅ **Real-time Monitoring** - Live data display with visual indicators
+- ✅ **Test Mode** - Mock data for development and testing
+- ✅ **Comprehensive Logging** - Detailed request logging with filtering
+
+### Advanced Features
+
+- 🎯 **ANPR Integration** - Support for entrance/exit IP cameras
+- 🏎️ **Parallel Reading** - Concurrent serial and camera reads for faster responses
+- 🛡️ **Force Read Mode** - Option to read plates even if serial reading fails
+- 🚀 **Smart Caching** - Configurable caching for rapid request handling
+- 🔄 **Retry Mechanism** - Automatic retry for failed camera requests
+
+- 🔐 **Access Control** - Host-based IP and port restrictions
+- 🔑 **Password Protection** - Optional authentication for settings
+- 🌐 **Multi-language UI** - 7 languages supported
+- 📊 **Traffic Light Indicator** - Visual status representation
+- 🔄 **Auto-recovery** - Automatic configuration initialization
+- ⚙️ **Settings Reset** - Easy reset to default configuration
+
+### Integration
+
+- 💼 **SAP ABAP Integration** - Ready-to-use ABAP classes and reports
+- 📡 **CORS Support** - Cross-origin requests enabled
+- 🔌 **IoT Ready** - Arduino, Raspberry Pi, ESP32 compatible
+- 🏭 **Industrial** - PLC and SCADA integration
+
+---
+
+## 📸 Screenshots
+
+### Main Window
+
+<div align="center">
+
+**Idle State**
+
+![Main Window Idle](/.gemini/antigravity/brain/447a1896-b475-4f4b-92e6-b8f9e36ca9e6/main_window_idle_1766145273176.png)
+
+*Monitor panel in idle state with yellow traffic light indicator*
+
+---
+
+**Active State with Data**
+
+![Main Window Success](/.gemini/antigravity/brain/447a1896-b475-4f4b-92e6-b8f9e36ca9e6/main_window_success_1766145292904.png)
+
+*Real-time data display with green status indicator and ANPR plate reading*
+
+</div>
+
+### Settings Dialogs
+
+<div align="center">
+
+**General Settings**
+
+![General Settings](/.gemini/antigravity/brain/447a1896-b475-4f4b-92e6-b8f9e36ca9e6/settings_general_1766145315896.png)
+
+*Configure server name, port, language, and logging options*
+
+---
+
+**Serial Port Configuration**
+
+![Serial Settings](/.gemini/antigravity/brain/447a1896-b475-4f4b-92e6-b8f9e36ca9e6/settings_serial_1766145337474.png)
+
+*Full pyserial parameter support for any serial device*
+
+---
+
+**ANPR Camera Settings**
+
+![ANPR Settings](/.gemini/antigravity/brain/447a1896-b475-4f4b-92e6-b8f9e36ca9e6/settings_anpr_1766145358922.png)
+
+*Configure IP cameras for automatic number plate recognition*
+
+---
+
+**Host Access Control**
+
+![Allowed Hosts](/.gemini/antigravity/brain/447a1896-b475-4f4b-92e6-b8f9e36ca9e6/settings_hosts_1766145380604.png)
+
+*Manage which IP addresses can access your server*
+
+</div>
+
+---
+
+## 📦 Installation
+
+### Method 1: One-Click Installation (Easiest)
+
+If you have already cloned or downloaded the project, you can use the automated installation scripts:
+
+#### Windows
+Double-click `install.bat` or run:
+```cmd
+install.bat
+```
+
+#### macOS / Linux
+Run the following command in your terminal:
+```bash
+chmod +x install.sh
+./install.sh
+```
+
+*These scripts automatically create a virtual environment, install all dependencies, and launch the application.*
+
+---
+
+### Method 2: Global Install (Quickest)
+
+```bash
+pip install opscalesrv
+opscalesrv --init  # Create configuration file
+opscalesrv         # Start GUI application
+```
+
+---
+
+### Method 3: Isolated Install (Using pipx)
+
+If you want to keep your system clean and run OpScaleSrv as a standalone application:
+
+```bash
+pipx install opscalesrv
+opscalesrv --init
+opscalesrv
+```
+
+*`pipx` automatically handles virtual environments for you.*
+
+---
+
+### Method 4: Manual Virtual Environment
+
+#### Windows
+```cmd
+mkdir opscalesrv
+cd opscalesrv
+python -m venv venv
+venv\Scripts\activate
+pip install opscalesrv
+opscalesrv --init
+opscalesrv
+```
+
+#### macOS / Linux
+```bash
+mkdir opscalesrv
+cd opscalesrv
+python3 -m venv venv
+source venv/bin/activate
+pip install opscalesrv
+opscalesrv --init
+opscalesrv
+```
+
+
+### Requirements
+
+- Python 3.7 or higher
+- PySide6 (for GUI)
+- pyserial (for serial communication)
+- requests (for testing)
+
+---
+
+## 🚀 Quick Start
+
+### 1. Initialize Configuration
+
+```bash
+opscalesrv --init
+```
+
+This creates `opscalesrv.json` with default configuration.
+
+### 2. Configure Serial Port
+
+Edit `opscalesrv.json` and set your serial port:
+
+```json
+{
+  "serial": {
+    "port": "/dev/ttyUSB0",  // or "COM3" on Windows
+    "baudrate": 9600,
+    "bytesize": 8
+  }
+}
+```
+
+### 3. Start the Application
+
+**GUI Mode (Recommended):**
+```bash
+opscalesrv
+```
+
+**Command Line Mode:**
+```bash
+opscalesrv --host 0.0.0.0 --port 7373
+```
+
+**Test Mode (No Serial Device Required):**
+```bash
+opscalesrv --test
+```
+
+### 4. Test the API
+
+```bash
+curl http://localhost:7373/
+```
+
+**Response:**
+```json
+{
+  "message": {
+    "value": 125.5,
+    "msg": "Serial Value",
+    "mode": "read",
+    "result": "OK",
+    "plate": "34 ABC 123"
+  },
+  "timestamp": "2025-12-19T14:30:45.123456",
+  "method": "GET",
+  "path": "/",
+  "client_ip": "127.0.0.1",
+  "client_port": 54321
+}
+```
+
+---
+
+## ⚙️ Configuration
+
+### Configuration File Structure
+
+The `opscalesrv.json` file contains all settings:
+
+```json
+{
+  "settings": {
+    "name": "My Scale Server",
+    "port": 7373,
+    "language": "en",
+    "log_file": "requests.log",
+    "log_all_requests": true,
+    "deny_unknown_hosts": true,
+    "encode": "utf-8"
+  },
+  "serial": {
+    "port": "/dev/ttyUSB0",
+    "baudrate": 9600,
+    "bytesize": 8,
+    "parity": "N",
+    "stopbits": 1,
+    "timeout": 1
+  },
+  "allowed_hosts": [
+    {
+      "ip": "127.0.0.1",
+      "ports": [7373, 8080],
+      "description": "Localhost access"
+    }
+  ],
+  "anpr": {
+    "enabled": false,
+    "entrance": {
+      "server": "192.168.1.100",
+      "port": 80,
+      "URL": "/ISAPI/Event/notification/alertStream",
+      "username": "admin",
+      "password": "",
+      "tag": "plate"
+    },
+    "exit": {
+      "server": "192.168.1.101",
+      "port": 80,
+      "URL": "/ISAPI/Event/notification/alertStream",
+      "username": "admin",
+      "password": "",
+      "tag": "plate"
+    }
+  }
+}
+```
+
+### Serial Port Parameters
+
+| Parameter | Type | Description | Example Values |
+|-----------|------|-------------|----------------|
+| `port` | string | Serial port path **[REQUIRED]** | `/dev/ttyUSB0`, `COM3`, `/dev/cu.usbserial-*` |
+| `baudrate` | integer | Communication speed **[REQUIRED]** | `9600`, `19200`, `115200` |
+| `bytesize` | integer | Data bits per character **[REQUIRED]** | `5`, `6`, `7`, `8` |
+| `parity` | string | Parity checking | `"N"` (None), `"E"` (Even), `"O"` (Odd) |
+| `stopbits` | float | Stop bits | `1`, `1.5`, `2` |
+| `timeout` | float | Read timeout (seconds) | `0.1`, `1.0`, `null` (blocking) |
+| `xonxoff` | boolean | Software flow control | `true`, `false` |
+| `rtscts` | boolean | Hardware flow control RTS/CTS | `true`, `false` |
+| `dsrdtr` | boolean | Hardware flow control DSR/DTR | `true`, `false` |
+| `encode` | string | Character encoding | `"utf-8"`, `"iso-8859-9"`, `"ascii"` |
+
+### Host Access Control
+
+Configure which IP addresses can access the server:
+
+```json
+{
+  "allowed_hosts": [
+    {
+      "ip": "192.168.1.100",
+      "ports": [7373, 7374, 7375],
+      "description": "Production SAP Server"
+    },
+    {
+      "ip": "192.168.1.200",
+      "ports": [7373],
+      "description": "Development Machine"
+    }
+  ]
+}
+```
+
+---
+
+## 🖥️ GUI Interface
+
+### Main Features
+
+#### Traffic Light Indicator
+
+- 🟡 **Yellow** - Idle / Waiting for data
+- 🟢 **Green** - Successful read (result = "OK")
+- 🔴 **Red** - Error (result = "FAIL")
+
+#### Real-time Display
+
+- **Value** - Large purple text showing sensor reading
+- **Plate** - License plate from ANPR (if enabled)
+- **Message** - Status message from serial device
+- **Timestamp** - Last data update time
+- **Status Bar** - Connection info and request details
+
+### Menu Structure
+
+#### Server Menu
+
+- **Restart Server** - Reload configuration and restart HTTP server
+- **Test Mode** - Toggle between real and simulated data
+- **Set Password** - Configure password protection
+- **Generate ABAP Code** - Export ABAP files for SAP
+- **Exit** - Close application
+
+#### Settings Menu
+
+- **Serial Port Settings** - Configure serial communication
+- **Allowed Hosts** - Manage access control
+- **General Configuration** - Server name, port, language
+- **ANPR Settings** - Configure IP cameras
+- **---**
+- **Reset Settings** - Reset to default configuration ⭐ NEW
+
+#### Logs Menu
+
+- **Show Logs** - View request logs in real-time
+- **Clear Logs** - Empty the log file
+
+#### Help Menu
+
+- **About** - Version and author information
+
+### Keyboard Shortcuts
+
+- None currently implemented (future feature)
+
+---
+
+## 🌐 HTTP API
+
+### Endpoints
+
+#### `GET /`
+Main endpoint for serial data retrieval.
+
+**Request:**
+```bash
+curl http://localhost:7373/
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "message": {
+    "value": 125.50,
+    "msg": "Serial Value",
+    "mode": "read",
+    "result": "OK",
+    "plate": "34 ABC 123"
+  },
+  "timestamp": "2025-12-19T14:30:45.123456",
+  "method": "GET",
+  "path": "/",
+  "client_ip": "127.0.0.1",
+  "client_port": 54321
+}
+```
+
+**Error Response (200 OK - but result=FAIL):**
+```json
+{
+  "message": {
+    "value": -1,
+    "msg": "could not open port '/dev/ttyUSB0': FileNotFoundError",
+    "mode": "read",
+    "result": "FAIL",
+    "plate": "NO_PLATE"
+  },
+  "timestamp": "2025-12-19T14:30:45.123456",
+  "method": "GET",
+  "path": "/",
+  "client_ip": "127.0.0.1",
+  "client_port": 54321
+}
+```
+
+#### `GET /entrance`
+Read data with "entrance" context (for ANPR).
+
+#### `GET /exit`
+Read data with "exit" context (for ANPR).
+
+#### Test Mode Parameter
+
+Add `?test=1` to any endpoint to force test mode:
+
+```bash
+curl http://localhost:7373/?test=1
+```
+
+### Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `message.value` | number/string | Sensor value or -1 on error |
+| `message.msg` | string | Status message or error description |
+| `message.mode` | string | `"read"` (serial) or `"test"` (mock) |
+| `message.result` | string | `"OK"` (success) or `"FAIL"` (error) |
+| `message.plate` | string | License plate from ANPR or "NO_PLATE" |
+| `timestamp` | string | ISO 8601 timestamp |
+| `method` | string | HTTP method (always "GET") |
+| `path` | string | Request path |
+| `client_ip` | string | Client IP address |
+| `client_port` | number | Client port number |
+
+### CORS Support
+
+All endpoints include CORS headers:
+- `Access-Control-Allow-Origin: *`
+- `Access-Control-Allow-Methods: GET, OPTIONS`
+- `Access-Control-Allow-Headers: Content-Type`
+
+---
+
+## 📸 ANPR Integration
+
+### Overview
+
+OpScaleSrv supports integration with IP cameras for Automatic Number Plate Recognition. This is useful for:
+
+- Weighbridge systems (truck scales)
+- Parking management
+- Access control systems
+- Vehicle tracking
+
+### Supported Cameras
+
+- Hikvision IP cameras with ANPR capability
+- Any camera supporting ISAPI protocol
+
+### Configuration
+
+Enable ANPR in settings:
+
+```json
+{
+  "anpr": {
+    "enabled": true,
+    "entrance": {
+      "server": "192.168.1.100",
+      "port": 80,
+      "URL": "/ISAPI/Event/notification/alertStream",
+      "username": "admin",
+      "password": "camera_password",
+      "tag": "plate"
+    },
+    "exit": {
+      "server": "192.168.1.101",
+      "port": 80,
+      "URL": "/ISAPI/Event/notification/alertStream",
+      "username": "admin",
+      "password": "camera_password",
+      "tag": "plate"
+    }
+  }
+}
+```
+
+### Usage
+
+When ANPR is enabled:
+
+1. The main window displays the license plate
+2. API responses include the `plate` field
+3. Different cameras for entrance/exit gates
+4. Real-time plate recognition display
+
+**Test Mode with ANPR:**
+
+When test mode is active with ANPR enabled:
+- `GET /entrance` → plate: "ENTRANCE"
+- `GET /exit` → plate: "EXIT"
+- `GET /` → plate: "NO_DIRECTIONS"
+
+When ANPR is disabled:
+- All requests → plate: "NO_ANPR"
+
+---
+
+## 💼 ABAP Integration
+
+### Overview
+
+OpScaleSrv includes ready-to-use ABAP code for SAP integration, allowing you to call the serial service directly from SAP.
+
+### Files Included
+
+1. **`serial_service_test.abap`** - Standalone report program
+2. **`serial_service_class.abap`** - Reusable OO class
+3. **`serial_class_test.abap`** - Test program using the class
+
+### Export ABAP Files
+
+Use the GUI to export ABAP code:
+
+1. **Server** → **Generate ABAP Code**
+2. Select destination folder
+3. Files will be copied for SAP import
+
+Or use command line:
+
+```bash
+opscalesrv --abap
+```
+
+### ABAP Class Usage
+
+#### Method 1: Get Full Result
+
+```abap
+DATA: ls_result TYPE zcl_serial_service=>ty_serial_result,
+      lv_value  TYPE string.
+
+TRY.
+    ls_result = zcl_serial_service=>call_serial_service(
+      iv_host = '192.168.1.100'
+      iv_port = '7373'
+      iv_path = '/'  " or '/entrance' or '/exit'
+      iv_timeout = 10
+    ).
+    
+    IF ls_result-success = abap_true.
+      WRITE: / 'Value:', ls_result-value,
+             / 'Plate:', ls_result-plate,
+             / 'Result:', ls_result-result.
+    ELSE.
+      WRITE: / 'Error:', ls_result-error_text.
+    ENDIF.
+    
+  CATCH zcl_serial_service=>connection_error
+        zcl_serial_service=>timeout_error
+        zcl_serial_service=>parse_error.
+    WRITE: / 'Exception occurred'.
+ENDTRY.
+```
+
+#### Method 2: Get Only Value
+
+```abap
+DATA: lv_value TYPE string.
+
+TRY.
+    lv_value = zcl_serial_service=>get_serial_value(
+      iv_host = '192.168.1.100'
+      iv_port = '7373'
+    ).
+    WRITE: / 'Serial Value:', lv_value.
+    
+  CATCH zcl_serial_service=>connection_error.
+    WRITE: / 'Connection failed'.
+ENDTRY.
+```
+
+#### Method 3: Test Connection
+
+```abap
+TRY.
+    IF zcl_serial_service=>test_connection(
+      iv_host = '192.168.1.100'
+      iv_port = '7373'
+    ) = abap_true.
+      WRITE: / 'Connection OK'.
+    ELSE.
+      WRITE: / 'Connection failed'.
+    ENDIF.
+    
+  CATCH zcl_serial_service=>connection_error.
+    WRITE: / 'Error'.
+ENDTRY.
+```
+
+### Class Methods
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `call_serial_service` | host, port, path, timeout, test_mode | Full result structure | Get complete response |
+| `get_serial_value` | host, port, timeout | String value | Get only the value field |
+| `test_connection` | host, port, timeout | Boolean | Test if server is reachable |
+
+### Exception Classes
+
+- `connection_error` - Network or HTTP errors
+- `timeout_error` - Request timeout
+- `parse_error` - JSON parsing errors
+
+---
+
+## 🔧 Command Line Options
+
+### Basic Usage
+
+```bash
+opscalesrv [OPTIONS]
+```
+
+### Available Options
+
+| Option | Argument | Description |
+|--------|----------|-------------|
+| `--host` | HOST | Host to bind to (default: localhost) |
+| `--port` | PORT | Port to listen on (default: 7373) |
+| `--test` | - | Run in test mode (returns mock data) |
+| `--log` | - | Enable logging to requests.log |
+| `--init` | - | Initialize configuration file and exit |
+| `--abap` | - | Copy ABAP files to current directory and exit |
+| `--help` | - | Show help message |
+
+### Examples
+
+**Start with custom host and port:**
+```bash
+opscalesrv --host 0.0.0.0 --port 8080
+```
+
+**Test mode with logging:**
+```bash
+opscalesrv --test --log
+```
+
+**Initialize configuration:**
+```bash
+opscalesrv --init
+```
+
+**Export ABAP files:**
+```bash
+opscalesrv --abap
+```
+
+**GUI mode (default):**
+```bash
+opscalesrv
+```
+
+---
+
+## 🎯 Use Cases
+
+### 1. Weighbridge / Truck Scale
+
+**Scenario:** Read weight from truck scale and integrate with SAP
+
+- Serial scale connected to PC
+- OpScaleSrv reads weight continuously
+- SAP calls HTTP API to get current weight
+- Optional ANPR for automatic truck identification
+
+**Configuration:**
+```json
+{
+  "serial": {
+    "port": "COM3",
+    "baudrate": 9600
+  },
+  "anpr": {
+    "enabled": true
+  }
+}
+```
+
+### 2. IoT Sensor Monitoring
+
+**Scenario:** Monitor temperature, humidity, or other sensors
+
+- Arduino/ESP32 sends data via serial
+- OpScaleSrv provides HTTP API
+- Dashboard calls API for real-time data
+- SCADA integration
+
+### 3. Industrial Automation
+
+**Scenario:** Connect PLC to business systems
+
+- PLC communicates via RS232/RS485
+- OpScaleSrv acts as gateway
+- ERP system reads production data
+- Real-time monitoring
+
+### 4. Laboratory Equipment
+
+**Scenario:** Read measurement devices
+
+- Spectrometer, scales, sensors
+- Serial data acquisition
+- Database logging
+- Web-based monitoring
+
+---
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+#### 1. Port Already in Use
+
+**Error:** `Port 7373 is already in use`
+
+**Solution:**
+```bash
+# Use different port
+opscalesrv --port 8080
+
+# Or kill the process using the port (Linux/Mac)
+lsof -ti:7373 | xargs kill -9
+
+# Windows - find and kill process
+netstat -ano | findstr :7373
+taskkill /PID <process_id> /F
+```
+
+#### 2. Serial Port Access Denied
+
+**Error:** `could not open port '/dev/ttyUSB0': Permission denied`
+
+**Solution (Linux):**
+```bash
+# Add user to dialout group
+sudo usermod -a -G dialout $USER
+
+# Or add specific permissions
+sudo chmod 666 /dev/ttyUSB0
+
+# Log out and log back in
+```
+
+**Solution (Windows):**
+- Check Device Manager
+- Ensure port is not used by another application
+- Update driver if necessary
+
+#### 3. Configuration File Not Found
+
+**Error:** `No opscalesrv.json configuration file found`
+
+**Solution:**
+```bash
+# Initialize configuration file
+opscalesrv --init
+
+# Or let it auto-create (GUI mode only)
+opscalesrv
+```
+
+#### 4. ABAP Connection Failed
+
+**Symptoms:** SAP cannot reach the service
+
+**Checklist:**
+- [ ] Python service is running
+- [ ] Firewall allows port 7373
+- [ ] Host IP is in allowed_hosts
+- [ ] Network connectivity (ping test)
+- [ ] Correct URL in ABAP code
+
+**Debug:**
+```bash
+# Test locally first
+curl http://localhost:7373/
+
+# Test from another machine
+curl http://192.168.1.100:7373/
+
+# Check logs
+cat requests.log
+```
+
+#### 5. GUI Doesn't Start
+
+**Error:** `ModuleNotFoundError: No module named 'PySide6'`
+
+**Solution:**
+```bash
+pip install PySide6
+
+# Or reinstall opscalesrv
+pip uninstall opscalesrv
+pip install opscalesrv
+```
+
+### Log Analysis
+
+View logs for debugging:
+
+```bash
+# Linux/Mac
+tail -f requests.log
+
+# Windows
+Get-Content requests.log -Wait
+
+# Or use GUI: Logs → Show Logs
+```
+
+### Getting Help
+
+If you encounter issues:
+
+1. Check the [GitHub Issues](https://github.com/altaykirecci/opscalesrv/issues)
+2. Review the log file (`requests.log`)
+3. Test in `--test` mode first
+4. Email: altay.kirecci@gmail.com
+
+---
+
+## 🌍 Multi-language Support
+
+OpScaleSrv GUI supports 7 languages:
+
+- 🇬🇧 English (en)
+- 🇹🇷 Turkish (tr)
+- 🇩🇪 German (de)
+- 🇫🇷 French (fr)
+- 🇷🇺 Russian (ru)
+- 🇯🇵 Japanese (ja)
+- 🇰🇷 Korean (ko)
+
+**Change language:**
+1. Settings → General Configuration
+2. Select language from dropdown
+3. Save and restart application
+
+---
+
+## 🆕 Recent Updates
+
+### Version 1.0.34
+
+- ✨ Added **Reset Settings** feature to restore defaults
+- 🔐 Password removal when resetting settings
+- 🚀 Auto-create configuration on first run
+- 🌍 Enhanced multi-language support
+- 🎨 UI/UX improvements
+- 🐛 Bug fixes and stability improvements
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Here's how you can help:
+
+1. **Fork** the repository
+2. Create a **feature branch**: `git checkout -b feature/amazing-feature`
+3. **Commit** your changes: `git commit -m 'Add amazing feature'`
+4. **Push** to the branch: `git push origin feature/amazing-feature`
+5. Open a **Pull Request**
+
+### Development Setup
+
+```bash
+git clone https://github.com/altaykirecci/opscalesrv.git
+cd opscalesrv
+python3 -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+pip install -r requirements.txt
+python -m opscalesrv.gui
+```
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+```
+MIT License
+
+Copyright (c) 2025 OpScaleSrv - Altay Kireççi
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction...
+```
+
+---
+
+## 💬 Support
+
+### Get Help
+
+- 📧 **Email:** altay.kirecci@gmail.com
+- 🌐 **Website:** [www.opriori.com](https://www.opriori.com)
+- 🐛 **Issues:** [GitHub Issues](https://github.com/altaykirecci/opscalesrv/issues)
+- 📖 **Documentation:** [PyPI Package](https://pypi.org/project/opscalesrv/)
+
+### Social
+
+- 💼 **LinkedIn:** [Altay Kirecci](https://www.linkedin.com/in/altaykireci)
+- 🐙 **GitHub:** [@altaykirecci](https://github.com/altaykirecci)
+- 📦 **PyPI Profile:** [altaykireci](https://pypi.org/user/altaykireci/)
+
+### Donations
+
+If you find this project useful, consider supporting its development:
+
+**Contact for donations:** altay.kirecci@gmail.com
+
+---
+
+## 🙏 Acknowledgments
+
+- Built with ❤️ by [Altay Kireççi](https://www.linkedin.com/in/altaykireci)
+- Powered by [PySide6](https://wiki.qt.io/Qt_for_Python) and [pyserial](https://github.com/pyserial/pyserial)
+- Part of the [opriori](https://www.opriori.com) ecosystem
+
+---
+
+<div align="center">
+
+**⭐ Star this project on GitHub if you find it useful! ⭐**
+
+[GitHub](https://github.com/altaykirecci/opscalesrv) • [PyPI](https://pypi.org/project/opscalesrv/) • [Documentation](https://github.com/altaykirecci/opscalesrv/wiki)
+
+---
+
+**Made with ❤️ in Turkey**
+
+© 2025 Altay Kireççi - opriori
+
+</div>
