@@ -1,0 +1,214 @@
+# langchain-prefid
+
+> **Official LangChain integration for PrefID** - Build preference-aware AI agents that adapt to user preferences
+
+[![PyPI](https://img.shields.io/pypi/v/langchain-prefid)](https://pypi.org/project/langchain-prefid/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## What is PrefID?
+
+PrefID is identity-aware AI memory infrastructure that helps AI agents understand:
+- **WHAT users like** (food, music, travel preferences)
+- **HOW users want responses** (thinking preferences - brevity, detail, structure)
+
+## Installation
+
+```bash
+pip install langchain-prefid
+```
+
+## Quick Start
+
+```python
+from langchain_anthropic import ChatAnthropic
+from langchain.agents import create_tool_calling_agent, AgentExecutor
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_prefid import create_prefid_tools
+
+# Create PrefID tools
+tools = create_prefid_tools(
+    client_id="your-prefid-client-id",
+    access_token="user-access-token",
+    user_id="user_123"
+)
+
+# Create agent
+llm = ChatAnthropic(model="claude-3-5-sonnet-20241022")
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful assistant. Use the preference tools to personalize responses."),
+    ("placeholder", "{chat_history}"),
+    ("human", "{input}"),
+    ("placeholder", "{agent_scratchpad}"),
+])
+
+agent = create_tool_calling_agent(llm, tools, prompt)
+executor = AgentExecutor(agent=agent, tools=tools)
+
+# Use it!
+result = executor.invoke({
+    "input": "Recommend a restaurant for tonight"
+})
+```
+
+## Available Tools
+
+### 1. `get_user_preferences`
+Get user preferences for any domain (food, music, travel, coding, etc.)
+
+```python
+# Agent will call this tool
+"Get user's food preferences to recommend restaurants"
+```
+
+### 2. `get_thinking_preferences`
+Get HOW the user wants AI to respond (Atom of Thought)
+
+```python
+# Returns:
+# - Reasoning style (stepwise, summary_first)
+# - Decision style (recommend, tradeoffs, options)
+# - Verbosity (concise, detailed, examples)
+# - Autonomy (proactive, confirm_first)
+```
+
+### 3. `learn_thinking_preference`
+Learn and remember how the user wants responses
+
+```python
+# When user says: "I prefer brief answers"
+# Agent calls this tool to remember it
+```
+
+### 4. `explain_response_style`
+Introspection - explain why AI is responding a certain way
+
+```python
+# When user asks: "Why are you responding like this?"
+# Agent explains active preferences
+```
+
+## Example Agent
+
+```python
+from langchain_anthropic import ChatAnthropic
+from langchain.agents import create_tool_calling_agent, AgentExecutor
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_prefid import create_prefid_tools
+
+# Setup
+tools = create_prefid_tools(
+    client_id="...",
+    access_token="...",
+    user_id="user_123"
+)
+
+llm = ChatAnthropic(model="claude-3-5-sonnet-20241022")
+
+system_prompt = """You are a restaurant recommendation assistant.
+
+BEFORE recommending:
+1. Call get_thinking_preferences() to learn HOW to respond
+2. Call get_user_preferences('food_profile') to learn WHAT they like
+3. Structure response according to their preferences
+
+If user asks why you responded that way, call explain_response_style().
+If user tells you how they prefer responses, call learn_thinking_preference().
+"""
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", system_prompt),
+    ("placeholder", "{chat_history}"),
+    ("human", "{input}"),
+    ("placeholder", "{agent_scratchpad}"),
+])
+
+agent = create_tool_calling_agent(llm, tools, prompt)
+executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+# Run
+response = executor.invoke({
+    "input": "Where should I eat tonight?"
+})
+```
+
+## Individual Tools
+
+You can also use tools individually:
+
+```python
+from langchain_prefid import (
+    PrefIDPreferenceTool,
+    PrefIDThinkingTool,
+    PrefIDLearnTool,
+    PrefIDWhyTool
+)
+from prefid import PrefID
+
+prefid = PrefID(client_id="...", access_token="...")
+
+# Create individual tools
+pref_tool = PrefIDPreferenceTool(prefid_client=prefid)
+thinking_tool = PrefIDThinkingTool(prefid_client=prefid)
+learn_tool = PrefIDLearnTool(prefid_client=prefid)
+why_tool = PrefIDWhyTool(prefid_client=prefid)
+
+# Use them
+food_prefs = pref_tool.invoke({"domain": "food_profile"})
+thinking = thinking_tool.invoke({"user_id": "user_123"})
+```
+
+## Key Concepts
+
+### Atom of Thought (AoT)
+PrefID's unique feature - learns HOW users want AI to respond:
+- "I prefer step-by-step explanations" → Reasoning: stepwise
+- "Just give me one recommendation" → Decision: recommend
+- "Keep it brief" → Verbosity: concise
+
+This goes beyond WHAT users like to HOW they think.
+
+### Thinking Preferences vs Content Preferences
+- **Content**: What music/food/travel they like
+- **Thinking**: How they want information structured
+
+Both are important for truly personalized AI.
+
+## Examples
+
+See `/examples` for complete working examples:
+- `restaurant_recommender.py` - Full agent with all tools
+- `basic_agent.py` - Simple preference-aware agent
+
+## LangSmith Hub
+
+Standard prompts for PrefID agents are available on LangSmith Hub:
+
+| Prompt | Description |
+|--------|-------------|
+| **[talentxmdu/restaurant-recommender](https://smith.langchain.com/hub/talentxmdu/restaurant-recommender)** | Full agent prompt with AoT + Preference logic |
+| **[talentxmdu/basic-agent](https://smith.langchain.com/hub/talentxmdu/basic-agent)** | Minimal prompt for preference aware agents |
+
+Usage:
+```python
+from langchain import hub
+prompt = hub.pull("talentxmdu/restaurant-recommender")
+```
+
+## Get PrefID Credentials
+
+1. Sign up at [prefid.in](https://prefid.in)
+2. Create an OAuth client in Dashboard → Connected Apps
+3. Get your `client_id` and `client_secret`
+
+## Links
+
+- **Documentation**: https://docs.prefid.in
+- **PrefID SDK**: https://github.com/Talentxmdu/PrefID
+- **LangChain**: https://python.langchain.com/
+- **Support**: hello@prefid.in
+
+## License
+
+MIT © PrefID Team
