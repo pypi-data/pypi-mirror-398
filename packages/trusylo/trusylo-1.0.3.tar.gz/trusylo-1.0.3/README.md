@@ -1,0 +1,201 @@
+# Truslyo Python SDK
+
+Stop fraud with one line of code.
+
+## Installation
+```bash
+pip install trusylo
+```
+
+## Quick Start
+
+### Basic Usage
+```python
+from trusylo import TruslyoClient
+
+client = TruslyoClient(api_key="sk_live_abc123")
+
+result = client.check(
+    token="eyJ...",  # Token from Truslyo.js
+    email="user@example.com",
+    ip_address="192.168.1.1"
+)
+
+if result.should_block():
+    raise Exception("Fraud detected!")
+```
+
+### Flask Decorator
+```python
+from flask import Flask, request
+from trusylo import trusylo_protect
+
+app = Flask(__name__)
+
+@app.post("/signup")
+@trusylo_protect(api_key="sk_live_abc123")
+def signup():
+    # Your code here
+    return {"success": True}
+```
+
+### FastAPI Middleware
+```python
+from fastapi import FastAPI
+from trusylo import TruslyoMiddleware
+
+app = FastAPI()
+
+app.add_middleware(
+    TruslyoMiddleware,
+    api_key="sk_live_abc123",
+    protected_routes=["/signup", "/checkout"]
+)
+```
+
+### Django Middleware
+```python
+# settings.py
+MIDDLEWARE = [
+    'trusylo.middleware.DjangoTruslyoMiddleware',
+    # ... other middleware
+]
+
+TRUSLYO_API_KEY = "sk_live_abc123"
+TRUSLYO_PROTECTED_ROUTES = ["/signup", "/checkout"]
+```
+
+## Features
+
+- ✅ **One-line protection** - Decorator-based fraud detection
+- ✅ **Framework support** - Flask, FastAPI, Django, Starlette
+- ✅ **Automatic enrichment** - IP intelligence, email validation
+- ✅ **Configurable blocking** - Control when to block vs review
+- ✅ **Fail-safe** - Configurable fail-open behavior
+- ✅ **Type hints** - Full type annotation support
+
+## API Reference
+
+### TruslyoClient
+```python
+client = TruslyoClient(
+    api_key="sk_live_abc123",
+    base_url="https://api.trusylo.com",  # Optional
+    timeout=5  # Optional, seconds
+)
+```
+
+### FraudCheckResult
+```python
+result = client.check(token="...")
+
+# Decision methods
+result.should_block()    # True if fraud detected
+result.should_review()   # True if manual review needed
+result.is_approved()     # True if approved
+
+# Properties
+result.decision          # "approve", "block", or "review"
+result.risk_score        # 0.0 to 1.0
+result.reasons           # List of reasons
+result.fraud_patterns    # Detected fraud patterns
+result.session_id        # Session identifier
+```
+
+## Configuration
+
+### Decorator Options
+```python
+@trusylo_protect(
+    api_key="sk_live_abc123",
+    block_on_fraud=True,      # Block when fraud detected
+    block_on_review=False,    # Don't block reviews
+    fail_open=True,           # Continue if API fails
+    custom_handler=my_handler # Custom callback
+)
+```
+
+### Custom Handler
+```python
+def my_fraud_handler(result, request):
+    if result.should_block():
+        # Log to your system
+        logger.warning(f"Fraud blocked: {result.get_summary()}")
+        # Send alert
+        send_alert(result)
+
+@app.post("/signup")
+@trusylo_protect(
+    api_key="sk_live_abc123",
+    custom_handler=my_fraud_handler
+)
+def signup():
+    return {"success": True}
+```
+
+## Error Handling
+```python
+from trusylo import (
+    TruslyoError,
+    FraudDetectedError,
+    InvalidTokenError,
+    APIError,
+    RateLimitError
+)
+
+try:
+    result = client.check(token="...")
+except InvalidTokenError:
+    return {"error": "Invalid or expired token"}
+except RateLimitError:
+    return {"error": "Rate limit exceeded"}
+except APIError as e:
+    return {"error": f"API error: {str(e)}"}
+```
+
+## Requirements
+
+- Python 3.7+
+- requests >= 2.25.0
+
+## License
+
+MIT License
+
+## Support
+
+- Documentation: https://docs.trusylo.com
+- Email: support@trusylo.com
+- Issues: https://github.com/trusylo/trusylo-python/issues
+```
+
+#### **`LICENSE`** (MIT License)
+```
+MIT License
+
+Copyright (c) 2024 Truslyo
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+#### **`MANIFEST.in`**
+```
+include README.md
+include LICENSE
+recursive-include trusylo *.py
