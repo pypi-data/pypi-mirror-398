@@ -1,0 +1,212 @@
+Metadata-Version: 2.4
+Name: py_hpl_logger
+Version: 0.2.5
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Topic :: System :: Logging
+Classifier: Programming Language :: Rust
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: Framework :: AsyncIO
+Classifier: Development Status :: 4 - Beta
+Requires-Dist: pip>=21
+Requires-Dist: pytest ; extra == 'tests'
+Provides-Extra: tests
+Summary: A high-performance, buffered, non-blocking logger for Python, implemented in Rust.
+Keywords: logging,logger,elasticsearch,elastic,rust,performance,non-blocking,autoflush
+Author-email: Pavel Nikitin <1@pashanikitin.ru>
+License: MIT
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+
+
+
+# High-Performance Python Logger (in Rust)
+
+[![Python Version](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://pypi.org/project/py-hpl-logger/)
+[![PyPI version](https://img.shields.io/pypi/v/py-hpl-logger)](https://pypi.org/project/py-hpl-logger/)
+![License](https://img.shields.io/pypi/l/py-hpl-logger)
+[![Development Status](https://img.shields.io/pypi/status/py-hpl-logger)](https://pypi.org/project/py-hpl-logger/)
+[![Downloads](https://img.shields.io/pypi/dm/py-hpl-logger)](https://pypi.org/project/py-hpl-logger/)
+
+A high-performance, buffered, non-blocking logger for Python, with the core logic implemented in Rust for maximum speed and efficiency.
+
+This logger is designed for high-throughput applications where standard Python logging would become a bottleneck. It sends logs on a dedicated background thread, ensuring your application's main threads are never blocked by I/O.
+
+## Features
+
+- **Non-Blocking**: Log calls return instantly.
+- **Batching**: Logs are sent to destinations in efficient batches (Elastic bulk API).
+- **Resilient**: In-memory buffer with retries for when destinations are temporarily unavailable.
+- **Multiple Outputs**: Configure logging to stdout, files, and Elasticsearch simultaneously.
+- **Python `logging` Integration**: Includes a `logging.Handler` to seamlessly integrate with the standard library.
+
+## Requirements
+
+- Python 3.9+
+- **`pip` version 21 or newer.**
+
+This package uses modern Python packaging standards (PEP 517). Older versions of `pip` may not be able to install it correctly. You can upgrade `pip` with the following command:
+
+```bash
+pip install --upgrade pip
+```
+## Pre-compiled wheels for officially Supported Platforms
+
+- **Linux**: `x86_64` (`manylinux` compatible)
+- **macOS**: `arm64` (Apple Silicon, Intel)
+- **Windows**: `amd64`
+
+## Installation
+
+```bash
+pip install py-hpl-logger
+```
+
+## Quick Start
+
+1(Optional).  **Configure your logger** with `ElasticConfig` if needed:
+
+   ```ini
+   ELASTIC_HOST=localhost
+   ELASTIC_PORT=9200
+   ELASTIC_USERNAME=elastic
+   ELASTIC_PASSWORD=changeme
+   ELASTIC_INDEX=my-python-logs
+   ```
+
+   Configure using code:
+
+   ```python
+   elastic_config = ElasticConfig(
+       host="localhost",
+       port=9200,
+       index="my-app",
+       username="elastic",
+       password="changeme"
+   )
+   ```
+
+   Configure using .env. You can choose `.env` search depth using `local_only` argument:
+
+   ```python
+   elastic_config = ElasticConfig.from_env(local_only=False)
+   ```
+
+2.  **Use the logger in your Python application:**
+
+    ```python
+    import logging
+    from py_hpl_logger import LoggerBuilder, ElasticConfig, RustLogHandler
+
+    # 1. Build the Rust logger backend once
+    elastic_config = ElasticConfig(
+        host="localhost",
+        port=9200,
+        index="my-app",
+        username="elastic",
+        password="changeme"
+    )
+    # default buffer params:
+    # channel_size: 4096
+    # batch_size: 256
+    # `channel_size` sets maximum inner buffer size. If log amount exceeds this argument, over limiting logs are dropped to avoid memory leaks
+    # `batch_size` is an argument used to bulk push amount of logs specified
+    rust_backend = (
+        LoggerBuilder()
+        .with_stdout(True) # whether to use stdout or not
+        .with_file_output("my_app_session")
+        .with_elastic_output(elastic_config)
+        .with_batch_size(1000) # how many log rows to wait before forced flush
+        .with_flush_interval(1.0) # # how many seconds to wait before forced flush
+        .build()
+    )
+
+    # 2. Integrate with Python's standard logging
+    handler = RustLogHandler(rust_logger=rust_backend)
+    formatter = logging.Formatter("%(threadName)s - %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+    # 3. Use the standard logging API anywhere!
+    log = logging.getLogger(__name__)
+    log.info("This log is being handled by Rust!")
+    log.error("This is a high-performance error log.")
+
+    # 4. For graceful shutdown, flush the logger before exiting
+    # (The logger also attempts to flush automatically on exit)
+    rust_backend.flush()
+    ```
+
+## Benchmark
+Measurements completed under python3.11 on Apple M2 Max using remote Elastic Search instance with 2 Gb memory limit. The logger version used is py-hpl-logger==0.2.1.
+
+20.000 messages were successfully written in a total time of 2.0091 seconds
+```
+    --- Running Benchmark for: High-Performance Rust Logger ---
+    Logging 20,000 messages across 10 threads...
+    Time taken for High-Performance Rust Logger: 0.1128 seconds
+    Throughput: 177,282.63 logs/second
+
+    Flushing Rust logger buffer...
+    Flush took an additional 1.8963 seconds.
+
+    --- Benchmark Results ---
+    The application code was blocked for 0.1128 seconds with the Rust logger.
+    Throughput: 177,282.63 logs/second
+    Logs written: 20,000
+    Time taken for flush: 1.8963 seconds
+    Total time: 2.0091 seconds
+```
+## Changelog
+
+### [0.1.5] - 2025-11-04
+- Added 'with_channel_size' constructor to LoggerBuilder
+### [0.1.6] - 2025-11-04
+- Added win_amd64 support
+- Added macos_x86_64 support
+- Added benchmark results
+### [0.1.9] - 2025-11-06
+- Added 'with_base_log' constructor to LoggerBuilder to add a base prefix '[<event.timestamp>] <event.level>:'
+- Fixed potential malloc problems in stdout buffer
+- Improved buffer offload with async elastic/file write execution
+### [0.2.0] - 2025-11-07
+- Fixed macos binaries imports
+### [0.2.1] - 2025-11-08
+- Added log file rotation. Now 5 files of 10Mb are set for rotation as a default setting. File rotation can be disabled with 'without_file_rotation' builder
+- File rotation can be configured with 'with_file_rotation' builder. It accepts `max_file_size_bytes`: int, `max_backup_files`: int as arguments where `max_file_size_bytes` is the maximum size of each file in bytes and `max_backup_files` is the maximum number of files to keep
+- Added graceful file writing at the cost of an 8% log throughput decrease
+### [0.2.2] - 2025-11-10
+- Fixed stdout only config not producing logs
+### [0.2.3] - 2025-12-17
+- Added protocol argument for `ElasticConfig`. Now Elastic can be configured to use `https` hosts. (`http` -> `https` redirects not supported for safety reasons)
+```python
+   elastic_config = ElasticConfig(
+       host="localhost",
+       port=9200,
+       index="my-app",
+       username="elastic",
+       password="changeme"
+       protocol="https", # you can skip protocol setup, default fallback is "http"
+   )
+```
+### [0.2.4] - 2025-12-18
+- Added `gzip` bulk payload compression
+- Added `WARNING` and `DEBUG` levels
+
+### [0.2.5] - 2025-12-20
+- Added `atexit` hook to remove logger references on exit
+You can call a cleanup yourself using Logger.close() 
+```python
+from py_hpl_logger import LoggerBuilder
+backend = (
+    LoggerBuilder()
+    .with_stdout(True)
+    .build()
+)
+backend.close()
+```
+## License
+
+This project is licensed under the MIT License.
+
