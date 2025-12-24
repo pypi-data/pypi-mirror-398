@@ -1,0 +1,422 @@
+# mengram
+
+**mengram** is a lightweight memory engine for AI agents.
+
+It gives you:
+
+- A local, persistent store for “memories” (facts, events, rules) on top of SQLite.
+- Hybrid lexical + vector recall.
+- Prospective memory rules that react to events (e.g. repeated tool errors).
+- An LLM-driven **auto-ingest** pipeline to extract semantic/episodic memories from interaction history.
+- An optional FastAPI server if you want to expose everything over HTTP.
+
+You can use it purely as a Python library, or run it as a local service.
+
+---
+
+## Quickstart (Python library)
+
+Install:
+
+```bash
+pip install mengram
+````
+
+Initialize the schema once per database and start using the client:
+
+```python
+from mengram import MemoryClient, init_memory_os_schema
+
+# Initialize the DB schema (safe to call multiple times)
+init_memory_os_schema()
+client = MemoryClient()
+
+# Store an episodic memory
+memory = client.remember(
+    content="Talked to Alice about refund policy.",
+    type="episodic",
+    scope="session",
+    entity_id="sess-123",
+    tags=["support", "refund"],
+)
+
+# Recall related memories (hybrid lexical + vector search)
+results = client.recall(
+    query="refund policy",
+    scope="session",
+    entity_id="sess-123",
+)
+
+# Define a prospective rule (e.g. repeated tool errors)
+rule = client.create_rule(
+    condition={
+        "event_type": "tool:error",
+        "tool_name": "node_forecast",
+        "window_minutes": 10,
+        "threshold_count": 3,
+    },
+    actions={
+        "actions": [
+            {
+                "type": "notify",
+                "channel": "stdout",
+                "target": "#ops",
+                "message": "node_forecast failed 3 times in 10 minutes.",
+            },
+            {
+                "type": "inject_memory",
+                "content": "node_forecast is unstable, consider fallback model.",
+            },
+        ]
+    },
+)
+
+# Record an event (rules are evaluated and any actions are returned)
+event_result = client.record_event(
+    event_type="tool:error",
+    tool_name="node_forecast",
+    scope="session",
+    entity_id="sess-123",
+    payload={"error_code": "TIMEOUT"},
+)
+```
+
+---
+
+## Auto-ingest with an LLM extractor (golden path)
+
+mengram can **automatically extract long-term memories** from recent interactions using an LLM-driven extractor.
+
+```python
+from mengram import (
+    MemoryClient,
+    init_memory_os_schema,
+    Interaction,
+    LLMMemoryExtractor,
+    interactions_from_dicts,
+)
+
+# 1) Initialize database + client
+init_memory_os_schema()
+client = MemoryClient()
+
+# 2) Build interactions (dicts → Interaction helper)
+history = [
+    {"role": "user", "content": "Hi, my name is Dhruv."},
+    {"role": "assistant", "content": "Nice to meet you Dhruv!"},
+    {"role": "user", "content": "I work in AI & Analytics at Capgemini."},
+    {"role": "user", "content": "I prefer morning deliveries if possible."},
+]
+interactions = interactions_from_dicts(history)
+
+# 3) Wire an LLM client (replace with your provider call)
+def llm_client(
+    prompt: str,
+    model: str | None = None,
+    temperature: float | None = None,
+) -> str:
+    """
+    Call your LLM provider here and return the raw text response as a string.
+    This function is responsible for talking to OpenAI/Anthropic/Bedrock/local, etc.
+    """
+    ...
+
+extractor = LLMMemoryExtractor(
+    llm_client=llm_client,
+    model="gpt-4.1",      # optional, forwarded to your client
+    max_memories=5,
+    temperature=0.0,
+)
+
+# 4) Auto-ingest memories
+stored = client.auto_ingest(
+    interactions=interactions,
+    extractor=extractor,
+    scope="user",
+    entity_id="dhruv",
+    min_importance=0.0,
+)
+
+print("Stored memories:")
+for m in stored:
+    print("-", m.content, f"({m.type}, importance={getattr(m, 'importance', None)})")
+```
+
+---
+
+## Concepts
+
+### Memory types
+
+mengram currently focuses on two core memory types:
+
+* **Semantic memory**
+  Stable facts or preferences that persist beyond a single session.
+  Examples:
+
+  * `"User works in AI & Analytics at Capgemini."`
+  * `"User prefers morning deliveries."`
+
+* **Episodic memory**
+  Specific events that might matter later.
+  Examples:
+
+  * `"On 2025-01-15 the user switched from plan A to plan B."`
+  * `"We agreed to review the forecast model next week."`
+
+Additional types (e.g. procedural) can be layered on later, but semantic + episodic already cover many useful cases.
+
+### Auto-ingest pipeline
+
+The LLM-powered auto-ingest path looks like:
+
+> **Interaction** → **Extractor** → **MemoryCandidate** → stored via `MemoryClient.remember()`
+
+Where:
+
+* `Interaction` describes a turn or event (role, content, timestamp, metadata).
+* An `Extractor` is any callable: `Callable[[list[Interaction]], list[MemoryCandidate]]`.
+* `MemoryCandidate` is a proposed memory (content, type, importance, scope/entity, tags, metadata).
+* `MemoryClient.auto_ingest(...)` takes these candidates, normalizes them, and persists them using your existing memory store.
+
+### LLM extractor
+
+`LLMMemoryExtractor` is a reference implementation of an `Extractor` that uses an LLM you provide.
+
+* It formats recent interactions as a small transcript.
+* Sends a prompt asking the LLM to propose a **small set** of long-term memories.
+* Enforces a JSON **array** output matching the `MemoryCandidate` schema.
+* Parses the array into `MemoryCandidate` objects and passes them to `auto_ingest`.
+
+### Prospective memory (rules)
+
+Mengram can also encode "when X happens, do Y" behaviors locally. You define rules over events, and `record_event(...)` evaluates them synchronously and returns actions for your orchestrator to execute.
+
+```python
+from mengram import MemoryClient, RuleCondition, NotifyAction, InjectMemoryAction
+
+client = MemoryClient()
+
+rule = client.create_rule(
+    condition=RuleCondition.tool_error(
+        tool_name="node_forecast",
+        window_minutes=10,
+        threshold_count=3,
+        scope="user",
+        entity_id="dhruv",
+    ),
+    actions=[
+        NotifyAction(
+            channel="stdout",
+            target="#ops",
+            message="node_forecast failed 3 times in 10 minutes.",
+        ),
+        InjectMemoryAction(
+            content="node_forecast is unstable, consider fallback model.",
+            scope="user",
+            entity_id="dhruv",
+            importance=0.7,
+        ),
+    ],
+)
+
+result = client.record_event(
+    event_type="tool:error",
+    tool_name="node_forecast",
+    scope="user",
+    entity_id="dhruv",
+    payload={"error_code": "TIMEOUT"},
+)
+
+for action in result.actions:
+    # orchestrator executes actions (notify, inject memory, etc.)
+    ...
+```
+
+Rules are evaluated per `(scope, entity_id)` with a sliding time window. Mengram returns actions; you decide how to execute them (send Slack, insert into prompt, log, etc.).
+
+The `record_event(...)` return shape is a `RuleEvaluationResult` with:
+
+* `triggered_rule_ids`: list of rule ids that fired
+* `actions`: list of `NotifyAction` / `InjectMemoryAction`
+* `new_memories`: list of created memory payloads for inject actions
+
+**Important:** mengram never calls an LLM provider directly.
+You supply the `llm_client(prompt: str, model: Optional[str], temperature: Optional[float]) -> str` function that talks to OpenAI/Anthropic/Bedrock/local models, etc.
+
+---
+
+## Optional: HTTP API server
+
+If you prefer to talk to mengram over HTTP, you can run the bundled FastAPI server.
+
+### Install server dependencies
+
+If you’re working from source:
+
+```bash
+pip install -r requirements.txt
+```
+
+(If you’ve defined an extra in your pyproject, you can also do something like `pip install "mengram[server]"` from PyPI.)
+
+### Run the API with Uvicorn
+
+From the project root:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+This will start a local service and create a SQLite database (`memory.db`) in the project root if it doesn’t already exist.
+
+### HTTP endpoints
+
+The service exposes:
+
+* `GET /healthz`
+  Health probe.
+
+* `POST /v0/remember`
+  Store a memory with optional TTL and tags.
+
+* `GET /v0/recall`
+  Hybrid recall with vector + lexical scoring.
+
+* `POST /v0/reflect`
+  Naive episodic → semantic session summary.
+
+* `POST /v0/plan`
+  Store prospective-memory rules.
+
+* `POST /v0/forget`
+  Delete memories by id or policy.
+
+* `POST /v0/event`
+  Persist incoming events and synchronously return triggered rule actions.
+
+### Prospective memory rules (V0)
+
+Rules capture simple “pattern → action” contracts that `/v0/event` enforces:
+
+```jsonc
+POST /v0/plan
+{
+  "if": {
+    "event_type": "tool:error",
+    "tool_name": "node_forecast",
+    "window_minutes": 10,
+    "threshold_count": 3
+  },
+  "then": {
+    "actions": [
+      {
+        "type": "notify",
+        "channel": "slack",
+        "target": "#ops",
+        "message": "node_forecast is erroring frequently"
+      },
+      {
+        "type": "inject_memory",
+        "content": "Last 10 minutes: node_forecast erroring > 3 times."
+      }
+    ]
+  }
+}
+```
+
+Each time an agent calls `POST /v0/event`, the service:
+
+1. Persists the event,
+2. Counts recent matches against active rules, and
+3. Returns any triggered actions in the response (so your orchestrator can notify humans or inject new context into the next turn).
+
+---
+
+## Python client recap
+
+All REST capabilities are also available via the in-process Python client:
+
+```python
+from mengram import MemoryClient, init_memory_os_schema
+
+init_memory_os_schema()  # safe to call multiple times
+client = MemoryClient()
+
+client.remember(
+    content="met Alice",
+    type="episodic",
+    scope="session",
+    entity_id="sess-42",
+)
+
+memories = client.recall(
+    query="Alice",
+    scope="session",
+    entity_id="sess-42",
+)
+
+rule = client.create_rule(
+    condition={
+        "event_type": "tool:error",
+        "window_minutes": 10,
+        "threshold_count": 3,
+    },
+    actions={
+        "actions": [
+            {"type": "notify", "channel": "stdout", "message": "tool is failing"}
+        ]
+    },
+)
+
+client.record_event(
+    event_type="tool:error",
+    tool_name="search_tool",
+    scope="session",
+    entity_id="sess-42",
+)
+```
+
+You can also run:
+
+```bash
+python scripts/smoke_client.py
+```
+
+for a quick end-to-end smoke test without starting the FastAPI server.
+
+---
+
+## Custom embeddings & fake-embed smoke tests
+
+`MemoryClient` accepts a custom embedding function, so you can plug in OpenAI, Bedrock, HuggingFace, or a fake vector generator for offline runs:
+
+```python
+import numpy as np
+from mengram import MemoryClient, init_memory_os_schema
+
+init_memory_os_schema()
+
+def fake_embed(_: str):
+    return np.ones(384, dtype=np.float32)
+
+client = MemoryClient(embed_fn=fake_embed)
+```
+
+The `scripts/smoke_client.py` script supports a fake embedding mode via the `MEMORY_OS_FAKE_EMBED=1` environment variable, which avoids downloading the `sentence-transformers` model:
+
+```bash
+MEMORY_OS_FAKE_EMBED=1 python scripts/smoke_client.py
+```
+
+---
+
+## Debugging stored memories
+
+For quick inspection of what’s actually stored in your DB, you can use the included debug script:
+
+```bash
+python examples/debug_list_memories.py --scope user --entity-id dhruv
+```
+
+This will initialize the schema (if needed), connect via `MemoryClient`, and print out memories for the given scope/entity in a human-readable format.
