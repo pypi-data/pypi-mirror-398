@@ -1,0 +1,30 @@
+name: release-main
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up the environment
+        uses: ./.github/actions/setup-uv-env
+
+      - name: Export tag
+        id: vars
+        run: echo tag=${GITHUB_REF#refs/*/} >> $GITHUB_OUTPUT
+
+      - name: Build and publish
+        run: |
+          source .venv/bin/activate
+          # Update version in pyproject.toml
+          sed -i "s/^version = .*/version = \"$RELEASE_VERSION\"/" pyproject.toml
+          uv build
+          uv publish --token $PYPI_TOKEN
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+          RELEASE_VERSION: ${{ steps.vars.outputs.tag }}
