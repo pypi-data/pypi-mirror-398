@@ -1,0 +1,67 @@
+"""Data processing tools for {{ project_name }}."""
+
+from typing import Any
+import structlog
+from mcp.types import Tool
+
+logger = structlog.get_logger(__name__)
+
+
+def get_data_processing_tools() -> list[Tool]:
+    """Get list of data processing tools."""
+    tools = [
+        Tool(
+            name="data_transform",
+            description="Transform data using specified operations",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "data": {"type": "string", "description": "Data to transform"},
+                    "operation": {
+                        "type": "string",
+                        "enum": ["filter", "map", "reduce", "sort"],
+                        "description": "Operation to perform",
+                    },
+                },
+                "required": ["data", "operation"],
+            },
+        ),
+        Tool(
+            name="data_analyze",
+            description="Analyze data and provide statistics",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "data": {"type": "string", "description": "Data to analyze"},
+                },
+                "required": ["data"],
+            },
+        ),
+    ]
+    return tools
+
+
+async def execute_data_processing_tool(name: str, arguments: dict[str, Any]) -> str:
+    """Execute a data processing tool."""
+    if name == "data_transform":
+        return await _transform_data(arguments)
+    elif name == "data_analyze":
+        return await _analyze_data(arguments)
+    raise ValueError(f"Unknown data processing tool: {name}")
+
+
+async def _transform_data(arguments: dict[str, Any]) -> str:
+    """Transform data."""
+    data = arguments["data"]
+    operation = arguments["operation"]
+    # Implement transformation logic here
+    logger.info("data_transformed", operation=operation, data_length=len(data))
+    return f"Data transformed using {operation}"
+
+
+async def _analyze_data(arguments: dict[str, Any]) -> str:
+    """Analyze data."""
+    data = arguments["data"]
+    # Implement analysis logic here
+    logger.info("data_analyzed", data_length=len(data))
+    return f"Data analysis: {len(data)} characters"

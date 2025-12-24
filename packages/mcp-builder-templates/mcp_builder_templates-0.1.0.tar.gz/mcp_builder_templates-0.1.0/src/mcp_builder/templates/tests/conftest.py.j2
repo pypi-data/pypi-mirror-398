@@ -1,0 +1,41 @@
+"""Pytest configuration and fixtures."""
+
+import pytest
+from pathlib import Path
+
+
+@pytest.fixture
+def test_data_dir() -> Path:
+    """Get test data directory."""
+    return Path(__file__).parent / "data"
+
+
+@pytest.fixture
+def sample_config():
+    """Get sample configuration."""
+    from {{ package_name }}.config import Settings
+
+    return Settings(
+        server_name="{{ project_slug }}",
+        log_level="DEBUG",
+    )
+
+
+@pytest.fixture
+def mock_settings(monkeypatch):
+    """Mock settings for testing."""
+    from {{ package_name }}.config import Settings
+
+    # Mock API keys
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+{% if "genai" in tool_categories %}
+{% for provider in genai_providers %}
+{% if provider == "openai" %}
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+{% elif provider == "anthropic" %}
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+{% endif %}
+{% endfor %}
+{% endif %}
+
+    return Settings()

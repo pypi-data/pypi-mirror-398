@@ -1,0 +1,114 @@
+"""Configuration for {{ project_name }}."""
+
+from enum import Enum
+from pathlib import Path
+from typing import Optional
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class LogLevel(str, Enum):
+    """Logging levels."""
+    
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+
+
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
+    
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+    
+    # Server settings
+    server_name: str = Field(default="{{ project_slug }}", description="Server name")
+    log_level: LogLevel = Field(default=LogLevel.INFO, description="Logging level")
+    
+{% if "genai" in tool_categories %}
+    # GenAI API keys
+{% for provider in genai_providers %}
+{% if provider == "openai" %}
+    openai_api_key: Optional[str] = Field(default=None, description="OpenAI API key")
+{% elif provider == "anthropic" %}
+    anthropic_api_key: Optional[str] = Field(default=None, description="Anthropic API key")
+{% elif provider == "google (gemini)" %}
+    google_api_key: Optional[str] = Field(default=None, description="Google API key")
+{% elif provider == "cohere" %}
+    cohere_api_key: Optional[str] = Field(default=None, description="Cohere API key")
+{% elif provider == "mistral" %}
+    mistral_api_key: Optional[str] = Field(default=None, description="Mistral API key")
+{% elif provider == "huggingface" %}
+    huggingface_api_key: Optional[str] = Field(default=None, description="HuggingFace API key")
+{% endif %}
+{% endfor %}
+{% endif %}
+    
+{% if "rag" in tool_categories %}
+    # RAG settings
+{% for store in rag_vector_stores %}
+{% if store == "pinecone" %}
+    pinecone_api_key: Optional[str] = Field(default=None, description="Pinecone API key")
+    pinecone_environment: str = Field(default="us-west1-gcp", description="Pinecone environment")
+{% elif store == "weaviate" %}
+    weaviate_url: str = Field(default="http://localhost:8080", description="Weaviate URL")
+    weaviate_api_key: Optional[str] = Field(default=None, description="Weaviate API key")
+{% elif store == "qdrant" %}
+    qdrant_url: str = Field(default="http://localhost:6333", description="Qdrant URL")
+    qdrant_api_key: Optional[str] = Field(default=None, description="Qdrant API key")
+{% endif %}
+{% endfor %}
+    
+    # Embedding settings
+    embedding_model: str = Field(default="text-embedding-ada-002", description="Embedding model")
+    chunk_size: int = Field(default=512, description="Text chunk size for embeddings")
+    chunk_overlap: int = Field(default=50, description="Chunk overlap size")
+{% endif %}
+    
+{% if "database" in tool_categories %}
+    # Database settings
+    database_url: str = Field(
+        default="postgresql://localhost/{{ project_slug }}",
+        description="Database connection URL"
+    )
+    database_pool_size: int = Field(default=5, description="Database connection pool size")
+{% endif %}
+    
+{% if "web-scraping" in tool_categories %}
+    # Web scraping settings
+    user_agent: str = Field(
+        default="Mozilla/5.0 (compatible; {{ project_name | pascal_case }}Bot/1.0)",
+        description="User agent for web requests"
+    )
+    request_timeout: int = Field(default=30, description="Request timeout in seconds")
+    max_retries: int = Field(default=3, description="Maximum request retries")
+{% endif %}
+    
+    # Feature flags
+    enable_caching: bool = Field(default=True, description="Enable response caching")
+    cache_ttl: int = Field(default=3600, description="Cache TTL in seconds")
+    
+    def validate_api_keys(self) -> None:
+        """Validate that required API keys are set."""
+        errors = []
+        
+{% if "genai" in tool_categories %}
+{% for provider in genai_providers %}
+{% if provider == "openai" %}
+        if not self.openai_api_key:
+            errors.append("OPENAI_API_KEY is required for GenAI tools")
+{% elif provider == "anthropic" %}
+        if not self.anthropic_api_key:
+            errors.append("ANTHROPIC_API_KEY is required for GenAI tools")
+{% endif %}
+{% endfor %}
+{% endif %}
+        
+        if errors:
+            raise ValueError(f"Configuration errors: {'; '.join(errors)}")

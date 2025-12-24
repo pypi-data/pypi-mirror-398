@@ -1,0 +1,65 @@
+"""RAG (Retrieval Augmented Generation) tools for {{ project_name }}."""
+
+from typing import Any
+import structlog
+from mcp.types import Tool
+
+logger = structlog.get_logger(__name__)
+
+
+def get_rag_tools() -> list[Tool]:
+    """Get list of RAG tools."""
+    tools = [
+        Tool(
+            name="rag_index_document",
+            description="Index a document for retrieval",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "content": {"type": "string", "description": "Document content"},
+                    "metadata": {"type": "object", "description": "Document metadata"},
+                },
+                "required": ["content"],
+            },
+        ),
+        Tool(
+            name="rag_search",
+            description="Search indexed documents",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query"},
+                    "top_k": {"type": "integer", "description": "Number of results", "default": 5},
+                },
+                "required": ["query"],
+            },
+        ),
+    ]
+    return tools
+
+
+async def execute_rag_tool(name: str, arguments: dict[str, Any]) -> str:
+    """Execute a RAG tool."""
+    if name == "rag_index_document":
+        return await _index_document(arguments)
+    elif name == "rag_search":
+        return await _search_documents(arguments)
+    raise ValueError(f"Unknown RAG tool: {name}")
+
+
+async def _index_document(arguments: dict[str, Any]) -> str:
+    """Index a document."""
+    content = arguments["content"]
+    metadata = arguments.get("metadata", {})
+    # Implement indexing logic here
+    logger.info("document_indexed", content_length=len(content))
+    return f"Document indexed successfully (length: {len(content)})"
+
+
+async def _search_documents(arguments: dict[str, Any]) -> str:
+    """Search documents."""
+    query = arguments["query"]
+    top_k = arguments.get("top_k", 5)
+    # Implement search logic here
+    logger.info("documents_searched", query=query, top_k=top_k)
+    return f"Search results for: {query}"

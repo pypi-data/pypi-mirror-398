@@ -1,0 +1,224 @@
+"""MCP Server implementation for {{ project_name }}."""
+
+import asyncio
+from typing import Any
+
+import structlog
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from mcp.types import (
+    Resource,
+    Tool,
+    TextContent,
+    ImageContent,
+    EmbeddedResource,
+)
+
+from {{ package_name }}.config import Settings
+{% if include_example_tools %}
+{% for category in tool_categories %}
+from {{ package_name }}.tools.{{ category | replace('-', '_') }}_tools import get_{{ category | replace('-', '_') }}_tools
+{% endfor %}
+{% endif %}
+
+logger = structlog.get_logger(__name__)
+
+
+class {{ project_name | pascal_case }}Server:
+    """{{ project_name | title }} MCP Server."""
+
+    def __init__(self, settings: Settings | None = None) -> None:
+        """
+        Initialize the MCP server.
+        
+        Args:
+            settings: Server configuration settings
+        """
+        self.settings = settings or Settings()
+        self.server = Server(name="{{ project_slug }}")
+        
+        # Setup logging
+        structlog.configure(
+            processors=[
+                structlog.processors.add_log_level,
+                structlog.processors.TimeStamper(fmt="iso"),
+                structlog.processors.JSONRenderer(),
+            ],
+            wrapper_class=structlog.make_filtering_bound_logger(
+                self.settings.log_level.value
+            ),
+        )
+        
+        self._register_handlers()
+        logger.info("server_initialized", server_name="{{ project_slug }}")
+
+    def _register_handlers(self) -> None:
+        """Register MCP protocol handlers."""
+        
+        @self.server.list_tools()
+        async def list_tools() -> list[Tool]:
+            """List available tools."""
+            tools: list[Tool] = []
+            
+{% if include_example_tools %}
+{% for category in tool_categories %}
+            # {{ category | title }} tools
+            tools.extend(get_{{ category | replace('-', '_') }}_tools())
+{% endfor %}
+{% else %}
+            # Add your custom tools here
+            tools.append(
+                Tool(
+                    name="example_tool",
+                    description="An example tool",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "input": {
+                                "type": "string",
+                                "description": "Input parameter",
+                            }
+                        },
+                        "required": ["input"],
+                    },
+                )
+            )
+{% endif %}
+            
+            logger.debug("tools_listed", count=len(tools))
+            return tools
+
+        @self.server.call_tool()
+        async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
+            """
+            Execute a tool with given arguments.
+            
+            Args:
+                name: Tool name
+                arguments: Tool arguments
+                
+            Returns:
+                Tool execution results
+            """
+            logger.info("tool_called", tool=name, arguments=arguments)
+            
+            try:
+{% if include_example_tools %}
+{% for category in tool_categories %}
+                # {{ category | title }} tools
+                if name.startswith("{{ category | replace('-', '_') }}_"):
+                    from {{ package_name }}.tools.{{ category | replace('-', '_') }}_tools import execute_{{ category | replace('-', '_') }}_tool
+                    result = await execute_{{ category | replace('-', '_') }}_tool(name, arguments)
+                    return [TextContent(type="text", text=str(result))]
+{% endfor %}
+{% endif %}
+                
+                # Default handler
+                raise ValueError(f"Unknown tool: {name}")
+                
+            except Exception as e:
+                logger.error("tool_execution_failed", tool=name, error=str(e))
+                return [TextContent(
+                    type="text",
+                    text=f"Error executing tool {name}: {e}"
+                )]
+
+{% if include_example_resources %}
+        @self.server.list_resources()
+        async def list_resources() -> list[Resource]:
+            """List available resources."""
+            resources = [
+                Resource(
+                    uri="config://settings",
+                    name="Server Settings",
+                    description="Current server configuration",
+                    mimeType="application/json",
+                ),
+            ]
+            
+            logger.debug("resources_listed", count=len(resources))
+            return resources
+
+        @self.server.read_resource()
+        async def read_resource(uri: str) -> str:
+            """
+            Read a resource by URI.
+            
+            Args:
+                uri: Resource URI
+                
+            Returns:
+                Resource content
+            """
+            logger.info("resource_read", uri=uri)
+            
+            if uri == "config://settings":
+                import json
+                return json.dumps(self.settings.model_dump(), indent=2)
+            
+            raise ValueError(f"Unknown resource: {uri}")
+{% endif %}
+
+{% if include_example_prompts %}
+        @self.server.list_prompts()
+        async def list_prompts() -> list[dict[str, Any]]:
+            """List available prompt templates."""
+            prompts = [
+                {
+                    "name": "example_prompt",
+                    "description": "An example prompt template",
+                    "arguments": [
+                        {
+                            "name": "topic",
+                            "description": "The topic to discuss",
+                            "required": True,
+                        }
+                    ],
+                }
+            ]
+            
+            logger.debug("prompts_listed", count=len(prompts))
+            return prompts
+
+        @self.server.get_prompt()
+        async def get_prompt(name: str, arguments: dict[str, Any]) -> str:
+            """
+            Get a prompt template with arguments filled in.
+            
+            Args:
+                name: Prompt name
+                arguments: Prompt arguments
+                
+            Returns:
+                Rendered prompt
+            """
+            logger.info("prompt_requested", prompt=name, arguments=arguments)
+            
+            if name == "example_prompt":
+                topic = arguments.get("topic", "general")
+                return f"Let's discuss {topic} in detail."
+            
+            raise ValueError(f"Unknown prompt: {name}")
+{% endif %}
+
+    async def run(self) -> None:
+        """Run the MCP server."""
+        logger.info("server_starting")
+        
+        async with stdio_server() as (read_stream, write_stream):
+            await self.server.run(
+                read_stream,
+                write_stream,
+                self.server.create_initialization_options(),
+            )
+
+
+async def main() -> None:
+    """Main entry point."""
+    settings = Settings()
+    server = {{ project_name | pascal_case }}Server(settings)
+    await server.run()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

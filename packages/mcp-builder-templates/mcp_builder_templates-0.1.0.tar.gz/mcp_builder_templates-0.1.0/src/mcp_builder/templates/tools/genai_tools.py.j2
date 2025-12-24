@@ -1,0 +1,214 @@
+"""GenAI tools for {{ project_name }}."""
+
+from typing import Any
+
+import structlog
+from mcp.types import Tool
+
+{% if "openai" in genai_providers %}
+from openai import AsyncOpenAI
+{% endif %}
+{% if "anthropic" in genai_providers %}
+from anthropic import AsyncAnthropic
+{% endif %}
+
+from {{ package_name }}.config import Settings
+
+logger = structlog.get_logger(__name__)
+
+
+def get_genai_tools() -> list[Tool]:
+    """Get list of GenAI tools."""
+    tools = [
+{% if "openai" in genai_providers %}
+        Tool(
+            name="genai_openai_chat",
+            description="Generate text using OpenAI's GPT models",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "The prompt for text generation",
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": "OpenAI model to use",
+                        "enum": ["gpt-4-turbo-preview", "gpt-3.5-turbo"],
+                        "default": "gpt-3.5-turbo",
+                    },
+                    "max_tokens": {
+                        "type": "integer",
+                        "description": "Maximum tokens to generate",
+                        "default": 1000,
+                    },
+                    "temperature": {
+                        "type": "number",
+                        "description": "Sampling temperature (0-2)",
+                        "default": 0.7,
+                        "minimum": 0,
+                        "maximum": 2,
+                    },
+                },
+                "required": ["prompt"],
+            },
+        ),
+{% endif %}
+{% if "anthropic" in genai_providers %}
+        Tool(
+            name="genai_anthropic_chat",
+            description="Generate text using Anthropic's Claude models",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "The prompt for text generation",
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": "Claude model to use",
+                        "enum": ["claude-3-opus-20240229", "claude-3-sonnet-20240229"],
+                        "default": "claude-3-sonnet-20240229",
+                    },
+                    "max_tokens": {
+                        "type": "integer",
+                        "description": "Maximum tokens to generate",
+                        "default": 1000,
+                    },
+                },
+                "required": ["prompt"],
+            },
+        ),
+{% endif %}
+        Tool(
+            name="genai_summarize",
+            description="Summarize text using AI",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "Text to summarize",
+                    },
+                    "max_length": {
+                        "type": "integer",
+                        "description": "Maximum summary length in words",
+                        "default": 100,
+                    },
+                },
+                "required": ["text"],
+            },
+        ),
+    ]
+    
+    return tools
+
+
+async def execute_genai_tool(name: str, arguments: dict[str, Any]) -> str:
+    """
+    Execute a GenAI tool.
+    
+    Args:
+        name: Tool name
+        arguments: Tool arguments
+        
+    Returns:
+        Execution result
+    """
+    settings = Settings()
+    
+{% if "openai" in genai_providers %}
+    if name == "genai_openai_chat":
+        return await _openai_chat(arguments, settings)
+{% endif %}
+{% if "anthropic" in genai_providers %}
+    elif name == "genai_anthropic_chat":
+        return await _anthropic_chat(arguments, settings)
+{% endif %}
+    elif name == "genai_summarize":
+        return await _summarize_text(arguments, settings)
+    
+    raise ValueError(f"Unknown GenAI tool: {name}")
+
+
+{% if "openai" in genai_providers %}
+async def _openai_chat(arguments: dict[str, Any], settings: Settings) -> str:
+    """Generate text using OpenAI."""
+    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    
+    try:
+        response = await client.chat.completions.create(
+            model=arguments.get("model", "gpt-3.5-turbo"),
+            messages=[
+                {"role": "user", "content": arguments["prompt"]}
+            ],
+            max_tokens=arguments.get("max_tokens", 1000),
+            temperature=arguments.get("temperature", 0.7),
+        )
+        
+        result = response.choices[0].message.content
+        logger.info("openai_chat_completed", tokens=response.usage.total_tokens)
+        return result or "No response generated"
+        
+    except Exception as e:
+        logger.error("openai_chat_failed", error=str(e))
+        raise RuntimeError(f"OpenAI API error: {e}") from e
+{% endif %}
+
+
+{% if "anthropic" in genai_providers %}
+async def _anthropic_chat(arguments: dict[str, Any], settings: Settings) -> str:
+    """Generate text using Anthropic Claude."""
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    
+    try:
+        response = await client.messages.create(
+            model=arguments.get("model", "claude-3-sonnet-20240229"),
+            max_tokens=arguments.get("max_tokens", 1000),
+            messages=[
+                {"role": "user", "content": arguments["prompt"]}
+            ],
+        )
+        
+        result = response.content[0].text
+        logger.info("anthropic_chat_completed")
+        return result
+        
+    except Exception as e:
+        logger.error("anthropic_chat_failed", error=str(e))
+        raise RuntimeError(f"Anthropic API error: {e}") from e
+{% endif %}
+
+
+async def _summarize_text(arguments: dict[str, Any], settings: Settings) -> str:
+    """Summarize text using AI."""
+    text = arguments["text"]
+    max_length = arguments.get("max_length", 100)
+    
+{% if "openai" in genai_providers %}
+    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"Summarize the following text in no more than {max_length} words.",
+                },
+                {"role": "user", "content": text}
+            ],
+            max_tokens=max_length * 2,
+        )
+        
+        return response.choices[0].message.content or "Failed to generate summary"
+        
+    except Exception as e:
+        logger.error("summarization_failed", error=str(e))
+        raise RuntimeError(f"Summarization error: {e}") from e
+{% else %}
+    # Fallback: simple summarization
+    words = text.split()[:max_length]
+    return " ".join(words) + "..."
+{% endif %}

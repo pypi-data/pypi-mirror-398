@@ -1,0 +1,64 @@
+"""File operation tools for {{ project_name }}."""
+
+from typing import Any
+import structlog
+from mcp.types import Tool
+
+logger = structlog.get_logger(__name__)
+
+
+def get_file_operations_tools() -> list[Tool]:
+    """Get list of file operation tools."""
+    tools = [
+        Tool(
+            name="file_read",
+            description="Read content from a file",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "File path"},
+                },
+                "required": ["path"],
+            },
+        ),
+        Tool(
+            name="file_write",
+            description="Write content to a file",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "File path"},
+                    "content": {"type": "string", "description": "Content to write"},
+                },
+                "required": ["path", "content"],
+            },
+        ),
+    ]
+    return tools
+
+
+async def execute_file_operations_tool(name: str, arguments: dict[str, Any]) -> str:
+    """Execute a file operation tool."""
+    if name == "file_read":
+        return await _read_file(arguments)
+    elif name == "file_write":
+        return await _write_file(arguments)
+    raise ValueError(f"Unknown file operation tool: {name}")
+
+
+async def _read_file(arguments: dict[str, Any]) -> str:
+    """Read file."""
+    path = arguments["path"]
+    # Implement file reading here
+    logger.info("file_read", path=path)
+    return f"File read: {path}"
+
+
+async def _write_file(arguments: dict[str, Any]) -> str:
+    """Write file."""
+    path = arguments["path"]
+    content = arguments["content"]
+    # Implement file writing here
+    logger.info("file_written", path=path, content_length=len(content))
+    return f"File written: {path}"
+

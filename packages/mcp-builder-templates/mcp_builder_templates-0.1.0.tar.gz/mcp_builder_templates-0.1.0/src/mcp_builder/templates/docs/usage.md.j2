@@ -1,0 +1,158 @@
+# {{ project_name }} - Usage Guide
+
+This guide covers how to use and integrate {{ project_name }} into your applications.
+
+## Quick Start
+
+### 1. Installation
+
+```bash
+# Clone the repository
+git clone <your-repo-url>
+cd {{ project_slug }}
+
+# Install dependencies
+uv sync
+
+# Run the server
+uv run {{ package_name }}
+```
+
+### 2. Configuration
+
+Copy the environment template and configure:
+
+```bash
+cp .env.example .env
+# Edit .env with your API keys and settings
+```
+
+### 3. Running the Server
+
+#### Development Mode
+
+```bash
+# Run directly
+uv run {{ package_name }}
+
+# Run with debug logging
+LOG_LEVEL=DEBUG uv run {{ package_name }}
+```
+
+#### Production Mode
+
+```bash
+# Using uvicorn with production settings
+uv run uvicorn {{ package_name }}.server:app --host 0.0.0.0 --port 8000
+```
+
+## Integration with Claude Desktop
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "{{ project_slug }}": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/absolute/path/to/{{ project_slug }}",
+        "run",
+        "{{ package_name }}"
+      ]
+    }
+  }
+}
+```
+
+## Available Tools
+
+{% if tool_categories %}
+{% for category in tool_categories %}
+### {{ category | title | replace('-', ' ') }} Tools
+
+[Add specific tool documentation here]
+
+{% endfor %}
+{% endif %}
+
+## Configuration Options
+
+### Environment Variables
+
+{% if "genai" in tool_categories %}
+#### GenAI Settings
+{% for provider in genai_providers %}
+- `{{ provider | upper | replace(' ', '_') }}_API_KEY`: API key for {{ provider }}
+{% endfor %}
+{% endif %}
+
+#### Server Settings
+- `LOG_LEVEL`: Logging verbosity (DEBUG, INFO, WARNING, ERROR)
+- `SERVER_NAME`: Server instance name
+
+## Examples
+
+### Basic Usage
+
+```python
+from {{ package_name }}.server import {{ project_name | replace('-', ' ') | title | replace(' ', '') }}Server
+
+async def main():
+    server = {{ project_name | replace('-', ' ') | title | replace(' ', '') }}Server()
+    await server.run()
+```
+
+### Custom Configuration
+
+```python
+from {{ package_name }}.config import Settings
+from {{ package_name }}.server import {{ project_name | replace('-', ' ') | title | replace(' ', '') }}Server
+
+settings = Settings(
+    log_level="DEBUG",
+    server_name="my-custom-server"
+)
+
+server = {{ project_name | replace('-', ' ') | title | replace(' ', '') }}Server(settings)
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Server won't start**
+- Check that all required API keys are set in `.env`
+- Verify Python version is {{ python_version }}+
+- Check logs for specific error messages
+
+**Connection refused**
+- Ensure no other service is using the port
+- Check firewall settings
+
+## Best Practices
+
+1. **Security**
+   - Never commit `.env` files
+   - Use environment-specific configurations
+   - Rotate API keys regularly
+
+2. **Performance**
+   - Enable caching for frequently accessed data
+   - Use connection pooling for databases
+   - Monitor resource usage
+
+3. **Monitoring**
+   - Set up structured logging
+   - Use appropriate log levels
+   - Monitor error rates
+
+## Next Steps
+
+- [API Reference](api.md)
+- [Contributing Guide](../CONTRIBUTING.md)
+
+---
+
+*Last updated: {{ year }}*
