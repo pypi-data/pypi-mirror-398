@@ -1,0 +1,9 @@
+- the development plan for this project is(bioamla_magpy_unified_development_plan.md)
+- this is alpha software. never program for backwards compatibility within own package
+- the most up to date version of bioamla is here /home/john/repos/bioamla/src/bioamla
+- the venv environment for magpie should install bioamla from /home/john/repos/bioamla/src/bioamla
+- review the development plan for consistency
+- if a proposed change breaks the plan, offer to retructure the plan
+- when starting a task(tasks) add it to the TODO.md file
+- when complete a task, mark it as complete in the the TODO.md file
+- if there are remaining TODO items, offer to complete them in this context
