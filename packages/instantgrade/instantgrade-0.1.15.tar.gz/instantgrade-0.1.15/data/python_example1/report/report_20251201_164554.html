@@ -1,0 +1,246 @@
+
+        <html><head><meta charset="UTF-8"><title>Evaluator Report</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            select, button { padding: 6px; font-size: 15px; margin-right: 10px; }
+            table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+            th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+            th { background: #f2f2f2; }
+            tr:nth-child(even) { background: #fafafa; }
+            .student-block { margin-top: 40px; border: 1px solid #ddd; padding: 15px; border-radius: 6px; }
+            .question-header { font-weight: bold; margin-top: 15px; font-size: 1.05em; color: #333; }
+            .description { color: #555; margin-bottom: 10px; font-style: italic; }
+            .passed { background-color: #e6ffe6; }
+            .failed { background-color: #ffe6e6; }
+            .summary { margin-top: 5px; font-weight: bold; color: #333; }
+            .hidden { display: none; }
+
+            #summaryModal {
+                display: none;
+                position: fixed;
+                top: 10%;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 70%;
+                max-height: 70vh;  /* fixed height */
+                overflow-y: auto;  /* enable scrolling */
+                background: white;
+                border: 2px solid #555;
+                border-radius: 8px;
+                padding: 20px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                z-index: 1000;
+            }
+            #summaryModal::-webkit-scrollbar {
+                width: 10px;
+            }
+            #summaryModal::-webkit-scrollbar-thumb {
+                background-color: #ccc;
+                border-radius: 10px;
+            }
+            #summaryModal::-webkit-scrollbar-thumb:hover {
+                background-color: #999;
+            }
+            #overlay {
+                display: none;
+                position: fixed;
+                top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+            .close-btn {
+                float: right;
+                cursor: pointer;
+                color: red;
+                font-weight: bold;
+            }
+        </style>
+        <script>
+            function filterReports() {
+                const studentVal = document.getElementById("studentSelect").value;
+                const questionVal = document.getElementById("questionSelect").value;
+                document.querySelectorAll(".student-block").forEach(div => {
+                    const showStudent = (studentVal === "" || div.id === studentVal);
+                    div.style.display = showStudent ? "block" : "none";
+                    if (showStudent) {
+                        div.querySelectorAll(".question-block").forEach(qb => {
+                            qb.style.display = (questionVal === "" || qb.dataset.qname === questionVal) ? "block" : "none";
+                        });
+                    }
+                });
+            }
+            function sortStudents() {
+                const sortType = document.getElementById("sortSelect").value;
+                const container = document.getElementById("reportContainer");
+                const blocks = Array.from(container.getElementsByClassName("student-block"));
+                blocks.sort((a, b) => {
+                    const scoreA = parseFloat(a.dataset.total);
+                    const scoreB = parseFloat(b.dataset.total);
+                    const nameA = a.dataset.name.toLowerCase();
+                    const nameB = b.dataset.name.toLowerCase();
+                    const rollA = a.dataset.roll.toLowerCase();
+                    const rollB = b.dataset.roll.toLowerCase();
+                    switch(sortType) {
+                        case "marks": return scoreB - scoreA;
+                        case "name": return nameA.localeCompare(nameB);
+                        case "roll": return rollA.localeCompare(rollB);
+                        case "default": return nameA === "student name" ? 1 : -1;
+                    }
+                });
+                blocks.forEach(b => container.appendChild(b));
+            }
+            function showSummary() {
+                document.getElementById("overlay").style.display = "block";
+                document.getElementById("summaryModal").style.display = "block";
+            }
+            function closeSummary() {
+                document.getElementById("overlay").style.display = "none";
+                document.getElementById("summaryModal").style.display = "none";
+            }
+        </script>
+        </head><body>
+        <h2>Evaluator Report</h2>
+
+        <label for="sortSelect">Sort By:</label>
+        <select id="sortSelect" onchange="sortStudents()">
+            <option value="marks">Total Marks (High → Low)</option>
+            <option value="name">Student Name (A–Z)</option>
+            <option value="roll">Roll Number (A–Z)</option>
+            <option value="default">Default (Student Name Last)</option>
+        </select>
+
+        <button onclick="showSummary()">Show Summary</button>
+
+        <label for="studentSelect">Student:</label>
+        <select id="studentSelect" onchange="filterReports()">
+            <option value="">-- All Students --</option>
+        <option value='student_name_student_roll_number'>student name (student roll number)</option><option value='student_name_student_roll_number'>student name (student roll number)</option></select><hr><div id='reportContainer'><div class="student-block" id="student_name_student_roll_number" data-name="student name" data-roll="student roll number" data-total="19"><h3>student name — student roll number</h3><p><strong>File:</strong> submissions/sample_solutions.ipynb</p><p class='summary'>Total: 19/19 (100.0%)</p><div class="question-block" data-qname="ask_password"><div class="question-header">Question: ask_password</div><div class="description">### 5. Write a program that keeps asking for a password until the user enters &quot;python&quot;.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert ask_password([&#x27;nope&#x27;,&#x27;123&#x27;,&#x27;python&#x27;]) == &#x27;python&#x27;</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="check_number"><div class="question-header">Question: check_number</div><div class="description">### 1. Write a program to check if a number is **positive, negative, or zero**.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert check_number(10) == &#x27;positive&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert check_number(-5) == &#x27;negative&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert check_number(0) == &#x27;zero&#x27;</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="count_vowels"><div class="question-header">Question: count_vowels</div><div class="description">### 6. Write a program that counts the number of vowels in a given word.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert count_vowels(&#x27;hello&#x27;) == 2</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert count_vowels(&#x27;rhythm&#x27;) == 0</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert count_vowels(&#x27;AEIOU&#x27;) == 5</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="even_1_to_20"><div class="question-header">Question: even_1_to_20</div><div class="description">### 3. Write a program that prints only **even numbers** from 1 to 20.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert even_1_to_20() == [2,4,6,8,10,12,14,16,18,20]</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="is_leap_year"><div class="question-header">Question: is_leap_year</div><div class="description">### 4. Write a program that checks if a given year is a **leap year**.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert is_leap_year(2000) is True</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert is_leap_year(1900) is False</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert is_leap_year(2024) is True</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert is_leap_year(2023) is False</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="largest_of_five"><div class="question-header">Question: largest_of_five</div><div class="description">### 9. Write a program to find the **largest number** from a list of 5 numbers entered by the user.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert largest_of_five([1,2,3,4,5]) == 5</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert largest_of_five([10,9,8,7,6]) == 10</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="mood_response"><div class="question-header">Question: mood_response</div><div class="description">### 10. Bonus Fun One 🎭: Ask the user’s mood — if &quot;happy&quot;, print &quot;Keep smiling!&quot;; if &quot;sad&quot;, print &quot;Cheer up, Python believes in you!&quot;; else, print &quot;Processing emotions... try again.&quot;</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert mood_response(&#x27;happy&#x27;) == &#x27;Keep smiling!&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert mood_response(&#x27; sad &#x27;) == &#x27;Cheer up, Python believes in you!&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert mood_response(&#x27;confused&#x27;) == &#x27;Processing emotions... try again.&#x27;</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="numbers_1_to_10"><div class="question-header">Question: numbers_1_to_10</div><div class="description">### 2. Write a program that prints all numbers from **1 to 10** using a `for` loop.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert numbers_1_to_10() == list(range(1, 11))</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="sum_1_to_100_loop"><div class="question-header">Question: sum_1_to_100_loop</div><div class="description">### 8. Write a program to **sum all numbers** from 1 to 100 using a loop.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert sum_1_to_100_loop() == 5050</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div></div><div class="student-block" id="student_name_student_roll_number" data-name="student name" data-roll="student roll number" data-total="0"><h3>student name — student roll number</h3><p><strong>File:</strong> submissions/student_notebook.ipynb</p><p class='summary'>Total: 0/19 (0.0%)</p><div class="question-block" data-qname="ask_password"><div class="question-header">Question: ask_password</div><div class="description">### 5. Write a program that keeps asking for a password until the user enters &quot;python&quot;.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert ask_password([&#x27;nope&#x27;,&#x27;123&#x27;,&#x27;python&#x27;]) == &#x27;python&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="check_number"><div class="question-header">Question: check_number</div><div class="description">### 1. Write a program to check if a number is **positive, negative, or zero**.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert check_number(10) == &#x27;positive&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert check_number(-5) == &#x27;negative&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert check_number(0) == &#x27;zero&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="count_vowels"><div class="question-header">Question: count_vowels</div><div class="description">### 6. Write a program that counts the number of vowels in a given word.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert count_vowels(&#x27;hello&#x27;) == 2</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert count_vowels(&#x27;rhythm&#x27;) == 0</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert count_vowels(&#x27;AEIOU&#x27;) == 5</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="even_1_to_20"><div class="question-header">Question: even_1_to_20</div><div class="description">### 3. Write a program that prints only **even numbers** from 1 to 20.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert even_1_to_20() == [2,4,6,8,10,12,14,16,18,20]</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="is_leap_year"><div class="question-header">Question: is_leap_year</div><div class="description">### 4. Write a program that checks if a given year is a **leap year**.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert is_leap_year(2000) is True</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert is_leap_year(1900) is False</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert is_leap_year(2024) is True</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert is_leap_year(2023) is False</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="largest_of_five"><div class="question-header">Question: largest_of_five</div><div class="description">### 9. Write a program to find the **largest number** from a list of 5 numbers entered by the user.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert largest_of_five([1,2,3,4,5]) == 5</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert largest_of_five([10,9,8,7,6]) == 10</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="mood_response"><div class="question-header">Question: mood_response</div><div class="description">### 10. Bonus Fun One 🎭: Ask the user’s mood — if &quot;happy&quot;, print &quot;Keep smiling!&quot;; if &quot;sad&quot;, print &quot;Cheer up, Python believes in you!&quot;; else, print &quot;Processing emotions... try again.&quot;</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert mood_response(&#x27;happy&#x27;) == &#x27;Keep smiling!&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert mood_response(&#x27; sad &#x27;) == &#x27;Cheer up, Python believes in you!&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert mood_response(&#x27;confused&#x27;) == &#x27;Processing emotions... try again.&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="numbers_1_to_10"><div class="question-header">Question: numbers_1_to_10</div><div class="description">### 2. Write a program that prints all numbers from **1 to 10** using a `for` loop.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert numbers_1_to_10() == list(range(1, 11))</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="sum_1_to_100_loop"><div class="question-header">Question: sum_1_to_100_loop</div><div class="description">### 8. Write a program to **sum all numbers** from 1 to 100 using a loop.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert sum_1_to_100_loop() == 5050</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/Volumes/MacSSD/Areas/Github_Repositories/evaluator/.venv/lib/python3.13/site-packages/instantgrade/comparison/comparison_service.py&quot;, line 57, in run_assertions
+    exec(code, student_namespace)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File &quot;&lt;string&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div></div></div>
+        <div id="overlay" onclick="closeSummary()"></div>
+        <div id="summaryModal">
+            <span class="close-btn" onclick="closeSummary()">✖</span>
+            <h3>Student Summary</h3>
+            <table>
+                <thead><tr>
+                  <th>Student</th>
+                  <th>Roll Number</th>
+                  <th>File</th>
+                  <th>Total Marks</th>
+                  <th>Out of</th>
+                  <th>Percentage</th>
+                </tr></thead>
+                <tbody>
+        <tr><td>student name</td><td>student roll number</td><td>sample_solutions.ipynb</td><td>19</td><td>19</td><td>100.0%</td></tr><tr><td>student name</td><td>student roll number</td><td>student_notebook.ipynb</td><td>0</td><td>19</td><td>0.0%</td></tr></tbody></table></div></body></html>

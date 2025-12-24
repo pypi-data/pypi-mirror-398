@@ -1,0 +1,325 @@
+
+        <html><head><meta charset="UTF-8"><title>Evaluator Report</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            select, button { padding: 6px; font-size: 15px; margin-right: 10px; }
+            table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+            th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+            th { background: #f2f2f2; }
+            tr:nth-child(even) { background: #fafafa; }
+            .student-block { margin-top: 40px; border: 1px solid #ddd; padding: 15px; border-radius: 6px; }
+            .question-header { font-weight: bold; margin-top: 15px; font-size: 1.05em; color: #333; }
+            .description { color: #555; margin-bottom: 10px; font-style: italic; }
+            .passed { background-color: #e6ffe6; }
+            .failed { background-color: #ffe6e6; }
+            .summary { margin-top: 5px; font-weight: bold; color: #333; }
+
+            #summaryModal {
+                display: none;
+                position: fixed;
+                top: 10%;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 70%;
+                max-height: 70vh;
+                overflow-y: auto;
+                background: white;
+                border: 2px solid #555;
+                border-radius: 8px;
+                padding: 20px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                z-index: 1000;
+            }
+            #overlay {
+                display: none;
+                position: fixed;
+                top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+            .close-btn { float: right; cursor: pointer; color: red; font-weight: bold; }
+        </style>
+        <script>
+            function filterReports() {
+                const studentVal = document.getElementById("studentSelect").value;
+                const rollVal = document.getElementById("rollSelect").value;
+                const fileVal = document.getElementById("fileSelect").value;
+                document.querySelectorAll(".student-block").forEach(div => {
+                    const name = div.dataset.name;
+                    const roll = div.dataset.roll;
+                    const file = div.dataset.file;
+                    const show = (
+                        (studentVal === "" || name === studentVal) &&
+                        (rollVal === "" || roll === rollVal) &&
+                        (fileVal === "" || file === fileVal)
+                    );
+                    div.style.display = show ? "block" : "none";
+                });
+            }
+            function sortStudents() {
+                const sortType = document.getElementById("sortSelect").value;
+                const container = document.getElementById("reportContainer");
+                const blocks = Array.from(container.getElementsByClassName("student-block"));
+                blocks.sort((a, b) => {
+                    const scoreA = parseFloat(a.dataset.total);
+                    const scoreB = parseFloat(b.dataset.total);
+                    const nameA = a.dataset.name.toLowerCase();
+                    const nameB = b.dataset.name.toLowerCase();
+                    const rollA = a.dataset.roll.toLowerCase();
+                    const rollB = b.dataset.roll.toLowerCase();
+                    const fileA = a.dataset.file.toLowerCase();
+                    const fileB = b.dataset.file.toLowerCase();
+                    switch(sortType) {
+                        case "marks": return scoreB - scoreA;
+                        case "name": return nameA.localeCompare(nameB);
+                        case "roll": return rollA.localeCompare(rollB);
+                        case "file": return fileA.localeCompare(fileB);
+                        default: return 0;
+                    }
+                });
+                blocks.forEach(b => container.appendChild(b));
+            }
+            function showSummary() {
+                document.getElementById("overlay").style.display = "block";
+                document.getElementById("summaryModal").style.display = "block";
+            }
+            function closeSummary() {
+                document.getElementById("overlay").style.display = "none";
+                document.getElementById("summaryModal").style.display = "none";
+            }
+        </script>
+        </head><body>
+        <h2>Evaluator Report</h2>
+
+        <label for="sortSelect">Sort By:</label>
+        <select id="sortSelect" onchange="sortStudents()">
+            <option value="marks">Total Marks (High → Low)</option>
+            <option value="name">Student Name (A–Z)</option>
+            <option value="roll">Roll Number (A–Z)</option>
+            <option value="file">File Name (A–Z)</option>
+        </select>
+
+        <button onclick="showSummary()">Show Summary</button>
+
+        <label for="studentSelect">Student:</label>
+        <select id="studentSelect" onchange="filterReports()">
+            <option value="">-- All Students --</option>
+        <option value='Test 1'>Test 1</option><option value='Test 2'>Test 2</option><option value='partial name'>partial name</option><option value='zero'>zero</option></select>
+        <label for="rollSelect">Roll:</label>
+        <select id="rollSelect" onchange="filterReports()">
+            <option value="">-- All Rolls --</option>
+        <option value='Test 1 roll number'>Test 1 roll number</option><option value='Test 2 roll number'>Test 2 roll number</option><option value='partial roll number'>partial roll number</option><option value='zero roll number'>zero roll number</option></select>
+        <label for="fileSelect">File:</label>
+        <select id="fileSelect" onchange="filterReports()">
+            <option value="">-- All Files --</option>
+        <option value='sample_solutions copy.ipynb'>sample_solutions copy.ipynb</option><option value='sample_solutions partial.ipynb'>sample_solutions partial.ipynb</option><option value='sample_solutions.ipynb'>sample_solutions.ipynb</option><option value='sample_solutions_1.ipynb'>sample_solutions_1.ipynb</option><option value='sample_solutions_2.ipynb'>sample_solutions_2.ipynb</option><option value='student_notebook copy.ipynb'>student_notebook copy.ipynb</option><option value='student_notebook.ipynb'>student_notebook.ipynb</option></select><hr><div id='reportContainer'><div class="student-block" data-name="student name" data-roll="student roll number" data-file="sample_solutions copy.ipynb" data-total="0"><h3>student name — student roll number</h3><p><strong>File:</strong> sample_solutions copy.ipynb</p><p class='summary'>Total: 0/24 (0.0%)</p><div class="question-block" data-qname="_identity_check_"><div class="question-header">Question: _identity_check_</div><div class="description">Student did not customize name/roll_number.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>[missing student identity]</td><td>failed</td><td>0</td><td>Student notebook missing personalized name/roll_number. Please define:
+
+name = &#x27;Your Name&#x27;
+roll_number = &#x27;Your Roll Number&#x27;
+</td></tr></tbody></table></div></div><div class="student-block" data-name="partial name" data-roll="partial roll number" data-file="sample_solutions partial.ipynb" data-total="16"><h3>partial name — partial roll number</h3><p><strong>File:</strong> sample_solutions partial.ipynb</p><p class='summary'>Total: 16/24 (66.67%)</p><div class="question-block" data-qname="average_of_three"><div class="question-header">Question: average_of_three</div><div class="description">**Example:** Input `(4, 8, 10)` → `7.3333...`  
+**Return:** The arithmetic mean of the three numbers.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert round(average_of_three(4, 8, 10), 2) == 7.33</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+TypeError: type NoneType doesn&#x27;t define __round__ method
+</td></tr><tr class='failed'><td>assert average_of_three(3, 3, 3) == 3</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert average_of_three(10, 0, 5) == 5</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="check_number"><div class="question-header">Question: check_number</div><div class="description">**Return:** A string such as `&#x27;Positive&#x27;`, `&#x27;Negative&#x27;`, or `&#x27;Zero&#x27;`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert check_number(5) == &#x27;Positive&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert check_number(-3) == &#x27;Negative&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert check_number(0) == &#x27;Zero&#x27;</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="check_password"><div class="question-header">Question: check_password</div><div class="description">**Example:** Input `&#x27;java&#x27;` → `&#x27;Access Denied&#x27;`; Input `&#x27;python&#x27;` → `&#x27;Access Granted&#x27;`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert check_password(&#x27;python&#x27;) == &#x27;Access Granted&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert check_password(&#x27;PYTHON&#x27;) == &#x27;Access Denied&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert check_password(&#x27;java&#x27;) == &#x27;Access Denied&#x27;</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="count_letter"><div class="question-header">Question: count_letter</div><div class="description">**Example:** Input `(&#x27;banana&#x27;, &#x27;a&#x27;)`
+**Return:** `3`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert count_letter(&#x27;banana&#x27;, &#x27;a&#x27;) == 3</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert count_letter(&#x27;apple&#x27;, &#x27;p&#x27;) == 2</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert count_letter(&#x27;python&#x27;, &#x27;z&#x27;) == 0</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="even_numbers_1_to_n"><div class="question-header">Question: even_numbers_1_to_n</div><div class="description">Example if n = 11 then
+**Return:** `[2, 4, 6, 8, 10]`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert even_numbers_1_to_n(11) == [2, 4, 6, 8, 10]</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="even_or_odd"><div class="question-header">Question: even_or_odd</div><div class="description">**Example:** Input `4` → `&#x27;Even&#x27;`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert even_or_odd(2) == &#x27;Even&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert even_or_odd(3) == &#x27;Odd&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="larger_number"><div class="question-header">Question: larger_number</div><div class="description">**Example:** Input `(4, 9)` → `9`  
+**Return:** The larger number.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert larger_number(4, 9) == 9</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert larger_number(10, 3) == 10</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert larger_number(5, 5) == 5</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="numbers_1_to_n"><div class="question-header">Question: numbers_1_to_n</div><div class="description">Example if n = 5 then
+**Return:** `[1, 2, 3, 4, 5]`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert numbers_1_to_n(5) == [1, 2, 3, 4, 5]</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="square_number"><div class="question-header">Question: square_number</div><div class="description">**Example:** For input `4`, return `16`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert square_number(4) == 16</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert square_number(0) == 0</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="squares_1_to_n"><div class="question-header">Question: squares_1_to_n</div><div class="description">if n is 5
+**Return:** `[1, 4, 9, 16, 25]`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert squares_1_to_n(5) == [1, 4, 9, 16, 25]</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="sum_1_to_n"><div class="question-header">Question: sum_1_to_n</div><div class="description">**Example:** Input `5` → `15`
+because 1+2</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert sum_1_to_n(5) == 15</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert sum_1_to_n(10) == 55</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div></div><div class="student-block" data-name="student name" data-roll="student roll number" data-file="sample_solutions.ipynb" data-total="0"><h3>student name — student roll number</h3><p><strong>File:</strong> sample_solutions.ipynb</p><p class='summary'>Total: 0/24 (0.0%)</p><div class="question-block" data-qname="_identity_check_"><div class="question-header">Question: _identity_check_</div><div class="description">Student did not customize name/roll_number.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>[missing student identity]</td><td>failed</td><td>0</td><td>Student notebook missing personalized name/roll_number. Please define:
+
+name = &#x27;Your Name&#x27;
+roll_number = &#x27;Your Roll Number&#x27;
+</td></tr></tbody></table></div></div><div class="student-block" data-name="Test 1" data-roll="Test 1 roll number" data-file="sample_solutions_1.ipynb" data-total="24"><h3>Test 1 — Test 1 roll number</h3><p><strong>File:</strong> sample_solutions_1.ipynb</p><p class='summary'>Total: 24/24 (100.0%)</p><div class="question-block" data-qname="average_of_three"><div class="question-header">Question: average_of_three</div><div class="description">**Example:** Input `(4, 8, 10)` → `7.3333...`  
+**Return:** The arithmetic mean of the three numbers.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert round(average_of_three(4, 8, 10), 2) == 7.33</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert average_of_three(3, 3, 3) == 3</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert average_of_three(10, 0, 5) == 5</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="check_number"><div class="question-header">Question: check_number</div><div class="description">**Return:** A string such as `&#x27;Positive&#x27;`, `&#x27;Negative&#x27;`, or `&#x27;Zero&#x27;`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert check_number(5) == &#x27;Positive&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert check_number(-3) == &#x27;Negative&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert check_number(0) == &#x27;Zero&#x27;</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="check_password"><div class="question-header">Question: check_password</div><div class="description">**Example:** Input `&#x27;java&#x27;` → `&#x27;Access Denied&#x27;`; Input `&#x27;python&#x27;` → `&#x27;Access Granted&#x27;`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert check_password(&#x27;python&#x27;) == &#x27;Access Granted&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert check_password(&#x27;PYTHON&#x27;) == &#x27;Access Denied&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert check_password(&#x27;java&#x27;) == &#x27;Access Denied&#x27;</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="count_letter"><div class="question-header">Question: count_letter</div><div class="description">**Example:** Input `(&#x27;banana&#x27;, &#x27;a&#x27;)`
+**Return:** `3`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert count_letter(&#x27;banana&#x27;, &#x27;a&#x27;) == 3</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert count_letter(&#x27;apple&#x27;, &#x27;p&#x27;) == 2</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert count_letter(&#x27;python&#x27;, &#x27;z&#x27;) == 0</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="even_numbers_1_to_n"><div class="question-header">Question: even_numbers_1_to_n</div><div class="description">Example if n = 11 then
+**Return:** `[2, 4, 6, 8, 10]`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert even_numbers_1_to_n(11) == [2, 4, 6, 8, 10]</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="even_or_odd"><div class="question-header">Question: even_or_odd</div><div class="description">**Example:** Input `4` → `&#x27;Even&#x27;`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert even_or_odd(2) == &#x27;Even&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert even_or_odd(3) == &#x27;Odd&#x27;</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="larger_number"><div class="question-header">Question: larger_number</div><div class="description">**Example:** Input `(4, 9)` → `9`  
+**Return:** The larger number.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert larger_number(4, 9) == 9</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert larger_number(10, 3) == 10</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert larger_number(5, 5) == 5</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="numbers_1_to_n"><div class="question-header">Question: numbers_1_to_n</div><div class="description">Example if n = 5 then
+**Return:** `[1, 2, 3, 4, 5]`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert numbers_1_to_n(5) == [1, 2, 3, 4, 5]</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="square_number"><div class="question-header">Question: square_number</div><div class="description">**Example:** For input `4`, return `16`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert square_number(4) == 16</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert square_number(0) == 0</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="squares_1_to_n"><div class="question-header">Question: squares_1_to_n</div><div class="description">if n is 5
+**Return:** `[1, 4, 9, 16, 25]`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert squares_1_to_n(5) == [1, 4, 9, 16, 25]</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="sum_1_to_n"><div class="question-header">Question: sum_1_to_n</div><div class="description">**Example:** Input `5` → `15`
+because 1+2</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert sum_1_to_n(5) == 15</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert sum_1_to_n(10) == 55</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div></div><div class="student-block" data-name="Test 2" data-roll="Test 2 roll number" data-file="sample_solutions_2.ipynb" data-total="24"><h3>Test 2 — Test 2 roll number</h3><p><strong>File:</strong> sample_solutions_2.ipynb</p><p class='summary'>Total: 24/24 (100.0%)</p><div class="question-block" data-qname="average_of_three"><div class="question-header">Question: average_of_three</div><div class="description">**Example:** Input `(4, 8, 10)` → `7.3333...`  
+**Return:** The arithmetic mean of the three numbers.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert round(average_of_three(4, 8, 10), 2) == 7.33</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert average_of_three(3, 3, 3) == 3</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert average_of_three(10, 0, 5) == 5</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="check_number"><div class="question-header">Question: check_number</div><div class="description">**Return:** A string such as `&#x27;Positive&#x27;`, `&#x27;Negative&#x27;`, or `&#x27;Zero&#x27;`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert check_number(5) == &#x27;Positive&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert check_number(-3) == &#x27;Negative&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert check_number(0) == &#x27;Zero&#x27;</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="check_password"><div class="question-header">Question: check_password</div><div class="description">**Example:** Input `&#x27;java&#x27;` → `&#x27;Access Denied&#x27;`; Input `&#x27;python&#x27;` → `&#x27;Access Granted&#x27;`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert check_password(&#x27;python&#x27;) == &#x27;Access Granted&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert check_password(&#x27;PYTHON&#x27;) == &#x27;Access Denied&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert check_password(&#x27;java&#x27;) == &#x27;Access Denied&#x27;</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="count_letter"><div class="question-header">Question: count_letter</div><div class="description">**Example:** Input `(&#x27;banana&#x27;, &#x27;a&#x27;)`
+**Return:** `3`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert count_letter(&#x27;banana&#x27;, &#x27;a&#x27;) == 3</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert count_letter(&#x27;apple&#x27;, &#x27;p&#x27;) == 2</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert count_letter(&#x27;python&#x27;, &#x27;z&#x27;) == 0</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="even_numbers_1_to_n"><div class="question-header">Question: even_numbers_1_to_n</div><div class="description">Example if n = 11 then
+**Return:** `[2, 4, 6, 8, 10]`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert even_numbers_1_to_n(11) == [2, 4, 6, 8, 10]</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="even_or_odd"><div class="question-header">Question: even_or_odd</div><div class="description">**Example:** Input `4` → `&#x27;Even&#x27;`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert even_or_odd(2) == &#x27;Even&#x27;</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert even_or_odd(3) == &#x27;Odd&#x27;</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="larger_number"><div class="question-header">Question: larger_number</div><div class="description">**Example:** Input `(4, 9)` → `9`  
+**Return:** The larger number.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert larger_number(4, 9) == 9</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert larger_number(10, 3) == 10</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert larger_number(5, 5) == 5</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="numbers_1_to_n"><div class="question-header">Question: numbers_1_to_n</div><div class="description">Example if n = 5 then
+**Return:** `[1, 2, 3, 4, 5]`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert numbers_1_to_n(5) == [1, 2, 3, 4, 5]</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="square_number"><div class="question-header">Question: square_number</div><div class="description">**Example:** For input `4`, return `16`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert square_number(4) == 16</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert square_number(0) == 0</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="squares_1_to_n"><div class="question-header">Question: squares_1_to_n</div><div class="description">if n is 5
+**Return:** `[1, 4, 9, 16, 25]`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert squares_1_to_n(5) == [1, 4, 9, 16, 25]</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div><div class="question-block" data-qname="sum_1_to_n"><div class="question-header">Question: sum_1_to_n</div><div class="description">**Example:** Input `5` → `15`
+because 1+2</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='passed'><td>assert sum_1_to_n(5) == 15</td><td>passed</td><td>1</td><td></td></tr><tr class='passed'><td>assert sum_1_to_n(10) == 55</td><td>passed</td><td>1</td><td></td></tr></tbody></table></div></div><div class="student-block" data-name="zero" data-roll="zero roll number" data-file="student_notebook copy.ipynb" data-total="0"><h3>zero — zero roll number</h3><p><strong>File:</strong> student_notebook copy.ipynb</p><p class='summary'>Total: 0/24 (0.0%)</p><div class="question-block" data-qname="average_of_three"><div class="question-header">Question: average_of_three</div><div class="description">**Example:** Input `(4, 8, 10)` → `7.3333...`  
+**Return:** The arithmetic mean of the three numbers.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert round(average_of_three(4, 8, 10), 2) == 7.33</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+TypeError: type NoneType doesn&#x27;t define __round__ method
+</td></tr><tr class='failed'><td>assert average_of_three(3, 3, 3) == 3</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert average_of_three(10, 0, 5) == 5</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="check_number"><div class="question-header">Question: check_number</div><div class="description">**Return:** A string such as `&#x27;Positive&#x27;`, `&#x27;Negative&#x27;`, or `&#x27;Zero&#x27;`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert check_number(5) == &#x27;Positive&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert check_number(-3) == &#x27;Negative&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert check_number(0) == &#x27;Zero&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="check_password"><div class="question-header">Question: check_password</div><div class="description">**Example:** Input `&#x27;java&#x27;` → `&#x27;Access Denied&#x27;`; Input `&#x27;python&#x27;` → `&#x27;Access Granted&#x27;`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert check_password(&#x27;python&#x27;) == &#x27;Access Granted&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert check_password(&#x27;PYTHON&#x27;) == &#x27;Access Denied&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert check_password(&#x27;java&#x27;) == &#x27;Access Denied&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="count_letter"><div class="question-header">Question: count_letter</div><div class="description">**Example:** Input `(&#x27;banana&#x27;, &#x27;a&#x27;)`
+**Return:** `3`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert count_letter(&#x27;banana&#x27;, &#x27;a&#x27;) == 3</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert count_letter(&#x27;apple&#x27;, &#x27;p&#x27;) == 2</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert count_letter(&#x27;python&#x27;, &#x27;z&#x27;) == 0</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="even_numbers_1_to_n"><div class="question-header">Question: even_numbers_1_to_n</div><div class="description">Example if n = 11 then
+**Return:** `[2, 4, 6, 8, 10]`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert even_numbers_1_to_n(11) == [2, 4, 6, 8, 10]</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="even_or_odd"><div class="question-header">Question: even_or_odd</div><div class="description">**Example:** Input `4` → `&#x27;Even&#x27;`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert even_or_odd(2) == &#x27;Even&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert even_or_odd(3) == &#x27;Odd&#x27;</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="larger_number"><div class="question-header">Question: larger_number</div><div class="description">**Example:** Input `(4, 9)` → `9`  
+**Return:** The larger number.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert larger_number(4, 9) == 9</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert larger_number(10, 3) == 10</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert larger_number(5, 5) == 5</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="numbers_1_to_n"><div class="question-header">Question: numbers_1_to_n</div><div class="description">Example if n = 5 then
+**Return:** `[1, 2, 3, 4, 5]`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert numbers_1_to_n(5) == [1, 2, 3, 4, 5]</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="square_number"><div class="question-header">Question: square_number</div><div class="description">**Example:** For input `4`, return `16`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert square_number(4) == 16</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert square_number(0) == 0</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="squares_1_to_n"><div class="question-header">Question: squares_1_to_n</div><div class="description">if n is 5
+**Return:** `[1, 4, 9, 16, 25]`</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert squares_1_to_n(5) == [1, 4, 9, 16, 25]</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div><div class="question-block" data-qname="sum_1_to_n"><div class="question-header">Question: sum_1_to_n</div><div class="description">**Example:** Input `5` → `15`
+because 1+2</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>assert sum_1_to_n(5) == 15</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr><tr class='failed'><td>assert sum_1_to_n(10) == 55</td><td>failed</td><td>0</td><td>Traceback (most recent call last):
+  File &quot;/app/src/instantgrade/comparison/comparison_service.py&quot;, line 44, in run_assertions
+    exec(compile(code, &quot;&lt;assertion&gt;&quot;, &quot;exec&quot;), ns)
+  File &quot;&lt;assertion&gt;&quot;, line 1, in &lt;module&gt;
+AssertionError
+</td></tr></tbody></table></div></div><div class="student-block" data-name="student name" data-roll="student roll number" data-file="student_notebook.ipynb" data-total="0"><h3>student name — student roll number</h3><p><strong>File:</strong> student_notebook.ipynb</p><p class='summary'>Total: 0/24 (0.0%)</p><div class="question-block" data-qname="_identity_check_"><div class="question-header">Question: _identity_check_</div><div class="description">Student did not customize name/roll_number.</div><table><thead><tr><th>Assertion</th><th>Status</th><th>Score</th><th>Error</th></tr></thead><tbody><tr class='failed'><td>[missing student identity]</td><td>failed</td><td>0</td><td>Student notebook missing personalized name/roll_number. Please define:
+
+name = &#x27;Your Name&#x27;
+roll_number = &#x27;Your Roll Number&#x27;
+</td></tr></tbody></table></div></div>
+        </div><div id="overlay" onclick="closeSummary()"></div>
+        <div id="summaryModal">
+            <span class="close-btn" onclick="closeSummary()">✖</span>
+            <h3>Student Summary</h3>
+            <table>
+                <thead><tr>
+                  <th>Student</th><th>Roll Number</th><th>File</th>
+                  <th>Total Marks</th><th>Out Of</th><th>Percentage</th>
+                </tr></thead><tbody>
+        <tr><td>partial name</td><td>partial roll number</td><td>sample_solutions partial.ipynb</td><td>16</td><td>24</td><td>66.67%</td></tr><tr><td>Test 1</td><td>Test 1 roll number</td><td>sample_solutions_1.ipynb</td><td>24</td><td>24</td><td>100.0%</td></tr><tr><td>Test 2</td><td>Test 2 roll number</td><td>sample_solutions_2.ipynb</td><td>24</td><td>24</td><td>100.0%</td></tr><tr><td>zero</td><td>zero roll number</td><td>student_notebook copy.ipynb</td><td>0</td><td>24</td><td>0.0%</td></tr></tbody></table></div></body></html>
