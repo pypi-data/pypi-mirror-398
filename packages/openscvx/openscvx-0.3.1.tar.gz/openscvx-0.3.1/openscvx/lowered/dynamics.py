@@ -1,0 +1,34 @@
+from dataclasses import dataclass
+from typing import Callable, Optional
+
+import jax.numpy as jnp
+
+
+@dataclass
+class Dynamics:
+    """Dataclass to hold a system dynamics function and its Jacobians.
+
+    This dataclass is used internally by openscvx to store the compiled dynamics
+    function and its gradients after symbolic expressions are lowered to JAX.
+    Users typically don't instantiate this class directly.
+
+    Attributes:
+        f (Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]):
+            Function defining the continuous time nonlinear system dynamics
+            as x_dot = f(x, u, ...params).
+            - x: 1D array (state at a single node), shape (n_x,)
+            - u: 1D array (control at a single node), shape (n_u,)
+            - Additional parameters: passed as keyword arguments with names
+              matching the parameter name plus an underscore (e.g., g_ for
+              Parameter('g')).
+            If you use vectorized integration or batch evaluation, x and u
+            may be 2D arrays (N, n_x) and (N, n_u).
+        A (Optional[Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]]):
+            Jacobian of ``f`` w.r.t. ``x``.
+        B (Optional[Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]]):
+            Jacobian of ``f`` w.r.t. ``u``.
+    """
+
+    f: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+    A: Optional[Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]] = None
+    B: Optional[Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]] = None
