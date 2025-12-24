@@ -1,0 +1,98 @@
+backend_example:
+  _doc: "Rename to 'backend'"
+  typ: mqtt
+  codec: std-cbor
+
+  host: localhost
+  user: foo
+  pass: bar
+  ssl:
+    cert: '/path/to/cert.pem'
+    key: '/path/to/cert.key'
+client:
+  init_timeout: 5  # set to None to not require a server
+  # name: foo
+
+# also in moat/link/_main.py
+root: !P XXX.NotConfigured.YZ
+qos: 0
+
+# Hostname of the main server.
+main: some_host
+
+target:
+  # Well-known prefixes off the root
+
+  # this subtree is not stored. Hard-coded into the server, cannot be changed.
+  # run: !P run
+
+  # this subtree holds conversion jobs
+  conv: !P convert
+
+timeout:
+  # time after which deleted entries are flushed
+  delete: 100000
+
+  # Ping messages every … seconds
+  ping:
+    every: 10
+    timeout: 22  # no ping received
+    delete: 1800  # still no ping received
+    stale: 15  # ping never received
+    down: 25  # delayed error, give it a chance to come back
+    min: 20  # answering old messages. Should be > ping timeout
+
+  restart:
+    error: 30  # generate an error if not back in this many seconds
+    flap: 60  # keep the error if it won't stay online this long
+    up: 20  # timeout for service.up to become True
+
+  # client reconnect
+  connect:
+    initial: 5
+    max: 30
+    factor: 1.3
+
+  notify:
+    retry: 300
+
+
+# Notifications are messages below :R.notify.TOPIC topic.
+notify:
+  keepalive:
+    # timeout: 30  # default: ping *1.5
+    #
+    # topic: my_secret_topic
+    title: Server Link down?
+    msg: |
+      The MoaT system at 'some_host' is silent. (MQTT-Keepalive)
+    prio: fatal
+    ok:
+      title: Server Link OK
+      msg: |
+        The MoaT system at 'some_host' is back up. (MQTT-Keepalive)
+      prio: info
+
+  timeout:
+    retry: 300
+
+
+  path: !P notify
+  # ignore messages older than … seconds
+  max_age: 30
+
+  # Backends
+  backend:
+    - ntfy
+  ntfy:
+    # See https://docs.nfty.sh/
+
+    url: https://ntfy.sh.example/
+    # token: tk_whatever
+    # messages are posted to notify.TOPIC.WHATEVER if "topic" is not set
+    # topic: my_secret_topic
+
+error:
+  min: 30       # half a minute
+  max: 3000000  # a month plus
+  ok: 300000    # a weekend plus
