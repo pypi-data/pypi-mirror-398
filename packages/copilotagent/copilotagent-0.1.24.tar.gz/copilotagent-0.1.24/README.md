@@ -1,0 +1,695 @@
+# 🤖 CopilotAgent
+
+A comprehensive framework for building intelligent, planning-capable agents with middleware support, sub-agent coordination, and state management.
+
+`copilotagent` enables you to create sophisticated AI agents that can:
+- 📋 **Plan and decompose** complex tasks with built-in todo management
+- 🔧 **Use middleware** for server coordination, state syncing, and resource management  
+- 🤝 **Coordinate sub-agents** for parallel task execution and context isolation
+- 📁 **Manage files** with virtual and persistent filesystem support
+- 🌐 **Integrate remote agents** deployed on LangGraph Cloud
+- 🔄 **Share state** across agents and workflows via StationAgent
+
+Built on top of **LangGraph** and **LangChain**, CopilotAgent provides a production-ready foundation for building multi-agent systems with proper coordination and state management.
+
+**Inspired by**: Claude Code, Deep Research, and other advanced agent architectures that go beyond simple tool-calling loops.
+
+## ✨ Key Features
+
+- **🔧 Middleware System**: Station, Server, SubAgent, Filesystem, and Planning middleware
+- **🎯 Dynamic Tool Binding**: State-based tool filtering to reduce context window usage by 60-75%
+- **🤝 Remote Subagents**: Connect to and coordinate LangGraph Cloud deployed graphs
+- **🔄 State Synchronization**: Automatic syncing via StationAgent/SharedState API
+- **🔒 Server Coordination**: Prevent simultaneous access to shared resources
+- **📋 Task Planning**: Built-in todo management and task decomposition
+- **📁 File System**: Virtual filesystem with optional long-term persistence
+- **⚡ Parallel Execution**: Spawn multiple sub-agents concurrently
+- **🐛 Debug Logging**: Comprehensive terminal logs for troubleshooting
+- **🎯 Production Ready**: Used in real-world mortgage processing workflows
+
+## Installation
+
+```bash
+# Basic installation
+pip install copilotagent
+
+# With CuteAgent for middleware features
+pip install copilotagent[hitl]
+
+# Or with uv/poetry
+uv add copilotagent
+poetry add copilotagent
+```
+
+## 📚 Documentation
+
+Comprehensive documentation is available in the [`docs/`](docs/) folder:
+
+- **[Dynamic Tool Binding](docs/DYNAMIC_TOOL_BINDING.md)** - Reduce context window usage with state-based tool filtering
+- **[Middleware Usage Guide](docs/MIDDLEWARE_USAGE_GUIDE.md)** - Complete guide to all middleware types
+- **[Middleware Architecture](docs/MIDDLEWARE_ARCHITECTURE_NOTES.md)** - Design and implementation details
+- **[Environment Setup](docs/ENV_VARIABLES_SETUP.md)** - Configure API keys and environment variables
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment instructions
+- **[Pre-Release Checklist](docs/PRE_RELEASE_CHECKLIST.md)** - Quality assurance before releases
+
+See the [docs/](docs/) directory for additional technical documentation and troubleshooting guides.
+
+## 🚀 Deployment & Releases
+
+**IMPORTANT**: All deployments and releases use a TWO-STEP process:
+
+```bash
+# Step 1: Prepare release (creates PR)
+./prepare_release.sh "Your commit message"
+
+# Step 2: After PR is merged, complete the release
+./release.sh 0.1.14  # Use the version from the PR
+```
+
+See [RELEASE_PROCESS.md](RELEASE_PROCESS.md) for complete deployment guidelines.
+
+## Usage
+
+(To run the example below, you will need to `pip install tavily-python`).
+
+Make sure to set `TAVILY_API_KEY` in your environment. You can generate one [here](https://www.tavily.com/).
+
+```python
+import os
+from typing import Literal
+from tavily import TavilyClient
+from copilotagent import create_deep_agent
+
+tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
+
+# Web search tool
+def internet_search(
+    query: str,
+    max_results: int = 5,
+    topic: Literal["general", "news", "finance"] = "general",
+    include_raw_content: bool = False,
+):
+    """Run a web search"""
+    return tavily_client.search(
+        query,
+        max_results=max_results,
+        include_raw_content=include_raw_content,
+        topic=topic,
+    )
+
+
+# System prompt to steer the agent to be an expert researcher
+research_instructions = """You are an expert researcher. Your job is to conduct thorough research, and then write a polished report.
+
+You have access to an internet search tool as your primary means of gathering information.
+
+## `internet_search`
+
+Use this to run an internet search for a given query. You can specify the max number of results to return, the topic, and whether raw content should be included.
+"""
+
+# Create the deep agent
+agent = create_deep_agent(
+    tools=[internet_search],
+    system_prompt=research_instructions,
+)
+
+# Invoke the agent
+result = agent.invoke({"messages": [{"role": "user", "content": "What is langgraph?"}]})
+```
+
+This basic example shows the core functionality of a deep agent with planning, tool execution, and autonomous task completion.
+
+The agent created with `create_deep_agent` is just a LangGraph graph - so you can interact with it (streaming, human-in-the-loop, memory, studio)
+in the same way you would any LangGraph agent.
+
+## Core Capabilities
+
+### 🎯 Planning & Task Decomposition
+
+CopilotAgent includes a built-in `write_todos` tool that enables agents to break down complex tasks into discrete steps, track progress, and adapt plans as new information emerges.
+
+### 🔧 Middleware System
+
+**Station Middleware** - Sync tool outputs to shared state:
+```python
+tool.metadata = {
+    "station_middleware": {
+        "variables": ["result", "data"],
+        "station_id": "my-station"
+    }
+}
+```
+
+**Server Middleware** - Coordinate exclusive resource access:
+```python
+tool.metadata = {
+    "server_middleware": {
+        "server_id": "myServer",
+        "checkpoint": "Ready",
+        "server_index": 0
+    }
+}
+```
+
+**SubAgent Middleware** - Coordinate remote subagents:
+```python
+cute_linear = create_remote_subagent(
+    name="data-extractor",
+    url="https://my-graph.langgraph.app",
+    graph_id="myGraph",
+    middleware_config={
+        "station": {"variables": ["data"], "station_id": "session-1"},
+        "server": {"server_id": "prodServer", "checkpoint": "Ready"}
+    }
+)
+```
+
+### 🤝 Sub-Agent Support
+
+Spawn ephemeral sub-agents for parallel task execution and context isolation:
+- **Local sub-agents**: Run in same process with isolated context
+- **Remote sub-agents**: Connect to LangGraph Cloud deployed graphs
+- **Middleware support**: Server coordination and state syncing for remote sub-agents
+
+### 📁 Context Management
+
+File system tools (`ls`, `read_file`, `write_file`, `edit_file`) allow agents to:
+- Offload large context to virtual or persistent storage
+- Work with variable-length tool results
+- Share files across sub-agents
+- Maintain long-term memory with LangGraph Store
+
+### 🔄 State Management with CuteAgent
+
+Integration with **StationAgent** from [cuteagent](https://pypi.org/project/cuteagent/) library:
+- **SharedState API**: Coordinate state across multiple agents and workflows
+- **Server arrays**: Manage exclusive access to shared resources (browsers, APIs, servers)
+- **Variable syncing**: Automatically sync tool outputs to shared state
+- **Multi-agent coordination**: Enable complex workflows with distributed agents
+
+**Subagent Spawning**
+
+ A built-in `task` tool enables agents to spawn specialized subagents for context isolation. This keeps the main agent’s context clean while still going deep on specific subtasks.
+
+**Long-term Memory**
+
+ Extend agents with persistent memory across threads using LangGraph’s Store. Agents can save and retrieve information from previous conversations.
+
+## Customizing Deep Agents
+
+There are several parameters you can pass to `create_deep_agent` to create your own custom deep agent.
+
+### `model`
+
+By default, `copilotagent` uses `"claude-sonnet-4-5-20250929"`. You can customize this by passing any [LangChain model object](https://python.langchain.com/docs/integrations/chat/).
+
+```python
+from langchain.chat_models import init_chat_model
+from copilotagent import create_deep_agent
+
+model = init_chat_model(
+    model="openai:gpt-5",  
+)
+agent = create_deep_agent(
+    model=model,
+)
+```
+
+### `system_prompt`
+Deep Agents come with a built-in system prompt. This is relatively detailed prompt that is heavily based on and inspired by [attempts](https://github.com/kn1026/cc/blob/main/claudecode.md) to [replicate](https://github.com/asgeirtj/system_prompts_leaks/blob/main/Anthropic/claude-code.md)
+Claude Code's system prompt. It was made more general purpose than Claude Code's system prompt. The default prompt contains detailed instructions for how to use the built-in planning tool, file system tools, and sub agents.
+
+Each deep agent tailored to a use case should include a custom system prompt specific to that use case as well. The importance of prompting for creating a successful deep agent cannot be overstated.
+
+```python
+from copilotagent import create_deep_agent
+
+research_instructions = """You are an expert researcher. Your job is to conduct thorough research, and then write a polished report.
+"""
+
+agent = create_deep_agent(
+    system_prompt=research_instructions,
+)
+```
+
+### `tools`
+
+Just like with tool-calling agents, you can provide a deep agent with a set of tools that it has access to.
+
+```python
+import os
+from typing import Literal
+from tavily import TavilyClient
+from copilotagent import create_deep_agent
+
+tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
+
+def internet_search(
+    query: str,
+    max_results: int = 5,
+    topic: Literal["general", "news", "finance"] = "general",
+    include_raw_content: bool = False,
+):
+    """Run a web search"""
+    return tavily_client.search(
+        query,
+        max_results=max_results,
+        include_raw_content=include_raw_content,
+        topic=topic,
+    )
+
+agent = create_deep_agent(
+    tools=[internet_search]
+)
+```
+
+### `middleware`
+`create_deep_agent` is implemented with middleware that can be customized. You can provide additional middleware to extend functionality, add tools, or implement custom hooks. 
+
+```python
+from langchain_core.tools import tool
+from copilotagent import create_deep_agent
+from langchain.agents.middleware import AgentMiddleware
+
+@tool
+def get_weather(city: str) -> str:
+    """Get the weather in a city."""
+    return f"The weather in {city} is sunny."
+
+@tool
+def get_temperature(city: str) -> str:
+    """Get the temperature in a city."""
+    return f"The temperature in {city} is 70 degrees Fahrenheit."
+
+class WeatherMiddleware(AgentMiddleware):
+  tools = [get_weather, get_temperature]
+
+agent = create_deep_agent(
+    model="anthropic:claude-sonnet-4-20250514",
+    middleware=[WeatherMiddleware()]
+)
+```
+
+### `subagents`
+
+A main feature of Deep Agents is their ability to spawn subagents. You can specify custom subagents that your agent can hand off work to in the subagents parameter. Sub agents are useful for context quarantine (to help not pollute the overall context of the main agent) as well as custom instructions.
+
+`subagents` should be a list of dictionaries, where each dictionary follow this schema:
+
+```python
+class SubAgent(TypedDict):
+    name: str
+    description: str
+    prompt: str
+    tools: Sequence[BaseTool | Callable | dict[str, Any]]
+    model: NotRequired[str | BaseChatModel]
+    middleware: NotRequired[list[AgentMiddleware]]
+    interrupt_on: NotRequired[dict[str, bool | InterruptOnConfig]]
+
+class CompiledSubAgent(TypedDict):
+    name: str
+    description: str
+    runnable: Runnable
+```
+
+**SubAgent fields:**
+- **name**: This is the name of the subagent, and how the main agent will call the subagent
+- **description**: This is the description of the subagent that is shown to the main agent
+- **prompt**: This is the prompt used for the subagent
+- **tools**: This is the list of tools that the subagent has access to.
+- **model**: Optional model name or model instance.
+- **middleware** Additional middleware to attach to the subagent. See [here](https://docs.langchain.com/oss/python/langchain/middleware) for an introduction into middleware and how it works with create_agent.
+- **interrupt_on** A custom interrupt config that specifies human-in-the-loop interactions for your tools.
+
+**CompiledSubAgent fields:**
+- **name**: This is the name of the subagent, and how the main agent will call the subagent
+- **description**: This is the description of the subagent that is shown to the main agent  
+- **runnable**: A pre-built LangGraph graph/agent that will be used as the subagent
+
+#### Using SubAgent
+
+```python
+import os
+from typing import Literal
+from tavily import TavilyClient
+from copilotagent import create_deep_agent
+
+tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
+
+def internet_search(
+    query: str,
+    max_results: int = 5,
+    topic: Literal["general", "news", "finance"] = "general",
+    include_raw_content: bool = False,
+):
+    """Run a web search"""
+    return tavily_client.search(
+        query,
+        max_results=max_results,
+        include_raw_content=include_raw_content,
+        topic=topic,
+    )
+
+research_subagent = {
+    "name": "research-agent",
+    "description": "Used to research more in depth questions",
+    "system_prompt": "You are a great researcher",
+    "tools": [internet_search],
+    "model": "openai:gpt-4o",  # Optional override, defaults to main agent model
+}
+subagents = [research_subagent]
+
+agent = create_deep_agent(
+    model="anthropic:claude-sonnet-4-20250514",
+    subagents=subagents
+)
+```
+
+#### Using CustomSubAgent
+
+For more complex use cases, you can provide your own pre-built LangGraph graph as a subagent:
+
+```python
+# Create a custom agent graph
+custom_graph = create_agent(
+    model=your_model,
+    tools=specialized_tools,
+    prompt="You are a specialized agent for data analysis..."
+)
+
+# Use it as a custom subagent
+custom_subagent = CompiledSubAgent(
+    name="data-analyzer",
+    description="Specialized agent for complex data analysis tasks",
+    runnable=custom_graph
+)
+
+subagents = [custom_subagent]
+
+agent = create_deep_agent(
+    model="anthropic:claude-sonnet-4-20250514",
+    tools=[internet_search],
+    system_prompt=research_instructions,
+    subagents=subagents
+)
+```
+
+### `use_longterm_memory`
+Deep agents come with a local filesystem to offload memory to. This filesystem is stored in state, and is therefore transient to a single thread.
+
+You can extend deep agents with long-term memory by providing a Store and setting use_longterm_memory=True.
+
+```python
+from copilotagent import create_deep_agent
+from langgraph.store.memory import InMemoryStore
+
+store = InMemoryStore()  # Or any other Store object
+agent = create_deep_agent(
+    store=store,
+    use_longterm_memory=True
+)
+```
+
+### `interrupt_on`
+A common reality for agents is that some tool operations may be sensitive and require human approval before execution. Deep Agents supports human-in-the-loop workflows through LangGraph’s interrupt capabilities. You can configure which tools require approval using a checkpointer.
+
+These tool configs are passed to our prebuilt [HITL middleware](https://docs.langchain.com/oss/python/langchain/middleware#human-in-the-loop) so that the agent pauses execution and waits for feedback from the user before executing configured tools.
+
+```python
+from langchain_core.tools import tool
+from copilotagent import create_deep_agent
+
+@tool
+def get_weather(city: str) -> str:
+    """Get the weather in a city."""
+    return f"The weather in {city} is sunny."
+
+agent = create_deep_agent(
+    model="anthropic:claude-sonnet-4-20250514",
+    tools=[get_weather],
+    interrupt_on={
+        "get_weather": {
+            "allowed_decisions": ["approve", "edit", "reject"]
+        },
+    }
+)
+
+```
+
+## Deep Agents Middleware
+
+Deep Agents are built with a modular middleware architecture. As a reminder, Deep Agents have access to:
+- A planning tool
+- A filesystem for storing context and long-term memories
+- The ability to spawn subagents
+
+Each of these features is implemented as separate middleware. When you create a deep agent with `create_deep_agent`, we automatically attach **PlanningMiddleware**, **FilesystemMiddleware** and **SubAgentMiddleware** to your agent. The PlanningMiddleware can be customized with different agent types to tailor the planning behavior to your specific use case.
+
+Middleware is a composable concept, and you can choose to add as many or as few middleware to an agent depending on your use case. That means that you can also use any of the aforementioned middleware independently!
+
+### PlanningMiddleware
+
+Planning is integral to solving complex problems. If you've used claude code recently, you'll notice how it writes out a To-Do list before tackling complex, multi-part tasks. You'll also notice how it can adapt and update this To-Do list on the fly as more information comes in.
+
+**PlanningMiddleware** provides your agent with a configurable planning tool that can be tailored to different copilot types. The middleware provides specialized prompts and guidance for each agent type.
+
+```python
+from langchain.agents import create_agent
+from copilotagent.middleware.planning import PlanningMiddleware
+
+# PlanningMiddleware is included by default in create_deep_agent
+# You can customize it if building a custom agent
+agent = create_agent(
+    model="anthropic:claude-sonnet-4-20250514",
+    middleware=[
+        PlanningMiddleware(
+            agent_type="ITP-Princeton",  # Options: "ITP-Princeton", "DrawDoc-AWM", "research"
+        ),
+    ],
+)
+```
+
+**Agent Types:**
+- `ITP-Princeton`: Optimized for ITP-Princeton copilot workflows with structured planning and task tracking
+- `DrawDoc-AWM`: Tailored for document drawing and annotation workflows with phases for analysis, markup, drawing, and quality assurance
+- `research`: Specialized for research tasks with phases for information gathering, analysis, and synthesis
+
+When using `create_deep_agent`, you can specify the agent type:
+
+```python
+from copilotagent import create_deep_agent
+
+# Create an ITP-Princeton agent
+agent = create_deep_agent(
+    model="anthropic:claude-sonnet-4-20250514",
+    agent_type="ITP-Princeton",
+)
+
+# Create a DrawDoc-AWM agent
+agent = create_deep_agent(
+    model="anthropic:claude-sonnet-4-20250514",
+    agent_type="DrawDoc-AWM",
+)
+
+# Create a research agent
+agent = create_deep_agent(
+    model="anthropic:claude-sonnet-4-20250514",
+    agent_type="research",
+)
+```
+
+You can also set a global default agent type:
+
+```python
+from copilotagent import DEFAULT_AGENT_TYPE
+
+# The default is "ITP-Princeton", but you can change it in graph.py
+# This affects all agents created without specifying agent_type
+```
+
+#### Default Starting Messages
+
+Certain agent types come with default starting messages that help guide the initial interaction:
+
+- **ITP-Princeton**: "Let's review and approve Intent to Proceed for Princeton mortgage"
+- **DrawDoc-AWM**: "Let's draw the docs for AWM"
+- **research**: No default message (requires human input)
+
+When you create an `ITP-Princeton` or `DrawDoc-AWM` agent and invoke it without any initial messages, the agent will present the default starting message to the user for approval or modification using an interrupt. This allows users to quickly begin working on common tasks with a pre-filled objective that can be accepted as-is or customized.
+
+Research agents, on the other hand, do not have a default starting message and will wait for explicit human input, as research tasks typically require specific queries or objectives from the user.
+
+```python
+from copilotagent import create_deep_agent
+
+# ITP-Princeton agent with default starting message
+agent = create_deep_agent(agent_type="ITP-Princeton")
+
+# When invoked without messages, the agent will interrupt with:
+# "Let's review and approve Intent to Proceed for Princeton mortgage"
+# The user can approve or modify this message before the agent proceeds
+
+result = agent.invoke({"messages": []})
+# This will trigger an interrupt presenting the default message
+
+# Or provide your own message from the start to bypass the default:
+result = agent.invoke({
+    "messages": [{"role": "user", "content": "Review the Smith mortgage application"}]
+})
+```
+
+You can access the default starting messages programmatically:
+
+```python
+from copilotagent import DEFAULT_STARTING_MESSAGES, get_default_starting_message
+
+# Get all default messages
+print(DEFAULT_STARTING_MESSAGES)
+# {'ITP-Princeton': "Let's review and approve Intent to Proceed for Princeton mortgage",
+#  'DrawDoc-AWM': "Let's draw the docs for AWM",
+#  'research': None}
+
+# Get a specific agent type's default message
+message = get_default_starting_message("ITP-Princeton")
+print(message)  # "Let's review and approve Intent to Proceed for Princeton mortgage"
+```
+
+### FilesystemMiddleware
+
+Context engineering is one of the main challenges in building effective agents. This can be particularly hard when using tools that can return variable length results (ex. web_search, rag), as long ToolResults can quickly fill up your context window.
+**FilesystemMiddleware** provides four tools to your agent to interact with both short-term and long-term memory.
+- **ls**: List the files in your filesystem
+- **read_file**: Read an entire file, or a certain number of lines from a file
+- **write_file**: Write a new file to your filesystem
+- **edit_file**: Edit an existing file in your filesystem
+
+```python
+from langchain.agents import create_agent
+from copilotagent.middleware.filesystem import FilesystemMiddleware
+
+# FilesystemMiddleware is included by default in create_deep_agent
+# You can customize it if building a custom agent
+agent = create_agent(
+    model="anthropic:claude-sonnet-4-20250514",
+    middleware=[
+        FilesystemMiddleware(
+            long_term_memory=False,  # Enables access to long-term memory, defaults to False. You must attach a store to use long-term memory.
+            system_prompt="Write to the filesystem when...",  # Optional custom addition to the system prompt
+            custom_tool_descriptions={
+                "ls": "Use the ls tool when...",
+                "read_file": "Use the read_file tool to..."
+            }  # Optional: Custom descriptions for filesystem tools
+        ),
+    ],
+)
+```
+
+### SubAgentMiddleware
+
+Handing off tasks to subagents is a great way to isolate context, keeping the context window of the main (supervisor) agent clean while still going deep on a task. The subagents middleware allows you supply subagents through a task tool.
+
+A subagent is defined with a name, description, system prompt, and tools. You can also provide a subagent with a custom model, or with additional middleware. This can be particularly useful when you want to give the subagent an additional state key to share with the main agent.
+
+```python
+from langchain_core.tools import tool
+from langchain.agents import create_agent
+from copilotagent.middleware.subagents import SubAgentMiddleware
+
+
+@tool
+def get_weather(city: str) -> str:
+    """Get the weather in a city."""
+    return f"The weather in {city} is sunny."
+
+agent = create_agent(
+    model="claude-sonnet-4-20250514",
+    middleware=[
+        SubAgentMiddleware(
+            default_model="claude-sonnet-4-20250514",
+            default_tools=[],
+            subagents=[
+                {
+                    "name": "weather",
+                    "description": "This subagent can get weather in cities.",
+                    "system_prompt": "Use the get_weather tool to get the weather in a city.",
+                    "tools": [get_weather],
+                    "model": "gpt-4.1",
+                    "middleware": [],
+                }
+            ],
+        )
+    ],
+)
+```
+
+For more complex use cases, you can also provide your own pre-built LangGraph graph as a subagent.
+
+```python
+# Create a custom LangGraph graph
+def create_weather_graph():
+    workflow = StateGraph(...)
+    # Build your custom graph
+    return workflow.compile()
+
+weather_graph = create_weather_graph()
+
+# Wrap it in a CompiledSubAgent
+weather_subagent = CompiledSubAgent(
+    name="weather",
+    description="This subagent can get weather in cities.",
+    runnable=weather_graph
+)
+
+agent = create_agent(
+    model="anthropic:claude-sonnet-4-20250514",
+    middleware=[
+        SubAgentMiddleware(
+            default_model="claude-sonnet-4-20250514",
+            default_tools=[],
+            subagents=[weather_subagent],
+        )
+    ],
+)
+```
+
+## Sync vs Async
+
+Prior versions of copilotagent separated sync and async agent factories. 
+
+`async_create_deep_agent` has been folded in to `create_deep_agent`.
+
+**You should use `create_deep_agent` as the factory for both sync and async agents**
+
+
+## MCP
+
+The `copilotagent` library can be ran with MCP tools. This can be achieved by using the [Langchain MCP Adapter library](https://github.com/langchain-ai/langchain-mcp-adapters).
+
+**NOTE:** You will want to use `from copilotagent import async_create_deep_agent` to use the async version of `copilotagent`, since MCP tools are async
+
+(To run the example below, will need to `pip install langchain-mcp-adapters`)
+
+```python
+import asyncio
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from copilotagent import create_deep_agent
+
+async def main():
+    # Collect MCP tools
+    mcp_client = MultiServerMCPClient(...)
+    mcp_tools = await mcp_client.get_tools()
+
+    # Create agent
+    agent = create_deep_agent(tools=mcp_tools, ....)
+
+    # Stream the agent
+    async for chunk in agent.astream(
+        {"messages": [{"role": "user", "content": "what is langgraph?"}]},
+        stream_mode="values"
+    ):
+        if "messages" in chunk:
+            chunk["messages"][-1].pretty_print()
+
+asyncio.run(main())
+```
