@@ -1,0 +1,217 @@
+Metadata-Version: 2.4
+Name: dasha2ui
+Version: 0.1.0
+Summary: A2UI Protocol Implementation for Dash - Declarative UI generation for LLM agents
+Author-email: Cemberk <cemberk@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/Cemberk/dasha2ui
+Project-URL: Repository, https://github.com/Cemberk/dasha2ui.git
+Project-URL: Issues, https://github.com/Cemberk/dasha2ui/issues
+Keywords: a2ui,dash,plotly,llm,agent,ui,declarative
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Scientific/Engineering :: Visualization
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Provides-Extra: dash
+Requires-Dist: dash>=2.0.0; extra == "dash"
+Requires-Dist: dash-bootstrap-components>=1.0.0; extra == "dash"
+Requires-Dist: dash-iconify>=0.1.2; extra == "dash"
+Provides-Extra: validation
+Requires-Dist: jsonschema>=4.0.0; extra == "validation"
+Provides-Extra: all
+Requires-Dist: dasha2ui[dash,validation]; extra == "all"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+
+# DashA2UI
+
+A2UI Protocol Implementation for Dash - Declarative UI generation for LLM agents.
+
+## Overview
+
+DashA2UI implements the [A2UI (Agent-to-User Interface) Protocol v0.8](https://github.com/google/A2UI) for generating declarative, streaming UI payloads that can be rendered by A2UI-compatible clients.
+
+A2UI is designed to be:
+- **LLM-friendly**: Flat adjacency list model, easy for LLMs to generate incrementally
+- **Secure**: Declarative data format, not executable code
+- **Framework-agnostic**: Same payload renders on web, Flutter, etc.
+
+## Installation
+
+### From GitHub (recommended until published to PyPI)
+
+```bash
+# Core package (no framework dependencies)
+pip install "dasha2ui @ git+https://github.com/Cemberk/dasha2ui.git"
+
+# With Dash renderer support
+pip install "dasha2ui[dash] @ git+https://github.com/Cemberk/dasha2ui.git"
+
+# Everything
+pip install "dasha2ui[all] @ git+https://github.com/Cemberk/dasha2ui.git"
+```
+
+### From Local Clone
+
+```bash
+git clone https://github.com/Cemberk/dasha2ui.git
+cd dasha2ui
+pip install -e .[dash]  # Editable install with Dash support
+```
+
+### From PyPI (when published)
+
+```bash
+pip install dasha2ui[dash]
+pip install dasha2ui[all]
+```
+
+## Quick Start
+
+### Building A2UI Surfaces
+
+```python
+from dasha2ui import (
+    A2UISurface, text, row, column, card,
+    TextUsageHint, Distribution
+)
+
+# Create a surface
+surface = A2UISurface("my-dashboard")
+
+# Add components
+title = surface.add(text("Dashboard", usage_hint=TextUsageHint.H1))
+subtitle = surface.add(text("Welcome!", usage_hint=TextUsageHint.BODY))
+
+# Create layout
+content = surface.add(column([title.id, subtitle.id]))
+
+# Build A2UI messages
+messages = surface.build(root_id=content.id)
+
+# Output as JSON
+print(surface.to_json_array(root_id=content.id))
+```
+
+### Using Pre-built Templates
+
+```python
+from dasha2ui import build_dashboard_ui
+
+messages = build_dashboard_ui(
+    title="Sales Dashboard",
+    metrics=[
+        {"title": "Total Sales", "value_path": "/sales/total", "icon": "shoppingCart"},
+        {"title": "Orders", "value_path": "/sales/orders", "icon": "payment"},
+    ],
+    data={"sales": {"total": "$12,345", "orders": "156"}}
+)
+```
+
+### Rendering in Dash
+
+```python
+from dasha2ui.renderers.dash_renderer import A2UIRenderer
+
+# Process A2UI messages
+renderer = A2UIRenderer()
+renderer.process_messages(messages)
+
+# Get Dash component
+dash_component = renderer.render()
+
+# Use in your Dash app
+app.layout = html.Div([dash_component])
+```
+
+## Components
+
+DashA2UI supports all A2UI v0.8 standard components:
+
+### Layout
+- `row()` - Horizontal flex layout
+- `column()` - Vertical flex layout
+- `list_component()` - Scrollable list
+- `card()` - Card container
+
+### Content
+- `text()` - Text with typography hints (h1-h5, body, caption)
+- `image()` - Image with sizing hints
+- `icon()` - Material Design icons
+- `divider()` - Horizontal/vertical divider
+
+### Interactive
+- `button()` - Button with action
+- `text_field()` - Text input
+- `checkbox()` - Checkbox
+- `slider()` - Slider
+- `multiple_choice()` - Selection
+- `tabs()` - Tab navigation
+- `modal()` - Modal dialog
+
+### Media
+- `video()` - Video player
+- `audio_player()` - Audio player
+
+## Data Binding
+
+Components can bind to a data model using paths:
+
+```python
+from dasha2ui import text, BoundString, A2UISurface
+
+surface = A2UISurface("example")
+
+# Bind text to data model path
+value = surface.add(text(BoundString.bound("/metrics/total")))
+
+# Set data
+surface.set_data({"metrics": {"total": "1,234"}})
+```
+
+## Streaming
+
+For progressive UI generation:
+
+```python
+from dasha2ui import A2UIStream, text, column
+
+stream = A2UIStream("dashboard")
+
+# Send initial structure
+yield stream.begin_rendering("root")
+
+# Stream components
+title = text("Loading...", id="title")
+yield stream.surface_update([title])
+
+# Update data progressively
+yield stream.data_update({"status": "Ready"})
+```
+
+## LLM Integration
+
+A2UI is designed for LLM output. Example prompt:
+
+```
+Generate A2UI JSON to display a dashboard with:
+- Title: "Performance Metrics"
+- 3 metric cards showing CPU, Memory, Disk usage
+
+Output format: JSON array of A2UI messages
+```
+
+## License
+
+MIT License
