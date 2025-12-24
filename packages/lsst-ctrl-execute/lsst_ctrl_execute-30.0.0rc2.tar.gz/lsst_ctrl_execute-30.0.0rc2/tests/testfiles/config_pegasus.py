@@ -1,0 +1,11 @@
+# flake8: noqa
+config.platform.nodeSetRequired = True
+config.platform.localScratch = "/mount1/scratch"
+config.platform.defaultRoot = "/mount2/condor_work"
+config.platform.dataDirectory = "/datasets"
+config.platform.fileSystemDomain = "lsstcorp.org"
+config.platform.scheduler = "slurm"
+config.platform.manager = "pegasus"
+config.platform.setup_using = "getenv"
+config.platform.eupsPath = "/var/tmp"
+config.platform.manager_software_home = "/software/pegasus/usr"

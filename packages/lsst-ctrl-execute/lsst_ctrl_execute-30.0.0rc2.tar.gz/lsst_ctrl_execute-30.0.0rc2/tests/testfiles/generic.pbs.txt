@@ -1,0 +1,86 @@
+#!/bin/bash
+#  Sample Batch Script for a Serial job
+#
+#  Submit this script using the command: qsub <script_name>
+#
+#  Use the "qstat" command to check the status of a job.
+#
+# The following are embedded QSUB options. The syntax is #PBS (the # does
+# _not_  denote that the lines are commented out so do not remove).
+#
+# walltime : maximum wall clock time (hh:mm:ss)
+#PBS -l walltime=00:30:00
+#
+# nodes: number of 12-core nodes
+#   ppn: how many cores per node to use (1 through 12)
+#       (you are always charged for the entire node)
+#PBS -l nodes=64:ppn=12
+#
+# export all my environment variables to the job
+### #PBS -V
+#
+# job name (default = name of script file)
+## srp - commented out
+#PBS -N test_set
+#        -------------------------------------------------- shimem1
+#PBS -q normal
+#
+##
+# Send a notification email when the job (b)egins and when the (e)nds
+# # remove the line below to disable email notification.
+#PBS mail -be
+# #
+# #
+# # filename for standard output (default = <job_name>.o<job_id>)
+# # at end of job, it is in directory from which qsub was executed
+# # remove extra ## from the line below if you want to name your own file
+#PBS -o /tmp/outlog
+# #
+# # filename for standard error (default = <job_name>.e<job_id>)
+# # at end of job, it is in directory from which qsub was executed
+# # remove extra ## from the line below if you want to name your own file
+#PBS -e /tmp/errlog
+#
+# #
+# # End of embedded QSUB options
+# #
+# # set echo               # echo commands before execution; use for debugging
+# #
+#
+# set JOBID=`echo $PBS_JOBID | cut -d'.' -f1`
+#
+# # cd $SCR                # change to job scratch directory
+
+/bin/echo $PBS_JOBID
+
+/bin/echo Beginning_Glidein_Setup
+
+hostname -f
+
+hostcnt=0;
+for line in `sort $PBS_NODEFILE | uniq`
+do
+    hostcnt=`expr $hostcnt + 1`;
+    hostname[$hostcnt]=$line
+done
+echo "names are:"
+for num in $(seq 1 $hostcnt)
+do
+    echo ${hostname[$num]}
+done
+
+
+for num in $(seq 1 $hostcnt)
+do
+    ssh ${hostname[$num]} 'hostname -f' &
+done
+wait
+
+for num in $(seq 1 $hostcnt)
+do
+    ssh ${hostname[$num]} 'export _condor_CONDOR_HOST=lsst-launch.ncsa.illinois.edu;export _condor_GLIDEIN_HOST=lsst-launch.ncsa.illinois.edu;export _condor_LOCAL_DIR=/lsst/home/c3po/condor_local;export _condor_SBIN=/oasis/projects/nsf/nsa101/srp/condor/condor-7.4.4-r1/sbin;export _condor_NUM_CPUS=12;export _condor_UID_DOMAIN=ncsa.illinois.edu;export _condor_FILESYSTEM_DOMAIN=sdsc.edu;export _condor_MAIL=/bin/mail;export _condor_STARTD_NOCLAIM_SHUTDOWN=1800; /oasis/projects/nsf/nsa101/srp/condor/glidein/glidein_startup_gordon -dyn -f' &
+done
+
+wait
+
+date
