@@ -1,0 +1,917 @@
+Metadata-Version: 2.4
+Name: sqlalchemy-zen
+Version: 16.10.0
+Summary: SQLAlchemy Dialect for Actian Zen (ODBC only)
+Author: Actian Corporation
+License: Copyright (c) 2025 Actian Corporation. All rights reserved.
+        
+        This software is licensed, not sold. By downloading, installing, or using this software
+        ("Software"), you agree to the following terms:
+        
+        1. Grant of License. You are granted a non-exclusive, non-transferable, revocable
+        license to install and use the Software solely in combination with Actian's Zen product
+        ("Zen"). Any use of the Software independent of Zen product is strictly prohibited.
+        
+        2. Restrictions. You may not distributethe Software or any Software modifications to
+        third parties. You may not use the Software to develop, market, or distribute any product
+        that competes with Zen.
+        
+        3. Ownership. The Software is protected by copyright and other intellectual property
+        laws. All rights, title, and interest in and to the Software remain with Actian Corporation.
+        
+        4. Updates. Actian Corporation may provide updates or modifications to the Software at
+        its discretion. Such updates are subject to this License.
+        
+        5. Termination. This License terminates automatically if you fail to comply with its terms.
+        Upon termination, you must immediately cease all use of the Software and destroy all
+        copies.
+        
+        6. Disclaimer of Warranty. The Software is provided "AS IS" without warranty of any
+        kind, express or implied, including but not limited to warranties of merchantability,
+        fitness for a particular purpose, or non-infringement.
+        
+        7. Limitation of Liability. In no event shall Actian Corporation be liable for any damages
+        arising out of the use or inability to use the Software, even if advised of the possibility of
+        such damages.
+        
+        8. Governing Law. This License shall be governed by and construed in accordance with
+        the laws of California, without regard to its conflict of law principles. The venue for
+        dispute handling is the northern district of California.
+License-File: LICENSE.txt
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: Other/Proprietary License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: SQL
+Classifier: Topic :: Database
+Requires-Dist: pyodbc
+Requires-Dist: sqlalchemy>=2.0.1
+Provides-Extra: dev
+Requires-Dist: black>=22.0.0; extra == 'dev'
+Requires-Dist: flake8>=5.0.0; extra == 'dev'
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Provides-Extra: test
+Requires-Dist: mock>=4.0.0; extra == 'test'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'test'
+Requires-Dist: pytest>=7.0.0; extra == 'test'
+Requires-Dist: tox>=4.0.0; extra == 'test'
+Description-Content-Type: text/markdown
+
+# Actian Zen SQLAlchemy Dialect
+Quick Start Guide – December 2025
+
+The SQLAlchemy Zen dialect is a Python library that provides SQL and object relational mapping features for Actian Zen database access. It enables developers to use SQLAlchemy's standard API with Zen databases through ODBC connectivity.
+
+This document includes the following files:
+- This readme file
+- Python package files (sqlalchemy_zen)
+- Example configuration files
+
+This guide covers the following topics:
+- System Requirements
+- Installation
+- Basic Configuration
+- Core Features
+- Code Examples
+- Advanced Usage
+- API Reference
+- Migration Guide
+- Known Limitations
+- Troubleshooting
+- Frequently Asked Questions
+- Fixed and Known Issues
+- Community Forums and Technical Support
+
+## System Requirements
+
+To use the SQLAlchemy Zen dialect, you need the following:
+
+- Windows 10/11 or a Linux edition listed in the Zen supported platforms
+- Python 3.9 or later (tested with Python 3.12)
+- SQLAlchemy 2.0 or compatible
+- Actian Zen database v13 or later
+- Actian Zen ODBC driver for the Zen version you are using
+
+## Installation
+
+### Standard Installation
+
+Install the dialect from the wheel distribution:
+
+```bash
+# by project name
+pip install sqlalchemy-zen
+# by whl file
+pip install sqlalchemy_zen<version_details>.whl
+```
+
+Verify the installation:
+
+```bash
+python -c "import sqlalchemy_zen; print('Installation successful')"
+```
+
+### Development Installation
+
+For development purposes, install in editable mode:
+
+```bash
+cd sqlalchemy-zen
+pip install -e .
+```
+
+Verify dialect registration:
+
+```bash
+python -c "from sqlalchemy.dialects import registry; registry.load('zen')"
+```
+
+## Testing
+
+### Quick Connection Test
+
+```python
+from sqlalchemy import create_engine, text
+
+engine = create_engine(
+    'zen:///?odbc_connect=DRIVER={Pervasive ODBC Interface};'
+    'SERVERNAME=localhost;DBQ=DEMODATA'
+)
+
+with engine.connect() as conn:
+    result = conn.execute(text("SELECT 1"))
+    print("Connection successful")
+```
+
+### Running SQLAlchemy Test Suite
+
+Create a `test.cfg` file in the SQLAlchemy directory:
+
+```ini
+[db]
+zen=zen:///?odbc_connect=DRIVER={Pervasive ODBC Interface};SERVERNAME=localhost;DBQ=DEMODATA
+
+[sqla_testing]
+requirement_cls=sqlalchemy_zen.requirements:Requirements
+```
+
+Run tests with Zen dialect:
+
+```bash
+cd sqlalchemy-2.0.44
+
+PYTHONPATH="./lib:../sqlalchemy-zen" python -m pytest test/sql/test_compare.py \
+  --db zen --zen-override-requirements -v --tb=short \
+  -k "not sqlite and not mysql and not postgresql and not oracle and not mssql"
+```
+
+The `--zen-override-requirements` flag uses Zen-specific feature definitions from `requirements.py`.
+
+### Verifying Correct Database
+
+Tests against Zen show:
+- Test class names containing `_zen` (e.g., `ComponentReflectionTest_zen`)
+- Btrieve errors like `(-3043)`, `(-1605)`
+- SQL containing `dbmsinfo()`, `dbo.fSQL*` functions
+
+If tests show `sqlite` patterns or create `.db` files, the connection defaulted to SQLite.
+
+## Basic Configuration
+
+### Connection String Format
+
+The dialect uses SQLAlchemy's standard connection URL format with ODBC parameters:
+
+```python
+from sqlalchemy import create_engine
+
+# Basic connection
+engine = create_engine(
+    'zen:///?odbc_connect=DRIVER={Pervasive ODBC Interface};'
+    'SERVERNAME=localhost;DBQ=DEMODATA'
+)
+
+# Connection with authentication
+engine = create_engine(
+    'zen:///?odbc_connect=DRIVER={Pervasive ODBC Interface};'
+    'SERVERNAME=server-name;DBQ=DATABASE;Uid=username;Pwd=password'
+)
+```
+
+### Connection Pool Configuration
+
+Configure connection pooling for production environments:
+
+```python
+from sqlalchemy import create_engine
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=10,           # Base connection pool size
+    max_overflow=20,        # Additional connections when needed
+    pool_pre_ping=True,     # Verify connections before use
+    pool_recycle=3600,      # Recycle connections every hour
+    echo=False              # Disable SQL logging
+)
+```
+
+### Environment-Based Configuration
+
+Create a configuration module for different environments:
+
+```python
+import os
+from sqlalchemy import create_engine
+
+PRODUCTION_URL = "zen:///?odbc_connect=DRIVER={Pervasive ODBC Interface};SERVERNAME=prod-server;DBQ=PRODDATA;Uid=app_user;Pwd=secure_password"
+DEVELOPMENT_URL = "zen:///?odbc_connect=DRIVER={Pervasive ODBC Interface};SERVERNAME=localhost;DBQ=DEMODATA"
+
+DATABASE_URL = os.environ.get('ZEN_DATABASE_URL', DEVELOPMENT_URL)
+
+def get_engine():
+    return create_engine(DATABASE_URL, pool_size=10, pool_pre_ping=True)
+```
+
+## Core Features
+
+### Data Definition Language (DDL)
+
+The dialect supports standard SQLAlchemy DDL operations with Zen-specific enhancements.
+
+#### Creating Tables
+
+```python
+from sqlalchemy import Table, Column, Integer, String, ForeignKey, MetaData
+from sqlalchemy_zen.types import ZenIdentity, ZenMoney, ZenAutoTimestamp
+
+metadata = MetaData()
+
+customers = Table('customers', metadata,
+    Column('id', ZenIdentity, primary_key=True),
+    Column('name', String(50), nullable=False),
+    Column('email', String(100), unique=True),
+    Column('balance', ZenMoney, default=0),
+    Column('created_at', ZenAutoTimestamp)
+)
+
+orders = Table('orders', metadata,
+    Column('id', ZenIdentity, primary_key=True),
+    Column('customer_id', Integer, ForeignKey('customers.id')),
+    Column('total', ZenMoney),
+    Column('order_date', ZenAutoTimestamp)
+)
+
+engine = get_engine()
+metadata.create_all(engine)
+```
+
+#### Creating Indexes
+
+```python
+from sqlalchemy import Index
+
+# Create index on single column
+idx_customer_email = Index('idx_customer_email', customers.c.email)
+
+# Create composite index
+idx_order_lookup = Index('idx_order_lookup', orders.c.customer_id, orders.c.order_date)
+
+metadata.create_all(engine)
+```
+
+### Zen-Specific DDL Features
+
+#### Stored Procedures
+
+```python
+from sqlalchemy_zen import create_procedure
+
+update_balance = create_procedure(
+    "update_customer_balance",
+    [("customer_id", "INTEGER"), ("amount", "MONEY")],
+    """
+    UPDATE customers 
+    SET balance = balance + :amount 
+    WHERE id = :customer_id
+    """
+)
+
+with engine.begin() as conn:
+    conn.execute(update_balance)
+```
+
+#### Triggers
+
+```python
+from sqlalchemy_zen import create_trigger
+
+audit_trigger = create_trigger(
+    "customer_audit",
+    "customers",
+    "AFTER",
+    "UPDATE",
+    """
+    INSERT INTO audit_log (table_name, record_id, action, timestamp)
+    VALUES ('customers', NEW.id, 'UPDATE', NOW())
+    """
+)
+
+with engine.begin() as conn:
+    conn.execute(audit_trigger)
+```
+
+#### User-Defined Functions
+
+```python
+from sqlalchemy_zen import create_function
+
+tax_function = create_function(
+    "calculate_tax",
+    [("amount", "MONEY"), ("rate", "NUMERIC(5,2)")],
+    "MONEY",
+    "RETURN :amount * :rate / 100"
+)
+
+with engine.begin() as conn:
+    conn.execute(tax_function)
+```
+
+### Data Manipulation Language (DML)
+
+#### ORM Usage
+
+Define models using SQLAlchemy's declarative base:
+
+```python
+from sqlalchemy.orm import declarative_base, sessionmaker, relationship
+
+Base = declarative_base()
+
+class Customer(Base):
+    __tablename__ = 'customers'
+    
+    id = Column(ZenIdentity, primary_key=True)
+    name = Column(String(50), nullable=False)
+    email = Column(String(100), unique=True)
+    balance = Column(ZenMoney, default=0)
+    created_at = Column(ZenAutoTimestamp)
+    
+    orders = relationship("Order", back_populates="customer")
+
+class Order(Base):
+    __tablename__ = 'orders'
+    
+    id = Column(ZenIdentity, primary_key=True)
+    customer_id = Column(Integer, ForeignKey('customers.id'))
+    total = Column(ZenMoney)
+    order_date = Column(ZenAutoTimestamp)
+    
+    customer = relationship("Customer", back_populates="orders")
+
+Session = sessionmaker(bind=engine)
+```
+
+#### Basic CRUD Operations
+
+```python
+# Create
+with Session() as session:
+    customer = Customer(name="John Doe", email="john@example.com")
+    session.add(customer)
+    session.commit()
+
+# Read
+with Session() as session:
+    customer = session.query(Customer).filter_by(email="john@example.com").first()
+    print(f"Customer: {customer.name}, Balance: {customer.balance}")
+
+# Update
+with Session() as session:
+    customer = session.query(Customer).filter_by(email="john@example.com").first()
+    customer.balance += 100.00
+    session.commit()
+
+# Delete
+with Session() as session:
+    customer = session.query(Customer).filter_by(email="john@example.com").first()
+    session.delete(customer)
+    session.commit()
+```
+
+#### Querying with Joins
+
+```python
+from sqlalchemy import select
+
+with Session() as session:
+    # Query customers with their orders
+    stmt = select(Customer, Order).join(Order).where(Customer.id == 1)
+    results = session.execute(stmt).all()
+    
+    for customer, order in results:
+        print(f"{customer.name}: Order #{order.id}, Total: {order.total}")
+```
+
+#### Bulk Operations
+
+```python
+# Bulk insert
+with Session() as session:
+    customers = [
+        {"name": "Alice", "email": "alice@example.com"},
+        {"name": "Bob", "email": "bob@example.com"}
+    ]
+    session.bulk_insert_mappings(Customer, customers)
+    session.commit()
+
+# Bulk update
+with Session() as session:
+    session.query(Customer).filter(Customer.balance < 0).update(
+        {"balance": 0}
+    )
+    session.commit()
+```
+
+### Core SQL Operations
+
+Use SQLAlchemy's expression language for direct SQL operations:
+
+```python
+from sqlalchemy import text
+
+# Execute raw SQL with parameter binding
+with engine.connect() as conn:
+    result = conn.execute(
+        text("SELECT * FROM customers WHERE id = :customer_id"),
+        {"customer_id": 1}
+    )
+    row = result.fetchone()
+
+# Transaction management
+with engine.begin() as conn:
+    conn.execute(
+        text("UPDATE customers SET balance = balance + :amount WHERE id = :id"),
+        {"amount": 100, "id": 1}
+    )
+    conn.execute(
+        text("INSERT INTO audit_log (action) VALUES (:action)"),
+        {"action": "balance_update"}
+    )
+```
+
+## Advanced Usage
+
+### Schema Reflection
+
+Reflect existing database tables into SQLAlchemy metadata:
+
+```python
+from sqlalchemy import MetaData
+
+metadata = MetaData()
+metadata.reflect(bind=engine)
+
+# Access reflected tables
+customers_table = metadata.tables['customers']
+print(f"Columns: {[c.name for c in customers_table.columns]}")
+```
+
+### Working with BLOB Data
+
+Store and retrieve large binary objects:
+
+```python
+from sqlalchemy_zen.types import ZenBinary
+
+# Define table with BLOB column
+documents = Table('documents', metadata,
+    Column('id', ZenIdentity, primary_key=True),
+    Column('filename', String(255)),
+    Column('content', ZenBinary)  # Maps to LONGVARBINARY
+)
+
+# Store binary data
+with engine.begin() as conn:
+    with open('document.pdf', 'rb') as f:
+        content = f.read()
+    
+    conn.execute(
+        documents.insert(),
+        {"filename": "document.pdf", "content": content}
+    )
+
+# Retrieve binary data
+with engine.connect() as conn:
+    result = conn.execute(
+        documents.select().where(documents.c.id == 1)
+    )
+    row = result.fetchone()
+    
+    with open('retrieved.pdf', 'wb') as f:
+        f.write(row.content)
+```
+
+### Window Functions
+
+Use window functions for analytical queries:
+
+```python
+from sqlalchemy import func, over
+
+# Ranking customers by balance
+with Session() as session:
+    stmt = select(
+        Customer.name,
+        Customer.balance,
+        func.rank().over(order_by=Customer.balance.desc()).label('rank')
+    )
+    results = session.execute(stmt).all()
+```
+
+### Custom Type Handling
+
+Define custom types for application-specific data:
+
+```python
+from sqlalchemy.types import TypeDecorator, String
+import json
+
+class JSONType(TypeDecorator):
+    impl = String(1000)
+    cache_ok = True
+    
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            return json.dumps(value)
+        return value
+    
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            return json.loads(value)
+        return value
+```
+
+## API Reference
+
+### Zen-Specific Types
+
+The dialect provides Zen-specific types that map to native database types:
+
+#### Numeric Types
+
+```python
+from sqlalchemy_zen.types import (
+    # Auto-increment types
+    ZenSmallIdentity, # 2-byte auto-increment (SMALLIDENTITY)
+    ZenIdentity,      # 4-byte auto-increment (IDENTITY)
+    ZenBigIdentity,   # 8-byte auto-increment (BIGIDENTITY)
+
+    # Currency types
+    ZenMoney,         # Currency NUMERIC(19,2)
+    ZenCurrency,      # Extended currency CURRENCY
+
+    # Floating point types
+    ZenBFloat,        # 4-byte floating point (BFLOAT4)
+    ZenBFloat8,       # 8-byte floating point (BFLOAT8)
+
+    # Integer types
+    ZenTinyInt,       # 1-byte integer (TINYINT)
+    ZenUTinyInt,      # Unsigned tiny integer (UTINYINT)
+    ZenUSmallInt,     # Unsigned small integer (USMALLINT)
+    ZenUInteger,      # Unsigned integer (UINTEGER)
+    ZenUBigInt,       # Unsigned big integer (UBIGINT)
+)
+```
+
+#### String Types
+
+Standard SQLAlchemy string types work directly with Zen:
+- `String(n)` or `VARCHAR(n)` maps to Zen VARCHAR
+- `CHAR(n)` maps to Zen CHAR
+- `Text` maps to Zen LONGVARCHAR
+
+For Unicode strings, use Zen-specific types:
+
+```python
+from sqlalchemy_zen.types import (
+    ZenNVarchar,      # Unicode variable-length (NVARCHAR)
+    ZenNLongVarchar,  # Unicode long text (NLONGVARCHAR)
+    ZenUnicode,       # Unicode with collation control
+)
+```
+
+#### Binary Types
+
+```python
+from sqlalchemy_zen.types import (
+    ZenBinary,        # Binary data (maps to LONGVARBINARY)
+    ZenBit            # Boolean as BIT type
+)
+```
+
+#### Temporal Types
+
+```python
+from sqlalchemy_zen.types import (
+    ZenDate,          # Date with null-safe processing
+    ZenTime,          # Time with proper binding
+    ZenDateTime,      # DateTime with proper binding
+    ZenAutoTimestamp  # Auto-updated timestamp (DEFAULT NOW())
+)
+```
+
+Note: For timestamp columns, use `ZenDateTime` or SQLAlchemy's `DateTime`/`TIMESTAMP` types.
+
+### DDL Utilities
+
+Functions for creating database objects:
+
+```python
+from sqlalchemy_zen import (
+    create_procedure,    # Create stored procedure
+    drop_procedure,      # Drop stored procedure
+    create_trigger,      # Create trigger
+    drop_trigger,        # Drop trigger
+    create_function,     # Create user-defined function
+    drop_function        # Drop function
+)
+```
+
+### Schema Inspection
+
+Enhanced inspection capabilities for Zen databases:
+
+```python
+from sqlalchemy import inspect
+
+inspector = inspect(engine)
+
+# Get table names
+tables = inspector.get_table_names()
+
+# Get column information
+columns = inspector.get_columns('customers')
+
+# Get foreign keys
+foreign_keys = inspector.get_foreign_keys('orders')
+
+# Get indexes
+indexes = inspector.get_indexes('customers')
+```
+
+### Error Handling
+
+The dialect provides enhanced error handling for Zen-specific conditions:
+
+```python
+from sqlalchemy.exc import IntegrityError, OperationalError
+
+try:
+    session.commit()
+except IntegrityError as e:
+    # Handle constraint violations
+    print(f"Integrity error: {e}")
+    session.rollback()
+except OperationalError as e:
+    # Handle connection or operational errors
+    print(f"Operational error: {e}")
+    session.rollback()
+```
+
+## Migration Guide
+
+### Migrating from Raw ODBC
+
+Replace raw ODBC code with SQLAlchemy:
+
+Before (pyodbc):
+```python
+import pyodbc
+
+conn = pyodbc.connect(
+    'DRIVER={Pervasive ODBC Interface};'
+    'SERVERNAME=localhost;DBQ=DEMODATA'
+)
+cursor = conn.cursor()
+cursor.execute("SELECT * FROM customers WHERE id = ?", (customer_id,))
+results = cursor.fetchall()
+cursor.close()
+conn.close()
+```
+
+After (SQLAlchemy Zen):
+```python
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+
+engine = create_engine(
+    'zen:///?odbc_connect=DRIVER={Pervasive ODBC Interface};'
+    'SERVERNAME=localhost;DBQ=DEMODATA'
+)
+Session = sessionmaker(bind=engine)
+
+with Session() as session:
+    results = session.query(Customer).filter(Customer.id == customer_id).all()
+```
+
+### Migrating from Other SQLAlchemy Dialects
+
+#### PostgreSQL to Zen
+
+Connection string changes:
+```python
+# PostgreSQL
+engine = create_engine('postgresql://user:pass@localhost/database')
+
+# Zen
+engine = create_engine(
+    'zen:///?odbc_connect=DRIVER={Pervasive ODBC Interface};'
+    'SERVERNAME=localhost;DBQ=DATABASE;Uid=user;Pwd=pass'
+)
+```
+
+Type mapping:
+- PostgreSQL SERIAL → ZenIdentity
+- PostgreSQL MONEY → ZenMoney
+- PostgreSQL TIMESTAMP → ZenAutoTimestamp
+- PostgreSQL BYTEA → ZenBinary
+
+#### MySQL to Zen
+
+Connection string changes:
+```python
+# MySQL
+engine = create_engine('mysql://user:pass@localhost/database')
+
+# Zen
+engine = create_engine(
+    'zen:///?odbc_connect=DRIVER={Pervasive ODBC Interface};'
+    'SERVERNAME=localhost;DBQ=DATABASE;Uid=user;Pwd=pass'
+)
+```
+
+Type mapping:
+- MySQL AUTO_INCREMENT → ZenIdentity
+- MySQL DECIMAL → ZenMoney
+- MySQL DATETIME → ZenAutoTimestamp
+- MySQL BLOB → ZenBinary
+
+## Known Limitations
+
+### Zen Database Constraints
+
+The following Zen database limitations affect dialect functionality:
+
+1. **Identifier Length**: Maximum 20 characters for table and column names. The dialect automatically truncates longer identifiers.
+
+2. **CHECK Constraints**: Limited support. CHECK constraint violations return warnings rather than errors in some Zen versions.
+
+3. **Temporal Precision**: Microsecond precision in timestamp fields varies by Zen version. Test precision requirements with your specific Zen version.
+
+4. **Transaction Isolation**: Zen supports READ COMMITTED isolation level. Other isolation levels are not available.
+
+### SQLAlchemy Integration Limitations
+
+1. **Schema Reflection**: Reflection of complex schemas with circular foreign key dependencies may require manual table ordering.
+
+2. **Identifier Quoting**: Zen uses double quotes for identifier quoting. Mixed-case identifiers require explicit quoting.
+
+3. **Alembic Integration**: Database migration using Alembic requires custom configuration. Contact support for Alembic configuration templates.
+
+4. **Batch Operations**: Batch operations with executemany() are optimized for single-row operations. For bulk inserts, use bulk_insert_mappings().
+
+### Performance Considerations
+
+1. **Result Set Size**: For queries returning more than 10,000 rows, implement pagination to reduce memory usage.
+
+2. **Connection Pooling**: Monitor pool usage in high-concurrency scenarios. Adjust pool_size and max_overflow parameters based on workload.
+
+3. **Query Complexity**: Complex queries with multiple joins may benefit from query optimization. Use EXPLAIN plans to analyze query performance.
+
+## Troubleshooting
+
+### Connection Issues
+
+If you cannot connect to the database:
+
+1. Verify the ODBC driver is installed:
+   ```bash
+   # Windows: Check ODBC Data Source Administrator
+   # Linux: Check /etc/odbcinst.ini
+   ```
+
+2. Test the ODBC connection outside SQLAlchemy:
+   ```python
+   import pyodbc
+   conn = pyodbc.connect('DRIVER={Pervasive ODBC Interface};SERVERNAME=localhost;DBQ=DEMODATA')
+   cursor = conn.cursor()
+   cursor.execute("SELECT 1")
+   print("Connection successful")
+   ```
+
+3. Enable SQLAlchemy logging:
+   ```python
+   import logging
+   logging.basicConfig()
+   logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+   ```
+
+### Identifier Length Errors
+
+If you encounter identifier length errors:
+
+1. Use shorter table and column names (maximum 20 characters)
+2. Enable automatic truncation (default behavior)
+3. Use explicit naming for constraints and indexes:
+   ```python
+   Index('idx_cust', table.c.customer_id)  # Short name
+   ```
+
+### Foreign Key Errors
+
+If foreign key operations fail:
+
+1. Verify parent table exists and has data
+2. Check that foreign key column types match primary key types
+3. Ensure referential integrity constraints are enabled in the database
+
+### Type Conversion Errors
+
+If type conversion fails:
+
+1. Use Zen-specific types instead of generic SQLAlchemy types
+2. Verify data format matches expected type
+3. Check Zen version compatibility for specific data types
+
+## Frequently Asked Questions
+
+### Does this dialect require a Zen database installation on the development machine?
+
+No, the dialect requires only Python, SQLAlchemy, and the Zen ODBC driver. The Zen database can be on a remote server.
+
+### Can I use this dialect with SQLAlchemy 1.x?
+
+No, this dialect requires SQLAlchemy 2.0 or later. SQLAlchemy 1.x is not supported.
+
+### How do I handle the 20-character identifier limit?
+
+The dialect automatically truncates identifiers longer than 20 characters. For explicit control, use short names for tables, columns, and constraints.
+
+### Is connection pooling supported?
+
+Yes, the dialect supports SQLAlchemy's standard connection pooling. Configure pool_size and max_overflow parameters when creating the engine.
+
+### Can I use this dialect with async SQLAlchemy?
+
+No, the dialect currently supports only synchronous operations. Async support is not available.
+
+### How do I enable SQL statement logging?
+
+Set the echo parameter when creating the engine:
+```python
+engine = create_engine(DATABASE_URL, echo=True)
+```
+
+### Where can I find the Zen documentation?
+
+You may use the documentation installed with other Actian Zen/PSQL editions or at docs.actian.com.
+
+## Fixed and Known Issues
+
+The Actian Electronic Software Distribution site offers for each Zen product a history log of issues fixed and enhancements added since the previous release. You can also download a list of known issues and workarounds.
+
+### Recent Fixes (December 2025)
+
+- Added LONGVARBINARY/LONGVARCHAR support for BLOB/CLOB operations
+- Fixed bitwise NOT operator (~) compilation
+- Corrected drop_index signature to include schema parameter
+- Fixed ALTER TABLE syntax for table options
+- Improved get_indexes for user-defined indexes
+- Corrected IDENTITY handling in ORM operations
+- Added DATEADD/DATEDIFF support for literal_column
+- Enabled schema support (exclusions.open)
+- Enabled temporary tables support
+- Fixed window frame BETWEEN syntax transformation
+
+### Known Issues
+
+- Schema reflection with circular foreign key dependencies requires manual intervention
+- Some advanced window functions have limited support depending on Zen version
+- Alembic migrations require custom configuration templates
+
+## Community Forums and Technical Support
+
+For support services, visit the Actian Community and Customer Portal and select Actian Zen from the product menu. You can do the following things:
+- Join a community forum discussion
+- Search for knowledge base topics
+- Log a support case
+- Purchase support services
+- Resolve licensing issues
+
+## Disclaimer
+
+ACTIAN CORPORATION LICENSES THE SOFTWARE AND DOCUMENTATION PRODUCT TO YOU OR YOUR COMPANY SOLELY ON AN "AS IS" BASIS AND SOLELY IN ACCORDANCE WITH THE TERMS AND CONDITIONS OF THE ACCOMPANYING LICENSE AGREEMENT.
+
+Copyright © 2025 Actian Corporation. All Rights Reserved.
