@@ -1,0 +1,124 @@
+# Marsys Logging Configuration
+# 
+# This configuration supports environment variable overrides using ${VAR:default} syntax
+# 
+# Log Levels:
+#   ESSENTIAL - Minimal logging for production (lifecycle events, errors)
+#   DETAILED - Operational logging for development/staging
+#   DEBUG - Complete trace logging for troubleshooting
+
+logging:
+  # Global log level - can be overridden by MARSYS_LOG_LEVEL env var
+  level: ${MARSYS_LOG_LEVEL:ESSENTIAL}
+  
+  # Structured logging format configuration
+  format:
+    type: ${MARSYS_LOG_FORMAT:json}  # json or text
+    timestamp: iso8601
+    include_context: true
+    include_hostname: ${MARSYS_LOG_HOSTNAME:false}
+    include_process_info: ${MARSYS_LOG_PROCESS:false}
+    
+  # Output destinations
+  outputs:
+    # File output configuration
+    file:
+      enabled: ${MARSYS_LOG_FILE_ENABLED:true}
+      path: ${MARSYS_LOG_PATH:logs/marsys.log}
+      rotation:
+        max_bytes: ${MARSYS_LOG_MAX_BYTES:10485760}  # 10MB default
+        backup_count: ${MARSYS_LOG_BACKUP_COUNT:10}
+        
+    # Console output configuration
+    console:
+      enabled: ${MARSYS_LOG_CONSOLE:false}
+      colorize: ${MARSYS_LOG_COLORIZE:false}
+      level: ${MARSYS_LOG_CONSOLE_LEVEL:ESSENTIAL}
+      
+    # Cloud output configuration (optional)
+    cloud:
+      enabled: ${MARSYS_LOG_CLOUD:false}
+      provider: ${MARSYS_LOG_CLOUD_PROVIDER:}  # aws, gcp, azure
+      config:
+        # Provider-specific configuration
+        log_group: ${MARSYS_LOG_CLOUD_GROUP:}
+        log_stream: ${MARSYS_LOG_CLOUD_STREAM:}
+        
+  # Async queue configuration for non-blocking logging
+  async:
+    enabled: ${MARSYS_LOG_ASYNC:true}
+    queue_size: ${MARSYS_LOG_QUEUE_SIZE:10000}
+    batch_size: ${MARSYS_LOG_BATCH_SIZE:100}
+    flush_interval: ${MARSYS_LOG_FLUSH_INTERVAL:1.0}  # seconds
+    overflow_policy: ${MARSYS_LOG_OVERFLOW:drop_oldest}  # drop_oldest, block, error
+    
+  # Context configuration
+  context:
+    auto_correlation_id: ${MARSYS_LOG_AUTO_CORRELATION:true}
+    correlation_id_header: ${MARSYS_LOG_CORRELATION_HEADER:X-Correlation-ID}
+    include_agent_context: true
+    include_branch_context: true
+    
+  # Performance settings
+  performance:
+    sampling:
+      enabled: ${MARSYS_LOG_SAMPLING:false}
+      rate: ${MARSYS_LOG_SAMPLING_RATE:1.0}  # 1.0 = 100%, 0.1 = 10%
+    metrics:
+      enabled: ${MARSYS_LOG_METRICS:false}
+      interval: 60  # seconds
+      
+  # Security settings
+  security:
+    sanitize_sensitive: ${MARSYS_LOG_SANITIZE:true}
+    sensitive_fields:
+      - password
+      - token
+      - api_key
+      - secret
+      - credential
+      - auth
+      - private_key
+      - access_token
+      - refresh_token
+    redaction_pattern: "***REDACTED***"
+    
+  # Integration settings
+  integrations:
+    opentelemetry:
+      enabled: ${MARSYS_LOG_OTEL:false}
+      service_name: ${OTEL_SERVICE_NAME:marsys}
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:}
+      trace_sample_rate: ${OTEL_TRACE_SAMPLE_RATE:1.0}
+      
+# Development overrides (can be enabled with MARSYS_ENV=development)
+development:
+  level: DEBUG
+  outputs:
+    console:
+      enabled: true
+      colorize: true
+    file:
+      enabled: true
+  async:
+    enabled: false  # Synchronous in development for easier debugging
+    
+# Production overrides (can be enabled with MARSYS_ENV=production)
+production:
+  level: ESSENTIAL
+  outputs:
+    console:
+      enabled: false
+    file:
+      enabled: true
+      rotation:
+        max_bytes: 52428800  # 50MB
+        backup_count: 20
+  async:
+    queue_size: 50000
+  performance:
+    sampling:
+      enabled: true
+      rate: 0.1  # Sample 10% of debug logs
+  security:
+    sanitize_sensitive: true
