@@ -1,0 +1,93 @@
+[tool.poetry]
+name = "jobbergate-cli"
+version = "5.9.0"
+description = "Jobbergate CLI Client"
+authors = ["Omnivector Solutions <info@omnivector.solutions>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/omnivector-solutions/jobbergate"
+packages = [{ include = "jobbergate_cli" }]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Development Status :: 5 - Production/Stable",
+    "Topic :: Scientific/Engineering",
+]
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/omnivector-solutions/jobbergate/issues"
+"Changelog" = "https://github.com/omnivector-solutions/jobbergate/blob/main/jobbergate-cli/CHANGELOG.rst"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+jobbergate-core = { path = "../jobbergate-core", develop = true }
+click = "^8.3.1"
+importlib-metadata = "^8.7.0"
+inquirer = "^3.4.1"
+Jinja2 = "^3.1.6"
+pyperclip = "^1.11.0"
+python-dotenv = "^1.2.1"
+PyYAML = "^6.0.3"
+rich = "^14.2.0"
+sentry-sdk = "^2.47.0"
+typer = "^0.20.0"
+pydantic-settings = "^2.12.0"
+
+[tool.poetry.scripts]
+jobbergate = "jobbergate_cli.main:safe_entrypoint"
+
+[tool.stickywheel]
+# This will resolve the relative path to the jobbergate-core package at build time
+# and pin its version based on the version in the jobbergate-cli pyproject.toml file.
+# Since it is at build time, there is no need to install the pluging on dev machines,
+# the deployment workflow will take care of it.
+# Reference: https://github.com/python-poetry/poetry/issues/6850#issuecomment-1445477319
+strategy = "exact"
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.19.1"
+plummet = { extras = ["time-machine"], version = "^1.2.1" }
+pytest-cov = "^4.1.0"
+pytest-env = "^0.6.2"
+setuptools = "^69.5.1"
+pytest-mock = "^3.15.1"
+pytest-random-order = "^1.2.0"
+pytest-responsemock = "^1.1.1"
+respx = "^0.22.0"
+types-PyYAML = "^6.0.12"
+ruff = "^0.14.9"
+
+[tool.ruff]
+line-length = 120
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "--random-order",
+    "--cov=jobbergate_cli",
+    "--cov-report=term",
+    "--cov-report=xml:tests/coverage.xml",
+]
+env = [
+    "ARMADA_API_BASE = https://some-pretend-armada-url.com",
+    "JOBBERGATE_DEBUG = false",
+    "JOBBERGATE_CACHE_DIR = /tmp/jobbergate-cache",
+    "OIDC_DOMAIN = dummy_auth_domain.com",
+    "OIDC_CLIENT_ID = dummy_client_id",
+]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+
+[tool.mypy]
+plugins = "pydantic.mypy"
+
+[[tool.mypy.overrides]]
+module = ["urllib3", "pyperclip", "inquirer.*", "jose.*", "pep562"]
+ignore_missing_imports = true
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
