@@ -1,0 +1,1391 @@
+"""Store, analyze and report on word frequency and inconsistencies."""
+
+from collections import Counter
+from enum import StrEnum, auto
+import logging
+import tkinter as tk
+from tkinter import ttk
+from typing import Any, Callable, Optional
+
+import regex as re
+
+from guiguts.content_providing import CPCharSuitesDialog
+from guiguts.maintext import maintext, HighlightTag
+from guiguts.mainwindow import ScrolledReadOnlyText
+from guiguts.misc_tools import tool_save, do_open_ngram
+from guiguts.preferences import (
+    preferences,
+    PersistentBoolean,
+    PersistentString,
+    PrefKey,
+)
+from guiguts.search import SearchDialog
+from guiguts.utilities import (
+    sing_plur,
+    DiacriticRemover,
+    IndexRange,
+    IndexRowCol,
+    sound_bell,
+    process_accel,
+    cmd_ctrl_string,
+    is_mac,
+    non_text_line,
+)
+from guiguts.widgets import (
+    ToplevelDialog,
+    Combobox,
+    ToolTip,
+    mouse_bind,
+    Busy,
+)
+
+logger = logging.getLogger(__package__)
+
+_the_word_lists = None
+
+RETURN_ARROW = "⏎"
+MARKUP_TYPES = "i|b|sc|f|g|u|cite|em|strong"
+
+
+class WFDisplayType(StrEnum):
+    """Enum class to store Word Frequency display types."""
+
+    ALL_WORDS = auto()
+    EMDASHES = auto()
+    HYPHENS = auto()
+    ALPHANUM = auto()
+    ALL_CAPS = auto()
+    MIXED_CASE = auto()
+    INITIAL_CAPS = auto()
+    ACCENTS = auto()
+    LIGATURES = auto()
+    MARKEDUP = auto()
+    CHAR_COUNTS = auto()
+    MIXED_SCRIPT = auto()
+    REGEXP = auto()
+
+
+class WFSortType(StrEnum):
+    """Enum class to store Word Frequency sort types."""
+
+    ALPHABETIC = auto()
+    FREQUENCY = auto()
+    LENGTH = auto()
+
+
+class WFDict(dict[str, int]):
+    """Dictionary containing word and frequency."""
+
+
+class WFWordLists:
+    """Word lists used for Word Frequency analysis.
+
+    Attributes:
+        all_words: All the words in the file.
+        emdash_words: All pairs of words separated by an emdash/double hyphen.
+    """
+
+    def __init__(self) -> None:
+        """Initialize a WFWordLists object to hold word frequency information."""
+        self.reset()
+
+    def reset(self) -> None:
+        """Reset the word lists."""
+        self.all_words: WFDict = WFDict()
+        self.emdash_words: WFDict = WFDict()
+
+    def ensure_file_analyzed(self) -> None:
+        """Analyze file to create word lists, unless already done.
+
+        Call reset method first to force reanalysis."""
+        if self.all_words:
+            return
+        for line, _ in maintext().get_lines():
+            if non_text_line(line):
+                continue
+            if preferences.get(PrefKey.WFDIALOG_IGNORE_CASE):
+                line = line.lower()
+            line = re.sub(r"<\/?[a-z]*>", " ", line)  # throw away DP tags
+            # get rid of nonalphanumeric (retaining combining characters)
+            line = re.sub(r"[^'’\.,\p{Alnum}\p{Mark}*_\-—]", " ", line)
+
+            def strip_punc(word: str) -> str:
+                """Strip relevant leading/trailing punctuation from word."""
+                return re.sub(r"^[\.,'’_-]+|[\.,'’_*-]+$", "", word)
+
+            # Build a list of emdash words, i.e. "word1--word2"
+            words = re.split(r"\s+", line)
+            for word in words:
+                word = strip_punc(word)
+                if re.search(r"[^-](--|—)[^-]", word) and "---" not in word:
+                    tally_word(self.emdash_words, word)
+
+            line = re.sub(r"(--|—)", " ", line)  # double-hyphen/emdash
+
+            words = re.split(r"\s+", line)
+            for word in words:
+                word = re.sub(r"(?<!\-)\*", "", word)  # * not preceded by hyphen
+                word = re.sub(r"^\*$", "", word)  # just *
+                word = strip_punc(word)
+                if re.fullmatch(r"[a-z0-9_]+\.(jpg|png)", word):
+                    continue  # Don't want p027.png or i_002.jpg
+                # Tally single word
+                tally_word(self.all_words, word)
+
+    def get_all_words(self) -> WFDict:
+        """Return the list of all words in the file.
+
+        Returns:
+            Dictionary of words with their frequencies."""
+        self.ensure_file_analyzed()
+        return self.all_words
+
+    def get_emdash_words(self) -> WFDict:
+        """Return the list of emdash words (word1--word2) in the file.
+
+        Returns:
+            Dictionary of emdash words with their frequencies."""
+        self.ensure_file_analyzed()
+        return self.emdash_words
+
+
+class WordFrequencyEntry:
+    """Class to hold one entry in the Word Frequency dialog.
+
+    Attributes:
+        text: Single line of text to display in dialog.
+        count: Number of occurrences.
+        suspect: True if entry is a "suspect".
+    """
+
+    SUSPECT = "****"
+
+    def __init__(self, word: str, frequency: int, suspect: bool) -> None:
+        """Initialize WordFrequencyEntry object.
+
+        Args:
+            word: Word for this entry.
+            frequency: Number of occurrences of word.
+        """
+        self.word = word
+        self.frequency = frequency
+        self.suspect = suspect
+
+
+class WordFrequencyDialog(ToplevelDialog):
+    """Dialog to show results of word frequency analysis.
+
+    Attributes:
+        text: Text widget to contain results.
+    """
+
+    manual_page = "Tools_Menu#Word_Frequency"
+    CHAR_DISPLAY: dict[str, str] = {
+        " ": "*space*",
+        "\u00a0": "*nbsp*",
+        "\n": RETURN_ARROW,
+    }
+    SCRIPTS: list[str] = [
+        "Latin",
+        "Greek",
+        "Cyrillic",
+        "Arabic",
+        "Hebrew",
+        "Devanagari",
+        "Han",
+        "Hiragana",
+        "Katakana",
+        "Hangul",
+    ]
+
+    def __init__(
+        self,
+    ) -> None:
+        """Initialize the dialog."""
+        super().__init__("Word Frequency")
+        self.top_frame.rowconfigure(0, weight=0)
+        header_frame = ttk.Frame(self.top_frame, padding=2)
+        header_frame.grid(row=0, column=0, sticky="NSEW")
+        header_frame.columnconfigure(0, weight=1)
+
+        # Message label
+        label_frame = ttk.Frame(header_frame, borderwidth=1, relief=tk.GROOVE)
+        label_frame.grid(row=0, column=0, sticky="NSEW")
+        # label_frame.columnconfigure(0, weight=1)
+        self.message = tk.StringVar()
+        ttk.Label(label_frame, textvariable=self.message).grid(
+            row=0, column=0, sticky="NSW", padx=5, pady=2
+        )
+
+        # Re-run buttons
+        rerun_frame = ttk.Frame(header_frame, borderwidth=1, relief=tk.GROOVE)
+        rerun_frame.grid(row=0, column=1, rowspan=2, padx=(0, 15))
+        ttk.Button(rerun_frame, text="Re-run", command=word_frequency).grid(
+            row=0, column=0, sticky="NSEW", padx=5, pady=2
+        )
+
+        def change_ignore_case() -> None:
+            """Handle changing of ignore case flag - enable/disable buttons & re-run tool."""
+            self.set_case_sensitive_btns()
+            word_frequency()
+
+        ttk.Checkbutton(
+            rerun_frame,
+            text="Ignore Case",
+            command=change_ignore_case,
+            variable=PersistentBoolean(PrefKey.WFDIALOG_IGNORE_CASE),
+        ).grid(row=1, column=0, sticky="NSEW", padx=5, pady=2)
+
+        # Options
+        options_frame = ttk.Frame(
+            header_frame, borderwidth=1, relief=tk.GROOVE, padding=2
+        )
+        options_frame.grid(row=1, column=0, sticky="NSEW")
+        options_frame.columnconfigure(0, weight=1)
+        self.suspects_btn = ttk.Checkbutton(
+            options_frame,
+            text="Suspects Only",
+            variable=PersistentBoolean(PrefKey.WFDIALOG_SUSPECTS_ONLY),
+            command=self.wf_populate,
+        )
+        self.suspects_btn.grid(row=0, column=0, sticky="NSW", padx=5)
+
+        def copy_errors() -> None:
+            """Copy text messages to clipboard."""
+            maintext().clipboard_clear()
+            maintext().clipboard_append(self.text.get("1.0", tk.END))
+
+        copy_button = ttk.Button(
+            options_frame, text="Copy Results", command=copy_errors
+        )
+        copy_button.grid(row=0, column=1, sticky="NSE", padx=(0, 20))
+
+        ttk.Label(
+            options_frame,
+            text="Sort:",
+        ).grid(row=0, column=2, sticky="NSE", padx=5)
+        sort_type = PersistentString(PrefKey.WFDIALOG_SORT_TYPE)
+        ttk.Radiobutton(
+            options_frame,
+            text="Alph",
+            command=self.wf_populate,
+            variable=sort_type,
+            value=WFSortType.ALPHABETIC,
+        ).grid(row=0, column=3, sticky="NSE", padx=2)
+        ttk.Radiobutton(
+            options_frame,
+            text="Freq",
+            command=self.wf_populate,
+            variable=sort_type,
+            value=WFSortType.FREQUENCY,
+        ).grid(row=0, column=4, sticky="NSE", padx=2)
+        ttk.Radiobutton(
+            options_frame,
+            text="Len",
+            command=self.wf_populate,
+            variable=sort_type,
+            value=WFSortType.LENGTH,
+        ).grid(row=0, column=5, sticky="NSE", padx=(2, 5))
+
+        # Display type radio buttons
+        display_frame = ttk.Frame(
+            header_frame, borderwidth=1, relief=tk.GROOVE, padding=2
+        )
+        display_frame.grid(row=2, column=0, columnspan=2, sticky="NSEW", padx=(0, 15))
+        for col in range(0, 4):
+            display_frame.columnconfigure(index=col, weight=1)
+
+        display_type = PersistentString(PrefKey.WFDIALOG_DISPLAY_TYPE)
+
+        def display_radio(
+            row: int,
+            column: int,
+            text: str,
+            value: str,
+            frame: ttk.Frame = display_frame,
+        ) -> ttk.Radiobutton:
+            """Add a radio button to change display type.
+
+            Args:
+                row: Row to place button.
+                column: Column to place button.
+                text: Text for button.
+                value: Value to be set when button is selected - a constant from WFDisplayType
+            """
+            button = ttk.Radiobutton(
+                frame,
+                text=text,
+                command=self.wf_populate,
+                variable=display_type,
+                value=value,
+            )
+            button.grid(row=row, column=column, sticky="NSW", padx=5)
+            return button
+
+        display_radio(0, 0, "All Words", WFDisplayType.ALL_WORDS)
+        display_radio(0, 1, "Diacritics/æ/œ", WFDisplayType.ACCENTS)
+        display_radio(0, 2, "Ligatures", WFDisplayType.LIGATURES)
+        self.all_caps_btn = display_radio(1, 0, "ALL CAPITALS", WFDisplayType.ALL_CAPS)
+        self.mixed_case_btn = display_radio(
+            1, 1, "MiXeD CasE", WFDisplayType.MIXED_CASE
+        )
+        self.initial_caps_btn = display_radio(
+            1, 2, "Initial Capitals", WFDisplayType.INITIAL_CAPS
+        )
+        display_radio(2, 0, "Emdashes", WFDisplayType.EMDASHES)
+        hyphen_frame = ttk.Frame(display_frame)
+        hyphen_frame.grid(row=2, column=1, columnspan=2, sticky="NSEW")
+        hyphen_frame.columnconfigure(index=3, weight=1)
+        ttk.Radiobutton(
+            hyphen_frame,
+            text='Hyphens  -  Including "two word" Matches?',
+            command=self.wf_populate,
+            variable=display_type,
+            value=WFDisplayType.HYPHENS,
+        ).grid(row=0, column=0, sticky="NSW", padx=(5, 0))
+
+        def hyphen_two_word_cmd() -> None:
+            """Set type to Hyphens and re-populate."""
+            preferences.set(PrefKey.WFDIALOG_DISPLAY_TYPE, WFDisplayType.HYPHENS)
+            self.wf_populate()
+
+        ttk.Checkbutton(
+            hyphen_frame,
+            command=hyphen_two_word_cmd,
+            variable=PersistentBoolean(PrefKey.WFDIALOG_HYPHEN_TWO_WORDS),
+        ).grid(row=0, column=2, sticky="NSW")
+        display_radio(3, 0, "Alpha/Num", WFDisplayType.ALPHANUM)
+        italic_frame = ttk.Frame(display_frame)
+        italic_frame.grid(row=3, column=1, columnspan=2, sticky="NSEW")
+        italic_frame.columnconfigure(index=1, weight=1)
+        display_radio(
+            0,
+            0,
+            "Ital/Bold/SC/etc - Word Threshold:",
+            WFDisplayType.MARKEDUP,
+            italic_frame,
+        )
+
+        def is_nonnegative_int(new_value: str) -> bool:
+            """Validation routine for Combobox - check value is a non-negative integer,
+            also allowing empty string."""
+            return re.fullmatch(r"\d*", new_value) is not None
+
+        self.threshold_box = Combobox(
+            italic_frame,
+            PrefKey.WFDIALOG_ITALIC_THRESHOLD,
+            width=6,
+            validate=tk.ALL,
+            validatecommand=(self.register(is_nonnegative_int), "%P"),
+        )
+        self.threshold_box.grid(row=0, column=1, sticky="NSW", padx=(0, 5))
+        self.threshold_box.display_latest_value()
+        ToolTip(
+            self.threshold_box,
+            "Only show marked up phrases with no more than this number of words",
+        )
+        # Override default behavior for combobox up/down arrow
+        self.threshold_box.bind("<Up>", lambda _e: self.goto_word_by_arrow(-1))
+        self.threshold_box.bind("<Down>", lambda _e: self.goto_word_by_arrow(1))
+
+        def display_markedup(*_args: Any) -> None:
+            """Callback to display the marked up words with new threshold value."""
+            preferences.set(PrefKey.WFDIALOG_DISPLAY_TYPE, WFDisplayType.MARKEDUP)
+            self.wf_populate()
+
+        self.threshold_box.bind("<Return>", display_markedup)
+        self.threshold_box.bind("<<ComboboxSelected>>", display_markedup)
+
+        display_radio(4, 0, "Character Counts", WFDisplayType.CHAR_COUNTS)
+        display_radio(4, 1, "Mixed Scripts", WFDisplayType.MIXED_SCRIPT)
+        regex_frame = ttk.Frame(display_frame)
+        regex_frame.grid(row=5, column=0, columnspan=3, sticky="NSEW")
+        regex_frame.columnconfigure(index=1, weight=1)
+        display_radio(0, 0, "Regular Expression", WFDisplayType.REGEXP, regex_frame)
+        self.regex_box = Combobox(regex_frame, PrefKey.WFDIALOG_REGEX)
+        self.regex_box.grid(row=0, column=1, columnspan=2, sticky="NSEW", padx=(0, 5))
+        ToolTip(self.regex_box, "Only show words matching this regular expression")
+        # Override default behavior for combobox up/down arrow
+        self.regex_box.bind("<Up>", lambda _e: self.goto_word_by_arrow(-1))
+        self.regex_box.bind("<Down>", lambda _e: self.goto_word_by_arrow(1))
+
+        def display_regexp(*_args: Any) -> None:
+            """Callback to display the regex-matching words with new regex."""
+            preferences.set(PrefKey.WFDIALOG_DISPLAY_TYPE, WFDisplayType.REGEXP)
+            self.wf_populate()
+
+        self.regex_box.bind("<Return>", display_regexp)
+        self.regex_box.bind("<<ComboboxSelected>>", display_regexp)
+        self.regex_box.display_latest_value()
+
+        # Main display list
+        self.top_frame.rowconfigure(1, weight=1)
+        self.text = ScrolledReadOnlyText(
+            self.top_frame,
+            context_menu=False,
+            wrap=tk.NONE,
+            font=maintext().font,
+        )
+        self.text.grid(row=1, column=0, sticky="NSEW")
+        mouse_bind(self.text, "1", self.goto_word_by_click)
+        mouse_bind(
+            self.text, "Shift-1", lambda e: self.goto_word_by_click(e, reverse=True)
+        )
+        _, event = process_accel("Cmd/Ctrl+1")
+        self.text.bind(event, self.search_word)
+        _, event = process_accel("Shift+Cmd/Ctrl+1")
+        self.text.bind(event, self.open_ngram)
+
+        # Bind keystrokes to search function
+        self.text.bind("<Key>", self.goto_word_by_letters)
+        self.search_buffer = ""
+        self.reset_timer_id = ""
+
+        _, event = process_accel("Cmd/Ctrl+a")
+        self.text.bind(event, lambda _e: self.text.event_generate("<<SelectAll>>"))
+        _, event = process_accel("Cmd/Ctrl+A")
+        self.text.bind(event, lambda _e: self.text.event_generate("<<SelectAll>>"))
+        _, event = process_accel("Cmd/Ctrl+c")
+        self.text.bind(event, lambda _e: self.text.event_generate("<<Copy>>"))
+        _, event = process_accel("Cmd/Ctrl+C")
+        self.text.bind(event, lambda _e: self.text.event_generate("<<Copy>>"))
+        self.text.bind("<Home>", lambda _e: self.goto_word(0, force_first=True))
+        self.text.bind("<Shift-Home>", lambda _e: self.goto_word(0, force_first=True))
+        self.text.bind(
+            "<End>", lambda _e: self.goto_word(len(self.entries) - 1, force_first=True)
+        )
+        self.text.bind(
+            "<Shift-End>",
+            lambda _e: self.goto_word(len(self.entries) - 1, force_first=True),
+        )
+        # Bind same keys as main window uses for top/bottom on Mac.
+        # Above bindings work already for Windows
+        if is_mac():
+            self.text.bind(
+                "<Command-Up>", lambda _e: self.goto_word(0, force_first=True)
+            )
+            self.text.bind(
+                "<Shift-Command-Up>", lambda _e: self.goto_word(0, force_first=True)
+            )
+            self.text.bind(
+                "<Command-Down>",
+                lambda _e: self.goto_word(len(self.entries) - 1, force_first=True),
+            )
+            self.text.bind(
+                "<Shift-Command-Down>",
+                lambda _e: self.goto_word(len(self.entries) - 1, force_first=True),
+            )
+        ToolTip(
+            self.text,
+            "\n".join(
+                [
+                    "Left click: Find first match; click again for next match",
+                    "Shift Left click: Find last match; click again for previous match",
+                    f"{cmd_ctrl_string()} left click: Find using Search dialog",
+                    f"Shift {cmd_ctrl_string()} left click: Open in Google Books Ngram Viewer",
+                ]
+            ),
+            use_pointer_pos=True,
+        )
+
+        self.bind("<Up>", lambda _e: self.goto_word_by_arrow(-1))
+        self.bind("<Down>", lambda _e: self.goto_word_by_arrow(1))
+
+        self.previous_word = ""
+        # Store tooltips so they can be added/destroyed depending on Ignore Case
+        self.tooltip_dict: dict[ttk.Widget, ToolTip] = {}
+        self.set_case_sensitive_btns()
+
+        self.minsize(450, 100)
+        self.reset()
+
+    def reset(self) -> None:
+        """Reset dialog."""
+        super().reset()
+        self.entries: list[WordFrequencyEntry] = []
+        if maintext().winfo_exists():
+            maintext().remove_spotlights()
+        if not self.text.winfo_exists():
+            return
+        self.text.delete("1.0", tk.END)
+        self.message.set("")
+
+    def set_case_sensitive_btns(self) -> None:
+        """Enable/disable buttons depending on Ignore Case setting.
+
+        Show/hide a tooltip to explain to the user.
+        """
+        ignore_case = preferences.get(PrefKey.WFDIALOG_IGNORE_CASE)
+        for widget in (self.all_caps_btn, self.mixed_case_btn, self.initial_caps_btn):
+            widget["state"] = tk.DISABLED if ignore_case else tk.NORMAL
+            if ignore_case:
+                self.tooltip_dict[widget] = ToolTip(
+                    widget, "Cannot be used with 'Ignore Case'"
+                )
+            else:
+                try:
+                    self.tooltip_dict[widget].destroy()
+                except (tk.TclError, KeyError):
+                    pass  # OK for tooltip not to exist
+
+    def add_entry(self, word: str, frequency: int, suspect: bool = False) -> None:
+        """Add an entry to be displayed in the dialog.
+
+        Args:
+            word: Word for this entry.
+            frequency: Number of occurrences of word.
+            suspect: Optional bool to flag this word as "suspect".
+        """
+        entry = WordFrequencyEntry(word, frequency, suspect)
+        self.entries.append(entry)
+
+    def display_entries(self) -> None:
+        """Display all the stored entries in the dialog according to
+        the sort setting."""
+
+        def remove_diacritics_and_hyphens(word: str) -> str:
+            """Remove diacritics, and also convert hyphen to space so that
+            "a-b" and "a b" sort adjacently in hyphen check."""
+            return DiacriticRemover.remove_diacritics(word).replace("-", " ")
+
+        def sort_key_alpha(
+            entry: WordFrequencyEntry,
+        ) -> tuple[str, ...]:
+            no_dia = remove_diacritics_and_hyphens(entry.word)
+            return (no_dia.lower(), no_dia, entry.word)
+
+        def sort_key_alpha_no_markup(
+            entry: WordFrequencyEntry,
+        ) -> tuple[str, ...]:
+            unmarked = re.sub(rf"^<({MARKUP_TYPES})>", "", entry.word)
+            unmarked = re.sub(rf"</({MARKUP_TYPES})>$", "", unmarked)
+            unmarked_no_dia = remove_diacritics_and_hyphens(unmarked)
+            no_dia = remove_diacritics_and_hyphens(entry.word)
+            return (
+                unmarked_no_dia.lower(),
+                unmarked_no_dia,
+                no_dia.lower(),
+                no_dia,
+                entry.word,
+            )
+
+        def sort_key_freq(entry: WordFrequencyEntry) -> tuple[int | str, ...]:
+            no_dia = remove_diacritics_and_hyphens(entry.word)
+            return (-entry.frequency,) + (no_dia.lower(), no_dia, entry.word)
+
+        def sort_key_len(entry: WordFrequencyEntry) -> tuple[int | str, ...]:
+            no_dia = remove_diacritics_and_hyphens(entry.word)
+            return (-len(entry.word), no_dia.lower(), no_dia, entry.word)
+
+        key: Callable[[WordFrequencyEntry], tuple]
+        match preferences.get(PrefKey.WFDIALOG_SORT_TYPE):
+            case WFSortType.ALPHABETIC:
+                key = (
+                    sort_key_alpha_no_markup
+                    if preferences.get(PrefKey.WFDIALOG_DISPLAY_TYPE)
+                    == WFDisplayType.MARKEDUP
+                    else sort_key_alpha
+                )
+            case WFSortType.FREQUENCY:
+                key = sort_key_freq
+            case WFSortType.LENGTH:
+                key = sort_key_len
+            case _ as bad_value:
+                assert False, f"Invalid WFSortType: {bad_value}"
+
+        hilite_orphan_chars = preferences.get(
+            PrefKey.WFDIALOG_DISPLAY_TYPE
+        ) == WFDisplayType.CHAR_COUNTS and preferences.get(
+            PrefKey.CP_HIGHLIGHT_CHARSUITE_ORPHANS
+        )
+        enabled = False
+        suites: list[str] = []
+        # Sort stored list, rather than just displayed list, since later
+        # we'll want to index into list based on index in display.
+        self.entries.sort(key=key)
+        # Get longest frequency to aid formatting
+        max_freq = 0
+        for entry in self.entries:
+            max_freq = max(max_freq, entry.frequency)
+        max_freq_len = len(str(max_freq))
+        # Display entries
+        for entry in self.entries:
+            suspect = f" {WordFrequencyEntry.SUSPECT}" if entry.suspect else ""
+            # Single whitespace characters are replaced with a visible label
+            try:
+                word = WordFrequencyDialog.CHAR_DISPLAY[entry.word]
+            except KeyError:
+                word = entry.word
+            message = f"{entry.frequency:>{max_freq_len}}  {word}{suspect}"
+            if hilite_orphan_chars:
+                suites, enabled = CPCharSuitesDialog.selected_charsuite_check(
+                    entry.word
+                )
+                if not enabled:
+                    message += (
+                        f"  (In {', '.join(suites)})"
+                        if suites
+                        else "  (Not in any character suite)"
+                    )
+            self.text.insert(tk.END, f"{message}\n")
+            if hilite_orphan_chars and not enabled:
+                self.text.tag_add(
+                    HighlightTag.WF_CHAR_HIGHLIGHT,
+                    f"{tk.END} -2l linestart",
+                    f"{tk.END} -2l lineend",
+                )
+
+    def whole_word_search(self, word: str) -> bool:
+        """Return if a whole word search should be done for given word.
+
+        Args:
+            word: The "word" being searched for (may be multiple word string).
+
+        Returns:
+            True if "word" should be searched for with "wholeword" flag. This is
+            not the case for character count or words that begin/end with
+            a non-word character."""
+        return not (
+            preferences.get(PrefKey.WFDIALOG_DISPLAY_TYPE) == WFDisplayType.CHAR_COUNTS
+            or re.search(r"^\W|\W$", word)
+        )
+
+    def goto_word_by_click(self, event: tk.Event, reverse: bool = False) -> str:
+        """Go to first/next occurrence of word selected by `event`.
+
+        If a different word to last click, then start search from beginning/end
+        of file, otherwise just continue forward/backward from current location.
+
+        Args:
+            event: Event containing mouse click coordinates.
+            reverse: Search in reverse direction.
+
+        Returns:
+            "break" to stop further processing of event
+        """
+        try:
+            entry_index = self.entry_index_from_click(event)
+        except IndexError:
+            return "break"
+        self.goto_word(entry_index, reverse=reverse)
+        return "break"
+
+    def goto_word_by_letters(self, event: tk.Event) -> str:
+        """Go to first occurrence of word beginning with typed character(s).
+
+        Args:
+            event: Event containing keystroke.
+
+        Returns:
+            "break" to stop further processing of events if valid character
+        """
+        if not event.char or not event.char.isprintable():
+            return ""
+        # If modifiers other than Shift, Caps Lock, Num Lock, ScrollLock don't goto word - allow default processing
+        if int(event.state) & ~(0x0001 | 0x0002 | 0x0010 | 0x0080 | 0x0100) != 0:
+            return ""
+
+        def reset_buffer() -> None:
+            """Reset the search buffer and the reset timer"""
+            self.reset_timer_id = ""
+            self.search_buffer = ""
+
+        # If timer running, cancel it - new one is started below
+        if self.reset_timer_id:
+            self.after_cancel(self.reset_timer_id)
+            self.reset_timer_id = ""
+
+        # If user doesn't press another key within 1 second, reset the search buffer
+        self.reset_timer_id = self.after(1000, reset_buffer)
+
+        n_entries = len(self.entries)
+        self.search_buffer += event.char.lower()
+        # If nothing selected, pretend last item was selected
+        # (Line numbers begin at 1)
+        selected = (self.text.get_select_line_num() or n_entries) - 1
+        # If first keypress, start from next entry, so we don't re-find selected one
+        if len(self.search_buffer) == 1:
+            selected = selected + 1
+        # Search from selected to end of list & wrap to beginning
+        for loop in range(n_entries):
+            idx = (selected + loop) % n_entries
+            if self.entries[idx].word.lower().startswith(self.search_buffer):
+                self.goto_word(idx, force_first=True)
+                return "break"
+        return ""
+
+    def goto_word_by_arrow(self, increment: int) -> str:
+        """Select next/previous line in dialog, and jump to the line in the
+        main text widget that corresponds to it.
+
+        Args:
+            increment: +1 to move to next line, -1 to move to previous line.
+        """
+        entry_index = self.text.get_select_line_num()
+        if entry_index is not None:
+            entry_index -= 1
+        if (
+            entry_index is None
+            or entry_index + increment < 0
+            or entry_index + increment >= len(self.entries)
+        ):
+            return "break"
+        self.goto_word(entry_index + increment, force_first=True)
+        return "break"
+
+    def goto_word(
+        self, entry_index: int, force_first: bool = False, reverse: bool = False
+    ) -> None:
+        """Go to first/next occurrence of word listed at `entry_index`.
+
+        If a different word to last click, then start search from beginning
+        of file, otherwise just continue from current location.
+
+        Args:
+            entry_index: Index into `self.entries` indicating which to select.
+            force_first: True to force first occurrence, False for next occurrence.
+            reverse: True to search backward.
+        """
+        if entry_index >= len(self.entries):
+            return
+        self.text.tag_remove("sel", "1.0", tk.END)
+        self.text.select_line(entry_index + 1)
+        self.text.mark_set(tk.INSERT, f"{entry_index + 1}.0")
+        self.text.focus()
+        word = self.entries[entry_index].word
+        if word == self.previous_word and not force_first:
+            start = maintext().rowcol(
+                f"{maintext().get_insert_index().index()}{'-' if reverse else '+'}1c"
+            )
+        else:
+            start = maintext().end() if reverse else maintext().start()
+        # Special handling for newline characters (displayed as RETURN_ARROW)
+        newline_word = (
+            re.sub(RETURN_ARROW, "\n", word) if RETURN_ARROW in word else word
+        )
+        # Also special handling for non-marked-up phrase from marked-up check
+        # (Regex to specifically find non-marked-up version), for char count,
+        # and for words that begin/end with non-word chars
+        if preferences.get(
+            PrefKey.WFDIALOG_DISPLAY_TYPE
+        ) == WFDisplayType.MARKEDUP and not word.startswith("<"):
+            match_word = r"(?<![>\w])" + re.escape(newline_word) + r"(?![<\w])"
+        elif preferences.get(PrefKey.WFDIALOG_DISPLAY_TYPE) in (
+            WFDisplayType.CHAR_COUNTS,
+            WFDisplayType.MARKEDUP,
+        ):
+            match_word = re.escape(newline_word)
+        else:  # Do manual whole-word
+            # Ensure apostrophes are handled correctly, i.e. "abc" doesn't match "l'abc" or "abc's"
+            # Also, boundary for an emdash is any non-emdash, but for other non-word characters the
+            # boundary is a word/space character
+            emdash_bound = "—" if newline_word[0] == "—" else r"[^\w\s]"
+            left_boundary = (
+                r"(?<!([^\W_]|\w['’]))"
+                if newline_word[0].isalnum()
+                else rf"(?<!{emdash_bound})"
+            )
+            emdash_bound = "—" if newline_word[-1] == "—" else r"[^\w\s]"
+            right_boundary = (
+                r"(?!([^\W_]|['’]\w))"
+                if newline_word[-1].isalnum()
+                else rf"(?!{emdash_bound})"
+            )
+            match_word = rf"{left_boundary}{re.escape(newline_word)}{right_boundary}"
+
+        # If hyphen matching and there's one (escaped) space in the word, let that match
+        # any amount of whitespace
+        if (
+            preferences.get(PrefKey.WFDIALOG_DISPLAY_TYPE) == WFDisplayType.HYPHENS
+            and r"\ " in match_word
+        ):
+            match_word = match_word.replace(r"\ ", r"[\n ]+")
+
+        match = maintext().find_match_user(
+            match_word,
+            start,
+            nocase=preferences.get(PrefKey.WFDIALOG_IGNORE_CASE),
+            wholeword=False,
+            regexp=True,
+            backwards=reverse,
+            wrap=False,
+        )
+        maintext().remove_spotlights()
+        if match is None:
+            sound_bell()
+            maintext().set_insert_index(
+                maintext().end() if reverse else maintext().start(), focus=False
+            )
+        else:
+            maintext().set_insert_index(match.rowcol, focus=False)
+            start_index = match.rowcol.index()
+            end_index = maintext().index(start_index + f"+{match.count}c")
+            maintext().spotlight_range(IndexRange(start_index, end_index))
+            self.previous_word = word
+
+    def search_word(self, event: tk.Event) -> str:
+        """Open search dialog ready to search for selected word."""
+        try:
+            entry_index = self.entry_index_from_click(event)
+        except IndexError:
+            return "break"
+        self.text.select_line(entry_index + 1)
+        word = self.entries[entry_index].word
+
+        # Special handling for newline characters (displayed as RETURN_ARROW)
+        match_word = re.sub(RETURN_ARROW, "\n", word) if RETURN_ARROW in word else word
+
+        preferences.set(
+            PrefKey.SEARCHDIALOG_MATCH_CASE,
+            not preferences.get(PrefKey.WFDIALOG_IGNORE_CASE),
+        )
+        preferences.set(PrefKey.SEARCHDIALOG_WHOLE_WORD, self.whole_word_search(word))
+        preferences.set(PrefKey.SEARCHDIALOG_REGEX, False)
+        dlg = SearchDialog.show_dialog()
+        dlg.search_box_set(match_word)
+        dlg.display_message()
+
+        return "break"
+
+    def open_ngram(self, event: tk.Event) -> str:
+        """Open Google Ngram viewer with selected word."""
+        try:
+            entry_index = self.entry_index_from_click(event)
+        except IndexError:
+            return "break"
+        self.text.select_line(entry_index + 1)
+        word = self.entries[entry_index].word
+        content = word
+
+        # If in Hyphen display, add suspects to content
+        if preferences.get(PrefKey.WFDIALOG_DISPLAY_TYPE) == WFDisplayType.HYPHENS:
+            # If chosen word is a suspect, use the related suspects
+            if self.entries[entry_index].suspect:
+                testword = re.sub("[- ]+", "", word)
+                for entry in self.entries:
+                    if (
+                        entry.word != word
+                        and re.sub("[- ]+", "", entry.word) == testword
+                    ):
+                        content = f"{content},{entry.word}"
+            # If chosen word is hyphenated and non-hyphen version not in text,
+            # manually add the non-hyphen version to content
+            else:
+                content = f"{content},{word.replace('-', '')}"
+
+        do_open_ngram(content)
+        return "break"
+
+    def entry_index_from_click(self, event: tk.Event) -> int:
+        """Get the index into the list of entries based on the mouse position
+        in the click event.
+
+        Args:
+            event: Event object containing mouse click position.
+
+        Returns:
+            Index into self.entries list
+            Raises IndexError exception if out of range
+        """
+        entry_index = IndexRowCol(self.text.index(f"@{event.x},{event.y}")).row - 1
+        if entry_index < 0 or entry_index >= len(self.entries):
+            raise IndexError
+        return entry_index
+
+    def wf_populate(self) -> None:
+        """Populate the WF dialog with words based on the display type."""
+        Busy.busy()
+        try:
+            self.do_wf_populate()
+        except tk.TclError:
+            logger.debug("Tcl error: Dialog closed while tool was running?")
+        Busy.unbusy()
+
+    def do_wf_populate(self) -> None:
+        """Populate the WF dialog with words based on the display type."""
+        self.previous_word = ""
+        display_type = preferences.get(PrefKey.WFDIALOG_DISPLAY_TYPE)
+
+        # Suspects Only is only relevant for some modes
+        if display_type in (
+            WFDisplayType.EMDASHES,
+            WFDisplayType.HYPHENS,
+            WFDisplayType.MARKEDUP,
+            WFDisplayType.ACCENTS,
+            WFDisplayType.LIGATURES,
+        ):
+            self.suspects_btn.grid()
+        else:
+            self.suspects_btn.grid_remove()
+
+        match display_type:
+            case WFDisplayType.ALL_WORDS:
+                self.wf_populate_all()
+            case WFDisplayType.EMDASHES:
+                self.wf_populate_emdashes()
+            case WFDisplayType.HYPHENS:
+                self.wf_populate_hyphens()
+            case WFDisplayType.ALPHANUM:
+                self.wf_populate_alphanum()
+            case WFDisplayType.ALL_CAPS:
+                self.wf_populate_allcaps()
+            case WFDisplayType.MIXED_CASE:
+                self.wf_populate_mixedcase()
+            case WFDisplayType.INITIAL_CAPS:
+                self.wf_populate_initialcaps()
+            case WFDisplayType.MARKEDUP:
+                self.wf_populate_markedup()
+            case WFDisplayType.ACCENTS:
+                self.wf_populate_accents()
+            case WFDisplayType.LIGATURES:
+                self.wf_populate_ligatures()
+            case WFDisplayType.CHAR_COUNTS:
+                self.wf_populate_charcounts()
+            case WFDisplayType.MIXED_SCRIPT:
+                self.wf_populate_mixedscript()
+            case WFDisplayType.REGEXP:
+                self.wf_populate_regexps()
+            case _ as bad_value:
+                assert False, f"Invalid WFDisplayType: {bad_value}"
+        self.goto_word(0, force_first=True)
+
+    def wf_populate_all(self) -> None:
+        """Populate the WF dialog with the list of all words."""
+        assert _the_word_lists is not None
+        self.reset()
+
+        all_words = _the_word_lists.get_all_words()
+        total_cnt = 0
+        for word, freq in all_words.items():
+            self.add_entry(word, freq)
+            total_cnt += freq
+        self.display_entries()
+        self.message.set(
+            f"{sing_plur(total_cnt, 'total word')}; {sing_plur(len(all_words), 'distinct word')}"
+        )
+
+    def wf_populate_emdashes(self) -> None:
+        """Populate the WF dialog with the list of emdashed words."""
+        assert _the_word_lists is not None
+        self.reset()
+
+        all_words = _the_word_lists.get_all_words()
+        emdash_words = _the_word_lists.get_emdash_words()
+        suspect_cnt = 0
+        for emdash_word, freq in emdash_words.items():
+            # Check for suspect, i.e. also seen with a single hyphen
+            word = re.sub("(--|—)", "-", emdash_word)
+            suspect = word in all_words
+            if suspect or not preferences.get(PrefKey.WFDIALOG_SUSPECTS_ONLY):
+                self.add_entry(emdash_word, freq, suspect=suspect)
+                if suspect:
+                    suspect_cnt += 1
+            if suspect:
+                self.add_entry(word, all_words[word], suspect=True)
+                suspect_cnt += 1
+        self.display_entries()
+        self.message.set(
+            f"{sing_plur(len(emdash_words), 'emdash phrase')}; {sing_plur(suspect_cnt, 'suspect')} ({WordFrequencyEntry.SUSPECT})"
+        )
+
+    def wf_populate_hyphens(self) -> None:
+        """Populate the WF dialog with the list of word pairs."""
+        assert _the_word_lists is not None
+        self.reset()
+
+        all_words = _the_word_lists.get_all_words()
+        emdash_words = _the_word_lists.get_emdash_words()
+
+        # See if word pair suspects exist, e.g. "flash light" for "flash-light"
+        word_pairs: WFDict = WFDict()
+        if preferences.get(PrefKey.WFDIALOG_HYPHEN_TWO_WORDS):
+            # Replace single newline or multiple spaces with single space
+            # (Multiple newlines is probably deliberate rather than error)
+            whole_text = re.sub(r"(\n| +)", " ", maintext().get_text())
+            re_flags = (
+                re.IGNORECASE if preferences.get(PrefKey.WFDIALOG_IGNORE_CASE) else 0
+            )
+            for word in all_words:
+                if "-" in word:
+                    pair = word.replace("-", " ")
+                    # Find word pair not preceded/followed by a letter - this is so
+                    # that space or punctuation surrounding the pair doesn't break things.
+                    count = len(
+                        re.findall(rf"(?<!\w){pair}(?!\w)", whole_text, flags=re_flags)
+                    )
+                    if count:
+                        word_pairs[pair] = count
+
+        suspect_cnt = 0
+        total_cnt = 0
+        word_output = {}
+        for word, freq in all_words.items():
+            if "-" not in word:
+                continue
+            total_cnt += 1
+            # Check for suspects - given "w1-w2", then "w1w2", "w1 w2" and "w1--w2" are suspects.
+            word_pair = re.sub(r"-\*?", " ", word)
+            nohyp_word = re.sub(r"-\*?", "", word)
+            twohyp_word = re.sub(r"-\*?", "--", word)
+            # All-numeric hyphenated (1-13) is reported, but not variants (113, "1 13", 1--13)
+            if re.fullmatch("[0-9]+", nohyp_word):
+                wp_exists = False
+                nh_exists = False
+                th_exists = False
+            else:
+                wp_exists = word_pair in word_pairs
+                nh_exists = nohyp_word in all_words
+                th_exists = twohyp_word in emdash_words
+            suspect = wp_exists or nh_exists or th_exists
+            suspect_inc = 1 if suspect else 0
+
+            if not preferences.get(PrefKey.WFDIALOG_SUSPECTS_ONLY):
+                self.add_entry(word, freq, suspect=suspect)
+                word_output[word] = True
+                suspect_cnt += suspect_inc
+            if wp_exists:
+                if word not in word_output:
+                    self.add_entry(word, freq, suspect=suspect)
+                    word_output[word] = True
+                    suspect_cnt += suspect_inc
+                if word_pair not in word_output:
+                    self.add_entry(word_pair, word_pairs[word_pair], suspect=suspect)
+                    word_output[word_pair] = True
+                    suspect_cnt += suspect_inc
+            nohyp_word = re.sub(r"-\*?", "", word)
+            if nh_exists:
+                if word not in word_output:
+                    self.add_entry(word, freq, suspect=suspect)
+                    word_output[word] = True
+                    suspect_cnt += suspect_inc
+                if nohyp_word not in word_output:
+                    self.add_entry(nohyp_word, all_words[nohyp_word], suspect=suspect)
+                    word_output[nohyp_word] = True
+                    suspect_cnt += suspect_inc
+            twohyp_word = re.sub(r"-\*?", "--", word)
+            if th_exists:
+                if word not in word_output:
+                    self.add_entry(word, freq, suspect=suspect)
+                    word_output[word] = True
+                    suspect_cnt += suspect_inc
+                if twohyp_word not in word_output:
+                    self.add_entry(
+                        twohyp_word, emdash_words[twohyp_word], suspect=suspect
+                    )
+                    word_output[twohyp_word] = True
+                    suspect_cnt += suspect_inc
+        self.display_entries()
+        self.message.set(
+            f"{sing_plur(total_cnt, 'hyphenated word')}; {sing_plur(suspect_cnt, 'suspect')} ({WordFrequencyEntry.SUSPECT})"
+        )
+
+    def wf_populate_by_match(
+        self,
+        desc: str,
+        match_func: Callable[[str], Any],
+    ) -> None:
+        """Populate the WF dialog with the list of all words that match_func matches.
+
+        Args:
+            desc: Description for message, e.g. desc "ALLCAPS" -> message "27 ALLCAPS words"
+            match_func: Function that returns Truthy result if word matches the required criteria
+        """
+        assert _the_word_lists is not None
+        self.reset()
+
+        all_words = _the_word_lists.get_all_words()
+        count = 0
+        for word, freq in all_words.items():
+            if match_func(word):
+                self.add_entry(word, freq)
+                count += 1
+        self.display_entries()
+        self.message.set(f"{sing_plur(count, desc + ' word')}")
+
+    def wf_populate_alphanum(self) -> None:
+        """Populate the WF dialog with the list of all alphanumeric words."""
+        self.wf_populate_by_match(
+            "alphanumeric",
+            lambda word: re.search(r"\d", word) and re.search(r"\p{Alpha}", word),
+        )
+
+    def wf_populate_allcaps(self) -> None:
+        """Populate the WF dialog with the list of all ALLCAPS words."""
+        self.wf_populate_by_match(
+            "ALLCAPS",
+            lambda word: re.search(r"\p{IsUpper}", word)
+            and not re.search(r"\p{IsLower}", word),
+        )
+
+    def wf_populate_mixedcase(self) -> None:
+        """Populate the WF dialog with the list of all MiXeD CasE words.
+
+        Allow "Joseph-Marie" or "post-Roman", i.e. parts of words may either
+        be properly capitalized or all lowercase, with parts separated by
+        hyphens or apostrophes or periods ("D.Sc").
+        """
+        word_chunk_regex = r"\p{Upper}?[\p{Lower}\p{Mark}\d'’*-]*"
+        self.wf_populate_by_match(
+            "MiXeD CasE",
+            lambda word: re.search(r"\p{Upper}", word)
+            and re.search(r"\p{Lower}", word)
+            and not re.fullmatch(
+                rf"{word_chunk_regex}([-'’\.]{word_chunk_regex})*",
+                word,
+            )
+            and not re.match(r"Ma?c\p{Upper}", word),
+        )
+
+    def wf_populate_initialcaps(self) -> None:
+        """Populate the WF dialog with the list of all Initial Caps words."""
+        self.wf_populate_by_match(
+            "Initial Caps",
+            lambda word: re.fullmatch(r"\p{Upper}\P{Upper}+", word),
+        )
+
+    def wf_populate_markedup(self) -> None:
+        """Populate the WF dialog with the list of all phrases marked up
+        with DP markup, e.g. <i>, <b>, etc."""
+        self.reset()
+
+        marked_dict: WFDict = WFDict()
+        nocase = preferences.get(PrefKey.WFDIALOG_IGNORE_CASE)
+        search_flags = re.IGNORECASE if nocase else 0
+
+        whole_text = maintext().get_text()
+
+        matches = re.findall(
+            rf"(?<!\w)(<({MARKUP_TYPES})>([^<]|\n)+</\2>)(?!\w)",
+            whole_text,
+            flags=search_flags,
+        )
+        for match in matches:
+            marked_phrase: str = match[0]
+            if nocase:
+                marked_phrase = marked_phrase.lower()
+            marked_phrase = marked_phrase.replace("\n", RETURN_ARROW)
+            tally_word(marked_dict, marked_phrase)
+
+        total_cnt = 0
+        suspect_cnt = 0
+        unmarked_count = {}
+        for marked_phrase, marked_count in marked_dict.items():
+            # Suspect if the bare phrase appears an excess number of times,
+            # i.e. all occurrences > marked up occurrences
+            unmarked_phrase = re.sub(rf"^<({MARKUP_TYPES})>", "", marked_phrase)
+            unmarked_phrase = re.sub(rf"</({MARKUP_TYPES})>$", "", unmarked_phrase)
+            unmarked_search = unmarked_phrase.replace(RETURN_ARROW, "\n")
+            unmarked_search = r"(^|[^>\w])" + re.escape(unmarked_search) + r"($|[^<\w])"
+            num_words = len(unmarked_search.split())
+            # If phrase is longer than "threshold" words, skip it - zero/empty threshold allows any length
+            threshold_str = self.threshold_box.get()
+            self.threshold_box.add_to_history(threshold_str)
+            threshold = int(threshold_str) if threshold_str else 0
+            if num_words > threshold > 0:
+                continue
+            total_cnt += 1
+
+            # Store unmarked counts so we don't do unmarked check twice,
+            # e.g. if <i>dog</i>, <b>dog</b> and dog all exist
+            if unmarked_phrase not in unmarked_count:
+                unmarked_count[unmarked_phrase] = len(
+                    re.findall(unmarked_search, whole_text, flags=search_flags)
+                )
+                if unmarked_count[unmarked_phrase] > 0:
+                    self.add_entry(
+                        unmarked_phrase, unmarked_count[unmarked_phrase], suspect=True
+                    )
+                    suspect_cnt += 1
+
+            if unmarked_count[unmarked_phrase] > 0 or not preferences.get(
+                PrefKey.WFDIALOG_SUSPECTS_ONLY
+            ):
+                self.add_entry(marked_phrase, marked_count)
+
+        self.display_entries()
+        self.message.set(
+            f"{sing_plur(total_cnt, 'marked-up phrase')}; {sing_plur(suspect_cnt, 'suspect')} ({WordFrequencyEntry.SUSPECT})"
+        )
+
+    def wf_populate_accents(self) -> None:
+        """Populate the WF dialog with the list of all accented words."""
+        assert _the_word_lists is not None
+        self.reset()
+
+        all_words = _the_word_lists.get_all_words()
+        suspect_cnt = 0
+        total_cnt = 0
+        # For suspects check, remove accents from all words - then we will be able
+        # to find two words that differ only by accent.
+        num_accent_variants = Counter(
+            DiacriticRemover.remove_diacritics(word) for word in all_words
+        )
+        no_accents_added = set()  # So no-accent word only gets added once
+        for word, freq in all_words.items():
+            no_accent_word = DiacriticRemover.remove_diacritics(word)
+            if no_accent_word == word:
+                continue
+            total_cnt += 1
+            # Check for suspect, i.e. seen without accent variation
+            suspect = num_accent_variants[no_accent_word] > 1
+            # Add to list if it's a suspect, or if we're showing all accented words
+            if not preferences.get(PrefKey.WFDIALOG_SUSPECTS_ONLY) or suspect:
+                self.add_entry(word, freq, suspect=suspect)
+            # Also add no-accent word if in file and it hasn't been added before
+            if no_accent_word in all_words and no_accent_word not in no_accents_added:
+                self.add_entry(no_accent_word, all_words[no_accent_word], suspect=True)
+                no_accents_added.add(no_accent_word)
+                suspect_cnt += 1  # No-accent word is also a suspect
+            if suspect:
+                suspect_cnt += 1
+        self.display_entries()
+        self.message.set(
+            f"{sing_plur(total_cnt, 'accented word')}; {sing_plur(suspect_cnt, 'suspect')} ({WordFrequencyEntry.SUSPECT})"
+        )
+
+    def wf_populate_ligatures(self) -> None:
+        """Populate the WF dialog with the list of all ligature words."""
+        assert _the_word_lists is not None
+        self.reset()
+
+        all_words = _the_word_lists.get_all_words()
+        suspect_cnt = 0
+        total_cnt = 0
+        suspects_only = preferences.get(PrefKey.WFDIALOG_SUSPECTS_ONLY)
+        replacements = [
+            ("æ", "ae"),
+            ("Æ", "Ae"),
+            ("Æ", "AE"),
+            ("œ", "oe"),
+            ("Œ", "Oe"),
+            ("Œ", "OE"),
+        ]
+        for word, freq in all_words.items():
+            is_lig = re.search("(æ|Æ|œ|Œ)", word)
+            is_non_lig = re.search("(ae|AE|Ae|oe|OE|Oe)", word)
+            if not is_lig and not is_non_lig:
+                continue
+            total_cnt += 1
+            if is_lig:
+                for lig, non in replacements:
+                    if lig in word and word.replace(lig, non) in all_words:
+                        suspect = True
+                        break
+                else:
+                    suspect = False
+                if suspect:
+                    suspect_cnt += 1
+                    self.add_entry(word, freq, suspect=True)
+                elif not suspects_only:
+                    self.add_entry(word, freq)
+            else:
+                lig_word = re.sub("ae", "æ", word)
+                lig_word = re.sub("(AE|Ae)", "Æ", lig_word)
+                lig_word = re.sub("oe", "œ", lig_word)
+                lig_word = re.sub("(OE|Oe)", "Œ", lig_word)
+                if lig_word in all_words:
+                    suspect_cnt += 1
+                    self.add_entry(word, freq, suspect=True)
+                elif not suspects_only:
+                    self.add_entry(word, freq)
+        self.display_entries()
+        self.message.set(
+            f"{sing_plur(total_cnt, 'ligature word')}; {sing_plur(suspect_cnt, 'suspect')} ({WordFrequencyEntry.SUSPECT})"
+        )
+
+    def wf_populate_charcounts(self) -> None:
+        """Populate the WF dialog with the list of all the characters."""
+        self.reset()
+
+        char_dict: WFDict = WFDict()
+
+        total_cnt = 0
+        for line, _ in maintext().get_lines():
+            total_cnt += len(line)
+            for char in line:
+                tally_word(char_dict, char)
+
+        for char, count in char_dict.items():
+            self.add_entry(char, count)
+
+        self.display_entries()
+        self.message.set(
+            f"{sing_plur(total_cnt, 'character')}; {sing_plur(len(char_dict), 'distinct character')}"
+        )
+
+    def wf_populate_mixedscript(self) -> None:
+        """Populate the WF dialog with the list of all Mixed Script words, for
+        example a word made of Latin characters with a Greek character hidden inside.
+        """
+
+        def get_script(ch: str) -> str:
+            """
+            Return the Unicode script of a character using the regex package, or
+            "Unknown" if not in list of common scripts.
+            """
+            for sc in self.SCRIPTS:
+                if re.match(rf"\p{{sc={sc}}}", ch):
+                    return sc
+            return "Unknown"
+
+        def mixed_word(word: str) -> bool:
+            """Return whether word has mixed scripts."""
+            return len({get_script(ch) for ch in word if ch.isalpha()}) > 1
+
+        self.wf_populate_by_match(
+            "mixed script",
+            mixed_word,
+        )
+
+    def wf_populate_regexps(self) -> None:
+        """Populate the WF dialog with the list of all words that match the regexp."""
+        self.reset()
+
+        regexp = self.regex_box.get()
+        self.regex_box.add_to_history(regexp)
+        try:
+            self.wf_populate_by_match(
+                "regex-matching",
+                lambda word: re.search(regexp, word),
+            )
+        except re.error as exc:
+            self.message.set("Bad regex: " + str(exc))
+
+    @classmethod
+    def highlight_charsuite_refresh(cls) -> None:
+        """Maybe redraw WF display due to charsuite highlight change."""
+        dlg: Optional[WordFrequencyDialog] = WordFrequencyDialog.get_dialog()
+        if dlg is None:
+            return
+        if preferences.get(PrefKey.WFDIALOG_SORT_TYPE) != WFDisplayType.CHAR_COUNTS:
+            return
+        dlg.display_entries()
+
+
+def word_frequency() -> None:
+    """Do word frequency analysis on file."""
+    global _the_word_lists
+
+    if not tool_save():
+        return
+
+    _the_word_lists = WFWordLists()
+
+    self = WordFrequencyDialog.show_dialog()
+    self.wf_populate()
+
+
+def tally_word(wf_dict: WFDict, word: str) -> None:
+    """Tally word in given WF dictionary, unless word is empty.
+
+    If word already in dictionary, increment the count.
+    If not, add word and set count to 1.
+
+    Args:
+        wf_dict: WFDict to tally word in.
+        word: Word to be tallied."""
+    if word:
+        try:
+            wf_dict[word] += 1
+        except KeyError:
+            wf_dict[word] = 1
