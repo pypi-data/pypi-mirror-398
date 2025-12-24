@@ -1,0 +1,188 @@
+Metadata-Version: 2.4
+Name: tetra
+Version: 0.5.3
+Summary: Full stack component framework for Django using Alpine.js
+Author-email: Sam Willis <sam.willis@gmail.com>, Christian González <christian.gonzalez@nerdocs.at>
+License-Expression: MIT
+Project-URL: Homepage, https://tetraframework.com
+Project-URL: Documentation, https://tetra.readthedocs.io
+Project-URL: Repository, https://github.com/tetra-framework/tetra
+Keywords: python,django,framework,components
+Classifier: Development Status :: 3 - Alpha
+Classifier: Programming Language :: Python :: 3
+Classifier: Framework :: Django
+Classifier: Framework :: Django :: 5
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Software Development
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: cryptography>=37.0.1
+Requires-Dist: Django>=3.2.0
+Requires-Dist: python-dateutil>=2.8.2
+Requires-Dist: sourcetypes>=0.0.4
+Provides-Extra: dev
+Requires-Dist: build~=1.3.0; extra == "dev"
+Requires-Dist: twine>=6.2; extra == "dev"
+Requires-Dist: packaging>=25.0; extra == "dev"
+Requires-Dist: pkginfo>=1.12; extra == "dev"
+Requires-Dist: pytest~=9.0; extra == "dev"
+Requires-Dist: pytest-django~=4.11; extra == "dev"
+Requires-Dist: pytest-cov~=7.0; extra == "dev"
+Requires-Dist: pre-commit; extra == "dev"
+Requires-Dist: black>=25.12; extra == "dev"
+Requires-Dist: python-dateutil~=2.8; extra == "dev"
+Requires-Dist: beautifulsoup4~=4.14; extra == "dev"
+Requires-Dist: tetra[demo]; extra == "dev"
+Requires-Dist: tetra[doc]; extra == "dev"
+Requires-Dist: pytest-playwright; extra == "dev"
+Provides-Extra: demo
+Requires-Dist: PyYAML~=6.0; extra == "demo"
+Requires-Dist: markdown~=3.3; extra == "demo"
+Requires-Dist: django-environ~=0.12; extra == "demo"
+Requires-Dist: PyYAML>=6.0; extra == "demo"
+Requires-Dist: markdown~=3.3; extra == "demo"
+Requires-Dist: channels[daphne]~=4.2; extra == "demo"
+Requires-Dist: channels_redis~=4.3; extra == "demo"
+Provides-Extra: doc
+Requires-Dist: mkdocs~=1.6; extra == "doc"
+Requires-Dist: mkdocs-material~=9.7; extra == "doc"
+Requires-Dist: pymdown-extensions~=10.19; extra == "doc"
+Requires-Dist: pygments~=2.19; extra == "doc"
+Requires-Dist: mkdocstrings[python]; extra == "doc"
+Requires-Dist: mkdocs-mermaid2-plugin~=1.2; extra == "doc"
+Requires-Dist: mkdocs-panzoom-plugin~=0.4; extra == "doc"
+Dynamic: license-file
+
+# Tetra
+
+Full stack component framework for [Django](http://djangoproject.com) using [Alpine.js](https://alpinejs.dev)
+
+Tetra is a new full stack component framework for Django, bridging the gap between your server logic and front end presentation. It uses a public shared state and a resumable server state to enable inplace updates for components. It also encapsulates your Python, HTML, JavaScript and CSS into one file or directory for proximity of related concerns.
+
+
+## Documentation
+
+Too much for a README. There's a [Documentation](https://tetra.readthedocs.org) page. 
+
+There are also a shortcut to some [examples](https://www.tetraframework.com/examples/).
+
+## Installation
+
+As usual:
+```
+pip install tetra
+```
+
+But wait, this isn't all. Tetra needs some customization in your Django project. 
+
+Read more at [Installation docs](https:/www.tetraframework.com/installation.md)
+
+## Short Overview
+
+For the impatient: here's a short example video that shows what Tetra is capable of:
+
+
+https://github.com/user-attachments/assets/137c53af-1fc2-48c5-9c53-a007fbad7874
+
+
+
+This is done using simple and concise code in one component, rendered in your template with just `{% InfoCard / %}`. No page reload needed.
+
+```python
+from tetra import Component, public
+
+class InfoCard(Component):
+    title: str = "I'm so excited!"
+    content: str = "We got some news for you."
+    name: str = public("")
+
+    @public
+    def close(self):
+        self.client._removeComponent()
+
+    @public
+    def done(self):
+        print("User clicked on OK, username:", self.name)
+        self.content = f"Hi { self.name }! No further news."
+
+    template = """
+    <div class="card text-white bg-secondary mb-3" style="max-width: 18rem;">
+      <div class="card-header d-flex justify-content-between">
+        <h3>Information</h3>
+        <button class="btn btn-sm btn-warning" @click="_removeComponent(
+        )"><i class="fa fa-x"></i></button>
+      </div>
+      
+      <div class="card-body">
+        <h5 class="card-title">{{ title }}</h5>
+        <p class="card-text">
+          {{ content }}
+        </p>
+        <p x-show="!name">
+          Enter your name below!
+        </p>
+        <p x-show="name">
+            Thanks, {% livevar name %}
+        </p>
+        <div class="input-group mb-3">
+
+          <input 
+            type="text" 
+            class="form-control" 
+            placeholder="Your name" 
+            @keyup.enter="done()"
+            x-model="name">
+        </div>
+        <button 
+            class="btn btn-primary" 
+            @click="done()" 
+            :disabled="name == ''">
+            Ok
+        </button>
+      </div>
+      
+    </div>
+    """
+```
+
+## What does Tetra do exactly?
+
+Django on the backend, Alpine.js in the browser
+: Tetra combines the power of Django with Alpine.js to make development easier and quicker.
+
+Component encapsulation
+: Each component combines its Python, HTML, CSS and JavaScript in one place for proximity of related code.
+
+Resumable server state
+: The components' full server state is saved between public method calls. This state is encrypted for security.
+
+Public server methods
+: Methods can be made public, allowing you to easily call them from JS on the front end, resuming the component's state.
+
+Shared public state
+: Attributes can be decorated to indicate they should be available in the browser as Alpine.js data objects.
+
+Server "watcher" methods
+: Public methods can be instructed to watch a public attribute, enabling reactive re-rendering on the server.
+
+Inplace updating from the server
+: Server methods can update the rendered component in place. Powered by the Alpine.js morph plugin.
+
+Component library packaging
+: Every component belongs to a "library"; their JS & CSS is packed together for quicker browser downloads.
+
+Components with overridable slots
+: Components can have multiple {% slot(s) %} which can be overridden when used.
+
+JS/CSS builds using [esbuild](https://esbuild.github.io)
+: Both for development (built into runserver) and production your JS & CSS is built with esbuild.
+
+Automatic Js Source Maps
+: Source maps are generated during development so that you can track down errors to the original Python files.
+
+Syntax highlighting with type annotations
+: Tetra uses type annotations to syntax highlight your JS, CSS & HTML in your Python files with a [VS Code plugin](https://github.com/samwillis/python-inline-source/tree/main/vscode-python-inline-source)
+
+Forms
+: `FormComponent`s can act as simple replacements for Django's FormView, but due to Tetra's dynamic nature, a field can e.g. change its value or disappear depending on other fields' values.
