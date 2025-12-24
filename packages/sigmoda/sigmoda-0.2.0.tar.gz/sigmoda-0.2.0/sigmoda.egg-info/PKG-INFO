@@ -1,0 +1,228 @@
+Metadata-Version: 2.2
+Name: sigmoda
+Version: 0.2.0
+Summary: Sigmoda Python SDK for logging LLM events and OpenAI chat completions.
+Author: Sigmoda
+License: MIT License
+        
+        Copyright (c) 2025 Sigmoda
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Homepage, https://sigmoda.com
+Project-URL: Repository, https://github.com/seljawhari/sigmoda-python
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.28.0
+Requires-Dist: openai<3,>=1
+Provides-Extra: test
+Requires-Dist: pytest>=7.0; extra == "test"
+
+# Sigmoda Python SDK
+
+Sigmoda is an LLM observability and guardrails platform. This SDK gives you:
+- Thin wrappers around OpenAI Responses (recommended) and Chat Completions that measure latency, capture prompt/response/token usage, log to Sigmoda, and return the original OpenAI response.
+- A `log_event` helper to send custom LLM events (for other providers or bespoke flows).
+
+## Install
+
+```bash
+pip install sigmoda
+```
+
+## Quickstart (2 minutes)
+
+1) Set your keys (env vars):
+
+```bash
+export SIGMODA_PROJECT_KEY="YOUR_SIGMODA_PROJECT_KEY"
+export OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
+```
+
+2) Call OpenAI (Responses API recommended):
+
+```python
+import sigmoda
+
+sigmoda.init()  # reads env vars
+
+resp = sigmoda.openai.responses.create(
+    model="gpt-5.2",  # or "gpt-5-mini"
+    input="Explain vector DBs like I'm 12",
+    sigmoda_metadata={"route": "quickstart"},
+)
+
+sigmoda.flush(timeout=2.0)
+print(resp.output_text)
+```
+
+### Quick troubleshooting
+
+- `ValueError: Missing OPENAI_API_KEY` → set `OPENAI_API_KEY` or set `openai.api_key` before using `sigmoda.openai.*`.
+- `ValueError: Sigmoda is not initialized` → set `SIGMODA_PROJECT_KEY` (or `SIGMODA_API_KEY`), call `sigmoda.init(...)`, or set `SIGMODA_DISABLED=1`.
+
+## Configure
+
+Set keys via environment variables (recommended):
+
+```bash
+export SIGMODA_PROJECT_KEY="YOUR_SIGMODA_PROJECT_KEY"
+export OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
+
+# Optional (only if your Sigmoda setup requires it)
+export SIGMODA_PROJECT_ID="YOUR_SIGMODA_PROJECT_ID"
+
+# Optional
+export SIGMODA_ENV="prod"          # prod|stage|dev
+export SIGMODA_API_URL="https://api.sigmoda.com"
+export SIGMODA_DISABLED="0"        # set to 1 to disable logging
+export SIGMODA_DEBUG="0"           # set to 1 for debug logs
+export SIGMODA_SAMPLE_RATE="1.0"   # 0.0 - 1.0
+export SIGMODA_MAX_PAYLOAD_BYTES="100000"
+```
+
+If you only use environment variables, you can skip calling `sigmoda.init()`; the wrapper will auto-initialize on first use. Call `sigmoda.init()` to override defaults or pass options programmatically.
+
+```python
+import sigmoda
+
+sigmoda.init(
+    # Reads env vars by default:
+    # - SIGMODA_PROJECT_KEY (required unless SIGMODA_DISABLED=1)
+    # - SIGMODA_PROJECT_ID (optional)
+    # - SIGMODA_ENV / SIGMODA_API_URL / SIGMODA_DISABLED / SIGMODA_DEBUG (optional)
+
+    # Privacy controls (optional)
+    # capture_content=False,            # don't send prompt/response text
+    # redact=lambda s: "[REDACTED]",    # redact prompt/response + string metadata values
+)
+```
+
+## Wrap OpenAI chat completions
+
+```python
+resp = sigmoda.openai.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Draft a friendly greeting."}],
+    sigmoda_metadata={"route": "welcome-flow", "user_id": "123"},
+)
+
+# Use the OpenAI response as usual
+print(resp.choices[0].message.content)
+```
+
+## Wrap OpenAI Responses (recommended)
+
+```python
+resp = sigmoda.openai.responses.create(
+    model="gpt-5.2",
+    input="Draft a friendly greeting.",
+    sigmoda_metadata={"route": "welcome-flow", "user_id": "123"},
+)
+
+print(resp.output_text)
+```
+
+What happens:
+- SDK times the call, reads token usage if present, and sends a best-effort log to Sigmoda (prompt/response text only if `capture_content=True`).
+- Logging is fire-and-forget on a single background worker with a bounded queue; when full, events are dropped (never break your app).
+- Network sends use short timeouts + small retries for transient errors.
+- Tool call names (if any) are captured in `metadata["_sigmoda"]["tool_call_names"]`.
+
+You can inspect drop/retry counters and flush on shutdown:
+
+```python
+print(sigmoda.get_stats())
+sigmoda.flush(timeout=2.0)
+```
+
+### Streaming
+
+Streaming is supported for both Chat Completions and Responses: if you pass `stream=True`, the SDK returns the OpenAI stream and logs an event once the stream is fully consumed.
+
+### Notes
+
+- Metadata is sanitized (JSON-safe) and bounded by defaults (`max_metadata_items=50`, `max_metadata_bytes=8192`).
+- Set `SIGMODA_DISABLED=1` (or `disabled=True`) to fully no-op logging.
+- In `SIGMODA_ENV=prod`, `capture_content` defaults to `False` (no prompt/response text captured). Set `capture_content=True` only if you’re sure it’s safe.
+- Defaults: `timeout=2s`, `max_retries=2`, `max_queue_size=1000`, `sample_rate=1.0`, `max_payload_bytes=100000`, `max_prompt_chars=8000`, `max_response_chars=8000`.
+- Use `sigmoda_metadata={...}` for Sigmoda metadata; OpenAI’s own `metadata=...` parameter (if you pass it) is forwarded to OpenAI.
+
+### OpenAI SDK compatibility
+
+- Tested with OpenAI Python SDK 1.x and 2.x.
+- OpenAI SDK 2.x requires Python 3.9+; Python 3.8 users should install OpenAI SDK 1.x.
+- This SDK wraps Chat Completions and Responses; Responses is the primary API going forward.
+
+### Troubleshooting
+
+```bash
+export SIGMODA_DEBUG=1
+```
+
+```python
+import sigmoda
+print(sigmoda.get_stats())  # queue_size, dropped_queue_full, failed, retries, sent
+```
+
+Common issues:
+- `OPENAI_API_KEY` not set (preflight error).
+- `SIGMODA_DISABLED=1` set (no logs by design).
+- Wrong `SIGMODA_API_URL` (check `failed` / `retries` counters).
+- Missing `SIGMODA_PROJECT_KEY` (init will raise unless disabled).
+
+## Log a custom event
+
+```python
+sigmoda.log_event(
+    provider="my-llm",
+    model="alpha-1",
+    type="chat_completion",
+    prompt="Translate 'hello' to French.",
+    response="Bonjour",
+    tokens_in=4,
+    tokens_out=2,
+    duration_ms=85,
+    status="ok",
+    metadata={"route": "translator"},
+)
+```
+
+## Development
+- Python 3.8+.
+- Runtime deps: `requests`, `openai>=1,<3`.
+- Tests: `pytest`. Run locally with:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -e ".[test]"
+pytest
+```
