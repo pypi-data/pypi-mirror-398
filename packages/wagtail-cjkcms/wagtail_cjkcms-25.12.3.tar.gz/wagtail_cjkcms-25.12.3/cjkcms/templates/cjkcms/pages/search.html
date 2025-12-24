@@ -1,0 +1,95 @@
+{% extends "cjkcms/pages/web_page.html" %}
+{% load django_bootstrap5 i18n cjkcms_tags %}
+
+{% block title %}
+    {% if not form.s.value %}
+        {% trans 'Search' %}
+    {% else %}
+        {% trans 'Search for' %} “{{form.s.value}}”
+    {%endif%}
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+
+        <div class="mt-5">
+          {% if not form.s.value %}
+              <h2>{% trans 'Search' %}</h2>
+          {% else %}
+              <h2>{% trans 'Search for' %} “{{form.s.value}}”</h2>
+          {%endif%}
+        </div>
+
+        {# if not settings.cjkcms.LayoutSettings.navbar_search #}
+        <form class="mt-5" action="{% url 'cjkcms_search' %}" method="GET">
+            {% bootstrap_form_errors form type='non_fields' %}
+            {{ form.t }}
+            <div class="row g-3 align-items-end">
+                <div class="col-lg-6">
+                    {% bootstrap_field form.s size='lg' show_label=False %}
+                </div>
+                <div class="col-lg-3">
+                    {% bootstrap_field form.sort size='lg' %}
+                </div>
+                <div class="col-lg-3 pb-3">
+                    <div class="form-group">
+                        <button class="btn btn-lg btn-block btn-outline-primary" type="submit">{% trans 'Search' %}</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+        {# endif #}
+
+        {% if results_by_model %}
+        {% query_update request.GET 'p' None as qs_nop %}
+        <div class="mt-5">
+            <ul class="nav nav-pills">
+                <li class="nav-item">
+                    {% query_update qs_nop 't' None as qs_t %}
+                    <a class="nav-link {% if not active_search_model %}active{% endif %}" href="?{{ qs_t.urlencode }}">{% trans 'All Results' %}</a>
+                </li>
+                {% for key, result in results_by_model.items %}
+                    {% if result.count > 0 %}
+                        {% query_update qs_nop 't' key as qs_t %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if active_search_model == key %}active{% endif %}" href="?{{ qs_t.urlencode }}">{{ result.model|get_plural_name_of_class }}
+                            <span class="badge badge-info">
+                                {{ result.count }}
+                                <span class="visually-hidden">search results</span>
+                            </span>
+                        </a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <hr class="mb-5">
+
+
+        {% if results_paginated.object_list %}
+            {% for page in results_paginated %}
+            <div class="mb-5">
+                {% if results_paginated.object_list %}
+                {% if page|is_not_page %}
+                {% include page.search_template %}
+                {% endif %}
+                {% with page=page.specific %}
+                    {% if page.search_template %}
+                        {% include page.search_template %}
+                    {% else %}
+                        {% include "cjkcms/pages/search_result.html" %}
+                    {% endif %}
+                {% endwith %}
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% include "cjkcms/includes/pagination.html" with items=results_paginated %}
+        {% else %}
+            {% if form.s.value %}
+              <p>{% trans 'No results found.' %}</p>
+            {% endif %}
+        {% endif %}
+    </div>
+{% endblock %}
