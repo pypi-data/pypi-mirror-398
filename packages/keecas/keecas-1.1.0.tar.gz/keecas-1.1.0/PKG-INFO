@@ -1,0 +1,136 @@
+Metadata-Version: 2.3
+Name: keecas
+Version: 1.1.0
+Summary: Symbolic and units-aware calculations with LaTeX rendering for Jupyter notebooks, optimized for Quarto PDF documentation.
+Author: kompre
+Author-email: kompre <s.follador@gmail.com>
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Dist: pint>=0.24.3,<1.0.0
+Requires-Dist: pipe>=2.2,<3.0
+Requires-Dist: sympy>=1.13.1,<2.0.0
+Requires-Dist: regex>=2024.7.24,<2025.0.0
+Requires-Dist: ipython>=8.26.0,<9.0.0
+Requires-Dist: jupyter>=1.1.1,<2.0.0
+Requires-Dist: notebook>=7.2.2,<8.0.0
+Requires-Dist: flatten-dict>=0.4.2,<1.0.0
+Requires-Dist: ruamel-yaml>=0.18.6,<1.0.0
+Requires-Dist: toml>=0.10.2
+Requires-Dist: packaging>=25.0
+Requires-Dist: tomlkit>=0.13.3
+Requires-Python: >=3.12, <4.0
+Project-URL: Documentation, https://kompre.github.io/keecas
+Project-URL: Homepage, https://github.com/kompre/keecas
+Project-URL: Issues, https://github.com/kompre/keecas/issues
+Project-URL: Repository, https://github.com/kompre/keecas
+Description-Content-Type: text/markdown
+
+
+
+# keecas
+
+[![Tests](https://github.com/kompre/keecas/actions/workflows/test.yml/badge.svg)](https://github.com/kompre/keecas/actions/workflows/test.yml)
+[![PyPI version](https://badge.fury.io/py/keecas.svg)](https://pypi.org/project/keecas/)
+[![Python Version](https://img.shields.io/pypi/pyversions/keecas.svg)](https://pypi.org/project/keecas/)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://kompre.github.io/keecas)
+
+Symbolic and units-aware calculations for Jupyter notebooks with beautiful LaTeX output.
+
+## What is keecas?
+
+keecas minimizes boilerplate for symbolic calculations using **Python dicts** as the core container - **keys** represent left-hand side symbols, **values** represent right-hand side expressions. Built on [SymPy](https://www.sympy.org/), [Pint](https://pint.readthedocs.io/), and [Pipe](https://github.com/JulienPalard/Pipe), it provides automatic unit conversion and LaTeX rendering for [Quarto](https://quarto.org) documents.
+
+## Quick Example
+
+```python
+from keecas import symbols, u, pc, show_eqn
+
+# 1. Define symbols with LaTeX notation
+F, A, sigma = symbols(r"F, A, \sigma")
+
+# 2. Cell-local parameters
+_p = {
+    F: 10 * u.kN,
+    A: 50 * u.cm**2,
+}
+
+# 3. Cell-local expressions
+_e = {
+    sigma: "F / A" | pc.parse_expr
+}
+
+# 4. Evaluation with pipe operations
+_v = {
+    k: v | pc.subs(_e | _p) | pc.convert_to([u.MPa]) | pc.N
+    for k, v in _e.items()
+}
+
+# 5. Display as LaTeX amsmath
+show_eqn([_p | _e, _v])
+```
+
+**Output:**
+```latex
+\begin{align}
+    F & = 10{\,}\text{kN} &    \\[8pt]
+    A & = 50{\,}\text{cm}^{2} &    \\[8pt]
+    \sigma & = \dfrac{F}{A} & = 2.0{\,}\text{MPa}
+\end{align}
+```
+
+See [hello_world.ipynb](examples/hello_world.ipynb) for more examples.
+
+## Installation
+
+```bash
+pip install keecas
+# or
+uv add keecas
+```
+
+## Quick Start
+
+Launch JupyterLab with keecas template:
+
+```bash
+keecas edit                        # Minimal template
+keecas edit --template quickstart  # Comprehensive examples
+keecas edit analysis.ipynb         # Open specific notebook
+keecas edit --temp                 # Temporary session
+```
+
+## Configuration
+
+Manage global and local settings via TOML files:
+
+```bash
+# Initialize configuration
+keecas config init --global
+
+# Edit configuration
+keecas config edit --global    # Terminal editor
+keecas config open --local     # System editor (GUI)
+
+# View configuration
+keecas config show             # Merged settings
+keecas config path             # File locations
+```
+
+## Key Features
+
+- **Dict-based equations**: Natural mapping of LHS to RHS
+- **Pipe operations**: Chain operations like `expr | pc.subs(...) | pc.N`
+- **Unit-aware**: Automatic conversion between Pint and SymPy units
+- **LaTeX output**: Renders as amsmath align blocks
+- **Cross-references**: Label generation for Quarto documents
+- **Multi-language**: 10 languages supported (5 fully localized)
+- **Configuration**: Global/local TOML-based settings
+
+## Documentation
+
+Full documentation: [https://kompre.github.io/keecas](https://kompre.github.io/keecas)
+
+## License
+
+MIT License - see [LICENSE](https://opensource.org/licenses/MIT)
