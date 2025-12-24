@@ -1,0 +1,16 @@
+FROM containers.ligo.org/lscsoft/bilby/v2-bilby-python{python_major_version}{python_minor_version}
+LABEL name="bilby_pipe CI testing" \
+maintainer="Gregory Ashton <gregory.ashton@ligo.org>"
+
+ENV conda_env python{python_major_version}{python_minor_version}
+
+RUN echo "source activate ${{conda_env}}" > ~/.bashrc
+ENV PATH /opt/conda/envs/${{conda_env}}/bin:$PATH
+RUN /bin/bash -c "source activate ${{conda_env}}"
+RUN conda info
+RUN python --version
+
+# Install extras needed for testing
+RUN conda update -n base -c conda-forge conda
+RUN conda install -c conda-forge mamba
+RUN mamba install -n ${{conda_env}} -c conda-forge bilby mock pesummary>=1.5.3 python-ldas-tools-framecpp python-nds2-client pyfftw!=0.13.1 python-graphviz asimov

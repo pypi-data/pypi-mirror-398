@@ -1,0 +1,265 @@
+# stages is a reserved keyword that defines job dependencies and
+# parallelization. each stage runs in parallel but must complete
+# before the next stage begins
+
+stages:
+  - initial
+  - test
+  - docs
+  - deploy
+
+cache:
+  paths:
+    - .pip310
+    - .pip311
+
+.parallel: &parallel
+  parallel:
+    matrix:
+      - PY_VERSION: [310, 311]
+
+variables:
+  PRIMARY_VERSION: 310
+  IMAGE_ROOT: containers.ligo.org/lscsoft/bilby_pipe/v3-bilby_pipe-python
+  PRIMARY_IMAGE: $IMAGE_ROOT$PRIMARY_VERSION
+
+# ------------------- Initial stage -------------------------------------------
+
+# Test containers scripts are up to date
+containers:
+  stage: initial
+  image: $PRIMARY_IMAGE
+  script:
+    - cd containers
+    - python write_dockerfiles.py
+    # Fail if differences exist. If this fails, you may need to run
+    # write_dockerfiles.py and commit the changes.
+    - git diff --exit-code
+
+# lookup-tables:
+#   stage: initial
+#   image: containers.ligo.org/lscsoft/bilby/v2-bilby-python39
+#   script:
+#     - cd bilby_pipe/data_files
+#     - python generate_distance_lookups.py #HACK
+#     # Fail if differences exist. If this fails, you may need to run
+#     # write_dockerfiles.py and commit the changes.
+#     - git diff --exit-code
+#   only:
+#     - schedules
+#     - tags
+
+precommits:
+  <<: *parallel
+  stage: initial
+  image: $IMAGE_ROOT$PY_VERSION
+  script:
+    - source activate python$PY_VERSION
+    - mkdir -p .pip$PY_VERSION
+    - pip install --upgrade pip
+    - pip --cache-dir=.pip$PY_VERSION install --upgrade bilby --pre
+    - pip --cache-dir=.pip$PY_VERSION install .
+    - pip --cache-dir=.pip$PY_VERSION install pre-commit
+
+    # Run precommits (black, flake8, spellcheck, isort, no merge conflicts, etc)
+    - pre-commit run --all-files --verbose --show-diff-on-failure
+
+# ------------------- Test stage -------------------------------------------
+
+unit-tests:
+  <<: *parallel
+  stage: test
+  image: $IMAGE_ROOT$PY_VERSION
+  script:
+    - source activate python$PY_VERSION
+    - mkdir -p .pip$PY_VERSION
+    - pip install --upgrade pip
+    - pip --cache-dir=.pip$PY_VERSION install --upgrade bilby --pre
+    - pip --cache-dir=.pip$PY_VERSION install .[asimov]
+    - test -z ${CONDA_PREFIX} && pip list installed || conda list
+    - git config --global user.name "test"
+    - git config --global user.email "test@test.com"
+
+    # Necessary to ensure Asimov plugin tests complete successfully
+    - git config --global user.name "Bilby Pipe CI"
+    - git config --global user.email "bilby_pipe@testing.ci"
+
+    # Run tests
+    - pytest --cov=bilby_pipe --durations 10
+  after_script:
+    - coverage html
+    - mv htmlcov htmlcov_$PY_VERSION
+    - coverage xml
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+    paths:
+      - htmlcov_$PY_VERSION/
+      - coverage.xml
+    expire_in: 30 days
+
+# Test that the examples build properly
+example-ini-file-builds:
+  stage: test
+  image: $PRIMARY_IMAGE
+  script:
+    - export GWDATAFIND_SERVER=datafind.gwosc.org:80
+    - source activate python$PRIMARY_VERSION
+    - mkdir -p .pip$PRIMARY_VERSION
+    - pip --cache-dir=.pip$PRIMARY_VERSION install --upgrade bilby --pre
+    - pip --cache-dir=.pip$PRIMARY_VERSION install .
+    - cd examples/event
+    - bilby_pipe GW150914.ini
+    - cd outdir_GW150914/
+    - bilby_pipe GW150914_config_complete.ini --overwrite-outdir # Check that the completed config file compiles
+    - cd ../../gaussian_noise
+    - bilby_pipe *ini
+    - cd ../injection
+    - bilby_pipe *ini
+    - cd ../gps_times
+    - bilby_pipe gps_times_from_file.ini
+    - bilby_pipe gps_times_from_tuple.ini
+    - cd ../slurm
+    - bilby_pipe slurm_GW150914.ini
+
+# Test that the examples build properly
+injection-regression-test:
+  stage: test
+  image: $PRIMARY_IMAGE
+  script:
+    - source activate python$PRIMARY_VERSION
+    - mkdir -p .pip$PRIMARY_VERSION
+    - pip --cache-dir=.pip$PRIMARY_VERSION install --upgrade bilby --pre
+    - pip --cache-dir=.pip$PRIMARY_VERSION install .
+    - cd tests_ini_files/
+    - bilby_pipe test_gaussian_noise_simulation_and_injection.ini --local --bilby-test-mode
+    - bilby_pipe test_gaussian_noise_simulation.ini --local --bilby-test-mode
+
+    - bilby_pipe_create_injection_file --prior-file ../tests/injection_prior.prior -n 1 -f injection_test.dat
+    - if [[ ! -f injection_test.dat ]] ; then exit 1; else echo "Injection file exists"; fi
+
+# Test that the review tests build properly
+review-test-build:
+  stage: test
+  image: $PRIMARY_IMAGE
+  script:
+    - source activate python$PRIMARY_VERSION
+    - mkdir -p .pip$PRIMARY_VERSION
+    - pip --cache-dir=.pip$PRIMARY_VERSION install --upgrade bilby --pre
+    - pip --cache-dir=.pip$PRIMARY_VERSION install .
+    - mkdir TEST_REVIEW_FILES
+    - cd TEST_REVIEW_FILES
+
+    - bilby_pipe_review --prior 4s --bbh --marginalization distance phase --nact 5 --directory TEST
+    - if [[ ! -f TEST/review_fiducial_bbh_4s_dynesty_distance-phase_nact5.ini ]] ; then exit 1; else echo "Webpage exists"; fi
+
+    - bilby_pipe_review --prior 4s --pp-test --marginalization distance phase --sampler cPnEst --nact 5 --directory TEST
+    - if [[ ! -f TEST/review_pp_test_4s_cpnest_distance-phase_nact5.ini ]] ; then exit 1; else echo "Webpage exists"; fi
+    - cd ..
+    - rm TEST_REVIEW_FILES -r
+
+example-ini-file-pesummary:
+  stage: test
+  image: $PRIMARY_IMAGE
+  script:
+    - source activate python$PRIMARY_VERSION
+    - conda install python-ldas-tools-framecpp>=3  # HACK FIX IN THE BUILDS
+    - pip install --upgrade bilby pesummary seaborn>=0.11 --pre
+    - pip install .
+    - cd tests/
+    - bilby_pipe test_pesummary.ini --local --bilby-test-mode
+    - exit
+
+example-ini-file-gracedb:
+  stage: test
+  image: $PRIMARY_IMAGE
+  script:
+    - source activate python$PRIMARY_VERSION
+    - pip install --upgrade bilby pesummary --pre
+    - pip install .
+    - bilby_pipe_gracedb --json examples/gracedb/G298936.json --local --bilby-test-mode --cbc-likelihood-mode test --output full-submit --settings examples/gracedb/settings.json --n-parallel 1 --channel-dict gwosc --query-kafka False
+    - if [[ ! -f outdir_G298936/final_result/G298936_data0_1187529256-5179033_analysis_H1L1_result.hdf5 ]] ; then exit 1; else echo "Final result exists"; fi
+
+
+# ------------------- Docs stage -------------------------------------------
+
+docs:
+  stage: docs
+  image: $PRIMARY_IMAGE
+  needs: ["precommits"]
+  script:
+    - source activate python$PRIMARY_VERSION
+    - mkdir -p .pip$PRIMARY_VERSION
+    - pip --cache-dir=.pip$PRIMARY_VERSION install .[asimov]
+    - pip install asimov
+
+    # Make the documentation
+    # Installation and clean up
+    - cd docs
+    - pip install -r requirements.txt
+    - pip install asimov
+    - make clean
+    - bilby_pipe_write_default_ini default.ini
+    - bilby_pipe_gracedb --json ../examples/gracedb/G298936.json --output ini --settings ../examples/gracedb/settings.json --outdir . --cbc-likelihood-mode test --channel-dict gwosc --query-kafka False
+    - git status
+    - git branch
+    - git tag
+    - sphinx-multiversion . _build/
+
+  artifacts:
+    paths:
+      - docs/_build/
+
+# ------------------- Deploy stage -------------------------------------------
+
+pages:
+  stage: deploy
+  needs: ["unit-tests", "docs"]
+  script:
+    - mkdir public/
+    - mv htmlcov_$PRIMARY_VERSION/ public/
+    - mv docs/_build/* public/
+  artifacts:
+    paths:
+      - public
+    expire_in: 30 days
+  only:
+    - master
+
+
+# Build the containers
+build-container:
+  <<: *parallel
+  stage: deploy
+  image: docker:20.10.23
+  needs: ["containers"]
+  only:
+  - schedules
+  script:
+    - cd containers
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build --tag v3-bilby_pipe-python$PY_VERSION - < v3-dockerfile-test-suite-python$PY_VERSION
+    - docker image tag v3-bilby_pipe-python$PY_VERSION $IMAGE_ROOT$PY_VERSION:latest
+    - docker image push $IMAGE_ROOT$PY_VERSION:latest
+
+deploy_release:
+  stage: deploy
+  image: python
+  # needs: ["lookup-tables"]
+  variables:
+    TWINE_USERNAME: $PYPI_USERNAME
+    TWINE_PASSWORD: $PYPI_PASSWORD
+  before_script:
+    - python -m pip install
+          build
+          twine
+  script:
+    # generate distributions
+    - python -m build --sdist --wheel --outdir dist/ .
+    - ls dist/
+    # upload them
+    - python -m twine upload dist/*
+  only:
+    - tags

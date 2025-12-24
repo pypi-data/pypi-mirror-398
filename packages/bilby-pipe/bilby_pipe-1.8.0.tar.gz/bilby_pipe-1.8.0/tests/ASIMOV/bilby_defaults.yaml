@@ -1,0 +1,57 @@
+kind: configuration
+data:
+  channels:
+    H1: H1:GDS-CALIB_STRAIN_CLEAN
+    L1: L1:GDS-CALIB_STRAIN_CLEAN
+    V1: V1:Hrec_hoft_16384Hz
+  frame types:
+    H1: H1_HOFT_C00
+    L1: L1_HOFT_C00
+    V1: V1Online
+pipelines:
+  bayeswave:
+    quality:
+      state vector:
+        L1: L1:DCS-CALIB_STATE_VECTOR_C01
+        H1: H1:DCS-CALIB_STATE_VECTOR_C01
+        V1: V1:DQ_ANALYSIS_STATE_VECTOR
+    scheduler:
+      accounting group: ligo.dev.o4.cbc.pe.bilby
+      request memory: 1024
+      request post memory: 16384
+    likelihood:
+      iterations: 100000
+      chains: 8
+      threads: 4
+  bilby_native:
+    data:
+      calibration:
+        correction type:
+          H1: data
+          V1: template
+      format: hdf5
+    sampler:
+      sampler: dynesty
+      kwargs:
+        nlive: 1000
+        naccept: 60
+        sample: acceptance-walk
+        check_point_plot: True
+      parallel jobs: 3
+    scheduler:
+      accounting group: ligo.prod.o4.cbc.pe.bilby
+      request cpus: 16
+      request disk: 8 #GB
+      osg: True
+      copy frames: True
+    likelihood:
+      marginalization:
+        time: False
+        distance: True
+quality:
+  minimum frequency:
+    H1: 20
+    L1: 20
+    V1: 20
+    G1: 20
+    K1: 20
