@@ -1,0 +1,3216 @@
+# mypy: ignore-errors
+import contextlib
+import dataclasses
+import io
+import json as json_
+import shlex
+from typing import Any, Dict, Generic, List, Sequence, Tuple, Type, TypeVar, Union
+
+import pytest
+from helptext_utils import get_helptext_with_checks
+from typing_extensions import Annotated, TypedDict
+
+import tyro
+
+
+def test_suppress_subcommand() -> None:
+    @dataclasses.dataclass
+    class DefaultInstanceHTTPServer:
+        y: int = 0
+        flag: bool = True
+
+    @dataclasses.dataclass
+    class DefaultInstanceSMTPServer:
+        z: int = 0
+
+    @dataclasses.dataclass
+    class DefaultInstanceSubparser:
+        x: int
+        # bc: Union[DefaultInstanceHTTPServer, DefaultInstanceSMTPServer]
+        bc: tyro.conf.Suppress[
+            Union[DefaultInstanceHTTPServer, DefaultInstanceSMTPServer]
+        ] = dataclasses.field(default_factory=DefaultInstanceHTTPServer)
+
+    assert "bc" not in get_helptext_with_checks(DefaultInstanceSubparser)
+
+
+def test_omit_subcommand_prefix() -> None:
+    @dataclasses.dataclass
+    class DefaultInstanceHTTPServer:
+        y: int = 0
+        flag: bool = True
+
+    @dataclasses.dataclass
+    class DefaultInstanceSMTPServer:
+        z: int = 0
+
+    @dataclasses.dataclass
+    class DefaultInstanceSubparser:
+        x: int
+        # bc: Union[DefaultInstanceHTTPServer, DefaultInstanceSMTPServer]
+        bc: tyro.conf.OmitSubcommandPrefixes[
+            Union[DefaultInstanceHTTPServer, DefaultInstanceSMTPServer]
+        ]
+
+    assert (
+        tyro.cli(
+            DefaultInstanceSubparser,
+            args=[
+                "--x",
+                "1",
+                "default-instance-http-server",
+                "--y",
+                "5",
+                "--no-flag",
+            ],
+        )
+        == tyro.cli(
+            DefaultInstanceSubparser,
+            args=["--x", "1", "default-instance-http-server", "--y", "5"],
+            default=DefaultInstanceSubparser(
+                x=1, bc=DefaultInstanceHTTPServer(y=3, flag=False)
+            ),
+        )
+        == DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=5, flag=False))
+    )
+    assert (
+        tyro.cli(
+            DefaultInstanceSubparser,
+            args=["--x", "1", "default-instance-http-server", "--y", "8"],
+        )
+        == tyro.cli(
+            DefaultInstanceSubparser,
+            args=["--x", "1", "default-instance-http-server", "--y", "8"],
+            default=DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=7)),
+        )
+        == DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=8))
+    )
+
+
+def test_avoid_subparser_with_unsupported_union_member() -> None:
+    @dataclasses.dataclass
+    class Dummy:
+        pass
+
+    @dataclasses.dataclass
+    class Container:
+        x: Dict[str, Dummy]
+        y: str
+
+    @dataclasses.dataclass
+    class Config:
+        a: int = 3
+        b: Union[Container, None] = None
+
+    assert tyro.cli(
+        Config,
+        config=(tyro.conf.AvoidSubcommands,),
+        args=["--a", "7"],
+    ) == Config(7, None)
+    assert tyro.cli(
+        Config,
+        config=(tyro.conf.AvoidSubcommands,),
+        args=["--a", "5"],
+    ) == Config(5, None)
+    with pytest.raises(SystemExit):
+        assert tyro.cli(
+            Config,
+            config=(tyro.conf.AvoidSubcommands,),
+            args=["--a", "5", "--b.y", "hello"],
+        )
+
+
+def test_avoid_subparser_with_default() -> None:
+    @dataclasses.dataclass
+    class DefaultInstanceHTTPServer:
+        y: int = 0
+
+    @dataclasses.dataclass
+    class DefaultInstanceSMTPServer:
+        z: int = 0
+
+    @dataclasses.dataclass
+    class DefaultInstanceSubparser:
+        x: int
+        bc: tyro.conf.AvoidSubcommands[
+            Union[DefaultInstanceHTTPServer, DefaultInstanceSMTPServer]
+        ]
+
+    assert (
+        tyro.cli(
+            DefaultInstanceSubparser,
+            args=["--x", "1", "bc:default-instance-http-server", "--bc.y", "5"],
+        )
+        == tyro.cli(
+            DefaultInstanceSubparser,
+            args=["--x", "1", "--bc.y", "5"],
+            default=DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=3)),
+        )
+        == DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=5))
+    )
+    assert (
+        tyro.cli(
+            DefaultInstanceSubparser,
+            args=["--x", "1", "bc:default-instance-http-server", "--bc.y", "8"],
+        )
+        == tyro.cli(
+            DefaultInstanceSubparser,
+            args=["--bc.y", "8"],
+            default=DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=7)),
+        )
+        == DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=8))
+    )
+
+
+def test_avoid_subparser_with_default_recursive() -> None:
+    @dataclasses.dataclass
+    class DefaultInstanceHTTPServer:
+        y: int = 0
+
+    @dataclasses.dataclass
+    class DefaultInstanceSMTPServer:
+        z: int = 0
+
+    @dataclasses.dataclass
+    class DefaultInstanceSubparser:
+        x: int
+        bc: Union[DefaultInstanceHTTPServer, DefaultInstanceSMTPServer]
+
+    assert (
+        tyro.cli(
+            DefaultInstanceSubparser,
+            args=["--x", "1", "bc:default-instance-http-server", "--bc.y", "5"],
+        )
+        # Type ignore can be removed once TypeForm lands.
+        # https://discuss.python.org/t/typeform-spelling-for-a-type-annotation-object-at-runtime/51435
+        == tyro.cli(
+            tyro.conf.AvoidSubcommands[DefaultInstanceSubparser],
+            args=["--x", "1", "--bc.y", "5"],
+            default=DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=3)),  # type: ignore
+        )
+        == DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=5))
+    )
+    assert tyro.cli(
+        DefaultInstanceSubparser,
+        args=["bc:default-instance-smtp-server", "--bc.z", "3"],
+        default=DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=5)),
+    ) == DefaultInstanceSubparser(x=1, bc=DefaultInstanceSMTPServer(z=3))
+    assert (
+        tyro.cli(
+            tyro.conf.AvoidSubcommands[DefaultInstanceSubparser],
+            args=["--x", "1", "bc:default-instance-http-server", "--bc.y", "8"],
+        )
+        # Type ignore can be removed once TypeForm lands.
+        # https://discuss.python.org/t/typeform-spelling-for-a-type-annotation-object-at-runtime/51435
+        == tyro.cli(
+            tyro.conf.AvoidSubcommands[DefaultInstanceSubparser],
+            args=["--bc.y", "8"],
+            default=DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=7)),  # type: ignore
+        )
+        == DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=8))
+    )
+
+
+def test_subparser_in_nested_with_metadata() -> None:
+    @dataclasses.dataclass(frozen=True)
+    class A:
+        a: int
+
+    @dataclasses.dataclass
+    class B:
+        b: int
+        a: A = A(5)
+
+    @dataclasses.dataclass
+    class Nested2:
+        subcommand: Union[
+            Annotated[A, tyro.conf.subcommand("command-a", default=A(7))],
+            Annotated[B, tyro.conf.subcommand("command-b", default=B(9))],
+        ]
+
+    @dataclasses.dataclass
+    class Nested1:
+        nested2: Nested2
+
+    @dataclasses.dataclass
+    class Parent:
+        nested1: Nested1
+
+    assert tyro.cli(
+        Parent,
+        args="nested1.nested2.subcommand:command-a".split(" "),
+    ) == Parent(Nested1(Nested2(A(7))))
+    assert tyro.cli(
+        Parent,
+        args=(
+            "nested1.nested2.subcommand:command-a --nested1.nested2.subcommand.a 3".split(
+                " "
+            )
+        ),
+    ) == Parent(Nested1(Nested2(A(3))))
+
+    assert tyro.cli(
+        Parent,
+        args="nested1.nested2.subcommand:command-b".split(" "),
+    ) == Parent(Nested1(Nested2(B(9))))
+    assert tyro.cli(
+        Parent,
+        args=(
+            "nested1.nested2.subcommand:command-b --nested1.nested2.subcommand.b 7".split(
+                " "
+            )
+        ),
+    ) == Parent(Nested1(Nested2(B(7))))
+
+
+def test_subparser_in_nested_with_metadata_suppressed() -> None:
+    @dataclasses.dataclass(frozen=True)
+    class A:
+        a: tyro.conf.Suppress[int]
+
+    @dataclasses.dataclass
+    class B:
+        b: int
+        a: A = A(5)
+
+    @dataclasses.dataclass
+    class Nested2:
+        subcommand: Union[
+            Annotated[A, tyro.conf.subcommand("command-a", default=A(7))],
+            Annotated[B, tyro.conf.subcommand("command-b", default=B(9))],
+        ]
+
+    @dataclasses.dataclass
+    class Nested1:
+        nested2: Nested2
+
+    @dataclasses.dataclass
+    class Parent:
+        nested1: Nested1
+
+    assert tyro.cli(
+        Parent,
+        args="nested1.nested2.subcommand:command-a".split(" "),
+    ) == Parent(Nested1(Nested2(A(7))))
+
+    # The `a` argument is suppresed.
+    with pytest.raises(SystemExit):
+        tyro.cli(
+            Parent,
+            args=(
+                "nested1.nested2.subcommand:command-a --nested1.nested2.subcommand.a 3".split(
+                    " "
+                )
+            ),
+        )
+
+    assert tyro.cli(
+        Parent,
+        args="nested1.nested2.subcommand:command-b".split(" "),
+    ) == Parent(Nested1(Nested2(B(9))))
+    assert tyro.cli(
+        Parent,
+        args=(
+            "nested1.nested2.subcommand:command-b --nested1.nested2.subcommand.b 7".split(
+                " "
+            )
+        ),
+    ) == Parent(Nested1(Nested2(B(7))))
+
+
+def test_subparser_in_nested_with_metadata_generic() -> None:
+    @dataclasses.dataclass(frozen=True)
+    class A:
+        a: int
+
+    @dataclasses.dataclass
+    class B:
+        b: int
+        a: A = A(5)
+
+    T = TypeVar("T")
+
+    @dataclasses.dataclass
+    class Nested2(Generic[T]):
+        subcommand: T
+
+    @dataclasses.dataclass
+    class Nested1:
+        nested2: Nested2[
+            Union[
+                Annotated[A, tyro.conf.subcommand("command-a", default=A(7))],
+                Annotated[B, tyro.conf.subcommand("command-b", default=B(9))],
+            ]
+        ]
+
+    @dataclasses.dataclass
+    class Parent:
+        nested1: Nested1
+
+    assert tyro.cli(
+        Parent,
+        args="nested1.nested2.subcommand:command-a".split(" "),
+    ) == Parent(Nested1(Nested2(A(7))))
+    assert tyro.cli(
+        Parent,
+        args=(
+            "nested1.nested2.subcommand:command-a --nested1.nested2.subcommand.a 3".split(
+                " "
+            )
+        ),
+    ) == Parent(Nested1(Nested2(A(3))))
+
+    assert tyro.cli(
+        Parent,
+        args="nested1.nested2.subcommand:command-b".split(" "),
+    ) == Parent(Nested1(Nested2(B(9))))
+    assert tyro.cli(
+        Parent,
+        args=(
+            "nested1.nested2.subcommand:command-b --nested1.nested2.subcommand.b 7".split(
+                " "
+            )
+        ),
+    ) == Parent(Nested1(Nested2(B(7))))
+
+
+def test_subparser_in_nested_with_metadata_generic_alt() -> None:
+    @dataclasses.dataclass(frozen=True)
+    class A:
+        a: int
+
+    @dataclasses.dataclass
+    class B:
+        b: int
+        a: A = A(5)
+
+    T = TypeVar("T")
+
+    @dataclasses.dataclass
+    class Nested2(Generic[T]):
+        subcommand: Union[
+            Annotated[T, tyro.conf.subcommand("command-a", default=A(7))],
+            Annotated[B, tyro.conf.subcommand("command-b", default=B(9))],
+        ]
+
+    @dataclasses.dataclass
+    class Nested1:
+        nested2: Nested2[A]
+
+    @dataclasses.dataclass
+    class Parent:
+        nested1: Nested1
+
+    assert tyro.cli(
+        Parent,
+        args="nested1.nested2.subcommand:command-a".split(" "),
+    ) == Parent(Nested1(Nested2(A(7))))
+    assert tyro.cli(
+        Parent,
+        args=(
+            "nested1.nested2.subcommand:command-a --nested1.nested2.subcommand.a 3".split(
+                " "
+            )
+        ),
+    ) == Parent(Nested1(Nested2(A(3))))
+
+    assert tyro.cli(
+        Parent,
+        args="nested1.nested2.subcommand:command-b".split(" "),
+    ) == Parent(Nested1(Nested2(B(9))))
+    assert tyro.cli(
+        Parent,
+        args=(
+            "nested1.nested2.subcommand:command-b --nested1.nested2.subcommand.b 7".split(
+                " "
+            )
+        ),
+    ) == Parent(Nested1(Nested2(B(7))))
+
+
+def test_subparser_in_nested_with_metadata_default_matching() -> None:
+    @dataclasses.dataclass(frozen=True)
+    class A:
+        a: int
+
+    @dataclasses.dataclass
+    class B:
+        b: int
+        a: A = A(5)
+
+    default_one = B(3)
+    default_three = B(9)
+
+    @dataclasses.dataclass
+    class Nested:
+        subcommand: Union[
+            Annotated[B, tyro.conf.subcommand("one", default=default_one)],
+            Annotated[B, tyro.conf.subcommand("two")],
+            Annotated[B, tyro.conf.subcommand("three", default=default_three)],
+        ]
+
+    # Match by hash.
+    def main_one(x: Nested = Nested(default_one)) -> None:
+        pass
+
+    assert "default: x.subcommand:one" in get_helptext_with_checks(main_one)
+
+    # Match by value.
+    def main_two(x: Nested = Nested(B(9))) -> None:
+        pass
+
+    assert "default: x.subcommand:three" in get_helptext_with_checks(main_two)
+
+    # Match by type.
+    def main_three(x: Nested = Nested(B(15))) -> None:
+        pass
+
+    assert "default: x.subcommand:one" in get_helptext_with_checks(main_three)
+
+
+def test_flag() -> None:
+    """When boolean flags have no default value, they must be explicitly specified."""
+
+    @dataclasses.dataclass
+    class A:
+        x: bool
+
+    assert tyro.cli(
+        A,
+        args=["--x"],
+        default=A(False),
+    ) == A(True)
+
+    # Type ignore can be removed once TypeForm lands.
+    # https://discuss.python.org/t/typeform-spelling-for-a-type-annotation-object-at-runtime/51435
+    assert tyro.cli(
+        tyro.conf.FlagConversionOff[A],
+        args=["--x", "True"],
+        default=A(False),  # type: ignore
+    ) == A(True)
+    assert tyro.cli(
+        A,
+        args=["--x", "True"],
+        default=A(False),
+        config=(tyro.conf.FlagConversionOff,),
+    ) == A(True)
+
+
+def test_fixed() -> None:
+    """When an argument is fixed, we shouldn't be able to override it from the CLI."""
+
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.Fixed[bool]
+
+    assert tyro.cli(
+        A,
+        args=[],
+        default=A(True),
+    ) == A(True)
+
+    with pytest.raises(SystemExit):
+        # Type ignore can be removed once TypeForm lands.
+        # https://discuss.python.org/t/typeform-spelling-for-a-type-annotation-object-at-runtime/51435
+        assert tyro.cli(
+            tyro.conf.FlagConversionOff[A],
+            args=["--x", "True"],
+            default=A(False),  # type: ignore
+        ) == A(True)
+
+    with pytest.raises(SystemExit):
+        assert tyro.cli(
+            A,
+            args=["--x", "True"],
+            default=A(False),  # type: ignore
+            config=(tyro.conf.FlagConversionOff,),
+        ) == A(True)
+
+
+def test_fixed_recursive() -> None:
+    """When an argument is fixed, we shouldn't be able to override it from the CLI."""
+
+    @dataclasses.dataclass
+    class A:
+        x: bool
+
+    assert tyro.cli(
+        A,
+        args=["--x"],
+        default=A(False),
+    ) == A(True)
+
+    # Type ignore can be removed once TypeForm lands.
+    # https://discuss.python.org/t/typeform-spelling-for-a-type-annotation-object-at-runtime/51435
+    with pytest.raises(SystemExit):
+        assert tyro.cli(
+            tyro.conf.Fixed[tyro.conf.FlagConversionOff[A]],
+            args=["--x", "True"],
+            default=A(False),  # type: ignore
+        ) == A(True)
+
+
+def test_type_with_no_conf_is_fixed() -> None:
+    """The `type` type doesn't make sense to parse via the CLI, and should be
+    fixed. See: https://github.com/brentyi/tyro/issues/164"""
+
+    @dataclasses.dataclass
+    class A:
+        x: type = int
+
+    assert tyro.cli(A, args=[]) == A()
+    assert "fixed" in get_helptext_with_checks(A)
+
+
+def test_suppressed_group() -> None:
+    """Reproduction of https://github.com/nerfstudio-project/nerfstudio/issues/882."""
+
+    @dataclasses.dataclass
+    class Inner:
+        a: int
+        b: int
+
+    def main(
+        value: int,
+        inner: tyro.conf.Suppress[Inner] = Inner(1, 2),
+    ) -> int:
+        return value + inner.a + inner.b
+
+    assert tyro.cli(main, args=["--value", "5"]) == 8
+
+
+def test_fixed_group() -> None:
+    """Inspired by https://github.com/nerfstudio-project/nerfstudio/issues/882."""
+
+    @dataclasses.dataclass
+    class Inner:
+        a: int
+        b: int
+
+    def main(
+        value: int,
+        inner: tyro.conf.Fixed[Inner] = Inner(1, 2),
+    ) -> int:
+        return value + inner.a + inner.b
+
+    assert tyro.cli(main, args=["--value", "5"]) == 8
+
+
+def test_fixed_suppressed_group() -> None:
+    """Reproduction of https://github.com/nerfstudio-project/nerfstudio/issues/882."""
+
+    @dataclasses.dataclass
+    class Inner:
+        a: int
+        b: int
+
+    def main(
+        value: int,
+        inner: tyro.conf.Fixed[Inner] = Inner(1, 2),
+    ) -> int:
+        return value + inner.a + inner.b
+
+    assert tyro.cli(main, args=["--value", "5"]) == 8
+
+
+def test_suppressed() -> None:
+    @dataclasses.dataclass
+    class Struct:
+        a: int = 5
+        b: tyro.conf.Suppress[str] = "7"
+
+    def main(x: Any = Struct()):
+        pass
+
+    helptext = get_helptext_with_checks(main)
+    assert "--x.a" in helptext
+    assert "--x.b" not in helptext
+
+
+def test_suppress_manual_fixed() -> None:
+    @dataclasses.dataclass
+    class Struct:
+        a: int = 5
+        b: tyro.conf.SuppressFixed[tyro.conf.Fixed[str]] = "7"
+
+    def main(x: Any = Struct()):
+        pass
+
+    helptext = get_helptext_with_checks(main)
+    assert "--x.a" in helptext
+    assert "--x.b" not in helptext
+
+
+def test_suppress_manual_fixed_one_arg_only() -> None:
+    @dataclasses.dataclass
+    class Struct:
+        b: tyro.conf.SuppressFixed[tyro.conf.Fixed[str]] = "7"
+
+    def main(x: Any = Struct()):
+        pass
+
+    helptext = get_helptext_with_checks(main)
+    assert "--x.a" not in helptext
+    assert "--x.b" not in helptext
+
+
+def test_suppress_auto_fixed() -> None:
+    @dataclasses.dataclass
+    class Struct:
+        a: int = 5
+
+        def b(self, x):
+            return 5
+
+    def main(x: tyro.conf.SuppressFixed[Any] = Struct()):
+        pass
+
+    helptext = get_helptext_with_checks(main)
+    assert "--x.a" in helptext
+    assert "--x.b" not in helptext
+
+
+def test_argconf_help() -> None:
+    @dataclasses.dataclass
+    class Struct:
+        a: Annotated[
+            int,
+            tyro.conf.arg(
+                name="nice",
+                help="Hello world",
+                help_behavior_hint="(hint)",
+                metavar="NUMBER",
+            ),
+        ] = 5
+        b: tyro.conf.Suppress[str] = "7"
+
+    def main(x: Any = Struct()) -> int:
+        return x.a
+
+    helptext = get_helptext_with_checks(main)
+    assert "Hello world" in helptext
+    assert "INT" not in helptext
+    assert "NUMBER" in helptext
+    assert "(hint)" in helptext
+    assert "(default: 5)" not in helptext
+    assert "--x.a" not in helptext
+    assert "--x.nice" in helptext
+    assert "--x.b" not in helptext
+
+    assert tyro.cli(main, args=[]) == 5
+    assert tyro.cli(main, args=["--x.nice", "3"]) == 3
+
+
+def test_argconf_help_behavior_hint_lambda() -> None:
+    @dataclasses.dataclass
+    class Struct:
+        a: Annotated[
+            int,
+            tyro.conf.arg(
+                name="nice",
+                help="Hello world",
+                help_behavior_hint=lambda default: f"(default value: {default})",
+                metavar="NUMBER",
+            ),
+        ] = 5
+        b: tyro.conf.Suppress[str] = "7"
+
+    def main(x: Any = Struct()) -> int:
+        return x.a
+
+    helptext = get_helptext_with_checks(main)
+    assert "Hello world" in helptext
+    assert "INT" not in helptext
+    assert "NUMBER" in helptext
+    assert "(default value: 5)" in helptext
+    assert "(default: 5)" not in helptext
+    assert "--x.a" not in helptext
+    assert "--x.nice" in helptext
+    assert "--x.b" not in helptext
+
+    assert tyro.cli(main, args=[]) == 5
+    assert tyro.cli(main, args=["--x.nice", "3"]) == 3
+
+
+def test_argconf_no_prefix_help() -> None:
+    @dataclasses.dataclass
+    class Struct:
+        a: Annotated[
+            int,
+            tyro.conf.arg(
+                name="nice", help="Hello world", metavar="NUMBER", prefix_name=False
+            ),
+        ] = 5
+        b: tyro.conf.Suppress[str] = "7"
+
+    def main(x: Any = Struct()) -> int:
+        return x.a
+
+    helptext = get_helptext_with_checks(main)
+    assert "Hello world" in helptext
+    assert "INT" not in helptext
+    assert "NUMBER" in helptext
+    assert "--x.a" not in helptext
+    assert "--x.nice" not in helptext
+    assert "--nice" in helptext
+    assert "--x.b" not in helptext
+
+    assert tyro.cli(main, args=[]) == 5
+    with pytest.raises(SystemExit):
+        assert tyro.cli(main, args=["--x.nice", "3"]) == 3
+    assert tyro.cli(main, args=["--nice", "3"]) == 3
+
+
+def test_positional() -> None:
+    def main(x: tyro.conf.Positional[int], y: int) -> int:
+        return x + y
+
+    assert tyro.cli(main, args="5 --y 3".split(" ")) == 8
+    assert tyro.cli(main, args="--y 3 5".split(" ")) == 8
+
+
+def test_positional_required_args() -> None:
+    @dataclasses.dataclass
+    class Args:
+        x: int
+        y: int = 3
+
+    assert tyro.cli(
+        tyro.conf.PositionalRequiredArgs[Args], args="5 --y 3".split(" ")
+    ) == Args(5, 3)
+    assert tyro.cli(
+        tyro.conf.PositionalRequiredArgs[Args], args="--y 3 5".split(" ")
+    ) == Args(5, 3)
+
+
+def test_positional_order_swap() -> None:
+    def main(x: int, y: tyro.conf.Positional[int]) -> int:
+        return x + y
+
+    assert tyro.cli(main, args="5 --x 3".split(" ")) == 8
+    assert tyro.cli(main, args="--x 3 5".split(" ")) == 8
+
+
+def test_implicit_default_subcommand_on_frontier() -> None:
+    if tyro._experimental_options["backend"] != "tyro":
+        pytest.skip(
+            "Per-argument CascadeSubcommandArgs only supported with tyro backend"
+        )
+
+    @dataclasses.dataclass(frozen=True)
+    class A:
+        a: int = 0
+
+    @dataclasses.dataclass(frozen=True)
+    class B:
+        b: int = 0
+
+    @dataclasses.dataclass(frozen=True)
+    class Args:
+        one: Union[A, B] = A()
+        two: Union[A, B] = B()
+
+    assert tyro.cli(
+        Args, args="--one.a 3".split(" "), config=(tyro.conf.CascadeSubcommandArgs,)
+    ) == Args(A(3))
+    assert tyro.cli(
+        Args,
+        args="--one.a 3 --two.b 3".split(" "),
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Args(A(3), B(3))
+    assert tyro.cli(
+        Args,
+        args="one:a --one.a 3 --two.b 3".split(" "),
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Args(A(3), B(3))
+
+
+def test_cascade_with_union_no_default() -> None:
+    """Test CascadeSubcommandArgs with Union at top level without default.
+
+    Regression test for KeyError when subparser has no default_name.
+    """
+    if tyro._experimental_options["backend"] != "tyro":
+        pytest.skip("CascadeSubcommandArgs only supported with tyro backend")
+
+    @dataclasses.dataclass
+    class A:
+        x: int
+        y: str = "default"
+
+    @dataclasses.dataclass
+    class B:
+        a: A
+        z: float = 3.14
+
+    # This should not raise KeyError even though Union has no default.
+    result = tyro.cli(
+        Union[A, B],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+        args=["b", "--a.x", "5"],
+    )
+    assert result == B(a=A(x=5, y="default"), z=3.14)
+
+    # Test with the A option.
+    result = tyro.cli(
+        Union[A, B], config=(tyro.conf.CascadeSubcommandArgs,), args=["a", "--x", "10"]
+    )
+    assert result == A(x=10, y="default")
+
+
+def test_cascade_with_mixed_defaults() -> None:
+    """Test CascadeSubcommandArgs with mixed default/required subparsers.
+
+    Regression test for KeyError when some subparsers have defaults and others don't.
+    """
+    if tyro._experimental_options["backend"] != "tyro":
+        pytest.skip("CascadeSubcommandArgs only supported with tyro backend")
+
+    @dataclasses.dataclass
+    class ConfigA:
+        a_value: int = 1
+
+    @dataclasses.dataclass
+    class ConfigB:
+        b_value: int = 2
+
+    @dataclasses.dataclass
+    class Args:
+        # This one has NO default, so default_name will be None.
+        config_required: Union[ConfigA, ConfigB]
+        # This one has a default, so default_name will be set.
+        config_with_default: Union[ConfigA, ConfigB] = dataclasses.field(
+            default_factory=ConfigA
+        )
+
+    # This should not raise KeyError even though config_required has no default.
+    result = tyro.cli(
+        Args,
+        args=["config-required:config-a", "--config-required.a-value", "5"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    )
+    assert result == Args(
+        config_required=ConfigA(a_value=5), config_with_default=ConfigA()
+    )
+
+    # Test with cascade on the one with default.
+    result = tyro.cli(
+        Args,
+        args=[
+            "config-required:config-b",
+            "--config-with-default.a-value",
+            "10",
+        ],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    )
+    assert result == Args(
+        config_required=ConfigB(), config_with_default=ConfigA(a_value=10)
+    )
+
+
+def test_omit_subcommand_prefix_and_consolidate_subcommand_args() -> None:
+    @dataclasses.dataclass
+    class DefaultInstanceHTTPServer:
+        y: int = 0
+        flag: bool = True
+
+    @dataclasses.dataclass
+    class DefaultInstanceSMTPServer:
+        z: int = 0
+
+    @dataclasses.dataclass
+    class DefaultInstanceSubparser:
+        x: int
+        # bc: Union[DefaultInstanceHTTPServer, DefaultInstanceSMTPServer]
+        bc: tyro.conf.OmitSubcommandPrefixes[
+            Union[DefaultInstanceHTTPServer, DefaultInstanceSMTPServer]
+        ] = dataclasses.field(default_factory=DefaultInstanceHTTPServer)
+
+    assert (
+        tyro.cli(
+            tyro.conf.CascadeSubcommandArgs[DefaultInstanceSubparser],
+            args=[
+                "default-instance-http-server",
+                "--x",
+                "1",
+                "--y",
+                "5",
+                "--no-flag",
+            ],
+        )
+        # Type ignore can be removed once TypeForm lands.
+        # https://discuss.python.org/t/typeform-spelling-for-a-type-annotation-object-at-runtime/51435
+        == tyro.cli(
+            tyro.conf.CascadeSubcommandArgs[DefaultInstanceSubparser],
+            args=[
+                "default-instance-http-server",
+                "--x",
+                "1",
+                "--y",
+                "5",
+            ],
+            default=DefaultInstanceSubparser(  # type: ignore
+                x=1, bc=DefaultInstanceHTTPServer(y=3, flag=False)
+            ),
+        )
+        == DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=5, flag=False))
+    )
+    assert (
+        tyro.cli(
+            tyro.conf.CascadeSubcommandArgs[DefaultInstanceSubparser],
+            args=[
+                "default-instance-http-server",
+                "--x",
+                "1",
+                "--y",
+                "8",
+            ],
+        )
+        # Type ignore can be removed once TypeForm lands.
+        # https://discuss.python.org/t/typeform-spelling-for-a-type-annotation-object-at-runtime/51435
+        == tyro.cli(
+            tyro.conf.CascadeSubcommandArgs[DefaultInstanceSubparser],
+            args=[
+                "default-instance-http-server",
+                "--x",
+                "1",
+                "--y",
+                "8",
+            ],
+            default=DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=7)),  # type: ignore
+        )
+        == DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=8))
+    )
+
+    # Missing a default for --x.
+    with pytest.raises(SystemExit):
+        assert tyro.cli(
+            tyro.conf.CascadeSubcommandArgs[DefaultInstanceSubparser], args=[]
+        )
+
+
+def test_omit_subcommand_prefix_and_consolidate_subcommand_args_in_function() -> None:
+    @tyro.conf.configure(tyro.conf.subcommand(name="http-server"))
+    @dataclasses.dataclass
+    class DefaultInstanceHTTPServer:
+        y: int = 0
+        flag: bool = True
+
+    @dataclasses.dataclass
+    class DefaultInstanceSMTPServer:
+        z: int = 0
+
+    @dataclasses.dataclass
+    class DefaultInstanceSubparser:
+        x: int
+        # bc: Union[DefaultInstanceHTTPServer, DefaultInstanceSMTPServer]
+        bc: Union[DefaultInstanceHTTPServer, DefaultInstanceSMTPServer]
+
+    @tyro.conf.configure(
+        tyro.conf.OmitSubcommandPrefixes,
+        tyro.conf.CascadeSubcommandArgs,
+    )
+    def func(parent: DefaultInstanceSubparser) -> DefaultInstanceSubparser:
+        return parent
+
+    assert tyro.cli(
+        func,
+        args=[
+            "http-server",
+            "--parent.x",
+            "1",
+            # --y and --no-flag are in a subcommand with prefix omission.
+            "--y",
+            "5",
+            "--no-flag",
+        ],
+    ) == DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=5, flag=False))
+    assert tyro.cli(
+        func,
+        args=[
+            "http-server",
+            "--parent.x",
+            "1",
+            # --y is in a subcommand with prefix omission.
+            "--y",
+            "8",
+        ],
+    ) == DefaultInstanceSubparser(x=1, bc=DefaultInstanceHTTPServer(y=8))
+
+
+def test_append_lists() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[List[int]]
+
+    assert tyro.cli(A, args=[]) == A(x=[])
+    assert tyro.cli(A, args="--x 1 --x 2 --x 3".split(" ")) == A(x=[1, 2, 3])
+    assert tyro.cli(A, args=[]) == A(x=[])
+    with pytest.raises(SystemExit):
+        tyro.cli(A, args=["--x"])
+    with pytest.raises(SystemExit):
+        tyro.cli(A, args=["--x", "1", "2", "3"])
+
+
+def test_append_sequence() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[Sequence[int]]
+
+    assert tyro.cli(A, args=[]) == A(x=[])
+    assert tyro.cli(A, args="--x 1 --x 2 --x 3".split(" ")) == A(x=[1, 2, 3])
+    assert tyro.cli(A, args=[]) == A(x=[])
+    with pytest.raises(SystemExit):
+        tyro.cli(A, args=["--x"])
+    with pytest.raises(SystemExit):
+        tyro.cli(A, args=["--x", "1", "2", "3"])
+
+
+def test_append_tuple() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[Tuple[int, ...]]
+
+    assert tyro.cli(A, args=[]) == A(x=())
+    assert tyro.cli(A, args="--x 1 --x 2 --x 3".split(" ")) == A(x=(1, 2, 3))
+    assert tyro.cli(A, args=[]) == A(x=())
+    with pytest.raises(SystemExit):
+        tyro.cli(A, args=["--x"])
+    with pytest.raises(SystemExit):
+        tyro.cli(A, args=["--x", "1", "2", "3"])
+
+
+def test_append_tuple_with_default() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[Tuple[int, ...]] = (1, 2)
+
+    assert tyro.cli(A, args="--x 1 --x 2 --x 3".split(" ")) == A(x=(1, 2, 1, 2, 3))
+    assert tyro.cli(A, args=[]) == A(x=(1, 2))
+    with pytest.raises(SystemExit):
+        tyro.cli(A, args=["--x"])
+    with pytest.raises(SystemExit):
+        tyro.cli(A, args=["--x", "1", "2", "3"])
+
+
+def test_append_nested_tuple_fixed_length() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[Tuple[Tuple[str, int], ...]]
+
+    assert tyro.cli(A, args="--x 1 1 --x 2 2 --x 3 3".split(" ")) == A(
+        x=(("1", 1), ("2", 2), ("3", 3))
+    )
+    assert tyro.cli(A, args=[]) == A(x=())
+    with pytest.raises(SystemExit):
+        tyro.cli(A, args=["--x"])
+    with pytest.raises(SystemExit):
+        tyro.cli(A, args=["--x", "1", "2", "3"])
+
+
+def test_append_nested_tuple_with_default_fixed_length() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[Tuple[Tuple[str, int], ...]] = (("1", 1), ("2", 2))
+
+    assert tyro.cli(A, args="--x 1 1 --x 2 2 --x 3 3".split(" ")) == A(
+        x=(("1", 1), ("2", 2), ("1", 1), ("2", 2), ("3", 3))
+    )
+    assert tyro.cli(A, args=[]) == A(x=(("1", 1), ("2", 2)))
+    with pytest.raises(SystemExit):
+        tyro.cli(A, args=["--x"])
+    with pytest.raises(SystemExit):
+        tyro.cli(A, args=["--x", "1", "2", "3"])
+
+
+def test_append_dict() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[Dict[str, int]]
+
+    assert tyro.cli(A, args="--x 1 1 --x 2 2 --x 3 3".split(" ")) == A(
+        x={"1": 1, "2": 2, "3": 3}
+    )
+    assert tyro.cli(A, args=[]) == A(x={})
+    with pytest.raises(SystemExit):
+        tyro.cli(A, args=["--x"])
+    with pytest.raises(SystemExit):
+        tyro.cli(A, args=["--x", "1", "2", "3"])
+
+
+def test_append_dict_vague() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[dict]
+
+    assert tyro.cli(A, args="--x 1 1 --x 2 2 --x 3 3".split(" ")) == A(
+        {"1": "1", "2": "2", "3": "3"}
+    )
+
+
+def test_append_dict_with_default() -> None:
+    """Append has no impact when a dictionary has a default value."""
+
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[Dict[str, int]] = dataclasses.field(
+            default_factory=lambda: {"1": 1}
+        )
+
+    assert tyro.cli(A, args=[]) == A(x={"1": 1})
+    assert tyro.cli(A, args=["--x.1", "2"]) == A(x={"1": 2})
+    with pytest.raises(SystemExit):
+        assert tyro.cli(A, args="--x 2 2 --x 3 3".split(" ")) == A(
+            x={"1": 1, "2": 2, "3": 3}
+        )
+
+
+def test_append_nested_tuple() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[Tuple[Tuple[str, ...], ...]]
+
+    assert tyro.cli(A, args="--x 1 2 3 --x 4 5".split(" ")) == A(
+        x=(("1", "2", "3"), ("4", "5"))
+    )
+    assert tyro.cli(A, args=[]) == A(x=())
+
+
+def test_append_nested_tuple_with_default() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[Tuple[Tuple[str, ...], ...]] = (("1", "2"),)
+
+    assert tyro.cli(A, args="--x 1 2 3 --x 4 5".split(" ")) == A(
+        x=(("1", "2"), ("1", "2", "3"), ("4", "5"))
+    )
+    assert tyro.cli(A, args=[]) == A(x=(("1", "2"),))
+
+
+def test_append_nested_list() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[List[List[int]]]
+
+    assert tyro.cli(A, args="--x 1 2 3 --x 4 5".split(" ")) == A(x=[[1, 2, 3], [4, 5]])
+    assert tyro.cli(A, args=[]) == A(x=[])
+
+
+def test_append_nested_dict() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[List[Dict[str, int]]]
+
+    assert tyro.cli(A, args="--x 1 2 3 4 --x 4 5".split(" ")) == A(
+        x=[{"1": 2, "3": 4}, {"4": 5}]
+    )
+    assert tyro.cli(A, args=[]) == A(x=[])
+
+
+def test_append_nested_dict_double() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[Dict[str, Dict[str, int]]]
+
+    assert tyro.cli(A, args="--x 0 1 2 3 4 --x 4 5 6".split(" ")) == A(
+        x={"0": {"1": 2, "3": 4}, "4": {"5": 6}}
+    )
+    assert tyro.cli(A, args=[]) == A(x={})
+
+
+def test_append_nested_dict_double_with_default() -> None:
+    @dataclasses.dataclass
+    class A:
+        x: tyro.conf.UseAppendAction[Dict[str, Dict[str, int]]] = dataclasses.field(
+            default_factory=dict
+        )
+
+    assert tyro.cli(A, args="--x 0 1 2 3 4 --x 4 5 6".split(" ")) == A(
+        x={"0": {"1": 2, "3": 4}, "4": {"5": 6}}
+    )
+    assert tyro.cli(A, args=[]) == A(x={})
+
+
+def test_duplicated_arg() -> None:
+    # Loosely inspired by: https://github.com/brentyi/tyro/issues/49
+    @dataclasses.dataclass
+    class ModelConfig:
+        num_slots: Annotated[int, tyro.conf.arg(prefix_name=False)]
+
+    @dataclasses.dataclass
+    class TrainConfig:
+        num_slots: int
+        model: ModelConfig
+
+    with pytest.raises(Exception):
+        tyro.cli(TrainConfig, args="--num-slots 3".split(" "))
+
+
+def test_omit_arg_prefixes() -> None:
+    # Loosely inspired by: https://github.com/brentyi/tyro/issues/49
+    @dataclasses.dataclass
+    class ModelConfig:
+        num_slots: int
+
+    @dataclasses.dataclass
+    class TrainConfig:
+        model: ModelConfig
+
+    assert tyro.cli(
+        tyro.conf.OmitSubcommandPrefixes[TrainConfig],
+        args="--model.num-slots 3".split(" "),
+    ) == TrainConfig(ModelConfig(num_slots=3))
+
+    annot = tyro.conf.OmitArgPrefixes[TrainConfig]
+    assert tyro.cli(annot, args="--num-slots 3".split(" ")) == TrainConfig(
+        ModelConfig(num_slots=3)
+    )
+
+    # Groups are still printed in the helptext.
+    help_text = get_helptext_with_checks(annot)
+    assert "model options" in help_text
+    assert "--num-slots" in help_text
+
+
+def test_custom_constructor_0() -> None:
+    def times_two(n: str) -> int:
+        return int(n) * 2
+
+    @dataclasses.dataclass
+    class Config:
+        x: Annotated[int, tyro.conf.arg(name="x-renamed", constructor=times_two)]
+
+    assert tyro.cli(Config, args="--x-renamed.n 5".split(" ")) == Config(x=10)
+
+
+def test_custom_constructor_1() -> None:
+    def times_two(n: int) -> int:
+        return int(n) * 2
+
+    @dataclasses.dataclass
+    class Config:
+        x: Annotated[int, tyro.conf.arg(constructor=times_two)]
+
+    assert tyro.cli(Config, args="--x.n 5".split(" ")) == Config(x=10)
+
+
+def test_custom_constructor_2() -> None:
+    @dataclasses.dataclass
+    class Config:
+        x: Annotated[float, tyro.conf.arg(constructor=int)]
+
+    assert tyro.cli(Config, args="--x 5".split(" ")) == Config(x=5)
+    with pytest.raises(SystemExit):
+        tyro.cli(Config, args="--x 5.23".split(" "))
+
+
+def test_custom_constructor_3() -> None:
+    def dict_from_json(json: str) -> dict:
+        out = json_.loads(json)
+        if not isinstance(out, dict):
+            raise ValueError(f"{json} is not a dict!")
+        return out
+
+    @dataclasses.dataclass
+    class Config:
+        x: Annotated[
+            dict,
+            tyro.conf.arg(
+                metavar="JSON",
+                constructor=dict_from_json,
+            ),
+        ]
+
+    assert tyro.cli(
+        Config, args=shlex.split('--x.json \'{"hello": "world"}\'')
+    ) == Config(x={"hello": "world"})
+
+    target = io.StringIO()
+    with pytest.raises(SystemExit), contextlib.redirect_stderr(target):
+        tyro.cli(Config, args="--x.json 5".split(" "))
+
+    error = target.getvalue()
+    assert "Error parsing x: 5 is not a dict!" in error
+
+
+def test_custom_constructor_4() -> None:
+    @dataclasses.dataclass
+    class Config:
+        x: Annotated[float, tyro.conf.arg(constructor=int)] = 3.23
+
+    assert tyro.cli(Config, args="--x 5".split(" ")) == Config(x=5)
+    assert tyro.cli(Config, args=[]) == Config(x=3.23)
+
+
+def test_custom_constructor_5() -> None:
+    def make_float(a: float, b: float, c: float = 3) -> float:
+        return a * b * c
+
+    @dataclasses.dataclass
+    class Config:
+        x: Annotated[float, tyro.conf.arg(constructor=make_float)] = 3.23
+
+    assert tyro.cli(Config, args=[]) == Config(x=3.23)
+    assert tyro.cli(Config, args="--x.a 5 --x.b 2 --x.c 3".split(" ")) == Config(x=30)
+    assert tyro.cli(Config, args="--x.a 5 --x.b 2".split(" ")) == Config(x=30)
+
+    # --x.b is required!
+    with pytest.raises(SystemExit):
+        tyro.cli(Config, args="--x.a 5".split(" "))
+
+    # --x.a and --x.b are required!
+    with pytest.raises(SystemExit):
+        tyro.cli(Config, args="--x.c 5".split(" "))
+
+
+def test_custom_constructor_6() -> None:
+    def make_float(
+        a: tyro.conf.Positional[float],
+        b2: Annotated[float, tyro.conf.arg(name="b")],
+        c: float = 3,
+    ) -> float:
+        return a * b2 * c
+
+    @dataclasses.dataclass
+    class Config:
+        x: Annotated[float, tyro.conf.arg(constructor=make_float)] = 3.23
+
+    assert tyro.cli(Config, args=[]) == Config(x=3.23)
+    assert tyro.cli(Config, args="--x.b 2 --x.c 3 5".split(" ")) == Config(x=30)
+    assert tyro.cli(Config, args="--x.b 2 5".split(" ")) == Config(x=30)
+
+    # --x.b is required!
+    with pytest.raises(SystemExit):
+        tyro.cli(Config, args="5".split(" "))
+
+    # --x.a and --x.b are required!
+    target = io.StringIO()
+    with pytest.raises(SystemExit), contextlib.redirect_stderr(target):
+        tyro.cli(Config, args="--x.c 5".split(" "))
+    error = target.getvalue()
+    assert "either all" in error
+    assert "or none" in error
+    assert "We're missing arguments" in error
+
+
+def test_custom_constructor_7() -> None:
+    @dataclasses.dataclass
+    class Struct:
+        a: int
+        b: int
+        c: int = 3
+
+    def make_float(struct: Struct) -> float:
+        return struct.a * struct.b * struct.c
+
+    @dataclasses.dataclass
+    class Config:
+        x: Annotated[float, tyro.conf.arg(constructor=make_float)] = 3.23
+
+    assert tyro.cli(Config, args=[]) == Config(x=3.23)
+    assert tyro.cli(
+        Config, args="--x.struct.a 5 --x.struct.b 2 --x.struct.c 3".split(" ")
+    ) == Config(x=30)
+    assert tyro.cli(Config, args="--x.struct.a 5 --x.struct.b 2".split(" ")) == Config(
+        x=30
+    )
+
+    # --x.struct.b is required!
+    with pytest.raises(SystemExit):
+        tyro.cli(Config, args="--x.struct.a 5".split(" "))
+
+    # --x.struct.a and --x.struct.b are required!
+    target = io.StringIO()
+    with pytest.raises(SystemExit), contextlib.redirect_stderr(target):
+        tyro.cli(Config, args="--x.struct.c 5".split(" "))
+    error = target.getvalue()
+    assert "We're missing arguments" in error
+    assert "'--x.struct.b'" in error
+    assert "'--x.struct.a'" in error  # The 5 is parsed into `a`.
+
+
+def test_custom_constructor_8() -> None:
+    @dataclasses.dataclass
+    class Struct:
+        a: tyro.conf.Positional[int]
+        b: int
+        c: int = 3
+
+    def make_float(struct: Struct) -> float:
+        return struct.a * struct.b * struct.c
+
+    @dataclasses.dataclass
+    class Config:
+        x: Annotated[float, tyro.conf.arg(constructor=make_float)] = 3.23
+
+    assert tyro.cli(Config, args=[]) == Config(x=3.23)
+    assert tyro.cli(
+        Config, args="--x.struct.b 2 --x.struct.c 3 5".split(" ")
+    ) == Config(x=30)
+    assert tyro.cli(Config, args="--x.struct.b 2 5".split(" ")) == Config(x=30)
+
+    # --x.struct.b is required!
+    with pytest.raises(SystemExit):
+        tyro.cli(Config, args="5".split(" "))
+
+    # --x.struct.a and --x.struct.b are required!
+    target = io.StringIO()
+    with pytest.raises(SystemExit), contextlib.redirect_stderr(target):
+        tyro.cli(Config, args="--x.struct.b 5".split(" "))
+    error = target.getvalue()
+    assert "We're missing arguments" in error
+    assert "'x.struct.a'" in error
+    assert "'--x.struct.b'" not in error
+
+
+def test_custom_constructor_9() -> None:
+    def commit(branch: str) -> int:
+        """Commit"""
+        print(f"commit branch={branch}")
+        return 3
+
+    assert (
+        tyro.cli(
+            Annotated[Any, tyro.conf.arg(constructor=commit)],  # type: ignore
+            args="--branch 5".split(" "),
+        )
+        == 3
+    )
+
+
+def test_custom_constructor_10() -> None:
+    def commit(branch: str) -> int:
+        """Commit"""
+        print(f"commit branch={branch}")
+        return 3
+
+    def inner(x: Annotated[Any, tyro.conf.arg(constructor=commit)]) -> None:
+        return x
+
+    def inner_no_prefix(
+        x: Annotated[Any, tyro.conf.arg(constructor=commit, prefix_name=False)],
+    ) -> None:
+        return x
+
+    def outer(x: Annotated[Any, tyro.conf.arg(constructor=inner)]) -> None:
+        return x
+
+    def outer_no_prefix(
+        x: Annotated[Any, tyro.conf.arg(constructor=inner_no_prefix)],
+    ) -> None:
+        return x
+
+    assert (
+        tyro.cli(
+            outer,
+            args="--x.x.branch 5".split(" "),
+        )
+        == 3
+    )
+    assert (
+        tyro.cli(
+            outer_no_prefix,
+            args="--x.branch 5".split(" "),
+        )
+        == 3
+    )
+
+
+def test_alias() -> None:
+    """Arguments with aliases."""
+
+    @dataclasses.dataclass
+    class Struct:
+        a: Annotated[int, tyro.conf.arg(aliases=["--all", "-d"])]
+        b: int
+        c: int = 3
+
+    def make_float(struct: Struct) -> float:
+        return struct.a * struct.b * struct.c
+
+    @dataclasses.dataclass
+    class Config:
+        x: Annotated[float, tyro.conf.arg(constructor=make_float)] = 3.23
+
+    assert tyro.cli(Config, args=[]) == Config(x=3.23)
+    assert tyro.cli(
+        Config, args="--x.struct.b 2 --x.struct.c 3 --x.struct.a 5".split(" ")
+    ) == Config(x=30)
+    assert tyro.cli(
+        Config, args="--x.struct.b 2 --x.struct.c 3 -d 5".split(" ")
+    ) == Config(x=30)
+    assert tyro.cli(
+        Config, args="--x.struct.b 2 --x.struct.c 3 --all 5".split(" ")
+    ) == Config(x=30)
+    assert tyro.cli(Config, args="--x.struct.b 2 --x.struct.a 5".split(" ")) == Config(
+        x=30
+    )
+
+    # --x.struct.b is required!
+    with pytest.raises(SystemExit):
+        tyro.cli(Config, args="--x.struct.a 5".split(" "))
+
+    # --x.struct.a and --x.struct.b are required!
+    target = io.StringIO()
+    with pytest.raises(SystemExit), contextlib.redirect_stderr(target):
+        tyro.cli(Config, args="--x.struct.b 5".split(" "))
+    error = target.getvalue()
+    assert "We're missing arguments" in error
+    assert "'--all/-d/--x.struct.a'" in error
+    assert "'--x.struct.b'" not in error
+
+    assert "--all INT, -d INT, --x.struct.a INT" in get_helptext_with_checks(Config)
+
+
+def test_positional_alias() -> None:
+    """Positional arguments with aliases (which will be ignored)."""
+
+    @dataclasses.dataclass
+    class Struct:
+        a: Annotated[tyro.conf.Positional[int], tyro.conf.arg(aliases=["--all", "-d"])]
+        b: int
+        c: int = 3
+
+    def make_float(struct: Struct) -> float:
+        return struct.a * struct.b * struct.c
+
+    @dataclasses.dataclass
+    class Config:
+        x: Annotated[float, tyro.conf.arg(constructor=make_float)] = 3.23
+
+    with pytest.warns(UserWarning):
+        assert tyro.cli(Config, args=[]) == Config(x=3.23)
+
+    with pytest.warns(UserWarning):
+        assert tyro.cli(
+            Config, args="--x.struct.b 2 --x.struct.c 3 5".split(" ")
+        ) == Config(x=30)
+
+    with pytest.raises(SystemExit), pytest.warns(UserWarning):
+        assert tyro.cli(
+            Config, args="--x.struct.b 2 --x.struct.c 3 -d 5".split(" ")
+        ) == Config(x=30)
+    with pytest.raises(SystemExit), pytest.warns(UserWarning):
+        assert tyro.cli(
+            Config, args="--x.struct.b 2 --x.struct.c 3 --all 5".split(" ")
+        ) == Config(x=30)
+
+
+def test_flag_alias() -> None:
+    @dataclasses.dataclass
+    class Struct:
+        flag: Annotated[bool, tyro.conf.arg(aliases=["-f", "--flg"])] = False
+
+    assert tyro.cli(Struct, args=[]).flag is False
+    assert tyro.cli(Struct, args="--flag".split(" ")).flag is True
+    assert tyro.cli(Struct, args="--no-flag".split(" ")).flag is False
+    assert tyro.cli(Struct, args="--flg".split(" ")).flag is True
+    assert tyro.cli(Struct, args="--no-flg".split(" ")).flag is False
+    assert tyro.cli(Struct, args="-f".split(" ")).flag is True
+
+    # BooleanOptionalAction will ignore arguments that aren't prefixed with --.
+    with pytest.raises(SystemExit):
+        tyro.cli(Struct, args="-no-f".split(" "))
+
+
+def test_subcommand_constructor_mix() -> None:
+    """https://github.com/brentyi/tyro/issues/89"""
+
+    def checkout(branch: str) -> str:
+        """Check out a branch."""
+        return branch
+
+    def commit(message: str, all: bool = False) -> str:
+        """Make a commit."""
+        return f"{message} {all}"
+
+    @dataclasses.dataclass
+    class Arg:
+        foo: int = 1
+
+    t: Any = Annotated[
+        Union[
+            Annotated[
+                Any,
+                tyro.conf.subcommand(name="checkout-renamed", constructor=checkout),
+            ],
+            Annotated[
+                Any,
+                tyro.conf.subcommand(name="commit", constructor=commit),
+                tyro.conf.FlagConversionOff,
+            ],
+            Arg,
+        ],
+        tyro.conf.OmitArgPrefixes,  # Should do nothing.
+    ]
+
+    assert tyro.cli(t, args=["arg"]) == Arg()
+    assert tyro.cli(t, args=["checkout-renamed", "--branch", "main"]) == "main"
+    assert tyro.cli(t, args=["commit", "--message", "hi", "--all", "True"]) == "hi True"
+
+
+def test_merge() -> None:
+    """Test effect of tyro.conf.arg() on nested structures by approximating an
+    HfArgumentParser-style API."""
+
+    T = TypeVar("T")
+
+    # We could add a lot overloads here if we were doing this for real. :)
+    def instantiate_dataclasses(
+        classes: Tuple[Type[T], ...], args: List[str]
+    ) -> Tuple[T, ...]:
+        return tyro.cli(
+            tyro.conf.OmitArgPrefixes[  # type: ignore
+                # Convert (type1, type2) into Tuple[type1, type2]
+                Tuple[  # type: ignore
+                    tuple(Annotated[c, tyro.conf.arg(name=c.__name__)] for c in classes)
+                ]
+            ],
+            args=args,
+        )
+
+    @dataclasses.dataclass(frozen=True)
+    class OptimizerConfig:
+        lr: float = 1e-4
+        weight: int = 10
+
+    @dataclasses.dataclass(frozen=True)
+    class DatasetConfig:
+        batch_size: int = 1
+        shuffle: bool = False
+
+    assert instantiate_dataclasses(
+        (OptimizerConfig, DatasetConfig), args=["--lr", "1e-3"]
+    ) == (
+        OptimizerConfig(1e-3),
+        DatasetConfig(),
+    )
+    assert instantiate_dataclasses(
+        (OptimizerConfig, DatasetConfig), args=["--lr", "1e-3", "--shuffle"]
+    ) == (
+        OptimizerConfig(1e-3),
+        DatasetConfig(shuffle=True),
+    )
+    target = io.StringIO()
+    with pytest.raises(SystemExit), contextlib.redirect_stdout(target):
+        instantiate_dataclasses((OptimizerConfig, DatasetConfig), args=["--help"])
+    helptext = target.getvalue()
+    assert "OptimizerConfig options" in helptext
+    assert "DatasetConfig options" in helptext
+
+
+def test_counter_positional() -> None:
+    """Counter action will be ignored for positional arguments."""
+
+    def main(
+        verbosity: tyro.conf.Positional[tyro.conf.UseCounterAction[int]] = 3,
+    ) -> int:
+        return verbosity
+
+    assert tyro.cli(main, args=["3"]) == 3
+
+
+def test_counter_action() -> None:
+    def main(
+        verbosity: tyro.conf.UseCounterAction[int],
+        aliased_verbosity: Annotated[
+            tyro.conf.UseCounterAction[int], tyro.conf.arg(aliases=["-v"])
+        ],
+    ) -> Tuple[int, int]:
+        """Example showing how to use counter actions.
+        Args:
+            verbosity: Verbosity level.
+            aliased_verbosity: Same as above, but can also be specified with -v, -vv, -vvv, etc.
+        """
+        return verbosity, aliased_verbosity
+
+    assert tyro.cli(main, args=[]) == (0, 0)
+    assert tyro.cli(main, args="--verbosity --verbosity".split(" ")) == (2, 0)
+    assert tyro.cli(main, args="--verbosity --verbosity -v".split(" ")) == (2, 1)
+    # Using shorthand combined flags (-vv, -vvv)
+    assert tyro.cli(main, args="--verbosity --verbosity -vv".split(" ")) == (2, 2)
+    assert tyro.cli(main, args="--verbosity --verbosity -vvv".split(" ")) == (2, 3)
+
+
+def test_nested_suppress() -> None:
+    @dataclasses.dataclass
+    class Bconfig:
+        b: int = 1
+
+    @dataclasses.dataclass
+    class Aconfig:
+        a: str = "hello"
+        b_conf: Bconfig = dataclasses.field(default_factory=Bconfig)
+
+    assert tyro.cli(Aconfig, config=(tyro.conf.Suppress,), args=[]) == Aconfig()
+
+
+def test_suppressed_subcommand() -> None:
+    class Person(TypedDict):
+        name: str
+        age: int
+
+    @dataclasses.dataclass
+    class Train:
+        person: tyro.conf.Suppress[Union[Person, None]] = None
+
+    assert tyro.cli(Train, args=[]) == Train(None)
+
+
+def test_avoid_subcommands_with_generics() -> None:
+    T = TypeVar("T")
+
+    @dataclasses.dataclass(frozen=True)
+    class Person(Generic[T]):
+        field: Union[T, bool]
+
+    @dataclasses.dataclass
+    class Train:
+        person: Union[Person[int], Person[bool], Person[str], Person[float]] = Person(
+            "hello"
+        )
+
+    assert tyro.cli(Train, config=(tyro.conf.AvoidSubcommands,), args=[]) == Train(
+        person=Person("hello")
+    )
+
+    # No subcommand should be created.
+    assert "STR|{True,False}" in get_helptext_with_checks(
+        tyro.conf.AvoidSubcommands[Train]
+    )
+    assert "person:person-str" not in get_helptext_with_checks(
+        tyro.conf.AvoidSubcommands[Train]
+    )
+
+    # Subcommand should be created.
+    assert "STR|{True,False}" not in get_helptext_with_checks(Train)
+    assert "person:person-str" in get_helptext_with_checks(Train)
+
+
+def test_consolidate_subcommand_args_optional() -> None:
+    """Adapted from @mirceamironenco: https://github.com/brentyi/tyro/issues/221"""
+
+    @dataclasses.dataclass(frozen=True)
+    class OptimizerConfig:
+        lr: float = 1e-1
+
+    @dataclasses.dataclass(frozen=True)
+    class AdamConfig(OptimizerConfig):
+        adam_foo: float = 1.0
+
+    @dataclasses.dataclass(frozen=True)
+    class SGDConfig(OptimizerConfig):
+        sgd_foo: float = 1.0
+
+    def _constructor() -> Type[OptimizerConfig]:
+        cfgs = (
+            Annotated[AdamConfig, tyro.conf.subcommand(name="adam")],
+            Annotated[SGDConfig, tyro.conf.subcommand(name="sgd")],
+        )
+        return Union[cfgs]  # type: ignore
+
+    # Required because of --x.
+    @dataclasses.dataclass
+    class Config1:
+        x: int
+        optimizer: Annotated[
+            Union[AdamConfig, SGDConfig],
+            tyro.conf.arg(constructor_factory=_constructor),
+        ] = AdamConfig()
+
+    with pytest.raises(SystemExit):
+        tyro.cli(Config1, config=(tyro.conf.CascadeSubcommandArgs,), args=[])
+
+    # Required because of optimizer.
+    @dataclasses.dataclass
+    class Config2:
+        optimizer: Annotated[
+            Union[AdamConfig, SGDConfig],
+            tyro.conf.arg(constructor_factory=_constructor),
+        ]
+
+    with pytest.raises(SystemExit):
+        tyro.cli(Config2, config=(tyro.conf.CascadeSubcommandArgs,), args=[])
+
+    # Optional!
+    @dataclasses.dataclass
+    class Config3:
+        x: int = 3
+        optimizer: Annotated[
+            Union[AdamConfig, SGDConfig],
+            tyro.conf.arg(constructor_factory=_constructor),
+        ] = AdamConfig()
+
+    assert (
+        tyro.cli(Config3, config=(tyro.conf.CascadeSubcommandArgs,), args=[])
+        == Config3()
+    )
+
+
+def test_consolidate_subcommand_args_optional_harder() -> None:
+    """Adapted from @mirceamironenco: https://github.com/brentyi/tyro/issues/221"""
+
+    @dataclasses.dataclass(frozen=True)
+    class Leaf1:
+        x: int = 5
+
+    @dataclasses.dataclass(frozen=True)
+    class Leaf2:
+        x: int = 5
+
+    @dataclasses.dataclass(frozen=True)
+    class Branch1:
+        x: int = 5
+        leaf: Union[Leaf1, Leaf2] = Leaf2()
+
+    @dataclasses.dataclass(frozen=True)
+    class Branch2:
+        x: int = 5
+        leaf: Union[Leaf1, Leaf2] = Leaf2()
+
+    @dataclasses.dataclass(frozen=True)
+    class Trunk:
+        branch: Union[Branch1, Branch2] = Branch2()
+
+    assert (
+        tyro.cli(Trunk, config=(tyro.conf.CascadeSubcommandArgs,), args=[]) == Trunk()
+    )
+
+    with pytest.raises(SystemExit):
+        tyro.cli(
+            Trunk,
+            default=Trunk(Branch2(leaf=Leaf1(x=tyro.MISSING))),
+        )
+
+    with pytest.raises(SystemExit):
+        tyro.cli(Trunk, default=Trunk(Branch2(x=tyro.MISSING)), args=["branch:branch2"])
+
+    assert tyro.cli(
+        Trunk, default=Trunk(Branch2(x=tyro.MISSING)), args=["branch:branch1"]
+    ) == Trunk(Branch1())
+
+
+def test_default_subcommand_consistency() -> None:
+    """https://github.com/brentyi/tyro/issues/221"""
+
+    @dataclasses.dataclass(frozen=True)
+    class OptimizerConfig:
+        lr: float = 1e-1
+
+    @dataclasses.dataclass(frozen=True)
+    class AdamConfig(OptimizerConfig):
+        adam_foo: float = 1.0
+
+    @dataclasses.dataclass(frozen=True)
+    class SGDConfig(OptimizerConfig):
+        sgd_foo: float = 1.0
+
+    def _constructor() -> Any:
+        cfgs = (
+            Annotated[SGDConfig, tyro.conf.subcommand(name="sgd", default=SGDConfig())],
+            Annotated[
+                AdamConfig, tyro.conf.subcommand(name="adam", default=AdamConfig())
+            ],
+        )
+        return Union[cfgs]  # type: ignore
+
+    CLIOptimizer = Annotated[
+        OptimizerConfig,
+        tyro.conf.arg(constructor_factory=_constructor),
+    ]
+
+    @dataclasses.dataclass
+    class Config:
+        optimizer: CLIOptimizer = AdamConfig(adam_foo=0.5)  # type: ignore
+        foo: int = 1
+        bar: str = "abc"
+
+    assert tyro.cli(Config, args=[]) == Config()
+    assert (
+        tyro.cli(
+            Config,
+            config=(tyro.conf.CascadeSubcommandArgs,),
+            args=["optimizer:adam"],
+        )
+        == Config()
+    )
+    assert (
+        tyro.cli(Config, config=(tyro.conf.CascadeSubcommandArgs,), args=[]) == Config()
+    )
+    assert tyro.cli(Config, args=["optimizer:adam"]) == Config()
+
+
+def test_suppress_in_union() -> None:
+    @dataclasses.dataclass
+    class ConfigA:
+        x: int
+
+    @dataclasses.dataclass
+    class ConfigB:
+        y: Union[int, Annotated[str, tyro.conf.Suppress]]
+        z: Annotated[Union[str, int], tyro.conf.Suppress] = 3
+
+    def main(
+        x: Union[Annotated[ConfigA, tyro.conf.Suppress], ConfigB] = ConfigA(3),
+    ) -> Any:
+        return x
+
+    assert tyro.cli(main, args="x:config-b --x.y 5".split(" ")) == ConfigB(5)
+
+    with pytest.raises(SystemExit):
+        # ConfigA is suppressed, so there'll be no default.
+        tyro.cli(main, args=[])
+    with pytest.raises(SystemExit):
+        # ConfigB needs an int, since str is suppressed.
+        tyro.cli(main, args="x:config-b --x.y five".split(" "))
+    with pytest.raises(SystemExit):
+        # The z argument is suppressed.
+        tyro.cli(main, args="x:config-b --x.y 5 --x.z 3".split(" "))
+    with pytest.raises(SystemExit):
+        # ConfigA is suppressed.
+        assert tyro.cli(main, args=["x:config-a"])
+    with pytest.raises(SystemExit):
+        # ConfigB has a required argument.
+        assert tyro.cli(main, args=["x:config-b"])
+
+
+_dataset_map = {
+    "alpaca": "tatsu-lab/alpaca",
+    "alpaca_clean": "yahma/alpaca-cleaned",
+    "alpaca_gpt4": "vicgalle/alpaca-gpt4",
+}
+_inv_dataset_map = {value: key for key, value in _dataset_map.items()}
+_datasets = list(_dataset_map.keys())
+
+HFDataset = Annotated[
+    str,
+    tyro.constructors.PrimitiveConstructorSpec(
+        nargs=1,
+        metavar="{" + ",".join(_datasets) + "}",
+        instance_from_str=lambda args: _dataset_map[args[0]],
+        is_instance=lambda instance: isinstance(instance, str)
+        and instance in _inv_dataset_map,
+        str_from_instance=lambda instance: [_inv_dataset_map[instance]],
+        choices=tuple(_datasets),
+    ),
+    tyro.conf.arg(
+        help_behavior_hint=lambda df: f"(default: {df}, run datasets.py for full options)"
+    ),
+]
+
+
+def test_annotated_attribute_inheritance() -> None:
+    """From @mirceamironenco.
+
+    https://github.com/brentyi/tyro/issues/239"""
+
+    @dataclasses.dataclass(frozen=True)
+    class TrainConfig:
+        dataset: str = "vicgalle/alpaca-gpt4"
+
+    @dataclasses.dataclass(frozen=True)
+    class CLITrainerConfig(TrainConfig):
+        dataset: HFDataset = "vicgalle/alpaca-gpt4"
+
+    assert "{alpaca,alpaca_clean,alpaca_gpt4}" in get_helptext_with_checks(
+        CLITrainerConfig
+    )
+    assert (
+        "default: alpaca_gpt4, run datasets.py for full options"
+        in get_helptext_with_checks(CLITrainerConfig)
+    )
+
+
+@dataclasses.dataclass(frozen=True)
+class OptimizerConfig:
+    lr: float = 1e-1
+
+
+@dataclasses.dataclass(frozen=True)
+class AdamConfig(OptimizerConfig):
+    adam_foo: float = 1.0
+
+
+@dataclasses.dataclass(frozen=True)
+class SGDConfig(OptimizerConfig):
+    sgd_foo: float = 1.0
+
+
+@dataclasses.dataclass
+class TrainConfig:
+    optimizer: OptimizerConfig = AdamConfig()
+
+
+def _dummy_constructor() -> Type[OptimizerConfig]:
+    return Union[AdamConfig, SGDConfig]  # type: ignore
+
+
+CLIOptimizerConfig = Annotated[
+    OptimizerConfig,
+    tyro.conf.arg(constructor_factory=_dummy_constructor),
+]
+
+
+def test_attribute_inheritance_2() -> None:
+    """From @mirceamironenco.
+
+    https://github.com/brentyi/tyro/issues/239"""
+
+    @dataclasses.dataclass
+    class CLITrainerConfig(TrainConfig):
+        optimizer: CLIOptimizerConfig = SGDConfig()
+
+    helptext = get_helptext_with_checks(CLITrainerConfig)
+    # Check for the full metavar in the subcommands box.
+    assert "{optimizer:adam-config,optimizer:sgd-config}" in helptext
+    # Both backends use full metavar in usage when there's a single subparser group.
+    assert "[{optimizer:adam-config,optimizer:sgd-config}]" in helptext
+
+
+@dataclasses.dataclass
+class Config:
+    # Comment in helptext.
+    y: int = 0
+
+
+def test_helptext_from_contents_off() -> None:
+    assert "Comment in helptext." in get_helptext_with_checks(Config)
+    assert "Comment in helptext." not in get_helptext_with_checks(
+        tyro.conf.HelptextFromCommentsOff[Config]
+    )
+
+
+# Tests for union types with config parameters (fix for union + config bug)
+
+
+@dataclasses.dataclass
+class UnionCommand1:
+    """First command."""
+
+    arg1: str
+    flag1: bool = False
+
+
+@dataclasses.dataclass
+class UnionCommand2:
+    """Second command."""
+
+    arg2: int
+    flag2: bool = True
+
+
+@dataclasses.dataclass
+class NestedUnionConfig:
+    """Nested config class."""
+
+    value: float = 1.0
+
+
+@dataclasses.dataclass
+class UnionCommand3:
+    """Third command with nested config."""
+
+    nested: NestedUnionConfig
+    name: str = "default"
+
+
+def test_union_with_empty_config() -> None:
+    """Union types should work with empty config tuple."""
+    result = tyro.cli(
+        Union[UnionCommand1, UnionCommand2],
+        args=["union-command1", "--arg1", "test"],
+        config=(),
+    )
+    assert result == UnionCommand1(arg1="test", flag1=False)
+
+
+def test_union_with_flag_create_pairs_off() -> None:
+    """Union types should work with FlagCreatePairsOff config."""
+    result = tyro.cli(
+        Union[UnionCommand1, UnionCommand2],
+        args=["union-command1", "--arg1", "test", "--flag1"],
+        config=(tyro.conf.FlagCreatePairsOff,),
+    )
+    assert result == UnionCommand1(arg1="test", flag1=True)
+
+
+def test_union_with_flag_conversion_off() -> None:
+    """Union types should work with FlagConversionOff config."""
+    result = tyro.cli(
+        Union[UnionCommand1, UnionCommand2],
+        args=["union-command2", "--arg2", "42", "--flag2", "False"],
+        config=(tyro.conf.FlagConversionOff,),
+    )
+    assert result == UnionCommand2(arg2=42, flag2=False)
+
+
+def test_union_with_omit_subcommand_prefixes() -> None:
+    """Union types should work with OmitSubcommandPrefixes."""
+    result = tyro.cli(
+        Union[UnionCommand1, UnionCommand2],
+        args=["union-command1", "--arg1", "test"],
+        config=(tyro.conf.OmitSubcommandPrefixes,),
+    )
+    assert result == UnionCommand1(arg1="test", flag1=False)
+
+
+def test_union_with_positional_required_args() -> None:
+    """Union types should work with PositionalRequiredArgs."""
+
+    @dataclasses.dataclass
+    class SimpleUnionCmd1:
+        required_arg: str
+
+    @dataclasses.dataclass
+    class SimpleUnionCmd2:
+        required_num: int
+
+    result = tyro.cli(
+        Union[SimpleUnionCmd1, SimpleUnionCmd2],
+        args=["simple-union-cmd1", "hello"],
+        config=(tyro.conf.PositionalRequiredArgs,),
+    )
+    assert result == SimpleUnionCmd1(required_arg="hello")
+
+
+def test_nested_union_with_config() -> None:
+    """Nested union types should work with config."""
+    result = tyro.cli(
+        Union[UnionCommand1, UnionCommand3],
+        args=["union-command3", "--nested.value", "2.5", "--name", "test"],
+        config=(tyro.conf.FlagCreatePairsOff,),
+    )
+    assert result == UnionCommand3(nested=NestedUnionConfig(value=2.5), name="test")
+
+
+def test_union_subcommand_help_with_config() -> None:
+    """Test that help text works correctly with union types and config."""
+    # This should not raise an exception
+    with pytest.raises(SystemExit):
+        tyro.cli(
+            Union[UnionCommand1, UnionCommand2],
+            args=["--help"],
+            config=(tyro.conf.FlagCreatePairsOff,),
+        )
+
+
+def test_union_subcommand_specific_help_with_config() -> None:
+    """Test that subcommand-specific help works with config."""
+    # This should not raise an exception
+    with pytest.raises(SystemExit):
+        tyro.cli(
+            Union[UnionCommand1, UnionCommand2],
+            args=["union-command1", "--help"],
+            config=(tyro.conf.FlagCreatePairsOff,),
+        )
+
+
+def test_conf_inheritance() -> None:
+    """Adapted from: https://github.com/brentyi/tyro/pull/328"""
+
+    @tyro.conf.configure(  # type: ignore
+        tyro.conf.arg(constructor_factory=lambda: Union[AdamConfig, SgdConfig])  # type: ignore
+    )
+    @dataclasses.dataclass
+    class OptimizerConfig:
+        lr: float
+
+    @tyro.conf.configure(
+        tyro.conf.subcommand(name="adam")  # type: ignore
+    )
+    @dataclasses.dataclass
+    class AdamConfig(OptimizerConfig):
+        betas: Tuple[float, float]
+
+    @dataclasses.dataclass
+    class SgdConfig(OptimizerConfig):
+        fused: bool
+
+    assert tyro.cli(
+        AdamConfig, args="--betas 0.99 0.95 --lr 1e-4".split(" ")
+    ) == AdamConfig(1e-4, (0.99, 0.95))
+    assert tyro.cli(SgdConfig, args="--lr 1e-4 --fused True".split(" ")) == SgdConfig(
+        1e-4, True
+    )
+    assert tyro.cli(
+        OptimizerConfig, args="adam --lr 1e-4 --betas 0.99 0.95".split(" ")
+    ) == AdamConfig(1e-4, (0.99, 0.95))
+    assert tyro.cli(
+        OptimizerConfig, args="sgd-config --lr 1e-4 --fused True".split(" ")
+    ) == SgdConfig(1e-4, fused=True)
+
+
+def test_per_argument_consolidate_mixed_with_regular() -> None:
+    """Test per-argument CascadeSubcommandArgs mixed with regular args.
+
+    Tests both CLI behavior and helptext.
+    """
+    # Per-argument markers only work with tyro backend.
+    if tyro._experimental_options["backend"] != "tyro":
+        pytest.skip(
+            "Per-argument CascadeSubcommandArgs only supported with tyro backend"
+        )
+
+    @dataclasses.dataclass
+    class ModeA:
+        # Consolidated arg - only visible at leaf.
+        a_consolidated: tyro.conf.CascadeSubcommandArgs[int] = 1
+        # Regular arg - also visible at leaf in consolidated mode.
+        a_regular: int = 2
+
+    @dataclasses.dataclass
+    class ModeB:
+        b_value: int = 3
+
+    @dataclasses.dataclass
+    class Config:
+        # Root level regular arg.
+        root_arg: int = 0
+        mode: Union[ModeA, ModeB] = dataclasses.field(default_factory=ModeA)
+
+    # Test CLI behavior: With CascadeSubcommandArgs, flexible intermixing is allowed.
+    # Regular args (root_arg) must come before subcommands.
+    # Cascading args (a_consolidated) can come anywhere.
+    result = tyro.cli(
+        Config,
+        args="--root-arg 10 mode:mode-a --mode.a-consolidated 5 --mode.a-regular 7".split(),
+    )
+    assert result.root_arg == 10
+    assert isinstance(result.mode, ModeA)
+    assert result.mode.a_consolidated == 5
+    assert result.mode.a_regular == 7
+
+    # Cascading args cannot be specified before subcommand.
+    with pytest.raises(SystemExit):
+        result = tyro.cli(
+            Config,
+            args="--root-arg 20 --mode.a-consolidated 15 mode:mode-a --mode.a-regular 25".split(),
+        )
+
+    # TODO: Implement cascading helptext rendering.
+    # For now, helptext doesn't show cascading args at parent levels.
+    # Skip helptext tests until cascading helptext is implemented.
+    pass
+
+
+def test_implicit_subcommand_selection_with_union() -> None:
+    """Test implicit subcommand selection with CascadeSubcommandArgs.
+
+    When a union type has a default value and CascadeSubcommandArgs is enabled,
+    arguments belonging to the default subcommand can be specified without
+    explicitly naming the subcommand. This is called "implicit subcommand selection".
+    """
+    # Implicit subcommand selection only works with tyro backend.
+    if tyro._experimental_options["backend"] != "tyro":
+        pytest.skip("Implicit subcommand selection only supported with tyro backend")
+
+    @dataclasses.dataclass
+    class B:
+        s: str = tyro.MISSING
+
+    @dataclasses.dataclass
+    class A:
+        verbose: bool
+        b: Union[B, None] = dataclasses.field(default_factory=B)
+
+    # Test 1: Args without explicit subcommand.
+    assert tyro.cli(
+        A,
+        args=["--b.s", "abc", "--verbose", "True"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == A(True, B("abc"))
+
+    # Test 2: Args with explicit subcommand first.
+    assert tyro.cli(
+        A,
+        args=["b:b", "--b.s", "abc", "--verbose", "True"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == A(True, B("abc"))
+
+    # Test 3: Different boolean value.
+    assert tyro.cli(
+        A,
+        args=["--b.s", "abc", "--verbose", "False"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == A(False, B("abc"))
+
+    # Test 4: Parent args before subcommand.
+    assert tyro.cli(
+        A,
+        args=["--verbose", "False", "b:b", "--b.s", "abc"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == A(False, B("abc"))
+
+    # Test 5: Parent args before nested args, no explicit subcommand.
+    assert tyro.cli(
+        A,
+        args=["--verbose", "False", "--b.s", "abc"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == A(False, B("abc"))
+
+    # Test 6: Parent args before explicit subcommand and nested args.
+    assert tyro.cli(
+        A,
+        args=["--verbose", "False", "b:b", "--b.s", "abc"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == A(False, B("abc"))
+
+
+def test_implicit_subcommand_selection_error_messages() -> None:
+    """Test error messages when implicit subcommand selection conflicts occur."""
+    # Implicit subcommand selection only works with tyro backend.
+    if tyro._experimental_options["backend"] != "tyro":
+        pytest.skip("Implicit subcommand selection only supported with tyro backend")
+
+    @dataclasses.dataclass
+    class B:
+        s: str = tyro.MISSING
+
+    @dataclasses.dataclass
+    class A:
+        verbose: bool
+        b: Union[B, None] = dataclasses.field(default_factory=B)
+
+    # Test error when trying to explicitly select after implicit selection.
+    with pytest.raises(SystemExit):
+        tyro.cli(
+            A,
+            args=["--b.s", "abc", "b:b", "--verbose", "True"],
+            config=(tyro.conf.CascadeSubcommandArgs,),
+        )
+
+    # Test error when trying to select different subcommand after implicit selection.
+    with pytest.raises(SystemExit):
+        tyro.cli(
+            A,
+            args=["--b.s", "abc", "b:None", "--verbose", "True"],
+            config=(tyro.conf.CascadeSubcommandArgs,),
+        )
+
+
+def test_implicit_subcommand_selection_nested() -> None:
+    """Test implicit subcommand selection with nested subcommands."""
+    # Implicit subcommand selection only works with tyro backend.
+    if tyro._experimental_options["backend"] != "tyro":
+        pytest.skip("Implicit subcommand selection only supported with tyro backend")
+
+    @dataclasses.dataclass
+    class LeafA:
+        value: int = tyro.MISSING
+
+    @dataclasses.dataclass
+    class LeafB:
+        other: str = tyro.MISSING
+
+    @dataclasses.dataclass
+    class Branch:
+        leaf: Union[LeafA, LeafB] = dataclasses.field(default_factory=LeafA)
+
+    @dataclasses.dataclass
+    class Root:
+        x: int
+        branch: Union[Branch, None] = dataclasses.field(default_factory=Branch)
+
+    # Test: Using nested subcommand selector implicitly selects parent.
+    assert tyro.cli(
+        Root,
+        args=["--x", "1", "branch.leaf:leaf-a", "--branch.leaf.value", "42"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Root(x=1, branch=Branch(leaf=LeafA(value=42)))
+
+    # Test: Using nested args implicitly selects both parent and child.
+    assert tyro.cli(
+        Root,
+        args=["--x", "1", "--branch.leaf.value", "42"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Root(x=1, branch=Branch(leaf=LeafA(value=42)))
+
+    # Test: Explicit parent, then implicit child via nested selector.
+    assert tyro.cli(
+        Root,
+        args=[
+            "--x",
+            "1",
+            "branch:branch",
+            "branch.leaf:leaf-a",
+            "--branch.leaf.value",
+            "42",
+        ],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Root(x=1, branch=Branch(leaf=LeafA(value=42)))
+
+    # Test: Can select non-default nested subcommand (implicitly selects parent).
+    assert tyro.cli(
+        Root,
+        args=["--x", "2", "branch.leaf:leaf-b", "--branch.leaf.other", "test"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Root(x=2, branch=Branch(leaf=LeafB(other="test")))
+
+
+def test_implicit_subcommand_selection_multiple_branches() -> None:
+    """Test implicit selection with multiple independent union branches."""
+    # Implicit subcommand selection only works with tyro backend.
+    if tyro._experimental_options["backend"] != "tyro":
+        pytest.skip("Implicit subcommand selection only supported with tyro backend")
+
+    @dataclasses.dataclass
+    class OptimizerA:
+        lr: float = tyro.MISSING
+
+    @dataclasses.dataclass
+    class OptimizerB:
+        momentum: float = tyro.MISSING
+
+    @dataclasses.dataclass
+    class DatasetA:
+        batch_size: int = 32
+
+    @dataclasses.dataclass
+    class DatasetB:
+        samples: int = 100
+
+    @dataclasses.dataclass
+    class Config:
+        optimizer: Union[OptimizerA, OptimizerB] = dataclasses.field(
+            default_factory=OptimizerA
+        )
+        dataset: Union[DatasetA, DatasetB] = dataclasses.field(default_factory=DatasetA)
+
+    # Test: Can implicitly select one branch.
+    assert tyro.cli(
+        Config,
+        args=["--optimizer.lr", "0.01"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Config(optimizer=OptimizerA(lr=0.01), dataset=DatasetA(batch_size=32))
+
+    # Test: Explicit selection allows accessing both branches.
+    assert tyro.cli(
+        Config,
+        args=[
+            "optimizer:optimizer-a",
+            "--optimizer.lr",
+            "0.01",
+            "dataset:dataset-a",
+            "--dataset.batch-size",
+            "64",
+        ],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Config(optimizer=OptimizerA(lr=0.01), dataset=DatasetA(batch_size=64))
+
+
+def test_implicit_subcommand_selection_with_shared_args() -> None:
+    """Test implicit selection when subcommands have arguments with same names."""
+    # Implicit subcommand selection only works with tyro backend.
+    if tyro._experimental_options["backend"] != "tyro":
+        pytest.skip("Implicit subcommand selection only supported with tyro backend")
+
+    @dataclasses.dataclass
+    class ModeA:
+        # Both modes have a 'value' arg, but only ModeA has 'extra'.
+        value: int = tyro.MISSING
+        extra: str = "default"
+
+    @dataclasses.dataclass
+    class ModeB:
+        value: int = tyro.MISSING
+
+    @dataclasses.dataclass
+    class Config:
+        mode: Union[ModeA, ModeB] = dataclasses.field(default_factory=ModeA)
+
+    # Test: Using unique arg 'extra' implicitly selects ModeA.
+    assert tyro.cli(
+        Config,
+        args=["--mode.value", "10", "--mode.extra", "test"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Config(mode=ModeA(value=10, extra="test"))
+
+    # Test: Using only shared arg 'value' still implicitly selects default (ModeA).
+    assert tyro.cli(
+        Config,
+        args=["--mode.value", "10"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Config(mode=ModeA(value=10, extra="default"))
+
+
+def test_implicit_subcommand_selection_ordering_matters() -> None:
+    """Test that order matters for implicit selection vs explicit selection."""
+    # Implicit subcommand selection only works with tyro backend.
+    if tyro._experimental_options["backend"] != "tyro":
+        pytest.skip("Implicit subcommand selection only supported with tyro backend")
+
+    @dataclasses.dataclass
+    class ModeA:
+        a_value: int = tyro.MISSING
+
+    @dataclasses.dataclass
+    class ModeB:
+        b_value: str = tyro.MISSING
+
+    @dataclasses.dataclass
+    class Config:
+        mode: Union[ModeA, ModeB] = dataclasses.field(default_factory=ModeA)
+
+    # Test: Explicit selection first, then args works.
+    assert tyro.cli(
+        Config,
+        args=["mode:mode-a", "--mode.a-value", "42"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Config(mode=ModeA(a_value=42))
+
+    # Test: Args first implicitly selects, then explicit selection fails.
+    with pytest.raises(SystemExit):
+        tyro.cli(
+            Config,
+            args=["--mode.a-value", "42", "mode:mode-a"],
+            config=(tyro.conf.CascadeSubcommandArgs,),
+        )
+
+    # Test: Can't switch to different mode after implicit selection.
+    with pytest.raises(SystemExit):
+        tyro.cli(
+            Config,
+            args=["--mode.a-value", "42", "mode:mode-b"],
+            config=(tyro.conf.CascadeSubcommandArgs,),
+        )
+
+
+def test_implicit_subcommand_selection_nested_no_child_default() -> None:
+    """Test implicit selection when parent has default but child doesn't."""
+    # Implicit subcommand selection only works with tyro backend.
+    if tyro._experimental_options["backend"] != "tyro":
+        pytest.skip("Implicit subcommand selection only supported with tyro backend")
+
+    @dataclasses.dataclass
+    class LeafA:
+        value: int = tyro.MISSING
+
+    @dataclasses.dataclass
+    class LeafB:
+        other: str = tyro.MISSING
+
+    @dataclasses.dataclass
+    class Branch:
+        # No default for leaf - both options are equal.
+        leaf: Union[LeafA, LeafB]
+
+    @dataclasses.dataclass
+    class Root:
+        x: int
+        # But branch has a default.
+        branch: Union[Branch, None] = dataclasses.field(
+            default_factory=lambda: Branch(leaf=LeafA(value=0))
+        )
+
+    # Test: Can still use nested selector to implicitly select parent,
+    # even though child has no default. The nested selector explicitly
+    # chooses the child.
+    assert tyro.cli(
+        Root,
+        args=["--x", "1", "branch.leaf:leaf-a", "--branch.leaf.value", "42"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Root(x=1, branch=Branch(leaf=LeafA(value=42)))
+
+    # Test: Can select the other child option too.
+    assert tyro.cli(
+        Root,
+        args=["--x", "2", "branch.leaf:leaf-b", "--branch.leaf.other", "test"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Root(x=2, branch=Branch(leaf=LeafB(other="test")))
+
+
+def test_implicit_subcommand_selection_with_non_default() -> None:
+    """Test that implicit selection only works for the default subcommand."""
+    # Implicit subcommand selection only works with tyro backend.
+    if tyro._experimental_options["backend"] != "tyro":
+        pytest.skip("Implicit subcommand selection only supported with tyro backend")
+
+    @dataclasses.dataclass
+    class ModeA:
+        a_value: int = tyro.MISSING
+
+    @dataclasses.dataclass
+    class ModeB:
+        b_value: str = tyro.MISSING
+
+    @dataclasses.dataclass
+    class Config:
+        # ModeB is default, so only ModeB args can implicitly select.
+        mode: Union[ModeA, ModeB] = dataclasses.field(default_factory=ModeB)
+
+    # Test: ModeB args implicitly select ModeB.
+    assert tyro.cli(
+        Config,
+        args=["--mode.b-value", "test"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Config(mode=ModeB(b_value="test"))
+
+    # Test: ModeA args don't implicitly select (no default for ModeA).
+    # This should fail because --mode.a-value is unrecognized.
+    with pytest.raises(SystemExit):
+        tyro.cli(
+            Config,
+            args=["--mode.a-value", "42"],
+            config=(tyro.conf.CascadeSubcommandArgs,),
+        )
+
+    # Test: Must explicitly select ModeA first.
+    assert tyro.cli(
+        Config,
+        args=["mode:mode-a", "--mode.a-value", "42"],
+        config=(tyro.conf.CascadeSubcommandArgs,),
+    ) == Config(mode=ModeA(a_value=42))
+
+
+def test_field_equality_same_type_different_values() -> None:
+    """Test subcommand matching when types are identical but field values differ.
+
+    This is the key case: both subcommands have the same structure, but different
+    configured defaults. The matcher should pick the subcommand whose configured
+    default has more matching field values.
+    """
+
+    @dataclasses.dataclass
+    class SharedConfig:
+        x: int = 0
+        y: int = 0
+        z: int = 0
+
+    @dataclasses.dataclass
+    class Container:
+        # Two subcommands with identical type but different configured defaults.
+        config: Union[
+            Annotated[
+                SharedConfig,
+                tyro.conf.subcommand("first", default=SharedConfig(x=1, y=2, z=3)),
+            ],
+            Annotated[
+                SharedConfig,
+                tyro.conf.subcommand("second", default=SharedConfig(x=10, y=20, z=30)),
+            ],
+        ]
+
+    # Provided default matches 2/3 fields of "first" (x=1, y=2).
+    # Helptext should show "first" as the default subcommand.
+    helptext = get_helptext_with_checks(
+        Container, default=Container(config=SharedConfig(x=1, y=2, z=999))
+    )
+    assert "default: config:first" in helptext
+
+    # Provided default matches 2/3 fields of "second" (y=20, z=30).
+    # Helptext should show "second" as the default subcommand.
+    helptext = get_helptext_with_checks(
+        Container, default=Container(config=SharedConfig(x=999, y=20, z=30))
+    )
+    assert "default: config:second" in helptext
+
+    # Provided default matches 0 fields of either - first match wins (both score 0).
+    helptext = get_helptext_with_checks(
+        Container, default=Container(config=SharedConfig(x=100, y=200, z=300))
+    )
+    assert "default: config:first" in helptext
+
+
+def test_field_equality_no_configured_default() -> None:
+    """Test matching when a subcommand has no configured default (MISSING).
+
+    Subcommands without configured defaults should score 0 in field matching.
+    """
+
+    @dataclasses.dataclass
+    class ConfigA:
+        x: int = 1
+        y: int = 2
+
+    @dataclasses.dataclass
+    class ConfigB:
+        x: int = 10
+        y: int = 20
+
+    @dataclasses.dataclass
+    class Container:
+        # ConfigA has a configured default, ConfigB does not (no tyro.conf.subcommand).
+        config: Union[
+            Annotated[ConfigA, tyro.conf.subcommand(default=ConfigA(x=1, y=2))],
+            ConfigB,
+        ]
+
+    # Even though values match ConfigB's class defaults, ConfigA has a configured
+    # subcommand default so it should be preferred when field values match.
+    result = tyro.cli(
+        Container,
+        default=Container(config=ConfigA(x=1, y=2)),
+        args=[],
+    )
+    assert isinstance(result.config, ConfigA)
+    assert result.config.x == 1
+    assert result.config.y == 2
+
+
+def test_field_equality_nested_structs() -> None:
+    """Test recursive field counting with nested dataclasses.
+
+    Nested struct fields contribute their own field counts (not normalized).
+    """
+
+    @dataclasses.dataclass
+    class Inner:
+        a: int = 0
+        b: int = 0
+        c: int = 0
+
+    @dataclasses.dataclass
+    class Outer:
+        inner: Inner = dataclasses.field(default_factory=Inner)
+        top_level: int = 0
+
+    @dataclasses.dataclass
+    class Config:
+        outer: Union[
+            Annotated[
+                Outer,
+                tyro.conf.subcommand(
+                    "first",
+                    default=Outer(inner=Inner(a=1, b=1, c=1), top_level=1),
+                ),
+            ],
+            Annotated[
+                Outer,
+                tyro.conf.subcommand(
+                    "second",
+                    default=Outer(inner=Inner(a=100, b=100, c=100), top_level=100),
+                ),
+            ],
+        ]
+
+    # Provided default matches 3 nested fields + 1 top-level = 4 fields of "first".
+    result = tyro.cli(
+        Config,
+        default=Config(outer=Outer(inner=Inner(a=1, b=1, c=1), top_level=1)),
+        args=[],
+    )
+    assert result.outer.inner == Inner(a=1, b=1, c=1)
+    assert result.outer.top_level == 1
+
+    # Provided default matches 2 nested fields of "first" but top_level matches "second".
+    # Total: first=2, second=1. First wins.
+    result = tyro.cli(
+        Config,
+        default=Config(outer=Outer(inner=Inner(a=1, b=1, c=999), top_level=100)),
+        args=[],
+    )
+    assert result.outer.inner == Inner(a=1, b=1, c=999)
+    assert result.outer.top_level == 100
+
+    # Provided default matches 3 nested fields of "second" but top_level matches "first".
+    # Total: first=1, second=3. Second wins.
+    result = tyro.cli(
+        Config,
+        default=Config(outer=Outer(inner=Inner(a=100, b=100, c=100), top_level=1)),
+        args=[],
+    )
+    assert result.outer.inner == Inner(a=100, b=100, c=100)
+    assert result.outer.top_level == 1
+
+
+def test_field_equality_empty_struct() -> None:
+    """Test matching with empty structs (no fields).
+
+    Empty structs should use direct equality comparison.
+    """
+
+    @dataclasses.dataclass
+    class EmptyA:
+        pass
+
+    @dataclasses.dataclass
+    class EmptyB:
+        pass
+
+    @dataclasses.dataclass
+    class Container:
+        config: Union[
+            Annotated[EmptyA, tyro.conf.subcommand(default=EmptyA())],
+            Annotated[EmptyB, tyro.conf.subcommand(default=EmptyB())],
+        ]
+
+    # EmptyA() == EmptyA() so first subcommand matches.
+    result = tyro.cli(
+        Container,
+        default=Container(config=EmptyA()),
+        args=[],
+    )
+    assert isinstance(result.config, EmptyA)
+
+    # EmptyB type -> matches second.
+    result = tyro.cli(
+        Container,
+        default=Container(config=EmptyB()),
+        args=[],
+    )
+    assert isinstance(result.config, EmptyB)
+
+
+def test_field_equality_single_compatible_subcommand() -> None:
+    """Test fast path when only one subcommand is type-compatible.
+
+    When only one subcommand matches the type, field counting is skipped
+    (except for argparse backend which always computes for error checking).
+    """
+
+    @dataclasses.dataclass
+    class ConfigA:
+        x: int = 1
+
+    @dataclasses.dataclass
+    class ConfigB:
+        y: str = "hello"  # Different field name and type.
+
+    @dataclasses.dataclass
+    class Container:
+        config: Union[
+            Annotated[ConfigA, tyro.conf.subcommand(default=ConfigA(x=1))],
+            Annotated[ConfigB, tyro.conf.subcommand(default=ConfigB(y="hello"))],
+        ]
+
+    # Only ConfigA is type-compatible.
+    result = tyro.cli(
+        Container,
+        default=Container(config=ConfigA(x=999)),
+        args=[],
+    )
+    assert isinstance(result.config, ConfigA)
+    assert result.config.x == 999
+
+
+def test_field_equality_different_field_names() -> None:
+    """Test matching when subcommands have different field names.
+
+    Fields that exist in the default but not in the subcommand's configured
+    default are skipped during field counting.
+    """
+
+    @dataclasses.dataclass
+    class ConfigA:
+        shared: int = 0
+        only_a: int = 1
+
+    @dataclasses.dataclass
+    class ConfigB:
+        shared: int = 0
+        only_b: int = 2
+
+    @dataclasses.dataclass
+    class Container:
+        config: Union[
+            Annotated[
+                ConfigA, tyro.conf.subcommand(default=ConfigA(shared=10, only_a=1))
+            ],
+            Annotated[
+                ConfigB, tyro.conf.subcommand(default=ConfigB(shared=20, only_b=2))
+            ],
+        ]
+
+    # Default matches ConfigA's shared field.
+    result = tyro.cli(
+        Container,
+        default=Container(config=ConfigA(shared=10, only_a=999)),
+        args=[],
+    )
+    assert isinstance(result.config, ConfigA)
+    assert result.config.shared == 10
+
+    # Default matches ConfigB's shared field.
+    result = tyro.cli(
+        Container,
+        default=Container(config=ConfigB(shared=20, only_b=999)),
+        args=[],
+    )
+    assert isinstance(result.config, ConfigB)
+    assert result.config.shared == 20
+
+
+def test_field_equality_uncomparable_values() -> None:
+    """Test matching when field values raise exceptions during comparison.
+
+    Some objects may raise exceptions in __eq__. The matcher should handle
+    this gracefully by treating the comparison as non-matching.
+    """
+
+    class UncomparableValue:
+        """A value that raises an exception when compared."""
+
+        def __eq__(self, other: object) -> bool:
+            raise ValueError("Cannot compare")
+
+    @dataclasses.dataclass
+    class ConfigA:
+        x: int = 1
+        y: int = 2
+
+    @dataclasses.dataclass
+    class ConfigB:
+        x: int = 10
+        y: int = 20
+
+    @dataclasses.dataclass
+    class Container:
+        config: Union[
+            Annotated[ConfigA, tyro.conf.subcommand(default=ConfigA(x=1, y=2))],
+            Annotated[ConfigB, tyro.conf.subcommand(default=ConfigB(x=10, y=20))],
+        ]
+
+    # Even with comparable values, matching should work.
+    result = tyro.cli(
+        Container,
+        default=Container(config=ConfigA(x=1, y=2)),
+        args=[],
+    )
+    assert isinstance(result.config, ConfigA)
+    assert result.config.x == 1
+
+
+def test_field_equality_missing_nested_fields() -> None:
+    """Test matching when nested default has fields not present in subcommand defaults.
+
+    This happens when the default instance is a subclass with extra fields that
+    the configured subcommand default doesn't have. The extra fields should be
+    skipped during field counting (they contribute 0 to the match).
+    """
+
+    @dataclasses.dataclass
+    class BaseInner:
+        a: int = 0
+
+    @dataclasses.dataclass
+    class ExtendedInner(BaseInner):
+        extra: str = "default"
+
+    @dataclasses.dataclass
+    class Outer:
+        # Type is BaseInner, but we can pass ExtendedInner instances.
+        inner: BaseInner = dataclasses.field(default_factory=BaseInner)
+        x: int = 0
+
+    @dataclasses.dataclass
+    class Config:
+        outer: Union[
+            Annotated[
+                Outer,
+                tyro.conf.subcommand("first", default=Outer(inner=BaseInner(a=1), x=1)),
+            ],
+            Annotated[
+                Outer,
+                tyro.conf.subcommand(
+                    "second", default=Outer(inner=BaseInner(a=100), x=100)
+                ),
+            ],
+        ]
+
+    # Pass ExtendedInner which has an 'extra' field that BaseInner doesn't have.
+    # When counting fields, 'extra' should be skipped since it doesn't exist in
+    # the subcommand's configured default.
+    # Match: inner.a=1 matches first, x=1 matches first -> first wins.
+    helptext = get_helptext_with_checks(
+        Config,
+        default=Config(outer=Outer(inner=ExtendedInner(a=1, extra="custom"), x=1)),
+    )
+    assert "default: outer:first" in helptext
+
+    # Match: inner.a=100 matches second, x=100 matches second -> second wins.
+    helptext = get_helptext_with_checks(
+        Config,
+        default=Config(outer=Outer(inner=ExtendedInner(a=100, extra="custom"), x=100)),
+    )
+    assert "default: outer:second" in helptext
+
+
+def test_field_equality_nested_union_fields() -> None:
+    """Test matching with nested union fields that would generate subcommands.
+
+    The _count_matching_fields function uses ParserSpecification with
+    AvoidSubcommands to handle nested unions correctly.
+    """
+
+    @dataclasses.dataclass
+    class InnerA:
+        a: int = 0
+
+    @dataclasses.dataclass
+    class InnerB:
+        b: int = 0
+
+    @dataclasses.dataclass
+    class Outer:
+        # This union field would normally generate subcommands.
+        inner: Union[InnerA, InnerB] = dataclasses.field(default_factory=InnerA)
+        x: int = 0
+
+    @dataclasses.dataclass
+    class Config:
+        outer: Union[
+            Annotated[
+                Outer,
+                tyro.conf.subcommand("first", default=Outer(inner=InnerA(a=1), x=1)),
+            ],
+            Annotated[
+                Outer,
+                tyro.conf.subcommand(
+                    "second", default=Outer(inner=InnerA(a=100), x=100)
+                ),
+            ],
+        ]
+
+    # Provided default matches first's inner.a and x.
+    helptext = get_helptext_with_checks(
+        Config,
+        default=Config(outer=Outer(inner=InnerA(a=1), x=1)),
+    )
+    assert "default: outer:first" in helptext
+
+    # Provided default matches second's inner.a and x.
+    helptext = get_helptext_with_checks(
+        Config,
+        default=Config(outer=Outer(inner=InnerA(a=100), x=100)),
+    )
+    assert "default: outer:second" in helptext
+
+    # Mixed: inner matches first, x matches second.
+    # Both have 2 matching argument names. Tie-break by value: first=1, second=1.
+    # First wins due to iteration order.
+    helptext = get_helptext_with_checks(
+        Config,
+        default=Config(outer=Outer(inner=InnerA(a=1), x=100)),
+    )
+    assert "default: outer:first" in helptext
+
+
+def test_field_equality_nested_union_different_variants() -> None:
+    """Test matching when nested union has different variant types."""
+
+    @dataclasses.dataclass
+    class InnerA:
+        a: int = 0
+
+    @dataclasses.dataclass
+    class InnerB:
+        b: int = 0
+
+    @dataclasses.dataclass
+    class Outer:
+        inner: Union[InnerA, InnerB] = dataclasses.field(default_factory=InnerA)
+        x: int = 0
+
+    @dataclasses.dataclass
+    class Config:
+        outer: Union[
+            Annotated[
+                Outer,
+                tyro.conf.subcommand("first", default=Outer(inner=InnerA(a=1), x=1)),
+            ],
+            Annotated[
+                Outer,
+                tyro.conf.subcommand(
+                    "second", default=Outer(inner=InnerB(b=100), x=100)
+                ),
+            ],
+        ]
+
+    # Using InnerA variant - should match first (has inner.a field).
+    helptext = get_helptext_with_checks(
+        Config,
+        default=Config(outer=Outer(inner=InnerA(a=1), x=1)),
+    )
+    assert "default: outer:first" in helptext
+
+    # Using InnerB variant - should match second (has inner.b field).
+    helptext = get_helptext_with_checks(
+        Config,
+        default=Config(outer=Outer(inner=InnerB(b=100), x=100)),
+    )
+    assert "default: outer:second" in helptext
+
+
+def test_new_subcommand_for_defaults_creates_default() -> None:
+    """Test that NewSubcommandForDefaults creates a 'default' subcommand."""
+
+    @dataclasses.dataclass
+    class PlaneConfig:
+        height: float = 0.0
+
+    @dataclasses.dataclass
+    class MixedConfig:
+        ratio: float = 0.5
+
+    @dataclasses.dataclass
+    class Config:
+        terrain: tyro.conf.NewSubcommandForDefaults[Union[PlaneConfig, MixedConfig]] = (
+            dataclasses.field(default_factory=lambda: PlaneConfig(height=5.0))
+        )
+
+    # Default subcommand selected when no args.
+    result = tyro.cli(Config, args=[])
+    assert result.terrain == PlaneConfig(height=5.0)
+
+    # Can explicitly select the default subcommand.
+    result = tyro.cli(Config, args=["terrain:default"])
+    assert result.terrain == PlaneConfig(height=5.0)
+
+
+def test_new_subcommand_for_defaults_preserves_originals() -> None:
+    """Test that original subcommand defaults are preserved."""
+
+    @dataclasses.dataclass
+    class PlaneConfig:
+        height: float = 0.0
+
+    @dataclasses.dataclass
+    class MixedConfig:
+        ratio: float = 0.5
+
+    @dataclasses.dataclass
+    class Config:
+        terrain: tyro.conf.NewSubcommandForDefaults[
+            Union[
+                Annotated[
+                    PlaneConfig, tyro.conf.subcommand(default=PlaneConfig(height=0.0))
+                ],
+                MixedConfig,
+            ]
+        ] = dataclasses.field(default_factory=lambda: PlaneConfig(height=99.0))
+
+    # Selecting plane-config should use its original default (0.0).
+    result = tyro.cli(Config, args=["terrain:plane-config"])
+    assert isinstance(result.terrain, PlaneConfig)
+    assert result.terrain.height == 0.0
+
+    # Selecting default should use field default (99.0).
+    result = tyro.cli(Config, args=["terrain:default"])
+    assert isinstance(result.terrain, PlaneConfig)
+    assert result.terrain.height == 99.0
+
+
+def test_new_subcommand_for_defaults_with_omit_prefix() -> None:
+    """Test interaction with OmitSubcommandPrefixes."""
+
+    @dataclasses.dataclass
+    class PlaneConfig:
+        height: float = 0.0
+
+    @dataclasses.dataclass
+    class MixedConfig:
+        ratio: float = 0.5
+
+    @dataclasses.dataclass
+    class Config:
+        terrain: tyro.conf.NewSubcommandForDefaults[
+            tyro.conf.OmitSubcommandPrefixes[Union[PlaneConfig, MixedConfig]]
+        ] = dataclasses.field(default_factory=lambda: PlaneConfig(height=5.0))
+
+    # Should be able to use "default" without prefix.
+    result = tyro.cli(Config, args=["default"])
+    assert result.terrain == PlaneConfig(height=5.0)
+
+    # And use "plane-config" without prefix.
+    result = tyro.cli(Config, args=["plane-config"])
+    assert result.terrain == PlaneConfig(height=0.0)
