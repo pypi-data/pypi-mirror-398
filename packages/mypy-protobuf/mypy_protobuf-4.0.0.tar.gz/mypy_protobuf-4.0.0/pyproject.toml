@@ -1,0 +1,47 @@
+[build-system]
+requires = [
+    "setuptools>=42",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+extend-exclude = "(_pb2.py$|_pb2_grpc.py$)"
+# We don't care about line length for generated code
+line-length = 10000
+
+[tool.isort]
+profile = "black"
+skip_gitignore = true
+extend_skip_glob = ["*_pb2.py", "*_pb2_grpc.py"]
+
+[tool.mypy]
+strict = true
+show_error_codes = true
+enable_error_code = ["deprecated"]
+
+[tool.pyright]
+venvPath = "."
+venv = "venv_3.14.0"
+# verboseOutput = true
+extraPaths = ["test/generated"]
+include = [
+    "mypy_protobuf/",
+    "test/"
+]
+exclude = [
+    "**/*_pb2.py",
+    "**/*_pb2_grpc.py",
+    "test/test_concrete.py",
+]
+
+executionEnvironments = [
+    # Due to how upb is typed, we need to disable incompatible variable override checks
+    { root = "test/generated", extraPaths = ["./"], reportIncompatibleVariableOverride = "none" },
+    { root = "test/generated_concrete", extraPaths = ["./"], reportIncompatibleVariableOverride = "none" },
+    { root = "test/generated_sync_only", extraPaths = ["./"], reportIncompatibleVariableOverride = "none" },
+    { root = "test/generated_async_only", extraPaths = ["./"], reportIncompatibleVariableOverride = "none" },
+    { root = "mypy_protobuf/extensions_pb2.pyi", reportIncompatibleVariableOverride = "none" },
+    { root = "test/async_only", extraPaths = ["test/generated_async_only"] },
+    { root = "test/sync_only", extraPaths = ["test/generated_sync_only"] },
+]
