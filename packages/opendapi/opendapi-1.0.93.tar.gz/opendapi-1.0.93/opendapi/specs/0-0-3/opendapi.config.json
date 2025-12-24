@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opendapi.org/spec/0-0-3/opendapi.config.json",
+  "$defs": {
+    "dapi_runtime_config": {
+      "type": "object",
+      "properties": {
+          "integrations": {
+              "type": "array",
+              "items": {
+                  "$ref": "#/$defs/integration"
+              },
+              "minItems": 1,
+              "description": "List of fields in this data."
+          }
+      },
+      "description": "Integrations and settings for the DAPI file for the runtime",
+      "title": ".dapi.yaml setup configurations for runtime"
+    },
+    "model_allowlist": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "description": "A regex pattern to allowlist or denylist models to document by their name, or filepath (using path: prefix). Use !pattern or !path:pattern for negation/denylisting.",
+        "examples": ["^users$", "^businesses", ".*_staging$", "path:\/marts\/", "path:prisma\/", "!^temp_", "!path:\/staging\/"],
+        "minLength": 1
+      },
+      "description": "List of regex patterns to allowlist/denylist models in the integration. Empty means all models are allowlisted. Negation patterns (starting with !) take precedence over allowlist patterns."
+    },
+    "include_selector": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "description": "Include and exclude selectors for select projects, models, etc.",
+        "examples": ["regex:^users", "regex:path:.*/models/marts/.*", "exclude:path:.*/models/marts/staging/.*", "prefix:file:projects.txt"]
+      },
+      "description": "List of selectors to include projects or models by using grammar [exclude|!]? [prefix|regex|strict]? [name|path]? [file]? value"
+    },
+    "playbook": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "add_source_datastore",
+              "description": "Add a source datastore to the dataset DAPI"
+            },
+            "datastore_urn": {
+              "type": "string",
+              "description": "The URN of the source datastore to add to the dataset DAPI",
+              "examples": ["my_company.datastores.mysql"]
+            },
+            "namespace": {
+              "type": ["string", "null"],
+              "description": "The database or schema of the source datastore to add to the dataset DAPI",
+              "examples": ["my_database.public", "my_schema"]
+            },
+            "identifier_prefix": {
+              "type": ["string", "null"],
+              "description": "The prefix to add to the table_name to identify the dataset in the source datastore",
+              "examples": ["production_", "staging_"]
+            },
+            "name_transform": {
+              "type": ["string", "null"],
+              "description": "The name transform to apply to the entity name",
+              "examples": ["snake_case", "camel_case", "pascal_case", "fivetran_snake_case"]
+            }
+          },
+          "required": ["type", "datastore_urn"],
+          "description": "Add a source datastore to the dataset DAPI"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "add_sink_datastore",
+              "description": "Add a sink datastore to the dataset DAPI"
+            },
+            "datastore_urn": {
+              "type": "string",
+              "description": "The URN of the sink datastore to add to the dataset DAPI",
+              "examples": ["my_company.datastores.snowflake"]
+            },
+            "namespace": {
+              "type": ["string", "null"],
+              "description": "The database or schema of the sink datastore to add to the dataset DAPI",
+              "examples": ["my_database.public", "my_schema"]
+            },
+            "identifier_prefix": {
+              "type": ["string", "null"],
+              "description": "The prefix to add to the table_name to identify the dataset in the sink datastore",
+              "examples": ["production_", "staging_"]
+            },
+            "name_transform": {
+              "type": ["string", "null"],
+              "description": "The name transform to apply to the entity name",
+              "examples": ["snake_case", "camel_case", "pascal_case", "fivetran_snake_case"]
+            }
+          },
+          "required": ["type", "datastore_urn"],
+          "description": "Add a sink datastore to the dataset DAPI"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "add_owner_team",
+              "description": "Add a team to the dataset DAPI based on a rule"
+            },
+            "model_allowlist": {
+              "$ref": "#/$defs/model_allowlist",
+              "description": "List of regex patterns to assign to this team. Empty means all models are allowlisted"
+            },
+            "team_urn": {
+              "type": "string",
+              "description": "The URN of the team to add to the dataset DAPI",
+              "examples": ["my_company.teams.data_engineering"]
+            }
+          },
+          "required": ["type", "team_urn"],
+          "description": "Add a team to the dataset DAPI based on a regex pattern of model name"
+        }
+      ]
+    },
+    "integration": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "activerecord",
+            "alembic",
+            "dbt",
+            "liquibase",
+            "prisma",
+            "protobuf",
+            "pynamodb",
+            "pyiceberg",
+            "sequelize",
+            "sqlalchemy",
+            "typeorm"
+          ]
+        },
+        "projects": {
+          "type": "object",
+          "properties": {
+            "include_all": {
+              "type": "boolean",
+              "default": false,
+              "description": "Automatically add all projects in the repository"
+            },
+            "include_projects": {
+              "$ref": "#/$defs/include_selector",
+              "description": "List of selectors to choose which projects to include for DAPI management"
+            },
+            "artifact_path": {
+              "type": ["string", "null"],
+              "description": "Integration specific path to any artifact file or directory relative to this configuration file",
+              "default": null
+            },
+            "dialect": {
+              "type": "string",
+              "enum": ["mysql", "postgres", "sqlite"],
+              "description": "The dialect of the database to use for this integration, required for alembic and liquibase integrations"
+            },
+            "include_models": {
+              "$ref": "#/$defs/include_selector",
+              "description": "List of selectors to choose which models to include for DAPI management"
+            },
+            "overrides": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "project_path": {
+                    "type": "string",
+                    "description": "The path to the application relative to this configuration file",
+                    "examples": ["path/to/my_app"]
+                  },
+                  "artifact_path": {
+                    "type": ["string", "null"],
+                    "description": "Integration specific path to any artifact file or directory relative to this configuration file",
+                    "default": null
+                  },
+                  "dialect": {
+                    "type": "string",
+                    "enum": ["mysql", "postgres", "sqlite"],
+                    "description": "The dialect of the database to use for this integration and this specific project, defaults to the dialect specified in the integration"
+                  },
+                  "include_models": {
+                    "$ref": "#/$defs/include_selector",
+                    "description": "List of selectors to choose which models to include for DAPI management"
+                  },
+                  "playbooks": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/playbook"
+                    },
+                    "description": "List of playbooks to run for this application"
+                  },
+                  "model_allowlist": {
+                    "$ref": "#/$defs/model_allowlist",
+                    "description": "List of regex patterns to allowlist project models. Empty means all models are allowlisted"
+                  }
+                },
+                "required": ["project_path"],
+                "description": "Allowlist and/or override configurations for specific projects"
+              }
+            }
+          },
+          "anyOf": [
+            {
+              "required": ["include_all"]
+            },
+            {
+              "required": ["include_projects"]
+            }
+          ],
+          "description": "Identify projects"
+        }
+      },
+      "required": ["type", "projects"],
+      "description": "Schema definition integration"
+    }
+  },
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string",
+      "format": "uri",
+      "default": "https://opendapi.org/spec/0-0-2/opendapi.config.json",
+      "description": "The URI schema version for this data",
+      "examples": ["https://opendapi.org/spec/0-0-2/opendapi.config.json"]
+    },
+    "organization": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the organization",
+          "examples": ["Woven"]
+        },
+        "email_domain": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9-]+(\\.[a-zA-Z0-9-]+)*\\.[a-zA-Z]{2,}$",
+          "description": "The email domain for the organization",
+          "examples": ["wovencollab.com", "google.co"]
+        }
+      },
+      "required": ["name", "email_domain"]
+    },
+    "repository": {
+      "type": "object",
+      "properties": {
+        "urn": {
+          "type": "string",
+          "pattern": "^([\\w-]+[.:/])+[\\w-]+$",
+          "description": "Unique key for this repository. Must be unique within the organization",
+          "examples": ["github:org_name/my_repo"]
+        },
+        "mainline_branch": {
+          "type": "string",
+          "description": "The mainline branch of the repository",
+          "default": "main",
+          "examples": ["main", "master"]
+        },
+        "integration_mode": {
+          "type": "string",
+          "enum": ["active", "observability"],
+          "description": "The integration mode to use for this repository"
+        }
+      },
+      "required": ["urn", "mainline_branch"],
+      "description": "Github Repository settings",
+      "title": "Git Repository settings"
+    },
+    "dapis": {
+      "type": "object",
+      "properties": {
+          "runtimes": {
+              "type": "object",
+              "minProperties": 1,
+              "patternProperties": {
+                "^[a-zA-Z0-9._-]+$": {
+                  "$ref": "#/$defs/dapi_runtime_config",
+                  "description": "Config for the specific runtime"
+                }
+              },
+              "additionalProperties": false,
+              "description": "Configs for the various runtimes, keyed by runtime name"
+          }
+      },
+      "required": ["runtimes"],
+      "description": "Integrations and settings for the DAPI file, across various runtimes",
+      "title": ".dapi.yaml setup configurations"
+    }
+  },
+  "required": ["schema", "organization", "dapis", "repository"],
+  "description": "Configures this github repo for use with the OpenDAPI specification",
+  "title": "OpenDAPI configuration specification"
+}

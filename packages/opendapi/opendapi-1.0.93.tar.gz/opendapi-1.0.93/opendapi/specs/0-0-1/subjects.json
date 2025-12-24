@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opendapi.org/spec/0-0-1/subjects.json",
+  "$defs": {
+    "single_subject_to_category": {
+      "type": "object",
+      "description": "A single mapping between a data subject and a data category.",
+      "properties": {
+        "category_urn": {
+          "type": "string",
+          "pattern":"^[\\w.-]+$",
+          "order": 1,
+          "description": "The URN of the category of data that is valid to be associated with the data subject.",
+          "examples": [
+            "person.identificatier.ssn",
+            "system.authentication.apikey"
+          ]
+        },
+        "sensitivity_level": {
+          "type": "string",
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted",
+            "classified"
+          ],
+          "order": 2,
+          "description": "The sensitivity level of the data as a function of the data category when applied to the data subject."
+        },
+        "is_personal_data": {
+          "type": "boolean",
+          "order": 3,
+          "description": "A boolean describing if this category of data, when applied to this subject, constitutes personal data."
+        },
+        "is_direct_identifier": {
+          "type": "boolean",
+          "order": 4,
+          "description": "A 'direct identifier' is personal data that can be used to 'uniquely identify a specific individual'; personal data that is NOT a 'direct identifier' can still be used in conjunction with other data to uniquely identify a specific individual. This field is a descriptor of personal data fields only (i.e., where 'is_personal_data' is true); a field that is NOT personal data will, by definition, NOT be a direct identifier."
+        },
+        "is_proprietary": {
+          "type": "boolean",
+          "order": 5,
+          "default": false,
+          "description": "A boolean describing if this category of data, when applied to this subject, constitutes proprietary data."
+        }
+      },
+      "required": ["category_urn", "sensitivity_level", "is_personal_data", "is_direct_identifier"]
+    },
+    "subject": {
+      "type": "object",
+      "description": "Information pertaining to a single data subject.",
+      "properties": {
+        "urn": {
+          "type": "string",
+          "pattern": "^[\\w.-]+$",
+          "order": 1,
+          "description": "The org-wide unique identifier for the data subject.",
+          "examples": [
+            "employee",
+            "customer",
+            "vendor"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "order": 2,
+          "description": "A UI-friendly label for the data subject.",
+          "examples": [
+            "employee",
+            "customer",
+            "vendor"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "order": 3,
+          "description": "A human-readable description of the data subject.",
+          "examples": [
+            "An individual who is employed by Woven.",
+            "An individual who has purchased a product from Woven.",
+            "A company that provides goods or services to Woven."
+          ]
+        },
+        "category_mapping": {
+          "type": "array",
+          "order": 4,
+          "description": "A list describing which data categories are valid/make sense to be associated with this data subject, and the derived values ('sensitivity_level', etc.) that result from each allowed subject/category combination.",
+          "items": { "$ref": "#/$defs/single_subject_to_category" }
+        },
+        "includes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "description": "Business-specific example of an entity that falls under this subject.",
+            "examples": ["customer", "employee", "vendor"]
+          },
+          "description": "Ordered list of examples of entities that fall under this subject.",
+          "order": 5
+        },
+        "excludes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "description": "Business-specific example of an entity that does not fall under this subject.",
+            "examples": ["customer", "employee", "vendor"]
+          },
+          "description": "Ordered list of examples of entities that do not fall under this subject.",
+          "order": 6
+        }
+      },
+      "required": ["urn", "label", "description", "category_mapping"]
+    }
+  },
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string",
+      "format": "uri",
+      "order": 1,
+      "default": "https://opendapi.org/spec/0-0-1/subjects.json",
+      "description": "The URI schema version for this data",
+      "examples": ["https://opendapi.org/spec/0-0-1/subjects.json"]
+    },
+    "subjects": {
+      "type": "array",
+      "order": 2,
+      "items": { "$ref": "#/$defs/subject" },
+      "description": "List of data subjects that are relevant to the organization."
+    }
+  },
+  "required": ["schema", "subjects"],
+  "description": "Definitions of the data subjects that are used in the organization.",
+  "title": "Data Subject Definitions"
+}

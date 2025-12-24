@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opendapi.org/spec/0-0-1/datastores.json",
+  "$defs": {
+    "replication_config": {
+      "type": "object",
+      "description": "The replication config for a single sink that is allowed to be replicated to from this datastore",
+      "properties": {
+        "urn": {
+          "type": "string",
+          "pattern": "^[\\w.-_]+$",
+          "description": "The urn for the replication config.",
+          "order": 1
+        },
+        "identifier_prefix": {
+          "type": ["string", "null"],
+          "description": "The identifier prefix for the replication config.",
+          "examples": ["PRODUCTION-", "STAGING_"],
+          "order": 2
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Identifies the namespace for this dataset in this datastore, if any",
+          "examples": ["database_name.schema_name", "prefix", "topic_name"],
+          "order": 3
+        },
+        "replication_mechanism": {
+          "type": "string",
+          "description": "The replication mechanism used to replicate from the origin to this sink.",
+          "enum": ["fivetran", "other"],
+          "order": 4
+        },
+        "freshness": {
+          "type": "string",
+          "description": "Time for data to become accessible in this datastore",
+          "enum": ["one_minute", "five_minutes", "fifteen_minutes", "thirty_minutes", "one_hour", "two_hours", "three_hours", "six_hours", "eight_hours", "twelve_hours"],
+          "order": 5
+        },
+        "rationale": {
+          "type": "string",
+          "description": "The rationale for the replication config.",
+          "order": 6
+        },
+        "label": {
+          "type": "string",
+          "description": "The label for the replication config.",
+          "examples": ["Production Fivetran Daily", "Staging Hourly"],
+          "order": 7
+        },
+        "is_default": {
+          "type": "boolean",
+          "description": "Whether this is the default replication config.",
+          "order": 8
+        },
+        "name_transform": {
+          "type": "string",
+          "description": "The name transform for the replication config.",
+          "enum": ["snake_case", "camel_case", "pascal_case", "fivetran_snake_case"],
+          "order": 9
+        },
+        "includes": {
+          "type": "string",
+          "description": "The includes for the replication config.",
+          "examples": [".*", ".*Event.*"],
+          "order": 10
+        },
+        "excludes": {
+          "type": "string",
+          "description": "The excludes for the replication config.",
+          "examples": [".*Snapshot.*"],
+          "order": 11
+        },
+        "scope": {
+          "type": "string",
+          "description": "What actions Woven can take for this replication setup",
+          "enum": ["enable_replication", "disable_replication", "fully_manage", "do_not_manage"],
+          "order": 12
+        },
+        "exclude_dapi_urns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The URNS of the DAPIs for which Woven should skip affecting their replication status",
+          "order": 13
+        }
+      },
+      "required": ["urn", "replication_mechanism", "is_default", "label", "rationale", "freshness"]
+    },
+    "allowed_sink": {
+      "type": "object",
+      "description": "The configuration for a single sink that is allowed to be replicated to from this datastore",
+      "properties": {
+        "sink_urn": {
+          "type": "string",
+          "description": "The sink datastore urn.",
+          "order": 1
+        },
+        "replication_configs": {
+          "type": "array",
+          "description": "The replication configs for the allowed sink.",
+          "items": { "$ref": "#/$defs/replication_config" },
+          "minItems": 1,
+          "order": 2
+        }
+      },
+      "required": ["sink_urn", "replication_configs"]
+    },
+    "host": {
+      "type": "object",
+      "description": "Datastore host details.",
+      "properties": {
+        "location": {
+          "type": "string",
+          "order": 1,
+          "description": "Host location for the datastore, with optional port",
+          "examples": [
+            "org_name-acmeprod.snowflakecomputing.com",
+            "cluster_1.rds.amazonaws.com:3306",
+            "s3_bucket_name.s3.amazonaws.com",
+            "bigquery_project_id.gcp_region.cloud.google.com",
+            "examplecluster.cluster_id.us-west-2.redshift.amazonaws.com:5439",
+            "dynamodb.us-west-2.amazonaws.com"
+          ]
+        },
+        "username": {
+          "order": 2,
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^plaintext:.+",
+              "description": "The plaintext username for the datastore.",
+              "examples": ["plaintext:my_username"]
+            },
+            {
+              "type": "string",
+              "pattern": "^encrypted:.+",
+              "description": "The username for the datastore that is encrypted by the DAPI server public key",
+              "examples": ["encrypted:abc123"]
+            },
+            {
+              "type": "string",
+              "pattern": "^aws_secretsmanager:.+",
+              "description": "The ARN of the secrets manager secret that contains the username for the datastore.",
+              "examples": ["aws_secretsmanager:arn:aws:secretsmanager:us-west-2:123456789012:secret:MySecret"]
+            }
+          ]
+        },
+        "password": {
+          "order": 3,
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^encrypted:.+",
+              "description": "The password for the datastore that is encrypted by the DAPI server public key",
+              "examples": ["encrypted:abc123"]
+            },
+            {
+              "type": "string",
+              "pattern": "^aws_secretsmanager:.+",
+              "description": "The ARN of the secrets manager secret that contains the password for the datastore.",
+              "examples": ["aws_secretsmanager:arn:aws:secretsmanager:us-west-2:123456789012:secret:MySecret"]
+            }
+          ]
+        },
+        "private_key": {
+          "order": 4,
+          "type": "string",
+          "pattern": "^aws_secretsmanager:.+",
+          "description": "The ARN of the secrets manager secret that contains the private key for the datastore.",
+          "examples": ["aws_secretsmanager:arn:aws:secretsmanager:us-west-2:123456789012:secret:MySecret"]
+        },
+        "private_key_passphrase": {
+          "order": 5,
+          "type": "string",
+          "pattern": "^aws_secretsmanager:.+",
+          "description": "The ARN of the secrets manager secret that contains the passphrase for the private key for the datastore.",
+          "examples": ["aws_secretsmanager:arn:aws:secretsmanager:us-west-2:123456789012:secret:MySecret"]
+        }
+      },
+      "dependentRequired": {
+        "password": ["username"],
+        "private_key": ["username"],
+        "private_key_passphrase": ["private_key"]
+      },
+      "required": ["location"]
+    },
+    "datastore": {
+      "type": "object",
+      "properties": {
+        "urn": {
+          "type": "string",
+          "order": 1,
+          "pattern": "^([\\w-]+\\.)+[\\w-]+$",
+          "description": "The URN (Uniform Resource Name) for this datastore.",
+          "examples": ["company.datastore_name.account_name", "acme.snowflake.acme_aws", "acme.mysql.cluster_1"]
+        },
+        "type": {
+          "type": "string",
+          "order": 2,
+          "description": "The type of datastore.",
+          "enum": ["mysql", "postgres", "dynamodb", "snowflake", "mongodb", "redshift", "iceberg", "bigquery", "athena", "google_cloud_postgresql"]
+        },
+        "host": {
+          "type": "object",
+          "description": "Details of the datastore host.",
+          "order": 3,
+          "properties": {
+            "env_prod": {
+              "$ref": "#/$defs/host",
+              "description": "Production host details for this datastore."
+            }
+          },
+          "patternProperties":{
+            "^env_": {
+              "$ref": "#/$defs/host",
+              "description": "Host details for a specific environment, e.g. env_prod, env_staging, env_dev, etc."
+            }
+          },
+          "required": ["env_prod"]
+        },
+        "allowed_sinks": {
+          "type": "array",
+          "description": "The allowed sinks for this datastore.",
+          "items": { "$ref": "#/$defs/allowed_sink" },
+          "minItems": 1,
+          "order": 4
+        }
+      },
+      "required": ["urn", "type"],
+      "description": "Data store information for this DAPI"
+    }
+  },
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string",
+      "format": "uri",
+      "order": 1,
+      "default": "https://opendapi.org/spec/0-0-1/datastores.json",
+      "description": "The URI schema version for this data",
+      "examples": ["https://opendapi.org/spec/0-0-1/datastores.json"]
+    },
+    "datastores": {
+      "type": "array",
+      "order": 2,
+      "items": { "$ref": "#/$defs/datastore" },
+      "description": "Datastores that are used in the organization"
+    }
+  },
+  "required": ["schema", "datastores"],
+  "description": "Configuration of datastores that are used in the organization.",
+  "title": "Datastore configurations"
+}
