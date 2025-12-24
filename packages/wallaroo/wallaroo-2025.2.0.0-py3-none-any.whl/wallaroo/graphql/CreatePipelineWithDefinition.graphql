@@ -1,0 +1,27 @@
+mutation CreatePipelineWithDefinition(
+    $pipeline_id: String!,
+    $definition: jsonb!,
+    $visibility: String,
+    $workspace_id: bigint!
+) {
+    insert_pipeline(
+        objects: {
+            pipeline_versions: {
+                data: { definition: $definition }
+            }
+            pipeline_id: $pipeline_id
+            visibility: $visibility
+            workspace_id: $workspace_id
+        }
+        on_conflict: {
+            constraint: pipeline_pipeline_id_workspace_id_key,
+            update_columns: [updated_at, visibility]
+        }
+    ) {
+        returning {
+            id,
+            pipeline_versions(order_by: {id: desc}, limit: 1) { id, version }
+        }
+    }
+}
+
