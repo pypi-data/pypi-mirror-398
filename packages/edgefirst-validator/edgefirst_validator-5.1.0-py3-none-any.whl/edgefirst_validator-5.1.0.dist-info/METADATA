@@ -1,0 +1,112 @@
+Metadata-Version: 2.4
+Name: edgefirst-validator
+Version: 5.1.0
+Summary: EdgeFirst Validator
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: tqdm
+Requires-Dist: Pillow
+Requires-Dist: PyYAML
+Requires-Dist: matplotlib
+Requires-Dist: requests
+Requires-Dist: numpy
+Requires-Dist: lmdb
+Requires-Dist: polars
+Requires-Dist: edgefirst-client
+Provides-Extra: keras
+Requires-Dist: tensorflow[and-cuda]; extra == "keras"
+Provides-Extra: onnx
+Requires-Dist: onnxruntime-gpu; extra == "onnx"
+Provides-Extra: tensorrt
+Requires-Dist: tensorrt; extra == "tensorrt"
+Requires-Dist: pycuda; extra == "tensorrt"
+Provides-Extra: tflite
+Requires-Dist: tflite_runtime; extra == "tflite"
+Provides-Extra: studio
+Requires-Dist: tensorflow[and-cuda]; extra == "studio"
+Requires-Dist: onnxruntime-gpu; extra == "studio"
+Requires-Dist: torch; extra == "studio"
+Requires-Dist: torchvision; extra == "studio"
+Requires-Dist: opencv-python-headless; extra == "studio"
+
+# EdgeFirst Validator
+
+This repository contains the Packer configuration, entrypoint script, and the validation implementation used by EdgeFirst Studio to perform validation of Vision (detection, segmentation, multitask) models with support for Keras, ONNX, TensorRT, and TFLite either on the cloud or on target validation. 
+
+## Overview
+- [Changelog](#changelog)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Documentation](#documentation)
+
+## Changelog
+- Nov 26, 2025 [v5.0.0]: Merge Ultralytics and Deployment (EdgeFirst) metrics. Computation of deployment metrics @ optimal thresholds. Defined validation stages.
+- Nov 14, 2025 [v4.2.0]: Added HAL support (TBR). Added Kinara model support. Distinguish semantic and instance segmentation metrics. 
+- Aug 24, 2025 [v4.1.0]: Added ModelPack external decoding. Added Keras support. Added TP vs FP scores chart. Removed +1 padding to the NumPy NMS. 
+- June 16, 2025 [v4.0.0]: EdgeFirst Validator (formerly Deep View Validator) - Ultralytics metrics and EdgeFirst Studio integrations.
+
+## Installation
+
+For on target validation, the system may already contain the dependencies needed to run the model such as `tflite_runtime` for TensorFlow Lite. In such cases, it is recommended to first [create a python virtual environment](https://docs.python.org/3/library/venv.html#creating-virtual-environments) with the `--system-site-packages` option enabled.
+
+EdgeFirst-Validator is available in PyPI and can be installed via pip.
+
+```shell
+pip install edgefirst-validator
+```
+
+Validation of specific models requires these installations which includes the packages needed to run the models, in case the system at present does not contain these packages.
+
+* Keras `pip install edgefirst-validator[keras]`
+* ONNX: `pip install edgefirst-validator[onnx]`
+* TensorRT: `pip install edgefirst-validator[tensorrt]`
+* TFLite: `pip install edgefirst-validator[tflite]`
+
+
+## Usage
+
+1. As a quickstart, deploy default validation of a YOLOv5 model with COCO128 dataset.
+
+    ```shell
+    edgefirst-validator
+    ```
+
+2. Deploy validation as a user-managed session in EdgeFirst Studio. First login with EdgeFirst Client.
+
+    ```shell
+    edgefirst-client login
+    ```
+
+    ```shell
+    edgefirst-validator --session-id <validator session ID>
+    ```
+
+    Otherwise, you can specify the credentials directly.
+
+    ```shell
+    edgefirst-validator --token <token> --session-id <validator session ID>
+    ```
+
+    ```shell
+    edgefirst-validator --username <username> --password <password> --session-id <Validator Session ID>
+    ```
+
+3. Deploy standalone validation.
+
+    ```shell
+    edgefirst-validator <model path> <dataset path>
+    ```
+
+## Documentation
+
+Run the following commands to generate the documentation.
+
+```shell
+cd doc
+pip install -r requirements.txt
+```
+
+```shell
+make clean
+make html
+```
