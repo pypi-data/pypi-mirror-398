@@ -1,0 +1,77 @@
+# TextTable
+
+TextTable is a lightweight Python module that helps developers draw well-formatted
+tables in the console using ASCII or Unicode box-drawing characters.
+
+It is designed for command-line applications where clear tabular output and
+optional pagination are required.
+
+---
+
+## Features
+
+- Draw tables using ASCII or Unicode borders
+- Support for single-line, double-line, and dashed table styles
+- Automatic column width calculation
+- Left, right, and center text alignment
+- Pagination support for large datasets
+- Cross-platform (Windows, Linux, macOS)
+
+---
+
+## Installation
+
+```bash
+pip install pytexttable
+```
+## Basic Usage
+```python
+from TextTable import TextTable,Alignment
+#type could be - or = or + to show table with different line style
+t = TextTable(ttype='=', page_size=10)
+t.set_columns(['Column 1', 'Column 2', 'Column 3'])
+t.head_align = [Alignment.center,Alignment.left,Alignment.right]
+t.cell_align = [Alignment.left,Alignment.center,Alignment.right]
+t.add_row(['Data 1', 'Data 2', 'Data 3'])
+t.add_row(['More', 'Sample', 'Values'])
+#Setting columns width(charachter counts) is optional since TextTable compute column width based on the length of data and column name
+t.columnsw = [30,20,15]
+print(t)
+```
+```text
+output:
+╔══════════════════════════════╦════════════════════╦═══════════════╗
+║           Column 1           ║Column 2            ║       Column 3║
+╠══════════════════════════════╬════════════════════╬═══════════════╣
+║Data 1                        ║       Data 2       ║         Data 3║
+║More                          ║       Sample       ║         Values║
+╚══════════════════════════════╩════════════════════╩═══════════════╝
+```
+## Pagination Example
+```python
+from TextTable import TextTable
+t = TextTable(ttype='-', page_size=5)
+t.set_columns(['ID', 'Name', 'Value'])
+for i in range(20):
+    t.add_row([str(i), f'Item {i}', str(i * 10)])
+t.print_with_pagination()
+```
+```text
+output:
+┌──┬───────┬─────┐
+│ID│Name   │Value│
+├──┼───────┼─────┤
+│10│Item 10│100  │
+│11│Item 11│110  │
+│12│Item 12│120  │
+│13│Item 13│130  │
+│14│Item 14│140  │
+└──┴───────┴─────┘
+```
+## Use keyboard input to navigate:
+
+1 or right/up arrow → Next page
+
+2 or left/down arrow → Previous page
+
+0 / Enter → Exit
