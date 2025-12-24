@@ -1,0 +1,1 @@
+"""Authentication fixtures for testing."""
