@@ -1,0 +1,110 @@
+# This workflow will install Python dependencies, run tests and lint with a single version of Python
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: ${{ matrix.os }}, python ${{ matrix.python-version }}, ${{ matrix.dep-level }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: ["ubuntu-latest", "macos-latest"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        dep-level: ["base", "opt"]
+
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    steps:
+    - uses: actions/checkout@v6
+
+    # We initiate the environment empty, and check if a key for this environment doesn't already exist in the cache
+    - name: Initiate empty environment
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        miniforge-version: latest
+        auto-update-conda: true
+        use-mamba: true
+        channel-priority: strict
+        mamba-version: "2.0.5"
+        activate-environment: geoutils-dev
+        python-version:
+
+    - name: Get month for resetting cache
+      id: get-date
+      run: echo "cache_date=$(/bin/date -u '+%Y%m')" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Cache conda env
+      uses: actions/cache@v5
+      with:
+        path: ${{ env.CONDA }}/envs
+        key: conda-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.dep-level }}-${{ env.cache_date }}-${{ hashFiles('dev-environment.yml') }}-${{ env.CACHE_NUMBER }}
+      env:
+        CACHE_NUMBER: 1 # Increase this value to reset cache if environment.yml has not changed
+      id: cache
+
+    # The trick below is necessary because the generic environment file does not specify a Python version, and ONLY
+    # "conda env update" CAN BE USED WITH CACHING, which upgrades the Python version when using the base environment
+    # (we add "graphviz" from dev-environment to solve all dependencies at once, at graphviz relies on image
+    # processing packages very much like geo-packages; not a problem for docs, dev installs where all is done at once)
+    - name: Install base environment with a fixed Python version
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        mamba install pyyaml python=${{ matrix.python-version }}
+        python .github/scripts/generate_yml_env_fixed_py.py --pyv ${{ matrix.python-version }} --add "gdal" "environment.yml"
+        mamba env update -n geoutils-dev -f environment-ci-py${{ matrix.python-version }}.yml
+
+    # If/else equivalent to install base environment, or base+optional
+    - name: Install project environment (base)
+      if: ${{ matrix.dep-level == 'base' }}
+      run: pip install -e .[test]
+
+    - name: Install project environment (optional)
+      if: ${{ matrix.dep-level != 'base' }}
+      run: pip install -e .[test,${{ matrix.dep-level }}]
+
+    - name: Check import works
+      run: python -c "import geoutils"
+
+      # Stop the build if there are Python syntax errors or undefined names
+    - name: Lint with flake8
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Print conda environment (for debugging)
+      run: |
+        conda info
+        conda list
+
+    - name: Test with pytest
+      run: pytest -ra --cov=geoutils/ --cov-report=lcov
+
+    - name: Upload coverage to Coveralls
+      uses: coverallsapp/github-action@v2
+      continue-on-error: true
+      with:
+        github-token: ${{ secrets.github_token }}
+        flag-name: run-${{ join(matrix.*, '-') }}
+        path-to-lcov: coverage.lcov
+        parallel: true
+
+  finish:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Upload to Coveralls finished
+      uses: coverallsapp/github-action@v2
+      with:
+        github-token: ${{ secrets.github_token }}
+        parallel-finished: true
