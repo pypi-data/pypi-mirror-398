@@ -1,0 +1,154 @@
+# midi-structure
+
+[![PyPI version](https://img.shields.io/pypi/v/midi-structure.svg)](https://pypi.org/project/midi-structure/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://pepy.tech/badge/midi-structure)](https://pepy.tech/project/midi-structure)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Eugene%20Evstafev-blue?logo=linkedin)](https://www.linkedin.com/in/chigwell)
+
+**midi-structure** is a lightweight Python package that provides a simple, structured interface for processing MIDI‑related text queries. It leverages **llmatch‑messages** to enforce that LLM responses conform to a predefined regex pattern, ensuring consistent and machine‑readable output.
+
+> **Note:** The package ships with a default LLM implementation (`ChatLLM7` from `langchain_llm7`). You can also supply any LangChain‑compatible LLM (e.g., OpenAI, Anthropic, Google Generative AI) if you prefer.
+
+---
+
+## 🚀 Overview
+
+- **Structured MIDI queries** – ask about instruments, file formats, protocol details, etc.
+- **Pattern‑based validation** – responses are checked against a regex (`pattern`) defined in `prompts.py`.
+- **Pluggable LLM** – use the built‑in `ChatLLM7` or attach your own LangChain LLM.
+- **Zero configuration** – just pass a string and get a list of extracted data.
+
+---
+
+## 📦 Installation
+
+```bash
+pip install midi-structure
+```
+
+---
+
+## 🛠️ Quick Start
+
+```python
+from midi-structure import midi-structure
+
+# Simple call using the default ChatLLM7 (reads API key from LLM7_API_KEY env var)
+response = midi-structure(
+    user_input="What are the most common MIDI message types?"
+)
+
+print(response)   # → a list of strings that match the defined pattern
+```
+
+### Parameters
+
+| Name        | Type                       | Description |
+|-------------|----------------------------|-------------|
+| `user_input`| `str`                      | The natural‑language query related to MIDI. |
+| `llm`       | `Optional[BaseChatModel]`  | A LangChain LLM instance. If omitted, `ChatLLM7` is used. |
+| `api_key`   | `Optional[str]`           | API key for LLM7. If not supplied, the function looks for the `LLM7_API_KEY` environment variable. |
+
+---
+
+## 🔄 Using a Custom LLM
+
+You can pass any LangChain‑compatible chat model. Below are a few examples.
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from midi-structure import midi-structure
+
+llm = ChatOpenAI()
+response = midi-structure("Explain the MIDI file header format.", llm=llm)
+print(response)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from midi-structure import midi-structure
+
+llm = ChatAnthropic()
+response = midi-structure("List the standard General MIDI instruments.", llm=llm)
+print(response)
+```
+
+### Google Generative AI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from midi-structure import midi-structure
+
+llm = ChatGoogleGenerativeAI()
+response = midi-structure("How does MIDI time stamping work?", llm=llm)
+print(response)
+```
+
+---
+
+## 🔑 API Keys & Rate Limits
+
+- **LLM7** (default) offers a free tier that is sufficient for most typical usage.
+- To obtain a free LLM7 API key, register at: https://token.llm7.io/
+- You can provide the key in two ways:
+  1. Set the environment variable `LLM7_API_KEY`.
+  2. Pass it directly:  
+     ```python
+     response = midi-structure("...", api_key="your_api_key")
+     ```
+
+If you need higher rate limits, upgrade your LLM7 plan or switch to another LLM as shown above.
+
+---
+
+## 🧩 Project Structure
+
+```
+midi_structure/
+│
+├─ __init__.py               # Exposes midi-structure function
+├─ core.py                   # Implementation (the function shown above)
+├─ prompts.py                # Holds system/human prompts and regex pattern
+└─ ...                       # Additional helper modules
+```
+
+The core function performs the following steps:
+
+1. Resolve the LLM (default = `ChatLLM7`).
+2. Build system and human messages from the supplied prompts.
+3. Compile the regex pattern.
+4. Call `llmatch` to get a response that matches the pattern.
+5. Return the extracted data as a list of strings.
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! If you find a bug or have a feature request, please open an issue on GitHub:
+
+- **Issues:** https://github.com/chigwell/midi-structure/issues
+
+Pull requests are encouraged. Please make sure tests pass and follow the existing code style.
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License**.
+
+---
+
+## 👤 Author
+
+**Eugene Evstafev**  
+- Email: [hi@euegne.plus](mailto:hi@euegne.plus)  
+- GitHub: [chigwell](https://github.com/chigwell)  
+- LinkedIn: [Eugene Evstafev](https://www.linkedin.com/in/chigwell)
+
+--- 
+
+*Happy coding with MIDI!*
