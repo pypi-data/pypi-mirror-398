@@ -1,0 +1,313 @@
+Metadata-Version: 2.4
+Name: ps7-mcp-tool
+Version: 1.0.6
+Summary: PowerShell 7 MCP Server for Zencoder - Execute PowerShell commands via MCP protocol
+Author-email: Nomad <nomad@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/yourusername/ps7-mcp-tool
+Project-URL: Documentation, https://github.com/yourusername/ps7-mcp-tool#readme
+Keywords: mcp,powershell,zencoder,tool
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: MacOS
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
+# PS7 Tool - PowerShell 7 MCP Server for Zencoder
+
+A custom MCP (Model Context Protocol) server that exposes PowerShell 7 command execution to Zencoder, bypassing the broken Bash tool.
+
+## Features
+
+- ✅ Full MCP protocol support (JSONRpc)
+- ✅ PowerShell 7 command execution (no cmd.exe wrapper)
+- ✅ Timeout support (default 240s, configurable)
+- ✅ Background execution mode
+- ✅ Full stdout/stderr capture
+- ✅ Exit code tracking
+- ✅ Comprehensive logging to `~/.ps7_tool/logs/`
+- ✅ Working directory support
+- ✅ Command description/tagging for logging
+
+## Requirements
+
+- **Python**: 3.8+ (tested with 3.12+)
+- **PowerShell**: PowerShell 7 installed and in PATH (`pwsh`)
+- **OS**: Windows (primary), Linux/macOS with PS7
+
+## Installation
+
+### Quick Start
+
+**Minimal setup** (30 seconds):
+
+1. Ensure PowerShell 7 is installed
+2. Install locally:
+   ```bash
+   cd "C:\Users\nomad\PycharmProjects\Fallout 4 OCBPC project\PS7 tool"
+   pip install -e .
+   ```
+3. Register in Zencoder: **File > Settings > Tools > Zencoder > Agent Tools > Add Custom MCP**
+   - Name: `ps7_tool`
+   - Command: `python`
+   - Args: `-m ps7_tool.mcp_server`
+
+### Prerequisites
+
+1. **Install PowerShell 7** (if not already installed):
+   - Download from: https://github.com/PowerShell/PowerShell/releases
+   - Or via package manager:
+     ```powershell
+     choco install powershell-core
+     # or
+     winget install Microsoft.PowerShell
+     ```
+   - Verify installation:
+     ```powershell
+     pwsh --version
+     ```
+
+### Option A: Install from Local Directory (Development)
+
+For development or local testing:
+
+```bash
+cd "C:\Users\nomad\PycharmProjects\Fallout 4 OCBPC project\PS7 tool"
+pip install -e .
+```
+
+This creates entry points `ps7-mcp-server` and `ps7-mcp-tool` in your Python environment.
+
+Then in Zencoder MCP settings (with `uvx`):
+```json
+{
+  "ps7_tool": {
+    "command": "uvx",
+    "args": ["ps7-mcp-tool"]
+  }
+}
+```
+
+Or use direct Python module invocation:
+```json
+{
+  "ps7_tool": {
+    "command": "python",
+    "args": ["-m", "ps7_tool.mcp_server"]
+  }
+}
+```
+
+### Option B: MCP Library Installation (Recommended)
+
+**After installing locally with `pip install -e .`:**
+
+1. Open **File > Settings** (or **JetBrains IDE > Settings** on macOS)
+
+2. Navigate to **Tools > Zencoder > Agent Tools**
+
+3. Click **Add Custom MCP**
+
+4. Fill in:
+   - **Name**: `ps7_tool`
+   - **Command**: `python`
+   - **Args**: `-m ps7_tool.mcp_server`
+
+5. Click **Install**
+
+### Option C: Direct MCP Registration (JetBrains IDE)
+
+1. Open **File > Settings** (or **JetBrains IDE > Settings** on macOS)
+
+2. Navigate to **Tools > Zencoder > MCP Servers**
+
+3. Click **Edit in settings.json** and add:
+   ```json
+   {
+     "ps7_tool": {
+       "command": "python",
+       "args": [
+         "C:\\Users\\nomad\\PycharmProjects\\Fallout 4 OCBPC project\\PS7 tool\\mcp_server.py"
+       ]
+     }
+   }
+   ```
+
+4. Click **Apply** and restart your IDE
+
+### VS Code Registration (Limited Support)
+
+> **Note**: VS Code currently only supports stdio connections. After full Zencoder support for VS Code MCP servers is released, you can add:
+
+1. Open **Settings** (Cmd/Ctrl + ,)
+
+2. Search for **MCP Servers** and click **Edit in settings.json**
+
+3. Add to your `settings.json`:
+   ```json
+   "zencoder.mcpServers": {
+     "ps7_tool": {
+       "command": "python",
+       "args": ["-m", "ps7_tool.mcp_server"]
+     }
+   }
+   ```
+
+4. Save and reload the IDE
+
+## Usage in Zencoder
+
+Once registered, the MCP tool exposes **`execute_powershell`** command with the following parameters:
+
+### Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `command` | string | ✓ | - | PowerShell command to execute |
+| `timeout` | integer | ✗ | 240 | Timeout in seconds |
+| `background` | boolean | ✗ | false | Run in background mode |
+| `cwd` | string | ✗ | null | Working directory |
+| `description` | string | ✗ | "" | Optional command description |
+
+### Example Commands (from Zencoder)
+
+In Zencoder chat with Coding Agent enabled:
+
+```
+Execute this PowerShell command: Get-ChildItem -Path C:\Users\nomad\Desktop
+```
+
+The tool will:
+1. Execute `Get-ChildItem -Path C:\Users\nomad\Desktop` via PowerShell 7
+2. Capture stdout/stderr
+3. Return exit code and full output
+4. Log results to `~/.ps7_tool/logs/ps7_exec_*.json`
+
+## Output Format
+
+### Response Structure
+
+```json
+{
+  "exit_code": 0,
+  "stdout": "File content here...",
+  "stderr": "",
+  "execution_time": 0.245,
+  "log_file": "C:\\Users\\nomad\\.ps7_tool\\logs\\ps7_exec_20251220_204535_123.json"
+}
+```
+
+### Logs
+
+All command executions are logged to:
+```
+~/.ps7_tool/logs/ps7_exec_YYYYMMDD_HHMMSS_mmm.json
+```
+
+Server logs are written to:
+```
+~/.ps7_tool/mcp_server.log
+```
+
+## Troubleshooting
+
+### "PowerShell 7 (pwsh) not found in PATH"
+
+**Solution**: Install PowerShell 7 and ensure `pwsh` is in your PATH:
+```powershell
+$env:Path -split ';'  # Check if PowerShell 7 is in PATH
+```
+
+### MCP Server not visible in Zencoder
+
+1. Verify Python path is correct in settings.json
+2. Check `~/.ps7_tool/mcp_server.log` for errors
+3. Reload IDE
+4. Ensure **Coding Agent** is enabled in Zencoder
+
+### Command timeout
+
+Default timeout is 240 seconds (4 minutes). Increase via `timeout` parameter:
+```json
+{
+  "command": "long-running-ps-command",
+  "timeout": 600
+}
+```
+
+## File Structure
+
+```
+PS7 tool/
+├── ps7_tool/              # Python package
+│   ├── __init__.py        # Package init
+│   ├── mcp_server.py      # Main MCP server
+│   └── ps7_executor.py    # Legacy executor
+├── pyproject.toml         # Python package metadata
+├── MANIFEST.in            # Package manifest
+├── .gitignore             # Git ignore rules
+├── README.md              # This file
+├── mcp_server.py          # Root copy (legacy)
+├── ps7_executor.py        # Root copy (legacy)
+├── test_executor.py       # Test suite
+└── test.bat               # Test launcher
+```
+
+**Note**: Root-level `mcp_server.py` and `ps7_executor.py` are kept for backward compatibility. The packaged version uses `ps7_tool/` directory.
+
+## Development
+
+### Running Tests
+
+```bash
+python test_executor.py
+```
+
+### Manual Testing
+
+```bash
+python mcp_server.py
+```
+
+Then send JSON requests on stdin:
+```json
+{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
+{"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
+```
+
+## Notes
+
+- This tool is a **direct replacement for the broken Bash tool** in Zencoder
+- PowerShell is used instead of cmd.exe for better command compatibility
+- All commands run with `-NoProfile` flag to avoid startup delays
+- Background execution uses `Popen` (non-blocking)
+- Foreground execution waits for completion or timeout
+- Package structure (`ps7_tool/`) allows installation via pip and library manager
+- Entry point `ps7-mcp-server` is automatically created on install
+- Works with both local installation and future remote MCP deployment
+
+## Why This Tool?
+
+The Zencoder Bash tool has limitations on Windows:
+- Uses cmd.exe which lacks PowerShell features
+- Doesn't handle UTF-8/Unicode properly
+- Path handling issues with backslashes
+- Missing environment variable interpolation
+
+This MCP server replaces Bash with PowerShell 7, providing:
+- ✅ Full PowerShell cmdlet support
+- ✅ Proper Windows path handling
+- ✅ UTF-8/Unicode support
+- ✅ MCP protocol compliance
+- ✅ Timeout and background execution
+- ✅ Comprehensive logging
