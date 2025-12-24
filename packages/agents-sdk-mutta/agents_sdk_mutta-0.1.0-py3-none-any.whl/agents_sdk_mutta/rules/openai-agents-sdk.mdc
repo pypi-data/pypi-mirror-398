@@ -1,0 +1,453 @@
+---
+description: When needing to understand the OpenAI Agents SDK - its primitives, concepts, and capabilities
+globs: 
+alwaysApply: false
+---
+# OpenAI Agents SDK Overview
+
+The [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) is a lightweight, production-ready Python toolkit for building agentic AI applications. It provides a small set of powerful primitives that can express complex agent workflows without heavy abstractions.
+
+## Installation
+
+```bash
+pip install openai-agents
+```
+
+Set your API key:
+```bash
+export OPENAI_API_KEY=sk-...
+```
+
+## Core Primitives
+
+The SDK has four fundamental primitives:
+
+1. **Agents** - LLMs equipped with instructions and tools
+2. **Handoffs** - Allow agents to delegate to other agents for specific tasks
+3. **Guardrails** - Enable validation of agent inputs and outputs
+4. **Sessions** - Automatically maintain conversation history across agent runs
+
+---
+
+## 1. Agents
+
+Agents are the core building block. An agent is an LLM configured with instructions and tools.
+
+### Basic Agent
+
+```python
+from agents import Agent, Runner
+
+agent = Agent(
+    name="Assistant",
+    instructions="You are a helpful assistant",
+)
+
+result = Runner.run_sync(agent, "Write a haiku about recursion.")
+print(result.final_output)
+```
+
+### Agent Configuration
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `name` | `str` | Required. Identifies your agent. |
+| `instructions` | `str \| Callable` | System prompt. Can be dynamic via function. |
+| `model` | `str` | LLM model to use (default: `gpt-4.1`, recommended: `gpt-5.2`). |
+| `tools` | `list[Tool]` | Tools the agent can use. |
+| `handoffs` | `list[Agent \| Handoff]` | Agents this agent can delegate to. |
+| `output_type` | `type` | Pydantic model for structured output. |
+| `model_settings` | `ModelSettings` | Model configuration (temperature, reasoning, etc.). |
+| `input_guardrails` | `list` | Guardrails to run on input. |
+| `output_guardrails` | `list` | Guardrails to run on output. |
+
+### Dynamic Instructions
+
+Instructions can be dynamic based on runtime context:
+
+```python
+from agents import Agent, RunContextWrapper
+
+def dynamic_instructions(context: RunContextWrapper[UserContext], agent: Agent) -> str:
+    return f"The user's name is {context.context.name}. Help them with their questions."
+
+agent = Agent[UserContext](
+    name="Support Agent",
+    instructions=dynamic_instructions,
+)
+```
+
+### Structured Output
+
+Use Pydantic models to get structured, typed outputs:
+
+```python
+from pydantic import BaseModel
+from agents import Agent
+
+class CalendarEvent(BaseModel):
+    name: str
+    date: str
+    participants: list[str]
+
+agent = Agent(
+    name="Calendar extractor",
+    instructions="Extract calendar events from text",
+    output_type=CalendarEvent,
+)
+```
+
+---
+
+## 2. Runner
+
+The Runner executes agents. Three methods are available:
+
+| Method | Type | Returns |
+|--------|------|---------|
+| `Runner.run()` | Async | `RunResult` |
+| `Runner.run_sync()` | Sync | `RunResult` |
+| `Runner.run_streamed()` | Async streaming | `RunResultStreaming` |
+
+### The Agent Loop
+
+When you call `Runner.run()`:
+
+1. The LLM is called with current agent and input
+2. LLM produces output:
+   - If `final_output` → loop ends, return result
+   - If handoff → switch agent, re-run loop
+   - If tool calls → execute tools, append results, re-run loop
+3. If `max_turns` exceeded → raises `MaxTurnsExceeded`
+
+### Basic Usage
+
+```python
+from agents import Agent, Runner
+
+agent = Agent(name="Assistant", instructions="Reply concisely.")
+
+# Async
+result = await Runner.run(agent, "What is the capital of France?")
+
+# Sync
+result = Runner.run_sync(agent, "What is the capital of France?")
+
+# Streamed
+result = Runner.run_streamed(agent, "What is the capital of France?")
+async for event in result.stream_events():
+    # Handle streaming events
+    pass
+```
+
+### Run Results
+
+The `RunResult` contains:
+
+- `final_output` - The final output from the last agent
+- `new_items` - All items generated during the run
+- `last_agent` - The agent that produced the final output
+- `to_input_list()` - Convert results to input for next turn
+
+---
+
+## 3. Tools
+
+Tools let agents take actions. Three types exist:
+
+### Function Tools
+
+Turn any Python function into a tool with `@function_tool`:
+
+```python
+from agents import Agent, function_tool
+
+@function_tool
+def get_weather(city: str) -> str:
+    """Get weather for a city.
+    
+    Args:
+        city: The city to get weather for.
+    """
+    return f"The weather in {city} is sunny"
+
+agent = Agent(
+    name="Weather Agent",
+    instructions="Help with weather queries",
+    tools=[get_weather],
+)
+```
+
+**Key points:**
+- Function name becomes tool name (or use `name_override`)
+- Docstring becomes tool description
+- Type hints define the schema automatically
+- Can be sync or async
+- Can access context as first argument: `def my_tool(ctx: RunContextWrapper, arg: str)`
+
+### Hosted Tools (Built-in)
+
+OpenAI provides built-in tools:
+
+| Tool | Description |
+|------|-------------|
+| `WebSearchTool()` | Search the web |
+| `FileSearchTool(vector_store_ids=[...])` | Search OpenAI Vector Stores |
+| `CodeInterpreterTool()` | Execute code in sandbox |
+| `ComputerTool()` | Automate computer use |
+| `ImageGenerationTool()` | Generate images |
+| `LocalShellTool()` | Run shell commands locally |
+| `HostedMCPTool()` | Connect to MCP servers |
+
+```python
+from agents import Agent, WebSearchTool, FileSearchTool
+
+agent = Agent(
+    name="Research Agent",
+    tools=[
+        WebSearchTool(),
+        FileSearchTool(vector_store_ids=["vs_xxx"]),
+    ],
+)
+```
+
+### Agents as Tools
+
+Use agents as tools for orchestration without handoff:
+
+```python
+from agents import Agent
+
+spanish_agent = Agent(
+    name="Spanish translator",
+    instructions="Translate to Spanish",
+)
+
+orchestrator = Agent(
+    name="Orchestrator",
+    instructions="Use tools to translate messages",
+    tools=[
+        spanish_agent.as_tool(
+            tool_name="translate_spanish",
+            tool_description="Translate text to Spanish",
+        ),
+    ],
+)
+```
+
+---
+
+## 4. Handoffs
+
+Handoffs allow agents to delegate control to other agents. The new agent takes over the conversation.
+
+```python
+from agents import Agent, handoff
+
+billing_agent = Agent(name="Billing Agent", instructions="Handle billing questions")
+support_agent = Agent(name="Support Agent", instructions="Handle general support")
+
+triage_agent = Agent(
+    name="Triage Agent",
+    instructions="Route to the appropriate specialist agent",
+    handoffs=[billing_agent, support_agent],
+)
+```
+
+**How it works:**
+- Handoffs appear as tools to the LLM (e.g., `transfer_to_billing_agent`)
+- When invoked, the new agent receives conversation history and takes over
+- Use `handoff()` function for customization (callbacks, input filters, etc.)
+
+---
+
+## 5. Guardrails
+
+Guardrails validate input/output and can halt execution if triggered.
+
+### Input Guardrails
+
+Run before agent processes input:
+
+```python
+from pydantic import BaseModel
+from agents import Agent, Runner, GuardrailFunctionOutput, input_guardrail
+
+class SafetyCheck(BaseModel):
+    is_safe: bool
+    reason: str
+
+safety_agent = Agent(
+    name="Safety checker",
+    instructions="Check if input is safe",
+    output_type=SafetyCheck,
+)
+
+@input_guardrail
+async def safety_guardrail(ctx, agent, input):
+    result = await Runner.run(safety_agent, input, context=ctx.context)
+    return GuardrailFunctionOutput(
+        output_info=result.final_output,
+        tripwire_triggered=not result.final_output.is_safe,
+    )
+
+main_agent = Agent(
+    name="Assistant",
+    input_guardrails=[safety_guardrail],
+)
+```
+
+### Execution Modes
+
+- **Parallel** (default): Guardrail runs alongside agent (faster, but agent may start before guardrail completes)
+- **Blocking** (`run_in_parallel=False`): Guardrail completes before agent starts
+
+---
+
+## 6. Sessions
+
+Sessions automatically maintain conversation history across runs.
+
+```python
+from agents import Agent, Runner, SQLiteSession
+
+agent = Agent(name="Assistant", instructions="Reply concisely.")
+session = SQLiteSession("conversation_123")
+
+# First turn
+result = await Runner.run(agent, "What city is the Golden Gate Bridge in?", session=session)
+print(result.final_output)  # "San Francisco"
+
+# Second turn - automatically remembers context
+result = await Runner.run(agent, "What state is it in?", session=session)
+print(result.final_output)  # "California"
+```
+
+**Session types:**
+- `SQLiteSession(session_id)` - In-memory or file-based SQLite
+- `SQLiteSession(session_id, "path/to/db.sqlite")` - Persistent SQLite
+- `SQLAlchemySession` - Production databases (PostgreSQL, MySQL, etc.)
+- `OpenAIConversationsSession` - OpenAI-managed storage
+
+---
+
+## 7. Models & Configuration
+
+### Model Selection
+
+| Model | Use Case |
+|-------|----------|
+| `gpt-4.1` | Default, compatible, low latency |
+| `gpt-5` | Higher quality, reasoning capable |
+| `gpt-5-mini` | Faster, good balance |
+| `gpt-5-nano` | Fastest, lightweight tasks |
+| `gpt-5.2` | Best quality, full reasoning |
+| `gpt-5.1-codex` | Code-heavy tasks, knowledge navigation |
+
+### Model Settings
+
+```python
+from openai.types.shared import Reasoning
+from agents import Agent, ModelSettings
+
+agent = Agent(
+    name="Deep Thinker",
+    model="gpt-5.2",
+    model_settings=ModelSettings(
+        reasoning=Reasoning(effort="high"),  # none, minimal, low, medium, high, xhigh (5.2 only)
+        verbosity="medium",  # low, medium, high
+        temperature=0.7,
+    ),
+)
+```
+
+**Reasoning effort guidance:**
+- `minimal` / `low`: Fast responses, simple tasks
+- `medium`: Default, balanced
+- `high`: Complex tasks, deep tool usage
+- `xhigh`: Only for gpt-5.2, maximum reasoning
+
+---
+
+## 8. Tracing
+
+Built-in tracing captures all events: LLM calls, tool calls, handoffs, guardrails.
+
+```python
+from agents import Agent, Runner, trace, gen_trace_id
+
+trace_id = gen_trace_id()
+with trace("My Workflow", trace_id=trace_id):
+    result = await Runner.run(agent, "Hello")
+    # View at: https://platform.openai.com/traces/trace?trace_id={trace_id}
+```
+
+**Disable tracing:**
+- Globally: `set_tracing_disabled(True)`
+- Per run: `RunConfig(tracing_disabled=True)`
+
+---
+
+## 9. Context
+
+Context is a dependency-injection mechanism. Pass any object to share state across agents, tools, and handoffs:
+
+```python
+from dataclasses import dataclass
+from agents import Agent, Runner
+
+@dataclass
+class UserContext:
+    user_id: str
+    is_premium: bool
+
+agent = Agent[UserContext](name="Support", instructions="...")
+
+context = UserContext(user_id="123", is_premium=True)
+result = await Runner.run(agent, "Help me", context=context)
+```
+
+---
+
+## Quick Reference
+
+### Minimal Example
+
+```python
+from agents import Agent, Runner
+
+agent = Agent(name="Assistant", instructions="You are helpful")
+result = Runner.run_sync(agent, "Hello!")
+print(result.final_output)
+```
+
+### With Tools
+
+```python
+from agents import Agent, Runner, function_tool
+
+@function_tool
+def add(a: int, b: int) -> int:
+    """Add two numbers."""
+    return a + b
+
+agent = Agent(name="Calculator", instructions="Do math", tools=[add])
+result = Runner.run_sync(agent, "What is 5 + 3?")
+```
+
+### With Handoffs
+
+```python
+from agents import Agent, Runner
+
+specialist = Agent(name="Specialist", instructions="Handle complex queries")
+triage = Agent(name="Triage", instructions="Route queries", handoffs=[specialist])
+result = Runner.run_sync(triage, "Complex question here")
+```
+
+---
+
+## Next Steps
+
+- See `agent-services.mdc` for our conventions on building agent services
+- See `agent-additional.mdc` for advanced patterns, streaming, and LiteLLM integration
