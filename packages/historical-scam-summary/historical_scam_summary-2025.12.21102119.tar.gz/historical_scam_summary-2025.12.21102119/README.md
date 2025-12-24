@@ -1,0 +1,128 @@
+# historical-scam-summary
+[![PyPI version](https://badge.fury.io/py/historical-scam-summary.svg)](https://badge.fury.io/py/historical-scam-summary)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/historical-scam-summary)](https://pepy.tech/project/historical-scam-summary)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**Extract structured, domain‑specific summaries from a single sentence or title.**  
+The package turns unstructured text (e.g., *“How Scams Worked In The 1800s (2015)”*) into a concise, standardized output that lists key historical scams, their mechanisms, and societal impact—all without any additional manual parsing.
+
+---
+
+## Features
+
+- Uses **`llmatch-messages`** to enforce an output regex and recover only the relevant information.
+- Defaults to the free tier of **ChatLLM7** via the `langchain_llm7` wrapper.
+- Works with any LangChain LLM instance – OpenAI, Anthropic, Google Generative AI, or custom models.
+- Returns a `List[str]` – one string per extracted entity (scam, scheme, etc.).
+
+---
+
+## Installation
+
+```bash
+pip install historical_scam_summary
+```
+
+---
+
+## Quick Start
+
+```python
+from historical_scam_summary import historical_scam_summary
+
+# Minimal usage – relies on ChatLLM7 (free tier)
+response = historical_scam_summary(user_input="How Scams Worked In The 1800s (2015)")
+print(response)   # e.g. ["Confidence trick (3800s): ...", "..."]
+```
+
+---
+
+## Custom LLM
+
+If you prefer another provider, instantiate the desired LangChain model and pass it to the function:
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from historical_scam_summary import historical_scam_summary
+
+llm = ChatOpenAI()          # <-- provide your own API key via env var or param
+response = historical_scam_summary(user_input="Masonic scams of 1920s", llm=llm)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from historical_scam_summary import historical_scam_summary
+
+llm = ChatAnthropic()
+response = historical_scam_summary(user_input="Pyramid schemes in the 1980s", llm=llm)
+```
+
+### Google Generative AI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from historical_scam_summary import historical_scam_summary
+
+llm = ChatGoogleGenerativeAI()   # set `api_key` via environment
+response = historical_scam_summary(user_input="Early Ponzi schemes", llm=llm)
+```
+
+---
+
+## Configuration
+
+| Parameter | Type | Description |
+|---|---|---|
+| `user_input` | `str` | The raw text to process (title, sentence, etc.). |
+| `llm` | `Optional[BaseChatModel]` | LangChain LLM instance to use. If omitted, the default `ChatLLM7` is instantiated. |
+| `api_key` | `Optional[str]` | API key for `ChatLLM7`. Either pass it directly or set the environment variable `LLM7_API_KEY`. |
+
+> **Note**  
+> The default free tier of ChatLLM7 is sufficient for most use cases. If you require higher rate limits, supply your own key.
+
+---
+
+## Getting an LLM7 API Key
+
+Register for a free key at [https://token.llm7.io/](https://token.llm7.io/).  
+You can then provide it via:
+
+```bash
+export LLM7_API_KEY="YOUR_KEY"
+```
+
+or directly in code:
+
+```python
+historical_scam_summary(user_input="...", api_key="YOUR_KEY")
+```
+
+---
+
+## Issues & Contribution
+
+- Open an issue or submit a pull request via the GitHub repo:  
+  https://github.com/chigwell/historical_scam_summary
+- Contributions are welcome! Please follow the standard PR process.
+
+---
+
+## Author
+
+**Eugene Evstafev**  
+<hi@euegne.plus>  
+GitHub: `chigwell`
+
+---
+
+## License
+
+MIT © 2025 Eugene Evstafev
+
+---
