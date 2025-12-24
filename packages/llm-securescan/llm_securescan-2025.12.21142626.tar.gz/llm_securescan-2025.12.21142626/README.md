@@ -1,0 +1,143 @@
+# llm-securescan
+[![PyPI version](https://badge.fury.io/py/llm-securescan.svg)](https://badge.fury.io/py/llm-securescan)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/llm-securescan)](https://pepy.tech/project/llm-securescan)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**llm-securescan** is a tiny Python package that helps you securely extract structured information from user‑provided text.  
+It uses pattern matching and automatic retries to ensure the language model returns data that conforms to a predefined regex. This makes it useful for detecting potential data‑exfiltration patterns, sensitive data leaks, or any other custom signatures you define.
+
+---
+
+## Features
+
+- **Zero‑setup default LLM** – uses `ChatLLM7` (from the `langchain_llm7` package) automatically.
+- **Pluggable LLM** – pass any LangChain‑compatible chat model (OpenAI, Anthropic, Google, etc.).
+- **Regex‑based extraction** – the LLM is forced to obey a regex pattern, guaranteeing consistent output.
+- **Simple API** – one function call returns a list of extracted strings or raises an informative error.
+
+---
+
+## Installation
+
+```bash
+pip install llm_securescan
+```
+
+---
+
+## Quick Start
+
+```python
+from llm_securescan import llm_securescan
+
+user_input = """
+John Doe's credit card number is 4111 1111 1111 1111.
+Please send the PDF to jane@example.com.
+"""
+
+# Use the default ChatLLM7 (API key taken from env var LLM7_API_KEY or default)
+extracted = llm_securescan(user_input)
+
+print(extracted)   # → ['4111 1111 1111 1111', 'jane@example.com']
+```
+
+---
+
+## API Reference
+
+### `llm_securescan(user_input: str, llm: Optional[BaseChatModel] = None, api_key: Optional[str] = None) -> List[str]`
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| **`user_input`** | `str` | The raw text you want to scan. |
+| **`llm`** | `Optional[BaseChatModel]` | A LangChain chat model instance. If omitted, the function creates a `ChatLLM7` instance automatically. |
+| **`api_key`** | `Optional[str]` | API key for `ChatLLM7`. If not provided, the function looks for the environment variable `LLM7_API_KEY`. If that also isn’t set, a placeholder value `"None"` is used (which will cause the LLM call to fail with a clear error). |
+
+**Returns**: A list of strings that match the configured regex pattern. If the LLM call fails, a `RuntimeError` is raised with the underlying error message.
+
+---
+
+## Using a Custom LLM
+
+You can pass any LangChain‑compatible chat model. Below are examples for the most common providers.
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from llm_securescan import llm_securescan
+
+my_llm = ChatOpenAI(model="gpt-4o-mini")
+result = llm_securescan(user_input, llm=my_llm)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from llm_securescan import llm_securescan
+
+my_llm = ChatAnthropic(model="claude-3-haiku-20240307")
+result = llm_securescan(user_input, llm=my_llm)
+```
+
+### Google Generative AI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from llm_securescan import llm_securescan
+
+my_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+result = llm_securescan(user_input, llm=my_llm)
+```
+
+---
+
+## Configuration Details
+
+- **Default LLM**: `ChatLLM7` from the `langchain_llm7` package (see <https://pypi.org/project/langchain-llm7/>).  
+- **Rate limits**: The free tier of LLM7 provides sufficient calls for typical scanning workloads.  
+- **Custom API key**: Provide an API key either via the `LLM7_API_KEY` environment variable or directly:
+
+  ```python
+  result = llm_securescan(user_input, api_key="YOUR_LLM7_API_KEY")
+  ```
+
+- **Getting a free API key**: Register at <https://token.llm7.io/>.
+
+---
+
+## How It Works Internally
+
+1. The function builds a **system prompt** and a **human prompt** based on the supplied text.
+2. A regular expression (`pattern` from `llm_securescan.prompts`) is compiled.
+3. `llmatch` (from the internal `llmatch_messages` utility) sends the prompts to the LLM while enforcing that the response matches the regex.
+4. If the LLM output satisfies the pattern, the captured groups are returned; otherwise, the call fails with a helpful error message.
+
+This approach provides a deterministic extraction pipeline while still leveraging the LLM’s natural‑language understanding.
+
+---
+
+## Contributing & Issues
+
+Found a bug or have a feature request? Please open an issue on GitHub:
+
+<https://github.com/chigwell/llm_securescan/issues>
+
+Pull requests are welcome!
+
+---
+
+## Author
+
+**Eugene Evstafev**  
+✉️ Email: hi@euegne.plus  
+🐙 GitHub: [chigwell](https://github.com/chigwell)
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
