@@ -1,0 +1,64 @@
+---
+name: Release
+
+"on":
+  release:
+    types: [published]
+
+permissions:
+  contents: read # required for github.ref to be set
+
+jobs:
+  pypi-publish:
+    name: Upload release to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://pypi.org/p/bits # TODO: update with actual package name
+    permissions:
+      id-token: write # IMPORTANT: this permission is mandatory for trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install build dependencies
+        run: python -m pip install --upgrade setuptools build pip
+      - name: Build the Python distribution
+        run: python -m build
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  brew:
+    name: Update Homebrew formula
+    needs: pypi-publish
+    runs-on: macos-latest
+    if: startsWith(github.ref, 'refs/tags/') && !github.event.release.prerelease
+    steps:
+      - name: Install prerequisites
+        run: brew install pipgrip
+      - name: Checkout Homebrew repo
+        run: brew tap alisw/system-deps
+      - name: Update bits formula with new version
+        run: |
+          set -x
+
+          # Remove the trailing 'v' if present in the tag name
+          version="${GITHUB_REF#refs/tags/}"
+          version="${version#v}"
+
+          json=$(curl -fSsL "https://pypi.org/pypi/bits/${version}/json") # TODO: update with actual package name
+          sha=$(echo "$json" | jq -r '.urls.[] | select(.filename | endswith(".tar.gz")) | .digests.sha256')
+          url=$(echo "$json" | jq -r '.urls.[] | select(.filename | endswith(".tar.gz")) | .url')
+          brew bump-formula-pr --write-only bits --url https://pypi.org/project/bits --version "${version}" --sha256 "${sha}" # TODO: update with actual package name
+      - name: Push updated formula
+        run: |
+          set -x
+          cd "$(dirname "$(brew formula bits)")"
+          git config user.name bits
+          git config user.email 'bits@cern.ch'
+          git add bits.rb
+          git commit -m "Update bits to ${GITHUB_REF#refs/tags/}"
+          git show
+          git push "https://bits:$GITHUB_TOKEN@github.com/bits/homebrew-system-deps" master # TODO: update user and repo
+        env:
+          GITHUB_TOKEN: ${{ secrets.homebrew_repo_token }}

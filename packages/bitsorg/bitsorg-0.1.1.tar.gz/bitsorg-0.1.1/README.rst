@@ -1,0 +1,77 @@
+
+bits
+========
+
+Bits is a tool to build, install and package large software stacks. It originates from the aliBuild tool, originally developed to simplify building and installing ALICE / ALFA software and attempts to make it more general and usable for other communities that share similar problems and have overlapping dependencies. It is under active development and subject to rapid changes and should NOT be used in production environment where stability and backward compatibility is important.
+
+Instant gratification with::
+
+ $ git clone git@github.com:bitsorg/bits.git; cd bits; export PATH=$PWD:$PATH; cd ..
+ $ git clone git@github.com:bitsorg/alice.bits.git
+ $ cd alice.bits
+ $ git clone git@github.com:bitsorg/common.bits.git;
+
+Review and customise bits.rc file (in particular, sw_dir location where all output will be stored)::
+
+ $ cat bits.rc
+ [bits]
+ organisation=ALICE
+ [ALICE]
+ pkg_prefix=VO_ALICE
+ sw_dir=../sw
+ repo_dir=.
+ search_path=common
+
+Then::
+
+ $ bits build ROOT
+ $ bits enter ROOT/latest
+ $ root -b
+
+Full documentation at:
+
+Pre-requisites
+==============
+
+If you are using bits directly from git clone, you should make sure
+you have the dependencies installed. The easiest way to do this is to run::
+
+    # Optional, make a venv so the dependencies are not installed globally
+    python -m venv .venv
+    source .venv/bin/activate
+    pip install -e .
+
+
+Contributing
+============
+
+
+If you want to contribute to bits, you can run the tests with::
+
+    # Optional, make a venv so the dependencies are not installed globally
+    python -m venv .venv
+    source .venv/bin/activate
+
+    pip install -e .[test] # Only needed once
+    tox
+
+The test suite only runs fully on a Linux system, but there is a reduced suite for macOS, runnable with::
+
+    tox -e darwin
+
+You can also run only the unit tests (it's a lot faster than the full suite) with::
+
+    pytest
+
+To run the documentation locally, you can use::
+
+    # Optional, make a venv so the dependencies are not installed globally
+    python -m venv .venv
+    source .venv/bin/activate
+
+    # Install dependencies for the docs, check pyproject.toml for more info
+    pip install -e .[docs]
+
+    # Run the docs
+    cd docs
+    mkdocs serve
