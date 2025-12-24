@@ -1,0 +1,63 @@
+set -euo pipefail
+
+# Cleanup temporary files on exit
+trap 'rm -f {{ user_script_name }}.py {{ runner_name }}.py {{ script_name }}.in {{ script_name }}.out' EXIT
+
+if command -v uv &> /dev/null; then
+    UV_BIN=$(command -v uv)
+else
+    if command -v python &> /dev/null; then
+        PYTHON=python
+    elif command -v python3 &> /dev/null; then
+        PYTHON=python3
+    else
+        echo "Error: No Python interpreter found" >&2
+        exit 1
+    fi
+    $PYTHON -m pip install uv &> /dev/null || true
+    UV_BIN=$($PYTHON -c 'import uv; print(uv.find_uv_bin())' 2>/dev/null || command -v uv 2>/dev/null || echo "uv")
+fi
+
+# try SCRATCH -> TMPDIR -> /tmp for uv cache to avoid filesystem locking issues
+# GROUNDHOG_CACHE_DIR allows users to override if needed, UV_* vars also respected
+{% raw %}
+GROUNDHOG_CACHE_BASE="${{GROUNDHOG_CACHE_DIR:-${{SCRATCH:-${{TMPDIR:-/tmp}}}}}}"
+
+if [ -z "${{UV_CACHE_DIR:-}}" ]; then
+    export UV_CACHE_DIR="${{GROUNDHOG_CACHE_BASE}}/${{USER:-$(id -un)}}/uv"
+fi
+
+if [ -z "${{UV_PYTHON_INSTALL_DIR:-}}" ]; then
+    export UV_PYTHON_INSTALL_DIR="${{GROUNDHOG_CACHE_BASE}}/${{USER:-$(id -un)}}/uv/python"
+fi
+mkdir -p "$UV_CACHE_DIR" "$UV_PYTHON_INSTALL_DIR"
+{% endraw %}
+
+# Propagate log level to remote environment
+{% if log_level %}
+# Local override - use value from dispatching environment
+export GROUNDHOG_LOG_LEVEL="{{ log_level }}"
+{% else %}
+{% raw %}
+# Respect remote environment if set, otherwise default to WARNING
+export GROUNDHOG_LOG_LEVEL="${{GROUNDHOG_LOG_LEVEL:-WARNING}}"
+{% endraw %}
+{% endif %}
+
+cat > {{ user_script_name }}.py << 'USER_SCRIPT_EOF'
+{{ user_script_contents | escape_braces }}
+USER_SCRIPT_EOF
+
+cat > {{ runner_name }}.py << 'RUNNER_EOF'
+{{ runner_contents | escape_braces }}
+RUNNER_EOF
+
+cat > {{ script_name }}.in << 'PAYLOAD_EOF'
+{{ payload }}
+PAYLOAD_EOF
+
+"$UV_BIN" run --with {{ version_spec }} \
+  {{ runner_name }}.py
+
+echo "__GROUNDHOG_RESULT__"
+cat {{ script_name }}.out
