@@ -1,0 +1,201 @@
+Metadata-Version: 2.4
+Name: askcsv
+Version: 0.1.0
+Summary: Ask questions to your CSV in a local web chat UI using Gemini.
+Author: Nirajan Ghimire
+License: MIT
+License-File: LICENSE
+Requires-Python: >=3.9
+Requires-Dist: fastapi>=0.110.0
+Requires-Dist: matplotlib>=3.7.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: uvicorn>=0.27.0
+Provides-Extra: gemini
+Requires-Dist: google-genai>=0.3.0; extra == 'gemini'
+Description-Content-Type: text/markdown
+
+<p align="center">
+  <img src="Logo/AskCSV%20logo-horizontal-transparent.png" alt="AskCSV logo" width="420" />
+</p>
+
+# AskCSV
+
+AskCSV is a local-first CSV assistant: it reads your CSV on your machine, sends only a small summary to Gemini, and runs the actual analysis locally with pandas. You get a clean web UI, tables, and charts from plain-language prompts.
+
+Important: Gemini is currently the only supported model provider.
+
+## Features
+
+- Local analysis with pandas and matplotlib
+- Web chat UI for prompts, tables, and charts
+- Privacy controls (schema only, sample rows, or profile summary)
+- Gemini model selection via CLI or Python
+
+## Requirements
+
+- Python 3.9+
+- A Gemini API key
+- Internet access for Gemini calls
+
+## Installation
+
+Install from this repo (recommended for now):
+
+```bash
+python -m pip install -e .[gemini]
+```
+
+This installs the core dependencies and the Gemini SDK. If you only install the core package, you must add the Gemini SDK manually:
+
+```bash
+python -m pip install -e .
+python -m pip install google-genai
+```
+
+## Dependencies
+
+Core runtime dependencies are defined in `pyproject.toml`:
+
+- pandas
+- matplotlib
+- fastapi
+- uvicorn
+
+Gemini support adds:
+
+- google-genai
+
+## Quickstart (Web UI)
+
+```bash
+export GEMINI_API_KEY="your-key-here"
+askcsv web path/to/data.csv
+```
+
+The app starts a local server and opens your browser automatically. You will see a web UI where you can ask questions like:
+
+- "Describe this dataset"
+- "Total amount by category, pie chart"
+- "Top 5 categories by total amount, bar chart"
+
+## CLI Usage
+
+The CLI has a single command right now: `askcsv web`.
+
+```bash
+askcsv web path/to/data.csv \
+  --api-key "your-key" \
+  --model gemini-1.5-flash \
+  --privacy-mode profile_summary \
+  --sample-rows 40 \
+  --host 127.0.0.1 \
+  --port 0
+```
+
+Flags:
+
+- `--api-key`: Gemini API key (or set `GEMINI_API_KEY`)
+- `--model`: Gemini model name (default: `gemini-1.5-flash`)
+- `--privacy-mode`: `schema_only`, `sample_rows`, or `profile_summary`
+- `--sample-rows`: number of rows to sample when using `sample_rows`
+- `--host`: bind host (default `127.0.0.1`)
+- `--port`: bind port (default `0` means pick a free port)
+- `--no-browser`: do not open the browser automatically
+
+## Changing the Model Version (Gemini only)
+
+AskCSV supports Gemini models only. You can select a different Gemini model with either:
+
+1) CLI flag:
+
+```bash
+askcsv web data.csv --model gemini-1.5-pro
+```
+
+2) Python API:
+
+```python
+import os
+from askcsv.analyzer import Analyzer
+
+analyzer = Analyzer(
+    csv_path="data.csv",
+    api_key=os.environ["GEMINI_API_KEY"],
+    model="gemini-1.5-pro",
+)
+```
+
+Use any Gemini model name that your API key has access to. If the model name is invalid, Gemini will return an error.
+
+## Privacy Modes
+
+AskCSV keeps your CSV local. It sends only a small summary to Gemini based on the privacy mode you choose:
+
+- `schema_only`: only column names and dtypes
+- `sample_rows`: a random sample of rows (size controlled by `--sample-rows`)
+- `profile_summary`: statistics and distributions (default, best for accuracy)
+
+## Charts and Tables
+
+AskCSV can return both:
+
+- A text answer
+- A table preview (first 20 rows of the result)
+- A chart (pie, bar, line, or histogram)
+
+Charts are generated locally with matplotlib and then shown in the web UI.
+
+## Python Usage (Headless)
+
+If you want to build your own UI or script, use the `Analyzer` directly:
+
+```python
+import os
+from askcsv.analyzer import Analyzer
+
+analyzer = Analyzer(
+    csv_path="data.csv",
+    api_key=os.environ["GEMINI_API_KEY"],
+    model="gemini-1.5-flash",
+    privacy_mode="profile_summary",
+    sample_rows=40,
+)
+
+result = analyzer.ask("Total amount by category, pie chart")
+print(result.text)
+
+if result.table is not None:
+    print(result.table.head())
+
+if result.fig is not None:
+    result.save_chart("chart.png")
+```
+
+## UI Customization
+
+The web UI lives in `src/askcsv/static/`:
+
+- `index.html`: layout and structure
+- `styles.css`: theme and visual style
+- `app.js`: UI behavior
+
+You can swap the logo in `src/askcsv/static/assets/` or adjust colors in `styles.css` to match your brand.
+
+## Project Layout
+
+- `src/askcsv/cli.py`: CLI entrypoint
+- `src/askcsv/webapp.py`: FastAPI server and static files
+- `src/askcsv/analyzer.py`: orchestration and privacy modes
+- `src/askcsv/llm/gemini.py`: Gemini planner integration
+- `src/askcsv/core/`: plan validation, execution, charts
+
+## Troubleshooting
+
+- Missing API key: set `GEMINI_API_KEY` or pass `--api-key`.
+- Gemini errors: verify model name and that your API key has access.
+- Chart not showing: ensure matplotlib is installed and the prompt asked for a chart.
+- Wrong results: include exact column names in your prompt.
+
+## License
+
+MIT License. See `LICENSE`.
