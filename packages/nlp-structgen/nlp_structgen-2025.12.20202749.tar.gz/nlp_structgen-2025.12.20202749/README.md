@@ -1,0 +1,117 @@
+# nlp-structgen
+
+[![PyPI version](https://img.shields.io/pypi/v/nlp-structgen?style=flat-square)](https://pypi.org/project/nlp-structgen/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+[![Downloads](https://img.shields.io/pypi/dm/nlp-structgen?style=flat-square)](https://pypistats.org/packages/nlp-structgen)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Chigwell-0e76a8?style=flat-square)](https://linkedin.com/in/chigwell)
+
+**nlp-structgen** is a lightweight, instance‑agnostic solution that uses NLP, ML and HCI principles to transform unstructured text into structured JSON (and, in local builds, CSV or plain text). It is ideal for automating repetitive data‑entry tasks, generating business charts, building quotes, converting data, and more, while keeping data consistent and auditable.
+
+## Features
+
+- **Input validation & consistency checks** – ensures the extracted data satisfies a user‑defined regex.
+- **Template‑driven output** – matches a template to produce consistent JSON structures.
+- **LLM integration** – defaults to `ChatLLM7` from the `langchain_llm7` package, but any LangChain‐compatible model can be provided.
+- **REST / GraphQL** – ready to expose via network APIs.
+- **Logging & performance tracking** – logs every invocation and can generate performance charts.
+- **Export formats** – produces JSON by default; local builds can output CSV or plain text.
+
+## Installation
+
+```bash
+pip install nlp_structgen
+```
+
+## Quick Start
+
+```python
+from nlp_structgen import nlp_structgen
+
+user_input = """
+Company: Acme Corp
+Employees: 42
+Revenue: $5M
+"""
+
+results = nlp_structgen(user_input)
+print(results)   # -> List containing extracted JSON strings
+```
+
+### Using a different LLM
+
+If you prefer a different language model you can pass an instance of any `BaseChatModel`.  
+Below are three common examples:
+
+#### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from nlp_structgen import nlp_structgen
+
+llm = ChatOpenAI()            # uses your configured OpenAI key
+response = nlp_structgen(user_input, llm=llm)
+```
+
+#### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from nlp_structgen import nlp_structgen
+
+llm = ChatAnthropic()          # uses your configured Anthropic key
+response = nlp_structgen(user_input, llm=llm)
+```
+
+#### Google Gemini
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from nlp_structgen import nlp_structgen
+
+llm = ChatGoogleGenerativeAI()
+response = nlp_structgen(user_input, llm=llm)
+```
+
+### Customizing the LLM7 API key
+
+`nlp_structgen` defaults to `ChatLLM7`.  
+The free tier rate limits are usually sufficient, but you can provide your own key:
+
+```bash
+export LLM7_API_KEY="your_api_key_here"
+```
+
+or directly in code:
+
+```python
+response = nlp_structgen(user_input, api_key="your_api_key_here")
+```
+
+You can obtain a free key at <https://token.llm7.io/>.
+
+## Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_input` | `str` | Text to process |
+| `api_key` | `Optional[str]` | LLM7 API key, if not supplied the environment variable `LLM7_API_KEY` or the default will be used |
+| `llm` | `Optional[BaseChatModel]` | An instance of a LangChain chat model; if omitted, `ChatLLM7` will be instantiated |
+
+## License
+
+This project is licensed under the MIT license – see the [LICENSE](LICENSE) file for details.
+
+## Author
+
+**Eugene Evstafev**  
+Email: hi@euegne.plus  
+GitHub: [chigwell](https://github.com/chigwell)
+
+## Contributing
+
+Feel free to open an issue or pull request on
+<https://github.com/chigwell/nlp-structgen/issues>.
+
+---
+
+*Disclaimer: All information provided here is based solely on the package’s public code and documentation. No additional facts have been fabricated.*
