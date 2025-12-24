@@ -1,0 +1,54 @@
+
+<h2>Violation of usage policy</h2>
+
+<p>
+    A violation of the usage policy by {{ username }} ({{ realname }})
+    on {{ violation.target.host }} was automatically detected starting on {{ timestamp.strftime('%x') }} at {{ timestamp.strftime('%X') }}.
+</p>
+
+<p>Because the usage has exceeded the usage policy, the following resource limits will be applied:</p>
+
+    {% for limit, value in limits.items() %}
+        <p>
+            {{ limit }} : {{ value }}
+        
+            {% if limit == "CPU" %}
+                (cores)
+            {% endif %}
+
+            {% if limit == "Memory" %}
+                (GIB)
+            {% endif %}
+        </p>
+    {% endfor %}
+
+<p>
+    These limits will apply until {{ expiration.strftime('%x') }} at {{expiration.strftime('%X')}} on the following hosts:
+</p>
+
+{% for host, port in violation.policy.affected_hosts %}
+    {{ host }}
+{% endfor %}
+
+
+<p>
+    Below is a summary of the usage that caused the violation.
+</p>
+
+{% for figure in figures %}
+    <img src="cid:{{figure}}"/>
+{% endfor %}
+
+<div style="display: flex; flex-direction: column; gap: 10px;">
+    <div>
+        <i style="font-size: 12pt; opacity: 0.7;">*Processes marked like this are on the whitelist and are not counted against the user when evaluating policies. The process is included in this report to show usage holistically.</i>
+    </div>
+    <div>
+        <i style="font-size: 12pt; opacity: 0.7;"> 
+            **This accounts for the difference between the overall usage and the collected PID usage (which can be less accurate)
+            as well as an aggregate for processes that aren't in the top 7 processes in usage.
+            This may be large if there are a lot of short-lived processes (such as compilers or quick commands) 
+            that account for a significant fraction of the total usage.
+        </i>
+    </div>
+<div>
