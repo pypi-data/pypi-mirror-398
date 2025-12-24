@@ -1,0 +1,79 @@
+# Smithery.ai configuration for better-confluence-mcp
+# MCP server for Confluence with local filesystem caching
+startCommand:
+  type: stdio # Specifies the server communicates over standard input/output
+  configSchema:
+    # JSON Schema defining the configuration options users need to provide
+    type: object
+    required:
+      - confluenceUrl
+      # Add other strictly required credentials based on auth needs
+    properties:
+      # Confluence Config
+      confluenceUrl:
+        type: string
+        description: "Base URL for your Confluence instance (e.g., https://your-domain.atlassian.net/wiki or https://confluence.yourcompany.com)."
+      confluenceUsername:
+        type: string
+        description: "(Optional for Cloud Basic Auth) Your Confluence username or email."
+      confluenceApiToken:
+        type: string
+        description: "(Optional for Cloud Basic Auth) Your Confluence API token."
+        format: password # Hides the value in UI inputs
+      confluencePersonalToken:
+        type: string
+        description: "(Optional for Server/DC Token Auth) Your Confluence Personal Access Token."
+        format: password
+      confluenceSslVerify:
+        type: boolean
+        description: "(Optional, Server/DC only) Verify SSL certificate for Confluence. Defaults to true."
+        default: true
+      confluenceSpacesFilter:
+        type: string
+        description: "(Optional) Comma-separated list of Confluence space keys to limit searches to (e.g., 'DEV,QA')."
+
+      # General Config
+      readOnlyMode:
+        type: boolean
+        description: "(Optional) Run in read-only mode (prevents create/update/delete). Defaults to false."
+        default: false
+
+    additionalProperties: false # Disallow properties not defined above
+
+  commandFunction:
+    # A JavaScript function that produces the CLI command and environment variables
+    # needed to start the MCP server, based on the user's configuration.
+    |-
+    (config) => {
+      // The command matches the ENTRYPOINT in the Dockerfile
+      const command = 'better-confluence-mcp';
+      const args = []; // No arguments needed as config is via ENV
+
+      // Map the config schema properties to the environment variables
+      const env = {
+        // Confluence ENV VARS
+        CONFLUENCE_URL: config.confluenceUrl,
+        CONFLUENCE_USERNAME: config.confluenceUsername,
+        CONFLUENCE_API_TOKEN: config.confluenceApiToken,
+        CONFLUENCE_PERSONAL_TOKEN: config.confluencePersonalToken,
+        CONFLUENCE_SSL_VERIFY: config.confluenceSslVerify !== undefined ? String(config.confluenceSslVerify) : 'true',
+        CONFLUENCE_SPACES_FILTER: config.confluenceSpacesFilter,
+
+        // General ENV VARS
+        READ_ONLY_MODE: config.readOnlyMode !== undefined ? String(config.readOnlyMode) : 'false',
+      };
+
+      // Filter out undefined/null env variables
+      const filteredEnv = Object.entries(env)
+        .filter(([key, value]) => value !== undefined && value !== null)
+        .reduce((obj, [key, value]) => {
+          obj[key] = value;
+          return obj;
+        }, {});
+
+      return {
+        command: command,
+        args: args,
+        env: filteredEnv
+      };
+    }
