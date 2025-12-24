@@ -1,0 +1,137 @@
+[build-system]
+requires = ["setuptools>=70.0", "setuptools-scm>=8.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dalla-data-processing"
+dynamic = ["version"]
+description = "data processing pipeline with deduplication, stemming, quality checking, and readability scoring, used for the DALLA Models"
+authors = [
+    {name = "Hadi Hamoud", email = "hhamoud@dohainstitute.edu.qa"},
+    {name = "Digital Research Unit - Arab Center", email = "dru@dohainstitute.edu.qa"}
+]
+readme = "README.md"
+license = {text = "CC-BY-NC-SA-4.0"}
+requires-python = ">=3.10"
+keywords = ["arabic", "nlp", "data-processing", "deduplication", "stemming", "readability", "quality"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
+
+dependencies = [
+    "datasets>=2.14.0",
+    "transformers>=4.30.0",
+    "click>=8.0.0",
+    "tqdm>=4.65.0",
+    "pyarrow>=12.0.0",
+    "structlog>=24.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.0.0",
+]
+dedup = [
+    "camel-tools==1.5.7",
+]
+dedup-native = [
+    "cffi>=1.15.0",
+]
+stem = [
+    "camel-tools==1.5.7",
+]
+quality = [
+    "camel-tools==1.5.7",
+]
+readability = [
+    "textstat>=0.7.0",
+]
+pack = [
+    "sentencepiece>=0.2.0",
+    # "rbpe",  # excluded due to transformers version conflict with camel-tools
+                # users should install separately if needed: pip install rbpe
+    "pyyaml",
+]
+all = [
+    "dalla-data-processing[dev,dedup,dedup-native,stem,quality,readability,pack]",
+]
+
+[project.scripts]
+dalla-dp = "dalla_data_processing.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/U4RASD/dalla-data-processing"
+Documentation = "https://github.com/U4RASD/dalla-data-processing#readme"
+Repository = "https://github.com/U4RASD/dalla-data-processing"
+"Bug Tracker" = "https://github.com/U4RASD/dalla-data-processing/issues"
+
+[tool.setuptools]
+packages = ["dalla_data_processing", "dalla_data_processing.core", "dalla_data_processing.deduplication", "dalla_data_processing.packing", "dalla_data_processing.stemming", "dalla_data_processing.quality", "dalla_data_processing.readability", "dalla_data_processing.utils"]
+include-package-data = true
+
+zip-safe = false
+
+[tool.setuptools.package-data]
+dalla_data_processing = ["py.typed"]
+"dalla_data_processing.stemming" = ["data/*.txt"]
+"dalla_data_processing.deduplication" = ["bin/*", "onion/**/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["dalla_data_processing"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",
+    "SIM102",
+    "N802",
+    "N806"
+    ]
+
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+known-first-party = ["dalla_data_processing"]
+
+[tool.ruff.lint.per-file-ignores]
+"dalla_data_processing/deduplication/onion/**/*.py" = ["N", "SIM", "UP"]  
+"dalla_data_processing/stemming/__init__.py" = ["N802", "N806", "SIM102"]  
+
+[tool.setuptools_scm]
+version_file = "dalla_data_processing/_version.py"
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.0.0",
+]
