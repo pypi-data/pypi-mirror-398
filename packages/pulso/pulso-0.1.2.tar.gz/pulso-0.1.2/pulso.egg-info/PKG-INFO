@@ -1,0 +1,734 @@
+Metadata-Version: 2.4
+Name: pulso
+Version: 0.1.2
+Summary: Pulso delivers stateful web fetching with cache, hashes, and domain-aware rules
+Home-page: https://github.com/jhd3197/Pulso
+Author: Juan Denis
+Author-email: Juan Denis <juan@vene.co>
+License: MIT
+Project-URL: Homepage, https://github.com/jhd3197/pulso
+Project-URL: Issues, https://github.com/jhd3197/pulso/issues
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.31.0
+Requires-Dist: playwright>=1.40.0
+Requires-Dist: beautifulsoup4>=4.12.0
+Requires-Dist: lxml>=4.9.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: mypy>=1.5.0; extra == "dev"
+Provides-Extra: api
+Requires-Dist: flask>=2.3.0; extra == "api"
+Provides-Extra: redis
+Requires-Dist: redis>=5.0.0; extra == "redis"
+Provides-Extra: all
+Requires-Dist: redis>=5.0.0; extra == "all"
+Requires-Dist: flask>=2.3.0; extra == "all"
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# Pulso
+
+[![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**Stateful web fetching with intelligent caching, content hashing, and domain-aware policies.**
+
+Pulso is a Python library that fetches web content once, remembers it, and only re-fetches when necessary. It's designed for data pipelines, content monitoring systems, and AI workflows where repeated requests and noisy HTML changes create unnecessary overhead.
+
+## Table of Contents
+
+- [Why Pulso](#why-pulso)
+- [Key Features](#key-features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Usage](#usage)
+- [Examples](#examples)
+- [API Reference](#api-reference)
+- [Cache Storage](#cache-storage)
+- [Architecture](#architecture)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Why Pulso
+
+Most web scraping tools focus on *getting* content. Pulso focuses on **not getting it again when nothing has changed**.
+
+### Built For
+
+- **Deterministic data pipelines** - Ensure reproducible results across runs
+- **Change detection** - Monitor content updates without wasteful re-fetching
+- **Content monitoring** - Track website changes efficiently
+- **AI workflows** - Avoid reprocessing identical HTML repeatedly
+
+### Core Principles
+
+- **Stateful by design** - Every fetch maintains metadata and history
+- **Domain-aware policies** - Configure TTL and fetch behavior per domain
+- **Hash-based identification** - Content changes detected via normalized hashes, not timestamps
+- **Change detection first** - Built-in tracking of content modifications
+
+## Key Features
+
+### Smart Fetching
+
+Automatic driver selection based on content type:
+- **Static pages** - Fast fetching with `requests`
+- **Dynamic content** - JavaScript rendering with `playwright`
+- **Per-domain configuration** - Set driver preference for each domain
+
+```python
+import pulso
+
+# Simple fetch with automatic caching
+html = pulso.fetch("https://example.com")
+```
+
+### Domain-Aware Caching
+
+Configure time-to-live (TTL) and fetch behavior per domain:
+
+```python
+pulso.register_domain(
+    "example.com",
+    ttl="1d",        # Cache for 1 day
+    driver="requests"
+)
+
+pulso.register_domain(
+    "dynamic-site.com",
+    ttl="6h",        # Cache for 6 hours
+    driver="playwright"
+)
+```
+
+**Supported TTL formats:** `1d` (day), `12h` (hours), `30m` (minutes), `60s` (seconds)
+
+Pulso automatically:
+- Returns cached content if still fresh (within TTL)
+- Re-fetches only after TTL expires
+- Respects domain-specific policies consistently
+
+### Content Hashing
+
+Intelligent change detection using normalized content hashes:
+
+```python
+if pulso.has_changed("https://example.com"):
+    print("Content has been updated!")
+```
+
+How it works:
+- HTML is normalized (whitespace, scripts, styles removed)
+- Content hashed with SHA-256
+- Same hash = no meaningful change
+- Different hash = real content update
+
+### Change Tracking
+
+Comprehensive metadata for every URL:
+
+```python
+metadata = pulso.get_metadata(url)
+# Returns:
+# {
+#   'content_hash': '8f3d9a...',
+#   'fetch_time': 1234567890.0,
+#   'change_time': 1234567890.0,
+#   'change_count': 3
+# }
+```
+
+Create snapshots when content changes:
+
+```python
+if pulso.has_changed(url):
+    snapshot_path = pulso.snapshot(url)
+    print(f"Snapshot saved: {snapshot_path}")
+```
+
+### Cache Management
+
+Granular cache control:
+
+```python
+# Clear specific domain
+pulso.cache.clear(domain="example.com")
+
+# Clear specific URL
+pulso.cache.clear(url="https://example.com/page")
+
+# Clear entire cache
+pulso.cache.clear()
+
+# View registered domains
+domains = pulso.get_registered_domains()
+```
+
+## Installation
+
+```bash
+pip install pulso
+```
+
+For Playwright support (dynamic content):
+
+```bash
+pip install pulso
+playwright install
+```
+
+For the HTTP API server:
+
+```bash
+pip install "pulso[api]"
+```
+
+## Quick Start
+
+```python
+import pulso
+
+# Register domain with policy
+pulso.register_domain(
+    "news.example.com",
+    ttl="12h",
+    driver="playwright"
+)
+
+# Fetch content (cached automatically)
+url = "https://news.example.com/article/123"
+html = pulso.fetch(url)
+
+# Check for changes
+if pulso.has_changed(url):
+    print("Article was updated!")
+    pulso.snapshot(url)
+else:
+    print("No changes detected")
+```
+
+**That's it.** No manual cache handling, no cron jobs, no duplicate fetch logic.
+
+## Usage
+
+### Basic Fetching
+
+```python
+import pulso
+
+# Fetch with default settings (1 day TTL, requests driver)
+html = pulso.fetch("https://example.com")
+
+# Force refresh (bypass cache)
+html = pulso.fetch("https://example.com", force=True)
+```
+
+### Domain Configuration
+
+```python
+# Register multiple domains
+pulso.register_domain("api.service.com", ttl="5m", driver="requests")
+pulso.register_domain("app.service.com", ttl="1h", driver="playwright")
+
+# View all registered domains
+domains = pulso.get_registered_domains()
+for domain, policy in domains.items():
+    print(f"{domain}: TTL={policy.ttl_seconds}s, Driver={policy.driver}")
+```
+
+### Change Detection Workflow
+
+```python
+import pulso
+
+url = "https://blog.example.com/post/123"
+
+# First fetch - creates cache entry
+html = pulso.fetch(url)
+
+# Later... check if content changed
+if pulso.has_changed(url):
+    # Content changed - get fresh version
+    new_html = pulso.fetch(url, force=True)
+
+    # Save snapshot
+    snapshot_path = pulso.snapshot(url)
+
+    # Process new content
+    process_updated_content(new_html)
+```
+
+### Metadata Inspection
+
+```python
+metadata = pulso.get_metadata("https://example.com")
+
+if metadata:
+    print(f"Last fetched: {metadata['fetch_time']}")
+    print(f"Last changed: {metadata['change_time']}")
+    print(f"Total changes: {metadata['change_count']}")
+    print(f"Content hash: {metadata['content_hash']}")
+```
+
+### Error Handling and Retries
+
+Pulso includes robust error handling with automatic retries and configurable fallback behavior:
+
+```python
+import pulso
+
+# Define error callback for monitoring/logging
+def report_error(url, exception):
+    print(f"Failed to fetch {url}: {exception}")
+    # Send to monitoring system, log to file, etc.
+
+# Register domain with error handling
+pulso.register_domain(
+    "unreliable-api.com",
+    ttl="30m",
+    driver="requests",
+    max_retries=5,              # Retry up to 5 times
+    retry_delay=2.0,            # Wait 2 seconds between retries
+    fallback_on_error="return_cached",  # Return cached data on failure
+    on_error=report_error       # Call this function on each error
+)
+
+# When fetch fails after all retries:
+# - Logs warnings for each retry attempt
+# - Calls on_error callback if provided
+# - Returns last cached data (if fallback_on_error="return_cached")
+html = pulso.fetch("https://unreliable-api.com/data")
+```
+
+**Fallback behaviors:**
+
+- `return_cached` (default) - Returns last successful fetch from cache, reports error but doesn't crash
+- `raise_error` - Raises FetchError exception for strict error handling
+- `return_none` - Returns None, allows graceful degradation
+
+```python
+# Example: Graceful degradation
+pulso.register_domain(
+    "optional-service.com",
+    fallback_on_error="return_none"
+)
+
+data = pulso.fetch("https://optional-service.com/api")
+if data is None:
+    print("Service unavailable, using defaults")
+    data = get_default_data()
+```
+
+### Session-Based Caching
+
+Isolate cache by user, tenant, or context using sessions:
+
+```python
+import pulso
+
+# Set session for user-specific caching
+pulso.set_session("user_123")
+
+# All cache operations now use user_123 session
+html = pulso.fetch("https://example.com")
+
+# Switch to different user
+pulso.set_session("user_456")
+# This fetches fresh data (different session)
+html = pulso.fetch("https://example.com")
+
+# Check current session
+current_session = pulso.get_session()  # Returns: "user_456"
+```
+
+**Use cases:**
+- Multi-tenant applications (isolate cache per tenant)
+- User-specific data caching
+- A/B testing with different cache variants
+- Environment isolation (dev/staging/production)
+
+**Session via environment:**
+```bash
+# .env file
+PULSO_SESSION_ID=production
+PULSO_CACHE_DIR=/custom/cache/path
+```
+
+> **Note:** Pulso still reads legacy `PULSO_*` environment variables for backward compatibility, but prefer the new `PULSO_*` names.
+
+```python
+import pulso
+
+# Load from .env file
+pulso.load_config(".env")
+```
+
+### Docker Support
+
+Deploy Pulso in containers with Redis for distributed caching:
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    environment:
+      - PULSO_CACHE_BACKEND=redis
+      - PULSO_REDIS_URL=redis://redis:6379/0
+      - PULSO_SESSION_ID=production
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:
+```
+
+See [DOCKER.md](DOCKER.md) for complete deployment guide.
+
+### API Service
+
+If you want to use Pulso from non-Python clients, the HTTP API server lets any language call Pulso over HTTP while keeping the same cache, hashing, and domain policies.
+
+Example endpoints:
+- `POST /fetch` with `{ "url": "https://example.com", "force": false }`
+- `GET /metadata?url=https://example.com`
+- `GET /has_changed?url=https://example.com`
+- `POST /snapshot` with `{ "url": "https://example.com" }`
+
+Run the API server:
+
+```bash
+pulso serve --host 0.0.0.0 --port 8080
+```
+
+Docker usage:
+
+```bash
+docker run -p 8080:8080 \
+  -e PULSO_CACHE_BACKEND=redis \
+  -e PULSO_REDIS_URL=redis://redis:6379/0 \
+  pulso:latest \
+  pulso serve --host 0.0.0.0 --port 8080
+```
+
+Health check: `GET /health`
+
+## Examples
+
+Complete working examples are available in the [examples/](examples/) folder:
+
+- **[example.py](examples/example.py)** - Basic usage with domain registration, fetching, and change detection
+- **[example_error_handling.py](examples/example_error_handling.py)** - Error handling patterns with retries and fallback behaviors
+- **[example_sessions.py](examples/example_sessions.py)** - Session-based caching for multi-tenant applications
+- **[example_docker.py](examples/example_docker.py)** - Production Docker deployment with Redis
+
+See the [examples/README.md](examples/README.md) for detailed documentation on running each example.
+
+## API Reference
+
+### Core Functions
+
+#### `fetch(url: str, force: bool = False) -> str`
+Fetch web content with automatic caching.
+
+**Parameters:**
+- `url` - URL to fetch
+- `force` - Force refresh, bypass cache (default: False)
+
+**Returns:** HTML content as string
+
+#### `has_changed(url: str) -> bool`
+Check if content has changed since last fetch.
+
+**Parameters:**
+- `url` - URL to check
+
+**Returns:** True if content changed or URL not cached
+
+#### `snapshot(url: str, snapshot_dir: Optional[Path] = None) -> Optional[Path]`
+Create snapshot of cached HTML.
+
+**Parameters:**
+- `url` - URL to snapshot
+- `snapshot_dir` - Optional snapshot directory
+
+**Returns:** Path to snapshot file
+
+#### `get_metadata(url: str) -> Optional[dict]`
+Get metadata for cached URL.
+
+**Returns:** Dictionary with metadata or None if not cached
+
+#### `register_domain(domain: str, ttl: str = "1d", driver: Literal["requests", "playwright"] = "requests", max_retries: int = 3, retry_delay: float = 1.0, fallback_on_error: Literal["return_cached", "raise_error", "return_none"] = "return_cached", on_error: Optional[Callable] = None) -> None`
+Register domain with fetch policy and error handling rules.
+
+**Parameters:**
+- `domain` - Domain name (e.g., "example.com")
+- `ttl` - Time-to-live: "1d", "12h", "30m", "60s"
+- `driver` - Fetch driver: "requests" or "playwright"
+- `max_retries` - Maximum retry attempts on failure (default: 3)
+- `retry_delay` - Delay in seconds between retries (default: 1.0)
+- `fallback_on_error` - Error handling behavior:
+  - `"return_cached"` - Return last cached data if available (default)
+  - `"raise_error"` - Raise FetchError on failure
+  - `"return_none"` - Return None on failure
+- `on_error` - Optional callback function(url, exception) for error reporting
+
+#### `get_registered_domains() -> Dict[str, DomainPolicy]`
+Get all registered domains and their policies.
+
+**Returns:** Dictionary mapping domain names to DomainPolicy objects
+
+#### `set_session(session_id: str) -> None`
+Set the current session ID for isolated caching.
+
+**Parameters:**
+- `session_id` - Unique identifier for this session
+
+**Example:**
+```python
+pulso.set_session("user_123")
+```
+
+#### `get_session() -> str`
+Get the current session ID.
+
+**Returns:** Current session ID
+
+#### `load_config(env_file: str = ".env") -> None`
+Load configuration from environment file.
+
+**Parameters:**
+- `env_file` - Path to .env file (default: ".env")
+
+### Proposed Driver API (Custom Fetch Backends)
+
+This is a proposed extension for custom drivers. The goal is to keep caching and hashing consistent while making the fetch layer interchangeable.
+
+Minimal driver shape:
+
+```python
+class FetchDriver:
+    name = "requests"
+
+    def fetch(self, url: str, timeout: float = 30.0) -> str:
+        """Return HTML as a string or raise FetchError on failure."""
+        ...
+```
+
+Example: register a custom driver (remote browser, Android device, etc.):
+
+```python
+import pulso
+
+class AndroidBrowserDriver:
+    name = "android_browser"
+
+    def fetch(self, url: str, timeout: float = 30.0) -> str:
+        # Call your device bridge and return HTML
+        return get_html_from_device(url, timeout=timeout)
+
+pulso.register_driver(AndroidBrowserDriver())  # Proposed API
+pulso.register_domain("mobile-site.com", ttl="30m", driver="android_browser")
+```
+
+If a driver fails, Pulso applies the same retry and fallback rules as any other driver.
+
+### Cache Manager
+
+#### `cache.clear(domain: Optional[str] = None, url: Optional[str] = None) -> None`
+Clear cache entries.
+
+**Parameters:**
+- `domain` - Clear all entries for domain
+- `url` - Clear specific URL
+- (no params) - Clear entire cache
+
+## Cache Storage
+
+Pulso stores cache at the **user level**, not within your project directory.
+
+### Locations
+
+- **Linux / macOS:** `~/.cache/pulso/`
+- **Windows:** `%LOCALAPPDATA%\pulso\`
+
+### Organization
+
+Cache is structured by domain and URL hashes:
+
+```
+~/.cache/pulso/
+├── example.com/
+│   ├── a3f2d9e1.json          # Metadata
+│   ├── a3f2d9e1.html          # Content
+│   └── ...
+├── news.site/
+│   └── ...
+└── snapshots/
+    └── ...
+```
+
+This structure makes the cache:
+- **Inspectable** - Easy to browse and debug
+- **Portable** - Safe to use across multiple projects
+- **Manageable** - Simple to clear or backup
+
+## Architecture
+
+### Mental Model
+
+Pulso is **not** a web crawler or scraping framework.
+
+Think of it as:
+
+```
+requests + persistent memory + domain policies + content hashing
+```
+
+You call `fetch()` multiple times on the same URLs, and Pulso intelligently decides whether a network request is actually needed.
+
+### Request Flow (Cache + Drivers)
+
+```mermaid
+flowchart TD
+    A[fetch(url)] --> B{Session cache hit?}
+    B -- yes --> C{TTL still valid?}
+    C -- yes --> D[Return cached HTML]
+    C -- no --> E[Select driver for domain]
+    B -- no --> E
+    E --> F[Driver fetches HTML]
+    F --> G[Normalize + hash content]
+    G --> H{Changed?}
+    H -- no --> I[Update fetch_time]
+    H -- yes --> J[Update change_time + snapshot]
+    I --> K[Store HTML + metadata]
+    J --> K
+    K --> L[Return HTML]
+```
+
+This flow shows how Pulso decides between cache reuse and a live request, and how drivers plug into the fetch step.
+
+### Driver Model (Interchangeable Backends)
+
+Drivers are the fetch engines. Pulso chooses the driver per domain today, and the design below outlines how a custom driver API could plug in to fetch HTML from any source (Python requests, Playwright, remote browser, or a device).
+
+Example use cases:
+- **Requests driver** for static pages.
+- **Playwright driver** for JavaScript-heavy sites.
+- **Custom driver** that pulls HTML from an Android device or a remote browser farm.
+
+Pulso treats every driver the same way: it requests HTML, then normalizes, hashes, caches, and returns it.
+
+### Design Principles
+
+**Stateful over Stateless**
+- Every fetch operation maintains state
+- Content history is preserved automatically
+- No need for external state management
+
+**Predictable over Clever**
+- Explicit domain policies
+- No magic heuristics
+- Deterministic behavior
+
+**Hash-based over Time-based**
+- Content identified by normalized hash
+- Immune to trivial HTML changes (whitespace, scripts)
+- Real changes always detected
+
+### What Pulso is NOT
+
+- ❌ Not a full-featured web scraping framework
+- ❌ Not a distributed crawler with spiders
+- ❌ Not a monitoring SaaS or alerting system
+- ❌ Not a proxy or request interceptor
+
+Pulso is a **library** designed to be embedded in your own applications and data pipelines.
+
+## Roadmap
+
+Features under development or consideration:
+
+- [ ] Rate limiting per domain
+- [ ] Conditional requests (ETag, Last-Modified headers)
+- [ ] DOM-level diffing for granular change detection
+- [ ] Change classification (minor vs. major)
+- [ ] CLI tools for cache inspection
+- [ ] Export adapters for AI/LLM pipelines
+- [ ] Async/await support
+- [ ] Custom hash functions
+- [ ] Custom driver API (pluggable fetch backends)
+- [ ] Webhook notifications
+
+## Contributing
+
+Contributions are welcome! This project is in active development.
+
+### Development Setup
+
+```bash
+# Clone repository
+git clone https://github.com/jhd3197/pulso.git
+cd pulso
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+
+# Install in development mode
+pip install -e ".[dev]"
+
+# Install Playwright browsers
+playwright install
+
+# Run tests
+pytest tests/
+```
+
+### Guidelines
+
+- Write tests for new features
+- Follow existing code style (Black formatter)
+- Update documentation for API changes
+- Keep the API simple and predictable
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Project Status
+
+**Status:** Active Development
+
+The public API is stabilizing around core functions (`fetch`, `has_changed`, `snapshot`) and domain policies. Breaking changes may occur before v1.0.0.
+
+---
+
+**Built with a focus on predictability, state management, and intelligent caching.**
