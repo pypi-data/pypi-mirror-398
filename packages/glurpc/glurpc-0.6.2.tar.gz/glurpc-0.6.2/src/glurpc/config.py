@@ -1,0 +1,163 @@
+"""
+Configuration constants for GluRPC service.
+Simple, static configuration values only.
+"""
+import os
+import logging
+from glurpc.data_classes import GluformerInferenceConfig
+
+def _getenv_int(key: str, default: int) -> int:
+    """Get environment variable as int, handling empty strings."""
+    value = os.getenv(key, "").strip()
+    return int(value) if value else default
+
+def _getenv_float(key: str, default: float) -> float:
+    """Get environment variable as float, handling empty strings."""
+    value = os.getenv(key, "").strip()
+    return float(value) if value else default
+
+# --- Application Root Configuration ---
+# This is critical for Docker environments where module imports happen from different working directories
+# Priority: ENV var > /app (Docker) > cwd (local dev)
+APP_ROOT: str = os.getenv("GLURPC_APP_ROOT", "").strip()
+if not APP_ROOT:
+    # Auto-detect: use /app in Docker, cwd for local development
+    if os.path.exists("/app") and os.path.isdir("/app"):
+        APP_ROOT = "/app"
+    else:
+        APP_ROOT = os.getcwd()
+
+"""Application root directory - all relative paths are resolved from here."""
+
+# --- Data Processing Configuration ---
+
+DEFAULT_CONFIG = GluformerInferenceConfig()
+
+STEP_SIZE_MINUTES: int = DEFAULT_CONFIG.time_step
+"""Time step in minutes for model input data."""
+
+DEFAULT_INPUT_CHUNK_LENGTH: int = DEFAULT_CONFIG.input_chunk_length
+"""Default input chunk length for model."""
+
+DEFAULT_OUTPUT_CHUNK_LENGTH: int = DEFAULT_CONFIG.output_chunk_length
+"""Default output chunk length for model."""
+# Model requirements (based on architecture: 96 input + 12 output)
+MINIMUM_DURATION_MINUTES_MODEL: int = STEP_SIZE_MINUTES * (DEFAULT_INPUT_CHUNK_LENGTH + DEFAULT_OUTPUT_CHUNK_LENGTH)
+"""Minimum duration required by the model architecture (in minutes)."""
+
+MAXIMUM_WANTED_DURATION_DEFAULT: int = MINIMUM_DURATION_MINUTES_MODEL * 2
+"""Default maximum duration for data processing (in minutes)."""
+
+# --- Cache Configuration ---
+MAX_CACHE_SIZE: int = _getenv_int("MAX_CACHE_SIZE", 128)
+"""Maximum number of datasets to cache."""
+
+ENABLE_CACHE_PERSISTENCE: bool = os.getenv("ENABLE_CACHE_PERSISTENCE", "True").lower() in ("true", "1", "yes")
+"""Enable/disable cache persistence to disk (useful to disable for testing)."""
+
+# Runtime overridable duration limits (with validation)
+MINIMUM_DURATION_MINUTES: int = _getenv_int("MINIMUM_DURATION_MINUTES", MINIMUM_DURATION_MINUTES_MODEL)
+"""Minimum duration for processing (configurable via env)."""
+
+MAXIMUM_WANTED_DURATION: int = _getenv_int("MAXIMUM_WANTED_DURATION", MAXIMUM_WANTED_DURATION_DEFAULT)
+"""Maximum wanted duration for processing (configurable via env)."""
+
+# Validation
+if MINIMUM_DURATION_MINUTES < MINIMUM_DURATION_MINUTES_MODEL:
+    raise ValueError(f"MINIMUM_DURATION_MINUTES must be greater than {MINIMUM_DURATION_MINUTES_MODEL}")
+if MAXIMUM_WANTED_DURATION < MINIMUM_DURATION_MINUTES:
+    raise ValueError(f"MAXIMUM_WANTED_DURATION must be greater than {MINIMUM_DURATION_MINUTES}")
+
+# --- API Configuration ---
+ENABLE_API_KEYS: bool = os.getenv("ENABLE_API_KEYS", "False").lower() in ("true", "1", "yes")
+"""Enable/disable API key authentication."""
+
+# --- Model and Inference Configuration ---
+NUM_COPIES_PER_DEVICE: int = _getenv_int("NUM_COPIES_PER_DEVICE", 2)
+"""Number of model copies per GPU device."""
+
+BACKGROUND_WORKERS_COUNT: int = _getenv_int("BACKGROUND_WORKERS_COUNT", 4)
+"""Number of background workers for calculation tasks."""
+
+BATCH_SIZE: int = _getenv_int("BATCH_SIZE", 32)
+"""Batch size for inference."""
+
+NUM_SAMPLES: int = _getenv_int("NUM_SAMPLES", 10)
+"""Number of Monte Carlo samples for uncertainty estimation."""
+
+# --- Timeout Configuration ---
+# Timeouts are device-specific (set dynamically in engine.py based on CUDA availability)
+INFERENCE_TIMEOUT_GPU: float = _getenv_float("INFERENCE_TIMEOUT_GPU", 600.0)
+"""Timeout in seconds for GPU inference (default 10 minutes)."""
+
+INFERENCE_TIMEOUT_CPU: float = _getenv_float("INFERENCE_TIMEOUT_CPU", 7200.0)
+"""Timeout in seconds for CPU inference (default 120 minutes - CPUs are ~100x slower)."""
+
+# Will be set dynamically based on detected device
+INFERENCE_TIMEOUT: float = INFERENCE_TIMEOUT_CPU  # Conservative default, overridden in engine.py
+
+# --- Queue Configuration ---
+MAX_INFERENCE_QUEUE_SIZE: int = _getenv_int("MAX_INFERENCE_QUEUE_SIZE", 64)
+"""Maximum number of inference tasks allowed in the queue to prevent flooding."""
+
+MAX_CALC_QUEUE_SIZE: int = _getenv_int("MAX_CALC_QUEUE_SIZE", 8192)
+"""Maximum number of calculation tasks allowed in the queue to prevent flooding."""
+
+# --- Logging Configuration ---
+# Log levels: DEBUG=10, INFO=20, WARNING=30, ERROR=40, CRITICAL=50
+# Logger structure: glurpc.{module}.{task_category}
+# Exception: glurpc.locks is app-wide for all lock operations
+# Task categories: calc (plot calculations), infer (ML inference), data (preprocessing/dataset creation)
+
+def _parse_log_level(level_str: str, default: int = logging.INFO) -> int:
+    """Parse log level from string or int."""
+    level_str = level_str.upper()
+    if level_str.isdigit():
+        return int(level_str)
+    level_map = {
+        'DEBUG': logging.DEBUG,
+        'INFO': logging.INFO,
+        'WARNING': logging.WARNING,
+        'ERROR': logging.ERROR,
+        'CRITICAL': logging.CRITICAL
+    }
+    return level_map.get(level_str, default)
+
+LOG_LEVEL_ROOT: int = _parse_log_level(os.getenv("LOG_LEVEL_ROOT", "INFO"))
+"""Root logger level (glurpc) - inherited by all subloggers."""
+
+LOG_LEVEL_LOGIC: int = _parse_log_level(os.getenv("LOG_LEVEL_LOGIC", "INFO"))
+"""Logic module logger level (glurpc.logic and subdomains: .calc, .infer, .data)."""
+
+LOG_LEVEL_ENGINE: int = _parse_log_level(os.getenv("LOG_LEVEL_ENGINE", "INFO"))
+"""Engine module logger level (glurpc.engine and subdomains: .infer, .calc, .data)."""
+
+LOG_LEVEL_CORE: int = _parse_log_level(os.getenv("LOG_LEVEL_CORE", "INFO"))
+"""Core module logger level (glurpc.core)."""
+
+LOG_LEVEL_APP: int = _parse_log_level(os.getenv("LOG_LEVEL_APP", "INFO"))
+"""App module logger level (glurpc.app)."""
+
+LOG_LEVEL_STATE: int = _parse_log_level(os.getenv("LOG_LEVEL_STATE", "INFO"))
+"""State module logger level (glurpc.state)."""
+
+LOG_LEVEL_CACHE: int = _parse_log_level(os.getenv("LOG_LEVEL_CACHE", "INFO"))
+"""Cache module logger level (glurpc.cache)."""
+
+LOG_LEVEL_LOCKS: int = _parse_log_level(os.getenv("LOG_LEVEL_LOCKS", "ERROR"))
+"""App-wide lock operations logger level (glurpc.locks) - defaults to ERROR to reduce noise."""
+
+# --- Console Logging Configuration ---
+VERBOSE: bool = os.getenv("GLURPC_VERBOSE", "False").lower() in ("true", "1", "yes")
+"""Enable verbose console logging (in addition to file logging). Useful for debugging and Docker logs."""
+
+# --- Path Configuration ---
+# All paths use APP_ROOT as base to avoid os.getcwd() issues in Docker
+LOGS_DIR: str = os.getenv("GLURPC_LOGS_DIR", "").strip() or os.path.join(APP_ROOT, "logs")
+"""Directory for log files."""
+
+CACHE_DIR: str = os.getenv("GLURPC_CACHE_DIR", "").strip() or os.path.join(APP_ROOT, "cache_storage")
+"""Directory for cache storage (inference and plot caches)."""
+
+API_KEYS_FILE: str = os.getenv("GLURPC_API_KEYS_FILE", "").strip() or os.path.join(APP_ROOT, "api_keys_list")
+"""Path to API keys file."""
