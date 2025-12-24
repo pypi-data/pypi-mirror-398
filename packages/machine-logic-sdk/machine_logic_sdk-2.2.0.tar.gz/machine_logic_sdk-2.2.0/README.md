@@ -1,0 +1,215 @@
+# machine-logic-sdk
+
+Provides a programmatic interface in Python to control Vention hardware and coordinate automation programs. This SDK enables developers to build custom applications that interact with Vention's MachineMotion platform, robots, actuators, and I/O devices.
+
+## Features
+
+- **Robot Control**: Move robots, set tool center points, compute kinematics
+- **Machine Automation**: Control actuators, pneumatics, and motors
+- **I/O Management**: Read sensors and control digital outputs  
+- **Real-time Monitoring**: Access live robot positions, states, and sensor data
+- **Safety Integration**: Built-in safety state monitoring and emergency stops
+
+## Table of Contents
+
+1. [Installation](#installation)
+2. [Quick Start](#quick-start)
+3. [Requirements](#requirements)
+4. [Basic Usage](#basic-usage)
+5. [Examples](#examples)
+6. [Development](#development)
+7. [Documentation](#documentation)
+8. [Contributing](#contributing)
+9. [Support](#support)
+
+## Installation
+
+Install the machine-logic-sdk from PyPI:
+
+```bash
+pip install machine-logic-sdk
+```
+
+## Compatibility:
+
+Please pay close attention to the compatibility table provided in the [Official machine-logic-sdk Documentation](https://docs.vention.io/docs/en/vention-python-api)
+to determine which version of the sdk is compatible with your version of MachineMotion
+
+For development installations, see the [Development](#development) section below.
+
+## Quick Start
+
+Here's a simple example to get started:
+Assumptions:
+- Robot is configured with friendly name "Robot"
+- Digital Input is configured with friendlt name "Sensor_1"
+
+```python
+from machinelogic import Machine
+
+# Connect to your machine
+machine = Machine()
+
+# Get a robot and move it
+robot = machine.get_robot("Robot")
+target_position = [100.0, 200.0, 300.0, 0.0, 90.0, 0.0]  # [x, y, z, rx, ry, rz]
+robot.movel(target_position)
+
+# Read a digital input (assuming "Sensor_1" is configured)
+input_device = machine.get_input("Sensor_1")
+sensor_value = input_device.state
+print(f"Sensor reading: {sensor_value}")
+```
+
+## Requirements
+
+- **Python 3.10.x** (Python 3.10.12 is shipped on MachineMotionAI devices)
+- **Python 3.9.x** (Python 3.9 is shipped on MachineMotion v2 devices)
+- **MachineMotion Controller** or compatible Vention hardware
+- **Network connection** to your MachineMotion device
+
+> **Note**: Higher Python versions (up to 3.11) are supported for development, but Python 3.10 is recommended for compatibility with MachineMotionAI devices.
+
+## Basic Usage
+
+### Connecting to Your Machine
+
+```python
+from machinelogic import Machine
+
+# Connect to local machine (default)
+machine = Machine()
+```
+
+#### or Connect to remote machine
+```python
+from machinelogic import Machine
+
+# Connect to a remote machine
+machine = Machine(ip="192.168.7.2")
+```
+### Robot Operations
+
+```python
+from machinelogic import Machine
+
+machine = Machine()
+
+# Get robot instance
+robot = machine.get_robot("Robot")
+
+# Move to position (linear movement)
+robot.movel([100, 200, 300, 0, 90, 0])
+
+# Move joints directly
+robot.movej([0, -90, 90, 0, 90, 0])
+
+# Get current position
+current_pose = robot.state.cartesian_position
+joint_angles = robot.state.joint_angles
+```
+
+### Actuator Control
+
+```python
+from machinelogic import Machine, MotionProfile
+
+machine = Machine()
+my_actuator = machine.get_actuator("Actuator")
+
+
+# Always home the actuator before starting to ensure position is properly calibrated.
+my_actuator.home(timeout=10)
+
+TARGET_POSITION = 150.0  # millimeters
+VELOCITY = 150.0  # mm/s
+ACCELERATION = 150.0  # mm/s^2
+JERK = 150.0  # mm/s^3 OPTIONAL PARAMETER
+
+my_actuator.move_absolute(
+    position=TARGET_POSITION,  # millimeters
+    motion_profile=MotionProfile(
+        velocity=VELOCITY, acceleration=ACCELERATION, jerk=JERK
+    ),
+    timeout=10,  # seconds
+)
+
+```
+
+### I/O Operations
+
+```python
+from machinelogic import Machine
+
+machine = Machine()
+
+my_input = machine.get_input("Input")
+
+if my_input.state.value:
+    print(f"{my_input.configuration.name} is HIGH")
+else:
+    print(f"{my_input.configuration.name} is LOW")
+
+```
+
+## Examples
+
+The SDK includes comprehensive examples in the [`examples/`](examples/) directory.
+
+These examples can also be found in the [Official machine-logic-sdk Docs](https://docs.vention.io/docs/en/vention-python-api)
+
+- **Robot Control**: Movement, kinematics, tool center points
+- **Automation Sequences**: Multi-step operations and coordination
+- **I/O Integration**: Sensor reading and output control
+- **Error Handling**: Safety and exception management
+
+Browse the examples directory for complete, runnable** code samples.
+
+**Note: You must ensure the devices in the example have been configured in the CAD and properly identified by the friendly name used in the example code.
+
+## Development
+
+### System Setup (Ubuntu/MachineMotion)
+
+Install Python 3.10.12 on Ubuntu:
+
+```bash
+sudo apt install python3.10
+python3 --version  # Verify installation
+```
+
+If you have multiple Python versions, ensure `python3` points to 3.10:
+
+```bash
+cd /usr/bin
+sudo unlink python3
+sudo ln -s /usr/bin/python3.10 python3
+```
+
+Install required packages:
+
+```bash
+sudo apt-get install python3-apt python3-virtualenv python3.10-venv
+```
+
+### Development Environment
+
+Create and activate a virtual environment:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+```
+
+
+## Documentation
+
+- **[Official machine-logic-sdk Documentation](https://docs.vention.io/docs/en/vention-python-api)** - Complete API reference
+- **[Examples Directory](examples/)** - Runnable code examples for all features
+
+
+
+---
+
+**Ready to automate?** Install the SDK and check out the [examples](examples/) to get started with your first automation project!
