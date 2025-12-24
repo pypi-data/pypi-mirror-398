@@ -1,0 +1,140 @@
+# LangGraph Runtime Firestore
+
+[![License](https://img.shields.io/badge/License-Elastic%202.0-blue.svg)](https://www.elastic.co/licensing/elastic-license)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+
+A Firestore-based runtime implementation for [LangGraph](https://github.com/langchain-ai/langgraph), providing persistent storage and state management for LangGraph applications using Google Cloud Firestore.
+
+## Features
+
+- **Firestore Backend**: Uses Google Cloud Firestore for persistent storage of threads, runs, and assistants
+- **Thread Management**: Create, update, and manage conversation threads with full state persistence
+- **Run Execution**: Execute LangGraph runs with automatic state checkpointing
+- **Assistant Support**: Manage AI assistants with versioned configurations
+- **Real-time Streaming**: Stream run outputs and state updates in real-time
+- **Background Queue**: Built-in task queue for async run execution
+- **State Snapshots**: Retrieve and update thread state at any point in time
+
+## Installation
+
+```bash
+pip install langgraph-runtime-firestore
+```
+
+## Prerequisites
+
+- Python 3.11 or higher
+- A Google Cloud project with Firestore enabled
+- Firebase service account credentials
+
+## Quick Start
+
+### 1. Set up Firestore
+
+1. Create a Google Cloud project
+2. Enable the Firestore API
+3. Create a service account and download the credentials JSON file
+4. Set the environment variables:
+
+```bash
+export FIRESTORE_CREDENTIALS_PATH=/path/to/your/credentials.json
+export FIRESTORE_PROJECT_ID=your-gcp-project-id
+```
+
+### 2. Use in your application
+
+```python
+from starlette.applications import Starlette
+from langgraph_runtime_firestore import lifespan
+
+# Create your ASGI application with Firestore runtime
+app = Starlette(lifespan=lifespan)
+```
+
+### 3. Run with LangGraph CLI
+
+```bash
+langgraph dev
+```
+
+## Configuration
+
+### Required Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `FIRESTORE_CREDENTIALS_PATH` | Path to your Firebase service account credentials JSON file |
+| `FIRESTORE_PROJECT_ID` | Your Google Cloud project ID |
+
+### Optional Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LANGGRAPH_DISABLE_FILE_PERSISTENCE` | `false` | Disable local file caching |
+| `N_JOBS_PER_WORKER` | (varies) | Number of concurrent jobs per worker |
+
+## Architecture
+
+This runtime implements the LangGraph Runtime API with Firestore as the backend:
+
+- **Threads**: Stored in `users/{user}/threads/{thread_id}` collection
+- **Runs**: Stored in memory with metadata synced to Firestore
+- **Assistants**: Stored in `assistants/{assistant_id}` collection
+- **Checkpoints**: Managed through the checkpoint module with optional Firestore persistence
+- **Streaming**: In-memory queue-based streaming with message persistence
+
+## Development
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/MarcoFurrer/langgraph_runtime_firestore.git
+cd langgraph_runtime_firestore
+
+# Install in development mode
+pip install -e ".[dev]"
+```
+
+### Code Quality
+
+```bash
+# Check code style
+make lint
+
+# Auto-fix linting issues
+make format
+```
+
+### Project Structure
+
+```
+langgraph_runtime_firestore/
+├── checkpoint.py          # Checkpoint management
+├── database.py            # Firestore connection & initialization
+├── ops.py                 # Core operations (Threads, Runs, Assistants)
+├── store.py              # Store implementation
+├── queue.py              # Background task queue
+├── serialize.py          # Firestore serialization utilities
+├── firestore_stream.py   # Streaming infrastructure
+├── lifespan.py           # Application lifecycle management
+├── retry.py              # Retry logic for DB operations
+└── metrics.py            # Metrics collection
+```
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+This project is licensed under the Elastic License 2.0. See [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+This runtime was originally developed from `langgraph_runtime_inmem` and adapted for Firestore integration.
+
+## Support
+
+For issues, questions, or contributions, please open an issue on the [GitHub repository](https://github.com/MarcoFurrer/langgraph_runtime_firestore).
+
