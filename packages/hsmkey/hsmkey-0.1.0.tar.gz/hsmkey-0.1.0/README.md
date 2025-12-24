@@ -1,0 +1,199 @@
+# HSMKey
+
+HSM-backed cryptographic keys compatible with Python's [cryptography](https://cryptography.io/) library.
+
+## Overview
+
+HSMKey provides key implementations that perform all cryptographic operations on a Hardware Security Module (HSM) via PKCS#11. Private keys never leave the HSM - signing, decryption, and other private key operations are executed on the hardware.
+
+## Features
+
+- **Drop-in replacement** - Keys implement `cryptography` library interfaces
+- **Secure by design** - Private keys cannot be exported from HSM
+- **Full algorithm support**:
+  - RSA (2048, 3072, 4096 bits) - PKCS#1 v1.5 and PSS signing, OAEP decryption
+  - ECDSA (P-256, P-384, P-521)
+  - EdDSA (Ed25519, Ed448)
+- **Thread-safe session management** - Connection pooling with proper cleanup
+
+## Installation
+
+```bash
+python3 -m pip install hsmkey
+```
+
+Or with uv:
+
+```bash
+uv add hsmkey
+```
+
+## Quick Start
+
+```python
+from hsmkey import SessionPool, PKCS11RSAPrivateKey
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+
+# Create session pool
+pool = SessionPool(
+    module_path="/usr/lib/softhsm/libsofthsm2.so",
+    token_label="my-token",
+    user_pin="123456",
+)
+
+# Use session to access keys
+with pool.session() as session:
+    # Load RSA key by label
+    key = PKCS11RSAPrivateKey(session, key_label="my-rsa-key")
+
+    # Sign data (signing happens on HSM)
+    signature = key.sign(
+        b"data to sign",
+        padding.PKCS1v15(),
+        hashes.SHA256(),
+    )
+
+    # Get public key for verification
+    public_key = key.public_key()
+    public_key.verify(signature, b"data to sign", padding.PKCS1v15(), hashes.SHA256())
+```
+
+## Supported Key Types
+
+### RSA Keys
+
+```python
+from hsmkey import PKCS11RSAPrivateKey
+from cryptography.hazmat.primitives.asymmetric import padding
+
+with pool.session() as session:
+    key = PKCS11RSAPrivateKey(session, key_label="rsa-2048")
+
+    # PKCS#1 v1.5 signing (RS256, RS384, RS512)
+    sig = key.sign(data, padding.PKCS1v15(), hashes.SHA256())
+
+    # PSS signing (PS256, PS384, PS512)
+    pss = padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.AUTO)
+    sig = key.sign(data, pss, hashes.SHA256())
+
+    # OAEP decryption
+    oaep = padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+    plaintext = key.decrypt(ciphertext, oaep)
+```
+
+### ECDSA Keys
+
+```python
+from hsmkey import PKCS11EllipticCurvePrivateKey
+from cryptography.hazmat.primitives.asymmetric import ec
+
+with pool.session() as session:
+    key = PKCS11EllipticCurvePrivateKey(session, key_label="ec-p256")
+
+    # Sign with ECDSA (ES256, ES384, ES512)
+    signature = key.sign(data, ec.ECDSA(hashes.SHA256()))
+
+    # Verify
+    key.public_key().verify(signature, data, ec.ECDSA(hashes.SHA256()))
+```
+
+### EdDSA Keys
+
+```python
+from hsmkey import PKCS11Ed25519PrivateKey, PKCS11Ed448PrivateKey
+
+with pool.session() as session:
+    # Ed25519
+    key = PKCS11Ed25519PrivateKey(session, key_label="ed25519")
+    signature = key.sign(data)  # 64-byte signature
+
+    # Ed448
+    key = PKCS11Ed448PrivateKey(session, key_label="ed448")
+    signature = key.sign(data)  # 114-byte signature
+```
+
+## Key Lookup
+
+Keys can be found by ID or label:
+
+```python
+# By label
+key = PKCS11RSAPrivateKey(session, key_label="my-key")
+
+# By ID
+key = PKCS11RSAPrivateKey(session, key_id=bytes([0x01]))
+
+# By both (must match)
+key = PKCS11RSAPrivateKey(session, key_id=bytes([0x01]), key_label="my-key")
+```
+
+## Security
+
+Private key material is protected:
+
+```python
+key = PKCS11RSAPrivateKey(session, key_label="my-key")
+
+# These operations raise HSMUnsupportedError:
+key.private_numbers()  # Cannot extract private numbers
+key.private_bytes(...)  # Cannot export private key
+```
+
+Public keys can be extracted and serialized:
+
+```python
+public_key = key.public_key()
+pem = public_key.public_bytes(
+    serialization.Encoding.PEM,
+    serialization.PublicFormat.SubjectPublicKeyInfo,
+)
+```
+
+## Development
+
+### Prerequisites
+
+- SoftHSM2 installed (for testing).
+- [kryoptic](https://github.com/latchset/kryoptic) built in `~/kryoptic` (for testing).
+- OpenSSL for key generation
+- [just](https://github.com/casey/just) command runner
+
+### Setup
+
+```bash
+# Clone and install
+git clone https://github.com/kushaldas/hsmkey
+cd hsmkey
+uv sync --all-extras
+
+# Generate test keys and set up HSM
+just setup
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+just test
+
+# Run with coverage
+just test-cov
+```
+
+### Available Commands
+
+```bash
+just                 # List all commands
+just recreate-keys   # Generate test keys on disk
+just init-hsm        # Initialize SoftHSM2 token
+just import-keys     # Import keys to HSM
+just setup           # Full setup
+just test            # Run tests
+just list-keys       # List keys in HSM
+just reset           # Reset everything
+```
+
+## License
+
+BSD-2-Clause
