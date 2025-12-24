@@ -1,0 +1,91 @@
+# Architextor
+
+[![PyPI version](https://img.shields.io/pypi/v/architextor.svg)](https://pypi.org/project/architextor/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/architextor)](https://pepy.tech/project/architextor)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue)](https://www.linkedin.com/in/eugene-evstafev/)
+
+A Python package for processing and interpreting structured descriptions of neural network architectures from textual input. Architextor uses pattern matching and retries to parse user-provided text about ANN designs (layer types, connections, parameters, etc.) and returns a formalized, machine-readable representation (e.g., JSON schema or graph outline).
+
+## Installation
+
+```bash
+pip install architextor
+```
+
+## Usage
+
+### Basic Example
+
+```python
+from architextor import architextor
+
+user_input = "A neural network with two dense layers: first layer has 128 units and ReLU activation, second has 10 units and softmax activation."
+response = architextor(user_input)
+print(response)
+```
+
+### Using a Custom LLM
+
+You can pass your own LangChain-compatible LLM instance to use OpenAI:
+```python
+from langchain_openai import ChatOpenAI
+from architextor import architextor
+
+llm = ChatOpenAI()
+response = architextor(user_input, llm=llm)
+```
+
+use Anthropic:
+```python
+from langchain_anthropic import ChatAnthropic
+from architextor import architextor
+
+llm = ChatAnthropic()
+response = architextor(user_input, llm=llm)
+```
+
+use Google:
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from architextor import architextor
+
+llm = ChatGoogleGenerativeAI()
+response = architextor(user_input, llm=llm)
+```
+
+### Using a Custom API Key
+
+The default LLM is ChatLLM7 (from [langchain_llm7](https://pypi.org/project/langchain-llm7/)). You can provide your own API key:
+
+Via environment variable:
+```bash
+export LLM7_API_KEY="your_api_key_here"
+```
+
+Or directly in code:
+```python
+response = architextor(user_input, api_key="your_api_key_here")
+```
+
+Get a free API key by registering at [https://token.llm7.io/](https://token.llm7.io/).
+
+## Parameters
+
+- `user_input` (str): The user input text describing the neural network architecture.
+- `llm` (Optional[BaseChatModel]): A LangChain LLM instance. If not provided, defaults to ChatLLM7.
+- `api_key` (Optional[str]): API key for LLM7. If not provided, defaults to the `LLM7_API_KEY` environment variable.
+
+## Default Rate Limits
+
+The default rate limits for LLM7 free tier are sufficient for most use cases. For higher rate limits, provide your own API key.
+
+## Issues
+
+Report issues or feature requests on [GitHub](https://github.com/chigwell/architextor/issues).
+
+## Author
+
+Eugene Evstafev  
+Email: hi@euegne.plus  
+GitHub: [chigwell](https://github.com/chigwell)
