@@ -1,0 +1,510 @@
+{% extends "base.html" %}
+
+{% block title %}{{ catalog.name }} - Kirin{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-separator">></span>
+<span>{{ catalog.name }}</span>
+{% endblock %}
+
+{% block header_title %}{{ catalog.name }}{% endblock %}
+{% block header_description %}Datasets in {{ catalog.name }} ({{ catalog.root_dir }}){% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Tabs -->
+    <div class="tabs">
+        <div class="tab-list">
+            <button class="tab active" onclick="showDatasets()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14,2 14,8 20,8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10,9 9,9 8,9"></polyline>
+                </svg>
+                Datasets
+            </button>
+            <button class="tab" onclick="showCreateForm()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Create Dataset
+            </button>
+        </div>
+    </div>
+
+    <!-- Tab Content -->
+    <div id="tab-content" class="tab-content">
+        <!-- Datasets Tab -->
+        <div id="datasets-tab" class="space-y-6">
+            <!-- Search -->
+            <div class="panel">
+                <div class="panel-content">
+                    <div class="form-group">
+                        <label for="search-input" class="form-label">Search Datasets</label>
+                        <input type="text" id="search-input" class="input" placeholder="Search by name or description...">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Python Code Snippet -->
+            <div class="code-snippet collapsed" id="catalog-code-snippet">
+                <div class="code-snippet-header">
+                    <div class="code-snippet-title code-snippet-toggle" onclick="toggleCodeSnippet('catalog-code-snippet')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6,9 12,15 18,9"></polyline>
+                        </svg>
+                        Python Access Code
+                    </div>
+                    <button class="copy-btn" onclick="copyCode('catalog-code')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        Copy
+                    </button>
+                </div>
+                <div class="code-snippet-content">
+                    <pre><code id="catalog-code">from kirin import Catalog
+
+catalog = Catalog(
+    root_dir="{{ catalog.root_dir }}"{% if catalog.aws_profile %},
+    aws_profile="{{ catalog.aws_profile }}"{% endif %}{% if catalog.gcs_token %},
+    gcs_token="{{ catalog.gcs_token }}"{% endif %}{% if catalog.gcs_project %},
+    gcs_project="{{ catalog.gcs_project }}"{% endif %}{% if catalog.azure_account_name %},
+    azure_account_name="{{ catalog.azure_account_name }}"{% endif %}{% if catalog.azure_account_key %},
+    azure_account_key="{{ catalog.azure_account_key }}"{% endif %}{% if catalog.azure_connection_string %},
+    azure_connection_string="{{ catalog.azure_connection_string }}"{% endif %}
+)
+
+# List available datasets
+datasets = catalog.datasets()
+
+# Access a specific dataset
+dataset = catalog.get_dataset("dataset_name")</code></pre>
+                </div>
+            </div>
+
+            <!-- Auto-auth Success Message -->
+            {% if auto_auth_success %}
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <div class="flex items-center gap-3">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-600">
+                        <polyline points="20,6 9,17 4,12"></polyline>
+                    </svg>
+                    <div>
+                        <h4 class="font-medium text-green-800">Auto-authentication successful!</h4>
+                        <p class="text-sm text-green-700 mt-1">{{ auto_auth_message }}</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Dataset Cards -->
+            {% if datasets %}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for dataset in datasets %}
+        <div class="card" data-dataset-name="{{ dataset.name }}" data-dataset-description="{{ dataset.description or '' }}">
+            <div class="card-header">
+                <div class="flex items-center gap-2">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14,2 14,8 20,8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10,9 9,9 8,9"></polyline>
+                    </svg>
+                    <h3 class="card-title">{{ dataset.name }}</h3>
+                </div>
+                <p class="card-description">{{ dataset.description or "No description" }}</p>
+            </div>
+
+            <div class="card-content">
+                <div class="space-y-2">
+                    <div class="flex items-center gap-2">
+                        <span class="badge">{{ dataset.commit_count }} commit{{ 's' if dataset.commit_count != 1 else '' }}</span>
+                        {% if dataset.current_commit %}
+                        <span class="badge badge-primary">{{ dataset.current_commit[:8] }}</span>
+                        {% endif %}
+                    </div>
+
+                    {% if dataset.total_size > 0 %}
+                    <div class="text-sm text-muted-foreground">
+                        Size: {{ "%.1f"|format(dataset.total_size / (1024*1024)) }} MB
+                    </div>
+                    {% endif %}
+
+                    {% if dataset.last_updated %}
+                    <div class="text-sm text-muted-foreground">
+                        Updated: {{ dataset.last_updated }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card-footer">
+                <a href="/catalog/{{ catalog.id }}/{{ dataset.name }}" class="btn btn-primary btn-sm">
+                    View Dataset
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14"></path>
+                        <path d="M12 5l7 7-7 7"></path>
+                    </svg>
+                </a>
+            </div>
+        </div>
+            {% endfor %}
+            </div>
+            {% elif ssl_issue %}
+            <!-- SSL Certificate Issue -->
+            <div class="text-center py-12">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="mx-auto mb-4 text-yellow-500">
+                    <path d="M12 9v4"></path>
+                    <path d="M12 17h.01"></path>
+                    <circle cx="12" cy="12" r="10"></circle>
+                </svg>
+                <h3 class="text-lg font-semibold mb-2 text-yellow-600">SSL Certificate Issue</h3>
+                <p class="text-muted-foreground mb-4">
+                    The web UI is running in a pixi environment that lacks proper SSL certificates for cloud storage connections.
+                </p>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 max-w-2xl mx-auto">
+                    <div class="flex items-start gap-3">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-yellow-600 mt-0.5">
+                            <path d="M12 9v4"></path>
+                            <path d="M12 17h.01"></path>
+                            <circle cx="12" cy="12" r="10"></circle>
+                        </svg>
+                        <div>
+                            <h4 class="font-medium text-yellow-800">Why This Happens</h4>
+                            <p class="text-sm text-yellow-700 mt-1">
+                                Your notebook works because it uses your system Python with proper SSL certificates.
+                                The web UI runs in pixi environment which lacks SSL certificate configuration.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <p class="text-sm text-muted-foreground">You can still create new datasets, which will work normally.</p>
+                    <button onclick="showCreateForm()" class="btn btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Create New Dataset
+                    </button>
+                </div>
+            </div>
+            {% elif error %}
+            <!-- Error State -->
+            <div class="text-center py-12">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="mx-auto mb-4 text-red-500">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+                <h3 class="text-lg font-semibold mb-2 text-red-600">
+                    {% if auth_required %}Authentication Required{% else %}Connection Error{% endif %}
+                </h3>
+                <p class="text-muted-foreground mb-4">{{ error }}</p>
+
+                {% if auth_required %}
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 max-w-2xl mx-auto">
+                    <div class="flex items-start gap-3">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-yellow-600 mt-0.5">
+                            <path d="M12 9v4"></path>
+                            <path d="M12 17h.01"></path>
+                            <circle cx="12" cy="12" r="10"></circle>
+                        </svg>
+                        <div class="text-left">
+                            <h4 class="font-medium text-yellow-800">Authentication Steps</h4>
+                            <div class="text-sm text-yellow-700 mt-2 space-y-2">
+                                {% if auto_auth_attempted %}
+                                    {% if auto_auth_success %}
+                                    <div class="bg-green-100 border border-green-200 rounded p-2 mb-2">
+                                        <div class="flex items-center gap-2">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-600">
+                                                <polyline points="20,6 9,17 4,12"></polyline>
+                                            </svg>
+                                            <span class="font-medium text-green-800">Auto-authentication successful!</span>
+                                        </div>
+                                        <p class="text-green-700 text-xs mt-1">{{ auto_auth_message }}</p>
+                                    </div>
+                                    {% else %}
+                                    <div class="bg-red-100 border border-red-200 rounded p-2 mb-2">
+                                        <div class="flex items-center gap-2">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-600">
+                                                <circle cx="12" cy="12" r="10"></circle>
+                                                <line x1="15" y1="9" x2="9" y2="15"></line>
+                                                <line x1="9" y1="9" x2="15" y2="15"></line>
+                                            </svg>
+                                            <span class="font-medium text-red-800">Auto-authentication failed</span>
+                                        </div>
+                                        <p class="text-red-700 text-xs mt-1">{{ auto_auth_message }}</p>
+                                    </div>
+                                    {% endif %}
+                                {% endif %}
+
+                                {% if catalog.auth_command %}
+                                <p>Run this command in your terminal:</p>
+                                <code class="bg-yellow-100 px-2 py-1 rounded block mt-1">{{ catalog.auth_command }}</code>
+                                {% else %}
+                                <p>Authenticate with your cloud provider using the appropriate CLI:</p>
+                                <ul class="list-disc list-inside mt-1">
+                                    <li><strong>AWS:</strong> <code>aws sso login --profile {{ catalog.aws_profile or 'default' }}</code></li>
+                                    <li><strong>GCP:</strong> <code>gcloud auth login</code></li>
+                                    <li><strong>Azure:</strong> <code>az login</code></li>
+                                </ul>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-3 justify-center">
+                    <a href="/catalog/{{ catalog.id }}/edit" class="btn btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                        Edit Catalog Credentials
+                    </a>
+                    <button onclick="tryAuthenticate('{{ catalog.id }}')" class="btn btn-secondary" id="try-again-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12c0 1.2-4.03 6-9 6s-9-4.8-9-6c0-1.2 4.03-6 9-6s9 4.8 9 6z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        Try Again
+                    </button>
+                </div>
+                {% else %}
+                <button onclick="tryAuthenticate('{{ catalog.id }}')" class="btn btn-primary" id="try-again-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12c0 1.2-4.03 6-9 6s-9-4.8-9-6c0-1.2 4.03-6 9-6s9 4.8 9 6z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    Try Again
+                </button>
+                {% endif %}
+            </div>
+            {% else %}
+            <!-- Empty State -->
+            <div class="text-center py-12">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="mx-auto mb-4 text-muted-foreground">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14,2 14,8 20,8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10,9 9,9 8,9"></polyline>
+                </svg>
+                <h3 class="text-lg font-semibold mb-2">No datasets yet</h3>
+                <p class="text-muted-foreground mb-4">
+                    This catalog doesn't have any datasets yet. Create your first dataset to get started.
+                </p>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                    <div class="flex items-start gap-3">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-yellow-600 mt-0.5">
+                            <path d="M12 9v4"></path>
+                            <path d="M12 17h.01"></path>
+                            <circle cx="12" cy="12" r="10"></circle>
+                        </svg>
+                        <div>
+                            <h4 class="font-medium text-yellow-800">Connection Note</h4>
+                            <p class="text-sm text-yellow-700 mt-1">
+                                If you're experiencing SSL certificate issues on macOS, datasets may not be listed here.
+                                You can still create new datasets which will work normally.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="showCreateForm()" class="btn btn-primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Create New Dataset
+                </button>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Create Dataset Tab -->
+        <div id="create-tab" class="space-y-6 hidden">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">Create New Dataset</h2>
+                </div>
+                <div class="panel-content">
+                    <!-- Error Alert for Dataset Creation -->
+                    {% if error and existing_dataset_name %}
+                    <div class="alert alert-error mb-4">
+                        <strong>⚠️ {{ error }}</strong>
+                        <div class="mt-2">
+                            <a href="/catalog/{{ catalog.id }}/{{ existing_dataset_name }}" class="btn btn-primary btn-sm">
+                                View Existing Dataset →
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="/catalog/{{ catalog.id }}/datasets/create" class="space-y-4">
+                        <div class="form-group">
+                            <label for="name" class="form-label required">Dataset Name</label>
+                            <input type="text" id="name" name="name" class="input" placeholder="my-dataset" required>
+                            <p class="text-sm text-muted-foreground mt-1">Use lowercase letters, numbers, and hyphens only</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea id="description" name="description" class="textarea" placeholder="Brief description of this dataset..."></textarea>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <button type="button" onclick="showDatasets()" class="btn btn-secondary">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Create Dataset</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showDatasets() {
+    // Update tab states
+    document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+    event.target.classList.add('active');
+
+    // Show datasets tab, hide create tab
+    document.getElementById('datasets-tab').classList.remove('hidden');
+    document.getElementById('create-tab').classList.add('hidden');
+}
+
+function showCreateForm() {
+    // Update tab states
+    document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+    event.target.classList.add('active');
+
+    // Show create tab, hide datasets tab
+    document.getElementById('create-tab').classList.remove('hidden');
+    document.getElementById('datasets-tab').classList.add('hidden');
+
+    // Focus on name field
+    document.getElementById('name').focus();
+}
+
+// Search functionality
+function filterDatasets() {
+    const searchInput = document.getElementById('search-input');
+    const searchTerm = searchInput.value.toLowerCase().trim();
+    const datasetCards = document.querySelectorAll('.card[data-dataset-name]');
+
+    datasetCards.forEach(card => {
+        const datasetName = card.getAttribute('data-dataset-name').toLowerCase();
+        const datasetDescription = card.getAttribute('data-dataset-description').toLowerCase();
+
+        const matchesSearch = searchTerm === '' ||
+                             datasetName.includes(searchTerm) ||
+                             datasetDescription.includes(searchTerm);
+
+        if (matchesSearch) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+// Code snippet functionality
+function toggleCodeSnippet(snippetId) {
+    const snippet = document.getElementById(snippetId);
+    snippet.classList.toggle('collapsed');
+}
+
+async function copyCode(codeId) {
+    const codeElement = document.getElementById(codeId);
+    const code = codeElement.textContent;
+
+    try {
+        await navigator.clipboard.writeText(code);
+
+        // Visual feedback
+        const button = event.target.closest('.copy-btn');
+        const originalText = button.innerHTML;
+        button.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20,6 9,17 4,12"></polyline>
+            </svg>
+            Copied!
+        `;
+        button.classList.add('copied');
+
+        // Reset after 2 seconds
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.classList.remove('copied');
+        }, 2000);
+    } catch (err) {
+        console.error('Failed to copy code: ', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = code;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+    }
+}
+
+
+// Try to authenticate and reload
+async function tryAuthenticate(catalogId) {
+    const btn = document.getElementById('try-again-btn');
+    if (!btn) return;
+
+    // Disable button and show loading state
+    btn.disabled = true;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> Authenticating...';
+
+    try {
+        const response = await fetch(`/catalog/${catalogId}/authenticate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Authentication succeeded, reload the page
+            location.reload();
+        } else {
+            // Authentication failed, show error and re-enable button
+            alert(`Authentication failed: ${data.message}`);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    } catch (error) {
+        // Network or other error
+        alert(`Error: ${error.message}`);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+// Show create form if there's an error
+document.addEventListener('DOMContentLoaded', function() {
+    {% if error and existing_dataset_name %}
+    showCreateForm();
+    {% endif %}
+
+    // Add search event listener
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', filterDatasets);
+    }
+});
+</script>
+{% endblock %}

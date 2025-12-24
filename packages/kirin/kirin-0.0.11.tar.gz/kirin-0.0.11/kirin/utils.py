@@ -1,0 +1,394 @@
+"""Utilities for kirin."""
+
+import inspect
+import os
+from pathlib import Path
+from typing import Optional, Union
+
+import fsspec
+from loguru import logger
+
+try:
+    import ipynbname
+except ImportError:
+    ipynbname = None
+
+
+def strip_protocol(path: str) -> str:
+    """Strip protocol prefix from a path for use with fsspec filesystems.
+
+    fsspec filesystem objects already know their protocol, so paths should be
+    passed without the protocol prefix (e.g., 'bucket/path' not 'gs://bucket/path').
+
+    :param path: Path that may include protocol (e.g., 's3://bucket/path').
+    :return: Path without protocol prefix.
+
+    Examples:
+        >>> strip_protocol('s3://bucket/path/file.txt')
+        'bucket/path/file.txt'
+        >>> strip_protocol('gs://bucket/path')
+        'bucket/path'
+        >>> strip_protocol('/local/path')
+        '/local/path'
+    """
+    if "://" in path:
+        return path.split("://", 1)[1]
+    return path
+
+
+def get_filesystem(
+    path: str,
+    aws_profile: Optional[str] = None,
+    gcs_token: Optional[Union[str, Path]] = None,
+    gcs_project: Optional[str] = None,
+    azure_account_name: Optional[str] = None,
+    azure_account_key: Optional[str] = None,
+    azure_connection_string: Optional[str] = None,
+) -> fsspec.AbstractFileSystem:
+    """Get filesystem for the given path with cloud provider authentication.
+
+    Args:
+        path: Path to determine filesystem for
+        aws_profile: Optional AWS profile name for S3 authentication
+        gcs_token: Optional GCS token (service account JSON path, 'cloud', or None)
+        gcs_project: Optional GCP project ID
+        azure_account_name: Optional Azure storage account name
+        azure_account_key: Optional Azure storage account key
+        azure_connection_string: Optional Azure connection string
+
+    Returns:
+        fsspec filesystem instance
+    """
+    # If path has a protocol, use it directly
+    if "://" in path:
+        protocol = path.split("://")[0]
+
+        # For S3, use boto3 to resolve credentials (supports SSO, profiles, etc.)
+        if protocol == "s3":
+            return _get_s3_filesystem_with_credentials(aws_profile)
+        elif protocol == "gs":
+            return _get_gcs_filesystem_with_credentials(
+                token=gcs_token, project=gcs_project
+            )
+        elif protocol == "az":
+            return _get_azure_filesystem_with_credentials(
+                account_name=azure_account_name,
+                account_key=azure_account_key,
+                connection_string=azure_connection_string,
+            )
+        else:
+            return fsspec.filesystem(protocol)
+    else:
+        # For local paths, use the file protocol
+        return fsspec.filesystem("file")
+
+
+def _get_s3_filesystem_with_credentials(
+    aws_profile: Optional[str] = None,
+) -> fsspec.AbstractFileSystem:
+    """Create S3 filesystem with AWS credentials using boto3.
+
+    This function uses boto3's credential chain to resolve credentials, which supports:
+    - AWS SSO (aws sso login)
+    - AWS profiles (~/.aws/credentials, ~/.aws/config)
+    - Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+    - Instance roles (EC2, ECS, Lambda)
+    - Web identity tokens
+
+    Args:
+        aws_profile: Optional AWS profile name. If None, uses AWS_PROFILE env var
+        or 'default'
+
+    Returns:
+        Authenticated S3 filesystem
+    """
+    try:
+        import boto3
+        from botocore.exceptions import NoCredentialsError, ProfileNotFound
+    except ImportError:
+        raise ValueError("S3 support requires boto3. Install with: pip install boto3")
+
+    # Determine which profile to use
+    profile_name = aws_profile or os.getenv("AWS_PROFILE", "default")
+
+    try:
+        # Create boto3 session with the specified profile
+        session = boto3.Session(profile_name=profile_name)
+
+        # Get credentials from the session
+        credentials = session.get_credentials()
+
+        if not credentials:
+            logger.warning(f"No credentials found for AWS profile: {profile_name}")
+            # Fall back to anonymous access
+            return fsspec.filesystem("s3")
+
+        # Extract credential components
+        access_key = credentials.access_key
+        secret_key = credentials.secret_key
+        session_token = getattr(credentials, "token", None)
+
+        logger.info(f"Using AWS credentials for profile: {profile_name}")
+        logger.debug(f"Access key: {access_key[:8]}...")
+
+        # Create S3 filesystem with credentials
+        s3_config = {
+            "key": access_key,
+            "secret": secret_key,
+        }
+
+        # Add session token if present (for SSO, STS, etc.)
+        if session_token:
+            s3_config["token"] = session_token
+            logger.debug("Using session token for authentication")
+
+        # Get region from session or environment
+        region = session.region_name or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        if region:
+            s3_config["client_kwargs"] = {"region_name": region}
+
+        return fsspec.filesystem("s3", **s3_config)
+
+    except ProfileNotFound as e:
+        logger.error(f"AWS profile '{profile_name}' not found: {e}")
+        raise ValueError(
+            f"AWS profile '{profile_name}' not found. "
+            "Please check your AWS configuration."
+        )
+    except NoCredentialsError as e:
+        logger.error(f"No AWS credentials found: {e}")
+        raise ValueError(
+            "No AWS credentials found. Please run 'aws sso login' or "
+            "configure AWS credentials. See: "
+            "https://docs.aws.amazon.com/cli/latest/userguide/"
+            "cli-configure-files.html"
+        )
+    except Exception as e:
+        logger.error(f"Failed to create S3 filesystem: {e}")
+        raise ValueError(f"Failed to create S3 filesystem: {e}")
+
+
+def _get_gcs_filesystem_with_credentials(
+    token: Optional[Union[str, Path]] = None,
+    project: Optional[str] = None,
+) -> fsspec.AbstractFileSystem:
+    """Create GCS filesystem with credentials.
+
+    Args:
+        token: Optional GCS token (service account JSON path, 'cloud', or None)
+        project: Optional GCP project ID
+
+    Returns:
+        Authenticated GCS filesystem
+    """
+    from .cloud_auth import get_gcs_filesystem
+
+    return get_gcs_filesystem(token=token, project=project)
+
+
+def _get_azure_filesystem_with_credentials(
+    account_name: Optional[str] = None,
+    account_key: Optional[str] = None,
+    connection_string: Optional[str] = None,
+) -> fsspec.AbstractFileSystem:
+    """Create Azure filesystem with credentials.
+
+    Args:
+        account_name: Optional Azure storage account name
+        account_key: Optional Azure storage account key
+        connection_string: Optional Azure connection string
+
+    Returns:
+        Authenticated Azure filesystem
+    """
+    from .cloud_auth import get_azure_filesystem
+
+    return get_azure_filesystem(
+        account_name=account_name,
+        account_key=account_key,
+        connection_string=connection_string,
+    )
+
+
+def is_kirin_internal_file(path: str) -> bool:
+    """Check if a path is a Kirin internal file (not user scripts/notebooks).
+
+    Args:
+        path: File path to check
+
+    Returns:
+        True if path is a Kirin internal file, False otherwise
+    """
+    normalized = path.replace(os.sep, "/")
+    if "/kirin/" not in normalized:
+        return False
+
+    # Use rsplit to split on the LAST occurrence of /kirin/
+    # This handles cases like CI paths: /home/runner/work/kirin/kirin/tests/...
+    # where the repo name is also "kirin"
+    parts = normalized.rsplit("/kirin/", 1)
+    if len(parts) <= 1:
+        return False
+
+    after_kirin = parts[1]
+    # Allow user directories even if they contain "kirin" in path
+    allowed_prefixes = ["scripts/", "notebooks/", "tests/", "docs/"]
+    return not any(after_kirin.startswith(prefix) for prefix in allowed_prefixes)
+
+
+def extract_marimo_path(temp_path: str) -> Optional[str]:
+    """Extract actual notebook path from Marimo temporary file path.
+
+    Marimo creates temp files like:
+    /tmp/marimo_xxx/__marimo__cell_...:actual/path/to/notebook.py
+
+    Args:
+        temp_path: Temporary file path from Marimo
+
+    Returns:
+        Actual notebook path if found, None otherwise
+    """
+    normalized = temp_path.replace(os.sep, "/")
+    if "__marimo__" not in normalized and "/marimo_" not in normalized:
+        return None
+
+    if ":" not in normalized:
+        return None
+
+    parts = normalized.split(":", 1)
+    if len(parts) <= 1:
+        return None
+
+    potential_path = parts[1].split("#")[0]  # Remove URL fragments
+    import urllib.parse
+
+    potential_path = urllib.parse.unquote(potential_path)
+    return potential_path if os.path.exists(potential_path) else None
+
+
+def detect_source_file() -> Optional[str]:
+    """Detect the source notebook or script file that called this function.
+
+    Uses inspect.stack() to walk up the call stack and detect:
+    - Regular Python scripts (including Marimo notebooks): Uses frame.filename
+    - Jupyter/IPython notebooks: Uses ipynbname.path() if available
+
+    Detection priority:
+    1. Jupyter notebooks (via ipynbname)
+    2. Scripts/Marimo notebooks (via __file__ in frame globals)
+    3. Regular scripts (via co_filename)
+
+    Returns:
+        Path to source file, or None if source cannot be determined
+
+    Examples:
+        >>> # In a script
+        >>> detect_source_file()
+        '/path/to/script.py'
+
+        >>> # In a Jupyter notebook
+        >>> detect_source_file()
+        '/path/to/notebook.ipynb'
+
+        >>> # In interactive shell
+        >>> detect_source_file()
+        None
+    """
+    try:
+        # Walk up the call stack to find the calling frame
+        stack = inspect.stack()
+
+        # Skip frames that are inside the kirin package itself
+        # Frame 0: detect_source_file() itself
+        # Frame 1+: Callers (may include kirin internal functions)
+        for frame_info in stack[1:]:
+            frame = frame_info.frame
+
+            # First check if we're in a Jupyter/IPython notebook environment
+            # This must come before __file__ check because __file__ in Jupyter
+            # points to temp files
+            if "get_ipython" in frame.f_globals:
+                # Try to get notebook path using ipynbname (most reliable method)
+                if ipynbname is not None:
+                    try:
+                        notebook_path = ipynbname.path()
+                        if notebook_path and os.path.exists(notebook_path):
+                            return str(notebook_path)
+                    except Exception:
+                        # ipynbname may fail in some environments
+                        pass
+
+            # Check for __file__ in frame globals (works correctly for Marimo notebooks)
+            if "__file__" in frame.f_globals:
+                filename = frame.f_globals["__file__"]
+                if filename and isinstance(filename, str) and os.path.exists(filename):
+                    # Handle Marimo temp files
+                    marimo_path = extract_marimo_path(filename)
+                    if marimo_path:
+                        return marimo_path
+
+                    # Skip IPython/Jupyter temporary files
+                    normalized = filename.replace(os.sep, "/")
+                    # Only skip IPython temp files, not all /tmp/ files
+                    # IPython creates files like /tmp/ipykernel_*/kernel-*.json
+                    if "/ipykernel_" in normalized or (
+                        "/tmp/" in normalized
+                        and ("ipykernel" in normalized or "ipython" in normalized)
+                    ):
+                        continue
+
+                    # Skip Kirin internal files
+                    if is_kirin_internal_file(filename):
+                        continue
+
+                    # Found a valid user file
+                    return filename
+
+            # Fallback: Check if this frame has co_filename (regular script)
+            if hasattr(frame, "f_code") and hasattr(frame.f_code, "co_filename"):
+                filename = frame.f_code.co_filename
+
+                # Skip internal Python files and compiled modules
+                if (
+                    filename
+                    and not filename.startswith("<")
+                    and filename.endswith(".py")
+                ):
+                    # Handle Marimo notebook temporary files
+                    marimo_path = extract_marimo_path(filename)
+                    if marimo_path:
+                        filename = marimo_path
+                        normalized = filename.replace(os.sep, "/")
+                    else:
+                        normalized = filename.replace(os.sep, "/")
+
+                    # Skip Kirin internal files
+                    if is_kirin_internal_file(filename):
+                        continue
+
+                    # Check if it's a real file
+                    if os.path.exists(filename) or os.path.isabs(filename):
+                        return filename
+
+        # If we couldn't determine the source, return None
+        return None
+
+    except Exception as e:
+        logger.warning(f"Failed to detect source file: {e}")
+        return None
+
+
+def detect_variable_name(default: str = "dataset") -> str:
+    """Return the default variable name for code snippets.
+
+    This function currently just returns the default value. Frame detection
+    for automatic variable name detection is not implemented due to
+    complexity with notebook environments.
+
+    Args:
+        default: Default variable name to return
+
+    Returns:
+        The default variable name
+    """
+    return default
