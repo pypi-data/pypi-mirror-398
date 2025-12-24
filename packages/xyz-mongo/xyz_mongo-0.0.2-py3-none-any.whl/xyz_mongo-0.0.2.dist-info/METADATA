@@ -1,0 +1,260 @@
+Metadata-Version: 2.1
+Name: xyz-mongo
+Version: 0.0.2
+Summary: mongo utils
+Home-page: https://github.com/szuprefix/py-xyz-mongo
+Author: szuprefix
+Author-email: szuprefix@126.com
+License: MIT
+Classifier: Environment :: Web Environment
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Text Processing :: Indexing
+Classifier: Topic :: Utilities
+Classifier: Topic :: Internet
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Description-Content-Type: text/markdown
+
+# py-xyz-mongo
+
+`py-xyz-mongo` 是一个 **轻量级 MongoDB 数据访问层**，基于 `pymongo`，提供接近 Django ORM / QuerySet 风格的 API，用于简化 MongoDB 的常见 CRUD、聚合、统计、搜索与批量操作。
+
+适用于：
+
+- 替代直接使用 `pymongo`
+    
+- 在 Django / DRF / Flask 项目中作为 Mongo 数据层
+    
+- 快速构建带搜索、过滤、统计能力的数据接口
+    
+
+---
+
+## 特性
+
+- ✅ 类 ORM 的 `Store` 抽象（类似 Django Model Manager）
+    
+- ✅ 自动字段类型推断 & 过滤条件规范化
+    
+- ✅ 支持常用 CRUD / upsert / batch upsert
+    
+- ✅ 聚合能力：`group_by` / `count_by` / `sum`
+    
+- ✅ 随机抽样查询（`$sample`）
+    
+- ✅ Django 风格的 filter / ordering / search
+    
+- ✅ 可扩展的 `QuerySet` 封装
+    
+- ✅ 低侵入、无强 Schema 约束
+    
+
+---
+
+## 安装
+
+`pip install py-xyz-mongo`
+
+或本地开发：
+
+`pip install -e .`
+
+---
+
+## 基础配置
+
+### MongoDB 连接配置
+
+项目默认从 `config` 中读取：
+
+`SERVER   # MongoDB server, e.g. mongodb://localhost:27017 DB       # Database name TIMEOUT  # Connection timeout`
+
+也可以在初始化 `Store` 时覆盖：
+
+`store = Store(     name='users',     host='localhost',     port=27017,     db='test' )`
+
+---
+
+## 核心概念：Store
+
+`Store` 是 MongoDB Collection 的抽象封装。
+
+`from xyz_mongo.store import Store`
+
+### 定义一个 Store
+
+`class UserStore(Store):     name = 'users'     search_fields = ['username', 'email']     ordering = ('-created_at',)      field_types = {         int: ['age'],         float: ['score']     }`
+
+---
+
+## 常用操作示例
+
+### 获取单条数据
+
+`user = store.get({'username': 'denis'}) user = store.get('64e3a9f0f9...')`
+
+### 获取或创建
+
+`user = store.get_or_create(     {'username': 'denis'},     defaults={'age': 30} )`
+
+---
+
+### 查询（find）
+
+`qs = store.find(     filter={'age__gte': 18},     projection=['username', 'age'],     limit=10 )  for u in qs:     print(u)  qs.count()`
+
+支持：
+
+- 自动 `ordering`
+    
+- Django 风格过滤（由 `normalize_filter_condition` 处理）
+    
+
+---
+
+### 搜索（search）
+
+`store.search({'q': 'denis'})`
+
+会结合 `search_fields` 进行模糊 / 全文搜索（取决于 normalize 实现）。
+
+---
+
+### 随机查询
+
+`store.random_get({}) store.random_find({}, count=5)`
+
+基于 MongoDB `$sample`。
+
+---
+
+## 更新与写入
+
+### Upsert（单条）
+
+`store.upsert(     {'username': 'denis'},     {'age': 31, 'score': 99.5} )`
+
+### 批量 Upsert
+
+`store.batch_upsert(     data_list,     key='id',     preset=lambda d, i: {**d, 'index': i} )`
+
+---
+
+### 更新 / 自增 / 集合操作
+
+`store.update({'status': 'active'}, {'flag': True}) store.inc({'status': 'active'}, {'count': 1}) store.add_to_set({'tags': 'python'}, {'tags': 'mongo'})`
+
+---
+
+## 统计与聚合
+
+### 计数
+
+`store.count() store.count({'status': 'active'}) store.count(distinct='user_id')`
+
+### 求和
+
+`store.sum('amount', {'status': 'paid'})`
+
+### 分组统计
+
+`store.group_by('status') store.count_by('status')`
+
+支持：
+
+- `unwind`
+    
+- 自定义 aggregate
+    
+- 多字段分组
+    
+
+---
+
+## 字段与类型系统
+
+### 自动字段发现
+
+- 从随机抽样数据中推断字段结构
+    
+- 可手动补充 `fields`
+    
+
+`fields = store._fields`
+
+---
+
+### 字段类型映射
+
+`field_types = {     int: ['age'],     float: ['score'], }`
+
+在过滤、写入时会自动做类型转换。
+
+---
+
+## 过滤条件规范化
+
+所有查询条件都会经过：
+
+`normalize_filter_condition(data, field_type_map, fields, search_fields)`
+
+支持：
+
+- Django 风格操作符（如 `age__gte`）
+    
+- 自动类型 cast
+    
+- 搜索字段统一处理
+    
+
+---
+
+## QuerySet 支持
+
+`qs = store.query_set() qs.filter(age__gte=18).order_by('-age')`
+
+`QuerySet` 封装用于构建更链式、可组合的查询（适合 DRF / API 层）。
+
+---
+
+## 外键解析（可选）
+
+`foreign_keys = {     'user_id': 'users' }  store.eval_foreign_keys(doc)`
+
+用于将 Mongo 中的 id 映射为对应集合对象。
+
+---
+
+## 适用场景
+
+- Django + Mongo 混合项目
+    
+- DRF 自定义数据源
+    
+- 高并发写入 / 批量 upsert
+    
+- 搜索 / 统计 / 聚合型接口
+    
+- Schema 不稳定或半结构化数据
+    
+
+---
+
+## 依赖
+
+- Python 3.8+
+    
+- pymongo
+    
+
+---
+
+## License
+
+MIT License
