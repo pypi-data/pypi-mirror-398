@@ -1,0 +1,222 @@
+# This file is part of ctrl_mpexec.
+#
+# Developed for the LSST Data Management System.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
+#
+# This software is dual licensed under the GNU General Public License and also
+# under a 3-clause BSD license. Recipients may choose which of these licenses
+# to use; please see the files gpl-3.0.txt and/or bsd_license.txt,
+# respectively.  If you choose the GPL option then the following text applies
+# (but note that there is still no warranty even if you opt for BSD instead):
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+__all__ = (
+    "butler_options",
+    "coverage_options",
+    "execution_options",
+    "meta_info_options",
+    "pipeline_build_options",
+    "qgraph_options",
+    "run_options",
+)
+
+
+import click
+
+import lsst.daf.butler.cli.opt as dafButlerOpts
+import lsst.pipe.base.cli.opt as pipeBaseOpts
+from lsst.daf.butler.cli.utils import OptionGroup, option_section, unwrap
+
+from . import options as ctrlMpExecOpts
+
+instrumentOptionHelp = (
+    "Add an instrument which will be used to load config overrides when "
+    "defining a pipeline. This must be the fully qualified class name."
+)
+
+
+class pipeline_build_options(OptionGroup):  # noqa: N801
+    """Decorator to add options to the command function for building a
+    pipeline.
+
+    Parameters
+    ----------
+    skip_butler_config : `bool`, optional
+        If `True` the butler configuration option will not be included and will
+        be assumed to be added explicitly elsewhere.
+    """
+
+    def __init__(self, skip_butler_config: bool = False) -> None:
+        self.decorators = [
+            option_section(sectionText="Pipeline build options:"),
+            ctrlMpExecOpts.pipeline_option(),
+            ctrlMpExecOpts.task_option(),
+            ctrlMpExecOpts.delete_option(metavar="LABEL"),
+            dafButlerOpts.config_option(metavar="LABEL:NAME=VALUE", multiple=True),
+            dafButlerOpts.config_file_option(
+                help=unwrap(
+                    """Configuration override file(s), applies to a task
+                                                         with a given label."""
+                ),
+                metavar="LABEL:FILE",
+                multiple=True,
+            ),
+            ctrlMpExecOpts.save_pipeline_option(),
+            ctrlMpExecOpts.select_tasks_option(),
+            ctrlMpExecOpts.pipeline_dot_option(),
+            ctrlMpExecOpts.pipeline_mermaid_option(),
+            pipeBaseOpts.instrument_option(help=instrumentOptionHelp, metavar="instrument", multiple=True),
+        ]
+        if not skip_butler_config:
+            self.decorators.append(ctrlMpExecOpts.butler_config_option(required=False))
+
+
+class coverage_options(OptionGroup):  # noqa: N801
+    """Decorator to add options to the command function for test coverage."""
+
+    def __init__(self) -> None:
+        self.decorators = [
+            option_section(sectionText="Coverage options:"),
+            ctrlMpExecOpts.coverage_option(),
+            ctrlMpExecOpts.coverage_report_option(),
+            ctrlMpExecOpts.coverage_packages_option(),
+        ]
+
+
+class qgraph_options(OptionGroup):  # noqa: N801
+    """Decorator to add options to a command function for creating a quantum
+    graph.
+
+    Parameters
+    ----------
+    skip_coverage : `bool`, optional
+        If `True` the coverage configuration options will not be included and
+        will be assumed to be added explicitly elsewhere.
+    skip_clobber : `bool`, optional
+        If `True` the clobber configuration option will not be included and
+        will be assumed to be added explicitly elsewhere.
+    skip_summary : `bool`, optional
+        If `True` the summary configuration option will not be included and
+        will be assumed to be added explicitly elsewhere.
+    """
+
+    def __init__(
+        self, skip_coverage: bool = False, skip_clobber: bool = False, skip_summary: bool = False
+    ) -> None:
+        self.decorators = [
+            option_section(sectionText="Quantum graph building options:"),
+            ctrlMpExecOpts.qgraph_option(),
+            ctrlMpExecOpts.qgraph_id_option(),
+            ctrlMpExecOpts.qgraph_node_id_option(),
+            ctrlMpExecOpts.qgraph_datastore_records_option(),
+            ctrlMpExecOpts.skip_existing_in_option(),
+            ctrlMpExecOpts.skip_existing_option(),
+            ctrlMpExecOpts.save_qgraph_option(),
+            ctrlMpExecOpts.qgraph_dot_option(),
+            ctrlMpExecOpts.qgraph_mermaid_option(),
+            ctrlMpExecOpts.dataset_query_constraint(),
+            ctrlMpExecOpts.data_id_table_option(),
+            ctrlMpExecOpts.mock_option(),
+            ctrlMpExecOpts.mock_failure_option(),
+            ctrlMpExecOpts.unmocked_dataset_types_option(),
+        ]
+        if not skip_clobber:
+            self.decorators.append(ctrlMpExecOpts.clobber_outputs_option())
+        if not skip_summary:
+            self.decorators.append(ctrlMpExecOpts.summary_option())
+        if not skip_coverage:
+            self.decorators.append(coverage_options())
+
+
+class butler_options(OptionGroup):  # noqa: N801
+    """Decorator to add options to a command function for configuring a
+    butler.
+    """
+
+    def __init__(self) -> None:
+        self.decorators = [
+            option_section(sectionText="Data repository and selection options:"),
+            ctrlMpExecOpts.butler_config_option(required=True),
+            ctrlMpExecOpts.input_option(),
+            ctrlMpExecOpts.output_option(),
+            ctrlMpExecOpts.output_run_option(),
+            ctrlMpExecOpts.extend_run_option(),
+            ctrlMpExecOpts.replace_run_option(),
+            ctrlMpExecOpts.prune_replaced_option(),
+            ctrlMpExecOpts.data_query_option(),
+            ctrlMpExecOpts.rebase_option(),
+        ]
+
+
+class execution_options(OptionGroup):  # noqa: N801
+    """Decorator to add options to a command function for executing a
+    pipeline.
+    """
+
+    def __init__(self) -> None:
+        self.decorators = [
+            option_section(sectionText="Execution options:"),
+            ctrlMpExecOpts.clobber_outputs_option(),
+            ctrlMpExecOpts.pdb_option(),
+            ctrlMpExecOpts.profile_option(),
+            dafButlerOpts.processes_option(),
+            ctrlMpExecOpts.start_method_option(),
+            ctrlMpExecOpts.timeout_option(),
+            ctrlMpExecOpts.fail_fast_option(),
+            ctrlMpExecOpts.raise_on_partial_outputs_option(),
+            ctrlMpExecOpts.graph_fixup_option(),
+            ctrlMpExecOpts.summary_option(),
+            ctrlMpExecOpts.enable_implicit_threading_option(),
+            ctrlMpExecOpts.cores_per_quantum_option(),
+            ctrlMpExecOpts.memory_per_quantum_option(),
+        ]
+
+
+class meta_info_options(OptionGroup):  # noqa: N801
+    """Decorator to add options to a command function for managing pipeline
+    meta information.
+    """
+
+    def __init__(self) -> None:
+        self.decorators = [
+            option_section(sectionText="Meta-information output options:"),
+            ctrlMpExecOpts.skip_init_writes_option(),
+            ctrlMpExecOpts.init_only_option(),
+            dafButlerOpts.register_dataset_types_option(),
+            ctrlMpExecOpts.no_versions_option(),
+        ]
+
+
+class run_options(OptionGroup):  # noqa: N801
+    """Decorator to add the run options to the run command."""
+
+    def __init__(self) -> None:
+        self.decorators = [
+            click.pass_context,
+            ctrlMpExecOpts.debug_option(),
+            ctrlMpExecOpts.show_option(),
+            pipeline_build_options(skip_butler_config=True),
+            qgraph_options(skip_coverage=True, skip_clobber=True, skip_summary=True),
+            butler_options(),
+            execution_options(),
+            meta_info_options(),
+            coverage_options(),
+            option_section(sectionText=""),
+            dafButlerOpts.options_file_option(),
+        ]
