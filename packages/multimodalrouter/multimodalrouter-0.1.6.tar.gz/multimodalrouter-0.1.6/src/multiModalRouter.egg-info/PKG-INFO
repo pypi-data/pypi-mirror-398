@@ -1,0 +1,131 @@
+Metadata-Version: 2.4
+Name: multimodalrouter
+Version: 0.1.6
+Summary: A graph-based routing library for dynamic routing.
+Author-email: Tobias Karusseit <karusseittobi@gmail.com>
+License: MIT License
+        
+        Copyright (c) 2025 Tobias Karusseit
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+        
+        
+Project-URL: Homepage, https://github.com/K-T0BIAS/MultiModalRouter
+Project-URL: Repository, https://github.com/K-T0BIAS/MultiModalRouter
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE.md
+License-File: NOTICE.md
+Requires-Dist: colorama>=0.4.6
+Requires-Dist: dill>=0.4.0
+Requires-Dist: filelock>=3.19.1
+Requires-Dist: fsspec>=2025.9.0
+Requires-Dist: Jinja2>=3.1.6
+Requires-Dist: MarkupSafe>=3.0.2
+Requires-Dist: mpmath>=1.3.0
+Requires-Dist: networkx>=3.5
+Requires-Dist: numpy>=2.3.3
+Requires-Dist: pandas>=2.3.2
+Requires-Dist: parquet>=1.3.1
+Requires-Dist: ply>=3.11
+Requires-Dist: pyarrow>=21.0.0
+Requires-Dist: python-dateutil>=2.9.0.post0
+Requires-Dist: pytz>=2025.2
+Requires-Dist: setuptools>=80.9.0
+Requires-Dist: six>=1.17.0
+Requires-Dist: sympy>=1.14.0
+Requires-Dist: thriftpy2>=0.5.3
+Requires-Dist: tqdm>=4.67.1
+Requires-Dist: typing_extensions>=4.15.0
+Requires-Dist: tzdata>=2025.2
+Provides-Extra: torch
+Requires-Dist: torch>=2.8.0; extra == "torch"
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: plotly>=6.3.0; extra == "dev"
+Provides-Extra: plotly
+Requires-Dist: plotly>=6.3.0; extra == "plotly"
+Dynamic: license-file
+
+# Multi Modal Router
+
+The Multi Modal Router is a graph-based routing engine that allows you to build and query any hub-based network. It supports multiple transport modes like driving, flying, or shipping, and lets you optimize routes by distance, time, or custom metrics. It can be expanded to any n-dimensional space making it versatile in any coordinate space
+
+> NOTE: This project is a work in progress and features might be added and or changed
+
+# In depth Documentation
+
+[installation guide](./docs/installation.md)
+
+[graph module documentation](./docs/graph.md)
+
+[code examples](./docs/examples/demo.py)
+
+[command line interface documentation](./docs/cli.md)
+
+[utilities documentation](./docs/utils.md)
+
+
+# Features
+
+## Building Freedom / Unlimited Usecases
+
+The graph can be build from any data aslong as the required fields are present ([example](./docs/examples/demoData.csv)). Whether your data contains real world places or you are working in a more abstract spaces with special coordinates and distance metrics the graph will behave the same (with minor limitations due to dynamic distance calculation, but not a problem when distances are already precomputed. [solutions](./docs/graph.md#advanced-options)).
+
+#### Example Usecases
+
+- real world flight router
+    - uses data with real flight data and actuall airport coordinates
+    - builds a graph with `airport` [Hubs](./docs/graph.md#hub)
+    - connects `airports` based on flight routes
+    - `finds` the `shortest flights` or `multi leg routes` to get from `A` to `B`
+    - simple example implementation [here](./docs/examples/flightRouter/main.py)
+
+- social relation ship graph
+    - uses user data like a social network where users are connected through others via a group of other users
+    - builds a graph with `users` as Hubs
+    - connects users based on know interactions or any other connection meric
+    - `finds` users that are likely to `share`; `interests`, `friends`, `a social circle`, etc.
+
+- coordinate based game AI and pathfinding
+    - uses a predefined path network (e.g. a simple maze)
+    - `builds` the garph representation of the network
+    - `finds` the shortest way to get from any point `A` to any other point `B` in the network
+    - you can checkout a simple example implementation for a maze pathfinder [here](./docs/examples/mazePathfinder/main.py)
+
+![example from the maze solver](./docs/solvedMaze1.png)
+
+## graph visualizations
+
+Use the build-in [visualization](./docs/visualization.md) tool to plot any `2D` or `3D` Graph.
+
+![example plot of flight paths](./docs/FlightPathPlot.png)
+
+## Important considerations for your usecase
+
+Depending on your usecase and datasets some features may not be usable see solutions below
+
+### potential problems based on use case
+
+**Please check your data for the following**
+
+| distance present | coordinate format | unusable features | special considerations |
+|------------------|-------------------|-------------------|------------------------|
+|      YES         |      degrees      |      None         |        None|
+|      YES|not degrees| runtime distance calculations| set [drivingEnabled = False](./docs/graph.md#args) or do [this](./docs/graph.md#swap-distance-method)|
+| NO | degrees | None | distances must be calculated when [preprocessing](./src/multimodalrouter/utils/preprocessor.py) |
+| NO | not degrees | **ALL** | **U cant build the graph with neither distances or supported coordinates!** [**solution**](./docs/graph.md#swap-distance-method)
+
+[**example dataframe with the required fields**](./docs/examples/demoData.csv)
+
+### License
+
+[see here](./LICENSE.md)
+
+[dependencies](./NOTICE.md)
+
+
