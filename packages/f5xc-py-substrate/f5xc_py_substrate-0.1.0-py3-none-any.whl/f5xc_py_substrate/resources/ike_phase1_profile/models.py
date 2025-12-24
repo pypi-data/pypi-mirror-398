@@ -1,0 +1,293 @@
+"""Pydantic models for ike_phase1_profile."""
+
+from __future__ import annotations
+
+from typing import Any, Literal, Optional
+
+from pydantic import Field
+
+from f5xc_py_substrate.models import F5XCBaseModel
+
+
+class IkePhase1ProfileListItem(F5XCBaseModel):
+    """List item for ike_phase1_profile resources."""
+
+
+class ObjectCreateMetaType(F5XCBaseModel):
+    """ObjectCreateMetaType is metadata that can be specified in Create request..."""
+
+    annotations: Optional[dict[str, Any]] = None
+    description: Optional[str] = None
+    disable: Optional[bool] = None
+    labels: Optional[dict[str, Any]] = None
+    name: Optional[str] = None
+    namespace: Optional[str] = None
+
+
+class IkePhase1Profileinputhours(F5XCBaseModel):
+    """Input Hours"""
+
+    duration: Optional[int] = None
+
+
+class IkePhase1Profileinputminutes(F5XCBaseModel):
+    """Set IKE Key Lifetime in minutes"""
+
+    duration: Optional[int] = None
+
+
+class Empty(F5XCBaseModel):
+    """This can be used for messages where no values are needed"""
+
+    pass
+
+
+class IkePhase1Profileinputdays(F5XCBaseModel):
+    """Set Duration in days"""
+
+    duration: Optional[int] = None
+
+
+class IkePhase1Profilecreatespectype(F5XCBaseModel):
+    """Shape of the IKE Phase1 profile specification"""
+
+    authentication_algos: Optional[list[Literal['AUTH_ALG_DEFAULT', 'SHA256_HMAC', 'SHA384_HMAC', 'SHA512_HMAC', 'AUTH_ALG_NONE']]] = None
+    dh_group: Optional[list[Literal['DH_GROUP_DEFAULT', 'DH_GROUP_14', 'DH_GROUP_15', 'DH_GROUP_16', 'DH_GROUP_17', 'DH_GROUP_18', 'DH_GROUP_19', 'DH_GROUP_20', 'DH_GROUP_21', 'DH_GROUP_26']]] = None
+    encryption_algos: Optional[list[Literal['ENC_ALG_DEFAULT', 'AES128_CBC', 'AES192_CBC', 'AES256_CBC', 'TRIPLE_DES_CBC', 'AES128_GCM', 'AES192_GCM', 'AES256_GCM']]] = None
+    ike_keylifetime_hours: Optional[IkePhase1Profileinputhours] = None
+    ike_keylifetime_minutes: Optional[IkePhase1Profileinputminutes] = None
+    prf: Optional[list[Literal['PRF_DEFAULT', 'PRFSHA256', 'PRFSHA384', 'PRFSHA512']]] = None
+    reauth_disabled: Optional[Any] = None
+    reauth_timeout_days: Optional[IkePhase1Profileinputdays] = None
+    reauth_timeout_hours: Optional[IkePhase1Profileinputhours] = None
+    use_default_keylifetime: Optional[Any] = None
+
+
+class IkePhase1Profilecreaterequest(F5XCBaseModel):
+    """This is the input message of the 'Create' RPC"""
+
+    metadata: Optional[ObjectCreateMetaType] = None
+    spec: Optional[IkePhase1Profilecreatespectype] = None
+
+
+class ObjectGetMetaType(F5XCBaseModel):
+    """ObjectGetMetaType is metadata that can be specified in Get/Create..."""
+
+    annotations: Optional[dict[str, Any]] = None
+    description: Optional[str] = None
+    disable: Optional[bool] = None
+    labels: Optional[dict[str, Any]] = None
+    name: Optional[str] = None
+    namespace: Optional[str] = None
+
+
+class IkePhase1Profilegetspectype(F5XCBaseModel):
+    """Shape of the IKE Phase1 Profile  configuration specification"""
+
+    authentication_algos: Optional[list[Literal['AUTH_ALG_DEFAULT', 'SHA256_HMAC', 'SHA384_HMAC', 'SHA512_HMAC', 'AUTH_ALG_NONE']]] = None
+    dh_group: Optional[list[Literal['DH_GROUP_DEFAULT', 'DH_GROUP_14', 'DH_GROUP_15', 'DH_GROUP_16', 'DH_GROUP_17', 'DH_GROUP_18', 'DH_GROUP_19', 'DH_GROUP_20', 'DH_GROUP_21', 'DH_GROUP_26']]] = None
+    encryption_algos: Optional[list[Literal['ENC_ALG_DEFAULT', 'AES128_CBC', 'AES192_CBC', 'AES256_CBC', 'TRIPLE_DES_CBC', 'AES128_GCM', 'AES192_GCM', 'AES256_GCM']]] = None
+    ike_keylifetime_hours: Optional[IkePhase1Profileinputhours] = None
+    ike_keylifetime_minutes: Optional[IkePhase1Profileinputminutes] = None
+    prf: Optional[list[Literal['PRF_DEFAULT', 'PRFSHA256', 'PRFSHA384', 'PRFSHA512']]] = None
+    reauth_disabled: Optional[Any] = None
+    reauth_timeout_days: Optional[IkePhase1Profileinputdays] = None
+    reauth_timeout_hours: Optional[IkePhase1Profileinputhours] = None
+    use_default_keylifetime: Optional[Any] = None
+
+
+class InitializerType(F5XCBaseModel):
+    """Initializer is information about an initializer that has not yet completed."""
+
+    name: Optional[str] = None
+
+
+class StatusType(F5XCBaseModel):
+    """Status is a return value for calls that don't return other objects."""
+
+    code: Optional[int] = None
+    reason: Optional[str] = None
+    status: Optional[str] = None
+
+
+class InitializersType(F5XCBaseModel):
+    """Initializers tracks the progress of initialization of a configuration object"""
+
+    pending: Optional[list[InitializerType]] = None
+    result: Optional[StatusType] = None
+
+
+class ViewRefType(F5XCBaseModel):
+    """ViewRefType represents a reference to a view"""
+
+    kind: Optional[str] = None
+    name: Optional[str] = None
+    namespace: Optional[str] = None
+    uid: Optional[str] = None
+
+
+class SystemObjectGetMetaType(F5XCBaseModel):
+    """SystemObjectGetMetaType is metadata generated or populated by the system..."""
+
+    creation_timestamp: Optional[str] = None
+    creator_class: Optional[str] = None
+    creator_id: Optional[str] = None
+    deletion_timestamp: Optional[str] = None
+    finalizers: Optional[list[str]] = None
+    initializers: Optional[InitializersType] = None
+    labels: Optional[dict[str, Any]] = None
+    modification_timestamp: Optional[str] = None
+    object_index: Optional[int] = None
+    owner_view: Optional[ViewRefType] = None
+    tenant: Optional[str] = None
+    uid: Optional[str] = None
+
+
+class IkePhase1Profilecreateresponse(F5XCBaseModel):
+    metadata: Optional[ObjectGetMetaType] = None
+    spec: Optional[IkePhase1Profilegetspectype] = None
+    system_metadata: Optional[SystemObjectGetMetaType] = None
+
+
+class IkePhase1Profiledeleterequest(F5XCBaseModel):
+    """This is the input message of the 'Delete' RPC."""
+
+    fail_if_referred: Optional[bool] = None
+    name: Optional[str] = None
+    namespace: Optional[str] = None
+
+
+class ObjectRefType(F5XCBaseModel):
+    """This type establishes a 'direct reference' from one object(the referrer)..."""
+
+    kind: Optional[str] = None
+    name: Optional[str] = None
+    namespace: Optional[str] = None
+    tenant: Optional[str] = None
+    uid: Optional[str] = None
+
+
+class ObjectReplaceMetaType(F5XCBaseModel):
+    """ObjectReplaceMetaType is metadata that can be specified in Replace..."""
+
+    annotations: Optional[dict[str, Any]] = None
+    description: Optional[str] = None
+    disable: Optional[bool] = None
+    labels: Optional[dict[str, Any]] = None
+    name: Optional[str] = None
+    namespace: Optional[str] = None
+
+
+class IkePhase1Profilereplacespectype(F5XCBaseModel):
+    """Shape of the IKE Phase1 profile  configuration specification"""
+
+    authentication_algos: Optional[list[Literal['AUTH_ALG_DEFAULT', 'SHA256_HMAC', 'SHA384_HMAC', 'SHA512_HMAC', 'AUTH_ALG_NONE']]] = None
+    dh_group: Optional[list[Literal['DH_GROUP_DEFAULT', 'DH_GROUP_14', 'DH_GROUP_15', 'DH_GROUP_16', 'DH_GROUP_17', 'DH_GROUP_18', 'DH_GROUP_19', 'DH_GROUP_20', 'DH_GROUP_21', 'DH_GROUP_26']]] = None
+    encryption_algos: Optional[list[Literal['ENC_ALG_DEFAULT', 'AES128_CBC', 'AES192_CBC', 'AES256_CBC', 'TRIPLE_DES_CBC', 'AES128_GCM', 'AES192_GCM', 'AES256_GCM']]] = None
+    ike_keylifetime_hours: Optional[IkePhase1Profileinputhours] = None
+    ike_keylifetime_minutes: Optional[IkePhase1Profileinputminutes] = None
+    prf: Optional[list[Literal['PRF_DEFAULT', 'PRFSHA256', 'PRFSHA384', 'PRFSHA512']]] = None
+    reauth_disabled: Optional[Any] = None
+    reauth_timeout_days: Optional[IkePhase1Profileinputdays] = None
+    reauth_timeout_hours: Optional[IkePhase1Profileinputhours] = None
+    use_default_keylifetime: Optional[Any] = None
+
+
+class IkePhase1Profilereplacerequest(F5XCBaseModel):
+    """This is the input message of the 'Replace' RPC"""
+
+    metadata: Optional[ObjectReplaceMetaType] = None
+    spec: Optional[IkePhase1Profilereplacespectype] = None
+
+
+class ConditionType(F5XCBaseModel):
+    """Conditions are used in the object status to describe the current state..."""
+
+    hostname: Optional[str] = None
+    last_update_time: Optional[str] = None
+    reason: Optional[str] = None
+    service_name: Optional[str] = None
+    status: Optional[str] = None
+    type_: Optional[str] = Field(default=None, alias="type")
+
+
+class StatusMetaType(F5XCBaseModel):
+    """StatusMetaType is metadata that all status must have."""
+
+    creation_timestamp: Optional[str] = None
+    creator_class: Optional[str] = None
+    creator_id: Optional[str] = None
+    publish: Optional[Literal['STATUS_DO_NOT_PUBLISH', 'STATUS_PUBLISH']] = None
+    status_id: Optional[str] = None
+    uid: Optional[str] = None
+    vtrp_id: Optional[str] = None
+    vtrp_stale: Optional[bool] = None
+
+
+class IkePhase1Profilestatusobject(F5XCBaseModel):
+    """Most recently observed status of object"""
+
+    conditions: Optional[list[ConditionType]] = None
+    metadata: Optional[StatusMetaType] = None
+    object_refs: Optional[list[ObjectRefType]] = None
+
+
+class IkePhase1Profilegetresponse(F5XCBaseModel):
+    """This is the output message of the 'Get' RPC"""
+
+    create_form: Optional[IkePhase1Profilecreaterequest] = None
+    deleted_referred_objects: Optional[list[ObjectRefType]] = None
+    disabled_referred_objects: Optional[list[ObjectRefType]] = None
+    metadata: Optional[ObjectGetMetaType] = None
+    referring_objects: Optional[list[ObjectRefType]] = None
+    replace_form: Optional[IkePhase1Profilereplacerequest] = None
+    spec: Optional[IkePhase1Profilegetspectype] = None
+    status: Optional[list[IkePhase1Profilestatusobject]] = None
+    system_metadata: Optional[SystemObjectGetMetaType] = None
+
+
+class ProtobufAny(F5XCBaseModel):
+    """`Any` contains an arbitrary serialized protocol buffer message along..."""
+
+    type_url: Optional[str] = None
+    value: Optional[str] = None
+
+
+class ErrorType(F5XCBaseModel):
+    """Information about a error in API operation"""
+
+    code: Optional[Literal['EOK', 'EPERMS', 'EBADINPUT', 'ENOTFOUND', 'EEXISTS', 'EUNKNOWN', 'ESERIALIZE', 'EINTERNAL', 'EPARTIAL']] = None
+    error_obj: Optional[ProtobufAny] = None
+    message: Optional[str] = None
+
+
+class IkePhase1Profilelistresponseitem(F5XCBaseModel):
+    """By default a summary of ike_phase1_profile is returned in 'List'. By..."""
+
+    annotations: Optional[dict[str, Any]] = None
+    description: Optional[str] = None
+    disabled: Optional[bool] = None
+    get_spec: Optional[IkePhase1Profilegetspectype] = None
+    labels: Optional[dict[str, Any]] = None
+    metadata: Optional[ObjectGetMetaType] = None
+    name: Optional[str] = None
+    namespace: Optional[str] = None
+    owner_view: Optional[ViewRefType] = None
+    status_set: Optional[list[IkePhase1Profilestatusobject]] = None
+    system_metadata: Optional[SystemObjectGetMetaType] = None
+    tenant: Optional[str] = None
+    uid: Optional[str] = None
+
+
+class IkePhase1Profilelistresponse(F5XCBaseModel):
+    """This is the output message of 'List' RPC."""
+
+    errors: Optional[list[ErrorType]] = None
+    items: Optional[list[IkePhase1Profilelistresponseitem]] = None
+
+
+class IkePhase1Profilereplaceresponse(F5XCBaseModel):
+    pass
+
+
+# Convenience aliases
