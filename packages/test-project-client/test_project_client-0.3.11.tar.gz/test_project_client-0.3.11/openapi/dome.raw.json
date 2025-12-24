@@ -1,0 +1,2898 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Dome Raw API (Layer 0)",
+    "version": "0.0.1",
+    "description": "Raw API passthrough for dome"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/raw/dome/polymarket/market-price/{token_id}": {
+      "parameters": [
+        {
+          "name": "token_id",
+          "in": "path",
+          "required": true,
+          "description": "The token ID for the Polymarket market",
+          "schema": {
+            "type": "string",
+            "example": "19701256321759583954581192053894521654935987478209343000964756587964612528044"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getMarketPrice",
+        "summary": "Get Market Price",
+        "description": "Fetches the current market price for a market by `token_id`. When `at_time` is not provided, returns the most real-time price available. When `at_time` is provided, returns the historical market price at that specific timestamp.\n\n**Example Request (with historical timestamp):**\n```bash\ncurl 'https://api.domeapi.io/v1/polymarket/market-price/19701256321759583954581192053894521654935987478209343000964756587964612528044?at_time=1762164600'\n```\n\n**Example Request (real-time price):**\n```bash\ncurl 'https://api.domeapi.io/v1/polymarket/market-price/19701256321759583954581192053894521654935987478209343000964756587964612528044'\n```",
+        "parameters": [
+          {
+            "name": "at_time",
+            "in": "query",
+            "required": false,
+            "description": "Optional Unix timestamp (in seconds) to fetch a historical market price. If not provided, returns the most real-time price available.",
+            "schema": {
+              "type": "integer",
+              "example": 1762164600
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Market price response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "price": {
+                      "type": "number",
+                      "description": "The market price (between 0 and 1)",
+                      "example": 0.999
+                    },
+                    "at_time": {
+                      "type": "integer",
+                      "description": "The timestamp for which the price was fetched (Unix timestamp in seconds)",
+                      "example": 1762164600
+                    }
+                  },
+                  "required": [
+                    "price",
+                    "at_time"
+                  ]
+                },
+                "examples": {
+                  "with_at_time": {
+                    "summary": "Historical price lookup",
+                    "description": "Response when `at_time` parameter is provided",
+                    "value": {
+                      "price": 0.999,
+                      "at_time": 1762164600
+                    }
+                  },
+                  "real_time": {
+                    "summary": "Real-time price lookup",
+                    "description": "Response when `at_time` parameter is omitted (most recent price)",
+                    "value": {
+                      "price": 0.215,
+                      "at_time": 1757008834
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Invalid token_id"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "token_id must be a valid string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Market not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Not found"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Market with the provided token_id not found"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "metadata": {
+            "title": "Market Price",
+            "description": "Fetches the current market price for a market by token_id. Allows historical lookups via the at_time query parameter."
+          },
+          "href": "/api-reference/endpoint/get-market-price"
+        }
+      }
+    },
+    "/raw/dome/polymarket/candlesticks/{condition_id}": {
+      "parameters": [
+        {
+          "name": "condition_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getCandlesticks",
+        "summary": "Get Candlesticks",
+        "description": "Fetches historical candlestick data for a market identified by `condition_id`, over a specified interval.",
+        "parameters": [
+          {
+            "name": "start_time",
+            "in": "query",
+            "required": true,
+            "description": "Unix timestamp (in seconds) for start of time range",
+            "schema": {
+              "type": "integer",
+              "example": 1640995200
+            }
+          },
+          {
+            "name": "end_time",
+            "in": "query",
+            "required": true,
+            "description": "Unix timestamp (in seconds) for end of time range",
+            "schema": {
+              "type": "integer",
+              "example": 1672531200
+            }
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "description": "Interval length: 1 = 1m, 60 = 1h, 1440 = 1d. Defaults to 1m. \n\n⚠️ **Note:** There are range limits for `interval` — specifically:\n- `1` (1m): max range **1 week**\n- `60` (1h): max range **1 month**\n- `1440` (1d): max range **1 year**\n\n",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                60,
+                1440
+              ],
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Candlestick response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "candlesticks": {
+                      "type": "array",
+                      "description": "Array of market candlestick data, where each element is a tuple containing candlestick data array and token metadata",
+                      "items": {
+                        "type": "array",
+                        "description": "Tuple of [candlestick_data_array, token_metadata]",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "array",
+                              "description": "Candlestick data array",
+                              "items": {
+                                "type": "object"
+                              }
+                            },
+                            {
+                              "type": "object",
+                              "description": "Token metadata",
+                              "properties": {
+                                "token_id": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "example": [
+                          [
+                            {
+                              "end_period_ts": 1727827200,
+                              "open_interest": 8456498,
+                              "price": {
+                                "open": 0,
+                                "high": 0,
+                                "low": 0,
+                                "close": 0,
+                                "open_dollars": "0.0049",
+                                "high_dollars": "0.0049",
+                                "low_dollars": "0.0048",
+                                "close_dollars": "0.0048",
+                                "mean": 0,
+                                "mean_dollars": "0.0049",
+                                "previous": 0,
+                                "previous_dollars": "0.0049"
+                              },
+                              "volume": 8456498,
+                              "yes_ask": {
+                                "open": 0.00489,
+                                "close": 0.0048200000000000005,
+                                "high": 0.00491,
+                                "low": 0.0048,
+                                "open_dollars": "0.0049",
+                                "close_dollars": "0.0048",
+                                "high_dollars": "0.0049",
+                                "low_dollars": "0.0048"
+                              },
+                              "yes_bid": {
+                                "open": 0.00489,
+                                "close": 0.004829999990880811,
+                                "high": 0.004910000000138527,
+                                "low": 0.0048,
+                                "open_dollars": "0.0049",
+                                "close_dollars": "0.0048",
+                                "high_dollars": "0.0049",
+                                "low_dollars": "0.0048"
+                              }
+                            }
+                          ],
+                          {
+                            "token_id": "21742633143463906290569050155826241533067272736897614950488156847949938836455"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Missing required query parameters"
+                    },
+                    "required": {
+                      "type": "string",
+                      "example": "start_time, end_time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "metadata": {
+            "title": "Candlesticks",
+            "description": "Fetches historical candlestick data for a market identified by `condition_id`, over a specified interval."
+          },
+          "href": "/api-reference/endpoint/get-candlestick"
+        }
+      }
+    },
+    "/raw/dome/polymarket/wallet/pnl/{wallet_address}": {
+      "parameters": [
+        {
+          "name": "wallet_address",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$",
+            "example": "0x1234567890abcdef1234567890abcdef12345678"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getWalletPnl",
+        "summary": "Get Wallet PnL",
+        "description": "Fetches the REALIZED profit and loss (PnL) for a specific wallet address over a specified time range and granularity. **Note:** This will differ to what you see on Polymarket's dashboard since Polymarket showcases historical unrealized PnL. This API tracks realized gains only - from either confirmed sells or redeems. We do not realize a gain/loss until a finished market is redeemed.",
+        "parameters": [
+          {
+            "name": "granularity",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "year",
+                "all"
+              ],
+              "example": "day"
+            }
+          },
+          {
+            "name": "start_time",
+            "in": "query",
+            "required": false,
+            "description": "Defaults to first day of first trade if not provided.",
+            "schema": {
+              "type": "integer",
+              "example": 1726857600
+            }
+          },
+          {
+            "name": "end_time",
+            "in": "query",
+            "required": false,
+            "description": "Defaults to the current date if not provided.",
+            "schema": {
+              "type": "integer",
+              "example": 1758316829
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PnL response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "granularity": {
+                      "type": "string",
+                      "example": "day"
+                    },
+                    "start_time": {
+                      "type": "integer",
+                      "example": 1726857600
+                    },
+                    "end_time": {
+                      "type": "integer",
+                      "example": 1758316829
+                    },
+                    "wallet_address": {
+                      "type": "string",
+                      "example": "0x7c3db723f1d4d8cb9c550095203b686cb11e5c6b"
+                    },
+                    "pnl_over_time": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "timestamp": {
+                            "type": "integer",
+                            "example": 1726857600
+                          },
+                          "pnl_to_date": {
+                            "type": "number",
+                            "example": 2001
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "BAD_REQUEST"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Invalid or missing parameters."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "INTERNAL_SERVER_ERROR"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Internal Server Error. Dome Admins contacted."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "metadata": {
+            "title": "Wallet Profit-and-Loss",
+            "description": "Fetches the **realized** profit and loss (PnL) for a specific wallet address over a specified time range and granularity. **Note:** This will differ to what you see on Polymarket's dashboard since Polymarket showcases historical unrealized PnL. This API tracks realized gains only - from either confirmed sells or redeems. We do not realize a gain/loss until a finished market is redeemed."
+          },
+          "href": "/api-reference/endpoint/get-wallet-pnl"
+        }
+      }
+    },
+    "/raw/dome/polymarket/wallet": {
+      "get": {
+        "operationId": "getWallet",
+        "summary": "Get Wallet",
+        "description": "Fetches wallet information by providing either an EOA (Externally Owned Account) address or a proxy wallet address. Returns the associated EOA, proxy, and wallet type information. Optionally returns trading metrics when `with_metrics=true`.",
+        "parameters": [
+          {
+            "name": "eoa",
+            "in": "query",
+            "required": false,
+            "description": "EOA (Externally Owned Account) wallet address. Either `eoa` or `proxy` must be provided, but not both.",
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$",
+              "example": "0xe9a69b28ffd86f6ea0c5d8171c95537479b84a29"
+            }
+          },
+          {
+            "name": "proxy",
+            "in": "query",
+            "required": false,
+            "description": "Proxy wallet address. Either `eoa` or `proxy` must be provided, but not both.",
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$",
+              "example": "0x60881d7dce725bfb0399ee0b11cc11f5782f257d"
+            }
+          },
+          {
+            "name": "with_metrics",
+            "in": "query",
+            "required": false,
+            "description": "Whether to include wallet trading metrics (total volume, trades, and markets). Pass `true` to include metrics. Metrics are computed only when explicitly requested for performance reasons.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "example": "true"
+            }
+          },
+          {
+            "name": "start_time",
+            "in": "query",
+            "required": false,
+            "description": "Optional start date for metrics calculation (Unix timestamp in seconds). Only used when `with_metrics=true`.",
+            "schema": {
+              "type": "integer",
+              "example": 1640995200
+            }
+          },
+          {
+            "name": "end_time",
+            "in": "query",
+            "required": false,
+            "description": "Optional end date for metrics calculation (Unix timestamp in seconds). Only used when `with_metrics=true`.",
+            "schema": {
+              "type": "integer",
+              "example": 1672531200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet information response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "eoa": {
+                      "type": "string",
+                      "description": "The EOA (Externally Owned Account) wallet address",
+                      "example": "0xe9a69b28ffd86f6ea0c5d8171c95537479b84a29"
+                    },
+                    "proxy": {
+                      "type": "string",
+                      "description": "The proxy wallet address",
+                      "example": "0x60881d7dce725bfb0399ee0b11cc11f5782f257d"
+                    },
+                    "wallet_type": {
+                      "type": "string",
+                      "description": "The type of wallet",
+                      "example": "safe"
+                    },
+                    "wallet_metrics": {
+                      "type": "object",
+                      "description": "Trading metrics for this wallet (only present when with_metrics=true)",
+                      "properties": {
+                        "total_volume": {
+                          "type": "number",
+                          "description": "Total trading volume in USD",
+                          "example": 150000.5
+                        },
+                        "total_trades": {
+                          "type": "number",
+                          "description": "Total number of trades (orders where this wallet was the maker)",
+                          "example": 450
+                        },
+                        "total_markets": {
+                          "type": "number",
+                          "description": "Total number of unique markets traded in",
+                          "example": 25
+                        },
+                        "highest_volume_day": {
+                          "type": "object",
+                          "description": "The day with the highest number of shares traded",
+                          "properties": {
+                            "date": {
+                              "type": "string",
+                              "format": "date",
+                              "description": "Date in YYYY-MM-DD format",
+                              "example": "2025-10-12"
+                            },
+                            "volume": {
+                              "type": "number",
+                              "description": "Total shares traded on that day (normalized, divided by 1,000,000)",
+                              "example": 25000.75
+                            },
+                            "trades": {
+                              "type": "number",
+                              "description": "Number of trades executed on that day",
+                              "example": 145
+                            }
+                          },
+                          "required": [
+                            "date",
+                            "volume",
+                            "trades"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "eoa",
+                    "proxy",
+                    "wallet_type"
+                  ]
+                },
+                "examples": {
+                  "without_metrics": {
+                    "summary": "Basic wallet information",
+                    "description": "Response when with_metrics is not provided or false",
+                    "value": {
+                      "eoa": "0xe9a69b28ffd86f6ea0c5d8171c95537479b84a29",
+                      "proxy": "0x60881d7dce725bfb0399ee0b11cc11f5782f257d",
+                      "wallet_type": "safe"
+                    }
+                  },
+                  "with_metrics": {
+                    "summary": "Wallet information with metrics",
+                    "description": "Response when with_metrics=true",
+                    "value": {
+                      "eoa": "0xe9a69b28ffd86f6ea0c5d8171c95537479b84a29",
+                      "proxy": "0x60881d7dce725bfb0399ee0b11cc11f5782f257d",
+                      "wallet_type": "safe",
+                      "wallet_metrics": {
+                        "total_volume": 150000.5,
+                        "total_trades": 450,
+                        "total_markets": 25,
+                        "highest_volume_day": {
+                          "date": "2025-10-12",
+                          "volume": 25000.75,
+                          "trades": 145
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid or missing parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "BAD_REQUEST"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Either eoa or proxy parameter must be provided, but not both"
+                    }
+                  }
+                },
+                "examples": {
+                  "missing_parameter": {
+                    "summary": "Missing required parameter",
+                    "value": {
+                      "error": "BAD_REQUEST",
+                      "message": "Either eoa or proxy parameter must be provided"
+                    }
+                  },
+                  "both_parameters": {
+                    "summary": "Both parameters provided",
+                    "value": {
+                      "error": "BAD_REQUEST",
+                      "message": "Only one of eoa or proxy can be provided, not both"
+                    }
+                  },
+                  "invalid_address": {
+                    "summary": "Invalid wallet address format",
+                    "value": {
+                      "error": "BAD_REQUEST",
+                      "message": "Invalid wallet address format"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Wallet not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "NOT_FOUND"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Wallet not found"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "metadata": {
+            "title": "Wallet",
+            "description": "Fetches wallet information by providing either an EOA (Externally Owned Account) address or a proxy wallet address. Returns the associated EOA, proxy, and wallet type. Optionally returns trading metrics including total volume, number of trades, and unique markets traded when `with_metrics=true`."
+          },
+          "href": "/api-reference/endpoint/get-wallet"
+        }
+      }
+    },
+    "/raw/dome/polymarket/orders": {
+      "get": {
+        "operationId": "getOrders",
+        "summary": "Get Orders",
+        "description": "Fetches order data with optional filtering by market, condition, token, time range, and user. Returns orders that match either primary or secondary token IDs for markets. If no filters provided, fetches the latest trades happening in real-time. Only one of market_slug, token_id, or condition_id can be provided.",
+        "parameters": [
+          {
+            "name": "market_slug",
+            "in": "query",
+            "required": false,
+            "description": "Filter orders by market slug",
+            "schema": {
+              "type": "string",
+              "example": "bitcoin-up-or-down-july-25-8pm-et"
+            }
+          },
+          {
+            "name": "condition_id",
+            "in": "query",
+            "required": false,
+            "description": "Filter orders by condition ID",
+            "schema": {
+              "type": "string",
+              "example": "0x4567b275e6b667a6217f5cb4f06a797d3a1eaf1d0281fb5bc8c75e2046ae7e57"
+            }
+          },
+          {
+            "name": "token_id",
+            "in": "query",
+            "required": false,
+            "description": "Filter orders by token ID",
+            "schema": {
+              "type": "string",
+              "example": "58519484510520807142687824915233722607092670035910114837910294451210534222702"
+            }
+          },
+          {
+            "name": "start_time",
+            "in": "query",
+            "required": false,
+            "description": "Filter orders from this Unix timestamp in seconds (inclusive)",
+            "schema": {
+              "type": "integer",
+              "example": 1640995200
+            }
+          },
+          {
+            "name": "end_time",
+            "in": "query",
+            "required": false,
+            "description": "Filter orders until this Unix timestamp in seconds (inclusive)",
+            "schema": {
+              "type": "integer",
+              "example": 1672531200
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Number of orders to return (1-1000)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100,
+              "example": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of orders to skip for pagination",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "example": 0
+            }
+          },
+          {
+            "name": "user",
+            "in": "query",
+            "required": false,
+            "description": "Filter orders by user (wallet address)",
+            "schema": {
+              "type": "string",
+              "example": "0x7c3db723f1d4d8cb9c550095203b686cb11e5c6b"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Orders response with pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "orders": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "token_id": {
+                            "type": "string",
+                            "example": "58519484510520807142687824915233722607092670035910114837910294451210534222702"
+                          },
+                          "token_label": {
+                            "type": "string",
+                            "description": "Human readable label for this outcome (yes/no etc)",
+                            "example": "Yes"
+                          },
+                          "side": {
+                            "type": "string",
+                            "enum": [
+                              "BUY",
+                              "SELL"
+                            ],
+                            "example": "BUY"
+                          },
+                          "market_slug": {
+                            "type": "string",
+                            "example": "bitcoin-up-or-down-july-25-8pm-et"
+                          },
+                          "condition_id": {
+                            "type": "string",
+                            "example": "0x4567b275e6b667a6217f5cb4f06a797d3a1eaf1d0281fb5bc8c75e2046ae7e57"
+                          },
+                          "shares": {
+                            "type": "number",
+                            "description": "Raw number of shares purchased (from the blockchain)",
+                            "example": 4995000
+                          },
+                          "shares_normalized": {
+                            "type": "number",
+                            "description": "Number of shares purchased normalized (this is raw divided by 1000000)",
+                            "example": 4.995
+                          },
+                          "price": {
+                            "type": "number",
+                            "description": "Price per share",
+                            "example": 0.65
+                          },
+                          "tx_hash": {
+                            "type": "string",
+                            "description": "Transaction hash of the order",
+                            "example": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12"
+                          },
+                          "title": {
+                            "type": "string",
+                            "description": "Market title",
+                            "example": "Will Bitcoin be above $50,000 on July 25, 2025 at 8:00 PM ET?"
+                          },
+                          "timestamp": {
+                            "type": "integer",
+                            "description": "Unix timestamp in seconds when the order was placed",
+                            "example": 1757008834
+                          },
+                          "order_hash": {
+                            "type": "string",
+                            "description": "Hash of the order",
+                            "example": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+                          },
+                          "user": {
+                            "type": "string",
+                            "description": "Maker address of the order",
+                            "example": "0x7c3db723f1d4d8cb9c550095203b686cb11e5c6b"
+                          },
+                          "taker": {
+                            "type": "string",
+                            "description": "Taker address that was part of this trade. Note: This can often be the CTF exchange and is not always the true taker, proceed with caution using taker information",
+                            "example": "0x8d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e"
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "example": 50
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "example": 0
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "Total number of orders matching the filters",
+                          "example": 1250
+                        },
+                        "has_more": {
+                          "type": "boolean",
+                          "description": "Whether there are more orders available",
+                          "example": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters or validation errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Invalid start_time parameter"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "start_time must be a valid Unix timestamp"
+                    }
+                  }
+                },
+                "examples": {
+                  "invalid_timestamp": {
+                    "summary": "Invalid timestamp",
+                    "value": {
+                      "error": "Invalid start_time parameter",
+                      "message": "start_time must be a valid Unix timestamp"
+                    }
+                  },
+                  "invalid_time_range": {
+                    "summary": "Invalid time range",
+                    "value": {
+                      "error": "Invalid time range",
+                      "message": "start_time must be less than end_time"
+                    }
+                  },
+                  "invalid_limit": {
+                    "summary": "Invalid limit",
+                    "value": {
+                      "error": "Invalid limit parameter",
+                      "message": "limit must be a number between 1 and 1000"
+                    }
+                  },
+                  "invalid_offset": {
+                    "summary": "Invalid offset",
+                    "value": {
+                      "error": "Invalid offset parameter",
+                      "message": "offset must be a non-negative number"
+                    }
+                  },
+                  "missing_required_filter": {
+                    "summary": "Missing required filter",
+                    "value": {
+                      "error": "Missing required filter parameter",
+                      "message": "At least one of market_slug, condition_id, user, or token_id must be provided"
+                    }
+                  },
+                  "invalid_filter_combination": {
+                    "summary": "Invalid filter combination",
+                    "value": {
+                      "error": "Invalid filter combination",
+                      "message": "Only one of market_slug, token_id, or condition_id can be provided"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "metadata": {
+            "title": "Trade History",
+            "description": "Fetches historical trade data with optional filtering by market, condition, token, time range, and user's wallet address."
+          },
+          "href": "/api-reference/endpoint/get-trade-history"
+        }
+      }
+    },
+    "/raw/dome/polymarket/orderbooks": {
+      "get": {
+        "operationId": "getOrderbooks",
+        "summary": "Get Orderbook History",
+        "description": "Fetches historical orderbook snapshots for a specific asset (token ID) over a specified time range. Returns snapshots of the order book including bids, asks, and market metadata in order. All timestamps are in milliseconds. Orderbook data has history starting from October 14th, 2025.",
+        "parameters": [
+          {
+            "name": "token_id",
+            "in": "query",
+            "required": true,
+            "description": "The token id (asset) for the Polymarket market",
+            "schema": {
+              "type": "string",
+              "example": "56369772478534954338683665819559528414197495274302917800610633957542171787417"
+            }
+          },
+          {
+            "name": "start_time",
+            "in": "query",
+            "required": true,
+            "description": "Start time in Unix timestamp (milliseconds)",
+            "schema": {
+              "type": "integer",
+              "example": 1760470000000
+            }
+          },
+          {
+            "name": "end_time",
+            "in": "query",
+            "required": true,
+            "description": "End time in Unix timestamp (milliseconds)",
+            "schema": {
+              "type": "integer",
+              "example": 1760480000000
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of snapshots to return (default: 100, max: 200)",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "maximum": 200,
+              "example": 100
+            }
+          },
+          {
+            "name": "pagination_key",
+            "in": "query",
+            "required": false,
+            "description": "pagination key to get the next chunk of data",
+            "schema": {
+              "type": "string",
+              "example": "eyJhc3NldElkIjoiMTM1ODUxMjc2NDY0NTMxMDM0ODcyMjY1MTg3ODYyNjk5NjE0MDAyMjI5NzA0NzI3MzgxMTIwOTU1NDY0MDc5MTY4NDcxMTIyNzE2NjQiLCJ0aW1lc3RhbXAiOjE3NjExMDQwOTg5MTR9"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Orderbook history response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "snapshots": {
+                      "type": "array",
+                      "description": "Array of orderbook snapshots at different points in time",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "asks": {
+                            "type": "array",
+                            "description": "Sell orders, ordered by price",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "size": {
+                                  "type": "string",
+                                  "example": "5000013.15"
+                                },
+                                "price": {
+                                  "type": "string",
+                                  "example": "0.999"
+                                }
+                              }
+                            }
+                          },
+                          "bids": {
+                            "type": "array",
+                            "description": "Buy orders, ordered by price",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "size": {
+                                  "type": "string",
+                                  "example": "438389.53"
+                                },
+                                "price": {
+                                  "type": "string",
+                                  "example": "0.001"
+                                }
+                              }
+                            }
+                          },
+                          "hash": {
+                            "type": "string",
+                            "example": "85c493ebeea97e2f70c85a1469aede05f892408f"
+                          },
+                          "minOrderSize": {
+                            "type": "string",
+                            "example": "5"
+                          },
+                          "negRisk": {
+                            "type": "boolean",
+                            "example": true
+                          },
+                          "assetId": {
+                            "type": "string",
+                            "example": "56369772478534954338683665819559528414197495274302917800610633957542171787417"
+                          },
+                          "timestamp": {
+                            "type": "integer",
+                            "description": "Timestamp of the snapshot in milliseconds",
+                            "example": 1760471849407
+                          },
+                          "tickSize": {
+                            "type": "string",
+                            "example": "0.001"
+                          },
+                          "indexedAt": {
+                            "type": "integer",
+                            "description": "When the snapshot was indexed in milliseconds",
+                            "example": 1760471852863
+                          },
+                          "market": {
+                            "type": "string",
+                            "example": "0xd10bc768ede58b53ed400594240b0a0603134a32dab89ec823a18759cbc180ca"
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "example": 100
+                        },
+                        "count": {
+                          "type": "integer",
+                          "description": "Number of snapshots returned",
+                          "example": 4
+                        },
+                        "pagination_key": {
+                          "type": "string",
+                          "description": "The pagination key to pass in to get the next chunk of data",
+                          "example": "eyJhc3NldElkIjoiMTM1ODUxMjc2NDY0NTMxMDM0ODcyMjY1MTg3ODYyNjk5NjE0MDAyMjI5NzA0NzI3MzgxMTIwOTU1NDY0MDc5MTY4NDcxMTIyNzE2NjQiLCJ0aW1lc3RhbXAiOjE3NjExMDQwOTg5MTR9"
+                        },
+                        "has_more": {
+                          "type": "boolean",
+                          "description": "Whether there are more snapshots available",
+                          "example": false
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Invalid parameters"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "assetId, start_time, and end_time are required"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "metadata": {
+            "title": "Orderbook History",
+            "description": "Fetches historical orderbook snapshots for a specific asset (**token ID**) over a specified time range. Returns snapshots of the order book including bids, asks, and market metadata in order. All timestamps are in **milliseconds**. Orderbook data has history starting from **October 14th, 2025**."
+          },
+          "href": "/api-reference/endpoint/get-orderbook-history"
+        }
+      }
+    },
+    "/raw/dome/polymarket/markets": {
+      "get": {
+        "operationId": "getMarkets",
+        "summary": "Get Markets",
+        "description": "Fetches market data with optional filtering and search functionality. Supports filtering by market slug, condition ID, or tags, as well as fuzzy search across market titles and descriptions. Returns markets ordered by volume (most popular first) when filters are applied, or by start_time (most recent first) when no filters are provided.",
+        "parameters": [
+          {
+            "name": "market_slug",
+            "in": "query",
+            "required": false,
+            "description": "Filter markets by market slug(s). Can provide multiple values.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "example": [
+                "bitcoin-up-or-down-july-25-8pm-et"
+              ]
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "event_slug",
+            "in": "query",
+            "required": false,
+            "description": "Filter markets by event slug(s). Can provide multiple values.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "example": [
+                "presidential-election-winner-2028"
+              ]
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "condition_id",
+            "in": "query",
+            "required": false,
+            "description": "Filter markets by condition ID(s). Can provide multiple values.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "example": [
+                "0x4567b275e6b667a6217f5cb4f06a797d3a1eaf1d0281fb5bc8c75e2046ae7e57"
+              ]
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "required": false,
+            "description": "Filter markets by tag(s). Can provide multiple values.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "example": [
+                "politics",
+                "crypto"
+              ]
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter markets by status (whether they're open or closed)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ],
+              "example": "open"
+            }
+          },
+          {
+            "name": "min_volume",
+            "in": "query",
+            "required": false,
+            "description": "Filter markets with total trading volume greater than or equal to this amount (USD)",
+            "schema": {
+              "type": "number",
+              "example": 100000
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Number of markets to return (1-100). Default: 10 for search, 10 for regular queries.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of markets to skip for pagination",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "example": 0
+            }
+          },
+          {
+            "name": "start_time",
+            "in": "query",
+            "required": false,
+            "description": "Filter markets from this Unix timestamp in seconds (inclusive)",
+            "schema": {
+              "type": "integer",
+              "example": 1640995200
+            }
+          },
+          {
+            "name": "end_time",
+            "in": "query",
+            "required": false,
+            "description": "Filter markets until this Unix timestamp in seconds (inclusive)",
+            "schema": {
+              "type": "integer",
+              "example": 1672531200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Markets response with pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "markets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "market_slug": {
+                            "type": "string",
+                            "example": "btc-updown-15m-1762516800"
+                          },
+                          "condition_id": {
+                            "type": "string",
+                            "example": "0x6876ac2b6174778c973c118aac287c49057c4d5360f896729209fe985a2c07fb"
+                          },
+                          "title": {
+                            "type": "string",
+                            "example": "Bitcoin Up or Down - November 7, 7:00AM-7:15AM ET"
+                          },
+                          "start_time": {
+                            "type": "integer",
+                            "description": "Unix timestamp in seconds when the market starts",
+                            "example": 1762506140
+                          },
+                          "end_time": {
+                            "type": "integer",
+                            "description": "Unix timestamp in seconds when the market ends",
+                            "example": 1762517700
+                          },
+                          "completed_time": {
+                            "type": "integer",
+                            "nullable": true,
+                            "description": "Unix timestamp in seconds when the market was completed",
+                            "example": null
+                          },
+                          "close_time": {
+                            "type": "integer",
+                            "nullable": true,
+                            "description": "Unix timestamp in seconds when the market was closed",
+                            "example": null
+                          },
+                          "game_start_time": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true,
+                            "description": "Datetime string in UTC format (YYYY-MM-DD HH:MM:SS.000) for when the game/event starts. Only present for sports markets that have a game start time.",
+                            "example": "2025-08-16 20:00:00.000"
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "example": [
+                              "Up or Down",
+                              "Crypto Prices",
+                              "Hide From New",
+                              "Recurring",
+                              "Crypto",
+                              "Bitcoin",
+                              "15M"
+                            ]
+                          },
+                          "volume_1_week": {
+                            "type": "number",
+                            "description": "Trading volume in USD for the past week",
+                            "example": 0
+                          },
+                          "volume_1_month": {
+                            "type": "number",
+                            "description": "Trading volume in USD for the past month",
+                            "example": 0
+                          },
+                          "volume_1_year": {
+                            "type": "number",
+                            "description": "Trading volume in USD for the past year",
+                            "example": 0
+                          },
+                          "volume_total": {
+                            "type": "number",
+                            "description": "Total trading volume in USD",
+                            "example": 93.148228
+                          },
+                          "resolution_source": {
+                            "type": "string",
+                            "description": "URL to the data source used for market resolution",
+                            "example": "https://data.chain.link/streams/btc-usd"
+                          },
+                          "image": {
+                            "type": "string",
+                            "description": "URL to the market image",
+                            "example": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png"
+                          },
+                          "side_a": {
+                            "type": "object",
+                            "description": "First side/outcome of the market",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Token ID for side A",
+                                "example": "14557944883400223565643640243919774851380876937588843424705199812983475639104"
+                              },
+                              "label": {
+                                "type": "string",
+                                "description": "Label for side A",
+                                "example": "Up"
+                              }
+                            }
+                          },
+                          "side_b": {
+                            "type": "object",
+                            "description": "Second side/outcome of the market",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Token ID for side B",
+                                "example": "57567439101367774829602299916701968079591032322820664013819223989961583069589"
+                              },
+                              "label": {
+                                "type": "string",
+                                "description": "Label for side B",
+                                "example": "Down"
+                              }
+                            }
+                          },
+                          "winning_side": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "The winning side of the market (null if not yet resolved)",
+                            "example": null
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "open",
+                              "closed"
+                            ],
+                            "example": "open"
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "example": 20
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "example": 0
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "Total number of markets matching the filters",
+                          "example": 150
+                        },
+                        "has_more": {
+                          "type": "boolean",
+                          "description": "Whether there are more markets available",
+                          "example": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters or validation errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Invalid search parameter"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "search must be at least 2 characters long"
+                    }
+                  }
+                },
+                "examples": {
+                  "search_too_short": {
+                    "summary": "Search query too short",
+                    "value": {
+                      "error": "Invalid search parameter",
+                      "message": "search must be at least 2 characters long"
+                    }
+                  },
+                  "search_with_other_params": {
+                    "summary": "Search with other parameters",
+                    "value": {
+                      "error": "Invalid query parameters",
+                      "message": "search parameter cannot be used with other filter parameters"
+                    }
+                  },
+                  "invalid_limit": {
+                    "summary": "Invalid limit",
+                    "value": {
+                      "error": "Invalid limit parameter",
+                      "message": "limit must be a number between 1 and 100"
+                    }
+                  },
+                  "invalid_offset": {
+                    "summary": "Invalid offset",
+                    "value": {
+                      "error": "Invalid offset parameter",
+                      "message": "offset must be a non-negative number"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Internal Server Error"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Failed to fetch markets data"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "metadata": {
+            "title": "Markets",
+            "description": "Find markets on Polymarket using various filters including the ability to search"
+          },
+          "href": "/api-reference/endpoint/get-markets"
+        }
+      }
+    },
+    "/raw/dome/kalshi/markets": {
+      "get": {
+        "operationId": "getKalshiMarkets",
+        "summary": "Get Kalshi Markets",
+        "description": "Fetches Kalshi market data with optional filtering by market ticker, event ticker, status, and volume. Returns markets with details including pricing, volume, and status information.",
+        "parameters": [
+          {
+            "name": "market_ticker",
+            "in": "query",
+            "required": false,
+            "description": "Filter markets by market ticker(s). Can provide multiple values.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "example": [
+                "KXMAYORNYCPARTY-25-D"
+              ]
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "event_ticker",
+            "in": "query",
+            "required": false,
+            "description": "Filter markets by event ticker(s). Can provide multiple values.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "example": [
+                "KXMAYORNYCPARTY-25"
+              ]
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter markets by status (whether they're open or closed)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ],
+              "example": "open"
+            }
+          },
+          {
+            "name": "min_volume",
+            "in": "query",
+            "required": false,
+            "description": "Filter markets with total trading volume greater than or equal to this amount (in dollars)",
+            "schema": {
+              "type": "number",
+              "example": 10000000
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Number of markets to return (1-100). Default: 10.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of markets to skip for pagination",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "example": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Kalshi markets response with pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "markets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "event_ticker": {
+                            "type": "string",
+                            "description": "The Kalshi event ticker",
+                            "example": "KXMAYORNYCPARTY-25"
+                          },
+                          "market_ticker": {
+                            "type": "string",
+                            "description": "The Kalshi market ticker",
+                            "example": "KXMAYORNYCPARTY-25-D"
+                          },
+                          "title": {
+                            "type": "string",
+                            "description": "Market question/title",
+                            "example": "Will a representative of the Democratic party win the NYC Mayor race in 2025?"
+                          },
+                          "start_time": {
+                            "type": "integer",
+                            "description": "Unix timestamp in seconds when the market opens",
+                            "example": 1731150000
+                          },
+                          "end_time": {
+                            "type": "integer",
+                            "description": "Unix timestamp in seconds when the market is scheduled to end",
+                            "example": 1793775600
+                          },
+                          "close_time": {
+                            "type": "integer",
+                            "nullable": true,
+                            "description": "Unix timestamp in seconds when the market actually resolves/closes (may be before end_time if market finishes early, null if not yet closed)",
+                            "example": 1793775600
+                          },
+                          "status": {
+                            "type": "string",
+                            "description": "Market status",
+                            "enum": [
+                              "open",
+                              "closed"
+                            ],
+                            "example": "open"
+                          },
+                          "last_price": {
+                            "type": "number",
+                            "description": "Last traded price in cents",
+                            "example": 89
+                          },
+                          "volume": {
+                            "type": "number",
+                            "description": "Total trading volume in dollars",
+                            "example": 18261146
+                          },
+                          "volume_24h": {
+                            "type": "number",
+                            "description": "24-hour trading volume in dollars",
+                            "example": 931138
+                          },
+                          "result": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "Market result (null if unresolved)",
+                            "example": null
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "example": 20
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "example": 0
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "Total number of markets matching the filters",
+                          "example": 150
+                        },
+                        "has_more": {
+                          "type": "boolean",
+                          "description": "Whether there are more markets available",
+                          "example": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters or validation errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Invalid limit parameter"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "limit must be a number between 1 and 100"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "metadata": {
+            "title": "Markets",
+            "description": "Find markets on Kalshi using various filters including market ticker, event ticker, status, and volume"
+          },
+          "href": "/api-reference/endpoint/get-kalshi-markets"
+        }
+      }
+    },
+    "/raw/dome/kalshi/trades": {
+      "get": {
+        "operationId": "getKalshiTrades",
+        "summary": "Get Kalshi Trades",
+        "description": "Fetches historical trade data for Kalshi markets with optional filtering by ticker and time range. Returns executed trades with pricing, volume, and taker side information. All timestamps are in seconds.",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": false,
+            "description": "The Kalshi market ticker to filter trades",
+            "schema": {
+              "type": "string",
+              "example": "KXNFLGAME-25NOV09PITLAC-PIT"
+            }
+          },
+          {
+            "name": "start_time",
+            "in": "query",
+            "required": false,
+            "description": "Start time in Unix timestamp (seconds)",
+            "schema": {
+              "type": "integer",
+              "example": 1762716000
+            }
+          },
+          {
+            "name": "end_time",
+            "in": "query",
+            "required": false,
+            "description": "End time in Unix timestamp (seconds)",
+            "schema": {
+              "type": "integer",
+              "example": 1762720600
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of trades to return (default: 100)",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "example": 10
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of trades to skip for pagination",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "example": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Kalshi trades response with pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "trades": {
+                      "type": "array",
+                      "description": "Array of executed trades",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "trade_id": {
+                            "type": "string",
+                            "description": "Unique identifier for the trade",
+                            "example": "587f9eb0-1ae1-7b53-9536-fcf3fc503630"
+                          },
+                          "market_ticker": {
+                            "type": "string",
+                            "description": "The Kalshi market ticker",
+                            "example": "KXNFLGAME-25NOV09PITLAC-PIT"
+                          },
+                          "count": {
+                            "type": "integer",
+                            "description": "Number of contracts traded",
+                            "example": 93
+                          },
+                          "yes_price": {
+                            "type": "integer",
+                            "description": "Yes side price in cents",
+                            "example": 1
+                          },
+                          "no_price": {
+                            "type": "integer",
+                            "description": "No side price in cents",
+                            "example": 99
+                          },
+                          "yes_price_dollars": {
+                            "type": "number",
+                            "description": "Yes side price in dollars",
+                            "example": 0.01
+                          },
+                          "no_price_dollars": {
+                            "type": "number",
+                            "description": "No side price in dollars",
+                            "example": 0.99
+                          },
+                          "taker_side": {
+                            "type": "string",
+                            "description": "Which side was the taker (yes or no)",
+                            "enum": [
+                              "yes",
+                              "no"
+                            ],
+                            "example": "yes"
+                          },
+                          "created_time": {
+                            "type": "integer",
+                            "description": "Timestamp of the trade in seconds (Unix timestamp)",
+                            "example": 1762718746
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "example": 50
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "example": 100
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "Total number of trades matching the filters",
+                          "example": 43154
+                        },
+                        "has_more": {
+                          "type": "boolean",
+                          "description": "Whether there are more trades available",
+                          "example": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Invalid parameters"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Invalid time range or parameters"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "metadata": {
+            "title": "Trade History",
+            "description": "Fetches historical trade data for Kalshi markets with optional filtering by **ticker** and time range. Returns executed trades with pricing, volume, and taker side information. All timestamps are in **seconds**."
+          },
+          "href": "/api-reference/endpoint/get-kalshi-trades"
+        }
+      }
+    },
+    "/raw/dome/kalshi/orderbooks": {
+      "get": {
+        "operationId": "getKalshiOrderbooks",
+        "summary": "Get Kalshi Orderbook History",
+        "description": "Fetches historical orderbook snapshots for a specific Kalshi market (ticker) over a specified time range. Returns snapshots of the order book including yes/no bids and asks with prices in both cents and dollars. All timestamps are in milliseconds. Orderbook data has history starting from October 29th, 2025.",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": true,
+            "description": "The Kalshi market ticker",
+            "schema": {
+              "type": "string",
+              "example": "KXNFLGAME-25AUG16ARIDEN-ARI"
+            }
+          },
+          {
+            "name": "start_time",
+            "in": "query",
+            "required": true,
+            "description": "Start time in Unix timestamp (milliseconds)",
+            "schema": {
+              "type": "integer",
+              "example": 1760470000000
+            }
+          },
+          {
+            "name": "end_time",
+            "in": "query",
+            "required": true,
+            "description": "End time in Unix timestamp (milliseconds)",
+            "schema": {
+              "type": "integer",
+              "example": 1760480000000
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of snapshots to return (default: 100, max: 200)",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "maximum": 200,
+              "example": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Kalshi orderbook history response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "snapshots": {
+                      "type": "array",
+                      "description": "Array of orderbook snapshots at different points in time",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "orderbook": {
+                            "type": "object",
+                            "properties": {
+                              "yes": {
+                                "type": "array",
+                                "description": "Yes side orders with prices in cents",
+                                "items": {
+                                  "type": "array",
+                                  "description": "[price_in_cents, contract_count]",
+                                  "items": {
+                                    "type": "number"
+                                  },
+                                  "minItems": 2,
+                                  "maxItems": 2,
+                                  "example": [
+                                    75,
+                                    100
+                                  ]
+                                }
+                              },
+                              "no": {
+                                "type": "array",
+                                "description": "No side orders with prices in cents",
+                                "items": {
+                                  "type": "array",
+                                  "description": "[price_in_cents, contract_count]",
+                                  "items": {
+                                    "type": "number"
+                                  },
+                                  "minItems": 2,
+                                  "maxItems": 2,
+                                  "example": [
+                                    25,
+                                    100
+                                  ]
+                                }
+                              },
+                              "yes_dollars": {
+                                "type": "array",
+                                "description": "Yes side orders with prices in dollars",
+                                "items": {
+                                  "type": "array",
+                                  "description": "[price_as_dollar_string, contract_count]",
+                                  "minItems": 2,
+                                  "maxItems": 2,
+                                  "items": {
+                                    "oneOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "number"
+                                      }
+                                    ]
+                                  },
+                                  "example": [
+                                    "0.75",
+                                    100
+                                  ]
+                                }
+                              },
+                              "no_dollars": {
+                                "type": "array",
+                                "description": "No side orders with prices in dollars",
+                                "items": {
+                                  "type": "array",
+                                  "description": "[price_as_dollar_string, contract_count]",
+                                  "minItems": 2,
+                                  "maxItems": 2,
+                                  "items": {
+                                    "oneOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "number"
+                                      }
+                                    ]
+                                  },
+                                  "example": [
+                                    "0.25",
+                                    100
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "timestamp": {
+                            "type": "integer",
+                            "description": "Timestamp of the snapshot in milliseconds",
+                            "example": 1760471849407
+                          },
+                          "ticker": {
+                            "type": "string",
+                            "description": "The Kalshi market ticker",
+                            "example": "KXNFLGAME-25AUG16ARIDEN-ARI"
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "example": 100
+                        },
+                        "count": {
+                          "type": "integer",
+                          "description": "Number of snapshots returned",
+                          "example": 4
+                        },
+                        "has_more": {
+                          "type": "boolean",
+                          "description": "Whether there are more snapshots available",
+                          "example": false
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Invalid parameters"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ticker, start_time, and end_time are required"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "metadata": {
+            "title": "Orderbook History",
+            "description": "Fetches historical orderbook snapshots for a specific Kalshi market (**ticker**) over a specified time range. Returns snapshots of the order book including yes/no bids and asks with prices in both cents and dollars. All timestamps are in **milliseconds**. Orderbook data has history starting from **October 29th, 2025**."
+          },
+          "href": "/api-reference/endpoint/get-kalshi-orderbook-history"
+        }
+      }
+    },
+    "/raw/dome/polymarket/activity": {
+      "get": {
+        "operationId": "getActivity",
+        "summary": "Get Activity",
+        "description": "Fetches activity data for a specific user with optional filtering by market, condition, and time range. Returns trading activity including `MERGES`, `SPLITS`, and `REDEEMS`.",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "query",
+            "required": true,
+            "description": "User wallet address to fetch activity for",
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$",
+              "example": "0x7c3db723f1d4d8cb9c550095203b686cb11e5c6b"
+            }
+          },
+          {
+            "name": "start_time",
+            "in": "query",
+            "required": false,
+            "description": "Filter activity from this Unix timestamp in seconds (inclusive)",
+            "schema": {
+              "type": "integer",
+              "example": 1640995200
+            }
+          },
+          {
+            "name": "end_time",
+            "in": "query",
+            "required": false,
+            "description": "Filter activity until this Unix timestamp in seconds (inclusive)",
+            "schema": {
+              "type": "integer",
+              "example": 1672531200
+            }
+          },
+          {
+            "name": "market_slug",
+            "in": "query",
+            "required": false,
+            "description": "Filter activity by market slug",
+            "schema": {
+              "type": "string",
+              "example": "bitcoin-up-or-down-july-25-8pm-et"
+            }
+          },
+          {
+            "name": "condition_id",
+            "in": "query",
+            "required": false,
+            "description": "Filter activity by condition ID",
+            "schema": {
+              "type": "string",
+              "example": "0x4567b275e6b667a6217f5cb4f06a797d3a1eaf1d0281fb5bc8c75e2046ae7e57"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Number of activities to return (1-1000)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100,
+              "example": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of activities to skip for pagination",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "example": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activity response with pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "activities": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "token_id": {
+                            "type": "string",
+                            "example": ""
+                          },
+                          "side": {
+                            "type": "string",
+                            "enum": [
+                              "MERGE",
+                              "SPLIT",
+                              "REDEEM"
+                            ],
+                            "example": "REDEEM"
+                          },
+                          "market_slug": {
+                            "type": "string",
+                            "example": "will-the-doj-charge-boeing"
+                          },
+                          "condition_id": {
+                            "type": "string",
+                            "example": "0x92e4b1b8e0621fab0537486e7d527322569d7a8fd394b3098ff4bb1d6e1c0bbd"
+                          },
+                          "shares": {
+                            "type": "number",
+                            "example": 187722726,
+                            "description": "Raw number of shares (from the blockchain)"
+                          },
+                          "shares_normalized": {
+                            "type": "number",
+                            "example": 187.722726,
+                            "description": "Number of shares normalized (raw divided by 1000000)"
+                          },
+                          "price": {
+                            "type": "number",
+                            "example": 1
+                          },
+                          "tx_hash": {
+                            "type": "string",
+                            "example": "0x028baff23a90c10728606781d15077098ee93c991ea204aa52a0bd2869187574"
+                          },
+                          "title": {
+                            "type": "string",
+                            "example": "Will the DOJ charge Boeing?"
+                          },
+                          "timestamp": {
+                            "type": "integer",
+                            "description": "Unix timestamp in seconds when the activity occurred",
+                            "example": 1721263049
+                          },
+                          "order_hash": {
+                            "type": "string",
+                            "example": ""
+                          },
+                          "user": {
+                            "type": "string",
+                            "description": "User wallet address",
+                            "example": "0xfd9c3e7f8c56eb4186372f343c873cce154b3873"
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "example": 50
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "example": 0
+                        },
+                        "count": {
+                          "type": "integer",
+                          "description": "Total number of activities matching the filters",
+                          "example": 1250
+                        },
+                        "has_more": {
+                          "type": "boolean",
+                          "description": "Whether there are more activities available",
+                          "example": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters or validation errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Missing required parameter"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "user parameter is required"
+                    }
+                  }
+                },
+                "examples": {
+                  "missing_user": {
+                    "summary": "Missing required user parameter",
+                    "value": {
+                      "error": "Missing required parameter",
+                      "message": "user parameter is required"
+                    }
+                  },
+                  "invalid_start_time": {
+                    "summary": "Invalid start_time parameter",
+                    "value": {
+                      "error": "Invalid start_time parameter",
+                      "message": "start_time must be a valid Unix timestamp"
+                    }
+                  },
+                  "invalid_end_time": {
+                    "summary": "Invalid end_time parameter",
+                    "value": {
+                      "error": "Invalid end_time parameter",
+                      "message": "end_time must be a valid Unix timestamp"
+                    }
+                  },
+                  "invalid_time_range": {
+                    "summary": "Invalid time range",
+                    "value": {
+                      "error": "Invalid time range",
+                      "message": "start_time must be less than end_time"
+                    }
+                  },
+                  "invalid_limit": {
+                    "summary": "Invalid limit",
+                    "value": {
+                      "error": "Invalid limit parameter",
+                      "message": "limit must be a number between 1 and 1000"
+                    }
+                  },
+                  "invalid_offset": {
+                    "summary": "Invalid offset",
+                    "value": {
+                      "error": "Invalid offset parameter",
+                      "message": "offset must be a non-negative number"
+                    }
+                  },
+                  "invalid_filter_combination": {
+                    "summary": "Invalid filter combination",
+                    "value": {
+                      "error": "Invalid filter combination",
+                      "message": "Only one of market_slug or condition_id can be provided"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Internal Server Error"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Failed to fetch activity data"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "metadata": {
+            "title": "Activity",
+            "description": "Fetches activity data for a specific user with optional filtering by market, condition, and time range. Returns trading activity including `MERGES`, `SPLITS`, and `REDEEMS`."
+          },
+          "href": "/api-reference/endpoint/get-activity"
+        }
+      }
+    },
+    "/raw/dome/matching-markets/sports": {
+      "get": {
+        "operationId": "getMatchingMarketsSports",
+        "summary": "Get Matching Markets for Sports",
+        "description": "Find equivalent markets across different prediction market platforms (Polymarket, Kalshi, etc.) for sports events. Provide either one or more Polymarket market slugs or Kalshi event tickers.",
+        "parameters": [
+          {
+            "name": "polymarket_market_slug",
+            "in": "query",
+            "required": false,
+            "description": "The Polymarket market slug(s) to find matching markets for. To get multiple markets at once, provide the query param multiple times with different slugs. Can not be combined with kalshi_event_ticker.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "example": [
+                "nfl-ari-den-2025-08-16",
+                "nfl-dal-phi-2025-09-04"
+              ]
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "kalshi_event_ticker",
+            "in": "query",
+            "required": false,
+            "description": "The Kalshi event ticker(s) to find matching markets for. To get multiple markets at once, provide the query param multiple times with different tickers. Can not be combined with polymarket_market_slug.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "example": [
+                "KXNFLGAME-25AUG16ARIDEN",
+                "KXNFLGAME-25SEP04DALPHI"
+              ]
+            },
+            "style": "form",
+            "explode": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching markets response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "markets": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "description": "Kalshi market",
+                              "properties": {
+                                "platform": {
+                                  "type": "string",
+                                  "enum": [
+                                    "KALSHI"
+                                  ],
+                                  "example": "KALSHI"
+                                },
+                                "event_ticker": {
+                                  "type": "string",
+                                  "example": "KXNFLGAME-25AUG16ARIDEN"
+                                },
+                                "market_tickers": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "example": [
+                                    "KXNFLGAME-25AUG16ARIDEN-ARI",
+                                    "KXNFLGAME-25AUG16ARIDEN-DEN"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "platform",
+                                "event_ticker",
+                                "market_tickers"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "description": "Polymarket market",
+                              "properties": {
+                                "platform": {
+                                  "type": "string",
+                                  "enum": [
+                                    "POLYMARKET"
+                                  ],
+                                  "example": "POLYMARKET"
+                                },
+                                "market_slug": {
+                                  "type": "string",
+                                  "example": "nfl-ari-den-2025-08-16"
+                                },
+                                "token_ids": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "example": [
+                                    "34541522652444763571858406546623861155130750437169507355470933750634189084033",
+                                    "104612081187206848956763018128517335758189185749897027211060738913329108425255"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "platform",
+                                "market_slug",
+                                "token_ids"
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "example": {
+                        "nfl-ari-den-2025-08-16": [
+                          {
+                            "platform": "KALSHI",
+                            "event_ticker": "KXNFLGAME-25AUG16ARIDEN",
+                            "market_tickers": [
+                              "KXNFLGAME-25AUG16ARIDEN-ARI",
+                              "KXNFLGAME-25AUG16ARIDEN-DEN"
+                            ]
+                          },
+                          {
+                            "platform": "POLYMARKET",
+                            "market_slug": "nfl-ari-den-2025-08-16",
+                            "token_ids": [
+                              "34541522652444763571858406546623861155130750437169507355470933750634189084033",
+                              "104612081187206848956763018128517335758189185749897027211060738913329108425255"
+                            ]
+                          }
+                        ],
+                        "nfl-dal-phi-2025-09-04": [
+                          {
+                            "platform": "KALSHI",
+                            "event_ticker": "KXNFLGAME-25SEP04DALPHI",
+                            "market_tickers": [
+                              "KXNFLGAME-25SEP04DALPHI-DAL",
+                              "KXNFLGAME-25SEP04DALPHI-PHI"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Missing or invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Missing required parameter"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "At least one polymarket_market_slug or kalshi_event_ticker is required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - No matching markets found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Not found"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "No matching markets found for the provided parameters"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "metadata": {
+            "title": "Matching Markets for Sports",
+            "description": "Find equivalent markets across different prediction market platforms (Polymarket, Kalshi, etc.) for sports events using a Polymarket market slug or a Kalshi event ticker."
+          },
+          "href": "/api-reference/endpoint/get-matching-markets-sports"
+        }
+      }
+    },
+    "/raw/dome/matching-markets/sports/{sport}": {
+      "parameters": [
+        {
+          "name": "sport",
+          "in": "path",
+          "required": true,
+          "description": "The sport to find matching markets for",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "nfl",
+              "mlb",
+              "cfb",
+              "nba",
+              "nhl"
+            ],
+            "example": "nfl"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getMatchingMarketsSportsBySport",
+        "summary": "Get Matching Markets for Sports by Sport and Date",
+        "description": "Find equivalent markets across different prediction market platforms (Polymarket, Kalshi, etc.) for sports events by sport and date.",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "description": "The date to find matching markets for in YYYY-MM-DD format",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2025-08-16"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching markets response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "markets": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "description": "Kalshi market",
+                              "properties": {
+                                "platform": {
+                                  "type": "string",
+                                  "enum": [
+                                    "KALSHI"
+                                  ],
+                                  "example": "KALSHI"
+                                },
+                                "event_ticker": {
+                                  "type": "string",
+                                  "example": "KXNFLGAME-25AUG16ARIDEN"
+                                },
+                                "market_tickers": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "example": [
+                                    "KXNFLGAME-25AUG16ARIDEN-ARI",
+                                    "KXNFLGAME-25AUG16ARIDEN-DEN"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "platform",
+                                "event_ticker",
+                                "market_tickers"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "description": "Polymarket market",
+                              "properties": {
+                                "platform": {
+                                  "type": "string",
+                                  "enum": [
+                                    "POLYMARKET"
+                                  ],
+                                  "example": "POLYMARKET"
+                                },
+                                "market_slug": {
+                                  "type": "string",
+                                  "example": "nfl-ari-den-2025-08-16"
+                                },
+                                "token_ids": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "example": [
+                                    "34541522652444763571858406546623861155130750437169507355470933750634189084033",
+                                    "104612081187206848956763018128517335758189185749897027211060738913329108425255"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "platform",
+                                "market_slug",
+                                "token_ids"
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "example": {
+                        "nfl-ari-den-2025-08-16": [
+                          {
+                            "platform": "KALSHI",
+                            "event_ticker": "KXNFLGAME-25AUG16ARIDEN",
+                            "market_tickers": [
+                              "KXNFLGAME-25AUG16ARIDEN-ARI",
+                              "KXNFLGAME-25AUG16ARIDEN-DEN"
+                            ]
+                          },
+                          {
+                            "platform": "POLYMARKET",
+                            "market_slug": "nfl-ari-den-2025-08-16",
+                            "token_ids": [
+                              "34541522652444763571858406546623861155130750437169507355470933750634189084033",
+                              "104612081187206848956763018128517335758189185749897027211060738913329108425255"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "sport": {
+                      "type": "string",
+                      "example": "nfl"
+                    },
+                    "date": {
+                      "type": "string",
+                      "example": "2025-08-16"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Missing or invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Missing required parameter"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "date parameter is required"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "metadata": {
+            "title": "Sport by Date",
+            "description": "Find equivalent markets across different prediction market platforms (Polymarket, Kalshi, etc.) for sports events by sport and date."
+          },
+          "href": "/api-reference/endpoint/get-matching-markets-sports-sport"
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {}
+  }
+}
