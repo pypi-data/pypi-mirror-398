@@ -1,0 +1,644 @@
+---
+description: When building any new agentic service - follow these conventions strictly
+globs: 
+alwaysApply: false
+---
+# Agent Services Architecture Guide
+
+This rule defines **our conventions** for building services using the OpenAI Agents SDK. Follow these patterns to create modular, maintainable, and predictable agent services.
+
+## What is a Service?
+
+A **service** is a system that:
+1. Takes a defined input
+2. Runs through a **manager** that coordinates agents
+3. Works through a **linear series of steps**
+4. Returns a determined output
+
+**Example:** A research service that takes a query, plans searches, executes them, and writes a report.
+
+---
+
+## Directory Structure
+
+All services live in the `agents_sdk/` directory (or user-specified location).
+
+```
+agents_sdk/
+├── {service_name}_agents/
+│   ├── __init__.py              # Package exports
+│   ├── manager.py               # Main orchestrator (REQUIRED)
+│   ├── agents/                  # All agent definitions
+│   │   ├── __init__.py
+│   │   ├── planner_agent.py     # One agent per file
+│   │   ├── search_agent.py
+│   │   └── writer_agent.py
+│   ├── tools.py                 # Optional: Shared tools
+│   └── utilities.py             # Optional: Helper functions
+```
+
+**Naming conventions:**
+- Package name: `{service_name}_agents/`
+- Agent files: `{role}_agent.py` (e.g., `planner_agent.py`, `writer_agent.py`)
+
+---
+
+## The Manager Pattern (CRITICAL)
+
+The manager is the **heart of every service**. It orchestrates agents in a linear, predictable flow.
+
+### Manager Requirements
+
+1. **Always use a manager class** as the main entry point
+2. **Import agents** from the `agents/` directory
+3. **Define clear phases/steps** that run sequentially
+4. **Always `await`** agent Runners (critical for async)
+5. **Provide sync wrappers** for Django/web contexts
+6. **Handle errors** at each phase
+
+### Manager Template
+
+```python
+from __future__ import annotations
+import asyncio
+from typing import Optional, Callable
+
+from agents import Runner, trace, gen_trace_id
+
+# Import agents from agents directory
+from .agents.planner_agent import planner_agent, PlanOutput
+from .agents.executor_agent import executor_agent, ExecutorOutput
+from .agents.writer_agent import writer_agent, FinalReport
+
+
+class ServiceManager:
+    """Orchestrates the complete service workflow."""
+    
+    def __init__(self):
+        # Initialize any shared resources
+        pass
+    
+    async def run(
+        self,
+        user_request: str,
+        progress_callback: Optional[Callable[[str, int, str], None]] = None,
+    ) -> FinalReport:
+        """
+        Main orchestration method.
+        
+        Args:
+            user_request: The user's input request
+            progress_callback: Optional callback(phase, progress_pct, message)
+        
+        Returns:
+            The final structured output
+        """
+        trace_id = gen_trace_id()
+        
+        with trace("Service Workflow", trace_id=trace_id):
+            # Phase 1: Planning
+            if progress_callback:
+                progress_callback("Planning", 25, "Analyzing request...")
+            plan = await self._plan(user_request)
+            
+            # Phase 2: Execution
+            if progress_callback:
+                progress_callback("Executing", 50, "Processing plan...")
+            results = await self._execute(plan)
+            
+            # Phase 3: Writing
+            if progress_callback:
+                progress_callback("Writing", 75, "Generating output...")
+            report = await self._write(user_request, results)
+            
+            if progress_callback:
+                progress_callback("Complete", 100, "Done!")
+            
+            return report
+    
+    async def _plan(self, user_request: str) -> PlanOutput:
+        """Phase 1: Create execution plan."""
+        result = await Runner.run(
+            planner_agent,
+            f"Request: {user_request}",
+        )
+        return result.final_output_as(PlanOutput)
+    
+    async def _execute(self, plan: PlanOutput) -> list[ExecutorOutput]:
+        """Phase 2: Execute the plan (can be parallel)."""
+        tasks = [
+            asyncio.create_task(self._execute_step(step))
+            for step in plan.steps
+        ]
+        return await asyncio.gather(*tasks)
+    
+    async def _execute_step(self, step) -> ExecutorOutput:
+        """Execute a single step."""
+        result = await Runner.run(executor_agent, str(step))
+        return result.final_output_as(ExecutorOutput)
+    
+    async def _write(self, query: str, results: list) -> FinalReport:
+        """Phase 3: Write final output."""
+        input_data = f"Original request: {query}\nResults: {results}"
+        result = await Runner.run(writer_agent, input_data)
+        return result.final_output_as(FinalReport)
+    
+    def run_sync(self, user_request: str) -> FinalReport:
+        """Sync wrapper for Django/web contexts."""
+        return asyncio.run(self.run(user_request))
+
+
+# Convenience function for direct usage
+def run_service_sync(user_request: str) -> FinalReport:
+    """Run the service synchronously."""
+    manager = ServiceManager()
+    return manager.run_sync(user_request)
+```
+
+---
+
+## Agent File Structure
+
+Each agent lives in its own file following this structure:
+
+### Agent File Template
+
+```python
+"""Planner Agent - Creates execution plans from user requests."""
+
+from pydantic import BaseModel, Field
+from openai.types.shared import Reasoning
+
+from agents import Agent, ModelSettings
+
+
+# 1. INSTRUCTIONS (uppercase constant)
+PLANNER_INSTRUCTIONS = """
+You are a planning specialist. Given a user request, create a detailed 
+execution plan with clear, actionable steps.
+
+Your plan should:
+- Break down complex requests into manageable steps
+- Identify dependencies between steps
+- Estimate effort for each step
+
+Output a structured plan that can be executed by other agents.
+"""
+
+
+# 2. PYDANTIC MODELS for structured output
+class PlanStep(BaseModel):
+    """A single step in the execution plan."""
+    step_number: int = Field(description="Order of execution (1-based)")
+    description: str = Field(description="What this step accomplishes")
+    dependencies: list[int] = Field(default=[], description="Step numbers this depends on")
+
+
+class PlanOutput(BaseModel):
+    """The complete execution plan."""
+    summary: str = Field(description="Brief summary of the plan")
+    steps: list[PlanStep] = Field(description="Ordered list of execution steps")
+    estimated_complexity: str = Field(description="low, medium, or high")
+
+
+# 3. AGENT DEFINITION
+planner_agent = Agent(
+    name="PlannerAgent",
+    instructions=PLANNER_INSTRUCTIONS,
+    model="gpt-5",
+    model_settings=ModelSettings(
+        reasoning=Reasoning(effort="medium"),
+    ),
+    output_type=PlanOutput,
+)
+```
+
+### Agent File Rules
+
+1. **One agent per file** - No exceptions
+2. **No classes except Pydantic models** - Keep it simple
+3. **Instructions as uppercase constant** - Clear and visible
+4. **Always define `output_type`** with Pydantic models
+5. **Include docstrings** with clear field descriptions
+6. **Export the agent** at module level (not inside a class)
+
+---
+
+## Pydantic Models: Critical Rules
+
+### ❌ NEVER Use Dict Fields
+
+```python
+# BAD - Will fail in strict mode
+class BadOutput(BaseModel):
+    data: Dict[str, Any]  # NEVER do this
+    metadata: dict        # Also bad
+```
+
+### ✅ Use Nested Pydantic Models
+
+```python
+# GOOD - Structured and type-safe
+class Metadata(BaseModel):
+    author: str
+    created_at: str
+    version: str
+
+class ContentFormats(BaseModel):
+    markdown: str
+    plain_text: str
+    html: Optional[str] = None
+
+class GoodOutput(BaseModel):
+    content: ContentFormats
+    metadata: Metadata
+```
+
+### Field Descriptions
+
+Always include clear, concise descriptions:
+
+```python
+class SearchResult(BaseModel):
+    query: str = Field(description="The search query used")
+    results: list[str] = Field(description="List of relevant findings")
+    confidence: float = Field(description="Confidence score 0.0-1.0")
+```
+
+---
+
+## Model Selection Guidelines
+
+### Preferred Models (GPT-5 Series)
+
+| Model | Use Case | Reasoning Default |
+|-------|----------|-------------------|
+| `gpt-5` | General purpose, good balance | `medium` |
+| `gpt-5-mini` | Faster responses, simpler tasks | `low` |
+| `gpt-5-nano` | Fastest, lightweight tasks | `low` |
+| `gpt-5.2` | Best quality, complex reasoning | `medium` to `high` |
+| `gpt-5.1-codex` | Code/knowledge navigation tasks | `medium` |
+
+### Reasoning Effort Guidelines
+
+```python
+from openai.types.shared import Reasoning
+from agents import Agent, ModelSettings
+
+# Simple task - minimal reasoning
+simple_agent = Agent(
+    name="Simple",
+    model="gpt-5-mini",
+    model_settings=ModelSettings(
+        reasoning=Reasoning(effort="low"),
+    ),
+)
+
+# Complex task with deep tool usage - high reasoning
+complex_agent = Agent(
+    name="Complex",
+    model="gpt-5.2",
+    model_settings=ModelSettings(
+        reasoning=Reasoning(effort="high"),
+    ),
+)
+
+# Maximum reasoning (gpt-5.2 ONLY)
+max_reasoning_agent = Agent(
+    name="DeepThinker",
+    model="gpt-5.2",
+    model_settings=ModelSettings(
+        reasoning=Reasoning(effort="xhigh"),  # Only available for gpt-5.2
+    ),
+)
+```
+
+**When to use each level:**
+- `minimal` / `low`: Simple transformations, formatting, extraction
+- `medium`: Default for most agents
+- `high`: Complex multi-step reasoning, difficult tasks, deep tool chains
+- `xhigh`: Only for gpt-5.2, maximum depth problems
+
+### Verbosity Settings
+
+Use verbosity to control output length:
+
+```python
+# Short, concise outputs
+concise_agent = Agent(
+    model="gpt-5",
+    model_settings=ModelSettings(
+        verbosity="low",
+    ),
+)
+
+# Long-form documentation
+writer_agent = Agent(
+    model="gpt-5",
+    model_settings=ModelSettings(
+        verbosity="high",
+    ),
+)
+```
+
+---
+
+## Tools: Patterns and Anti-Patterns
+
+### Creating Tools
+
+```python
+from agents import function_tool
+
+@function_tool
+def search_database(query: str, limit: int = 10) -> str:
+    """Search the database for matching records.
+    
+    Args:
+        query: The search query string.
+        limit: Maximum results to return.
+    """
+    # Implementation
+    return "results..."
+```
+
+### ❌ Tool Nesting Anti-Pattern
+
+**NEVER** call a decorated tool from another decorated tool:
+
+```python
+# BAD - This will fail!
+@function_tool
+def check_single(item: str) -> str:
+    return f"Checked {item}"
+
+@function_tool
+def check_multiple(items: list[str]) -> str:
+    for item in items:
+        check_single(item)  # FAILS - calling decorated function
+    return "done"
+```
+
+### ✅ Correct Pattern: Internal Functions
+
+```python
+# GOOD - Use internal function without decorator
+def _check_single_internal(item: str) -> str:
+    """Internal implementation."""
+    return f"Checked {item}"
+
+@function_tool
+def check_single(item: str) -> str:
+    """Check a single item."""
+    return _check_single_internal(item)
+
+@function_tool
+def check_multiple(items: list[str]) -> str:
+    """Check multiple items."""
+    results = [_check_single_internal(item) for item in items]
+    return "\n".join(results)
+```
+
+### ✅ Alternative: Only Expose Batch Tool
+
+```python
+# GOOD - Only give batch tool to agent
+def check_single(item: str) -> str:
+    """Not decorated - internal use only."""
+    return f"Checked {item}"
+
+@function_tool
+def check_items(items: list[str]) -> str:
+    """Check one or more items.
+    
+    Args:
+        items: List of items to check.
+    """
+    return "\n".join(check_single(item) for item in items)
+```
+
+---
+
+## Tools File Structure
+
+If you have shared tools, put them in `tools.py`:
+
+```python
+"""Shared tools for the service."""
+
+from pydantic import BaseModel, Field
+from agents import function_tool, RunContextWrapper
+
+
+class WeatherInput(BaseModel):
+    city: str = Field(description="City name")
+    units: str = Field(default="celsius", description="Temperature units")
+
+
+@function_tool
+async def get_weather(city: str, units: str = "celsius") -> str:
+    """Get current weather for a city.
+    
+    Args:
+        city: The city to get weather for.
+        units: Temperature units (celsius or fahrenheit).
+    """
+    # Implementation
+    return f"Weather in {city}: 22°C, sunny"
+
+
+@function_tool
+def format_date(date_str: str, format: str = "short") -> str:
+    """Format a date string.
+    
+    Args:
+        date_str: Date in ISO format.
+        format: Output format (short, long, full).
+    """
+    # Implementation
+    return "Dec 19, 2025"
+```
+
+**Rules for tools.py:**
+- Only functions intended as agent tools
+- Use Pydantic models for complex inputs
+- Clear docstrings with Args
+- No utility functions (use `utilities.py` instead)
+
+---
+
+## Utilities File
+
+For helper functions that are **NOT** given to agents:
+
+```python
+"""Utility functions for the manager."""
+
+from typing import Any
+import json
+
+
+def format_results_for_agent(results: list[dict]) -> str:
+    """Format results as a string for agent input."""
+    return json.dumps(results, indent=2)
+
+
+def parse_agent_output(output: Any) -> dict:
+    """Parse and validate agent output."""
+    if hasattr(output, 'model_dump'):
+        return output.model_dump()
+    return dict(output)
+
+
+def calculate_progress(completed: int, total: int) -> int:
+    """Calculate progress percentage."""
+    return int((completed / total) * 100) if total > 0 else 0
+```
+
+---
+
+## Django / Web Integration
+
+### Background Processing Pattern
+
+```python
+import threading
+from django.contrib.sessions.backends.db import SessionStore
+
+from .manager import ServiceManager
+
+
+def run_in_background(request_data: dict, session_key: str) -> None:
+    """Background thread function for long-running agent tasks."""
+    session_store = SessionStore(session_key=session_key)
+    
+    try:
+        def progress_callback(phase: str, progress: int, message: str):
+            session_store['phase'] = phase
+            session_store['progress'] = progress
+            session_store['message'] = message
+            # Don't save here - save at completion
+        
+        manager = ServiceManager()
+        result = manager.run_sync(
+            user_request=request_data['user_request'],
+            progress_callback=progress_callback,
+        )
+        
+        session_store['result'] = result.model_dump()
+        session_store['status'] = 'completed'
+        session_store.save()
+        
+    except Exception as e:
+        session_store['status'] = 'failed'
+        session_store['error'] = str(e)
+        session_store.save()
+
+
+def start_processing(request) -> str:
+    """Start background processing from a Django view."""
+    request_data = {
+        'user_request': request.POST.get('request'),
+    }
+    
+    request.session['status'] = 'processing'
+    request.session.save()
+    
+    thread = threading.Thread(
+        target=run_in_background,
+        args=(request_data, request.session.session_key),
+        daemon=True,
+    )
+    thread.start()
+    
+    return "Processing started"
+```
+
+### Progress Polling Endpoint
+
+```python
+from django.http import JsonResponse
+
+def check_progress(request):
+    """AJAX endpoint to check processing progress."""
+    return JsonResponse({
+        'status': request.session.get('status', 'unknown'),
+        'phase': request.session.get('phase', ''),
+        'progress': request.session.get('progress', 0),
+        'message': request.session.get('message', ''),
+    })
+```
+
+---
+
+## Error Handling
+
+### Manager-Level Error Handling
+
+```python
+class ServiceManager:
+    async def run(self, user_request: str) -> FinalReport:
+        try:
+            plan = await self._plan(user_request)
+        except Exception as e:
+            logger.error(f"Planning failed: {e}")
+            raise ServiceError(f"Failed to create plan: {e}") from e
+        
+        try:
+            results = await self._execute(plan)
+        except Exception as e:
+            logger.error(f"Execution failed: {e}")
+            raise ServiceError(f"Failed to execute plan: {e}") from e
+        
+        try:
+            return await self._write(user_request, results)
+        except Exception as e:
+            logger.error(f"Writing failed: {e}")
+            raise ServiceError(f"Failed to generate output: {e}") from e
+
+
+class ServiceError(Exception):
+    """Custom exception for service failures."""
+    pass
+```
+
+---
+
+## Complete Example Structure
+
+```
+agents_sdk/
+└── research_agents/
+    ├── __init__.py
+    ├── manager.py              # ResearchManager class
+    ├── agents/
+    │   ├── __init__.py
+    │   ├── planner_agent.py    # Plans searches
+    │   ├── search_agent.py     # Executes searches  
+    │   └── writer_agent.py     # Writes final report
+    ├── tools.py                # WebSearchTool wrapper, etc.
+    └── utilities.py            # Format helpers
+```
+
+---
+
+## Checklist
+
+Before completing a service, verify:
+
+- [ ] Manager class exists with async `run()` and sync `run_sync()`
+- [ ] Each agent is in its own file
+- [ ] All agents have Pydantic `output_type` defined
+- [ ] No `Dict[str, Any]` in any Pydantic models
+- [ ] Instructions are uppercase constants
+- [ ] Tools don't call other decorated tools
+- [ ] Error handling at each phase
+- [ ] Progress callback support (optional but recommended)
+- [ ] Tracing is set up with `trace()` context
+
+---
+
+## Next Steps
+
+- See `openai-agents-sdk.mdc` for SDK primitives reference
+- See `agent-additional.mdc` for advanced patterns (streaming, LiteLLM, etc.)

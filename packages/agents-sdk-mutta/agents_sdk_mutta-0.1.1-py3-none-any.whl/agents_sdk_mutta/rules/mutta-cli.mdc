@@ -1,0 +1,225 @@
+---
+description: When using the Mutta CLI to scaffold agent projects and services
+globs: 
+alwaysApply: false
+---
+# Mutta CLI - Agent Project Scaffolding
+
+Mutta is a CLI scaffolding tool for OpenAI Agents SDK projects. It works like `django-admin` but for building agent services following Mutta conventions.
+
+## Installation
+
+```bash
+pip install agents-sdk-mutta
+```
+
+## Commands
+
+### `mutta startproject`
+
+Initializes a new agents project in the current directory.
+
+```bash
+mutta startproject
+```
+
+**What it does:**
+
+1. Creates `agents_sdk/` folder with a README explaining the structure
+2. Detects or creates a rules directory:
+   - Checks for `.cursor/rules/`, `.claude/rules/`, `.github/rules/` (in that order)
+   - If found, uses the existing one
+   - If none exist, creates `.cursor/rules/`
+3. Installs the 3 Mutta convention rules (if not already present):
+   - `openai-agents-sdk.mdc` - SDK overview and concepts
+   - `agent-services.mdc` - Service building conventions
+   - `agent-additional.mdc` - Advanced patterns and LiteLLM
+
+**Options:**
+
+```bash
+mutta startproject --path /path/to/project  # Specify base directory
+mutta startproject --verbose                # Show detailed output
+```
+
+---
+
+### `mutta startservice <name>`
+
+Creates a new agent service following Mutta conventions.
+
+```bash
+mutta startservice research
+mutta startservice my-cool-service
+mutta startservice data_processor
+```
+
+**Name normalization:**
+- Converts to lowercase
+- Replaces hyphens/spaces with underscores
+- Adds `_agents` suffix if not present
+
+Examples:
+- `research` → `research_agents/`
+- `my-cool-service` → `my_cool_service_agents/`
+- `DataProcessor` → `dataprocessor_agents/`
+
+**Generated structure:**
+
+```
+agents_sdk/{name}_agents/
+├── __init__.py              # Package exports with usage example
+├── manager.py               # Full manager template with phases
+├── tools.py                 # Shared tools with guidance comments
+├── utilities.py             # Helper functions template
+└── agents/
+    ├── __init__.py          # Agent imports
+    └── example_agent.py     # Example agent following conventions
+```
+
+**Options:**
+
+```bash
+mutta startservice myservice --path /project  # Specify base directory
+mutta startservice myservice --verbose        # Show all created files
+```
+
+---
+
+## Typical Workflow
+
+### 1. Start a new project
+
+```bash
+cd my-project
+mutta startproject
+```
+
+This creates:
+```
+my-project/
+├── agents_sdk/
+│   └── README.md
+└── .cursor/rules/
+    ├── openai-agents-sdk.mdc
+    ├── agent-services.mdc
+    └── agent-additional.mdc
+```
+
+### 2. Create your first service
+
+```bash
+mutta startservice research
+```
+
+This creates:
+```
+my-project/
+├── agents_sdk/
+│   ├── README.md
+│   └── research_agents/
+│       ├── __init__.py
+│       ├── manager.py
+│       ├── tools.py
+│       ├── utilities.py
+│       └── agents/
+│           ├── __init__.py
+│           └── example_agent.py
+└── .cursor/rules/
+    └── ...
+```
+
+### 3. Implement your service
+
+1. **Edit `manager.py`**: Define your workflow phases
+2. **Create agents**: Add agent files in `agents/` folder
+3. **Add tools**: Define shared tools in `tools.py`
+
+### 4. Use your service
+
+```python
+from agents_sdk.research_agents import ResearchManager
+
+manager = ResearchManager()
+result = await manager.run("Research quantum computing trends")
+print(result)
+```
+
+---
+
+## Best Practices
+
+### Always start with `startproject`
+
+Run `mutta startproject` first to ensure:
+- The `agents_sdk/` folder exists
+- Convention rules are installed in your IDE
+
+### One service = One responsibility
+
+Each service should do one thing well:
+- `research_agents` - Research and summarize topics
+- `email_agents` - Process and respond to emails
+- `data_agents` - Transform and analyze data
+
+### Follow the generated templates
+
+The generated files include:
+- **Comments explaining conventions**
+- **Example code to modify**
+- **Proper imports and structure**
+
+Don't start from scratch - modify the templates!
+
+---
+
+## Troubleshooting
+
+### "agents_sdk/ doesn't exist"
+
+Run `mutta startproject` before creating services.
+
+### Service already exists
+
+Each service name must be unique. Choose a different name or delete the existing service.
+
+### Rules not appearing in IDE
+
+Check that rules were installed in the correct location:
+- Cursor: `.cursor/rules/`
+- Claude: `.claude/rules/`
+- GitHub Copilot: `.github/rules/`
+
+---
+
+## File Locations
+
+After running both commands, your project looks like:
+
+```
+project/
+├── agents_sdk/
+│   ├── README.md                    # Explains the folder structure
+│   ├── service1_agents/
+│   │   ├── __init__.py
+│   │   ├── manager.py
+│   │   ├── tools.py
+│   │   ├── utilities.py
+│   │   └── agents/
+│   │       └── example_agent.py
+│   └── service2_agents/
+│       └── ...
+└── .cursor/rules/                   # Or .claude/rules/ or .github/rules/
+    ├── openai-agents-sdk.mdc        # SDK overview
+    ├── agent-services.mdc           # Service conventions
+    ├── agent-additional.mdc         # Advanced patterns
+    └── mutta-cli.mdc                # This file (CLI usage)
+```
+
+---
+
+## See Also
+
+- `openai-agents-sdk.mdc` - Understand the SDK primitives
+- `agent-services.mdc` - Learn the Mutta conventions
+- `agent-additional.mdc` - Advanced patterns (streaming, LiteLLM, etc.)
