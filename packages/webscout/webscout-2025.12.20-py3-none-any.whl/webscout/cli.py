@@ -1,0 +1,275 @@
+from .swiftcli import CLI, option, table_output, panel_output
+from .search import (
+    DuckDuckGoSearch, 
+    YepSearch, 
+    BingSearch, 
+    YahooSearch,
+    Brave,
+    Mojeek,
+    Yandex,
+    Wikipedia
+)
+from .version import __version__
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich import print as rprint
+import sys
+
+console = Console()
+
+# Engine mapping
+ENGINES = {
+    "ddg": DuckDuckGoSearch,
+    "duckduckgo": DuckDuckGoSearch,
+    "bing": BingSearch,
+    "yahoo": YahooSearch,
+    "brave": Brave,
+    "mojeek": Mojeek,
+    "yandex": Yandex,
+    "wikipedia": Wikipedia,
+    "yep": YepSearch
+}
+
+def _get_engine(name):
+    cls = ENGINES.get(name.lower())
+    if not cls:
+        rprint(f"[bold red]Error: Engine '{name}' not supported.[/bold red]")
+        rprint(f"Available engines: {', '.join(sorted(set(e for e in ENGINES.keys())))}")
+        sys.exit(1)
+    return cls()
+
+def _print_data(data, title="Search Results"):
+    """Prints data in a beautiful table."""
+    if not data:
+        rprint("[bold yellow]No results found.[/bold yellow]")
+        return
+
+    table = Table(title=title, show_header=True, header_style="bold magenta", show_lines=True)
+    
+    if isinstance(data, list) and len(data) > 0:
+        if isinstance(data[0], dict):
+            keys = list(data[0].keys())
+            table.add_column("#", style="dim", width=4)
+            for key in keys:
+                table.add_column(key.capitalize())
+                
+            for i, item in enumerate(data, 1):
+                row = [str(i)]
+                for key in keys:
+                    val = item.get(key, "")
+                    if key == "body" and val and len(str(val)) > 200:
+                        val = str(val)[:197] + "..."
+                    row.append(str(val))
+                table.add_row(*row)
+        else:
+            table.add_column("#", style="dim", width=4)
+            table.add_column("Result")
+            for i, item in enumerate(data, 1):
+                table.add_row(str(i), str(item))
+    else:
+        rprint(f"[bold blue]Result:[/bold blue] {data}")
+        return
+
+    console.print(table)
+
+def _print_weather(data):
+    """Prints weather data in a clean panel."""
+    current = data.get("current")
+    if not current:
+        rprint(f"[bold blue]Weather data:[/bold blue] {data}")
+        return
+    
+    weather_info = (
+        f"[bold blue]Location:[/bold blue] {data['location']}\n"
+        f"[bold blue]Temperature:[/bold blue] {current['temperature_c']}°C (Feels like {current['feels_like_c']}°C)\n"
+        f"[bold blue]Condition:[/bold blue] {current['condition']}\n"
+        f"[bold blue]Humidity:[/bold blue] {current['humidity']}%\n"
+        f"[bold blue]Wind:[/bold blue] {current['wind_speed_ms']} m/s {current['wind_direction']}°"
+    )
+    
+    panel = Panel(weather_info, title="Current Weather", border_style="green")
+    console.print(panel)
+    
+    if "daily_forecast" in data:
+        forecast_table = Table(title="5-Day Forecast", show_header=True, header_style="bold cyan")
+        forecast_table.add_column("Date")
+        forecast_table.add_column("Condition")
+        forecast_table.add_column("High")
+        forecast_table.add_column("Low")
+        
+        for day in data["daily_forecast"][:5]:
+            forecast_table.add_row(
+                day['date'],
+                day['condition'],
+                f"{day['max_temp_c']:.1f}°C",
+                f"{day['min_temp_c']:.1f}°C"
+            )
+        console.print(forecast_table)
+
+app = CLI(name="webscout", help="Search the web with a simple UI", version=__version__)
+
+@app.command()
+def version():
+    """Show the version of webscout."""
+    rprint(f"[bold cyan]webscout version:[/bold cyan] {__version__}")
+
+@app.command()
+@option("--keywords", "-k", help="Search keywords", required=True)
+@option("--engine", "-e", help="Search engine (ddg, bing, yahoo, brave, etc.)", default="ddg")
+@option("--region", "-r", help="Region for search results", default=None)
+@option("--safesearch", "-s", help="SafeSearch setting", default="moderate")
+@option("--timelimit", "-t", help="Time limit for results", default=None)
+@option("--max-results", "-m", help="Maximum number of results", type=int, default=10)
+def text(keywords: str, engine: str, region: str, safesearch: str, timelimit: str, max_results: int):
+    """Perform a text search."""
+    try:
+        search_engine = _get_engine(engine)
+        # Handle region defaults if not provided
+        if region is None:
+            region = "wt-wt" if engine.lower() in ["ddg", "duckduckgo"] else "us"
+        
+        # Most engines use .text(), some use .search() or .run()
+        if hasattr(search_engine, 'text'):
+            results = search_engine.text(keywords, region=region, safesearch=safesearch, max_results=max_results)
+        elif hasattr(search_engine, 'run'):
+            results = search_engine.run(keywords, region=region, safesearch=safesearch, max_results=max_results)
+        else:
+            results = search_engine.search(keywords, max_results=max_results)
+            
+        _print_data(results, title=f"{engine.upper()} Text Search: {keywords}")
+    except Exception as e:
+        rprint(f"[bold red]Error:[/bold red] {str(e)}")
+
+@app.command()
+@option("--keywords", "-k", help="Search keywords", required=True)
+@option("--engine", "-e", help="Search engine (ddg, bing, yahoo)", default="ddg")
+@option("--max-results", "-m", help="Maximum number of results", type=int, default=10)
+def images(keywords: str, engine: str, max_results: int):
+    """Perform an images search."""
+    try:
+        search_engine = _get_engine(engine)
+        results = search_engine.images(keywords, max_results=max_results)
+        _print_data(results, title=f"{engine.upper()} Image Search: {keywords}")
+    except Exception as e:
+        rprint(f"[bold red]Error:[/bold red] {str(e)}")
+
+@app.command()
+@option("--keywords", "-k", help="Search keywords", required=True)
+@option("--engine", "-e", help="Search engine (ddg, yahoo)", default="ddg")
+@option("--max-results", "-m", help="Maximum number of results", type=int, default=10)
+def videos(keywords: str, engine: str, max_results: int):
+    """Perform a videos search."""
+    try:
+        search_engine = _get_engine(engine)
+        results = search_engine.videos(keywords, max_results=max_results)
+        _print_data(results, title=f"{engine.upper()} Video Search: {keywords}")
+    except Exception as e:
+        rprint(f"[bold red]Error:[/bold red] {str(e)}")
+
+@app.command()
+@option("--keywords", "-k", help="Search keywords", required=True)
+@option("--engine", "-e", help="Search engine (ddg, bing, yahoo)", default="ddg")
+@option("--max-results", "-m", help="Maximum number of results", type=int, default=10)
+def news(keywords: str, engine: str, max_results: int):
+    """Perform a news search."""
+    try:
+        search_engine = _get_engine(engine)
+        results = search_engine.news(keywords, max_results=max_results)
+        _print_data(results, title=f"{engine.upper()} News Search: {keywords}")
+    except Exception as e:
+        rprint(f"[bold red]Error:[/bold red] {str(e)}")
+
+@app.command()
+@option("--location", "-l", help="Location to get weather for", required=True)
+@option("--engine", "-e", help="Search engine (ddg, yahoo)", default="ddg")
+def weather(location: str, engine: str):
+    """Get weather information."""
+    try:
+        search_engine = _get_engine(engine)
+        results = search_engine.weather(location)
+        _print_weather(results)
+    except Exception as e:
+        rprint(f"[bold red]Error:[/bold red] {str(e)}")
+
+@app.command()
+@option("--keywords", "-k", help="Search keywords", required=True)
+@option("--engine", "-e", help="Search engine (ddg, yahoo)", default="ddg")
+def answers(keywords: str, engine: str):
+    """Perform an answers search."""
+    try:
+        search_engine = _get_engine(engine)
+        results = search_engine.answers(keywords)
+        _print_data(results, title=f"{engine.upper()} Answers: {keywords}")
+    except Exception as e:
+        rprint(f"[bold red]Error:[/bold red] {str(e)}")
+
+@app.command()
+@option("--query", "-q", help="Search query", required=True)
+@option("--engine", "-e", help="Search engine (ddg, bing, yahoo, yep)", default="ddg")
+def suggestions(query: str, engine: str):
+    """Get search suggestions."""
+    try:
+        search_engine = _get_engine(engine)
+        # Some engines use 'keywords', some 'query'
+        if engine.lower() in ["bing", "yep"]:
+            results = search_engine.suggestions(query)
+        else:
+            results = search_engine.suggestions(query)
+        
+        # Format suggestions
+        if isinstance(results, list) and results and isinstance(results[0], dict):
+            # Bing format
+            results = [r.get("suggestion", str(r)) for r in results]
+            
+        _print_data(results, title=f"{engine.upper()} Suggestions: {query}")
+    except Exception as e:
+        rprint(f"[bold red]Error:[/bold red] {str(e)}")
+
+@app.command()
+@option("--keywords", "-k", help="Text for translation", required=True)
+@option("--from", "-f", help="Language to translate from", default=None)
+@option("--to", "-t", help="Language to translate to", default="en")
+@option("--engine", "-e", help="Search engine (ddg, yahoo)", default="ddg")
+def translate(keywords: str, from_: str, to: str, engine: str):
+    """Perform translation."""
+    try:
+        search_engine = _get_engine(engine)
+        results = search_engine.translate(keywords, from_lang=from_, to_lang=to)
+        _print_data(results, title=f"{engine.upper()} Translation: {keywords}")
+    except Exception as e:
+        rprint(f"[bold red]Error:[/bold red] {str(e)}")
+
+@app.command()
+@option("--keywords", "-k", help="Search keywords", required=True)
+@option("--place", "-p", help="Place name")
+@option("--radius", "-r", help="Search radius (km)", type=int, default=0)
+@option("--engine", "-e", help="Search engine (ddg, yahoo)", default="ddg")
+def maps(keywords: str, place: str, radius: int, engine: str):
+    """Perform a maps search."""
+    try:
+        search_engine = _get_engine(engine)
+        results = search_engine.maps(keywords, place=place, radius=radius)
+        _print_data(results, title=f"{engine.upper()} Maps Search: {keywords}")
+    except Exception as e:
+        rprint(f"[bold red]Error:[/bold red] {str(e)}")
+
+# Keep search for compatibility/convenience
+@app.command()
+@option("--keywords", "-k", help="Search keywords", required=True)
+@option("--engine", "-e", help="Search engine", default="ddg")
+@option("--max-results", "-m", help="Maximum results", type=int, default=10)
+def search(keywords: str, engine: str, max_results: int):
+    """Unified search command across all engines."""
+    text.run(keywords=keywords, engine=engine, max_results=max_results)
+
+def main():
+    """Main entry point for the CLI."""
+    try:
+        app.run()
+    except Exception as e:
+        rprint(f"[bold red]CLI Error:[/bold red] {str(e)}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

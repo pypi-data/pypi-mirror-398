@@ -1,0 +1,164 @@
+##################################################################################
+##  ElevenLabs TTS Provider                                                      ##
+##################################################################################
+import os
+import requests
+import pathlib
+import tempfile
+import time
+from io import BytesIO
+from webscout import exceptions
+from webscout.litagent import LitAgent
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from litprinter import ic
+
+try:
+    from . import utils
+    from .base import BaseTTSProvider
+except ImportError:
+    # Handle direct execution
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    from webscout.Provider.TTS import utils
+    from webscout.Provider.TTS.base import BaseTTSProvider
+
+class ElevenlabsTTS(BaseTTSProvider):
+    """
+    Text-to-speech provider using the ElevenLabs API.
+    
+    This provider supports both authenticated (with API key) and 
+    unauthenticated (limited) usage if available.
+    """
+    required_auth = True
+    
+    # Supported models
+    SUPPORTED_MODELS = [
+        "eleven_multilingual_v2",
+        "eleven_flash_v2_5",
+        "eleven_flash_v2",
+        "eleven_turbo_v2_5",
+        "eleven_turbo_v2",
+        "eleven_monolingual_v1"
+    ]
+    
+    # Request headers
+    headers: dict[str, str] = {
+        "User-Agent": LitAgent().random(),
+        "Accept": "audio/mpeg",
+        "Content-Type": "application/json",
+    }
+    
+    # ElevenLabs voices
+    SUPPORTED_VOICES = [
+        "brian", "alice", "bill", "callum", "charlie", "charlotte", 
+        "chris", "daniel", "eric", "george", "jessica", "laura", 
+        "liam", "lily", "matilda", "sarah", "will"
+    ]
+    
+    # Voice mapping
+    voice_mapping = {
+        "brian": "nPczCjzI2devNBz1zQrb",
+        "alice": "Xb7hH8MSUJpSbSDYk0k2",
+        "bill": "pqHfZKP75CvOlQylNhV4",
+        "callum": "N2lVS1w4EtoT3dr4eOWO",
+        "charlie": "IKne3meq5aSn9XLyUdCD",
+        "charlotte": "XB0fDUnXU5powFXDhCwa",
+        "chris": "iP95p4xoKVk53GoZ742B",
+        "daniel": "onwK4e9ZLuTAKqWW03F9",
+        "eric": "cjVigY5qzO86Huf0OWal",
+        "george": "JBFqnCBsd6RMkjVDRZzb",
+        "jessica": "cgSgspJ2msm6clMCkdW9",
+        "laura": "FGY2WhTYpPnrIDTdsKH5",
+        "liam": "TX3LPaxmHKxFdv7VOQHJ",
+        "lily": "pFZP5JQG7iQjIQuC4Bku",
+        "matilda": "XrExE9yKIg1WjnnlVkGX",
+        "sarah": "EXAVITQu4vr4xnSDxMaL",
+        "will": "bIHbv24MWmeRgasZH58o"
+    }
+
+    def __init__(self, api_key: str = None, timeout: int = 30, proxies: dict = None):
+        """
+        Initialize the ElevenLabs TTS client.
+        
+        Args:
+            api_key (str): ElevenLabs API key. If None, tries to use unauthenticated endpoint.
+            timeout (int): Request timeout in seconds.
+            proxies (dict): Proxy configuration.
+        """
+        super().__init__()
+        self.api_key = api_key or os.getenv("ELEVENLABS_API_KEY")
+        self.api_url = "https://api.elevenlabs.io/v1/text-to-speech"
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
+        if self.api_key:
+            self.session.headers.update({"xi-api-key": self.api_key})
+        if proxies:
+            self.session.proxies.update(proxies)
+        self.timeout = timeout
+        self.default_voice = "brian"
+
+    def tts(
+        self, 
+        text: str, 
+        model: str = "eleven_multilingual_v2",
+        voice: str = "brian", 
+        response_format: str = "mp3",
+        verbose: bool = True
+    ) -> str:
+        """
+        Convert text to speech using ElevenLabs API.
+        """
+        if not text:
+            raise ValueError("Input text must be a non-empty string")
+            
+        voice_id = self.voice_mapping.get(voice.lower(), voice)
+        
+        file_extension = f".{response_format}"
+        filename = pathlib.Path(tempfile.mktemp(suffix=file_extension, dir=self.temp_dir))
+
+        sentences = utils.split_sentences(text)
+        if verbose:
+            ic.configureOutput(prefix='DEBUG| '); ic(f"ElevenlabsTTS: Processing {len(sentences)} chunks")
+
+        def generate_chunk(part_text: str, part_num: int):
+            payload = {
+                "text": part_text,
+                "model_id": model,
+                "voice_settings": {
+                    "stability": 0.5,
+                    "similarity_boost": 0.5
+                }
+            }
+            url = f"{self.api_url}/{voice_id}"
+            params = {}
+            if not self.api_key:
+                # Some public endpoints might still work without key but they are very restricted
+                params['allow_unauthenticated'] = '1'
+                
+            response = self.session.post(url, json=payload, params=params, timeout=self.timeout)
+            if response.status_code == 401 and not self.api_key:
+                raise exceptions.FailedToGenerateResponseError("ElevenLabs requires an API key for this request.")
+            response.raise_for_status()
+            return part_num, response.content
+
+        try:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures = {executor.submit(generate_chunk, s.strip(), i): i for i, s in enumerate(sentences)}
+                audio_chunks = {}
+                for future in as_completed(futures):
+                    idx, data = future.result()
+                    audio_chunks[idx] = data
+                
+                with open(filename, 'wb') as f:
+                    for i in sorted(audio_chunks.keys()):
+                        f.write(audio_chunks[i])
+                        
+                if verbose:
+                    ic.configureOutput(prefix='INFO| '); ic(f"Audio saved to {filename}")
+                return str(filename)
+        except Exception as e:
+            raise exceptions.FailedToGenerateResponseError(f"ElevenLabs TTS failed: {e}")
+
+    def create_speech(self, input: str, **kwargs) -> str:
+        return self.tts(text=input, **kwargs)
