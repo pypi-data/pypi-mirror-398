@@ -1,0 +1,141 @@
+Metadata-Version: 2.4
+Name: org_analyze
+Version: 0.1.12
+Summary: A toolkit for extracting, analyzing, and exporting data from org-mode/org-roam notes, with support for HTML and Markdown export. See https://ojari.github.io/OrgAnalyze/ for example HTML export.
+Home-page: https://github.com/ojari/OrgAnalyze
+Author: Jari Ojanen
+Classifier: Programming Language :: Python :: 3
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Text Processing :: Markup
+Classifier: Topic :: Utilities
+Classifier: Topic :: Text Editors :: Emacs
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: pandas
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# OrgAnalyze
+
+Collect data from org-mode/org-roam pages and do some simple analyzing it
+
+What you can do with this package:
+ - Collect org-mode clock entries from multiple files
+ - Collect org-mode estimated time entries from multiple files
+ - Convert org-mode file to python objects for further processing
+ - Read org-roam database into pandas DataFrame (WIP)
+ - Export org-roam notes into markdown files (WIP) -- target is to use Obsidian for viewing
+ - Export org-roam notes into HTML pages (WIP)
+
+### Items Parsed by `ParserOrg`
+
+The parser processes the following org-mode elements, turning them into specific Python objects:
+
+- **Headers**: Lines starting with `*`, `**`, etc. are parsed as `OrgHeader` objects.
+- **Clock Entries**: Lines starting with `CLOCK:` or `#+CLK:` are parsed as `OrgClock` objects.
+- **Tables**: Blocks of lines starting with `|` are parsed into `OrgTable` objects.
+- **Source Blocks**: Code blocks delimited by `#+BEGIN_SRC` and `#+END_SRC` are parsed as `OrgSourceBlock`.
+- **Math Blocks**: LaTeX math blocks delimited by `\[` and `\]` are parsed as `OrgMath`.
+- **Property Drawers**: Blocks delimited by `:PROPERTIES:` and `:END:` are parsed as `OrgProperties`.
+- **File Variables**: Lines like `#+TITLE: My Document` are parsed and stored in the parser's `vars` dictionary.
+- **Lists**: Lines starting with `-`, `+`, or numbered lists are parsed as `OrgList` objects.
+- **Text and Links**: All other lines are treated as plain text (`OrgText`), with org-mode links like `[[...]]` being processed.
+
+## export_markdown from org2md
+
+Converts an org-mode file into a list of Markdown strings. It handles various org elements like headers, tables, source code blocks, and text.
+
+### Conversion Rules
+-   **Headers**: `* Header` becomes `# Header`, `** Sub-header` becomes `## Sub-header`, and so on.
+-   **Tables**: Org-mode tables are converted to Markdown tables.
+-   **Source Blocks**: `#+BEGIN_SRC language ... #+END_SRC` becomes a fenced code block in Markdown (```` ```language ... ``` ````).
+-   **Math Blocks**: `\[ ... \]` becomes a fenced math block.
+-   **Links**: Org-mode links are converted. `[[id:some-id][My Link]]` becomes `[[My Link]]` and `[[https://example.com][Example]]` becomes `[Example](https://example.com)`.
+-   **Text**: Plain text lines are preserved.
+-   **Ignored**: `CLOCK`, `PROPERTIES` blocks are currently ignored in the output.
+
+### Example
+```python
+from org_analyze.org2md import export_markdown
+
+markdown_lines = export_markdown('example.org')
+for line in markdown_lines:
+    print(line)
+
+```
+
+## read_clockins from clocks
+
+This function parses all `*.org` files in a given directory. It extracts all clocking information and associates it with its parent header (Feature) and sub-header (Task).
+
+The function returns a tuple containing a list of column names and a list of rows. This structure is ideal for creating a pandas DataFrame.
+
+### Example Usage
+
+Let's say you have an org file `tasks.org` in a directory called `my_orgs` with the following content:
+
+```org
+* Feature A
+** Task 1
+CLOCK: [2025-10-25 Sat 10:00]--[2025-10-25 Sat 11:30] =>  1:30
+** Task 2
+CLOCK: [2025-10-25 Sat 12:00]--[2025-10-25 Sat 13:00] =>  1:00
+
+* Feature B
+** Task 3
+CLOCK: [2025-10-25 Sat 14:00]--[2025-10-25 Sat 14:30] =>  0:30
+```
+
+You can parse this file and analyze the data with pandas like this:
+
+```python
+import pandas as pd
+from org_analyze.clocks import read_clockins
+
+# 1. Parse the org files in the directory
+columns, rows = read_clockins('my_orgs')
+
+# 2. Create a pandas DataFrame
+df = pd.DataFrame(rows, columns=columns)
+
+# 3. Analyze the data: Group by feature (head1) and sum the duration
+feature_hours = df.groupby('head1')['duration'].sum()
+
+print("Total hours per feature:")
+print(feature_hours)
+
+```
+
+Output:
+
+```
+Total hours per feature:
+head1
+Feature A    2.5
+Feature B    0.5
+Name: duration, dtype: float64
+```
+
+## RoamDb
+
+This module provides functionality to read and analyze an org-roam database using pandas DataFrames.    
+
+### Example Usage
+
+```python
+from org_analyze.RoamDb import RoamDB
+
+HOME = "c:/home/jari/"
+d = RoamDB(HOME+"org-roam/")
+d.load(HOME+".emacs.d/org-roam.db")
+
+df = d.getNodesDf()
+print(df.groupby('category').size().sort_values(ascending=False))
+```
+
