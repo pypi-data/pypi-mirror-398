@@ -1,0 +1,157 @@
+Metadata-Version: 2.4
+Name: pymssql-mcp
+Version: 0.1.0
+Summary: MCP server for Microsoft SQL Server databases
+Project-URL: Homepage, https://github.com/bpamiri/pymssql-mcp
+Project-URL: Documentation, https://github.com/bpamiri/pymssql-mcp#readme
+Project-URL: Repository, https://github.com/bpamiri/pymssql-mcp
+Project-URL: Issues, https://github.com/bpamiri/pymssql-mcp/issues
+Author-email: Peter <peter@example.com>
+License-Expression: Apache-2.0
+License-File: LICENSE
+Keywords: database,mcp,mssql,sql,sqlserver
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Database
+Requires-Python: >=3.10
+Requires-Dist: httpx>=0.25.0
+Requires-Dist: mcp>=1.24.0
+Requires-Dist: pydantic-settings>=2.0.0
+Requires-Dist: pymssql>=2.2.0
+Requires-Dist: starlette>=0.27.0
+Requires-Dist: uvicorn>=0.30.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest-mock>=3.0.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# mssql-mcp
+
+An MCP (Model Context Protocol) server for Microsoft SQL Server databases. Enables AI assistants like Claude to interact with SQL Server through a standardized protocol.
+
+## Features
+
+- **Query Execution**: Run SELECT queries with safety limits
+- **Schema Discovery**: List tables, views, and column information
+- **CRUD Operations**: Read, insert, update, and delete rows
+- **Stored Procedures**: Execute stored procedures with parameters
+- **Export**: Export query results to JSON or CSV
+- **Safety Controls**: Command blocklist, read-only mode, row limits, query timeouts
+
+## Installation
+
+```bash
+pip install mssql-mcp
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/yourusername/mssql-mcp.git
+cd mssql-mcp
+pip install -e ".[dev]"
+```
+
+## Configuration
+
+Copy `.env.sample` to `.env` and configure your settings:
+
+```bash
+cp .env.sample .env
+```
+
+Required environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `MSSQL_HOST` | SQL Server hostname |
+| `MSSQL_USER` | Database username |
+| `MSSQL_PASSWORD` | Database password |
+| `MSSQL_DATABASE` | Database name |
+
+Optional settings:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MSSQL_PORT` | `1433` | Server port |
+| `MSSQL_READ_ONLY` | `false` | Block write operations |
+| `MSSQL_MAX_ROWS` | `1000` | Query row limit |
+| `MSSQL_QUERY_TIMEOUT` | `60` | Query timeout (seconds) |
+
+## Usage
+
+### With Claude Code
+
+Add to your Claude Code MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "mssql": {
+      "command": "mssql-mcp",
+      "env": {
+        "MSSQL_HOST": "localhost",
+        "MSSQL_USER": "sa",
+        "MSSQL_PASSWORD": "your_password",
+        "MSSQL_DATABASE": "your_database"
+      }
+    }
+  }
+}
+```
+
+### Standalone
+
+```bash
+# Run with stdio transport (default)
+mssql-mcp
+
+# Run with HTTP transport
+mssql-mcp --http
+```
+
+## Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `execute_query` | Run a SELECT query |
+| `validate_query` | Check if a query is safe to execute |
+| `list_tables` | List tables and views |
+| `describe_table` | Get column information for a table |
+| `read_rows` | Read rows by ID or filter |
+| `insert_row` | Insert a new row |
+| `update_row` | Update an existing row |
+| `delete_row` | Delete a row |
+| `call_stored_proc` | Execute a stored procedure |
+| `export_to_json` | Export query results to JSON |
+| `export_to_csv` | Export query results to CSV |
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Lint and format
+ruff check .
+ruff format .
+
+# Type check
+mypy src/
+```
+
+## License
+
+Apache-2.0
