@@ -1,0 +1,100 @@
+[project]
+name = "citrascope"
+version = "0.4.0"
+description = "Remotely control a telescope while it polls for tasks, collects and edge processes data, and delivers results and data for further processing."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = "MIT"
+authors = [{ name = "Patrick McDavid", email = "patrick@citra.space" }]
+dependencies = [
+  "click",
+  "requests",
+  "httpx",
+  "python-dateutil",
+  "skyfield",
+  "fastapi>=0.104.0",
+  "uvicorn[standard]>=0.24.0",
+  "websockets>=12.0",
+  "platformdirs>=4.0.0",
+]
+
+[project.scripts]
+citrascope = "citrascope.__main__:cli"
+
+[project.optional-dependencies]
+indi = [
+  "pyindi-client",
+  "pixelemon",
+  "plotly", # temp for pixelemon issue
+]
+kstars = [
+  "dbus-python",
+]
+all = [
+  "citrascope[indi,kstars]",
+]
+dev = [
+  "black",
+  "pre-commit",
+  "isort",
+  "mypy",
+  "types-python-dateutil",
+  "flake8",
+  "flake8-pytest-style",
+  "bump-my-version",
+  "citrascope[test]",
+]
+test = ["pytest", "pytest-cov", "mockito"]
+build = ["build"]
+deploy = ["twine"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 120
+force-exclude = '''
+^/(
+  (
+      \.eggs
+    | \.git
+    | \.pytest_cache
+    | \.tox
+    | dist
+    | data
+  )/
+)
+'''
+
+[tool.isort]
+profile = "black"
+filter_files = true
+line_length = 120
+skip = ["__init__.py"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+addopts = [
+  "--cov=citrascope",
+  "--cov-report=term-missing",
+  "--cov-report=xml",
+  "--cov-branch",
+  "--import-mode=importlib",
+]
+
+[tool.coverage.run]
+omit = ["tests/*", "__init__.py"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.bumpversion]
+current_version = "0.4.0"
+commit = true
+tag = true
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
