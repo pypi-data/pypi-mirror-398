@@ -1,0 +1,290 @@
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 10s
+  timeout: 5s
+  retries: 10
+  start_period: 60s
+
+x-service-defaults: &service-defaults
+  restart: always
+  init: true
+  security_opt:
+    - no-new-privileges:true
+
+x-langfuse-depends-on: &langfuse-depends-on
+  postgres:
+    condition: service_healthy
+  minio:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  clickhouse:
+    condition: service_healthy
+
+services:
+  # === LLM Services ===
+  litellm:
+    <<: *service-defaults
+    image: ghcr.io/berriai/litellm:main-stable
+    platform: linux/amd64
+    container_name: litellm
+    env_file:
+      - ./configs/litellm/.litellm.env
+      - ./configs/redis/.redis.env
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./configs/litellm/config.yaml:/app/config.yaml:ro
+    command:
+      ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "1"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2G
+    develop:
+      watch:
+        - path: configs/litellm/
+          action: sync+restart
+          target: /app/
+
+  # === Database Services ===
+  postgres:
+    <<: *service-defaults
+    hostname: postgres
+    container_name: postgres
+    image: postgres:16
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+    env_file:
+      - ./configs/postgres/.postgres.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/postgres-init:/docker-entrypoint-initdb.d:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
+  clickhouse:
+    <<: *service-defaults
+    image: clickhouse/clickhouse-server
+    user: "101:101"
+    env_file:
+      - ./configs/clickhouse/.clickhouse.env
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    healthcheck:
+      <<: *healthcheck-defaults
+      test:
+        wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit
+        1
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 1s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2G
+
+  redis:
+    <<: *service-defaults
+    image: redis:7
+    container_name: redis
+    env_file:
+      - ./configs/redis/.redis.env
+    command: >
+      --requirepass ${REDIS_AUTH:-myredissecret}
+    ports:
+      - "6379:6379"
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "redis-cli", "-a", "${REDIS_AUTH:-myredissecret}", "ping"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # === Storage Services ===
+  minio:
+    <<: *service-defaults
+    image: minio/minio
+    entrypoint: sh
+    command:
+      -c 'mkdir -p /data/langfuse && minio server --address ":9000"
+      --console-address ":9001" /data'
+    env_file:
+      - ./configs/minio/.minio.env
+    ports:
+      - "9090:9000"
+      - "9091:9001"
+    volumes:
+      - langfuse_minio_data:/data
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 1s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # === Langfuse Services ===
+  langfuse-worker:
+    <<: *service-defaults
+    image: langfuse/langfuse-worker:3
+    depends_on: *langfuse-depends-on
+    env_file:
+      - ./configs/minio/.minio.env
+      - ./configs/clickhouse/.clickhouse.env
+      - ./configs/langfuse/.langfuse.env
+      - ./configs/redis/.redis.env
+    ports:
+      - "3030:3030"
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
+  langfuse-web:
+    <<: *service-defaults
+    image: langfuse/langfuse:3
+    depends_on: *langfuse-depends-on
+    env_file:
+      - ./configs/minio/.minio.env
+      - ./configs/clickhouse/.clickhouse.env
+      - ./configs/langfuse/.langfuse.env
+      - ./configs/redis/.redis.env
+    environment:
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+    ports:
+      - "3000:3000"
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
+  # === Application Services ===
+  backend-agent-service:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: docker/service/Dockerfile
+    container_name: backend-agent-service
+    platform: linux/amd64
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      langfuse-worker:
+        condition: service_started
+      langfuse-web:
+        condition: service_started
+      litellm:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+    develop:
+      watch:
+        - path: langgraph_agent_toolkit/agents/
+          action: sync+restart
+          target: /app/langgraph_agent_toolkit/agents/
+        - path: langgraph_agent_toolkit/core/
+          action: sync+restart
+          target: /app/langgraph_agent_toolkit/core/
+        - path: langgraph_agent_toolkit/helper/
+          action: sync+restart
+          target: /app/langgraph_agent_toolkit/helper/
+        - path: langgraph_agent_toolkit/core/memory/
+          action: sync+restart
+          target: /app/langgraph_agent_toolkit/memory/
+        - path: langgraph_agent_toolkit/core/observability/
+          action: sync+restart
+          target: /app/langgraph_agent_toolkit/observability/
+        - path: langgraph_agent_toolkit/core/prompt_manager/
+          action: sync+restart
+          target: /app/langgraph_agent_toolkit/prompt_manager/
+        - path: langgraph_agent_toolkit/schema/
+          action: sync+restart
+          target: /app/langgraph_agent_toolkit/schema/
+        - path: langgraph_agent_toolkit/service/
+          action: sync+restart
+          target: /app/langgraph_agent_toolkit/service/
+        - path: langgraph_agent_toolkit/run_service.py
+          action: sync+restart
+          target: /app/langgraph_agent_toolkit/run_service.py
+
+  frontend-streamlit-app:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: frontend-streamlit-app
+    ports:
+      - "8501:8501"
+    depends_on:
+      backend-agent-service:
+        condition: service_started
+    environment:
+      - AGENT_URL=http://backend-agent-service:8080
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+    develop:
+      watch:
+        - path: langgraph_agent_toolkit/client/
+          action: sync+restart
+          target: /app/langgraph_agent_toolkit/client/
+        - path: langgraph_agent_toolkit/helper/
+          action: sync+restart
+          target: /app/langgraph_agent_toolkit/helper/
+        - path: langgraph_agent_toolkit/schema/
+          action: sync+restart
+          target: /app/langgraph_agent_toolkit/schema/
+        - path: langgraph_agent_toolkit/streamlit_app.py
+          action: sync+restart
+          target: /app/langgraph_agent_toolkit/streamlit_app.py
+
+volumes:
+  postgres_data:
+    driver: local
+  langfuse_clickhouse_data:
+    driver: local
+  langfuse_clickhouse_logs:
+    driver: local
+  langfuse_minio_data:
+    driver: local
