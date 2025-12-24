@@ -1,0 +1,97 @@
+Metadata-Version: 2.3
+Name: binscatter
+Version: 0.1.0
+Summary: Cross-backend binscatter plots.
+Keywords: binscatter,visualization,econometrics
+Author: Matthias Kaeding
+License: MIT License
+         
+         Copyright (c) 2025 Matthias Kaeding
+         
+         Permission is hereby granted, free of charge, to any person obtaining a copy
+         of this software and associated documentation files (the "Software"), to deal
+         in the Software without restriction, including without limitation the rights
+         to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+         copies of the Software, and to permit persons to whom the Software is
+         furnished to do so, subject to the following conditions:
+         
+         The above copyright notice and this permission notice shall be included in all
+         copies or substantial portions of the Software.
+         
+         THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+         IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+         FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+         AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+         LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+         OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+         SOFTWARE.
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Scientific/Engineering :: Visualization
+Requires-Dist: narwhals>=2.1.2
+Requires-Dist: numpy>=2.3.2
+Requires-Dist: plotly>=6.3.0
+Requires-Python: >=3.11
+Project-URL: homepage, https://github.com/matthiaskaeding/binscatter
+Project-URL: issues, https://github.com/matthiaskaeding/binscatter/issues
+Project-URL: repository, https://github.com/matthiaskaeding/binscatter
+Description-Content-Type: text/markdown
+
+# Dataframe agnostic binscatter plots
+
+This package implements binscatter plots following:
+
+> Cattaneo, Crump, Farrell and Feng (2024)  
+> "On Binscatter"  
+> American Economic Review, 114(5), pp. 1488-1514  
+> [DOI: 10.1257/aer.20221576](https://doi.org/10.1257/aer.20221576)
+
+- Uses `narwhals` as dataframe layer `binscatter`.
+  - Currently supports: pandas, Polars, DuckDB, Dask, and PySpark
+  - All other Narwhals backends fall back to a generic quantile handler if a native path is unavailable
+- Lightweight - little dependencies
+- Uses `plotly` as graphics backend - because: (1) its great (2) it uses `narwhals` as well, minimizing dependencies
+- Pythonic alternative to the excellent **binsreg** package
+
+---
+
+## Example
+
+We made this noisy scatterplot:
+
+![Noisy scatterplot](https://raw.githubusercontent.com/matthiaskaeding/binscatter/images/images/readme/scatter.png)
+
+This is how we make a nice binscatter plot, controlling for a set of features:
+
+```python
+from binscatter import binscatter
+
+p_binscatter_controls = binscatter(
+    df,
+    "mtr90_lag3",
+    "lnpat",
+    [
+        "top_corp_lag3",
+        "real_gdp_pc",
+        "population_density",
+        "rd_credit_lag3",
+        "statenum",
+        "year",
+    ],
+    num_bins=35,
+)
+```
+
+![Binscatter with controls (35 bins)](https://raw.githubusercontent.com/matthiaskaeding/binscatter/images/images/readme/binscatter_controls.png)
+
+The data originates from:
+
+Akcigit, Ufuk; Grigsby, John; Nicholas, Tom; Stantcheva, Stefanie, 2021, "Replication Data for: 'Taxation and Innovation in the 20th Century'", https://doi.org/10.7910/DVN/SR410I, Harvard Dataverse, V1
+
+## Tests
+
+- Run the full backend matrix, including PySpark: `just test`
+- Use the faster run without PySpark: `just test-fast`
