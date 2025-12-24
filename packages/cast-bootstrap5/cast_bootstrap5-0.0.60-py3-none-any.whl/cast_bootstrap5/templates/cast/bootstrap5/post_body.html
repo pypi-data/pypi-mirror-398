@@ -1,0 +1,37 @@
+{% load wagtailcore_tags %}
+{% load i18n %}
+
+<article>
+  <header>
+    <h2>
+      <a class="text-dark text-decoration-none" href="{{ page.page_url }}">{{ page.title }}</a>
+      {% if render_for_feed and comments_are_enabled %}
+        {% translate "(click here to comment)" %}
+      {% endif %}
+    </h2>
+    <!-- link is on one line to avoid underlined whitespace -->
+    <a href="{{ page.page_url }}"><time date-time='{{ page.visible_date|date:"c" }}'>{{ page.visible_date|date }}</time>,</a>
+    <span class="author">{{ page.owner.username | title}}</span>
+  </header>
+  {% if cover_image_url and not render_for_feed %}
+    <figure class="cast-cover-image">
+      <img class="img-fluid" src="{{ cover_image_url }}" alt="{{ cover_alt_text }}" loading="lazy">
+    </figure>
+  {% endif %}
+  {% for block in page.body %}
+    {# this is either an overview or detail block #}
+    {% if block.block_type != "detail" or render_detail %}
+      <section class="block-{{ block.block_type }}">
+        {% for block in block.value %}
+          {# this is a block of content like image, gallery or audio #}
+          <section class="block-{{ block.block_type }}">
+            {% include_block block %}
+          </section>
+        {% endfor %}
+      </section>
+      {% if not render_detail %}
+        {% block detail_link %}{% endblock %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+</article>
