@@ -1,0 +1,180 @@
+Answer User's question about Harbor CLI.
+
+Here's CLI help:
+
+```bash
+Usage: harbor <command> [options]
+
+Compose Setup Commands:
+  up|u [handle]           - Start the containers
+  down|d                  - Stop and remove the containers
+  restart|r [handle]      - Down then up
+  ps                      - List the running containers
+  logs|l <handle>         - View the logs of the containers
+  exec <handle> [command] - Execute a command in a running service
+  pull <handle>           - Pull the latest images
+  dive <handle>           - Run the Dive CLI to inspect Docker images
+  run <handle> [command]  - Run a one-off command in a service container
+  shell <handle>          - Load shell in the given service main container
+  build <handle>          - Build the given service
+  cmd <handle>            - Print the docker compose command
+
+Setup Management Commands:
+  ollama     - Run Ollama CLI (docker). Service should be running.
+  smi        - Show NVIDIA GPU information
+  top        - Run nvtop to monitor GPU usage
+  llamacpp   - Configure llamacpp service
+  tgi        - Configure text-generation-inference service
+  litellm    - Configure LiteLLM service
+  openai     - Configure OpenAI API keys and URLs
+  vllm       - Configure VLLM service
+  aphrodite  - Configure Aphrodite service
+  tabbyapi   - Configure TabbyAPI service
+  mistralrs  - Configure mistral.rs service
+  cfd        - Run cloudflared CLI
+  airllm     - Configure AirLLM service
+  txtai      - Configure txtai service
+  chatui     - Configure HuggingFace ChatUI service
+  comfyui    - Configure ComfyUI service
+
+Service CLIs:
+  aider             - Launch Aider CLI
+  aichat            - Run aichat CLI
+  interpreter|opint - Launch Open Interpreter CLI
+  fabric            - Run Fabric CLI
+  plandex           - Launch Plandex CLI
+  cmdh              - Run cmdh CLI
+  parllama          - Launch Parllama - TUI for chatting with Ollama models
+  hf                - Run the Harbor's Hugging Face CLI. Expanded with a few additional commands.
+    hf dl           - HuggingFaceModelDownloader CLI
+    hf parse-url    - Parse file URL from Hugging Face
+    hf token        - Get/set the Hugging Face Hub token
+    hf cache        - Get/set the path to Hugging Face cache
+    hf find <query> - Open HF Hub with a query (trending by default)
+    hf path <spec>  - Print a folder in HF cache for a given model spec
+    hf *            - Anything else is passed to the official Hugging Face CLI
+
+Harbor CLI Commands:
+  open handle                   - Open a service in the default browser
+
+  url <handle>                  - Get the URL for a service
+    url <handle>                         - Url on the local host
+    url [-a|--adressable|--lan] <handle> - (supposed) LAN URL
+    url [-i|--internal] <handle>         - URL within Harbor's docker network
+
+  qr <handle>                   - Print a QR code for a service
+
+  t|tunnel <handle>             - Expose given service to the internet
+    tunnel down|stop|d|s        - Stop all running tunnels (including auto)
+  tunnels [ls|rm|add]           - Manage services that will be tunneled on 'up'
+    tunnels rm <handle|index>   - Remove, also accepts handle or index
+    tunnels add <handle>        - Add a service to the tunnel list
+
+  config [get|set|ls]           - Manage the Harbor environment configuration
+    config ls                   - All config values in ENV format
+    config get <field>          - Get a specific config value
+    config set <field> <value>  - Get a specific config value
+    config reset                - Reset Harbor configuration to default.env
+    config update               - Merge upstream config changes from default.env
+
+  defaults [ls|rm|add]          - List default services
+    defaults rm <handle|index>  - Remove, also accepts handle or index
+    defaults add <handle>       - Add
+
+  find <file>                   - Find a file in the caches visible to Harbor
+  ls|list [--active|-a]         - List available/active Harbor services
+  ln|link [--short]             - Create a symlink to the CLI, --short for 'h' link
+  unlink                        - Remove CLI symlinks
+  eject                         - Eject the Compose configuration, accepts same options as 'up'
+  help|--help|-h                - Show this help message
+  version|--version|-v          - Show the CLI version
+  gum                           - Run the Gum terminal commands
+  fixfs                         - Fix file system ACLs for service volumes
+  info                          - Show system information for debug/issues
+  update [-l|--latest]          - Update Harbor. --latest for the dev version
+```
+
+Here are some examples:
+```bash
+# to enable searxng for WebRAG in webui?
+harbor up searxng
+
+# to Run additional/alternative LLM Inference backends. Open Webui is automatically connected to them.
+harbor up llamacpp tgi litellm vllm tabbyapi aphrodite
+
+# to setup service models
+harbor tgi model google/gemma-2-2b-it
+harbor vllm model google/gemma-2-2b-it
+harbor aphrodite model google/gemma-2-2b-it
+harbor tabbyapi model google/gemma-2-2b-it-exl2
+harbor mistralrs model google/gemma-2-2b-it
+harbor opint model google/gemma-2-2b-it
+
+# Run different Frontends
+harbor up librechat bionicgpt hollama
+
+# Stop a single service
+harbor stop searxng
+
+# Set webui version
+harbor webui version 0.3.11
+
+# Use custom models for supported backends
+harbor llamacpp model https://huggingface.co/user/repo/model.gguf
+
+# Open HF Hub to find the models
+harbor hf find gguf gemma-2
+
+# Use HFDownloader and official HF CLI to download models
+harbor hf dl -m google/gemma-2-2b-it -c 10 -s ./hf
+harbor hf download google/gemma-2-2b-it
+
+# Show LAN URL for vllm
+harbor url -a vllm
+
+# Pass down options to docker-compose
+harbor down --remove-orphans
+
+# Restart a single specific service only
+harbor restart tabbyapi
+
+# Pull the latest images for additional services
+harbor pull searxng
+
+# Build a service with a dockerfile
+harbor build hfdownload
+
+# Show logs for a specific service
+# logs are automatically tailed
+harbor logs webui
+
+# Update all images
+harbor pull
+
+# Show last 200 lines of logs of webui service
+harbor logs webui -n 200
+
+# Check the processes in ollama container
+harbor exec ollama ps aux
+
+# Check the processes in ollama container
+harbor exec ollama ps aux
+
+# Ping one service from the other one?
+harbor exec webui curl $(harbor url -i ollama)
+
+# Generate a QR code in terminal?
+harbor run qrgen http://example.com
+
+# Run docker compose with harbor files on my own?
+$(harbor cmd "webui") <your command>
+
+# Launch interactive shell to test the container?
+harbor shell mistralrs
+
+# generate images
+harbor up comfyui
+
+# List models from the service API (vllm in this instance)
+curl -s $(harbor url vllm)/v1/models | jq -r '.data[].id'
+```
