@@ -1,0 +1,22 @@
+# Setup logging globally for all services
+x-logging: &default-logging
+  driver: "journald"
+  options:
+    labels: "service,version"
+    tag: "{% raw %}{{.Name}}-{{.ID}}{% endraw %}"
+
+services:
+  traefik:
+    image: "traefik:latest"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./traefik.yml:/etc/traefik/traefik.yml:ro"
+      - "./acme.json:/etc/traefik/acme.json"
+    logging: *default-logging
+
+networks:
+  default:
+    name: {{ app_name }}

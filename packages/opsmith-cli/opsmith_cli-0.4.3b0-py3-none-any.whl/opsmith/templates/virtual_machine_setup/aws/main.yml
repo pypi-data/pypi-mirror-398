@@ -1,0 +1,236 @@
+- name: Install and configure Docker on AWS EC2
+  hosts: all
+  become: true
+  tasks:
+    - name: Install Docker
+      ansible.builtin.yum:
+        name: docker
+        state: present
+
+    - name: Set compose arch
+      ansible.builtin.set_fact:
+        compose_arch: "{{ 'aarch64' if ansible_facts.architecture == 'aarch64' else 'x86_64' }}"
+
+    - name: Create docker cli-plugins directory
+      ansible.builtin.file:
+        path: "/usr/local/lib/docker/cli-plugins"
+        state: directory
+        mode: "0755"
+
+    - name: Install Docker Compose
+      ansible.builtin.get_url:
+        url: "https://github.com/docker/compose/releases/download/v2.38.2/docker-compose-linux-{{ compose_arch }}"
+        dest: "/usr/local/lib/docker/cli-plugins/docker-compose"
+        mode: "0755"
+
+    - name: Start Docker service
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add remote user to docker group
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+  handlers:
+    - name: restart docker
+      ansible.builtin.service:
+        name: docker
+        state: restarted
+
+- name: Install and configure CloudWatch monitoring on AWS EC2
+  hosts: all
+  become: true
+  tasks:
+    - name: Install CloudWatch
+      ansible.builtin.yum:
+        name: amazon-cloudwatch-agent
+        state: present
+
+    # Configure journald
+    - name: Configure journald for better log handling
+      ansible.builtin.copy:
+       content: |
+         [Journal]
+         Storage=persistent
+         Compress=yes
+         SystemMaxUse=2G
+         RuntimeMaxUse=200M
+         ForwardToSyslog=no
+         MaxRetentionSec=30d
+         RateLimitInterval=30s
+         RateLimitBurst=1000
+       dest: "/etc/systemd/journald.conf"
+       mode: "0644"
+       backup: yes
+      notify: restart journald
+
+    # Vector Installation
+    - name: Setup Vector Repo
+      shell: bash -c "$(curl -L https://setup.vector.dev)"
+
+    - name: Install Vector
+      ansible.builtin.yum:
+         name: vector
+         state: present
+
+    # Create Vector directories
+    - name: Create Vector directories
+      ansible.builtin.file:
+         path: "{{ item }}"
+         state: directory
+         mode: "0755"
+         owner: vector
+         group: vector
+      loop:
+         - /var/lib/vector
+         - /var/log/vector
+         - /etc/vector
+
+    # Vector configuration
+    - name: Create Vector configuration from content
+      ansible.builtin.copy:
+        content: |
+          data_dir: "/var/lib/vector"
+          
+          api:
+            enabled: false
+          
+          sources:
+            journald:
+              type: journald
+              current_boot_only: false
+          
+          transforms:
+            docker_containers:
+              type: filter
+              inputs:
+                - journald
+              condition: exists(.CONTAINER_NAME) && .CONTAINER_NAME != ""
+            enrich_containers:
+              type: remap
+              inputs:
+                - docker_containers
+              source: >
+                .service_name = replace(.CONTAINER_NAME, r'-\d+$', "") ?? .CONTAINER_NAME
+          
+                .message, err = "[" + .service_name + "] " + string!(.message)
+          
+          sinks:
+            cloudwatch_containers:
+              type: aws_cloudwatch_logs
+              inputs:
+                - enrich_containers
+              region: {{region}}
+              group_name: {{ app_name }}-{{ environment_name }}
+              stream_name: containers
+              create_missing_group: true
+              create_missing_stream: true
+              batch:
+                max_events: 100
+                timeout_secs: 5
+              encoding:
+                codec: text 
+              retention:
+                days: 30
+                enabled: true
+
+        dest: /etc/vector/vector.yaml
+        mode: "0644"
+        owner: vector
+        group: vector
+      notify: restart vector
+
+    # Add vector user to systemd-journal group
+    - name: Add vector user to systemd-journal group
+      ansible.builtin.user:
+        name: vector
+        groups: systemd-journal
+        append: yes
+
+    - name: Create CloudWatch agent configuration
+      ansible.builtin.copy:
+        content: |
+          {
+            "agent": {
+              "metrics_collection_interval": 60,
+              "run_as_user": "cwagent"
+            },
+            "metrics": {
+              "namespace": "CWAgent/{{ app_name }}",
+              "metrics_collected": {
+                "cpu": {
+                  "measurement": [
+                    "cpu_usage_idle",
+                    "cpu_usage_iowait",
+                    "cpu_usage_user",
+                    "cpu_usage_system"
+                  ],
+                  "metrics_collection_interval": 60,
+                  "totalcpu": false
+                },
+                "disk": {
+                  "measurement": [
+                    "used_percent"
+                  ],
+                  "metrics_collection_interval": 60,
+                  "resources": [
+                    "*"
+                  ]
+                },
+                "diskio": {
+                  "measurement": [
+                    "io_time"
+                  ],
+                  "metrics_collection_interval": 60,
+                  "resources": [
+                    "*"
+                  ]
+                },
+                "mem": {
+                  "measurement": [
+                    "mem_used_percent"
+                  ],
+                  "metrics_collection_interval": 60
+                },
+                "netstat": {
+                  "measurement": [
+                    "tcp_established",
+                    "tcp_time_wait"
+                  ],
+                  "metrics_collection_interval": 60
+                },
+                "swap": {
+                  "measurement": [
+                    "swap_used_percent"
+                  ],
+                  "metrics_collection_interval": 60
+                }
+              }
+            }
+          }
+        dest: "/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json"
+        mode: "0644"
+        backup: yes
+
+    # Start CloudWatch Agent
+    - name: Start CloudWatch agent with configuration
+      ansible.builtin.command:
+        cmd: >
+          amazon-cloudwatch-agent-ctl
+          -a fetch-config -m ec2 -s 
+          -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
+      register: cw_start_result
+
+  handlers:
+    - name: restart journald
+      ansible.builtin.service:
+        name: systemd-journald
+        state: restarted
+
+    - name: restart vector
+      ansible.builtin.service:
+        name: vector
+        state: restarted
