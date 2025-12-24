@@ -1,0 +1,132 @@
+# Financial-Parser
+[![PyPI version](https://badge.fury.io/py/financial-parser.svg)](https://badge.fury.io/py/financial-parser)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/financial-parser)](https://pepy.tech/project/financial-parser)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+Financial-Parser is a Python package designed to analyze financial news headlines and extract key structured information such as company names, financial targets, timeframes, and goal updates from text inputs. It simplifies monitoring market sentiment and tracking financial forecasts by processing pre-extracted textual data, providing clear, structured summaries that facilitate automated analysis and decision-making.
+
+## Features
+
+- Extracts structured information from financial news headlines.
+- Supports custom language models (LLMs) from LangChain.
+- Defaults to using ChatLLM7 from LangChain for ease of use.
+- Allows custom API keys for higher rate limits.
+
+## Installation
+
+You can install the package using pip:
+
+```bash
+pip install financial_parser
+```
+
+## Usage
+
+### Basic Usage
+
+```python
+from financial_parser import financial_parser
+
+user_input = "Company XYZ announces Q4 earnings of $1.2 billion, up from $1.1 billion last year."
+response = financial_parser(user_input)
+
+print(response)
+```
+
+### Using a Custom LLM
+
+You can use a custom LLM from LangChain by passing it as an argument. For example, to use OpenAI:
+
+```python
+from langchain_openai import ChatOpenAI
+from financial_parser import financial_parser
+
+llm = ChatOpenAI()
+user_input = "Company XYZ announces Q4 earnings of $1.2 billion, up from $1.1 billion last year."
+response = financial_parser(user_input, llm=llm)
+
+print(response)
+```
+
+Similarly, you can use other LLMs like Anthropic or Google:
+
+```python
+from langchain_anthropic import ChatAnthropic
+from financial_parser import financial_parser
+
+llm = ChatAnthropic()
+user_input = "Company XYZ announces Q4 earnings of $1.2 billion, up from $1.1 billion last year."
+response = financial_parser(user_input, llm=llm)
+
+print(response)
+```
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from financial_parser import financial_parser
+
+llm = ChatGoogleGenerativeAI()
+user_input = "Company XYZ announces Q4 earnings of $1.2 billion, up from $1.1 billion last year."
+response = financial_parser(user_input, llm=llm)
+
+print(response)
+```
+
+### Using a Custom API Key
+
+You can provide a custom API key for higher rate limits:
+
+```python
+from financial_parser import financial_parser
+
+user_input = "Company XYZ announces Q4 earnings of $1.2 billion, up from $1.1 billion last year."
+api_key = "your_custom_api_key"
+response = financial_parser(user_input, api_key=api_key)
+
+print(response)
+```
+
+Or set the API key via an environment variable:
+
+```bash
+export LLM7_API_KEY="your_custom_api_key"
+```
+
+Then use the package without passing the API key:
+
+```python
+from financial_parser import financial_parser
+
+user_input = "Company XYZ announces Q4 earnings of $1.2 billion, up from $1.1 billion last year."
+response = financial_parser(user_input)
+
+print(response)
+```
+
+## Input Parameters
+
+- `user_input` (str): The user input text to process.
+- `llm` (Optional[BaseChatModel]): The LangChain LLM instance to use. If not provided, the default ChatLLM7 will be used.
+- `api_key` (Optional[str]): The API key for LLM7. If not provided, the default API key will be used.
+
+## Default Rate Limits
+
+The default rate limits for LLM7 free tier are sufficient for most use cases of this package. If you need higher rate limits, you can pass your own API key via the environment variable `LLM7_API_KEY` or directly via the `api_key` parameter.
+
+You can get a free API key by registering at [LLM7 Token](https://token.llm7.io/).
+
+## Contributing
+
+Contributions are welcome! Please open an issue or submit a pull request on [GitHub](https://github.com/chigwell/financial-parser).
+
+## License
+
+This project is licensed under the MIT License.
+
+## Author
+
+- **Eugene Evstafev**
+- Email: [hi@euegne.plus](mailto:hi@euegne.plus)
+- GitHub: [chigwell](https://github.com/chigwell)
