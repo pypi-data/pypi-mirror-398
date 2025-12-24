@@ -1,0 +1,133 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [
+    "setuptools >= 77.0.3",
+]
+
+[project]
+name = "larray"
+version = "0.35"
+description = "N-D labeled arrays in Python"
+readme = { file = "README.rst", content-type = "text/x-rst" }
+
+authors = [
+  {name = "Gaetan de Menten", email = "gdementen@gmail.com"},
+  {name = "Alix Damman", email = "ald@plan.be"},
+  {name = "Geert Bryon"},
+  {name = "Johan Duyck"},
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries",
+]
+license = 'GPL-3.0-only'
+license-files = ["LICENSE"]
+
+requires-python = ">=3.9"
+dependencies = [
+    "numpy >= 1.22",
+    # pandas >= 0.20.0 is required since commit
+    # 01669f2024a7bffe47cceec0a0fd845f71b6f7cc
+    # (issue 702 : fixed bug when writing metadata using HDF format)
+    "pandas >= 0.20.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.urls]
+homepage = "https://github.com/larray-project/larray"
+repository = "https://github.com/larray-project/larray"
+issues = "https://github.com/larray-project/larray/issues"
+documentation = "https://larray.readthedocs.io/en/stable/"
+
+[tool.setuptools.packages.find]
+where = ["."]
+namespaces = false
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+testpaths = [
+    "larray"
+]
+addopts = [
+    "-v",
+    "--doctest-modules",
+    # auto/long/short/line/native/no
+    "--tb=short",
+    # ignore module (because importing it raise an Exception)
+    "--ignore=larray/ipfp",
+    # exclude (doc)tests from ufuncs (because docstrings are copied from numpy
+    #                                 and many of those doctests are failing)
+    "--deselect=larray/core/npufuncs.py",
+    "--deselect=larray/inout/xw_reporting.py",
+    # doctest is copied from numpy (and fails for some Python + numpy version combinations)
+    "--deselect=larray/core/array.py::larray.core.array.Array.astype",
+    # skip Pandas-leeched doctests because they are not larray-specific and,
+    # without Pandas-specific documentation build infrastructure, they leave
+    # some plots open
+    "--deselect=larray/core/plot.py::larray.core.plot.PlotObject.area",
+    "--deselect=larray/core/plot.py::larray.core.plot.PlotObject.bar",
+    "--deselect=larray/core/plot.py::larray.core.plot.PlotObject.barh",
+    "--deselect=larray/core/plot.py::larray.core.plot.PlotObject.box",
+    "--deselect=larray/core/plot.py::larray.core.plot.PlotObject.hexbin",
+    "--deselect=larray/core/plot.py::larray.core.plot.PlotObject.hist",
+    "--deselect=larray/core/plot.py::larray.core.plot.PlotObject.kde",
+    "--deselect=larray/core/plot.py::larray.core.plot.PlotObject.line",
+    "--deselect=larray/core/plot.py::larray.core.plot.PlotObject.pie",
+    "--deselect=larray/core/plot.py::larray.core.plot.PlotObject.scatter",
+#    "--cov",
+]
+
+filterwarnings = [
+    # turn warnings into errors (unless they are explicitly handled in tests or ignored here)
+    "error",
+    # as of version 3.1.2, openpyxl uses datetime.datetime.utcnow() which is deprecated in Python 3.12
+    "ignore::DeprecationWarning:openpyxl.*:",
+    # as of version 3.1.1, xlsxwriter uses datetime.datetime.utcnow() which is deprecated in Python 3.12
+    "ignore::DeprecationWarning:xlsxwriter.*:",
+    "ignore:Special variable 'x' is deprecated.*:FutureWarning:inspect.*:",
+    "ignore:Special variable 'x' is deprecated.*:FutureWarning:_pytest.compat.*:",
+]
+
+
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".eggs",
+    ".git",
+    ".ruff_cache",
+    ".venv",
+    "__pypackages__",
+    "build",
+    "dist",
+]
+
+line-length = 120
+
+[tool.ruff.lint]
+# Enable Pyflakes `E` and `F` codes by default.
+select = ["E", "F"]
+ignore = []
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+# fixable = ["A", "B", "C", "D", "E", "F", "..."]
+# unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+# F403 `from larray import *` used; unable to detect undefined names
+# F405 `abc` may be undefined, or defined from star imports
+"doc/source/tutorial/*.ipynb" = ["F403", "F405"]

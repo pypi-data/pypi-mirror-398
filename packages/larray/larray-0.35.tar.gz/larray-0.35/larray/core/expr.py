@@ -1,0 +1,164 @@
+import numpy as np
+
+from larray.core.abstractbases import ABCAxisReference, ABCAxis, ABCArray
+
+
+class ExprNode:
+    def __bool__(self):
+        raise ValueError("Cannot evaluate the truth value of an expression using X.axis_name")
+
+    # method factory
+    def _binop(opname):
+        # reversed = opname.startswith('r') and opname != 'rshift'
+        def opmethod(self, other):
+            assert isinstance(self, ExprNode), \
+                (f"Expected ExprNode, got {type(self).__name__} "
+                 f"({self=} {other=})")
+            if (isinstance(other, ABCArray) and
+                    self.can_evaluate_with(other.axes)):
+                self_value = self.evaluate(other.axes)
+                return getattr(self_value, f'__{opname}__')(other)
+            else:
+                return BinaryOp(opname, self, other)
+
+        opmethod.__name__ = f'__{opname}__'
+        return opmethod
+
+    __rmatmul__ = _binop('rmatmul')
+    __matmul__ = _binop('matmul')
+    __ror__ = _binop('ror')
+    __or__ = _binop('or')
+    __rxor__ = _binop('rxor')
+    __xor__ = _binop('xor')
+    __rand__ = _binop('rand')
+    __and__ = _binop('and')
+    __rrshift__ = _binop('rrshift')
+    __rshift__ = _binop('rshift')   # not reverse even though it starts with 'r'
+    __rlshift__ = _binop('rlshift')
+    __lshift__ = _binop('lshift')
+    __rpow__ = _binop('rpow')
+    __pow__ = _binop('pow')
+    __rdivmod__ = _binop('rdivmod')
+    __divmod__ = _binop('divmod')
+    __rmod__ = _binop('rmod')
+    __mod__ = _binop('mod')
+    # div and rdiv are not longer used on Python3+
+    __rfloordiv__ = _binop('rfloordiv')
+    __floordiv__ = _binop('floordiv')
+    __rtruediv__ = _binop('rtruediv')
+    __truediv__ = _binop('truediv')
+    __rmul__ = _binop('rmul')
+    __mul__ = _binop('mul')
+    __rsub__ = _binop('rsub')
+    __sub__ = _binop('sub')
+    __radd__ = _binop('radd')
+    __add__ = _binop('add')
+    __ge__ = _binop('ge')
+    __gt__ = _binop('gt')
+    __ne__ = _binop('ne')
+    __eq__ = _binop('eq')
+    __le__ = _binop('le')
+    __lt__ = _binop('lt')
+
+    def _unaryop(opname):
+        def opmethod(self):
+            return UnaryOp(opname, self)
+
+        opmethod.__name__ = f'__{opname}__'
+        return opmethod
+
+    # unary ops do not need broadcasting so do not need to be overridden
+    __neg__ = _unaryop('neg')
+    __pos__ = _unaryop('pos')
+    __abs__ = _unaryop('abs')
+    __invert__ = _unaryop('invert')
+
+    def can_evaluate_with(self, context):
+        """
+        Returns wether this expression can be evaluated using the given context.
+
+        Parameters
+        ----------
+        context : AxisCollection
+            Use axes from this collection
+
+        Returns
+        -------
+        bool
+        """
+        raise NotImplementedError()
+
+    def evaluate(self, context):
+        """
+        Parameters
+        ----------
+        context : AxisCollection
+            Use axes from this collection
+        """
+        raise NotImplementedError()
+
+
+def expr_eval(expr, context):
+    # in the end it all comes down to AxisReference.evaluate(AxisCollection) which returns the Axis
+    return expr.evaluate(context) if isinstance(expr, ExprNode) else expr
+
+
+def value_summary(value):
+    if isinstance(value, ABCArray):
+        axes = value.axes
+        axes_info = ' x '.join(f'{name} ({length})'
+                               for name, length
+                               in zip(axes.display_names, axes.shape))
+        return f"Array(<{axes_info}>)"
+    elif isinstance(value, ABCAxisReference):
+        return f"X.{value.name}"
+    elif isinstance(value, ABCAxis):
+        return f"Axis(<{value.name} ({len(value)})>)"
+    elif isinstance(value, ExprNode):
+        return repr(value)
+    else:
+        assert np.isscalar(value), (f"Expected scalar value, "
+                                    f"got {type(value).__name__}")
+        return repr(value)
+
+
+class BinaryOp(ExprNode):
+    def __init__(self, op, expr1, expr2):
+        self.opname = f'__{op}__'
+        self.expr1 = expr1
+        self.expr2 = expr2
+
+    def evaluate(self, context):
+        # TODO: implement eval via numexpr
+        expr1 = expr_eval(self.expr1, context)
+        expr2 = expr_eval(self.expr2, context)
+        return getattr(expr1, self.opname)(expr2)
+
+    def can_evaluate_with(self, context):
+        return (
+            (self.expr1.can_evaluate_with(context) if isinstance(self.expr1, ExprNode) else True)
+            and
+            (self.expr2.can_evaluate_with(context) if isinstance(self.expr2, ExprNode) else True)
+        )
+
+    def __repr__(self):
+        return (f"BinaryOp({self.opname[2:-2]!r}, "
+                           f"{value_summary(self.expr1)}, "
+                           f"{value_summary(self.expr2)})")
+
+
+class UnaryOp(ExprNode):
+    def __init__(self, op, expr):
+        self.opname = f'__{op}__'
+        self.expr = expr
+
+    def evaluate(self, context):
+        # TODO: implement eval via numexpr
+        expr = expr_eval(self.expr, context)
+        return getattr(expr, self.opname)()
+
+    def can_evaluate_with(self, context):
+        return self.expr.can_evaluate_with(context)
+
+    def __repr__(self):
+        return f"UnaryOp({self.opname[2:-2]!r}, {value_summary(self.expr)})"
