@@ -1,0 +1,121 @@
+# C-S Framework for Python
+
+![C-S Framework Header](refs/header.jpg)
+
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+
+[English](./README.md) | [日本語](./README.ja.md)
+
+A Python framework implementing the Concept-Synchronization Constitution.
+
+## Installation
+
+```bash
+pip install cs-framework
+```
+
+For development:
+
+```bash
+git clone https://github.com/shuntacurosu/cs-framework.git
+cd cs-framework
+pip install -e .[dev]
+```
+
+## Usage
+
+### Running the Demo
+
+1. Run the example application:
+   ```bash
+   python src/examples/simple_demo/main.py
+   ```
+   This will generate an `execution.ttl` file.
+
+2. Run the Visualization GUI:
+   ```bash
+   csfw gui --log execution.ttl
+   ```
+   Open your browser at `http://localhost:8080`.
+
+   ![Execution Graph](refs/graph.jpg)
+
+## Structure
+
+- `src/cs_framework`: Core framework library.
+- `src/cs_gui`: Visualization tool using NiceGUI.
+- `src/examples`: Example usage.
+- `tests`: Unit and integration tests.
+
+## Testing
+
+```bash
+pytest
+```
+
+## Skill-Driven Development Workflow
+
+The C-S Framework is designed to be developed in collaboration with AI agents (Skills). Below is the standard development workflow based on the Pacman implementation example.
+
+### 1. Design & Scaffolding (Architect Skill)
+
+Use the `Architect` tool when creating a new Concept. This generates a robust skeleton including event definitions and Pydantic models.
+
+```bash
+# Example: Generating the Pacman concept
+csfw scaffold \
+  --name Pacman \
+  --actions move change_direction die teleport \
+  --events moved died \
+  --output src/examples/pacman/src/concepts/
+```
+
+### 2. Implementation
+
+Edit the generated files to implement the logic.
+
+- **Python (`src/concepts/*.py`)**: Implement individual behaviors (Actions) and state transitions. Events are emitted type-safely via Pydantic models (`emit`).
+- **YAML (`src/sync/rules.yaml`)**: Define interactions between Concepts (Event → Action chains). Game rules can be adjusted without changing the code.
+
+### 3. Static Analysis (Linter Skill)
+
+Check the consistency between the implemented code and YAML definitions. Detects undefined actions or disconnected events (orphaned events).
+
+```bash
+csfw lint --path src/examples/pacman/src
+```
+
+### 4. Verification & Debugging (Fuzzer Skill)
+
+Use scenario tests to reproduce bugs or verify specifications.
+
+1. **Create Scenario**: Describe a sequence of events and expected states (assertions) in `scenario.yaml`.
+2. **Execute**:
+   ```bash
+   csfw run-scenario \
+     src/examples/pacman/run.py \
+     src/examples/pacman/scenario_bug_repro.yaml
+   ```
+
+### 5. Analysis (Debugger Skill)
+
+Execution logs are saved as RDF (`execution.ttl`). You can use SPARQL queries to analyze event chains and their payloads (states) in detail.
+
+## Spec-Kit Integration
+
+You can integrate CSFW with [Spec-Kit](https://github.com/spec-kit/spec-kit) to enforce framework best practices during the AI-driven development process.
+
+```bash
+# Integrate CSFW rules into Spec-Kit templates
+python -m cs_framework.cli integrate-speckit
+```
+
+This command modifies your local `.specify/` configuration to ensure that AI agents:
+1. Follow the Concept-Synchronization architecture.
+2. Use `scaffold.py` for creating new concepts.
+3. Run `lint.py` for validation.
+
+## Reference
+
+- [What You See Is What It Does: A Structural Pattern for Legible Software](https://arxiv.org/pdf/2508.14511) (arXiv:2508.14511)
