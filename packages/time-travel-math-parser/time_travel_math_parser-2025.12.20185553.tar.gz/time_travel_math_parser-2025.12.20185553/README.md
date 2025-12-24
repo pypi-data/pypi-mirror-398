@@ -1,0 +1,149 @@
+# time-travel-math-parser
+
+[![PyPI version](https://img.shields.io/pypi/v/time-travel-math-parser.svg)](https://pypi.org/project/time-travel-math-parser/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Downloads](https://img.shields.io/pypi/dm/time-travel-math-parser.svg)](https://pypistats.org/packages/time-travel-math-parser)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Eugene%20Evstafev-blue)](https://linkedin.com/in/chigwell)
+
+**Time‑Travel Math Parser** transforms free‑form textual claims about paradox‑free time‑travel into a clean, structured JSON format that downstream tools can consume reliably.
+
+---
+
+## Highlights
+
+- **LLM‑powered extraction** using the `llmatch-messages` library to enforce a strict output format.
+- **Works out‑of‑the‑box with the free tier of LLM7** thanks to a sensible default implementation (`ChatLLM7` from `langchain_llm7`).
+- **Easy to swap LLMs** – you can pass any `langchain` compatible `BaseChatModel` (OpenAI, Anthropic, Google, etc.) to replace the default.
+
+---
+
+## Installation
+
+```bash
+pip install time-travel-math-parser
+```
+
+---
+
+## Quick Start
+
+```python
+from time_travel_math_parser import time_travel_math_parser
+
+user_input = """
+The paper proves that any universe with a closed timelike curve will eventually resolve paradoxes by introducing a feedback loop that nullifies causal inconsistencies. 
+Key assumptions: (1) spacetime is differentiable, (2) causality violation is limited to the region within the wormhole throat, and (3) quantum fluctuations are suppressed.
+"""
+
+# Using the default ChatLLM7
+output = time_travel_math_parser(user_input)
+
+print(output)
+```
+
+`output` will be a list of extracted JSON objects, for example:
+
+```json
+[
+  {
+    "claim": "any universe with a closed timelike curve will eventually resolve paradoxes ...",
+    "theorem_summary": "...feedback loop that nullifies causal inconsistencies",
+    "assumptions": [
+      "spacetime is differentiable",
+      "causality violation is limited to the region within the wormhole throat",
+      "quantum fluctuations are suppressed"
+    ],
+    "paradox_handling": "...",
+    "confidence_score": 0.92
+  }
+]
+```
+
+---
+
+## Using Your Own LLM
+
+`time_travel_math_parser` accepts an optional `llm` argument that should be an instance of `langchain` `BaseChatModel`.  
+Below are examples for the three most common LLM back‑ends.
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from time_travel_math_parser import time_travel_math_parser
+
+llm = ChatOpenAI()          # configure API key through environment variable or kwargs
+result = time_travel_math_parser(user_input, llm=llm)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from time_travel_math_parser import time_travel_math_parser
+
+llm = ChatAnthropic()
+result = time_travel_math_parser(user_input, llm=llm)
+```
+
+### Google Gemini
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from time_travel_math_parser import time_travel_math_parser
+
+llm = ChatGoogleGenerativeAI()
+result = time_travel_math_parser(user_input, llm=llm)
+```
+
+---
+
+## Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_input` | `str` | The free‑form text describing the time‑travel claim to parse. |
+| `llm` | `Optional[BaseChatModel]` | A LangChain chat model instance. If omitted, `ChatLLM7` (free tier) is used. |
+| `api_key` | `Optional[str]` | LLM7 API key. If not supplied, the function looks for `LLM7_API_KEY` in the environment; if still missing it falls back to the default public key. |
+
+---
+
+## Rate Limits
+
+LLM7’s free tier provides ample throughput for most development and testing workloads.  
+If you require higher limits, supply a personal API key:
+
+```bash
+export LLM7_API_KEY=YOUR_KEY
+```
+
+or:
+
+```python
+time_travel_math_parser(user_input, api_key="YOUR_KEY")
+```
+
+Free keys are available from <https://token.llm7.io/>.
+
+---
+
+## Contributing & Issues
+
+If you encounter bugs or have feature requests, please open an issue on GitHub:
+<https://github.com/chigwell/time-travel-math-parser/issues>
+
+Feel free to fork and submit pull requests!
+
+---
+
+## License
+
+MIT © Eugene Evstafev – <hi@eugene.plus>
+
+---
+
+## Author
+
+Eugene Evstafev (`chigwell`)  
+<https://github.com/chigwell>  
+LinkedIn: <https://linkedin.com/in/chigwell>
