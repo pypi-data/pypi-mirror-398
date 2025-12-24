@@ -1,0 +1,27 @@
+"""Shared constants for the FluxLoop CLI."""
+
+from pathlib import Path
+
+
+DEFAULT_ROOT_DIR_NAME = "fluxloop"
+DEFAULT_CONFIG_FILENAME = "setting.yaml"
+LEGACY_CONFIG_FILENAMES = ("fluxloop.yaml",)
+
+
+DEFAULT_CONFIG_PATH = Path(DEFAULT_CONFIG_FILENAME)
+
+CONFIG_DIRECTORY_NAME = "configs"
+PROJECT_CONFIG_FILENAME = "project.yaml"
+INPUT_CONFIG_FILENAME = "input.yaml"
+SIMULATION_CONFIG_FILENAME = "simulation.yaml"
+EVALUATION_CONFIG_FILENAME = "evaluation.yaml"
+
+CONFIG_SECTION_FILENAMES = {
+    "project": PROJECT_CONFIG_FILENAME,
+    "input": INPUT_CONFIG_FILENAME,
+    "simulation": SIMULATION_CONFIG_FILENAME,
+    "evaluation": EVALUATION_CONFIG_FILENAME,
+}
+
+CONFIG_SECTION_ORDER = tuple(CONFIG_SECTION_FILENAMES.keys())
+
