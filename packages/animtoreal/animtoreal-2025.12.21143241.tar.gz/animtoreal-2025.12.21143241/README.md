@@ -1,0 +1,143 @@
+# animtoreal
+[![PyPI version](https://badge.fury.io/py/animtoreal.svg)](https://badge.fury.io/py/animtoreal)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/animtoreal)](https://pepy.tech/project/animtoreal)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+`animtoreal` is a lightweight Python package that turns a textual description of an animated character into a structured, step‑by‑step plan for bringing that character into the real world.  
+It extracts key information such as props, costumes, interactive experiences and other production details using a large language model, without requiring any media files.
+
+> **Why use animtoreal?**  
+> - Quickly generate a production‑ready spec from a creative brief.  
+> - Leverage any LLM – the package ships with a default free‑tier LLM (`ChatLLM7`) but you can plug in OpenAI, Anthropic, Google Gemini, or any LangChain‑compatible model.  
+> - No heavy dependencies or UI required – just a single function call.
+
+---
+
+## 📦 Installation
+
+```bash
+pip install animtoreal
+```
+
+---
+
+## 🚀 Quick Start
+
+```python
+from animtoreal import animtoreal
+
+user_input = """
+I want to create a small floating silver robot that can interact with children.
+It should have smooth metal panels, a small LED face that displays simple emotions,
+and a lightweight adjustable arm that can point at objects. The robot must be
+battery powered, easy to clean, and have a friendly safety char.
+"""
+
+# Using the built‑in default LLM (ChatLLM7)
+response = animtoreal(user_input)
+print(response)
+```
+
+`response` will be a list of strings, each representing a structured element of the production plan.
+
+---
+
+## 📚 Function Signature
+
+```python
+animtoreal(
+    user_input: str,
+    api_key: Optional[str] = None,
+    llm: Optional[BaseChatModel] = None
+) -> List[str]
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_input` | `str` | Text description of the character. |
+| `llm` | `Optional[BaseChatModel]` | A LangChain ChatModel instance. If omitted, the default `ChatLLM7` is used. |
+| `api_key` | `Optional[str]` | API key for LLM7. If omitted, the package will look for `LLM7_API_KEY` in the environment, and fall back to `"None"` (for the free tier). |
+
+---
+
+## 🔗 Using Your Own LLM
+
+`animtoreal` is agnostic to the underlying LLM.  
+Below are quick examples with popular providers.
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from animtoreal import animtoreal
+
+llm = ChatOpenAI()  # defaults to your OPENAI_API_KEY env var
+response = animtoreal(user_input, llm=llm)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from animtoreal import animtoreal
+
+llm = ChatAnthropic()
+response = animtoreal(user_input, llm=llm)
+```
+
+### Google Gemini
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from animtoreal import animtoreal
+
+llm = ChatGoogleGenerativeAI()
+response = animtoreal(user_input, llm=llm)
+```
+
+---
+
+## 🔒 LLM7 API Key & Rate Limits
+
+- The default free tier of **LLM7** is usually sufficient for most small‑to‑medium projects.  
+- If you need higher limits, provide your key via an environment variable:
+
+  ```bash
+  export LLM7_API_KEY="your_real_api_key"
+  ```
+
+  or pass it directly:
+
+  ```python
+  response = animtoreal(user_input, api_key="your_real_api_key")
+  ```
+
+- Obtain a free key at: <https://token.llm7.io/>
+
+---
+
+## 🤝 Contributing & Issues
+
+- **GitHub Issues**: <https://github.com/chigwell/animtoreal/issues>  
+
+Feel free to open an issue if you encounter bugs or have feature requests.
+
+---
+
+## 📄 Licensing
+
+This project is open source under the MIT License. (Adapt as appropriate.)
+
+---
+
+## 👤 Maintainer
+
+- **Eugene Evstafev**  
+  [hi@euegne.plus](mailto:hi@euegne.plus)  
+  GitHub: [@chigwell](https://github.com/chigwell)
+
+---
+
+Happy creating! 🎨🦾
