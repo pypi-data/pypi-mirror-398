@@ -1,0 +1,2526 @@
+//! Type definitions for the memory system
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::Arc;
+use uuid::Uuid;
+
+use crate::constants::{
+    DEFAULT_MAX_RESULTS, IMPORTANCE_FLOOR, RECENCY_FULL_DAYS, RECENCY_HIGH_DAYS,
+    RECENCY_HIGH_WEIGHT, RECENCY_LOW_WEIGHT, RECENCY_MEDIUM_DAYS, RECENCY_MEDIUM_WEIGHT,
+    SALIENCE_RECENCY_WEIGHT,
+};
+
+/// Unique identifier for memories
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)] // Serialize as plain UUID string, not array
+pub struct MemoryId(pub Uuid);
+
+/// Shared memory reference for zero-copy operations
+///
+/// Using Arc<Memory> instead of Memory eliminates expensive cloning
+/// of large embedding vectors (384-1536 floats = 1.5-6KB each).
+///
+/// Performance impact: 10-100x reduction in allocations on hot paths.
+pub type SharedMemory = Arc<Memory>;
+
+/// Unique identifier for contexts
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)] // Serialize as plain UUID string, not array
+pub struct ContextId(pub Uuid);
+
+/// Experience types that can be recorded
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ExperienceType {
+    Conversation,
+    Decision,
+    Error,
+    Learning,
+    Discovery,
+    Pattern,
+    Context,
+    Task,
+    CodeEdit,
+    FileAccess,
+    Search,
+    Command,
+    Observation,
+}
+
+/// Default experience type for minimal API calls
+fn default_experience_type() -> ExperienceType {
+    ExperienceType::Observation
+}
+
+/// Rich multi-dimensional context
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RichContext {
+    pub id: ContextId,
+
+    /// Conversation context - what's being discussed
+    pub conversation: ConversationContext,
+
+    /// User context - who the user is, their patterns
+    pub user: UserContext,
+
+    /// Project context - what they're working on
+    pub project: ProjectContext,
+
+    /// Temporal context - when and patterns over time
+    pub temporal: TemporalContext,
+
+    /// Semantic context - relationships and meaning
+    pub semantic: SemanticContext,
+
+    /// Code context - related code elements
+    pub code: CodeContext,
+
+    /// Document context - related documents
+    pub document: DocumentContext,
+
+    /// Environment context - system state, location, etc
+    pub environment: EnvironmentContext,
+
+    // =========================================================================
+    // SHO-104: RICHER CONTEXT ENCODING
+    // =========================================================================
+    /// Emotional context - affective state during memory formation (SHO-104)
+    /// Captures valence, arousal, and dominant emotion for emotional memory enhancement
+    #[serde(default)]
+    pub emotional: EmotionalContext,
+
+    /// Source context - tracks where information came from (SHO-104)
+    /// Enables source monitoring for memory accuracy and credibility weighting
+    #[serde(default)]
+    pub source: SourceContext,
+
+    /// Episode context - groups memories into coherent episodes (SHO-104)
+    /// Enables temporal ordering and event segmentation within conversations
+    #[serde(default)]
+    pub episode: EpisodeContext,
+
+    /// Parent context (for hierarchical context)
+    pub parent: Option<Box<RichContext>>,
+
+    /// Context embeddings for similarity search
+    pub embeddings: Option<Vec<f32>>,
+
+    /// Context decay factor (how relevant this context is over time)
+    pub decay_rate: f32,
+
+    /// Created timestamp
+    pub created_at: DateTime<Utc>,
+
+    /// Last updated
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Conversation-specific context
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ConversationContext {
+    /// Current conversation ID
+    pub conversation_id: Option<String>,
+
+    /// Topic being discussed
+    pub topic: Option<String>,
+
+    /// Recent messages (last N turns)
+    pub recent_messages: Vec<String>,
+
+    /// Key entities mentioned
+    pub mentioned_entities: Vec<String>,
+
+    /// Active questions/intents
+    pub active_intents: Vec<String>,
+
+    /// Conversation mood/tone
+    pub tone: Option<String>,
+}
+
+/// User-specific context
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UserContext {
+    /// User ID
+    pub user_id: Option<String>,
+
+    /// User name
+    pub name: Option<String>,
+
+    /// User preferences
+    pub preferences: HashMap<String, String>,
+
+    /// User's typical working hours
+    pub work_patterns: Vec<TimePattern>,
+
+    /// User's expertise areas
+    pub expertise: Vec<String>,
+
+    /// User's goals/objectives
+    pub goals: Vec<String>,
+
+    /// User's learning style
+    pub learning_style: Option<String>,
+}
+
+/// Project-specific context
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProjectContext {
+    /// Project ID
+    pub project_id: Option<String>,
+
+    /// Project name
+    pub name: Option<String>,
+
+    /// Project type (web, mobile, ML, etc)
+    pub project_type: Option<String>,
+
+    /// Tech stack
+    pub technologies: Vec<String>,
+
+    /// Current sprint/milestone
+    pub current_phase: Option<String>,
+
+    /// Related files being worked on
+    pub active_files: Vec<String>,
+
+    /// Current task/feature
+    pub current_task: Option<String>,
+
+    /// Project dependencies
+    pub dependencies: Vec<String>,
+}
+
+/// Temporal context
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TemporalContext {
+    /// Time of day
+    pub time_of_day: Option<String>,
+
+    /// Day of week
+    pub day_of_week: Option<String>,
+
+    /// Session duration
+    pub session_duration_minutes: Option<u32>,
+
+    /// Time since last interaction
+    pub time_since_last_interaction: Option<i64>,
+
+    /// Recurring patterns detected
+    pub patterns: Vec<TimePattern>,
+
+    /// Historical trends
+    pub trends: Vec<String>,
+}
+
+/// Semantic context
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SemanticContext {
+    /// Main concepts/topics
+    pub concepts: Vec<String>,
+
+    /// Related concepts
+    pub related_concepts: Vec<String>,
+
+    /// Concept relationships
+    pub relationships: Vec<ConceptRelationship>,
+
+    /// Domain/field
+    pub domain: Option<String>,
+
+    /// Abstraction level (high-level vs detailed)
+    pub abstraction_level: Option<String>,
+
+    /// Semantic tags
+    pub tags: Vec<String>,
+}
+
+/// Code-specific context
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CodeContext {
+    /// Current file being edited
+    pub current_file: Option<String>,
+
+    /// Current function/class
+    pub current_scope: Option<String>,
+
+    /// Related files (imports, dependencies)
+    pub related_files: Vec<String>,
+
+    /// Recently edited functions
+    pub recent_edits: Vec<String>,
+
+    /// Call stack context
+    pub call_stack: Vec<String>,
+
+    /// Git branch
+    pub git_branch: Option<String>,
+
+    /// Recent commits
+    pub recent_commits: Vec<String>,
+
+    /// Code patterns detected
+    pub patterns: Vec<String>,
+}
+
+/// Document-specific context
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DocumentContext {
+    /// Current document ID
+    pub document_id: Option<String>,
+
+    /// Document type
+    pub document_type: Option<String>,
+
+    /// Section/chapter being read
+    pub current_section: Option<String>,
+
+    /// Related documents
+    pub related_documents: Vec<String>,
+
+    /// Citations/references
+    pub citations: Vec<String>,
+
+    /// Document tags/categories
+    pub categories: Vec<String>,
+}
+
+/// Environment context
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EnvironmentContext {
+    /// Operating system
+    pub os: Option<String>,
+
+    /// Device type
+    pub device: Option<String>,
+
+    /// Screen resolution/size
+    pub screen_size: Option<String>,
+
+    /// Location (if available)
+    pub location: Option<String>,
+
+    /// Network status
+    pub network: Option<String>,
+
+    /// System resource usage
+    pub resources: HashMap<String, String>,
+}
+
+// =============================================================================
+// SHO-104: RICHER CONTEXT ENCODING
+// Based on neuroscience research on multi-dimensional memory encoding
+// =============================================================================
+
+/// Emotional context - captures affective state during memory formation
+///
+/// Research: Emotional memories are encoded differently and retrieved more easily.
+/// The amygdala modulates hippocampal encoding based on emotional arousal.
+///
+/// Reference: LaBar & Cabeza (2006) "Cognitive neuroscience of emotional memory"
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EmotionalContext {
+    /// Emotional valence: -1.0 (very negative) to 1.0 (very positive)
+    /// 0.0 = neutral
+    ///
+    /// Examples:
+    /// - Bug found: -0.3 (mildly negative)
+    /// - Feature shipped: 0.7 (positive)
+    /// - Critical error: -0.8 (strongly negative)
+    #[serde(default)]
+    pub valence: f32,
+
+    /// Arousal level: 0.0 (calm) to 1.0 (highly aroused/excited)
+    ///
+    /// High arousal memories (both positive and negative) are better retained.
+    /// Examples:
+    /// - Routine task: 0.2 (low arousal)
+    /// - Important deadline: 0.8 (high arousal)
+    /// - Critical production issue: 0.9 (very high arousal)
+    #[serde(default)]
+    pub arousal: f32,
+
+    /// Dominant emotion label (optional, for categorical access)
+    /// E.g., "joy", "frustration", "surprise", "satisfaction", "anxiety"
+    #[serde(default)]
+    pub dominant_emotion: Option<String>,
+
+    /// Sentiment of the content itself (not the user's reaction)
+    /// Useful for distinguishing "user felt frustrated" vs "content describes frustration"
+    #[serde(default)]
+    pub content_sentiment: Option<f32>,
+
+    /// Confidence in the emotional assessment (0.0 to 1.0)
+    /// Lower if inferred from text, higher if explicitly stated
+    #[serde(default)]
+    pub confidence: f32,
+}
+
+/// Source context - tracks where information came from
+///
+/// Research: Source monitoring is crucial for memory accuracy.
+/// Knowing WHO told you something affects how you weight and retrieve it.
+///
+/// Reference: Johnson et al. (1993) "Source monitoring"
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SourceContext {
+    /// Type of source
+    #[serde(default)]
+    pub source_type: SourceType,
+
+    /// Specific source identifier
+    /// E.g., "user:alice", "api:openai", "file:readme.md", "url:https://..."
+    #[serde(default)]
+    pub source_id: Option<String>,
+
+    /// Human-readable source name
+    #[serde(default)]
+    pub source_name: Option<String>,
+
+    /// Credibility score (0.0 to 1.0)
+    /// How reliable is this source? Affects retrieval ranking.
+    /// - 1.0: Direct user input, verified facts
+    /// - 0.8: Trusted documentation, official sources
+    /// - 0.5: General web content, unverified
+    /// - 0.3: Inferred/generated content
+    #[serde(default = "default_credibility")]
+    pub credibility: f32,
+
+    /// Was this information verified/confirmed?
+    #[serde(default)]
+    pub verified: bool,
+
+    /// Chain of sources (for information that was relayed)
+    /// E.g., ["api:openai", "doc:react-docs", "user:alice"]
+    #[serde(default)]
+    pub source_chain: Vec<String>,
+}
+
+fn default_credibility() -> f32 {
+    0.7 // Default moderate credibility
+}
+
+/// Types of information sources
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub enum SourceType {
+    /// Direct user input (highest credibility default)
+    User,
+    /// System-generated (logs, errors, metrics)
+    System,
+    /// External API response
+    ExternalApi,
+    /// File content
+    File,
+    /// Web/URL content
+    Web,
+    /// AI/LLM generated content
+    AiGenerated,
+    /// Inferred by the system
+    Inferred,
+    /// Unknown source
+    #[default]
+    Unknown,
+}
+
+/// Episode context - groups memories into coherent episodes
+///
+/// Research: Episodic memory organizes experiences into bounded events.
+/// The hippocampus creates "event boundaries" that segment continuous experience.
+///
+/// Reference: Zacks et al. (2007) "Event perception and memory"
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EpisodeContext {
+    /// Unique episode identifier
+    /// All memories in the same conversation/session share this ID
+    #[serde(default)]
+    pub episode_id: Option<String>,
+
+    /// Sequence number within the episode (1, 2, 3, ...)
+    /// Enables temporal ordering within an episode
+    #[serde(default)]
+    pub sequence_number: Option<u32>,
+
+    /// ID of the immediately preceding memory (temporal chain)
+    #[serde(default)]
+    pub preceding_memory_id: Option<String>,
+
+    /// Episode type (conversation, task, session, etc.)
+    #[serde(default)]
+    pub episode_type: Option<String>,
+
+    /// Episode start time
+    #[serde(default)]
+    pub episode_start: Option<DateTime<Utc>>,
+
+    /// Is this the first memory in the episode?
+    #[serde(default)]
+    pub is_episode_start: bool,
+
+    /// Is this the last memory in the episode?
+    #[serde(default)]
+    pub is_episode_end: bool,
+
+    /// Parent episode (for hierarchical episodes)
+    /// E.g., a conversation within a larger task session
+    #[serde(default)]
+    pub parent_episode_id: Option<String>,
+}
+
+/// Time pattern for recurring behavior
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimePattern {
+    pub pattern_type: String,
+    pub frequency: String,
+    pub time_range: Option<(String, String)>,
+    pub confidence: f32,
+}
+
+/// Relationship between concepts
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConceptRelationship {
+    pub from: String,
+    pub to: String,
+    pub relationship_type: RelationshipType,
+    pub strength: f32,
+}
+
+/// Types of relationships
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RelationshipType {
+    IsA,       // Inheritance
+    HasA,      // Composition
+    Uses,      // Dependency
+    RelatedTo, // General association
+    Causes,    // Causation
+    PartOf,    // Part-whole
+    Similar,   // Similarity
+    Opposite,  // Antonym/opposite
+}
+
+/// Raw experience data to be stored (ENHANCED with smart defaults)
+///
+/// Only `content` is required. All other fields have intelligent defaults:
+/// - experience_type: Defaults to Observation
+/// - context: Optional (null by default)
+/// - entities: Empty vector (auto-extracted if empty)
+/// - metadata: Empty HashMap
+/// - embeddings: Optional (auto-generated)
+/// - related_memories: Empty vector
+/// - causal_chain: Empty vector
+/// - outcomes: Empty vector
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Experience {
+    /// Type of experience (defaults to Observation)
+    #[serde(default = "default_experience_type")]
+    pub experience_type: ExperienceType,
+
+    /// Content of the experience (REQUIRED)
+    pub content: String,
+
+    /// RICH CONTEXT instead of simple string (optional, null by default)
+    #[serde(default)]
+    pub context: Option<RichContext>,
+
+    /// Extracted entities (empty by default, auto-extracted if empty)
+    #[serde(default)]
+    pub entities: Vec<String>,
+
+    /// Additional metadata (empty by default)
+    #[serde(default)]
+    pub metadata: HashMap<String, String>,
+
+    /// Content embeddings (optional, auto-generated if null)
+    #[serde(default)]
+    pub embeddings: Option<Vec<f32>>,
+
+    /// Related memories (empty by default)
+    #[serde(default)]
+    pub related_memories: Vec<MemoryId>,
+
+    /// Causality chain - what led to this (empty by default)
+    #[serde(default)]
+    pub causal_chain: Vec<MemoryId>,
+
+    /// Outcome/result - what happened after (empty by default)
+    #[serde(default)]
+    pub outcomes: Vec<String>,
+
+    // =========================================================================
+    // ROBOTICS FIELDS (optional, backward compatible)
+    // =========================================================================
+    // NOTE: skip_serializing_if REMOVED - breaks bincode binary format
+    // Binary formats like bincode are positional and require all fields to be present
+    /// Robot/drone identifier for multi-agent systems
+    #[serde(default)]
+    pub robot_id: Option<String>,
+
+    /// Mission identifier this experience belongs to
+    #[serde(default)]
+    pub mission_id: Option<String>,
+
+    /// GPS coordinates (latitude, longitude, altitude)
+    #[serde(default)]
+    pub geo_location: Option<[f64; 3]>,
+
+    /// Local coordinates (x, y, z in meters)
+    #[serde(default)]
+    pub local_position: Option<[f32; 3]>,
+
+    /// Heading in degrees (0-360)
+    #[serde(default)]
+    pub heading: Option<f32>,
+
+    /// Action that was performed (for action-outcome learning)
+    #[serde(default)]
+    pub action_type: Option<String>,
+
+    /// Reward signal for reinforcement learning (-1.0 to 1.0)
+    #[serde(default)]
+    pub reward: Option<f32>,
+
+    /// Sensor readings at time of experience
+    #[serde(default)]
+    pub sensor_data: HashMap<String, f64>,
+
+    // =========================================================================
+    // DECISION & LEARNING FIELDS (for action-outcome learning)
+    // =========================================================================
+    /// Decision context: What state/conditions led to this decision?
+    /// E.g., "battery_low=true, obstacle_ahead=true, weather=windy"
+    #[serde(default)]
+    pub decision_context: Option<HashMap<String, String>>,
+
+    /// Action parameters: Specific parameters of the action taken
+    /// E.g., {"speed": "0.5", "turn_angle": "45", "altitude_change": "-10"}
+    #[serde(default)]
+    pub action_params: Option<HashMap<String, String>>,
+
+    /// Outcome type: success, failure, partial, aborted, timeout
+    #[serde(default)]
+    pub outcome_type: Option<String>,
+
+    /// Outcome details: What specifically happened?
+    #[serde(default)]
+    pub outcome_details: Option<String>,
+
+    /// Confidence score for this decision (0.0-1.0)
+    /// How confident was the system when making this decision?
+    #[serde(default)]
+    pub confidence: Option<f32>,
+
+    /// Alternative actions considered but not taken
+    /// For learning "what else could have been done"
+    #[serde(default)]
+    pub alternatives_considered: Vec<String>,
+
+    // =========================================================================
+    // ENVIRONMENTAL CONTEXT
+    // =========================================================================
+    /// Weather conditions: {"wind_speed": "15", "visibility": "good", "precipitation": "none"}
+    #[serde(default)]
+    pub weather: Option<HashMap<String, String>>,
+
+    /// Terrain type: indoor, outdoor, urban, rural, water, aerial
+    #[serde(default)]
+    pub terrain_type: Option<String>,
+
+    /// Lighting conditions: bright, dim, dark, variable
+    #[serde(default)]
+    pub lighting: Option<String>,
+
+    /// Other agents detected: [{"id": "drone_002", "distance": "50m", "type": "friendly"}]
+    #[serde(default)]
+    pub nearby_agents: Vec<HashMap<String, String>>,
+
+    // =========================================================================
+    // FAILURE & ANOMALY TRACKING
+    // =========================================================================
+    /// Is this a failure/error event?
+    #[serde(default)]
+    pub is_failure: bool,
+
+    /// Is this an anomaly (unexpected sensor reading, behavior, etc.)?
+    #[serde(default)]
+    pub is_anomaly: bool,
+
+    /// Severity level: info, warning, error, critical
+    #[serde(default)]
+    pub severity: Option<String>,
+
+    /// Recovery action taken (if this was a failure)
+    #[serde(default)]
+    pub recovery_action: Option<String>,
+
+    /// Root cause (if known)
+    #[serde(default)]
+    pub root_cause: Option<String>,
+
+    // =========================================================================
+    // LEARNED PATTERNS & PREDICTIONS
+    // =========================================================================
+    /// Pattern ID this experience matches (if recognized)
+    #[serde(default)]
+    pub pattern_id: Option<String>,
+
+    /// Predicted outcome before action was taken
+    #[serde(default)]
+    pub predicted_outcome: Option<String>,
+
+    /// Was the prediction correct?
+    #[serde(default)]
+    pub prediction_accurate: Option<bool>,
+
+    /// Tags for quick filtering: ["obstacle", "battery", "navigation", "emergency"]
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+impl Default for Experience {
+    fn default() -> Self {
+        Self {
+            experience_type: ExperienceType::Observation,
+            content: String::new(),
+            context: None,
+            entities: Vec::new(),
+            metadata: HashMap::new(),
+            embeddings: None,
+            related_memories: Vec::new(),
+            causal_chain: Vec::new(),
+            outcomes: Vec::new(),
+            robot_id: None,
+            mission_id: None,
+            geo_location: None,
+            local_position: None,
+            heading: None,
+            action_type: None,
+            reward: None,
+            sensor_data: HashMap::new(),
+            decision_context: None,
+            action_params: None,
+            outcome_type: None,
+            outcome_details: None,
+            confidence: None,
+            alternatives_considered: Vec::new(),
+            weather: None,
+            terrain_type: None,
+            lighting: None,
+            nearby_agents: Vec::new(),
+            is_failure: false,
+            is_anomaly: false,
+            severity: None,
+            recovery_action: None,
+            root_cause: None,
+            pattern_id: None,
+            predicted_outcome: None,
+            prediction_accurate: None,
+            tags: Vec::new(),
+        }
+    }
+}
+
+/// Mutable metadata for memory (interior mutability)
+/// Separated from immutable core data to enable zero-copy updates via Arc<Memory>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryMetadata {
+    pub importance: f32,
+    pub access_count: u32,
+    pub last_accessed: DateTime<Utc>,
+    pub temporal_relevance: f32,
+    /// Activation level (spreading activation algorithm)
+    /// Decays over time, boosted by access and co-activation
+    /// Range: 0.0 (dormant) to 1.0 (highly active)
+    pub activation: f32,
+}
+
+impl MemoryMetadata {
+    /// Boost importance based on access patterns (enterprise feature)
+    pub fn boost_importance(&mut self) {
+        if self.access_count > 5 {
+            self.importance = (self.importance * 1.1).min(1.0);
+        }
+    }
+}
+
+/// Entity reference - lightweight link from Memory to GraphMemory entities
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntityRef {
+    /// UUID of the entity in GraphMemory
+    pub entity_id: Uuid,
+    /// Entity name for quick access without graph lookup
+    pub name: String,
+    /// Relationship type (e.g., "mentioned", "subject", "location")
+    pub relation: String,
+}
+
+/// Memory tier in the cognitive hierarchy
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MemoryTier {
+    /// Active, immediate context (Cowan's focus of attention)
+    Working,
+    /// Current task/session context
+    Session,
+    /// Consolidated durable memories
+    LongTerm,
+    /// Compressed archival storage
+    Archive,
+}
+
+impl Default for MemoryTier {
+    fn default() -> Self {
+        MemoryTier::Working
+    }
+}
+
+/// Type of change made to a memory
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ChangeType {
+    /// Memory was created
+    Created,
+    /// Content was updated
+    ContentUpdated,
+    /// Status/state changed (e.g., Linear issue status)
+    StatusChanged,
+    /// Tags/entities were modified
+    TagsUpdated,
+    /// Importance was adjusted
+    ImportanceAdjusted,
+}
+
+/// A revision in memory history - tracks what changed and when
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryRevision {
+    /// Previous content before this change
+    pub previous_content: String,
+    /// What type of change occurred
+    pub change_type: ChangeType,
+    /// When the change happened
+    pub changed_at: DateTime<Utc>,
+    /// Optional: who/what triggered the change
+    pub changed_by: Option<String>,
+    /// Optional: brief description of change
+    pub change_reason: Option<String>,
+}
+
+/// Stored memory with metadata
+///
+/// This is the UNIFIED memory kernel - the single source of truth.
+/// All indices (vector, graph, temporal) are projections of this structure.
+///
+/// Uses Arc<Mutex<MemoryMetadata>> for interior mutability, enabling updates
+/// through Arc<Memory> without cloning large embedding vectors (1.5-6KB each).
+/// This eliminates 10-100x allocation overhead on hot paths (record, retrieve).
+///
+/// Note: Clone is manually implemented to deep-copy metadata (creating a new Arc).
+/// This ensures cloned memories are fully independent.
+#[derive(Debug)]
+pub struct Memory {
+    pub id: MemoryId,
+    pub experience: Experience,
+
+    // Mutable metadata protected by Mutex for zero-copy updates
+    metadata: Arc<parking_lot::Mutex<MemoryMetadata>>,
+
+    pub created_at: DateTime<Utc>,
+    pub compressed: bool,
+
+    // ==========================================================================
+    // COGNITIVE EXTENSIONS - Unified memory with graph awareness
+    // ==========================================================================
+    /// Current tier in the memory hierarchy
+    /// Memories flow: Working → Session → LongTerm → Archive
+    pub tier: MemoryTier,
+
+    /// Entity references - bidirectional links to GraphMemory
+    /// Populated during record() via entity extraction
+    /// Enables spreading activation without graph lookup
+    pub entity_refs: Vec<EntityRef>,
+
+    /// Retrieval tracking ID - set when memory is retrieved
+    /// Used for Hebbian feedback loop (reinforce_recall)
+    pub last_retrieval_id: Option<Uuid>,
+
+    // ==========================================================================
+    // Multi-tenancy support for enterprise deployments
+    // ==========================================================================
+    pub agent_id: Option<String>,
+    pub run_id: Option<String>,
+    pub actor_id: Option<String>,
+
+    // Similarity score (only populated in search results, not stored)
+    pub score: Option<f32>,
+
+    // ==========================================================================
+    // External linking - enables upsert from external sources (Linear, GitHub, etc.)
+    // ==========================================================================
+    /// External identifier for linking to external systems
+    /// Format: "{source}:{id}" e.g. "linear:SHO-39", "github:pr-123"
+    /// When set, enables upsert semantics: same external_id = update existing memory
+    pub external_id: Option<String>,
+
+    /// Version counter - incremented on each update (starts at 1)
+    pub version: u32,
+
+    /// Audit history - tracks all changes to this memory
+    /// Only populated for memories with external_id (mutable memories)
+    /// Empty for regular immutable memories
+    pub history: Vec<MemoryRevision>,
+}
+
+impl Clone for Memory {
+    /// Deep clone that creates independent metadata.
+    /// This ensures cloned memories don't share mutable state.
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            experience: self.experience.clone(),
+            // Deep copy: create new Arc with cloned inner data
+            metadata: Arc::new(parking_lot::Mutex::new(self.metadata.lock().clone())),
+            created_at: self.created_at,
+            compressed: self.compressed,
+            tier: self.tier,
+            entity_refs: self.entity_refs.clone(),
+            last_retrieval_id: self.last_retrieval_id,
+            agent_id: self.agent_id.clone(),
+            run_id: self.run_id.clone(),
+            actor_id: self.actor_id.clone(),
+            score: self.score,
+            external_id: self.external_id.clone(),
+            version: self.version,
+            history: self.history.clone(),
+        }
+    }
+}
+
+impl Memory {
+    /// Create new memory with given parameters
+    /// If `created_at` is None, uses current time (Utc::now())
+    pub fn new(
+        id: MemoryId,
+        experience: Experience,
+        importance: f32,
+        agent_id: Option<String>,
+        run_id: Option<String>,
+        actor_id: Option<String>,
+        created_at: Option<DateTime<Utc>>,
+    ) -> Self {
+        let now = created_at.unwrap_or_else(Utc::now);
+        Self {
+            id,
+            experience,
+            metadata: Arc::new(parking_lot::Mutex::new(MemoryMetadata {
+                importance,
+                access_count: 0,
+                last_accessed: now,
+                temporal_relevance: 1.0,
+                activation: 1.0, // Start fully activated (just created)
+            })),
+            created_at: now,
+            compressed: false,
+            // Cognitive extensions - initialize to defaults
+            tier: MemoryTier::Working,
+            entity_refs: Vec::new(),
+            last_retrieval_id: None,
+            // Multi-tenancy
+            agent_id,
+            run_id,
+            actor_id,
+            score: None,
+            // External linking - defaults to None (immutable memory)
+            external_id: None,
+            version: 1,
+            history: Vec::new(),
+        }
+    }
+
+    /// Create a new memory linked to an external system (enables upsert)
+    pub fn new_with_external_id(
+        id: MemoryId,
+        experience: Experience,
+        importance: f32,
+        external_id: String,
+        agent_id: Option<String>,
+        run_id: Option<String>,
+        actor_id: Option<String>,
+        created_at: Option<DateTime<Utc>>,
+    ) -> Self {
+        let mut memory = Self::new(
+            id, experience, importance, agent_id, run_id, actor_id, created_at,
+        );
+        memory.external_id = Some(external_id);
+        memory
+    }
+
+    /// Update this memory's content, pushing old content to history
+    /// Returns the new version number
+    pub fn update_content(
+        &mut self,
+        new_content: String,
+        change_type: ChangeType,
+        changed_by: Option<String>,
+        change_reason: Option<String>,
+    ) -> u32 {
+        // Push current content to history
+        self.history.push(MemoryRevision {
+            previous_content: self.experience.content.clone(),
+            change_type,
+            changed_at: Utc::now(),
+            changed_by,
+            change_reason,
+        });
+
+        // Update content
+        self.experience.content = new_content;
+        self.version += 1;
+
+        self.version
+    }
+
+    /// Get the full history of this memory
+    pub fn get_history(&self) -> &[MemoryRevision] {
+        &self.history
+    }
+
+    /// Check if this memory has been updated (version > 1)
+    pub fn has_history(&self) -> bool {
+        self.version > 1
+    }
+
+    /// Add entity reference (bidirectional link to graph)
+    pub fn add_entity_ref(&mut self, entity_id: Uuid, name: String, relation: String) {
+        // Avoid duplicates
+        if !self.entity_refs.iter().any(|r| r.entity_id == entity_id) {
+            self.entity_refs.push(EntityRef {
+                entity_id,
+                name,
+                relation,
+            });
+        }
+    }
+
+    /// Get entity IDs for graph operations
+    pub fn entity_ids(&self) -> Vec<Uuid> {
+        self.entity_refs.iter().map(|r| r.entity_id).collect()
+    }
+
+    /// Boost activation (spreading activation algorithm, thread-safe)
+    pub fn activate(&self, amount: f32) {
+        let mut meta = self.metadata.lock();
+        meta.activation = (meta.activation + amount).min(1.0);
+    }
+
+    /// Decay activation over time (thread-safe)
+    pub fn decay_activation(&self, decay_factor: f32) {
+        self.metadata.lock().activation *= decay_factor;
+    }
+
+    /// Set retrieval tracking ID for Hebbian feedback
+    pub fn mark_retrieved(&mut self, retrieval_id: Uuid) {
+        self.last_retrieval_id = Some(retrieval_id);
+        // Also record access
+        self.record_access();
+    }
+
+    /// Promote to next tier
+    pub fn promote(&mut self) {
+        self.tier = match self.tier {
+            MemoryTier::Working => MemoryTier::Session,
+            MemoryTier::Session => MemoryTier::LongTerm,
+            MemoryTier::LongTerm => MemoryTier::Archive,
+            MemoryTier::Archive => MemoryTier::Archive, // Already at max
+        };
+    }
+
+    /// Set the similarity score (used in search results)
+    pub fn set_score(&mut self, score: f32) {
+        self.score = Some(score);
+    }
+
+    /// Get the similarity score (only populated in search results)
+    pub fn get_score(&self) -> Option<f32> {
+        self.score
+    }
+
+    /// Demote to previous tier (for decay)
+    pub fn demote(&mut self) {
+        self.tier = match self.tier {
+            MemoryTier::Working => MemoryTier::Working, // Can't go lower
+            MemoryTier::Session => MemoryTier::Working,
+            MemoryTier::LongTerm => MemoryTier::Session,
+            MemoryTier::Archive => MemoryTier::LongTerm,
+        };
+    }
+
+    /// Get current importance (thread-safe)
+    pub fn importance(&self) -> f32 {
+        self.metadata.lock().importance
+    }
+
+    /// Get access count (thread-safe)
+    pub fn access_count(&self) -> u32 {
+        self.metadata.lock().access_count
+    }
+
+    /// Get last accessed time (thread-safe)
+    pub fn last_accessed(&self) -> DateTime<Utc> {
+        self.metadata.lock().last_accessed
+    }
+
+    /// Get temporal relevance (thread-safe)
+    pub fn temporal_relevance(&self) -> f32 {
+        self.metadata.lock().temporal_relevance
+    }
+
+    /// Get activation level (thread-safe)
+    pub fn activation(&self) -> f32 {
+        self.metadata.lock().activation
+    }
+
+    /// Set activation level directly (thread-safe, clamped to [0.0, 1.0])
+    ///
+    /// Use cases:
+    /// - Data restoration from backups
+    /// - Migration from older data formats
+    /// - Testing with specific activation states
+    ///
+    /// For normal operation, prefer `activate()` (adds) and `decay_activation()` (multiplies).
+    pub fn set_activation(&self, activation: f32) {
+        self.metadata.lock().activation = activation.clamp(0.0, 1.0);
+    }
+
+    /// Update access metadata (zero-copy through Arc)
+    pub fn update_access(&self) {
+        let mut meta = self.metadata.lock();
+        meta.last_accessed = Utc::now();
+        meta.access_count += 1;
+        meta.boost_importance();
+    }
+
+    /// Set importance (thread-safe, clamped to [0.0, 1.0])
+    pub fn set_importance(&self, importance: f32) {
+        self.metadata.lock().importance = importance.clamp(0.0, 1.0);
+    }
+
+    /// Set temporal relevance (thread-safe)
+    pub fn set_temporal_relevance(&self, relevance: f32) {
+        self.metadata.lock().temporal_relevance = relevance;
+    }
+
+    // =========================================================================
+    // ADAPTIVE LEARNING METHODS - For outcome feedback loop
+    // =========================================================================
+
+    /// Record that this memory was accessed (updates count and timestamp)
+    ///
+    /// Call this whenever a memory is retrieved, even if just viewed.
+    /// For stronger reinforcement when memory helped a task, use `boost_importance`.
+    pub fn record_access(&self) {
+        let mut meta = self.metadata.lock();
+        meta.last_accessed = Utc::now();
+        meta.access_count += 1;
+    }
+
+    /// Boost importance by a factor (for helpful memories)
+    ///
+    /// Uses additive boost clamped to [0.0, 1.0]:
+    /// - boost of 0.05 = +5% (typical for helpful retrieval)
+    /// - boost of 0.10 = +10% (very helpful, task completed successfully)
+    ///
+    /// Example: memory with importance 0.6 + boost 0.05 -> 0.65
+    pub fn boost_importance(&self, boost: f32) {
+        let mut meta = self.metadata.lock();
+        meta.importance = (meta.importance + boost).clamp(0.0, 1.0);
+    }
+
+    /// Decay importance by a factor (for misleading memories)
+    ///
+    /// Uses multiplicative decay clamped to [IMPORTANCE_FLOOR, 1.0]:
+    /// - decay of 0.10 = -10% (memory was misleading)
+    /// - Never drops below IMPORTANCE_FLOOR (0.05) to allow recovery
+    ///
+    /// The floor prevents complete forgetting, mimicking the "savings effect"
+    /// in human memory - relearning is faster than initial learning.
+    ///
+    /// Example: memory with importance 0.6 - decay 0.10 -> 0.54
+    pub fn decay_importance(&self, decay: f32) {
+        let mut meta = self.metadata.lock();
+        meta.importance = (meta.importance * (1.0 - decay)).max(IMPORTANCE_FLOOR);
+    }
+
+    /// Get all metadata snapshot (for debugging/stats)
+    pub fn metadata_snapshot(&self) -> MemoryMetadata {
+        self.metadata.lock().clone()
+    }
+
+    // =========================================================================
+    // SALIENCE SCORING - Ebbinghaus Forgetting Curve Implementation
+    // =========================================================================
+
+    /// Calculate salience score based on Ebbinghaus forgetting curve
+    ///
+    /// This implements a time-based relevance decay that mimics human memory:
+    /// - Memories < 7 days: Full relevance (1.0)
+    /// - Memories 8-30 days: High relevance (0.7)
+    /// - Memories 31-90 days: Medium relevance (0.4)
+    /// - Memories 90+ days: Low relevance (0.1)
+    ///
+    /// The score is weighted by SALIENCE_RECENCY_WEIGHT (default 1.0) and combined
+    /// with importance to produce a final salience score.
+    ///
+    /// Reference: Ebbinghaus (1885) "Memory: A Contribution to Experimental Psychology"
+    ///
+    /// # Returns
+    /// A salience score between 0.0 and 1.0, where higher = more salient
+    pub fn salience_score(&self) -> f32 {
+        let age_days = (Utc::now() - self.created_at).num_days();
+
+        // Calculate recency factor based on Ebbinghaus forgetting curve
+        let recency_factor = if age_days <= RECENCY_FULL_DAYS {
+            1.0 // Full relevance for recent memories
+        } else if age_days <= RECENCY_HIGH_DAYS {
+            RECENCY_HIGH_WEIGHT // High relevance (0.7)
+        } else if age_days <= RECENCY_MEDIUM_DAYS {
+            RECENCY_MEDIUM_WEIGHT // Medium relevance (0.4)
+        } else {
+            RECENCY_LOW_WEIGHT // Low relevance (0.1)
+        };
+
+        // Combine recency with importance for final salience
+        // Formula: salience = (recency_weight * recency_factor + importance) / 2
+        // This balances time-based decay with inherent memory importance
+        let importance = self.importance();
+        let weighted_recency = SALIENCE_RECENCY_WEIGHT * recency_factor;
+
+        // Weighted average: recency contributes 60%, importance contributes 40%
+        // This prioritizes recent memories but preserves important old ones
+        (weighted_recency * 0.6 + importance * 0.4).clamp(0.0, 1.0)
+    }
+
+    /// Calculate salience score with access-based boost
+    ///
+    /// Similar to `salience_score()` but also factors in access frequency.
+    /// Frequently accessed memories resist forgetting (spacing effect).
+    ///
+    /// # Returns
+    /// A salience score between 0.0 and 1.0
+    pub fn salience_score_with_access(&self) -> f32 {
+        let base_salience = self.salience_score();
+        let access_count = self.access_count();
+
+        // Access boost: logarithmic growth to prevent runaway scores
+        // Each access adds a diminishing boost (log2 scale)
+        // 1 access: +0, 2: +0.05, 4: +0.1, 8: +0.15, 16: +0.2
+        let access_boost = if access_count > 0 {
+            ((access_count as f32).log2() * 0.05).min(0.3)
+        } else {
+            0.0
+        };
+
+        (base_salience + access_boost).clamp(0.0, 1.0)
+    }
+}
+
+// Custom serialization for Memory to flatten the Arc<Mutex<>> field
+/// Flat representation for serialization - MUST match exact field order for binary formats
+/// This struct ensures symmetric serialize/deserialize with bincode
+#[derive(Serialize, Deserialize)]
+struct MemoryFlat {
+    id: MemoryId,
+    experience: Experience,
+    importance: f32,
+    access_count: u32,
+    created_at: DateTime<Utc>,
+    last_accessed: DateTime<Utc>,
+    compressed: bool,
+    // Cognitive extensions
+    tier: MemoryTier,
+    entity_refs: Vec<EntityRef>,
+    activation: f32,
+    last_retrieval_id: Option<Uuid>,
+    // Multi-tenancy
+    agent_id: Option<String>,
+    run_id: Option<String>,
+    actor_id: Option<String>,
+    temporal_relevance: f32,
+    score: Option<f32>,
+    // External linking (mutable memories)
+    external_id: Option<String>,
+    version: u32,
+    history: Vec<MemoryRevision>,
+}
+
+impl Serialize for Memory {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let meta = self.metadata.lock();
+        // Convert to flat struct for consistent binary serialization
+        let flat = MemoryFlat {
+            id: self.id.clone(),
+            experience: self.experience.clone(),
+            importance: meta.importance,
+            access_count: meta.access_count,
+            created_at: self.created_at,
+            last_accessed: meta.last_accessed,
+            compressed: self.compressed,
+            // Cognitive extensions
+            tier: self.tier,
+            entity_refs: self.entity_refs.clone(),
+            activation: meta.activation,
+            last_retrieval_id: self.last_retrieval_id,
+            // Multi-tenancy
+            agent_id: self.agent_id.clone(),
+            run_id: self.run_id.clone(),
+            actor_id: self.actor_id.clone(),
+            temporal_relevance: meta.temporal_relevance,
+            score: self.score,
+            // External linking (mutable memories)
+            external_id: self.external_id.clone(),
+            version: self.version,
+            history: self.history.clone(),
+        };
+        flat.serialize(serializer)
+    }
+}
+
+// Custom deserialization for Memory to reconstruct Arc<Mutex<>>
+impl<'de> Deserialize<'de> for Memory {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let flat = MemoryFlat::deserialize(deserializer)?;
+        Ok(Memory {
+            id: flat.id,
+            experience: flat.experience,
+            metadata: Arc::new(parking_lot::Mutex::new(MemoryMetadata {
+                importance: flat.importance,
+                access_count: flat.access_count,
+                last_accessed: flat.last_accessed,
+                temporal_relevance: flat.temporal_relevance,
+                activation: flat.activation,
+            })),
+            created_at: flat.created_at,
+            compressed: flat.compressed,
+            // Cognitive extensions
+            tier: flat.tier,
+            entity_refs: flat.entity_refs,
+            last_retrieval_id: flat.last_retrieval_id,
+            // Multi-tenancy
+            agent_id: flat.agent_id,
+            run_id: flat.run_id,
+            actor_id: flat.actor_id,
+            score: flat.score,
+            // External linking (mutable memories)
+            external_id: flat.external_id,
+            version: flat.version,
+            history: flat.history,
+        })
+    }
+}
+
+/// Spatial filter for geo-based queries
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeoFilter {
+    /// Center latitude
+    pub lat: f64,
+    /// Center longitude
+    pub lon: f64,
+    /// Search radius in meters
+    pub radius_meters: f64,
+}
+
+impl GeoFilter {
+    pub fn new(lat: f64, lon: f64, radius_meters: f64) -> Self {
+        Self {
+            lat,
+            lon,
+            radius_meters,
+        }
+    }
+
+    /// Calculate haversine distance between two points in meters
+    pub fn haversine_distance(&self, other_lat: f64, other_lon: f64) -> f64 {
+        const EARTH_RADIUS_METERS: f64 = 6_371_000.0;
+
+        let lat1_rad = self.lat.to_radians();
+        let lat2_rad = other_lat.to_radians();
+        let delta_lat = (other_lat - self.lat).to_radians();
+        let delta_lon = (other_lon - self.lon).to_radians();
+
+        let a = (delta_lat / 2.0).sin().powi(2)
+            + lat1_rad.cos() * lat2_rad.cos() * (delta_lon / 2.0).sin().powi(2);
+        let c = 2.0 * a.sqrt().asin();
+
+        EARTH_RADIUS_METERS * c
+    }
+
+    /// Check if a point is within the radius
+    pub fn contains(&self, lat: f64, lon: f64) -> bool {
+        self.haversine_distance(lat, lon) <= self.radius_meters
+    }
+}
+
+// ============================================================================
+// Geohash utilities for efficient spatial indexing
+// ============================================================================
+
+/// Base32 character set for geohash encoding
+const GEOHASH_CHARS: &[u8] = b"0123456789bcdefghjkmnpqrstuvwxyz";
+
+/// Precision reference table (approximate cell dimensions at equator):
+/// - 1 char: 5000km x 5000km
+/// - 2 chars: 1250km x 625km
+/// - 3 chars: 156km x 156km
+/// - 4 chars: 39km x 20km
+/// - 5 chars: 5km x 5km
+/// - 6 chars: 1.2km x 600m
+/// - 7 chars: 150m x 150m
+/// - 8 chars: 38m x 19m
+/// - 9 chars: 5m x 5m (warehouse aisle)
+/// - 10 chars: 1.2m x 60cm (shelf location)
+/// - 11 chars: 15cm x 15cm (sub-meter)
+/// - 12 chars: 4cm x 2cm (high precision)
+
+/// Encode latitude/longitude to geohash string
+pub fn geohash_encode(lat: f64, lon: f64, precision: usize) -> String {
+    let mut lat_range = (-90.0, 90.0);
+    let mut lon_range = (-180.0, 180.0);
+    let mut hash = String::with_capacity(precision);
+    let mut bits = 0u8;
+    let mut bit_count = 0;
+    let mut is_lon = true;
+
+    while hash.len() < precision {
+        if is_lon {
+            let mid = (lon_range.0 + lon_range.1) / 2.0;
+            if lon >= mid {
+                bits = (bits << 1) | 1;
+                lon_range.0 = mid;
+            } else {
+                bits <<= 1;
+                lon_range.1 = mid;
+            }
+        } else {
+            let mid = (lat_range.0 + lat_range.1) / 2.0;
+            if lat >= mid {
+                bits = (bits << 1) | 1;
+                lat_range.0 = mid;
+            } else {
+                bits <<= 1;
+                lat_range.1 = mid;
+            }
+        }
+        is_lon = !is_lon;
+        bit_count += 1;
+
+        if bit_count == 5 {
+            hash.push(GEOHASH_CHARS[bits as usize] as char);
+            bits = 0;
+            bit_count = 0;
+        }
+    }
+
+    hash
+}
+
+/// Decode geohash to bounding box (min_lat, min_lon, max_lat, max_lon)
+/// Invalid characters are skipped to prevent silent data corruption
+pub fn geohash_decode(hash: &str) -> (f64, f64, f64, f64) {
+    let mut lat_range = (-90.0, 90.0);
+    let mut lon_range = (-180.0, 180.0);
+    let mut is_lon = true;
+
+    for c in hash.chars() {
+        // Skip invalid characters instead of silently using index 0
+        let idx = match GEOHASH_CHARS.iter().position(|&x| x == c as u8) {
+            Some(i) => i,
+            None => continue, // Skip invalid characters
+        };
+        for i in (0..5).rev() {
+            let bit = (idx >> i) & 1;
+            if is_lon {
+                let mid = (lon_range.0 + lon_range.1) / 2.0;
+                if bit == 1 {
+                    lon_range.0 = mid;
+                } else {
+                    lon_range.1 = mid;
+                }
+            } else {
+                let mid = (lat_range.0 + lat_range.1) / 2.0;
+                if bit == 1 {
+                    lat_range.0 = mid;
+                } else {
+                    lat_range.1 = mid;
+                }
+            }
+            is_lon = !is_lon;
+        }
+    }
+
+    (lat_range.0, lon_range.0, lat_range.1, lon_range.1)
+}
+
+/// Get 8 neighboring geohashes (N, NE, E, SE, S, SW, W, NW)
+pub fn geohash_neighbors(hash: &str) -> Vec<String> {
+    if hash.is_empty() {
+        return vec![];
+    }
+
+    let (min_lat, min_lon, max_lat, max_lon) = geohash_decode(hash);
+    let lat_delta = max_lat - min_lat;
+    let lon_delta = max_lon - min_lon;
+    let center_lat = (min_lat + max_lat) / 2.0;
+    let center_lon = (min_lon + max_lon) / 2.0;
+    let precision = hash.len();
+
+    let directions: [(f64, f64); 8] = [
+        (1.0, 0.0),   // N
+        (1.0, 1.0),   // NE
+        (0.0, 1.0),   // E
+        (-1.0, 1.0),  // SE
+        (-1.0, 0.0),  // S
+        (-1.0, -1.0), // SW
+        (0.0, -1.0),  // W
+        (1.0, -1.0),  // NW
+    ];
+
+    directions
+        .iter()
+        .map(|(lat_dir, lon_dir)| {
+            let neighbor_lat = center_lat + lat_dir * lat_delta;
+            let neighbor_lon = center_lon + lon_dir * lon_delta;
+            geohash_encode(
+                neighbor_lat.clamp(-90.0, 90.0),
+                wrap_longitude(neighbor_lon),
+                precision,
+            )
+        })
+        .collect()
+}
+
+/// Wrap longitude to [-180, 180]
+fn wrap_longitude(lon: f64) -> f64 {
+    if lon > 180.0 {
+        lon - 360.0
+    } else if lon < -180.0 {
+        lon + 360.0
+    } else {
+        lon
+    }
+}
+
+/// Get optimal geohash precision for a given search radius
+/// Returns precision that gives cells roughly matching the radius
+pub fn geohash_precision_for_radius(radius_meters: f64) -> usize {
+    // Validate input - clamp to reasonable bounds
+    let radius = if !radius_meters.is_finite() || radius_meters <= 0.0 {
+        1.0 // Default to 1 meter if invalid
+    } else if radius_meters > 20_000_000.0 {
+        20_000_000.0 // Cap at half Earth circumference
+    } else {
+        radius_meters
+    };
+
+    // Approximate cell sizes at equator (width in meters)
+    const CELL_SIZES: [(usize, f64); 12] = [
+        (1, 5_000_000.0),
+        (2, 1_250_000.0),
+        (3, 156_000.0),
+        (4, 39_000.0),
+        (5, 5_000.0),
+        (6, 1_200.0),
+        (7, 150.0),
+        (8, 38.0),
+        (9, 5.0),
+        (10, 1.2),
+        (11, 0.15),
+        (12, 0.04),
+    ];
+
+    for (precision, cell_size) in CELL_SIZES.iter() {
+        if *cell_size <= radius * 2.0 {
+            return *precision;
+        }
+    }
+    12 // Maximum precision
+}
+
+/// Get all geohash prefixes to scan for a radius search
+/// Returns the center hash and its neighbors at appropriate precision
+pub fn geohash_search_prefixes(lat: f64, lon: f64, radius_meters: f64) -> Vec<String> {
+    // Clamp coordinates to valid ranges
+    let lat = lat.clamp(-90.0, 90.0);
+    // Normalize longitude to [-180, 180]
+    let lon = if lon > 180.0 {
+        lon - 360.0
+    } else if lon < -180.0 {
+        lon + 360.0
+    } else {
+        lon
+    };
+
+    let precision = geohash_precision_for_radius(radius_meters);
+    let center = geohash_encode(lat, lon, precision);
+    let mut prefixes = geohash_neighbors(&center);
+    prefixes.push(center);
+    prefixes
+}
+
+/// Query for retrieving memories
+#[derive(Debug, Clone)]
+pub struct Query {
+    // === Semantic Search ===
+    pub query_text: Option<String>,
+    pub query_embedding: Option<Vec<f32>>,
+
+    // === Temporal Filters ===
+    pub time_range: Option<(DateTime<Utc>, DateTime<Utc>)>,
+
+    // === Content Filters ===
+    pub experience_types: Option<Vec<ExperienceType>>,
+    pub importance_threshold: Option<f32>,
+
+    // === Robotics Filters ===
+    /// Filter by robot/drone identifier
+    pub robot_id: Option<String>,
+    /// Filter by mission identifier
+    pub mission_id: Option<String>,
+    /// Spatial filter (geo_location within radius)
+    pub geo_filter: Option<GeoFilter>,
+    /// Filter by action type
+    pub action_type: Option<String>,
+    /// Filter by reward range (min, max) for RL-style queries
+    pub reward_range: Option<(f32, f32)>,
+
+    // === Decision & Learning Filters ===
+    /// Filter by outcome type: success, failure, partial, aborted, timeout
+    pub outcome_type: Option<String>,
+    /// Filter for failures only
+    pub failures_only: bool,
+    /// Filter for anomalies only
+    pub anomalies_only: bool,
+    /// Filter by severity level: info, warning, error, critical
+    pub severity: Option<String>,
+    /// Filter by tags (any match)
+    pub tags: Option<Vec<String>>,
+    /// Filter by pattern_id (for finding similar situations)
+    pub pattern_id: Option<String>,
+    /// Filter by terrain type
+    pub terrain_type: Option<String>,
+    /// Filter by confidence range (min, max)
+    pub confidence_range: Option<(f32, f32)>,
+
+    // === Result Control ===
+    pub max_results: usize,
+    pub retrieval_mode: RetrievalMode,
+
+    // === Pagination (SHO-69) ===
+    /// Offset for pagination (skip first N results)
+    pub offset: usize,
+}
+
+/// Paginated search results with metadata for "load more" patterns (SHO-69)
+#[derive(Debug, Clone)]
+pub struct PaginatedResults<T> {
+    /// The results for this page
+    pub results: Vec<T>,
+    /// Whether there are more results beyond this page
+    pub has_more: bool,
+    /// Total count of matching results (if available, may be expensive to compute)
+    pub total_count: Option<usize>,
+    /// The offset used for this query
+    pub offset: usize,
+    /// The limit used for this query
+    pub limit: usize,
+}
+
+impl<T> PaginatedResults<T> {
+    /// Create a new paginated result from a full result set
+    pub fn from_results(all_results: Vec<T>, offset: usize, limit: usize) -> Self {
+        let total_count = all_results.len();
+        let end = (offset + limit).min(total_count);
+        let results: Vec<T> = all_results.into_iter().skip(offset).take(limit).collect();
+        let has_more = end < total_count;
+
+        Self {
+            results,
+            has_more,
+            total_count: Some(total_count),
+            offset,
+            limit,
+        }
+    }
+
+    /// Create a paginated result when total count is unknown
+    /// Uses limit+1 trick: request limit+1, return limit, has_more if got limit+1
+    pub fn from_limited_results(mut results: Vec<T>, limit: usize, offset: usize) -> Self {
+        let has_more = results.len() > limit;
+        if has_more {
+            results.pop(); // Remove the extra result we fetched
+        }
+
+        Self {
+            results,
+            has_more,
+            total_count: None,
+            offset,
+            limit,
+        }
+    }
+}
+
+impl Default for Query {
+    fn default() -> Self {
+        Self {
+            query_text: None,
+            query_embedding: None,
+            time_range: None,
+            experience_types: None,
+            importance_threshold: None,
+            robot_id: None,
+            mission_id: None,
+            geo_filter: None,
+            action_type: None,
+            reward_range: None,
+            outcome_type: None,
+            failures_only: false,
+            anomalies_only: false,
+            severity: None,
+            tags: None,
+            pattern_id: None,
+            terrain_type: None,
+            confidence_range: None,
+            max_results: DEFAULT_MAX_RESULTS,
+            retrieval_mode: RetrievalMode::Hybrid,
+            offset: 0,
+        }
+    }
+}
+
+impl Query {
+    /// Check if a memory matches all query filters
+    ///
+    /// This is the SINGLE source of truth for filtering.
+    /// All memory tiers (working, session, long-term) should use this
+    /// instead of implementing their own filter logic.
+    ///
+    /// # Arguments
+    /// * `memory` - The memory to check
+    ///
+    /// # Returns
+    /// * `true` if memory passes all filters, `false` otherwise
+    pub fn matches(&self, memory: &Memory) -> bool {
+        // Importance threshold
+        if let Some(threshold) = self.importance_threshold {
+            if memory.importance() < threshold {
+                return false;
+            }
+        }
+
+        // Experience type filter
+        if let Some(types) = &self.experience_types {
+            if !types.iter().any(|t| {
+                std::mem::discriminant(&memory.experience.experience_type)
+                    == std::mem::discriminant(t)
+            }) {
+                return false;
+            }
+        }
+
+        // Time range filter
+        if let Some((start, end)) = &self.time_range {
+            if memory.created_at < *start || memory.created_at > *end {
+                return false;
+            }
+        }
+
+        // === Robotics Filters ===
+
+        // Robot ID filter
+        if let Some(robot_id) = &self.robot_id {
+            if memory.experience.robot_id.as_ref() != Some(robot_id) {
+                return false;
+            }
+        }
+
+        // Mission ID filter
+        if let Some(mission_id) = &self.mission_id {
+            if memory.experience.mission_id.as_ref() != Some(mission_id) {
+                return false;
+            }
+        }
+
+        // Geo filter (spatial)
+        // geo_location is [lat, lon, alt] array
+        if let Some(geo_filter) = &self.geo_filter {
+            if let Some(geo) = &memory.experience.geo_location {
+                let lat = geo[0];
+                let lon = geo[1];
+                if !geo_filter.contains(lat, lon) {
+                    return false;
+                }
+            } else {
+                // No geo_location on memory, and we have a geo filter = no match
+                return false;
+            }
+        }
+
+        // Action type filter
+        if let Some(action_type) = &self.action_type {
+            if memory.experience.action_type.as_ref() != Some(action_type) {
+                return false;
+            }
+        }
+
+        // Reward range filter
+        if let Some((min_reward, max_reward)) = &self.reward_range {
+            if let Some(reward) = memory.experience.reward {
+                if reward < *min_reward || reward > *max_reward {
+                    return false;
+                }
+            } else {
+                // No reward on memory = no match
+                return false;
+            }
+        }
+
+        // === Decision & Learning Filters ===
+
+        // Outcome type filter
+        if let Some(outcome_type) = &self.outcome_type {
+            if memory.experience.outcome_type.as_ref() != Some(outcome_type) {
+                return false;
+            }
+        }
+
+        // Failures only filter
+        if self.failures_only {
+            let is_failure = memory
+                .experience
+                .outcome_type
+                .as_ref()
+                .map(|o| o == "failure" || o == "failed" || o == "error")
+                .unwrap_or(false);
+            if !is_failure {
+                return false;
+            }
+        }
+
+        // Anomalies only filter
+        if self.anomalies_only {
+            if !memory.experience.is_anomaly {
+                return false;
+            }
+        }
+
+        // Severity filter
+        if let Some(severity) = &self.severity {
+            if memory.experience.severity.as_ref() != Some(severity) {
+                return false;
+            }
+        }
+
+        // Tags filter (any match)
+        if let Some(query_tags) = &self.tags {
+            let memory_tags = &memory.experience.tags;
+            if memory_tags.is_empty() || !query_tags.iter().any(|qt| memory_tags.contains(qt)) {
+                return false;
+            }
+        }
+
+        // Pattern ID filter
+        if let Some(pattern_id) = &self.pattern_id {
+            if memory.experience.pattern_id.as_ref() != Some(pattern_id) {
+                return false;
+            }
+        }
+
+        // Terrain type filter
+        if let Some(terrain_type) = &self.terrain_type {
+            if memory.experience.terrain_type.as_ref() != Some(terrain_type) {
+                return false;
+            }
+        }
+
+        // Confidence range filter
+        if let Some((min_conf, max_conf)) = &self.confidence_range {
+            if let Some(confidence) = memory.experience.confidence {
+                if confidence < *min_conf || confidence > *max_conf {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    /// Create a builder for Query
+    pub fn builder() -> QueryBuilder {
+        QueryBuilder::default()
+    }
+}
+
+/// Builder for Query to make construction cleaner
+#[derive(Default)]
+pub struct QueryBuilder {
+    query: Query,
+}
+
+impl QueryBuilder {
+    pub fn query_text(mut self, text: impl Into<String>) -> Self {
+        self.query.query_text = Some(text.into());
+        self
+    }
+
+    pub fn importance_threshold(mut self, threshold: f32) -> Self {
+        self.query.importance_threshold = Some(threshold);
+        self
+    }
+
+    pub fn experience_types(mut self, types: Vec<ExperienceType>) -> Self {
+        self.query.experience_types = Some(types);
+        self
+    }
+
+    pub fn time_range(mut self, start: DateTime<Utc>, end: DateTime<Utc>) -> Self {
+        self.query.time_range = Some((start, end));
+        self
+    }
+
+    pub fn max_results(mut self, max: usize) -> Self {
+        self.query.max_results = max;
+        self
+    }
+
+    pub fn robot_id(mut self, id: impl Into<String>) -> Self {
+        self.query.robot_id = Some(id.into());
+        self
+    }
+
+    pub fn mission_id(mut self, id: impl Into<String>) -> Self {
+        self.query.mission_id = Some(id.into());
+        self
+    }
+
+    pub fn failures_only(mut self, only: bool) -> Self {
+        self.query.failures_only = only;
+        self
+    }
+
+    pub fn anomalies_only(mut self, only: bool) -> Self {
+        self.query.anomalies_only = only;
+        self
+    }
+
+    pub fn tags(mut self, tags: Vec<String>) -> Self {
+        self.query.tags = Some(tags);
+        self
+    }
+
+    pub fn retrieval_mode(mut self, mode: RetrievalMode) -> Self {
+        self.query.retrieval_mode = mode;
+        self
+    }
+
+    /// Set offset for pagination (skip first N results)
+    pub fn offset(mut self, offset: usize) -> Self {
+        self.query.offset = offset;
+        self
+    }
+
+    pub fn build(self) -> Query {
+        self.query
+    }
+}
+
+/// Retrieval modes
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RetrievalMode {
+    Similarity,  // Vector similarity search
+    Temporal,    // Time-based retrieval
+    Causal,      // Cause-effect chains
+    Associative, // Related memories
+    Hybrid,      // Combination of methods
+    // === Robotics-Specific Modes ===
+    Spatial,       // Geo-location based retrieval
+    Mission,       // Mission context retrieval
+    ActionOutcome, // Reward-based learning retrieval
+}
+
+/// Criteria for forgetting memories
+#[derive(Debug, Clone)]
+pub enum ForgetCriteria {
+    /// Delete a single memory by its ID
+    ById(MemoryId),
+    OlderThan(u32),     // Days
+    LowImportance(f32), // Threshold
+    Pattern(String),    // Regex pattern
+    /// Delete memories matching ANY of these tags
+    ByTags(Vec<String>),
+    /// Delete memories within a date range (inclusive)
+    ByDateRange {
+        start: chrono::DateTime<chrono::Utc>,
+        end: chrono::DateTime<chrono::Utc>,
+    },
+    /// Delete memories of a specific type
+    ByType(ExperienceType),
+    /// Delete ALL memories for a user (GDPR compliance - right to erasure)
+    All,
+}
+
+/// Working memory - fast access, limited size
+///
+/// Now uses Arc<Memory> for zero-copy shared ownership.
+/// Performance improvement: ~10x fewer allocations.
+pub struct WorkingMemory {
+    memories: HashMap<MemoryId, SharedMemory>,
+    capacity: usize,
+    access_order: Vec<MemoryId>,
+}
+
+impl WorkingMemory {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            memories: HashMap::new(),
+            capacity,
+            access_order: Vec::new(),
+        }
+    }
+
+    /// Add memory (convenience wrapper - use add_shared for zero-copy)
+    #[allow(unused)] // Public API convenience method
+    pub fn add(&mut self, memory: Memory) -> anyhow::Result<()> {
+        self.add_shared(Arc::new(memory))
+    }
+
+    /// Add shared memory (zero-copy)
+    pub fn add_shared(&mut self, memory: SharedMemory) -> anyhow::Result<()> {
+        // Evict LRU if at capacity
+        if self.memories.len() >= self.capacity {
+            if let Some(oldest) = self.access_order.first().cloned() {
+                self.memories.remove(&oldest);
+                self.access_order.remove(0);
+            }
+        }
+
+        let id = memory.id.clone();
+        self.memories.insert(id.clone(), memory);
+        self.access_order.push(id);
+        Ok(())
+    }
+
+    /// Search memories (returns Arc<Memory> for zero-copy)
+    ///
+    /// Uses Query::matches() for filtering - SINGLE source of truth for all filter logic
+    pub fn search(&self, query: &Query, limit: usize) -> anyhow::Result<Vec<SharedMemory>> {
+        let mut results: Vec<SharedMemory> = self
+            .memories
+            .values()
+            .filter(|m| query.matches(m))
+            .cloned() // Arc::clone is cheap (just increments ref count)
+            .collect();
+
+        // Sort by importance and recency
+        results.sort_by(|a, b| {
+            b.importance()
+                .partial_cmp(&a.importance())
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(b.last_accessed().cmp(&a.last_accessed()))
+        });
+
+        results.truncate(limit);
+        Ok(results)
+    }
+
+    pub fn size(&self) -> usize {
+        self.memories.len()
+    }
+
+    /// Get the number of memories (alias for size())
+    pub fn len(&self) -> usize {
+        self.memories.len()
+    }
+
+    /// Check if the working memory is empty
+    pub fn is_empty(&self) -> bool {
+        self.memories.is_empty()
+    }
+
+    /// Clear all memories from working memory
+    pub fn clear(&mut self) {
+        self.memories.clear();
+        self.access_order.clear();
+    }
+
+    pub fn contains(&self, id: &MemoryId) -> bool {
+        self.memories.contains_key(id)
+    }
+
+    /// Get memory by ID (zero-copy Arc clone)
+    pub fn get(&self, id: &MemoryId) -> Option<SharedMemory> {
+        self.memories.get(id).map(Arc::clone)
+    }
+
+    pub fn update_access(&mut self, id: &MemoryId) -> anyhow::Result<()> {
+        if let Some(shared_memory) = self.memories.get(id) {
+            // ZERO-COPY: Update metadata through Arc without cloning Experience/embeddings
+            shared_memory.update_access();
+
+            // Update access order for LRU tracking
+            if let Some(pos) = self.access_order.iter().position(|x| x == id) {
+                self.access_order.remove(pos);
+                self.access_order.push(id.clone());
+            }
+        }
+        Ok(())
+    }
+
+    /// Get least recently used memories (zero-copy with Arc)
+    pub fn get_lru(&self, count: usize) -> anyhow::Result<Vec<SharedMemory>> {
+        let mut result = Vec::new();
+        for id in self.access_order.iter().take(count) {
+            if let Some(memory) = self.memories.get(id) {
+                result.push(Arc::clone(memory)); // Cheap: just ref count increment
+            }
+        }
+        Ok(result)
+    }
+
+    pub fn remove(&mut self, id: &MemoryId) -> anyhow::Result<()> {
+        self.memories.remove(id);
+        self.access_order.retain(|x| x != id);
+        Ok(())
+    }
+
+    pub fn remove_older_than(&mut self, cutoff: DateTime<Utc>) -> anyhow::Result<()> {
+        let to_remove: Vec<MemoryId> = self
+            .memories
+            .iter()
+            .filter(|(_, m)| m.created_at < cutoff)
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        for id in to_remove {
+            self.remove(&id)?;
+        }
+        Ok(())
+    }
+
+    pub fn remove_below_importance(&mut self, threshold: f32) -> anyhow::Result<()> {
+        let to_remove: Vec<MemoryId> = self
+            .memories
+            .iter()
+            .filter(|(_, m)| m.importance() < threshold)
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        for id in to_remove {
+            self.remove(&id)?;
+        }
+        Ok(())
+    }
+
+    pub fn remove_matching(&mut self, regex: &regex::Regex) -> anyhow::Result<usize> {
+        let to_remove: Vec<MemoryId> = self
+            .memories
+            .iter()
+            .filter(|(_, m)| regex.is_match(&m.experience.content))
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        let count = to_remove.len();
+        for id in to_remove {
+            self.remove(&id)?;
+        }
+        Ok(count)
+    }
+
+    /// Get all memories (for semantic search across all tiers)
+    pub fn all_memories(&self) -> Vec<SharedMemory> {
+        self.memories.values().cloned().collect()
+    }
+}
+
+/// Entry in session memory - tracks size at insertion time
+struct SessionMemoryEntry {
+    memory: SharedMemory,
+    /// Size in bytes when inserted (used for accurate size tracking)
+    insertion_size: usize,
+}
+
+/// Session memory - medium-term storage
+///
+/// Now uses Arc<Memory> for zero-copy shared ownership.
+/// Tracks insertion size separately to avoid overflow when memory is modified after insertion.
+pub struct SessionMemory {
+    memories: HashMap<MemoryId, SessionMemoryEntry>,
+    max_size_mb: usize,
+    current_size_bytes: usize,
+}
+
+impl SessionMemory {
+    pub fn new(max_size_mb: usize) -> Self {
+        Self {
+            memories: HashMap::new(),
+            max_size_mb,
+            current_size_bytes: 0,
+        }
+    }
+
+    /// Add memory (convenience wrapper - use add_shared for zero-copy)
+    pub fn add(&mut self, memory: Memory) -> anyhow::Result<()> {
+        self.add_shared(Arc::new(memory))
+    }
+
+    /// Add shared memory (zero-copy)
+    pub fn add_shared(&mut self, memory: SharedMemory) -> anyhow::Result<()> {
+        let memory_size = bincode::serialize(&*memory)?.len();
+
+        // Check if adding would exceed limit
+        if self.current_size_bytes + memory_size > self.max_size_mb * 1024 * 1024 {
+            // Evict lowest importance memories until there's space
+            self.evict_to_make_space(memory_size)?;
+        }
+
+        let id = memory.id.clone();
+        self.memories.insert(
+            id,
+            SessionMemoryEntry {
+                memory,
+                insertion_size: memory_size,
+            },
+        );
+        self.current_size_bytes += memory_size;
+        Ok(())
+    }
+
+    fn evict_to_make_space(&mut self, needed_bytes: usize) -> anyhow::Result<()> {
+        let mut sorted: Vec<(MemoryId, f32)> = self
+            .memories
+            .iter()
+            .map(|(id, entry)| (id.clone(), entry.memory.importance()))
+            .collect();
+
+        sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        for (id, _) in sorted {
+            if self.current_size_bytes + needed_bytes <= self.max_size_mb * 1024 * 1024 {
+                break;
+            }
+            if let Some(entry) = self.memories.remove(&id) {
+                // Use stored insertion_size for accurate tracking (not re-serialized size)
+                self.current_size_bytes =
+                    self.current_size_bytes.saturating_sub(entry.insertion_size);
+            }
+        }
+        Ok(())
+    }
+
+    /// Search memories (returns Arc<Memory> for zero-copy)
+    ///
+    /// Uses Query::matches() for filtering - SINGLE source of truth for all filter logic
+    pub fn search(&self, query: &Query, limit: usize) -> anyhow::Result<Vec<SharedMemory>> {
+        let mut results: Vec<SharedMemory> = self
+            .memories
+            .values()
+            .map(|entry| &entry.memory)
+            .filter(|m| query.matches(m))
+            .cloned() // Arc::clone is cheap
+            .collect();
+
+        results.sort_by(|a, b| {
+            b.importance()
+                .partial_cmp(&a.importance())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        results.truncate(limit);
+        Ok(results)
+    }
+
+    pub fn size_mb(&self) -> usize {
+        self.current_size_bytes / (1024 * 1024)
+    }
+
+    /// Get the number of memories
+    pub fn len(&self) -> usize {
+        self.memories.len()
+    }
+
+    /// Check if the session memory is empty
+    pub fn is_empty(&self) -> bool {
+        self.memories.is_empty()
+    }
+
+    /// Clear all memories from session memory
+    pub fn clear(&mut self) {
+        self.memories.clear();
+        self.current_size_bytes = 0;
+    }
+
+    pub fn contains(&self, id: &MemoryId) -> bool {
+        self.memories.contains_key(id)
+    }
+
+    /// Get memory by ID (zero-copy Arc clone)
+    pub fn get(&self, id: &MemoryId) -> Option<SharedMemory> {
+        self.memories.get(id).map(|entry| Arc::clone(&entry.memory))
+    }
+
+    pub fn update_access(&mut self, id: &MemoryId) -> anyhow::Result<()> {
+        if let Some(entry) = self.memories.get(id) {
+            // ZERO-COPY: Update metadata through Arc without cloning Experience/embeddings
+            entry.memory.update_access();
+        }
+        Ok(())
+    }
+
+    /// Get important memories (zero-copy with Arc)
+    pub fn get_important(&self, threshold: f32) -> anyhow::Result<Vec<SharedMemory>> {
+        Ok(self
+            .memories
+            .values()
+            .map(|entry| &entry.memory)
+            .filter(|m| m.importance() >= threshold)
+            .cloned() // Arc::clone is cheap
+            .collect())
+    }
+
+    pub fn remove(&mut self, id: &MemoryId) -> anyhow::Result<()> {
+        if let Some(entry) = self.memories.remove(id) {
+            // Use stored insertion_size for accurate tracking (avoids overflow)
+            self.current_size_bytes = self.current_size_bytes.saturating_sub(entry.insertion_size);
+        }
+        Ok(())
+    }
+
+    pub fn remove_older_than(&mut self, cutoff: DateTime<Utc>) -> anyhow::Result<()> {
+        let to_remove: Vec<MemoryId> = self
+            .memories
+            .iter()
+            .filter(|(_, entry)| entry.memory.created_at < cutoff)
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        for id in to_remove {
+            self.remove(&id)?;
+        }
+        Ok(())
+    }
+
+    pub fn remove_below_importance(&mut self, threshold: f32) -> anyhow::Result<()> {
+        let to_remove: Vec<MemoryId> = self
+            .memories
+            .iter()
+            .filter(|(_, entry)| entry.memory.importance() < threshold)
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        for id in to_remove {
+            self.remove(&id)?;
+        }
+        Ok(())
+    }
+
+    pub fn remove_matching(&mut self, regex: &regex::Regex) -> anyhow::Result<usize> {
+        let to_remove: Vec<MemoryId> = self
+            .memories
+            .iter()
+            .filter(|(_, entry)| regex.is_match(&entry.memory.experience.content))
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        let count = to_remove.len();
+        for id in to_remove {
+            self.remove(&id)?;
+        }
+        Ok(count)
+    }
+
+    /// Iterate over all memories for access statistics
+    pub fn iter(&self) -> impl Iterator<Item = (&MemoryId, &SharedMemory)> {
+        self.memories.iter().map(|(id, entry)| (id, &entry.memory))
+    }
+
+    /// Get all memories (for semantic search across all tiers)
+    pub fn all_memories(&self) -> Vec<SharedMemory> {
+        self.memories
+            .values()
+            .map(|entry| entry.memory.clone())
+            .collect()
+    }
+}
+
+/// Memory statistics
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MemoryStats {
+    pub total_memories: usize,
+    pub working_memory_count: usize,
+    pub session_memory_count: usize,
+    pub long_term_memory_count: usize,
+    pub vector_index_count: usize,
+    pub compressed_count: usize,
+    pub promotions_to_session: usize,
+    pub promotions_to_longterm: usize,
+    pub total_retrievals: usize,
+    pub average_importance: f32,
+}
+
+/// Report from index integrity verification
+///
+/// Used to diagnose vector index gaps where memories are stored in RocksDB
+/// but missing from the vector index (orphaned memories).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndexIntegrityReport {
+    /// Total memories in RocksDB storage
+    pub total_storage: usize,
+    /// Total memories in vector index
+    pub total_indexed: usize,
+    /// Number of orphaned memories (storage - indexed)
+    pub orphaned_count: usize,
+    /// First 100 orphaned memory IDs for debugging
+    pub orphaned_ids: Vec<MemoryId>,
+    /// Whether the index is healthy (no orphans)
+    pub is_healthy: bool,
+}
+
+/// Retrieval statistics for SHO-26 associative retrieval (debugging/observability)
+///
+/// Returned with recall responses to expose the hybrid scoring internals.
+/// Helps users understand why certain memories were retrieved and tune parameters.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RetrievalStats {
+    /// Mode used for this retrieval (semantic, associative, hybrid)
+    pub mode: String,
+
+    /// Number of memories retrieved via semantic similarity
+    pub semantic_candidates: usize,
+
+    /// Number of memories retrieved via graph traversal
+    pub graph_candidates: usize,
+
+    /// Graph density (edges per memory) - determines graph weight
+    pub graph_density: f32,
+
+    /// Actual graph weight used (density-dependent: 0.1 to 0.5)
+    pub graph_weight: f32,
+
+    /// Actual semantic weight used (1.0 - graph_weight - linguistic_weight)
+    pub semantic_weight: f32,
+
+    /// Linguistic weight used (fixed at 0.15)
+    pub linguistic_weight: f32,
+
+    /// Number of graph hops performed in spreading activation
+    pub graph_hops: usize,
+
+    /// Number of unique entities activated during graph traversal
+    pub entities_activated: usize,
+
+    /// Total time spent on retrieval (microseconds)
+    pub retrieval_time_us: u64,
+
+    /// Time spent on embedding generation (microseconds)
+    pub embedding_time_us: u64,
+
+    /// Time spent on graph traversal (microseconds)
+    pub graph_time_us: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_geo_filter_haversine_distance() {
+        // San Francisco to Oakland (~13km)
+        let sf = GeoFilter::new(37.7749, -122.4194, 100.0);
+        let oakland_lat = 37.8044;
+        let oakland_lon = -122.2712;
+
+        let distance = sf.haversine_distance(oakland_lat, oakland_lon);
+        // Should be approximately 13km (13000m)
+        assert!(
+            distance > 12000.0 && distance < 14000.0,
+            "SF to Oakland should be ~13km, got {distance}m"
+        );
+    }
+
+    #[test]
+    fn test_geo_filter_same_point() {
+        let filter = GeoFilter::new(37.7749, -122.4194, 100.0);
+        let distance = filter.haversine_distance(37.7749, -122.4194);
+        assert!(
+            distance < 1.0,
+            "Same point should have ~0 distance, got {distance}"
+        );
+    }
+
+    #[test]
+    fn test_geo_filter_contains() {
+        // Center at SF with 100m radius
+        let filter = GeoFilter::new(37.7749, -122.4194, 100.0);
+
+        // Point within 100m should be contained
+        // ~0.001 degrees latitude ≈ 111m
+        let nearby_lat = 37.7750;
+        let nearby_lon = -122.4194;
+        assert!(
+            filter.contains(nearby_lat, nearby_lon),
+            "Point ~11m away should be within 100m radius"
+        );
+
+        // Point far away should NOT be contained
+        let oakland_lat = 37.8044;
+        let oakland_lon = -122.2712;
+        assert!(
+            !filter.contains(oakland_lat, oakland_lon),
+            "Oakland (~13km) should NOT be within 100m radius"
+        );
+    }
+
+    #[test]
+    fn test_geo_filter_equator_distance() {
+        // Test at equator where 1 degree longitude = 111km
+        let equator = GeoFilter::new(0.0, 0.0, 1000.0);
+        let distance = equator.haversine_distance(0.0, 0.01);
+        // 0.01 degrees at equator ≈ 1.11km
+        assert!(
+            distance > 1000.0 && distance < 1200.0,
+            "0.01 degrees at equator should be ~1.1km, got {distance}m"
+        );
+    }
+
+    #[test]
+    fn test_query_default() {
+        let query = Query::default();
+        assert!(query.query_text.is_none());
+        assert!(query.robot_id.is_none());
+        assert!(query.mission_id.is_none());
+        assert!(query.geo_filter.is_none());
+        assert!(query.action_type.is_none());
+        assert!(query.reward_range.is_none());
+        assert_eq!(query.max_results, DEFAULT_MAX_RESULTS);
+    }
+
+    #[test]
+    fn test_query_with_robotics_filters() {
+        let query = Query {
+            robot_id: Some("drone_001".to_string()),
+            mission_id: Some("recon_alpha".to_string()),
+            geo_filter: Some(GeoFilter::new(37.7749, -122.4194, 500.0)),
+            action_type: Some("landing".to_string()),
+            reward_range: Some((0.5, 1.0)),
+            ..Default::default()
+        };
+
+        assert_eq!(query.robot_id, Some("drone_001".to_string()));
+        assert_eq!(query.mission_id, Some("recon_alpha".to_string()));
+        assert!(query.geo_filter.is_some());
+        assert_eq!(query.action_type, Some("landing".to_string()));
+        assert_eq!(query.reward_range, Some((0.5, 1.0)));
+    }
+}

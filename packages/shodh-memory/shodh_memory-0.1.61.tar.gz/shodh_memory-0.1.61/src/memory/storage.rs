@@ -1,0 +1,1108 @@
+//! Storage backend for the memory system
+
+use anyhow::{anyhow, Context, Result};
+use bincode;
+use chrono::{DateTime, Utc};
+use rocksdb::{IteratorMode, Options, WriteBatch, WriteOptions, DB};
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use super::types::*;
+
+/// Helper trait to safely iterate over RocksDB results with error logging.
+/// Unlike `.flatten()` which silently ignores errors, this logs them.
+trait LogErrors<T> {
+    fn log_errors(self) -> impl Iterator<Item = T>;
+}
+
+impl<I, T, E> LogErrors<T> for I
+where
+    I: Iterator<Item = Result<T, E>>,
+    E: std::fmt::Display,
+{
+    fn log_errors(self) -> impl Iterator<Item = T> {
+        self.filter_map(|r| match r {
+            Ok(v) => Some(v),
+            Err(e) => {
+                tracing::warn!("RocksDB iterator error (continuing): {}", e);
+                None
+            }
+        })
+    }
+}
+
+/// Write mode for storage operations
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WriteMode {
+    /// Sync writes - fsync() on every write (durable but slow: 2-10ms per write)
+    /// Use for: shutdown, critical data, compliance requirements
+    Sync,
+    /// Async writes - no fsync(), data buffered in OS page cache (fast: <1ms per write)
+    /// Use for: robotics, edge, high-throughput scenarios
+    /// Data survives process crashes but NOT power loss before next fsync
+    Async,
+}
+
+impl Default for WriteMode {
+    fn default() -> Self {
+        // Default to async for robotics-grade latency
+        // Override with SHODH_WRITE_MODE=sync for durability-critical deployments
+        match std::env::var("SHODH_WRITE_MODE") {
+            Ok(mode) if mode.to_lowercase() == "sync" => WriteMode::Sync,
+            _ => WriteMode::Async,
+        }
+    }
+}
+
+/// Storage engine for long-term memory persistence
+pub struct MemoryStorage {
+    db: Arc<DB>,
+    index_db: Arc<DB>, // Secondary indices
+    /// Base storage path for all memory data
+    storage_path: PathBuf,
+    /// Write mode (sync vs async) - affects latency vs durability tradeoff
+    write_mode: WriteMode,
+}
+
+impl MemoryStorage {
+    pub fn new(path: &Path) -> Result<Self> {
+        // Create directories if they don't exist
+        std::fs::create_dir_all(path)?;
+
+        // Configure RocksDB options for PRODUCTION durability + performance
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+        opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
+
+        // ========================================================================
+        // DURABILITY SETTINGS - Critical for data persistence across restarts
+        // ========================================================================
+        //
+        // RocksDB data flow: Write → WAL → Memtable → SST files
+        // Without proper sync, data in memtable can be lost on crash/restart
+        //
+        // Our approach: Sync WAL on every write (most durable option)
+        // This ensures data survives even if process crashes before memtable flush
+        // ========================================================================
+
+        // WAL stays in default location (same as data dir) - avoids corruption issues
+        opts.set_manual_wal_flush(false); // Auto-flush WAL entries
+
+        // Write performance optimizations for 10M+ memories per user
+        opts.set_max_write_buffer_number(4);
+        opts.set_write_buffer_size(128 * 1024 * 1024); // 128MB write buffer (2x for scale)
+        opts.set_level_zero_file_num_compaction_trigger(4);
+        opts.set_target_file_size_base(128 * 1024 * 1024); // 128MB SST files
+        opts.set_max_bytes_for_level_base(512 * 1024 * 1024); // 512MB L1
+        opts.set_max_background_jobs(4);
+        opts.set_level_compaction_dynamic_level_bytes(true);
+
+        // Read performance optimizations for 10M+ memories
+        use rocksdb::{BlockBasedOptions, Cache};
+        let mut block_opts = BlockBasedOptions::default();
+        block_opts.set_bloom_filter(10.0, false); // 10 bits/key = ~1% FPR
+        block_opts.set_block_cache(&Cache::new_lru_cache(512 * 1024 * 1024)); // 512MB cache
+        block_opts.set_cache_index_and_filter_blocks(true);
+        block_opts.set_pin_l0_filter_and_index_blocks_in_cache(true); // Pin L0 for fast reads
+        opts.set_block_based_table_factory(&block_opts);
+
+        // Open main database
+        let main_path = path.join("memories");
+        let db = Arc::new(DB::open(&opts, main_path)?);
+
+        // Open index database
+        let index_path = path.join("memory_index");
+        let index_db = Arc::new(DB::open(&opts, index_path)?);
+
+        let write_mode = WriteMode::default();
+        tracing::info!(
+            "Storage initialized with {:?} write mode (latency: {})",
+            write_mode,
+            if write_mode == WriteMode::Sync {
+                "2-10ms per write"
+            } else {
+                "<1ms per write"
+            }
+        );
+
+        Ok(Self {
+            db,
+            index_db,
+            storage_path: path.to_path_buf(),
+            write_mode,
+        })
+    }
+
+    /// Get the base storage path
+    pub fn path(&self) -> &Path {
+        &self.storage_path
+    }
+
+    /// Store a memory with configurable write durability
+    ///
+    /// ROBOTICS OPTIMIZATION: Write mode is configurable via SHODH_WRITE_MODE env var.
+    /// - Async (default): <1ms per write, data survives process crashes
+    /// - Sync: 2-10ms per write, data survives power loss
+    ///
+    /// For robotics/edge: Use async mode + periodic flush() calls for best latency.
+    /// For compliance/critical: Set SHODH_WRITE_MODE=sync for full durability.
+    pub fn store(&self, memory: &Memory) -> Result<()> {
+        let key = memory.id.0.as_bytes();
+
+        // Serialize memory
+        let value = bincode::serialize(memory)
+            .context(format!("Failed to serialize memory {}", memory.id.0))?;
+
+        // Use write mode based on configuration
+        let mut write_opts = WriteOptions::default();
+        write_opts.set_sync(self.write_mode == WriteMode::Sync);
+
+        // Store in main database
+        self.db
+            .put_opt(key, &value, &write_opts)
+            .context(format!("Failed to put memory {} in RocksDB", memory.id.0))?;
+
+        // Update indices
+        self.update_indices(memory)?;
+
+        Ok(())
+    }
+
+    /// Update secondary indices for efficient retrieval
+    fn update_indices(&self, memory: &Memory) -> Result<()> {
+        let mut batch = WriteBatch::default();
+
+        // === Standard Indices ===
+
+        // Index by date (for temporal queries)
+        // BUG-001 FIX: Include memory_id in key to allow multiple memories per day
+        // Old format: date:YYYYMMDD (overwrites on same day)
+        // New format: date:YYYYMMDD:uuid (unique per memory)
+        let date_key = format!(
+            "date:{}:{}",
+            memory.created_at.format("%Y%m%d"),
+            memory.id.0
+        );
+        batch.put(date_key.as_bytes(), b"1");
+
+        // Index by type
+        let type_key = format!(
+            "type:{:?}:{}",
+            memory.experience.experience_type, memory.id.0
+        );
+        batch.put(type_key.as_bytes(), b"1");
+
+        // Index by importance (quantized into buckets)
+        let importance_bucket = (memory.importance() * 10.0) as u32;
+        let importance_key = format!("importance:{}:{}", importance_bucket, memory.id.0);
+        batch.put(importance_key.as_bytes(), b"1");
+
+        // Index by entities (case-insensitive for tag search compatibility)
+        for entity in &memory.experience.entities {
+            let normalized_entity = entity.to_lowercase();
+            let entity_key = format!("entity:{}:{}", normalized_entity, memory.id.0);
+            batch.put(entity_key.as_bytes(), b"1");
+        }
+
+        // Index by tags (separate from entities for explicit tag queries)
+        for tag in &memory.experience.tags {
+            let normalized_tag = tag.to_lowercase();
+            let tag_key = format!("tag:{}:{}", normalized_tag, memory.id.0);
+            batch.put(tag_key.as_bytes(), b"1");
+        }
+
+        // === Robotics Indices ===
+
+        // Index by robot_id (for multi-robot systems)
+        if let Some(ref robot_id) = memory.experience.robot_id {
+            let robot_key = format!("robot:{}:{}", robot_id, memory.id.0);
+            batch.put(robot_key.as_bytes(), b"1");
+        }
+
+        // Index by mission_id (for mission context retrieval)
+        if let Some(ref mission_id) = memory.experience.mission_id {
+            let mission_key = format!("mission:{}:{}", mission_id, memory.id.0);
+            batch.put(mission_key.as_bytes(), b"1");
+        }
+
+        // Index by geo_location (for spatial queries) using geohash
+        // Key format: geo:GEOHASH:memory_id (geohash at precision 10 = ~1.2m x 60cm)
+        // Geohash enables efficient prefix-based spatial queries
+        if let Some(geo) = memory.experience.geo_location {
+            let lat = geo[0];
+            let lon = geo[1];
+            // Use precision 10 for warehouse-level accuracy (~1.2m cells)
+            let geohash = super::types::geohash_encode(lat, lon, 10);
+            let geo_key = format!("geo:{}:{}", geohash, memory.id.0);
+            batch.put(geo_key.as_bytes(), b"1");
+        }
+
+        // Index by action_type (for action-based retrieval)
+        if let Some(ref action_type) = memory.experience.action_type {
+            let action_key = format!("action:{}:{}", action_type, memory.id.0);
+            batch.put(action_key.as_bytes(), b"1");
+        }
+
+        // Index by reward (bucketed, for RL-style queries)
+        // Bucket: -1.0 to 1.0 mapped to 0-20
+        if let Some(reward) = memory.experience.reward {
+            let clamped_reward = reward.clamp(-1.0, 1.0);
+            let reward_bucket = ((clamped_reward + 1.0) * 10.0) as i32;
+            let reward_key = format!("reward:{}:{}", reward_bucket, memory.id.0);
+            batch.put(reward_key.as_bytes(), b"1");
+        }
+
+        // === External Linking Index ===
+        // Index by external_id for upsert operations (Linear, GitHub, etc.)
+        // Key format: external:{source}:{id}:{memory_id} -> memory_id
+        // Enables O(1) lookup when syncing from external systems
+        if let Some(ref external_id) = memory.external_id {
+            let external_key = format!("external:{}:{}", external_id, memory.id.0);
+            // Store memory_id as value for direct lookup
+            batch.put(external_key.as_bytes(), memory.id.0.as_bytes());
+        }
+
+        // Use write mode based on configuration
+        let mut write_opts = WriteOptions::default();
+        write_opts.set_sync(self.write_mode == WriteMode::Sync);
+        self.index_db.write_opt(batch, &write_opts)?;
+        Ok(())
+    }
+
+    /// Retrieve a memory by ID
+    pub fn get(&self, id: &MemoryId) -> Result<Memory> {
+        let key = id.0.as_bytes();
+        match self.db.get(key)? {
+            Some(value) => bincode::deserialize::<Memory>(&value).with_context(|| {
+                format!(
+                    "Failed to deserialize memory {} ({} bytes)",
+                    id.0,
+                    value.len()
+                )
+            }),
+            None => Err(anyhow!("Memory not found: {id:?}")),
+        }
+    }
+
+    /// Find a memory by its external_id (e.g., "linear:SHO-39", "github:pr-123")
+    ///
+    /// Returns the memory if found, None if no memory with this external_id exists.
+    /// Used for upsert operations when syncing from external sources.
+    pub fn find_by_external_id(&self, external_id: &str) -> Result<Option<Memory>> {
+        // Index key format: external:{external_id}:{memory_id}
+        let prefix = format!("external:{external_id}:");
+
+        let iter = self.index_db.iterator(IteratorMode::From(
+            prefix.as_bytes(),
+            rocksdb::Direction::Forward,
+        ));
+
+        for (key, _value) in iter.log_errors() {
+            let key_str = String::from_utf8_lossy(&key);
+            if !key_str.starts_with(&prefix) {
+                break;
+            }
+            // Extract memory_id from key (format: external:{external_id}:{memory_id})
+            if let Some(id_str) = key_str.strip_prefix(&prefix) {
+                if let Ok(uuid) = uuid::Uuid::parse_str(id_str) {
+                    return Ok(Some(self.get(&MemoryId(uuid))?));
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Update an existing memory
+    ///
+    /// ALGO-004 FIX: Re-indexes memory after update to handle importance drift.
+    /// When Hebbian feedback changes importance, the old bucket index becomes stale.
+    /// We remove old indices before storing to ensure index consistency.
+    pub fn update(&self, memory: &Memory) -> Result<()> {
+        // Remove old indices first (they may have stale importance buckets)
+        self.remove_from_indices(&memory.id)?;
+        // Store with fresh indices
+        self.store(memory)
+    }
+
+    /// Delete a memory with configurable durability
+    #[allow(unused)] // Public API - available for memory management
+    pub fn delete(&self, id: &MemoryId) -> Result<()> {
+        let key = id.0.as_bytes();
+
+        // Use write mode based on configuration
+        let mut write_opts = WriteOptions::default();
+        write_opts.set_sync(self.write_mode == WriteMode::Sync);
+        self.db.delete_opt(key, &write_opts)?;
+
+        // Clean up indices
+        self.remove_from_indices(id)?;
+
+        Ok(())
+    }
+
+    /// Remove memory from all indices
+    /// BUG-005 FIX: Direct key deletion instead of O(n) scan with contains()
+    /// We reconstruct index keys from memory metadata for O(k) deletion
+    fn remove_from_indices(&self, id: &MemoryId) -> Result<()> {
+        // Fetch memory to reconstruct index keys
+        let memory = match self.get(id) {
+            Ok(m) => m,
+            Err(_) => {
+                tracing::debug!("Memory {} not found, skipping index cleanup", id.0);
+                return Ok(());
+            }
+        };
+
+        let mut batch = WriteBatch::default();
+
+        // Reconstruct and delete all index keys directly (O(k) instead of O(n))
+
+        // Date index
+        let date_key = format!("date:{}:{}", memory.created_at.format("%Y%m%d"), id.0);
+        batch.delete(date_key.as_bytes());
+
+        // Type index
+        let type_key = format!("type:{:?}:{}", memory.experience.experience_type, id.0);
+        batch.delete(type_key.as_bytes());
+
+        // Importance index
+        let importance_bucket = (memory.importance() * 10.0) as u32;
+        let importance_key = format!("importance:{}:{}", importance_bucket, id.0);
+        batch.delete(importance_key.as_bytes());
+
+        // Entity indices
+        for entity in &memory.experience.entities {
+            let entity_key = format!("entity:{}:{}", entity, id.0);
+            batch.delete(entity_key.as_bytes());
+        }
+
+        // Tag indices
+        for tag in &memory.experience.tags {
+            let normalized_tag = tag.to_lowercase();
+            let tag_key = format!("tag:{}:{}", normalized_tag, id.0);
+            batch.delete(tag_key.as_bytes());
+        }
+
+        // Robot index
+        if let Some(ref robot_id) = memory.experience.robot_id {
+            let robot_key = format!("robot:{}:{}", robot_id, id.0);
+            batch.delete(robot_key.as_bytes());
+        }
+
+        // Mission index
+        if let Some(ref mission_id) = memory.experience.mission_id {
+            let mission_key = format!("mission:{}:{}", mission_id, id.0);
+            batch.delete(mission_key.as_bytes());
+        }
+
+        // Geo index
+        if let Some(geo) = memory.experience.geo_location {
+            let geohash = super::types::geohash_encode(geo[0], geo[1], 10);
+            let geo_key = format!("geo:{}:{}", geohash, id.0);
+            batch.delete(geo_key.as_bytes());
+        }
+
+        // Action index
+        if let Some(ref action_type) = memory.experience.action_type {
+            let action_key = format!("action:{}:{}", action_type, id.0);
+            batch.delete(action_key.as_bytes());
+        }
+
+        // Reward index
+        if let Some(reward) = memory.experience.reward {
+            let reward_bucket = ((reward + 1.0) * 10.0) as i32;
+            let reward_key = format!("reward:{}:{}", reward_bucket, id.0);
+            batch.delete(reward_key.as_bytes());
+        }
+
+        // External linking index
+        if let Some(ref external_id) = memory.external_id {
+            let external_key = format!("external:{}:{}", external_id, id.0);
+            batch.delete(external_key.as_bytes());
+        }
+
+        // Use write mode based on configuration
+        let mut write_opts = WriteOptions::default();
+        write_opts.set_sync(self.write_mode == WriteMode::Sync);
+        self.index_db.write_opt(batch, &write_opts)?;
+        Ok(())
+    }
+
+    /// Search memories by various criteria
+    pub fn search(&self, criteria: SearchCriteria) -> Result<Vec<Memory>> {
+        let mut memory_ids = Vec::new();
+
+        match criteria {
+            // === Standard Criteria ===
+            SearchCriteria::ByDate { start, end } => {
+                memory_ids = self.search_by_date_range(start, end)?;
+            }
+            SearchCriteria::ByType(exp_type) => {
+                memory_ids = self.search_by_type(exp_type)?;
+            }
+            SearchCriteria::ByImportance { min, max } => {
+                memory_ids = self.search_by_importance(min, max)?;
+            }
+            SearchCriteria::ByEntity(entity) => {
+                memory_ids = self.search_by_entity(&entity)?;
+            }
+            SearchCriteria::ByTags(tags) => {
+                memory_ids = self.search_by_tags(&tags)?;
+            }
+
+            // === Robotics Criteria ===
+            SearchCriteria::ByRobot(robot_id) => {
+                memory_ids = self.search_by_robot(&robot_id)?;
+            }
+            SearchCriteria::ByMission(mission_id) => {
+                memory_ids = self.search_by_mission(&mission_id)?;
+            }
+            SearchCriteria::ByLocation {
+                lat,
+                lon,
+                radius_meters,
+            } => {
+                memory_ids = self.search_by_location(lat, lon, radius_meters)?;
+            }
+            SearchCriteria::ByActionType(action_type) => {
+                memory_ids = self.search_by_action_type(&action_type)?;
+            }
+            SearchCriteria::ByReward { min, max } => {
+                memory_ids = self.search_by_reward(min, max)?;
+            }
+
+            // === Compound Criteria ===
+            SearchCriteria::Combined(criterias) => {
+                // Intersection of all criteria results
+                // Use HashSet for O(1) lookups instead of O(n) Vec::contains
+                use std::collections::HashSet;
+                let mut result_sets: Vec<HashSet<MemoryId>> = Vec::new();
+                for c in criterias {
+                    result_sets.push(
+                        self.search(c)?
+                            .into_iter()
+                            .map(|m| m.id)
+                            .collect::<HashSet<_>>(),
+                    );
+                }
+
+                if !result_sets.is_empty() {
+                    let first_set = result_sets.remove(0);
+                    memory_ids = first_set
+                        .into_iter()
+                        .filter(|id| result_sets.iter().all(|set| set.contains(id)))
+                        .collect();
+                }
+            }
+        }
+
+        // Fetch full memories
+        let mut memories = Vec::new();
+        for id in memory_ids {
+            if let Ok(memory) = self.get(&id) {
+                memories.push(memory);
+            }
+        }
+
+        Ok(memories)
+    }
+
+    fn search_by_date_range(
+        &self,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<MemoryId>> {
+        let mut ids = Vec::new();
+        let start_key = format!("date:{}", start.format("%Y%m%d"));
+        // BUG-001 FIX: End key needs ~ suffix to include all UUIDs for that date
+        // Keys are: date:YYYYMMDD:uuid, so date:20251207~ comes after all Dec 7 entries
+        let end_key = format!("date:{}~", end.format("%Y%m%d"));
+
+        let iter = self.index_db.iterator(IteratorMode::From(
+            start_key.as_bytes(),
+            rocksdb::Direction::Forward,
+        ));
+        for (key, _value) in iter.log_errors() {
+            let key_str = String::from_utf8_lossy(&key);
+            if key_str.as_ref() > end_key.as_str() {
+                break;
+            }
+            // BUG-001 FIX: Extract memory_id from key (format: date:YYYYMMDD:uuid)
+            if key_str.starts_with("date:") {
+                let parts: Vec<&str> = key_str.split(':').collect();
+                if parts.len() >= 3 {
+                    // parts[0] = "date", parts[1] = "YYYYMMDD", parts[2] = uuid
+                    if let Ok(uuid) = uuid::Uuid::parse_str(parts[2]) {
+                        ids.push(MemoryId(uuid));
+                    }
+                }
+            }
+        }
+
+        Ok(ids)
+    }
+
+    fn search_by_type(&self, exp_type: ExperienceType) -> Result<Vec<MemoryId>> {
+        let mut ids = Vec::new();
+        let prefix = format!("type:{exp_type:?}:");
+
+        let iter = self.index_db.iterator(IteratorMode::From(
+            prefix.as_bytes(),
+            rocksdb::Direction::Forward,
+        ));
+        for (key, _) in iter.log_errors() {
+            let key_str = String::from_utf8_lossy(&key);
+            if !key_str.starts_with(&prefix) {
+                break;
+            }
+            // Extract ID from key
+            if let Some(id_str) = key_str.strip_prefix(&prefix) {
+                if let Ok(uuid) = uuid::Uuid::parse_str(id_str) {
+                    ids.push(MemoryId(uuid));
+                }
+            }
+        }
+
+        Ok(ids)
+    }
+
+    fn search_by_importance(&self, min: f32, max: f32) -> Result<Vec<MemoryId>> {
+        let mut ids = Vec::new();
+        let min_bucket = (min * 10.0) as u32;
+        let max_bucket = (max * 10.0) as u32;
+
+        for bucket in min_bucket..=max_bucket {
+            let prefix = format!("importance:{bucket}:");
+            let iter = self.index_db.iterator(IteratorMode::From(
+                prefix.as_bytes(),
+                rocksdb::Direction::Forward,
+            ));
+
+            for (key, _) in iter.log_errors() {
+                let key_str = String::from_utf8_lossy(&key);
+                if !key_str.starts_with(&prefix) {
+                    break;
+                }
+                // Extract ID from key
+                if let Some(id_str) = key_str.strip_prefix(&prefix) {
+                    if let Ok(uuid) = uuid::Uuid::parse_str(id_str) {
+                        ids.push(MemoryId(uuid));
+                    }
+                }
+            }
+        }
+
+        Ok(ids)
+    }
+
+    fn search_by_entity(&self, entity: &str) -> Result<Vec<MemoryId>> {
+        let mut ids = Vec::new();
+        // Normalize to lowercase for case-insensitive matching
+        let normalized_entity = entity.to_lowercase();
+        let prefix = format!("entity:{normalized_entity}:");
+
+        let iter = self.index_db.iterator(IteratorMode::From(
+            prefix.as_bytes(),
+            rocksdb::Direction::Forward,
+        ));
+        for (key, _) in iter.log_errors() {
+            let key_str = String::from_utf8_lossy(&key);
+            if !key_str.starts_with(&prefix) {
+                break;
+            }
+            // Extract ID from key
+            if let Some(id_str) = key_str.strip_prefix(&prefix) {
+                if let Ok(uuid) = uuid::Uuid::parse_str(id_str) {
+                    ids.push(MemoryId(uuid));
+                }
+            }
+        }
+
+        Ok(ids)
+    }
+
+    /// Search memories by tags (returns memories matching ANY of the provided tags)
+    fn search_by_tags(&self, tags: &[String]) -> Result<Vec<MemoryId>> {
+        use std::collections::HashSet;
+
+        // Union of all tag matches
+        let mut all_ids = HashSet::new();
+
+        for tag in tags {
+            // Normalize to lowercase for case-insensitive matching
+            let normalized_tag = tag.to_lowercase();
+            let prefix = format!("tag:{normalized_tag}:");
+            let iter = self.index_db.iterator(IteratorMode::From(
+                prefix.as_bytes(),
+                rocksdb::Direction::Forward,
+            ));
+            for (key, _) in iter.log_errors() {
+                let key_str = String::from_utf8_lossy(&key);
+                if !key_str.starts_with(&prefix) {
+                    break;
+                }
+                if let Some(id_str) = key_str.strip_prefix(&prefix) {
+                    if let Ok(uuid) = uuid::Uuid::parse_str(id_str) {
+                        all_ids.insert(MemoryId(uuid));
+                    }
+                }
+            }
+        }
+
+        Ok(all_ids.into_iter().collect())
+    }
+
+    // ========================================================================
+    // ROBOTICS SEARCH METHODS
+    // ========================================================================
+
+    /// Search memories by robot/drone identifier
+    fn search_by_robot(&self, robot_id: &str) -> Result<Vec<MemoryId>> {
+        let mut ids = Vec::new();
+        let prefix = format!("robot:{robot_id}:");
+
+        let iter = self.index_db.iterator(IteratorMode::From(
+            prefix.as_bytes(),
+            rocksdb::Direction::Forward,
+        ));
+        for (key, _) in iter.log_errors() {
+            let key_str = String::from_utf8_lossy(&key);
+            if !key_str.starts_with(&prefix) {
+                break;
+            }
+            if let Some(id_str) = key_str.strip_prefix(&prefix) {
+                if let Ok(uuid) = uuid::Uuid::parse_str(id_str) {
+                    ids.push(MemoryId(uuid));
+                }
+            }
+        }
+
+        Ok(ids)
+    }
+
+    /// Search memories by mission identifier
+    fn search_by_mission(&self, mission_id: &str) -> Result<Vec<MemoryId>> {
+        let mut ids = Vec::new();
+        let prefix = format!("mission:{mission_id}:");
+
+        let iter = self.index_db.iterator(IteratorMode::From(
+            prefix.as_bytes(),
+            rocksdb::Direction::Forward,
+        ));
+        for (key, _) in iter.log_errors() {
+            let key_str = String::from_utf8_lossy(&key);
+            if !key_str.starts_with(&prefix) {
+                break;
+            }
+            if let Some(id_str) = key_str.strip_prefix(&prefix) {
+                if let Ok(uuid) = uuid::Uuid::parse_str(id_str) {
+                    ids.push(MemoryId(uuid));
+                }
+            }
+        }
+
+        Ok(ids)
+    }
+
+    /// Search memories by geographic location using geohash prefix scanning
+    ///
+    /// Performance: O(k) where k = memories in ~9 geohash cells covering the radius
+    /// Previous approach was O(n) where n = all geo-indexed memories
+    fn search_by_location(
+        &self,
+        center_lat: f64,
+        center_lon: f64,
+        radius_meters: f64,
+    ) -> Result<Vec<MemoryId>> {
+        use super::types::{geohash_decode, geohash_search_prefixes, GeoFilter};
+
+        let geo_filter = GeoFilter::new(center_lat, center_lon, radius_meters);
+        let mut ids = Vec::new();
+
+        // Get geohash prefixes for center + neighbors at appropriate precision
+        let prefixes = geohash_search_prefixes(center_lat, center_lon, radius_meters);
+
+        // Scan only the relevant geohash cells (9 cells = center + 8 neighbors)
+        for geohash_prefix in prefixes {
+            let prefix = format!("geo:{}:", geohash_prefix);
+            let iter = self.index_db.iterator(IteratorMode::From(
+                prefix.as_bytes(),
+                rocksdb::Direction::Forward,
+            ));
+
+            for (key, _value) in iter.log_errors() {
+                let key_str = String::from_utf8_lossy(&key);
+                if !key_str.starts_with(&prefix) {
+                    break;
+                }
+
+                // Key format: geo:GEOHASH:memory_id
+                let parts: Vec<&str> = key_str.split(':').collect();
+                if parts.len() >= 3 {
+                    let geohash = parts[1];
+                    // Decode geohash to get approximate lat/lon for distance check
+                    let (min_lat, min_lon, max_lat, max_lon) = geohash_decode(geohash);
+                    let approx_lat = (min_lat + max_lat) / 2.0;
+                    let approx_lon = (min_lon + max_lon) / 2.0;
+
+                    // Final haversine check for edge cases at cell boundaries
+                    if geo_filter.contains(approx_lat, approx_lon) {
+                        if let Ok(uuid) = uuid::Uuid::parse_str(parts[2]) {
+                            ids.push(MemoryId(uuid));
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(ids)
+    }
+
+    /// Search memories by action type
+    fn search_by_action_type(&self, action_type: &str) -> Result<Vec<MemoryId>> {
+        let mut ids = Vec::new();
+        let prefix = format!("action:{action_type}:");
+
+        let iter = self.index_db.iterator(IteratorMode::From(
+            prefix.as_bytes(),
+            rocksdb::Direction::Forward,
+        ));
+        for (key, _) in iter.log_errors() {
+            let key_str = String::from_utf8_lossy(&key);
+            if !key_str.starts_with(&prefix) {
+                break;
+            }
+            if let Some(id_str) = key_str.strip_prefix(&prefix) {
+                if let Ok(uuid) = uuid::Uuid::parse_str(id_str) {
+                    ids.push(MemoryId(uuid));
+                }
+            }
+        }
+
+        Ok(ids)
+    }
+
+    /// Search memories by reward range (for RL-style queries)
+    fn search_by_reward(&self, min: f32, max: f32) -> Result<Vec<MemoryId>> {
+        let mut ids = Vec::new();
+
+        // Reward is bucketed similar to importance (-10 to 10 buckets)
+        // Clamp to prevent bucket overflow from out-of-range values
+        let clamped_min = min.clamp(-1.0, 1.0);
+        let clamped_max = max.clamp(-1.0, 1.0);
+        let min_bucket = ((clamped_min + 1.0) * 10.0) as i32; // -1.0 -> 0, 1.0 -> 20
+        let max_bucket = ((clamped_max + 1.0) * 10.0) as i32;
+
+        for bucket in min_bucket..=max_bucket {
+            let prefix = format!("reward:{bucket}:");
+            let iter = self.index_db.iterator(IteratorMode::From(
+                prefix.as_bytes(),
+                rocksdb::Direction::Forward,
+            ));
+
+            for (key, _) in iter.log_errors() {
+                let key_str = String::from_utf8_lossy(&key);
+                if !key_str.starts_with(&prefix) {
+                    break;
+                }
+                if let Some(id_str) = key_str.strip_prefix(&prefix) {
+                    if let Ok(uuid) = uuid::Uuid::parse_str(id_str) {
+                        ids.push(MemoryId(uuid));
+                    }
+                }
+            }
+        }
+
+        Ok(ids)
+    }
+
+    /// Get all memories from long-term storage
+    pub fn get_all(&self) -> Result<Vec<Memory>> {
+        let mut memories = Vec::new();
+
+        // Iterate through all memories
+        let iter = self.db.iterator(IteratorMode::Start);
+        for (_, value) in iter.log_errors() {
+            if let Ok(memory) = bincode::deserialize::<Memory>(&value) {
+                memories.push(memory);
+            }
+        }
+
+        Ok(memories)
+    }
+
+    pub fn get_uncompressed_older_than(&self, cutoff: DateTime<Utc>) -> Result<Vec<Memory>> {
+        let mut memories = Vec::new();
+
+        // Iterate through all memories
+        let iter = self.db.iterator(IteratorMode::Start);
+        for (_, value) in iter.log_errors() {
+            if let Ok(memory) = bincode::deserialize::<Memory>(&value) {
+                if !memory.compressed && memory.created_at < cutoff {
+                    memories.push(memory);
+                }
+            }
+        }
+
+        Ok(memories)
+    }
+
+    /// Mark memories as forgotten (soft delete) with durable writes
+    pub fn mark_forgotten_by_age(&self, cutoff: DateTime<Utc>) -> Result<usize> {
+        let mut count = 0;
+
+        // DURABILITY: Sync write for data integrity
+        let mut write_opts = WriteOptions::default();
+        write_opts.set_sync(true);
+
+        let iter = self.db.iterator(IteratorMode::Start);
+        for (key, value) in iter.log_errors() {
+            if let Ok(mut memory) = bincode::deserialize::<Memory>(&value) {
+                if memory.created_at < cutoff {
+                    // Add forgotten flag to metadata
+                    memory
+                        .experience
+                        .metadata
+                        .insert("forgotten".to_string(), "true".to_string());
+                    memory
+                        .experience
+                        .metadata
+                        .insert("forgotten_at".to_string(), Utc::now().to_rfc3339());
+
+                    let updated_value = bincode::serialize(&memory)?;
+                    self.db.put_opt(&key, updated_value, &write_opts)?;
+                    count += 1;
+                }
+            }
+        }
+
+        Ok(count)
+    }
+
+    /// Mark memories with low importance as forgotten with durable writes
+    pub fn mark_forgotten_by_importance(&self, threshold: f32) -> Result<usize> {
+        let mut count = 0;
+
+        // DURABILITY: Sync write for data integrity
+        let mut write_opts = WriteOptions::default();
+        write_opts.set_sync(true);
+
+        let iter = self.db.iterator(IteratorMode::Start);
+        for (key, value) in iter.log_errors() {
+            if let Ok(mut memory) = bincode::deserialize::<Memory>(&value) {
+                if memory.importance() < threshold {
+                    memory
+                        .experience
+                        .metadata
+                        .insert("forgotten".to_string(), "true".to_string());
+                    memory
+                        .experience
+                        .metadata
+                        .insert("forgotten_at".to_string(), Utc::now().to_rfc3339());
+
+                    let updated_value = bincode::serialize(&memory)?;
+                    self.db.put_opt(&key, updated_value, &write_opts)?;
+                    count += 1;
+                }
+            }
+        }
+
+        Ok(count)
+    }
+
+    /// Remove memories matching a pattern with durable writes
+    pub fn remove_matching(&self, regex: &regex::Regex) -> Result<usize> {
+        let mut count = 0;
+        let mut to_delete = Vec::new();
+
+        let iter = self.db.iterator(IteratorMode::Start);
+        for (key, value) in iter.log_errors() {
+            if let Ok(memory) = bincode::deserialize::<Memory>(&value) {
+                if regex.is_match(&memory.experience.content) {
+                    to_delete.push(key.to_vec());
+                    count += 1;
+                }
+            }
+        }
+
+        // DURABILITY: Sync write for delete operations
+        let mut write_opts = WriteOptions::default();
+        write_opts.set_sync(true);
+
+        for key in to_delete {
+            self.db.delete_opt(&key, &write_opts)?;
+        }
+
+        Ok(count)
+    }
+
+    /// Update access count for a memory
+    pub fn update_access(&self, id: &MemoryId) -> Result<()> {
+        if let Ok(memory) = self.get(id) {
+            // ZERO-COPY: Update metadata through interior mutability
+            memory.update_access();
+
+            // Persist updated metadata
+            self.update(&memory)?;
+        }
+        Ok(())
+    }
+
+    /// Get statistics about stored memories
+    pub fn get_stats(&self) -> Result<StorageStats> {
+        let mut stats = StorageStats::default();
+        let mut raw_count = 0;
+        let mut deserialize_errors = 0;
+
+        let iter = self.db.iterator(IteratorMode::Start);
+        for item in iter {
+            match item {
+                Ok((key, value)) => {
+                    raw_count += 1;
+                    match bincode::deserialize::<Memory>(&value) {
+                        Ok(memory) => {
+                            stats.total_count += 1;
+                            stats.total_size_bytes += value.len();
+                            if memory.compressed {
+                                stats.compressed_count += 1;
+                            }
+                            stats.importance_sum += memory.importance();
+                        }
+                        Err(e) => {
+                            deserialize_errors += 1;
+                            tracing::warn!(
+                                "Failed to deserialize memory (key len: {}, value len: {}): {}",
+                                key.len(),
+                                value.len(),
+                                e
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Iterator error: {}", e);
+                }
+            }
+        }
+
+        tracing::debug!(
+            "get_stats: raw_count={}, deserialized={}, errors={}",
+            raw_count,
+            stats.total_count,
+            deserialize_errors
+        );
+
+        if stats.total_count > 0 {
+            stats.average_importance = stats.importance_sum / stats.total_count as f32;
+        }
+
+        Ok(stats)
+    }
+
+    /// Remove corrupted memories that fail to deserialize
+    /// Returns the number of entries deleted
+    pub fn cleanup_corrupted(&self) -> Result<usize> {
+        let mut to_delete = Vec::new();
+
+        let iter = self.db.iterator(IteratorMode::Start);
+        for item in iter {
+            if let Ok((key, value)) = item {
+                if bincode::deserialize::<Memory>(&value).is_err() {
+                    to_delete.push(key.to_vec());
+                }
+            }
+        }
+
+        let count = to_delete.len();
+        if count > 0 {
+            tracing::info!("Cleaning up {} corrupted memory entries", count);
+
+            let mut write_opts = WriteOptions::default();
+            write_opts.set_sync(self.write_mode == WriteMode::Sync);
+
+            for key in to_delete {
+                if let Err(e) = self.db.delete_opt(&key, &write_opts) {
+                    tracing::warn!("Failed to delete corrupted entry: {}", e);
+                }
+            }
+
+            // Flush to persist deletions
+            self.flush()?;
+        }
+
+        Ok(count)
+    }
+
+    /// Flush both databases to ensure all data is persisted (critical for graceful shutdown)
+    pub fn flush(&self) -> Result<()> {
+        use rocksdb::FlushOptions;
+
+        // Create flush options with explicit wait
+        let mut flush_opts = FlushOptions::default();
+        flush_opts.set_wait(true); // Block until flush is complete
+
+        // Flush main memory database
+        self.db
+            .flush_opt(&flush_opts)
+            .map_err(|e| anyhow::anyhow!("Failed to flush main database: {e}"))?;
+
+        // Flush index database
+        self.index_db
+            .flush_opt(&flush_opts)
+            .map_err(|e| anyhow::anyhow!("Failed to flush index database: {e}"))?;
+
+        Ok(())
+    }
+}
+
+/// Search criteria for memory retrieval
+#[derive(Debug, Clone)]
+pub enum SearchCriteria {
+    // === Standard Criteria ===
+    ByDate {
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    },
+    ByType(ExperienceType),
+    ByImportance {
+        min: f32,
+        max: f32,
+    },
+    ByEntity(String),
+    /// Filter by tags (matches memories containing ANY of these tags)
+    ByTags(Vec<String>),
+
+    // === Robotics Criteria ===
+    /// Filter by robot/drone identifier
+    ByRobot(String),
+    /// Filter by mission identifier
+    ByMission(String),
+    /// Spatial filter: memories within radius of (lat, lon)
+    ByLocation {
+        lat: f64,
+        lon: f64,
+        radius_meters: f64,
+    },
+    /// Filter by action type
+    ByActionType(String),
+    /// Filter by reward range (for RL-style queries)
+    ByReward {
+        min: f32,
+        max: f32,
+    },
+
+    // === Compound Criteria ===
+    Combined(Vec<SearchCriteria>),
+}
+
+/// Storage statistics
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct StorageStats {
+    pub total_count: usize,
+    pub compressed_count: usize,
+    pub total_size_bytes: usize,
+    pub average_importance: f32,
+    pub importance_sum: f32,
+}

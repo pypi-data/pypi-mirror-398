@@ -1,0 +1,231 @@
+[package]
+name = "shodh-memory"
+version = "0.1.61"
+edition = "2021"
+authors = ["Shodh Team <29.varuns@gmail.com>"]
+description = "Persistent memory for AI agents and edge devices - 3-tier memory, Hebbian learning, knowledge graph. Single binary, runs offline."
+license = "Apache-2.0"
+repository = "https://github.com/varun29ankuS/shodh-memory"
+homepage = "https://github.com/varun29ankuS/shodh-memory"
+readme = "README-rust.md"
+keywords = ["memory", "ai", "llm", "embedding", "cognitive"]
+categories = ["science", "database", "embedded"]
+exclude = [
+    "mcp-server/",
+    "python/",
+    "test_memory_db/",
+    "shodh_memory_data/",
+    "*.exe",
+    "*.tar.gz",
+    "*.dll",
+    "*.zip",
+    "*.whl",
+    "job_log.txt",
+    "macos_log.txt",
+    ".mcp.json",
+    "nul",
+    "install_bun.ps1",
+    ".venv/",
+    "assets/",
+    "benchmarks/",
+    "benchmark_report.json",
+    "bugs-remedies/",
+    "docker-compose.yml",
+    "Dockerfile",
+    "examples/",
+    "hooks/",
+    "marketing/",
+    "notebooks/",
+    "release-test/",
+    "seps/",
+    "skills/",
+    "test_*/",
+    "*.md",
+    "!README-rust.md",
+    "openapi.yaml",
+    "shodh_logo_nobackground.png",
+    "shodh_config.example.json",
+    "STPI_PITCH_DECK.md",
+    ".github/",
+    "pyproject.toml",
+]
+
+[lib]
+name = "shodh_memory"
+path = "src/lib.rs"
+# rlib: for Rust library usage (tests, benchmarks, binary)
+# cdylib: for Python bindings (PyO3/maturin needs shared library)
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "shodh-memory-server"
+path = "src/main.rs"
+
+[dependencies]
+# Core
+anyhow = "1.0"
+thiserror = "1.0"
+dotenvy = "0.15"  # Load .env files
+
+# Async runtime & web server
+tokio = { version = "1.40", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["sync"] }  # SSE event streaming (sync for BroadcastStream)
+futures = "0.3"  # Stream utilities for SSE
+axum = { version = "0.8", features = ["json", "ws"] }
+tower = { version = "0.4", features = ["limit", "buffer", "load-shed"] }
+tower-http = { version = "0.5", features = ["cors", "fs"] }
+tower_governor = { version = "0.8", features = ["axum"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Storage
+rocksdb = { version = "0.22", default-features = false, features = ["lz4"] }
+bincode = "1.3"
+lz4 = "1.24"
+
+# Concurrency
+parking_lot = "0.12"
+dashmap = "5.5"
+moka = { version = "0.12", features = ["sync"] }  # Lock-free concurrent cache with LRU eviction
+
+# Utilities
+uuid = { version = "1.4", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+lru = "0.12"
+regex = "1.10"
+dirs = "5.0"  # Platform-specific directory paths
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Observability (P1.1)
+prometheus = "0.13"
+lazy_static = "1.4"
+
+# Distributed Tracing (P1.6) - OPTIONAL (heavy, ~200 packages, not needed for edge)
+tracing-opentelemetry = { version = "0.22", optional = true }
+opentelemetry = { version = "0.21", features = ["trace"], optional = true }
+opentelemetry-otlp = { version = "0.14", features = ["trace"], optional = true }
+opentelemetry_sdk = { version = "0.21", features = ["trace", "rt-tokio"], optional = true }
+
+# Vector operations (lightweight)
+ordered-float = "4.0"
+
+# Vector database (Vamana HNSW)
+memmap2 = "0.9"
+rand = "0.8"
+
+# ONNX Runtime for embeddings (MiniLM-L6-v2)
+# Using load-dynamic for runtime DLL loading (bundled in wheels)
+# CRT conflicts solved via .cargo/config.toml: -crt-static
+ort = { version = "2.0.0-rc.10", default-features = false, features = ["load-dynamic", "half"] }
+tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
+ndarray = "0.15"
+
+# Graph visualization
+petgraph = "0.8"
+
+# Bloom filter
+bloomfilter = "1.0"
+
+# Base64 encoding
+base64 = "0.22"
+
+# Backup & Restore (P2) + Model checksum verification (P1)
+sha2 = "0.10"
+hex = "0.4"
+
+# External integrations (SHO-40)
+hmac = "0.12"
+reqwest = { version = "0.12", features = ["json"] }
+
+# Auto-download for models and ONNX runtime
+ureq = { version = "2.9", features = ["json"] }
+zip = { version = "2.1", default-features = false, features = ["deflate"] }
+flate2 = "1.0"
+tar = "0.4"
+
+# Python bindings (optional)
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py38"], optional = true }
+numpy = { version = "0.22", optional = true }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+tempfile = "3.8"
+
+[[bench]]
+name = "memory_benchmarks"
+harness = false
+
+[[bench]]
+name = "graph_benchmarks"
+harness = false
+
+[[bench]]
+name = "adaptive_memory_benchmarks"
+harness = false
+
+[[bench]]
+name = "cognitive_benchmarks"
+harness = false
+
+[[bench]]
+name = "ner_benchmarks"
+harness = false
+
+[[bench]]
+name = "pipeline_benchmarks"
+harness = false
+
+[[bench]]
+name = "associative_retrieval_benchmarks"
+harness = false
+
+[[bench]]
+name = "streaming_benchmarks"
+harness = false
+
+[[bench]]
+name = "relevance_benchmarks"
+harness = false
+
+[[bench]]
+name = "integration_benchmarks"
+harness = false
+
+[[bench]]
+name = "hebbian_benchmarks"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true  # Reduce binary size
+panic = "abort"
+
+[profile.bench]
+inherits = "release"
+panic = "unwind"  # Criterion requires unwind for benchmarks
+
+
+[features]
+# Default: minimal dependencies for edge devices (Raspberry Pi, drones, robotics)
+default = []
+
+# Python bindings for PyO3
+python = ["pyo3", "numpy"]
+
+# Optional: Distributed tracing for cloud/multi-node deployments (~200 extra packages)
+telemetry = [
+    "tracing-opentelemetry",
+    "opentelemetry",
+    "opentelemetry-otlp",
+    "opentelemetry_sdk"
+]
+
+[workspace]
+# Standalone workspace - not part of parent kalki-v2
