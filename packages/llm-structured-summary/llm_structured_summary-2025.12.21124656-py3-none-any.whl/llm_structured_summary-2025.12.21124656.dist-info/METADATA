@@ -1,0 +1,155 @@
+Metadata-Version: 2.4
+Name: llm-structured-summary
+Version: 2025.12.21124656
+Summary: This package would process text input, such as a research paper title or abstract snippet, and generate a structured summary of the core idea or problem addressed. It uses an LLM to interpret the inpu
+Author-email: llm-structured-summary <hi@eugene.plus>
+License: MIT
+Project-URL: Homepage, https://github.com/chigwell/llm-structured-summary
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: langchain-llm7>=0.0.0
+Requires-Dist: llmatch-messages>=0.0.0
+Requires-Dist: langchain-core>=0.3.0
+
+# llm-structured-summary
+[![PyPI version](https://badge.fury.io/py/llm-structured-summary.svg)](https://badge.fury.io/py/llm-structured-summary)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/llm-structured-summary)](https://pepy.tech/project/llm-structured-summary)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**llm-structured-summary** is a small utility that takes a short piece of text (e.g., a research‑paper title or abstract snippet) and returns a structured summary of the core idea or problem addressed.  
+The heavy‑lifting is done by an LLM (by default **ChatLLM7** from `langchain_llm7`). The LLM is guided by system & human prompts to produce output that conforms to a predefined XML‑like pattern, making the result easy to parse and reuse.
+
+---
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Function API](#function-api)
+- [Using a Custom LLM](#using-a-custom-llm)
+- [Environment variables & API keys](#environment-variables--api-keys)
+- [Rate limits](#rate-limits)
+- [Contributing & Support](#contributing--support)
+- [License](#license)
+
+---
+
+## Installation
+
+```bash
+pip install llm_structured_summary
+```
+
+---
+
+## Quick Start
+
+```python
+from llm_structured_summary import llm_structured_summary
+
+# Simple usage – the function will create a ChatLLM7 instance for you
+text = "A novel neural architecture for low‑shot learning in computer vision."
+summary = llm_structured_summary(user_input=text)
+
+print(summary)          # -> List of extracted XML‑like tags
+```
+
+---
+
+## Function API
+
+```python
+def llm_structured_summary(
+    user_input: str,
+    api_key: Optional[str] = None,
+    llm: Optional[BaseChatModel] = None,
+) -> List[str]:
+```
+
+| Parameter   | Type                     | Description |
+|------------|--------------------------|-------------|
+| **user_input** | `str` | The text that you want to summarise (title, abstract snippet, etc.). |
+| **api_key**   | `Optional[str]` | API key for the LLM7 service. If omitted, the function will read the `LLM7_API_KEY` environment variable or fall back to a placeholder value (`"None"`). |
+| **llm**       | `Optional[BaseChatModel]` | A pre‑configured LangChain chat model. Supplying a custom LLM lets you replace the default `ChatLLM7` with OpenAI, Anthropic, Google, etc. |
+
+**Returns**: `List[str]` – a list of strings that match the regex pattern defined in `llmatch_messages.pattern`. Each string is a piece of structured data (e.g., `<Problem>...</Problem>`).
+
+---
+
+## Using a Custom LLM
+
+If you prefer to use another provider, simply pass an instantiated LangChain chat model via the `llm` argument.
+
+### OpenAI (ChatGPT)
+
+```python
+from langchain_openai import ChatOpenAI
+from llm_structured_summary import llm_structured_summary
+
+my_llm = ChatOpenAI(model="gpt-4o-mini")
+response = llm_structured_summary(user_input="Your text here", llm=my_llm)
+print(response)
+```
+
+### Anthropic (Claude)
+
+```python
+from langchain_anthropic import ChatAnthropic
+from llm_structured_summary import llm_structured_summary
+
+my_llm = ChatAnthropic(model="claude-3-haiku-20240307")
+response = llm_structured_summary(user_input="Your text here", llm=my_llm)
+```
+
+### Google (Gemini)
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from llm_structured_summary import llm_structured_summary
+
+my_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+response = llm_structured_summary(user_input="Your text here", llm=my_llm)
+```
+
+All of the above examples work because they return a `BaseChatModel` compatible object, which `llm_structured_summary` expects.
+
+---
+
+## Environment Variables & API Keys
+
+- **`LLM7_API_KEY`** – If you do not pass `api_key` directly, the function will look for this environment variable.
+- You can obtain a free API key by registering at https://token.llm7.io/.
+
+```bash
+export LLM7_API_KEY="your-llm7-api-key"
+```
+
+---
+
+## Rate Limits
+
+The free tier of LLM7 provides generous rate limits that are sufficient for most prototyping and research tasks.  
+If you need higher throughput, upgrade your LLM7 plan or simply switch to another provider (OpenAI, Anthropic, Google) via the *Custom LLM* section above.
+
+---
+
+## Contributing & Support
+
+- **Issues / Feature Requests**: https://github.com/chigwell/llm_structured_summary/issues  
+- **Pull Requests** are welcome – feel free to open a PR after filing an issue.
+
+---
+
+## Author
+
+**Eugene Evstafev**  
+📧 Email: [hi@euegne.plus](mailto:hi@euegne.plus)  
+🐙 GitHub: [chigwell](https://github.com/chigwell)
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
