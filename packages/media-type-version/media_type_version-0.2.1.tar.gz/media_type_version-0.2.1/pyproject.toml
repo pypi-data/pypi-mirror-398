@@ -1,0 +1,313 @@
+# SPDX-FileCopyrightText: Peter Pentchev <roam@ringlet.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+[build-system]
+requires = [
+  "hatchling >= 1.26, < 2",
+]
+build-backend = "hatchling.build"
+
+[project]
+name = "media-type-version"
+description = "Extract the format version from a media type string"
+readme = "README.md"
+license = "BSD-2-Clause"
+license-files = ["LICENSES/BSD-2-Clause.txt"]
+requires-python = ">= 3.11"
+dynamic = ["version"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Utilities",
+  "Typing :: Typed",
+]
+
+[[project.authors]]
+name = "Peter Pentchev"
+email = "roam@ringlet.net"
+
+[project.scripts]
+"mtv-extract" = "media_type_version.__main__:main"
+
+[project.urls]
+Homepage = "https://devel.ringlet.net/devel/media-type-version/"
+Changes = "https://devel.ringlet.net/devel/media-type-version/changes/"
+"Issue Tracker" = "https://gitlab.com/ppentchev/media-type-version/-/issues"
+"Source Code" = "https://gitlab.com/ppentchev/media-type-version"
+
+[dependency-groups]
+cli = [
+  "cappa >= 0.27.3, < 0.32",
+]
+docs = [
+  "mkdocs >= 1.5, < 2",
+  "mkdocs-material >= 9.3, < 10",
+  "mkdocstrings >= 1, < 2",
+  "mkdocstrings-python >= 1.4, < 2",
+
+  # Transitive to avoid segfaults with Python 3.14 and `uv --resolution=lowest`
+  "markupsafe >= 2.1",
+]
+testenv-mypy = [
+  {include-group = "testenv-unit-tests-cli"},
+  "mypy >= 1.5, < 2",
+]
+testenv-pyupgrade = [
+  "pyupgrade >= 3, < 4",
+]
+testenv-reuse = [
+  "reuse >= 6, < 7",
+]
+testenv-ruff = [
+  "ruff == 0.14.10",
+]
+testenv-ty = [
+  {include-group = "testenv-unit-tests-cli"},
+  "ty == 0.0.4",
+]
+testenv-unit-tests = [
+  "feature-check >= 2, < 3",
+  "packaging >= 21.3, < 26",
+  "pygments >= 2.7, < 3",
+  "pytest >= 8.3.5, < 9.0.3",
+  "tomli-w >= 1, < 2",
+]
+testenv-unit-tests-cli = [
+  {include-group = "cli"},
+  {include-group = "testenv-unit-tests"},
+]
+testenv-uvoxen = [
+  "uvoxen >= 0.2.2, < 0.3",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["python/src/media_type_version"]
+
+[tool.hatch.version]
+path = "python/src/media_type_version/defs.py"
+pattern = '(?x) ^ VERSION \s* (?: : \s* Final \s* )? = \s* " (?P<version> [^\s"]+ ) " \s* $'
+
+[tool.mypy]
+strict = true
+
+[tool.publync]
+mediaType = "vnd.ringlet.misc.publync.config/publync.v0.1+toml"
+
+[tool.publync.build.tox]
+
+[tool.publync.sync.rsync]
+remote = "marla.ludost.net:vhosts/devel.ringlet.net/public_html/devel/media-type-version"
+
+[tool.ruff]
+extend = "python/ruff-base.toml"
+output-format = "concise"
+preview = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+
+[tool.test-stages]
+stages = [
+  "(@check or @docs) and @quick and not @manual",
+  "(@check or @docs) and not @manual",
+  "@tests and not @manual",
+]
+
+[tool.ty.environment]
+root = [
+  "python/src",
+  "python/tests",
+]
+
+[tool.uvoxen]
+mediaType = "vnd.ringlet.devel.uvoxen.config/uvoxen.v0.3+toml"
+envlist = [
+  "ruff",
+  "format",
+  "reuse",
+  "uvoxen-sync-check",
+  "ty",
+  "mypy",
+  "unit-tests",
+  "unit-tests-cli",
+  "docs",
+]
+
+[tool.uvoxen.defs]
+pyfiles = [
+  "python/src/media_type_version",
+  "python/tests/unit",
+]
+
+[tool.uvoxen.req]
+header = """
+# SPDX-FileCopyrightText: Peter Pentchev <roam@ringlet.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+"""
+
+[tool.uvoxen.tox]
+header = """
+# SPDX-FileCopyrightText: Peter Pentchev <roam@ringlet.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+"""
+
+env-order = [
+  "ruff",
+  "format",
+  "reformat",
+]
+
+[tool.uvoxen.env.ruff]
+tags = [
+  "check",
+  "quick",
+]
+dependency-groups = [
+  "testenv-ruff",
+]
+commands = [
+  "ruff check -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.format]
+tags = [
+  "check",
+  "quick",
+]
+dependency-groups = [
+  "testenv-ruff",
+]
+commands = [
+  "ruff check --config python/ruff-base.toml --select=D,I --diff -- {[defs]pyfiles}",
+  "ruff format --config python/ruff-base.toml --check --diff -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.reformat]
+tags = [
+  "format",
+  "manual",
+]
+dependency-groups = [
+  "testenv-ruff",
+]
+commands = [
+  "ruff check --config python/ruff-base.toml --select=D,I --fix -- {[defs]pyfiles}",
+  "ruff format --config python/ruff-base.toml -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.reuse]
+tags = [
+  "check",
+  "quick",
+]
+dependency-groups = [
+  "testenv-reuse",
+]
+commands = [
+  "reuse lint",
+]
+
+[tool.uvoxen.env.uvoxen-sync-check]
+tags = [
+  "check",
+  "quick",
+]
+dependency-groups = [
+  "testenv-uvoxen",
+]
+install-project = true
+commands = [
+  "uvoxen req generate -o python/requirements/docs.txt --check --diff -g docs",
+  "uvoxen tox generate --check --diff",
+]
+
+[tool.uvoxen.env.ty]
+tags = [
+  "check",
+  "quick",
+]
+dependency-groups = [
+  "testenv-ty",
+]
+install-dependencies = true
+commands = [
+  "ty check -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.mypy]
+tags = [
+  "check",
+]
+dependency-groups = [
+  "testenv-mypy",
+]
+install-dependencies = true
+commands = [
+  "mypy {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.pyupgrade]
+tags = [
+  "check",
+  "manual",
+]
+dependency-groups = [
+  "testenv-pyupgrade",
+]
+allowlist-externals = [
+  "sh",
+]
+commands = [
+  "sh -c 'pyupgrade --py311-plus python/src/media_type_version/*.py python/tests/unit/*.py'",
+]
+
+[tool.uvoxen.env.unit-tests]
+tags = [
+  "tests",
+]
+dependency-groups = [
+  "testenv-unit-tests",
+]
+install-project = true
+commands = [
+  "pytest --strict --ignore python/tests/unit/test_prog.py {posargs} python/tests/unit",
+]
+
+[tool.uvoxen.env.unit-tests-cli]
+tags = [
+  "tests",
+]
+dependency-groups = [
+  "testenv-unit-tests-cli",
+]
+install-project = true
+passenv = [
+  "RUST_LOG",
+  "TEST_MTV_EXTRACT_PROG",
+]
+commands = [
+  "pytest --strict -k 'test_prog.py' {posargs} python/tests/unit",
+]
+
+[tool.uvoxen.env.docs]
+tags = [
+  "docs",
+]
+dependency-groups = [
+  "docs",
+]
+commands = [
+  "mkdocs build",
+]
