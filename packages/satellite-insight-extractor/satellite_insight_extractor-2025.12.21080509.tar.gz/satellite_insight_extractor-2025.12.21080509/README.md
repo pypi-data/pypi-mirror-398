@@ -1,0 +1,166 @@
+# Satellite Insight Extractor
+
+![PyPI version](https://img.shields.io/pypi/v/satellite-insight-extractor)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Downloads](https://img.shields.io/pypi/dm/satellite-insight-extractor)
+![LinkedIn](https://img.shields.io/badge/LinkedIn-connect-blue)
+
+A Python package designed to extract structured insights from brief, domain-specific reports about satellite incidents and other aerospace events. It provides a concise, structured summary highlighting key aspects like event type, involved entities, and immediate implications.
+
+---
+
+## 📦 Installation
+
+Install the package via pip:
+
+```bash
+pip install satellite_insight_extractor
+```
+
+---
+
+## 🚀 Features
+
+- Extracts structured insights from short text reports
+- Supports customizable LLM backends (LLM7 by default)
+- Regex-validated output for consistent formatting
+- Lightweight and efficient for aerospace/satellite monitoring
+
+---
+
+## 🔧 Usage
+
+### Basic Usage (Default LLM7)
+```python
+from satellite_insight_extractor import satellite_insight_extractor
+
+# Example input: A short report about a satellite incident
+user_input = """
+Satellite X-912 experienced a partial solar array failure during orbital maneuver.
+Ground control is investigating potential debris impact.
+"""
+
+# Extract insights (uses default LLM7)
+response = satellite_insight_extractor(user_input)
+print(response)
+```
+
+### Custom LLM Integration
+You can replace the default LLM7 with any LangChain-compatible model:
+
+#### Using OpenAI
+```python
+from langchain_openai import ChatOpenAI
+from satellite_insight_extractor import satellite_insight_extractor
+
+llm = ChatOpenAI()
+response = satellite_insight_extractor(
+    user_input="Your satellite report here...",
+    llm=llm
+)
+```
+
+#### Using Anthropic
+```python
+from langchain_anthropic import ChatAnthropic
+from satellite_insight_extractor import satellite_insight_extractor
+
+llm = ChatAnthropic()
+response = satellite_insight_extractor(
+    user_input="Your satellite report here...",
+    llm=llm
+)
+```
+
+#### Using Google Vertex AI
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from satellite_insight_extractor import satellite_insight_extractor
+
+llm = ChatGoogleGenerativeAI()
+response = satellite_insight_extractor(
+    user_input="Your satellite report here...",
+    llm=llm
+)
+```
+
+---
+
+## 🔑 API Key Configuration
+
+The package uses **LLM7** as the default LLM provider. You can configure it in two ways:
+
+1. **Environment Variable** (recommended for security):
+   ```bash
+   export LLM7_API_KEY="your_api_key_here"
+   ```
+
+2. **Direct Parameter**:
+   ```python
+   from satellite_insight_extractor import satellite_insight_extractor
+
+   response = satellite_insight_extractor(
+       user_input="Your report...",
+       api_key="your_api_key_here"
+   )
+   ```
+
+### Get a Free LLM7 API Key
+Register at [https://token.llm7.io/](https://token.llm7.io/) for your free API key.
+
+---
+
+## 📝 Function Signature
+
+```python
+satellite_insight_extractor(
+    user_input: str,
+    api_key: Optional[str] = None,
+    llm: Optional[BaseChatModel] = None
+) -> List[str]
+```
+
+### Parameters:
+- **`user_input`** (str): The input text describing satellite/aerospace events.
+- **`api_key`** (Optional[str]): LLM7 API key (default: `os.getenv("LLM7_API_KEY")`).
+- **`llm`** (Optional[BaseChatModel]): Custom LangChain LLM instance (default: `ChatLLM7`).
+
+### Returns:
+- **List[str]**: Structured insights matching the predefined regex pattern.
+
+---
+
+## 📌 Output Format
+The output is a **regex-validated** list of structured insights, typically including:
+- Event type (e.g., "solar array failure")
+- Involved entities (e.g., "Satellite X-912")
+- Immediate implications (e.g., "orbital maneuver disrupted")
+
+Example output:
+```python
+[
+    "Event: Solar Array Failure",
+    "Entity: Satellite X-912",
+    "Location: Low Earth Orbit",
+    "Status: Under Investigation"
+]
+```
+
+---
+
+## 🔄 Default LLM7 Rate Limits
+The **free tier** of LLM7 is sufficient for most use cases. For higher rate limits, upgrade your plan or use a custom LLM.
+
+---
+
+## 📖 Documentation & Support
+- **GitHub Issues**: [https://github.com/chigwell/satellite-insight-extractor/issues](https://github.com/chigwell/satellite-insight-extractor/issues)
+- **Author**: Eugene Evstafev ([LinkedIn](https://linkedin.com/in/chigwell))
+- **Email**: [hi@euegne.plus](mailto:hi@euegne.plus)
+
+---
+
+## 📜 License
+This project is licensed under the **MIT License**.
+
+---
