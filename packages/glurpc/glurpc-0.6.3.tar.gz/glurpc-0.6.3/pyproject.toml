@@ -1,0 +1,82 @@
+[project]
+name = "glurpc"
+version = "0.6.3"
+description = "gRPC and REST endpoint for glucose prediction inference"
+authors = [
+    {name = "Newton Winter", email = "isoutthere@gmail.com"},
+  
+]
+maintainers = [
+    {name = "Anton Kulaga", email = "antonkulaga@gmail.com"},
+    {name = "Newton Winter", email = "isoutthere@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+dependencies = [
+    "cgm-format>=0.7.0",
+    "darts==0.29.0",
+    "fastapi>=0.123.0",
+    "glucosedao-glucobench>=0.4.1",
+    "grpcio>=1.76.0",
+    "grpcio-tools>=1.76.0",
+    "huggingface-hub>=0.36.0",
+    "plotly<6.0",
+    "polars>=1.35.2",
+    "pydantic<3.0",
+    "typer>=0.9.0",
+    "uvicorn>=0.38.0",
+    "python-multipart",
+    "kaleido==0.2.1",
+    "diskcache>=5.6.3",
+    "cachetools>=6.2.2",
+    "aiorwlock>=1.5.0",
+    "numpydantic>=1.7.0",
+]
+
+[project.scripts]
+glurpc-server = "glurpc.app:start_server"
+glurpc-grpc = "service.glurpc_service:start_grpc"
+glurpc-rest = "glurpc.app:start_server"
+glurpc-combined = "run_glurpc_service:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.optional-dependencies]
+
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=1.3.0",
+    "httpx>=0.27.0",
+    "snet-cli>=0.1.2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/glurpc", "src/service"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "cache_storage/*",
+    "data/",
+    "data/**/*.csv",
+    "logs/",
+    "files/",
+    "test_outputs/",
+    ".pytest_cache/",
+    ".venv/",
+    "*.egg-info/",
+    ".cursor/",
+    "snetd-*"
+]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore:.*setDaemon.*:DeprecationWarning:kaleido.*",
+]
+markers = [
+    "integration: marks tests as integration tests (require running server)",
+]
+asyncio_default_fixture_loop_scope = "module"
+asyncio_default_test_loop_scope = "module"
