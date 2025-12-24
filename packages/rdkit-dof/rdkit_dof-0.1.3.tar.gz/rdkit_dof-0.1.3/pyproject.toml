@@ -1,0 +1,126 @@
+[project]
+name = "rdkit-dof"
+dynamic = ["version"]
+description = "RDKit molecule drawing with Depth of Field (DOF) effects."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "Miao-Jiong Tang", email = "mj_t@zju.edu.cn" },
+]
+keywords = ["rdkit", "cheminformatics", "chemistry", "visualization", "molecule", "drawing", "DOF"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.11.0",
+    "rdkit>=2023.9.6",
+]
+
+[project.urls]
+Homepage = "https://github.com/gentle1999/rdkit-dof"
+"Bug Tracker" = "https://github.com/gentle1999/rdkit-dof/issues"
+Repository = "https://github.com/gentle1999/rdkit-dof.git"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.31.0",
+    "ipywidgets>=8.1.8",
+    "mypy>=1.19.0",
+    "pytest>=8.4.2",
+    "ruff>=0.14.7",
+    "Pillow>=10.5.0",
+    "pytest-mock>=3.15.1",
+]
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rdkit_dof"]
+
+# =============================================================================
+# Mypy Configuration (静态类型检查)
+# =============================================================================
+[tool.mypy]
+python_version = "3.9"
+plugins = ["pydantic.mypy"]  # 关键：启用 Pydantic 插件
+strict = true                # 开启严格模式
+warn_return_any = false      # RDKit 经常返回 Any，建议关闭此警告以减少噪音
+warn_unused_configs = true
+
+# 针对 RDKit 的特殊配置
+# RDKit 是二进制扩展，Mypy 经常无法找到其类型定义
+[[tool.mypy.overrides]]
+module = ["rdkit.*", "rdkit.Chem.*", "rdkit.Chem.Draw.*"]
+ignore_missing_imports = true
+
+# 针对 IPython 的特殊配置
+[[tool.mypy.overrides]]
+module = ["IPython.*"]
+ignore_missing_imports = true
+
+# Pydantic 插件的具体微调
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+# =============================================================================
+# Ruff Configuration (Linter & Formatter)
+# =============================================================================
+[tool.ruff]
+# 目标 Python 版本
+target-version = "py39"
+# 行宽 (符合常见标准，Black 默认为 88)
+line-length = 88
+
+[tool.ruff.lint]
+# 启用的规则集
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (核心逻辑错误)
+    "I",   # isort (导入排序)
+    "B",   # flake8-bugbear (常见 Bug 模式)
+    "UP",  # pyupgrade (自动升级旧语法，如 Type Hint)
+    "N",   # pep8-naming (命名规范)
+]
+# 忽略的规则
+ignore = [
+    "E501", # 忽略行过长 (由 Formatter 自动处理，无需 Linter 报错)
+]
+
+# 针对特定文件的豁免
+[tool.ruff.lint.per-file-ignores]
+# __init__.py 通常会有未使用的导入 (F401)，这是为了暴露 API
+"src/rdkit_dof/__init__.py" = ["F401"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# isort (导入排序) 配置
+[tool.ruff.lint.isort]
+known-first-party = ["rdkit_dof"] # 将本项目识别为第一方库，排序时置于第三方库之后
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
