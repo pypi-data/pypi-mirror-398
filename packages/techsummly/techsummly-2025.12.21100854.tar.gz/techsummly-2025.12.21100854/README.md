@@ -1,0 +1,115 @@
+# TechSummly
+[![PyPI version](https://badge.fury.io/py/techsummly.svg)](https://badge.fury.io/py/techsummly)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/techsummly)](https://pepy.tech/project/techsummly)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A Python package for structured and reliable interactions with language models to analyze and summarize technical discussions. Given a detailed technical input, TechSummly processes the text to generate a clear, structured summary highlighting key points, potential issues, and insights. The output is consistently formatted for easy parsing and downstream processing.
+
+## Features
+
+- Structured output using regex pattern matching
+- Support for multiple language models via LangChain
+- Automatic retries for reliable extraction
+- Predefined prompt templates for technical summarization
+
+## Installation
+
+Install the package using pip:
+
+```bash
+pip install techsummly
+```
+
+## Usage
+
+### Using the Default LLM (ChatLLM7)
+
+By default, TechSummly uses the ChatLLM7 model. You can use it without providing an API key for limited usage, or provide your own for higher rate limits.
+
+```python
+from techsummly import techsummly
+
+user_input = "Your detailed technical input here..."
+response = techsummly(user_input)
+print(response)
+```
+
+### Using a Custom API Key for LLM7
+
+You can pass your LLM7 API key directly or set it as an environment variable.
+
+```python
+from techsummly import techsummly
+
+user_input = "Your technical input..."
+response = techsummly(user_input, api_key="your_api_key_here")
+```
+
+Or set the environment variable:
+
+```bash
+export LLM7_API_KEY="your_api_key_here"
+```
+
+### Using Other Language Models
+
+TechSummly supports any LangChain-compatible chat model. Here are examples for popular providers:
+
+#### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from techsummly import techsummly
+
+llm = ChatOpenAI()
+user_input = "Your technical input..."
+response = techsummly(user_input, llm=llm)
+```
+
+#### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from techsummly import techsummly
+
+llm = ChatAnthropic()
+user_input = "Your technical input..."
+response = techsummly(user_input, llm=llm)
+```
+
+#### Google Generative AI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from techsummly import techsummly
+
+llm = ChatGoogleGenerativeAI()
+user_input = "Your technical input..."
+response = techsummly(user_input, llm=llm)
+```
+
+## Parameters
+
+- `user_input` (str): The technical text to process.
+- `llm` (Optional[BaseChatModel]): A LangChain chat model instance. Defaults to ChatLLM7.
+- `api_key` (Optional[str]): API key for LLM7. If not provided, the package checks the `LLM7_API_KEY` environment variable.
+
+## Default Model
+
+TechSummly uses [ChatLLM7](https://pypi.org/project/langchain-llm7/) by default. The free tier rate limits are sufficient for most use cases. For higher limits, get a free API key by registering at [https://token.llm7.io/](https://token.llm7.io/).
+
+## Error Handling
+
+If the language model fails to produce a response matching the expected pattern, a `RuntimeError` is raised with details.
+
+## Contributing
+
+Found a bug or have a feature request? Please open an issue on [GitHub](https://github.com/chigwell/techsummly/issues).
+
+## Author
+
+**Eugene Evstafev**  
+Email: hi@euegne.plus  
+GitHub: [chigwell](https://github.com/chigwell)
