@@ -1,0 +1,184 @@
+# Copyright 2025 Infleqtion
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from __future__ import annotations
+
+import random
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
+
+import cirq
+import numpy as np
+import scipy
+
+import supermarq
+from supermarq.benchmark import Benchmark
+
+if TYPE_CHECKING:
+    import numpy.typing as npt
+
+
+class QAOAVanillaProxy(Benchmark):
+    """Proxy of a full Quantum Approximate Optimization Algorithm (QAOA) benchmark.
+
+    This benchmark targets MaxCut on a Sherrington-Kirkpatrick (SK) model.
+    Device performance is given by the Hellinger fidelity between the experimental
+    output distribution and the true distribution obtained via scalable, classical
+    simulation.
+
+    The ansatz for this QAOA problem follows the typical structure obtained when directly
+    translating the objective Hamiltonian to the quantum circuit. Since the SK model is
+    completely connected there are O(N^2) interactions that need to take place. These
+    are implementation by pairs of CNOTs and Rz rotations between the participating qubits.
+    This ansatz is well-suited to QPU architectures which support all-to-all connectivity.
+
+    When a new instance of this benchmark is created, the ansatz parameters will
+    be initialized by:
+
+    #. Generating a random instance of an SK graph
+
+    #. Finding approximately optimal angles (rather than random values)
+    """
+
+    def __init__(self, num_qubits: int) -> None:
+        """Generate a new benchmark instance.
+
+        Args:
+            num_qubits: The number of nodes (qubits) within the SK graph.
+        """
+        self.num_qubits = num_qubits
+        self.hamiltonian = self._gen_sk_hamiltonian()
+        self.params = self._gen_angles()
+
+    def _gen_sk_hamiltonian(self) -> list[tuple[int, int, float]]:
+        """Randomly pick +1 or -1 for each edge weight."""
+        hamiltonian = []
+        rng = np.random.default_rng(random.getrandbits(128))
+        for i in range(self.num_qubits):
+            for j in range(i + 1, self.num_qubits):
+                hamiltonian.append((i, j, rng.choice([-1, 1])))
+
+        rng.shuffle(hamiltonian)
+
+        return hamiltonian
+
+    def _gen_ansatz(self, gamma: float, beta: float) -> cirq.Circuit:
+        qubits = cirq.LineQubit.range(self.num_qubits)
+        circuit = cirq.Circuit()
+
+        # initialize |++++>
+        for q in qubits:
+            circuit.append(cirq.H(q))
+
+        # Apply the phase separator unitary
+        for term in self.hamiltonian:
+            i, j, weight = term
+            phi = gamma * weight
+
+            # Perform a ZZ interaction
+            circuit.append(cirq.CNOT(qubits[i], qubits[j]))
+            circuit.append(cirq.rz(2 * phi)(qubits[j]))
+            circuit.append(cirq.CNOT(qubits[i], qubits[j]))
+
+        # Apply the mixing unitary
+        for q in qubits:
+            circuit.append(cirq.rx(2 * beta)(q))
+
+        # Measure all qubits
+        circuit.append(cirq.measure(*qubits))
+
+        return circuit
+
+    def _get_energy_for_bitstring(self, bitstring: str) -> float:
+        energy = 0.0
+        for i, j, weight in self.hamiltonian:
+            if bitstring[i] == bitstring[j]:
+                energy -= weight  # if edge is UNCUT, weight counts against objective
+            else:
+                energy += weight  # if edge is CUT, weight counts towards objective
+        return energy
+
+    def _get_expectation_value_from_probs(self, probabilities: Mapping[str, float]) -> float:
+        expectation_value = 0.0
+        for bitstring, probability in probabilities.items():
+            expectation_value += probability * self._get_energy_for_bitstring(bitstring)
+        return expectation_value
+
+    def _get_opt_angles(self) -> tuple[npt.NDArray[np.float64], float]:
+        def f(params: npt.NDArray[np.float64]) -> float:
+            """The objective function to minimize.
+
+            Args:
+                params: The parameters at which to evaluate the objective.
+
+            Returns:
+                Evaluation of objective given parameters.
+            """
+            gamma, beta = params
+            circ = self._gen_ansatz(gamma, beta)
+            probs = supermarq.simulation.get_ideal_counts(circ)
+            objective_value = self._get_expectation_value_from_probs(probs)
+
+            return -objective_value  # because we are minimizing instead of maximizing
+
+        rng = np.random.default_rng(random.getrandbits(128))
+        init_params = [rng.uniform() * 2 * np.pi, rng.uniform() * 2 * np.pi]
+        out = scipy.optimize.minimize(f, init_params, method="COBYLA")
+        return out["x"], out["fun"]
+
+    def _gen_angles(self) -> npt.NDArray[np.float64]:
+        # Classically simulate the variational optimization 5 times,
+        # return the parameters from the best performing simulation
+        best_params: npt.NDArray[np.float64]
+        best_params, best_cost = np.zeros(2, dtype=np.float64), 0.0
+        for _ in range(5):
+            params, cost = self._get_opt_angles()
+            if cost < best_cost:
+                best_params = params
+                best_cost = cost
+        return best_params
+
+    def circuit(self) -> cirq.Circuit:
+        """Generate a QAOA circuit for the Sherrington-Kirkpatrick model.
+
+        The ansatz structure is given by the form of the Hamiltonian and requires interactions
+        between every pair of qubits. We restrict the depth of this proxy benchmark to p=1 to keep
+        the classical simulation scalable.
+
+        Returns:
+            The S-K model QAOA `cirq.Circuit`.
+        """
+        gamma, beta = self.params
+        return self._gen_ansatz(gamma, beta)
+
+    def score(self, counts: Mapping[str, float]) -> float:
+        """Compare the experimental output to the output of noiseless simulation.
+
+        The implementation here has exponential runtime and would not scale. However, it could in
+        principle be done efficiently via https://arxiv.org/abs/1706.02998, so we're good.
+
+        Args:
+            counts: A dictionary containing the measurement counts from circuit execution.
+
+        Returns:
+            The QAOA proxy benchmark score.
+        """
+        ideal_counts = supermarq.simulation.get_ideal_counts(self.circuit())
+        total_shots = sum(counts.values())
+        experimental_counts = {k: v / total_shots for k, v in counts.items()}
+
+        ideal_value = self._get_expectation_value_from_probs(ideal_counts)
+        experimental_value = self._get_expectation_value_from_probs(experimental_counts)
+
+        return 1 - abs(ideal_value - experimental_value) / (2 * ideal_value)
