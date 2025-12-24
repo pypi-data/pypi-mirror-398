@@ -1,0 +1,85 @@
+# Finwell Analyzer
+[![PyPI version](https://badge.fury.io/py/finwell-analyzer.svg)](https://badge.fury.io/py/finwell-analyzer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/finwell-analyzer)](https://pepy.tech/project/finwell-analyzer)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A package designed to analyze user-submitted texts related to financial well-being by employing language models and pattern matching.
+
+## Overview
+
+The package processes the input to identify key sentiments, themes, and insights about young adults' perceptions of affordability and financial status. It returns structured data such as summarized opinions, emotional tone, or categorized reasons behind perceptions, helping organizations understand public sentiment on economic issues without handling raw documents or multimedia.
+
+## Installation
+
+```bash
+pip install finwell_analyzer
+```
+
+## Usage
+
+```python
+from finwell_analyzer import finwell_analyzer
+
+user_input = "I'm struggling to balance my expenses and savings."
+response = finwell_analyzer(user_input)
+print(response)  # Output: A dictionary with summarized opinions, emotional tone, and categorized reasons behind perceptions.
+```
+
+## Parameters
+
+- `user_input`: str - The user input text to process.
+- `llm`: Optional[BaseChatModel] - The LangChain LLM instance to use. If not provided, the default `ChatLLM7` will be used.
+- `api_key`: Optional[str] - The API key for LLM7. If not provided, the default rate limits for LLM7 free tier will be used.
+
+## Using Custom LLMs
+
+You can safely pass your own LLM instance (based on [LangChain LLMs](https://docs.langchain.com/docs/components/model_io/models/) if you want to use another LLM, via passing it like `finwell_analyzer(..., llm=their_llm_instance)`.
+
+### Example with OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from finwell_analyzer import finwell_analyzer
+
+llm = ChatOpenAI()
+response = finwell_analyzer("I'm struggling to balance my expenses and savings.", llm=llm)
+```
+
+### Example with Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from finwell_analyzer import finwell_analyzer
+
+llm = ChatAnthropic()
+response = finwell_analyzer("I'm struggling to balance my expenses and savings.", llm=llm)
+```
+
+### Example with Google Generative AI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from finwell_analyzer import finwell_analyzer
+
+llm = ChatGoogleGenerativeAI()
+response = finwell_analyzer("I'm struggling to balance my expenses and savings.", llm=llm)
+```
+
+## API Key
+
+The default rate limits for LLM7 free tier are sufficient for most use cases of this package. If you need higher rate limits for LLM7, you can pass your own API key via environment variable `LLM7_API_KEY` or via passing it directly like `finwell_analyzer(..., api_key="their_api_key")`. You can get a free API key by registering at [LLM7 Token](https://token.llm7.io/).
+
+## Issues
+
+Have any questions or issues? Please feel free to open a GitHub issue at [GitHub Issues](https://github.com/chigwell/finwell_analyzer/issues).
+
+## Author
+
+Eugene Evstafev
+hi@eugene.plus
+
+## Acknowledgments
+
+This package uses the [LangChain LLMs](https://docs.langchain.com/docs/components/model_io/models/) module, specifically the `ChatLLM7` class from `langchain_llm7`.
