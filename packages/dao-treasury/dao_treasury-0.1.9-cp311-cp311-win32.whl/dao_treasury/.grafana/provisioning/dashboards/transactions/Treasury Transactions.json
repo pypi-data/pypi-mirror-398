@@ -1,0 +1,370 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 9,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "PostgreSQL",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "decimals": 8,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hash"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View on Etherscan",
+                    "url": "https://etherscan.io/tx/${__value.raw}﻿"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Block"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View on Etherscan",
+                    "url": "https://etherscan.io/block/${__value.raw}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "To"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View on Etherscan",
+                    "url": "https://etherscan.io/address/${__value.raw}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "From"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View on Etherscan",
+                    "url": "https://etherscan.io/address/${__value.raw}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "From Nickname"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View on Etherscan",
+                    "url": "https://etherscan.io/address/${__data.fields.From}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "To Nickname"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "View on Etherscan",
+                    "url": "https://etherscan.io/address/${__data.fields.To}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Block"
+            },
+            "properties": [
+              {
+                "id": "decimals"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Log Index"
+            },
+            "properties": [
+              {
+                "id": "decimals"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 18,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": ["sum"],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Timestamp"
+          }
+        ]
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "format": "table",
+          "rawSql": "select timestamp as \"Timestamp\", block as \"Block\", hash as \"Hash\", token as \"Token\", \"from\" as \"From\", from_nickname as \"From Nickname\", \"to\" as \"To\", to_nickname as \"To Nickname\", amount as \"Amount\", price as \"Price\", value_usd as \"Value USD\", txgroup as \"TxGroup\", a.parent_txgroup as \"Parent TxGroup\", log_index as \"Log Index\" from ( SELECT to_timestamp(a.timestamp) AS timestamp, a.block, a.hash, c.symbol AS token, d.address AS \"from\", d.nickname as from_nickname, e.address AS \"to\", e.nickname AS to_nickname, a.amount, a.price, a.value_usd, f.name AS txgroup, g.name AS parent_txgroup, f.txgroup_id, a.log_index FROM treasury_txs a LEFT JOIN chains b ON a.chain = b.chain_dbid LEFT JOIN tokens c ON a.token_id = c.token_id LEFT JOIN addresses d ON a.\"from\" = d.address_id LEFT JOIN addresses e ON a.\"to\" = e.address_id LEFT JOIN txgroups f ON a.txgroup_id = f.txgroup_id LEFT JOIN txgroups g ON f.parent_txgroup = g.txgroup_id WHERE a.timestamp >= $__from / 1000 and a.timestamp < $__to / 1000 and b.chain_name IN (${Chain:sqlstring}) and c.symbol IN (${Token:sqlstring}) and d.address IN (${From:sqlstring}) and e.address IN (${To:sqlstring}) and d.nickname IN (${FromNickname:sqlstring}) and e.nickname IN (${ToNickname:sqlstring}) ) a left join txgroup_hierarchy b on a.txgroup_id = b.txgroup_id WHERE b.top_category IN (${Top:sqlstring}) ORDER BY timestamp",
+          "refId": "A",
+          "timeColumns": ["time", "ts"]
+        }
+      ],
+      "title": "Transactions",
+      "type": "table",
+      "description": "Displays all of the DAO's treasury transactions with full details, including timestamp, block, hash, token, sender/recipient address and nickname, amount, price, value in USD, and transaction group.\n\nIncludes direct links to Etherscan for transaction, block, and address fields."
+    }
+  ],
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 41,
+  "tags": ["transactions", "detailed"],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "PostgreSQL",
+        "definition": "SELECT DISTINCT gh.top_category FROM treasury_txs a INNER JOIN txgroup_hierarchy gh ON a.txgroup_id = gh.txgroup_id WHERE a.timestamp >= $__from/1000 AND a.timestamp <= $__to/1000;",
+        "includeAll": true,
+        "label": "Top Level",
+        "multi": true,
+        "name": "Top",
+        "options": [],
+        "query": "SELECT DISTINCT gh.top_category FROM treasury_txs a INNER JOIN txgroup_hierarchy gh ON a.txgroup_id = gh.txgroup_id WHERE a.timestamp >= $__from/1000 AND a.timestamp <= $__to/1000;",
+        "refresh": 2,
+        "regex": "",
+        "sort": 5,
+        "type": "query",
+        "description": "Filter transactions by top-level category (e.g., Revenue, Cost of Revenue, Expenses, Other Income, Other Expenses, Unsorted Income, Unsorted Expense).\n\nSelecting 'All' includes all categories."
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "PostgreSQL",
+        "definition": "select distinct chain_name from treasury_txs a left join chains b on a.chain = b.chain_dbid WHERE a.timestamp >= $__from/1000 AND a.timestamp <= $__to/1000",
+        "description": "Filter transactions by blockchain network.\n\nSelecting 'All' includes all supported chains.",
+        "includeAll": true,
+        "label": "Chain",
+        "multi": true,
+        "name": "Chain",
+        "options": [],
+        "query": "select distinct chain_name from treasury_txs a left join chains b on a.chain = b.chain_dbid WHERE a.timestamp >= $__from/1000 AND a.timestamp <= $__to/1000",
+        "refresh": 2,
+        "regex": "",
+        "sort": 5,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "PostgreSQL",
+        "definition": "select distinct symbol from treasury_txs a left join tokens b on a.token_id = b.token_id WHERE a.timestamp >= $__from/1000 AND a.timestamp <= $__to/1000",
+        "description": "Filter transactions by token symbol.\n\nSelecting 'All' includes all tokens.",
+        "includeAll": true,
+        "label": "Token",
+        "multi": true,
+        "name": "Token",
+        "options": [],
+        "query": "select distinct symbol from treasury_txs a left join tokens b on a.token_id = b.token_id WHERE a.timestamp >= $__from/1000 AND a.timestamp <= $__to/1000",
+        "refresh": 2,
+        "regex": "",
+        "sort": 5,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "PostgreSQL",
+        "definition": "select distinct address from treasury_txs a left join addresses b on a.\"from\" = b.address_id WHERE a.timestamp >= $__from/1000 AND a.timestamp <= $__to/1000",
+        "description": "Filter transactions by sender address.\n\nSelecting 'All' includes all sender addresses.",
+        "includeAll": true,
+        "label": "From Address",
+        "multi": true,
+        "name": "From",
+        "options": [],
+        "query": "select distinct address from treasury_txs a left join addresses b on a.\"from\" = b.address_id WHERE a.timestamp >= $__from/1000 AND a.timestamp <= $__to/1000",
+        "refresh": 2,
+        "regex": "",
+        "sort": 5,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "PostgreSQL",
+        "definition": "select distinct nickname from treasury_txs a inner join addresses b on a.\"from\" = b.address_id WHERE a.timestamp >= $__from/1000 AND a.timestamp <= $__to/1000",
+        "description": "Filter transactions by sender nickname.\n\nSelecting 'All' includes all senders.",
+        "includeAll": true,
+        "label": "From Nickname",
+        "multi": true,
+        "name": "FromNickname",
+        "options": [],
+        "query": "select distinct nickname from treasury_txs a inner join addresses b on a.\"from\" = b.address_id WHERE a.timestamp >= $__from/1000 AND a.timestamp <= $__to/1000",
+        "refresh": 2,
+        "regex": "",
+        "sort": 5,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "PostgreSQL",
+        "definition": "select distinct address from treasury_txs a left join addresses b on a.\"to\" = b.address_id WHERE a.timestamp >= $__from/1000 AND a.timestamp <= $__to/1000",
+        "description": "Filter transactions by recipient address.\n\nSelecting 'All' includes all recipient addresses.",
+        "includeAll": true,
+        "label": "To Address",
+        "multi": true,
+        "name": "To",
+        "options": [],
+        "query": "select distinct address from treasury_txs a left join addresses b on a.\"to\" = b.address_id WHERE a.timestamp >= $__from/1000 AND a.timestamp <= $__to/1000",
+        "refresh": 2,
+        "regex": "",
+        "sort": 5,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "PostgreSQL",
+        "definition": "select distinct nickname from treasury_txs a inner join addresses b on a.\"to\" = b.address_id WHERE a.timestamp >= $__from/1000 AND a.timestamp <= $__to/1000",
+        "description": "Filter transactions by recipient nickname.\n\nSelecting 'All' includes all recipients.",
+        "includeAll": true,
+        "label": "To Nickname",
+        "multi": true,
+        "name": "ToNickname",
+        "options": [],
+        "query": "select distinct nickname from treasury_txs a inner join addresses b on a.\"to\" = b.address_id WHERE a.timestamp >= $__from/1000 AND a.timestamp <= $__to/1000",
+        "refresh": 2,
+        "regex": "",
+        "sort": 5,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Treasury Transactions",
+  "description": "Provides a real-time, filterable table of all transactions in the DAO treasury database, including timestamp, block, hash, token, addresses, nicknames, amount, price, and value in USD. Enables detailed analysis and monitoring of all value transfers.",
+  "uid": "b21f1092-66a4-4fb0-90ef-ed77d2becaa4",
+  "version": 9
+}
