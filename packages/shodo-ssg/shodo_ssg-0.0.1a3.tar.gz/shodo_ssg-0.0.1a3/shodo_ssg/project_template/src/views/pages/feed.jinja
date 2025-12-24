@@ -1,0 +1,34 @@
+@frontmatter
+{
+    "file_type": "xml"
+}
+@endfrontmatter
+
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+    <channel>
+        <title>shodo.dev (blog)</title>
+        <description>Shodo blog feed</description>
+        <link>{{ config.url_origin }}/blog/</link>
+        <lastBuildDate>{{ get_rfc822(current_dt()) }}</lastBuildDate>
+        <atom:link href="{{ config.url_origin }}/blog/feed.xml" rel="self" type="application/rss+xml" />
+        <language>en-US</language>
+        {% for post in shodo_get_articles({
+            "where": {
+            "directory": { "starts_with": "/blog" }
+            },
+            "order_by": { "desc": "published_datetime" },
+            "limit": 3
+        }) %}
+        <item>
+            <title>{{ post.title }}</title>
+            <description>{{ shodo_get_excerpt(post.content, 30) }}</description>
+            <link>{{ post.link }}</link>
+            <guid isPermaLink="true">{{ post.link }}</guid>
+            <pubDate>{{ get_rfc822(post.published_datetime) }}</pubDate>
+            <content:encoded>
+                <![CDATA[{{ rel_to_abs(post.content) }}]]>
+            </content:encoded>
+        </item>
+        {% endfor %}
+    </channel>
+</rss>
