@@ -1,0 +1,50 @@
+{#- Template for Nim variables (var/let).
+
+Context:
+  entry (NimEntry): The entry to render.
+  root (bool): Whether this is the root object.
+  heading_level (int): The HTML heading level to use.
+  config (dict): The configuration options.
+-#}
+
+<div class="doc doc-object doc-{{ entry.kind }}">
+  {% set html_id = entry.name %}
+
+  {% filter heading(heading_level, id=html_id, class="doc doc-heading", toc_label=entry.name) %}
+    <code class="doc-symbol doc-symbol-heading doc-symbol-{{ entry.kind }}"></code>
+    <span class="doc doc-object-name doc-{{ entry.kind }}-name">{{ entry.name }}</span>
+  {% endfilter %}
+
+  {% if config.show_signature %}
+    <div class="doc-signature highlight">
+      <pre><code class="language-nim highlight">{{ entry.signature | highlight_nim }}</code></pre>
+    </div>
+  {% endif %}
+
+  <div class="doc doc-contents">
+    {% if entry.doc %}
+      <div class="doc-description">
+        {{ entry.doc | convert_markdown(heading_level, html_id) }}
+      </div>
+    {% endif %}
+
+    {% if entry.returns %}
+      <div class="doc-section doc-section-type">
+        <p><strong>Type:</strong> <code>{{ entry.returns }}</code></p>
+      </div>
+    {% endif %}
+
+    {% if config.show_source and entry.line %}
+      <div class="doc-source">
+        <span class="doc-source-label">Source:</span>
+        {% if config.source_url %}
+          <a href="{{ config.source_url }}/blob/{{ config.source_ref }}/{{ module.file }}#L{{ entry.line }}" target="_blank" rel="noopener">
+            {{ module.file }}:{{ entry.line }}
+          </a>
+        {% else %}
+          <code>{{ module.file }}:{{ entry.line }}</code>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</div>
