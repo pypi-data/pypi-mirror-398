@@ -1,0 +1,29 @@
+#![feature(iterator_try_reduce)]
+#![feature(if_let_guard)]
+#![allow(deprecated)] // Remove once arrow2->arrow migration is complete
+
+pub mod array;
+pub mod count_mode;
+pub mod datatypes;
+pub mod file;
+pub mod join;
+pub mod kernels;
+pub mod lit;
+#[cfg(feature = "python")]
+pub mod python;
+pub mod series;
+pub mod utils;
+#[cfg(feature = "python")]
+use pyo3::prelude::*;
+
+pub mod prelude;
+
+#[cfg(feature = "python")]
+pub fn register_modules(parent: &Bound<PyModule>) -> PyResult<()> {
+    parent.add_class::<count_mode::CountMode>()?;
+    parent.add_class::<join::JoinType>()?;
+    parent.add_class::<join::JoinStrategy>()?;
+    parent.add_class::<join::JoinSide>()?;
+
+    Ok(())
+}
