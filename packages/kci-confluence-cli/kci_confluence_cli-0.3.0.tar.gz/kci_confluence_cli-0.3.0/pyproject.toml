@@ -1,0 +1,142 @@
+[tool.poetry]
+name = "kci-confluence-cli"
+version = "0.3.0"  # `poetry-dynamic-versioning`を使ってGitHubのバージョンタグを取得している。変更不要
+description = "来栖川電算が利用しているConfluence v6.15.7を操作するためのCLIです。"
+authors = ["Kurusugawa Computer Inc."]
+license = "MIT"
+packages = [
+    { include = "confluence" }
+]
+readme="README.md"
+repository="https://github.com/kurusugawa-computer/confluence-cli"
+classifiers = [
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "Environment :: Console",
+        "Topic :: Utilities",
+        "Operating System :: OS Independent",
+]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+requests = "*"
+backoff = "*"
+pyquery = "^2"
+requests-toolbelt = "^1"
+more_itertools = "*"
+pyyaml = "*"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7"
+pytest-xdist = "*"
+pytest-cov = "*"
+
+
+[tool.poetry.group.linter.dependencies]
+ruff = "^0.4"
+mypy = "^1"
+pylint = "^3"
+
+types-pytz = "*"
+types-requests = "*"
+types-python-dateutil = "*"
+types-PyYAML = "*"
+
+[tool.poetry.group.documentation.dependencies]
+sphinx = "^7"
+pydata-sphinx-theme = ">=0.13"
+sphinx-argparse = "*"
+
+
+[tool.poetry.group.dev]
+# 開発するときのみ必要なライブラリ。インストールしなくても開発はできるので、オプショナルにする
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+ipython = "*"
+
+
+[tool.poetry.scripts]
+confluence = "confluence.__main__:main"
+
+[tool.mypy]
+# スタブが無いパッケージのエラーは無視させる.サードパーティのライブラリに型情報がないケースもあるため
+ignore_missing_imports = true
+# 型ヒントが付いていない関数もチェックする
+check_untyped_defs = true
+
+
+[tool.ruff]
+target-version = "py39"
+line-length = 150
+
+[tool.ruff.lint]
+ignore = [
+    "G004", # `logging-f-string` : loggingでf-stringを使いたいので無視する
+    "RUF001", # 全角記号など`ambiguous unicode character`も使いたいため
+    "RUF002",# 全角記号など`ambiguous unicode character`も使いたいため
+    "RUF003",# 全角記号など`ambiguous unicode character`も使いたいため
+    "PLR2004", # magic-value-comparison: listのサイズで判定するときがよくあるため
+    "ANN101", # missing-type-self: 引数selfには型ヒントは付けていないため
+    "ANN102", # missing-type-cls: 引数clsには型ヒントは付けていないため
+    "ANN002", # missing-type-args
+    "ANN003", # missing-type-kwargs
+    "ERA", # : 役立つこともあるが、コメントアウトしていないコードも警告されるので無視する
+    "UP007", # non-pep604-annotation :
+
+    # 以下のルールはコードに合っていないので無効化した
+    "RSE", # flake8-raise
+    "D", # pydocstyle, Docstringを中途半端にしか書いていないので、除外する
+    "C90", # mccabe
+    "T20", # flake8-print
+    "SLF", #  flake8-self
+    "BLE", # flake8-blind-except
+    "FBT", # flake8-boolean-trap
+    "TRY", # tryceratops
+    "COM", # flake8-commas
+    "S", # flake8-bandit
+    "EM",#flake8-errmsg
+    "EXE", # flake8-executable
+    "ICN", # flake8-import-conventions
+    "RET",#flake8-return
+    "SIM",#flake8-simplify
+    "TCH", # flake8-type-checking
+    "PTH", #pathlibを使わないコードが多いので、除外する
+    "ISC", #flake8-implicit-str-concat
+    "N", # pep8-naming
+    "PT", # flake8-pytest-style
+]
+
+
+select = [
+    "ALL"
+]
+
+[tool.ruff.lint.per-file-ignores]
+# テストコードはチェックを緩和する
+"tests/**.py" = [
+    "PGH",  # pygrep-hooks
+    "DTZ",  # flake8-datetimez
+    "ANN",  # flake8-annotations
+    "E501",  # line-too-long
+    "RUF100"  # unused-noqa
+]
+
+
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.pylint]
+max-args = 10
+
+
+[tool.poetry-dynamic-versioning]
+enable = false
+format = "{base}"
+
+[build-system]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning"]
+build-backend = "poetry_dynamic_versioning.backend"
+
+
