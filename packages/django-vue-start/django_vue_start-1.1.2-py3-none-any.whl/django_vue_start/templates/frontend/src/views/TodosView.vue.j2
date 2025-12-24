@@ -1,0 +1,332 @@
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useAuthStore } from '../stores/auth'
+import api from '../api/axios'
+
+const authStore = useAuthStore()
+
+const todos = ref([])
+const loading = ref(false)
+const error = ref('')
+
+// Form state
+const showForm = ref(false)
+const editingId = ref(null)
+const formTitle = ref('')
+const formDescription = ref('')
+
+const fetchTodos = async () => {
+    loading.value = true
+    try {
+        const response = await api.get('/todos/')
+        todos.value = response.data
+    } catch (err) {
+        error.value = 'Failed to load todos'
+    } finally {
+        loading.value = false
+    }
+}
+
+const openCreateForm = () => {
+    editingId.value = null
+    formTitle.value = ''
+    formDescription.value = ''
+    showForm.value = true
+}
+
+const openEditForm = (todo) => {
+    editingId.value = todo.id
+    formTitle.value = todo.title
+    formDescription.value = todo.description || ''
+    showForm.value = true
+}
+
+const closeForm = () => {
+    showForm.value = false
+    editingId.value = null
+    formTitle.value = ''
+    formDescription.value = ''
+}
+
+const saveTodo = async () => {
+    try {
+        const data = {
+            title: formTitle.value,
+            description: formDescription.value
+        }
+        
+        if (editingId.value) {
+            await api.patch('/todos/' + editingId.value + '/', data)
+        } else {
+            await api.post('/todos/', data)
+        }
+        
+        closeForm()
+        await fetchTodos()
+    } catch (err) {
+        error.value = 'Failed to save todo'
+    }
+}
+
+const toggleComplete = async (todo) => {
+    try {
+        await api.patch('/todos/' + todo.id + '/', {
+            is_completed: !todo.is_completed
+        })
+        await fetchTodos()
+    } catch (err) {
+        error.value = 'Failed to update todo'
+    }
+}
+
+const deleteTodo = async (id) => {
+    if (!confirm('Delete this todo?')) return
+    try {
+        await api.delete('/todos/' + id + '/')
+        await fetchTodos()
+    } catch (err) {
+        error.value = 'Failed to delete todo'
+    }
+}
+
+onMounted(() => {
+    fetchTodos()
+})
+</script>
+
+<template>
+  <div class="todos-page">
+    <div class="todos-header">
+      <h1>My Todos</h1>
+      <button @click="openCreateForm" class="btn btn-primary">+ Add Todo</button>
+    </div>
+    
+    <p v-if="error" class="error">{{ error }}</p>
+    <p v-if="loading" class="loading">Loading...</p>
+    
+    <!-- Todo Form Modal -->
+    <div v-if="showForm" class="modal-overlay" @click.self="closeForm">
+      <div class="modal">
+        <h2>{{ editingId ? 'Edit Todo' : 'New Todo' }}</h2>
+        <form @submit.prevent="saveTodo">
+          <div class="form-group">
+            <label>Title</label>
+            <input v-model="formTitle" placeholder="What needs to be done?" required />
+          </div>
+          <div class="form-group">
+            <label>Description (optional)</label>
+            <textarea v-model="formDescription" placeholder="Add more details..." rows="3"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" @click="closeForm" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary">{{ editingId ? 'Update' : 'Create' }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <!-- Todo List -->
+    <div class="todos-list">
+      <div v-if="todos.length === 0 && !loading" class="empty-state">
+        <p>No todos yet. Create your first one!</p>
+      </div>
+      
+      <div v-for="todo in todos" :key="todo.id" class="todo-item" :class="{ completed: todo.is_completed }">
+        <div class="todo-checkbox">
+          <input type="checkbox" :checked="todo.is_completed" @change="toggleComplete(todo)" />
+        </div>
+        <div class="todo-content">
+          <h3>{{ todo.title }}</h3>
+          <p v-if="todo.description">{{ todo.description }}</p>
+        </div>
+        <div class="todo-actions">
+          <button @click="openEditForm(todo)" class="btn-icon" title="Edit">✏️</button>
+          <button @click="deleteTodo(todo.id)" class="btn-icon" title="Delete">🗑️</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.todos-page {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.todos-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.todos-header h1 {
+  color: #092E20;
+}
+
+.error {
+  background: #fee;
+  color: #c00;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.loading {
+  color: #666;
+  text-align: center;
+  padding: 2rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: #666;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.todos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+}
+
+.todo-item.completed .todo-content h3 {
+  text-decoration: line-through;
+  color: #999;
+}
+
+.todo-checkbox input {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.todo-content {
+  flex: 1;
+}
+
+.todo-content h3 {
+  color: #333;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.todo-content p {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.todo-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0.25rem;
+}
+
+.btn {
+  padding: 0.6rem 1.2rem;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-size: 0.9rem;
+}
+
+.btn-primary {
+  background: #092E20;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #0a3d2b;
+}
+
+.btn-secondary {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.btn-secondary:hover {
+  background: #e5e5e5;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 450px;
+  margin: 1rem;
+}
+
+.modal h2 {
+  color: #092E20;
+  margin-bottom: 1rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.form-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  resize: vertical;
+}
+
+.form-group textarea:focus {
+  outline: none;
+  border-color: #092E20;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}
+</style>

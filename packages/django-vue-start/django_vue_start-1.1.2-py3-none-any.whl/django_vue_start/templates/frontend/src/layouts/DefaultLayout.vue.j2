@@ -1,0 +1,129 @@
+<script setup>
+import { useAuthStore } from '../stores/auth'
+import { useRouter } from 'vue-router'
+
+const authStore = useAuthStore()
+const router = useRouter()
+
+const handleLogout = async () => {
+    await authStore.logout()
+    router.push('/login')
+}
+</script>
+
+<template>
+    <div class="layout">
+        <header class="header">
+            <div class="header-brand">
+                <router-link to="/">
+                    <h1>[[ project_name ]]</h1>
+                </router-link>
+            </div>
+            <nav class="header-nav">
+                <template v-if="authStore.isAuthenticated">
+                    <span class="user-info">{{ authStore.user?.username }}</span>
+                    <button @click="handleLogout" class="btn-logout">Logout</button>
+                </template>
+                <template v-else>
+                    <router-link to="/login" class="nav-link">Login</router-link>
+                    <router-link to="/register" class="nav-link btn-primary">Register</router-link>
+                </template>
+            </nav>
+        </header>
+        
+        <main class="main-content">
+            <slot />
+        </main>
+        
+        <footer class="footer">
+            <p>&copy; {{ new Date().getFullYear() }} [[ project_name ]]. All rights reserved.</p>
+        </footer>
+    </div>
+</template>
+
+<style scoped>
+.layout {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.header {
+    background: #1a1a2e;
+    color: white;
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-brand a {
+    color: white;
+    text-decoration: none;
+}
+
+.header-brand h1 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.header-nav {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.nav-link {
+    color: white;
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.nav-link:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-primary {
+    background: #007bff;
+}
+
+.btn-primary:hover {
+    background: #0056b3;
+}
+
+.user-info {
+    opacity: 0.8;
+}
+
+.btn-logout {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-logout:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.main-content {
+    flex: 1;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.footer {
+    background: #f8f9fa;
+    padding: 1rem 2rem;
+    text-align: center;
+    color: #6c757d;
+}
+</style>
