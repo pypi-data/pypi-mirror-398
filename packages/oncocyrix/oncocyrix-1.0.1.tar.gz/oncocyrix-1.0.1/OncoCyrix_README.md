@@ -1,0 +1,177 @@
+# OncoCyrix
+
+**OncoCyrix** is a modular, production-ready Scanpy pipeline for processing and analyzing a **single 10x Genomics single-cell RNA-seq sample**.
+
+The pipeline is optimized for **human cancer datasets**, but works for any standard 10x scRNA-seq run.
+
+---
+
+## Key Capabilities
+
+- 10x Genomics matrix ingestion (MTX + barcodes + features)
+- Gene ID normalization (Ensembl → HGNC symbols)
+- Quality control filtering
+  - Mitochondrial percentage
+  - UMI counts
+  - Genes per cell
+- Normalization and log1p transformation
+- Highly variable gene (HVG) selection
+- PCA, UMAP, and t-SNE embeddings
+- Leiden clustering
+- Cell type annotation using CellTypist
+- Cell-type-specific marker discovery
+- Pathway enrichment analysis
+  - GO (BP, MF, CC)
+  - KEGG
+  - Reactome
+  - WikiPathways
+
+**Final biological summary**
+
+Cell Types → DEGs → Marker Genes → Pathways
+
+---
+
+## Project Structure
+
+```
+singlecell_pipeline/
+├── config_cli.py          # CLI and global configuration
+├── loader_10x.py          # 10x data loading
+├── gene_names.py          # Gene ID normalization
+├── group_de.py            # Differential expression analysis
+├── markers.py             # Marker gene detection
+├── pathway_enrichment.py  # Enrichment analysis and deduplication
+├── summary_ct_deg.py      # Integrated summaries
+├── pipeline.py            # Scanpy orchestration
+└── main_single.py         # Pipeline entry point
+```
+
+---
+
+## Features in Detail
+
+### 1. 10x Data Loading
+- Automatically detects:
+  - `matrix.mtx` / `matrix.mtx.gz`
+  - `barcodes.tsv` / `barcodes.tsv.gz`
+  - `features.tsv` or `genes.tsv`
+- Efficient sparse matrix handling
+
+### 2. Gene Name Normalization
+- Detects Ensembl gene IDs
+- Maps to HGNC gene symbols using **mygene.info**
+- Ensures unique and consistent gene names
+
+### 3. Quality Control & Filtering
+- Computes:
+  - `pct_counts_mt`
+  - `n_genes_by_counts`
+  - `total_counts`
+- Filters:
+  - <200 or >6000 genes per cell
+  - >15% mitochondrial reads
+  - Genes expressed in fewer than 3 cells
+
+### 4. Normalization & HVG Selection
+- Library size normalization
+- Log1p transformation
+- HVG selection (Seurat v3 flavor)
+
+### 5. Dimensionality Reduction
+- PCA (50 components)
+- UMAP
+- t-SNE (enabled for datasets with fewer than 50k cells)
+
+### 6. Clustering
+- Leiden clustering (default resolution = 0.5)
+- Cluster-level visualizations
+
+### 7. Cell Type Annotation
+- Metadata-based annotation or
+- Machine-learning-based prediction using **CellTypist**
+- PCA / UMAP / t-SNE plots colored by cell type
+
+### 8. Marker Gene Detection
+- Global marker genes
+- Cell-type-specific markers
+- Rank plots, heatmaps, and dotplots
+
+### 9. Pathway Enrichment
+- Enrichment via **gseapy / Enrichr**
+- Supported databases:
+  - GO Biological Process
+  - GO Molecular Function
+  - GO Cellular Component
+  - KEGG
+  - Reactome
+  - WikiPathways
+- Semantic deduplication using MiniLM + FAISS
+
+### 10. Integrated Biological Summary
+Automatically links:
+- Cell types
+- DEGs
+- Marker genes
+- Enriched pathways
+
+---
+
+## Usage
+
+Run the pipeline on a single 10x dataset:
+
+```bash
+scpipeline   --single-10x-dir "/path/to/10x_folder"   --single-sample-label TumorA   --single-group-label LUNG_CANCER
+```
+
+All results are saved to:
+
+```
+<10x_folder>/SC_RESULTS/
+```
+
+---
+
+## Outputs Generated
+
+- Quality control plots
+- Highly variable gene tables
+- PCA / UMAP / t-SNE embeddings
+- Clustering results
+- Cell type annotations
+- Marker gene tables
+- Pathway enrichment results
+- Integrated summary tables
+
+---
+
+## Docker Usage
+
+Docker image available on Docker Hub:
+
+```bash
+docker pull sheryar09/scpipeline:latest
+```
+
+Run:
+
+```bash
+docker run --rm   -v /path/to/10x_folder:/data   sheryar09/scpipeline:latest   --single-10x-dir /data   --single-sample-label TumorA   --single-group-label LUNG_CANCER
+```
+
+---
+
+## Intended Use Cases
+
+- Cancer single-cell RNA-seq analysis
+- Tumor microenvironment profiling
+- Biomarker discovery
+- Translational and preclinical studies
+- ML-based cell type prediction
+
+---
+
+**Version:** 1.0  
+**Author:** Sheryar Malik  
+**Project Name:** OncoCyrix
