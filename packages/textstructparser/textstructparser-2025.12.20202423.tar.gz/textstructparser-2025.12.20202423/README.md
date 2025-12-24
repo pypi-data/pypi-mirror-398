@@ -1,0 +1,140 @@
+# **textstructparser** 🔍
+
+**Parse and structure information from unstructured text using advanced language models.**
+
+[![PyPI version](https://badge.fury.io/py/textstructparser.svg)](https://badge.fury.io/py/textstructparser)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://pepy.tech/badge/textstructparser)](https://pepy.tech/project/textstructparser)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue)](https://www.linkedin.com/in/chigwell/)
+
+---
+
+## **Overview**
+`textstructparser` is a Python package designed to extract structured data from unstructured text using **pattern matching** and **large language models (LLMs)**. It ensures consistent, machine-readable output for downstream applications like data processing, NLP pipelines, or automation workflows.
+
+By default, it uses **ChatLLM7** (via `langchain_llm7`), but developers can easily integrate their preferred LLM (e.g., OpenAI, Anthropic, Google) for flexibility.
+
+---
+
+## **Installation**
+```bash
+pip install textstructparser
+```
+
+---
+
+## **Features**
+✅ **Flexible LLM Integration** – Works with any `BaseChatModel` from LangChain.
+✅ **Pattern-Based Extraction** – Uses regex constraints for structured output.
+✅ **Default LLM7 Support** – Free-tier rate limits sufficient for most use cases.
+✅ **Customizable** – Override defaults with your own API keys or LLMs.
+
+---
+
+## **Usage Examples**
+
+### **Basic Usage (Default LLM7)**
+```python
+from textstructparser import textstructparser
+
+user_input = "Extract dates and names from this text: John Doe visited New York on 2023-10-15."
+response = textstructparser(user_input)
+print(response)  # Returns structured data matching the predefined pattern
+```
+
+### **Using a Custom LLM (OpenAI)**
+```python
+from langchain_openai import ChatOpenAI
+from textstructparser import textstructparser
+
+llm = ChatOpenAI(model="gpt-4")
+response = textstructparser(user_input, llm=llm)
+```
+
+### **Using a Custom LLM (Anthropic)**
+```python
+from langchain_anthropic import ChatAnthropic
+from textstructparser import textstructparser
+
+llm = ChatAnthropic(model="claude-2")
+response = textstructparser(user_input, llm=llm)
+```
+
+### **Using a Custom LLM (Google Vertex AI)**
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from textstructparser import textstructparser
+
+llm = ChatGoogleGenerativeAI(model="gemini-pro")
+response = textstructparser(user_input, llm=llm)
+```
+
+### **Passing a Custom API Key (LLM7)**
+```python
+from textstructparser import textstructparser
+
+# Option 1: Via environment variable
+import os
+os.environ["LLM7_API_KEY"] = "your_api_key_here"
+
+# Option 2: Directly in function call
+response = textstructparser(user_input, api_key="your_api_key_here")
+```
+
+---
+
+## **Parameters**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_input` | `str` | The unstructured text to parse. |
+| `api_key` | `Optional[str]` | LLM7 API key (defaults to `LLM7_API_KEY` env var). |
+| `llm` | `Optional[BaseChatModel]` | Custom LangChain LLM (defaults to `ChatLLM7`). |
+
+---
+
+## **How It Works**
+1. **Input Processing**: Takes raw text and applies a **predefined regex pattern** for structured extraction.
+2. **LLM Integration**: Uses `llmatch` (from `llmatch_messages`) to query the LLM with system/human prompts.
+3. **Output Validation**: Ensures extracted data matches the regex pattern before returning.
+
+---
+
+## **Default LLM (LLM7)**
+- **Provider**: [LLM7](https://token.llm7.io/)
+- **Free Tier**: Sufficient for most use cases (rate limits apply).
+- **Upgrade**: Pass a custom API key via `api_key` or `LLM7_API_KEY` env var.
+
+**Get a free API key**: [https://token.llm7.io/](https://token.llm7.io/)
+
+---
+
+## **Custom LLM Support**
+For **OpenAI**, **Anthropic**, **Google**, or other LangChain-compatible LLMs, simply pass your model instance:
+```python
+from langchain_openai import ChatOpenAI
+from textstructparser import textstructparser
+
+llm = ChatOpenAI(model="gpt-3.5-turbo")
+response = textstructparser(user_input, llm=llm)
+```
+
+---
+
+## **Contributing**
+Contributions are welcome! Please open an issue or submit a PR:
+🔗 [GitHub Issues](https://github.com/chigwell/textstructparser/issues)
+
+---
+
+## **License**
+MIT – See [LICENSE](https://github.com/chigwell/textstructparser/blob/main/LICENSE) for details.
+
+---
+
+## **Author**
+👤 **Eugene Evstafev**
+📧 [hi@euegne.plus](mailto:hi@euegne.plus)
+🔗 [LinkedIn](https://www.linkedin.com/in/chigwell/)
+🐙 [GitHub](https://github.com/chigwell)
+
+---
