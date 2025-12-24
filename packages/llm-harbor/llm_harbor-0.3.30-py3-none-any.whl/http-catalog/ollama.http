@@ -1,0 +1,379 @@
+@host = http://localhost:33821
+
+###
+
+curl {{host}}/api/ps
+
+###
+
+curl {{host}}/v1/models
+
+###
+
+curl {{host}}/api/generate -d '{
+  "model": "gpt2",
+  "prompt": "Today is a"
+}'
+
+###
+
+curl {{host}}/api/chat -d '{
+  "model": "llama3.1:8b",
+  "messages": [
+    { "role": "user", "content": "why is the sky blue?" }
+  ]
+}'
+
+###
+
+
+curl {{host}}/v1/chat/completions -H 'Content-Type: application/json' -H "Authorization: Bearer sk-fake" -d '{
+  "model": "llama3.1:8b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Bobby was born in Paris. How old is Bobby?"
+    }
+  ],
+  "max_tokens": 30,
+  "stream": true
+}'
+
+###
+
+# JSON Mode
+
+curl {{host}}/v1/chat/completions -H 'Content-Type: application/json' -H "Authorization: Bearer sk-fake" -d '{
+  "model": "codestral",
+  "response_format": {
+    "type": "json_object"
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a Linux Expert and bash guru. Your friend asks you for help."
+    },
+    {
+      "role": "user",
+      "content": "How to find all images?"
+    }
+  ],
+  "max_tokens": 200
+}'
+
+###
+
+# G1 https://github.com/bklieger-groq/g1/blob/main/app.py
+
+POST {{host}}/v1/chat/completions
+Content-Type: application/json
+Authorization: sk-fake
+
+{
+  "model": "llama3.1:8b-instruct-q8_0",
+  "format": "json",
+  "response_format": {
+    "type": "json_object"
+  },
+  "messages": [
+    {"role": "system", "content": "You are an expert AI assistant that explains your reasoning step by step. For each step, provide a title that describes what you're doing in that step, along with the content. Decide if you need another step or if you're ready to give the final answer. Respond in JSON format with 'title', 'content', and 'next_action' (either 'continue' or 'final_answer') keys. USE AS MANY REASONING STEPS AS POSSIBLE. AT LEAST 3. BE AWARE OF YOUR LIMITATIONS AS AN LLM AND WHAT YOU CAN AND CANNOT DO. IN YOUR REASONING, INCLUDE EXPLORATION OF ALTERNATIVE ANSWERS. CONSIDER YOU MAY BE WRONG, AND IF YOU ARE WRONG IN YOUR REASONING, WHERE IT WOULD BE. FULLY TEST ALL OTHER POSSIBILITIES. YOU CAN BE WRONG. WHEN YOU SAY YOU ARE RE-EXAMINING, ACTUALLY RE-EXAMINE, AND USE ANOTHER APPROACH TO DO SO. DO NOT JUST SAY YOU ARE RE-EXAMINING. USE AT LEAST 3 METHODS TO DERIVE THE ANSWER. USE BEST PRACTICES..\n\nExample of a valid JSON response:\n```json\n{\n    \"title\": \"Identifying Key Information\",\n    \"content\": \"To begin solving this problem, we need to carefully examine the given information and identify the crucial elements that will guide our solution process. This involves...\",\n    \"next_action\": \"continue\"\n}```\n" },
+    {"role": "user", "content": "Imagine a runaway trolley is hurtling down a track towards five dead people. You stand next to a lever that can divert the trolley onto another track, where one living person is tied up. Do you pull the lever?"},
+    {"role": "assistant", "content": "Thank you! I will now think step by step following my instructions, starting at the beginning after decomposing the problem."}
+  ],
+  "options": {
+    "temperature": 0.2
+  }
+}
+
+###
+
+POST {{host}}/api/chat
+Content-Type: application/json
+
+{"model":"llama3.1:8b-instruct-q6_K","messages":[{"role":"system","content":"You are an expert AI assistant that explains your reasoning step by step. For each step, provide a title that describes what you're doing in that step, along with the content. Decide if you need another step or if you're ready to give the final answer. Respond in JSON format with 'title', 'content', and 'next_action' (either 'continue' or 'final_answer') keys. USE AS MANY REASONING STEPS AS POSSIBLE. AT LEAST 3. BE AWARE OF YOUR LIMITATIONS AS AN LLM AND WHAT YOU CAN AND CANNOT DO. IN YOUR REASONING, INCLUDE EXPLORATION OF ALTERNATIVE ANSWERS. CONSIDER YOU MAY BE WRONG, AND IF YOU ARE WRONG IN YOUR REASONING, WHERE IT WOULD BE. FULLY TEST ALL OTHER POSSIBILITIES. YOU CAN BE WRONG. WHEN YOU SAY YOU ARE RE-EXAMINING, ACTUALLY RE-EXAMINE, AND USE ANOTHER APPROACH TO DO SO. DO NOT JUST SAY YOU ARE RE-EXAMINING. USE AT LEAST 3 METHODS TO DERIVE THE ANSWER. USE BEST PRACTICES.\n\nExample of a valid JSON response:\n```json\n{\n    \"title\": \"Identifying Key Information\",\n    \"content\": \"To begin solving this problem, we need to carefully examine the given information and identify the crucial elements that will guide our solution process. This involves...\",\n    \"next_action\": \"continue\"\n}```\n"},{"role":"user","content":"I have a 6- and a 12-liter jug. I want to measure exactly 6 liters."},{"role":"assistant","content":"Thank you! I will now think step by step following my instructions, starting at the beginning after decomposing the problem."}],"stream":false,"format":"json","options":{"temperature":"0.1"}}
+
+###
+
+POST {{host}}/v1/chat/completions
+Content-Type: application/json
+Authorization: sk-fake
+
+{
+  "model": "llama3.1:8b",
+  "messages": [
+    {"role": "system", "content": "You are the user, continue the conversation."},
+    { "role": "user", "content": "I want to book a flight." },
+    { "role": "assistant", "content": "Sure, I can help you with that. Can you please provide me with the following information: your departure city, departure date, return date, and number of passengers?" }
+  ],
+  "temperature": 0
+}
+
+###
+
+POST {{host}}/v1/completions
+
+{
+  "model": "llama3.1:8b",
+  "prompt": "Continue the conversation. User: I want to book a flight. Assistant: Sure, I can help you with that. Can you please provide me with the following information: your departure city, departure date, return date, and number of passengers? User:"
+}
+
+###
+
+POST {{host}}/v1/completions
+
+{
+  "model": "llama3.1:8b",
+  "prompt": "Continue the conversation. User: I have a 1 liter jug and another 1-liter jug. I want to measure exactly 1 liters. Assistant: Fill one jug completely, then pour it into the other. Repeat until one is empty (and the other has 1 liter). User: That's the basic principle of using the two jugs, but we can optimize it a bit. Since you want to measure exactly 1 liter, I was thinking... what if you poured from the first jug into the second until one of them is full? Then, pour back from the other (now-full) jug into the first, and repeat. Assistant:"
+}
+
+###
+
+POST {{host}}/v1/chat/completions
+Content-Type: application/json
+Authorization: sk-fake
+
+{
+  "model": "llama3.1:8b",
+  "messages": [
+    { "role": "user", "content": "I want you to give me an interesting task to complete." },
+    { "role": "assistant", "content": "Sure, how about this: I have a 1 liter jug and another 1-liter jug. I want to measure exactly 1 liters." },
+    { "role": "user", "content": "That is cool! here is my solution: Fill one jug completely, then pour it into the other. Repeat until one is empty (and the other has 1 liter). Am I correct?" }
+  ],
+  "temperature": 1.0
+}
+
+### FIM
+
+POST {{host}}/api/generate
+
+{
+  "model": "qwen2.5-coder:7b-base",
+  // "prompt": "Today is a ",
+  // "suffix": "day.",
+  // "template": "\{\{- if .Suffix \}\}<|fim_prefix|>\{\{ .Prompt \}\}<|fim_suffix|>\{\{ .Suffix \}\}<|fim_middle|>",
+  "prompt": "<|fim_prefix|>Today is a <|fim_suffix|> day.<|fim_middle|>",
+  "options": {
+    "max_tokens": 20,
+    "stop": ["<|endoftext|>"]
+  },
+  "raw": true,
+  "stream": false
+}
+
+###
+
+POST {{host}}/api/generate
+
+{
+  "model": "q7FIM",
+  "prompt": "Today is a ",
+  "suffix": "day.",
+  "stream": false,
+  "options": {
+    "temperature": 0
+  }
+}
+
+### Logprobs
+
+POST {{host}}/v1/chat/completions
+
+{
+  "model": "vanilj/supernova-medius:q6_k",
+  "messages": [{
+    "role": "user",
+    "content": "What is the capital of France?"
+  }],
+  "logprobs": true,
+  "top_logprobs": 5,
+  "stream": false
+}
+
+# JSON Schema
+POST {{host}}/v1/chat/completions
+
+{
+  "model": "llama3.1:8b",
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "CapitalsArray",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "asia_capitals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "temperature": 0,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Name three Asian capitals. Reply in JSON format."
+    }
+  ]
+}
+
+# Agent sample
+POST {{host}}/v1/chat/completions
+
+{
+  "model": "llama3.2-vision:11b-instruct-q8_0",
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ResponseSchema",
+      "schema": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "action": {
+            "title": "Action",
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "action"
+        ],
+        "title": "Action",
+        "type": "object"
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Name three Asian capitals. Reply in JSON format."
+    }
+  ]
+}
+
+###
+
+POST {{host}}/v1/chat/completions
+
+{
+  "model": "llama3.1:8b-instruct-q8_0",
+  "messages": [
+    {
+      "role": "system",
+      "content": "I should focus on entertaining the User and making them laugh."
+    },
+    {
+      "role": "user", "content": "What's your name?"
+    },
+    {
+      "role": "assistant", "content": "I don't have a personal name, but I'm an artificial intelligence designed to assist "
+    }
+  ]
+}
+
+### Tool Call
+
+POST {{host}}/v1/chat/completions
+
+{
+  "model": "llama3.1:8b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Tell me about av/harbor project"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+          "name": "web_search",
+          "description": "Perform a web search for the given query",
+          "parameters": {
+              "type": "object",
+              "properties": {
+                  "query": {
+                      "type": "string",
+                      "description": "The search query"
+                  }
+              },
+              "required": [
+                  "query"
+              ],
+              "additionalProperties": false
+          },
+          "strict": true
+      }
+    }
+  ],
+  "stream": true,
+  "stream_options": {
+    "include_usage": true
+  }
+}
+
+### The Candle Test
+
+POST {{host}}/v1/chat/completions
+
+{
+  "model": "hf.co/bartowski/Llama-3.1-SuperNova-Lite-GGUF:Q8_0",
+  "messages": [
+    // {
+    //   "role": "system",
+    //   "content": "Random nonce: {{ Math.floor(Math.random() * 1000000) }}"
+    // },
+    {
+      "role": "user",
+      "content": "Are candles getting taller or shorter when they burn?"
+    },
+    {
+      "role": "assistant",
+      "content": "When candles burn, they get **shorter** over time. This happens because the wax acts as fuel for the flame, and as the wax melts and vaporizes, the candle gradually decreases in height."
+    },
+    {
+      "role": "user",
+      "content": "Are you sure? Will you be able to recognize this fact in different circumstances?"
+    },
+    {
+      "role": "assistant",
+      "content": "Yes, I'm sure that candles get **shorter** as they burn. Here's why this holds true universally, regardless of how the question is phrased or the circumstances described:\n\n- **How candles work:** The heat from the candle's flame melts the solid wax near the wick, which then gets drawn up through the wick to fuel the flame. The burning process converts the wax into heat, light, water vapor, and carbon dioxide. As this happens, the candle's solid wax diminishes, causing it to grow shorter.\n\nSo in all scenarios where a candle is burning normally, the height of the candle will reduce over time, and it won't get taller. Even if the question is rephrased or asked indirectly, the underlying principle remains the same: burning a candle consumes its wax, making it shorter. Let me know if you'd like further clarification!"
+    },
+    {
+      "role": "user",
+      "content": "Now, consider what you said above and solve the following riddle: I'm tall when I'm young, and I'm taller when I'm old. What am I?"
+    }
+  ]
+}
+
+### Continuation
+
+POST {{host}}/v1/chat/completions
+
+{
+  // "model": "gemma3:4b-qat",
+  // "model": "llama3.1:8b",
+  "model": "llama3.2:3b-instruct-q8_0",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You will continue your previous messages exactly where you left off."
+    },
+    {
+      "role": "user",
+      "content": "Tell me about dinosaurs."
+    },
+    {
+      "role": "assistant",
+      "content": "Alright, let's con"
+    }
+  ],
+  "max_tokens": 20,
+  "temperature": 0.15
+}
