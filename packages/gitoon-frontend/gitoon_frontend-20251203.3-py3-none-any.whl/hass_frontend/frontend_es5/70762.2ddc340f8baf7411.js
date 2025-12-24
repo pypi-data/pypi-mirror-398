@@ -1,0 +1,2 @@
+"use strict";(self.webpackChunkgitoon_frontend=self.webpackChunkgitoon_frontend||[]).push([["70762"],{60977:function(e,n,t){t.r(n);var o=t(88354),c=document.createElement("style");c.textContent=o.Q,document.head.append(c)}}]);
+//# sourceMappingURL=70762.2ddc340f8baf7411.js.map
