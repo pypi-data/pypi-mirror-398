@@ -1,0 +1,86 @@
+{% extends 'layout.html' %}
+
+
+{% block javascript %}
+
+  <script>
+    const CREDIT_ACTIVITY_RECONCILIATION_ENDPOINT = "{{ url_for('credit.reconcile_activity', statement_id=statement.id) }}";
+    const EXPAND_TRANSACTION_ENDPOINT = "{{ url_for('credit.expand_transaction') }}";
+    const LINKED_TRANSACTION_ENDPOINT = "{{ url_for('credit.show_linked_transaction') }}";
+  </script>
+  <script type="module" src="{{ url_for('static', filename='js/show-credit-activity-loader.js') }}">
+  </script>
+  <script type="module" src="{{ url_for('static', filename='js/highlight-discrepant-transactions.js') }}">
+  </script>
+  <script type="module" src="{{ url_for('static', filename='js/expand-transaction.js') }}">
+  </script>
+  <script type="module" src="{{ url_for('static', filename='js/show-linked-transaction.js') }}">
+  </script>
+
+{% endblock %}
+
+
+{% block header %}
+
+  <h1>
+    {% block title %}
+      Statement Reconciliation
+    {% endblock %}
+  </h1>
+
+{% endblock %}
+
+
+{% block content %}
+  {% set highlighted_transactions = transactions|selectattr("highlight")|first %}
+
+  <div id="credit-statement-reconciliation-details" class="details">
+
+    <div id="credit-statement-reconciliation-info" class="primary-info">
+
+      <div id="statement-reconciliation-summary-container" class="summary-container">
+        {% include 'credit/statement_reconciliation/summary.html' %}
+      </div>
+
+      <div id="statement-transactions-container" class="transactions-container">
+        {% if highlighted_transactions %}
+          <p class="note">
+            <span class="highlight">Highlighted</span> transactions indicate that the transaction was not identified in the reported activity file.
+          </p>
+        {% endif %}
+
+        {% with full_view = False %}
+          {% include 'credit/transactions_table/table.html' %}
+        {% endwith %}
+      </div>
+
+    </div>
+
+  </div>
+
+{% endblock %}
+
+
+{% block right_sidebar %}
+
+    <div class="sidebar-menu">
+
+      <div class="button">
+        <a class="action" href="{{ url_for('credit.add_transaction', card_id=statement.card_id, statement_id=statement.id) }}">
+          <img class="icon" src="{{ url_for('static', filename='img/icons/plus.png') }}" />
+        </a>
+      </div>
+      <div class="button">
+        <a class="action" href="{{ url_for('credit.load_statement_details', statement_id=statement.id) }}">
+          <img class="icon" src="{{ url_for('static', filename='img/icons/statement.png') }}" />
+        </a>
+      </div>
+      <div class="button">
+        <div class="action">
+          <img id="reconciliation-button" class="icon" src="{{ url_for('static', filename='img/icons/statement-pair.png') }}" />
+        </div>
+      </div>
+
+    </div>
+
+{% endblock %}

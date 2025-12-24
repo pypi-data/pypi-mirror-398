@@ -1,0 +1,105 @@
+{% extends 'layout.html' %}
+{% set full_view = True %}
+
+
+{% block javascript %}
+
+  <script src="{{ url_for('static', filename='js/define-filter.js') }}" defer>
+  </script>
+  <script>
+    const FILTER_ENDPOINT = "{{ url_for('credit.update_transactions_display') }}";
+    const EXPAND_TRANSACTION_ENDPOINT = "{{ url_for('credit.expand_transaction') }}";
+    const LINKED_TRANSACTION_ENDPOINT = "{{ url_for('credit.show_linked_transaction') }}";
+    const LOAD_TRANSACTIONS_ENDPOINT = "{{ url_for('credit.load_more_transactions') }}";
+    const LOAD_TRANSACTIONS_SELECTORS = {
+      "selected_card_ids": {{ selected_card_ids }},
+      "sort_order": "{{ sort_order }}",
+      "block_count": 1,
+      "full_view": {{ full_view|tojson }}
+    }
+  </script>
+  <script type="module" src="{{ url_for('static', filename='js/update-transactions-display.js') }}">
+  </script>
+  <script type="module" src="{{ url_for('static', filename='js/load-more-transactions.js') }}">
+  </script>
+  <script type="module" src="{{ url_for('static', filename='js/expand-transaction.js') }}">
+  </script>
+  <script type="module" src="{{ url_for('static', filename='js/show-linked-transaction.js') }}">
+  </script>
+
+{% endblock %}
+
+
+{% block left_sidebar %}
+
+  <nav id="sidebar-nav-menu">
+    <ul>
+
+      <li>
+        <a class="button" href="#top">
+          <img class="icon" src="{{ url_for('static', filename='img/icons/arrow-up.png') }}" />
+        </a>
+      </li>
+
+      <li>
+        <a class="action button" href="{{ url_for('credit.add_transaction') }}">
+          <img class="icon" src="{{ url_for('static', filename='img/icons/plus.png') }}" />
+        </a>
+      </li>
+
+      <li>
+        <a class="action button" href="{{ url_for('credit.load_transactions') }}">
+          <img class="icon" src="{{ url_for('static', filename='img/icons/refresh.png') }}" />
+        </a>
+      </li>
+
+      <li>
+        <a class="button" href="#bottom">
+          <img class="icon" src="{{ url_for('static', filename='img/icons/arrow-down.png') }}" />
+        </a>
+      </li>
+
+    </ul>
+  </nav>
+
+{% endblock %}
+
+
+{% block header %}
+
+  <a name="top"></a>
+
+  <h1>
+    {% block title %}Credit Transactions{% endblock %}
+  </h1>
+
+{% endblock %}
+
+
+{% block content %}
+
+  <div id="card-filter">
+    {% for card in filter_cards %}
+
+    <a id="{{ card.account.bank.bank_name }}-{{ card.last_four_digits }}" class="card {{ 'active' if card.active else 'inactive' }}{{ ' selected' if card.id in selected_card_ids else '' }}" data-card-id="{{ card.id }}">
+        {{ card.account.bank.bank_name }} (-{{card.last_four_digits }})
+      </a>
+
+    {% endfor %}
+  </div>
+
+  <div class="transactions-container">
+    {% include 'credit/transactions_table/table.html' %}
+
+    {% if transactions|length < total_transactions %}
+      <div id="more-transactions" class="button">
+        <img class="icon" src="{{ url_for('static', filename='img/icons/plus-thick.png') }}">
+        <div>Load more transactions</div>
+      </div>
+    {% endif %}
+  </div>
+
+
+  <a name="bottom"></a>
+
+{% endblock %}

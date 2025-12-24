@@ -1,0 +1,35 @@
+<div id="bank-account-summaries">
+
+  {% for account_type, accounts in type_accounts|items %}
+    {# Use a scoped variable so that the accounts generator can be reused #}
+    {% with accounts = accounts|list %}
+
+      <div class="account-type-stack group-stack">
+
+        <h2 class="stack-title">
+          {{ account_type.type_name }}
+          {% if accounts|length > 1 %}
+            <span class="stack-title-info">${{ accounts|sum(attribute='balance')|currency }}</span>
+          {% endif %}
+        </h2>
+
+        <div class="account-blocks stack-buttons">
+          {% for account in accounts|sort(attribute='last_four_digits') %}
+
+            <a class="account-block button-block" href="{{ url_for('banking.load_account_details', account_id=account.id) }}">
+              <div class="title">
+                <span class="digits">{{ account.last_four_digits }}</span>
+                <b>{{ account.account_type_view.type_name }}</b>
+              </div>
+              <div class="balance">${{ account.balance|currency }}</div>
+            </a>
+
+          {% endfor %}
+        </div>
+
+      </div>
+
+    {% endwith %}
+  {% endfor %}
+
+</div>
