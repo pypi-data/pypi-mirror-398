@@ -1,0 +1,73 @@
+Metadata-Version: 2.4
+Name: NHL_predictor
+Version: 0.3.0
+Summary: Tool to use NHL API stats to predict future game outcomes.
+Project-URL: Homepage, https://github.com/MattRWallace/NHLPredictor/
+Project-URL: Issues, https://github.com/MattRWallace/NHLPredictor/issues
+Author-email: Matthew Wallace <matthew.r.wallace@live.com>
+License-Expression: GPL-3.0-or-later
+License-File: LICENSE
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.0
+Description-Content-Type: text/markdown
+
+# NHL Predictor
+This project started with a combination of me wanting a project that would give me the opportunity to practice and really internalize the python syntax that I was learning and my discovery that the NHL has a publicly available API where I could obtain stats. I decided that I wanted to try and use some of the ML knowledge I picked up in college to see if I could successfully predict the outcomes of NHL hockey games.
+
+## Install
+`pip install NHL-predictor`
+
+## Usage
+TODO
+
+## Design
+
+**Tech used**: Python, SQLite, SqliteDict, Pandas, SKLearn
+The app is CLI only and there are 3 main commands that structure the behavior of the app: Build, Train and Predict. While there is more detailed documentation later in this document, I will briefly summarize them here.
+
+### Components
+
+#### Build
+This fetches all the raw data from the NHL API and stores it locally in an SQLite database using the SqliteDict package for interfacing with the database itself. The only thing this command does is downloading and updating the data in the database.
+
+#### Train
+This is the step that actually builds a machine learning model.  There's two major components to be aware of: The ML algorithm implementation and what I'm calling the summarizer. Both of these components are consumed via dependency injection making the app adaptable. The summarizer is the product of a need to flatten all the player statistics into a smaller set of stats that pertain to a given game; it summarizes the individual stats for each player in a game into an overall roster score for that team in that game.  Similarly, when later trying to predict a future game outcome, we will want to summarize the past performance of each player listed on the game roster and use that when making our predictions. The summarizer is fully responsible for taking data persisted in the database and manipulating it into a data set appropriate for a ML algorithm to use.
+
+#### Predict
+This is the last step and hopefully the one you will be using the most.  The data has been downloaded and stored in a local database.  You have run the Train step and you now have a persisted file with your trained model saved on your disk.  You're now ready to see what predictions your model can produce. This command also lets you query and list games that are on the schedule for today which makes it a little bit easier to specify which games you want predicted.
+
+#### Database design
+
+## Implementation
+
+### Build
+Originally, I was fetching stats from the API and preprocessing the data during this step before storing all that data into CSV files.  This was a decent initial approach, but had a few limitations.
+
+1. Data is processed before being stored. Once I was determined to decouple the algorithm and summarizer implementations from the base app, this preprocessing became a limitation for other summarizers or ML algorithms that want the raw data processed in a different way.
+2. When I got to the implementation of the prediction logic, I discovered that the summary of stats that the NHL API provide at the end of each game and the set of stats it provides as a player's hisotrical record are different. The more granular game stats includes some influential stats (like number of hits) that are missing from the summary. I determined that I wanted to summarize a player's historical stats myself so that I could take advantage of the more granular stats which is when I first considered storing them in a local database.
+
+### Train
+TODO
+
+### Predict
+TODO
+
+### Adding support for other machine learning algorithms
+The application is designed so that additional ML algorithms can be added without too much effort.
+
+The following steps are required to add a new algorithm:
+1. Add the new algorithm to src/model/algorithms.py
+2. Add a new file in each of src/trainer and src/predictor for your implementations (e.g. see src/trainer/linear_regression.py).
+3. Add a case to the train method in src/trainer/trainer.py to invoke the training of your model.
+4. Add a case to the _predict method in src/predictor/predictor.py to invoke the prediction with your model.
+5. Implement your training and prediction logic.
+**TODO** I need to add an abstract class to more clearly document how these files need to be designed.
+
+### Adding new summarizers
+As mentioned earlier, summarizers provide the logic to clean up and prepare the data for consumption by an ML algorithm.  For now there is only one summarizer implemented which performs a naive summation of most of the statistics for a particular game to get the overall roster strength. Depending on the need, a summarizer might be tied to a specific ML algorithm (e.g. if the algorithm has unique data needs, a custom summarizer is the place to do that). 
+
+The following steps are required to add a new summarizer.
+1. Create the new summarizer file in src/model/summarizers. Inherit from the Summarizer abstract class.
+2. Add an entry to the SummarizerTypes enum in src/model/summarizer_manager.py and add a case to get_summarizer to create an instance of the new summarizer.  The string specified in the enum will be the name to use for the summarizer at the command line.
+3. Implement the required methods from the Summarizer abstract class.
