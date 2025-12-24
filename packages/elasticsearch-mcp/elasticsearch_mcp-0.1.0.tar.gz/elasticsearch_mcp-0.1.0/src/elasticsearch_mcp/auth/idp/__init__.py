@@ -1,0 +1,1 @@
+"""Elasticsearch MCP IdP adapters."""
