@@ -1,0 +1,62 @@
+stages:
+  - build
+  - publish
+
+variables:
+  UV_CACHE_DIR: .cache/uv
+  GIT_DEPTH: 0  # Full git history needed for version detection
+
+build:
+  stage: build
+  image: python:3.12-slim
+  variables:
+    SETUPTOOLS_SCM_PRETEND_VERSION: $CI_COMMIT_TAG
+  cache:
+    key: uv-cache
+    paths:
+      - .cache/uv
+  script:
+    - apt-get update && apt-get install -y git
+    - pip install uv
+    - uv build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+(?:\.dev\d+)?$/
+
+publish-gitlab:
+  stage: publish
+  image: python:3.12-slim
+  dependencies:
+    - build
+  script:
+    - pip install twine
+    - twine upload --repository-url ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi -u gitlab-ci-token -p ${CI_JOB_TOKEN} dist/*
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+(?:\.dev\d+)?$/
+
+publish-pypi:
+  stage: publish
+  image: python:3.12-slim
+  dependencies:
+    - build
+  before_script:
+    # Version check: only publish versions >= 2.0 to public PyPI
+    - |
+      VERSION="${CI_COMMIT_TAG}"
+      MAJOR_VERSION=$(echo "$VERSION" | cut -d. -f1)
+      if [ "$MAJOR_VERSION" -lt 2 ]; then
+        echo "ERROR: Only versions >= 2.0 can be published to public PyPI"
+        echo "Current version: $VERSION (major: $MAJOR_VERSION)"
+        exit 1
+      fi
+      echo "Version $VERSION is valid for PyPI publishing"
+  script:
+    - pip install twine
+    - twine upload dist/* -u __token__ -p ${PYPI_TOKEN}
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+(?:\.dev\d+)?$/
+      when: manual
+      allow_failure: false
