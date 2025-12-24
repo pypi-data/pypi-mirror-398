@@ -1,0 +1,3 @@
+from .prottest import ProtTest
+
+
