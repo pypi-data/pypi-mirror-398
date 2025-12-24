@@ -1,0 +1,130 @@
+{% macro format_response(r) %}
+<span class='status'>HTTP/{{ r.version }} {{ r.status_code_str }} {{ r.status_phrase }}</span>
+{% for hdr in r.headers.text %}
+<span data-offset='{{ loop.index0 }}' data-name='{{ hdr[0]|lower }}' class='hdr'>{{ hdr[0] }}:{{ hdr|header_present -}}
+    {{- hdr[0]|header_description }}</span>
+{% endfor %}
+{%- endmacro %}
+
+<div id="columns">
+    <div id="left_column">
+        {% for nonfinal_response in resource.nonfinal_responses %}
+        <pre class='nonfinal_response'>{{ format_response(nonfinal_response) }}</pre>
+        {% endfor %}
+
+        {% if resource.fetch_error %}
+        <p class='error'>
+            {{ resource.fetch_error.desc }}
+        </p>
+        {% endif %}
+
+        <span class="help hidden">
+            {{ _("These are the response headers; hover over each one for an explanation of what it does.") }}
+        </span>
+
+        {% if resource.response.version %}
+        <pre id='response'>{{ format_response(resource.response) }}</pre>
+        {% endif %}
+
+        <div class="options">
+            <span class='help hidden'>
+                {{ _("Here, you can see the response body, a HAR document for the request, and when appropriate,
+                validate the response or check its assets (such as referenced images, stylesheets and scripts).") }}
+            </span>
+
+            <span class='option' title='{{ _("How large the response headers are, including the status line") }}'>{{
+                _("response headers") }}: {{ resource.response_header_length|f_num }} {{ _("bytes") }}</span>
+
+            <span class='option' title='{{ _("How large the response content is") }}'>{{ _("content") }}: {{
+                resource.response.content_length|f_num }} {{ _("bytes") }}</span>
+
+            {% if resource.response.transfer_length - resource.response.content_length > 0 -%}
+            <span class='option' title='{{ _("How much using chunked encoding adds to the response size") }}'>{{
+                _("transfer overhead") }}: {{ (resource.response.transfer_length -
+                resource.response.content_length)|f_num }} {{ _("bytes") }}</span>
+            {%- endif %}
+
+            <br />
+
+            <div class='option js' title='{{ _("View this response content (with any gzip compression removed)") }}'>
+                <a href='#' id='body_view' accesskey='b'>{{ _("view content") }}</a>
+            </div>
+
+            {% if is_resource %}
+            <div class='option'>
+                {{ har_link }}
+            </div>
+            {% endif %}
+
+            {% if is_saved and save_mtime %}
+            <div class='option' title='{{ _("This result is saved") }}'>
+                {{ _("Saved until {0} from now").format(save_mtime|relative_time(None,0)) }}
+            </div>
+            {% endif %}
+
+            {% if not is_saved %}
+            {% if allow_save %}
+            <div class='option' title='{{ _("Save these results for future reference") }}'>
+                <a href='#' id='save' accesskey='s'>{{ _("save") }}</a>
+            </div>
+            {% endif %}
+
+            {% if validator_link %}
+            <div class='option' title='{{ _("Validate the response body with a third party service") }}'>
+                <a href='{{ validator_link }}' accesskey='v'>{{ _("validate content") }}</a>
+            </div>
+            {% endif %}
+
+            {% if is_resource and resource.descendable() %}
+            <div class='option'>
+                {{ descend_link }}
+            </div>
+            {% endif %}
+            {% endif %}
+
+            <div class='option js' title='{{ _("Header sorting") }}'>
+                 <a href='#' id='sort_headers'>{{ _("sort by alpha") }}</a>
+           </div>
+        </div>
+    </div>
+
+    <div id="right_column">
+        <div id='details'>
+            <span class='help right hidden'>{{ _("These notes explain what REDbot has found about your URL; hover over
+                each one for a detailed explanation.") }}</span>
+
+            {% for category in formatter.note_categories %}
+            {% for note in resource.response.notes if note.category == category %}
+            {% if loop.first %}
+            <h3>{{ _(category.value) }}{{ category|subrequest_messages }}</h3>
+            <ul>
+                {% endif %}
+                <li class='{{ note.level.value }} note' data-subject='{{ note.subject }}'>
+                    <span>{{ note.summary }}<span class='tip'>{{ note.detail }}</span></span>
+                    {% if note.subnotes %}
+                    <ul>
+                        {% for subnote in note.subnotes %}
+                        <li class='{{ subnote.level.value }} note' data-subject='{{ subnote.subject }}'>
+                            <span>{{ subnote.summary }}<span class='tip'>{{ subnote.detail }}</span></span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </li>
+                {% if loop.last %}
+            </ul>
+            {% endif %}
+            {% endfor %}
+            {% endfor %}
+        </div>
+
+        <span class="help hidden">{% trans %}If something doesn't seem right, feel free to{% endtrans %} <a
+                href="https://github.com/mnot/redbot/issues/new">{% trans %}file an issue{% endtrans %}</a>!</span>
+    </div>
+</div>
+
+<br />
+
+<div id='body' class="hidden">{{ body }}</div>
+
+{% include 'footer.html' %}
