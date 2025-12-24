@@ -1,0 +1,32 @@
+from enum import Enum
+
+
+class FileKind(Enum):
+    """file kind"""
+    PROCEDURE = 0
+    APPB = 1
+    JPBIBL = 2
+    JPFLST = 3
+    PKDA = 4
+    PKGH = 5
+    JPFOLB = 6
+    JPMNGT = 7
+    JPNTCE = 8
+    PROCEDURE_PARAMS = 100
+    MERGED = 101
+    IMAGE_MAP = 102
+    METADATA = 103
+    ALL = 104
+    FILED_DOCUMENTS = 200
+    APPLICATION = 201
+    ABSTRACT = 202
+    CLAIMS = 203
+    DESCRIPTION = 204
+    DRAWINGS = 205
+    DOCUMENT_INFO = 300
+    IMAGE_INFO = 301
+    DISPATCHED_DOC = 400
+    PROSECUTION_DOC = 500
+    PROSECUTION_FRAG_DOC = 501
+    OCR_TEXT = 600
+ 
