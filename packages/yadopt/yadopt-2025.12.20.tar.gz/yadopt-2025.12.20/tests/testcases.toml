@@ -1,0 +1,1228 @@
+# testcases.toml - a collection of test cases and their correct answers
+#
+# This file is designed to be read by "run_tests.py".
+# The format of this file is as follows:
+# - Each section has one "docstr" and multiple argv_xx, which correspond to one test.
+# - As the name suggests, "docstr" is a docstring passed to YadOpt.
+# - "arrgv_xx" is the argument vector and its result. The argument vector is listed
+#   on the first line of "argv_xx", and the results are listed on the second line and beyond.
+
+####################################################################################################
+# Testcase 1: Standard usage of YadOpt
+####################################################################################################
+
+[testcase_01_01]
+# Standard usage of YadOpt (example on README). {{{
+
+docstr = """
+Usage:
+    train.py <config_path> [--epochs INT] [--model STR] [--lr FLT] [--output PATH] [--verbose]
+    train.py --help
+
+Train a neural network model.
+
+Arguments:
+    config_path     Path to config file.
+
+Training options:
+    --epochs INT    The number of training epochs.   [default: 100]
+    --model STR     Neural network model name.       [default: mlp]
+    --lr FLT        Learning rate.                   [default: 1.0E-3]
+
+Model options:
+    --weights PATH  Path to initial weights.         [default: None]
+
+Output options:
+    --output PATH   Path to output directory.        [default: runs]
+
+Other options:
+    -v, --verbose   Enables verbose output.
+    -h, --help      Show this help message and exit.
+"""
+
+argv_01 = """
+train.py config.toml --epochs 10 --model cnn
+>>> assert args.config_path == yadopt.Path("config.toml")
+>>> assert args.epochs == 10
+>>> assert args.model == "cnn"
+>>> assert abs(args.lr - 1.0E-3) < 1.0E-8
+>>> assert args.weights is None
+>>> assert args.output == yadopt.Path("runs")
+>>> assert args.help == False
+>>> assert args.verbose == False
+
+>>> args_dict = yadopt.to_dict(args)
+>>> assert isinstance(args_dict, dict)
+>>> assert args_dict["config_path"] == yadopt.Path("config.toml")
+>>> assert args_dict["epochs"] == 10
+>>> assert args_dict["model"] == "cnn"
+>>> assert abs(args_dict["lr"] - 1.0E-3) < 1.0E-8
+>>> assert args.weights is None
+>>> assert args_dict["output"] == yadopt.Path("runs")
+>>> assert args_dict["help"] == False
+>>> assert args_dict["verbose"] == False
+
+>>> args_nt = yadopt.to_namedtuple(args)
+>>> assert args_nt.__class__.__name__ == "YadOptArgsNt"
+>>> assert args.config_path == yadopt.Path("config.toml")
+>>> assert args.epochs == 10
+>>> assert args.model == "cnn"
+>>> assert abs(args.lr - 1.0E-3) < 1.0E-8
+>>> assert args.weights is None
+>>> assert args.output == yadopt.Path("runs")
+>>> assert args.help == False
+>>> assert args.verbose == False
+"""
+
+argv_02 = """
+train.py config.toml -v
+>>> assert args.config_path == yadopt.Path("config.toml")
+>>> assert args.epochs == 100
+>>> assert args.model == "mlp"
+>>> assert abs(args.lr - 1.0E-3) < 1.0E-8
+>>> assert args.weights is None
+>>> assert args.output == yadopt.Path("runs")
+>>> assert args.help == False
+>>> assert args.verbose == True
+"""
+
+argv_03 = """
+train.py --help
+>>> assert isinstance(args, SystemExit)
+"""
+
+# }}}
+
+[testcase_01_02]
+# Standard usage of YadOpt. {{{
+
+docstr = """
+Train a neural network model.
+
+[Usage]
+    train.py <config_path> [--epochs=INT] [--model=STR] [--lr=FLT] [--output=PATH] [--verbose]
+    train.py --help
+
+[Arguments]
+    config_path     Path to config file.
+
+[Training options]
+    --epochs=INT    The number of training epochs.   [default: 100]
+    --model=STR     Neural network model name.       [default: "mlp"]
+    --lr=FLT        Learning rate.                   [default: 1.0E-3]
+
+[Output options]
+    --output=PATH   Path to output directory.        [default: runs]
+
+[Other options]
+    -v, --verbose   Enables verbose output.
+    -h, --help      Show this help message and exit.
+"""
+
+argv_01 = """
+train.py config.toml --epochs=10 --model=cnn
+>>> assert args.config_path == yadopt.Path("config.toml")
+>>> assert args.epochs == 10
+>>> assert args.model == "cnn"
+>>> assert abs(args.lr - 1.0E-3) < 1.0E-8
+>>> assert args.output == yadopt.Path("runs")
+>>> assert args.help == False
+>>> assert args.verbose == False
+
+>>> args_dict = yadopt.to_dict(args)
+>>> assert isinstance(args_dict, dict)
+>>> assert args_dict["config_path"] == yadopt.Path("config.toml")
+>>> assert args_dict["epochs"] == 10
+>>> assert args_dict["model"] == "cnn"
+>>> assert abs(args_dict["lr"] - 1.0E-3) < 1.0E-8
+>>> assert args_dict["output"] == yadopt.Path("runs")
+>>> assert args_dict["help"] == False
+>>> assert args_dict["verbose"] == False
+
+>>> args_nt = yadopt.to_namedtuple(args)
+>>> assert args_nt.__class__.__name__ == "YadOptArgsNt"
+>>> assert args.config_path == yadopt.Path("config.toml")
+>>> assert args.epochs == 10
+>>> assert args.model == "cnn"
+>>> assert abs(args.lr - 1.0E-3) < 1.0E-8
+>>> assert args.output == yadopt.Path("runs")
+>>> assert args.help == False
+>>> assert args.verbose == False
+"""
+
+argv_02 = """
+train.py config.toml -v
+>>> assert args.config_path == yadopt.Path("config.toml")
+>>> assert args.epochs == 100
+>>> assert args.model == "mlp"
+>>> assert abs(args.lr - 1.0E-3) < 1.0E-8
+>>> assert args.output == yadopt.Path("runs")
+>>> assert args.help == False
+>>> assert args.verbose == True
+"""
+
+argv_03 = """
+train.py --help
+>>> assert isinstance(args, SystemExit)
+"""
+
+# }}}
+
+[testcase_01_03]
+# Extremely simple example. {{{
+
+docstr = """
+Extremely simple case.
+
+[Usage]
+    train.py
+"""
+
+argv_01 = """
+train.py
+>>> assert isinstance(args, yadopt.YadOptArgs)
+>>> assert len(yadopt.to_dict(args).keys()) == 0
+"""
+
+# }}}
+
+[testcase_01_04]
+# Merge two YadOptArgs objects. {{{
+
+docstr = """
+Usage:
+    train.py <config_path> [--epochs INT] [--model STR] [--lr FLT]
+    train.py --help
+
+Train a neural network model.
+
+Arguments:
+    config_path     Path to base config file.
+
+Training options:
+    --epochs INT    The number of training epochs.   [default: 100]
+    --model STR     Neural network model name.       [default: mlp]
+    --lr FLT        Learning rate.                   [default: 1.0E-3]
+
+Other options:
+    -h, --help      Show this help message and exit.
+"""
+
+argv_01 = """
+train.py config.toml
+>>> assert args == args | args
+"""
+
+# }}}
+
+[tesrcase_01_05]
+# Comparison of two YadOptArgs objects. {{{
+
+docstr = """
+Usage:
+    sample.py --help
+
+Other options:
+    -h, --help      Show this help message and exit.
+"""
+
+argv_01 = """
+train.py
+>>> assert args == args
+>>> assert args != 3.14
+"""
+
+# }}}
+
+####################################################################################################
+# Testcase 2: Short and long options
+####################################################################################################
+
+[testcase02_01]
+# Various options and option values. {{{
+
+docstr = """
+Various options and option values.
+
+Usage:
+    sample.py [OPTIONS] <filepath...>
+
+Arguments:
+    filepath               Input file path(s).
+
+Options:
+    -x                     Only short option with no option value.
+    -y Y                   Only short option with option value.
+    -z=Z                   Only short option with option value (euqal sign).
+    --alice                Only long option with no option value.
+    --bob BOB              Only long option with option value.
+    --charlie=CHARLIE      Only long option with option value (euqal sign).
+    -d, --dave             Both short/long option with no option value.
+    -e, --ellen STR        Both short/long option with single option value.
+    -f, --frank=STR        Both short/long option with single option value (equal sign).
+    -g STR, --george STR   Both short/long option with double option values.
+    -h=STR, --henry=STR    Both short/long option with double option values (equal sign).
+"""
+
+argv_01 = """
+sample.py path1 path2 path3
+>>> assert len(args.filepath) == 3
+>>> assert args.filepath[0] == yadopt.Path("path1")
+>>> assert args.filepath[1] == yadopt.Path("path2")
+>>> assert args.filepath[2] == yadopt.Path("path3")
+"""
+
+argv_02 = """
+sample.py -x -y=Y -z Z path1 path2
+>>> assert args.x == True
+>>> assert args.y == "Y"
+>>> assert args.z == "Z"
+>>> assert len(args.filepath) == 2
+>>> assert args.filepath[0] == yadopt.Path("path1")
+>>> assert args.filepath[1] == yadopt.Path("path2")
+"""
+
+argv_03 = """
+sample.py --alice --bob BOB --charlie CHARLIE path1
+>>> assert args.alice == True
+>>> assert args.bob == "BOB"
+>>> assert args.charlie == "CHARLIE"
+>>> assert len(args.filepath) == 1
+>>> assert args.filepath[0] == yadopt.Path("path1")
+"""
+
+argv_04 = """
+sample.py -d -e=ELLEN -f FRANK -g=GEORGE -h HENRY path1
+>>> assert args.dave == True
+>>> assert args.ellen == "ELLEN"
+>>> assert args.frank == "FRANK"
+>>> assert args.george == "GEORGE"
+>>> assert args.henry == "HENRY"
+>>> assert len(args.filepath) == 1
+>>> assert args.filepath[0] == yadopt.Path("path1")
+"""
+
+# }}}
+
+####################################################################################################
+# Testcase 3: Data type hints
+####################################################################################################
+
+[testcase03_01]
+# Test data types of type name. {{{
+
+docstr = """
+Test data types.
+
+Usage:
+    sample.py <arg> [-a NAME]
+    sample.py <arg_bool> <arg_boolean> [-b NAME_BOOL] [-c NAME_BOOLEAN]
+    sample.py <arg_int> <arg_integer> <arg_path> [-d NAME_INT] [-e NAME_INTEGER] [-f NAME_PATH]
+    sample.py <arg_flt> <arg_float> <arg_str> <arg_string> [-g NAME_FLT] [-h NAME_FLOAT] [-i NAME_STR] [-j NAME_STRING]
+
+Arguments:
+    arg           No type specification means string.
+    arg_bool      Boolean option value.
+    arg_boolean   Boolean option value.
+    arg_int       Integer option value.
+    arg_integer   Integer option value.
+    arg_path      Path option value.
+    arg_flt       Float option value.
+    arg_float     Float option value.
+    arg_str       String option value.
+    arg_string    String option value.
+
+Options:
+    -a name           No type specification means string.
+    -b name_bool      Boolean option value.
+    -c name_boolean   Boolean option value.
+    -d name_int       Integer option value.
+    -e name_integer   Integer option value.
+    -f name_path      Path option value.
+    -g name_flt       Float option value.
+    -h name_float     Float option value.
+    -i name_str       String option value.
+    -j name_string    String option value.
+"""
+
+argv_01 = """
+sample.py arg -a val
+>>> assert isinstance(args.arg, str)
+>>> assert isinstance(args.a, str)
+"""
+
+argv_02 = """
+sample.py True False -b true -c false
+>>> assert isinstance(args.arg_bool, bool)
+>>> assert isinstance(args.arg_boolean, bool)
+>>> assert isinstance(args.b, bool)
+>>> assert isinstance(args.c, bool)
+"""
+
+argv_03 = """
+sample.py 12 345 /tmp -d 67 -e 890 -f /home
+>>> assert isinstance(args.arg_int, int)
+>>> assert isinstance(args.arg_integer, int)
+>>> assert isinstance(args.arg_path, yadopt.Path)
+>>> assert isinstance(args.d, int)
+>>> assert isinstance(args.e, int)
+>>> assert isinstance(args.f, yadopt.Path)
+"""
+
+argv_04 = """
+sample.py 3.1415 2.7183 hoge fuga -g 0.1 -h 1.0 -i foo -j bar
+>>> assert isinstance(args.arg_flt, float)
+>>> assert isinstance(args.arg_float, float)
+>>> assert isinstance(args.arg_str, str)
+>>> assert isinstance(args.arg_string, str)
+>>> assert isinstance(args.g, float)
+>>> assert isinstance(args.h, float)
+>>> assert isinstance(args.i, str)
+>>> assert isinstance(args.j, str)
+"""
+
+# }}}
+
+[testcase03_02]
+# Test data types on the description head. {{{
+
+docstr = """
+Data type hints - test data types on the description head.
+
+Usage:
+    train.py <config> [--epochs EPOCHS] [--model MODEL] [--lr LR] [--output OUTPUT] [--verbose]
+    train.py --help
+
+Arguments:
+    config           (path)   Path to config file.
+
+Training options:
+    --epochs EPOCHS  (int)    The number of training epochs.   [default: 100]
+    --model MODEL    (str)    Neural network model name.       [default: mlp]
+    --lr LR          (float)  Learning rate.                   [default: 1.0E-3]
+
+Output options:
+    --output OUTPUT  (path)   Path to output directory.        [default: runs]
+
+Other options:
+    -v, --verbose    (bool)   Enables verbose output.
+    -h, --help       (bool)   Show this help message and exit.
+"""
+
+argv_01 = """
+train.py config.toml --epochs 10 --model=cnn
+>>> assert args.config == yadopt.Path("config.toml")
+>>> assert args.epochs == 10
+>>> assert args.model == "cnn"
+>>> assert abs(args.lr - 1.0E-3) < 1.0E-8
+>>> assert args.output == yadopt.Path("runs")
+>>> assert args.help == False
+>>> assert args.verbose == False
+"""
+
+argv_02 = """
+train.py config.toml -v
+>>> assert args.config == yadopt.Path("config.toml")
+>>> assert args.epochs == 100
+>>> assert args.model == "mlp"
+>>> assert abs(args.lr - 1.0E-3) < 1.0E-8
+>>> assert args.output == yadopt.Path("runs")
+>>> assert args.help == False
+>>> assert args.verbose == True
+"""
+
+argv_03 = """
+train.py --help
+>>> assert isinstance(args, SystemExit)
+"""
+
+# }}}
+
+[testcase03_03]
+# Test auto data type. {{{
+
+docstr = """
+Data type hints - auto data type.
+
+Usage:
+    train.py <config> [--epochs EPOCHS] [--model MODEL] [--lr LR] [--output OUTPUT] [--verbose]
+    train.py --help
+
+Train a neural network model.
+
+Arguments:
+    config             Path to config file.
+
+Training options:
+    --epochs EPOCHS    The number of training epochs.   [default: 100]
+    --model MODEL      Neural network model name.       [default: mlp]
+    --lr LR            Learning rate.                   [default: 1.0E-3]
+
+Output options:
+    --output OUTPUT    Path to output directory.        [default: runs]
+
+Other options:
+    -v, --verbose      Enables verbose output.
+    -h, --help         Show this help message and exit.
+"""
+
+argv_01 = """
+train.py config.toml --epochs 10 --model=cnn
+>>> assert args.config == "config.toml"
+>>> assert args.epochs == 10
+>>> assert args.model == "cnn"
+>>> assert abs(args.lr - 1.0E-3) < 1.0E-8
+>>> assert args.output == "runs"
+>>> assert args.help == False
+>>> assert args.verbose == False
+"""
+
+argv_02 = """
+train.py config.toml -v
+>>> assert args.config == "config.toml"
+>>> assert args.epochs == 100
+>>> assert args.model == "mlp"
+>>> assert abs(args.lr - 1.0E-3) < 1.0E-8
+>>> assert args.output == "runs"
+>>> assert args.help == False
+>>> assert args.verbose == True
+"""
+
+argv_03 = """
+train.py --help
+>>> assert isinstance(args, SystemExit)
+"""
+
+# }}}
+
+####################################################################################################
+# Testcase 4: Error checks
+####################################################################################################
+
+[testcase04_01]
+# Error check - usage parse. {{{
+
+docstr = """
+Error check - usage parse
+
+Usage:
+    sample.py (-h|--help)
+
+Options:
+    -h, --help   Show help message.
+"""
+ 
+argv_01 = """
+sample.py --help
+>>> assert args.__class__.__name__ == "YadOptErrorUsageParse"
+>>> print(args)
+"""
+
+# }}}
+
+[testcase04_02]
+# Error check - invalid constants. {{{
+
+docstr = """
+Error check - invalid constants
+
+Usage:
+    sample.py subcmd <arg> bad_constant_token
+
+Arguments:
+    arg    Input argument.
+"""
+
+argv_01 = """
+sample.py argument
+>>> assert args.__class__.__name__ == "YadOptErrorInvalidConstant"
+>>> print(args)
+"""
+
+# }}}
+
+[testcase04_03]
+# Error check - user input not match. {{{
+
+docstr = """
+Error check - user input not match
+
+Usage:
+    sample.py subcmd <arg> [--opt1 INT] [--opt2 INT]
+
+Arguments:
+    arg         Input argument.
+
+Options:
+    --opt1 INT  Integer option.
+    --opt2 INT  Integer option.
+"""
+
+argv_01 = """
+sample.py cmdsub argument
+>>> assert args.__class__.__name__ == "YadOptErrorValidUsageNotFound"
+>>> print(args)
+"""
+
+argv_02 = """
+sample.py subcmd argument --opt1
+>>> assert args.__class__.__name__ == "YadOptErrorValidUsageNotFound"
+>>> print(args)
+"""
+
+argv_03 = """
+sample.py subcmd argument --opt1 --opt2
+>>> assert args.__class__.__name__ == "YadOptErrorValidUsageNotFound"
+>>> print(args)
+"""
+
+# }}}
+
+[testcase04_04]
+# Error check - mandatory arguments. {{{
+
+docstr = """
+Error check - mandatory arguments
+
+Usage:
+    cmd <config_path>
+    cmd --help
+
+Arguments:
+    config_path    Path to config
+
+Other options:
+    -h, --help     Show this help message and exit.
+"""
+
+argv_01 = """
+sample.py
+>>> assert args.__class__.__name__ == "YadOptErrorValidUsageNotFound"
+>>> print(args)
+"""
+
+# }}}
+
+[testcase04_05]
+# Error check - mandatory options. {{{
+
+docstr = """
+Error check - mandatory options
+
+Usage:
+    sample.py --opt VALUE
+    sample.py --help
+
+Options:
+    --opt VALUE    Option with value.
+    -h, --help     Show this help message and exit.
+"""
+
+argv_01 = """
+sample.py
+>>> assert args.__class__.__name__ == "YadOptErrorValidUsageNotFound"
+>>> print(args)
+"""
+
+# }}}
+
+[testcase04_06]
+# Error check - invalid type name. {{{
+
+docstr = """
+Error check - invalid type name
+
+Usage:
+    sample.py --opt VALUE
+    sample.py --help
+
+Options:
+    --opt VALUE    (byte) Option with value.
+    -h, --help     (bool) Show this help message and exit.
+"""
+
+argv_01 = """
+sample.py --opt 1
+>>> assert args.__class__.__name__ == "YadOptErrorInvalidTypeName"
+>>> print(args)
+"""
+
+# }}}
+
+####################################################################################################
+# Testcase 5: Preceding tokens
+####################################################################################################
+
+[testcase05_01]
+# Check preceding tokens. {{{
+
+docstr = """
+Usage:
+    train.py subcmd1 [--opt1 INT]
+    train.py subcmd2 [--opt2 INT]
+    train.py subcmd3 [--opt3 INT]
+
+Options:
+    --opt1 INT  Option 1.  [default: 0]
+    --opt2 INT  Option 2.  [default: 0]
+    --opt3 INT  Option 3.  [default: 0]
+"""
+
+argv_01 = """
+train.py subcmd1
+>>> assert args.subcmd1 == True
+>>> assert args.subcmd2 == False
+>>> assert args.subcmd3 == False
+>>> assert args.opt1 == 0
+>>> assert args.opt2 == 0
+>>> assert args.opt3 == 0
+"""
+
+argv_02 = """
+train.py subcmd2 --opt2 1
+>>> assert args.subcmd1 == False
+>>> assert args.subcmd2 == True
+>>> assert args.subcmd3 == False
+>>> assert args.opt1 == 0
+>>> assert args.opt2 == 1
+>>> assert args.opt3 == 0
+"""
+
+argv_03 = """
+train.py subcmd3
+>>> assert args.subcmd1 == False
+>>> assert args.subcmd2 == False
+>>> assert args.subcmd3 == True
+>>> assert args.opt1 == 0
+>>> assert args.opt2 == 0
+>>> assert args.opt3 == 0
+"""
+
+# }}}
+
+####################################################################################################
+# Testcase 6: Save and load functions
+####################################################################################################
+
+[testcase06_01]
+# Check save and load functions. {{{
+
+docstr = """
+Usage:
+    train.py subcmd1 <arg1> [--bool BOOL] [--int INT] [--float FLOAT] [--str STR] [--path PATH]
+    train.py subcmd2 <arg2> [--bool BOOL] [--int INT] [--float FLOAT] [--str STR] [--path PATH]
+    train.py subcmd3 <arg3> [--bool BOOL] [--int INT] [--float FLOAT] [--str STR] [--path PATH]
+
+Arguments:
+    arg1           An argument for subcmd1.
+    arg2           An argument for subcmd2.
+    arg3           An argument for subcmd3.
+
+Options:
+    -b, --bool BOOL    An option of type boolean.
+    -i, --int INT      An option of type integer.
+    -f, --float FLOAT  An option of type float.
+    -s, --str STR      An option of type string.
+    -p, --path PATH    An option of type path.
+"""
+
+argv_01 = """
+train.py subcmd1 path1 -b True --int 6 -f 3.1416 --str hello -p ./dir
+>>> assert args.subcmd1 == True
+>>> assert args.subcmd2 == False
+>>> assert args.subcmd3 == False
+>>> assert args.bool == True
+>>> assert args.int == 6
+>>> assert abs(args.float - 3.1416) < 1.0E-5
+>>> assert args.str == "hello"
+>>> assert args.path == yadopt.Path("./dir")
+
+>>> # Supported suffixes.
+>>> for suffix in ["json", "json.gz", "toml", "toml.gz", "txt", "txt.gz"]:
+>>>     yadopt.save(f"/tmp/yadopt_test_args.{suffix}", args)
+>>>     args_restore = yadopt.load(f"/tmp/yadopt_test_args.{suffix}")
+>>>     assert args == args_restore
+
+>>> # Unsupported suffixes.
+>>> for suffix in ["jpg", "png", "webp"]:
+>>> 
+>>>     # Save function.
+>>>     try:
+>>>         output = yadopt.save(f"/tmp/yadopt_test_args.{suffix}", args)
+>>>     except Exception as e:
+>>>         output = e
+>>>     assert output.__class__.__name__ == "YadOptErrorInvalidIOFileFormat"
+>>> 
+>>>     # Load function.
+>>>     try:
+>>>         output = yadopt.load(f"/tmp/yadopt_test_args.{suffix}")
+>>>     except Exception as e:
+>>>         output = e
+>>>     assert output.__class__.__name__ == "YadOptErrorInvalidIOFileFormat"
+"""
+
+# }}}
+
+####################################################################################################
+# Testcase 7: Strange indent
+####################################################################################################
+
+[testcase07_01]
+# Strange indent. {{{
+
+docstr = """
+Usage:
+    sample.py [--opt STR]
+    sample.py --help
+
+Options:
+    --opt STR    Option with value.    [default: value]
+    -h, --help     Show this help message and exit.
+"""
+
+argv_01 = """
+sample.py
+>>> assert args.opt == "value"
+"""
+
+argv_02 = """
+sample.py --help
+>>> assert isinstance(args, SystemExit)
+"""
+
+# }}}
+
+####################################################################################################
+# Testcase 8: Multiline usages and options
+####################################################################################################
+
+[testcase08_01]
+# Multiline usages. {{{
+
+docstr = """
+Usage:
+    sample.py [--opt1 STR] [--opt2 STR]
+              [--opt3 STR] [--opt4 STR]
+    sample.py --help
+
+Options:
+    --opt1 STR    Option with value 1.
+    --opt2 STR    Option with value 2.
+    --opt3 STR    Option with value 3.
+    --opt4 STR    Option with value 4.
+    -h, --help    Show this help message and exit.
+"""
+
+argv_01 = """
+sample.py --opt1 val1 --opt2 val2 --opt3 val3 --opt4 val4
+>>> assert args.opt1 == "val1"
+>>> assert args.opt2 == "val2"
+>>> assert args.opt3 == "val3"
+>>> assert args.opt4 == "val4"
+"""
+
+argv_02 = """
+sample.py --help
+>>> assert isinstance(args, SystemExit)
+"""
+
+# }}}
+
+[testcase08_02]
+# Multiline options. {{{
+
+docstr = """
+Usage:
+    sample.py [--opt1 STR] [--opt2 STR]
+              [--opt3 STR] [--opt4 STR]
+    sample.py --help
+
+Options:
+    --opt1 STR    Option with value 1.
+                  This it the second line of --opt1.
+    --opt2 STR    Option with value 2.
+                  This it the second line of --opt2.
+    --opt3 STR    Option with value 3.
+                  This it the second line of --opt3.
+    --opt4 STR    Option with value 4.
+                  This it the second line of --opt4.
+    -h, --help    Show this help message and exit.
+                  This it the second line of --help.
+"""
+
+argv_01 = """
+sample.py --opt1 val1 --opt2 val2 --opt3 val3 --opt4 val4
+>>> assert args.opt1 == "val1"
+>>> assert args.opt2 == "val2"
+>>> assert args.opt3 == "val3"
+>>> assert args.opt4 == "val4"
+"""
+
+argv_02 = """
+sample.py --help
+>>> assert isinstance(args, SystemExit)
+"""
+
+# }}}
+
+####################################################################################################
+# Testcase 9: Additional type hint testing
+####################################################################################################
+
+[testcase09_01]
+# {{{
+
+docstr = """
+Usage:
+    sample.py [--opt1 INT] [--opt2 FLOAT] [--opt3 STR]
+    sample.py --help
+
+Options:
+    --opt1 INT    Option with integer value.  [default: 1]
+    --opt2 FLOAT  Option with float value.    [default: 1]
+    --opt3 STR    Option with string value.   [default: 1]
+    -h, --help    Show this help message and exit.
+"""
+
+argv_01 = """
+sample.py
+>>> assert isinstance(args.opt1, int)
+>>> assert isinstance(args.opt2, float)
+>>> assert isinstance(args.opt3, str)
+>>> assert args.opt1 == 1
+>>> assert abs(args.opt2 - 1.0) < 1.0E-5
+>>> assert args.opt3 == "1"
+"""
+
+argv_02 = """
+sample.py --opt1 1 --opt2 1 --opt3 1
+>>> assert isinstance(args.opt1, int)
+>>> assert isinstance(args.opt2, float)
+>>> assert isinstance(args.opt3, str)
+>>> assert args.opt1 == 1
+>>> assert abs(args.opt2 - 1.0) < 1.0E-5
+>>> assert args.opt3 == "1"
+"""
+
+argv_03 = """
+sample.py --help
+>>> assert isinstance(args, SystemExit)
+"""
+
+# }}}
+
+[testcase09_02]
+# {{{
+
+docstr = """
+Usage:
+    sample.py [--opt1 STR] [--opt2 STR]
+              [--opt3 STR] [--opt4 STR]
+    sample.py --help
+
+Options:
+    --opt1 STR    Option with value 1.
+                  This it the second line of --opt1.
+    --opt2 STR    Option with value 2.
+                  This it the second line of --opt2.
+    --opt3 STR    Option with value 3.
+                  This it the second line of --opt3.
+    --opt4 STR    Option with value 4.
+                  This it the second line of --opt4.
+    -h, --help    Show this help message and exit.
+                  This it the second line of --help.
+"""
+
+argv_01 = """
+sample.py --opt1 val1 --opt2 val2 --opt3 val3 --opt4 val4
+>>> assert args.opt1 == "val1"
+>>> assert args.opt2 == "val2"
+>>> assert args.opt3 == "val3"
+>>> assert args.opt4 == "val4"
+"""
+
+argv_02 = """
+sample.py --help
+>>> assert isinstance(args, SystemExit)
+"""
+
+# }}}
+
+####################################################################################################
+# Testcase 10: Validation functions
+####################################################################################################
+
+[testcase10_01]
+# Error check - usage and arguments not match. {{{
+
+docstr = """
+Error check - usage and arguments not match
+
+Usage:
+    sample.py <arg_mistake> [-a NAME]
+
+Arguments:
+    arg       Input argument.
+
+Options:
+    -a name   Option with value.
+"""
+
+argv_01 = """
+sample.py arg -a val
+>>> assert args.__class__.__name__ == "YadOptErrorUnknownArgument"
+"""
+
+# }}}
+
+[testcase10_02]
+# Error check - unknown arguments in usage. {{{
+
+docstr = """
+Usage:
+    sample.py <arg_mistake> [-a NAME]
+
+Arguments:
+    arg       Input argument.
+
+Options:
+    -a name   Option with value.
+"""
+
+argv_01 = """
+sample.py arg -a val
+>>> assert args.__class__.__name__ == "YadOptErrorUnknownArgument"
+"""
+
+# }}}
+
+[testcase10_03]
+# Error check - unknown option in usage. {{{
+
+docstr = """
+Usage:
+    sample.py <arg> [--oqt NAME]
+
+Arguments:
+    arg         Input argument.
+
+Options:
+    --opt INT   Option with integer value.
+"""
+
+argv_01 = """
+sample.py arg --opt 1
+>>> assert args.__class__.__name__ == "YadOptErrorUnknownOptionUsage"
+"""
+
+# }}}
+
+[testcase10_04]
+# Error check - unknown option in argv. {{{
+
+docstr = """
+Usage:
+    sample.py [--alice INT] [--bob FLOAT]
+
+Options:
+    -a, --alice INT  Option with integer value.  [default: 1]
+    -b, --bob FLOAT  Option with float value.    [default: 1]
+"""
+
+argv_01 = """
+sample.py --aline 1
+>>> assert args.__class__.__name__ == "YadOptErrorUnknownOptionArgv"
+>>> assert "Do you mean '--alice'?" in re.sub(r"\\x1B\\[[0-9;]*m", "", str(args))
+"""
+
+argv_02 = """
+sample.py --rob 1
+>>> assert args.__class__.__name__ == "YadOptErrorUnknownOptionArgv"
+>>> assert "Do you mean '--bob'?" in re.sub(r"\\x1B\\[[0-9;]*m", "", str(args))
+"""
+
+argv_03 = """
+sample.py -a 1 -c 1
+>>> assert args.__class__.__name__ == "YadOptErrorUnknownOptionArgv"
+>>> assert "Do you mean" not in str(args)
+"""
+
+# }}}
+
+[testcase10_05]
+# Error check - unknown argument. {{{
+
+docstr = """
+Usage:
+    sample.py <arg>
+"""
+
+argv_01 = """
+sample.py
+>>> assert args.__class__.__name__ == "YadOptErrorUnknownArgument"
+"""
+
+# }}}
+
+[testcase10_06]
+# Error check - unknown option in argv. {{{
+
+docstr = """
+Usage:
+    sample.py
+"""
+
+argv_01 = """
+sample.py --opt 1
+>>> assert args.__class__.__name__ == "YadOptErrorUnknownOptionArgv"
+"""
+
+# }}}
+
+####################################################################################################
+# Testcase 11: Group extraction
+####################################################################################################
+
+[testcase11_01]
+# {{{
+
+docstr = """
+Usage:
+    sample.py [OPTIONS]
+    sample.py <arg0> [OPTIONS]
+    sample.py <arg0> <arg1> [OPTIONS]
+    sample.py --help
+
+Testcase11_01.
+
+Arguments:
+    arg0           Argument 0.
+    arg1           Argument 1.
+
+Options group 0:
+    --opt0_0 INT   Option 0 in group 0.   [default: 00]
+    --opt0_1 INT   Option 1 in group 0.   [default: 01]
+    --opt0_2 INT   Option 2 in group 0.   [default: 02]
+
+Options group 1:
+    --opt1_0 INT   Option 0 in group 1.   [default: 10]
+    --opt1_1 INT   Option 1 in group 1.   [default: 11]
+    --opt1_2 INT   Option 2 in group 1.   [default: 12]
+
+Options group 2:
+    --opt2_0 INT   Option 0 in group 2.   [default: 20]
+    --opt2_1 INT   Option 1 in group 2.   [default: 21]
+    --opt2_2 INT   Option 2 in group 2.   [default: 22]
+
+Other options:
+    -h, --help      Show this help message and exit.
+"""
+
+argv_01 = """
+sample.py
+>>> assert args.opt0_0 == 0
+>>> assert args.opt0_1 == 1
+>>> assert args.opt0_2 == 2
+>>> assert args.opt1_0 == 10
+>>> assert args.opt1_1 == 11
+>>> assert args.opt1_2 == 12
+>>> assert args.opt2_0 == 20
+>>> assert args.opt2_1 == 21
+>>> assert args.opt2_2 == 22
+
+>>> args_group = yadopt.get_group(args, "Options group 0")
+>>> len(args_group) == 3
+>>> args_group.opt0_0 == 0
+>>> args_group.opt0_1 == 1
+>>> args_group.opt0_2 == 2
+
+>>> args_group = yadopt.get_group(args, "Options group 1")
+>>> len(args_group) == 3
+>>> args_group.opt1_0 == 10
+>>> args_group.opt1_1 == 11
+>>> args_group.opt1_2 == 12
+
+>>> args_group = yadopt.get_group(args, "Options group 2")
+>>> len(args_group) == 3
+>>> yadopt.get_group(args, "Options group 2").opt2_0 == 20
+>>> yadopt.get_group(args, "Options group 2").opt2_1 == 21
+>>> yadopt.get_group(args, "Options group 2").opt2_2 == 22
+"""
+
+argv_02 = """
+sample.py arg_val_0
+>>> assert args.arg0 == "arg_val_0"
+>>> assert args.opt0_0 == 0
+>>> assert args.opt0_1 == 1
+>>> assert args.opt0_2 == 2
+>>> assert args.opt1_0 == 10
+>>> assert args.opt1_1 == 11
+>>> assert args.opt1_2 == 12
+>>> assert args.opt2_0 == 20
+>>> assert args.opt2_1 == 21
+>>> assert args.opt2_2 == 22
+
+>>> args_group = yadopt.get_group(args, "Arguments")
+>>> assert len(args_group) == 1
+>>> assert args_group.arg0 == "arg_val_0"
+
+>>> args_group = yadopt.get_group(args, "Options group 0")
+>>> len(args_group) == 3
+>>> args_group.opt0_0 == 0
+>>> args_group.opt0_1 == 1
+>>> args_group.opt0_2 == 2
+
+>>> args_group = yadopt.get_group(args, "Options group 1")
+>>> len(args_group) == 3
+>>> args_group.opt1_0 == 10
+>>> args_group.opt1_1 == 11
+>>> args_group.opt1_2 == 12
+
+>>> args_group = yadopt.get_group(args, "Options group 2")
+>>> len(args_group) == 3
+>>> yadopt.get_group(args, "Options group 2").opt2_0 == 20
+>>> yadopt.get_group(args, "Options group 2").opt2_1 == 21
+>>> yadopt.get_group(args, "Options group 2").opt2_2 == 22
+"""
+
+argv_03 = """
+sample.py arg_val_0 arg_val_1
+>>> assert args.arg0 == "arg_val_0"
+>>> assert args.arg1 == "arg_val_1"
+>>> assert args.opt0_0 == 0
+>>> assert args.opt0_1 == 1
+>>> assert args.opt0_2 == 2
+>>> assert args.opt1_0 == 10
+>>> assert args.opt1_1 == 11
+>>> assert args.opt1_2 == 12
+>>> assert args.opt2_0 == 20
+>>> assert args.opt2_1 == 21
+>>> assert args.opt2_2 == 22
+
+>>> args_group = yadopt.get_group(args, "Arguments")
+>>> assert len(args_group) == 2
+>>> assert args_group.arg0 == "arg_val_0"
+>>> assert args_group.arg1 == "arg_val_1"
+
+>>> args_group = yadopt.get_group(args, "Options group 0")
+>>> len(args_group) == 3
+>>> args_group.opt0_0 == 0
+>>> args_group.opt0_1 == 1
+>>> args_group.opt0_2 == 2
+
+>>> args_group = yadopt.get_group(args, "Options group 1")
+>>> len(args_group) == 3
+>>> args_group.opt1_0 == 10
+>>> args_group.opt1_1 == 11
+>>> args_group.opt1_2 == 12
+
+>>> args_group = yadopt.get_group(args, "Options group 2")
+>>> len(args_group) == 3
+>>> yadopt.get_group(args, "Options group 2").opt2_0 == 20
+>>> yadopt.get_group(args, "Options group 2").opt2_1 == 21
+>>> yadopt.get_group(args, "Options group 2").opt2_2 == 22
+"""
+
+# }}}
+
+# vim: expandtab tabstop=4 shiftwidth=4 fdm=marker
