@@ -1,0 +1,553 @@
+Metadata-Version: 2.3
+Name: ultrasav
+Version: 0.1.8
+Summary: A Python package for working with SPSS/SAV files with two-track architecture separating data and metadata operations
+Keywords: spss,spss labels,spss files,sav files,sav,statistics,data-science,data-processing,survey-data,metadata,spss metadata,pyreadstat,dataframe-agnostic,polars,pandas,read spss,read sav,write spss,write sav,merge spss,merge sav,datamap,spss-datamap,validation,data-quality,tidyspss,metaprinter
+Author: Albert Li
+License: MIT
+Requires-Dist: pandas>=2.2.0
+Requires-Dist: polars>=1.3.0
+Requires-Dist: pyreadstat>=1.3.2
+Requires-Dist: narwhals>=2.11.0
+Requires-Dist: openpyxl>=3.0.0
+Requires-Dist: xlsxwriter>=3.1.0
+Requires-Dist: ultrasav[excel,dev,docs] ; extra == 'all'
+Requires-Dist: pytest>=7.0.0 ; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0 ; extra == 'dev'
+Requires-Dist: black>=23.0.0 ; extra == 'dev'
+Requires-Dist: ruff>=0.1.0 ; extra == 'dev'
+Requires-Dist: mypy>=1.0.0 ; extra == 'dev'
+Requires-Dist: pre-commit>=3.0.0 ; extra == 'dev'
+Requires-Dist: sphinx>=6.0.0 ; extra == 'docs'
+Requires-Dist: sphinx-rtd-theme>=1.0.0 ; extra == 'docs'
+Requires-Dist: myst-parser>=1.0.0 ; extra == 'docs'
+Requires-Dist: fastexcel>=0.9.0 ; extra == 'excel'
+Maintainer: Albert Li
+Requires-Python: >=3.11
+Project-URL: Changelog, https://github.com/albertxli/ultrasav/blob/main/CHANGELOG.md
+Project-URL: Documentation, https://ultrasav.readthedocs.io
+Project-URL: Homepage, https://github.com/albertxli/ultrasav
+Provides-Extra: all
+Provides-Extra: dev
+Provides-Extra: docs
+Provides-Extra: excel
+Description-Content-Type: text/markdown
+
+# ⚡ultrasav
+
+An 'Ultra-powerful' Python package for preparing production-ready SPSS/SAV files using a two-track architecture that separates data and metadata operations.
+
+
+
+## 💡 Motivation
+
+**ultrasav** is built as a thoughtful wrapper around the excellent pyreadstat package. We're not here to reinvent the wheel for reading and writing SAV files - pyreadstat already does that brilliantly! 
+
+Instead, ultrasav provides additional transformation tools for tasks that are commonly done by folks who work with SAV files regularly:
+- 🏷️ **Rename variables** - Change variable names in batch with clean methodology
+- 🔄 **Recode values** - Transform codes across multiple variables with clean syntax
+- 🏷️ **Update labels** - Batch update variable labels and value labels without losing track
+- 📊 **Reorganize columns** - Move variables to specific positions for standardized layouts
+- 📀 **Merge files intelligently** - Stack survey data while preserving all metadata
+- 🎯 **Handle missing values** - Consistent missing value definitions across datasets
+- 🦸 **Inspect & report metadata** - Generate datamaps and validation reports with metaman
+
+## 🎯 Core Philosophy
+
+**ultrasav** follows a simple but powerful principle: **Data and Metadata are two independent layers that only come together at read/write time.**
+
+```
+┌─────────────┐         ┌─────────────┐
+│   DATA      │         │  METADATA   │
+│  DataFrame  │         │   Labels    │
+│  Operations │         │   Formats   │
+└─────────────┘         └─────────────┘
+      │                         │
+      └────────┬────────────────┘
+               │
+               ▼
+         ┌─────────────┐
+         │  WRITE SAV  │
+         └─────────────┘
+```
+
+### The Common Problems
+
+If you work with SPSS files in Python, you've probably asked yourself:
+
+- How do I bulk update variable labels and value labels?
+- How do I quickly relocate variables to ideal positions?
+- How do I merge datasets — and more specifically, how are the labels being merged?
+- How can I see a comprehensive datamap of my data?
+- Most importantly: **How do I prepare a tidy SPSS file with clean labels and metadata that is production-ready?**
+
+ultrasav answers all of these.
+
+### The ultrasav Way
+
+```python
+import ultrasav as ul
+
+# Read → splits into two independent tracks
+df, meta = ul.read_sav("survey.sav")
+
+# Track 1 - Data: Transform data freely
+data = ul.Data(df) # Wrap df into our Data class
+df = data.move(first=['id']).rename({'Q1': 'satisfaction'}).replace({'satisfaction': {6: 99}}).to_native()
+
+# Track 2 - Metadata: Update metadata independently
+meta = ul.Metadata(meta) # Wrap meta into our Metadata class
+meta.column_labels = {'satisfaction': 'Overall satisfaction'}
+meta.variable_value_labels={'recommend': {0: 'No', 1: 'Yes'}}
+ 
+
+# Convergence: Reunite at write time
+ul.write_sav(df, meta, "clean_survey.sav")
+```
+
+The goal is to provide you with a **clean and easy-to-understand way** to transform your SPSS data that you can use in real production workflows with minimal tweaking.
+
+### 🚀 DataFrame-Agnostic Design
+
+One of ultrasav's superpowers is being **dataframe-agnostic** — it works seamlessly with both **polars** and **pandas** thanks to [narwhals](https://github.com/MarcoGorelli/narwhals) under the hood:
+
+- 🐻‍❄️ **Polars by default** - Blazing fast performance out of the box
+- 🐼 **Pandas fully supported** - Use `output_format="pandas"` when needed
+- 🔄 **Switch freely** - Convert between pandas and polars anytime
+- 🔧 **Future-proof** - Ready for whatever dataframe library comes next
+
+**Default output format: Polars** — All operations return polars DataFrames by default for blazing-fast performance. Pandas is fully supported via the `output_format="pandas"` parameter.
+
+```python
+import ultrasav as ul
+
+# Polars by default
+df_pl, meta = ul.read_sav("survey.sav", output_format="polars")
+
+# Or explicitly request pandas
+df_pd, meta = ul.read_sav("survey.sav", output_format="pandas")
+
+# The Data class works with either
+data = ul.Data(df_pl)  # Works with both Polars and pandas!
+
+# Transform using ultrasav's consistent API
+data = data.rename({"Q1": "satisfaction"}).replace({'satisfaction': {6: 99}})
+df_native = data.to_native()  # Get back your polars DataFrame
+```
+
+### Who Is This For?
+
+- 📊 **Market Researchers** - Merge waves, standardize labels, prepare deliverables
+- 🔬 **Data Scientists** - Clean survey data, prepare features, maintain metadata
+- 🏭 **Data Engineers** - Build robust pipelines that preserve SPSS metadata
+- 🎓 **Academic Researchers** - Manage longitudinal studies, harmonize datasets
+- 📈 **Anyone working with SPSS** - If you use SAV files regularly, this is for you!
+
+## 🚀 Installation
+
+```bash
+# Using uv
+uv add ultrasav
+
+# Or using pip
+pip install ultrasav
+```
+
+## 📚 Quick Start
+
+### Basic Usage
+
+```python
+import ultrasav as ul
+
+# Read SPSS file - automatically splits into data and metadata
+df, meta = ul.read_sav("survey.sav")
+# Note: You can also use pyreadstat directly - our classes work with pyreadstat meta objects too
+
+# Track 1: Process data independently
+data = ul.Data(df)  # Wrap in Data class for transformations
+data = data.move(first=["ID", "Date"])  # Reorder columns
+data = data.rename({"Q1": "Satisfaction"})  # Rename columns
+data = data.replace({"Satisfaction": {99: None}})  # Replace values
+df = data.to_native()  # Back to native DataFrame
+
+# Track 2: Process metadata independently
+meta.column_labels = {"Satisfaction": "Customer Satisfaction Score"}
+meta.variable_value_labels = {
+    "Satisfaction": {1: "Very Dissatisfied", 5: "Very Satisfied"}
+}
+meta.variable_measure = {
+    'Satisfaction': 'ordinal',
+    'Gender': 'nominal',
+    'Age': 'scale',
+}
+
+# Convergence: Write both tracks to SPSS
+ul.write_sav(df, meta, "cleaned_survey.sav")
+```
+
+### Merging Files
+
+```python
+import ultrasav as ul
+
+# Merge multiple files vertically with automatic metadata handling
+df, meta = ul.add_cases([
+    "wave1.sav",
+    "wave2.sav", 
+    "wave3.sav"
+])
+
+# Metadata is automatically preserved from top to bottom.
+# A source-tracking column is automatically added to show each row's origin.
+# Example: mrgsrc: ["wave1.sav", "wave2.sav", "wave3.sav"]
+
+ul.write_sav(df, meta, "merged_output.sav")
+```
+
+### Advanced Merging
+
+```python
+import ultrasav as ul
+
+# Use specific metadata template for all files
+standard_meta = ul.Metadata()  # Create an empty meta object
+standard_meta.column_labels = {"Q1": "Satisfaction", "Q2": "Loyalty"}
+standard_meta.variable_value_labels = {
+    "Satisfaction": {1: "Very Dissatisfied", 5: "Very Satisfied"}
+}
+
+data, meta = ul.add_cases(
+    inputs=["file1.sav", "file2.sav", "file3.csv"],
+    meta=[standard_meta],  # Apply this metadata to merged data
+    source_col="mrgsrc",  # Auto append column 'mrgsrc' to track source files
+    output_format="polars"  # Explicit format (polars is default)
+)
+```
+
+### Writing Back
+
+```python
+# Read SPSS file
+df, meta = ul.read_sav("huge_survey.sav")
+
+# All ultrasav operations work the same
+df = ul.Data(df).rename({"Q1": "satisfaction"}).drop(["unused_var"]).to_native()
+
+# Efficient write-back
+# Simply provide the 'meta' object; labels and formats are applied automatically.
+# Compatible with both ultrasav and pyreadstat meta objects.
+ul.write_sav(df, meta, "processed_data.sav")
+```
+
+## 🦸 Metaman: The Metadata Submodule
+
+ultrasav includes **metaman**, a powerful submodule for metadata inspection, extraction, and reporting. All metaman functions are accessible directly from the top-level `ul` namespace.
+
+### Generate Validation Datamaps
+
+Create comprehensive datamaps showing variable types, value distributions, and data quality metrics:
+
+```python
+import ultrasav as ul
+
+df, meta = ul.read_sav("survey.sav")
+
+# Create a validation datamap
+datamap = ul.make_datamap(df, meta)
+
+# Export to beautifully formatted Excel
+# This function supports polars only at the moment
+ul.map_to_excel(datamap, "validation_report.xlsx")
+
+# Use custom color schemes
+ul.map_to_excel(
+    datamap, 
+    "validation_report.xlsx",
+    alternating_group_formats=ul.get_color_scheme("pastel_blue")
+)
+```
+
+The datamap includes:
+- Variable names and labels
+- Variable types (single-select, multi-select, numeric, text, date)
+- Value codes and labels
+- Value counts and percentages
+- Missing data flags
+- Missing value label detection
+
+**Note: Variable types are inferred from both SPSS data and metadata on a best-effort basis and may not always perfectly reflect the true underlying types.**
+
+### Extract Metadata to Python Files
+
+Save existing metadata (if any) from a sav file as importable Python dictionaries for reuse across projects:
+
+```python
+import ultrasav as ul
+
+df, meta = ul.read_sav("survey.sav")
+
+# Extract metadata (labels) to in-memory python object
+meta_dict = ul.get_meta(meta)
+
+# Extract and save ALL metadata to a Python file
+meta_dict = ul.get_meta(meta, include_all=True, output_path="survey_labels.py")
+```
+
+### Create Labels from Excel Templates
+
+Build label dictionaries from scratch using Excel templates - perfect for translating surveys or standardizing labels:
+
+```python
+import ultrasav as ul
+
+# Excel file with 'col_label' and 'value_label' sheets
+col_labels, val_labels = ul.make_labels(
+    input_path="label_template.xlsx",
+    output_path="translated_labels.py"  # optional
+)
+```
+
+**Excel Structure:**
+
+Your Excel file should have two sheets:
+
+1. **Column Labels Sheet** (default sheet name: "col_label"):
+   | variable | label |
+   |----------|-------|
+   | age | Age of respondent |
+   | gender | Gender |
+   | income | Annual household income |
+
+2. **Value Labels Sheet** (default sheet name: "value_label"):
+   | variable | value | label |
+   |----------|-------|-------|
+   | gender | 1 | Male |
+   | gender | 2 | Female |
+   | income | 1 | Under $25k |
+   | income | 2 | $25k-50k |
+
+## 📖 API Reference
+
+### Core Functions
+
+#### `read_sav(filepath, output_format="polars")`
+Read SPSS file and return separated data and metadata.
+This is a wrapper around pyreadstat.read_sav with some additional encoding handling
+
+```python
+df, meta = ul.read_sav("survey.sav")
+```
+
+#### `write_sav(data, meta, filepath)`
+Write data and metadata to SPSS file.
+
+```python
+ul.write_sav(df, meta, "processed_data.sav")
+```
+
+#### `add_cases(inputs, meta=None, source_col="mrgsrc")`
+Merge multiple files/dataframes vertically with metadata handling, return merged data and metadata.
+
+```python
+df_merged, meta_merged = ul.add_cases(["wave1.sav","wave2.sav", "wave3.sav"])
+```
+
+### Classes
+
+#### `Data`
+Handles all dataframe operations while maintaining compatibility with both Polars and pandas.
+
+```python
+import ultrasav as ul
+
+df, meta = ul.read_sav("survey.sav")  # Returns a Polars DataFrame and meta object
+
+# Convert polars or pandas df into our ul.Data() class
+data = ul.Data(df)
+
+# Data Class Methods
+# move - to relocate columns
+data = data.move(
+    first=['respondent_id'],
+    last=['timestamp'],
+    before={'age': 'gender'},  # place 'age' column before 'gender'
+    after={'wave': ['age', 'gender', 'income']}  # place demographic columns after 'wave'
+)
+
+# rename - to rename columns
+data = data.rename({"old": "new"})
+
+# replace - to replace/recode values
+data = data.replace({"col": {1: 100}})
+
+# select - to select columns
+data = data.select(['age', 'gender'])
+
+# drop - to drop columns
+data = data.drop(['id', 'language'])
+
+# to_native - to return ul.Data(df) back to its native dataframe
+df = data.to_native()  # Get back Polars/pandas DataFrame
+
+# Optionally, use chaining for cleaner code
+df = (
+    ul.Data(df)
+    .move(first=['respondent_id'])
+    .rename({"old": "new"})
+    .replace({"col": {1: 100}})
+    .select(['age', 'gender'])
+    .drop(['id', 'language'])
+    .to_native() 
+)
+```
+
+#### `Metadata`
+Manages all SPSS metadata independently from data.
+
+```python
+import ultrasav as ul
+
+df, meta = ul.read_sav("survey.sav")
+
+meta = ul.Metadata(meta)
+
+# All updatable metadata
+
+meta.column_labels = {"Q1": "Question 1"}
+meta.variable_value_labels = {"Q1": {1: "Yes", 0: "No"}}
+meta.variable_measure = {"age": "scale"}
+meta.variable_format = {"age": "F3.0", "city_name": "A50"}
+meta.variable_display_width = {"city_name": 50,}
+meta.missing_ranges = {"Q1": [99], "Q2": [{"lo":998,"hi":999}]}
+meta.notes = "Created on 2025-02-15"
+meta.file_label = "My Survey 2025"
+
+# Optionally, use '.update()' to update everything at once
+meta = meta.update(
+    column_labels = {"Q1": "Question 1"},
+    variable_value_labels = {"Q1": {1: "Yes", 0: "No"}},
+    variable_measure = {"age": "scale"},
+    variable_format = {"age": "F3.0", "city_name": "A50"},
+    ...
+)
+
+# You can update any writable metadata fields supported by pyreadstat.
+```
+**Metadata Updating Logic**
+- Original metadata is preserved and never destroyed
+- User updates overlay on top of originals
+- When you set `meta.column_labels = {"Q1": "New Label"}`:
+  - This updates Q1's column label if there is an existing column label within the original meta.column_labels
+  - If Q1 is not in the original metadata, then Q1's new label will simply be appended at the bottom of the meta.column_labels dict
+  - All other column labels remain unchanged
+  - Original metadata still exists underneath
+  - This update logic applies to all updatable metadata
+
+**Note on `variable_value_labels` Update Behavior:**
+
+When updating `meta.variable_value_labels`, the entire value-label dictionary for a variable is **replaced**, not merged.
+
+```python
+# Original metadata
+meta.variable_value_labels = {"Q1": {1: "Yes", 2: "No", 99: "Unsure"}}
+
+# User update
+meta.variable_value_labels = {"Q1": {1: "Yes", 0: "No"}}
+
+# Result for Q1 becomes:
+{"Q1": {1: "Yes", 0: "No"}}  # Previous values 2 and 99 are NOT preserved
+```
+
+This means:
+- Only the value-label pairs explicitly provided in the update are kept
+- The entire dictionary for that variable is replaced at once
+- Variable-level entries are preserved (e.g., "Q1" still exists), but value-level merging does not occur
+
+This follows ultrasav's design principle: metadata updates overlay at the variable level — never partially merged — ensuring clean and intentional metadata after each update.
+
+**Critical Design Choice:** 
+- When you rename an existing column "Q1" to "Q1a" in data, the associated metadata does not automatically carry over
+- You must explicitly provide new metadata for the newly renamed column "Q1a"
+- No automatic tracking or mapping between old and new names
+
+
+### 🦸 Metaman Functions
+
+#### `make_datamap(df, meta, output_format=None)`
+Create a validation datamap from data and metadata.
+
+```python
+datamap = ul.make_datamap(df, meta)
+```
+
+#### `map_to_excel(df, file_path, **kwargs)`
+Export datamap to formatted Excel with merged cells and alternating colors.
+
+```python
+ul.map_to_excel(datamap, "report.xlsx") # Saves datamap to Excel
+ul.map_to_excel(datamap, "report.xlsx", alternating_group_formats=ul.get_color_scheme("pastel_blue"))
+```
+
+#### `get_meta(meta, output_path=None, include_all=False)`
+Extract metadata to a Python file or dictionary.
+
+```python
+meta_dict = ul.get_meta(meta)  # Returns meta_dict in memory
+ul.get_meta(meta, output_path="labels.py")  # Saves to file
+```
+
+#### `make_labels(input_path, output_path=None)`
+Create label dictionaries from an Excel template.
+
+```python
+col_labels, val_labels = ul.make_labels("template.xlsx") # Returns label dicts in memory
+col_labels, val_labels = ul.make_labels("template.xlsx", "labels.py") # Saves to file
+```
+
+#### `detect_variable_type(df, meta, column)`
+Detect variable type (single-select, multi-select, numeric, text, date).
+
+```python
+var_type = ul.detect_variable_type(df, meta, "Q1")
+```
+
+#### `get_color_scheme(name)`
+Get a color scheme for Excel formatting.
+
+```python
+scheme = ul.get_color_scheme("pastel_blue")
+# Options: "classic_grey", "pastel_green", "pastel_blue", "pastel_purple", "pastel_indigo"
+```
+
+#### `describe(df, meta, columns)`
+
+Quickly variable summary including variable metadata and value distributions:
+
+```python
+# Single variable
+ul.describe(df, meta, "Q1")
+
+# Multiple variables
+ul.describe(df, meta, ["Q1", "Q2", "Q3"])
+
+# Get summary dict without printing
+summary = ul.describe(df, meta, "Q1", print_output=False)
+```
+
+## ⚡ Why "ultrasav"?
+
+The name combines "Ultra" (super-powered) with "SAV" (SPSS file format), representing the ultra-powerful transformation capabilities of this package. Just like Ultraman's Specium Ray, ultrasav splits and recombines data with precision and power!
+
+And **metaman**? He's the metadata superhero who swoops in to inspect, validate, and report on your SPSS data! 🦸
+
+
+## 📄 License
+
+MIT License - see LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- Built on top of [pyreadstat](https://github.com/Roche/pyreadstat) for SPSS file handling
+- Uses [narwhals](https://github.com/MarcoGorelli/narwhals) for dataframe compatibility
+- Excel export powered by [xlsxwriter](https://github.com/jmcnamara/XlsxWriter)
