@@ -1,0 +1,159 @@
+Metadata-Version: 2.2
+Name: web_framework_api
+Version: 3.2.0
+Summary: Python API for WebFramework
+Keywords: Web
+Author-Email: LazyPanda07 <semengricenko@gmail.com>
+Maintainer-Email: LazyPanda07 <semengricenko@gmail.com>
+License: MIT License
+         
+         Copyright (c) 2020 Semyon Gritsenko
+         
+         Permission is hereby granted, free of charge, to any person obtaining a copy
+         of this software and associated documentation files (the "Software"), to deal
+         in the Software without restriction, including without limitation the rights
+         to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+         copies of the Software, and to permit persons to whom the Software is
+         furnished to do so, subject to the following conditions:
+         
+         The above copyright notice and this permission notice shall be included in all
+         copies or substantial portions of the Software.
+         
+         THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+         IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+         FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+         AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+         LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+         OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+         SOFTWARE.
+         
+Classifier: Programming Language :: Python :: 3.14
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX :: Linux
+Project-URL: Repository, http://github.com/LazyPanda07/WebFramework
+Project-URL: Wiki, http://github.com/LazyPanda07/WebFramework/wiki
+Requires-Python: ==3.14.*
+Description-Content-Type: text/markdown
+
+C++ HTTP/HTTPS server with Python API
+
+
+* [Quick start](#quick-start)
+  * [main.py](#mainpy)
+  * [Settings](#settings)
+  * [Config](#config)
+  * [Run sample](#run-sample)
+* [Executors](#executors)
+
+
+## Quick start
+Server needs few files to run: 
+* [web.json](#settings) with routes
+* [Executors](#executors)
+* [config.json](#config) with server settings  
+All these files must be in the same directory as ```main.py```
+
+
+### main.py
+```python
+from web_framework_api.WebFramework import WebFramework  # Server
+from web_framework_api.utility.DLLHandler import initialize_web_framework  # WebFramework initialization 
+from web_framework_api.exceptions.WebFrameworkException import WebFrameworkException  # Exception
+
+def on_start():
+  print("Server is running")
+
+if __name__ == '__main__':
+  try:
+    initialize_web_framework()  # Load WebFramework shared library
+
+    server = WebFramework.from_path("config.json")  # Create server
+
+    server.start(True, on_start)  # Start server and wait
+  except WebFrameworkException as exception:
+    print(exception)
+
+    exit(-1)
+```
+
+
+### Settings
+```web.json```
+```json
+{
+  "HelloExecutor": {
+    "route": "",
+    "loadType": "initialization",
+    "api": "python"
+  }
+}
+```
+
+
+### Config
+```config.json```
+```json
+{
+  "WebServer": {
+    "ip": "0.0.0.0",
+    "port": 8080,
+    "timeout": 0
+  },
+  "WebFramework": {
+    "settingsPaths": [
+      "web.json"
+    ],
+    "loadSources": [
+      "hello_executor"
+    ],
+    "runtimes": [
+      "python"
+    ],
+    "assetsPath": "assets",
+    "templatesPath": "templates",
+    "cachingSize": 536870912,
+    "webServerType": "multiThreaded",
+    "HTTPS": {
+      "useHTTPS": false,
+      "pathToCertificate": "certificates/cert.pem",
+      "pathToKey": "certificates/key.pem"
+    },
+    "defaultAssetsPath": "WebFrameworkAssets"
+  },
+  "Logging": {
+    "usingLogging": false,
+    "dateFormat": "DMY",
+    "logFileSize": 134217728
+  },
+  "ThreadPoolServer": {
+    "threadCount": 0
+  }
+}
+```
+
+
+### Run sample
+After running server open url [127.0.0.1:8080](http://127.0.0.1:8080).  
+You will see response from server
+```json
+{
+  "message": "Hello, World!"
+}
+```
+
+
+## Executors
+Executors are C++, C, Python or C# classes that responsible for giving responses for their route(url).  
+Source code of HelloExecutor from example  
+```hello_executor.py```
+```python
+from web_framework_api import *
+
+class HelloExecutor(StatelessExecutor):
+    def do_get(self, request, response):
+        response.set_body({
+            "message": "Hello, World!"
+        })
+```
+More information you can find in [wiki](https://github.com/LazyPanda07/WebFramework/wiki/Executors-API).
