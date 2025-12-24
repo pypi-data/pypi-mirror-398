@@ -1,0 +1,396 @@
+Metadata-Version: 2.4
+Name: qagentic-pytest
+Version: 0.1.1
+Summary: AI-Powered Test Intelligence SDK for Python - pytest plugin with automatic failure analysis
+Project-URL: Homepage, https://github.com/qagentic/qagentic-sdk
+Project-URL: Documentation, https://docs.qagentic.io
+Project-URL: Repository, https://github.com/qagentic/qagentic-sdk
+Project-URL: Issues, https://github.com/qagentic/qagentic-sdk/issues
+Author-email: QAagentic Team <team@qagentic.io>
+License-Expression: MIT
+Keywords: ai,allure,automation,pytest,quality-assurance,test-analytics,test-reporting,testing
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: Pytest
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Quality Assurance
+Classifier: Topic :: Software Development :: Testing
+Requires-Python: >=3.8
+Requires-Dist: httpx>=0.24.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: pytest>=7.0.0
+Requires-Dist: python-dateutil>=2.8.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: rich>=13.0.0
+Provides-Extra: dev
+Requires-Dist: black>=23.0.0; extra == 'dev'
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# QAagentic Python SDK
+
+<p align="center">
+  <strong>AI-Powered Test Intelligence for Python</strong>
+</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/qagentic-pytest/">
+    <img src="https://img.shields.io/pypi/v/qagentic-pytest.svg" alt="PyPI version">
+  </a>
+  <a href="https://pypi.org/project/qagentic-pytest/">
+    <img src="https://img.shields.io/pypi/pyversions/qagentic-pytest.svg" alt="Python versions">
+  </a>
+  <a href="https://github.com/qagentic/qagentic-sdk/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
+  </a>
+</p>
+
+---
+
+## 🚀 Installation
+
+```bash
+pip install qagentic-pytest
+```
+
+## ⚡ Quick Start
+
+### Zero-Config Setup
+
+```python
+# conftest.py - That's it! QAagentic auto-hooks into pytest
+import qagentic
+```
+
+```bash
+# Run tests with QAagentic reporting
+pytest --qagentic
+```
+
+### With Configuration
+
+```python
+# conftest.py
+import qagentic
+
+qagentic.configure(
+    project_name="my-awesome-project",
+    api_url="http://localhost:8080",
+    api_key="your-api-key",  # Optional
+)
+```
+
+## 📝 Usage Examples
+
+### Decorators (Allure-Compatible)
+
+```python
+import qagentic
+from qagentic import feature, story, severity, Severity, step
+
+@feature("User Authentication")
+@story("Login Flow")
+@severity(Severity.CRITICAL)
+def test_user_login():
+    with step("Navigate to login page"):
+        # Your test code
+        pass
+    
+    with step("Enter credentials"):
+        qagentic.attach_screenshot("login.png")
+        # Your test code
+        pass
+    
+    with step("Verify successful login"):
+        # Your test code
+        pass
+```
+
+### All Available Decorators
+
+```python
+from qagentic import (
+    feature,      # Group by feature
+    story,        # Group by user story
+    epic,         # Group by epic
+    severity,     # Set test severity
+    tag,          # Add tags
+    label,        # Custom labels
+    link,         # Add links
+    issue,        # Link to issue tracker
+    testcase,     # Link to test management
+    description,  # Add description
+    title,        # Custom title
+    owner,        # Test owner
+    layer,        # Test layer (unit, integration, e2e)
+    suite,        # Suite name
+    sub_suite,    # Sub-suite name
+    parent_suite, # Parent suite name
+)
+
+@epic("E-Commerce Platform")
+@feature("Shopping Cart")
+@story("Add to Cart")
+@severity(Severity.CRITICAL)
+@tag("smoke", "regression")
+@owner("john.doe@example.com")
+@issue("JIRA-123")
+@testcase("TC-456")
+@description("""
+This test verifies the add to cart functionality:
+1. Navigate to product page
+2. Click add to cart
+3. Verify cart updated
+""")
+def test_add_to_cart():
+    pass
+```
+
+### Steps with Context Manager
+
+```python
+from qagentic import step
+
+def test_checkout_flow():
+    with step("Add items to cart") as s:
+        s.attach_json({"item_id": "123", "quantity": 2}, "Cart Data")
+        # Add items
+    
+    with step("Enter shipping info"):
+        # Enter shipping
+        pass
+    
+    with step("Complete payment") as s:
+        s.set_parameter("payment_method", "credit_card")
+        # Process payment
+```
+
+### Attachments
+
+```python
+import qagentic
+
+def test_with_attachments():
+    # Attach screenshot
+    qagentic.attach_screenshot("path/to/screenshot.png", "Login Page")
+    
+    # Attach JSON data
+    qagentic.attach_json({"status": "success"}, "API Response")
+    
+    # Attach text
+    qagentic.attach_text("Log output here...", "Console Logs")
+    
+    # Attach HTML
+    qagentic.attach_html("<h1>Report</h1>", "HTML Report")
+    
+    # Attach any file
+    qagentic.attach_file("path/to/file.pdf", "PDF Report")
+    
+    # Attach video recording
+    qagentic.attach_video("path/to/recording.mp4", "Test Recording")
+```
+
+### Severity Levels
+
+```python
+from qagentic import severity, Severity
+
+@severity(Severity.BLOCKER)   # System unusable
+def test_critical_path(): pass
+
+@severity(Severity.CRITICAL)  # Major feature broken
+def test_payment(): pass
+
+@severity(Severity.NORMAL)    # Default severity
+def test_feature(): pass
+
+@severity(Severity.MINOR)     # Minor issue
+def test_edge_case(): pass
+
+@severity(Severity.TRIVIAL)   # Cosmetic issue
+def test_ui_alignment(): pass
+```
+
+## ⚙️ Configuration
+
+### Command Line Options
+
+```bash
+pytest --qagentic                          # Enable QAagentic
+pytest --qagentic-project=my-project       # Set project name
+pytest --qagentic-api-url=http://api.com   # Set API URL
+pytest --qagentic-api-key=secret           # Set API key
+pytest --qagentic-output-dir=./results     # Set output directory
+pytest --qagentic-no-console               # Disable console output
+pytest --qagentic-no-api                   # Disable API reporting
+pytest --qagentic-no-local                 # Disable local files
+```
+
+### Environment Variables
+
+```bash
+export QAGENTIC_PROJECT_NAME=my-project
+export QAGENTIC_API_URL=http://localhost:8080
+export QAGENTIC_API_KEY=your-api-key
+export QAGENTIC_OUTPUT_DIR=./qagentic-results
+export QAGENTIC_AI_ANALYSIS=true
+export QAGENTIC_SCREENSHOTS=on_failure
+```
+
+### Configuration File
+
+```yaml
+# qagentic.yaml
+project:
+  name: my-project
+  environment: staging
+
+reporting:
+  api:
+    enabled: true
+    url: http://localhost:8080
+    key: ${QAGENTIC_API_KEY}
+  local:
+    enabled: true
+    output_dir: ./qagentic-results
+    formats:
+      - json
+      - html
+      - junit
+
+features:
+  ai_analysis: true
+  failure_clustering: true
+  flaky_detection: true
+  screenshots: on_failure
+  videos: on_failure
+
+labels:
+  team: platform
+  component: auth
+```
+
+### Programmatic Configuration
+
+```python
+import qagentic
+
+qagentic.configure(
+    project_name="my-project",
+    environment="staging",
+    api_url="http://localhost:8080",
+    api_key="your-api-key",
+    output_dir="./qagentic-results",
+    ai_analysis=True,
+    screenshots="on_failure",
+)
+```
+
+## 📊 Output Formats
+
+### JSON Report
+
+```json
+{
+  "id": "run_20231219_143022",
+  "project_name": "my-project",
+  "total": 100,
+  "passed": 95,
+  "failed": 3,
+  "skipped": 2,
+  "pass_rate": 95.0,
+  "tests": [...]
+}
+```
+
+### JUnit XML (CI/CD Compatible)
+
+```xml
+<?xml version="1.0" ?>
+<testsuite name="my-project" tests="100" failures="3" errors="0" skipped="2">
+  <testcase name="test_login" classname="tests.test_auth" time="1.234"/>
+  ...
+</testsuite>
+```
+
+## 🔌 CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+- name: Run Tests
+  run: pytest --qagentic
+  env:
+    QAGENTIC_API_URL: ${{ secrets.QAGENTIC_API_URL }}
+    QAGENTIC_API_KEY: ${{ secrets.QAGENTIC_API_KEY }}
+
+- name: Upload Results
+  uses: actions/upload-artifact@v3
+  if: always()
+  with:
+    name: qagentic-results
+    path: qagentic-results/
+```
+
+### GitLab CI
+
+```yaml
+test:
+  script:
+    - pytest --qagentic
+  artifacts:
+    when: always
+    paths:
+      - qagentic-results/
+    reports:
+      junit: qagentic-results/junit.xml
+```
+
+## 🧠 AI Features
+
+When connected to QAagentic server:
+
+- **Automatic Root Cause Analysis** - AI analyzes failures
+- **Failure Clustering** - Groups similar failures
+- **Flaky Test Detection** - Identifies unstable tests
+- **Trend Analysis** - Tracks quality over time
+- **Smart Recommendations** - Actionable fix suggestions
+
+## 📚 API Reference
+
+### Core Functions
+
+| Function | Description |
+|----------|-------------|
+| `qagentic.configure()` | Configure the SDK |
+| `qagentic.step()` | Create a test step |
+| `qagentic.attach()` | Attach data to test |
+| `qagentic.attach_screenshot()` | Attach screenshot |
+| `qagentic.attach_json()` | Attach JSON data |
+
+### Decorators
+
+| Decorator | Description |
+|-----------|-------------|
+| `@feature(name)` | Group by feature |
+| `@story(name)` | Group by user story |
+| `@severity(level)` | Set severity level |
+| `@tag(*tags)` | Add tags |
+| `@label(name, value)` | Add custom label |
+
+## 🤝 Contributing
+
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
+
+## 📄 License
+
+MIT License - see [LICENSE](../../LICENSE) for details.
