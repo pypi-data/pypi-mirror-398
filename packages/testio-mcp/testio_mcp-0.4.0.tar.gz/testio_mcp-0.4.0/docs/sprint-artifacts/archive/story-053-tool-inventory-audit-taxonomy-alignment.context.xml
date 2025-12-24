@@ -1,0 +1,125 @@
+<story-context id="story-053" v="1.0">
+  <metadata>
+    <epicId>008</epicId>
+    <storyId>053</storyId>
+    <title>Tool Inventory Audit & Taxonomy Alignment</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-27</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-053-tool-inventory-audit-taxonomy-alignment.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer maintaining the MCP server</asA>
+    <iWant>tools to follow a consistent naming taxonomy</iWant>
+    <soThat>users can predict tool names and understand their purpose</soThat>
+    <tasks>
+      - [ ] Task 1: Rename `get_test_status` (AC1)
+      - [ ] Task 2: Rename `generate_ebr_report` (AC2)
+      - [ ] Task 3: Remove `list_user_stories` (AC3)
+      - [ ] Task 4: Disable `get_analytics_capabilities` (AC4)
+      - [ ] Task 5: Update Tool Descriptions (AC5)
+      - [ ] Task 6: Update REST API (AC6)
+      - [ ] Task 7: Update Documentation (AC7)
+      - [ ] Task 8: Verification (AC8)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. [ ] Rename `get_test_status` -> `get_test_summary`
+    2. [ ] Rename `generate_ebr_report` -> `get_product_quality_report`
+    3. [ ] Remove `list_user_stories` tool (redundant)
+    4. [ ] Move `get_analytics_capabilities` to disabled-by-default
+    5. [ ] Update all tool descriptions for consistency
+    6. [ ] Update REST API routes to match new tool names
+    7. [ ] Update CLAUDE.md with new tool names
+    8. [ ] All tests pass after renaming
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      - path: docs/epics/epic-008-mcp-layer-optimization.md
+        title: Epic-008: MCP Layer Optimization
+        section: Tool Taxonomy (Target State)
+        snippet: "Tool Taxonomy: Discover (list_*) + Summarize (get_*_summary) + Analyze (query_metrics, get_product_quality_report)"
+      - path: docs/architecture/MCP.md
+        title: MCP Server Architecture
+        section: Tool Parameter Guidelines
+        snippet: "Tool descriptions should be concise (100-200 chars). Technical details belong in parameter descriptions."
+      - path: CLAUDE.md
+        title: CLAUDE.md
+        section: Available MCP Tools
+        snippet: List of current tools to be updated.
+    </docs>
+    <code>
+      - path: src/testio_mcp/tools/test_status_tool.py
+        kind: tool
+        symbol: get_test_status
+        reason: Rename to test_summary_tool.py / get_test_summary
+      - path: src/testio_mcp/tools/generate_ebr_report_tool.py
+        kind: tool
+        symbol: generate_ebr_report
+        reason: Rename to product_quality_report_tool.py / get_product_quality_report
+      - path: src/testio_mcp/tools/list_user_stories_tool.py
+        kind: tool
+        symbol: list_user_stories
+        reason: Delete (redundant)
+      - path: src/testio_mcp/tools/get_analytics_capabilities_tool.py
+        kind: tool
+        symbol: get_analytics_capabilities
+        reason: Disable by default
+      - path: src/testio_mcp/server.py
+        kind: server
+        symbol: mcp
+        reason: Update tool imports and registrations
+      - path: src/testio_mcp/api.py
+        kind: api
+        symbol: api
+        reason: Update REST endpoints to match new names
+      - path: src/testio_mcp/config.py
+        kind: config
+        symbol: settings
+        reason: Add disabled tools list
+    </code>
+    <dependencies>
+      - fastmcp
+      - fastapi
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - Do NOT maintain backward compatibility (clean break)
+    - Follow "Verb + object + purpose" pattern for descriptions
+    - Update REST API routes to match tool names
+  </constraints>
+
+  <interfaces>
+    - name: get_test_summary
+      kind: MCP Tool
+      signature: get_test_summary(test_id: int)
+      path: src/testio_mcp/tools/test_summary_tool.py
+    - name: get_product_quality_report
+      kind: MCP Tool
+      signature: get_product_quality_report(product_id: int, ...)
+      path: src/testio_mcp/tools/product_quality_report_tool.py
+    - name: GET /api/tests/{id}/summary
+      kind: REST Endpoint
+      signature: GET /api/tests/{id}/summary
+      path: src/testio_mcp/api.py
+    - name: GET /api/products/{id}/quality-report
+      kind: REST Endpoint
+      signature: GET /api/products/{id}/quality-report
+      path: src/testio_mcp/api.py
+  </interfaces>
+
+  <tests>
+    <standards>Use pytest with AsyncMock for service layer. Integration tests should verify full flow.</standards>
+    <locations>tests/unit, tests/integration</locations>
+    <ideas>
+      - Verify old tool names are gone from registry
+      - Verify new tool names are registered and working
+      - Verify REST endpoints match new names
+      - Verify list_features includes user stories
+    </ideas>
+  </tests>
+</story-context>

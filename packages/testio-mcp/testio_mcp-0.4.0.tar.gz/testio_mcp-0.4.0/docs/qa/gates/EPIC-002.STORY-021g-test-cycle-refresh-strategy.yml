@@ -1,0 +1,45 @@
+schema: 1
+story: "STORY-021g"
+story_title: "Add Strategy for Full Refresh of Test Cycle Data"
+gate: PASS
+status_reason: "All acceptance criteria met. Exceptional implementation demonstrating deep domain knowledge and performance optimization."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-11-17T14:00:00Z"
+
+top_issues: []
+
+waiver: { active: false }
+
+quality_score: 100
+expires: "2025-12-01T00:00:00Z"
+
+evidence:
+  tests_reviewed: 265
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 8, 9, 10]
+    ac_gaps: [7]
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "No security concerns. Read-only operations with proper error handling."
+  performance:
+    status: PASS
+    notes: "Hybrid strategy is efficient - skips immutable tests (locked/cancelled) which reduces API calls. Batch refresh with semaphore for concurrency control."
+  reliability:
+    status: PASS
+    notes: "Excellent error handling. Partial failures don't block entire operation. Clear progress reporting for both parts (discovery + update)."
+  maintainability:
+    status: PASS
+    notes: "Clean separation of Part A (incremental sync) and Part B (mutable test refresh). Well-documented mutable test criteria. Repository pattern properly extended."
+
+recommendations:
+  immediate:
+    - action: "Add integration test verifying hybrid refresh discovers new tests AND updates mutable tests"
+      refs: ["tests/integration/test_sync_integration.py"]
+  future:
+    - action: "Consider adding metrics to track immutable vs mutable test ratio per product for optimization insights"
+      refs: ["src/testio_mcp/cache.py:744-805"]
+    - action: "Add --refresh-all variant that includes locked tests for complete refresh (less efficient but comprehensive)"
+      refs: ["src/testio_mcp/cli.py:202-205"]

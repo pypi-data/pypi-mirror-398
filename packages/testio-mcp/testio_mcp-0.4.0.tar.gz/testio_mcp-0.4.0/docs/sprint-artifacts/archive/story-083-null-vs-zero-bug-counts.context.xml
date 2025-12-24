@@ -1,0 +1,203 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>014</epicId>
+    <storyId>083</storyId>
+    <title>Null vs Zero for Uncached Bug Counts</title>
+    <status>draft</status>
+    <generatedAt>2025-12-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-083-null-vs-zero-bug-counts.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>CSM listing products</asA>
+    <iWant>bug_count to distinguish "not synced" from "zero bugs"</iWant>
+    <soThat>I know when to call sync_data vs trust the count</soThat>
+    <tasks>
+      - Task 1: Track Bug Sync State
+        - Determine how to track whether bugs have been synced per product
+        - Option A: New bugs_synced_at column on Product model
+        - Option B: Check existence of any Bug records for product (may miss true 0 case)
+        - Option C: Use cache metadata to track sync state
+
+      - Task 2: Update list_products Logic
+        - Modify src/testio_mcp/services/product_service.py to return None when not synced
+        - Return actual count (including 0) when synced
+
+      - Task 3: Update Output Schema
+        - Update Pydantic model to allow bug_count: int | None
+        - Ensure JSON serializes as null
+
+      - Task 4: Update Tool Description
+        - Add note to list_products tool description explaining null vs 0 semantics
+
+      - Task 5: Testing
+        - Unit test: fresh product returns bug_count: null
+        - Unit test: synced product with 0 bugs returns bug_count: 0
+        - Unit test: synced product with bugs returns actual count
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. Null for Unsync'd:
+       - list_products returns bug_count: null when bugs have never been synced for a product
+       - This indicates "unknown" rather than "zero"
+
+    2. Zero for Confirmed:
+       - list_products returns bug_count: 0 when sync has run and confirmed zero bugs exist
+       - This indicates "synced and verified zero"
+
+    3. Documentation:
+       - Tool description mentions: "bug_count is null until bugs are synced; call sync_data or get_product_quality_report for accurate count"
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-014-mcp-usability-improvements.md</path>
+        <title>Epic 014: MCP Usability Improvements</title>
+        <section>STORY-083: Null vs Zero for Uncached Bug Counts (FR3)</section>
+        <snippet>As a CSM listing products, I want bug_count to distinguish "not synced" from "zero bugs", so that I know when to call sync_data vs trust the count. Track bugs_synced_at per product (new column or check cache metadata). Return None if never synced, 0 if synced and confirmed zero.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/SERVICE_LAYER_SUMMARY.md</path>
+        <title>Service Layer Architecture</title>
+        <section>Service Pattern (with repository pattern)</section>
+        <snippet>Service layer separates business logic from transport. Services use repositories for data access. ProductService handles product listing with computed counts from SQLite subqueries. Services are framework-agnostic and can be reused in MCP, REST API, CLI.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing Guide</title>
+        <section>Test Levels & Coverage</section>
+        <snippet>Unit tests (50%): Fast (<1ms), mocked dependencies, ≥85% coverage. Service tests: Test business logic with mocked client/cache. Tool tests: Test error transformations and delegation. Use Arrange-Act-Assert pattern.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/services/product_service.py</path>
+        <kind>service</kind>
+        <symbol>ProductService.list_products</symbol>
+        <lines>64-195</lines>
+        <reason>Primary method that needs modification. Currently returns bug_count from database subquery (always returns int). Need to distinguish null (not synced) from 0 (synced and zero).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/product_repository.py</path>
+        <kind>repository</kind>
+        <symbol>ProductRepository.query_products</symbol>
+        <lines>418-426</lines>
+        <reason>Contains bug_count_subquery logic. Currently returns COUNT(Bug.id) which is always int. Need conditional logic to return null when bugs not synced.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/product_repository.py</path>
+        <kind>repository</kind>
+        <symbol>ProductRepository.get_product_with_counts</symbol>
+        <lines>283-333</lines>
+        <reason>Also uses bug_count subquery for product summaries. Same null vs zero semantics needed.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/product.py</path>
+        <kind>model</kind>
+        <symbol>Product</symbol>
+        <lines>16-53</lines>
+        <reason>Product ORM model. May need new column bugs_synced_at (Option A from story) to track whether bugs have been synced for this product.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/list_products_tool.py</path>
+        <kind>tool</kind>
+        <symbol>ProductSummary</symbol>
+        <lines>33-68</lines>
+        <reason>Pydantic model for list_products output. bug_count field currently requires int (ge=0). Need to change to int | None to support null.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/list_products_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_products</symbol>
+        <lines>84-165</lines>
+        <reason>MCP tool wrapper. Tool description needs update to explain null vs 0 semantics (AC3).</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_product_service.py</path>
+        <kind>test</kind>
+        <symbol>test_list_products_*</symbol>
+        <lines>N/A</lines>
+        <reason>Service tests for list_products. Need new tests: (1) fresh product returns bug_count: null, (2) synced product with 0 bugs returns 0, (3) synced product with bugs returns count.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version=">=0.0.16" />
+        <package name="pydantic" version=">=2.12.0" />
+        <package name="fastmcp" version=">=2.12.0" />
+        <package name="aiosqlite" version=">=0.20.0" />
+        <package name="alembic" version=">=1.13.0" />
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - Service Layer Pattern (ADR-006): Business logic in ProductService, data access in ProductRepository
+    - Repository Pattern: Use ProductRepository for SQLite queries, not direct SQL
+    - Pydantic Validation: All tool outputs must validate against Pydantic schema
+    - Type Safety: Strict mypy (mypy --strict), all functions need type hints
+    - Database Migrations (ADR-016): Schema changes require Alembic migration
+    - SQLModel Query Patterns: Use session.exec() for ORM queries (not session.execute())
+    - Null Handling: Must use None in Python, serializes to null in JSON
+    - Tool Error Format: User-facing errors use ❌ℹ️💡 format (error/context/solution)
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>ProductRepository.query_products</name>
+      <kind>repository method</kind>
+      <signature>async def query_products(sort_by, sort_order, page, per_page, offset) -> dict</signature>
+      <path>src/testio_mcp/repositories/product_repository.py</path>
+      <notes>Returns products with bug_count from subquery. Need to modify subquery to return null when bugs not synced.</notes>
+    </interface>
+    <interface>
+      <name>Product.bugs_synced_at</name>
+      <kind>ORM column (potential)</kind>
+      <signature>bugs_synced_at: datetime | None</signature>
+      <path>src/testio_mcp/models/orm/product.py</path>
+      <notes>Option A from story: Add new column to track bug sync state. Alternative: infer from Bug table existence.</notes>
+    </interface>
+    <interface>
+      <name>ProductSummary.bug_count</name>
+      <kind>Pydantic field</kind>
+      <signature>bug_count: int | None</signature>
+      <path>src/testio_mcp/tools/list_products_tool.py</path>
+      <notes>Currently int with ge=0. Must change to int | None to allow null for unsynced products.</notes>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Testing follows pytest with async support. Unit tests use mocked dependencies (AsyncMock for client/cache).
+      Service tests are primary testing layer (fast, no FastMCP mocking). Coverage target: ≥85% overall, ≥90% for services.
+      Use Arrange-Act-Assert pattern. Test behavior (observable outcomes), not implementation details.
+      Security tests mandatory for token handling (SEC-002).
+    </standards>
+    <locations>
+      - tests/unit/ (unit tests, mocked, no API)
+      - tests/services/ (service layer tests)
+      - tests/integration/ (real API tests, requires TESTIO_CUSTOMER_API_TOKEN)
+    </locations>
+    <ideas>
+      <test id="AC1">
+        <criterion>list_products returns bug_count: null when bugs have never been synced</criterion>
+        <test_idea>Unit test: Mock product with no bugs_synced_at (or no Bug records). Assert bug_count is None in response.</test_idea>
+      </test>
+      <test id="AC2">
+        <criterion>list_products returns bug_count: 0 when sync has run and confirmed zero bugs</criterion>
+        <test_idea>Unit test: Mock product with bugs_synced_at set and Bug count = 0. Assert bug_count is 0 in response.</test_idea>
+      </test>
+      <test id="AC2-positive">
+        <criterion>list_products returns actual count when bugs exist</criterion>
+        <test_idea>Unit test: Mock product with bugs_synced_at set and Bug count = 5. Assert bug_count is 5 in response.</test_idea>
+      </test>
+      <test id="AC3">
+        <criterion>Tool description mentions null vs 0 semantics</criterion>
+        <test_idea>Manual verification: Check list_products tool docstring includes explanation of null (not synced) vs 0 (confirmed zero).</test_idea>
+      </test>
+    </ideas>
+  </tests>
+</story-context>

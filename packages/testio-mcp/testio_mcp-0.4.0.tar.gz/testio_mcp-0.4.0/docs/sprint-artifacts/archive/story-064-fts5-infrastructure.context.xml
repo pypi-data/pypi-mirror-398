@@ -1,0 +1,145 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>10</epicId>
+    <storyId>064</storyId>
+    <title>FTS5 Infrastructure</title>
+    <status>Draft</status>
+    <generatedAt>2025-11-29T12:01:05-06:00</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-064-fts5-infrastructure.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>an FTS5 virtual table indexing all searchable entities</iWant>
+    <soThat>search queries can be executed with BM25 ranking</soThat>
+    <tasks>
+- [ ] Task 1: Create Alembic Migration for FTS5
+- [ ] Task 2: Create Triggers for Each Entity
+- [ ] Task 3: Populate Index from Existing Data
+- [ ] Task 4: Create SearchRepository + FTS5QueryBuilder
+- [ ] Task 5: Write Tests
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+- Given products, features, tests, and bugs tables exist with data
+- When the Alembic migration runs
+- Then a `search_index` FTS5 virtual table is created
+- And triggers are created for INSERT/UPDATE/DELETE on all 4 source tables
+- And existing data from all tables is populated into the index
+- And SearchRepository can execute FTS5 queries with BM25 ranking
+- And migration is reversible (downgrade drops FTS5 table and triggers)
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-010-full-text-search.md</path>
+        <title>Epic 010: Full-Text Search</title>
+        <section>Story 10.2: FTS5 Infrastructure</section>
+        <snippet>Single unified FTS5 virtual table search_index with triggers for INSERT/UPDATE/DELETE on all four base tables. Triggers ensure exactly one search_index row per (entity_type, entity_id).</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-spec-fts-search.md</path>
+        <title>Technical Specification: Full-Text Search</title>
+        <section>Implementation Details</section>
+        <snippet>Detailed FTS5 schema, trigger SQL definitions, and content concatenation rules for products, features, tests, and bugs. Defines SearchRepository and FTS5QueryBuilder patterns.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Local Data Store Strategy</section>
+        <snippet>SQLite Database (PersistentCache) design with repository pattern. Data freshness maintained via background sync and triggers.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/MCP.md</path>
+        <title>MCP Server Architecture</title>
+        <section>Overview</section>
+        <snippet>Architecture pattern using FastMCP, Pydantic models, and Service Layer. Relevant for how the search tool (next story) will interact with the repository.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <item>
+        <path>src/testio_mcp/repositories/base_repository.py</path>
+        <kind>class</kind>
+        <symbol>BaseRepository</symbol>
+        <reason>Base class for the new SearchRepository. Provides connection management and context.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>class</kind>
+        <symbol>AnalyticsService</symbol>
+        <lines>45-80</lines>
+        <reason>Example of raw SQL query execution in async context, similar to what SearchRepository will need.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/database/cache.py</path>
+        <kind>class</kind>
+        <symbol>PersistentCache</symbol>
+        <reason>Manages SQLite database connection and initialization. Relevant for ensuring FTS5 support.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/models/orm/bug.py</path>
+        <kind>class</kind>
+        <symbol>Bug</symbol>
+        <reason>Model where actual_result, expected_result, and steps fields are added (Story 10.1) and used for FTS5 indexing.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/schemas/constants.py</path>
+        <kind>file</kind>
+        <symbol>SEARCHABLE_ENTITIES</symbol>
+        <reason>Location to define SEARCHABLE_ENTITIES and SEARCH_CONTENT_FIELDS constants.</reason>
+      </item>
+    </code>
+    <dependencies>
+      <package name="aiosqlite" version=">=0.20.0" ecosystem="python" />
+      <package name="sqlmodel" version=">=0.0.16" ecosystem="python" />
+      <package name="alembic" version=">=1.13.0" ecosystem="python" />
+      <package name="pytest" version=">=8.4.0" ecosystem="python" />
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Must use `aiosqlite` for all database interactions (async).</constraint>
+    <constraint>Must use raw SQL for FTS5 queries as SQLModel does not support virtual tables.</constraint>
+    <constraint>Index updates must be handled via SQLite triggers (INSERT/UPDATE/DELETE) to ensure consistency without application-level sync logic.</constraint>
+    <constraint>Migration must be reversible (downgrade drops FTS5 table and triggers).</constraint>
+    <constraint>SearchRepository must depend on FTS5QueryBuilder for SQL generation (SRP).</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>SearchRepository.search</name>
+      <kind>function signature</kind>
+      <signature>async def search(self, query: str, entities: list[str] | None = None, product_ids: list[int] | None = None, limit: int = 20) -> list[SearchResult]</signature>
+      <path>src/testio_mcp/repositories/search_repository.py</path>
+    </interface>
+    <interface>
+      <name>FTS5QueryBuilder.build_search_query</name>
+      <kind>function signature</kind>
+      <signature>def build_search_query(self, query: str, entities: list[str] | None, product_ids: list[int] | None, limit: int) -> tuple[str, list[Any]]</signature>
+      <path>src/testio_mcp/repositories/fts5_query_builder.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Use pytest with pytest-asyncio for async tests. Unit tests should mock database interactions where possible, but SearchRepository tests will likely need a real (in-memory) SQLite database to verify FTS5 syntax and behavior. Integration tests should verify the end-to-end flow from data insertion (trigger firing) to search results.
+    </standards>
+    <locations>
+      <location>tests/unit/test_search_repository.py</location>
+      <location>tests/unit/test_fts5_query_builder.py</location>
+      <location>tests/integration/test_fts5_search.py</location>
+    </locations>
+    <ideas>
+      <idea>Verify FTS5 virtual table creation via migration test.</idea>
+      <idea>Test triggers: Insert a product and verify it appears in search_index.</idea>
+      <idea>Test triggers: Update a feature's description and verify search_index updates.</idea>
+      <idea>Test triggers: Delete a test and verify it is removed from search_index.</idea>
+      <idea>Test FTS5QueryBuilder generates correct SQL for various filter combinations (entities, product_ids).</idea>
+      <idea>Test SearchRepository handles invalid FTS5 syntax gracefully.</idea>
+      <idea>Test BM25 ranking: Verify title matches rank higher than content matches.</idea>
+    </ideas>
+  </tests>
+</story-context>

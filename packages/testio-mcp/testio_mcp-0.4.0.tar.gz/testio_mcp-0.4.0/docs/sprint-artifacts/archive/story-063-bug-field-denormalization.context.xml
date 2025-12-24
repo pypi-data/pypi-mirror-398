@@ -1,0 +1,155 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>epic-010</epicId>
+    <storyId>story-063</storyId>
+    <title>Bug Field Denormalization</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-29T12:09:28-06:00</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-063-bug-field-denormalization.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>bug actual_result and expected_result fields denormalized to columns</iWant>
+    <soThat>they can be indexed for full-text search</soThat>
+    <tasks>
+- [ ] **Task 1: Update Bug ORM Model**
+  - Add `actual_result: str | None` field to Bug model
+  - Add `expected_result: str | None` field to Bug model
+  - Follow existing pattern from STORY-054 (goal, instructions fields on Test)
+
+- [ ] **Task 2: Create Alembic Migration**
+  - Add two nullable TEXT columns: `actual_result`, `expected_result` (no default values)
+  - Backfill from `raw_data` using JSON extraction: `json_extract(raw_data, '$.actual_result')`
+  - **Transformation Rule:** Trim whitespace from extracted values; if empty string or missing, set to NULL
+  - Ensure migration is **idempotent** (safe to re-run)
+
+- [ ] **Task 3: Update BugRepository**
+  - Modify `_create_bug_from_api()` or equivalent to extract actual_result, expected_result
+  - Follow existing extraction pattern for other fields
+
+- [ ] **Task 4: Write Tests**
+  - Unit test for extraction logic
+  - Migration test (pytest-alembic pattern)
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+**Given** the bugs table exists with raw_data JSON containing actual_result and expected_result
+**When** the Alembic migration runs
+**Then** actual_result (TEXT) and expected_result (TEXT) columns are added to bugs table
+
+**And** existing bugs are backfilled by extracting values from raw_data JSON
+
+**And** BugRepository.sync_bugs() extracts these fields from API response on future syncs
+
+**And** unit tests verify extraction logic
+</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/tech-spec-fts-search.md</path>
+        <title>Technical Specification: Full-Text Search</title>
+        <section>Scope > Bug Field Denormalization (Story 1)</section>
+        <snippet>
+1. **Bug Field Denormalization (Story 1)**
+   - Add `actual_result`, `expected_result` columns to bugs table
+   - Migration to extract from raw_data JSON
+   - Update BugRepository to populate on sync
+        </snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/epic-010-full-text-search.md</path>
+        <title>Epic 010: Full-Text Search</title>
+        <section>Story 10.1: Bug Field Denormalization</section>
+        <snippet>
+**Technical Notes:** Follow STORY-054 pattern for field denormalization + backfill migration (single-path Alembic migration, idempotent backfill for existing databases, no edits to baseline migration); update Bug ORM model to include the new columns and expose them for use in Story 10.2 FTS indexing
+        </snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-054-schema-migration-normalize-key-fields.md</path>
+        <title>Story 008.054: Schema Migration - Normalize Key Fields</title>
+        <section>Acceptance Criteria</section>
+        <snippet>
+2. [ ] Backfill existing rows from JSON
+   ```sql
+   UPDATE products SET product_type = json_extract(data, '$.type')
+   WHERE json_valid(data);
+   ```
+        </snippet>
+      </doc>
+    </docs>
+    <code>
+      <item>
+        <path>src/testio_mcp/models/orm/bug.py</path>
+        <kind>model</kind>
+        <symbol>Bug</symbol>
+        <lines>18-71</lines>
+        <reason>Target ORM model to add actual_result and expected_result fields.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/repositories/bug_repository.py</path>
+        <kind>repository</kind>
+        <symbol>BugRepository._write_bugs_to_db</symbol>
+        <lines>705-800</lines>
+        <reason>Logic for writing bugs to DB needs to be updated to extract new fields from API response.</reason>
+      </item>
+      <item>
+        <path>alembic/versions/4d6ca3b1f08b_normalize_key_fields_story_054.py</path>
+        <kind>migration</kind>
+        <symbol>upgrade</symbol>
+        <lines>30-89</lines>
+        <reason>Reference migration pattern for adding columns and backfilling from JSON in SQLite.</reason>
+      </item>
+    </code>
+    <dependencies>
+      <ecosystem name="python">
+        <package name="alembic" version="1.13.0+" />
+        <package name="sqlmodel" version="0.0.16" />
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>
+      <description>Use Alembic `batch_alter_table` for SQLite compatibility when adding columns.</description>
+      <source>docs/stories/story-054-schema-migration-normalize-key-fields.md</source>
+    </constraint>
+    <constraint>
+      <description>Backfill data using `json_extract` from `raw_data` column.</description>
+      <source>docs/tech-spec-fts-search.md</source>
+    </constraint>
+    <constraint>
+      <description>Ensure migration is idempotent and reversible.</description>
+      <source>docs/epics/epic-010-full-text-search.md</source>
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>Bug Model</name>
+      <kind>ORM Model</kind>
+      <signature>
+class Bug(SQLModel, table=True):
+    actual_result: str | None = Field(default=None)
+    expected_result: str | None = Field(default=None)
+      </signature>
+      <path>src/testio_mcp/models/orm/bug.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>Use pytest-alembic for migration testing. Unit tests should verify extraction logic in BugRepository.</standards>
+    <locations>
+      <location>tests/unit/test_bug_repository.py</location>
+      <location>tests/integration/test_alembic_migrations.py</location>
+    </locations>
+    <ideas>
+      <idea>Verify that actual_result and expected_result are correctly extracted from raw_data JSON during sync.</idea>
+      <idea>Verify that existing bugs are backfilled correctly when migration runs.</idea>
+      <idea>Verify that new columns are nullable and handle missing JSON keys gracefully.</idea>
+    </ideas>
+  </tests>
+</story-context>

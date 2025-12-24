@@ -1,0 +1,289 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>009</epicId>
+    <storyId>049</storyId>
+    <title>Background Sync Migration</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-26</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-049-background-sync-migration.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a developer maintaining the sync infrastructure</asA>
+    <iWant>the background sync task to use SyncService instead of direct cache methods</iWant>
+    <soThat>all sync orchestration is unified and maintainable in one place</soThat>
+    <tasks>
+- Task 1: Update server.py lifespan to use SyncService (AC: 1)
+  - Import SyncService and data models
+  - Initialize SyncService in lifespan with repository factories
+  - Replace cache.sync_product_tests() with SyncService.execute_sync()
+  - Pass all 3 phases: PRODUCTS, FEATURES, NEW_TESTS
+  - Maintain existing error handling and logging
+
+- Task 2: Migrate background refresh logic to SyncService (AC: 2)
+  - Review _run_background_refresh_cycle() in server.py
+  - Identify orchestration logic to move to SyncService
+  - Update background task to delegate to SyncService
+  - Keep scheduling logic in server.py
+  - Verify phase ordering preserved
+
+- Task 3: Verify TESTIO_REFRESH_INTERVAL_SECONDS unchanged (AC: 3)
+  - Confirm environment variable still controls interval
+  - Test with custom interval value
+  - Verify default 900 seconds (15 minutes) still works
+  - Document interval configuration in code comments
+
+- Task 4: Remove old sync methods from cache.py (AC: 4)
+  - Remove sync_product_tests() method
+  - Remove refresh_features() method
+  - Remove discover_new_tests() method
+  - Verify no other code references these methods
+  - Keep repository methods (get_*_cached_or_refresh) - NOT orchestration
+
+- Task 5: Update integration tests (AC: 5)
+  - Update tests/integration/test_background_sync.py to use SyncService
+  - Test background sync with real SQLite (temp file)
+  - Verify sync events logged to database
+  - Verify phases execute in PRODUCTS → FEATURES → NEW_TESTS order
+  - Test interval configuration
+
+- Task 6: Manual verification
+  - Start server and verify background sync runs
+  - Check logs for SyncService execution
+  - Verify sync events in database
+  - Test with custom TESTIO_REFRESH_INTERVAL_SECONDS
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+AC1: server.py lifespan calls SyncService.execute_sync() instead of direct cache methods
+- Replace direct calls to cache.sync_product_tests() and related methods
+- Use SyncService with all 3 phases (PRODUCTS → FEATURES → NEW_TESTS)
+- Maintain existing background sync behavior (15-minute interval)
+
+AC2: _run_background_refresh_cycle() logic moved to SyncService
+- Phase orchestration logic migrated from server.py to SyncService
+- Background task only handles scheduling and error recovery
+- SyncService handles all sync execution details
+
+AC3: TESTIO_REFRESH_INTERVAL_SECONDS behavior unchanged
+- Environment variable still controls background sync interval
+- Default remains 900 seconds (15 minutes)
+- Interval can be overridden via environment variable
+
+AC4: Old sync methods removed from cache.py
+- Remove sync_product_tests() method (replaced by SyncService)
+- Remove refresh_features() method (replaced by SyncService)
+- Remove discover_new_tests() method (replaced by SyncService)
+- Keep repository methods (get_*_cached_or_refresh()) - these are NOT sync orchestration
+
+AC5: Integration tests pass with SyncService-based background sync
+- Existing integration tests updated to use SyncService
+- Background sync task tested with real SQLite (temp file)
+- Verify sync events logged correctly
+- Verify phases execute in correct order
+</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-009-sync-consolidation.md</path>
+        <title>Epic-009: Sync Consolidation</title>
+        <section>Overview</section>
+        <snippet>Consolidate sync orchestration into unified SyncService for background, CLI, and MCP sync. Preserves 3-phase model (PRODUCTS → FEATURES → NEW_TESTS) while centralizing orchestration logic.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-009.md</path>
+        <title>Epic Technical Specification: Sync Consolidation</title>
+        <section>STORY-049: Background Sync Migration</section>
+        <snippet>Refactor server.py lifespan to use SyncService, move _run_background_refresh_cycle() logic to SyncService, preserve TESTIO_REFRESH_INTERVAL_SECONDS behavior, remove migrated sync methods from cache.py.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>TestIO MCP Server - System Architecture</title>
+        <section>Local Data Store Strategy - Background Sync (3 Phases)</section>
+        <snippet>Phase 1: Refresh product metadata (always), Phase 2: Refresh features (TTL-gated), Phase 3: Discover new tests (incremental). Background sync runs every 15 minutes (configurable via TESTIO_REFRESH_INTERVAL_SECONDS).</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>TestIO MCP Server - System Architecture</title>
+        <section>Service Layer Pattern (ADR-006)</section>
+        <snippet>Framework-agnostic business logic layer. SyncService is stateless with constructor-injected dependencies (client, repositories). Reusable across MCP tools, REST endpoints, CLI, and background tasks.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing - TestIO MCP Server</title>
+        <section>Integration Tests</section>
+        <snippet>Test component interactions with real API. Use real SQLite (temp file), mock API responses. Coverage target: ≥80% for modified code. Test background sync scheduling and execution.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-048-syncservice-foundation.md</path>
+        <title>Story 9.48: SyncService Foundation</title>
+        <section>Learnings from Previous Story</section>
+        <snippet>SyncService class created with complete implementation of all data models. execute_sync() enforces PRODUCTS → FEATURES → NEW_TESTS order. Dual-layer locking (file lock + asyncio lock) implemented. 64 unit tests + 5 integration tests achieved 89% coverage.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/services/sync_service.py</path>
+        <kind>service</kind>
+        <symbol>SyncService</symbol>
+        <lines>148-926</lines>
+        <reason>Main service to integrate - provides execute_sync() method for unified sync orchestration across background, CLI, and MCP</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/sync_service.py</path>
+        <kind>data_model</kind>
+        <symbol>SyncPhase</symbol>
+        <lines>57-68</lines>
+        <reason>Enum defining 3 phases: PRODUCTS, FEATURES, NEW_TESTS - used to specify which phases to execute</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/sync_service.py</path>
+        <kind>data_model</kind>
+        <symbol>SyncScope</symbol>
+        <lines>71-83</lines>
+        <reason>Filtering parameters for sync scope (product_ids, since_date) - passed to execute_sync()</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/sync_service.py</path>
+        <kind>data_model</kind>
+        <symbol>SyncOptions</symbol>
+        <lines>86-98</lines>
+        <reason>Sync mode configuration (force_refresh, incremental_only, nuke) - passed to execute_sync()</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/sync_service.py</path>
+        <kind>data_model</kind>
+        <symbol>SyncResult</symbol>
+        <lines>101-123</lines>
+        <reason>Return type from execute_sync() with stats, duration, warnings, errors</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/server.py</path>
+        <kind>server</kind>
+        <symbol>lifespan</symbol>
+        <lines>76-247</lines>
+        <reason>Lifespan handler that needs to be updated to initialize SyncService and use it for background sync instead of direct cache methods</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/server.py</path>
+        <kind>server</kind>
+        <symbol>background_tasks</symbol>
+        <lines>150-183</lines>
+        <reason>Background task initialization code that currently calls cache.initial_sync() and cache.run_background_refresh() - needs to be updated to use SyncService</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/database/cache.py</path>
+        <kind>repository</kind>
+        <symbol>sync_product_tests</symbol>
+        <lines>1659</lines>
+        <reason>Method to be removed - sync orchestration logic being moved to SyncService</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/database/cache.py</path>
+        <kind>repository</kind>
+        <symbol>refresh_features</symbol>
+        <lines>2192</lines>
+        <reason>Method to be removed - sync orchestration logic being moved to SyncService</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="fastmcp" version=">=2.12.0" purpose="MCP server framework with Context injection"/>
+        <package name="aiosqlite" version=">=0.20.0" purpose="Async SQLite access for sync event logging"/>
+        <package name="sqlmodel" version=">=0.0.16" purpose="ORM for database operations"/>
+        <package name="filelock" version=">=3.13.0" purpose="Cross-process file locking (used by SyncService)"/>
+        <package name="psutil" version=">=5.9.0" purpose="PID validation for stale lock recovery"/>
+        <package name="pytest" version=">=8.4.0" purpose="Testing framework"/>
+        <package name="pytest-asyncio" version=">=0.24.0" purpose="Async test support"/>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+- Service Layer Pattern (ADR-006): SyncService is framework-agnostic and can be called from background tasks
+- Background task should only handle scheduling, not orchestration
+- All sync logic centralized in SyncService for maintainability
+- Background Sync Pattern (ADR-017): Preserve 3-phase model (PRODUCTS → FEATURES → NEW_TESTS)
+- Phase 4 (bugs/test metadata) removed - handled by read-through caching
+- Background sync runs every 15 minutes (configurable)
+- Initial sync on server startup (non-blocking)
+- Lifespan Management: SyncService initialized in lifespan with dependency injection
+- Shared resources (client, cache) passed to SyncService
+- Background task scheduled in lifespan, cancelled on shutdown
+- Locking Strategy: SyncService handles file lock for cross-process coordination
+- Background task doesn't need to manage locks directly
+- File lock prevents concurrent CLI/MCP sync during background sync
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>SyncService.execute_sync</name>
+      <kind>async method</kind>
+      <signature>async def execute_sync(self, phases: list[SyncPhase] | None = None, scope: SyncScope | None = None, options: SyncOptions | None = None, trigger_source: str = "unknown") -> SyncResult</signature>
+      <path>src/testio_mcp/services/sync_service.py</path>
+    </interface>
+    <interface>
+      <name>SyncService.__init__</name>
+      <kind>constructor</kind>
+      <signature>def __init__(self, client: TestIOClient, cache: PersistentCache, product_repo_factory: Any | None = None, feature_repo_factory: Any | None = None, test_repo_factory: Any | None = None)</signature>
+      <path>src/testio_mcp/services/sync_service.py</path>
+    </interface>
+    <interface>
+      <name>PersistentCache.initial_sync</name>
+      <kind>async method</kind>
+      <signature>async def initial_sync(self, since_filter: str | None = None) -> None</signature>
+      <path>src/testio_mcp/database/cache.py</path>
+    </interface>
+    <interface>
+      <name>PersistentCache.run_background_refresh</name>
+      <kind>async method</kind>
+      <signature>async def run_background_refresh(self, interval_seconds: int, since_filter: str | None = None) -> None</signature>
+      <path>src/testio_mcp/database/cache.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+Test Pyramid: Unit tests (50%), Integration tests (35%), E2E tests (15%). Coverage target: ≥80% for modified server.py code, ≥85% overall. Use pytest with pytest-asyncio for async tests. Integration tests use real SQLite (temp file) with mocked API responses. Test background sync scheduling and execution. Verify sync events logged correctly. Follow Arrange-Act-Assert pattern. Test behavior, not implementation.
+    </standards>
+    <locations>
+- tests/unit/ - Unit tests with mocked dependencies
+- tests/integration/ - Integration tests with real SQLite
+- tests/integration/test_background_sync.py - Background sync integration tests (to be updated)
+- tests/integration/test_sync_service_integration.py - SyncService integration tests (add background sync scenarios)
+    </locations>
+    <ideas>
+      <idea ac="AC1">
+        - Test that server.py lifespan initializes SyncService with correct dependencies
+        - Test that background task calls SyncService.execute_sync() with all 3 phases
+        - Test that SyncService.execute_sync() is called with correct trigger_source="background"
+      </idea>
+      <idea ac="AC2">
+        - Test that background task only handles scheduling (asyncio.create_task, asyncio.sleep)
+        - Test that SyncService handles all phase orchestration
+        - Test that phase ordering is preserved (PRODUCTS → FEATURES → NEW_TESTS)
+      </idea>
+      <idea ac="AC3">
+        - Test that TESTIO_REFRESH_INTERVAL_SECONDS controls background sync interval
+        - Test with custom interval value (e.g., 300 seconds)
+        - Test that default 900 seconds works when env var not set
+      </idea>
+      <idea ac="AC4">
+        - Test that sync_product_tests() method is removed from cache.py
+        - Test that refresh_features() method is removed from cache.py
+        - Test that discover_new_tests() method is removed from cache.py
+        - Test that repository methods (get_*_cached_or_refresh) are preserved
+      </idea>
+      <idea ac="AC5">
+        - Integration test: Background sync executes all 3 phases in order
+        - Integration test: Sync events logged to database with correct trigger_source
+        - Integration test: Background task handles SyncService errors gracefully
+        - Integration test: Initial sync runs on server startup
+        - Integration test: Background sync respects interval configuration
+      </idea>
+    </ideas>
+  </tests>
+</story-context>

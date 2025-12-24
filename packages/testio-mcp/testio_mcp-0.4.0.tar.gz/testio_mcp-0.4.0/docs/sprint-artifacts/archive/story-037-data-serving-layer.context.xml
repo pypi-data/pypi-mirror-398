@@ -1,0 +1,420 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Story Context Document - STORY-037: Data Serving Layer (MCP Tools + REST API)
+  Generated: 2025-11-24
+  Workflow: story-context workflow (BMAD Method)
+  Purpose: Provide implementation context from latest documentation and existing code
+-->
+<story-context story-id="STORY-037" epic-id="EPIC-005">
+  <story-header>
+    <title>Data Serving Layer (MCP Tools + REST API)</title>
+    <status>todo</status>
+    <priority>high</priority>
+    <dependencies>
+      <dependency id="STORY-035A" status="complete">Features Repository &amp; Sync</dependency>
+      <dependency id="STORY-035B" status="complete">User Stories Repository &amp; Sync</dependency>
+      <dependency id="STORY-036" status="complete">User Metadata Extraction</dependency>
+    </dependencies>
+    <user-story>
+      <as-a>user querying product data via AI or web apps</as-a>
+      <i-want>MCP tools and REST endpoints to expose features, user stories, and user metadata</i-want>
+      <so-that>I can analyze test coverage and tester engagement without direct database access</so-that>
+    </user-story>
+  </story-header>
+
+  <acceptance-criteria-summary>
+    <criterion id="AC1">FeatureService Created - Business logic for feature operations</criterion>
+    <criterion id="AC2">UserStoryService Created - Business logic for user story operations</criterion>
+    <criterion id="AC3">UserService Created - Business logic for user operations</criterion>
+    <criterion id="AC4">MCP Tool - list_features with FastMCP decorator</criterion>
+    <criterion id="AC5">MCP Tool - list_user_stories with FastMCP decorator</criterion>
+    <criterion id="AC6">MCP Tool - list_users with FastMCP decorator</criterion>
+    <criterion id="AC7">REST Endpoint - GET /api/products/{id}/features</criterion>
+    <criterion id="AC8">REST Endpoint - GET /api/products/{id}/user_stories</criterion>
+    <criterion id="AC9">REST Endpoint - GET /api/users</criterion>
+    <criterion id="AC10">Update DI Helpers for New Services</criterion>
+    <criterion id="AC11">Integration Tests - MCP Tools</criterion>
+    <criterion id="AC12">Integration Tests - REST Endpoints</criterion>
+    <criterion id="AC13">Performance Validation - list_features &lt;50ms, list_user_stories &lt;100ms</criterion>
+    <criterion id="AC14">Documentation Updates - CLAUDE.md, README.md</criterion>
+  </acceptance-criteria-summary>
+
+  <architecture-context>
+    <pattern name="Service Layer" source="docs/architecture/SERVICE_LAYER_SUMMARY.md">
+      <description>
+        Services contain business logic, formatting, and aggregation.
+        Repositories handle direct database access (CRUD operations).
+        Services are framework-agnostic and reusable across MCP and REST.
+      </description>
+      <example>
+        <!-- Service Pattern -->
+        class FeatureService(BaseService):
+            def __init__(self, feature_repo: FeatureRepository):
+                super().__init__(client=None)  # No API calls needed
+                self.feature_repo = feature_repo
+
+            async def list_features(self, product_id: int, section_id: int | None = None) -> dict:
+                features = await self.feature_repo.get_features_for_product(
+                    product_id=product_id, section_id=section_id
+                )
+                return {
+                    "product_id": product_id,
+                    "features": [self._format_feature(f) for f in features],
+                    "total": len(features),
+                }
+      </example>
+    </pattern>
+
+    <pattern name="MCP Tool Pattern" source="src/testio_mcp/tools/list_products_tool.py">
+      <description>
+        Tools are thin wrappers that:
+        1. Use @mcp.tool() decorator with output_schema
+        2. Use async with get_service_context() for resource cleanup
+        3. Delegate to service layer
+        4. Convert exceptions to ToolError with emoji format
+      </description>
+      <example>
+        @mcp.tool()
+        async def list_features(
+            product_id: int,
+            section_id: Optional[int] = None,
+            ctx: Context = None,
+        ) -> dict:
+            """List features for product."""
+            async with get_service_context(ctx, FeatureService) as service:
+                try:
+                    return await service.list_features(product_id, section_id)
+                except Exception as e:
+                    raise ToolError(
+                        f"X Failed to list features for product {product_id}\n"
+                        f"i Error: {str(e)}\n"
+                        f"Tip: Ensure features have been synced for this product"
+                    ) from None
+      </example>
+    </pattern>
+
+    <pattern name="REST Endpoint Pattern" source="src/testio_mcp/api.py">
+      <description>
+        REST endpoints use FastAPI with:
+        1. get_server_context_from_request() for ServerContext
+        2. get_service_from_server_context() for service DI
+        3. Pydantic response_model for type safety
+        4. Exception handlers convert domain exceptions to HTTP status
+      </description>
+      <example>
+        @api.get("/api/products/{product_id}/features")
+        async def get_product_features(
+            request: Request,
+            product_id: int = Path(..., description="Product ID", gt=0),
+            section_id: Optional[int] = Query(None, description="Section filter"),
+        ) -> dict:
+            server_ctx = get_server_context_from_request(request)
+            service = get_service_from_server_context(server_ctx, FeatureService)
+            return await service.list_features(product_id, section_id)
+      </example>
+    </pattern>
+
+    <pattern name="DI Helper Pattern" source="src/testio_mcp/utilities/service_helpers.py">
+      <description>
+        New services need to be added to _build_service() and
+        get_service_context() in service_helpers.py for proper DI.
+        Services using repositories need AsyncSession management.
+      </description>
+      <note>
+        CRITICAL: FeatureService, UserStoryService, UserService need repository injection.
+        Pattern: Create session, inject into repository, inject repository into service.
+        Session cleanup handled by async context manager (get_service_context).
+      </note>
+    </pattern>
+  </architecture-context>
+
+  <existing-code-artifacts>
+    <artifact type="repository" path="src/testio_mcp/repositories/feature_repository.py">
+      <description>FeatureRepository with sync and query methods (STORY-035A)</description>
+      <key-method name="get_features_for_product">
+        Returns list[Feature] for product_id
+      </key-method>
+      <note>Features are shared across sections - returns all unique features regardless of section</note>
+    </artifact>
+
+    <artifact type="repository" path="src/testio_mcp/repositories/user_repository.py">
+      <description>UserRepository with user extraction and query methods (STORY-036)</description>
+      <key-method name="get_active_users">
+        Returns list[User] active in last N days, optional user_type filter
+      </key-method>
+      <key-method name="get_top_contributors">
+        Returns list[tuple[User, int]] with bug counts
+      </key-method>
+      <key-method name="get_user_by_username">
+        Returns User | None for username lookup
+      </key-method>
+    </artifact>
+
+    <artifact type="model" path="src/testio_mcp/models/orm/feature.py" inferred="true">
+      <description>Feature ORM model with embedded user_stories</description>
+      <fields>
+        - id: int (PK)
+        - product_id: int
+        - title: str
+        - description: str | None
+        - howtofind: str | None
+        - user_stories: str (JSON array of title strings)
+        - section_ids: str (JSON array of section IDs)
+        - raw_data: str (JSON)
+        - last_synced: datetime
+      </fields>
+    </artifact>
+
+    <artifact type="model" path="src/testio_mcp/models/orm/user.py" inferred="true">
+      <description>User ORM model for testers and customers</description>
+      <fields>
+        - id: int (PK, auto-increment)
+        - customer_id: int
+        - username: str
+        - user_type: str ("tester" or "customer")
+        - raw_data: str (JSON)
+        - first_seen: datetime
+        - last_seen: datetime
+      </fields>
+    </artifact>
+
+    <artifact type="service" path="src/testio_mcp/services/base_service.py">
+      <description>BaseService class for dependency injection</description>
+      <constructor>def __init__(self, client: TestIOClient) -> None</constructor>
+      <note>Services can pass client=None if they only use repositories</note>
+    </artifact>
+
+    <artifact type="helper" path="src/testio_mcp/utilities/service_helpers.py">
+      <description>DI helpers for service instantiation</description>
+      <key-function name="get_service_context">
+        Async context manager for MCP tools - handles session cleanup
+      </key-function>
+      <key-function name="get_service_from_server_context">
+        Sync helper for REST endpoints (deprecated, use context manager version)
+      </key-function>
+      <key-function name="get_service_context_from_server_context">
+        Async context manager for REST endpoints with session cleanup
+      </key-function>
+      <modification-required>
+        Add FeatureService, UserStoryService, UserService to service wiring
+      </modification-required>
+    </artifact>
+
+    <artifact type="tool-example" path="src/testio_mcp/tools/list_products_tool.py">
+      <description>Reference implementation for MCP tool pattern</description>
+      <patterns-to-follow>
+        - Pydantic models for output schema
+        - inline_schema_refs() for Gemini CLI compatibility
+        - async with get_service_context() for resource cleanup
+        - ToolError with emoji format for errors
+      </patterns-to-follow>
+    </artifact>
+
+    <artifact type="api" path="src/testio_mcp/api.py">
+      <description>FastAPI REST API module</description>
+      <existing-endpoints>
+        - GET /api/tests/{test_id}
+        - GET /api/tests
+        - GET /api/products
+        - GET /api/products/{product_id}/tests
+        - POST /api/reports/ebr
+        - GET /health
+      </existing-endpoints>
+      <new-endpoints-needed>
+        - GET /api/products/{product_id}/features
+        - GET /api/products/{product_id}/user_stories
+        - GET /api/users
+      </new-endpoints-needed>
+    </artifact>
+  </existing-code-artifacts>
+
+  <implementation-notes>
+    <note priority="critical">
+      User stories are EMBEDDED in Feature model as JSON array of title strings.
+      STORY-037 specifies UserStoryService but STORY-035A embedded user stories in features.
+      DECISION: UserStoryService should parse feature.user_stories JSON to expose them.
+      No separate UserStory ORM model exists - data is embedded per ADR-013.
+    </note>
+
+    <note priority="high">
+      BaseService constructor requires client parameter, but repository-only services
+      (FeatureService, UserStoryService, UserService) don't need API client.
+      Pattern: super().__init__(client=None) with type: ignore comment.
+    </note>
+
+    <note priority="high">
+      DI helpers in service_helpers.py use string matching on service_class.__name__.
+      Add new service names to the if/elif chain in:
+      - _build_service()
+      - get_service_context()
+      - get_service_context_from_server_context()
+    </note>
+
+    <note priority="medium">
+      Performance targets from AC13:
+      - list_features: &lt;50ms for 300 features
+      - list_user_stories: &lt;100ms for 1,000 stories
+      Use Canva (product_id=18559) for benchmarks - 288+ features, 1,709+ user stories
+    </note>
+
+    <note priority="medium">
+      Section filtering: Features can be filtered by section_id, but features are
+      shared across sections. The section_ids field tracks which sections contain
+      each feature. Query should filter by checking if section_id is in section_ids JSON.
+    </note>
+
+    <note priority="info">
+      Tool auto-registration: New tool files in src/testio_mcp/tools/ with @mcp.tool()
+      decorator are automatically discovered and registered at server startup.
+      No manual imports needed in __init__.py.
+    </note>
+  </implementation-notes>
+
+  <testing-guidance>
+    <test-type name="Unit Tests" path="tests/unit/test_tools_*.py">
+      <pattern>
+        - Extract function from FastMCP wrapper: tool_fn = tool_wrapper.fn
+        - Mock context with MagicMock(), service with AsyncMock()
+        - Patch get_service_context at tool file level
+        - Test error transformations (domain exceptions to ToolError)
+        - Test service delegation (parameters passed correctly)
+      </pattern>
+      <example>
+        @pytest.mark.unit
+        @pytest.mark.asyncio
+        async def test_list_features_delegates_to_service():
+            mock_ctx = MagicMock()
+            mock_service = AsyncMock()
+            mock_service.list_features.return_value = {"features": [], "total": 0}
+
+            with patch("testio_mcp.tools.list_features_tool.get_service_context") as mock_get:
+                mock_get.return_value.__aenter__.return_value = mock_service
+                result = await list_features(product_id=598, ctx=mock_ctx)
+
+            mock_service.list_features.assert_called_once_with(
+                product_id=598, section_id=None
+            )
+      </example>
+    </test-type>
+
+    <test-type name="Service Tests" path="tests/services/test_*_service.py">
+      <pattern>
+        - Mock repositories with AsyncMock()
+        - Test business logic directly (filtering, formatting, aggregation)
+        - No FastMCP mocking needed
+        - No database setup needed (mock repositories)
+      </pattern>
+    </test-type>
+
+    <test-type name="Integration Tests" path="tests/integration/test_data_serving_*.py">
+      <pattern>
+        - Use real database with test fixtures
+        - Sync features/users first as prerequisite
+        - Test full flow: tool/endpoint to service to repository
+        - Use known product IDs with stable data (e.g., Flourish 21362)
+      </pattern>
+    </test-type>
+  </testing-guidance>
+
+  <dependencies-and-imports>
+    <import-block name="Services">
+      from testio_mcp.services.base_service import BaseService
+      from testio_mcp.repositories.feature_repository import FeatureRepository
+      from testio_mcp.repositories.user_repository import UserRepository
+    </import-block>
+
+    <import-block name="MCP Tools">
+      from fastmcp import Context
+      from fastmcp.exceptions import ToolError
+      from testio_mcp.server import mcp
+      from testio_mcp.utilities import get_service_context
+    </import-block>
+
+    <import-block name="REST API">
+      from fastapi import Query, Path, Request
+      from testio_mcp.utilities.service_helpers import (
+          get_server_context_from_request,
+          get_service_from_server_context,
+          get_service_context_from_server_context,
+      )
+    </import-block>
+  </dependencies-and-imports>
+
+  <file-creation-plan>
+    <file path="src/testio_mcp/services/feature_service.py" action="create">
+      FeatureService with list_features(), get_feature_summary()
+    </file>
+    <file path="src/testio_mcp/services/user_story_service.py" action="create">
+      UserStoryService with list_user_stories(), get_user_story_summary()
+      NOTE: Parses embedded user_stories from Feature model
+    </file>
+    <file path="src/testio_mcp/services/user_service.py" action="create">
+      UserService with list_users(), get_top_contributors()
+    </file>
+    <file path="src/testio_mcp/tools/list_features_tool.py" action="create">
+      MCP tool wrapping FeatureService.list_features()
+    </file>
+    <file path="src/testio_mcp/tools/list_user_stories_tool.py" action="create">
+      MCP tool wrapping UserStoryService.list_user_stories()
+    </file>
+    <file path="src/testio_mcp/tools/list_users_tool.py" action="create">
+      MCP tool wrapping UserService.list_users()
+    </file>
+    <file path="src/testio_mcp/utilities/service_helpers.py" action="modify">
+      Add FeatureService, UserStoryService, UserService to DI wiring
+    </file>
+    <file path="src/testio_mcp/api.py" action="modify">
+      Add GET /api/products/{id}/features, GET /api/products/{id}/user_stories, GET /api/users
+    </file>
+    <file path="tests/unit/test_services_feature.py" action="create">
+      Unit tests for FeatureService
+    </file>
+    <file path="tests/unit/test_services_user_story.py" action="create">
+      Unit tests for UserStoryService
+    </file>
+    <file path="tests/unit/test_services_user.py" action="create">
+      Unit tests for UserService
+    </file>
+    <file path="tests/unit/test_tools_list_features.py" action="create">
+      Unit tests for list_features MCP tool
+    </file>
+    <file path="tests/unit/test_tools_list_user_stories.py" action="create">
+      Unit tests for list_user_stories MCP tool
+    </file>
+    <file path="tests/unit/test_tools_list_users.py" action="create">
+      Unit tests for list_users MCP tool
+    </file>
+    <file path="tests/integration/test_data_serving_mcp_tools.py" action="create">
+      Integration tests for all 3 MCP tools
+    </file>
+    <file path="tests/integration/test_data_serving_rest_endpoints.py" action="create">
+      Integration tests for all 3 REST endpoints
+    </file>
+  </file-creation-plan>
+
+  <quality-checklist>
+    <check category="Code Quality">
+      <item>Type hints on all public methods (mypy --strict)</item>
+      <item>Docstrings with Args/Returns sections</item>
+      <item>No hardcoded values (use constants or config)</item>
+      <item>Proper error handling with domain exceptions</item>
+    </check>
+    <check category="Testing">
+      <item>Unit tests for services (mock repositories)</item>
+      <item>Unit tests for tools (mock services)</item>
+      <item>Integration tests with real database</item>
+      <item>Performance benchmarks documented</item>
+    </check>
+    <check category="Documentation">
+      <item>CLAUDE.md updated with new tools</item>
+      <item>README.md updated with Epic 005 features</item>
+      <item>Swagger docs show new endpoints</item>
+    </check>
+    <check category="Patterns">
+      <item>Services inherit from BaseService</item>
+      <item>Tools use async with get_service_context()</item>
+      <item>REST endpoints use context manager for session cleanup</item>
+      <item>DI helpers updated for new services</item>
+    </check>
+  </quality-checklist>
+</story-context>

@@ -1,0 +1,407 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-005</epicId>
+    <storyId>STORY-035C</storyId>
+    <title>API Contract Testing & Monitoring</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-23</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-035c-api-contract-testing-monitoring.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer maintaining undocumented API integrations</asA>
+    <iWant>automated contract tests and health monitoring for features/user stories endpoints</iWant>
+    <soThat>API changes don't silently break production sync</soThat>
+    <tasks>
+### Task 1: Create API Contract Test Suite
+- Create `tests/integration/test_api_contracts.py`
+- Write 9 contract tests (features + user stories endpoints)
+- Test non-section products (Flourish)
+- Test section products (Canva, remove.bg)
+- Test error scenarios (missing params, wrong product type)
+- Add pytest marker: `@pytest.mark.contract`
+
+### Task 2: CI Workflow Integration
+- Create or update `.github/workflows/contract-tests.yml`
+- Configure to run on every PR
+- Add daily scheduled run (6 AM UTC)
+- Add failure notification (GitHub issue)
+- Test workflow locally (if possible)
+
+### Task 3: Add Sync Event Logging
+- Update FeatureRepository with sync event logging
+- Update UserStoryRepository with sync event logging
+- Test logging with real sync operations
+- Verify events appear in `sync_events` table
+
+### Task 4: Create/Update `get_sync_history` MCP Tool
+- Create `src/testio_mcp/tools/sync_history_tool.py` (if doesn't exist)
+- Create `src/testio_mcp/services/sync_service.py`
+- Implement sync event filtering and aggregation
+- Test with MCP Inspector
+
+### Task 5: Write Integration Tests for Sync Logging
+- Create `tests/integration/test_sync_event_logging.py`
+- Test success event logging
+- Test failure event logging
+- Test metadata (validation_warnings)
+- Achieve >90% coverage</tasks>
+  </story>
+
+  <acceptanceCriteria>
+### AC0: Section Detection Helper (OPTIONAL - Shared Utility)
+- Helper created with validated logic: `len(sections) > 0 OR len(sections_with_default) > 1`
+- Unit tests created with test cases (no sections, default-section, real sections, malformed)
+- CRITICAL: Default-section test validates False return (legacy non-section)
+- Type checking passes: `mypy src/testio_mcp/utilities/section_detection.py --strict`
+- All unit tests pass: `uv run pytest tests/unit/test_section_detection.py -v`
+
+### AC1: API Contract Test Suite Created (ENHANCED)
+- Test suite created with **14 contract tests** (9 original + 5 enhancements)
+- Tests validate endpoint availability (200 status codes)
+- Tests validate response schemas (required fields + TYPES)
+- Tests validate section behavior (required params, error responses, 422 fallback)
+- Tests include single-default-section case (CRITICAL BUG FIX)
+- Tests include pagination sentinel (warn if > 2000 items)
+- Tests include minimal concurrency (2 sections parallel)
+- Tests use real API with test products (21362, 18559, 24959)
+- All contract tests pass: `uv run pytest -m contract -v`
+
+### AC2: CI Workflow Integration
+- CI workflow created or updated
+- Contract tests run on every PR
+- Daily scheduled run (detect API changes overnight)
+- Failure notification (GitHub issue created)
+- Contract tests pass in CI
+
+### AC3: Sync Event Logging - FeatureRepository
+- Sync events logged to `sync_events` table (existing from Epic 006)
+- Event includes: entity_type="features", success, duration_ms, records_affected
+- Errors logged with error_message
+- Both success and failure events logged
+
+### AC4: Sync Event Logging - UserStoryRepository
+- Sync events logged to `sync_events` table
+- Event includes: entity_type="user_stories", validation_warnings in metadata
+- Errors logged with error_message
+- Both success and failure events logged
+
+### AC5: Update `get_sync_history` MCP Tool
+- `get_sync_history` MCP tool created
+- Tool filters by entity_type (features, user_stories, tests, bugs, products)
+- Tool shows events from last N hours
+- Response includes summary statistics
+- Tool works with real sync events: `npx @modelcontextprotocol/inspector uv run python -m testio_mcp`
+
+### AC6: Integration Tests for Sync Event Logging
+- Test feature sync success event
+- Test user story sync success event
+- Test sync failure error event
+- Test validation_warnings in metadata
+- All tests pass: `uv run pytest tests/integration/test_sync_event_logging.py -v`</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-005-data-enhancement-and-serving.md</path>
+        <title>Epic 005: Data Enhancement and Serving</title>
+        <section>STORY-035C: API Contract Testing & Monitoring</section>
+        <snippet>Validates features and user stories endpoint behavior with contract tests. Adds sync event logging for observability. Tests run on every PR and daily to detect API changes.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing Strategy</title>
+        <section>Test Levels & Organization</section>
+        <snippet>Test pyramid: E2E (15%), Integration (35%), Unit (50%). Integration tests use real API. Contract tests (@pytest.mark.contract) validate external API contracts. Coverage target: 85%+ overall.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Component Architecture</section>
+        <snippet>Service layer pattern with TestIOClient for HTTP and PersistentCache for SQLite. FeatureRepository and UserStoryRepository handle section-aware sync. SyncEvent model tracks sync operations.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/repositories/feature_repository.py</path>
+        <kind>repository</kind>
+        <symbol>FeatureRepository</symbol>
+        <lines>63-97</lines>
+        <reason>Section-aware feature sync that needs event logging added (AC3). Reference for implementing sync event logging pattern.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/feature_repository.py</path>
+        <kind>repository</kind>
+        <symbol>sync_features</symbol>
+        <lines>63-97</lines>
+        <reason>Method where sync event logging will be added in AC3. Uses shared section detection helper.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/utilities/section_detection.py</path>
+        <kind>utility</kind>
+        <symbol>has_sections, get_section_ids</symbol>
+        <lines>1-50</lines>
+        <reason>COMPLETED in STORY-035A. Shared helper for detecting section-based products. Used by FeatureRepository and will be tested in contract tests (AC0).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/sync_event.py</path>
+        <kind>model</kind>
+        <symbol>SyncEvent</symbol>
+        <lines>10-44</lines>
+        <reason>Existing ORM model from Epic 006. Used for logging sync operations (AC3, AC4). Has fields: event_type, status, duration_seconds, error_message.</reason>
+      </artifact>
+      <artifact>
+        <path>tests/integration/test_feature_sync_integration.py</path>
+        <kind>test</kind>
+        <symbol>test_sync_features_non_section_product</symbol>
+        <lines>1-50</lines>
+        <reason>Existing integration test for feature sync. Pattern reference for contract tests (AC1). Uses real API with Product 21362 (Flourish).</reason>
+      </artifact>
+      <artifact>
+        <path>tests/integration/conftest.py</path>
+        <kind>test fixture</kind>
+        <symbol>real_client, async_session</symbol>
+        <lines>1-100</lines>
+        <reason>Shared fixtures for integration tests. real_client provides TestIOClient for contract tests (AC1). async_session for database operations (AC6).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/client.py</path>
+        <kind>client</kind>
+        <symbol>TestIOClient</symbol>
+        <lines>1-200</lines>
+        <reason>HTTP client wrapper used by repositories. Contract tests will validate API endpoints that this client calls.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/base_service.py</path>
+        <kind>service</kind>
+        <symbol>BaseService</symbol>
+        <lines>1-100</lines>
+        <reason>Base class for services. SyncService (AC5) will inherit from this for dependency injection and standard patterns.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <!-- Core framework dependencies -->
+        <package>fastmcp>=2.12.0</package>
+        <package>pydantic>=2.12.0</package>
+        <package>pydantic-settings>=2.11.0</package>
+
+        <!-- HTTP and API integration -->
+        <package>httpx>=0.28.0</package>
+
+        <!-- Database and ORM -->
+        <package>aiosqlite>=0.20.0</package>
+        <package>sqlmodel>=0.0.16</package>
+        <package>alembic>=1.13.0</package>
+
+        <!-- Testing dependencies -->
+        <package>pytest>=8.4.0</package>
+        <package>pytest-asyncio>=0.24.0</package>
+        <package>pytest-cov>=7.0.0</package>
+        <package>pytest-httpx>=0.30.0</package>
+
+        <!-- Code quality -->
+        <package>ruff>=0.8.4</package>
+        <package>mypy>=1.13.0</package>
+        <package>pre-commit>=4.0.0</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <!-- Development Constraints -->
+    <constraint>
+      <type>testing</type>
+      <rule>Contract tests must use @pytest.mark.contract marker for filtering</rule>
+    </constraint>
+    <constraint>
+      <type>testing</type>
+      <rule>Contract tests use real API with test products: 21362 (Flourish), 18559 (Canva), 24959 (remove.bg)</rule>
+    </constraint>
+    <constraint>
+      <type>testing</type>
+      <rule>Integration tests require TESTIO_CUSTOMER_API_TOKEN environment variable</rule>
+    </constraint>
+    <constraint>
+      <type>code-quality</type>
+      <rule>All code must pass mypy --strict type checking</rule>
+    </constraint>
+    <constraint>
+      <type>code-quality</type>
+      <rule>All code must pass ruff linting and formatting</rule>
+    </constraint>
+    <constraint>
+      <type>pattern</type>
+      <rule>Sync event logging must use SyncEvent ORM model (existing from Epic 006)</rule>
+    </constraint>
+    <constraint>
+      <type>pattern</type>
+      <rule>Services must inherit from BaseService for dependency injection</rule>
+    </constraint>
+    <constraint>
+      <type>pattern</type>
+      <rule>MCP tools must use get_service() helper for service creation</rule>
+    </constraint>
+    <constraint>
+      <type>pattern</type>
+      <rule>Async operations must use async/await, no blocking calls</rule>
+    </constraint>
+    <constraint>
+      <type>performance</type>
+      <rule>Contract tests should complete in &lt; 60s for all 14 tests</rule>
+    </constraint>
+    <constraint>
+      <type>ci-cd</type>
+      <rule>GitHub Actions workflow must use uv for dependency management</rule>
+    </constraint>
+    <constraint>
+      <type>ci-cd</type>
+      <rule>Workflow must upload test results on failure for debugging</rule>
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <!-- API Endpoints (TestIO Customer API) -->
+    <interface>
+      <name>GET /products/{id}/features</name>
+      <kind>REST endpoint</kind>
+      <signature>GET https://api.test.io/customer/v2/products/{id}/features</signature>
+      <path>External API (TestIO)</path>
+    </interface>
+    <interface>
+      <name>GET /products/{id}/sections/{sid}/features</name>
+      <kind>REST endpoint (UNDOCUMENTED)</kind>
+      <signature>GET https://api.test.io/customer/v2/products/{id}/sections/{sid}/features</signature>
+      <path>External API (TestIO)</path>
+    </interface>
+    <interface>
+      <name>GET /products/{id}/user_stories</name>
+      <kind>REST endpoint</kind>
+      <signature>GET https://api.test.io/customer/v2/products/{id}/user_stories</signature>
+      <path>External API (TestIO)</path>
+    </interface>
+    <interface>
+      <name>GET /products/{id}/user_stories?section_id={sid}</name>
+      <kind>REST endpoint</kind>
+      <signature>GET https://api.test.io/customer/v2/products/{id}/user_stories?section_id={sid}</signature>
+      <path>External API (TestIO)</path>
+    </interface>
+
+    <!-- Repository Methods -->
+    <interface>
+      <name>FeatureRepository.sync_features</name>
+      <kind>async method</kind>
+      <signature>async def sync_features(self, product_id: int) -> dict[str, int]</signature>
+      <path>src/testio_mcp/repositories/feature_repository.py</path>
+    </interface>
+    <interface>
+      <name>UserStoryRepository.sync_user_stories</name>
+      <kind>async method</kind>
+      <signature>async def sync_user_stories(self, product_id: int) -> dict[str, int]</signature>
+      <path>src/testio_mcp/repositories/user_story_repository.py</path>
+    </interface>
+
+    <!-- ORM Models -->
+    <interface>
+      <name>SyncEvent</name>
+      <kind>SQLModel class</kind>
+      <signature>class SyncEvent(SQLModel, table=True): id, event_type, started_at, completed_at, status, products_synced, tests_discovered, tests_refreshed, duration_seconds, error_message, trigger_source</signature>
+      <path>src/testio_mcp/models/orm/sync_event.py</path>
+    </interface>
+
+    <!-- Utility Functions -->
+    <interface>
+      <name>has_sections</name>
+      <kind>function</kind>
+      <signature>def has_sections(product: dict) -> bool</signature>
+      <path>src/testio_mcp/utilities/section_detection.py</path>
+    </interface>
+    <interface>
+      <name>get_section_ids</name>
+      <kind>function</kind>
+      <signature>def get_section_ids(product: dict) -> list[int]</signature>
+      <path>src/testio_mcp/utilities/section_detection.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+This codebase follows a comprehensive testing strategy with three levels:
+
+**Unit Tests (50% - Fast Feedback):**
+- Pure logic testing with mocks, no external dependencies
+- Runs in ~0.5s for entire suite
+- Coverage target: ≥85% overall, ≥90% for services
+- Command: `uv run pytest -m unit --cov=src`
+
+**Integration Tests (35% - Real API):**
+- Tests component interactions with real TestIO API
+- Requires TESTIO_CUSTOMER_API_TOKEN environment variable
+- Uses test products: 21362 (Flourish), 18559 (Canva), 24959 (remove.bg)
+- Runs in ~30s for entire suite
+- Command: `uv run pytest -m integration`
+
+**Contract Tests (NEW for this story):**
+- Subset of integration tests that validate external API contracts
+- Detects API changes (endpoint availability, schema changes)
+- Uses @pytest.mark.contract marker
+- Runs on every PR and daily (6 AM UTC)
+- Command: `uv run pytest -m contract -v`
+
+**E2E Tests (15% - Full System):**
+- Full MCP protocol validation
+- Runs in ~1-2 minutes
+- Command: `uv run pytest -m e2e`
+
+**Security Tests (Mandatory):**
+- Token sanitization tests in test_client_security.py
+- 100% coverage required (SEC-002 compliance)
+
+**Code Quality:**
+- All code must pass: `mypy src/ --strict`
+- All code must pass: `uv run ruff format && uv run ruff check --fix`
+- Pre-commit hooks enforce standards before commit</standards>
+
+    <locations>
+tests/unit/                          - Unit tests (fast, mocked)
+tests/services/                      - Service layer tests
+tests/integration/                   - Integration tests (real API)
+tests/integration/test_api_contracts.py   - NEW: Contract test suite (AC1)
+tests/integration/test_sync_event_logging.py   - NEW: Sync logging tests (AC6)
+tests/e2e/                          - End-to-end tests (MCP protocol)
+.github/workflows/contract-tests.yml - NEW: CI workflow for contract tests (AC2)</locations>
+
+    <ideas>
+**Contract Test Ideas (AC1 - 14 tests):**
+1. test_non_section_product_features_endpoint - Validates GET /products/{id}/features for non-section products (Flourish)
+2. test_section_product_features_endpoint - Validates section-specific endpoint (Canva)
+3. test_section_product_features_without_section_fails - Confirms 422 error for missing section
+4. test_single_default_section_product_features - CRITICAL: Tests single-section product (remove.bg) - prevents regression
+5. test_schema_field_types_validation - Validates field TYPES not just presence (detects id becoming string)
+6. test_pagination_sentinel_large_dataset - Warns if > 2000 items (pagination may be coming)
+7. test_features_422_fallback_to_sections - Defensive probe pattern (422 → try sections)
+8. test_concurrent_section_calls - Minimal concurrency (2 sections parallel)
+9. test_non_section_product_user_stories_endpoint - User stories endpoint
+10. test_section_product_user_stories_with_section_param - User stories with section_id query param
+11. test_section_product_user_stories_without_section_param_fails - Confirms 500 error without param
+12. test_remove_bg_section_features - Validates remove.bg (8 features, section 25543)
+13. test_remove_bg_section_user_stories - Validates remove.bg (9 user stories)
+14. test_schema_validation - Ensures required fields present with correct types
+
+**Sync Event Logging Test Ideas (AC6 - 3 tests):**
+1. test_feature_sync_logs_success_event - Verifies SyncEvent created with success=True, records_affected=28 (Flourish)
+2. test_user_story_sync_logs_success_event - Verifies SyncEvent with validation_warnings metadata
+3. test_sync_failure_logs_error_event - Mocks API failure, verifies error_message logged
+
+**CI Workflow Tests:**
+- Workflow triggers on pull_request and schedule (daily 6 AM UTC)
+- Failure creates GitHub issue with link to workflow run
+- Uses secrets.TESTIO_CUSTOMER_API_TOKEN for authentication
+
+**MCP Tool Tests (AC5):**
+- Test get_sync_history with entity_type filter (features, user_stories)
+- Test get_sync_history with hours parameter (24, 48)
+- Test summary statistics (total_events, success_count, failure_count, avg_duration_ms)</ideas>
+  </tests>
+</story-context>

@@ -1,0 +1,314 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-006</epicId>
+    <storyId>STORY-033</storyId>
+    <title>Service Integration</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-22</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-033-service-integration.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>service layer consuming repositories</asA>
+    <iWant>ProductService and TestService to use ORM-based repositories</iWant>
+    <soThat>business logic gets type-safe data access with consistent patterns</soThat>
+    <tasks>
+**Phase 0: Quick Wins (15-30 min) - Close out STORY-032C:**
+*   Add relationship loading test for `test.bugs` (completes STORY-032C AC5)
+*   Update STORY-032C status to "done" after test passes
+
+**Phase 1: Fix AsyncSession Resource Leak (1-2 hours) - CRITICAL:**
+*   **[CRITICAL] Fix AsyncSession resource leak in `service_helpers.py`**
+    - Current issue: Sessions created but never closed (line 67)
+    - Implement context manager pattern or dependency injection with cleanup
+    - Verify no SQLAlchemy warnings after fix
+
+**Phase 2: Service Integration (2-3 hours):**
+*   Update `ProductService` to inject `ProductRepository` via AsyncSession
+*   Update `ProductService` methods to handle ORM Product models
+*   Update `TestService` to inject `TestRepository` and `BugRepository`
+*   Update `TestService` methods to handle ORM Test/Bug models
+*   Update service instantiation in `server.py` to provide AsyncSession
+*   Update all service unit tests
+
+**Phase 3: Validation (30 min):**
+*   Validate all MCP tools end-to-end (especially `generate_ebr_report` with 100+ tests)
+*   Run live testing to verify no resource leaks
+*   Check logs for SQLAlchemy warnings (should be zero)
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. [ ] `ProductService` updated to inject and use `ProductRepository`
+2. [ ] `ProductService` methods updated to work with ORM models (not raw dicts)
+3. [ ] `TestService` updated to inject and use `TestRepository` and `BugRepository`
+4. [ ] `TestService` methods updated to work with ORM models
+5. [ ] **CRITICAL:** AsyncSession resource leak fixed (discovered in STORY-032C testing)
+6. [ ] Service layer properly manages AsyncSession lifecycle (context managers or dependency injection)
+7. [ ] No SQLAlchemy warnings about "non-checked-in connections"
+8. [ ] All service unit tests pass (100% success rate)
+9. [ ] All MCP tools work correctly: `health_check`, `list_tests`, `get_test_status`, `generate_ebr_report`
+10. [ ] Integration tests pass: full MCP request → service → repository → database flow
+11. [ ] Type checking passes: `mypy src/testio_mcp/services/ --strict`
+</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-006-orm-refactor.md</path>
+        <title>Epic-006: ORM Refactor (SQLModel + Alembic)</title>
+        <section>STORY-033: Service Integration</section>
+        <snippet>Service layer integration with ORM repositories. ProductService and TestService must use ProductRepository, TestRepository, and BugRepository. Services must create AsyncSession using get_async_session() context manager. All MCP tools must work correctly with ORM-based services.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-033-service-integration.md</path>
+        <title>STORY-033: Service Integration</title>
+        <section>Implementation Notes (from STORY-032C Live Testing)</section>
+        <snippet>Critical Issue: AsyncSession Resource Leak discovered during STORY-032C testing. service_helpers.py line 67 creates AsyncSession but never closes it. Every MCP tool call leaks one database connection. Production deployment will fail under load. Must implement context manager pattern or dependency injection with cleanup.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-032a-refactor-base-product-repository.md</path>
+        <title>STORY-032A: Refactor BaseRepository + ProductRepository</title>
+        <section>Completion</section>
+        <snippet>ProductRepository complete with AsyncSession + SQLModel. All 16/16 tests passing. Performance p95 = 2.95ms (well under 15ms threshold). Production-ready for service integration.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-032b-refactor-test-repository.md</path>
+        <title>STORY-032B: Refactor TestRepository</title>
+        <section>Completion</section>
+        <snippet>TestRepository complete with AsyncSession + SQLModel. 324/326 tests passing (99.4%). 2 failures in PersistentCache (architectural conflict - deferred to STORY-034A). Repository layer production-ready for service integration.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-032c-refactor-bug-repository.md</path>
+        <title>STORY-032C: Refactor BugRepository</title>
+        <section>Completion</section>
+        <snippet>BugRepository complete with AsyncSession + SQLModel. All 13/13 tests passing (100%). Relationship test added (test.bugs works correctly). Production-ready for service integration.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/utilities/service_helpers.py</path>
+        <kind>service_helper</kind>
+        <symbol>get_service</symbol>
+        <lines>67</lines>
+        <reason>CRITICAL: Line 67 creates AsyncSession but never closes it - resource leak. Must implement context manager pattern (get_service_context) to properly manage session lifecycle.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/product_service.py</path>
+        <kind>service</kind>
+        <symbol>ProductService</symbol>
+        <lines>1-200</lines>
+        <reason>Must update to inject ProductRepository and work with ORM Product models instead of raw dicts</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/test_service.py</path>
+        <kind>service</kind>
+        <symbol>TestService</symbol>
+        <lines>1-300</lines>
+        <reason>Must update to inject TestRepository and BugRepository, work with ORM Test/Bug models</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/product_repository.py</path>
+        <kind>repository</kind>
+        <symbol>ProductRepository</symbol>
+        <lines>1-224</lines>
+        <reason>Completed in STORY-032A. Uses AsyncSession + SQLModel. Services will inject this via get_service_context()</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>TestRepository</symbol>
+        <lines>1-500</lines>
+        <reason>Completed in STORY-032B. Uses AsyncSession + SQLModel. Services will inject this via get_service_context()</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/bug_repository.py</path>
+        <kind>repository</kind>
+        <symbol>BugRepository</symbol>
+        <lines>1-545</lines>
+        <reason>Completed in STORY-032C. Uses AsyncSession + SQLModel. Services will inject this via get_service_context()</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/product.py</path>
+        <kind>orm_model</kind>
+        <symbol>Product</symbol>
+        <lines>1-50</lines>
+        <reason>ORM model for Product entity. Services must work with Product instances instead of raw dicts</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/test.py</path>
+        <kind>orm_model</kind>
+        <symbol>Test</symbol>
+        <lines>1-80</lines>
+        <reason>ORM model for Test entity. Services must work with Test instances instead of raw dicts</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/bug.py</path>
+        <kind>orm_model</kind>
+        <symbol>Bug</symbol>
+        <lines>1-60</lines>
+        <reason>ORM model for Bug entity. Services must work with Bug instances instead of raw dicts</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_product_service.py</path>
+        <kind>test</kind>
+        <symbol>test_product_service</symbol>
+        <lines>1-200</lines>
+        <reason>Must update to mock ProductRepository with AsyncSession, verify service works with ORM models</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_test_service.py</path>
+        <kind>test</kind>
+        <symbol>test_test_service</symbol>
+        <lines>1-300</lines>
+        <reason>Must update to mock TestRepository and BugRepository with AsyncSession, verify service works with ORM models</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version=">=0.0.16" />
+        <package name="sqlalchemy" version=">=2.0.0" />
+        <package name="greenlet" version=">=3.0.0" />
+        <package name="fastmcp" version="latest" />
+        <package name="pydantic" version=">=2.0.0" />
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+**Critical Resource Leak Fix:**
+- MUST implement context manager pattern for AsyncSession lifecycle
+- MUST update all 8 MCP tools to use `async with get_service_context(...)`
+- MUST verify no SQLAlchemy warnings in logs after fix
+- Connection pool exhaustion will cause production failure
+
+**Service Layer Patterns:**
+- Services MUST NOT create AsyncSession directly
+- Services MUST receive repositories via dependency injection
+- Services MUST work with ORM model instances (Product, Test, Bug)
+- Services MUST NOT use raw SQL or aiosqlite.Connection
+
+**Repository Integration:**
+- Use ProductRepository (from STORY-032A) for product data access
+- Use TestRepository (from STORY-032B) for test data access
+- Use BugRepository (from STORY-032C) for bug data access
+- All repositories use AsyncSession + SQLModel (no raw SQL)
+
+**Testing Requirements:**
+- All service unit tests must pass (100% success rate)
+- All MCP tools must work end-to-end (health_check, list_tests, get_test_status, generate_ebr_report)
+- Integration tests must validate full MCP → service → repository → database flow
+- Live testing with generate_ebr_report (100+ tests, 2000+ bugs) must show no warnings
+
+**Type Safety:**
+- All services must pass mypy --strict
+- Services must use ORM model types (not dict or Any)
+- Proper type hints for repository injection
+
+**Performance:**
+- No performance regression from service layer changes
+- AsyncSession lifecycle must not add significant overhead
+- Context manager pattern should be lightweight
+</constraints>
+
+  <interfaces>
+    <interface>
+      <name>get_service_context</name>
+      <kind>async_context_manager</kind>
+      <signature>async def get_service_context[ServiceT: BaseService](ctx: Context, service_class: type[ServiceT]) -> AsyncContextManager[ServiceT]</signature>
+      <path>src/testio_mcp/utilities/service_helpers.py</path>
+      <description>NEW - Context manager that creates service with proper AsyncSession lifecycle. Replaces get_service() to fix resource leak. Automatically closes session on exit.</description>
+    </interface>
+    <interface>
+      <name>ProductService.__init__</name>
+      <kind>service_constructor</kind>
+      <signature>def __init__(self, client: TestIOClient, product_repo: ProductRepository)</signature>
+      <path>src/testio_mcp/services/product_service.py</path>
+      <description>UPDATED - Must inject ProductRepository instead of creating it internally</description>
+    </interface>
+    <interface>
+      <name>TestService.__init__</name>
+      <kind>service_constructor</kind>
+      <signature>def __init__(self, client: TestIOClient, test_repo: TestRepository, bug_repo: BugRepository)</signature>
+      <path>src/testio_mcp/services/test_service.py</path>
+      <description>UPDATED - Must inject TestRepository and BugRepository instead of creating them internally</description>
+    </interface>
+    <interface>
+      <name>ProductRepository</name>
+      <kind>repository_interface</kind>
+      <signature>class ProductRepository(BaseRepository)</signature>
+      <path>src/testio_mcp/repositories/product_repository.py</path>
+      <description>Completed in STORY-032A. Provides get_all_products, upsert_product, get_synced_products_info, count_products, delete_all_products, update_product_last_synced</description>
+    </interface>
+    <interface>
+      <name>TestRepository</name>
+      <kind>repository_interface</kind>
+      <signature>class TestRepository(BaseRepository)</signature>
+      <path>src/testio_mcp/repositories/test_repository.py</path>
+      <description>Completed in STORY-032B. Provides get_tests, get_test_by_id, upsert_test, update_test_status, etc. Uses AsyncSession + SQLModel</description>
+    </interface>
+    <interface>
+      <name>BugRepository</name>
+      <kind>repository_interface</kind>
+      <signature>class BugRepository(BaseRepository)</signature>
+      <path>src/testio_mcp/repositories/bug_repository.py</path>
+      <description>Completed in STORY-032C. Provides get_bugs, get_bug_stats, refresh_bugs, get_bugs_cached_or_refresh, etc. Uses AsyncSession + SQLModel</description>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+**Testing Framework:** pytest with pytest-asyncio for async tests
+**Test Organization:** tests/unit/ for unit tests, tests/integration/ for integration tests
+**Mocking:** Use AsyncMock(spec=AsyncSession) for session mocks, MagicMock for repository mocks
+**Markers:** @pytest.mark.unit for unit tests, @pytest.mark.asyncio for async tests
+**Coverage:** Maintain >90% test coverage, all service methods must have unit tests
+**Type Safety:** All tests must pass mypy --strict type checking
+**Live Testing:** Must validate with real MCP tools (generate_ebr_report with 100+ tests)</standards>
+    <locations>
+tests/unit/test_product_service.py
+tests/unit/test_test_service.py
+tests/unit/test_service_helpers.py
+tests/integration/test_mcp_tools.py
+</locations>
+    <ideas>
+**AC5 - AsyncSession Resource Leak Fix:**
+- Test get_service_context creates and closes session properly
+- Test session is closed even on exception
+- Test multiple concurrent service contexts don't interfere
+- Test no SQLAlchemy warnings in logs after service calls
+
+**AC1-2 - ProductService Integration:**
+- Test ProductService receives ProductRepository via injection
+- Test ProductService methods work with ORM Product models
+- Test ProductService converts Product models to dict for API responses
+- Mock ProductRepository methods, verify service calls them correctly
+
+**AC3-4 - TestService Integration:**
+- Test TestService receives TestRepository and BugRepository via injection
+- Test TestService methods work with ORM Test/Bug models
+- Test TestService converts ORM models to dict for API responses
+- Mock repository methods, verify service orchestration logic
+
+**AC8 - Service Unit Tests:**
+- Update all existing service unit tests to use new injection pattern
+- Replace aiosqlite.Connection mocks with AsyncSession mocks
+- Verify all service methods still pass with ORM repositories
+- Test error handling and edge cases
+
+**AC9 - MCP Tools Integration:**
+- Test health_check tool works with ORM services
+- Test list_tests tool works with ORM services
+- Test get_test_status tool works with ORM services
+- Test generate_ebr_report tool works with ORM services (100+ tests, 2000+ bugs)
+- Verify no SQLAlchemy warnings in server logs
+
+**AC10 - Integration Tests:**
+- Test full flow: MCP request → service → repository → database
+- Test transaction handling (commit/rollback)
+- Test concurrent requests don't leak sessions
+- Test error propagation from repository to service to MCP tool
+</ideas>
+  </tests>
+</story-context>

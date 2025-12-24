@@ -1,0 +1,657 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-007</epicId>
+    <storyId>STORY-045</storyId>
+    <title>Customer Engagement Analytics</title>
+    <status>todo</status>
+    <generatedAt>2025-11-25</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-045-customer-engagement-analytics.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>product manager analyzing customer engagement</asA>
+    <iWant>to query tests created and submitted by customer users</iWant>
+    <soThat>I can identify top customer users and engagement patterns</soThat>
+    <tasks>
+## Tasks/Subtasks
+
+### Task 1: Verify customer Dimension in Registry (AC1)
+**Status:** Already exists - verification only
+
+**Subtasks:**
+1. Read AnalyticsService._build_dimension_registry()
+2. Verify customer dimension definition exists
+3. Verify joins via Test.created_by_user_id
+4. Verify filter condition: User.user_type == "customer"
+5. Verify returns user_id and username
+
+**Location:** src/testio_mcp/services/analytics_service.py:242-311
+
+### Task 2: Add tests_created Metric (AC2)
+**Estimated:** 30 minutes
+
+**Subtasks:**
+1. Add tests_created to _build_metric_registry()
+2. Use expression: func.count(func.distinct(Test.id))
+3. Set join_path: [Test]
+4. Document formula: "COUNT(DISTINCT test_id WHERE created_by_user_id IS NOT NULL)"
+5. Run mypy --strict to verify type correctness
+
+**Location:** src/testio_mcp/services/analytics_service.py:313-369
+
+### Task 3: Add tests_submitted Metric (AC3)
+**Estimated:** 30 minutes
+
+**Subtasks:**
+1. Add tests_submitted to _build_metric_registry()
+2. Use func.sum() with func.case() expression (NOT .filter() on aggregate)
+3. Filter for status IN ('submitted', 'completed')
+4. Set join_path: [Test]
+5. Document formula
+6. Run mypy --strict to verify type correctness
+
+**Critical:** Use CASE expression pattern, NOT .filter() on aggregate (invalid SQLAlchemy)
+
+### Task 4: Write Unit Tests (AC4)
+**Estimated:** 1 hour
+
+**Subtasks:**
+1. Add test_query_by_customer_dimension()
+2. Add test_tests_created_metric()
+3. Add test_tests_submitted_metric()
+4. Add test_combined_customer_metrics()
+5. Add test_customer_engagement_trend()
+6. Run: pytest tests/unit/test_analytics_service.py -k customer -v
+
+**Pattern:** Follow existing test_single_dimension_single_metric() pattern
+
+### Task 5: Write Integration Test (AC5)
+**Estimated:** 30 minutes
+
+**Subtasks:**
+1. Create test_customer_engagement_e2e() in tests/integration/test_epic_007_e2e.py
+2. Setup: Create test data with known customer users
+3. Query metrics by customer dimension
+4. Verify correct counts for tests_created and tests_submitted
+5. Run: pytest tests/integration/test_epic_007_e2e.py::test_customer_engagement_e2e -v
+
+### Task 6: Update Documentation (AC6)
+**Estimated:** 30 minutes
+
+**Subtasks:**
+1. Update query_metrics_tool.py docstring
+2. Add customer patterns to Common Patterns section
+3. Add customer examples to Examples section
+4. Verify documentation clarity
+
+**Location:** src/testio_mcp/tools/query_metrics_tool.py:81-163
+
+### Task 7: Verify get_analytics_capabilities Output (AC7)
+**Estimated:** 15 minutes
+
+**Subtasks:**
+1. Run get_analytics_capabilities() tool
+2. Verify customer dimension appears with correct description
+3. Verify tests_created metric appears
+4. Verify tests_submitted metric appears
+5. Verify all descriptions accurate
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+## Acceptance Criteria
+
+### AC1: customer Dimension Added to Registry ✓ (Already Exists)
+**File:** src/testio_mcp/services/analytics_service.py:270-278
+
+**Verification Checklist:**
+- [ ] customer dimension exists in registry
+- [ ] Joins via Test.created_by_user_id
+- [ ] Filters by User.user_type == "customer"
+- [ ] Returns user_id and username
+
+**Current Implementation:**
+```python
+"customer": DimensionDef(
+    key="customer",
+    description="Group by Customer Username",
+    column=User.username,
+    id_column=User.id,
+    join_path=[Test, User],  # Via Test.created_by_user_id
+    filter_condition=User.user_type == "customer",
+    example="acme_corp, beta_user_1",
+),
+```
+
+---
+
+### AC2: tests_created Metric Added to Registry
+**File:** src/testio_mcp/services/analytics_service.py:313-369
+**Insert Location:** After line 369 (after bugs_per_test metric)
+
+**Implementation Pattern:**
+```python
+"tests_created": MetricDef(
+    key="tests_created",
+    description="Number of tests created by customers",
+    expression=func.count(func.distinct(Test.id)),
+    join_path=[Test],
+    formula="COUNT(DISTINCT test_id WHERE created_by_user_id IS NOT NULL)",
+),
+```
+
+**Validation:**
+- [ ] tests_created metric added to registry
+- [ ] Counts distinct tests with created_by_user_id
+- [ ] Formula documented
+- [ ] Join path includes Test
+- [ ] mypy --strict passes
+
+**Note:** Filter for created_by_user_id IS NOT NULL is applied in WHERE clause when customer dimension is used, not in the aggregate expression.
+
+---
+
+### AC3: tests_submitted Metric Added to Registry
+**File:** src/testio_mcp/services/analytics_service.py:313-369
+**Insert Location:** After tests_created metric
+
+**Implementation Pattern:**
+```python
+"tests_submitted": MetricDef(
+    key="tests_submitted",
+    description="Number of tests submitted for review",
+    expression=func.sum(
+        func.case(
+            (Test.status.in_(["submitted", "completed"]), 1),
+            else_=0
+        )
+    ),
+    join_path=[Test],
+    formula="SUM(CASE WHEN status IN ('submitted', 'completed') THEN 1 ELSE 0 END)"
+),
+```
+
+**Validation:**
+- [ ] tests_submitted metric added to registry
+- [ ] Uses CASE expression (NOT .filter() on aggregate - invalid)
+- [ ] Counts tests with status 'submitted' or 'completed'
+- [ ] Formula documented
+- [ ] Join path includes Test
+- [ ] mypy --strict passes
+
+**Critical:** Use func.case() pattern, NOT Test.status.filter() on aggregate.
+
+---
+
+### AC4: Unit Tests Added for Customer Metrics
+**File:** tests/unit/test_analytics_service.py
+**Insert Location:** End of file (after existing tests)
+
+**Required Tests:**
+1. test_query_by_customer_dimension() - Verify customer dimension usage
+2. test_tests_created_metric() - Verify tests_created calculation
+3. test_tests_submitted_metric() - Verify tests_submitted calculation with status filtering
+4. test_combined_customer_metrics() - Verify multiple metrics together
+5. test_customer_engagement_trend() - Verify customer + month multi-dimension
+
+**Test Pattern (from existing tests):**
+```python
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_query_by_customer_dimension() -> None:
+    """Test querying by customer dimension."""
+    mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.all.return_value = [
+        _create_mock_row(customer_id=1, customer="acme_corp", tests_created=5)
+    ]
+    mock_session.exec.return_value = mock_result
+
+    mock_client = AsyncMock()
+    service = AnalyticsService(session=mock_session, customer_id=123, client=mock_client)
+    result = await service.query_metrics(
+        metrics=["tests_created"],
+        dimensions=["customer"]
+    )
+
+    # Verify customer dimension
+    assert result.metadata.dimensions_used == ["customer"]
+    assert result.data[0]["customer_id"] == 1
+    assert result.data[0]["customer"] == "acme_corp"
+    assert result.data[0]["tests_created"] == 5
+```
+
+**Validation:**
+- [ ] All 5 unit tests added
+- [ ] Tests pass: pytest tests/unit/test_analytics_service.py -k customer -v
+- [ ] Coverage for customer dimension, tests_created, tests_submitted
+
+---
+
+### AC5: Integration Test Validates Customer Metrics
+**File:** tests/integration/test_epic_007_e2e.py
+**Insert Location:** End of file
+
+**Test Structure:**
+```python
+@pytest.mark.asyncio
+async def test_customer_engagement_e2e():
+    """Test customer engagement metrics end-to-end."""
+    # Setup: Create test data with known customer users
+    # Create 3 tests for customer (2 submitted, 1 draft)
+    # Query: metrics=["tests_created", "tests_submitted"], dimensions=["customer"]
+    # Verify: tests_created=3, tests_submitted=2
+```
+
+**Validation:**
+- [ ] Integration test creates customer test data
+- [ ] Integration test queries customer metrics
+- [ ] Integration test verifies correct counts
+- [ ] Test passes: pytest tests/integration/test_epic_007_e2e.py::test_customer_engagement_e2e -v
+
+---
+
+### AC6: Documentation Updated
+**File:** src/testio_mcp/tools/query_metrics_tool.py:81-163
+
+**Updates Required:**
+
+1. **Common Patterns section (line 91-95):**
+```python
+**Common Patterns:**
+- "Most fragile features": dims=['feature'], metrics=['bugs_per_test']
+- "Tester leaderboard": dims=['tester'], metrics=['bug_count']
+- "Monthly trend": dims=['month'], metrics=['test_count']
+- "Top customer users": dims=['customer'], metrics=['tests_created', 'tests_submitted']  # NEW
+- "Customer engagement trend": dims=['customer', 'month'], metrics=['tests_created']  # NEW
+```
+
+2. **Examples section (after line 162):**
+```python
+# Who are our top customer users?
+query_metrics(
+    metrics=["tests_created", "tests_submitted"],
+    dimensions=["customer"],
+    sort_by="tests_created",
+    sort_order="desc"
+)
+
+# How is customer engagement trending?
+query_metrics(
+    metrics=["tests_created"],
+    dimensions=["customer", "month"],
+    start_date="3 months ago"
+)
+```
+
+**Validation:**
+- [ ] Common patterns updated with customer queries
+- [ ] Examples demonstrate customer metrics usage
+- [ ] Documentation clear and helpful
+
+---
+
+### AC7: get_analytics_capabilities Returns Customer Metrics
+**Validation Command:**
+```bash
+# Call get_analytics_capabilities() and verify output
+```
+
+**Expected Output:**
+```python
+# Customer dimension
+{
+    "key": "customer",
+    "description": "Group by Customer Username",
+    "example": "acme_corp, beta_user_1"
+}
+
+# tests_created metric
+{
+    "key": "tests_created",
+    "description": "Number of tests created by customers",
+    "formula": "COUNT(DISTINCT test_id WHERE created_by_user_id IS NOT NULL)"
+}
+
+# tests_submitted metric
+{
+    "key": "tests_submitted",
+    "description": "Number of tests submitted for review",
+    "formula": "SUM(CASE WHEN status IN ('submitted', 'completed') THEN 1 ELSE 0 END)"
+}
+```
+
+**Validation:**
+- [ ] get_analytics_capabilities returns customer dimension
+- [ ] get_analytics_capabilities returns tests_created metric
+- [ ] get_analytics_capabilities returns tests_submitted metric
+- [ ] All descriptions accurate
+</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-007-generic-analytics-framework.md</path>
+        <title>Epic 007: Generic Analytics Framework</title>
+        <section>STORY-045: Customer Engagement Analytics</section>
+        <snippet>User Story: As a product manager analyzing customer engagement, I want to query tests created and submitted by customer users, so that I can identify top customer users and engagement patterns. Extends existing registry pattern, no new tables or migrations needed.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/epic-007-generic-analytics-framework.md</path>
+        <title>Epic 007: Generic Analytics Framework</title>
+        <section>STORY-043: Analytics Service (The Engine)</section>
+        <snippet>Registry-driven SQL builder that constructs dynamic queries from dimension/metric requests. Implements dimension registry (8 dimensions including customer) and metric registry (6 metrics). Direct attribution via Bug.test_feature_id eliminates fractional logic.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Component Architecture</section>
+        <snippet>Service layer pattern: MCP Tools are thin wrappers that delegate to service layer (business logic). Services are framework-agnostic and can be reused across transports (MCP, REST, CLI).</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/SERVICE_LAYER_SUMMARY.md</path>
+        <title>Service Layer Architecture</title>
+        <section>Service Pattern</section>
+        <snippet>Services separate business logic from transport. AnalyticsService is read-only service (no repositories needed for queries, uses session directly). Tool pattern uses get_service() helper for 1-line dependency injection.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>service</kind>
+        <symbol>AnalyticsService</symbol>
+        <lines>83-546</lines>
+        <reason>Core analytics engine implementing Metric Cube pattern. Contains dimension registry (line 242-311) with customer dimension already defined. Metric registry (line 313-369) needs extension with tests_created and tests_submitted.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>service</kind>
+        <symbol>_build_dimension_registry</symbol>
+        <lines>242-311</lines>
+        <reason>Dimension registry builder. Customer dimension already exists at lines 270-278. No changes needed for AC1.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>service</kind>
+        <symbol>_build_metric_registry</symbol>
+        <lines>313-369</lines>
+        <reason>Metric registry builder. Need to add tests_created and tests_submitted metrics after line 369 (after bugs_per_test).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/user.py</path>
+        <kind>model</kind>
+        <symbol>User</symbol>
+        <lines>17-89</lines>
+        <reason>User ORM model with user_type field for filtering ("tester" or "customer"). Used in customer dimension filter_condition.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/test.py</path>
+        <kind>model</kind>
+        <symbol>Test</symbol>
+        <lines>1-100</lines>
+        <reason>Test ORM model with created_by_user_id and status fields. Used for tests_created metric (count tests) and tests_submitted metric (filter by status).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/query_metrics_tool.py</path>
+        <kind>tool</kind>
+        <symbol>query_metrics</symbol>
+        <lines>24-191</lines>
+        <reason>MCP tool for analytics queries. Docstring needs updates at lines 91-95 (Common Patterns) and lines 138-162 (Examples) to add customer engagement patterns.</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_analytics_service.py</path>
+        <kind>test</kind>
+        <symbol>test_single_dimension_single_metric</symbol>
+        <lines>33-66</lines>
+        <reason>Test pattern for single dimension queries. Use as template for test_query_by_customer_dimension().</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_analytics_service.py</path>
+        <kind>test</kind>
+        <symbol>_create_mock_row</symbol>
+        <lines>23-28</lines>
+        <reason>Helper function to create mock row objects for unit tests. Use in all customer metric tests.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sqlalchemy" version=">=2.0.0">Core SQL toolkit for dynamic query building</package>
+        <package name="sqlmodel" version=">=0.0.14">ORM with Pydantic integration for type-safe models</package>
+        <package name="pytest" version=">=7.0.0">Testing framework for unit and integration tests</package>
+        <package name="pytest-asyncio" version=">=0.21.0">Async test support for pytest</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+## Development Constraints
+
+### Pattern Constraints
+1. **Registry Pattern:** All dimensions and metrics must be registered in _build_dimension_registry() and _build_metric_registry() - no ad-hoc query building
+2. **No Schema Changes:** This story extends existing registry only - no migrations or database schema changes
+3. **Service Layer Pattern:** Business logic in service, tool is thin wrapper using get_service() helper
+4. **Type Safety:** All code must pass mypy --strict type checking
+5. **Async Only:** All database operations must use async/await patterns
+
+### SQLAlchemy/SQLModel Constraints
+1. **Use CASE Expressions for Conditional Aggregates:** Never use .filter() on aggregate functions (invalid SQLAlchemy). Use func.sum(func.case(...)) pattern instead.
+2. **Use session.exec() for ORM Queries:** Not session.execute() (returns Row objects, not ORM models)
+3. **Type Ignores for SQLAlchemy Limitations:** Known mypy limitations with dynamic SELECT and case() tuples require type: ignore comments
+
+### Testing Constraints
+1. **Unit Tests Required:** All new metrics must have unit tests in test_analytics_service.py
+2. **Integration Tests Required:** E2E test in test_epic_007_e2e.py validating full flow
+3. **Mock Pattern:** Use AsyncMock for session, MagicMock for result objects, _create_mock_row() for data
+4. **Test Markers:** Use @pytest.mark.unit and @pytest.mark.asyncio decorators
+
+### Code Quality Constraints
+1. **Pre-commit Hooks:** ruff, mypy, detect-secrets must pass before commit
+2. **Coverage Target:** Maintain >80% test coverage for services
+3. **Documentation:** All public methods must have docstrings with Args/Returns sections
+4. **Error Handling:** All tool errors must use ToolError with ❌ℹ️💡 format
+</constraints>
+
+  <interfaces>
+## Interfaces to Implement/Use
+
+### AnalyticsService.query_metrics() Interface
+**Location:** src/testio_mcp/services/analytics_service.py:119-240
+
+**Signature:**
+```python
+async def query_metrics(
+    self,
+    metrics: list[str],
+    dimensions: list[str],
+    filters: dict[str, Any] | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    sort_by: str | None = None,
+    sort_order: str = "desc",
+) -> QueryResponse
+```
+
+**Usage for Customer Metrics:**
+```python
+# Top customer users
+result = await service.query_metrics(
+    metrics=["tests_created", "tests_submitted"],
+    dimensions=["customer"],
+    sort_by="tests_created",
+    sort_order="desc"
+)
+
+# Customer engagement trend
+result = await service.query_metrics(
+    metrics=["tests_created"],
+    dimensions=["customer", "month"],
+    start_date="3 months ago"
+)
+```
+
+---
+
+### DimensionDef Dataclass
+**Location:** src/testio_mcp/services/analytics_service.py:41-62
+
+**Signature:**
+```python
+@dataclass
+class DimensionDef:
+    key: str
+    description: str
+    column: Any  # SQLAlchemy column expression
+    id_column: Any | None  # ID column for rich context
+    join_path: list[type]  # ORM models to join
+    filter_condition: Any | None = None  # Optional WHERE clause
+    example: str = ""
+```
+
+**Customer Dimension (Already Exists):**
+```python
+"customer": DimensionDef(
+    key="customer",
+    description="Group by Customer Username",
+    column=User.username,
+    id_column=User.id,
+    join_path=[Test, User],
+    filter_condition=User.user_type == "customer",
+    example="acme_corp, beta_user_1",
+)
+```
+
+---
+
+### MetricDef Dataclass
+**Location:** src/testio_mcp/services/analytics_service.py:64-81
+
+**Signature:**
+```python
+@dataclass
+class MetricDef:
+    key: str
+    description: str
+    expression: Any  # SQLAlchemy aggregation expression
+    join_path: list[type]  # ORM models needed
+    formula: str  # Human-readable formula
+```
+
+**New Metrics to Add:**
+```python
+# tests_created metric
+"tests_created": MetricDef(
+    key="tests_created",
+    description="Number of tests created by customers",
+    expression=func.count(func.distinct(Test.id)),
+    join_path=[Test],
+    formula="COUNT(DISTINCT test_id WHERE created_by_user_id IS NOT NULL)",
+)
+
+# tests_submitted metric
+"tests_submitted": MetricDef(
+    key="tests_submitted",
+    description="Number of tests submitted for review",
+    expression=func.sum(
+        func.case(
+            (Test.status.in_(["submitted", "completed"]), 1),
+            else_=0
+        )
+    ),
+    join_path=[Test],
+    formula="SUM(CASE WHEN status IN ('submitted', 'completed') THEN 1 ELSE 0 END)"
+)
+```
+
+---
+
+### QueryResponse Model
+**Location:** src/testio_mcp/models/analytics.py
+
+**Structure:**
+```python
+class QueryResponse(BaseModel):
+    data: list[dict[str, Any]]
+    metadata: QueryMetadata
+    query_explanation: str
+    warnings: list[str]
+```
+
+**Example Response for Customer Query:**
+```python
+{
+    "data": [
+        {
+            "customer_id": 1001,
+            "customer": "acme_corp",
+            "tests_created": 15,
+            "tests_submitted": 12
+        }
+    ],
+    "metadata": {
+        "total_rows": 1,
+        "dimensions_used": ["customer"],
+        "metrics_used": ["tests_created", "tests_submitted"],
+        "query_time_ms": 45
+    },
+    "query_explanation": "Showing Number of tests created by customers, Number of tests submitted for review grouped by Group by Customer Username, sorted by tests_created descending",
+    "warnings": []
+}
+```
+</interfaces>
+
+  <tests>
+    <standards>
+This project follows behavioral testing principles (see docs/architecture/TESTING.md):
+- Test WHAT the code does (behavior), not HOW it does it (implementation)
+- Use descriptive test names that explain the scenario being tested
+- Focus on outcomes and observable effects, not internal state
+- Mock external dependencies (session, client), not internal helpers
+- Follow pytest-asyncio patterns for async tests
+- Use markers: @pytest.mark.unit for unit tests, @pytest.mark.integration for integration tests
+- Unit tests should be fast (<100ms each) with no external dependencies
+- Integration tests can use real database but should use fixtures for data setup
+- All service tests should achieve >80% code coverage
+    </standards>
+    <locations>
+tests/unit/test_analytics_service.py - Unit tests for AnalyticsService
+tests/integration/test_epic_007_e2e.py - End-to-end integration tests
+    </locations>
+    <ideas>
+### Test Ideas Mapped to Acceptance Criteria
+
+**AC1 (customer dimension verification):**
+- No new tests needed - dimension already exists, just verify in code review
+
+**AC2 (tests_created metric):**
+- test_tests_created_metric() - Verify metric counts distinct tests correctly
+- Test with customer dimension to ensure proper joining
+
+**AC3 (tests_submitted metric):**
+- test_tests_submitted_metric() - Verify CASE expression filters by status
+- Test with various statuses (submitted, completed, draft, archived)
+- Verify draft/archived tests excluded from count
+
+**AC4 (combined unit tests):**
+- test_query_by_customer_dimension() - Verify customer dimension returns user_id + username
+- test_combined_customer_metrics() - Verify tests_created + tests_submitted together
+- test_customer_engagement_trend() - Verify customer + month multi-dimension
+- Edge case: Customer with no tests (should return 0, not exclude)
+- Edge case: All tests in draft status (tests_created > tests_submitted)
+
+**AC5 (integration test):**
+- test_customer_engagement_e2e() - Create real test data with customer users
+- Verify end-to-end: setup → query → validate counts
+- Test with multiple customers to verify grouping
+- Test with date range filtering
+
+**AC6 (documentation):**
+- Manual verification of tool docstring updates
+- Verify examples are clear and accurate
+
+**AC7 (capabilities output):**
+- Manual verification via get_analytics_capabilities() tool
+- Verify all new metrics appear with correct descriptions
+    </ideas>
+  </tests>
+</story-context>

@@ -1,0 +1,387 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-007</epicId>
+    <storyId>STORY-043</storyId>
+    <title>Analytics Service (The Engine)</title>
+    <status>ready-for-implementation</status>
+    <blockerResolved>true</blockerResolved>
+    <blockerDetails>Product.title normalization completed - migrations applied, backfill done, repository NULL handling fixed, all integration tests passing (86/86)</blockerDetails>
+    <generatedAt>2025-11-25</generatedAt>
+    <updatedAt>2025-11-25T12:40:00</updatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-043-analytics-service.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer building analytics tools</asA>
+    <iWant>an AnalyticsService that constructs dynamic SQL from dimension/metric requests</iWant>
+    <soThat>I can answer analytical questions without writing custom SQL for each query</soThat>
+    <tasks>
+      <!-- Tasks extracted from acceptance criteria -->
+      <task id="AC1">Create AnalyticsService class with query_metrics method</task>
+      <task id="AC2">Implement dimension registry (8 dimensions: feature, product, tester, customer, severity, status, month, week)</task>
+      <task id="AC3">Implement metric registry (6 metrics: test_count, bug_count, bug_severity_score, features_tested, active_testers, bugs_per_test)</task>
+      <task id="AC4">Create QueryBuilder class for dynamic SQL construction</task>
+      <task id="AC5">Implement direct attribution via Bug.test_feature_id</task>
+      <task id="AC6">Add performance guardrails (max 2 dimensions, 1000 row limit, validation)</task>
+      <task id="AC7">Implement rich response format with metadata, explanation, warnings</task>
+      <task id="AC8">Write unit tests covering all core scenarios</task>
+      <task id="AC9">Ensure type checking passes (mypy --strict)</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1" priority="critical">
+      <summary>AnalyticsService Class Created</summary>
+      <details>
+        File: src/testio_mcp/services/analytics_service.py
+        - Constructor takes AsyncSession and customer_id
+        - query_metrics method with parameters: metrics, dimensions, filters, start_date, end_date, sort_by, sort_order
+        - Returns dict with data, metadata, query_explanation, warnings
+        - Float import for bugs_per_test calculation
+      </details>
+    </criterion>
+    <criterion id="AC2" priority="critical">
+      <summary>Dimension Registry Implemented</summary>
+      <details>
+        8 dimensions defined with DimensionDef dataclass:
+        - feature (via TestFeature → Feature)
+        - product (via TestFeature → Feature → Product)
+        - tester (via Bug → User with user_type filter)
+        - customer (via Test → User with user_type filter)
+        - severity (Bug.severity enum)
+        - status (Bug.status)
+        - month (func.strftime on Test.created_at)
+        - week (func.strftime on Test.created_at)
+        Each has: key, description, column, id_column, join_path, optional filter_condition, example
+      </details>
+    </criterion>
+    <criterion id="AC3" priority="critical">
+      <summary>Metric Registry Implemented</summary>
+      <details>
+        6 metrics defined with MetricDef dataclass:
+        - test_count (COUNT DISTINCT Test.id)
+        - bug_count (COUNT DISTINCT Bug.id via test_feature_id)
+        - bug_severity_score (weighted sum: critical=5, major=3, minor=1)
+        - features_tested (COUNT DISTINCT TestFeature.feature_id)
+        - active_testers (COUNT DISTINCT Bug.reported_by_user_id)
+        - bugs_per_test (ratio with NULLIF protection)
+        Each has: key, description, expression, join_path, formula
+      </details>
+    </criterion>
+    <criterion id="AC4" priority="critical">
+      <summary>QueryBuilder Class Implemented</summary>
+      <details>
+        File: src/testio_mcp/services/query_builder.py
+        - Uses select_from(TestFeature) to anchor query
+        - Constructs SELECT with dimension columns (value + ID) and metric expressions
+        - Adds necessary joins based on dimension/metric requirements
+        - Applies filters: customer_id, dimension values, date range
+        - Ensures Test is joined when date filtering used
+        - GROUP BY all dimension columns (includes both column and id_column)
+        - Validates sort_order ('asc'/'desc') and sort_by (must be in dimensions/metrics)
+        - Resolves sort_by to actual column expression
+        - Limits results to 1000 rows
+      </details>
+    </criterion>
+    <criterion id="AC5" priority="high">
+      <summary>Direct Attribution via Bug.test_feature_id</summary>
+      <details>
+        - Bug metrics join via Bug.test_feature_id = TestFeature.id
+        - No fractional attribution logic
+        - Single join path: TestFeature → Bug
+        - Accurate bug counts per feature
+      </details>
+    </criterion>
+    <criterion id="AC6" priority="high">
+      <summary>Performance Guardrails</summary>
+      <details>
+        In AnalyticsService._validate_request:
+        - Max 2 dimensions enforced (raises ValueError)
+        - Max 1000 rows enforced (in QueryBuilder.build())
+        - Query timeout handled by HTTP_TIMEOUT_SECONDS=90.0
+        - Invalid dimension/metric/sort_by keys rejected with clear error messages
+      </details>
+    </criterion>
+    <criterion id="AC7" priority="medium">
+      <summary>Rich Response Format</summary>
+      <details>
+        Response includes:
+        - data: list[dict] with both IDs and display names
+        - metadata: total_rows, dimensions_used, metrics_used, query_time_ms
+        - query_explanation: human-readable summary with "ascending"/"descending"
+        - warnings: row limits, date range caveats
+      </details>
+    </criterion>
+    <criterion id="AC8" priority="critical">
+      <summary>Unit Tests Cover Core Scenarios</summary>
+      <details>
+        File: tests/unit/test_analytics_service.py
+        Test cases:
+        - Single dimension single metric (bug_count by feature)
+        - Multiple dimensions (feature + month)
+        - Dimension filters (severity=critical)
+        - Date range filtering (Test.end_at)
+        - Sort control (sort_by + sort_order)
+        - Too many dimensions error (>2)
+        - Invalid dimension key error
+        - Direct attribution accuracy
+      </details>
+    </criterion>
+    <criterion id="AC9" priority="high">
+      <summary>Type Checking Passes</summary>
+      <details>
+        - mypy src/testio_mcp/services/analytics_service.py --strict
+        - mypy src/testio_mcp/services/query_builder.py --strict
+        - All type hints correct and complete
+      </details>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-007-generic-analytics-framework.md</path>
+        <title>Epic 007: Generic Analytics Framework</title>
+        <section>STORY-043: Analytics Service (The Engine)</section>
+        <snippet>User story, acceptance criteria, and technical notes for building the registry-driven SQL query engine. Covers dimension/metric registries, QueryBuilder class, direct attribution via Bug.test_feature_id, performance guardrails (max 2 dimensions, 1000 rows), and rich response format.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Service Layer Architecture</section>
+        <snippet>Service layer pattern separates business logic from transport. Services are framework-agnostic with constructor-injected dependencies (client, repositories). Pattern: Tool → Service → Client/Repository.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/SERVICE_LAYER_SUMMARY.md</path>
+        <title>Service Layer Summary</title>
+        <section>BaseService Pattern</section>
+        <snippet>BaseService provides standard constructor accepting TestIOClient. Services inject repositories for data access. Use get_service(ctx, ServiceClass) helper for 1-line dependency injection in tools.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing Strategy</title>
+        <section>Test Pyramid & Behavioral Testing</section>
+        <snippet>Test behavior (outcomes), not implementation (internal calls). Coverage targets: services ≥90%, overall ≥85%. Use mock repositories, avoid hardcoded magic numbers, assert on schemas not data.</snippet>
+      </doc>
+      <doc>
+        <path>docs/planning/epic-007-cube-prototype.md</path>
+        <title>Cube Prototype (Planning)</title>
+        <section>Registry Pattern & SQL Generation</section>
+        <snippet>Registry pattern prevents SQL injection by validating dimension/metric keys against whitelist. QueryBuilder constructs dynamic SQL from registries with automatic join path resolution.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/services/base_service.py</path>
+        <kind>service</kind>
+        <symbol>BaseService</symbol>
+        <lines>24-41</lines>
+        <reason>Base class for all services. AnalyticsService will inherit from this to get standard client injection pattern.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/test_feature.py</path>
+        <kind>model</kind>
+        <symbol>TestFeature</symbol>
+        <lines>16-49</lines>
+        <reason>ORM model for test_features table. Analytics queries will start from this table (customer_id filtering) and join to Bug, Feature, Test, etc.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/bug.py</path>
+        <kind>model</kind>
+        <symbol>Bug</symbol>
+        <lines>18-75</lines>
+        <reason>Bug model with test_feature_id foreign key (line 60-65). Direct attribution via Bug.test_feature_id = TestFeature.id eliminates fractional logic.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/test.py</path>
+        <kind>model</kind>
+        <symbol>Test</symbol>
+        <lines>18-80</lines>
+        <reason>Test model with created_at, start_at, end_at timestamps (indexed). Used for date range filtering and time bucketing (month/week dimensions).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/feature.py</path>
+        <kind>model</kind>
+        <symbol>Feature</symbol>
+        <lines>all</lines>
+        <reason>Feature model for feature dimension. Joined via TestFeature.feature_id → Feature.id.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/product.py</path>
+        <kind>model</kind>
+        <symbol>Product</symbol>
+        <lines>all</lines>
+        <reason>Product model for product dimension. Has denormalized title field (extracted from JSON) for analytics queries. Joined via Feature.product_id → Product.id. BLOCKER RESOLVED: Product.title column added via migrations f2ddd8df0212 and 24c44c502fc0.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/user.py</path>
+        <kind>model</kind>
+        <symbol>User</symbol>
+        <lines>all</lines>
+        <reason>User model with user_type field for tester/customer dimensions. Joined via Bug.reported_by_user_id or Test.created_by_user_id.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/utilities/date_utils.py</path>
+        <kind>utility</kind>
+        <symbol>parse_flexible_date</symbol>
+        <lines>all</lines>
+        <reason>Date parsing utility for flexible date range filters. Supports ISO dates and natural language ("last 30 days").</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/product_repository.py</path>
+        <kind>repository</kind>
+        <symbol>ProductRepository.upsert_product</symbol>
+        <lines>226-271</lines>
+        <reason>BLOCKER RESOLUTION: Repository extracts title from product JSON (data.name → title field) during upsert. Provides fallback "Untitled Product" for missing names. Critical for product dimension analytics.</reason>
+      </artifact>
+      <artifact>
+        <path>alembic/versions/f2ddd8df0212_add_product_title_column.py</path>
+        <kind>migration</kind>
+        <symbol>upgrade</symbol>
+        <lines>all</lines>
+        <reason>BLOCKER RESOLUTION: Migration 1 - Adds Product.title column (nullable initially for safe backfill). Part of two-phase migration strategy.</reason>
+      </artifact>
+      <artifact>
+        <path>alembic/versions/24c44c502fc0_make_product_title_not_null.py</path>
+        <kind>migration</kind>
+        <symbol>upgrade</symbol>
+        <lines>all</lines>
+        <reason>BLOCKER RESOLUTION: Migration 2 - Makes Product.title NOT NULL after backfill completes. Enforces data integrity for analytics queries.</reason>
+      </artifact>
+      <artifact>
+        <path>scripts/backfill_product_title.py</path>
+        <kind>script</kind>
+        <symbol>backfill_product_titles</symbol>
+        <lines>all</lines>
+        <reason>BLOCKER RESOLUTION: Idempotent backfill script that extracts titles from existing product JSON data. Verified zero NULL titles remain after execution (6 products backfilled).</reason>
+      </artifact>
+      <artifact>
+        <path>tests/services/test_feature_service.py</path>
+        <kind>test</kind>
+        <symbol>test_*</symbol>
+        <lines>all</lines>
+        <reason>Example service test pattern. Shows how to mock AsyncSession, test repository interactions, verify business logic without database.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version=">=0.0.16">SQLAlchemy 2.0 + Pydantic for ORM queries</package>
+        <package name="sqlalchemy" version="(via sqlmodel)">Core for dynamic SQL construction (select, func, etc.)</package>
+        <package name="pydantic" version=">=2.12.0">Data validation and type hints</package>
+        <package name="python-dateutil" version=">=2.8.0">Date parsing for filters</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="architecture">Services inherit from BaseService and accept TestIOClient in constructor</constraint>
+    <constraint type="architecture">Services are read-only (no write operations in MVP)</constraint>
+    <constraint type="architecture">Use AsyncSession for all database queries (not repositories for raw SQL)</constraint>
+    <constraint type="testing">Service tests must mock AsyncSession, not use real database</constraint>
+    <constraint type="testing">Coverage target: ≥90% for services</constraint>
+    <constraint type="testing">Type checking must pass: mypy --strict</constraint>
+    <constraint type="orm">Use session.exec() for ORM queries, not session.execute() (returns ORM models, not Rows)</constraint>
+    <constraint type="orm">Always use .first(), .one(), or .all() after session.exec() to extract results</constraint>
+    <constraint type="performance">Max 2 dimensions per query (V1 limit, designed to extend to 3 in V2)</constraint>
+    <constraint type="performance">Max 1000 rows returned (hard limit)</constraint>
+    <constraint type="performance">Query timeout: HTTP_TIMEOUT_SECONDS=90.0 (inherited from client)</constraint>
+    <constraint type="security">All queries must filter by customer_id via TestFeature.customer_id</constraint>
+    <constraint type="security">Registry pattern (validated keys only) prevents SQL injection</constraint>
+    <constraint type="design">Direct attribution via Bug.test_feature_id (no fractional logic)</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>AnalyticsService.query_metrics</name>
+      <kind>method</kind>
+      <signature>
+async def query_metrics(
+    self,
+    metrics: list[str],
+    dimensions: list[str],
+    filters: dict[str, Any] | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    sort_by: str | None = None,
+    sort_order: str = "desc"
+) -> dict
+      </signature>
+      <path>src/testio_mcp/services/analytics_service.py</path>
+    </interface>
+    <interface>
+      <name>QueryBuilder.build</name>
+      <kind>method</kind>
+      <signature>
+def build(self) -> Select
+      </signature>
+      <path>src/testio_mcp/services/query_builder.py</path>
+    </interface>
+    <interface>
+      <name>DimensionDef</name>
+      <kind>dataclass</kind>
+      <signature>
+@dataclass
+class DimensionDef:
+    key: str
+    description: str
+    column: Any  # SQLAlchemy column expression
+    id_column: Any | None
+    join_path: list[type]
+    filter_condition: Any | None = None
+    example: str = ""
+      </signature>
+      <path>src/testio_mcp/services/analytics_service.py</path>
+    </interface>
+    <interface>
+      <name>MetricDef</name>
+      <kind>dataclass</kind>
+      <signature>
+@dataclass
+class MetricDef:
+    key: str
+    description: str
+    expression: Any  # SQLAlchemy aggregation expression
+    join_path: list[type]
+    formula: str
+      </signature>
+      <path>src/testio_mcp/services/analytics_service.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+Unit tests for AnalyticsService and QueryBuilder use mocked AsyncSession (not real database). Test behavior (query results, error handling), not implementation (internal method calls, SQL syntax). Use realistic test data, assert on schemas and outcomes. Coverage target: ≥90% for service layer. All tests must pass mypy --strict type checking.
+    </standards>
+    <locations>
+      <location>tests/unit/test_analytics_service.py</location>
+      <location>tests/services/ (if service-layer tests needed)</location>
+      <location>tests/integration/test_epic_007_e2e.py (E2E validation after STORY-044)</location>
+    </locations>
+    <ideas>
+      <idea criterion="AC2">Test dimension registry has 8 dimensions with correct join paths</idea>
+      <idea criterion="AC3">Test metric registry has 6 metrics with correct expressions</idea>
+      <idea criterion="AC4">Test QueryBuilder constructs SELECT with dimension columns + metric expressions</idea>
+      <idea criterion="AC4">Test QueryBuilder adds necessary joins based on dimension/metric requirements</idea>
+      <idea criterion="AC4">Test QueryBuilder applies customer_id filter (security)</idea>
+      <idea criterion="AC4">Test QueryBuilder adds date range filter when start_date/end_date provided</idea>
+      <idea criterion="AC4">Test QueryBuilder adds GROUP BY for dimension columns</idea>
+      <idea criterion="AC4">Test QueryBuilder validates sort_order is 'asc' or 'desc'</idea>
+      <idea criterion="AC4">Test QueryBuilder validates sort_by is in dimensions/metrics</idea>
+      <idea criterion="AC4">Test QueryBuilder limits results to 1000 rows</idea>
+      <idea criterion="AC5">Test direct Bug → TestFeature attribution (no fractional logic)</idea>
+      <idea criterion="AC6">Test max 2 dimensions enforced (raises ValueError if exceeded)</idea>
+      <idea criterion="AC6">Test invalid dimension keys rejected with clear error message</idea>
+      <idea criterion="AC6">Test invalid metric keys rejected with clear error message</idea>
+      <idea criterion="AC7">Test response includes data with IDs and display names</idea>
+      <idea criterion="AC7">Test response includes metadata (total_rows, dimensions_used, metrics_used)</idea>
+      <idea criterion="AC7">Test response includes query_explanation with "ascending"/"descending"</idea>
+      <idea criterion="AC7">Test response includes warnings (row limits, date range caveats)</idea>
+      <idea criterion="AC8">Test single dimension + single metric query</idea>
+      <idea criterion="AC8">Test multiple dimensions query (2 dimensions)</idea>
+      <idea criterion="AC8">Test dimension filters applied correctly</idea>
+      <idea criterion="AC8">Test date range filtering on Test.end_at</idea>
+      <idea criterion="AC8">Test sort control (sort_by + sort_order)</idea>
+    </ideas>
+  </tests>
+</story-context>

@@ -1,0 +1,191 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>014</epicId>
+    <storyId>081</storyId>
+    <title>Null Handling for Rate Metrics</title>
+    <status>draft</status>
+    <generatedAt>2025-12-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-081-null-handling-rate-metrics.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a CSM reviewing quality reports</asA>
+    <iWant>rate metrics to show `null`/`N/A` when no bugs exist</iWant>
+    <soThat>I don't misinterpret "0%", as "perfect quality" vs "no data."</soThat>
+    <tasks>
+- Task 1: Update bug_classifiers.py
+  - Modify `calculate_acceptance_rates()` to return `None` instead of `0.0` when `total_bugs == 0`.
+  - Update return type annotations to `float | None`.
+
+- Task 2: Update Pydantic Output Models
+  - Update `AcceptanceRates` schema (if exists) to allow `None` for rate fields.
+  - Update any report output models that include rate metrics.
+
+- Task 3: Update Report Generation
+  - Verify `get_product_quality_report` correctly propagates `None` values.
+  - Verify per-test breakdown handles 0-bug tests correctly.
+
+- Task 4: Testing
+  - Add unit test for `calculate_acceptance_rates()` with 0 bugs.
+  - Add integration test verifying report output with 0-bug test.
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. **Report Rate Metrics:**
+   - `get_product_quality_report` returns `null` (not `0.0`) for `rejection_rate` when a test has 0 bugs.
+   - `overall_acceptance_rate`, `active_acceptance_rate`, `auto_acceptance_rate`, `review_rate` also return `null` when `total_bugs == 0`.
+
+2. **Query Metrics:**
+   - `query_metrics` aggregations return `null` for rate metrics when the aggregation group has 0 bugs.
+   - Example: monthly breakdown with 0 bugs in July shows `rejection_rate: null` for July.
+
+3. **Pydantic Models:**
+   - All rate fields in output schemas accept `float | None`.
+   - JSON output serializes `None` as `null`.
+</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-014-mcp-usability-improvements.md</path>
+        <title>Epic 014: MCP Usability Improvements</title>
+        <section>STORY-081: Null Handling for Rate Metrics (FR1)</section>
+        <snippet>As a CSM reviewing quality reports, I want rate metrics to show `null`/`N/A` when no bugs exist, so that I don't misinterpret "0%" as "perfect quality" vs "no data." Technical Notes: Modify `src/testio_mcp/utilities/bug_classifiers.py` `calculate_acceptance_rates()` to return `None` instead of `0.0` when `total_bugs == 0`.</snippet>
+      </doc>
+      <doc>
+        <path>docs/planning/mcp-usability-feedback.md</path>
+        <title>MCP Tool Usability Feedback Log</title>
+        <section>Issue #1: Rejection Rate Shows 0% When No Bugs Exist</section>
+        <snippet>When a test has 0 bugs reported, the rejection rate displays as `0%` which implies "no rejections out of N bugs" rather than "no bugs to reject." Expected: Show `N/A` or `—` when `total_bugs = 0`. Suggested Fix: if total_bugs == 0: rejection_rate = None.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing - TestIO MCP Server</title>
+        <section>Unit Tests (50% of test suite)</section>
+        <snippet>Unit tests for pure logic and business rules in isolation. Fast (<1ms per test). Coverage target: ≥85%. Run with: uv run pytest -m unit.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/CODING-STANDARDS.md</path>
+        <title>Coding Standards - TestIO MCP Server</title>
+        <section>mypy (Static Type Checker)</section>
+        <snippet>All code must pass mypy src/ with zero errors. Strict mode enabled. Type hints required on all functions (args + return). Example: async def get_products(client: TestIOClient, limit: int = 10) -> dict[str, list[Product]].</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/utilities/bug_classifiers.py</path>
+        <kind>utility</kind>
+        <symbol>calculate_acceptance_rates</symbol>
+        <lines>110-199</lines>
+        <reason>Core function that calculates rate metrics. Currently returns float values even when total_bugs=0. Must be modified to return None for individual rates when total_bugs=0 (already returns None for the entire dict).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/schemas/api/bugs.py</path>
+        <kind>schema</kind>
+        <symbol>AcceptanceRates</symbol>
+        <lines>27-67</lines>
+        <reason>Pydantic schema for rate metrics. Fields currently typed as `float` (with ge=0, le=1 constraints). Must update to `float | None` to allow null values when no bugs exist.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/schemas/api/bugs.py</path>
+        <kind>schema</kind>
+        <symbol>BugSummary</symbol>
+        <lines>69-131</lines>
+        <reason>Contains acceptance_rates field typed as `AcceptanceRates | None`. Already handles None case (when no bugs), will propagate null rates correctly after AcceptanceRates update.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/multi_test_report_service.py</path>
+        <kind>service</kind>
+        <symbol>get_product_quality_report</symbol>
+        <lines>91-98</lines>
+        <reason>Service method that generates quality reports. Calls calculate_acceptance_rates() and returns BugSummary. Must verify null propagation works correctly.</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_bug_classifiers.py</path>
+        <kind>test</kind>
+        <symbol>test_calculate_acceptance_rates_zero_bugs_returns_none</symbol>
+        <lines>200-205</lines>
+        <reason>Existing test verifies function returns None when total_bugs=0. Test already passes, validates current behavior. No changes needed for this test.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="pydantic" version=">=2.12.0">Schema validation and JSON serialization</package>
+        <package name="pytest" version="(dev)">Unit testing framework</package>
+        <package name="pytest-asyncio" version="(dev)">Async test support</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>All code must pass mypy --strict with zero errors (type hints required on all functions)</constraint>
+    <constraint>All code must pass ruff format and ruff check without errors</constraint>
+    <constraint>Coverage target: ≥85% overall, ≥90% for services (enforce with pytest --cov-fail-under=85)</constraint>
+    <constraint>Behavioral testing: Test outcomes (return values, state changes), not implementation details</constraint>
+    <constraint>Pydantic serialization: None values must serialize as JSON null (default Pydantic behavior)</constraint>
+    <constraint>Return type changes: Update calculate_acceptance_rates() return type from dict[str, float | None] to allow None for individual rate values</constraint>
+    <constraint>Schema validation: Remove ge=0.0, le=1.0 constraints from rate fields when changing to float | None (Pydantic doesn't validate None with numeric constraints)</constraint>
+  </constraints>
+  <interfaces>
+    <interface>
+      <name>calculate_acceptance_rates</name>
+      <kind>function</kind>
+      <signature>
+def calculate_acceptance_rates(
+    active_accepted: int,
+    auto_accepted: int,
+    rejected: int,
+    open_bugs: int,
+    total_bugs: int | None = None,
+) -> dict[str, float | None] | None
+      </signature>
+      <path>src/testio_mcp/utilities/bug_classifiers.py:110-199</path>
+      <notes>Currently returns float values for rates when total_bugs > 0. Must update to return None for individual rates when total_bugs == 0 (function already returns None for entire dict when total_bugs == 0).</notes>
+    </interface>
+    <interface>
+      <name>AcceptanceRates</name>
+      <kind>pydantic schema</kind>
+      <signature>
+class AcceptanceRates(BaseModel):
+    active_acceptance_rate: float  # Must change to: float | None
+    auto_acceptance_rate: float | None  # Already correct
+    overall_acceptance_rate: float  # Must change to: float | None
+    rejection_rate: float  # Must change to: float | None
+    review_rate: float  # Must change to: float | None
+    open_count: int
+    has_alert: bool
+      </signature>
+      <path>src/testio_mcp/schemas/api/bugs.py:27-67</path>
+      <notes>Fields currently have ge=0.0, le=1.0 constraints. Must remove these when changing to float | None (Pydantic validation constraints don't work with None).</notes>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>
+Unit tests use pytest with markers (@pytest.mark.unit). Tests are behavioral (test outcomes, not implementation). Mock external dependencies (API, DB). Fast feedback: uv run pytest -m unit (~0.5s). Coverage enforced: pytest --cov=src --cov-fail-under=85. Type checking: mypy --strict. Test organization: tests/unit/ for pure logic, tests/services/ for service layer tests.
+    </standards>
+    <locations>
+tests/unit/test_bug_classifiers.py - Existing tests for calculate_acceptance_rates()
+tests/services/test_multi_test_report_service*.py - Service layer tests for report generation
+tests/integration/test_product_quality_report_integration.py - Integration tests with real API
+    </locations>
+    <ideas>
+      <idea ac="AC1" type="unit">
+Test calculate_acceptance_rates() with total_bugs=0: Verify all rate fields (active_acceptance_rate, overall_acceptance_rate, rejection_rate, review_rate) are None. Verify function returns None for entire dict (existing behavior already tested).
+      </idea>
+      <idea ac="AC2" type="unit">
+Test calculate_acceptance_rates() with total_bugs > 0: Verify all rate fields are float values (not None). Regression test to ensure normal case still works.
+      </idea>
+      <idea ac="AC3" type="unit">
+Test AcceptanceRates Pydantic validation: Verify schema accepts None values for rate fields. Test JSON serialization: {"rejection_rate": null} should parse successfully.
+      </idea>
+      <idea ac="AC1" type="integration">
+Test get_product_quality_report() with 0-bug test: Verify by_test entry has acceptance_rates with null rate values. Verify JSON output contains "rejection_rate": null.
+      </idea>
+      <idea ac="AC2" type="integration">
+Test query_metrics with 0-bug aggregation group: When implemented (STORY-082 prerequisite), verify rate metrics return null for months/groups with 0 bugs.
+      </idea>
+    </ideas>
+  </tests>
+</story-context>

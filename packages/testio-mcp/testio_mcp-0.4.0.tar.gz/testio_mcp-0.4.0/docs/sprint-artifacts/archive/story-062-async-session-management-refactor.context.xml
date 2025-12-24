@@ -1,0 +1,147 @@
+<story-context id="story-062-async-session-management-refactor" v="1.0">
+  <metadata>
+    <epicId>009</epicId>
+    <storyId>062</storyId>
+    <title>Async Session Management Refactor</title>
+    <status>ready</status>
+    <generatedAt>2025-11-27</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-062-async-session-management-refactor.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer maintaining the TestIO MCP server</asA>
+    <iWant>repositories to properly manage async sessions without concurrency conflicts</iWant>
+    <soThat>batch operations don't cause "Cannot operate on a closed database" errors and Epic 009 can be built on a solid foundation</soThat>
+    <tasks>
+      <task id="1" title="Fix FeatureRepository batch session management (AC1)">
+        <subtask id="1.1">Create per-product session in get_features_cached_or_refresh()</subtask>
+        <subtask id="1.2">Remove redundant commit after asyncio.gather()</subtask>
+        <subtask id="1.3">Update _update_features_synced_at_batch() to accept session parameter</subtask>
+        <subtask id="1.4">Add unit tests for concurrent feature refresh</subtask>
+      </task>
+      <task id="2" title="Fix BugRepository batch session management (AC2)">
+        <subtask id="2.1">Create per-batch session in get_bugs_cached_or_refresh()</subtask>
+        <subtask id="2.2">Remove redundant commit after asyncio.gather()</subtask>
+        <subtask id="2.3">Add unit tests for concurrent bug refresh</subtask>
+      </task>
+      <task id="3" title="Audit and fix SyncService (AC3)">
+        <subtask id="3.1">Review phase execution session handling</subtask>
+        <subtask id="3.2">Ensure no shared sessions across concurrent operations</subtask>
+        <subtask id="3.3">Test full 3-phase sync completes without errors</subtask>
+      </task>
+      <task id="4" title="Documentation (AC4)">
+        <subtask id="4.1">Add SQLModel async session patterns section to CLAUDE.md</subtask>
+        <subtask id="4.2">Document "per-operation session for batch" pattern</subtask>
+        <subtask id="4.3">Add warning comments in code near asyncio.gather() with DB operations</subtask>
+        <subtask id="4.4">Update Architecture document with session management guidance</subtask>
+        <subtask id="4.5">Document SQLite write serialization in ARCHITECTURE.md</subtask>
+      </task>
+      <task id="5" title="Verification (AC5, AC6)">
+        <subtask id="5.1">Run full unit test suite</subtask>
+        <subtask id="5.2">Run integration tests</subtask>
+        <subtask id="5.3">Manual test: start server, let sync complete, restart, verify no re-sync</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1" title="Refactor FeatureRepository.get_features_cached_or_refresh() to use per-product sessions">
+      <description>Remove shared session usage in asyncio.gather(). Each sync_features() call gets its own session. Remove redundant commit after gather (line 575).</description>
+      <files>src/testio_mcp/repositories/feature_repository.py</files>
+    </criterion>
+    <criterion id="AC2" title="Refactor BugRepository.get_bugs_cached_or_refresh() to use per-batch sessions">
+      <description>Remove shared session usage in asyncio.gather(). Each refresh_bugs_batch() call gets its own session. Remove redundant commit after gather.</description>
+      <files>src/testio_mcp/repositories/bug_repository.py</files>
+    </criterion>
+    <criterion id="AC3" title="Audit SyncService session usage">
+      <description>Ensure phases don't share sessions across concurrent operations. Each phase can use its own session scope.</description>
+      <files>src/testio_mcp/services/sync_service.py</files>
+    </criterion>
+    <criterion id="AC4" title="Add architectural documentation">
+      <description>Document the "per-operation session for batch" pattern in CLAUDE.md. Add warning comments near asyncio.gather() usage. Update Architecture document with async session management section. Document SQLite write serialization.</description>
+      <files>CLAUDE.md, docs/architecture/ARCHITECTURE.md</files>
+    </criterion>
+    <criterion id="AC5" title="All existing tests pass">
+      <description>No regressions in unit tests. Integration tests pass without "closed database" errors.</description>
+    </criterion>
+    <criterion id="AC6" title="Server starts without session errors">
+      <description>uv run testio-mcp serve --transport http --force-sync starts cleanly. Background sync completes without errors. Restart doesn't trigger unnecessary re-sync.</description>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics/epic-009-sync-consolidation.md" title="Epic 009: Sync Consolidation" section="Dependencies" snippet="STORY-062 complete (async session management refactor) - Required before STORY-048. Establishes per-operation session pattern for batch operations."/>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-009.md" title="Epic 009 Tech Spec" section="STORY-048 Design Notes" snippet="Follow the per-operation session pattern documented in STORY-062. Reference CLAUDE.md for async session management best practices. SyncService batch operations must create isolated sessions per concurrent task."/>
+      <doc path="docs/architecture/ARCHITECTURE.md" title="System Architecture" section="Read-Through Caching Pattern (ADR-017)" snippet="Data freshness maintained through hybrid approach: Background sync (3 Phases) + On-Demand Refresh (Read-Through). Per-Entity Locks prevent duplicate API calls for concurrent requests."/>
+      <doc path="docs/architecture/TESTING.md" title="Testing Guide" section="Test Philosophy" snippet="Tests should validate WHAT the system does (behavior), not HOW it does it (implementation). Assert on observable outcomes. Use realistic test data."/>
+      <doc path="CLAUDE.md" title="Claude Instructions" section="SQLModel Query Patterns" snippet="Uses SQLModel (SQLAlchemy 2.0 + Pydantic) for ORM queries. Always use async context managers for session lifecycle. For tools, use get_service_context() for proper resource cleanup."/>
+    </docs>
+
+    <code>
+      <file path="src/testio_mcp/repositories/feature_repository.py" kind="repository" symbol="FeatureRepository.get_features_cached_or_refresh" lines="374-628" reason="Primary fix location - contains asyncio.gather() with shared session (lines 570-575), commit after gather that needs removal"/>
+      <file path="src/testio_mcp/repositories/feature_repository.py" kind="repository" symbol="FeatureRepository.sync_features" lines="70-106" reason="Called within asyncio.gather - commits at line 104, needs per-operation session"/>
+      <file path="src/testio_mcp/repositories/feature_repository.py" kind="repository" symbol="FeatureRepository._update_features_synced_at_batch" lines="630-656" reason="Updates timestamps after batch - may need session parameter"/>
+      <file path="src/testio_mcp/repositories/bug_repository.py" kind="repository" symbol="BugRepository.get_bugs_cached_or_refresh" lines="185-461" reason="Primary fix location - contains asyncio.gather() with shared session (lines 391-441), uses refresh_bugs_batch with concurrent batches"/>
+      <file path="src/testio_mcp/repositories/bug_repository.py" kind="repository" symbol="BugRepository.refresh_bugs_batch" lines="617-763" reason="Called within asyncio.gather - needs per-operation session"/>
+      <file path="src/testio_mcp/repositories/bug_repository.py" kind="repository" symbol="BugRepository._update_bugs_synced_at_batch" lines="463-491" reason="Updates timestamps after batch - may need session parameter"/>
+      <file path="src/testio_mcp/services/sync_service.py" kind="service" symbol="SyncService._execute_phases" lines="314-353" reason="Audit target - creates single session for all phases (line 339)"/>
+      <file path="src/testio_mcp/services/sync_service.py" kind="service" symbol="SyncService._execute_features_phase" lines="436-491" reason="Audit target - calls get_features_cached_or_refresh() within shared session"/>
+      <file path="src/testio_mcp/database/cache.py" kind="infrastructure" symbol="PersistentCache.async_session_maker" reason="Session factory used for per-operation sessions"/>
+      <file path="src/testio_mcp/database/cache.py" kind="infrastructure" symbol="PersistentCache.get_refresh_lock" reason="Per-entity lock pattern to prevent duplicate API calls"/>
+      <file path="src/testio_mcp/repositories/base_repository.py" kind="repository" symbol="BaseRepository" reason="Base class for repositories - provides session injection pattern"/>
+    </code>
+
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version=">=0.0.16" purpose="ORM for async database operations"/>
+        <package name="aiosqlite" version=">=0.20.0" purpose="Async SQLite access"/>
+        <package name="sqlalchemy" version="(via sqlmodel)" purpose="SQLAlchemy 2.0 async session management"/>
+        <package name="pytest" version=">=8.4.0" purpose="Testing framework"/>
+        <package name="pytest-asyncio" version=">=0.24.0" purpose="Async test support"/>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint source="Dev Notes" type="pattern">AsyncSession is NOT concurrency-safe. Multiple asyncio.gather() tasks sharing one session and each committing causes session state corruption.</constraint>
+    <constraint source="Dev Notes" type="pattern">Per-Operation Session for Batch Operations: Each concurrent operation gets its own session from async_session_maker. Never share one session across asyncio.gather() tasks that write.</constraint>
+    <constraint source="Dev Notes" type="architecture">Repositories own database operations (including commits). The bug was sharing sessions across concurrent tasks, not the commit ownership.</constraint>
+    <constraint source="Dev Notes" type="tradeoff">Loss of atomicity across batch operations is acceptable - sync operations are idempotent, partial success is better than total failure, each product's data is independent.</constraint>
+    <constraint source="Dev Notes" type="constraint">SQLite serializes all write transactions even with WAL mode. asyncio.gather() benefit is overlapping API I/O, not parallel DB writes.</constraint>
+    <constraint source="Dev Notes" type="constraint">HTTP semaphore (~10 concurrent) naturally throttles DB commit contention. No additional DB write semaphore needed.</constraint>
+    <constraint source="Dev Notes" type="rejected-alternative">async_scoped_session evaluated and rejected - would require 6-10 file changes vs 2-3 methods, risk of memory leaks if .remove() missed.</constraint>
+    <constraint source="CLAUDE.md" type="coding-standard">Always use async context managers: async with cache.async_session_maker() as session</constraint>
+    <constraint source="CLAUDE.md" type="testing">Test behavior and outcomes, not implementation details. Coverage target ≥85%.</constraint>
+    <constraint source="Epic 009" type="prerequisite">This story establishes session management patterns that Epic 009's SyncService will follow. Must complete before STORY-048.</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="PersistentCache.async_session_maker" kind="factory" signature="() -> AsyncContextManager[AsyncSession]" path="src/testio_mcp/database/cache.py">Factory method to create new async sessions. Use for per-operation sessions in batch methods.</interface>
+    <interface name="PersistentCache.get_refresh_lock" kind="method" signature="(entity_type: str, entity_id: int) -> asyncio.Lock" path="src/testio_mcp/database/cache.py">Get per-entity lock to prevent duplicate API calls for concurrent requests.</interface>
+    <interface name="BaseRepository.__init__" kind="constructor" signature="(session: AsyncSession, client: TestIOClient, customer_id: int, cache: Any | None = None)" path="src/testio_mcp/repositories/base_repository.py">Repository constructor - receives session from caller. For batch operations, create new repositories with per-operation sessions.</interface>
+    <interface name="FeatureRepository.sync_features" kind="method" signature="(product_id: int) -> dict[str, int]" path="src/testio_mcp/repositories/feature_repository.py">Sync features for product - commits internally. Must be called with isolated session for concurrent use.</interface>
+    <interface name="BugRepository.refresh_bugs_batch" kind="method" signature="(test_ids: list[int]) -> dict[int, int]" path="src/testio_mcp/repositories/bug_repository.py">Batch refresh bugs - caller must commit. Must be called with isolated session for concurrent use.</interface>
+  </interfaces>
+
+  <tests>
+    <standards>This project uses pytest with pytest-asyncio for async test support. Tests follow behavioral testing principles - testing observable outcomes rather than implementation details. Coverage target is 85%+ overall, 90%+ for services. Unit tests should complete in &lt;1ms per test. Use AAA pattern (Arrange-Act-Assert). Mock external dependencies only (API, DB). Security tests are mandatory for auth/token handling.</standards>
+    <locations>
+      <location>tests/unit/</location>
+      <location>tests/services/</location>
+      <location>tests/integration/</location>
+    </locations>
+    <ideas>
+      <idea criterion="AC1">Test concurrent feature refresh with isolated sessions - verify no "closed database" errors when asyncio.gather() runs multiple sync_features() calls</idea>
+      <idea criterion="AC1">Test that each sync_features() call in gather gets its own session instance</idea>
+      <idea criterion="AC2">Test concurrent bug refresh with isolated sessions - verify no session corruption with parallel refresh_bugs_batch() calls</idea>
+      <idea criterion="AC2">Test that batch lock acquisition works correctly with multiple concurrent batches</idea>
+      <idea criterion="AC3">Test full 3-phase sync completes without session errors - PRODUCTS -> FEATURES -> NEW_TESTS</idea>
+      <idea criterion="AC5">Run existing unit test suite to verify no regressions</idea>
+      <idea criterion="AC5">Run existing integration tests to verify no "closed database" errors</idea>
+      <idea criterion="AC6">Integration test: start server, let background sync complete, verify no errors in logs</idea>
+      <idea criterion="AC6">Integration test: restart server after sync, verify no unnecessary re-sync triggered</idea>
+    </ideas>
+  </tests>
+</story-context>

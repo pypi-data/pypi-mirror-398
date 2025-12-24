@@ -1,0 +1,259 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>12</epicId>
+    <storyId>6</storyId>
+    <title>Update Product Quality Report Tool</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/story-074-quality-report-tool.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>QA lead</asA>
+    <iWant>the product quality report to include test_environment information</iWant>
+    <soThat>I can analyze quality metrics per environment</soThat>
+    <tasks>
+      - Task 1: Update TestBugMetrics schema to include test_environment (AC: 1, 2)
+        - Add `test_environment: dict[str, Any] | None = None` field to TestBugMetrics Pydantic model
+        - Verify field is optional (defaults to None) for backward compatibility
+        - Add mypy type hint validation
+
+      - Task 2: Thread test_environment through report generation (AC: 1, 2)
+        - Verify TestService.list_tests() already returns test_environment (STORY-073)
+        - Map test_environment from service response to TestBugMetrics model
+        - Ensure test_environment appears in final report output
+
+      - Task 3: Add unit tests (AC: 1, 2)
+        - Test TestBugMetrics model accepts test_environment field
+        - Test TestBugMetrics model handles None test_environment gracefully
+        - Test report output includes test_environment when present
+        - Test report output handles missing test_environment (None)
+
+      - Task 4: Integration testing (AC: All)
+        - Run full test suite to verify no regressions
+        - Verify mypy strict mode passes
+        - Verify ruff formatting and linting passes
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. Test summary includes test_environment:
+       - Given a product with tests that have test_environment data
+       - When get_product_quality_report() is called
+       - Then each test in the report includes test_environment: {id, title}
+
+    2. Report output displays test_environment:
+       - Given a product quality report output
+       - When reviewing the test metrics
+       - Then test_environment is visible for each test entry
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <artifact>
+        <path>docs/epics/epic-012-polish.md</path>
+        <title>Epic 012: Test Environments and Known Bugs</title>
+        <section>STORY-074: Update Product Quality Report Tool</section>
+        <snippet>Update TestBugMetrics Pydantic model to include test_environment field. Thread test_environment through report generation. Surface test_environment in get_product_quality_report() responses.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Service Layer Pattern</section>
+        <snippet>Services contain business logic and are framework-agnostic. TestService handles test operations and aggregations. Services use repository pattern for data access (SQLite-first architecture).</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture/SERVICE_LAYER_SUMMARY.md</path>
+        <title>Service Layer Architecture Summary</title>
+        <section>Service Class Structure</section>
+        <snippet>Services are stateless classes with constructor-injected dependencies (client, test_repo, bug_repo). Tools are thin wrappers that delegate to services. Service testing uses mocked repositories.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing Strategy</title>
+        <section>Test Philosophy</section>
+        <snippet>Tests validate behavior (outcomes) not implementation (internal details). Test behavior: assert on return values and state changes. Don't test internal method calls or private functions. Use realistic test data.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture/adrs/ADR-006-service-layer-pattern.md</path>
+        <title>ADR-006: Service Layer Pattern</title>
+        <section>Decision</section>
+        <snippet>Service layer separates business logic from transport mechanisms. Services are framework-agnostic and reusable across MCP tools, REST endpoints, CLI. Tools are thin wrappers that extract deps, delegate to services, convert exceptions.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture/adrs/ADR-011-extensibility-patterns.md</path>
+        <title>ADR-011: Extensibility Patterns</title>
+        <section>BaseService and Tool Patterns</section>
+        <snippet>BaseService provides shared infrastructure: _make_cache_key(), _get_cached_or_fetch(), TTL constants. Tools use get_service() helper (1 line DI) and ToolError exceptions for error handling.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/sprint-artifacts/story-073-service-layer.md</path>
+        <title>STORY-073: Service Layer Updates</title>
+        <section>Completion Notes</section>
+        <snippet>TestService.get_test_summary() already returns test_environment field (STORY-072). Service layer already calculates known_bugs_count. Repository layer (STORY-071) provides test_environment data. DTOs and schemas (STORY-072) include all required fields.</snippet>
+      </artifact>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/tools/product_quality_report_tool.py</path>
+        <kind>tool</kind>
+        <symbol>TestBugMetrics</symbol>
+        <lines>123-150</lines>
+        <reason>Pydantic model for per-test metrics in quality report. Need to add test_environment field here. Currently has: test_id, title, status, dates, bugs_count, BugCounts, acceptance rates.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/product_quality_report_tool.py</path>
+        <kind>tool</kind>
+        <symbol>get_product_quality_report</symbol>
+        <lines>200-300</lines>
+        <reason>MCP tool wrapper. Delegates to MultiTestReportService. Uses get_service_context() for DI. Converts exceptions to ToolError format. Tool layer - should not need changes if service provides data.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/test_service.py</path>
+        <kind>service</kind>
+        <symbol>TestService</symbol>
+        <lines>1-100</lines>
+        <reason>Service class that provides test operations. Already returns test_environment in get_test_summary() (STORY-073). Uses repository pattern. Services delegate to test_repo.list_tests() which already provides test_environment.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/multi_test_report_service.py</path>
+        <kind>service</kind>
+        <symbol>MultiTestReportService</symbol>
+        <lines>unknown</lines>
+        <reason>Service that generates product quality reports. Likely calls TestService.list_tests() to get test data. Need to ensure it passes test_environment through to TestBugMetrics model.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/schemas/api/tests.py</path>
+        <kind>schema</kind>
+        <symbol>TestSummary</symbol>
+        <lines>18-48</lines>
+        <reason>API schema for test summary. Already includes test_environment field (STORY-072). Shows pattern: test_environment: dict[str, Any] | None with default=None. Use same pattern in TestBugMetrics.</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_tools_product_quality_report.py</path>
+        <kind>test</kind>
+        <symbol>test_tools_product_quality_report</symbol>
+        <lines>unknown</lines>
+        <reason>Existing unit tests for product quality report tool. Need to add tests verifying test_environment field is present in report output and handles None gracefully.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="pydantic" version=">=2.12.0">
+          Pydantic models for data validation and schemas. BaseModel, Field, field_validator.
+        </package>
+        <package name="fastmcp" version=">=2.12.0">
+          FastMCP framework for MCP protocol. Context injection, ToolError exceptions.
+        </package>
+        <package name="httpx" version=">=0.28.0">
+          Async HTTP client for TestIO API calls (used in services).
+        </package>
+        <package name="pytest" version="dev">
+          Testing framework for unit and integration tests.
+        </package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - **Service Layer Pattern (ADR-006):** Business logic in services, tools as thin wrappers
+    - **Repository Pattern:** Services use test_repo.list_tests() for data access (STORY-071)
+    - **Type Safety:** All changes must pass mypy --strict mode
+    - **Backward Compatibility:** test_environment field must be optional (default None)
+    - **Testing Standards:** Behavioral testing (test outcomes not implementation), 100% coverage target
+    - **No Breaking Changes:** Existing report consumers should not break
+    - **MCP Tool Pattern:** Tools delegate to services, convert exceptions to ToolError format
+    - **Pydantic Validation:** Use Field with default=None for optional fields
+    - **Project Standards:** Follow existing code style (ruff format, ruff check)
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>TestBugMetrics (Pydantic Model)</name>
+      <kind>Data Schema</kind>
+      <signature>
+        class TestBugMetrics(BaseModel):
+            test_id: int
+            title: str
+            status: str
+            start_at: str | None
+            end_at: str | None
+            bugs_count: int
+            bugs: BugCounts
+            # Rates: active_acceptance_rate, auto_acceptance_rate, etc.
+            # NEED TO ADD: test_environment: dict[str, Any] | None = Field(default=None, description="Test environment info")
+      </signature>
+      <path>src/testio_mcp/tools/product_quality_report_tool.py:123-150</path>
+    </interface>
+    <interface>
+      <name>TestService.list_tests()</name>
+      <kind>Service Method</kind>
+      <signature>
+        async def list_tests(
+            product_id: int,
+            statuses: list[str] | None = None,
+            page: int = 1,
+            per_page: int = 100
+        ) -> dict:
+            # Returns: {"tests": [test_dict], "product": {...}, "pagination": {...}}
+            # Each test_dict includes test_environment field (STORY-071)
+      </signature>
+      <path>src/testio_mcp/services/test_service.py</path>
+    </interface>
+    <interface>
+      <name>MultiTestReportService.get_product_quality_report()</name>
+      <kind>Service Method</kind>
+      <signature>
+        async def get_product_quality_report(
+            product_id: int,
+            start_date: str | None,
+            end_date: str | None,
+            statuses: list[str] | None
+        ) -> dict:
+            # Calls TestService.list_tests() to get test data
+            # Needs to map test_environment from test dict to TestBugMetrics model
+      </signature>
+      <path>src/testio_mcp/services/multi_test_report_service.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Unit tests mock service layer, test tool logic in isolation. Test location: tests/unit/test_tools_product_quality_report.py. Coverage target: 100% of new field logic. Behavioral testing: test outcomes (test_environment in output), not implementation details. Edge cases: test with None test_environment, missing field, valid test_environment data.
+    </standards>
+    <locations>
+      - tests/unit/test_tools_product_quality_report.py
+      - tests/services/test_multi_test_report_service.py (if exists)
+    </locations>
+    <ideas>
+      <test_idea criteria="AC1, AC2">
+        Test TestBugMetrics model accepts test_environment field
+        - Create TestBugMetrics instance with test_environment={id: 123, title: "Production"}
+        - Verify field is accessible and properly typed
+        - Verify pydantic validation passes
+      </test_idea>
+      <test_idea criteria="AC1, AC2">
+        Test TestBugMetrics model handles None test_environment gracefully
+        - Create TestBugMetrics instance without test_environment
+        - Verify field defaults to None
+        - Verify pydantic validation passes
+        - Verify model serialization works
+      </test_idea>
+      <test_idea criteria="AC1, AC2">
+        Test report output includes test_environment when present
+        - Mock MultiTestReportService to return test with test_environment
+        - Call get_product_quality_report tool
+        - Verify response by_test array includes test_environment for each test
+        - Verify test_environment format matches {id, title}
+      </test_idea>
+      <test_idea criteria="AC1, AC2">
+        Test report output handles missing test_environment (None)
+        - Mock MultiTestReportService to return test with test_environment=None
+        - Call get_product_quality_report tool
+        - Verify response handles None gracefully (no errors)
+        - Verify test_environment field is present but None
+      </test_idea>
+    </ideas>
+  </tests>
+</story-context>

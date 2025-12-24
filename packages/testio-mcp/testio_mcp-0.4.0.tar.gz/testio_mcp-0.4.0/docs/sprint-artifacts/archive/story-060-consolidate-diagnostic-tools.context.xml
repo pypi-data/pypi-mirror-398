@@ -1,0 +1,285 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>008</epicId>
+    <storyId>060</storyId>
+    <title>Consolidate Diagnostic Tools</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-060-consolidate-diagnostic-tools.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>MCP server operator</asA>
+    <iWant>a single diagnostic tool instead of multiple fragmented tools</iWant>
+    <soThat>I can check server health with one call and reduce tool schema overhead</soThat>
+    <tasks>
+- Task 1: Create DiagnosticsService (AC: 5)
+  - Create `src/testio_mcp/services/diagnostics_service.py`
+  - Implement `DiagnosticsService` class extending BaseService
+  - Implement `get_server_diagnostics()` method orchestrating all data
+  - Reuse cache methods for database stats, sync history
+  - Use ProductService for health check (API connectivity)
+
+- Task 2: Create Pydantic models (AC: 2)
+  - Create `ApiStatus` model (connected, latency_ms, product_count)
+  - Create `DatabaseStatus` model (size_mb, path, entity counts)
+  - Create `SyncStatus` model (last_sync, duration, success_rate_24h, circuit_breaker_active)
+  - Create `StorageRange` model (oldest_test_date, newest_test_date)
+  - Create `SyncEvent` model (started_at, completed_at, status, duration_seconds, tests_synced, error)
+  - Create `ServerDiagnostics` composite model
+
+- Task 3: Create get_server_diagnostics tool (AC: 1)
+  - Create `src/testio_mcp/tools/server_diagnostics_tool.py`
+  - Implement `get_server_diagnostics` with `@mcp.tool()` decorator
+  - Add parameters: `include_sync_events`, `sync_event_limit`
+  - Delegate to DiagnosticsService
+  - Use `inline_schema_refs()` for schema optimization
+
+- Task 4: Deprecate old tools (AC: 3)
+  - Update `health_check` description with "DEPRECATED: Use get_server_diagnostics"
+  - Update `get_database_stats` description with "DEPRECATED: Use get_server_diagnostics"
+  - Update `get_sync_history` description with "DEPRECATED: Use get_server_diagnostics"
+  - Add logger.warning() when deprecated tools are called
+  - Add "Deprecated" section to CLAUDE.md documenting migration path
+
+- Task 5: Slim get_problematic_tests (AC: 4)
+  - Shorten description text (remove filler words)
+  - Keep functionality intact
+  - Target: ~689 -> ~500 tokens
+
+- Task 6: Unit tests (AC: 6)
+  - Create `tests/unit/test_diagnostics_service.py`
+  - Test `get_server_diagnostics()` returns complete data
+  - Test `include_sync_events=False` omits events
+  - Test `include_sync_events=True` includes events
+  - Test `sync_event_limit` respects bounds (1-20)
+  - Test circuit breaker status calculation
+
+- Task 7: Integration tests (AC: 7)
+  - Create `tests/integration/test_server_diagnostics_integration.py`
+  - Test tool registration and discovery
+  - Test actual API connectivity check
+  - Test database stats reflect real data
+
+- Task 8: Token measurement and validation (AC: 8)
+  - Run Claude Code `/context` before and after
+  - Run `scripts/measure_tool_tokens.py`
+  - Document token reduction achieved
+  - Verify target: 2,625 -> ~1,400 tokens
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. Create `get_server_diagnostics` tool
+   - Consolidates: `health_check`, `get_database_stats`, `get_sync_history`
+   - Input parameters:
+     - `include_sync_events: bool = False` - Include recent sync event history
+     - `sync_event_limit: int = 5` - Max sync events (default: 5, max: 20)
+   - Output structure:
+     ```python
+     class ServerDiagnostics(BaseModel):
+         api: ApiStatus           # connected, latency_ms, product_count
+         database: DatabaseStatus # size_mb, path, entity counts
+         sync: SyncStatus         # last_sync, duration, success_rate
+         storage: StorageRange    # oldest_test_date, newest_test_date
+         events: list[SyncEvent] | None  # Only if include_sync_events=True
+     ```
+
+2. Create supporting Pydantic models
+   - `ApiStatus`: connected, latency_ms, product_count
+   - `DatabaseStatus`: size_mb, path, test_count, product_count, feature_count, bug_count
+   - `SyncStatus`: last_sync, last_sync_duration_seconds, success_rate_24h, syncs_completed_24h, syncs_failed_24h, circuit_breaker_active
+   - `StorageRange`: oldest_test_date, newest_test_date
+   - `SyncEvent`: started_at, completed_at, status, duration_seconds, tests_synced, error
+
+3. Deprecate old tools (do NOT remove yet)
+   - Add deprecation warning to `health_check` description: "DEPRECATED: Use get_server_diagnostics instead"
+   - Add deprecation warning to `get_database_stats` description: "DEPRECATED: Use get_server_diagnostics instead"
+   - Add deprecation warning to `get_sync_history` description: "DEPRECATED: Use get_server_diagnostics instead"
+   - Log warning when deprecated tools are called
+   - Plan removal in future epic
+
+4. Keep `get_problematic_tests` separate
+   - Niche use case (debugging failed syncs, filing support tickets)
+   - Slim description to reduce tokens (~689 -> ~500 tokens)
+
+5. Service layer: Create `DiagnosticsService`
+   - `get_server_diagnostics()` - Orchestrates all diagnostic data
+   - Reuses existing cache methods and service patterns
+   - Follows BaseService pattern from ADR-011
+
+6. Unit tests for `DiagnosticsService`
+
+7. Integration tests for `get_server_diagnostics`
+
+8. Token reduction measured
+   - Target: ~2,625 -> ~1,400 tokens (~1,200 saved, 46% reduction)
+   - Measurement via Claude Code `/context` or `scripts/measure_tool_tokens.py`
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics/epic-008-mcp-layer-optimization.md" title="Epic 008: MCP Layer Optimization" section="STORY-060">
+        Consolidating diagnostic tools (health_check, get_database_stats, get_sync_history) into get_server_diagnostics saves ~1,200 tokens (46% reduction). Keep get_problematic_tests separate for niche use case. Target: 2,625 → ~1,400 tokens total.
+      </doc>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-008-mcp-layer-optimization.md" title="Epic 008 Tech Spec" section="Tool Taxonomy">
+        Shows operational tools section with get_server_diagnostics (consolidated) and get_problematic_tests (standalone). Defines service layer approach with DiagnosticsService orchestrating all diagnostic data.
+      </doc>
+      <doc path="docs/architecture/SERVICE_LAYER_SUMMARY.md" title="Service Layer Pattern" section="BaseService">
+        Services extend BaseService (client injection), orchestrate business logic, raise domain exceptions. Tools are thin wrappers using get_service_context() for DI with AsyncSession lifecycle management.
+      </doc>
+      <doc path="docs/architecture/TESTING.md" title="Testing Strategy" section="Test Pyramid">
+        Unit tests (50% - service layer with mocks), Integration tests (35% - real API), E2E tests (15%). Use behavioral testing (outcomes not implementation). Fast feedback loop via `uv run pytest -m unit`.
+      </doc>
+      <doc path="docs/architecture/ARCHITECTURE.md" title="System Architecture" section="Component Architecture">
+        Hybrid server (FastAPI + FastMCP) with service layer pattern. Tools delegate to services, services use repositories/cache. PersistentCache (SQLite) provides database methods used by diagnostics.
+      </doc>
+    </docs>
+
+    <code>
+      <item path="src/testio_mcp/tools/cache_tools.py" kind="tool" symbol="get_database_stats" lines="144-182" reason="Existing diagnostic tool to be deprecated. Shows pattern for cache method delegation and Pydantic output models."/>
+      <item path="src/testio_mcp/tools/cache_tools.py" kind="tool" symbol="get_sync_history" lines="219-296" reason="Existing diagnostic tool to be deprecated. Shows circuit breaker calculation and sync event aggregation pattern."/>
+      <item path="src/testio_mcp/tools/cache_tools.py" kind="tool" symbol="get_problematic_tests" lines="185-216" reason="Diagnostic tool to keep separate. Example of slim tool description target."/>
+      <item path="src/testio_mcp/tools/cache_tools.py" kind="model" symbol="DatabaseStatsOutput" lines="85-103" reason="Output model for database stats - will be integrated into ServerDiagnostics."/>
+      <item path="src/testio_mcp/tools/cache_tools.py" kind="model" symbol="SyncHistoryOutput" lines="136-141" reason="Output model for sync history - will be integrated into ServerDiagnostics."/>
+      <item path="src/testio_mcp/server.py" kind="tool" symbol="health_check" lines="352-389" reason="Existing health check tool to be deprecated. Uses ProductService for API connectivity check."/>
+      <item path="src/testio_mcp/services/base_service.py" kind="class" symbol="BaseService" lines="24-40" reason="Base class for all services. DiagnosticsService will extend this for client injection."/>
+      <item path="src/testio_mcp/services/product_service.py" kind="class" symbol="ProductService" lines="30-80" reason="Example service for API health check pattern. DiagnosticsService will use similar pattern."/>
+      <item path="src/testio_mcp/database/cache.py" kind="method" symbol="get_db_size_mb" lines="482-491" reason="Cache method for database size. DiagnosticsService will reuse this."/>
+      <item path="src/testio_mcp/database/cache.py" kind="method" symbol="count_tests|count_products|count_bugs|count_features" lines="493-560" reason="Cache methods for entity counts. DiagnosticsService will aggregate these for DatabaseStatus."/>
+      <item path="src/testio_mcp/database/cache.py" kind="method" symbol="get_synced_products_info" lines="691-710" reason="Product sync metadata. Used for enriching diagnostics output."/>
+      <item path="src/testio_mcp/database/cache.py" kind="method" symbol="get_oldest_test_date|get_newest_test_date" lines="598-616" reason="Storage range methods for StorageRange model."/>
+      <item path="src/testio_mcp/database/cache.py" kind="method" symbol="get_sync_events" lines="1224-1250" reason="Sync event history. Used for optional sync events in diagnostics."/>
+      <item path="src/testio_mcp/tools/product_summary_tool.py" kind="tool" symbol="get_product_summary" lines="88-152" reason="Example of modern tool pattern with get_service_context(), Pydantic models, and inline_schema_refs() for token optimization."/>
+      <item path="src/testio_mcp/utilities/service_helpers.py" kind="function" symbol="get_service_context" lines="115-280" reason="Async context manager for service lifecycle with AsyncSession cleanup. DiagnosticsService tool will use this pattern."/>
+      <item path="src/testio_mcp/utilities/schema_utils.py" kind="function" symbol="inline_schema_refs" lines="1-50" reason="Schema optimization helper to reduce token usage by inlining $refs. Must use for get_server_diagnostics schema."/>
+      <item path="src/testio_mcp/exceptions.py" kind="module" symbol="domain exceptions" lines="1-50" reason="Domain exceptions for service layer (TestNotFoundException, etc.). DiagnosticsService may raise custom exceptions."/>
+    </code>
+
+    <dependencies>
+      <python>
+        <package name="fastmcp" version=">=2.12.0" usage="MCP framework for tool registration and Context injection"/>
+        <package name="pydantic" version=">=2.12.0" usage="Data validation and output models (BaseModel, Field)"/>
+        <package name="httpx" version=">=0.28.0" usage="Async HTTP client (via TestIOClient)"/>
+        <package name="sqlmodel" version=">=0.0.16" usage="ORM and database queries (AsyncSession)"/>
+        <package name="pytest" version=">=8.4.0" usage="Testing framework (unit and integration tests)"/>
+        <package name="pytest-asyncio" version=">=0.24.0" usage="Async test support"/>
+        <package name="mypy" version=">=1.13.0" usage="Static type checking (strict mode)"/>
+        <package name="ruff" version=">=0.8.4" usage="Linting and formatting"/>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <architectural>
+      <constraint>MUST extend BaseService for DiagnosticsService (ADR-011 pattern)</constraint>
+      <constraint>MUST use get_service_context() in tool for AsyncSession lifecycle (STORY-033)</constraint>
+      <constraint>MUST use inline_schema_refs() for output schema to reduce tokens (STORY-056)</constraint>
+      <constraint>MUST follow service layer pattern: tool (thin wrapper) → service (business logic) → cache/repositories</constraint>
+      <constraint>MUST use Pydantic models for input validation and output structure</constraint>
+      <constraint>MUST raise domain exceptions in service, convert to ToolError in tool</constraint>
+      <constraint>MUST NOT remove deprecated tools yet - only mark as deprecated with warnings</constraint>
+    </architectural>
+    <testing>
+      <constraint>MUST write unit tests for DiagnosticsService (mock cache methods, test orchestration)</constraint>
+      <constraint>MUST write integration tests for get_server_diagnostics tool (real database)</constraint>
+      <constraint>MUST use behavioral testing (test outcomes, not implementation details)</constraint>
+      <constraint>MUST mark integration tests with @pytest.mark.integration decorator</constraint>
+      <constraint>MUST NOT test internal method calls or private functions</constraint>
+    </testing>
+    <patterns>
+      <constraint>Service constructor: def __init__(self, client: TestIOClient, cache: PersistentCache)</constraint>
+      <constraint>Tool pattern: async with get_service_context(ctx, DiagnosticsService) as service: ...</constraint>
+      <constraint>Error handling: try/except in service (raise domain exceptions), try/except in tool (ToolError)</constraint>
+      <constraint>Logging: logger.warning() for deprecated tool calls, logger.info() for diagnostics operations</constraint>
+      <constraint>Type hints: Always use strict typing (mypy --strict mode enforced)</constraint>
+    </patterns>
+  </constraints>
+
+  <interfaces>
+    <service>
+      <name>DiagnosticsService</name>
+      <kind>Service class</kind>
+      <signature>
+class DiagnosticsService(BaseService):
+    def __init__(self, client: TestIOClient, cache: PersistentCache):
+        super().__init__(client)
+        self.cache = cache
+
+    async def get_server_diagnostics(
+        self,
+        include_sync_events: bool = False,
+        sync_event_limit: int = 5
+    ) -> dict[str, Any]:
+        """Orchestrate all diagnostic data collection."""
+        # API health via ProductService
+        # Database stats from cache
+        # Sync status from cache
+        # Optional sync events
+      </signature>
+      <path>src/testio_mcp/services/diagnostics_service.py (NEW)</path>
+    </service>
+    <tool>
+      <name>get_server_diagnostics</name>
+      <kind>MCP tool</kind>
+      <signature>
+@mcp.tool(output_schema=inline_schema_refs(ServerDiagnostics.model_json_schema()))
+async def get_server_diagnostics(
+    include_sync_events: bool = False,
+    sync_event_limit: int = 5,
+    ctx: Context
+) -> dict[str, Any]:
+    """Consolidated server diagnostics."""
+      </signature>
+      <path>src/testio_mcp/tools/server_diagnostics_tool.py (NEW)</path>
+    </tool>
+    <cache_methods>
+      <method>async def get_db_size_mb() -> float</method>
+      <method>async def count_tests() -> int</method>
+      <method>async def count_products() -> int</method>
+      <method>async def count_bugs() -> int</method>
+      <method>async def count_features() -> int</method>
+      <method>async def count_users() -> int</method>
+      <method>async def get_synced_products_info() -> list[dict]</method>
+      <method>async def get_oldest_test_date() -> str | None</method>
+      <method>async def get_newest_test_date() -> str | None</method>
+      <method>async def get_sync_events(limit: int) -> list[dict]</method>
+      <method>async def count_sync_failures_since(datetime) -> int</method>
+    </cache_methods>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Use pytest with strict async testing. Unit tests should mock cache methods (no real DB). Integration tests should use real PersistentCache with @pytest.mark.integration. Follow behavioral testing: assert on outputs and state changes, not internal calls. Use ARRANGE-ACT-ASSERT pattern. Target 85%+ coverage for service layer. Fast feedback: `uv run pytest -m unit` should complete in ~0.5s.
+    </standards>
+
+    <locations>
+      tests/unit/test_diagnostics_service.py (NEW)
+      tests/integration/test_server_diagnostics_integration.py (NEW)
+      tests/services/ (existing service test patterns)
+      tests/unit/test_tools*.py (existing tool test patterns)
+    </locations>
+
+    <ideas>
+      <test ac="5">Unit test: DiagnosticsService.get_server_diagnostics() returns complete data with all fields populated</test>
+      <test ac="5">Unit test: API health check uses ProductService and measures latency</test>
+      <test ac="5">Unit test: Database stats aggregates all entity counts correctly</test>
+      <test ac="5">Unit test: Sync status calculates success rate and circuit breaker correctly</test>
+      <test ac="5">Unit test: Storage range returns oldest/newest test dates</test>
+      <test ac="6">Unit test: include_sync_events=False omits events field from output</test>
+      <test ac="6">Unit test: include_sync_events=True includes sync events list</test>
+      <test ac="6">Unit test: sync_event_limit respects bounds (1-20) and defaults to 5</test>
+      <test ac="6">Unit test: Circuit breaker active when 3+ failures in 5 minutes</test>
+      <test ac="6">Unit test: Circuit breaker inactive when &lt;3 failures</test>
+      <test ac="7">Integration test: get_server_diagnostics tool is registered and discoverable</test>
+      <test ac="7">Integration test: Tool returns valid ServerDiagnostics structure</test>
+      <test ac="7">Integration test: API connectivity check succeeds with real database</test>
+      <test ac="7">Integration test: Database stats reflect actual entity counts</test>
+      <test ac="3">Unit test: Deprecated tools log warning when called</test>
+      <test ac="3">Integration test: Deprecated tools still function correctly</test>
+      <test ac="8">Token measurement: Run scripts/measure_tool_tokens.py before and after</test>
+      <test ac="8">Token measurement: Verify 2,625 → ~1,400 tokens reduction achieved</test>
+    </ideas>
+  </tests>
+</story-context>

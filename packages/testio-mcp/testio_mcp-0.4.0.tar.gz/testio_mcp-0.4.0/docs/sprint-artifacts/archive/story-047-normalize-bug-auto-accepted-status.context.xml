@@ -1,0 +1,223 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>Standalone (Pre-Epic 008)</epicId>
+    <storyId>047</storyId>
+    <title>Normalize Bug Auto-Accepted Status</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-26</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-047-normalize-bug-auto-accepted-status.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a developer querying bug data</asA>
+    <iWant>the `auto_accepted` state stored as a distinct status value in the `status` column</iWant>
+    <soThat>SQL queries and analytics can filter/group by acceptance type without JSON parsing</soThat>
+    <tasks>
+### Part A: Update Bug Repository
+- Update `BugRepository.refresh_bugs()` to enrich status during storage
+- Update `BugRepository.refresh_bugs_batch()` with same enrichment logic
+- Preserve original API response in `raw_data`
+
+### Part B: Backfill Existing Data
+- Create backfill script or migration to update existing bugs
+- Verify backfill results
+
+### Part C: Update classify_bugs
+- Update `classify_bugs()` to read from status column instead of JSON
+- Update function signature/docstring to reflect new behavior
+
+### Part D: Update Callers
+- Update `BugRepository.get_bugs()` to include status in returned dict
+- Verify all callers of `classify_bugs()` pass correct data
+
+### Part E: Validation
+- Unit tests updated for new status values
+- Integration test: Sync bugs and verify status enrichment
+- EBR report produces correct acceptance rates after changes
+- Type checking passes
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+### Part A: Update Bug Repository
+1. Update `BugRepository.refresh_bugs()` to enrich status during storage (line 505-540)
+2. Update `BugRepository.refresh_bugs_batch()` with same enrichment logic (line 568+)
+3. Preserve original API response in `raw_data`
+
+### Part B: Backfill Existing Data
+4. Create backfill script or migration to update existing bugs
+5. Verify backfill results (5,695 accepted → 4,117 accepted + 1,578 auto_accepted)
+
+### Part C: Update classify_bugs
+6. Update `classify_bugs()` to read from status column instead of JSON
+7. Update function signature/docstring to reflect new behavior
+
+### Part D: Update Callers
+8. Update `BugRepository.get_bugs()` to include status in returned dict
+9. Verify all callers of `classify_bugs()` pass correct data:
+   - `TestService.get_test_status()` (line 291)
+   - `TestService.get_test_bugs()` (line 627)
+   - `MultiTestReportService.generate_ebr_report()` (line 263)
+
+### Part E: Validation
+10. Unit tests updated for new status values
+11. Integration test: Sync bugs and verify status enrichment
+12. EBR report produces correct acceptance rates after changes
+13. Type checking passes
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/architecture/ARCHITECTURE.md" title="System Architecture" section="Component Architecture">
+        Service layer pattern with repositories for data access. BugRepository handles all bug data operations with SQLite-first approach.
+      </doc>
+      <doc path="docs/architecture/TESTING.md" title="Testing Strategy" section="Test Philosophy">
+        Behavioral testing focused on observable outcomes. Unit tests with mocked dependencies, integration tests with real API.
+      </doc>
+      <doc path="CLAUDE.md" title="Project Guide" section="SQLModel Query Patterns">
+        Critical SQLModel patterns: session.exec().first() for ORM models, session.exec().one() for scalars. Always use async context managers.
+      </doc>
+      <doc path="docs/architecture/adrs/ADR-016-alembic-migration-strategy.md" title="Database Migration Strategy" section="Schema Changes">
+        Use Alembic for schema changes. Generate migration with autogenerate, run pytest-alembic tests before committing.
+      </doc>
+    </docs>
+    <code>
+      <file path="src/testio_mcp/repositories/bug_repository.py" kind="repository" symbol="BugRepository" lines="500-566" reason="Contains refresh_bugs() and refresh_bugs_batch() methods that store bugs. Need to enrich status field during storage (lines 510, 534)."/>
+      <file path="src/testio_mcp/utilities/bug_classifiers.py" kind="utility" symbol="classify_bugs" lines="17-96" reason="Classifies bugs by status. Currently checks auto_accepted field in JSON (lines 73-85). Need to read from enriched status column instead."/>
+      <file path="src/testio_mcp/models/orm/bug.py" kind="model" symbol="Bug" lines="18-75" reason="Bug ORM model. Status column (line 50) will store enriched values (accepted, auto_accepted, rejected, forwarded). No schema change needed."/>
+      <file path="src/testio_mcp/services/test_service.py" kind="service" symbol="TestService.get_test_status" lines="291" reason="Calls classify_bugs(). Verify it passes correct bug data after status enrichment changes."/>
+      <file path="src/testio_mcp/services/test_service.py" kind="service" symbol="TestService.get_test_bugs" lines="627" reason="Calls classify_bugs(). Verify it passes correct bug data after status enrichment changes."/>
+      <file path="src/testio_mcp/services/multi_test_report_service.py" kind="service" symbol="MultiTestReportService.generate_ebr_report" lines="263" reason="Calls classify_bugs(). Verify it passes correct bug data after status enrichment changes."/>
+      <file path="tests/unit/test_bug_classifiers.py" kind="test" symbol="test_classify_bugs" reason="Unit tests for classify_bugs(). Update test cases to use enriched status values instead of auto_accepted field."/>
+      <file path="tests/unit/test_bug_repository.py" kind="test" symbol="test_refresh_bugs" reason="Unit tests for BugRepository. Add tests for status enrichment logic during bug storage."/>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version=">=0.0.16" note="SQLAlchemy 2.0 + Pydantic ORM for database models"/>
+        <package name="alembic" version=">=1.13.0" note="Database migration framework for backfill script"/>
+        <package name="aiosqlite" version=">=0.20.0" note="Async SQLite driver"/>
+        <package name="pytest" version=">=8.4.0" note="Testing framework"/>
+        <package name="pytest-alembic" version=">=0.11.0" note="Alembic migration testing"/>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>SQLModel ORM pattern: Use session.exec(select(...)).first() for models, not session.execute()</constraint>
+    <constraint>Always use async context managers for database sessions (async with cache.async_session_maker())</constraint>
+    <constraint>Preserve original API response in raw_data JSON field - do not modify existing raw_data storage</constraint>
+    <constraint>Backfill must be idempotent - safe to run multiple times without corruption</constraint>
+    <constraint>Status values are mutually exclusive - a bug can only have one status value</constraint>
+    <constraint>Type checking must pass: mypy src/testio_mcp --strict</constraint>
+    <constraint>Existing ix_bugs_status index will work for new value - no index changes needed</constraint>
+    <constraint>Testing philosophy: Behavioral testing of observable outcomes, not implementation details</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="Bug ORM Model" kind="SQLModel class" path="src/testio_mcp/models/orm/bug.py">
+      <signature>
+class Bug(SQLModel, table=True):
+    id: int | None
+    customer_id: int
+    test_id: int
+    title: str
+    severity: str | None
+    status: str | None  # Will store: "accepted", "auto_accepted", "rejected", "forwarded"
+    acceptance_state: str | None
+    created_at: str | None
+    raw_data: str  # JSON with original API response including auto_accepted field
+    synced_at: datetime | None
+    reported_by_user_id: int | None
+    test_feature_id: int | None
+      </signature>
+    </interface>
+
+    <interface name="classify_bugs function" kind="utility function" path="src/testio_mcp/utilities/bug_classifiers.py">
+      <signature>
+def classify_bugs(bugs: list[dict[str, Any]]) -> dict[str, int]:
+    """Returns: {
+        "active_accepted": int,
+        "auto_accepted": int,
+        "rejected": int,
+        "open": int,
+        "total_accepted": int,
+        "reviewed": int
+    }"""
+      </signature>
+      <note>Currently checks auto_accepted field in bug dict. After changes, will read from status field.</note>
+    </interface>
+
+    <interface name="BugRepository.refresh_bugs" kind="repository method" path="src/testio_mcp/repositories/bug_repository.py">
+      <signature>
+async def refresh_bugs(self, test_id: int) -> int:
+    """Fetch fresh bugs from API and upsert to database.
+
+    Returns: Number of bugs refreshed
+    """
+      </signature>
+      <note>Line 510: Extracts status from API. Line 534: Stores status in database. Add enrichment logic here.</note>
+    </interface>
+
+    <interface name="BugRepository.refresh_bugs_batch" kind="repository method" path="src/testio_mcp/repositories/bug_repository.py">
+      <signature>
+async def refresh_bugs_batch(self, test_ids: list[int]) -> dict[int, int]:
+    """Fetch fresh bugs for multiple tests in batch.
+
+    Returns: Dictionary mapping test_id -> bug_count
+    """
+      </signature>
+      <note>Similar to refresh_bugs but batched. Add same enrichment logic.</note>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      This project uses pytest with strict behavioral testing principles. Tests should validate WHAT the system does (observable outcomes), not HOW it does it (implementation). Use realistic test data, not minimal mocks. Fast feedback loop with unit tests (&lt;0.5s), integration tests with real API (~30s), and E2E tests for full MCP protocol. Coverage target: ≥85% for critical paths. Always run unit tests during development (uv run pytest -m unit), full suite before commit (uv run pytest).
+    </standards>
+
+    <locations>
+      <pattern>tests/unit/test_bug_repository.py</pattern>
+      <pattern>tests/unit/test_bug_classifiers.py</pattern>
+      <pattern>tests/integration/test_bug_sync_*.py</pattern>
+      <pattern>tests/services/test_test_service.py</pattern>
+      <pattern>tests/services/test_multi_test_report_service.py</pattern>
+    </locations>
+
+    <ideas>
+      <test ac="1,2" desc="Unit test: BugRepository enriches status during refresh_bugs()">
+        Test that when bug has status="accepted" and auto_accepted=True, stored status is "auto_accepted".
+        When auto_accepted=False, stored status is "accepted".
+        When status is "rejected" or "forwarded", stored status unchanged.
+        Use mocked API responses with different status combinations.
+      </test>
+
+      <test ac="6" desc="Unit test: classify_bugs reads from enriched status column">
+        Test that classify_bugs() correctly counts bugs when status field contains "auto_accepted" vs "accepted".
+        Mock bug data with enriched status values (no auto_accepted field needed).
+        Verify counts: active_accepted, auto_accepted, rejected, open all correct.
+      </test>
+
+      <test ac="4,5" desc="Integration test: Backfill script updates existing bugs">
+        Create test bugs with old format (status="accepted", auto_accepted in raw_data).
+        Run backfill migration.
+        Verify bugs with auto_accepted=True now have status="auto_accepted".
+        Verify bugs with auto_accepted=False still have status="accepted".
+        Verify counts match before/after (no data loss).
+      </test>
+
+      <test ac="8,9" desc="Integration test: Service methods work with enriched data">
+        Test TestService.get_test_status() with enriched bug data.
+        Verify bug classifications are correct.
+        Verify acceptance rates calculated correctly.
+        Test MultiTestReportService.generate_ebr_report() produces correct acceptance breakdown.
+      </test>
+
+      <test ac="12" desc="E2E test: EBR report with production data">
+        Generate EBR report using real test with known bug distribution.
+        Verify report shows correct active vs auto acceptance rates.
+        Compare before/after migration results (should be identical logic, different storage).
+      </test>
+    </ideas>
+  </tests>
+</story-context>

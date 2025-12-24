@@ -1,0 +1,378 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>014</epicId>
+    <storyId>084</storyId>
+    <title>list_bugs Tool</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-084-list-bugs-tool.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>CSM investigating high rejection tests</asA>
+    <iWant>to list bugs for specific tests with filters</iWant>
+    <soThat>I can see rejection patterns without loading all product bugs</soThat>
+    <tasks>
+      - Task 1: Create Tool File
+        - Create `src/testio_mcp/tools/list_bugs_tool.py`
+        - Define parameters with Pydantic Field annotations
+        - Follow `list_tests_tool.py` pattern
+
+      - Task 2: Create Service Method
+        - Add `list_bugs()` method to `src/testio_mcp/services/bug_service.py` (NEW FILE)
+        - Accept filters, pagination, sorting parameters
+        - Delegate to repository for query
+
+      - Task 3: Create Repository Method
+        - Add `list_bugs()` method to `src/testio_mcp/repositories/bug_repository.py`
+        - Build SQLModel query with filters
+        - Handle multi-value filters (IN clauses)
+
+      - Task 4: Define Output Schema
+        - Create `BugListItem` Pydantic model (minimal fields)
+        - Create `ListBugsOutput` with bugs list, pagination, filters_applied
+
+      - Task 5: Testing
+        - Unit test: filter combinations (status + severity)
+        - Unit test: pagination and sorting
+        - Integration test: real query with test_ids
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. **Scoped Query:**
+       - `list_bugs(test_ids=[123, 456])` returns bugs only for specified tests
+       - `test_ids` is required (prevents mass data fetch)
+
+    2. **Filtering:**
+       - `status` filter accepts single value or list: `"rejected"` or `["rejected", "forwarded"]`
+       - `severity` filter accepts single value or list: `"critical"` or `["critical", "high"]`
+       - `rejection_reason` filter accepts single value or list
+       - `reported_by_user_id` filter accepts single integer
+       - Multiple filters combine with AND logic
+
+    3. **Pagination & Sorting:**
+       - Standard pagination: `page`, `per_page`, `offset`
+       - Sorting: `sort_by` (title, severity, status, reported_at), `sort_order` (asc, desc)
+       - Default: `sort_by="reported_at"`, `sort_order="desc"`
+
+    4. **Output Format:**
+       - Minimal bug representation: `id`, `title`, `severity`, `status`, `test_id`, `reported_at`
+       - Includes `pagination` object and `filters_applied` for transparency
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-014-mcp-usability-improvements.md</path>
+        <title>Epic 014: MCP Usability Improvements</title>
+        <section>STORY-084: list_bugs Tool (FR5a)</section>
+        <snippet>
+          Enables CSMs to list bugs for specific tests with filters. Accepts test_ids (required),
+          status, severity, rejection_reason, reported_by_user_id filters. Returns minimal bug
+          representation with pagination and filters_applied transparency.
+        </snippet>
+      </doc>
+
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Service Layer Pattern (ADR-006)</section>
+        <snippet>
+          Service layer separates business logic from transport mechanisms. Services are
+          framework-agnostic, reusable across MCP tools, REST endpoints, CLI, and webhooks.
+          Tools are thin wrappers that extract dependencies and delegate to services.
+        </snippet>
+      </doc>
+
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>SQLModel Query Patterns</section>
+        <snippet>
+          Use session.exec(select(...)).first() for ORM models, not session.execute().
+          SQLAlchemy's execute() returns Row objects, SQLModel's exec() returns ORM models.
+          Handle multi-value filters with col(Model.field).in_(values).
+        </snippet>
+      </doc>
+
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing Strategy</title>
+        <section>Test Levels & Organization</section>
+        <snippet>
+          Unit tests (50%): Fast, mocked dependencies, ≥85% coverage. Service tests: Mock
+          client/cache, test business logic directly. Tool tests: Extract function from
+          FastMCP wrapper, mock get_service(), test error transformations.
+        </snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <artifact>
+        <path>src/testio_mcp/tools/list_tests_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_tests</symbol>
+        <lines>32-192</lines>
+        <reason>
+          Pattern reference for list_bugs_tool. Shows: (1) Pydantic Field annotations with
+          BeforeValidator(parse_status_input) for multi-value filters, (2) get_service_context
+          pattern for async session management, (3) Error transformation to ToolError with
+          ❌ℹ️💡 format, (4) Pagination with page/per_page/offset, (5) Output schema validation
+        </reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/repositories/bug_repository.py</path>
+        <kind>repository</kind>
+        <symbol>BugRepository</symbol>
+        <lines>1-958</lines>
+        <reason>
+          Target repository for list_bugs() method. Contains: (1) get_bugs(test_id) query
+          pattern using session.exec(select(Bug)), (2) get_bug_stats(test_id) for aggregations,
+          (3) STORY-047 enriched status handling (auto_accepted), (4) STORY-071 known field handling
+        </reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/schemas/api/bugs.py</path>
+        <kind>schema</kind>
+        <symbol>RecentBug, BugSummary, AcceptanceRates</symbol>
+        <lines>1-130</lines>
+        <reason>
+          Existing bug schemas for reference. Contains field definitions for: id, title, severity,
+          status, created_at, known. Shows Pydantic Field() pattern with descriptions and examples.
+        </reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/schemas/api/shared.py</path>
+        <kind>schema</kind>
+        <symbol>PaginationInfo</symbol>
+        <lines>10-27</lines>
+        <reason>
+          Standard pagination schema for reuse in ListBugsOutput. Contains: page, per_page,
+          offset, start_index, end_index, total_count, has_more fields.
+        </reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/utilities/parsing.py</path>
+        <kind>utility</kind>
+        <symbol>parse_status_input</symbol>
+        <lines>12-82</lines>
+        <reason>
+          Multi-value filter parser for status, severity, rejection_reason. Handles JSON array,
+          comma-separated, and list formats. Use with BeforeValidator in Pydantic Field annotations.
+        </reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/utilities/service_helpers.py</path>
+        <kind>utility</kind>
+        <symbol>get_service_context</symbol>
+        <lines>N/A</lines>
+        <reason>
+          Async context manager for service lifecycle management. Use pattern:
+          `async with get_service_context(ctx, BugService) as service:`
+          Ensures proper AsyncSession cleanup (STORY-033).
+        </reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/models/orm/bug.py</path>
+        <kind>model</kind>
+        <symbol>Bug</symbol>
+        <lines>N/A</lines>
+        <reason>
+          Bug ORM model for SQLModel queries. Fields: id, customer_id, test_id, title, severity,
+          status (enriched), actual_result, expected_result, rejection_reason, steps, reported_at,
+          reported_by_user_id, test_feature_id, known, raw_data, synced_at.
+        </reason>
+      </artifact>
+    </code>
+
+    <dependencies>
+      <python>
+        <package name="fastmcp" version=">=2.12.0" usage="MCP server framework, Context injection" />
+        <package name="pydantic" version=">=2.12.0" usage="Input validation, output schemas, Field annotations" />
+        <package name="sqlmodel" version=">=0.0.16" usage="ORM queries, select(), col(), desc()" />
+        <package name="httpx" version=">=0.28.0" usage="TestIOClient HTTP operations (inherited from service)" />
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - **Service Layer Pattern (ADR-006):** Create BugService (NEW file) for business logic.
+      Tools delegate to service, services delegate to repository.
+
+    - **SQLModel Query Pattern:** Use session.exec(select(Bug).where(...)).all() for ORM models.
+      NOT session.execute(). Use col(Bug.field).in_(values) for multi-value filters.
+
+    - **Error Handling:** Tool layer converts domain exceptions to ToolError with ❌ℹ️💡 format.
+      Service layer raises domain exceptions (e.g., TestNotFoundException).
+
+    - **Parameter Validation:** Use Pydantic Field annotations with BeforeValidator(parse_status_input)
+      for multi-value filters (status, severity, rejection_reason).
+
+    - **Pagination:** Standard page/per_page/offset pattern. Calculate start_index, end_index,
+      total_count, has_more. Reuse PaginationInfo schema from schemas/api/shared.py.
+
+    - **Output Schema:** Minimal bug representation - id, title, severity, status, test_id,
+      reported_at. Include pagination object and filters_applied for transparency.
+
+    - **Async Session Management:** Use `async with get_service_context(ctx, BugService) as service:`
+      pattern to ensure proper AsyncSession cleanup (STORY-033).
+
+    - **Testing Requirements:** Unit tests (≥85% coverage), service tests with mocked repository,
+      integration test with real database. Tool tests must extract function from FastMCP wrapper.
+
+    - **Known Field Handling (STORY-071):** Bug repository returns enriched known field from
+      database column (authoritative source), not raw API response.
+
+    - **Status Field Handling (STORY-047):** Bug repository returns enriched status field
+      (auto_accepted vs accepted), not raw API response status.
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>list_bugs MCP Tool Signature</name>
+      <kind>tool</kind>
+      <signature>
+        async def list_bugs(
+            test_ids: Annotated[list[int], Field(description="Required test IDs")],
+            ctx: Context,
+            status: Annotated[str | list[str] | None, BeforeValidator(parse_status_input)] = None,
+            severity: Annotated[str | list[str] | None, BeforeValidator(parse_severity_input)] = None,
+            rejection_reason: Annotated[str | list[str] | None, BeforeValidator(parse_rejection_reason_input)] = None,
+            reported_by_user_id: Annotated[int | None, Field(gt=0)] = None,
+            page: Annotated[int, Field(ge=1)] = 1,
+            per_page: Annotated[int, Field(ge=1, le=200)] = 0,
+            offset: Annotated[int, Field(ge=0)] = 0,
+            sort_by: str = "reported_at",
+            sort_order: str = "desc"
+        ) -> dict[str, Any]
+      </signature>
+      <path>src/testio_mcp/tools/list_bugs_tool.py</path>
+    </interface>
+
+    <interface>
+      <name>BugService.list_bugs Method</name>
+      <kind>service</kind>
+      <signature>
+        async def list_bugs(
+            self,
+            test_ids: list[int],
+            status: list[str] | None = None,
+            severity: list[str] | None = None,
+            rejection_reason: list[str] | None = None,
+            reported_by_user_id: int | None = None,
+            page: int = 1,
+            per_page: int = 100,
+            offset: int = 0,
+            sort_by: str = "reported_at",
+            sort_order: str = "desc"
+        ) -> dict[str, Any]
+      </signature>
+      <path>src/testio_mcp/services/bug_service.py</path>
+    </interface>
+
+    <interface>
+      <name>BugRepository.list_bugs Method</name>
+      <kind>repository</kind>
+      <signature>
+        async def list_bugs(
+            self,
+            test_ids: list[int],
+            status: list[str] | None = None,
+            severity: list[str] | None = None,
+            rejection_reason: list[str] | None = None,
+            reported_by_user_id: int | None = None,
+            page: int = 1,
+            per_page: int = 100,
+            offset: int = 0,
+            sort_by: str = "reported_at",
+            sort_order: str = "desc"
+        ) -> tuple[list[dict[str, Any]], int]
+      </signature>
+      <path>src/testio_mcp/repositories/bug_repository.py</path>
+    </interface>
+
+    <interface>
+      <name>ListBugsOutput Schema</name>
+      <kind>schema</kind>
+      <signature>
+        class BugListItem(BaseModel):
+            id: str
+            title: str
+            severity: str
+            status: str
+            test_id: int
+            reported_at: str | None
+
+        class ListBugsOutput(BaseModel):
+            bugs: list[BugListItem]
+            pagination: PaginationInfo
+            filters_applied: dict[str, Any]
+      </signature>
+      <path>src/testio_mcp/schemas/api/bugs.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      **Test Pyramid Distribution:**
+      - Unit tests (50%): Fast, mocked dependencies, ≥85% coverage
+      - Service tests: Mock client/cache, test business logic directly
+      - Integration tests (35%): Real database queries with test data
+      - Tool tests: Extract function from FastMCP wrapper, mock get_service()
+
+      **Test Organization:**
+      - tests/unit/test_list_bugs_tool.py - Tool wrapper tests
+      - tests/services/test_bug_service.py - Service business logic tests
+      - tests/integration/test_list_bugs_integration.py - Real database tests
+
+      **Key Patterns:**
+      - Tool tests: Extract fn from wrapper: `list_bugs_fn = list_bugs_tool.fn`
+      - Service tests: Mock repository with AsyncMock, test business logic
+      - Integration tests: Use real database, seed test data, verify queries
+      - Coverage: ≥85% overall, ≥90% for services
+    </standards>
+
+    <locations>
+      - tests/unit/test_list_bugs_tool.py
+      - tests/services/test_bug_service.py
+      - tests/integration/test_list_bugs_integration.py
+    </locations>
+
+    <ideas>
+      **Unit Tests (Tool Layer):**
+      1. Test parameter validation (test_ids required, page >= 1, per_page <= 200)
+      2. Test multi-value filter parsing (status="rejected", status=["rejected", "forwarded"])
+      3. Test error transformation (domain exceptions → ToolError with ❌ℹ️💡 format)
+      4. Test service delegation (parameters passed correctly)
+      5. Test output schema validation (BugListItem fields, pagination object)
+
+      **Service Tests:**
+      1. Test filter combinations (status + severity AND logic)
+      2. Test pagination calculation (start_index, end_index, has_more)
+      3. Test sorting (by reported_at desc, by severity asc)
+      4. Test empty results handling (no bugs for test_ids)
+      5. Test repository delegation (correct parameters passed)
+
+      **Repository Tests:**
+      1. Test SQLModel query construction (col().in_() for multi-value filters)
+      2. Test sorting (order_by with desc())
+      3. Test pagination (limit/offset calculation)
+      4. Test multiple test_ids filtering (IN clause)
+      5. Test empty results (return empty list, total_count=0)
+
+      **Integration Tests:**
+      1. Test real database query with test_ids from fixture
+      2. Test filter combinations with real data
+      3. Test pagination with large result sets
+      4. Test sorting with real timestamps
+    </ideas>
+  </tests>
+</story-context>

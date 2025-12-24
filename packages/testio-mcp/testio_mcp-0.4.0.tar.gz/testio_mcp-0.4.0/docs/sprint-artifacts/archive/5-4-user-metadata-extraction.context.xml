@@ -1,0 +1,331 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-005</epicId>
+    <storyId>STORY-036</storyId>
+    <title>User Metadata Extraction</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-24</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-036-user-metadata-extraction.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>CSM analyzing user engagement</asA>
+    <iWant>user metadata (tester and customer names, activity) extracted from bugs and tests</iWant>
+    <soThat>I can identify top contributors, test creators, and engagement patterns across both testers and customers</soThat>
+    <tasks>
+### Task 1: Define User SQLModel Class
+- [ ] Create `src/testio_mcp/models/orm/user.py`
+- [ ] Define User class with `user_type` field (no email/role)
+- [ ] Add relationships: `bugs_reported`, `tests_created`, `tests_submitted`
+- [ ] Test model creation in Python REPL
+**Estimated Effort:** 30 minutes
+
+### Task 2: Update Bug and Test Models
+- [ ] Update `src/testio_mcp/models/orm/bug.py` (add foreign key: `reported_by_user_id`, relationship: `reported_by_user`)
+- [ ] Update `src/testio_mcp/models/orm/test.py` (add columns: `created_by`, `submitted_by`; foreign keys: `created_by_user_id`, `submitted_by_user_id`; relationships)
+- [ ] Test model changes in Python REPL
+**Estimated Effort:** 30 minutes
+
+### Task 3: Create UserRepository
+- [ ] Create `src/testio_mcp/repositories/user_repository.py`
+- [ ] Implement `upsert_user()` with deduplication
+- [ ] Implement `get_top_contributors()` for both testers and customers
+- [ ] Implement `get_active_users()` with type filtering
+**Estimated Effort:** 1.5 hours
+
+### Task 4: Enhance BugRepository
+- [ ] Update `BugRepository` constructor to inject `UserRepository`
+- [ ] Update `_upsert_bug()` to extract tester users from `bug.author.name`
+- [ ] Call `user_repo.upsert_user(username, user_type="tester")`
+**Estimated Effort:** 45 minutes
+
+### Task 4.5: Enhance TestRepository (NEW)
+- [ ] Update `TestRepository` constructor to inject `UserRepository`
+- [ ] Update `insert_test()` to extract `created_by` and `submitted_by`
+- [ ] Call `user_repo.upsert_user()` for both creators and submitters
+- [ ] Store denormalized `created_by`/`submitted_by` columns
+**Estimated Effort:** 1 hour
+
+### Task 5: Generate Alembic Migration
+- [ ] Run `alembic revision --autogenerate -m "Add users table with user_type, test creator fields, and foreign keys"`
+- [ ] Verify migration includes users table, test columns, all indexes
+- [ ] Test migration upgrade and downgrade
+**Estimated Effort:** 30 minutes
+
+### Task 6: Write Unit Tests
+- [ ] Create `tests/unit/test_repositories_user.py`
+- [ ] Test tester and customer user creation
+- [ ] Test deduplication logic
+- [ ] Achieve >90% coverage for UserRepository
+**Estimated Effort:** 1 hour
+
+### Task 7: Write Integration Tests
+- [ ] Create `tests/integration/test_bug_sync_user_extraction.py` (bug sync creates tester users)
+- [ ] Create `tests/integration/test_test_sync_user_extraction.py` (test sync creates customer users)
+**Estimated Effort:** 1 hour
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+### AC1: User SQLModel Class Created
+**File:** `src/testio_mcp/models/orm/user.py`
+- [ ] Model defined with all required fields (id, username, user_type, raw_data, first_seen, last_seen)
+- [ ] `username` unique and indexed (for deduplication)
+- [ ] `user_type` field added with index (values: "tester", "customer")
+- [ ] `raw_data` stored as JSON
+- [ ] Relationships defined: `bugs_reported`, `tests_created`, `tests_submitted`
+- [ ] Type checking passes: `mypy src/testio_mcp/models/orm/user.py --strict`
+
+### AC2: Bug and Test Models Updated
+**Bug Model (`src/testio_mcp/models/orm/bug.py`):**
+- [ ] Foreign key added: `reported_by_user_id` → `users.id`
+- [ ] Relationship defined: `reported_by_user` (many-to-one)
+
+**Test Model (`src/testio_mcp/models/orm/test.py`):**
+- [ ] Columns added: `created_by`, `submitted_by` (denormalized strings, indexed)
+- [ ] Foreign keys added: `created_by_user_id`, `submitted_by_user_id` → `users.id`
+- [ ] Relationships defined: `created_by_user`, `submitted_by_user`
+
+### AC3: UserRepository Created
+**File:** `src/testio_mcp/repositories/user_repository.py`
+- [ ] Repository inherits from `BaseRepository`
+- [ ] Single `upsert_user()` method handles both testers and customers with deduplication by username
+- [ ] `get_top_contributors()` supports both user types (bugs for testers, tests for customers)
+- [ ] `get_active_users()` filters by user_type and last_seen
+- [ ] Type checking passes: `mypy src/testio_mcp/repositories/user_repository.py --strict`
+
+### AC4: BugRepository Enhanced
+- [ ] `UserRepository` injected into `BugRepository`
+- [ ] Tester user extracted from `bug.author.name` (correct API field)
+- [ ] Bug's `reported_by_user_id` linked to user
+- [ ] Handles bugs without user data (NULL foreign key)
+
+### AC5: TestRepository Enhanced
+- [ ] `UserRepository` injected into `TestRepository`
+- [ ] Customer users extracted from `test.created_by` and `test.submitted_by`
+- [ ] Test columns populated: `created_by`, `submitted_by`
+- [ ] Test foreign keys populated: `created_by_user_id`, `submitted_by_user_id`
+
+### AC6: Alembic Migration Generated
+- [ ] Migration chains from STORY-035B migration (or latest)
+- [ ] Users table created with unique username constraint and `user_type` field
+- [ ] Indexes created: `idx_users_username` (unique), `idx_users_user_type`
+- [ ] Foreign key added to bugs table: `reported_by_user_id`
+- [ ] Columns and foreign keys added to tests table
+- [ ] Migration applies successfully: `alembic upgrade head`
+- [ ] Migration rolls back successfully: `alembic downgrade -1`
+
+### AC7: Unit Tests Pass
+- [ ] Test tester user creation
+- [ ] Test customer user creation
+- [ ] Test deduplication by username (preserves original user_type)
+- [ ] Test `get_top_contributors()` for both testers and customers
+- [ ] All tests pass: `uv run pytest tests/unit/test_repositories_user.py -v`
+
+### AC8: Integration Tests Pass
+- [ ] Bug sync creates tester users and links bugs
+- [ ] Test sync creates customer users and links tests
+- [ ] `created_by` and `submitted_by` columns populated
+- [ ] All tests pass with real API data
+</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-005-data-enhancement-and-serving.md</path>
+        <title>Epic 005: Data Enhancement and Serving</title>
+        <section>Story 036: User Metadata Extraction</section>
+        <snippet>Extracts user metadata (tester and customer names, activity) from bugs and tests. Establishes User entity with extraction from bug reports (testers) and test metadata (customers).</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/epic-005-data-enhancement-and-serving.md</path>
+        <title>Epic 005: Prerequisites</title>
+        <section>3.1. Epic 006 Completion Gate</section>
+        <snippet>Epic 006 COMPLETE (2025-11-23): ORM infrastructure operational, Alembic baseline `0965ad59eafa`, 81% test coverage, performance benchmarks passed.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Service Layer Pattern</section>
+        <snippet>Service layer separates business logic from transport. Services use repository pattern for data access, handle domain operations with SQLite-first pattern.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing Strategy</title>
+        <section>Test Pyramid Distribution</section>
+        <snippet>Unit tests (50%), Integration tests (35%), E2E tests (15%). Coverage requirements: Overall 85%+, Services 90%+. Behavioral testing over implementation details.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/models/orm/bug.py</path>
+        <kind>ORM Model</kind>
+        <symbol>Bug</symbol>
+        <lines>16-52</lines>
+        <reason>Existing Bug model to be enhanced with user relationship (reported_by_user_id FK and reported_by_user relationship)</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/test.py</path>
+        <kind>ORM Model</kind>
+        <symbol>Test</symbol>
+        <lines>16-53</lines>
+        <reason>Existing Test model to be enhanced with customer user columns (created_by, submitted_by) and relationships (created_by_user, submitted_by_user)</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/base_repository.py</path>
+        <kind>Base Repository</kind>
+        <symbol>BaseRepository</symbol>
+        <lines>22-87</lines>
+        <reason>Base class for UserRepository - provides standard constructor (session, client, customer_id injection) and transaction management</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/bug_repository.py</path>
+        <kind>Repository</kind>
+        <symbol>BugRepository</symbol>
+        <lines>29-87</lines>
+        <reason>Must be enhanced to inject UserRepository and extract tester users from bug.author.name during sync</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>Repository</kind>
+        <symbol>TestRepository</symbol>
+        <lines>1-200</lines>
+        <reason>Must be enhanced to inject UserRepository and extract customer users from test.created_by and test.submitted_by during insert_test(). Populate both denormalized columns (created_by, submitted_by) AND foreign keys (created_by_user_id, submitted_by_user_id).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/feature.py</path>
+        <kind>ORM Model (Reference)</kind>
+        <symbol>Feature</symbol>
+        <lines>1-50</lines>
+        <reason>Reference for SQLModel pattern with relationships (similar structure to User model with product relationships)</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/feature_repository.py</path>
+        <kind>Repository (Reference)</kind>
+        <symbol>FeatureRepository</symbol>
+        <lines>1-100</lines>
+        <reason>Reference for repository pattern - FeatureRepository shows upsert logic and sync patterns to follow for UserRepository</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version=">=0.0.16" reason="ORM framework for User model definition and relationships"/>
+        <package name="alembic" version=">=1.13.0" reason="Database migration tool for users table and foreign keys"/>
+        <package name="pydantic" version=">=2.12.0" reason="Data validation for user data extraction"/>
+        <package name="httpx" version=">=0.28.0" reason="HTTP client for API calls (via TestIOClient)"/>
+        <package name="aiosqlite" version=">=0.20.0" reason="Async SQLite driver"/>
+        <package name="pytest" version=">=8.4.0" reason="Testing framework"/>
+        <package name="pytest-asyncio" version=">=0.24.0" reason="Async test support"/>
+        <package name="mypy" version=">=1.13.0" reason="Type checking (strict mode)"/>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint priority="CRITICAL">API Field Gotcha: bug.reported_by DOES NOT EXIST - Use bug.author.name for tester extraction. This was a corrected misconception from initial API research (2025-11-24). Using bug.reported_by will cause KeyError at runtime.</constraint>
+    <constraint priority="HIGH">Denormalization Rationale: Store created_by/submitted_by as BOTH columns AND foreign keys because:
+      1. Query Performance: Filter by creator string without JOIN (WHERE created_by = 'B M')
+      2. Relationship Queries: Get user's full profile via JOIN (test.created_by_user.username)
+      3. Null Safety: If user extraction fails, still have creator string
+      4. Analytics: Fast aggregations on creator without user table dependency
+    </constraint>
+    <constraint>Pattern: Repository must inherit from BaseRepository (Epic 006 standard)</constraint>
+    <constraint>Deduplication: Use username as unique identifier with "first wins" user_type preservation. Example: If "john_doe" is first seen as tester, later references as customer will still show user_type="tester".</constraint>
+    <constraint>API Field: Customer extraction uses test.created_by and test.submitted_by (simple strings, not objects)</constraint>
+    <constraint>Null Safety: All user foreign keys nullable (existing bugs/tests have no user data)</constraint>
+    <constraint>Migration Chain: Must chain from Epic 006 baseline or STORY-035B (whichever is latest). Run `alembic current` to verify.</constraint>
+    <constraint>Single Head: Run `alembic heads` - must return exactly one revision (no branched migrations)</constraint>
+    <constraint>Type Checking: All code must pass `mypy --strict`</constraint>
+    <constraint>Testing: Unit test coverage >90% for UserRepository, >85% for enhanced BugRepository and TestRepository</constraint>
+    <constraint>Transaction Management: Repository methods don't commit - caller controls transaction boundaries. Always check if caller commits or if method should commit.</constraint>
+    <constraint>Session Pattern: Always use `async with get_service_context()` for resource cleanup in tools</constraint>
+    <constraint>Scope Expansion: Story expanded 2025-11-24 to include customer user extraction from test metadata (originally tester-only). Revised estimate: 3h → 6h.</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>UserRepository.upsert_user</name>
+      <kind>Repository Method</kind>
+      <signature>async def upsert_user(username: str, user_type: str, raw_data: Optional[dict] = None) -> Optional[User]</signature>
+      <path>src/testio_mcp/repositories/user_repository.py</path>
+      <notes>Single unified method for extracting both tester and customer users. Deduplicates by username with "first wins" user_type preservation.</notes>
+    </interface>
+    <interface>
+      <name>UserRepository.get_top_contributors</name>
+      <kind>Repository Method</kind>
+      <signature>async def get_top_contributors(user_type: str = "tester", limit: int = 10, days: Optional[int] = None) -> list[tuple[User, int]]</signature>
+      <path>src/testio_mcp/repositories/user_repository.py</path>
+      <notes>Returns top contributors by activity count. For testers: counts bugs. For customers: counts tests created.</notes>
+    </interface>
+    <interface>
+      <name>UserRepository.get_active_users</name>
+      <kind>Repository Method</kind>
+      <signature>async def get_active_users(user_type: Optional[str] = None, days: int = 30) -> list[User]</signature>
+      <path>src/testio_mcp/repositories/user_repository.py</path>
+      <notes>Gets users active in last N days by last_seen timestamp. Optional filter by user_type ("tester", "customer").</notes>
+    </interface>
+    <interface>
+      <name>BugRepository.__init__</name>
+      <kind>Constructor</kind>
+      <signature>def __init__(session: AsyncSession, client: TestIOClient, customer_id: int, user_repo: UserRepository)</signature>
+      <path>src/testio_mcp/repositories/bug_repository.py</path>
+      <notes>Enhanced to inject UserRepository for tester extraction during bug sync.</notes>
+    </interface>
+    <interface>
+      <name>TestRepository.insert_test</name>
+      <kind>Repository Method</kind>
+      <signature>async def insert_test(test_data: dict) -> Test</signature>
+      <path>src/testio_mcp/repositories/test_repository.py</path>
+      <notes>Enhanced to extract customer users from test.created_by and test.submitted_by. Behavior: 1) Call user_repo.upsert_user() for both creators/submitters, 2) Populate denormalized columns (created_by, submitted_by strings), 3) Populate foreign keys (created_by_user_id, submitted_by_user_id), 4) Handle NULLs gracefully if fields missing.</notes>
+    </interface>
+    <interface>
+      <name>Bug.reported_by_user</name>
+      <kind>SQLModel Relationship</kind>
+      <signature>reported_by_user: Optional["User"] = Relationship(back_populates="bugs_reported")</signature>
+      <path>src/testio_mcp/models/orm/bug.py</path>
+      <notes>Many-to-one relationship from Bug to User. Foreign key: reported_by_user_id.</notes>
+    </interface>
+    <interface>
+      <name>Test.created_by_user</name>
+      <kind>SQLModel Relationship</kind>
+      <signature>created_by_user: Optional["User"] = Relationship(back_populates="tests_created")</signature>
+      <path>src/testio_mcp/models/orm/test.py</path>
+      <notes>Many-to-one relationship from Test to User. Foreign key: created_by_user_id. Represents test creator (customer user).</notes>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+Test Pyramid: Unit tests (50%), Integration tests (35%), E2E tests (15%). Coverage requirements: Overall 85%+, Services 90%+, Repositories 90%+ (UserRepository target: >90%, BugRepository/TestRepository enhancements: >85%). Use pytest with pytest-asyncio for async tests. All tests must pass `mypy --strict` type checking. Follow behavioral testing principles: test observable outcomes, not implementation details. Use Arrange-Act-Assert pattern. Mock external dependencies (API, network), not internal logic. Repository tests use in-memory SQLite (`:memory:`) for speed and isolation. Integration tests use real TestIO API with `TESTIO_CUSTOMER_API_TOKEN` environment variable. Test both happy path and edge cases (NULL handling, deduplication, denormalization consistency).
+</standards>
+    <locations>
+tests/unit/test_repositories_user.py - UserRepository unit tests
+tests/integration/test_bug_sync_user_extraction.py - Bug sync integration tests (tester extraction)
+tests/integration/test_test_sync_user_extraction.py - Test sync integration tests (customer extraction)
+</locations>
+    <ideas>
+      <idea ac="AC1">Unit test: Create User model instance, verify all fields and relationships defined</idea>
+      <idea ac="AC1">Unit test: Verify `username` unique constraint enforced by database</idea>
+      <idea ac="AC2">Unit test: Create Bug with reported_by_user relationship, verify foreign key link</idea>
+      <idea ac="AC2">Unit test: Create Test with created_by_user and submitted_by_user relationships, verify foreign keys</idea>
+      <idea ac="AC3">Unit test: `upsert_user()` creates new tester user</idea>
+      <idea ac="AC3">Unit test: `upsert_user()` creates new customer user</idea>
+      <idea ac="AC3">Unit test: `upsert_user()` deduplicates by username and preserves original user_type (first wins)</idea>
+      <idea ac="AC3">Unit test: User type deduplication edge case - "john_doe" created as tester, then referenced as customer → still shows user_type="tester" (first wins behavior)</idea>
+      <idea ac="AC3">Unit test: `upsert_user()` updates last_seen on existing users</idea>
+      <idea ac="AC3">Unit test: `get_top_contributors(user_type="tester")` returns testers sorted by bug count</idea>
+      <idea ac="AC3">Unit test: `get_top_contributors(user_type="customer")` returns customers sorted by test count</idea>
+      <idea ac="AC3">Unit test: `get_active_users()` filters by user_type and last_seen</idea>
+      <idea ac="AC4">Integration test: Bug sync creates tester users from bug.author.name field</idea>
+      <idea ac="AC4">Integration test: Bug sync links bugs to users via reported_by_user_id foreign key</idea>
+      <idea ac="AC5">Integration test: Test sync creates customer users from test.created_by and test.submitted_by</idea>
+      <idea ac="AC5">Integration test: Test sync stores denormalized created_by/submitted_by columns</idea>
+      <idea ac="AC5">Integration test: Test sync links tests to users via created_by_user_id and submitted_by_user_id foreign keys</idea>
+      <idea ac="AC5">Integration test: Denormalization consistency - If created_by string exists, created_by_user_id must also exist (both populated together)</idea>
+      <idea ac="AC5">Integration test: NULL handling - Test without created_by/submitted_by fields → NULL columns and NULL foreign keys (graceful degradation)</idea>
+      <idea ac="AC6">Unit test: Migration upgrade creates users table with correct schema</idea>
+      <idea ac="AC6">Unit test: Migration downgrade removes users table and foreign keys cleanly</idea>
+    </ideas>
+  </tests>
+</story-context>

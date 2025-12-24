@@ -1,0 +1,287 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-006</epicId>
+    <storyId>STORY-034A</storyId>
+    <title>Baseline Migration & Startup</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-22</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-034a-baseline-migration-startup.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a developer deploying the ORM-refactored MCP server</asA>
+    <iWant>Alembic migrations to run automatically on startup</iWant>
+    <soThat>the database schema stays in sync and deployments are safe</soThat>
+    <tasks>
+**A. Generate Baseline Migration:**
+- Run `alembic revision --autogenerate -m "Baseline: existing schema"`
+- Capture current state: `products`, `tests`, `bugs`, `sync_events`, `sync_metadata` tables
+- Verify migration includes all indexes and constraints
+- Test migration on clean database: `alembic upgrade head`
+- Document the baseline revision ID in epic file (e.g., `a1b2c3d4e5f6`)
+- Epic 005 migrations will reference this as their parent revision
+- Enables clear migration chain tracking
+
+**B. Migration Chain Management:**
+- Ensure baseline migration creates the migration head for Epic 005
+- Verify single migration head
+- Document rollback order
+
+**C. Safe Startup with Migrations:**
+- Update `server.py` lifespan handler to run migrations
+- Implement `TESTIO_SKIP_MIGRATIONS` check
+- Implement fail-fast behavior
+
+**D. Verify JSON1 Extension:**
+- Add SQLite JSON1 extension check
+
+**E. Remove Legacy Schema Management:**
+- Remove `src/testio_mcp/database/schema.py`
+
+**F. Refactor PersistentCache:**
+- Refactor `PersistentCache` to use AsyncEngine and session factory
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. [ ] Baseline migration generated: `alembic revision --autogenerate -m "Baseline: existing schema"`
+2. [ ] Baseline migration includes all tables: `products`, `tests`, `bugs`, `sync_events`, `sync_metadata`
+3. [ ] Baseline migration includes all indexes and constraints
+4. [ ] Baseline migration tested: `alembic upgrade head` works on clean database
+5. [ ] Baseline revision ID documented in this epic file for Epic 005 reference
+6. [ ] Server lifespan handler runs migrations on startup with fail-fast behavior
+7. [ ] `TESTIO_SKIP_MIGRATIONS` env flag implemented with warning log
+8. [ ] SQLite JSON1 extension verified available during migration pre-check
+9. [ ] Single migration head verified: `alembic heads` returns exactly one revision
+10. [ ] Migration rollback tested: `alembic downgrade -1` works
+11. [ ] Server starts successfully with migrations applied
+12. [ ] Type checking passes: `mypy src/testio_mcp/server.py --strict` (lifespan handler)
+</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-006-orm-refactor.md</path>
+        <title>Epic-006: ORM Refactor (SQLModel + Alembic)</title>
+        <section>STORY-034A: Baseline Migration & Startup</section>
+        <snippet>Generate baseline migration capturing current schema state (products, tests, bugs, sync_events, sync_metadata). Update server lifespan handler to run migrations on startup with fail-fast behavior. Implement TESTIO_SKIP_MIGRATIONS env flag and verify SQLite JSON1 extension.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/epic-006-orm-refactor.md</path>
+        <title>Epic-006: Migration Chain Management</title>
+        <section>B. Migration Chain Management</section>
+        <snippet>Baseline migration creates the migration head for Epic 005. All future Epic 005 migrations must chain from this baseline. Epic 005 work MUST NOT start until Epic 006 baseline is merged. Rollback order documented for Epic 006 and Epic 005 migrations.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>TestIO MCP Server - System Architecture</title>
+        <section>Lifespan Manager</section>
+        <snippet>Lifespan manager initializes and cleans up shared resources including TestIOClient, PersistentCache, and background sync tasks. Manages server lifecycle (startup/shutdown) and provides dependency injection context.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>TestIO MCP Server - System Architecture</title>
+        <section>PersistentCache (SQLite Database)</section>
+        <snippet>Local data store for products, tests, bugs, and sync metadata. Provides repository interfaces (TestRepository, BugRepository). Tracks sync metadata and sync events. Enables concurrent reads (WAL mode). Auto-VACUUM on startup.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>alembic/env.py</path>
+        <kind>migration_config</kind>
+        <symbol>run_async_migrations</symbol>
+        <lines>88-104</lines>
+        <reason>Async migration runner that will be invoked by server lifespan handler. Shows how to configure async engine and run migrations.</reason>
+      </artifact>
+      <artifact>
+        <path>alembic/env.py</path>
+        <kind>migration_config</kind>
+        <symbol>target_metadata</symbol>
+        <lines>34</lines>
+        <reason>SQLModel.metadata used for autogenerate support. All ORM models must be imported before autogenerate runs.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/database/engine.py</path>
+        <kind>database_engine</kind>
+        <symbol>create_async_engine_for_sqlite</symbol>
+        <lines>28-62</lines>
+        <reason>Creates AsyncEngine for SQLite with aiosqlite driver. Used by PersistentCache and will be used for migration runner.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/database/engine.py</path>
+        <kind>database_engine</kind>
+        <symbol>create_session_factory</symbol>
+        <lines>65-85</lines>
+        <reason>Creates async_sessionmaker for database operations. Used by repositories and services.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/database/cache.py</path>
+        <kind>cache</kind>
+        <symbol>PersistentCache.initialize</symbol>
+        <lines>252-329</lines>
+        <reason>Current initialization logic that needs to be updated to use AsyncEngine and session factory. Currently creates aiosqlite connection and repositories.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/database/cache.py</path>
+        <kind>cache</kind>
+        <symbol>PersistentCache.close</symbol>
+        <lines>331-349</lines>
+        <reason>Cleanup logic that needs to be updated to dispose of AsyncEngine and close AsyncSession.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/server.py</path>
+        <kind>server</kind>
+        <symbol>lifespan</symbol>
+        <lines>76-240</lines>
+        <reason>Server lifespan handler where migration runner needs to be added. Currently initializes cache and client. Needs to run migrations before cache.initialize().</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/__init__.py</path>
+        <kind>orm_models</kind>
+        <symbol>all ORM models</symbol>
+        <lines>1-50</lines>
+        <reason>All ORM models (Product, Test, Bug, SyncEvent, SyncMetadata) must be imported in alembic/env.py for autogenerate to detect them.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/base_repository.py</path>
+        <kind>repository</kind>
+        <symbol>BaseRepository</symbol>
+        <lines>1-100</lines>
+        <reason>Base repository using AsyncSession. Shows pattern for repository initialization with session factory.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/product_repository.py</path>
+        <kind>repository</kind>
+        <symbol>ProductRepository</symbol>
+        <lines>1-200</lines>
+        <reason>Example repository using AsyncSession and SQLModel queries. Shows how repositories are instantiated with session.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version=">=0.0.16" reason="ORM framework combining SQLAlchemy and Pydantic" />
+        <package name="alembic" version=">=1.13.0" reason="Database migration framework" />
+        <package name="greenlet" version=">=3.0.0" reason="Required for async SQLAlchemy operations" />
+        <package name="aiosqlite" version=">=0.20.0" reason="Async SQLite driver" />
+        <package name="sqlalchemy" version="implicit" reason="Core ORM engine (via sqlmodel)" />
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>
+      <type>migration_chain</type>
+      <description>Baseline migration must be the single migration head before Epic 005 begins. All future Epic 005 migrations must chain from this baseline.</description>
+    </constraint>
+    <constraint>
+      <type>fail_fast</type>
+      <description>Server must fail to start if migrations fail. No mixed state allowed (migrations must complete before accepting requests).</description>
+    </constraint>
+    <constraint>
+      <type>backward_compatibility</type>
+      <description>Migration must work on both existing databases (with data) and clean databases (fresh installs).</description>
+    </constraint>
+    <constraint>
+      <type>environment_flag</type>
+      <description>TESTIO_SKIP_MIGRATIONS env flag must be implemented with clear warning log for dev/CI use only.</description>
+    </constraint>
+    <constraint>
+      <type>json1_extension</type>
+      <description>SQLite JSON1 extension must be verified available during migration pre-check or initialization.</description>
+    </constraint>
+    <constraint>
+      <type>type_safety</type>
+      <description>All code must pass mypy --strict type checking, especially server.py lifespan handler.</description>
+    </constraint>
+    <constraint>
+      <type>legacy_cleanup</type>
+      <description>src/testio_mcp/database/schema.py must be removed as it's replaced by Alembic migrations.</description>
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>alembic.command.upgrade</name>
+      <kind>function_call</kind>
+      <signature>alembic.command.upgrade(config: Config, revision: str) -> None</signature>
+      <path>alembic/__init__.py</path>
+      <description>Programmatic API to run migrations to specified revision. Used in server lifespan handler.</description>
+    </interface>
+    <interface>
+      <name>alembic.command.current</name>
+      <kind>function_call</kind>
+      <signature>alembic.command.current(config: Config) -> None</signature>
+      <path>alembic/__init__.py</path>
+      <description>Shows current migration state. Used for logging migration status before and after upgrade.</description>
+    </interface>
+    <interface>
+      <name>alembic.config.Config</name>
+      <kind>class</kind>
+      <signature>Config(file_name: str)</signature>
+      <path>alembic/config.py</path>
+      <description>Alembic configuration object. Initialized with path to alembic.ini file.</description>
+    </interface>
+    <interface>
+      <name>PersistentCache.initialize</name>
+      <kind>async_method</kind>
+      <signature>async def initialize(self) -> None</signature>
+      <path>src/testio_mcp/database/cache.py</path>
+      <description>Initializes database connection, AsyncEngine, session factory, and repositories. Needs refactoring to use AsyncEngine properly.</description>
+    </interface>
+    <interface>
+      <name>create_async_engine_for_sqlite</name>
+      <kind>function</kind>
+      <signature>def create_async_engine_for_sqlite(db_path: str | Path) -> AsyncEngine</signature>
+      <path>src/testio_mcp/database/engine.py</path>
+      <description>Factory function to create AsyncEngine for SQLite. Used by PersistentCache and migration runner.</description>
+    </interface>
+    <interface>
+      <name>lifespan</name>
+      <kind>async_context_manager</kind>
+      <signature>@asynccontextmanager async def lifespan(app: FastMCP) -> AsyncIterator[ServerContext]</signature>
+      <path>src/testio_mcp/server.py</path>
+      <description>Server lifespan handler. Needs to run migrations before initializing cache. Must handle migration failures with fail-fast behavior.</description>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+The project uses pytest with pytest-asyncio for async test support. All tests must pass with 100% success rate. Unit tests use mocked dependencies (AsyncSession mocks for repositories). Integration tests may use real database with test fixtures. Type checking with mypy --strict is required. Test coverage target is >75% (fail_under in pyproject.toml). Tests are organized into unit/ and integration/ directories.</standards>
+    <locations>
+      <location>tests/unit/</location>
+      <location>tests/integration/</location>
+      <location>tests/conftest.py (shared fixtures)</location>
+    </locations>
+    <ideas>
+      <idea ac="AC1,AC2,AC3,AC4">
+        <description>Test baseline migration generation</description>
+        <approach>Create integration test that runs `alembic revision --autogenerate` and verifies generated migration includes all tables (products, tests, bugs, sync_events, sync_metadata) and all indexes/constraints.</approach>
+      </idea>
+      <idea ac="AC5,AC9">
+        <description>Test migration chain management</description>
+        <approach>Verify `alembic heads` returns exactly one revision after baseline migration. Document baseline revision ID in epic file.</approach>
+      </idea>
+      <idea ac="AC6,AC11">
+        <description>Test server startup with migrations</description>
+        <approach>Integration test that starts server and verifies migrations run successfully. Check that server fails to start if migrations fail (fail-fast behavior).</approach>
+      </idea>
+      <idea ac="AC7">
+        <description>Test TESTIO_SKIP_MIGRATIONS flag</description>
+        <approach>Unit test that verifies TESTIO_SKIP_MIGRATIONS=1 skips migrations and logs warning. Verify TESTIO_SKIP_MIGRATIONS=0 or unset runs migrations normally.</approach>
+      </idea>
+      <idea ac="AC8">
+        <description>Test JSON1 extension verification</description>
+        <approach>Unit test that verifies JSON1 extension check runs during initialization. Test both success case (extension available) and failure case (extension missing).</approach>
+      </idea>
+      <idea ac="AC10">
+        <description>Test migration rollback</description>
+        <approach>Integration test that runs `alembic downgrade -1` and verifies database state is correctly rolled back.</approach>
+      </idea>
+      <idea ac="AC12">
+        <description>Test type checking</description>
+        <approach>CI test that runs `mypy src/testio_mcp/server.py --strict` and verifies no type errors in lifespan handler.</approach>
+      </idea>
+    </ideas>
+  </tests>
+</story-context>

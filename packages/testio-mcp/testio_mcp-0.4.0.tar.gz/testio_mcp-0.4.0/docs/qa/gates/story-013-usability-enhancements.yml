@@ -1,0 +1,119 @@
+# Quality Gate Decision: Story 013 - Usability Enhancements
+
+schema: 1
+story: "story-013"
+story_title: "Usability Enhancements (Date Parsing & Filter Validation)"
+gate: CONCERNS
+status_reason: "Implementation is excellent with strong test coverage and code quality. Coverage at 72% (below 80% target) due to new tools not covered by integration tests. Immediate improvement: Add integration tests for new date parsing and filter validation features."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-11-06T19:30:00Z"
+
+waiver: { active: false }
+
+top_issues:
+  - id: "COV-001"
+    severity: medium
+    finding: "Test coverage at 72%, below 80% target. date_utils.py at 24%, get_test_bugs_tool.py at 33%, timeframe_activity_tool.py at 57%"
+    suggested_action: "Add integration tests for new date parsing and filter validation features to increase coverage. Unit tests are comprehensive (40 date + 14 validation tests passing), but tool-level coverage needs integration tests."
+    refs:
+      - "src/testio_mcp/utilities/date_utils.py"
+      - "src/testio_mcp/tools/get_test_bugs_tool.py"
+      - "src/testio_mcp/tools/timeframe_activity_tool.py"
+
+  - id: "DOC-001"
+    severity: low
+    finding: "Integration test plan mentioned in AC1 (line 286) not yet executed"
+    suggested_action: "Execute integration test via MCP Inspector: get_test_activity_by_timeframe with 'last 30 days' and 'this quarter' as documented in story Phase 4"
+    refs:
+      - "docs/stories/story-013-usability-enhancements.md:286"
+
+quality_score: 80
+# Formula: 100 - (20 × FAILs) - (10 × CONCERNS) = 100 - 0 - 20 = 80
+
+evidence:
+  tests_reviewed: 54
+  # 40 date parsing tests (test_date_utils.py)
+  # 14 validation tests (test_get_test_bugs_validation.py)
+  risks_identified: 2
+  trace:
+    ac_covered: [1, 2, 3]  # AC1 (Date Parsing), AC2 (Filter Validation), AC3 (JSON Schema)
+    ac_gaps: []  # All ACs have test coverage
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "ToolError pattern prevents credential leakage. UTC normalization prevents timezone attacks. Year validation (1900-2100) prevents dateutil garbage input."
+  performance:
+    status: PASS
+    notes: "Parsing order optimized (O(1) business terms → ISO 8601 → regex → dateutil fallback). Date parsing <1ms. Validation is O(1) enum comparisons."
+  reliability:
+    status: PASS
+    notes: "Comprehensive error handling with ToolError exceptions. All 54 tests pass. UTC-aware datetime prevents timezone issues."
+  maintainability:
+    status: PASS
+    notes: "Clean separation of concerns. date_utils.py is well-documented (Google-style docstrings). Enums in tool layer prevent magic strings. Peer review fixes applied (continuation_token validation, UTC-aware, 'N days ago' pattern)."
+
+recommendations:
+  immediate:
+    - action: "Add integration tests for date parsing and filter validation to reach 80% coverage target"
+      refs:
+        - "tests/integration/"
+        - "docs/stories/story-013-usability-enhancements.md:286-287"
+      rationale: "Unit tests are comprehensive and all passing, but tool-level integration tests needed to validate end-to-end MCP flow and increase coverage from 72% to 80%+"
+
+  future:
+    - action: "Consider adding complex natural language date parsing (\"next Friday\", \"in 2 weeks\") if user feedback indicates demand"
+      refs: ["src/testio_mcp/utilities/date_utils.py:138-139"]
+      rationale: "Currently scoped to simple patterns. Story AC1 deliberately excludes complex NLP for MVP. Add only if users request it."
+
+    - action: "Monitor cache performance with new ISO datetime format (YYYY-MM-DDTHH:MM:SSZ) to ensure no cache key issues"
+      refs:
+        - "src/testio_mcp/utilities/date_utils.py:234-236"
+        - "src/testio_mcp/services/activity_service.py"
+      rationale: "Date format changed from YYYY-MM-DD to ISO datetime with timezone. Verify this doesn't cause cache misses or key collisions in production."
+
+compliance_notes:
+  coding_standards: PASS  # ruff check passes, mypy strict passes
+  testing_strategy: CONCERNS  # Unit tests excellent (54 passing), integration tests missing
+  architecture: PASS  # Follows service layer pattern (ADR-006), BaseService + get_service() pattern (ADR-011)
+  security: PASS  # ToolError prevents leakage, UTC normalization, year validation
+  performance: PASS  # Optimized parsing order, O(1) business terms, <1ms parse time
+
+peer_review_fixes_applied:
+  - "CRITICAL: FieldInfo normalization for bug_type and status parameters (prevents crash)"
+  - "HIGH: continuation_token + filters validation (enforces self-sufficient token contract from STORY-017)"
+  - "HIGH: Implemented '3 days ago' pattern support (regex pattern added)"
+  - "MEDIUM: Converted all datetime operations to UTC-aware (datetime.now(UTC))"
+  - "MEDIUM: Moved year validation (1900-2100) to shared post-parse block"
+
+notes: |
+  Exceptional implementation quality with strong attention to detail:
+
+  ✅ STRENGTHS:
+  - Comprehensive test coverage (54 tests) with deterministic mocking (unittest.mock.patch)
+  - Clean architecture: date_utils.py (pure functions) + tool validation (Enums + ToolError)
+  - Performance-optimized parsing order (O(1) business terms first, dateutil fallback last)
+  - Excellent error messages (❌ℹ️💡 format) with actionable hints
+  - Peer review feedback integrated promptly (5 fixes applied)
+  - UTC normalization prevents timezone issues
+  - Year validation (1900-2100) prevents garbage input from dateutil
+
+  ⚠️ CONCERNS:
+  - Test coverage at 72% (below 80% target) due to tool-level integration test gap
+  - Integration test plan documented but not yet executed (MCP Inspector testing)
+
+  🎯 RECOMMENDED NEXT STEPS:
+  1. Add 2-3 integration tests:
+     - get_test_activity_by_timeframe with "last 30 days"
+     - get_test_activity_by_timeframe with "this quarter"
+     - get_test_bugs with invalid filter combo (visual + severity)
+  2. Execute MCP Inspector testing as documented in story Phase 4
+  3. Monitor cache performance with new ISO datetime format in production
+
+  GATE DECISION RATIONALE:
+  - Code quality is excellent (ruff + mypy pass, 54 tests pass)
+  - Architecture is sound (follows ADR-006, ADR-011, ADR-017)
+  - Coverage gap is procedural (missing integration tests, not implementation issues)
+  - All ACs are functionally complete and well-tested at unit level
+  - Medium severity issue (COV-001) warrants CONCERNS gate, not FAIL
+  - Team can address coverage gap in follow-up work without blocking story completion

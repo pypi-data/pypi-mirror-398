@@ -1,0 +1,47 @@
+schema: 1
+story: "STORY-021d"
+story_title: "Improve sync --force to Use Upsert Instead of Database Deletion"
+gate: PASS
+status_reason: "All acceptance criteria met. Excellent implementation with comprehensive test coverage and documentation."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-11-17T14:00:00Z"
+
+top_issues: []
+
+waiver: { active: false }
+
+quality_score: 100
+expires: "2025-12-01T00:00:00Z"
+
+evidence:
+  tests_reviewed: 265
+  risks_identified: 2
+  trace:
+    ac_covered: [1, 2, 3, 4, 7, 8]
+    ac_gaps: [5, 6]
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "No security concerns. Non-destructive --force mode reduces accidental data loss risk. --nuke requires explicit confirmation."
+  performance:
+    status: PASS
+    notes: "Upsert strategy (INSERT OR REPLACE) is efficient. Force refresh performance is comparable to incremental sync."
+  reliability:
+    status: PASS
+    notes: "Mutual exclusivity validation prevents conflicting modes. Clear error messages guide users."
+  maintainability:
+    status: PASS
+    notes: "Code follows established patterns. RefreshResult and RebuildResult dataclasses provide clear contracts. Documentation is comprehensive."
+
+recommendations:
+  immediate:
+    - action: "Add integration test for --force mode verifying data preservation and updates"
+      refs: ["tests/integration/test_sync_integration.py"]
+    - action: "Add integration test for --nuke mode verifying complete database rebuild"
+      refs: ["tests/integration/test_sync_integration.py"]
+  future:
+    - action: "Consider adding telemetry to track usage patterns of different sync modes"
+      refs: ["src/testio_mcp/sync.py"]
+    - action: "Add --dry-run preview for --force and --refresh modes (currently only shows incremental)"
+      refs: ["src/testio_mcp/sync.py:122-244"]

@@ -1,0 +1,132 @@
+<story-context id="bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>014</epicId>
+    <storyId>086</storyId>
+    <title>Interactive explore-testio-data Prompt Redesign</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-086-explore-testio-data-prompt.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>user exploring TestIO data</asA>
+    <iWant>an interactive prompt that helps me discover what I'm looking for through conversation</iWant>
+    <soThat>I can find products, tests, features, users, or bugs without knowing IDs upfront</soThat>
+    <tasks>
+      <task id="1" title="Rewrite Prompt Template (explore_testio_data.md)">
+        <subtask>Add three-phase structure with clear headers</subtask>
+        <subtask>Add entity resolution logic (type or keyword detection)</subtask>
+        <subtask>Add landscape overview guidelines for each entity type</subtask>
+        <subtask>Add context-gathering conversation prompts</subtask>
+        <subtask>Add targeted discovery workflows for each entity type</subtask>
+        <subtask>Add YOLO mode trigger detection and comprehensive exploration</subtask>
+        <subtask>Add iteration/follow-up guidance</subtask>
+      </task>
+      <task id="2" title="Update Python Function (explore_testio_data.py)">
+        <subtask>Change parameter: Add `search_context: str | None = None` (for keywords or entity hints)</subtask>
+        <subtask>Keep `entity_type: str | None` for backward compatibility</subtask>
+        <subtask>Add YOLO mode detection logic</subtask>
+        <subtask>Update docstring with new usage examples</subtask>
+        <subtask>Pass search context and YOLO mode flag to template</subtask>
+      </task>
+      <task id="3" title="Testing">
+        <subtask>Manual test via MCP inspector: `/explore-testio-data products` (entity type mode)</subtask>
+        <subtask>Manual test via MCP inspector: `/explore-testio-data "mobile app"` (keyword search mode)</subtask>
+        <subtask>Manual test via MCP inspector: `/explore-testio-data` (guided discovery, no context)</subtask>
+        <subtask>Manual test via MCP inspector: `/explore-testio-data "show me everything"` (YOLO mode)</subtask>
+        <subtask>Verify landscape overview renders correctly for each entity</subtask>
+        <subtask>Verify context-gathering questions appear</subtask>
+        <subtask>Verify YOLO mode shows multi-section report</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1" title="Three-Phase Workflow">
+      <description>Phase 1: Landscape Overview (auto-execute if entity type or search context provided); Phase 2: Context Gathering (interactive - understand what they're looking for); Phase 3: Targeted Discovery (drill down based on gathered context)</description>
+    </criterion>
+    <criterion id="AC2" title="Flexible Entity Discovery">
+      <description>Support entity types: products, tests, features, users, bugs. Accept optional search keyword or entity type hint. If no context provided, ask: "What are you looking for?"</description>
+    </criterion>
+    <criterion id="AC3" title="Auto-Execute Landscape Overview (Phase 1)">
+      <description>Only runs if user provides initial context. Time range scoping defaults to last 30 days for tests/bugs, no time filter for products/features. Present structured overview with enriched metadata.</description>
+    </criterion>
+    <criterion id="AC4" title="Interactive Context Gathering (Phase 2)">
+      <description>Ask conversationally about what user is looking for, what they know, time period preferences, and customer context.</description>
+    </criterion>
+    <criterion id="AC5" title="Targeted Discovery (Phase 3)">
+      <description>Execute appropriate discovery flow based on context: Products -> Tests -> Features -> Users -> Bugs with proper tool chain.</description>
+    </criterion>
+    <criterion id="AC6" title="YOLO Mode (Explicit Trigger)">
+      <description>When user says "show me everything", "full exploration", "browse all" - execute comprehensive discovery across all entity types.</description>
+    </criterion>
+    <criterion id="AC7" title="Iteration and Follow-up">
+      <description>After presenting discoveries, ask for confirmation and offer to drill deeper or suggest related data.</description>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics/epic-014-mcp-usability-improvements.md" title="Epic 014: MCP Usability Improvements" section="Stories" snippet="STORY-086: Update explore-testio-data Prompt - guides user through bug analysis using list_bugs, get_bug_summary, and query_metrics tools."/>
+      <doc path="src/testio_mcp/resources/playbook.md" title="TestIO CSM Playbook" section="Tool Selection Guide" snippet="Resource providing tactical patterns (Noisy Cycle, Feature Fragility, Severity Spike) and strategic templates for EBR/QBR reports. Key reference for prompt guidance."/>
+      <doc path="docs/architecture/TESTING.md" title="Testing Guide" section="Test Philosophy" snippet="Tests should validate WHAT the system does (behavior), not HOW it does it. Manual testing via MCP inspector recommended for prompt changes."/>
+      <doc path="CLAUDE.md" title="Project Guide" section="MCP Inspector" snippet="Use npx @modelcontextprotocol/inspector for manual testing of tools and prompts."/>
+    </docs>
+    <code>
+      <file path="src/testio_mcp/prompts/explore_testio_data.py" kind="prompt-function" symbol="explore_testio_data" lines="74-106" reason="Main prompt function to modify - add search_context param and YOLO detection"/>
+      <file path="src/testio_mcp/prompts/explore_testio_data.md" kind="prompt-template" symbol="N/A" lines="1-44" reason="Template to rewrite with three-phase structure, entity discovery, and YOLO mode"/>
+      <file path="src/testio_mcp/tools/list_bugs_tool.py" kind="tool" symbol="list_bugs" lines="29-188" reason="New bug listing tool (STORY-084 prerequisite) - must integrate into prompt workflows"/>
+      <file path="src/testio_mcp/tools/get_bug_summary_tool.py" kind="tool" symbol="get_bug_summary" lines="143-206" reason="New bug summary tool (STORY-085 prerequisite) - must integrate into prompt workflows"/>
+      <file path="src/testio_mcp/tools/search_tool.py" kind="tool" symbol="search" reason="Search tool for keyword-based entity discovery across products, features, tests, bugs"/>
+      <file path="src/testio_mcp/tools/query_metrics_tool.py" kind="tool" symbol="query_metrics" reason="Analytics tool for rejection pattern analysis and feature fragility"/>
+      <file path="src/testio_mcp/tools/list_products_tool.py" kind="tool" symbol="list_products" reason="Product discovery with enriched metadata"/>
+      <file path="src/testio_mcp/tools/list_tests_tool.py" kind="tool" symbol="list_tests" reason="Test discovery with pagination and status filtering"/>
+      <file path="src/testio_mcp/tools/list_features_tool.py" kind="tool" symbol="list_features" reason="Feature discovery with bug count sorting"/>
+      <file path="src/testio_mcp/tools/list_users_tool.py" kind="tool" symbol="list_users" reason="User (tester/customer) discovery"/>
+    </code>
+    <dependencies>
+      <python>
+        <package name="fastmcp" version=">=2.12.0" usage="MCP server and prompt registration"/>
+        <package name="pydantic" version=">=2.12.0" usage="Input validation"/>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="architecture">Prompts are thin template-based functions that guide AI agents through workflows. No business logic in prompt code.</constraint>
+    <constraint type="pattern">ENTITY_GUIDANCE dict pattern - entity-specific discovery/summary/analysis guidance per entity type</constraint>
+    <constraint type="compatibility">Keep entity_type parameter for backward compatibility; add search_context as new optional param</constraint>
+    <constraint type="testing">Manual testing via MCP inspector is primary validation method for prompt changes</constraint>
+    <constraint type="format">Template uses markdown format with placeholders for dynamic content</constraint>
+    <constraint type="resource">Reference testio://knowledge/playbook resource for CSM best practices</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="explore_testio_data" kind="MCP prompt function" signature="def explore_testio_data(entity_type: str | None = None, search_context: str | None = None) -> str" path="src/testio_mcp/prompts/explore_testio_data.py">
+      <note>Add search_context parameter and YOLO mode detection</note>
+    </interface>
+    <interface name="ENTITY_GUIDANCE" kind="dict constant" signature="ENTITY_GUIDANCE: dict[str, dict[str, str]]" path="src/testio_mcp/prompts/explore_testio_data.py">
+      <note>Add "bugs" entity guidance with list_bugs, get_bug_summary, and query_metrics tools</note>
+    </interface>
+    <interface name="list_bugs" kind="MCP tool" signature="async def list_bugs(test_ids: list[int], ...) -> dict[str, Any]" path="src/testio_mcp/tools/list_bugs_tool.py">
+      <note>New prerequisite tool for bug discovery - requires test_ids to scope query</note>
+    </interface>
+    <interface name="get_bug_summary" kind="MCP tool" signature="async def get_bug_summary(bug_id: int, ctx: Context) -> dict[str, Any]" path="src/testio_mcp/tools/get_bug_summary_tool.py">
+      <note>New prerequisite tool for bug details - includes rejection reason and reporter</note>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>Manual testing via MCP inspector is the primary validation method for prompt changes. Prompt functions are thin wrappers around templates, so unit tests focus on parameter handling and template formatting. No mocking of FastMCP framework.</standards>
+    <locations>tests/unit/test_prompts_*.py (if unit tests needed), manual testing via MCP inspector</locations>
+    <ideas>
+      <idea ac="AC1">Test three-phase workflow triggers correctly based on input (entity type vs search context vs empty)</idea>
+      <idea ac="AC2">Test entity type detection from keywords (products, tests, features, users, bugs)</idea>
+      <idea ac="AC3">Test time range scoping defaults (30 days for tests/bugs, no filter for products/features)</idea>
+      <idea ac="AC5">Test bug discovery workflow includes list_bugs -> get_bug_summary -> query_metrics chain</idea>
+      <idea ac="AC6">Test YOLO mode triggers on keywords ("show me everything", "full exploration", "browse all")</idea>
+      <idea ac="AC7">Manual verify iteration prompts appear after presenting discoveries</idea>
+    </ideas>
+  </tests>
+</story-context>

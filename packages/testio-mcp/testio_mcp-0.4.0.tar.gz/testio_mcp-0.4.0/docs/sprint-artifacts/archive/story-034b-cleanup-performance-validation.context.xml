@@ -1,0 +1,227 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-006</epicId>
+    <storyId>STORY-034B</storyId>
+    <title>Cleanup & Performance Validation</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-23</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-034b-cleanup-performance-validation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a developer completing the ORM refactor</asA>
+    <iWant>legacy code removed and performance validated</iWant>
+    <soThat>the codebase is clean and Epic 005 can begin with confidence</soThat>
+    <tasks>
+- Remove `src/testio_mcp/database/schema.py`
+- Refactor `PersistentCache` to use AsyncEngine
+- Run performance benchmarks (cold + warm cache)
+- Compare results to baseline from STORY-030
+- Document performance analysis in `docs/architecture/PERFORMANCE.md`
+- Verify all Epic 006 success criteria met
+- Test all migration downgrade functions
+- Verify Epic 005 prerequisites (Alembic head, no aiosqlite, performance)
+- Final code quality sweep (mypy, grep checks)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. [ ] `src/testio_mcp/database/schema.py` removed (replaced by Alembic) - **Already done in STORY-034A**
+2. [ ] `PersistentCache` refactored to use AsyncEngine and session factory exclusively (remove all 27 `aiosqlite.Connection` usages)
+3. [ ] All Epic 006 stories (030, 031, 032A/B/C, 033, 034A) complete and passing tests
+4. [ ] Performance validation against baseline (from STORY-030):
+   - `list_tests()` p95 < 20ms (20% regression tolerance)
+   - `list_products()` p95 < 15ms
+   - `list_tests --with-bugs` shows no N+1 query issues
+5. [ ] Performance results documented in `docs/architecture/PERFORMANCE.md`
+6. [ ] Code quality: `grep -r "aiosqlite.Connection" src/` returns empty
+7. [ ] All migration `downgrade()` functions tested
+8. [ ] Epic 006 Success Criteria (section 6) all met
+9. [ ] Epic 005 Prerequisites (Epic 005 lines 47-77) verified and documented
+10. [ ] Type checking passes: `mypy src/ --strict`
+
+**Additional Acceptance Criteria (from STORY-034A Post-Review Findings):**
+11. [ ] Database lock issue resolved (`test_get_test_status_with_real_api` passes without lock errors)
+12. [ ] Test suite hang resolved (full test suite completes without hanging after completion)
+13. [ ] All integration tests pass without database lock errors (remove temporary 30s timeout workaround)
+14. [ ] Temporary fixes from STORY-034A removed (AsyncEngine timeout, cache.close() commit workaround no longer needed)
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <!-- Epic and related stories provide full context for cleanup requirements -->
+      <doc path="docs/epics/epic-006-orm-refactor.md" title="Epic-006: ORM Refactor" section="Section 6: Success Criteria">
+        Lists all Epic 006 completion gates that must be verified: code quality (no aiosqlite.Connection), migration management (single head, downgrade tested), performance (p95 < 20ms tolerance), infrastructure (JSON1 verified), and documentation (PERFORMANCE.md with pre/post measurements).
+      </doc>
+      <doc path="docs/epics/epic-006-orm-refactor.md" title="Epic-006: ORM Refactor" section="Section 8: Post-Review Follow-ups (STORY-034A)">
+        Contains recommendations for STORY-034B from STORY-034A review: migration timeout consideration, cursor cleanup patterns, integration test coverage for failure scenarios, and index verification. Also includes Epic 005 migration testing template guidance.
+      </doc>
+      <doc path="docs/architecture/PERFORMANCE.md" title="Performance Guidelines" section="Benchmarks (Current Architecture)">
+        Documents pre-ORM baseline performance: list_products ~10ms avg, list_tests ~10-15ms avg for small datasets, ~25ms for 500 tests. Regression threshold: Post-ORM p95 must stay < 20ms (20% tolerance). Notes that baseline values are approximate observed latencies, not precise percentile measurements.
+      </doc>
+      <doc path="docs/stories/story-034a-baseline-migration-startup.md" title="STORY-034A: Baseline Migration & Startup" section="Tasks">
+        Documents baseline revision ID (0965ad59eafa) and temporary fixes applied: AsyncEngine timeout workaround for database locks, cache.close() commit workaround for test hangs. These temporary fixes should be removed in STORY-034B once root causes are resolved.
+      </doc>
+      <doc path="docs/architecture/TESTING.md" title="Testing Strategy" section="Test Levels & Organization">
+        Comprehensive testing guide covering test pyramid (50% unit, 35% integration, 15% E2E), behavioral testing principles (test outcomes not implementation), coverage targets (≥85% overall, ≥90% services), and anti-patterns to avoid (hardcoded magic numbers, testing framework behavior, over-mocking).
+      </doc>
+    </docs>
+    <code>
+      <!-- Core files to refactor -->
+      <artifact path="src/testio_mcp/database/cache.py" kind="database" symbol="PersistentCache" lines="1-176" reason="Primary refactor target - Must remove all 27 aiosqlite.Connection usages and refactor to use AsyncEngine and session factory exclusively. Currently uses self.db: aiosqlite.Connection | None and _db property for connection management."/>
+      <artifact path="src/testio_mcp/database/engine.py" kind="infrastructure" symbol="create_async_engine, get_async_session" lines="all" reason="Provides AsyncEngine and async_session_maker infrastructure that PersistentCache should use instead of raw aiosqlite connections. Already implemented in STORY-030."/>
+
+      <!-- Migration files for downgrade testing -->
+      <artifact path="alembic/versions/0965ad59eafa_baseline_existing_schema.py" kind="migration" symbol="upgrade, downgrade" lines="all" reason="Baseline migration - Must test downgrade() function as part of AC7. This is the Epic 006 baseline that Epic 005 will chain from."/>
+
+      <!-- Performance benchmarking scripts -->
+      <artifact path="scripts/benchmark_list_products.py" kind="script" symbol="all" lines="all" reason="Performance benchmark script for list_products. Use to validate AC4 performance targets (p95 < 15ms)."/>
+
+      <!-- Repository pattern - should already be using AsyncSession -->
+      <artifact path="src/testio_mcp/repositories/base_repository.py" kind="repository" symbol="BaseRepository" lines="all" reason="Verify all repositories use AsyncSession (not aiosqlite.Connection). This was refactored in STORY-032A and should NOT need changes."/>
+      <artifact path="src/testio_mcp/repositories/test_repository.py" kind="repository" symbol="TestRepository" lines="all" reason="Verify using AsyncSession from STORY-032B. Should be ORM-based already."/>
+
+      <!-- Files that should no longer exist -->
+      <artifact path="src/testio_mcp/database/schema.py" kind="legacy" symbol="all" lines="all" reason="AC1: This file should be removed as it's replaced by Alembic migrations. Already done in STORY-034A according to AC1 note, but verify deletion."/>
+    </code>
+    <dependencies>
+      <python>
+        <!-- ORM and Migration Stack (Epic 006 dependencies) -->
+        <package name="sqlmodel" version="^0.0.16" reason="SQLAlchemy + Pydantic ORM, core dependency for ORM refactor"/>
+        <package name="alembic" version="^1.13.1" reason="Database migration framework, manages schema versioning"/>
+        <package name="greenlet" version="^3.0.3" reason="Required by SQLAlchemy for async support"/>
+
+        <!-- Async Database -->
+        <package name="aiosqlite" version="^0.19.0" reason="Async SQLite adapter - SHOULD BE REMOVED from PersistentCache (replaced by AsyncEngine)"/>
+
+        <!-- Testing Stack -->
+        <package name="pytest" version="^8.0.0" reason="Test framework for validation"/>
+        <package name="pytest-asyncio" version="^0.23.0" reason="Async test support"/>
+        <package name="pytest-cov" version="^4.1.0" reason="Coverage measurement (AC10: ensure ≥85%)"/>
+
+        <!-- Type Checking -->
+        <package name="mypy" version="^1.8.0" reason="AC10: mypy --strict must pass"/>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <!-- Epic 006 Completion Gates (Section 6) -->
+    <constraint type="code-quality">
+      NO raw aiosqlite.Connection usage anywhere in src/ - grep -r "aiosqlite.Connection" src/ must return empty (AC6)
+    </constraint>
+    <constraint type="migration-management">
+      alembic heads must return exactly ONE migration head (no branching) - required for Epic 005 to begin safely
+    </constraint>
+    <constraint type="migration-testing">
+      ALL migration downgrade() functions must be tested via alembic downgrade -1 (AC7) - ensures rollback safety
+    </constraint>
+    <constraint type="performance-regression">
+      Post-ORM p95 latency must stay under 20ms threshold (20% tolerance from ~10-15ms baseline). list_tests() p95 &lt; 20ms, list_products() p95 &lt; 15ms (AC4).
+    </constraint>
+    <constraint type="infrastructure">
+      SQLite JSON1 extension must be verified available (from STORY-034A) - Epic 006 dependency
+    </constraint>
+    <constraint type="documentation">
+      PERFORMANCE.md must include: pre-ORM baseline, post-ORM measurements, regression analysis, benchmark methodology (AC5)
+    </constraint>
+    <constraint type="type-safety">
+      mypy src/ --strict must pass with zero errors (AC10) - enforces strict type checking across refactored code
+    </constraint>
+    <constraint type="test-stability">
+      AC11-14: All integration tests must pass without database lock errors, test suite must not hang, temporary workarounds from STORY-034A must be removed (AsyncEngine timeout, cache.close() commit)
+    </constraint>
+    <constraint type="epic-gate">
+      Epic 005 cannot begin until ALL Epic 006 success criteria (section 6) are met - this story is the final gate
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <!-- AsyncEngine and Session Factory (from STORY-030) -->
+    <interface name="create_async_engine" kind="function" signature="def create_async_engine(db_path: str) -&gt; AsyncEngine" path="src/testio_mcp/database/engine.py">
+      Factory function that creates async SQLAlchemy engine for SQLite. PersistentCache should use this instead of aiosqlite.connect(). Returns configured AsyncEngine with echo=False.
+    </interface>
+    <interface name="get_async_session" kind="async-context-manager" signature="async def get_async_session(engine: AsyncEngine) -&gt; AsyncGenerator[AsyncSession, None]" path="src/testio_mcp/database/engine.py">
+      Async context manager providing AsyncSession instances. Use with "async with get_async_session(engine) as session:" for database operations. Handles commit/rollback automatically.
+    </interface>
+
+    <!-- Repository Pattern (from STORY-032A/B/C) -->
+    <interface name="BaseRepository" kind="class" signature="class BaseRepository(session: AsyncSession, client: TestIOClient, customer_id: int)" path="src/testio_mcp/repositories/base_repository.py">
+      Base class for all ORM repositories. Provides shared session management and customer_id isolation. All repositories (TestRepository, ProductRepository, BugRepository) inherit from this.
+    </interface>
+
+    <!-- Alembic Migration Commands -->
+    <interface name="alembic upgrade" kind="cli-command" signature="alembic upgrade head">
+      Runs all pending migrations to bring database to latest schema. Used by server startup (STORY-034A lifespan handler).
+    </interface>
+    <interface name="alembic downgrade" kind="cli-command" signature="alembic downgrade -1">
+      Rolls back one migration. AC7 requires testing all downgrade() functions to ensure rollback safety.
+    </interface>
+    <interface name="alembic heads" kind="cli-command" signature="alembic heads">
+      Shows current migration head(s). Must return exactly ONE head (no branching) per Epic 006 success criteria.
+    </interface>
+
+    <!-- Performance Benchmarking -->
+    <interface name="benchmark_list_products" kind="script" signature="python scripts/benchmark_list_products.py">
+      Runs performance benchmark for list_products() operation. Measures p50/p95/p99 latencies. Use for AC4 validation.
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Test Pyramid: 50% unit (fast, mocked), 35% integration (real API), 15% E2E (full MCP protocol). Coverage targets: ≥85% overall, ≥90% for services. Behavioral testing: Assert on outcomes and behaviors, not implementation details. Avoid hardcoded magic numbers, test framework behavior, over-mocking, testing internal calls. Use Arrange-Act-Assert pattern. See docs/architecture/TESTING.md for comprehensive guide.
+    </standards>
+    <locations>
+      <dir>tests/unit/</dir> <!-- Fast unit tests, mocked dependencies -->
+      <dir>tests/services/</dir> <!-- Service layer tests with mock client/cache -->
+      <dir>tests/integration/</dir> <!-- Real API integration tests -->
+      <dir>tests/e2e/</dir> <!-- Full MCP protocol tests -->
+      <file>tests/unit/test_persistent_cache.py</file> <!-- PersistentCache tests - WILL NEED UPDATES -->
+      <file>tests/unit/test_engine.py</file> <!-- AsyncEngine tests from STORY-030 -->
+    </locations>
+    <ideas>
+      <!-- AC2: PersistentCache AsyncEngine Refactor -->
+      <idea ac="2" test="test_persistent_cache_uses_async_engine">
+        Unit test: Verify PersistentCache.initialize() creates AsyncEngine (not aiosqlite.Connection). Mock create_async_engine(), assert it's called with correct db_path.
+      </idea>
+      <idea ac="2" test="test_persistent_cache_no_raw_connection">
+        Unit test: Verify PersistentCache has NO _db property or self.db aiosqlite.Connection attribute. Use hasattr() checks.
+      </idea>
+
+      <!-- AC4: Performance Regression Testing -->
+      <idea ac="4" test="test_list_tests_performance_meets_baseline">
+        Integration test: Run list_tests() 100 times, measure p95 latency, assert p95 &lt; 20ms. Compare to baseline from PERFORMANCE.md.
+      </idea>
+      <idea ac="4" test="test_list_products_performance_meets_baseline">
+        Integration test: Run list_products() 100 times, measure p95 latency, assert p95 &lt; 15ms.
+      </idea>
+      <idea ac="4" test="test_list_tests_with_bugs_no_n_plus_one">
+        Integration test: Call list_tests(with_bugs=True), count SQL queries, assert no N+1 pattern (shouldn't be more than 2 queries: tests + bugs).
+      </idea>
+
+      <!-- AC6: Code Quality Validation -->
+      <idea ac="6" test="test_no_aiosqlite_usage_in_src">
+        Unit test: Run grep -r "aiosqlite.Connection" src/ via subprocess, assert output is empty string.
+      </idea>
+
+      <!-- AC7: Migration Downgrade Testing -->
+      <idea ac="7" test="test_baseline_migration_downgrade">
+        Integration test: Run alembic downgrade -1 on baseline migration, verify database schema rolls back correctly, then upgrade head to restore.
+      </idea>
+
+      <!-- AC10: Type Checking -->
+      <idea ac="10" test="test_mypy_strict_passes">
+        Unit test: Run mypy src/ --strict via subprocess, assert exit code 0 (no errors).
+      </idea>
+
+      <!-- AC11-14: Stability and Cleanup -->
+      <idea ac="11-14" test="test_integration_tests_pass_without_lock_errors">
+        Meta-test: Run full integration suite, assert no database lock errors in output, assert suite doesn't hang.
+      </idea>
+      <idea ac="11-14" test="test_temporary_workarounds_removed">
+        Code inspection test: Verify AsyncEngine timeout workaround removed from engine.py, verify cache.close() commit workaround removed from cache.py.
+      </idea>
+    </ideas>
+  </tests>
+</story-context>

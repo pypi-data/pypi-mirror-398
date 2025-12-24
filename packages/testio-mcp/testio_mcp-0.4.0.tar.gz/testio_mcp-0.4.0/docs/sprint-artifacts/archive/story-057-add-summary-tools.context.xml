@@ -1,0 +1,232 @@
+<story-context id="testio-mcp/docs/sprint-artifacts/story-057-add-summary-tools.context.xml" v="1.0">
+  <metadata>
+    <epicId>008</epicId>
+    <storyId>057</storyId>
+    <title>Add Summary Tools</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28T13:30:00Z</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-057-add-summary-tools.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>an AI agent exploring data</asA>
+    <iWant>summary tools for each entity type</iWant>
+    <soThat>I can get comprehensive details about a single product, feature, or user</soThat>
+    <tasks>
+- [ ] Task 1: Implement Product Summary (AC1, AC5)
+  - [ ] Update `ProductRepository` to support summary counts
+  - [ ] Add `get_product_summary` to `ProductService`
+  - [ ] Create `get_product_summary` tool
+  - [ ] Unit tests for service and repository methods
+
+- [ ] Task 2: Implement Feature Summary (AC2, AC5)
+  - [ ] Update `FeatureRepository` to support summary counts
+  - [ ] Add `get_feature_summary` to `FeatureService`
+  - [ ] Create `get_feature_summary` tool
+  - [ ] Unit tests for service and repository methods
+
+- [ ] Task 3: Implement User Summary (AC3, AC5)
+  - [ ] Update `UserRepository` to support summary counts
+  - [ ] Add `get_user_summary` to `UserService`
+  - [ ] Create `get_user_summary` tool
+  - [ ] Unit tests for service and repository methods
+
+- [ ] Task 4: Enhance Test Summary (AC4, AC5)
+  - [ ] Update `TestRepository` to support quality metrics
+  - [ ] Update `TestService.get_test_summary`
+  - [ ] Update `get_test_summary` tool schema
+  - [ ] Unit tests for new metrics and fields
+
+- [ ] Task 5: Integration Testing (AC7)
+  - [ ] Verify all summary tools return correct structure
+  - [ ] Verify `data_as_of` timestamps
+  - [ ] Verify computed counts match database state
+
+- [ ] Task 6: Token Measurement (AC8)
+  - [ ] Run `scripts/measure_tool_tokens.py`
+  - [ ] Verify targets met (~500-600 tokens)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. [ ] Create `get_product_summary` tool
+   - Input: `product_id: int`
+   - Output:
+     - Product metadata (id, title, type, description)
+     - `test_count` (computed)
+     - `bug_count` (computed)
+     - `feature_count` (computed)
+     - `last_synced` timestamp
+     - **Excluded:** Recent activity (prevents context bloat)
+
+2. [ ] Create `get_feature_summary` tool
+   - Input: `feature_id: int`
+   - Output:
+     - Feature metadata (id, title, description, howtofind)
+     - User stories (embedded)
+     - `test_count` (computed via test_features)
+     - `bug_count` (computed via bugs.test_feature_id)
+     - Associated product info
+     - **Excluded:** Recent bugs (prevents context bloat)
+
+3. [ ] Create `get_user_summary` tool
+   - Input: `user_id: int`
+   - Output:
+     - User metadata (id, username, type)
+     - For customers:
+       - `tests_created_count`
+       - `tests_submitted_count`
+       - `last_activity` (most recent test created/submitted)
+     - For testers:
+       - `bugs_reported_count`
+       - `last_activity` (most recent bug reported)
+     - **Excluded:** Recent activity (prevents context bloat)
+
+4. [ ] Enhance `get_test_summary` (renamed from `get_test_status`)
+   - Add quality metrics:
+     - `bug_count`
+     - `bugs_by_severity` (critical, high, medium, low)
+     - `acceptance_rate` (if bugs exist)
+   - Keep existing fields (test metadata, activity, assignments)
+   - Add new rich text fields (from Story 054):
+     - `goal`
+     - `instructions`
+     - `out_of_scope`
+   - Add configuration flags:
+     - `enable_low`, `enable_high`, `enable_critical`
+     - `testing_type`
+
+5. [ ] Service layer: Extend existing services (Domain-Driven Design)
+   - `ProductService.get_product_summary()`
+   - `FeatureService.get_feature_summary()`
+   - `UserService.get_user_summary()`
+   - `TestService.get_test_summary()` (extend existing)
+   - **Decision:** Do NOT create a monolithic `SummaryService` to avoid high coupling.
+
+6. [ ] Unit tests for all summary methods
+
+7. [ ] Integration tests for summary tools
+
+8. [ ] Schema tokens measured (target: ~500-600 tokens each)
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-008-mcp-layer-optimization.md</path>
+        <title>Epic-008: MCP Layer Optimization</title>
+        <section>Story-057: Add Summary Tools</section>
+        <snippet>
+          Goal: Optimize the MCP tool layer for token efficiency, consistency, and usability while adding REST API parity for all tools.
+          Story 057 focuses on creating summary tools for each entity type (Product, Feature, User) and enhancing Test Summary.
+        </snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-008-mcp-layer-optimization.md</path>
+        <title>Epic Technical Specification: MCP Layer Optimization</title>
+        <section>Detailed Design</section>
+        <snippet>
+          New/Renamed MCP Tools: get_test_summary, get_product_summary, get_feature_summary, get_user_summary.
+          Service Layer: New methods added to TestService, ProductService, and UserService.
+          Cache Strategy: get_test_summary is API-first; others are SQLite-only.
+        </snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>TestIO MCP Server - System Architecture</title>
+        <section>Component Architecture</section>
+        <snippet>
+          Service Layer Pattern: Stateless services with constructor-injected dependencies.
+          SQLite-First Architecture: Fast queries (~10ms), persistent data, hybrid freshness.
+        </snippet>
+      </doc>
+    </docs>
+    <code>
+      <item>
+        <path>src/testio_mcp/services/test_service.py</path>
+        <kind>service</kind>
+        <symbol>TestService</symbol>
+        <reason>Existing service to be enhanced with new summary fields and metrics.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/tools/test_summary_tool.py</path>
+        <kind>tool</kind>
+        <symbol>get_test_summary</symbol>
+        <reason>Existing tool to be enhanced with new fields and configuration flags.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>TestRepository</symbol>
+        <reason>Repository to update for supporting quality metrics and new fields.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/services/product_service.py</path>
+        <kind>service</kind>
+        <symbol>ProductService</symbol>
+        <reason>Service to extend with get_product_summary.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/services/feature_service.py</path>
+        <kind>service</kind>
+        <symbol>FeatureService</symbol>
+        <reason>Service to extend with get_feature_summary.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/services/user_service.py</path>
+        <kind>service</kind>
+        <symbol>UserService</symbol>
+        <reason>Service to extend with get_user_summary.</reason>
+      </item>
+    </code>
+    <dependencies>
+      <ecosystem name="python">
+        <package>pydantic</package>
+        <package>fastmcp</package>
+        <package>sqlmodel</package>
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Do NOT create a monolithic SummaryService to avoid high coupling.</constraint>
+    <constraint>Use session.exec() for ORM queries (learned from Story 056).</constraint>
+    <constraint>Strict type safety with Pydantic models.</constraint>
+    <constraint>Cache Strategy: get_test_summary is API-first; others are SQLite-only.</constraint>
+    <constraint>All summary tools must include top-level data_as_of timestamp.</constraint>
+    <constraint>Only compute subqueries when needed (optimization).</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>TestService.get_test_summary</name>
+      <kind>method</kind>
+      <signature>async def get_test_summary(self, test_id: int) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/services/test_service.py</path>
+    </interface>
+    <interface>
+      <name>TestRepository.get_test_status</name>
+      <kind>method</kind>
+      <signature>async def get_test_status(self, test_id: int) -> str | None</signature>
+      <path>src/testio_mcp/repositories/test_repository.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Unit tests for all new service methods. Integration tests for tool contracts. Behavioral testing (validate output structure).
+    </standards>
+    <locations>
+      <location>tests/unit</location>
+      <location>tests/integration</location>
+    </locations>
+    <ideas>
+      <idea>Verify get_product_summary returns correct counts (test, bug, feature).</idea>
+      <idea>Verify get_feature_summary excludes recent bugs to prevent bloat.</idea>
+      <idea>Verify get_user_summary returns correct activity metrics for customers vs testers.</idea>
+      <idea>Verify get_test_summary includes new rich text fields and quality metrics.</idea>
+      <idea>Verify data_as_of timestamp is present in all summary responses.</idea>
+    </ideas>
+  </tests>
+</story-context>

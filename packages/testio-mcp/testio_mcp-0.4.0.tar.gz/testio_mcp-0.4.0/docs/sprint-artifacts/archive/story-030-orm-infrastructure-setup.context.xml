@@ -1,0 +1,127 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-006</epicId>
+    <storyId>STORY-030</storyId>
+    <title>ORM Infrastructure Setup</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-22</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-030-orm-infrastructure-setup.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer working on the MCP server</asA>
+    <iWant>async SQLAlchemy engine and Alembic migration infrastructure configured</iWant>
+    <soThat>I can use SQLModel for type-safe database operations and versioned schema management</soThat>
+    <tasks>
+      - Add dependencies to `pyproject.toml`
+      - Create `src/testio_mcp/database/engine.py` with async engine factory
+      - Update `PersistentCache.initialize()` for dual-mode operation
+      - Initialize Alembic and configure for async SQLite
+      - Create test fixtures and update repository test setup
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. Dependencies added to `pyproject.toml`: `sqlmodel`, `alembic`, `greenlet`
+    2. `src/testio_mcp/database/engine.py` created with `create_async_engine()` and `async_session_maker`
+    3. `PersistentCache.initialize()` creates AsyncEngine alongside existing connection
+    4. Alembic initialized: `alembic init alembic` executed, `env.py` configured for async
+    5. Test fixtures in `tests/conftest.py` provide AsyncSession mocks
+    6. All repository tests updated to use AsyncSession (not aiosqlite.Connection)
+    7. `alembic upgrade head` runs without errors on clean database
+    8. Type checking passes: `mypy src/testio_mcp/database/engine.py --strict`
+    9. **Performance baseline documented in `docs/architecture/PERFORMANCE.md`**
+    10. **Baseline includes p50/p95/p99 for `list_tests` and `list_products` (cold + warm cache)**
+    11. **Pre-flight checklist status fields (section 3) marked complete in this epic file**
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      - path: docs/epics/epic-006-orm-refactor.md
+        title: Epic-006: ORM Refactor (SQLModel + Alembic)
+        section: 1. Overview, 3. Pre-Flight Checklist, STORY-030
+        snippet: Goal: Transition the testio-mcp server's data access layer from raw SQL to a modern ORM stack using SQLModel and Alembic.
+      - path: docs/architecture/ARCHITECTURE.md
+        title: System Architecture
+        section: Local Data Store Strategy
+        snippet: SQLite database with repository pattern for data access. PersistentCache manages SQLite connection and schema.
+      - path: docs/architecture/TECH-STACK.md
+        title: Technology Stack
+        section: Data Storage
+        snippet: SQLite (via aiosqlite) used for local persistent data store.
+      - path: docs/architecture/TESTING.md
+        title: Testing Guide
+        section: Fixtures & Test Data
+        snippet: Common fixtures defined in conftest.py including mock_persistent_cache.
+      - path: docs/architecture/PERFORMANCE.md
+        title: Performance Guide
+        section: Benchmarks
+        snippet: Performance baseline requirements and measurement methodology.
+    </docs>
+    <code>
+      - path: pyproject.toml
+        kind: config
+        symbol: dependencies
+        reason: Need to add sqlmodel, alembic, and greenlet dependencies.
+      - path: src/testio_mcp/database/cache.py
+        kind: class
+        symbol: PersistentCache
+        reason: Needs update to initialize AsyncEngine alongside existing aiosqlite connection.
+      - path: src/testio_mcp/database/schema.py
+        kind: module
+        symbol: schema definitions
+        reason: Reference for existing schema to be mirrored in ORM models (future story) and migrations.
+      - path: tests/conftest.py
+        kind: file
+        symbol: fixtures
+        reason: Need to add AsyncSession mocks for testing.
+    </code>
+    <dependencies>
+      - python: sqlmodel (new)
+      - python: alembic (new)
+      - python: greenlet (new)
+      - python: aiosqlite (existing)
+      - python: pydantic (existing)
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - Must use AsyncEngine and AsyncSession for non-blocking database access.
+    - Must maintain performance baseline (p95 &lt; 20ms) for critical queries.
+    - Must support dual-mode operation (raw SQL + ORM) during the transition period.
+    - Strict type checking required (mypy --strict).
+    - Alembic must be configured for async SQLite (using aiosqlite driver).
+  </constraints>
+
+  <interfaces>
+    - name: AsyncSession
+      kind: Class Interface
+      signature: sqlalchemy.ext.asyncio.AsyncSession
+      path: sqlalchemy/ext/asyncio/session.py
+    - name: PersistentCache.initialize
+      kind: Method
+      signature: async def initialize(self) -> None
+      path: src/testio_mcp/database/cache.py
+  </interfaces>
+
+  <tests>
+    <standards>
+      - Unit tests must be fast (&lt;1ms) and use mocks.
+      - Integration tests verify real database interactions.
+      - Performance tests must validate against baseline metrics.
+      - 100% coverage required for new infrastructure code.
+    </standards>
+    <locations>
+      - tests/unit/test_engine.py (new)
+      - tests/integration/test_migrations.py (new)
+      - tests/conftest.py (updated)
+    </locations>
+    <ideas>
+      - Test AsyncEngine creation and connection.
+      - Test Alembic migration generation and application (upgrade/downgrade).
+      - Test AsyncSession fixture behavior.
+      - Benchmark list_tests and list_products before and after changes.
+    </ideas>
+  </tests>
+</story-context>

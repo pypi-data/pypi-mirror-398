@@ -1,0 +1,426 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-005</epicId>
+    <storyId>STORY-038</storyId>
+    <title>Feature Sync Integration</title>
+    <status>todo</status>
+    <generatedAt>2025-11-24</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-038-feature-sync-integration.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer validating Epic-005 deliverables</asA>
+    <iWant>features automatically synced via background refresh, CLI sync, and on-demand tool calls</iWant>
+    <soThat>MCP tools return populated data and catalog visibility is achieved</soThat>
+    <tasks>
+## Tasks
+
+### Task 1: ORM Models + Migrations
+- [ ] Add `features_synced_at` to Product ORM (AC1)
+- [ ] Add `features_refreshed` to SyncEvent ORM (AC2)
+- [ ] Generate Alembic migrations (AC3)
+- [ ] Apply migrations to development database
+
+**Estimated Effort:** 30 minutes
+
+### Task 2: Repository Layer
+- [ ] Implement `ProductRepository.get_product()` (AC5)
+- [ ] Implement `ProductRepository.update_features_last_synced()` (AC6)
+- [ ] Implement shared `_is_features_stale()` helper (AC7)
+
+**Estimated Effort:** 1 hour
+
+### Task 3: Background Sync Implementation
+- [ ] Implement `PersistentCache.refresh_features()` (AC8)
+- [ ] Extract `_run_background_refresh_cycle()` single-execution helper (AC9)
+- [ ] Update `run_background_refresh()` to call helper (AC10)
+- [ ] Update `log_sync_event_complete()` signature (AC11)
+
+**Estimated Effort:** 2 hours
+
+### Task 4: CLI Sync Integration
+- [ ] Add Phase 3 (features) to CLI sync command (AC12)
+- [ ] Update sync event logging
+
+**Estimated Effort:** 45 minutes
+
+### Task 5: Tool Integration
+- [ ] Update `list_features` tool (AC13)
+- [ ] Update `list_user_stories` tool (AC14)
+- [ ] Test tools via MCP Inspector
+
+**Estimated Effort:** 1 hour
+
+### Task 6: REST API Integration
+- [ ] Update both REST endpoints (AC15)
+- [ ] Test with curl/httpie
+- [ ] Verify Swagger docs
+
+**Estimated Effort:** 45 minutes
+
+### Task 7: Unit Tests
+- [ ] Create `tests/unit/test_cache_feature_staleness.py` (AC16)
+- [ ] Test staleness helper with freezegun
+- [ ] Test refresh_features method
+- [ ] Achieve >95% coverage
+
+**Estimated Effort:** 1.5 hours
+
+### Task 8: Integration Tests
+- [ ] Create `tests/integration/test_background_sync_features.py` (AC17)
+- [ ] Create `tests/integration/test_tool_staleness_features.py` (AC18)
+- [ ] Test with real API (product 21362)
+
+**Estimated Effort:** 1.5 hours
+
+### Task 9: Validation
+- [ ] Run background sync, verify logs show feature refresh
+- [ ] Run CLI sync, verify features refreshed
+- [ ] Call `list_features` tool via MCP Inspector
+- [ ] Test `force_refresh_features` parameter
+- [ ] Verify Epic-005 goals achieved (features table populated)
+
+**Estimated Effort:** 30 minutes
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+### AC1: Product ORM Model - Add `features_synced_at` Field
+**File:** `src/testio_mcp/models/orm/product.py`
+
+Add nullable datetime field to track last feature sync timestamp for staleness checks.
+
+### AC2: SyncEvent ORM Model - Add `features_refreshed` Field
+**File:** `src/testio_mcp/models/orm/sync_event.py`
+
+Add integer field to track feature sync counts for observability.
+
+### AC3: Database Migrations - Generate Alembic Migrations
+**Files:** New Alembic migrations (auto-generated from ORM changes)
+
+Generate and apply migrations for AC1 and AC2 schema changes.
+
+### AC4: Configuration - Add `FEATURE_CACHE_TTL_SECONDS`
+**File:** `src/testio_mcp/config.py`
+
+Add configurable TTL (default 3600s/1 hour) for feature staleness threshold.
+
+### AC5: ProductRepository - Add `get_product()` Method
+**File:** `src/testio_mcp/repositories/product_repository.py`
+
+Return ORM instance (not dict) for staleness checks needing `features_synced_at` attribute.
+
+### AC6: ProductRepository - Add `update_features_last_synced()` Method
+**File:** `src/testio_mcp/repositories/product_repository.py`
+
+Update `products.features_synced_at` timestamp after successful sync.
+
+### AC7: Shared Staleness Helper - `_is_features_stale()`
+**File:** `src/testio_mcp/database/cache.py`
+
+DRY helper for staleness logic reused across refresh, tools, and API endpoints.
+
+### AC8: Background Sync - Implement `refresh_features()` Method
+**File:** `src/testio_mcp/database/cache.py`
+
+Check staleness, refresh from API if > TTL or NULL, update timestamp.
+
+### AC9: Background Sync - Extract Single-Cycle Helper
+**File:** `src/testio_mcp/database/cache.py`
+
+Extract `_run_background_refresh_cycle()` for testable single-execution (not infinite loop).
+
+### AC10: Background Sync - Update Long-Running Loop
+**File:** `src/testio_mcp/database/cache.py`
+
+Refactor `run_background_refresh()` to call single-cycle helper, maintain behavior.
+
+### AC11: Sync Logging - Update `log_sync_event_complete()`
+**File:** `src/testio_mcp/database/cache.py`
+
+Add `features_refreshed` parameter to sync event logging.
+
+### AC12: CLI Sync - Integrate Feature Refresh
+**File:** `src/testio_mcp/database/cache.py`
+
+Add Phase 3 (features) to CLI sync command, matching background behavior.
+
+### AC13: Tool Integration - Update `list_features` with Staleness Check
+**File:** `src/testio_mcp/tools/list_features_tool.py`
+
+Add `force_refresh_features` parameter, check staleness, refresh if needed.
+
+### AC14: Tool Integration - Update `list_user_stories` with Staleness Check
+**File:** `src/testio_mcp/tools/list_user_stories_tool.py`
+
+Check `features_synced_at` (user stories embedded in features per ADR-013).
+
+### AC15: REST Endpoint Integration
+**File:** `src/testio_mcp/api.py`
+
+Update both endpoints with `force_refresh_features` query parameter.
+
+### AC16: Unit Tests - Staleness Logic
+**File:** `tests/unit/test_cache_feature_staleness.py`
+
+Test staleness scenarios: fresh, stale, NULL, boundary cases with freezegun.
+
+### AC17: Integration Tests - Background Sync
+**File:** `tests/integration/test_background_sync_features.py`
+
+Test `_run_background_refresh_cycle()` with real API, verify Phase 3 execution.
+
+### AC18: Integration Tests - Tool Staleness
+**File:** `tests/integration/test_tool_staleness_features.py`
+
+Test cache hit (fresh), cache miss (stale), `force_refresh_features` bypass.
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <!-- Documentation References -->
+      <doc>
+        <path>docs/epics/epic-005-data-enhancement-and-serving.md</path>
+        <title>Epic 005: Data Enhancement and Serving</title>
+        <section>Overview & Scope</section>
+        <snippet>Add Features and User Stories as first-class entities. Prerequisites: Epic 006 complete, Alembic baseline established. Strategy: Catalog-First approach with section-aware sync.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/adrs/ADR-015-feature-staleness-and-sync-strategy.md</path>
+        <title>ADR-015: Feature Staleness and Sync Strategy</title>
+        <section>Decision & Rationale</section>
+        <snippet>Use staleness-based refresh with 1-hour TTL following bug caching pattern. Background sync Phase 3 refreshes features if stale. Tool calls check staleness with force_refresh bypass.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/adrs/ADR-013-user-story-embedding-strategy.md</path>
+        <title>ADR-013: User Story Embedding Strategy</title>
+        <section>Decision</section>
+        <snippet>User stories embedded as JSON in features.user_stories_text (not normalized table). Refresh features = refresh user stories (atomic).</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-024-intelligent-bug-caching.md</path>
+        <title>STORY-024: Intelligent Bug Caching</title>
+        <section>Pattern Precedent</section>
+        <snippet>Staleness pattern with per-entity timestamp (tests.bugs_synced_at), configurable TTL (BUG_CACHE_TTL_SECONDS=3600), refresh only if stale.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/story-038-sprint-change-proposal-2025-11-24.md</path>
+        <title>Sprint Change Proposal: STORY-038</title>
+        <section>Context & Rationale</section>
+        <snippet>Correct Course workflow discovery: Sync orchestration gap in Epic-005. FeatureRepository exists but never called during refresh cycles.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/story-038-peer-review-2025-11-24.md</path>
+        <title>STORY-038 Peer Review Findings</title>
+        <section>Implementation Feedback</section>
+        <snippet>Peer review validation of staleness pattern, DRY helper extraction, testability concerns (infinite loop vs single-cycle helper).</snippet>
+      </doc>
+    </docs>
+    <code>
+      <!-- Existing Code References -->
+      <file>
+        <path>src/testio_mcp/models/orm/product.py</path>
+        <kind>model</kind>
+        <symbol>Product</symbol>
+        <lines>16-39</lines>
+        <reason>Product ORM model - needs features_synced_at field (AC1)</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/models/orm/sync_event.py</path>
+        <kind>model</kind>
+        <symbol>SyncEvent</symbol>
+        <lines>1-50</lines>
+        <reason>SyncEvent ORM model - needs features_refreshed field (AC2)</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/config.py</path>
+        <kind>config</kind>
+        <symbol>Settings</symbol>
+        <lines>1-100</lines>
+        <reason>Settings class - needs FEATURE_CACHE_TTL_SECONDS field (AC4)</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/repositories/product_repository.py</path>
+        <kind>repository</kind>
+        <symbol>ProductRepository</symbol>
+        <lines>1-200</lines>
+        <reason>Product repository - needs get_product() and update_features_last_synced() methods (AC5, AC6)</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/repositories/feature_repository.py</path>
+        <kind>repository</kind>
+        <symbol>FeatureRepository</symbol>
+        <lines>63-97</lines>
+        <reason>Feature repository - has sync_features() method that refresh_features() will call (AC8)</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/database/cache.py</path>
+        <kind>cache</kind>
+        <symbol>PersistentCache</symbol>
+        <lines>1-1000</lines>
+        <reason>Cache layer - needs refresh_features(), _run_background_refresh_cycle(), staleness helper (AC7-AC11)</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/tools/list_features_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_features</symbol>
+        <lines>1-100</lines>
+        <reason>MCP tool - needs force_refresh_features parameter and staleness check (AC13)</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/tools/list_user_stories_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_user_stories</symbol>
+        <lines>1-100</lines>
+        <reason>MCP tool - needs force_refresh_features parameter (user stories embedded in features) (AC14)</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/api.py</path>
+        <kind>api</kind>
+        <symbol>get_product_features, get_product_user_stories</symbol>
+        <lines>1-200</lines>
+        <reason>REST endpoints - need force_refresh_features query parameter (AC15)</reason>
+      </file>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version="^0.0.14">ORM with AsyncSession</package>
+        <package name="alembic" version="^1.12.0">Database migrations</package>
+        <package name="pydantic" version="^2.5.0">Settings validation</package>
+        <package name="pytest" version="^7.4.3">Unit testing</package>
+        <package name="freezegun" version="^1.2.2">Time mocking for staleness tests</package>
+        <package name="fastmcp" version="latest">MCP server framework</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+- **Service Layer Architecture:** Business logic in services, thin MCP tool wrappers (ADR-011)
+- **SQLModel Query Pattern:** Use `session.exec().first()` for ORM models, NOT `session.execute().one_or_none()` (Epic 006 lesson)
+- **DRY Principle:** Extract staleness logic to `_is_features_stale()` helper, reuse across 5 locations (refresh, tools, endpoints)
+- **Testability:** Background refresh must have single-execution helper `_run_background_refresh_cycle()` for unit tests (not infinite loop)
+- **Migration Chain:** MUST chain from Epic 006 baseline (`0965ad59eafa`), verify single head before generating
+- **Staleness Pattern Consistency:** Follow STORY-024 precedent (per-entity timestamp, configurable TTL, skip if fresh)
+- **Error Isolation:** Per-product try-catch in Phase 3 loop, continue on failure (don't cascade)
+- **Observability:** Log staleness decisions (fresh/stale), sync counts, and skip reasons
+- **Type Safety:** Strict mypy compliance (`mypy --strict`), no `type: ignore` without justification
+- **Resource Cleanup:** Use `async with get_service_context()` for MCP tools, always close sessions
+- **API Efficiency:** Check staleness BEFORE API call (cache hit optimization)
+- **User Control:** `force_refresh_features=True` bypasses staleness (cache busting)
+  </constraints>
+
+  <interfaces>
+## Key Interfaces
+
+### Repository Interface (ProductRepository)
+```python
+async def get_product(self, product_id: int) -> Product | None:
+    """Get product ORM instance by ID (for staleness checks)."""
+
+async def update_features_last_synced(
+    self, product_id: int, synced_at: datetime | None = None
+) -> None:
+    """Update features_synced_at timestamp."""
+```
+
+### Repository Interface (FeatureRepository)
+```python
+async def sync_features(self, product_id: int) -> dict[str, int]:
+    """Sync features for product (section-aware)."""
+    # Returns: {"created": int, "updated": int, "total": int}
+```
+
+### Cache Interface (PersistentCache)
+```python
+def _is_features_stale(
+    self, product: Product | None, settings: Settings
+) -> bool:
+    """Check if product features are stale (> TTL or NULL)."""
+
+async def refresh_features(self, product_id: int) -> dict[str, Any]:
+    """Refresh features if stale."""
+    # Returns: {"created": int, "updated": int, "total": int, "skipped": bool}
+
+async def _run_background_refresh_cycle(
+    self, since: datetime | None = None
+) -> dict[str, Any]:
+    """Execute single background refresh cycle (testable helper)."""
+    # Returns: {"products_synced": int, "tests_discovered": int,
+    #           "tests_refreshed": int, "features_refreshed": int, "errors": list}
+
+async def log_sync_event_complete(
+    self, event_id: int, products_synced: int, tests_discovered: int,
+    tests_refreshed: int, features_refreshed: int, duration_seconds: float
+) -> None:
+    """Mark sync event complete with feature stats."""
+```
+
+### MCP Tool Interface
+```python
+@mcp.tool()
+async def list_features(
+    product_id: int,
+    section_id: Optional[int] = None,
+    force_refresh_features: bool = False,  # NEW parameter
+    ctx: Context = None,
+) -> dict:
+    """List features for product with staleness check."""
+
+@mcp.tool()
+async def list_user_stories(
+    product_id: int,
+    feature_id: Optional[int] = None,
+    section_id: Optional[int] = None,
+    force_refresh_features: bool = False,  # NEW parameter
+    ctx: Context = None,
+) -> dict:
+    """List user stories with feature staleness check."""
+```
+
+### REST API Interface
+```python
+@api.get("/api/products/{product_id}/features")
+async def get_product_features(
+    request: Request,
+    product_id: int,
+    section_id: Optional[int] = Query(None),
+    force_refresh_features: bool = Query(False),  # NEW parameter
+) -> dict:
+    """Get features with staleness check."""
+```
+  </interfaces>
+
+  <tests>
+    <standards>
+This codebase follows a service layer architecture with strict testing standards:
+
+1. **Test Pyramid:** Unit tests (fast, mocked) > Integration tests (real API) > E2E tests (full protocol)
+2. **Unit Test Pattern:** Mock client and cache, test service logic directly, no FastMCP mocking
+3. **Integration Test Pattern:** Real API (staging), test full flow tool → service → API
+4. **Time Mocking:** Use `freezegun` for deterministic staleness tests (boundary conditions)
+5. **SQLModel Pattern:** Use `session.exec().first()` for ORM models in test fixtures
+6. **Coverage Target:** >95% for new code, 100% for critical paths (staleness logic)
+7. **Test Isolation:** Per-product try-catch prevents cascade failures
+8. **Product ID Standard:** Use 21362 (Flourish) for consistency across tests
+9. **Markers:** `@pytest.mark.unit` (fast, no API), `@pytest.mark.integration` (requires TESTIO_CUSTOMER_API_TOKEN)
+10. **Type Safety:** Strict mypy compliance in test files
+    </standards>
+    <locations>
+      <location>tests/unit/test_cache_feature_staleness.py</location>
+      <location>tests/integration/test_background_sync_features.py</location>
+      <location>tests/integration/test_tool_staleness_features.py</location>
+      <location>tests/repositories/test_product_repository.py (update)</location>
+    </locations>
+    <ideas>
+      <idea ac="AC7" desc="Test _is_features_stale() with fresh, stale, NULL, boundary cases (freezegun)"/>
+      <idea ac="AC8" desc="Test refresh_features() skips when fresh, refreshes when stale"/>
+      <idea ac="AC9" desc="Test _run_background_refresh_cycle() returns dict, doesn't hang (single execution)"/>
+      <idea ac="AC13" desc="Test list_features uses cache when fresh, refreshes when stale, force bypasses cache"/>
+      <idea ac="AC14" desc="Test list_user_stories checks features_synced_at (user stories embedded)"/>
+      <idea ac="AC16" desc="Unit test suite: staleness logic, mock ProductRepository.get_product()"/>
+      <idea ac="AC17" desc="Integration test: Background cycle refreshes features for product 21362 (28 features)"/>
+      <idea ac="AC18" desc="Integration test: Tool staleness with real timestamps, verify cache hit/miss"/>
+    </ideas>
+  </tests>
+</story-context>

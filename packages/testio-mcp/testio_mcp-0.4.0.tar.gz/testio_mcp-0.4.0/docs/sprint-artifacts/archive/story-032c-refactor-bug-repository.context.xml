@@ -1,0 +1,833 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<story-context>
+  <story-id>STORY-032C</story-id>
+  <story-title>Refactor BugRepository</story-title>
+  <epic-id>EPIC-006</epic-id>
+  <generated-at>2025-11-22</generated-at>
+  <status>ready-for-dev</status>
+
+  <!-- ================================================================ -->
+  <!-- PROJECT OVERVIEW -->
+  <!-- ================================================================ -->
+  <project-overview>
+    <name>TestIO MCP Server</name>
+    <description>
+      Model Context Protocol (MCP) server providing AI-first access to TestIO's Customer API.
+      Enables non-developer stakeholders (CSMs, PMs, QA leads) to query test status, bug information,
+      and activity metrics through AI tools like Claude and Cursor.
+    </description>
+    <key-characteristics>
+      - Read-only MVP (no write operations)
+      - Service layer architecture (business logic separated from transport)
+      - Async Python with strict typing (mypy --strict)
+      - Comprehensive security (token sanitization, input validation)
+      - SQLite-first foundation with background API sync
+    </key-characteristics>
+  </project-overview>
+
+  <!-- ================================================================ -->
+  <!-- EPIC CONTEXT -->
+  <!-- ================================================================ -->
+  <epic-context>
+    <epic-id>EPIC-006</epic-id>
+    <epic-title>ORM Refactor (aiosqlite → SQLModel)</epic-title>
+    <epic-status>backlog</epic-status>
+    <epic-goal>
+      Migrate all repository layer components from raw SQL (aiosqlite.Connection) to
+      type-safe ORM queries (SQLModel + AsyncSession) to improve developer experience,
+      reduce SQL injection risk, and enable advanced query composition.
+    </epic-goal>
+    <epic-scope>
+      <in-scope>
+        - BaseRepository + AsyncSession support (STORY-032A) ✅ COMPLETED
+        - ProductRepository extraction + ORM queries (STORY-032A) ✅ COMPLETED
+        - TestRepository ORM conversion (STORY-032B) ✅ UNDER REVIEW
+        - BugRepository ORM conversion (STORY-032C) ⬅️ THIS STORY
+        - Service layer integration (STORY-033)
+        - Migration + validation (STORY-034A, STORY-034B)
+      </in-scope>
+      <out-of-scope>
+        - PersistentCache ORM migration (deferred to follow-up epic)
+        - Write operations or data mutations
+        - API design changes
+      </out-of-scope>
+    </epic-scope>
+    <acceptance-criteria>
+      <criterion id="AC1" status="complete">
+        BaseRepository supports AsyncSession or aiosqlite.Connection (STORY-032A)
+      </criterion>
+      <criterion id="AC2" status="complete">
+        ProductRepository uses SQLModel queries exclusively (STORY-032A)
+      </criterion>
+      <criterion id="AC3" status="in-review">
+        TestRepository uses SQLModel queries exclusively (STORY-032B)
+      </criterion>
+      <criterion id="AC4" status="ready-for-dev">
+        BugRepository uses SQLModel queries exclusively (STORY-032C) ⬅️ THIS STORY
+      </criterion>
+      <criterion id="AC5" status="pending">
+        All services inject AsyncSession-based repositories (STORY-033)
+      </criterion>
+      <criterion id="AC6" status="pending">
+        Migration path documented with performance validation (STORY-034A/B)
+      </criterion>
+    </acceptance-criteria>
+    <success-criteria>
+      - Zero type errors in strict mypy mode
+      - 100% test pass rate (unit + integration)
+      - No performance regression (&lt;5% latency increase)
+      - Zero raw SQL strings in repository layer
+    </success-criteria>
+  </epic-context>
+
+  <!-- ================================================================ -->
+  <!-- STORY DETAILS -->
+  <!-- ================================================================ -->
+  <story-details>
+    <user-story>
+      As a developer querying bug data,
+      I want BugRepository to use SQLModel with AsyncSession,
+      So that I can query bugs with type safety and without raw SQL strings.
+    </user-story>
+
+    <acceptance-criteria>
+      <criterion id="AC1" priority="MUST">
+        BugRepository constructor updated: `__init__(self, session: AsyncSession, ...)`
+      </criterion>
+      <criterion id="AC2" priority="MUST">
+        BugRepository inherits from refactored BaseRepository (from STORY-032A)
+      </criterion>
+      <criterion id="AC3" priority="MUST">
+        All queries updated to SQLModel syntax: `select(Bug).where(...)`
+      </criterion>
+      <criterion id="AC4" priority="MUST">
+        Insert/update/delete methods use ORM patterns: `session.add()`, `session.delete()`, `session.commit()`
+      </criterion>
+      <criterion id="AC5" priority="MUST">
+        All unit tests pass (100% success rate)
+      </criterion>
+      <criterion id="AC6" priority="MUST">
+        TestService integration tests pass
+      </criterion>
+      <criterion id="AC7" priority="MUST">
+        Code quality: `grep "aiosqlite.Connection" bug_repository.py` returns empty
+      </criterion>
+      <criterion id="AC8" priority="MUST">
+        Type checking passes: `mypy src/testio_mcp/repositories/bug_repository.py --strict`
+      </criterion>
+    </acceptance-criteria>
+
+    <tasks>
+      <task id="1" priority="high">
+        Update BugRepository constructor to accept AsyncSession instead of aiosqlite.Connection
+      </task>
+      <task id="2" priority="high">
+        Ensure BugRepository inherits from refactored BaseRepository
+      </task>
+      <task id="3" priority="high">
+        Refactor get_bugs() to use `select(Bug).where(...)` syntax
+      </task>
+      <task id="4" priority="high">
+        Refactor get_bug_stats() to use SQLModel aggregation queries
+      </task>
+      <task id="5" priority="high">
+        Refactor refresh_bugs() to use ORM insert/delete patterns
+      </task>
+      <task id="6" priority="high">
+        Refactor refresh_bugs_batch() to use ORM insert/delete patterns
+      </task>
+      <task id="7" priority="high">
+        Refactor delete_bugs_for_test() to use ORM delete pattern
+      </task>
+      <task id="8" priority="medium">
+        Update unit tests to use AsyncSession mocks instead of aiosqlite mocks
+      </task>
+      <task id="9" priority="medium">
+        Update TestService integration tests to inject AsyncSession-based BugRepository
+      </task>
+      <task id="10" priority="low">
+        Run type checking and fix any strict mypy errors
+      </task>
+      <task id="11" priority="low">
+        Verify no raw SQL strings or aiosqlite references remain
+      </task>
+    </tasks>
+
+    <estimated-effort>3-4 hours</estimated-effort>
+    <prerequisites>
+      - STORY-032A must be complete (provides refactored BaseRepository)
+      - STORY-031 must be complete (provides Bug ORM model)
+    </prerequisites>
+  </story-details>
+
+  <!-- ================================================================ -->
+  <!-- ARCHITECTURE DOCUMENTATION -->
+  <!-- ================================================================ -->
+  <architecture-docs>
+    <service-layer-pattern>
+      <description>
+        This codebase follows a service layer architecture that separates business logic from transport:
+
+        MCP Tools (thin wrappers)
+            ↓ extract dependencies, delegate
+        Service Layer (business logic)
+            ↓ make API calls, cache, aggregate
+        Infrastructure (TestIOClient, PersistentCache)
+            ↓ HTTP requests, SQLite queries
+        TestIO Customer API
+      </description>
+      <repository-responsibilities>
+        - Pure data access logic (ORM queries + API fetching)
+        - No business logic (that belongs in services)
+        - Customer-scoped queries (always filter by customer_id)
+        - Transaction management delegated to callers (no auto-commits in repository methods)
+      </repository-responsibilities>
+      <service-responsibilities>
+        - Business logic (filtering, aggregation, validation)
+        - Orchestrate multiple repository calls
+        - Raise domain exceptions (BugNotFoundException, etc.)
+        - Framework-agnostic (can be reused in REST API, CLI, webhooks)
+      </service-responsibilities>
+    </service-layer-pattern>
+
+    <base-repository-pattern>
+      <source>docs/stories/story-032a-refactor-base-product-repository.md</source>
+      <description>
+        BaseRepository provides common infrastructure for all repositories:
+        - Standard dependency injection (session, client, customer_id)
+        - Dual-mode support: AsyncSession (ORM) or aiosqlite.Connection (legacy)
+        - Session management helpers (commit, rollback, close)
+      </description>
+      <implementation-example>
+        <![CDATA[
+class BaseRepository:
+    def __init__(self, session_or_db: Any, client: TestIOClient, customer_id: int) -> None:
+        """Initialize repository with database session/connection and API client."""
+        self.session: AsyncSession | None = None
+        self.db: Any | None = None
+
+        if isinstance(session_or_db, AsyncSession):
+            self.session = session_or_db
+        else:
+            self.db = session_or_db
+
+        self.client = client
+        self.customer_id = customer_id
+        ]]>
+      </implementation-example>
+    </base-repository-pattern>
+
+    <coding-standards>
+      <source>docs/architecture/CODING-STANDARDS.md</source>
+      <key-points>
+        - Python 3.12+ (f-strings, type hints, async/await)
+        - Ruff formatting (line length: 100)
+        - Strict mypy type checking (mypy --strict)
+        - Pre-commit hooks (ruff, mypy, detect-secrets)
+        - Type hints required for all function signatures
+        - Docstrings required for all public methods (Google style)
+      </key-points>
+    </coding-standards>
+
+    <testing-strategy>
+      <source>docs/architecture/TESTING.md</source>
+      <test-pyramid>
+        E2E Tests (5)           - Full MCP protocol flow
+        Integration Tests (20)  - Tool → Service → Real API
+        Tool Tests (50+)        - Error handling, validation, delegation
+        Service Tests (80)      - Business logic with mocked client/cache
+        Unit Tests (30+)        - Pure functions (helpers, filters)
+      </test-pyramid>
+      <repository-testing-pattern>
+        - Mock AsyncSession using AsyncMock()
+        - Mock client using AsyncMock()
+        - Test query construction (verify select() statements)
+        - Test error handling (404 → BugNotFoundException)
+        - No need to test SQLModel internals (framework responsibility)
+      </repository-testing-pattern>
+      <coverage-requirements>
+        - Unit tests: 100% pass rate required
+        - Integration tests: Must pass with real API
+        - Type checking: Zero errors in strict mode
+        - Code quality: No raw SQL strings, no aiosqlite references
+      </coverage-requirements>
+    </testing-strategy>
+  </architecture-docs>
+
+  <!-- ================================================================ -->
+  <!-- CODE ARTIFACTS -->
+  <!-- ================================================================ -->
+  <code-artifacts>
+    <!-- Current BugRepository (raw SQL, needs refactoring) -->
+    <artifact name="BugRepository (current implementation)">
+      <file>src/testio_mcp/repositories/bug_repository.py</file>
+      <purpose>Data access layer for bug operations (currently uses raw SQL)</purpose>
+      <current-state>
+        - Constructor: `__init__(self, db: aiosqlite.Connection, ...)`
+        - All queries use raw SQL strings with cursor.execute()
+        - Methods: get_bugs(), get_bug_stats(), refresh_bugs(), refresh_bugs_batch(), delete_bugs_for_test()
+        - Complex intelligent caching logic in get_bugs_cached_or_refresh() (STORY-024)
+      </current-state>
+      <refactoring-needed>
+        - Update constructor to AsyncSession
+        - Convert all SELECT queries to select(Bug).where(...)
+        - Convert INSERT queries to session.add(Bug(...))
+        - Convert DELETE queries to session.delete(bug) or bulk delete
+        - Convert aggregations to SQLModel func.count(), func.sum(), etc.
+        - Update unit tests to mock AsyncSession
+      </refactoring-needed>
+      <key-methods>
+        <method name="get_bugs(test_id: int)">
+          <description>Get all bugs for a test from SQLite</description>
+          <current-implementation>
+            ```python
+            cursor = await self.db.execute(
+                "SELECT raw_data FROM bugs WHERE test_id = ? AND customer_id = ?",
+                (test_id, self.customer_id),
+            )
+            rows = await cursor.fetchall()
+            bugs = [json.loads(row[0]) for row in rows]
+            ```
+          </current-implementation>
+          <orm-equivalent>
+            ```python
+            statement = select(Bug).where(
+                Bug.test_id == test_id,
+                Bug.customer_id == self.customer_id,
+            ).order_by(Bug.created_at.desc())
+            result = await self.session.exec(statement)
+            bugs_orm = result.all()
+            bugs = [json.loads(bug.raw_data) for bug in bugs_orm]
+            ```
+          </orm-equivalent>
+        </method>
+        <method name="get_bug_stats(test_id: int)">
+          <description>Get bug statistics (counts by status, severity, acceptance_state)</description>
+          <current-implementation>
+            Uses 4 separate raw SQL queries with GROUP BY clauses
+          </current-implementation>
+          <orm-equivalent>
+            Use SQLModel func.count() with group_by()
+          </orm-equivalent>
+        </method>
+        <method name="refresh_bugs(test_id: int)">
+          <description>Fetch fresh bugs from API, upsert to SQLite</description>
+          <current-implementation>
+            ```python
+            await self.db.execute("DELETE FROM bugs WHERE test_id = ?", ...)
+            for bug in bugs_data:
+                await self.db.execute("INSERT INTO bugs (...) VALUES (...)", ...)
+            await self.db.commit()
+            ```
+          </current-implementation>
+          <orm-equivalent>
+            ```python
+            # Delete existing
+            statement = delete(Bug).where(Bug.test_id == test_id, ...)
+            await self.session.exec(statement)
+            # Insert new
+            for bug in bugs_data:
+                new_bug = Bug(id=bug_id, ...)
+                self.session.add(new_bug)
+            await self.session.commit()
+            ```
+          </orm-equivalent>
+        </method>
+      </key-methods>
+    </artifact>
+
+    <!-- Bug ORM Model -->
+    <artifact name="Bug ORM Model">
+      <file>src/testio_mcp/models/orm/bug.py</file>
+      <purpose>SQLModel entity representing a bug report</purpose>
+      <schema>
+        <![CDATA[
+class Bug(SQLModel, table=True):
+    __tablename__ = "bugs"
+
+    id: int | None = Field(default=None, primary_key=True)
+    customer_id: int = Field(index=True)
+    test_id: int = Field(foreign_key="tests.id", index=True)
+    title: str = Field()
+    severity: str | None = Field(default=None)
+    status: str | None = Field(default=None)
+    acceptance_state: str | None = Field(default=None)
+    created_at: str | None = Field(default=None)  # TEXT in SQLite
+    raw_data: str = Field()  # JSON as TEXT
+    synced_at: datetime | None = Field(default=None)
+    test: "Test" = Relationship(back_populates="bugs")
+        ]]>
+      </schema>
+      <notes>
+        - Foreign key to tests.id (parent test)
+        - raw_data stores complete API response as JSON string
+        - created_at stored as TEXT (ISO format) for SQLite compatibility
+        - synced_at is datetime object (SQLModel handles conversion)
+      </notes>
+    </artifact>
+
+    <!-- BaseRepository (refactored in STORY-032A) -->
+    <artifact name="BaseRepository (refactored)">
+      <file>src/testio_mcp/repositories/base_repository.py</file>
+      <purpose>Base class for all repositories with AsyncSession support</purpose>
+      <key-features>
+        - Dual-mode constructor: AsyncSession (ORM) or aiosqlite.Connection (legacy)
+        - Session management: commit(), rollback(), close()
+        - Customer ID scoping (all queries filter by customer_id)
+      </key-features>
+      <usage-example>
+        <![CDATA[
+class BugRepository(BaseRepository):
+    def __init__(self, session: AsyncSession, client: TestIOClient, customer_id: int) -> None:
+        super().__init__(session, client, customer_id)
+        # self.session is now available for ORM queries
+        ]]>
+      </usage-example>
+    </artifact>
+
+    <!-- TestService Integration -->
+    <artifact name="TestService (consumes BugRepository)">
+      <file>src/testio_mcp/services/test_service.py</file>
+      <purpose>Business logic for test operations, uses BugRepository</purpose>
+      <integration-points>
+        - Constructor accepts bug_repo: BugRepository
+        - Methods: get_test_bugs(), get_test_status() (calls bug_repo.get_bugs())
+        - Intelligent caching orchestration (calls bug_repo.get_bugs_cached_or_refresh())
+      </integration-points>
+      <dependency-injection>
+        <![CDATA[
+# From service_helpers.py
+session = cache.async_session_maker()
+bug_repo = BugRepository(session=session, client=client, customer_id=cache.customer_id)
+test_service = TestService(client=client, test_repo=test_repo, bug_repo=bug_repo, product_repo=product_repo)
+        ]]>
+      </dependency-injection>
+      <impact>
+        - Unit tests must be updated to mock AsyncSession-based BugRepository
+        - Integration tests must create BugRepository with real AsyncSession
+        - No changes to TestService public interface (internal implementation only)
+      </impact>
+    </artifact>
+  </code-artifacts>
+
+  <!-- ================================================================ -->
+  <!-- LESSONS LEARNED FROM STORY-032B -->
+  <!-- ================================================================ -->
+  <lessons-learned>
+    <source>STORY-032B - Refactor TestRepository (Code Review)</source>
+    <key-learnings>
+      <lesson id="1">
+        <title>Transaction Management Delegation</title>
+        <description>
+          Repository methods should NOT auto-commit. Callers (services or PersistentCache)
+          must explicitly call session.commit() to control transaction boundaries.
+          This enables batch operations and rollback handling.
+        </description>
+        <example>
+          <![CDATA[
+# BAD (auto-commit in repository)
+async def insert_bug(self, bug_data: dict) -> None:
+    new_bug = Bug(**bug_data)
+    self.session.add(new_bug)
+    await self.session.commit()  # ❌ Don't auto-commit
+
+# GOOD (caller commits)
+async def insert_bug(self, bug_data: dict) -> None:
+    new_bug = Bug(**bug_data)
+    self.session.add(new_bug)
+    # Caller will commit when ready
+          ]]>
+        </example>
+      </lesson>
+
+      <lesson id="2">
+        <title>Type Ignores for SQLModel Column Methods</title>
+        <description>
+          SQLModel column methods (.desc(), .asc(), etc.) are SQLAlchemy-specific and may
+          require type ignores for strict mypy. This is acceptable technical debt.
+        </description>
+        <example>
+          <![CDATA[
+# May require type ignore
+.order_by(Bug.created_at.desc())  # type: ignore[attr-defined]
+          ]]>
+        </example>
+      </lesson>
+
+      <lesson id="3">
+        <title>PersistentCache Transaction Isolation</title>
+        <description>
+          CRITICAL: PersistentCache.refresh_active_tests() has architectural conflict:
+          - Updates via AsyncSession (ORM)
+          - Queries via aiosqlite.Connection (raw SQL)
+          - SQLite transaction isolation prevents aiosqlite from seeing AsyncSession changes
+          - This caused 2 test failures in STORY-032B
+
+          WORKAROUND: BugRepository refactoring should avoid similar dual-mode access patterns.
+          If get_bugs_cached_or_refresh() updates via AsyncSession, ensure subsequent queries
+          also use AsyncSession (not self.db).
+        </description>
+        <impact>
+          Verify that BugRepository's intelligent caching logic (get_bugs_cached_or_refresh)
+          doesn't suffer from same transaction visibility issue. All updates + reads should
+          use AsyncSession exclusively within a single method.
+        </impact>
+      </lesson>
+
+      <lesson id="4">
+        <title>Benchmark Performance Validation</title>
+        <description>
+          Performance targets (e.g., p95 &lt; 20ms) must be validated with real benchmarks,
+          not just claimed. Consider adding regression tests to CI.
+        </description>
+      </lesson>
+
+      <lesson id="5">
+        <title>Test Coverage: Behavioral vs Implementation</title>
+        <description>
+          Test behavior and outcomes, not internal algorithm details.
+          Focus on: Does the query return the right data? Does error handling work?
+          Don't test: How SQLModel constructs the SQL string.
+        </description>
+      </lesson>
+    </key-learnings>
+  </lessons-learned>
+
+  <!-- ================================================================ -->
+  <!-- DEPENDENCIES & INTEGRATION POINTS -->
+  <!-- ================================================================ -->
+  <dependencies>
+    <prerequisite story="STORY-032A" status="done">
+      Refactored BaseRepository with AsyncSession support
+    </prerequisite>
+    <prerequisite story="STORY-031" status="done">
+      Bug ORM model defined
+    </prerequisite>
+    <blocked-by story="STORY-032B" status="review">
+      TestRepository refactoring (under review, 91% complete, minor follow-up needed)
+    </blocked-by>
+  </dependencies>
+
+  <integration-points>
+    <service name="TestService">
+      <file>src/testio_mcp/services/test_service.py</file>
+      <constructor-signature>
+        __init__(self, client: TestIOClient, test_repo: TestRepository, bug_repo: BugRepository, product_repo: ProductRepository)
+      </constructor-signature>
+      <methods-using-bug-repo>
+        - get_test_bugs(test_id: int) → calls bug_repo.get_bugs()
+        - get_test_status(test_id: int) → calls bug_repo.get_bugs()
+        - list_tests(...) → may call bug_repo.get_bugs_cached_or_refresh() for batch operations
+      </methods-using-bug-repo>
+      <test-updates-needed>
+        - Update all TestService unit tests to mock AsyncSession-based BugRepository
+        - Update integration tests to create BugRepository with real AsyncSession
+      </test-updates-needed>
+    </service>
+
+    <service name="MultiTestReportService">
+      <file>src/testio_mcp/services/multi_test_report_service.py</file>
+      <constructor-signature>
+        __init__(self, client: TestIOClient, test_repo: TestRepository, bug_repo: BugRepository)
+      </constructor-signature>
+      <methods-using-bug-repo>
+        - generate_report(...) → calls bug_repo.get_bugs_cached_or_refresh() for batch bug fetching
+      </methods-using-bug-repo>
+      <test-updates-needed>
+        - Update unit tests to mock AsyncSession-based BugRepository
+        - Update integration tests (EBR generation) to use real AsyncSession
+      </test-updates-needed>
+    </service>
+
+    <dependency-injection>
+      <file>src/testio_mcp/utilities/service_helpers.py</file>
+      <current-implementation>
+        <![CDATA[
+# Create new session for this service instance
+session = cache.async_session_maker()
+
+# Create repositories with AsyncSession
+test_repo = TestRepository(session=session, client=client, customer_id=cache.customer_id)
+bug_repo = BugRepository(session=session, client=client, customer_id=cache.customer_id)
+product_repo = ProductRepository(session=session, client=client, customer_id=cache.customer_id)
+        ]]>
+      </current-implementation>
+      <notes>
+        BugRepository instantiation already uses AsyncSession pattern (from STORY-032A).
+        However, BugRepository constructor still expects aiosqlite.Connection as first parameter.
+        This story will update BugRepository to match TestRepository/ProductRepository pattern.
+      </notes>
+    </dependency-injection>
+  </integration-points>
+
+  <!-- ================================================================ -->
+  <!-- TESTING GUIDANCE -->
+  <!-- ================================================================ -->
+  <testing-guidance>
+    <unit-tests>
+      <location>tests/unit/test_bug_repository.py (may need to be created)</location>
+      <test-cases>
+        <case priority="high">Test get_bugs() returns bugs for valid test_id</case>
+        <case priority="high">Test get_bugs() returns empty list for test with no bugs</case>
+        <case priority="high">Test get_bugs() filters by customer_id (data isolation)</case>
+        <case priority="high">Test get_bug_stats() returns correct aggregations</case>
+        <case priority="high">Test refresh_bugs() deletes old bugs and inserts new</case>
+        <case priority="high">Test refresh_bugs_batch() handles multiple test IDs</case>
+        <case priority="high">Test delete_bugs_for_test() removes all bugs for test</case>
+        <case priority="medium">Test get_bugs_cached_or_refresh() intelligent caching logic</case>
+        <case priority="medium">Test transaction isolation within get_bugs_cached_or_refresh()</case>
+      </test-cases>
+      <mocking-pattern>
+        <![CDATA[
+from unittest.mock import AsyncMock
+
+# Mock AsyncSession
+mock_session = AsyncMock()
+mock_client = AsyncMock()
+customer_id = 123
+
+# Create repository
+repo = BugRepository(session=mock_session, client=mock_client, customer_id=customer_id)
+
+# Mock session.exec() for SELECT queries
+mock_result = AsyncMock()
+mock_result.all.return_value = [Bug(id=1, ...), Bug(id=2, ...)]
+mock_session.exec.return_value = mock_result
+
+# Test query
+bugs = await repo.get_bugs(test_id=456)
+assert len(bugs) == 2
+        ]]>
+      </mocking-pattern>
+    </unit-tests>
+
+    <integration-tests>
+      <location>tests/integration/test_get_test_bugs_integration.py</location>
+      <test-cases>
+        <case priority="high">Test get_test_bugs tool with real API (happy path)</case>
+        <case priority="high">Test get_test_bugs with invalid test_id (404 handling)</case>
+        <case priority="medium">Test get_bugs_cached_or_refresh with real database</case>
+      </test-cases>
+      <setup-pattern>
+        <![CDATA[
+# Integration test setup
+from testio_mcp.database.engine import get_async_session_maker
+from testio_mcp.repositories.bug_repository import BugRepository
+
+# Create real AsyncSession
+async_session_maker = get_async_session_maker(db_path)
+session = async_session_maker()
+
+# Create repository with real session
+bug_repo = BugRepository(session=session, client=real_client, customer_id=customer_id)
+
+# Test
+bugs = await bug_repo.get_bugs(test_id=real_test_id)
+assert len(bugs) > 0
+        ]]>
+      </setup-pattern>
+    </integration-tests>
+
+    <validation-commands>
+      <command name="Unit tests (fast feedback)">
+        uv run pytest -m unit
+      </command>
+      <command name="Unit tests with coverage">
+        uv run pytest -m unit --cov=src/testio_mcp/repositories/bug_repository.py --cov-report=html
+      </command>
+      <command name="Integration tests (requires API token)">
+        uv run pytest -m integration
+      </command>
+      <command name="Type checking (strict mode)">
+        uv run mypy src/testio_mcp/repositories/bug_repository.py --strict
+      </command>
+      <command name="Code quality check (no raw SQL)">
+        grep "aiosqlite.Connection" src/testio_mcp/repositories/bug_repository.py
+      </command>
+      <command name="Full test suite">
+        uv run pytest
+      </command>
+    </validation-commands>
+
+    <acceptance-validation>
+      <ac1>grep "AsyncSession" src/testio_mcp/repositories/bug_repository.py | grep "__init__"</ac1>
+      <ac2>grep "BaseRepository" src/testio_mcp/repositories/bug_repository.py | grep "class BugRepository"</ac2>
+      <ac3>grep "select(Bug)" src/testio_mcp/repositories/bug_repository.py</ac3>
+      <ac4>grep "session.add" src/testio_mcp/repositories/bug_repository.py</ac4>
+      <ac5>uv run pytest -m unit --tb=short</ac5>
+      <ac6>uv run pytest tests/integration/test_get_test_bugs_integration.py</ac6>
+      <ac7>grep "aiosqlite.Connection" src/testio_mcp/repositories/bug_repository.py (should be empty)</ac7>
+      <ac8>uv run mypy src/testio_mcp/repositories/bug_repository.py --strict</ac8>
+    </acceptance-validation>
+  </testing-guidance>
+
+  <!-- ================================================================ -->
+  <!-- IMPLEMENTATION NOTES -->
+  <!-- ================================================================ -->
+  <implementation-notes>
+    <note priority="critical">
+      <title>Transaction Isolation in get_bugs_cached_or_refresh()</title>
+      <description>
+        STORY-032B revealed a critical issue with dual-mode access (AsyncSession + aiosqlite.Connection):
+        - Updates via AsyncSession are not visible to aiosqlite.Connection until commit
+        - This caused test failures in PersistentCache.refresh_active_tests()
+
+        For BugRepository.get_bugs_cached_or_refresh():
+        - Method updates bugs via refresh_bugs_batch() (will use AsyncSession after refactoring)
+        - Method then queries bugs via get_bugs() (will use AsyncSession after refactoring)
+        - Ensure ALL database access within this method uses self.session (not self.db)
+        - Commit only ONCE at the end of the method (or delegate to caller)
+
+        TESTING: Add specific unit test to verify transaction visibility within get_bugs_cached_or_refresh().
+      </description>
+    </note>
+
+    <note priority="high">
+      <title>Aggregation Queries (get_bug_stats)</title>
+      <description>
+        get_bug_stats() uses 4 separate GROUP BY queries. SQLModel equivalent:
+
+        ```python
+        from sqlmodel import func, select
+
+        # Count by status
+        statement = select(Bug.status, func.count(Bug.id)).where(
+            Bug.test_id == test_id,
+            Bug.customer_id == self.customer_id,
+        ).group_by(Bug.status)
+        result = await self.session.exec(statement)
+        by_status = {row[0]: row[1] for row in result.all()}
+        ```
+
+        Repeat for severity, acceptance_state, and total count.
+      </description>
+    </note>
+
+    <note priority="medium">
+      <title>Bulk Delete Pattern</title>
+      <description>
+        For refresh_bugs() and delete_bugs_for_test(), use SQLModel bulk delete:
+
+        ```python
+        from sqlmodel import delete
+
+        statement = delete(Bug).where(
+            Bug.test_id == test_id,
+            Bug.customer_id == self.customer_id,
+        )
+        await self.session.exec(statement)
+        # Caller commits
+        ```
+
+        More efficient than loading objects + session.delete() for each one.
+      </description>
+    </note>
+
+    <note priority="medium">
+      <title>JSON Serialization</title>
+      <description>
+        Bug.raw_data stores complete API response as JSON string.
+        After fetching Bug ORM objects, deserialize raw_data:
+
+        ```python
+        bugs_orm = result.all()
+        bugs = [json.loads(bug.raw_data) for bug in bugs_orm]
+        ```
+
+        This maintains backward compatibility with existing service layer expectations.
+      </description>
+    </note>
+
+    <note priority="low">
+      <title>Order By Descending</title>
+      <description>
+        get_bugs() orders by created_at DESC. SQLModel equivalent:
+
+        ```python
+        .order_by(Bug.created_at.desc())  # type: ignore[attr-defined]
+        ```
+
+        Type ignore may be needed for .desc() method (SQLAlchemy-specific).
+      </description>
+    </note>
+  </implementation-notes>
+
+  <!-- ================================================================ -->
+  <!-- RISK ANALYSIS -->
+  <!-- ================================================================ -->
+  <risk-analysis>
+    <risk id="1" severity="medium" likelihood="medium">
+      <title>Transaction Isolation Issues (same as STORY-032B)</title>
+      <description>
+        get_bugs_cached_or_refresh() may suffer from same transaction visibility issue if not careful.
+      </description>
+      <mitigation>
+        - Remove all self.db references within get_bugs_cached_or_refresh()
+        - Use self.session exclusively for all DB operations
+        - Add specific unit test to verify transaction visibility
+        - Review STORY-032B lessons learned before implementation
+      </mitigation>
+    </risk>
+
+    <risk id="2" severity="low" likelihood="low">
+      <title>Performance Regression</title>
+      <description>
+        ORM queries may introduce minor latency vs raw SQL.
+      </description>
+      <mitigation>
+        - Benchmark critical paths (get_bugs_cached_or_refresh with 295 tests)
+        - Target: &lt;5% latency increase vs baseline
+        - Use bulk operations (delete + insert) instead of per-row ORM
+      </mitigation>
+    </risk>
+
+    <risk id="3" severity="low" likelihood="low">
+      <title>Type Errors with Aggregation Queries</title>
+      <description>
+        func.count() and group_by() may require type ignores for strict mypy.
+      </description>
+      <mitigation>
+        - Add type ignores where necessary (acceptable technical debt)
+        - Document in code comments why type ignore is needed
+      </mitigation>
+    </risk>
+  </risk-analysis>
+
+  <!-- ================================================================ -->
+  <!-- DEFINITION OF DONE -->
+  <!-- ================================================================ -->
+  <definition-of-done>
+    <checklist>
+      <item>All 8 acceptance criteria verified and documented</item>
+      <item>BugRepository constructor uses AsyncSession</item>
+      <item>All queries converted to SQLModel syntax (select, delete, insert)</item>
+      <item>All unit tests pass (100% success rate)</item>
+      <item>Integration tests pass with real API</item>
+      <item>Type checking passes (mypy --strict, zero errors)</item>
+      <item>No raw SQL strings in bug_repository.py</item>
+      <item>No aiosqlite.Connection references in bug_repository.py</item>
+      <item>Code review completed by Senior Developer (AI)</item>
+      <item>Performance validated (&lt;5% regression)</item>
+      <item>Documentation updated (docstrings, ADRs if needed)</item>
+    </checklist>
+  </definition-of-done>
+
+  <!-- ================================================================ -->
+  <!-- REFERENCES -->
+  <!-- ================================================================ -->
+  <references>
+    <epic>docs/epics/epic-006-orm-refactor.md</epic>
+    <story>docs/stories/story-032c-refactor-bug-repository.md</story>
+    <related-story>docs/stories/story-032a-refactor-base-product-repository.md (BaseRepository refactoring)</related-story>
+    <related-story>docs/stories/story-032b-refactor-test-repository.md (TestRepository refactoring, lessons learned)</related-story>
+    <related-story>docs/stories/story-031-entity-modeling.md (Bug ORM model)</related-story>
+    <architecture-doc>docs/architecture/ARCHITECTURE.md</architecture-doc>
+    <architecture-doc>docs/architecture/CODING-STANDARDS.md</architecture-doc>
+    <architecture-doc>docs/architecture/TESTING.md</architecture-doc>
+    <code-file>src/testio_mcp/repositories/bug_repository.py (current implementation)</code-file>
+    <code-file>src/testio_mcp/repositories/base_repository.py (refactored base class)</code-file>
+    <code-file>src/testio_mcp/models/orm/bug.py (Bug ORM model)</code-file>
+    <code-file>src/testio_mcp/services/test_service.py (consumes BugRepository)</code-file>
+    <code-file>src/testio_mcp/utilities/service_helpers.py (dependency injection)</code-file>
+  </references>
+</story-context>

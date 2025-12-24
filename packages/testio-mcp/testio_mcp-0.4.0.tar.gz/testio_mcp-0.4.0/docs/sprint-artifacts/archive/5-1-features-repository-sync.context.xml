@@ -1,0 +1,330 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-005</epicId>
+    <storyId>STORY-035A</storyId>
+    <title>Features Repository & Sync</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-23</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-035a-features-repository-sync.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer analyzing feature coverage</asA>
+    <iWant>features stored as first-class entities in the database</iWant>
+    <soThat>I can query "Which features have the most bugs?" without parsing JSON blobs</soThat>
+    <tasks>
+      - Task 1: Define Feature SQLModel Class (30 min)
+        * Create src/testio_mcp/models/orm/feature.py
+        * Define Feature class with all fields
+        * Add relationships: product, user_stories
+        * Test model creation in Python REPL
+
+      - Task 1.5: Create Section Detection Helper (5 min) - DO THIS FIRST
+        * Create src/testio_mcp/utilities/section_detection.py
+        * Copy validated logic from research script (lines 26-30)
+        * Add has_sections() and get_section_ids() functions
+        * Add docstrings explaining default-section behavior
+        * Write 4-5 unit tests in tests/unit/test_section_detection.py
+        * This enables STORY-035B to reuse the same logic
+
+      - Task 2: Create FeatureRepository (2 hours)
+        * Create src/testio_mcp/repositories/feature_repository.py
+        * Import has_sections() and get_section_ids() from utilities
+        * Implement sync_features() with section detection
+        * Implement _sync_non_sectioned_product()
+        * Implement _sync_sectioned_product() with concurrency control
+        * Implement _upsert_features()
+        * Implement get_features_for_product()
+
+      - Task 3: Generate Alembic Migration (30 min)
+        * Run alembic revision --autogenerate -m "Add features table"
+        * Verify migration chains from 0965ad59eafa
+        * Test migration upgrade/downgrade
+        * Verify single head
+
+      - Task 4: Write Unit Tests (1 hour)
+        * Create tests/unit/test_repositories_feature.py
+        * Test non-section product sync
+        * Test section product sync
+        * Test upsert logic (create + update)
+        * Test get_features_for_product() queries
+        * Achieve >90% coverage
+
+      - Task 5: Write Integration Tests (30 min)
+        * Create tests/integration/test_feature_sync_integration.py
+        * Test with Flourish (Product 21362)
+        * Test with Canva (Product 18559)
+        * Test with remove.bg (Product 24959)
+
+      - Task 6: Performance Validation (30 min)
+        * Create scripts/benchmark_feature_sync.py
+        * Run benchmark with Canva (section product)
+        * Verify < 30 seconds for 10 sections
+        * Document results
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    AC1: Feature SQLModel Class Created
+      - File: src/testio_mcp/models/orm/feature.py
+      - Fields: id, product_id, section_id (nullable), title, description, howtofind, raw_data, last_synced
+      - Relationships: product (many-to-one), user_stories (one-to-many)
+      - Type checking passes
+
+    AC2: FeatureRepository Created with Section-Aware Sync
+      - File: src/testio_mcp/repositories/feature_repository.py
+      - Inherits from BaseRepository
+      - Uses shared section helper from STORY-035C AC0 (has_sections, get_section_ids)
+      - sync_features() implements section detection:
+        * Non-section: GET /products/{id}/features
+        * Section: GET /products/{id}/sections/{sid}/features (undocumented)
+      - Concurrency control: 2-3 concurrent section calls
+      - Type checking passes
+
+    AC3: Alembic Migration Generated
+      - Migration chains from Epic 006 baseline: 0965ad59eafa
+      - Creates features table with indexes
+      - Migration upgrade/downgrade tested
+      - Single head enforced
+
+    AC4: Unit Tests - FeatureRepository CRUD
+      - File: tests/unit/test_repositories_feature.py
+      - Test non-section product sync
+      - Test section product sync
+      - Test upsert logic
+      - Test get_features_for_product()
+      - All tests pass
+
+    AC5: Integration Tests - Real API
+      - File: tests/integration/test_feature_sync_integration.py
+      - Test Flourish (21362): 28 features, no sections
+      - Test Canva (18559): 288+ features, has sections
+      - Test remove.bg (24959): 8 features, section 25543
+      - All integration tests pass
+
+    AC6: Performance Validation
+      - Feature sync < 30 seconds for product with 10 sections
+      - Benchmark script created
+      - Results documented in story completion notes
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-005-data-enhancement-and-serving.md</path>
+        <title>Epic 005: Data Enhancement and Serving</title>
+        <section>Overview and Prerequisites</section>
+        <snippet>Epic 005 adds Features and User Stories as first-class entities. Research validated section detection logic: len(sections) > 0 or len(sections_with_default) > 1 is CORRECT. Default-section (single item in sections_with_default) indicates legacy non-section product.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/epic-006-orm-refactor.md</path>
+        <title>Epic 006: ORM Refactor (SQLModel + Alembic)</title>
+        <section>Baseline Migration and Patterns</section>
+        <snippet>Epic 006 established Alembic baseline revision 0965ad59eafa and ORM patterns. All Epic 005 migrations MUST chain from this baseline. Use session.exec().first() for ORM models, not session.execute().one_or_none().</snippet>
+      </doc>
+      <doc>
+        <path>scripts/research_features_api.py</path>
+        <title>Features API Research Script</title>
+        <section>Section Detection Logic</section>
+        <snippet>VALIDATED (2025-11-23): len(sections) > 0 OR len(sections_with_default) > 1 is CORRECT. Flourish (21362) has sections_with_default=[default-section] (len=1) and non-section endpoint works (28 features). Canva (18559) has sections=[...] (len=2) and requires section endpoint (422 without). The > 1 check correctly identifies default-section as non-section.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/repositories/base_repository.py</path>
+        <kind>base class</kind>
+        <symbol>BaseRepository</symbol>
+        <lines>1-87</lines>
+        <reason>Base class for FeatureRepository. Provides standard constructor with session/client injection and session management patterns (commit, rollback, close).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/product.py</path>
+        <kind>ORM model</kind>
+        <symbol>Product</symbol>
+        <lines>1-33</lines>
+        <reason>Example ORM model showing SQLModel pattern. Feature will use similar structure with relationships, indexes, and JSON data field.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>TestRepository</symbol>
+        <lines>all</lines>
+        <reason>Reference repository showing AsyncSession usage, ORM query patterns (select().where().exec().first()), and upsert logic. FeatureRepository will follow same patterns.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/client.py</path>
+        <kind>HTTP client</kind>
+        <symbol>TestIOClient</symbol>
+        <lines>all</lines>
+        <reason>API client with semaphore-based concurrency control (2-3 concurrent calls). FeatureRepository will use this for section-aware sync.</reason>
+      </artifact>
+      <artifact>
+        <path>scripts/research_features_api.py</path>
+        <kind>research script</kind>
+        <symbol>has_sections</symbol>
+        <lines>26-30</lines>
+        <reason>VALIDATED CORRECT (2025-11-23). Logic: len(sections) > 0 OR len(sections_with_default) > 1. Catches real sections via sections array, distinguishes default-section (legacy non-section) from real multi-section products via sections_with_default count. Safe to copy this exact logic into FeatureRepository.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version=">=0.0.16">ORM framework (SQLAlchemy + Pydantic)</package>
+        <package name="alembic" version=">=1.13.0">Database migration tool</package>
+        <package name="greenlet" version=">=3.0.0">Async SQLAlchemy dependency</package>
+        <package name="aiosqlite" version=">=0.20.0">Async SQLite driver</package>
+        <package name="httpx" version=">=0.28.0">Async HTTP client</package>
+        <package name="pydantic" version=">=2.12.0">Data validation</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - Section detection logic (VALIDATED 2025-11-23):
+      * Research script logic is CORRECT: len(sections) > 0 OR len(sections_with_default) > 1
+      * RECOMMENDED: Create shared helper first (5 min) then use in FeatureRepository
+      * Helper location: src/testio_mcp/utilities/section_detection.py
+      * Helper benefits: DRY (reused by STORY-035B), unit tested, documented
+      * Default-section explanation: Products with sections_with_default=[1 item named "default-section"] are legacy non-section products
+
+    - Migration must chain from Epic 006 baseline: Revises: 0965ad59eafa
+
+    - SQLModel query patterns (Epic 006 lessons):
+      * Use session.exec().first() for ORM models (not session.execute().one_or_none())
+      * Use session.exec().all() for lists
+      * Use session.exec().one() for scalars (count, sum)
+      * Always use async with get_service_context() for resource cleanup
+
+    - Repository pattern (Epic 006):
+      * Inherit from BaseRepository
+      * Constructor: __init__(session: AsyncSession, client: TestIOClient, customer_id: int)
+      * Keep business logic out of repository (only data access)
+
+    - Section-aware sync endpoints:
+      * Non-section products: GET /products/{id}/features
+      * Section products: GET /products/{id}/sections/{sid}/features (UNDOCUMENTED)
+      * Must inject section_id into feature data (API doesn't always include it)
+
+    - Concurrency control:
+      * Reuse existing TestIOClient semaphore (2-3 concurrent section calls)
+      * Use asyncio.gather() with return_exceptions=True (partial sync > total failure)
+
+    - Performance targets:
+      * Feature sync < 30 seconds for product with 10 sections
+      * No N+1 query issues
+      * p95 latency maintained from Epic 006 baseline
+
+    - Test coverage:
+      * Unit tests: >90% coverage for FeatureRepository
+      * Integration tests: Must test Products 21362, 18559, 24959
+      * Critical test case: Single-default-section product (24959) - validates bug fix
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>FeatureRepository.sync_features</name>
+      <kind>async method</kind>
+      <signature>async def sync_features(self, product_id: int) -> dict[str, int]</signature>
+      <path>src/testio_mcp/repositories/feature_repository.py</path>
+    </interface>
+    <interface>
+      <name>FeatureRepository.get_features_for_product</name>
+      <kind>async method</kind>
+      <signature>async def get_features_for_product(self, product_id: int, section_id: Optional[int] = None) -> list[Feature]</signature>
+      <path>src/testio_mcp/repositories/feature_repository.py</path>
+    </interface>
+    <interface>
+      <name>has_sections (STORY-035C AC0 - Prerequisite)</name>
+      <kind>function</kind>
+      <signature>def has_sections(product: dict) -> bool</signature>
+      <path>src/testio_mcp/utilities/section_detection.py</path>
+    </interface>
+    <interface>
+      <name>get_section_ids (STORY-035C AC0 - Prerequisite)</name>
+      <kind>function</kind>
+      <signature>def get_section_ids(product: dict) -> list[int]</signature>
+      <path>src/testio_mcp/utilities/section_detection.py</path>
+    </interface>
+    <interface>
+      <name>TestIOClient.get</name>
+      <kind>async method</kind>
+      <signature>async def get(self, endpoint: str, params: dict | None = None) -> dict</signature>
+      <path>src/testio_mcp/client.py</path>
+    </interface>
+    <interface>
+      <name>BaseRepository</name>
+      <kind>base class</kind>
+      <signature>class BaseRepository: __init__(self, session: AsyncSession, client: TestIOClient, customer_id: int)</signature>
+      <path>src/testio_mcp/repositories/base_repository.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      This project uses pytest with strict type checking and >90% coverage targets. Tests are organized by layer:
+      - Unit tests (tests/unit/) mock all external dependencies (AsyncSession, TestIOClient)
+      - Integration tests (tests/integration/) use real API with TESTIO_PRODUCT_ID env vars
+      - Epic 006 established SQLModel test patterns: use async_session fixture, create ORM models with session.add(), never use raw SQL INSERT in tests
+      - Test files use @pytest.mark.unit or @pytest.mark.integration markers for selective execution
+      - Fast feedback loop: uv run pytest -m unit (0.5s, no API needed)
+    </standards>
+    <locations>
+      tests/unit/test_repositories_feature.py - FeatureRepository unit tests
+      tests/integration/test_feature_sync_integration.py - Real API integration tests
+      scripts/benchmark_feature_sync.py - Performance validation script
+    </locations>
+    <ideas>
+      AC1 Tests (Feature Model):
+        - Test model instantiation with all required fields
+        - Test nullable section_id (None for non-section products)
+        - Test raw_data JSON serialization
+        - Test relationships: product, user_stories
+
+      AC2 Tests (FeatureRepository):
+        - Test sync_features() with non-section product (Product 21362)
+          * Mock product data with empty sections list
+          * Mock features endpoint response
+          * Verify single API call to /products/{id}/features
+          * Verify features created in database
+
+        - Test sync_features() with section product (Product 18559)
+          * Mock product data with 2 sections
+          * Mock section features endpoint responses
+          * Verify 2 concurrent API calls to /products/{id}/sections/{sid}/features
+          * Verify section_id injected into feature data
+          * Verify features created with correct section_id
+
+        - Test sync_features() with default-section product (Product 21362 Flourish)
+          * Mock product: sections=[], sections_with_default=[{"id": 21855, "name": "default-section"}]
+          * Verify has_sections() returns False (len(sections)=0, len(sections_with_default)=1 not > 1)
+          * Verify non-section endpoint used: GET /products/21362/features
+          * Expected: 28 features returned successfully
+
+        - Test upsert logic (create vs update)
+          * Create feature, verify created count
+          * Sync again with updated data, verify updated count
+          * Verify last_synced timestamp updated
+
+        - Test get_features_for_product()
+          * Without section_id filter (returns all)
+          * With section_id filter (returns subset)
+
+      AC3 Tests (Migration):
+        - Test migration upgrade: alembic upgrade head
+        - Test migration downgrade: alembic downgrade -1
+        - Verify features table exists after upgrade
+        - Verify indexes created: idx_features_product_id, idx_features_section_id
+        - Verify single head: alembic heads returns one revision
+
+      AC4/AC5 Integration Tests:
+        - Test Flourish (Product 21362): Sync 28 features, verify no sections
+        - Test Canva (Product 18559): Sync 288+ features, verify sections
+        - Test remove.bg (Product 24959): Sync 8 features, verify section 25543
+
+      AC6 Performance Tests:
+        - Benchmark Canva sync (10 sections): < 30 seconds
+        - Measure p50/p95/p99 latency
+        - Verify no API 500 errors (concurrency control working)
+    </ideas>
+  </tests>
+</story-context>

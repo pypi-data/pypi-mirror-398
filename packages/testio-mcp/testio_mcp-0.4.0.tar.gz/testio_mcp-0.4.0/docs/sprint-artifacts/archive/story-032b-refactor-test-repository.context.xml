@@ -1,0 +1,242 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-006</epicId>
+    <storyId>STORY-032B</storyId>
+    <title>Refactor TestRepository</title>
+    <status>todo</status>
+    <generatedAt>2025-11-22</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-032b-refactor-test-repository.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a developer querying test data</asA>
+    <iWant>TestRepository to use SQLModel with AsyncSession</iWant>
+    <soThat>I can query tests with type safety and without raw SQL strings</soThat>
+    <tasks>
+- Remove product methods from TestRepository
+- Update constructor to take AsyncSession and inherit from BaseRepository
+- Refactor all queries to use `select(TestModel).where(...)` syntax
+- Update insert/update to use session.add() and commit()
+- Update unit tests to use AsyncSession mocks
+- Update TestService to inject AsyncSession
+- Validate performance and MCP tools</tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. [ ] `TestRepository` constructor updated: `__init__(self, session: AsyncSession, ...)`
+2. [ ] TestRepository inherits from refactored BaseRepository (from 032A)
+3. [ ] All product-related methods removed (moved to ProductRepository in 032A)
+4. [ ] All queries updated to SQLModel syntax: `select(TestModel).where(...)`
+5. [ ] Insert/update methods use ORM patterns: `session.add()`, `session.commit()`
+6. [ ] All test unit tests pass (100% success rate)
+7. [ ] TestService integration tests pass
+8. [ ] MCP tool `list_tests` works correctly
+9. [ ] Performance: `list_tests()` p95 < 20ms (baseline comparison)
+10. [ ] Code quality: `grep "aiosqlite.Connection" test_repository.py` returns empty
+11. [ ] Type checking passes: `mypy src/testio_mcp/repositories/test_repository.py --strict`
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-006-orm-refactor.md</path>
+        <title>Epic-006: ORM Refactor (SQLModel + Alembic)</title>
+        <section>STORY-032B: Refactor TestRepository</section>
+        <snippet>User Story: As a developer querying test data, I want TestRepository to use SQLModel with AsyncSession, So that I can query tests with type safety and without raw SQL strings. Prerequisites: STORY-032A must be complete (provides refactored BaseRepository).</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/CODING-STANDARDS.md</path>
+        <title>Coding Standards - TestIO MCP Server</title>
+        <section>Python Version, Code Quality Tools, Type Hints</section>
+        <snippet>Minimum Python 3.12+. All code must pass ruff format, ruff check, and mypy --strict. Type hints required on all functions (args + return). No wildcard ignore_missing_imports.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing - TestIO MCP Server</title>
+        <section>Test Organization, Coverage Requirements</section>
+        <snippet>Unit tests: Fast tests, mocked dependencies, no credentials. Coverage target: ≥85% overall, ≥90% for services. Use pytest-httpx for API mocks. Marker: @pytest.mark.unit.</snippet>
+      </doc>
+      <doc>
+        <path>docs/designs/orm-adoption.md</path>
+        <title>Design: ORM Adoption (SQLModel)</title>
+        <section>Phase 1: Infrastructure & Parity (Epic 006)</section>
+        <snippet>Refactor: Replace PersistentCache (raw SQL) with Repositories (ProductRepository, TestRepository). Use AsyncEngine and AsyncSession. All queries use SQLModel syntax: select(Model).where(...). Relationship patterns use Relationship() fields with proper TYPE_CHECKING imports to avoid circular dependencies.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-032a-refactor-base-product-repository.md</path>
+        <title>STORY-032A: Refactor BaseRepository + ProductRepository</title>
+        <section>Implementation Complete (status: done)</section>
+        <snippet>BaseRepository refactored to support both AsyncSession (ORM) and legacy aiosqlite.Connection. Provides shared session management patterns (commit, rollback, close). ProductRepository successfully implemented as first ORM repository. All 15 acceptance criteria satisfied, performance p95 = 2.95ms (well under 15ms threshold).</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/repositories/base_repository.py</path>
+        <kind>repository</kind>
+        <symbol>BaseRepository</symbol>
+        <lines>23-89</lines>
+        <reason>Refactored BaseRepository from STORY-032A. TestRepository must inherit from this and use AsyncSession constructor pattern. Provides shared session management (commit, rollback, close) and dual-mode support (AsyncSession or legacy connection).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>TestRepository</symbol>
+        <lines>29-601</lines>
+        <reason>Current TestRepository using aiosqlite.Connection and raw SQL. Must be refactored to use AsyncSession and SQLModel queries. Contains test operations (insert_test, query_tests, test_exists, etc.) that need conversion to ORM patterns. Product methods already removed in STORY-032A.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>test_exists</symbol>
+        <lines>55-70</lines>
+        <reason>Test existence check using raw SQL. Must convert to SQLModel: select(Test).where(Test.id == test_id, Test.customer_id == customer_id, Test.product_id == product_id).first().</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>insert_test</symbol>
+        <lines>72-106</lines>
+        <reason>Test insertion using INSERT OR REPLACE. Must convert to SQLModel: session.merge() or upsert pattern with AsyncSession. Handles JSON data field and timestamp normalization.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>query_tests</symbol>
+        <lines>108-255</lines>
+        <reason>Complex test query with multiple filters (product_id, statuses, date ranges). Must convert to SQLModel with chained .where() clauses. Returns paginated results with metadata.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/product_repository.py</path>
+        <kind>repository</kind>
+        <symbol>ProductRepository</symbol>
+        <lines>23-224</lines>
+        <reason>Example ORM repository from STORY-032A. Shows pattern for inheriting from BaseRepository, using AsyncSession, and implementing SQLModel queries. TestRepository should follow this pattern.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/test.py</path>
+        <kind>model</kind>
+        <symbol>Test</symbol>
+        <lines>16-52</lines>
+        <reason>SQLModel class for Test entity. TestRepository will use this model for all queries: select(Test).where(...). Includes relationship to Bug entities. Fields match database schema (id, customer_id, product_id, data, status, timestamps).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/__init__.py</path>
+        <kind>module</kind>
+        <symbol>__init__</symbol>
+        <lines>1-10</lines>
+        <reason>ORM models package exports. Verify Test is exported for import in TestRepository: from testio_mcp.models.orm import Test.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/test_service.py</path>
+        <kind>service</kind>
+        <symbol>TestService</symbol>
+        <lines>59-94</lines>
+        <reason>TestService uses TestRepository for data access. After refactoring TestRepository to use AsyncSession, TestService must be updated to provide AsyncSession instead of aiosqlite.Connection when instantiating TestRepository.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version=">=0.0.16" />
+        <package name="alembic" version=">=1.13.0" />
+        <package name="greenlet" version=">=3.0.0" />
+        <package name="aiosqlite" version=">=0.20.0" note="Will be removed in STORY-034B after all repositories migrated" />
+        <package name="httpx" version=">=0.28.0" />
+        <package name="pydantic" version=">=2.12.0" />
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+- **Repository Pattern**: Repositories handle pure data access logic (SQL queries + API fetching). Business logic belongs in services.
+- **Customer Isolation**: All queries scoped to customer_id for multi-tenant data isolation.
+- **AsyncSession Management**: Use AsyncSession with proper lifecycle management (commit, rollback, close). No manual connection management.
+- **SQLModel Syntax**: All queries must use SQLModel syntax: select(Model).where(...). No raw SQL strings except for documented optimizations.
+- **Type Safety**: All functions must have type hints (args + return). Pass mypy --strict.
+- **No aiosqlite.Connection**: TestRepository must not import or use aiosqlite.Connection. Use AsyncSession only (dual-mode support handled by BaseRepository).
+- **Performance**: TestRepository queries must meet baseline performance targets (list_tests p95 < 20ms).
+- **Testing**: All unit tests must use AsyncSession mocks, not aiosqlite.Connection mocks.
+- **Inheritance**: TestRepository must inherit from refactored BaseRepository (from STORY-032A).
+- **Product Methods**: All product-related methods already removed in STORY-032A (count_products, get_product_info, etc.). Do not re-add them.
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>BaseRepository.__init__</name>
+      <kind>constructor</kind>
+      <signature>def __init__(self, session_or_db: Any, client: TestIOClient, customer_id: int) -> None</signature>
+      <path>src/testio_mcp/repositories/base_repository.py</path>
+    </interface>
+    <interface>
+      <name>BaseRepository session management</name>
+      <kind>methods</kind>
+      <signature>async def commit() -> None; async def rollback() -> None; async def close() -> None</signature>
+      <path>src/testio_mcp/repositories/base_repository.py</path>
+    </interface>
+    <interface>
+      <name>TestRepository.test_exists</name>
+      <kind>method</kind>
+      <signature>async def test_exists(self, test_id: int, product_id: int) -> bool</signature>
+      <path>src/testio_mcp/repositories/test_repository.py</path>
+    </interface>
+    <interface>
+      <name>TestRepository.insert_test</name>
+      <kind>method</kind>
+      <signature>async def insert_test(self, test_data: dict[str, Any], product_id: int) -> None</signature>
+      <path>src/testio_mcp/repositories/test_repository.py</path>
+    </interface>
+    <interface>
+      <name>TestRepository.query_tests</name>
+      <kind>method</kind>
+      <signature>async def query_tests(self, product_id: int, statuses: list[str] | None = None, ...) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/repositories/test_repository.py</path>
+    </interface>
+    <interface>
+      <name>Test ORM Model</name>
+      <kind>class</kind>
+      <signature>class Test(SQLModel, table=True): id: int | None; customer_id: int; product_id: int; data: str; status: str; created_at: datetime | None; start_at: datetime | None; end_at: datetime | None; synced_at: datetime | None; bugs_synced_at: datetime | None; bugs: list[Bug]</signature>
+      <path>src/testio_mcp/models/orm/test.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+All tests must follow project testing standards from docs/architecture/TESTING.md:
+- Unit tests: Fast, mocked dependencies, no credentials. Use pytest-httpx for API mocks. Marker: @pytest.mark.unit.
+- Coverage target: ≥85% overall, ≥90% for repositories.
+- Type safety: All test code must pass mypy --strict.
+- Fixtures: Use AsyncSession mocks for repository tests (defined in tests/conftest.py).
+- Naming: test_<function>_<scenario>() format.
+- Arrange-Act-Assert pattern for all tests.
+- Test behavior, not implementation. Use set membership, not equality. Avoid hardcoded magic numbers.
+    </standards>
+    <locations>
+- tests/unit/test_test_repository.py (existing, update to use AsyncSession mocks)
+- tests/services/test_test_service.py (existing, update to use AsyncSession)
+- tests/integration/test_list_tests_integration.py (existing, verify MCP tool works)
+- tests/conftest.py (add AsyncSession mock fixtures if not present)
+    </locations>
+    <ideas>
+**TestRepository Tests (AC1-5):**
+- test_test_repository_constructor_accepts_async_session: Verify TestRepository.__init__ accepts AsyncSession, TestIOClient, customer_id.
+- test_test_repository_inherits_base_repository: Verify TestRepository is subclass of BaseRepository.
+- test_test_exists_uses_sqlmodel_query: Verify test_exists() uses select(Test).where(Test.id == test_id).
+- test_insert_test_uses_session_add: Verify insert_test() uses session.add() and session.commit().
+- test_query_tests_uses_sqlmodel_query: Verify query_tests() uses select(Test).where(...) with filters.
+- test_query_tests_filters_by_status: Verify query_tests(statuses=["running"]) returns only running tests.
+- test_query_tests_filters_by_date_range: Verify query_tests(created_after=...) filters correctly.
+- test_query_tests_pagination: Verify query_tests(page=2, per_page=25) returns correct page.
+
+**Code Quality Tests (AC10-11):**
+- test_no_aiosqlite_in_test_repository: Run grep "aiosqlite.Connection" test_repository.py, assert empty result.
+- test_mypy_test_repository_strict: Run mypy src/testio_mcp/repositories/test_repository.py --strict, assert zero errors.
+
+**Performance Tests (AC9):**
+- test_list_tests_performance_baseline: Benchmark list_tests() p95 latency, assert < 20ms.
+
+**Integration Tests (AC7-8):**
+- test_test_service_with_orm_repository: Verify TestService works with refactored TestRepository.
+- test_list_tests_mcp_tool_integration: Verify MCP tool list_tests works end-to-end with ORM repository.
+    </ideas>
+  </tests>
+</story-context>

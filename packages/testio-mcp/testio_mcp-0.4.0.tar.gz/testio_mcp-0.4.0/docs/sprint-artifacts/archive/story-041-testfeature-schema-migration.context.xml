@@ -1,0 +1,196 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-007</epicId>
+    <storyId>STORY-041</storyId>
+    <title>TestFeature Schema & Migration</title>
+    <status>todo</status>
+    <generatedAt>2025-11-25</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-041-testfeature-schema-migration.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer building analytics features</asA>
+    <iWant>the `test_features` table and `Bug.test_feature_id` foreign key in the database</iWant>
+    <soThat>I can query which features were tested and link bugs directly to the features being tested</soThat>
+    <tasks>
+      - AC1: TestFeature Table Created
+      - AC2: Indices Created
+      - AC3: Bug.test_feature_id Column Added
+      - AC4: TestFeature ORM Model Created
+      - AC5: Bug Model Updated with test_feature_id
+      - AC6: TestRepository.insert_test() Updated
+      - AC7: TestRepository._upsert_test_feature() Implemented
+      - AC8: BugRepository.refresh_bugs() Updated
+      - AC9: BugRepository.refresh_bugs_batch() Updated
+      - AC10: Unit Tests Added
+      - AC11: Migration Tested
+      - AC12: Type Checking Passes
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    AC1: Create test_features table with columns: id, customer_id, test_id, feature_id, title, description, howtofind, user_stories, enable_default, enable_content, enable_visual
+    AC2: Create indices on customer_id, test_id, feature_id for test_features; ix_tests_end_at and ix_tests_created_at for tests table
+    AC3: Add test_feature_id column to bugs table with foreign key to test_features.id (nullable, SQLite batch mode)
+    AC4: Create TestFeature ORM model with relationships to Test and Feature
+    AC5: Update Bug model with test_feature_id field and relationship to TestFeature
+    AC6: Update TestRepository.insert_test() to extract features array and call _upsert_test_feature()
+    AC7: Implement _upsert_test_feature() with upsert logic, customer_id inclusion, IntegrityError handling
+    AC8: Update BugRepository.refresh_bugs() to extract test_feature.id from bug JSON
+    AC9: Update BugRepository.refresh_bugs_batch() with same test_feature_id extraction
+    AC10: Add unit tests for _upsert_test_feature() and test_feature_id extraction
+    AC11: Test migration upgrade/downgrade cycle on clean database
+    AC12: Verify mypy --strict passes for all affected modules
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics/epic-007-generic-analytics-framework.md" title="Epic 007: Generic Analytics Framework" section="Overview &amp; STORY-041 Spec">
+        Parent epic introducing test_features table for direct Bug → TestFeature → Feature attribution. STORY-041 creates schema foundation for analytics queries without fractional logic.
+      </doc>
+      <doc path="docs/epics/epic-006-orm-refactor.md" title="Epic 006: ORM Refactor" section="Baseline Migration &amp; Prerequisites">
+        Dependency - provides SQLModel ORM infrastructure, Alembic baseline migration (revision 0965ad59eafa), AsyncSession patterns. All Epic 007 migrations chain from this baseline.
+      </doc>
+      <doc path="docs/architecture/adrs/ADR-016-alembic-migration-strategy.md" title="ADR-016: Alembic Migration Strategy" section="Single-Path with Frozen Baseline">
+        Migration strategy - always use explicit DDL (not metadata.create_all()), pytest-alembic CI protection, SQLite batch_alter_table for ALTER TABLE operations. Baseline frozen at 2025-11-24.
+      </doc>
+      <doc path="docs/planning/epic-007-integration-summary.md" title="Epic 007: Integration Summary" section="Confirmed Touchpoints">
+        Exact code locations for repository updates: TestRepository.insert_test() line 136 (add test_features upsert), BugRepository.refresh_bugs() line 453 (add test_feature_id extraction).
+      </doc>
+      <doc path="docs/architecture/TESTING.md" title="Testing Standards" section="Unit Test Patterns">
+        Test philosophy: behavior over implementation, fast unit tests (~0.5s), AsyncSession mocking patterns, 85%+ coverage requirement. Use pytest-asyncio for async repository methods.
+      </doc>
+    </docs>
+
+    <code>
+      <artifact path="src/testio_mcp/models/orm/bug.py" kind="ORM Model" symbol="Bug" lines="17-61" reason="Needs test_feature_id field added with FK to test_features.id, nullable, indexed"/>
+      <artifact path="src/testio_mcp/models/orm/test.py" kind="ORM Model" symbol="Test" lines="17-81" reason="Needs test_features relationship added (back_populates pattern)"/>
+      <artifact path="src/testio_mcp/models/orm/feature.py" kind="ORM Model" symbol="Feature" lines="15-99" reason="Needs test_features relationship added for Feature ← TestFeature link"/>
+      <artifact path="src/testio_mcp/repositories/test_repository.py" kind="Repository" symbol="TestRepository.insert_test" lines="111-196" reason="Primary integration point - add test_features extraction loop after line 136, implement _upsert_test_feature() method"/>
+      <artifact path="src/testio_mcp/repositories/bug_repository.py" kind="Repository" symbol="BugRepository.refresh_bugs" lines="414-486" reason="Extract test_feature.id from bug JSON (line 453), include test_feature_id in Bug instantiation (lines 468-481)"/>
+      <artifact path="src/testio_mcp/repositories/bug_repository.py" kind="Repository" symbol="BugRepository.refresh_bugs_batch" lines="488-513" reason="Apply same test_feature_id extraction pattern as refresh_bugs()"/>
+      <artifact path="src/testio_mcp/repositories/base_repository.py" kind="Repository" symbol="BaseRepository" reason="Provides shared AsyncSession patterns, customer_id scoping, query helpers for all repositories"/>
+      <artifact path="alembic/versions/0965ad59eafa_baseline_existing_schema.py" kind="Migration" symbol="upgrade" lines="36-99" reason="Baseline migration (frozen DDL) - new migration chains from this revision, shows table creation patterns"/>
+      <artifact path="tests/unit/test_bug_repository.py" kind="Unit Test" reason="Extend with test_feature_id extraction tests (mock API response with test_feature object)"/>
+    </code>
+
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version=">=0.0.16" reason="ORM layer - SQLAlchemy 2.0 + Pydantic"/>
+        <package name="alembic" version=">=1.13.0" reason="Schema migrations"/>
+        <package name="greenlet" version=">=3.0.0" reason="Async SQLAlchemy support"/>
+        <package name="pytest-alembic" version=">=0.11.0" reason="Migration testing (CI drift detection)"/>
+        <package name="pytest-asyncio" version=">=0.24.0" reason="Async test support"/>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="pattern">SQLModel query patterns: Always use session.exec(select(...)).first() for ORM models, NOT session.execute().one_or_none() which returns Row objects</constraint>
+    <constraint type="pattern">Migration: Use explicit DDL (op.create_table), NOT metadata.create_all(). Alembic autogenerate for schema changes only.</constraint>
+    <constraint type="pattern">SQLite compatibility: Use batch_alter_table context manager for ALTER TABLE operations (FK/index changes)</constraint>
+    <constraint type="pattern">Repository pattern: Methods stage changes but don't commit - caller controls transaction boundaries</constraint>
+    <constraint type="security">All tables must include customer_id column with index for multi-tenant isolation</constraint>
+    <constraint type="testing">Unit tests must mock AsyncSession and client, no real API calls. Use pytest-asyncio for async methods.</constraint>
+    <constraint type="testing">Type checking must pass: mypy --strict for all affected modules</constraint>
+    <constraint type="migration">All migrations must chain from baseline revision 0965ad59eafa (Epic 006 head)</constraint>
+    <constraint type="migration">Migration must include both upgrade() and downgrade() functions, downgrade tested before merge</constraint>
+    <constraint type="data-integrity">Handle IntegrityError gracefully - log warning for invalid feature_id FK violations, preserve referential integrity</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="TestFeature ORM Model" kind="SQLModel table">
+      <signature>
+class TestFeature(SQLModel, table=True):
+    __tablename__ = "test_features"
+    id: int = Field(primary_key=True)
+    customer_id: int = Field(index=True)
+    test_id: int = Field(foreign_key="tests.id", index=True)
+    feature_id: int = Field(foreign_key="features.id", index=True)
+    title: str
+    description: str | None = None
+    howtofind: str | None = None
+    user_stories: str = Field(default="[]")  # JSON array
+    enable_default: bool = Field(default=False)
+    enable_content: bool = Field(default=False)
+    enable_visual: bool = Field(default=False)
+    # Relationships
+    test: "Test" = Relationship(back_populates="test_features")
+    feature: "Feature" = Relationship(back_populates="test_features")
+      </signature>
+      <path>src/testio_mcp/models/orm/test_feature.py</path>
+    </interface>
+
+    <interface name="TestRepository._upsert_test_feature" kind="Async method signature">
+      <signature>
+async def _upsert_test_feature(self, test_id: int, feature_data: dict) -> None:
+    """Upsert a single TestFeature from test JSON.
+
+    Args:
+        test_id: Test ID from insert_test()
+        feature_data: Feature dict from test_data.get("features", [])
+
+    Example feature_data:
+        {
+            "id": 1042409,  # TestFeature ID
+            "feature_id": 196992,  # Global Feature ID
+            "title": "[Presentations] Recording",
+            "description": "...",
+            "user_stories": ["Story 1", "Story 2"],
+            "enable_default": true
+        }
+
+    Uses SQLModel pattern: session.exec(select(...)).first()
+    Handles both insert and update, includes customer_id
+    """
+      </signature>
+      <path>src/testio_mcp/repositories/test_repository.py</path>
+    </interface>
+
+    <interface name="Alembic Migration Pattern" kind="Migration structure">
+      <signature>
+def upgrade() -> None:
+    op.create_table('test_features', ...)
+    op.create_index('ix_test_features_customer_id', ...)
+    # Use batch_alter_table for SQLite ALTER operations
+    with op.batch_alter_table('bugs', schema=None) as batch_op:
+        batch_op.add_column(sa.Column('test_feature_id', sa.Integer(), nullable=True))
+        batch_op.create_foreign_key('fk_bugs_test_feature_id', 'test_features', ['test_feature_id'], ['id'])
+
+def downgrade() -> None:
+    # Reverse all changes in opposite order
+    with op.batch_alter_table('bugs', schema=None) as batch_op:
+        batch_op.drop_constraint('fk_bugs_test_feature_id', type_='foreignkey')
+        batch_op.drop_column('test_feature_id')
+    op.drop_table('test_features')
+      </signature>
+      <path>alembic/versions/XXXX_add_test_features_table.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      This project uses pytest with pytest-asyncio for async code testing. Unit tests mock AsyncSession using MagicMock/AsyncMock patterns. Repository tests use session.exec(select(...)).first() pattern validation. All async methods must be marked with @pytest.mark.asyncio decorator. Type checking enforced with mypy --strict. Coverage target: 85%+ overall, 90%+ for repositories. Migration tests use pytest-alembic to catch schema drift (test_model_definitions_match_ddl). Security: customer_id must be included in all new tables/inserts for multi-tenant isolation.
+    </standards>
+
+    <locations>
+      <location>tests/unit/test_test_repository.py</location>
+      <location>tests/unit/test_bug_repository.py</location>
+      <location>tests/integration/test_alembic_migrations.py</location>
+    </locations>
+
+    <ideas>
+      <idea ac="AC7" test="test_upsert_test_feature_inserts_new_record">Mock AsyncSession, verify session.add() called with TestFeature model, validate customer_id included</idea>
+      <idea ac="AC7" test="test_upsert_test_feature_updates_existing_record">Mock existing TestFeature returned by session.exec().first(), verify fields updated without new session.add()</idea>
+      <idea ac="AC7" test="test_upsert_test_feature_handles_missing_feature_id">Pass feature_data without feature_id, verify method returns early without crash</idea>
+      <idea ac="AC7" test="test_upsert_test_feature_handles_integrity_error">Mock session.commit() to raise IntegrityError, verify logged warning and graceful handling</idea>
+      <idea ac="AC7" test="test_upsert_test_feature_handles_null_user_stories">Pass feature_data with user_stories=None, verify coerced to [] before JSON.dumps</idea>
+      <idea ac="AC8" test="test_refresh_bugs_extracts_test_feature_id">Mock API response with test_feature object, verify Bug model includes test_feature_id field</idea>
+      <idea ac="AC8" test="test_refresh_bugs_handles_missing_test_feature">Mock bug without test_feature field, verify test_feature_id=None without crash</idea>
+      <idea ac="AC11" test="test_migration_upgrade_creates_tables">Use pytest-alembic test_upgrade to verify clean database migration succeeds</idea>
+      <idea ac="AC11" test="test_migration_downgrade_removes_tables">Use pytest-alembic test_up_down_consistency to verify rollback works</idea>
+      <idea ac="AC11" test="test_migration_schema_matches_orm">Use pytest-alembic test_model_definitions_match_ddl to catch ORM/migration drift</idea>
+    </ideas>
+  </tests>
+</story-context>

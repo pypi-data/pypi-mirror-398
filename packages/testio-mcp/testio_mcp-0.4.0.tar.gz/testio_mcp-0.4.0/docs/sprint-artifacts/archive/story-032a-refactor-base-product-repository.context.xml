@@ -1,0 +1,254 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-006</epicId>
+    <storyId>STORY-032A</storyId>
+    <title>Refactor BaseRepository + ProductRepository</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-22</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-032a-refactor-base-product-repository.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a developer querying product data</asA>
+    <iWant>ProductRepository to use SQLModel with AsyncSession and shared base patterns</iWant>
+    <soThat>I get type-safe product queries with consistent error handling across all repositories</soThat>
+    <tasks>
+- Refactor `BaseRepository` constructor and shared patterns for AsyncSession
+- Create `ProductRepository` class inheriting from refactored `BaseRepository`
+- Extract product methods from `TestRepository`
+- Implement using `AsyncSession` and `select(ProductModel)` queries
+- Update unit tests to use AsyncSession mocks
+- Update `ProductService` to use new repository
+- Validate performance against baseline</tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. [ ] `BaseRepository` refactored in `src/testio_mcp/repositories/base.py`
+2. [ ] BaseRepository constructor updated: `__init__(self, session: AsyncSession, client: TestIOClient, customer_id: int)`
+3. [ ] Shared session management patterns implemented (commit, rollback, close)
+4. [ ] Common query helpers updated for SQLModel (e.g., `_execute_query()`)
+5. [ ] `ProductRepository` created in `src/testio_mcp/repositories/product_repository.py`
+6. [ ] ProductRepository inherits from refactored BaseRepository
+7. [ ] Methods extracted from TestRepository: `get_product_info()`, `update_product_last_synced()`, `get_synced_products_info()`, `count_products()`, `delete_all_products()`
+8. [ ] All queries use SQLModel syntax: `select(ProductModel).where(...)`
+9. [ ] All product unit tests pass (100% success rate)
+10. [ ] ProductService integration tests pass
+11. [ ] Performance: `list_products()` p95 < 15ms (baseline comparison)
+12. [ ] Code quality: `grep "aiosqlite.Connection" product_repository.py` returns empty
+13. [ ] Code quality: `grep "aiosqlite.Connection" base.py` returns empty
+14. [ ] Type checking passes: `mypy src/testio_mcp/repositories/product_repository.py --strict`
+15. [ ] Type checking passes: `mypy src/testio_mcp/repositories/base.py --strict`
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-006-orm-refactor.md</path>
+        <title>Epic-006: ORM Refactor (SQLModel + Alembic)</title>
+        <section>STORY-032A: Refactor BaseRepository + ProductRepository</section>
+        <snippet>User Story: As a developer querying product data, I want ProductRepository to use SQLModel with AsyncSession and shared base patterns, So that I get type-safe product queries with consistent error handling across all repositories. This story combines BaseRepository refactor with ProductRepository to deliver a demonstrable outcome (products queryable via ORM with shared base patterns).</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/CODING-STANDARDS.md</path>
+        <title>Coding Standards - TestIO MCP Server</title>
+        <section>Python Version, Code Quality Tools, Type Hints</section>
+        <snippet>Minimum Python 3.12+. All code must pass ruff format, ruff check, and mypy --strict. Type hints required on all functions (args + return). No wildcard ignore_missing_imports.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing - TestIO MCP Server</title>
+        <section>Test Organization, Coverage Requirements</section>
+        <snippet>Unit tests: Fast tests, mocked dependencies, no credentials. Coverage target: ≥85% overall, ≥90% for services. Use pytest-httpx for API mocks. Marker: @pytest.mark.unit.</snippet>
+      </doc>
+      <doc>
+        <path>docs/designs/orm-adoption.md</path>
+        <title>Design: ORM Adoption (SQLModel)</title>
+        <section>Phase 1: Infrastructure & Parity (Epic 006)</section>
+        <snippet>Refactor: Replace PersistentCache (raw SQL) with Repositories (ProductRepository, TestRepository). Use AsyncEngine and AsyncSession. All queries use SQLModel syntax: select(Model).where(...). Relationship patterns use Relationship() fields with proper TYPE_CHECKING imports to avoid circular dependencies.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/repositories/base_repository.py</path>
+        <kind>repository</kind>
+        <symbol>BaseRepository</symbol>
+        <lines>21-44</lines>
+        <reason>Current BaseRepository uses aiosqlite.Connection. Must be refactored to use AsyncSession with shared session management patterns (commit, rollback, close) and common query helpers for SQLModel.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>TestRepository</symbol>
+        <lines>29-723</lines>
+        <reason>Contains product-related methods (lines 505-653) that need to be extracted to ProductRepository: count_products(), get_product_info(), get_synced_products_info(), update_product_last_synced(), delete_all_products().</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>count_products</symbol>
+        <lines>508-518</lines>
+        <reason>Product method to extract. Uses raw SQL: SELECT COUNT(*) FROM products. Must convert to SQLModel: select(func.count()).select_from(Product).where(...).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>get_product_info</symbol>
+        <lines>520-558</lines>
+        <reason>Product method to extract. Uses raw SQL with JSON parsing. Must convert to SQLModel: select(Product).where(Product.id == product_id).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>get_synced_products_info</symbol>
+        <lines>560-594</lines>
+        <reason>Product method to extract. Uses raw SQL with subquery for test_count. Must convert to SQLModel with relationship or join.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>update_product_last_synced</symbol>
+        <lines>625-645</lines>
+        <reason>Product method to extract. Uses INSERT ... ON CONFLICT. Must convert to SQLModel: session.merge() or upsert pattern with AsyncSession.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>delete_all_products</symbol>
+        <lines>647-653</lines>
+        <reason>Product method to extract. Uses raw SQL DELETE. Must convert to SQLModel: session.exec(delete(Product).where(...)).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/product.py</path>
+        <kind>model</kind>
+        <symbol>Product</symbol>
+        <lines>12-33</lines>
+        <reason>SQLModel class for Product entity. ProductRepository will use this model for all queries: select(Product).where(...). Already defined with proper fields matching database schema.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/__init__.py</path>
+        <kind>module</kind>
+        <symbol>__init__</symbol>
+        <lines>1-10</lines>
+        <reason>ORM models package exports. Verify Product is exported for import in ProductRepository: from testio_mcp.models.orm import Product.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version=">=0.0.16" />
+        <package name="alembic" version=">=1.13.0" />
+        <package name="greenlet" version=">=3.0.0" />
+        <package name="aiosqlite" version=">=0.20.0" note="Will be removed in STORY-034B" />
+        <package name="httpx" version=">=0.28.0" />
+        <package name="pydantic" version=">=2.12.0" />
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+- **Repository Pattern**: Repositories handle pure data access logic (SQL queries + API fetching). Business logic belongs in services.
+- **Customer Isolation**: All queries scoped to customer_id for multi-tenant data isolation.
+- **AsyncSession Management**: Use AsyncSession with proper lifecycle management (commit, rollback, close). No manual connection management.
+- **SQLModel Syntax**: All queries must use SQLModel syntax: select(Model).where(...). No raw SQL strings except for documented optimizations.
+- **Type Safety**: All functions must have type hints (args + return). Pass mypy --strict.
+- **No aiosqlite.Connection**: BaseRepository and ProductRepository must not import or use aiosqlite.Connection. Use AsyncSession only.
+- **Performance**: ProductRepository queries must meet baseline performance targets (list_products p95 < 15ms).
+- **Testing**: All unit tests must use AsyncSession mocks, not aiosqlite.Connection mocks.
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>BaseRepository.__init__</name>
+      <kind>constructor</kind>
+      <signature>def __init__(self, session: AsyncSession, client: TestIOClient, customer_id: int) -> None</signature>
+      <path>src/testio_mcp/repositories/base_repository.py</path>
+    </interface>
+    <interface>
+      <name>BaseRepository session management</name>
+      <kind>methods</kind>
+      <signature>async def commit() -> None; async def rollback() -> None; async def close() -> None</signature>
+      <path>src/testio_mcp/repositories/base_repository.py</path>
+    </interface>
+    <interface>
+      <name>ProductRepository.count_products</name>
+      <kind>method</kind>
+      <signature>async def count_products(self) -> int</signature>
+      <path>src/testio_mcp/repositories/product_repository.py</path>
+    </interface>
+    <interface>
+      <name>ProductRepository.get_product_info</name>
+      <kind>method</kind>
+      <signature>async def get_product_info(self, product_id: int) -> dict[str, Any] | None</signature>
+      <path>src/testio_mcp/repositories/product_repository.py</path>
+    </interface>
+    <interface>
+      <name>ProductRepository.get_synced_products_info</name>
+      <kind>method</kind>
+      <signature>async def get_synced_products_info(self) -> list[dict[str, Any]]</signature>
+      <path>src/testio_mcp/repositories/product_repository.py</path>
+    </interface>
+    <interface>
+      <name>ProductRepository.update_product_last_synced</name>
+      <kind>method</kind>
+      <signature>async def update_product_last_synced(self, product_id: int) -> None</signature>
+      <path>src/testio_mcp/repositories/product_repository.py</path>
+    </interface>
+    <interface>
+      <name>ProductRepository.delete_all_products</name>
+      <kind>method</kind>
+      <signature>async def delete_all_products(self) -> None</signature>
+      <path>src/testio_mcp/repositories/product_repository.py</path>
+    </interface>
+    <interface>
+      <name>Product ORM Model</name>
+      <kind>class</kind>
+      <signature>class Product(SQLModel, table=True): id: int | None; customer_id: int; data: str; last_synced: datetime | None</signature>
+      <path>src/testio_mcp/models/orm/product.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+All tests must follow project testing standards from docs/architecture/TESTING.md:
+- Unit tests: Fast, mocked dependencies, no credentials. Use pytest-httpx for API mocks. Marker: @pytest.mark.unit.
+- Coverage target: ≥85% overall, ≥90% for repositories.
+- Type safety: All test code must pass mypy --strict.
+- Fixtures: Use AsyncSession mocks for repository tests (defined in tests/conftest.py).
+- Naming: test_<function>_<scenario>() format.
+- Arrange-Act-Assert pattern for all tests.
+- Test behavior, not implementation. Use set membership, not equality. Avoid hardcoded magic numbers.
+    </standards>
+    <locations>
+- tests/unit/test_base_repository.py (new file for BaseRepository tests)
+- tests/unit/test_product_repository.py (new file for ProductRepository tests)
+- tests/services/test_product_service.py (existing, update to use ProductRepository)
+- tests/conftest.py (add AsyncSession mock fixtures)
+    </locations>
+    <ideas>
+**BaseRepository Tests (AC1-4):**
+- test_base_repository_constructor_accepts_async_session: Verify BaseRepository.__init__ accepts AsyncSession, TestIOClient, customer_id.
+- test_base_repository_commit_calls_session_commit: Verify commit() delegates to session.commit().
+- test_base_repository_rollback_calls_session_rollback: Verify rollback() delegates to session.rollback().
+- test_base_repository_close_calls_session_close: Verify close() delegates to session.close().
+
+**ProductRepository Tests (AC5-8):**
+- test_product_repository_inherits_base_repository: Verify ProductRepository is subclass of BaseRepository.
+- test_count_products_uses_sqlmodel_query: Verify count_products() uses select(func.count()).select_from(Product).
+- test_get_product_info_uses_sqlmodel_query: Verify get_product_info() uses select(Product).where(Product.id == product_id).
+- test_get_synced_products_info_returns_list: Verify get_synced_products_info() returns list of product dicts with id, name, last_synced, test_count.
+- test_update_product_last_synced_uses_merge: Verify update_product_last_synced() uses session.merge() or upsert pattern.
+- test_delete_all_products_uses_sqlmodel_delete: Verify delete_all_products() uses session.exec(delete(Product).where(...)).
+
+**Code Quality Tests (AC12-13):**
+- test_no_aiosqlite_in_product_repository: Run grep "aiosqlite.Connection" product_repository.py, assert empty result.
+- test_no_aiosqlite_in_base_repository: Run grep "aiosqlite.Connection" base.py, assert empty result.
+
+**Type Checking Tests (AC14-15):**
+- test_mypy_product_repository_strict: Run mypy src/testio_mcp/repositories/product_repository.py --strict, assert zero errors.
+- test_mypy_base_repository_strict: Run mypy src/testio_mcp/repositories/base.py --strict, assert zero errors.
+
+**Performance Tests (AC11):**
+- test_list_products_performance_baseline: Benchmark list_products() p95 latency, assert < 15ms.
+    </ideas>
+  </tests>
+</story-context>

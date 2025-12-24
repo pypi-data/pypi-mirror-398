@@ -1,0 +1,301 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>9</epicId>
+    <storyId>50</storyId>
+    <title>CLI Sync Migration</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-26</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-050-cli-sync-migration.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer maintaining the CLI sync command</asA>
+    <iWant>it to delegate to SyncService instead of direct cache methods</iWant>
+    <soThat>CLI sync modes map cleanly to SyncService options and share the same implementation as background and MCP sync</soThat>
+    <tasks>
+- Task 1: Refactor cli/sync.py to use SyncService (AC: 1)
+  - Import SyncService and data models (SyncPhase, SyncScope, SyncOptions, SyncResult)
+  - Initialize SyncService with TestIOClient and PersistentCache
+  - Replace direct cache method calls with SyncService.execute_sync()
+  - Preserve existing CLI output structure (progress, verbose, summary)
+  - Handle SyncResult return value for stats display
+
+- Task 2: Map --force flag to SyncOptions (AC: 2)
+  - Create SyncOptions with force_refresh=True when --force present
+  - Pass options to execute_sync()
+  - Verify behavior matches current --force (re-sync all tests)
+  - Update CLI help text if needed
+  - Add integration test for --force mode
+
+- Task 3: Map --incremental-only to phases filter (AC: 3)
+  - When --incremental-only present, set phases=[SyncPhase.NEW_TESTS]
+  - Default (no flag): phases=[SyncPhase.PRODUCTS, SyncPhase.FEATURES, SyncPhase.NEW_TESTS]
+  - Verify fast mode skips PRODUCTS and FEATURES phases
+  - Add integration test for --incremental-only mode
+
+- Task 4: Map --nuke flag to SyncOptions (AC: 4, 8)
+  - Create SyncOptions with nuke=True when --nuke present
+  - Enhance warning message with entity counts query
+  - Query database for counts: products, tests, bugs, features, users
+  - Display formatted warning with all counts
+  - Require user confirmation (y/n prompt)
+  - Pass nuke option to execute_sync()
+  - Add integration test for --nuke mode
+
+- Task 5: Map --product-ids filter to SyncScope (AC: 5)
+  - Parse comma-separated product IDs from CLI argument
+  - Convert to list[int] with validation
+  - Create SyncScope with product_ids=[...]
+  - Handle parsing errors gracefully
+  - Add integration test for --product-ids filter
+
+- Task 6: Map --since filter to SyncScope (AC: 6)
+  - Parse date string from CLI argument
+  - Support ISO format (YYYY-MM-DD) and relative ("30 days ago", "yesterday")
+  - Convert to datetime object
+  - Create SyncScope with since_date=datetime
+  - Handle parsing errors with helpful message
+  - Add integration test for --since filter
+
+- Task 7: Preserve CLI output formatting (AC: 7)
+  - Map SyncResult fields to existing output format
+  - Progress indicators during sync (if possible with SyncService)
+  - Verbose mode output (--verbose flag)
+  - Summary stats (products, features, tests, duration)
+  - Error and warning display
+  - Ensure output matches current CLI UX
+
+- Task 8: Update CLI integration tests (AC: 1-8)
+  - Create test_cli_sync_modes.py with all mode combinations
+  - Test: default mode (all 3 phases)
+  - Test: --force mode (force_refresh=True)
+  - Test: --incremental-only mode (NEW_TESTS phase only)
+  - Test: --nuke mode (delete + full resync)
+  - Test: --product-ids filter
+  - Test: --since filter
+  - Test: Combined flags (e.g., --force --product-ids 598)
+
+- Task 9: Remove old cache methods from cache.py (Cleanup)
+  - Remove sync_product_tests() method (now delegated to SyncService)
+  - Remove refresh_features() method (now delegated to SyncService)
+  - Verify no other code references these methods
+  - These methods were kept from STORY-049 specifically for CLI migration
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. AC1: Refactor cli/sync.py to delegate to SyncService
+   - Replace direct calls to cache.sync_product_tests() and cache.refresh_features()
+   - Import SyncService and initialize with client and cache
+   - Call SyncService.execute_sync() for all sync operations
+   - Preserve existing CLI output formatting
+
+2. AC2: Map --force flag to SyncOptions.force_refresh=True
+   - When --force specified, set options.force_refresh=True
+   - Re-syncs all tests, not just new ones (non-destructive upsert)
+   - Behavior equivalent to current --force implementation
+   - Verify with integration test
+
+3. AC3: Map --incremental-only flag to phases=[SyncPhase.NEW_TESTS]
+   - When --incremental-only specified, only run NEW_TESTS phase
+   - Skip PRODUCTS and FEATURES phases (fast mode)
+   - Behavior equivalent to current --incremental-only implementation
+   - Verify with integration test
+
+4. AC4: Map --nuke flag to SyncOptions.nuke=True
+   - When --nuke specified, set options.nuke=True
+   - Deletes database and performs full resync
+   - Enhanced warning shows all entity counts before deletion
+   - Verify with integration test
+
+5. AC5: Map --product-ids filter to SyncScope.product_ids
+   - Parse comma-separated product IDs from CLI argument
+   - Pass as list[int] to SyncScope.product_ids
+   - Limits sync to specified products only
+   - Verify with integration test
+
+6. AC6: Map --since filter to SyncScope.since_date
+   - Parse date string (ISO format or relative like "30 days ago")
+   - Convert to datetime and pass to SyncScope.since_date
+   - Filters tests discovered after specified date
+   - Verify with integration test
+
+7. AC7: Preserve CLI output formatting
+   - Progress indicators during sync
+   - Verbose mode output (when --verbose specified)
+   - Summary stats after completion
+   - Error messages and warnings
+   - Duration display
+
+8. AC8: Enhance --nuke warning to show all entity counts
+   - Display counts for: products, tests, bugs, features, users
+   - Example: "Current data: 6 products, 724 tests, 8,056 bugs, 298 features, 45 users"
+   - Makes destructive operation impact more visible
+   - User must confirm before deletion
+</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-009.md" title="Epic-009 Technical Specification" section="STORY-050: CLI Sync Migration">
+        Acceptance criteria and CLI mode mapping requirements. Maps --force → SyncOptions.force_refresh=True, --incremental-only → phases=[NEW_TESTS], --nuke → SyncOptions.nuke=True, --product-ids → SyncScope.product_ids, --since → SyncScope.since_date. Preserves CLI output formatting and enhances --nuke warning with entity counts.
+      </doc>
+      <doc path="docs/epics/epic-009-sync-consolidation.md" title="Epic-009: Sync Consolidation" section="STORY-050">
+        Epic context and story statement. Consolidate sync orchestration into unified SyncService so MCP tool can have CLI-like functionality. SyncService handles orchestration; repositories encapsulate caching.
+      </doc>
+      <doc path="docs/architecture/adrs/ADR-006-service-layer-pattern.md" title="ADR-006: Service Layer Pattern" section="Service Boundaries">
+        Service layer architecture - SyncService is framework-agnostic, can be called from CLI. CLI should only handle argument parsing and output formatting, delegate to SyncService for business logic.
+      </doc>
+      <doc path="docs/architecture/adrs/ADR-017-background-sync-optimization-pull-model.md" title="ADR-017: Background Sync Optimization" section="3-Phase Model">
+        Background sync uses 3-phase model: PRODUCTS → FEATURES → NEW_TESTS. Phase 4 removed, bugs/tests refresh on-demand via read-through caching. CLI should use same phase model via SyncService.
+      </doc>
+      <doc path="docs/architecture/TESTING.md" title="Testing Standards" section="Integration Tests">
+        Integration tests with real SQLite (temp file), mock API. Test all CLI mode combinations, verify output formatting preserved, coverage target ≥75% for cli/sync.py.
+      </doc>
+      <doc path="docs/stories/story-048-syncservice-foundation.md" title="STORY-048: SyncService Foundation">
+        SyncService implementation details and API reference. Dual-layer locking (file lock + asyncio lock), stale lock recovery (PID tracking + 1-hour mtime timeout), sync event logging.
+      </doc>
+      <doc path="docs/stories/story-049-background-sync-migration.md" title="STORY-049: Background Sync Migration">
+        SyncService integration patterns from background sync. Successfully used SyncService.execute_sync() in server.py lifespan for background sync - use same pattern for CLI with asyncio.run() wrapper.
+      </doc>
+    </docs>
+    <code>
+      <artifact path="src/testio_mcp/cli/sync.py" kind="cli-command" symbol="sync_database" lines="35-615">
+        Current CLI sync implementation to migrate. Contains --force, --incremental-only, --nuke, --product-ids, --since modes. Uses direct cache methods (cache.sync_product_tests, cache.refresh_features, cache.refresh_all_tests, cache.refresh_active_cycle) that need to be replaced with SyncService.execute_sync().
+      </artifact>
+      <artifact path="src/testio_mcp/services/sync_service.py" kind="service" symbol="SyncService" lines="148-927">
+        SyncService implementation (STORY-048). Provides execute_sync() method with SyncPhase, SyncScope, SyncOptions, SyncResult. Dual-layer locking (file lock + asyncio lock), stale lock recovery, sync event logging. CLI will delegate to this service.
+      </artifact>
+      <artifact path="src/testio_mcp/services/sync_service.py" kind="data-model" symbol="SyncPhase" lines="57-69">
+        SyncPhase enum: PRODUCTS, FEATURES, NEW_TESTS. CLI modes map to different phase combinations (default: all 3, --incremental-only: NEW_TESTS only).
+      </artifact>
+      <artifact path="src/testio_mcp/services/sync_service.py" kind="data-model" symbol="SyncScope" lines="71-84">
+        SyncScope dataclass for filtering: product_ids (list[int]), since_date (datetime), entity_types (future). CLI --product-ids and --since map to these fields.
+      </artifact>
+      <artifact path="src/testio_mcp/services/sync_service.py" kind="data-model" symbol="SyncOptions" lines="86-99">
+        SyncOptions dataclass for modes: force_refresh (bool), incremental_only (bool), nuke (bool). CLI --force, --incremental-only, --nuke map to these flags.
+      </artifact>
+      <artifact path="src/testio_mcp/services/sync_service.py" kind="data-model" symbol="SyncResult" lines="101-123">
+        SyncResult dataclass with stats: phases_completed, products_synced, features_refreshed, tests_discovered, tests_updated, duration_seconds (required), warnings, errors. CLI will map these to output formatting.
+      </artifact>
+      <artifact path="src/testio_mcp/database/cache.py" kind="cache" symbol="sync_product_tests" reason="Method to remove after CLI migration (kept from STORY-049)">
+        Old sync method to be removed after CLI migrates to SyncService. This method was intentionally kept during STORY-049 background sync migration specifically for CLI use.
+      </artifact>
+      <artifact path="src/testio_mcp/database/cache.py" kind="cache" symbol="refresh_features" reason="Method to remove after CLI migration (kept from STORY-049)">
+        Old feature refresh method to be removed after CLI migrates to SyncService. Kept from STORY-049 for CLI use.
+      </artifact>
+      <artifact path="src/testio_mcp/server.py" kind="background-sync" symbol="server.py lifespan" reason="Reference implementation for SyncService usage">
+        Shows how background sync delegates to SyncService (STORY-049). CLI should use similar pattern with asyncio.run() for synchronous execution.
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="fastmcp" version=">=2.12.0">MCP tool registration framework</package>
+        <package name="httpx" version=">=0.28.0">Async HTTP client for TestIO API</package>
+        <package name="rich" version=">=13.7.0">CLI output formatting (console, progress bars, tables)</package>
+        <package name="filelock" version=">=3.13.0">Cross-process file locking (SyncService)</package>
+        <package name="psutil" version=">=5.9.0">PID validation for stale lock recovery (SyncService)</package>
+        <package name="sqlmodel" version=">=0.0.16">ORM for sync_metadata updates</package>
+        <package name="aiosqlite" version=">=0.20.0">Async SQLite access</package>
+        <package name="python-dateutil" version=">=2.8.0">Date parsing for --since filter</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>
+      <type>Service Layer Pattern (ADR-006)</type>
+      <description>SyncService is framework-agnostic and can be called from CLI. CLI should only handle argument parsing and output formatting. All sync logic must be centralized in SyncService for maintainability.</description>
+    </constraint>
+    <constraint>
+      <type>CLI Sync Pattern</type>
+      <description>File lock handled by SyncService (30s timeout with stale recovery). CLI invokes SyncService synchronously (asyncio.run). SyncService handles both file lock (cross-process) and asyncio lock (in-process). Stale lock recovery inherited from SyncService (STORY-048).</description>
+    </constraint>
+    <constraint>
+      <type>Mode Mapping Requirement</type>
+      <description>
+        - Default: phases=[PRODUCTS, FEATURES, NEW_TESTS], no special options
+        - --force: options.force_refresh=True (re-sync all tests)
+        - --incremental-only: phases=[NEW_TESTS] only (fast mode)
+        - --nuke: options.nuke=True (delete DB + full resync)
+        - --product-ids: scope.product_ids=[...] (limit to specific products)
+        - --since: scope.since_date=datetime (filter by date)
+      </description>
+    </constraint>
+    <constraint>
+      <type>Enhanced --nuke Warning (AC8)</type>
+      <description>Before deletion, query database for entity counts (products, tests, bugs, features, users). Display: "Current data: {products} products, {tests} tests, {bugs} bugs, {features} features, {users} users". Require explicit user confirmation (y/n prompt). Makes destructive operation impact more visible.</description>
+    </constraint>
+    <constraint>
+      <type>Testing Standards</type>
+      <description>Integration tests: Real SQLite (temp file), mock API. Test all CLI mode combinations (default, --force, --incremental-only, --nuke). Test all filter combinations (--product-ids, --since). Verify output formatting preserved. Coverage target: ≥75% for cli/sync.py.</description>
+    </constraint>
+    <constraint>
+      <type>Cleanup Requirement (Task 9)</type>
+      <description>Remove sync_product_tests() and refresh_features() methods from cache.py after CLI migration. These methods were intentionally kept from STORY-049 specifically for CLI use and must be removed to complete consolidation.</description>
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="SyncService.execute_sync()" kind="async-method" signature="async def execute_sync(phases: list[SyncPhase] | None, scope: SyncScope | None, options: SyncOptions | None, trigger_source: str) -> SyncResult" path="src/testio_mcp/services/sync_service.py">
+      Main SyncService entry point. CLI will call this with mapped parameters from CLI arguments.
+    </interface>
+    <interface name="SyncPhase enum" kind="enum" signature="class SyncPhase(str, Enum): PRODUCTS='products', FEATURES='features', NEW_TESTS='new_tests'" path="src/testio_mcp/services/sync_service.py">
+      Phase enumeration. CLI modes map to different phase combinations.
+    </interface>
+    <interface name="SyncScope dataclass" kind="dataclass" signature="@dataclass class SyncScope: product_ids: list[int] | None, since_date: datetime | None, entity_types: list[str] | None" path="src/testio_mcp/services/sync_service.py">
+      Filtering parameters. CLI --product-ids and --since map to this.
+    </interface>
+    <interface name="SyncOptions dataclass" kind="dataclass" signature="@dataclass class SyncOptions: force_refresh: bool, incremental_only: bool, nuke: bool" path="src/testio_mcp/services/sync_service.py">
+      Mode configuration. CLI --force, --incremental-only, --nuke map to this.
+    </interface>
+    <interface name="SyncResult dataclass" kind="dataclass" signature="@dataclass class SyncResult: phases_completed: list[SyncPhase], products_synced: int, features_refreshed: int, tests_discovered: int, tests_updated: int, duration_seconds: float, warnings: list[str], errors: list[str]" path="src/testio_mcp/services/sync_service.py">
+      Return type with stats and diagnostics. CLI will map these fields to output formatting.
+    </interface>
+    <interface name="PersistentCache database methods" kind="async-methods" signature="count_tests(), count_products(), count_bugs(), count_features(), count_users()" path="src/testio_mcp/database/cache.py">
+      Database query methods for enhanced --nuke warning (AC8). Used to display entity counts before destructive operation.
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Test Pyramid (from TESTING.md): Integration tests with real SQLite (temp file), mock API. Test all CLI mode combinations (default, --force, --incremental-only, --nuke). Test all filter combinations (--product-ids, --since). Verify output formatting preserved. Coverage target: ≥75% for cli/sync.py.
+
+      Key Test Patterns:
+      - Invoke CLI sync via asyncio.run() (synchronous execution)
+      - Use temp SQLite database for isolation
+      - Mock API responses for predictable testing
+      - Verify SyncService called with correct parameters
+      - Check SyncResult stats in CLI output
+    </standards>
+    <locations>
+      tests/integration/test_cli_sync.py (CREATE) - Integration tests for all CLI sync modes and flag combinations
+    </locations>
+    <ideas>
+      <test idea="AC1: Default mode executes all 3 phases" criteria="AC1">
+        Test: Invoke CLI sync without flags. Verify: SyncService.execute_sync() called with phases=[PRODUCTS, FEATURES, NEW_TESTS]. Check: All 3 phases in SyncResult.phases_completed.
+      </test>
+      <test idea="AC2: --force maps to force_refresh=True" criteria="AC2">
+        Test: Invoke CLI sync with --force flag. Verify: SyncService.execute_sync() called with options.force_refresh=True. Check: SyncResult shows tests_updated > 0 (re-sync all tests).
+      </test>
+      <test idea="AC3: --incremental-only maps to phases=[NEW_TESTS]" criteria="AC3">
+        Test: Invoke CLI sync with --incremental-only flag. Verify: SyncService.execute_sync() called with phases=[NEW_TESTS] only. Check: SyncResult.phases_completed = [NEW_TESTS] (PRODUCTS and FEATURES skipped).
+      </test>
+      <test idea="AC4: --nuke maps to nuke=True with enhanced warning" criteria="AC4, AC8">
+        Test: Invoke CLI sync with --nuke flag. Verify: Enhanced warning displays all entity counts (products, tests, bugs, features, users). Verify: User confirmation required (y/n prompt). Verify: SyncService.execute_sync() called with options.nuke=True.
+      </test>
+      <test idea="AC5: --product-ids maps to scope.product_ids" criteria="AC5">
+        Test: Invoke CLI sync with --product-ids 598. Verify: SyncService.execute_sync() called with scope.product_ids=[598]. Check: Only specified product synced.
+      </test>
+      <test idea="AC6: --since maps to scope.since_date" criteria="AC6">
+        Test: Invoke CLI sync with --since '2025-01-01'. Verify: SyncService.execute_sync() called with scope.since_date=datetime(2025,1,1). Check: Only tests after date synced.
+      </test>
+      <test idea="AC7: CLI output formatting preserved" criteria="AC7">
+        Test: Invoke CLI sync with --verbose flag. Verify: Progress indicators during sync, verbose mode output, summary stats (products, features, tests, duration), error and warning display match current CLI UX.
+      </test>
+      <test idea="AC8: Combined flags work correctly" criteria="AC1-8">
+        Test: Invoke CLI sync with --force --product-ids 598. Verify: SyncService.execute_sync() called with options.force_refresh=True AND scope.product_ids=[598]. Check: Only product 598 force-refreshed.
+      </test>
+    </ideas>
+  </tests>
+</story-context>

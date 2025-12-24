@@ -1,0 +1,309 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>Epic-007</epicId>
+    <storyId>STORY-046</storyId>
+    <title>Background Sync Optimization</title>
+    <status>IN_PROGRESS</status>
+    <generatedAt>2025-11-26</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-046-background-sync-optimization.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>system operator</asA>
+    <iWant>background sync to focus on discovering new data rather than proactively refreshing existing data</iWant>
+    <soThat>API quota is used efficiently and sync cycles complete faster</soThat>
+    <tasks>
+      <task id="AC1">Remove Phase 4 (Mutable Test/Bug Refresh) from _run_background_refresh_cycle()</task>
+      <task id="AC2">Keep Phase 2 (Feature Refresh) unchanged</task>
+      <task id="AC3">Update should_run_initial_sync() - remove mutable test staleness check</task>
+      <task id="AC4">Update metrics and logging for 3-phase sync</task>
+      <task id="AC5">Add integration test verifying on-demand bug refresh during analytics</task>
+      <task id="AC6">Implement defensive refresh locks in PersistentCache</task>
+      <task id="AC7">Unify TTL configuration to single CACHE_TTL_SECONDS</task>
+      <task id="AC8">Add per-entity locks to TestRepository.get_tests_cached_or_refresh()</task>
+      <task id="AC9">Fix FeatureRepository timestamp bug (line 534-538)</task>
+      <task id="AC10">Add staleness check to TestService.list_tests()</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1" title="Remove Phase 4">
+      <given>the _run_background_refresh_cycle method</given>
+      <when>the background sync runs</when>
+      <then>it should NOT refresh mutable tests based on staleness</then>
+      <and>it should NOT refresh bugs for mutable tests</and>
+      <and>references to "Phase 4" should be removed from logs</and>
+      <testUpdate>tests/unit/test_cache_background_refresh.py line 83 - update to expect tests_refreshed=0</testUpdate>
+      <schemaDecision>Keep SyncEvent.tests_refreshed field (always 0) - avoids migration</schemaDecision>
+    </criterion>
+    <criterion id="AC2" title="Keep Phase 2">
+      <given>the _run_background_refresh_cycle method</given>
+      <when>the background sync runs</when>
+      <then>it SHOULD continue to refresh features if they are stale (TTL check)</then>
+    </criterion>
+    <criterion id="AC3" title="Update Initial Sync Logic">
+      <given>should_run_initial_sync()</given>
+      <when>checking for staleness</when>
+      <then>it should only check for oldest product sync and oldest feature sync</then>
+      <and>it should NOT check for oldest mutable test sync</and>
+    </criterion>
+    <criterion id="AC4" title="Metrics and Logging">
+      <given>the background sync process</given>
+      <when>it completes a cycle</when>
+      <then>log "Background sync: 3 phases (products, features, new tests)"</then>
+      <and>log summary stats per phase</and>
+    </criterion>
+    <criterion id="AC5" title="Integration Verification">
+      <given>the optimized sync (no bug refresh)</given>
+      <when>an analytics query is run for a test with stale bugs</when>
+      <then>verify that BugRepository triggers an on-demand refresh</then>
+      <and>the analytics result contains the staleness warning</and>
+    </criterion>
+    <criterion id="AC6" title="Defensive Refresh Locks">
+      <given>concurrent requests may target the same data</given>
+      <when>implementing read-through caching</when>
+      <then>implement per-entity locks stored in PersistentCache keyed by (customer_id, entity_type, entity_id)</then>
+      <and>use asyncio.Lock (not threading.Lock) for async-safe locking</and>
+      <and>wrap get_*_cached_or_refresh() batch operations with lock acquisition</and>
+      <and>log when lock acquired</and>
+      <and>add tests verifying concurrent refresh requests are serialized</and>
+      <note>Skip ProductRepository - products sync in Phase 1, not on-demand</note>
+      <checklist>
+        <item>Add _refresh_locks dict and get_refresh_lock() method to PersistentCache</item>
+        <item>Add lock usage to BugRepository.get_bugs_cached_or_refresh()</item>
+        <item>Add lock usage to TestRepository.get_tests_cached_or_refresh()</item>
+        <item>Add lock usage to FeatureRepository.get_features_cached_or_refresh()</item>
+        <item>Add unit tests for lock serialization</item>
+      </checklist>
+    </criterion>
+    <criterion id="AC7" title="Unify TTL Configuration">
+      <given>the shift to Pull model (read-through caching)</given>
+      <when>configuring staleness thresholds</when>
+      <then>add new unified CACHE_TTL_SECONDS config (default: 3600s)</then>
+      <and>update all repositories to use unified TTL</and>
+      <and>REMOVE BUG_CACHE_TTL_SECONDS, FEATURE_CACHE_TTL_SECONDS, TEST_CACHE_TTL_SECONDS from config</and>
+      <and>update .env.example and documentation</and>
+      <migration>Breaking change - users with custom TTL values must update to CACHE_TTL_SECONDS</migration>
+    </criterion>
+    <criterion id="AC8" title="TestRepository Read-Through Caching">
+      <status>PARTIALLY IMPLEMENTED</status>
+      <existing>TestRepository.get_tests_cached_or_refresh() exists at lines 570-808</existing>
+      <hasFeatures>Mutability-based staleness, TEST_CACHE_TTL_SECONDS, batch refresh, proper error handling</hasFeatures>
+      <missing>Per-entity locks (AC6 requirement)</missing>
+      <remainingWork>
+        <item>Add per-entity lock usage from PersistentCache.get_refresh_lock()</item>
+        <item>Update TestService.list_tests() - add staleness check (see AC10)</item>
+        <item>Verify TestService.get_test_status() usage</item>
+      </remainingWork>
+    </criterion>
+    <criterion id="AC9" title="Fix FeatureRepository Timestamp Bug">
+      <given>FeatureRepository.get_features_cached_or_refresh() uses return_exceptions=True</given>
+      <when>a feature refresh API call fails for a product</when>
+      <then>do NOT update synced_at timestamp for failed products</then>
+      <and>only update timestamp for products that successfully refreshed</and>
+      <and>log which products failed refresh</and>
+      <bugLocation>feature_repository.py lines 534-538</bugLocation>
+      <bugDescription>Current code updates timestamps unconditionally after asyncio.gather(), even when some refreshes failed</bugDescription>
+    </criterion>
+    <criterion id="AC10" title="Add Staleness Check to list_tests">
+      <given>Phase 4 removal stops proactive test metadata refresh</given>
+      <when>a user calls list_tests for a product</when>
+      <then>TestService.list_tests() should call get_tests_cached_or_refresh() before returning</then>
+      <and>re-query tests from database after potential refresh</and>
+      <and>log warning if cache hit rate less than 50%</and>
+      <rationale>Ensures consistent freshness across all test query operations</rationale>
+      <decision>Always check staleness - consistent behavior over performance</decision>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-007-generic-analytics-framework.md</path>
+        <title>Epic-007: Generic Analytics Framework</title>
+        <section>STORY-046: Background Sync Optimization</section>
+        <snippet>Simplifies background sync from 4 phases to 3. Removes proactive bug refresh (Phase 4). Bug data refreshed on-demand via BugRepository.get_bugs_cached_or_refresh() during read operations.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Local Data Store Strategy</section>
+        <snippet>SQLite database with repository pattern. Background sync every 15 minutes (configurable). Incremental sync discovers new tests, refresh updates mutable tests.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/adrs/ADR-015-feature-staleness-and-sync-strategy.md</path>
+        <title>ADR-015: Feature Staleness and Sync Strategy</title>
+        <section>Decision</section>
+        <snippet>Use staleness-based refresh with 1-hour TTL. Background sync Phase 3 refreshes features if stale. Tool calls check staleness and refresh on-demand.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-044b-analytics-staleness-warnings.md</path>
+        <title>STORY-044B: Analytics Staleness Warnings</title>
+        <section>Repository Pattern</section>
+        <snippet>FeatureRepository.get_features_cached_or_refresh() mirrors BugRepository pattern. AnalyticsService uses repository staleness checks for both bugs and features.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-044c-referential-integrity-pattern.md</path>
+        <title>STORY-044C: Referential Integrity Pattern</title>
+        <section>Write-Time Integrity</section>
+        <snippet>TestRepository._upsert_test_feature() checks for missing features. Per-key locks prevent thundering herd. Repository-level integrity during sync operations.</snippet>
+      </doc>
+      <doc>
+        <path>CLAUDE.md</path>
+        <title>Developer Guide</title>
+        <section>Configuration</section>
+        <snippet>BUG_CACHE_TTL_SECONDS, FEATURE_CACHE_TTL_SECONDS, TEST_CACHE_TTL_SECONDS - staleness thresholds for respective entities. TESTIO_REFRESH_INTERVAL_SECONDS - background sync interval.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <file>
+        <path>src/testio_mcp/database/cache.py</path>
+        <kind>core</kind>
+        <symbol>PersistentCache._run_background_refresh_cycle</symbol>
+        <lines>2481-2638</lines>
+        <reason>Main target for Phase 4 removal. Currently has 4 phases - need to remove Phase 4 (lines 2606-2622)</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/database/cache.py</path>
+        <kind>core</kind>
+        <symbol>PersistentCache.should_run_initial_sync</symbol>
+        <lines>983-1097</lines>
+        <reason>AC3 target - currently checks oldest mutable test sync (lines 1062-1081). Remove mutable test check.</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/database/cache.py</path>
+        <kind>core</kind>
+        <symbol>PersistentCache</symbol>
+        <lines>1-500</lines>
+        <reason>AC6 target - add _refresh_locks dict and get_refresh_lock() method for per-entity locks</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>TestRepository.get_tests_cached_or_refresh</symbol>
+        <lines>570-808</lines>
+        <reason>AC8 target - method exists but missing per-entity locks. Add lock usage from PersistentCache.get_refresh_lock()</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/repositories/bug_repository.py</path>
+        <kind>repository</kind>
+        <symbol>BugRepository.get_bugs_cached_or_refresh</symbol>
+        <lines>varies</lines>
+        <reason>AC6 target - add per-entity lock usage</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/repositories/feature_repository.py</path>
+        <kind>repository</kind>
+        <symbol>FeatureRepository.get_features_cached_or_refresh</symbol>
+        <lines>534-538</lines>
+        <reason>AC9 bug location - timestamp updated unconditionally after asyncio.gather(). Also AC6 target for locks.</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/services/test_service.py</path>
+        <kind>service</kind>
+        <symbol>TestService.list_tests</symbol>
+        <lines>varies</lines>
+        <reason>AC10 target - add staleness check calling get_tests_cached_or_refresh() before returning</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/config.py</path>
+        <kind>config</kind>
+        <symbol>Settings</symbol>
+        <lines>173-217</lines>
+        <reason>AC7 target - currently has BUG_CACHE_TTL_SECONDS, FEATURE_CACHE_TTL_SECONDS, TEST_CACHE_TTL_SECONDS. Unify to single CACHE_TTL_SECONDS.</reason>
+      </file>
+      <file>
+        <path>tests/unit/test_cache_background_refresh.py</path>
+        <kind>test</kind>
+        <symbol>test_background_refresh_cycle_calls_refresh_features</symbol>
+        <lines>17-84</lines>
+        <reason>AC1 update - line 83 asserts tests_refreshed in result. Update to expect tests_refreshed=0 after Phase 4 removal.</reason>
+      </file>
+    </code>
+    <dependencies>
+      <python>
+        <package name="fastmcp" version=">=2.12.0">MCP framework</package>
+        <package name="pydantic" version=">=2.12.0">Settings and validation</package>
+        <package name="pydantic-settings" version=">=2.11.0">Environment config</package>
+        <package name="httpx" version=">=0.28.0">Async HTTP client</package>
+        <package name="aiosqlite" version=">=0.20.0">Async SQLite</package>
+        <package name="sqlmodel" version=">=0.0.16">ORM</package>
+        <package name="alembic" version=">=1.13.0">Database migrations</package>
+        <package name="pytest" version=">=8.4.0">Testing framework</package>
+        <package name="pytest-asyncio" version=">=0.24.0">Async test support</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="architecture">Repository objects are short-lived (created per request). asyncio.Lock on each instance won't serialize across instances. Use shared lock registry in PersistentCache.</constraint>
+    <constraint type="breaking-change">AC7 unifies TTL config - breaking change for users with custom TTL values. Must update to CACHE_TTL_SECONDS.</constraint>
+    <constraint type="schema">Keep SyncEvent.tests_refreshed field (always 0 after Phase 4 removal) to avoid migration complexity.</constraint>
+    <constraint type="performance">Accept 2-5s latency for stale data refresh in exchange for data consistency (AC10).</constraint>
+    <constraint type="lock-cleanup">Lock registry cleanup not required per architect review - memory footprint negligible (~5MB max), locks persist for reuse.</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>PersistentCache.get_refresh_lock</name>
+      <kind>method</kind>
+      <signature>def get_refresh_lock(self, entity_type: str, entity_id: int) -> asyncio.Lock</signature>
+      <path>src/testio_mcp/database/cache.py</path>
+      <description>NEW - Get or create lock for entity. Uses setdefault() to avoid race condition. Key: (customer_id, entity_type, entity_id)</description>
+    </interface>
+    <interface>
+      <name>TestRepository.get_tests_cached_or_refresh</name>
+      <kind>method</kind>
+      <signature>async def get_tests_cached_or_refresh(self, test_ids: list[int], force_refresh: bool = False) -> tuple[dict[int, dict], dict]</signature>
+      <path>src/testio_mcp/repositories/test_repository.py</path>
+      <description>EXISTING - Needs AC6 lock integration</description>
+    </interface>
+    <interface>
+      <name>BugRepository.get_bugs_cached_or_refresh</name>
+      <kind>method</kind>
+      <signature>async def get_bugs_cached_or_refresh(self, test_ids: list[int], ...) -> tuple[dict, dict]</signature>
+      <path>src/testio_mcp/repositories/bug_repository.py</path>
+      <description>EXISTING - Needs AC6 lock integration</description>
+    </interface>
+    <interface>
+      <name>FeatureRepository.get_features_cached_or_refresh</name>
+      <kind>method</kind>
+      <signature>async def get_features_cached_or_refresh(self, product_ids: list[int], force_refresh: bool = False) -> tuple[dict, dict]</signature>
+      <path>src/testio_mcp/repositories/feature_repository.py</path>
+      <description>EXISTING - Needs AC9 timestamp fix and AC6 lock integration</description>
+    </interface>
+    <interface>
+      <name>TestService.list_tests</name>
+      <kind>method</kind>
+      <signature>async def list_tests(self, product_id: int, ...) -> dict</signature>
+      <path>src/testio_mcp/services/test_service.py</path>
+      <description>EXISTING - Needs AC10 staleness check before returning</description>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      <paragraph>Tests follow behavioral testing principles - test WHAT the system does, not HOW. Unit tests run in ~0.5s, integration tests ~30s. Coverage target: >=85% overall, >=90% for services. Use pytest markers: @pytest.mark.unit for fast tests, @pytest.mark.integration for real API tests. Mock dependencies at appropriate boundaries - PersistentCache for sync tests, repositories for service tests.</paragraph>
+    </standards>
+    <locations>
+      <location>tests/unit/test_cache_background_refresh.py</location>
+      <location>tests/unit/test_cache_feature_staleness.py</location>
+      <location>tests/unit/test_test_repository_staleness.py</location>
+      <location>tests/unit/test_bug_repository.py</location>
+      <location>tests/unit/test_feature_repository_staleness.py</location>
+      <location>tests/integration/test_epic_007_e2e.py</location>
+    </locations>
+    <ideas>
+      <idea ac="AC1">test_background_refresh_cycle_has_3_phases - verify Phase 4 removed, tests_refreshed=0</idea>
+      <idea ac="AC1">test_background_refresh_logs_3_phase_message - verify log contains "3 phases"</idea>
+      <idea ac="AC3">test_should_run_initial_sync_ignores_mutable_test_staleness - verify only checks product/feature sync</idea>
+      <idea ac="AC5">test_analytics_query_triggers_on_demand_bug_refresh - integration test with stale bugs</idea>
+      <idea ac="AC6">test_concurrent_refresh_requests_serialized - verify lock prevents duplicate API calls</idea>
+      <idea ac="AC6">test_get_refresh_lock_returns_same_lock_for_same_entity - verify lock registry behavior</idea>
+      <idea ac="AC7">test_cache_ttl_seconds_config_used - verify unified TTL applied to all repositories</idea>
+      <idea ac="AC9">test_feature_refresh_failure_does_not_update_timestamp - verify timestamp unchanged on failure</idea>
+      <idea ac="AC10">test_list_tests_checks_staleness - verify get_tests_cached_or_refresh called</idea>
+    </ideas>
+  </tests>
+</story-context>

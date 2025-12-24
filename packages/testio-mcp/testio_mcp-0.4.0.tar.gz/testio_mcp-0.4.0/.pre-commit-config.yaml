@@ -1,0 +1,107 @@
+# Pre-commit hooks configuration
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Built-in pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0  # pragma: allowlist secret
+    hooks:
+      # File quality checks
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+        description: Prevent accidentally committing large files
+
+      - id: check-json
+        description: Verify JSON files are valid
+
+      - id: check-yaml
+        description: Verify YAML files are valid
+        exclude: '^docs/qa/gates/.*\.yml$'  # QA gate files use custom schema
+
+      - id: check-toml
+        description: Verify TOML files are valid
+
+      - id: end-of-file-fixer
+        description: Ensure files end with newline
+
+      - id: trailing-whitespace
+        description: Remove trailing whitespace
+
+      - id: mixed-line-ending
+        description: Ensure consistent line endings
+
+      - id: check-merge-conflict
+        description: Check for merge conflict markers
+
+  # Secret detection
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: 68e8b45440415753fff70a312ece8da92ba85b4a  # frozen: v1.5.0  # pragma: allowlist secret
+    hooks:
+      - id: detect-secrets
+        name: Detect secrets
+        args:
+          - '--baseline'
+          - '.secrets.baseline'
+        exclude: '\.secrets\.baseline$'
+        description: Scan for hardcoded API tokens, passwords, keys (SEC-002)
+
+  # Dependency vulnerability scanning
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.9.0
+    hooks:
+      - id: pip-audit
+        name: Audit Python dependencies
+        args: ['--desc', 'on']
+        description: Check Python dependencies for known security vulnerabilities
+
+  # Python code formatting and linting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: aad66557af3b56ba6d4d69cd1b6cba87cef50cbb  # frozen: v0.14.3  # pragma: allowlist secret
+    hooks:
+      - id: ruff
+        name: Ruff linter
+        args: [--fix]
+        description: Fast Python linter (replaces flake8, isort, etc.)
+
+      - id: ruff-format
+        name: Ruff formatter
+        description: Fast Python formatter (replaces black)
+
+  # Type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: 9f70dc58c23dfcca1b97af99eaeee3140a807c7e  # frozen: v1.18.2  # pragma: allowlist secret
+    hooks:
+      - id: mypy
+        name: Type check with mypy
+        additional_dependencies:
+          - pydantic>=2.12.0
+          - httpx>=0.28.0
+          - pydantic-settings>=2.11.0
+          - fastmcp>=2.12.0
+          - python-dateutil>=2.8.0
+          - types-python-dateutil>=2.8.0
+          - dateparser>=1.2.0
+          - types-dateparser>=1.2.0
+          - aiosqlite>=0.20.0
+          - filelock>=3.13.0
+          - psutil>=5.9.0
+          - types-psutil>=5.9.0
+          - fastapi>=0.109.0
+          - uvicorn[standard]>=0.27.0
+          - sqlmodel>=0.0.16
+          - alembic>=1.13.0
+          - greenlet>=3.0.0
+        args: [--config-file=pyproject.toml]
+        exclude: ^(tests/|scripts/)
+        description: Static type checking (TYPE-001)
+
+# Configuration
+default_language_version:
+  python: python3
+
+# Run these hooks on all files during 'pre-commit run --all-files'
+default_stages: [pre-commit]
+
+# Don't fail on first error - run all hooks
+fail_fast: false

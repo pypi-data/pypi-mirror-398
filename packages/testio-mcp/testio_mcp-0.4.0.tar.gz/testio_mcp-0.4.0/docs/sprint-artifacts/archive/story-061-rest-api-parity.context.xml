@@ -1,0 +1,408 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>8</epicId>
+    <storyId>9</storyId>
+    <title>REST API Parity</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-061-rest-api-parity.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer building integrations</asA>
+    <iWant>REST endpoints for all active MCP tools</iWant>
+    <soThat>I can access TestIO data from non-MCP clients (web frontends, CLI, mobile apps, third-party integrations)</soThat>
+    <tasks>
+- Task 1: Audit existing REST API (AC: 1, 2)
+  - List all active MCP tools (exclude `list_user_stories`, `get_analytics_capabilities`)
+  - Document existing REST endpoints in `src/testio_mcp/api.py`
+  - Create audit matrix: MCP tool → REST endpoint → status (exists/missing)
+  - Identify gaps (tools without endpoints)
+
+- Task 2: Add summary tool endpoints (AC: 3)
+  - Add `GET /api/products/{id}/summary` endpoint
+  - Add `GET /api/features/{id}/summary` endpoint
+  - Add `GET /api/users/{id}/summary` endpoint
+  - Add `GET /api/tests/{id}/summary` endpoint
+  - Delegate to existing services (ProductService, FeatureService, UserService, TestService)
+  - Follow existing FastAPI patterns in `src/testio_mcp/api.py`
+
+- Task 3: Add quality report endpoint (AC: 4)
+  - Add `GET /api/products/{id}/quality-report` endpoint
+  - Support query params: `start_date`, `end_date`, `statuses`, `output_file`
+  - Delegate to ReportService
+  - Handle file export if `output_file` specified
+
+- Task 4: Add analytics endpoints (AC: 5)
+  - Add `POST /api/analytics/query` endpoint (query_metrics)
+  - Add `GET /api/analytics/capabilities` endpoint
+  - Delegate to AnalyticsService
+  - POST body matches `query_metrics` parameters
+
+- Task 5: Add operational endpoints (AC: 6)
+  - Add `GET /api/diagnostics` endpoint (get_server_diagnostics)
+  - Support query param: `include_sync_events` (boolean)
+  - Support query param: `sync_event_limit` (int, default 5, max 20)
+  - Add `GET /api/sync/problematic` endpoint (get_problematic_tests)
+  - Delegate to DiagnosticsService and SyncService
+
+- Task 6: Standardize REST patterns (AC: 7)
+  - Ensure all endpoints return JSON matching MCP tool output
+  - Implement consistent error format (❌ℹ️💡 pattern)
+  - Use Pydantic for request/response validation
+  - Follow existing FastAPI dependency injection pattern
+  - Skip authentication for now - design endpoints to easily add `Depends(get_product_id)` later
+
+- Task 7: OpenAPI documentation (AC: 8)
+  - Add docstrings to all endpoints (FastAPI auto-generates OpenAPI)
+  - Document request parameters
+  - Document response schemas
+  - Test OpenAPI spec generation via `/docs` endpoint
+  - Verify schemas match MCP tool schemas
+
+- Task 8: Integration tests (AC: 9)
+  - Create `tests/integration/test_rest_api_summary_endpoints.py`
+  - Create `tests/integration/test_rest_api_analytics_endpoints.py`
+  - Create `tests/integration/test_rest_api_operational_endpoints.py`
+  - Test successful responses (200 OK)
+  - Test error handling (404 Not Found, 400 Bad Request)
+  - Test parameter validation
+  - Test response schemas match MCP output
+  - Skip 401 Unauthorized tests (auth omitted for now)</tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. Define scope: active tools only
+   - Exclude removed tools (`list_user_stories`)
+   - Exclude disabled-by-default tools (`get_analytics_capabilities` unless enabled)
+   - Parity applies to: discover (`list_*`), summarize (`get_*_summary`), analyze, operational
+
+2. Audit existing REST endpoints vs active MCP tools
+   - Document gaps (active tools without REST endpoints)
+   - Create audit matrix showing MCP tool → REST endpoint mapping
+
+3. Add REST endpoints for summary tools
+   - `GET /api/products/{id}/summary`
+   - `GET /api/features/{id}/summary`
+   - `GET /api/users/{id}/summary`
+   - `GET /api/tests/{id}/summary`
+
+4. Add REST endpoint for quality report
+   - `GET /api/products/{id}/quality-report`
+   - Query params match tool parameters (`start_date`, `end_date`, `statuses`, `output_file`)
+
+5. Add REST endpoints for analytics
+   - `POST /api/analytics/query` (query_metrics)
+   - `GET /api/analytics/capabilities`
+
+6. Add REST endpoints for operational tools
+   - `GET /api/diagnostics` (consolidated: health, database, sync status)
+   - `GET /api/diagnostics?include_sync_events=true` (with sync history)
+   - `GET /api/sync/problematic` (kept separate)
+
+7. All REST endpoints follow consistent patterns
+   - Response format matches MCP tool output
+   - Error format matches MCP ToolError pattern (❌ℹ️💡)
+   - Input validation via Pydantic
+   - **Authentication omitted for now** (future enhancement)
+     - Design endpoints to easily add auth decorator later
+     - Keep existing `get_product_id()` dependency pattern for reference
+
+8. OpenAPI documentation generated
+   - All endpoints documented
+   - Request/response schemas included
+   - FastAPI auto-generates OpenAPI spec
+
+9. Integration tests for all REST endpoints
+   - Test successful responses (200 OK)
+   - Test error handling (404, 400)
+   - Test parameter validation
+   - Test response schema matches MCP output
+   - **Note:** No 401 tests needed (auth omitted for now)</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <!-- Epic 008 Documentation -->
+      <doc path="docs/epics/epic-008-mcp-layer-optimization.md" title="Epic 008: MCP Layer Optimization" section="STORY-061: REST API Parity">
+        Defines REST parity acceptance criteria: all active MCP tools need corresponding REST endpoints. Scope includes discover (list_*), summarize (get_*_summary), analyze (query_metrics, get_product_quality_report), and operational tools. Excludes removed tools (list_user_stories) and disabled-by-default tools (get_analytics_capabilities).
+      </doc>
+
+      <doc path="docs/sprint-artifacts/tech-spec-epic-008-mcp-layer-optimization.md" title="Epic 008 Technical Specification" section="REST Parity Requirements">
+        Details REST endpoint design: 1:1 parity with MCP tools, OpenAPI documentation, consistent error format (❌ℹ️💡 pattern), Pydantic validation, authentication via Authorization: Token header. Lists new endpoints: GET /api/products/{id}/summary, GET /api/features/{id}/summary, GET /api/users/{id}/summary, GET /api/tests/{id}/summary, GET /api/products/{id}/quality-report, POST /api/analytics/query, GET /api/analytics/capabilities, GET /api/diagnostics.
+      </doc>
+
+      <doc path="docs/architecture/ARCHITECTURE.md" title="System Architecture" section="Hybrid Server Architecture">
+        Describes hybrid FastAPI + FastMCP server: shared lifespan handler ensures single TestIOClient/PersistentCache instance, nested async context manager pattern, service layer separation from transport layer. REST endpoints reuse same services as MCP tools.
+      </doc>
+
+      <doc path="docs/architecture/SERVICE_LAYER_SUMMARY.md" title="Service Layer Pattern" section="Framework-Agnostic Business Logic">
+        Service layer handles domain operations, business logic, data access patterns, and orchestration. Services are reused across MCP tools and REST endpoints to ensure consistency. Raises domain exceptions (TestNotFoundException, etc.) converted to appropriate transport errors.
+      </doc>
+
+      <doc path="docs/architecture/TESTING.md" title="Testing Strategy" section="Integration Test Patterns">
+        Integration tests verify end-to-end flow: tool → service → API. For REST endpoints, test successful responses (200 OK), error handling (404, 400, 401), parameter validation, and response schema consistency with MCP tool output.
+      </doc>
+    </docs>
+
+    <code>
+      <!-- Existing REST API Implementation (Primary Reference) -->
+      <artifact path="src/testio_mcp/api.py" kind="module" symbol="api" lines="1-633" reason="Primary REST API file - contains all existing FastAPI endpoints, exception handlers, hybrid lifespan pattern, and service integration examples">
+        Key patterns: get_server_context_from_request() extracts ServerContext, get_service_from_server_context() creates service instances, response_model uses Pydantic models directly, exception handlers convert domain exceptions to HTTP status codes.
+      </artifact>
+
+      <!-- Service Layer (Business Logic to Reuse) -->
+      <artifact path="src/testio_mcp/services/product_service.py" kind="service" symbol="ProductService" reason="get_product_summary() method - needed for GET /api/products/{id}/summary">
+        Existing method returns product metadata + test_count/bug_count/feature_count via computed subqueries.
+      </artifact>
+
+      <artifact path="src/testio_mcp/services/feature_service.py" kind="service" symbol="FeatureService" reason="get_feature_summary() method - needed for GET /api/features/{id}/summary">
+        Returns feature metadata with user stories, test_count, bug_count, and associated product info.
+      </artifact>
+
+      <artifact path="src/testio_mcp/services/user_service.py" kind="service" symbol="UserService" reason="get_user_summary() method - needed for GET /api/users/{id}/summary">
+        Returns user metadata with activity counts (tests_created/bugs_reported) and last_activity timestamp.
+      </artifact>
+
+      <artifact path="src/testio_mcp/services/test_service.py" kind="service" symbol="TestService" reason="get_test_summary() method - already has REST endpoint">
+        Existing REST endpoint at GET /api/tests/{id}/summary, included for completeness in audit.
+      </artifact>
+
+      <artifact path="src/testio_mcp/services/multi_test_report_service.py" kind="service" symbol="MultiTestReportService" reason="get_product_quality_report() method - already has REST endpoint">
+        Existing REST endpoint at GET /api/products/{id}/quality-report, included in audit.
+      </artifact>
+
+      <artifact path="src/testio_mcp/services/analytics_service.py" kind="service" symbol="AnalyticsService" reason="query_metrics() and get_analytics_capabilities() methods - need REST endpoints">
+        query_metrics(): custom analytics with pivot tables, dimensions/metrics. get_analytics_capabilities(): lists available dimensions and metrics.
+      </artifact>
+
+      <artifact path="src/testio_mcp/services/diagnostics_service.py" kind="service" symbol="DiagnosticsService" reason="get_server_diagnostics() method - needs REST endpoint">
+        Consolidated diagnostic tool returning API status, database stats, sync status, and optional sync event history.
+      </artifact>
+
+      <artifact path="src/testio_mcp/services/sync_service.py" kind="service" symbol="SyncService" reason="get_problematic_tests() method - needs REST endpoint">
+        Returns tests that failed to sync (API 500 errors) with boundary IDs for debugging.
+      </artifact>
+
+      <!-- Pydantic Models (Response Schemas) -->
+      <artifact path="src/testio_mcp/tools/product_summary_tool.py" kind="schema" symbol="GetProductSummaryOutput" reason="Response model for GET /api/products/{id}/summary">
+        Pydantic model with product metadata, counts, and data_as_of timestamp.
+      </artifact>
+
+      <artifact path="src/testio_mcp/tools/feature_summary_tool.py" kind="schema" symbol="GetFeatureSummaryOutput" reason="Response model for GET /api/features/{id}/summary">
+        Pydantic model with feature metadata, user stories, counts, and product info.
+      </artifact>
+
+      <artifact path="src/testio_mcp/tools/user_summary_tool.py" kind="schema" symbol="GetUserSummaryOutput" reason="Response model for GET /api/users/{id}/summary">
+        Pydantic model with user metadata and activity metrics.
+      </artifact>
+
+      <artifact path="src/testio_mcp/tools/query_metrics_tool.py" kind="schema" symbol="QueryMetricsInput, QueryMetricsOutput" reason="Request/response models for POST /api/analytics/query">
+        Input: metrics, dimensions, filters, sort_by, limit. Output: rows (pivot table), metadata.
+      </artifact>
+
+      <artifact path="src/testio_mcp/tools/get_analytics_capabilities_tool.py" kind="schema" symbol="GetAnalyticsCapabilitiesOutput" reason="Response model for GET /api/analytics/capabilities">
+        Lists available dimensions and metrics with descriptions.
+      </artifact>
+
+      <artifact path="src/testio_mcp/tools/server_diagnostics_tool.py" kind="schema" symbol="ServerDiagnosticsOutput" reason="Response model for GET /api/diagnostics">
+        API status, database stats, sync status, storage range, optional sync events.
+      </artifact>
+
+      <!-- Exception Handling Patterns -->
+      <artifact path="src/testio_mcp/api.py" kind="exception_handler" symbol="handle_test_not_found" lines="172-182" reason="Example: convert domain exceptions to HTTP 404">
+        Pattern for converting TestNotFoundException to JSONResponse with HTTP 404 status.
+      </artifact>
+
+      <artifact path="src/testio_mcp/exceptions.py" kind="module" symbol="domain_exceptions" reason="Domain exceptions raised by services">
+        TestNotFoundException, ProductNotFoundException, FeatureNotFoundException, UserNotFoundException, TestIOAPIError - all converted to appropriate HTTP status codes.
+      </artifact>
+    </code>
+
+    <dependencies>
+      <python>
+        <package name="fastapi" version="~=0.115" usage="REST API framework, route definitions, dependency injection, OpenAPI generation" />
+        <package name="httpx" version="~=0.27" usage="Async HTTP client for TestIO API calls" />
+        <package name="pydantic" version="~=2.10" usage="Request/response validation, schema generation" />
+        <package name="fastmcp" version="~=0.6" usage="MCP protocol server (hybrid architecture with FastAPI)" />
+        <package name="sqlmodel" version="~=0.0.22" usage="ORM for SQLite database access" />
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <!-- Development Constraints from Dev Notes and Architecture -->
+    <constraint category="authentication">
+      Authentication is OMITTED for this story (simplified implementation). Design endpoints to easily add auth later via Depends(get_product_id). Use get_service_context(0, Service) for now (0 = no product_id filtering). See story Dev Notes lines 180-218 for future auth pattern.
+    </constraint>
+
+    <constraint category="service-layer">
+      REST endpoints MUST reuse existing service methods. Do NOT create new business logic in api.py. Delegate all operations to service layer (TestService, ProductService, FeatureService, UserService, AnalyticsService, DiagnosticsService, SyncService).
+    </constraint>
+
+    <constraint category="error-handling">
+      Error format MUST match MCP ToolError pattern (❌ℹ️💡). Use HTTPException with detailed error messages. Example from story Dev Notes lines 219-237: HTTPException(status_code=404, detail="❌ Product ID '123' not found\nℹ️ The product may have been deleted\n💡 Verify the product ID is correct")
+    </constraint>
+
+    <constraint category="response-consistency">
+      REST endpoint responses MUST match MCP tool output exactly. Use same Pydantic models for response_model. Ensures consistency between MCP and REST transports.
+    </constraint>
+
+    <constraint category="openapi-documentation">
+      All endpoints MUST have docstrings. FastAPI auto-generates OpenAPI from docstrings and Pydantic Field(description=...). Use Field(description=...) for parameter documentation.
+    </constraint>
+
+    <constraint category="testing">
+      Integration tests REQUIRED for all new endpoints. Test: 200 OK responses, 404 Not Found, 400 Bad Request, parameter validation, response schema matches MCP output. NO 401 tests needed (auth omitted). Follow patterns in tests/integration/test_rest_api.py.
+    </constraint>
+
+    <constraint category="code-quality">
+      Strict mypy type checking enforced (mypy --strict). Use uv run ruff format and uv run ruff check --fix before committing. Pre-commit hooks will enforce code quality.
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <!-- REST API Endpoints to Implement -->
+    <interface name="GET /api/products/{id}/summary" kind="REST endpoint" signature="async def get_product_summary_rest(request: Request, id: int) -> dict" path="src/testio_mcp/api.py">
+      Delegates to ProductService.get_product_summary(id). Returns product metadata + counts (test_count, bug_count, feature_count). Response model: GetProductSummaryOutput from product_summary_tool.py.
+    </interface>
+
+    <interface name="GET /api/features/{id}/summary" kind="REST endpoint" signature="async def get_feature_summary_rest(request: Request, id: int) -> dict" path="src/testio_mcp/api.py">
+      Delegates to FeatureService.get_feature_summary(id). Returns feature metadata + user stories + counts. Response model: GetFeatureSummaryOutput from feature_summary_tool.py.
+    </interface>
+
+    <interface name="GET /api/users/{id}/summary" kind="REST endpoint" signature="async def get_user_summary_rest(request: Request, id: int) -> dict" path="src/testio_mcp/api.py">
+      Delegates to UserService.get_user_summary(id). Returns user metadata + activity counts. Response model: GetUserSummaryOutput from user_summary_tool.py.
+    </interface>
+
+    <interface name="POST /api/analytics/query" kind="REST endpoint" signature="async def query_metrics_rest(request: Request, input: QueryMetricsInput) -> dict" path="src/testio_mcp/api.py">
+      Delegates to AnalyticsService.query_metrics(). Accepts POST body with metrics, dimensions, filters, sort_by, limit. Returns pivot table rows. Response model: QueryMetricsOutput from query_metrics_tool.py.
+    </interface>
+
+    <interface name="GET /api/analytics/capabilities" kind="REST endpoint" signature="async def get_analytics_capabilities_rest(request: Request) -> dict" path="src/testio_mcp/api.py">
+      Delegates to AnalyticsService.get_analytics_capabilities(). Returns available dimensions and metrics. Response model: GetAnalyticsCapabilitiesOutput from get_analytics_capabilities_tool.py.
+    </interface>
+
+    <interface name="GET /api/diagnostics" kind="REST endpoint" signature="async def get_server_diagnostics_rest(request: Request, include_sync_events: bool = False, sync_event_limit: int = 5) -> dict" path="src/testio_mcp/api.py">
+      Delegates to DiagnosticsService.get_server_diagnostics(). Returns API status, database stats, sync status, optional sync events. Response model: ServerDiagnosticsOutput from server_diagnostics_tool.py. Query params: include_sync_events (bool), sync_event_limit (int, default 5, max 20).
+    </interface>
+
+    <interface name="GET /api/sync/problematic" kind="REST endpoint" signature="async def get_problematic_tests_rest(request: Request, product_id: int | None = None) -> dict" path="src/testio_mcp/api.py">
+      Delegates to SyncService.get_problematic_tests(). Returns tests that failed to sync (API 500 errors). Optional query param: product_id (int). Returns list with test IDs and boundary IDs for debugging.
+    </interface>
+
+    <!-- Existing Service Methods (Reuse) -->
+    <interface name="ProductService.get_product_summary()" kind="service_method" signature="async def get_product_summary(self, product_id: int) -> dict" path="src/testio_mcp/services/product_service.py">
+      Returns product metadata + counts. Raises ProductNotFoundException if not found.
+    </interface>
+
+    <interface name="FeatureService.get_feature_summary()" kind="service_method" signature="async def get_feature_summary(self, feature_id: int) -> dict" path="src/testio_mcp/services/feature_service.py">
+      Returns feature metadata + user stories + counts. Raises FeatureNotFoundException if not found.
+    </interface>
+
+    <interface name="UserService.get_user_summary()" kind="service_method" signature="async def get_user_summary(self, user_id: int) -> dict" path="src/testio_mcp/services/user_service.py">
+      Returns user metadata + activity counts. Raises UserNotFoundException if not found.
+    </interface>
+
+    <interface name="AnalyticsService.query_metrics()" kind="service_method" signature="async def query_metrics(self, metrics: list[str], dimensions: list[str], ...) -> dict" path="src/testio_mcp/services/analytics_service.py">
+      Custom analytics with pivot tables. Returns rows (list of dicts) + metadata.
+    </interface>
+
+    <interface name="AnalyticsService.get_analytics_capabilities()" kind="service_method" signature="async def get_analytics_capabilities(self) -> dict" path="src/testio_mcp/services/analytics_service.py">
+      Returns available dimensions and metrics with descriptions.
+    </interface>
+
+    <interface name="DiagnosticsService.get_server_diagnostics()" kind="service_method" signature="async def get_server_diagnostics(self, include_sync_events: bool = False, sync_event_limit: int = 5) -> dict" path="src/testio_mcp/services/diagnostics_service.py">
+      Consolidated server health: API status, database stats, sync status, optional sync events.
+    </interface>
+
+    <interface name="SyncService.get_problematic_tests()" kind="service_method" signature="async def get_problematic_tests(self, product_id: int | None = None) -> dict" path="src/testio_mcp/services/sync_service.py">
+      Returns tests that failed to sync (API 500 errors) with boundary IDs.
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Testing framework: pytest + pytest-asyncio. Integration tests use AsyncClient from httpx to test REST endpoints. Tests verify: (1) successful responses (200 OK) with correct response schemas, (2) error handling (404 Not Found, 400 Bad Request), (3) parameter validation, (4) response consistency with MCP tool output. NO authentication tests needed (auth omitted for this story). Follow patterns from tests/integration/test_rest_api.py. Use uv run pytest -m integration to run integration tests.
+    </standards>
+
+    <locations>
+      tests/integration/test_rest_api_summary_endpoints.py - Integration tests for summary endpoints (products, features, users, tests)
+      tests/integration/test_rest_api_analytics_endpoints.py - Integration tests for analytics endpoints (query_metrics, get_analytics_capabilities)
+      tests/integration/test_rest_api_operational_endpoints.py - Integration tests for operational endpoints (diagnostics, problematic_tests)
+      tests/integration/test_rest_api.py - Existing REST API integration tests (reference pattern)
+    </locations>
+
+    <ideas>
+      <!-- AC 3: Summary tool endpoints -->
+      <test ac="3" idea="Test GET /api/products/{id}/summary returns 200 OK with product metadata + counts (test_count, bug_count, feature_count)">
+        Verify response structure matches GetProductSummaryOutput schema. Check all required fields present.
+      </test>
+
+      <test ac="3" idea="Test GET /api/products/{id}/summary returns 404 for invalid product ID">
+        Verify error format includes ❌ℹ️💡 pattern. Status code must be 404.
+      </test>
+
+      <test ac="3" idea="Test GET /api/features/{id}/summary returns 200 OK with feature metadata + user stories + counts">
+        Verify embedded user_stories list. Check test_count and bug_count computed fields.
+      </test>
+
+      <test ac="3" idea="Test GET /api/users/{id}/summary returns 200 OK with user metadata + activity counts">
+        For customers: tests_created_count, tests_submitted_count. For testers: bugs_reported_count. Verify last_activity timestamp.
+      </test>
+
+      <test ac="3" idea="Test GET /api/tests/{id}/summary returns 200 OK (already exists, verify in audit)">
+        Existing endpoint, confirm it's working and included in audit matrix.
+      </test>
+
+      <!-- AC 4: Quality report endpoint -->
+      <test ac="4" idea="Test GET /api/products/{id}/quality-report returns 200 OK with report data">
+        Already exists, verify query params work: start_date, end_date, statuses, output_file.
+      </test>
+
+      <!-- AC 5: Analytics endpoints -->
+      <test ac="5" idea="Test POST /api/analytics/query returns 200 OK with pivot table rows">
+        Verify request body with metrics, dimensions, filters, sort_by, limit. Check response matches QueryMetricsOutput schema.
+      </test>
+
+      <test ac="5" idea="Test POST /api/analytics/query returns 400 for invalid metrics/dimensions">
+        Verify Pydantic validation rejects invalid input. Error format should be consistent.
+      </test>
+
+      <test ac="5" idea="Test GET /api/analytics/capabilities returns 200 OK with dimensions and metrics lists">
+        Verify response matches GetAnalyticsCapabilitiesOutput schema. Check all dimensions and metrics documented.
+      </test>
+
+      <!-- AC 6: Operational endpoints -->
+      <test ac="6" idea="Test GET /api/diagnostics returns 200 OK with API/database/sync status">
+        Verify ServerDiagnosticsOutput schema: api, database, sync, storage sections. Default: no sync events.
+      </test>
+
+      <test ac="6" idea="Test GET /api/diagnostics?include_sync_events=true returns sync event history">
+        Verify events list included when requested. Respect sync_event_limit parameter (default 5, max 20).
+      </test>
+
+      <test ac="6" idea="Test GET /api/sync/problematic returns tests with failed syncs">
+        Verify list of test IDs with boundary IDs. Optional product_id filter parameter.
+      </test>
+
+      <!-- AC 7: Consistent patterns -->
+      <test ac="7" idea="Verify all new endpoints return JSON matching MCP tool output structure">
+        Response models should be identical to MCP tool response models. Use same Pydantic classes.
+      </test>
+
+      <test ac="7" idea="Verify error responses use ❌ℹ️💡 format consistently">
+        Check 404 and 400 errors across all endpoints. HTTPException detail should include error indicator (❌), context (ℹ️), and solution (💡).
+      </test>
+
+      <!-- AC 8: OpenAPI documentation -->
+      <test ac="8" idea="Verify /docs endpoint renders OpenAPI UI with all new endpoints">
+        Manual verification: open /docs in browser, check all endpoints documented with request/response schemas.
+      </test>
+
+      <test ac="8" idea="Verify OpenAPI spec matches MCP tool schemas">
+        Compare Pydantic models in /openapi.json with MCP tool schemas. Ensure consistency.
+      </test>
+    </ideas>
+  </tests>
+</story-context>

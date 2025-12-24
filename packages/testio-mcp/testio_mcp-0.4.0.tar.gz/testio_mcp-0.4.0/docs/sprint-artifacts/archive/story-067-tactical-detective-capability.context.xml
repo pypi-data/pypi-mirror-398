@@ -1,0 +1,154 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>011</epicId>
+    <storyId>067</storyId>
+    <title>Tactical Detective Capability</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-30T01:35:26-06:00</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-067-tactical-detective-capability.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>CSM using the Tactical Detective workflow</asA>
+    <iWant>the system to automatically parse bug rejection reasons and provide full test instructions</iWant>
+    <soThat>I can accurately diagnose 'noisy' cycles without manually reading hundreds of comments</soThat>
+    <tasks>
+- [ ] **Task 1: Define Constants**
+  - [ ] Add `REJECTION_REASONS` list to `src/testio_mcp/schemas/constants.py`.
+
+- [ ] **Task 2: Update Data Model**
+  - [ ] Add `rejection_reason` column to `src/testio_mcp/models/orm/bug.py`.
+  - [ ] Generate Alembic migration for the new column.
+
+- [ ] **Task 3: Implement Bug Transformer**
+  - [ ] Create `src/testio_mcp/transformers/bug_transformers.py`.
+  - [ ] Implement `transform_api_bug_to_orm` to parse comments against `REJECTION_REASONS`.
+  - [ ] Handle `request_timeout` pattern specifically.
+
+- [ ] **Task 4: Update Repository**
+  - [ ] Update `BugRepository._write_bugs_to_db` in `src/testio_mcp/repositories/bug_repository.py` to use the transformer.
+
+- [ ] **Task 5: Verify Instruction Text**
+  - [ ] Verify `get_test_summary` in `src/testio_mcp/services/test_service.py` (or tool wrapper) does not truncate instructions.
+
+- [ ] **Task 6: Testing**
+  - [ ] Create `tests/unit/test_bug_transformers.py` to verify parsing logic.
+  - [ ] Verify backfill strategy (migration or script).
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. **Rejection Reason Parsing:**
+   - `REJECTION_REASONS` constant is defined in `src/testio_mcp/schemas/constants.py` including `request_timeout`.
+   - `Bug` ORM model includes a nullable `rejection_reason` TEXT column.
+   - `transform_api_bug_to_orm` function correctly parses raw API bug data to extract rejection reasons from comments.
+   - `BugRepository` uses the transformer to populate `rejection_reason` when saving bugs.
+   - Existing rejected bugs are backfilled with parsed rejection reasons.
+
+2. **Instruction Text:**
+   - `get_test_summary` returns the complete, untruncated `instructions` text for a test.
+</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-011.md</path>
+        <title>Epic Technical Specification: Showcase &amp; Polish</title>
+        <section>Detailed Design</section>
+        <snippet>
+          **Rejection Reason Parsing (Clean Architecture):**
+          - **Strategy:** Use the **Transformer Pattern** to parse comments during data ingestion and denormalize the result into a new `rejection_reason` column in the `bugs` table.
+          - **Components:** Schema Constant, ORM Model, Transformer, Repository.
+        </snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/epic-011-showcase-and-polish.md</path>
+        <title>Epic 011: Showcase &amp; Polish</title>
+        <section>Implementation Plan (Stories)</section>
+        <snippet>
+          **STORY-067: Tactical Detective Capability**
+          - **Goal:** Polish tools to support the "Detective" workflow.
+          - **Tasks:** Tool Verification (Instruction Text), Tool Polish (Rejection Reasons).
+        </snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>TestIO MCP Server - System Architecture</title>
+        <section>Component Architecture</section>
+        <snippet>
+          **PersistentCache (SQLite Database):**
+          - **Responsibilities:** Store products, tests, bugs in SQLite database.
+          - **Repositories:** TestRepository, BugRepository.
+        </snippet>
+      </doc>
+    </docs>
+    <code>
+      <item>
+        <path>src/testio_mcp/schemas/constants.py</path>
+        <kind>schema</kind>
+        <symbol>REJECTION_REASONS</symbol>
+        <lines>N/A</lines>
+        <reason>Define the list of rejection reasons to match against.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/models/orm/bug.py</path>
+        <kind>model</kind>
+        <symbol>Bug</symbol>
+        <lines>N/A</lines>
+        <reason>Add `rejection_reason` column.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/repositories/bug_repository.py</path>
+        <kind>repository</kind>
+        <symbol>BugRepository._write_bugs_to_db</symbol>
+        <lines>N/A</lines>
+        <reason>Update to use transformer for parsing rejection reasons.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/services/test_service.py</path>
+        <kind>service</kind>
+        <symbol>get_test_summary</symbol>
+        <lines>N/A</lines>
+        <reason>Verify instruction text is not truncated.</reason>
+      </item>
+    </code>
+    <dependencies>
+      <dep>fastmcp</dep>
+      <dep>pydantic</dep>
+      <dep>sqlmodel</dep>
+      <dep>alembic</dep>
+      <dep>httpx</dep>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - **Transformer Pattern:** Use `transformers` module as an Anti-Corruption Layer (ACL) to keep Repository clean.
+    - **Schema:** New column `rejection_reason` in `bugs` table.
+    - **Backfill:** Existing rejected bugs must be backfilled with parsed rejection reasons.
+    - **Performance:** Batch updates to avoid locking the DB for too long during backfill.
+  </constraints>
+  <interfaces>
+    <interface>
+      <name>transform_api_bug_to_orm</name>
+      <kind>function</kind>
+      <signature>def transform_api_bug_to_orm(api_bug: dict) -> dict</signature>
+      <path>src/testio_mcp/transformers/bug_transformers.py</path>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>
+      Use `pytest` and `pytest-asyncio`. Unit tests should mock dependencies. Integration tests require real API credentials and should be marked with `@pytest.mark.integration`. Ensure coverage > 75%.
+    </standards>
+    <locations>
+      tests/unit/
+      tests/integration/
+    </locations>
+    <ideas>
+      - Unit test for `BugTransformer` to verify parsing logic for all known rejection reasons and unmatched cases.
+      - Unit test for `BugRepository` to ensure it uses the transformer correctly.
+      - Integration test for Alembic migration and backfill strategy.
+      - Unit test for `get_test_summary` to verify it handles long instruction text correctly.
+    </ideas>
+  </tests>
+</story-context>

@@ -1,0 +1,137 @@
+<story-context id="bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>014</epicId>
+    <storyId>087</storyId>
+    <title>Interactive analyze-product-quality Prompt Redesign</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-087-analyze-product-quality-prompt.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>CSM analyzing product quality</asA>
+    <iWant>an interactive prompt that gathers business context before diving into analysis</iWant>
+    <soThat>I get relevant insights framed for my specific needs (EBR prep, escalation investigation, routine check)</soThat>
+    <tasks>
+      <task id="1" title="Rewrite Prompt Template (analyze_product_quality.md)">
+        <subtask>Add three-phase structure with clear headers</subtask>
+        <subtask>Add product resolution logic (ID or name search)</subtask>
+        <subtask>Add executive summary format guidelines</subtask>
+        <subtask>Add context-gathering conversation prompts</subtask>
+        <subtask>Add context-driven investigation workflows (EBR/escalation/routine)</subtask>
+        <subtask>Add YOLO mode trigger detection and comprehensive workflow</subtask>
+        <subtask>Add iteration/follow-up guidance</subtask>
+      </task>
+      <task id="2" title="Update Python Function (analyze_product_quality.py)">
+        <subtask>Change parameter: `product_id: int` -> `product_identifier: str | None`</subtask>
+        <subtask>Add YOLO mode detection logic (check focus_area for keywords)</subtask>
+        <subtask>Update docstring with new usage examples</subtask>
+        <subtask>Pass YOLO mode flag to template</subtask>
+      </task>
+      <task id="3" title="Testing">
+        <subtask>Manual test via MCP inspector: `/analyze-product-quality 24734` (auto-execute mode)</subtask>
+        <subtask>Manual test via MCP inspector: `/analyze-product-quality "Acme Mobile"` (name resolution)</subtask>
+        <subtask>Manual test via MCP inspector: `/analyze-product-quality 24734 "last 30 days" "full report"` (YOLO mode)</subtask>
+        <subtask>Manual test via MCP inspector: `/analyze-product-quality` (guided discovery, no product)</subtask>
+        <subtask>Verify executive summary format renders correctly</subtask>
+        <subtask>Verify context-gathering questions appear</subtask>
+        <subtask>Verify YOLO mode skips interaction</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1" title="Three-Phase Workflow">
+      <description>Phase 1: Executive Summary (auto-execute if product identified); Phase 2: Context Gathering (interactive - understand business driver); Phase 3: Targeted Investigation (adapt based on gathered context)</description>
+    </criterion>
+    <criterion id="AC2" title="Flexible Product Resolution">
+      <description>Accept product ID (integer) OR product name/title (string). Use search/list tools to resolve product names to IDs. If no product provided, help user discover which product to analyze.</description>
+    </criterion>
+    <criterion id="AC3" title="Auto-Execute Executive Summary (Phase 1)">
+      <description>Only runs if product is identified. Time range scoping defaults to last 30 days. Syncs fresh data before analysis. Presents structured summary with key metrics, red flags, and top issues.</description>
+    </criterion>
+    <criterion id="AC4" title="Interactive Context Gathering (Phase 2)">
+      <description>After executive summary, offer 2-4 exploration paths based on findings. Ask business context conversationally (EBR prep, escalation, routine check).</description>
+    </criterion>
+    <criterion id="AC5" title="Targeted Investigation (Phase 3)">
+      <description>Adapt analysis based on context: EBR/QBR prep (trends, period comparison), Customer escalation (root cause, drill-down), Routine check (standard metrics). Use playbook resource for patterns.</description>
+    </criterion>
+    <criterion id="AC6" title="YOLO Mode (Explicit Trigger)">
+      <description>When user says "full report", "comprehensive", "everything", "complete analysis" - skip context gathering and execute comprehensive analysis.</description>
+    </criterion>
+    <criterion id="AC7" title="Iteration and Follow-up">
+      <description>After presenting findings, ask to drill into specific areas. Suggest related analyses and offer comparisons.</description>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/epics/epic-014-mcp-usability-improvements.md" title="Epic 014: MCP Usability Improvements" section="STORY-087" snippet="Enhanced analyze-product-quality Prompt - guides through rejection analysis for diagnosing 'noisy cycle' patterns with query_metrics for rejection reasons."/>
+      <doc path="src/testio_mcp/resources/playbook.md" title="TestIO CSM Playbook" section="Tactical Patterns" snippet="Key patterns: Noisy Cycle (rejection_rate >30%), Feature Fragility (bugs_per_test >2.0), Severity Spike (critical/high >50%). Strategic templates for EBR/QBR."/>
+      <doc path="src/testio_mcp/resources/playbook.md" title="TestIO CSM Playbook" section="Strategic Templates" snippet="Quarterly Quality Review template includes Volume and Engagement, Quality Trends, Rejection Analysis, Severity Distribution, Top Fragile Features."/>
+      <doc path="docs/architecture/TESTING.md" title="Testing Guide" section="Test Philosophy" snippet="Tests should validate WHAT the system does. Manual testing via MCP inspector recommended for prompt changes."/>
+    </docs>
+    <code>
+      <file path="src/testio_mcp/prompts/analyze_product_quality.py" kind="prompt-function" symbol="analyze_product_quality" lines="14-40" reason="Main prompt function to modify - change product_id to product_identifier and add YOLO detection"/>
+      <file path="src/testio_mcp/prompts/analyze_product_quality.md" kind="prompt-template" symbol="N/A" lines="1-49" reason="Template to rewrite with three-phase structure, executive summary format, context-driven workflows"/>
+      <file path="src/testio_mcp/tools/product_quality_report_tool.py" kind="tool" symbol="get_product_quality_report" reason="Core tool for executive summary - generates quality report with test details and metrics"/>
+      <file path="src/testio_mcp/tools/sync_data_tool.py" kind="tool" symbol="sync_data" reason="Used in Phase 1 to ensure fresh data before analysis"/>
+      <file path="src/testio_mcp/tools/product_summary_tool.py" kind="tool" symbol="get_product_summary" reason="Product overview for Phase 1 executive summary"/>
+      <file path="src/testio_mcp/tools/query_metrics_tool.py" kind="tool" symbol="query_metrics" reason="Analytics for rejection patterns, feature fragility, severity trends"/>
+      <file path="src/testio_mcp/tools/list_features_tool.py" kind="tool" symbol="list_features" reason="Feature discovery for follow-up analysis"/>
+      <file path="src/testio_mcp/tools/test_summary_tool.py" kind="tool" symbol="get_test_summary" reason="Test deep-dive for high-rejection investigation"/>
+      <file path="src/testio_mcp/tools/list_bugs_tool.py" kind="tool" symbol="list_bugs" reason="Bug listing for rejection pattern analysis (STORY-084 prerequisite)"/>
+      <file path="src/testio_mcp/tools/search_tool.py" kind="tool" symbol="search" reason="For resolving product names to IDs when string provided"/>
+      <file path="src/testio_mcp/tools/list_products_tool.py" kind="tool" symbol="list_products" reason="For guided discovery when no product provided"/>
+    </code>
+    <dependencies>
+      <python>
+        <package name="fastmcp" version=">=2.12.0" usage="MCP server and prompt registration"/>
+        <package name="pydantic" version=">=2.12.0" usage="Input validation"/>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="architecture">Prompts are thin template-based functions that guide AI agents through workflows. No business logic in prompt code.</constraint>
+    <constraint type="prerequisite">Depends on STORY-082 (rate metrics in query_metrics) for full rejection analysis capability</constraint>
+    <constraint type="compatibility">Function signature changes from product_id: int to product_identifier: str | None - breaking change but improves UX</constraint>
+    <constraint type="testing">Manual testing via MCP inspector is primary validation method for prompt changes</constraint>
+    <constraint type="format">Template uses markdown format with placeholders for dynamic content</constraint>
+    <constraint type="resource">MUST reference testio://knowledge/playbook resource for CSM tactical patterns and strategic templates</constraint>
+    <constraint type="time-scope">Default time scope is "last 30 days" - always communicate time period in output</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="analyze_product_quality" kind="MCP prompt function" signature="def analyze_product_quality(product_identifier: str | None = None, period: str = 'last 30 days', focus_area: str | None = None) -> str" path="src/testio_mcp/prompts/analyze_product_quality.py">
+      <note>Change product_id: int to product_identifier: str | None for flexible resolution</note>
+    </interface>
+    <interface name="get_product_quality_report" kind="MCP tool" signature="async def get_product_quality_report(product_id: int, start_date: str | None = None, end_date: str | None = None) -> dict[str, Any]" path="src/testio_mcp/tools/product_quality_report_tool.py">
+      <note>Core tool for Phase 1 executive summary - includes test-level details and acceptance rates</note>
+    </interface>
+    <interface name="sync_data" kind="MCP tool" signature="async def sync_data(product_ids: list[int] | None = None, since: str | None = None) -> dict[str, Any]" path="src/testio_mcp/tools/sync_data_tool.py">
+      <note>Used before quality report to ensure fresh data</note>
+    </interface>
+    <interface name="query_metrics" kind="MCP tool" signature="async def query_metrics(metrics: list[str], dimensions: list[str], ...) -> dict[str, Any]" path="src/testio_mcp/tools/query_metrics_tool.py">
+      <note>Key tool for rejection analysis, feature fragility, severity trends</note>
+    </interface>
+    <interface name="search" kind="MCP tool" signature="async def search(query: str, entities: list[str] | None = None, ...) -> dict[str, Any]" path="src/testio_mcp/tools/search_tool.py">
+      <note>Used to resolve product names to IDs when string provided</note>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>Manual testing via MCP inspector is the primary validation method for prompt changes. Prompt functions are thin wrappers around templates, so unit tests focus on parameter handling and template formatting.</standards>
+    <locations>tests/unit/test_prompts_*.py (if unit tests needed), manual testing via MCP inspector</locations>
+    <ideas>
+      <idea ac="AC1">Test three-phase workflow triggers correctly based on input (product ID vs product name vs empty)</idea>
+      <idea ac="AC2">Test product resolution: integer passthrough, string triggers search, empty triggers list_products</idea>
+      <idea ac="AC3">Test time range scoping defaults to "last 30 days" and communicates period in output</idea>
+      <idea ac="AC4">Verify context-gathering questions include EBR/escalation/routine options</idea>
+      <idea ac="AC5">Test context-driven workflows reference playbook tactical patterns</idea>
+      <idea ac="AC6">Test YOLO mode triggers on keywords ("full report", "comprehensive", "everything", "complete analysis")</idea>
+      <idea ac="AC7">Manual verify iteration prompts suggest drill-down and comparison options</idea>
+    </ideas>
+  </tests>
+</story-context>

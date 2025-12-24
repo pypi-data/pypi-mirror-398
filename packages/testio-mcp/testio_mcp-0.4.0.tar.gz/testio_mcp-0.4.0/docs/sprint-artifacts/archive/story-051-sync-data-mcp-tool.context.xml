@@ -1,0 +1,358 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>9</epicId>
+    <storyId>3</storyId>
+    <title>sync_data MCP Tool</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-27</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-051-sync-data-mcp-tool.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>An AI agent using the MCP server</asA>
+    <iWant>A `sync_data` tool that refreshes data on demand</iWant>
+    <soThat>I can ensure data freshness before generating reports</soThat>
+    <tasks>
+- [ ] Task 1: Create MCP tool wrapper (AC1-3)
+  - [ ] Create `src/testio_mcp/tools/sync_data_tool.py`
+  - [ ] Define tool function with `@mcp.tool()` decorator
+  - [ ] Add type hints for all parameters (mypy strict)
+  - [ ] Implement parameter parsing (date string → datetime)
+  - [ ] Map parameters to SyncScope + SyncOptions
+  - [ ] Call `SyncService.execute_sync()` with mapped params
+  - [ ] Use `get_service(ctx, SyncService)` for dependency injection
+
+- [ ] Task 2: Add timestamp persistence (AC4-5)
+  - [ ] Add helper methods to SyncService or cache for `last_sync_completed`:
+    - `get_last_sync_completed() -> datetime | None` - reads from `sync_metadata["last_sync_completed"]`
+    - `set_last_sync_completed(timestamp: datetime) -> None` - stores ISO 8601 string
+  - [ ] Use existing `sync_metadata` table (NO migration needed - key-value storage)
+  - [ ] Follow existing pattern: `datetime.now(UTC).isoformat()` for storage
+  - [ ] Parse with `datetime.fromisoformat(value)` for comparisons
+  - [ ] Update SyncService to write timestamp on success
+  - [ ] Update background sync task to read timestamp before running
+  - [ ] Add helper method `should_skip_sync(last_completed: datetime | None) -> bool`
+
+- [ ] Task 3: Implement response formatting (AC6)
+  - [ ] Extract stats from SyncResult
+  - [ ] Format response dict with all required fields
+  - [ ] Include `duration_seconds` from SyncResult
+  - [ ] Include warnings if any
+
+- [ ] Task 4: Optimize schema (AC7)
+  - [ ] Create `src/testio_mcp/schemas/sync.py` with `SyncDataOutput` model
+  - [ ] Add structured output model to tool with `output_schema=inline_schema_refs(...)`
+  - [ ] Write concise Field descriptions (1 sentence, no filler)
+  - [ ] Add `examples` parameter to Field definitions for inputs
+  - [ ] Add usage examples in docstring (not json_schema_extra)
+  - [ ] Measure token count (target: ~550-600 tokens)
+
+- [ ] Task 5: Write unit tests (AC8)
+  - [ ] Test tool with mocked SyncService
+  - [ ] Test parameter mapping (product_ids, since, force)
+  - [ ] Test date parsing (ISO, relative formats)
+  - [ ] Test error handling (SyncLockError, SyncTimeoutError → ToolError)
+  - [ ] Test successful sync returns correct stats
+  - [ ] Coverage target: ≥85%
+
+- [ ] Task 6: Write integration tests (AC9)
+  - [ ] Test full sync with real SyncService + temp database
+  - [ ] Verify `last_sync_completed` updated in DB
+  - [ ] Test background sync respects timestamp (doesn't run if recent)
+  - [ ] Test timestamp only updated on success (failure doesn't reset)
+  - [ ] Mark as `@pytest.mark.integration`
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. **AC1**: Tool exists in `src/testio_mcp/tools/sync_data_tool.py`
+   - Registered automatically via FastMCP auto-discovery
+   - Follows naming convention `*_tool.py`
+
+2. **AC2**: Parameters (CLI parity):
+   - `product_ids: list[int] | None` - Scope to specific products (default: all)
+   - `since: str | None` - Date filter for test discovery (ISO or relative like '30 days ago')
+   - `force: bool = False` - Re-sync all tests, not just new ones
+
+3. **AC3**: Invokes `SyncService.execute_sync()` with mapped parameters
+   - Map `product_ids` → `SyncScope.product_ids`
+   - Map `since` → `SyncScope.since_date` (parse date string)
+   - Map `force` → `SyncOptions.force_refresh`
+   - Use all 3 phases: `[SyncPhase.PRODUCTS, SyncPhase.FEATURES, SyncPhase.NEW_TESTS]`
+
+4. **AC4**: Updates `last_sync_completed` timestamp in DB on success
+   - Timestamp stored in `sync_metadata` table as key-value pair
+   - Key: `"last_sync_completed"`, Value: ISO 8601 string (UTC timezone-aware)
+   - Use `datetime.now(UTC).isoformat()` for storage (follows existing pattern)
+   - Parse back with `datetime.fromisoformat(value)` for comparisons
+   - Only updated on successful sync (failures don't reset timer)
+   - Persisted, not in-memory (survives server restarts)
+
+5. **AC5**: Background sync checks `last_sync_completed` before running
+   - Background task reads timestamp from DB
+   - If `now - last_sync_completed < TESTIO_REFRESH_INTERVAL_SECONDS`: skip sync
+   - Prevents immediate background sync after manual MCP sync
+
+6. **AC6**: Return sync stats:
+   - `products_synced: int`
+   - `features_refreshed: int`
+   - `tests_discovered: int`
+   - `duration_seconds: float` (always populated, from SyncResult)
+   - `warnings: list[str]` (if any)
+
+7. **AC7**: Slim schema design (target: ~550-600 tokens)
+   - Use structured Pydantic output model (`SyncDataOutput`) for schema richness
+   - Concise Field descriptions (1 sentence, no filler words)
+   - Add input examples to Field definitions (teaches Claude parameter conventions)
+   - Examples in docstring, not `json_schema_extra`
+   - Optimize through brevity, NOT structure removal (Union types and nested models preserved)
+
+8. **AC8**: Unit tests for tool
+   - Mock SyncService
+   - Test parameter mapping
+   - Test error handling (domain exceptions → ToolError)
+   - Test delegation to SyncService
+
+9. **AC9**: Integration tests with real sync
+   - Real SyncService + real database
+   - Verify `last_sync_completed` updated
+   - Verify background sync respects timestamp
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-009.md</path>
+        <title>Epic Technical Specification: Sync Consolidation</title>
+        <section>sync_data MCP Tool API</section>
+        <snippet>Tool exists in src/testio_mcp/tools/sync_data_tool.py with parameters: product_ids, since, force. Calls SyncService.execute_sync() with mapped params. Returns products_synced, features_refreshed, tests_discovered, duration_seconds, warnings. Schema target: ~500 tokens.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/epic-009-sync-consolidation.md</path>
+        <title>Epic-009: Sync Consolidation</title>
+        <section>STORY-051: sync_data MCP Tool</section>
+        <snippet>As an AI agent using the MCP server, I want a sync_data tool that refreshes data on demand, so that I can ensure data freshness before generating reports. Parameters: product_ids, since, force. Reset background sync timer via persisted timestamp.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/adrs/ADR-006-service-layer-pattern.md</path>
+        <title>Service Layer Pattern</title>
+        <section>MCP Tool as Thin Wrapper</section>
+        <snippet>MCP tools are thin adapters that delegate to services. Extract dependencies from Context, create service instance, delegate to service method, convert exceptions to MCP error format (❌ℹ️💡). Tools should NOT contain business logic.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/adrs/ADR-011-extensibility-patterns.md</path>
+        <title>Extensibility Infrastructure Patterns</title>
+        <section>get_service() Helper for Tool Simplification</section>
+        <snippet>Use get_service(ctx, ServiceClass) to extract dependencies from FastMCP context and create service instance. Reduces boilerplate from 5 lines to 1 line with full type safety. Use ToolError exceptions for error handling.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/services/base_service.py</path>
+        <kind>service</kind>
+        <symbol>BaseService</symbol>
+        <lines>24-40</lines>
+        <reason>Base class for all services. SyncService should inherit from this for standard dependency injection.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/sync_service.py</path>
+        <kind>service</kind>
+        <symbol>SyncService</symbol>
+        <lines>1-100</lines>
+        <reason>Core service for sync orchestration. Contains SyncPhase, SyncScope, SyncOptions, SyncResult data models. sync_data tool will delegate to execute_sync() method.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/list_tests_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_tests</symbol>
+        <lines>1-210</lines>
+        <reason>Reference implementation showing: @mcp.tool() decorator, get_service_context() for AsyncSession lifecycle, ToolError exception pattern, schema optimization with inline_schema_refs(), Field descriptions.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/utilities/__init__.py</path>
+        <kind>utility</kind>
+        <symbol>get_service, get_service_context</symbol>
+        <lines>18-22</lines>
+        <reason>Service injection helpers. Use get_service() for stateless services or get_service_context() when AsyncSession lifecycle management needed.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/utilities/date_utils.py</path>
+        <kind>utility</kind>
+        <symbol>parse_flexible_date</symbol>
+        <reason>Utility for parsing date strings (ISO 8601, relative like '30 days ago'). Use for parsing 'since' parameter.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/utilities/schema_utils.py</path>
+        <kind>utility</kind>
+        <symbol>inline_schema_refs</symbol>
+        <reason>Utility for inlining schema references to reduce token count. Use with output_schema parameter in @mcp.tool() decorator.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="fastmcp" version=">=2.12.0" />
+        <package name="pydantic" version=">=2.12.0" />
+        <package name="pydantic-settings" version=">=2.11.0" />
+        <package name="python-dateutil" version=">=2.8.0" />
+        <package name="dateparser" version=">=1.2.0" />
+        <package name="filelock" version=">=3.13.0" />
+        <package name="psutil" version=">=5.9.0" />
+        <package name="aiosqlite" version=">=0.20.0" />
+        <package name="sqlmodel" version=">=0.0.16" />
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+**Service Layer Pattern (ADR-006):**
+- Tool is thin wrapper that delegates to SyncService
+- No business logic in tool (parameter mapping only)
+- Follow `get_service(ctx, ServiceClass)` pattern for dependency injection
+- Convert domain exceptions to ToolError with ❌ℹ️💡 format
+
+**Database Schema (No Migration Needed):**
+- Uses existing `sync_metadata` key-value table (no schema changes)
+- Key: `"last_sync_completed"`
+- Value: ISO 8601 string with UTC timezone (e.g., `"2025-11-27T10:30:00+00:00"`)
+- Follows existing pattern from `last_destructive_op` (cache.py:1201)
+
+**Background Sync Coordination:**
+- `last_sync_completed` timestamp prevents immediate re-sync
+- Background task checks: `if now - last_sync < interval: skip`
+- Survives server restarts (persisted in SQLite)
+
+**MCP Schema Design (2025-11-27):**
+- Keep structured schemas (Pydantic output models)
+- Preserve Union types (`str | None`) and nested models
+- Optimize through brevity in Field descriptions (1 sentence, no filler)
+- Add `examples` parameter to Field definitions for input guidance
+- Target: ~550-600 tokens (NOT 500 - that was too aggressive)
+- Move examples to docstring, not `json_schema_extra`
+
+**Error Handling:**
+- Partial success → Return with warnings in result object
+- Complete failure → Raise ToolError
+- Warnings NOT as MCP protocol-level errors (allows LLM to see and handle)
+- SyncLockError → "❌ Sync already in progress\nℹ️ Another sync is running\n💡 Wait or check diagnostics"
+- SyncTimeoutError → "❌ Sync lock timeout (30s)\nℹ️ Another process holding lock\n💡 Retry or check processes"
+
+**Type Safety:**
+- Strict mypy compliance (`mypy --strict`)
+- Full type hints for all parameters
+- Use Annotated with Field for parameter validation
+- PEP 695 generics for get_service()
+
+**Testing Requirements:**
+- Unit tests: Mock SyncService, test parameter mapping
+- Integration tests: Real SyncService + temp database
+- Coverage target: ≥85% for tool
+- Use `@pytest.mark.unit` and `@pytest.mark.integration` markers
+  </constraints>
+
+  <interfaces>
+**SyncService API:**
+```python
+async def execute_sync(
+    self,
+    phases: list[SyncPhase] | None = None,  # Default: all 3 phases
+    scope: SyncScope | None = None,
+    options: SyncOptions | None = None,
+) -> SyncResult
+```
+
+**SyncPhase enum:**
+- PRODUCTS: Refresh product metadata
+- FEATURES: Refresh features (TTL-gated)
+- NEW_TESTS: Discover new tests (incremental)
+
+**SyncScope dataclass:**
+```python
+product_ids: list[int] | None = None
+since_date: datetime | None = None
+entity_types: list[str] | None = None
+```
+
+**SyncOptions dataclass:**
+```python
+force_refresh: bool = False
+incremental_only: bool = False
+nuke: bool = False  # NOT exposed in MCP tool (CLI only)
+```
+
+**SyncResult dataclass:**
+```python
+phases_completed: list[SyncPhase]
+products_synced: int
+features_refreshed: int
+tests_discovered: int
+tests_updated: int
+duration_seconds: float
+warnings: list[str]
+errors: list[str]
+```
+
+**Tool signature:**
+```python
+@mcp.tool()
+async def sync_data(
+    ctx: Context,
+    product_ids: list[int] | None = None,
+    since: str | None = None,
+    force: bool = False,
+) -> dict
+```
+
+**Expected return format:**
+```python
+{
+    "status": "completed" | "completed_with_warnings",
+    "products_synced": int,
+    "features_refreshed": int,
+    "tests_discovered": int,
+    "duration_seconds": float,
+    "warnings": list[str]  # if any
+}
+```
+  </interfaces>
+
+  <tests>
+    <standards>
+This codebase uses pytest with async support (pytest-asyncio). Tests are organized by type: unit (fast, mocked dependencies), integration (real API/DB with temp fixtures), and e2e (full MCP protocol). Services are tested directly without FastMCP overhead. Tools are tested via integration tests with real service instances. Coverage target: ≥85% for tools, ≥90% for services. Use markers: @pytest.mark.unit, @pytest.mark.integration, @pytest.mark.asyncio.
+    </standards>
+    <locations>
+- tests/unit/ - Unit tests for tools and services (mocked dependencies)
+- tests/integration/ - Integration tests with real API/DB
+- tests/services/ - Service layer tests (primary focus)
+- tests/tools/ - Tool wrapper tests (error handling, delegation)
+    </locations>
+    <ideas>
+**Unit Tests (tests/unit/test_sync_data_tool.py):**
+- AC2: Test parameter validation (product_ids, since, force)
+- AC3: Test parameter mapping to SyncScope/SyncOptions
+- AC3: Test date parsing (ISO 8601, relative formats like '30 days ago')
+- AC8: Test SyncLockError → ToolError transformation
+- AC8: Test SyncTimeoutError → ToolError transformation
+- AC8: Test successful sync returns correct stats
+- AC8: Test warnings included in response
+- AC3: Test all 3 phases passed to execute_sync()
+- AC3: Verify get_service() called with correct service class
+
+**Integration Tests (tests/integration/test_sync_data_integration.py):**
+- AC9: Test full sync with real SyncService + temp database
+- AC4: Verify last_sync_completed timestamp updated in DB after success
+- AC4: Verify timestamp NOT updated on failure
+- AC5: Verify background sync skips if last_sync_completed recent
+- AC5: Verify timestamp survives server restart (persisted in SQLite)
+- AC6: Verify duration_seconds always populated in response
+- AC7: Measure schema token count (target: ~550-600 tokens)
+
+**Edge Cases:**
+- Test with empty product_ids list (should sync all products)
+- Test with invalid date format for 'since' parameter
+- Test with force=True and product_ids filter combination
+- Test concurrent sync attempts (should raise SyncLockError)
+- Test partial success (some products fail, others succeed)
+    </ideas>
+  </tests>
+</story-context>

@@ -1,0 +1,163 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>014</epicId>
+    <storyId>082</storyId>
+    <title>Rate Metrics in query_metrics</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-082-rate-metrics-in-query-metrics.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>CSM analyzing quality trends</asA>
+    <iWant>to query acceptance_rate, rejection_rate, review_rate as metrics</iWant>
+    <soThat>I can create trend reports without manual calculation</soThat>
+    <tasks>
+- Task 1: Add Rate Metrics to Registry
+  - Add rate metric definitions to src/testio_mcp/services/analytics_service.py
+  - Include formula, description, and dependencies for each metric
+- Task 2: Implement Rate Metric Calculations
+  - Wire rate metrics to use calculate_acceptance_rates() from bug_classifiers.py
+  - Handle aggregation grouping (by month, by feature, etc.)
+- Task 3: Update get_analytics_capabilities
+  - Ensure new metrics appear in capabilities output
+  - Include formula documentation for each rate metric
+- Task 4: Testing
+  - Unit test for rate metric calculation in analytics service
+  - Integration test: query_metrics with rate metrics and product filter
+  - Test null handling for months with 0 bugs
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. **Metrics Registry:**
+   - get_analytics_capabilities() lists new rate metrics: overall_acceptance_rate, rejection_rate, review_rate, active_acceptance_rate, auto_acceptance_rate
+   - Each metric has description and formula documentation
+
+2. **Query Execution:**
+   - query_metrics(dimensions=["month"], metrics=["rejection_rate"], filters={"product_id": X}) returns rejection_rate per month
+   - Rate calculations use formulas from bug_classifiers.py
+   - Multiple rate metrics can be queried together
+
+3. **Null Handling:**
+   - When an aggregation group has 0 bugs, rate metrics return null (per STORY-081)
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-014-mcp-usability-improvements.md</path>
+        <title>Epic 014: MCP Usability Improvements</title>
+        <section>STORY-082 Requirements</section>
+        <snippet>Rate metrics in query_metrics (FR2): CSMs can query acceptance_rate, rejection_rate, review_rate as metrics for trend reports. Formulas exist in bug_classifiers.py:110-198. Prerequisite: STORY-081 (null handling).</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing Standards</title>
+        <section>Test Pyramid</section>
+        <snippet>Unit tests 50% (fast, mocked), Service tests 35% (business logic with mocked client/cache), Integration tests 20% (real API). Use pytest with -m unit for fast feedback. Coverage target ≥85%.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/utilities/bug_classifiers.py</path>
+        <kind>utility</kind>
+        <symbol>calculate_acceptance_rates</symbol>
+        <lines>110-210</lines>
+        <reason>Contains the rate calculation formulas that STORY-082 will expose as metrics. Already implements null handling (STORY-081): returns None when total_bugs=0.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>service</kind>
+        <symbol>build_metric_registry</symbol>
+        <lines>227-309</lines>
+        <reason>Metric registry where new rate metrics must be registered. Currently has 9 metrics (test_count, bug_count, etc.). Rate metrics will be computed metrics derived from bug status breakdowns.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>service</kind>
+        <symbol>AnalyticsService</symbol>
+        <lines>312-690</lines>
+        <reason>The query engine that executes metric queries. New rate metrics will be added to _metrics registry and computed via SQL expressions using bug status classification.</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_analytics_service.py</path>
+        <kind>test</kind>
+        <symbol>test_single_dimension_single_metric</symbol>
+        <lines>33-66</lines>
+        <reason>Example test pattern for analytics service: mock session, mock results, verify QueryResponse structure. Use for rate metric tests.</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_bug_classifiers.py</path>
+        <kind>test</kind>
+        <symbol>N/A</symbol>
+        <lines>N/A</lines>
+        <reason>Contains tests for calculate_acceptance_rates() including null handling (STORY-081). Reference for expected behavior of rate calculations.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package>pytest</package>
+        <package>pytest-asyncio</package>
+        <package>sqlalchemy</package>
+        <package>sqlmodel</package>
+        <package>pydantic</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Architecture: Rate metrics are COMPUTED METRICS, not base metrics. They derive from bug status breakdowns (active_accepted, auto_accepted, rejected, open) via SQL expressions.</constraint>
+    <constraint>Null Handling: MUST return None (not 0.0) when total_bugs=0 to distinguish "no data" from "perfect quality" (STORY-081 requirement).</constraint>
+    <constraint>Registry Pattern: Add rate metrics to build_metric_registry() with MetricDef objects. Include: key, description, expression (SQLAlchemy), join_path, formula.</constraint>
+    <constraint>Formula Reuse: Use calculate_acceptance_rates() formulas from bug_classifiers.py:110-198 as reference. Translate to SQL expressions using CASE statements and division with NULLIF for null handling.</constraint>
+    <constraint>Testing: Unit tests for AnalyticsService with mocked session. Integration test with real API using query_metrics tool. Test null handling for months with 0 bugs.</constraint>
+  </constraints>
+  <interfaces>
+    <interface>
+      <name>MetricDef</name>
+      <kind>dataclass</kind>
+      <signature>MetricDef(key: str, description: str, expression: Any, join_path: list[type], formula: str)</signature>
+      <path>src/testio_mcp/services/analytics_service.py:66-82</path>
+    </interface>
+    <interface>
+      <name>build_metric_registry</name>
+      <kind>function</kind>
+      <signature>def build_metric_registry() -> dict[str, MetricDef]</signature>
+      <path>src/testio_mcp/services/analytics_service.py:227-309</path>
+    </interface>
+    <interface>
+      <name>calculate_acceptance_rates</name>
+      <kind>function</kind>
+      <signature>def calculate_acceptance_rates(active_accepted: int, auto_accepted: int, rejected: int, open_bugs: int, total_bugs: int | None = None) -> dict[str, float | None]</signature>
+      <path>src/testio_mcp/utilities/bug_classifiers.py:110-210</path>
+    </interface>
+    <interface>
+      <name>get_analytics_capabilities</name>
+      <kind>MCP tool</kind>
+      <signature>@mcp.tool() async def get_analytics_capabilities(ctx: Context) -> dict</signature>
+      <path>src/testio_mcp/tools/get_analytics_capabilities_tool.py</path>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>
+      Unit tests: Fast, mocked session/client, no API calls. Use pytest-asyncio with @pytest.mark.unit.
+      Service tests: Test business logic directly with mocked dependencies. Use AsyncMock for session, MagicMock for query results.
+      Integration tests: Real API calls, requires TESTIO_CUSTOMER_API_TOKEN. Use @pytest.mark.integration.
+      Pattern: Mock session.exec() to return MagicMock with .all() method returning mock rows (use _create_mock_row() helper).
+    </standards>
+    <locations>
+      tests/unit/test_analytics_service.py - Unit tests for analytics service
+      tests/integration/ - Integration tests with real API
+    </locations>
+    <ideas>
+      <idea ac="AC1">Unit test: Verify build_metric_registry() includes all 5 rate metrics with correct descriptions and formulas</idea>
+      <idea ac="AC2">Unit test: Mock query_metrics call with dimensions=["month"], metrics=["rejection_rate"]. Verify SQL expression uses bug status classification and null handling.</idea>
+      <idea ac="AC2">Unit test: Test multiple rate metrics queried together (e.g., ["rejection_rate", "overall_acceptance_rate"])</idea>
+      <idea ac="AC3">Unit test: Verify null handling - when mock row has total_bugs=0, rate metrics return None (not 0.0)</idea>
+      <idea ac="AC1">Integration test: Call get_analytics_capabilities tool, verify rate metrics listed with descriptions</idea>
+      <idea ac="AC2">Integration test: Call query_metrics with real product, dimensions=["month"], metrics=["rejection_rate"], verify results and null handling for months with 0 bugs</idea>
+    </ideas>
+  </tests>
+</story-context>

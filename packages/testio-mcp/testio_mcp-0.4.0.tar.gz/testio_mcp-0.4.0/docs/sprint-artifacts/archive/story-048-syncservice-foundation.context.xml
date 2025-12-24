@@ -1,0 +1,434 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>9</epicId>
+    <storyId>48</storyId>
+    <title>SyncService Foundation</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-26</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/story-048-syncservice-foundation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer maintaining the sync infrastructure</asA>
+    <iWant>a unified SyncService that handles all sync orchestration</iWant>
+    <soThat>background, CLI, and MCP sync share the same implementation</soThat>
+    <tasks>
+- Task 1: Create SyncService module structure (AC: 1)
+  - Create `src/testio_mcp/services/sync_service.py`
+  - Add SyncService class inheriting from BaseService
+  - Add imports for dependencies (repositories, client, cache)
+  - Export from `services/__init__.py`
+
+- Task 2: Implement data models (AC: 2)
+  - Create `SyncPhase` enum with PRODUCTS, FEATURES, NEW_TESTS values
+  - Create `SyncScope` dataclass with product_ids, since_date, entity_types fields
+  - Create `SyncOptions` dataclass with force_refresh, incremental_only, nuke flags
+  - Create `SyncResult` dataclass with phases_completed, stats, warnings, duration_seconds, errors
+  - Add type hints and docstrings per coding standards
+
+- Task 3: Implement execute_sync() orchestration (AC: 3)
+  - Define method signature with phases, scope, options parameters
+  - Implement phase iteration in PRODUCTS -> FEATURES -> NEW_TESTS order
+  - Delegate to existing repository methods for each phase
+  - Aggregate results into SyncResult
+  - Handle partial failures (continue with next product if one fails)
+
+- Task 4: Implement file lock mechanism (AC: 4)
+  - Add `filelock` dependency to pyproject.toml (already present per tech spec)
+  - Implement `_acquire_file_lock()` method with 30s timeout
+  - Create lock file at `~/.testio-mcp/sync.lock`
+  - Write PID to lock file content on acquisition
+  - Implement timeout handling with clear error message
+
+- Task 5: Implement stale lock recovery (AC: 5)
+  - Add `psutil` dependency for PID validation (already present per tech spec)
+  - Implement `_is_lock_stale()` method
+  - Check PID alive via `psutil.pid_exists()`
+  - Check mtime > 1 hour as secondary staleness indicator
+  - Log warning when reclaiming stale lock
+  - Add tests for crash recovery scenario
+
+- Task 6: Implement asyncio lock for in-process sync (AC: 6)
+  - Reuse `PersistentCache.get_refresh_lock()` pattern
+  - Add lock registry to SyncService (keyed by entity type)
+  - Document deadlock prevention: file lock acquired BEFORE asyncio lock
+  - Add tests for concurrent in-process calls
+
+- Task 7: Implement sync event logging (AC: 7)
+  - Reuse existing `sync_events` table schema
+  - Log sync start event with phases and scope
+  - Log per-phase progress events
+  - Log completion event with duration and stats
+  - Log error events with details
+  - Ensure duration always included in final message
+
+- Task 8: Write unit tests (AC: 8)
+  - Create `tests/unit/test_sync_service.py`
+  - Test data model serialization (SyncPhase, SyncScope, SyncOptions, SyncResult)
+  - Test execute_sync() phase ordering with mocked repos
+  - Test file lock acquisition and timeout
+  - Test stale lock recovery (PID dead, mtime old)
+  - Test asyncio lock prevents thundering herd
+  - Test SyncResult population with stats
+  - Verify >= 90% coverage for sync_service.py
+
+- Task 9: Integration smoke test (AC: 3, 7)
+  - Create `tests/integration/test_sync_service_integration.py`
+  - Test execute_sync() with real SQLite (temp file)
+  - Verify sync events logged correctly
+  - Verify phases execute in order
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+AC1: Create `src/testio_mcp/services/sync_service.py` with `SyncService` class inheriting from `BaseService`
+
+AC2: Implement data models in `sync_service.py`:
+   - `SyncPhase` enum: PRODUCTS, FEATURES, NEW_TESTS
+   - `SyncScope` dataclass: product_ids, since_date, entity_types
+   - `SyncOptions` dataclass: force_refresh, incremental_only, nuke
+   - `SyncResult` dataclass: stats, warnings, `duration_seconds` (always populated), phases_completed
+
+AC3: Implement `execute_sync()` with phase orchestration
+   - Accepts phases, scope, and options parameters
+   - Executes phases in order: PRODUCTS -> FEATURES -> NEW_TESTS
+   - Returns unified SyncResult
+
+AC4: Implement file lock for cross-process synchronization
+   - Path: `~/.testio-mcp/sync.lock`
+   - 30-second timeout for lock acquisition
+   - Second invocation waits with timeout or fails fast with clear message
+
+AC5: Implement stale lock recovery mechanism
+   - Store PID in lock file content
+   - Check if PID is still running on lock acquisition attempt
+   - Check file mtime: if > 1 hour old, treat as stale
+   - If stale, reclaim lock and log warning
+
+AC6: Implement asyncio lock for in-process serialization
+   - Reuses existing `PersistentCache.get_refresh_lock()` pattern
+   - Prevents thundering herd within same process
+   - Deadlock prevention: Never acquire file lock while holding asyncio lock
+
+AC7: Move sync event logging to SyncService
+   - Reuse existing `sync_events` table
+   - Log start, progress, completion, errors
+   - Final log message always includes total duration (e.g., "Sync completed in 45.2s")
+
+AC8: Unit tests for SyncService with mocked repositories
+   - Test phase ordering (PRODUCTS -> FEATURES -> NEW_TESTS sequence)
+   - Test lock acquisition and timeout
+   - Test stale lock recovery
+   - Test SyncResult population
+   - Coverage target: >= 90%
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <!-- Primary documentation sources -->
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-009.md</path>
+        <title>Epic Technical Specification: Sync Consolidation</title>
+        <section>STORY-048: SyncService Foundation</section>
+        <snippet>Defines authoritative acceptance criteria, data models (SyncPhase, SyncScope, SyncOptions, SyncResult), locking strategy (dual-layer: file lock + asyncio lock), and stale lock recovery mechanism. Includes complete API signatures and NFR performance/reliability targets.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/epic-009-sync-consolidation.md</path>
+        <title>Epic-009: Sync Consolidation</title>
+        <section>Overall Architecture and Scope</section>
+        <snippet>Consolidates sync orchestration into unified SyncService for 3 entry points (background, CLI, MCP). Key principle: Repositories keep encapsulated read-through caching, SyncService handles bulk sync orchestration only. Preserves 3-phase model from ADR-017.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Service Layer Pattern (ADR-006)</section>
+        <snippet>Service layer is framework-agnostic business logic. Services inherit from BaseService for standard dependency injection. SyncService follows this pattern with client injection and optional repository dependencies for phase execution.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Concurrency & Performance (ADR-002)</section>
+        <snippet>Global semaphore (10 concurrent API calls) enforced at TestIOClient level. SyncService orchestrates phases but respects existing concurrency controls - repositories handle their own API calls with semaphore.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Local Data Store Strategy (ADR-017)</section>
+        <snippet>3-phase background sync model: PRODUCTS → FEATURES → NEW_TESTS. Phase 4 (bugs/test metadata) removed - handled by read-through caching. SyncService must preserve this phase ordering.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing Guide</title>
+        <section>Test Philosophy and Pyramid</section>
+        <snippet>Unit tests (50%): Fast (<1ms), mocked deps, behavioral assertions. Integration tests (35%): Real SQLite, mocked API. Coverage target: >=90% for services. Use Arrange-Act-Assert structure, realistic test data from fixtures.</snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <!-- Existing patterns to follow -->
+      <artifact>
+        <path>src/testio_mcp/services/base_service.py</path>
+        <kind>service</kind>
+        <symbol>BaseService</symbol>
+        <lines>24-41</lines>
+        <reason>SyncService must inherit from BaseService for standard dependency injection pattern. Constructor takes client: TestIOClient parameter.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/database/cache.py</path>
+        <kind>cache</kind>
+        <symbol>PersistentCache.get_refresh_lock</symbol>
+        <lines>220-240</lines>
+        <reason>Asyncio lock pattern for in-process serialization (AC6). SyncService should reuse this pattern for entity-level locking. Uses setdefault() to avoid race conditions.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/database/cache.py</path>
+        <kind>cache</kind>
+        <symbol>PersistentCache._acquire_sync_lock</symbol>
+        <lines>242-250</lines>
+        <reason>File lock acquisition pattern (AC4, AC5). Reference implementation for cross-process locking with stale detection. Uses filelock library with timeout handling.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/database/cache.py</path>
+        <kind>cache</kind>
+        <symbol>SyncResult dataclass</symbol>
+        <lines>72-91</lines>
+        <reason>Existing sync result pattern from cache.py. SyncService.SyncResult should follow similar structure but tailored for phase orchestration (phases_completed, stats per phase).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/database/cache.py</path>
+        <kind>cache</kind>
+        <symbol>Imports (filelock, psutil)</symbol>
+        <lines>29-30</lines>
+        <reason>SyncService needs same dependencies: 'from filelock import FileLock, Timeout' and 'import psutil' for lock management and PID validation.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>TestRepository</symbol>
+        <lines>1-50</lines>
+        <reason>SyncService will delegate Phase 3 (NEW_TESTS) to TestRepository methods. Reference for repository interaction pattern and API call patterns.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/product_repository.py</path>
+        <kind>repository</kind>
+        <symbol>ProductRepository</symbol>
+        <lines>1-50</lines>
+        <reason>SyncService will delegate Phase 1 (PRODUCTS) to ProductRepository for product metadata upsert. Reference for repository pattern.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/feature_repository.py</path>
+        <kind>repository</kind>
+        <symbol>FeatureRepository</symbol>
+        <lines>1-50</lines>
+        <reason>SyncService will delegate Phase 2 (FEATURES) to FeatureRepository with TTL-based staleness checks. Reference for feature refresh pattern.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/sync_event.py</path>
+        <kind>orm-model</kind>
+        <symbol>SyncEvent</symbol>
+        <lines>1-50</lines>
+        <reason>AC7 requires sync event logging. SyncService should use existing SyncEvent ORM model and sync_events table for logging start, progress, completion, errors with duration.</reason>
+      </artifact>
+    </code>
+
+    <dependencies>
+      <python>
+        <!-- From pyproject.toml -->
+        <package name="filelock" version=">=3.13.0" usage="Cross-process file locking for CLI/background sync coordination (AC4)" />
+        <package name="psutil" version=">=5.9.0" usage="PID validation for stale lock recovery (AC5)" />
+        <package name="fastmcp" version=">=2.12.0" usage="MCP tool registration (inherited from BaseService)" />
+        <package name="sqlmodel" version=">=0.0.16" usage="ORM for sync_metadata updates and sync_events logging" />
+        <package name="aiosqlite" version=">=0.20.0" usage="Async SQLite access for sync event storage" />
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <!-- Development constraints from Dev Notes and architecture -->
+    <constraint id="ADR-006" category="architecture">
+      Service Layer Pattern: SyncService inherits from BaseService for standard constructor (client injection). Framework-agnostic - callable from background task, CLI, or MCP tool. Stateless service with dependency injection.
+    </constraint>
+    <constraint id="ADR-002" category="performance">
+      Concurrency: Global semaphore (10 concurrent) enforced at TestIOClient level for API calls. SyncService orchestrates phases but respects existing concurrency controls - repositories handle their own API calls.
+    </constraint>
+    <constraint id="ADR-017" category="architecture">
+      Background Sync 3-Phase Model: PRODUCTS → FEATURES → NEW_TESTS. Phase 4 removed (bugs/test metadata via read-through caching). SyncService must preserve this ordering in execute_sync().
+    </constraint>
+    <constraint id="LOCKING-STRATEGY" category="concurrency">
+      Dual-layer locking: File lock (cross-process CLI/background) at ~/.testio-mcp/sync.lock + asyncio lock (in-process MCP). Deadlock prevention: ALWAYS acquire file lock BEFORE asyncio lock. Stale lock recovery: PID check + 1-hour mtime threshold.
+    </constraint>
+    <constraint id="TESTING-PYRAMID" category="testing">
+      Test pyramid: Unit tests (50%, fast &lt;1ms, mock deps), Integration tests (35%, real SQLite/temp file), E2E (15%, full flow). Coverage target: ≥90% for sync_service.py. Behavioral testing: Assert on observable outcomes, not implementation details.
+    </constraint>
+    <constraint id="REPOSITORY-BOUNDARY" category="architecture">
+      Repositories UNCHANGED: Do NOT modify repository caching logic. Repositories keep encapsulated read-through caching (get_*_cached_or_refresh()). SyncService only orchestrates bulk sync, not entity-level caching.
+    </constraint>
+    <constraint id="SYNC-EVENT-LOGGING" category="observability">
+      AC7: Reuse existing sync_events table schema. Log sync start (phases + scope), per-phase progress, completion (duration + stats), errors (details). Final message MUST include total duration (e.g., "Sync completed in 45.2s").
+    </constraint>
+    <constraint id="CODING-STANDARDS" category="code-quality">
+      Type hints required (mypy --strict), docstrings for all public methods, Arrange-Act-Assert test structure, no hardcoded magic numbers in tests, realistic test data from fixtures.
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <!-- Key interfaces SyncService must implement/use -->
+    <interface>
+      <name>SyncService.execute_sync()</name>
+      <kind>method</kind>
+      <signature>
+async def execute_sync(
+    self,
+    phases: list[SyncPhase] | None = None,  # Default: all 3 phases
+    scope: SyncScope | None = None,
+    options: SyncOptions | None = None,
+) -> SyncResult:
+    """Execute sync with specified phases, scope, and options."""
+      </signature>
+      <path>src/testio_mcp/services/sync_service.py</path>
+    </interface>
+    <interface>
+      <name>SyncPhase Enum</name>
+      <kind>enum</kind>
+      <signature>
+class SyncPhase(str, Enum):
+    """Sync phases from ADR-017 3-phase model."""
+    PRODUCTS = "products"      # Phase 1: Refresh product metadata
+    FEATURES = "features"      # Phase 2: Refresh features (TTL-gated)
+    NEW_TESTS = "new_tests"    # Phase 3: Discover new tests (incremental)
+      </signature>
+      <path>src/testio_mcp/services/sync_service.py</path>
+    </interface>
+    <interface>
+      <name>SyncScope Dataclass</name>
+      <kind>dataclass</kind>
+      <signature>
+@dataclass
+class SyncScope:
+    """Filtering parameters for sync scope."""
+    product_ids: list[int] | None = None  # Limit to specific products
+    since_date: datetime | None = None    # Date filter for test discovery
+    entity_types: list[str] | None = None # Future: filter specific entities
+      </signature>
+      <path>src/testio_mcp/services/sync_service.py</path>
+    </interface>
+    <interface>
+      <name>SyncOptions Dataclass</name>
+      <kind>dataclass</kind>
+      <signature>
+@dataclass
+class SyncOptions:
+    """Sync mode configuration."""
+    force_refresh: bool = False       # Re-sync all tests (non-destructive upsert)
+    incremental_only: bool = False    # Fast mode: discover new only
+    nuke: bool = False                # Destructive: delete DB + full resync
+      </signature>
+      <path>src/testio_mcp/services/sync_service.py</path>
+    </interface>
+    <interface>
+      <name>SyncResult Dataclass</name>
+      <kind>dataclass</kind>
+      <signature>
+@dataclass
+class SyncResult:
+    """Unified sync result with stats and diagnostics."""
+    phases_completed: list[SyncPhase] = field(default_factory=list)
+    products_synced: int = 0
+    features_refreshed: int = 0
+    tests_discovered: int = 0
+    tests_updated: int = 0
+    duration_seconds: float = 0.0  # REQUIRED (AC2)
+    warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+      </signature>
+      <path>src/testio_mcp/services/sync_service.py</path>
+    </interface>
+    <interface>
+      <name>PersistentCache.get_refresh_lock()</name>
+      <kind>method</kind>
+      <signature>
+def get_refresh_lock(self, entity_type: str, entity_id: int) -> asyncio.Lock:
+    """Get or create a lock for a specific entity (STORY-046, AC6)."""
+      </signature>
+      <path>src/testio_mcp/database/cache.py</path>
+    </interface>
+    <interface>
+      <name>BaseService Constructor</name>
+      <kind>class</kind>
+      <signature>
+class BaseService:
+    def __init__(self, client: TestIOClient) -> None:
+        """Initialize service with API client."""
+        self.client = client
+      </signature>
+      <path>src/testio_mcp/services/base_service.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+Unit tests (50% of suite): Fast (&lt;1ms per test), mock all external dependencies (repositories, client, cache). Use pytest-asyncio for async tests. Behavioral testing: Assert on observable outcomes (SyncResult contents, log messages), not implementation details (internal method calls). Arrange-Act-Assert structure. Realistic test data from fixtures (no minimal mocks). Coverage target: ≥90% for sync_service.py.
+
+Integration tests (35% of suite): Real SQLite (temp file via pytest fixtures), mocked API. Test full execute_sync() flow with repository delegation. Verify sync events logged correctly to database. Coverage target: ≥80%.
+
+Service test pattern: Mock client and repositories using AsyncMock from unittest.mock. Test business logic directly without FastMCP mocking. Example from test_test_service.py pattern.
+    </standards>
+
+    <locations>
+      <location>tests/unit/test_sync_service.py</location>
+      <location>tests/integration/test_sync_service_integration.py</location>
+      <location>tests/unit/ (general service test patterns)</location>
+      <location>tests/fixtures/ (shared mock data)</location>
+    </locations>
+
+    <ideas>
+      <!-- Mapped to acceptance criteria -->
+      <test id="AC1" criteria="AC1: SyncService class exists">
+        Test: Import SyncService from src.testio_mcp.services.sync_service - verify class exists and inherits from BaseService
+      </test>
+      <test id="AC2" criteria="AC2: Data models implemented">
+        Test: Serialize/deserialize SyncPhase, SyncScope, SyncOptions, SyncResult. Verify required fields (duration_seconds always populated in SyncResult).
+      </test>
+      <test id="AC3-ordering" criteria="AC3: execute_sync() phase orchestration">
+        Test: Mock repositories, call execute_sync() with all 3 phases, verify methods called in order: ProductRepo → FeatureRepo → TestRepo. Assert phases_completed list matches expected order.
+      </test>
+      <test id="AC3-scope" criteria="AC3: execute_sync() scope filtering">
+        Test: Call execute_sync() with scope.product_ids=[598], verify only product 598 passed to repositories. Test scope.since_date filtering.
+      </test>
+      <test id="AC4-lock-acquisition" criteria="AC4: File lock mechanism">
+        Test: Mock FileLock, call execute_sync(), verify lock acquired at ~/.testio-mcp/sync.lock with 30s timeout. Test timeout error handling.
+      </test>
+      <test id="AC4-second-invocation" criteria="AC4: Second invocation waits/fails">
+        Test: Start execute_sync() in background task, immediately start second execute_sync(), verify second call waits for lock or raises timeout error with clear message.
+      </test>
+      <test id="AC5-pid-check" criteria="AC5: Stale lock recovery - PID validation">
+        Test: Create lock file with dead PID (psutil.pid_exists() returns False), call execute_sync(), verify lock reclaimed and warning logged.
+      </test>
+      <test id="AC5-mtime-check" criteria="AC5: Stale lock recovery - mtime threshold">
+        Test: Create lock file with mtime > 1 hour old (even if PID alive), call execute_sync(), verify lock reclaimed and warning logged.
+      </test>
+      <test id="AC6-asyncio-lock" criteria="AC6: Asyncio lock for in-process sync">
+        Test: Reuse PersistentCache.get_refresh_lock() pattern - verify lock registry keyed by entity type prevents concurrent in-process calls for same entity.
+      </test>
+      <test id="AC6-deadlock-prevention" criteria="AC6: Deadlock prevention">
+        Test: Verify file lock acquired BEFORE asyncio lock in execute_sync() implementation. Document lock ordering in code comments.
+      </test>
+      <test id="AC7-logging-start" criteria="AC7: Sync event logging - start">
+        Test: Call execute_sync(), verify sync_events table has start event with phases and scope details.
+      </test>
+      <test id="AC7-logging-completion" criteria="AC7: Sync event logging - completion">
+        Test: Complete execute_sync(), verify completion event logged with total duration (e.g., "Sync completed in 45.2s"), stats (products/features/tests counts).
+      </test>
+      <test id="AC7-logging-errors" criteria="AC7: Sync event logging - errors">
+        Test: Force error in Phase 2, verify error event logged with details, partial failure handled (Phase 3 still executes).
+      </test>
+      <test id="AC8-partial-failure" criteria="AC8: Partial failure handling">
+        Test: Mock ProductRepo to fail for product 598 but succeed for 599, verify execute_sync() continues with other products, returns warnings in SyncResult.
+      </test>
+      <test id="INTEGRATION-full-flow" criteria="Integration: Full sync flow">
+        Test: Real SQLite (temp file), execute_sync() with all phases, verify: sync_events logged, products/tests in DB, duration_seconds populated, no errors.
+      </test>
+    </ideas>
+  </tests>
+</story-context>

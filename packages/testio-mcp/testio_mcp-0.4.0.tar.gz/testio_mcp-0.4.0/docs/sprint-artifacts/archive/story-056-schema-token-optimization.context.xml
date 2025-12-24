@@ -1,0 +1,394 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>008</epicId>
+    <storyId>056</storyId>
+    <title>Schema Token Optimization</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-056-schema-token-optimization.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>an MCP server operator</asA>
+    <iWant>tool schemas to use fewer tokens</iWant>
+    <soThat>more context is available for actual queries and responses</soThat>
+    <tasks>
+## Tasks / Subtasks
+
+- [ ] Task 1: Baseline Token Measurement (AC1)
+  - [ ] Run `scripts/measure_tool_tokens.py` to establish current token usage
+  - [ ] Run Claude Code `/context` to get MCP protocol token count
+  - [ ] Document baseline in `scripts/token_baseline_2025-11-26.txt`
+  - [ ] Identify top 5 token-heavy tools for optimization
+
+- [ ] Task 2: Slim Product Quality Report Schema (AC2)
+  - [ ] Review `get_product_quality_report_tool.py` schema definition
+  - [ ] Remove verbose examples from Field() definitions
+  - [ ] Shorten descriptions (remove filler words like "This field", "Used for")
+  - [ ] Flatten nested Pydantic models where possible (reduce nesting levels)
+  - [ ] Measure token reduction (target: 1,700 → 1,000)
+  - [ ] Unit test: Verify tool still returns correct data structure
+
+- [ ] Task 3: Slim Query Metrics Schema (AC3)
+  - [ ] Review `query_metrics_tool.py` schema definition
+  - [ ] Shorten dimension/metric descriptions (move detail to MCP prompt in STORY-059)
+  - [ ] Remove redundant examples from Field() definitions
+  - [ ] Measure token reduction (target: 2,100 → 1,500)
+  - [ ] Unit test: Verify tool parameter validation still works
+
+- [ ] Task 4: Slim List Tests Schema (AC4)
+  - [ ] Review `list_tests_tool.py` schema definition
+  - [ ] Remove verbose field descriptions
+  - [ ] Simplify status/testing_type enum descriptions
+  - [ ] Measure token reduction (target: 1,100 → 800)
+  - [ ] Integration test: Verify filtering/sorting still works
+
+- [ ] Task 5: Slim Get Analytics Capabilities Schema (AC5)
+  - [ ] Review `get_analytics_capabilities_tool.py` schema definition
+  - [ ] Move detailed dimension/metric descriptions to MCP prompt (STORY-059)
+  - [ ] Keep only essential field names and types
+  - [ ] Measure token reduction (target: 1,100 → 700)
+  - [ ] Note: This tool will be disabled-by-default in STORY-053
+
+- [ ] Task 6: Optimize Remaining Tool Schemas (AC6)
+  - [ ] Apply consistent description style to all tools:
+    - Start with verb (e.g., "Get", "List", "Filter")
+    - Remove filler words ("This parameter", "Used to")
+    - Use concise examples only when needed
+  - [ ] Remove `json_schema_extra` examples if duplicating description content
+  - [ ] Review: `list_products`, `list_features`, `list_users`, `get_test_summary`, `health_check`, `get_database_stats`, `get_sync_history`, `get_problematic_tests`
+
+- [ ] Task 7: Measure and Document Token Reduction (AC7)
+  - [ ] Re-run `scripts/measure_tool_tokens.py` after all changes
+  - [ ] Re-run Claude Code `/context` to verify MCP protocol token count
+  - [ ] Create comparison report: before/after for each tool
+  - [ ] Document total reduction (target: 12,840 → 6,600 = 49%)
+  - [ ] Update CHANGELOG.md with token optimization results
+
+- [ ] Task 8: Functional Validation (AC8)
+  - [ ] Run full test suite: `uv run pytest`
+  - [ ] Verify all unit tests pass (no schema validation errors)
+  - [ ] Verify all integration tests pass (tools still functional)
+  - [ ] Manual test via MCP Inspector for top 3 tools
+
+- [ ] Task 9: LLM Usability Validation (AC9)
+  - [ ] Test tool discovery: Ask Claude "What MCP tools are available?"
+  - [ ] Test parameter understanding: Ask "How do I filter tests by status?"
+  - [ ] Test error guidance: Trigger validation error, verify error message clarity
+  - [ ] Document any usability regressions and adjust descriptions if needed
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. [x] Audit all tool schemas for token usage
+   - Baseline measurement script: `scripts/measure_tool_tokens.py`
+   - Claude Code `/context` baseline: `scripts/token_baseline_2025-11-26.txt`
+   - **Baseline: ~12,840 tokens** (Claude Code `/context`)
+
+2. [ ] Slim `generate_ebr_report` (now `get_product_quality_report`) schema
+   - Remove verbose examples from Field definitions
+   - Shorten descriptions (remove filler words)
+   - Flatten nested output models where possible
+   - Target: 1,700 → ~1,000 tokens (41% reduction)
+
+3. [ ] Slim `query_metrics` schema
+   - Shorten dimension/metric descriptions
+   - Move detailed documentation to MCP prompt
+   - Target: 2,100 → ~1,500 tokens (29% reduction)
+
+4. [ ] Slim `list_tests` schema
+   - Target: 1,100 → ~800 tokens (27% reduction)
+
+5. [ ] Slim `get_analytics_capabilities` schema
+   - Target: 1,100 → ~700 tokens (36% reduction)
+
+6. [ ] Review and slim all other tool schemas
+   - Apply consistent description style
+   - Remove redundant `json_schema_extra` examples
+
+7. [ ] Total token reduction measured and documented
+   - Target: ~12,840 → ~6,600 total (49% reduction)
+
+8. [ ] All tools still function correctly after slimming
+
+9. [ ] LLM usability validated (tools still discoverable and understandable)
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-008-mcp-layer-optimization.md</path>
+        <title>Epic-008: MCP Layer Optimization</title>
+        <section>STORY-056: Schema Token Optimization</section>
+        <snippet>Target: Reduce tool schema tokens from ~12,840 to ~6,600 (49% reduction). Schema optimization guidelines: Remove filler words, start with action verbs, use examples wisely, flatten when possible, keep semantic clarity.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Service Layer Pattern</section>
+        <snippet>Service layer architecture separates business logic from transport. Tools are thin wrappers; logic goes in services. Pydantic models for type safety.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/MCP.md</path>
+        <title>MCP Server Architecture</title>
+        <section>Tool Parameter Guidelines</section>
+        <snippet>Parameter descriptions > tool descriptions. LLMs parse parameter schemas more reliably than long tool descriptions. Schema-first design. Validation over documentation.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing Strategy</title>
+        <section>Test behavior, not implementation</section>
+        <snippet>Tests should validate WHAT the system does (behavior), not HOW it does it (implementation). Coverage target: ≥85% overall. Fast feedback: Unit tests < 2s.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/tools/product_quality_report_tool.py</path>
+        <kind>tool</kind>
+        <symbol>get_product_quality_report</symbol>
+        <lines>1-200</lines>
+        <reason>Primary optimization target (AC2) - currently ~1,700 tokens, target ~1,000 tokens</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/query_metrics_tool.py</path>
+        <kind>tool</kind>
+        <symbol>query_metrics</symbol>
+        <lines>1-200</lines>
+        <reason>High token consumer (AC3) - currently ~2,100 tokens, target ~1,500 tokens</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/list_tests_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_tests</symbol>
+        <lines>1-200</lines>
+        <reason>Optimization target (AC4) - currently ~1,100 tokens, target ~800 tokens</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/get_analytics_capabilities_tool.py</path>
+        <kind>tool</kind>
+        <symbol>get_analytics_capabilities</symbol>
+        <lines>1-200</lines>
+        <reason>Optimization target (AC5) - currently ~1,100 tokens, target ~700 tokens</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/list_products_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_products</symbol>
+        <lines>1-200</lines>
+        <reason>Additional tool to optimize (AC6) - apply consistent description style</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/list_features_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_features</symbol>
+        <lines>1-200</lines>
+        <reason>Additional tool to optimize (AC6) - apply consistent description style</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/list_users_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_users</symbol>
+        <lines>1-200</lines>
+        <reason>Additional tool to optimize (AC6) - apply consistent description style</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/test_summary_tool.py</path>
+        <kind>tool</kind>
+        <symbol>get_test_summary</symbol>
+        <lines>1-200</lines>
+        <reason>Additional tool to optimize (AC6) - apply consistent description style</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/cache_tools.py</path>
+        <kind>tool</kind>
+        <symbol>health_check, get_database_stats, get_sync_history, get_problematic_tests</symbol>
+        <lines>1-400</lines>
+        <reason>Additional tools to optimize (AC6) - apply consistent description style</reason>
+      </artifact>
+      <artifact>
+        <path>scripts/measure_tool_tokens.py</path>
+        <kind>script</kind>
+        <symbol>get_tools_list, count_tokens</symbol>
+        <lines>1-100</lines>
+        <reason>Token measurement utility for baseline and validation (AC1, AC7)</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/utilities/schema_utils.py</path>
+        <kind>utility</kind>
+        <symbol>inline_schema_refs</symbol>
+        <lines>1-50</lines>
+        <reason>Schema post-processing utility - used by all tools to inline $ref definitions</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="pydantic" version=">=2.0" reason="BaseModel for schema definitions, Field for validation" />
+        <package name="fastmcp" version=">=0.1.0" reason="MCP server framework, tool decorator" />
+        <package name="tiktoken" version=">=0.5.0" reason="Token counting for measurement script" />
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+## Pydantic Field Description Pattern
+
+**❌ VERBOSE (Current):**
+```python
+class TestSummary(BaseModel):
+    test_id: int = Field(
+        ...,
+        description="This is the unique identifier for the test in the TestIO system. It is used to reference the test in other API calls.",
+        json_schema_extra={"example": 109363}
+    )
+```
+
+**✅ CONCISE (Target):**
+```python
+class TestSummary(BaseModel):
+    test_id: int = Field(..., description="Unique test identifier", examples=[109363])
+```
+
+## Token Optimization Guidelines
+
+1. **Remove filler words**: "This is", "Used for", "This field"
+2. **Start with action**: "Get", "List", "Filter", "Returns"
+3. **Use examples wisely**: Only when pattern isn't obvious from field name
+4. **Flatten when possible**: Nested models add token overhead
+5. **Keep semantic clarity**: Don't sacrifice understandability for tokens
+
+## MCP Protocol Consideration
+
+- FastMCP auto-generates JSON schema from Pydantic models
+- Field `description` becomes JSON schema `description` (sent in `tools/list`)
+- Shorter descriptions = fewer tokens in MCP protocol overhead
+- BUT: Must remain understandable to LLMs for tool selection
+
+## Testing Standards
+
+**From TESTING.md:**
+- Test behavior, not implementation (schema changes shouldn't break functional tests)
+- Coverage target: ≥85% overall
+- Fast feedback: Unit tests < 2s for full suite
+- Behavioral validation: Tools should return same data structure after schema slimming
+
+**Test Strategy for This Story:**
+- **Unit tests**: Should NOT need changes (testing behavior, not schema)
+- **Integration tests**: Should NOT need changes (testing API contracts)
+- **New validation**: LLM usability testing (manual, not automated)
+- **Token measurement**: Script-based validation (before/after comparison)
+  </constraints>
+
+  <interfaces>
+## Pydantic BaseModel Pattern
+
+All MCP tools use nested Pydantic models with `inline_schema_refs()` post-processing:
+
+```python
+from pydantic import BaseModel, Field
+from testio_mcp.utilities.schema_utils import inline_schema_refs
+
+class NestedModel(BaseModel):
+    """Nested model description."""
+    field: str = Field(description="Concise description")
+
+class OutputModel(BaseModel):
+    """Output model description."""
+    nested: NestedModel  # Nested model
+
+@mcp.tool(output_schema=inline_schema_refs(OutputModel.model_json_schema()))
+async def my_tool(...) -> dict[str, Any]:
+    result = OutputModel(nested=NestedModel(field="value"))
+    return result.model_dump(by_alias=True, exclude_none=True)
+```
+
+## Field Definition Pattern
+
+```python
+# Minimal description + validation constraints
+field_name: Type = Field(
+    ge=1,  # Numeric constraints
+    le=1000,
+    description="Concise action-oriented description"  # 50-150 chars
+)
+
+# With examples (only when needed)
+field_name: Type = Field(
+    description="Concise description",
+    examples=["value1", "value2"]  # Use examples, not json_schema_extra
+)
+```
+
+## Schema Inlining Utility
+
+**Location:** `src/testio_mcp/utilities/schema_utils.py`
+
+```python
+def inline_schema_refs(schema: dict[str, Any]) -> dict[str, Any]:
+    """Recursively inline all $ref definitions from $defs.
+
+    Resolves JSON schema $ref references by replacing them with
+    their actual definitions. Works around bugs in MCP clients
+    (Gemini CLI 0.16.0) that fail to resolve references.
+    """
+```
+  </interfaces>
+
+  <tests>
+    <standards>
+## Testing Standards
+
+**From TESTING.md:**
+- **Behavioral testing**: Test outcomes and behaviors, not implementation details
+- **Coverage target**: ≥85% overall, ≥90% for services
+- **Fast feedback**: Unit tests run in <1 second, service tests in <2 seconds
+- **Test organization**: `tests/unit/`, `tests/services/`, `tests/integration/`
+
+**Testing Framework:**
+- **pytest** for test runner
+- **pytest-asyncio** for async test support
+- **unittest.mock** for mocking dependencies
+
+**Key Principle:** Tests should validate WHAT the system does (behavior), not HOW it does it (implementation).
+    </standards>
+    <locations>
+tests/unit/test_tools_*.py          # Tool wrapper tests (parameter validation, error handling)
+tests/services/test_*_service.py    # Service layer tests (business logic)
+tests/integration/test_*_integration.py  # Real API tests (end-to-end workflows)
+    </locations>
+    <ideas>
+## Test Ideas for Story 056
+
+**AC8 - Functional Validation:**
+1. **Schema validation tests** (for each optimized tool):
+   - Verify tool still accepts valid inputs after schema slimming
+   - Verify tool still returns correct data structure
+   - Verify parameter validation constraints still enforced
+
+2. **Token measurement tests**:
+   - Automated test to verify token count reduced from baseline
+   - Fail if token count increases after changes
+
+**AC9 - LLM Usability Validation:**
+1. **Tool discovery test** (manual):
+   - Ask Claude "What MCP tools are available?"
+   - Verify all tools appear and descriptions are understandable
+
+2. **Parameter understanding test** (manual):
+   - Ask Claude "How do I filter tests by status?"
+   - Verify Claude understands parameter from schema description
+
+3. **Error guidance test** (manual):
+   - Trigger validation error with invalid input
+   - Verify error message provides clear guidance
+
+**Unit Tests (should NOT change):**
+- Existing unit tests validate behavior, not schema
+- If unit tests fail after schema changes, it indicates breaking change
+
+**Integration Tests (should NOT change):**
+- Existing integration tests validate API contracts
+- If integration tests fail, tools are broken (not acceptable)
+    </ideas>
+  </tests>
+</story-context>

@@ -1,0 +1,240 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>Epic-007</epicId>
+    <storyId>STORY-044C</storyId>
+    <title>Referential Integrity Pattern (Repository Layer)</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-25</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-044c-referential-integrity-pattern.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>the sync system AND analytics service</asA>
+    <iWant>repositories to ensure all foreign key references are valid during BOTH writes (sync) AND reads (analytics)</iWant>
+    <soThat>queries never encounter missing referenced entities (data integrity guaranteed at all times)</soThat>
+    <tasks>
+## Acceptance Criteria Summary
+
+### AC0: Investigation - Verify BugRepository Current State (30 min)
+- Review BugRepository.upsert_bug() lines 460-588 for existing user integrity logic
+- Document findings: Already implemented or needs enhancement
+- Create test checklist for validation
+
+### AC1: TestRepository Proactive Feature Check (1 hour)
+- Add _feature_exists() helper method
+- Before _upsert_test_feature(), check if feature_id exists
+- If missing, call _fetch_and_store_features_for_product()
+- Skip test_feature upsert if fetch fails (no dangling FK)
+
+### AC2: TestRepository Per-Key Async Locks (45 min)
+- Add _feature_fetch_locks: dict[int, asyncio.Lock] to __init__()
+- Implement double-check locking pattern
+- Prevent thundering herd (only 1 API call per product)
+
+### AC3: _fetch_and_store_features_for_product() Implementation (1 hour)
+- Create FeatureRepository via composition
+- Call feature_repo.sync_features(product_id)
+- Log WARNING for integrity fill
+- Emit structured metric
+
+### AC4: BugRepository Write-Time Integrity Check (1 hour or 15 min)
+- Depends on AC0 findings
+- If incomplete: Implement user integrity checks
+- If complete: Add tests/metrics only
+
+### AC5: Logging for Integrity Fills (15 min)
+- Log at WARNING level
+- Include: entity type, entity ID, operation, context
+- Example: "Referential integrity fill: feature 123 missing for product 456"
+
+### AC6: Metrics for Integrity Fills (15 min)
+- Emit structured logs: "repository.integrity_fills"
+- Include: entity_type, operation, product_id/username, test_id/bug_id
+- Emit failure metric: "repository.integrity_fill_failures"
+
+### AC7: Universal Application Across Sync Paths (validation only)
+- Verify integrity checks run in ALL sync scenarios
+- No conditional logic that skips checks
+
+### AC8: Error Handling for Failed Integrity Fill (30 min)
+- Catch fetch failures
+- Log ERROR + emit metric
+- SKIP test_feature upsert (don't create dangling FK)
+- Don't crash entire sync
+
+### AC9: Triggering Scenarios Documentation (15 min)
+- Document when write-time checks run
+- Scenarios: Background sync Phase 3, manual refresh, initial sync
+- Analytics queries do NOT trigger write-time checks
+
+### AC10: Remove Deprecated Reactive Error Handling (15 min)
+- DELETE try/except IntegrityError block (lines 988-997)
+- Replace with proactive validation
+- Verify no IntegrityError in tests
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+AC0: Investigation - Verify BugRepository user handling (lines 460-588) to determine if AC4 is needed
+AC1: Proactive feature check before upsert (prevents FK violations)
+AC2: Per-key async locks (prevents thundering herd, keyed by product_id)
+AC3: Fetch and store features via FeatureRepository composition
+AC4: User integrity check (if AC0 shows gaps)
+AC5: WARNING-level logging for integrity fills
+AC6: Structured metrics for monitoring
+AC7: Universal application (all sync paths)
+AC8: Graceful degradation on fetch failure
+AC9: Triggering scenarios documented
+AC10: Remove reactive error handling (lines 988-997)
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+- path: docs/epics/epic-007-generic-analytics-framework.md
+  title: Epic-007: Generic Analytics Framework
+  section: STORY-044C Overview
+  snippet: "Referential integrity must be maintained in TWO scenarios: Write-Time Integrity (Sync Operations) and Read-Time Integrity (Analytics Queries). Repository-level integrity checks for BOTH paths using composition pattern to avoid circular dependencies."
+
+- path: docs/sprint-artifacts/epic-007-repository-audit.md
+  title: Epic 007 Repository Audit
+  section: Repository Capabilities Analysis
+  snippet: "Comprehensive analysis of current vs. needed repository capabilities, implementation patterns (composition over DI), and testing strategy for integrity checks."
+
+- path: docs/architecture/ARCHITECTURE.md
+  title: System Architecture
+  section: Repository Layer Pattern
+  snippet: "Repositories handle data access and can compose other repositories internally for cross-entity operations without creating service-level circular dependencies."
+
+- path: docs/architecture/adrs/ADR-006-service-layer-pattern.md
+  title: ADR-006: Service Layer Pattern
+  section: Repository Composition
+  snippet: "Repositories may create other repository instances internally (composition) to handle cross-entity operations. This avoids circular service dependencies."
+</docs>
+
+    <code>
+- path: src/testio_mcp/repositories/test_repository.py
+  kind: repository
+  symbol: TestRepository._upsert_test_feature
+  lines: 918-999
+  reason: Main method to be modified - needs proactive integrity check before lines 959/973
+
+- path: src/testio_mcp/repositories/test_repository.py
+  kind: repository
+  symbol: TestRepository.__init__
+  lines: ~140
+  reason: Add _feature_fetch_locks: dict[int, asyncio.Lock] = {} initialization
+
+- path: src/testio_mcp/repositories/feature_repository.py
+  kind: repository
+  symbol: FeatureRepository.sync_features
+  lines: 62-93
+  reason: Method to call via composition for integrity fill (existing, reuse as-is)
+
+- path: src/testio_mcp/repositories/bug_repository.py
+  kind: repository
+  symbol: BugRepository user handling
+  lines: 460-588
+  reason: AC0 investigation target - verify if user integrity checks already exist
+
+- path: src/testio_mcp/repositories/user_repository.py
+  kind: repository
+  symbol: UserRepository.upsert_user
+  lines: 54
+  reason: Method to use for user integrity (if AC4 needed)
+
+- path: src/testio_mcp/repositories/base_repository.py
+  kind: repository
+  symbol: BaseRepository
+  lines: 1-50
+  reason: Parent class - provides session, client, customer_id for composition pattern
+</code>
+
+    <dependencies>
+python = ">=3.12"
+fastmcp = "^0.7.0"
+sqlmodel = "^0.0.22"
+sqlalchemy = "^2.0.36"
+asyncio = "built-in"
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+1. **Repository-Level Integrity**: Integrity checks must be at repository layer, NOT service layer (avoids circular dependencies)
+2. **Composition over DI**: Repositories create other repositories internally via composition
+3. **Proactive Not Reactive**: Check FK validity BEFORE insert/update, not after IntegrityError
+4. **Per-Key Locking**: Use asyncio.Lock keyed by product_id (for features) or username (for users)
+5. **Double-Check Pattern**: After acquiring lock, verify entity still missing before fetching
+6. **Graceful Degradation**: Failed integrity fill should skip upsert, not crash sync
+7. **Testing Requirements**: All tests must pass (mypy strict, ruff, unit + integration)
+8. **No Breaking Changes**: Must not break existing sync functionality
+9. **Code Quality**: Remove deprecated reactive error handling (lines 988-997)
+  </constraints>
+
+  <interfaces>
+- name: TestRepository._feature_exists
+  kind: New async method
+  signature: async def _feature_exists(self, feature_id: int) -> bool
+  path: src/testio_mcp/repositories/test_repository.py
+
+- name: TestRepository._fetch_and_store_features_for_product
+  kind: New async method
+  signature: async def _fetch_and_store_features_for_product(self, product_id: int) -> None
+  path: src/testio_mcp/repositories/test_repository.py
+
+- name: TestRepository._get_or_create_lock
+  kind: New async method
+  signature: async def _get_or_create_lock(self, product_id: int) -> asyncio.Lock
+  path: src/testio_mcp/repositories/test_repository.py
+
+- name: FeatureRepository.sync_features
+  kind: Existing async method (reuse via composition)
+  signature: async def sync_features(self, product_id: int) -> dict[str, int]
+  path: src/testio_mcp/repositories/feature_repository.py
+
+- name: UserRepository.upsert_user
+  kind: Existing async method (reuse if AC4 needed)
+  signature: async def upsert_user(self, user_data: dict) -> int
+  path: src/testio_mcp/repositories/user_repository.py
+  </interfaces>
+
+  <tests>
+    <standards>
+This codebase uses pytest with async support (pytest-asyncio) for testing SQLModel repositories. Tests follow behavioral testing principles:
+- **Unit Tests**: Fast, isolated, mock external dependencies (API client, database)
+- **Integration Tests**: Real database (SQLite in-memory), real async sessions, verify full flow
+- **Type Checking**: mypy --strict enforced
+- **Coverage Target**: 80%+ for new code
+- **Test Naming**: test_{what}_{when}_{then} pattern
+- **Mock Pattern**: Use AsyncMock for async methods, MagicMock for sync
+- **SQLModel Pattern**: Use session.exec() not session.execute() (returns ORM models not Rows)
+- **Cleanup**: Always use async context managers for sessions
+    </standards>
+
+    <locations>
+tests/unit/test_repository_integrity.py (NEW FILE)
+tests/integration/test_epic_007_e2e.py (ADD TO EXISTING)
+    </locations>
+
+    <ideas>
+**Unit Tests (tests/unit/test_repository_integrity.py):**
+1. test_feature_exists_check_true - Verify _feature_exists() returns True when feature exists
+2. test_feature_exists_check_false - Verify _feature_exists() returns False when feature missing
+3. test_fetch_and_store_features_for_product - Verify composition pattern (creates FeatureRepository)
+4. test_upsert_test_feature_with_existing_feature - Feature exists, no fill needed
+5. test_upsert_test_feature_with_missing_feature - Feature missing, triggers fill
+6. test_concurrent_integrity_fills_same_product - Lock prevents thundering herd (only 1 API call)
+7. test_integrity_fill_failure_handling - Fetch fails, graceful degradation (skip upsert)
+8. test_user_integrity_check - If AC4 needed, verify user handling
+9. test_double_check_locking_pattern - After lock acquired, another coroutine already fetched
+
+**Integration Tests (tests/integration/test_epic_007_e2e.py):**
+1. test_sync_with_missing_features_triggers_fill - End-to-end integrity fill
+2. test_no_integrity_error_raised - Verify proactive approach prevents IntegrityError
+3. test_integrity_fill_logs_warning - Verify WARNING log emitted
+4. test_integrity_fill_metrics_emitted - Verify structured log for metrics
+5. test_integrity_fill_in_background_sync - Verify works in Phase 3 sync
+6. test_integrity_fill_in_manual_refresh - Verify works in on-demand refresh
+    </ideas>
+  </tests>
+</story-context>

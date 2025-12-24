@@ -1,0 +1,337 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>epic-007</epicId>
+    <storyId>044b</storyId>
+    <title>Analytics Staleness Warnings (Repository Pattern)</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-25</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-044b-analytics-staleness-warnings.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>data consumer using the Analytics Service</asA>
+    <iWant>to be warned when test, bug, OR feature data is stale and see it refreshed automatically</iWant>
+    <soThat>I can trust analytics accuracy while knowing data is improving in the background</soThat>
+    <tasks>
+### VERTICAL SLICE 1: TestRepository Staleness
+- AC1.1: Database Migration for tests.synced_at
+- AC1.2: TestRepository.get_tests_cached_or_refresh() Implementation
+- AC1.3: TestRepository Unit Tests
+- AC1.4: TestRepository Integration Test
+
+### VERTICAL SLICE 2: FeatureRepository Staleness
+- AC2.1: Database Migration for features_synced_at
+- AC2.2: FeatureRepository.get_features_cached_or_refresh() Implementation
+- AC2.3: FeatureRepository Unit Tests
+- AC2.4: FeatureRepository Integration Test
+
+### VERTICAL SLICE 3: AnalyticsService Integration
+- AC3.1: AnalyticsService Constructor Update
+- AC3.2: Pre-query Scope Identification
+- AC3.3: Repository Integration in query_metrics()
+- AC3.4: Staleness Warnings
+- AC3.5: Error Handling for Failed Refresh
+- AC3.6: AnalyticsService Integration Tests
+
+### VERTICAL SLICE 4: Performance & Production Readiness
+- AC4.1: Performance SLA Verification
+- AC4.2: Formatting and Linting
+- AC4.3: Type Checking
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+### ✅ VERTICAL SLICE 1: TestRepository Staleness (Complete & Test)
+
+#### AC1.1: Database Migration for tests.synced_at
+- Create Alembic migration adding `synced_at` TIMESTAMP column to `tests` table
+- Column nullable (YES), no default (NULL = never refreshed)
+- Apply migration: `alembic upgrade head`
+- Verify: `sqlite3 ~/.testio-mcp/cache.db "PRAGMA table_info(tests);"`
+
+#### AC1.2: TestRepository.get_tests_cached_or_refresh() Implementation
+- Signature: `async def get_tests_cached_or_refresh(test_ids, force_refresh=False) -> tuple[dict[int, dict], dict[str, Any]]`
+- Mirror BugRepository pattern exactly
+- Decision logic: NULL synced_at → refresh; immutable status (archived/cancelled) → cache; mutable status → check TTL
+- Batch refresh stale tests
+- Update synced_at after refresh
+- Return: (tests_by_id, cache_stats with total_tests, cache_hits, api_calls, cache_hit_rate, breakdown)
+
+#### AC1.3: TestRepository Unit Tests
+- Create `tests/unit/test_test_repository_staleness.py`
+- Tests: fresh cache hit, stale refresh, immutable always cache, force_refresh, batch processing, empty list
+- Mock TestIOClient
+- All tests must pass
+
+#### AC1.4: TestRepository Integration Test
+- Add to `tests/integration/test_epic_007_e2e.py`
+- Real AsyncSession (in-memory SQLite)
+- Insert stale test → verify refresh → verify synced_at updated → verify cache hit on second call
+
+### ✅ VERTICAL SLICE 2: FeatureRepository Staleness (Complete & Test)
+
+#### AC2.1: Database Migration for features_synced_at
+- Create Alembic migration adding `features_synced_at` TIMESTAMP column to `products` table
+- Column nullable (YES), no default (NULL = never synced)
+- Apply and verify
+
+#### AC2.2: FeatureRepository.get_features_cached_or_refresh() Implementation
+- Signature: `async def get_features_cached_or_refresh(product_ids, force_refresh=False) -> tuple[dict[int, list[dict]], dict[str, Any]]`
+- Mirror BugRepository pattern
+- Check products.features_synced_at, refresh if NULL or stale
+- Update features_synced_at after sync
+- Return: (features_by_product, cache_stats)
+
+#### AC2.3: FeatureRepository Unit Tests
+- Create `tests/unit/test_feature_repository_staleness.py`
+- Tests: fresh, stale, force, batch, empty
+- Mock TestIOClient
+
+#### AC2.4: FeatureRepository Integration Test
+- Add to `tests/integration/test_epic_007_e2e.py`
+- Similar pattern to AC1.4 for features
+
+### ✅ VERTICAL SLICE 3: AnalyticsService Integration (Complete & Test)
+
+#### AC3.1: AnalyticsService Constructor Update
+- Signature: `__init__(self, session: AsyncSession, customer_id: int, client: TestIOClient)`
+- NO service dependencies (avoid circular deps)
+- Store client for repository instantiation
+
+#### AC3.2: Pre-query Scope Identification
+- `_get_scoped_test_ids(filters, start_date, end_date)` method
+- `_extract_product_ids(test_ids)` method
+- Lightweight queries (<10ms typical)
+
+#### AC3.3: Repository Integration in query_metrics()
+- Exact order: 1) scope test_ids 2) TestRepository refresh 3) BugRepository refresh 4) FeatureRepository refresh 5) add warnings 6) execute SQL
+- Create repositories via composition
+
+#### AC3.4: Staleness Warnings
+- Add warnings list to QueryResponse
+- Warning if test cache_hit_rate < 50%
+- Warning if bug cache_hit_rate < 50%
+- Warning if feature cache_hit_rate < 50%
+- Can have 0-3 warnings
+
+#### AC3.5: Error Handling for Failed Refresh
+- Log ERROR on API failure
+- Return stale data if cached
+- Add warning about failed refresh
+- Emit metric: `analytics.{entity}_refresh_failures`
+- Do NOT fail entire query (graceful degradation)
+
+#### AC3.6: AnalyticsService Integration Tests
+- Add to `tests/integration/test_epic_007_e2e.py`
+- Tests: fresh data (no warnings), stale tests, stale bugs, stale features, all stale, refresh failure
+
+### ✅ VERTICAL SLICE 4: Performance & Production Readiness
+
+#### AC4.1: Performance SLA Verification
+- Staleness overhead < 25% of total execution time
+- Test with 10, 100, 1000 tests
+- Document performance
+
+#### AC4.2: Formatting and Linting
+- `uv run ruff format && uv run ruff check --fix` passes
+
+#### AC4.3: Type Checking
+- `uv run mypy src/testio_mcp/repositories/test_repository.py --strict` passes
+- `uv run mypy src/testio_mcp/repositories/feature_repository.py --strict` passes
+- `uv run mypy src/testio_mcp/services/analytics_service.py --strict` passes
+</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-007-generic-analytics-framework.md</path>
+        <title>Epic-007: Generic Analytics Framework</title>
+        <section>STORY-044B: Analytics Staleness Warnings</section>
+        <snippet>Repository-level staleness pattern. AnalyticsService creates repository instances internally. No service dependencies (eliminates circular dependency). Read-time integrity ensures all entities fresh before analytics queries.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/epic-007-repository-audit.md</path>
+        <title>Epic 007 Repository Audit</title>
+        <section>Implementation Order - Phase 1: FeatureRepository.get_features_cached_or_refresh()</section>
+        <snippet>New method signature mirrors BugRepository pattern. Returns tuple[dict[int, list[dict]], dict[str, Any]]. Decision logic: Check features_synced_at per product, refresh if stale. Database schema requires features_synced_at column in products table.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Service Layer Pattern</section>
+        <snippet>Service layer handles domain operations, business logic, data access patterns (SQLite first, API fallback), orchestration, and raises domain exceptions. Framework-agnostic design enables reuse across MCP, REST, CLI, webhooks.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing Strategy</title>
+        <section>Test Levels: Unit, Integration, E2E</section>
+        <snippet>Unit tests (50%) for pure logic with mocked dependencies (~0.5s). Integration tests (35%) for component interactions with real API (~30s). Unit tests marked with @pytest.mark.unit, integration with @pytest.mark.integration.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/repositories/bug_repository.py</path>
+        <kind>repository</kind>
+        <symbol>BugRepository.get_bugs_cached_or_refresh</symbol>
+        <lines>138-230</lines>
+        <reason>THE GOLDEN PATTERN - This is the exact method to mirror for TestRepository and FeatureRepository. Implements intelligent caching based on mutability, returns tuple[dict, dict] with cache_stats, handles batch processing.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>TestRepository</symbol>
+        <lines>1-100</lines>
+        <reason>Needs get_tests_cached_or_refresh() method added. Currently has insert_test, refresh_test, query_tests, but no staleness pattern. Missing tests.synced_at column.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/feature_repository.py</path>
+        <kind>repository</kind>
+        <symbol>FeatureRepository</symbol>
+        <lines>1-50</lines>
+        <reason>Needs get_features_cached_or_refresh() method added. Currently has sync_features, get_features_for_product, but no staleness pattern. Missing products.features_synced_at column.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>service</kind>
+        <symbol>AnalyticsService.__init__</symbol>
+        <lines>92-100</lines>
+        <reason>Constructor currently takes (session, customer_id). Needs client parameter added: __init__(session, customer_id, client) to enable repository instantiation.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>service</kind>
+        <symbol>AnalyticsService.query_metrics</symbol>
+        <lines>106-152</lines>
+        <reason>Needs pre-query scope identification (_get_scoped_test_ids, _extract_product_ids) and repository staleness checks before SQL execution. Add warnings if cache_hit_rate &lt; 50%.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/base_repository.py</path>
+        <kind>repository</kind>
+        <symbol>BaseRepository</symbol>
+        <lines>1-50</lines>
+        <reason>Base class for all repositories. Provides common constructor signature (session, client, customer_id). All repositories inherit from this.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version=">=0.0.16">ORM and query builder</package>
+        <package name="alembic" version=">=1.13.0">Database migrations</package>
+        <package name="aiosqlite" version=">=0.20.0">Async SQLite driver</package>
+        <package name="pytest" version=">=8.4.0">Test framework</package>
+        <package name="pytest-asyncio" version=">=0.24.0">Async test support</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint category="architecture">Repository-level staleness pattern - NO service-level dependencies to avoid circular dependencies</constraint>
+    <constraint category="architecture">AnalyticsService creates repository instances via composition (not dependency injection)</constraint>
+    <constraint category="pattern-consistency">All get_*_cached_or_refresh() methods must return tuple[dict, dict[str, Any]] (data + cache_stats)</constraint>
+    <constraint category="pattern-consistency">All repositories must mirror BugRepository.get_bugs_cached_or_refresh() pattern (decision logic, TTL checks, batch support)</constraint>
+    <constraint category="configuration">TEST_CACHE_TTL_SECONDS env var must be added to .env.example (default: 3600s/1 hour) for test staleness threshold</constraint>
+    <constraint category="configuration">FEATURE_CACHE_TTL_SECONDS already exists (STORY-038) - reuse for feature staleness threshold</constraint>
+    <constraint category="configuration">BUG_CACHE_TTL_SECONDS already exists (Epic-006) - reuse for bug staleness threshold</constraint>
+    <constraint category="database">Vertical slicing - complete one repository end-to-end (migration + method + tests) before next</constraint>
+    <constraint category="database">Database migrations must use Alembic - run `alembic revision --autogenerate` then review</constraint>
+    <constraint category="database">SQLModel query pattern - ALWAYS use session.exec(select(...)).first() NOT session.execute(...).one_or_none()</constraint>
+    <constraint category="testing">Unit tests must mock TestIOClient to avoid API calls</constraint>
+    <constraint category="testing">Integration tests use real AsyncSession with in-memory SQLite (no API calls)</constraint>
+    <constraint category="performance">Pre-query scope identification must be lightweight (&lt;10ms for typical cases)</constraint>
+    <constraint category="performance">Staleness overhead must be &lt;25% of total execution time</constraint>
+    <constraint category="error-handling">API failures during refresh - log ERROR, return stale data, add warning, emit metric, do NOT fail entire query (graceful degradation)</constraint>
+    <constraint category="code-quality">All code must pass: ruff format, ruff check --fix, mypy --strict</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>TestRepository.get_tests_cached_or_refresh</name>
+      <kind>async method</kind>
+      <signature>async def get_tests_cached_or_refresh(self, test_ids: list[int], force_refresh: bool = False) -> tuple[dict[int, dict[str, Any]], dict[str, Any]]</signature>
+      <path>src/testio_mcp/repositories/test_repository.py</path>
+      <note>Must be added - mirrors BugRepository pattern. Returns (tests_by_id, cache_stats). Decision logic: immutable status → cache, mutable → check TTL.</note>
+    </interface>
+    <interface>
+      <name>FeatureRepository.get_features_cached_or_refresh</name>
+      <kind>async method</kind>
+      <signature>async def get_features_cached_or_refresh(self, product_ids: list[int], force_refresh: bool = False) -> tuple[dict[int, list[dict[str, Any]]], dict[str, Any]]</signature>
+      <path>src/testio_mcp/repositories/feature_repository.py</path>
+      <note>Must be added - mirrors BugRepository pattern. Returns (features_by_product, cache_stats). Decision logic: check products.features_synced_at, refresh if stale.</note>
+    </interface>
+    <interface>
+      <name>BugRepository.get_bugs_cached_or_refresh</name>
+      <kind>async method</kind>
+      <signature>async def get_bugs_cached_or_refresh(self, test_ids: list[int], force_refresh: bool = False) -> tuple[dict[int, list[dict[str, Any]]], dict[str, Any]]</signature>
+      <path>src/testio_mcp/repositories/bug_repository.py</path>
+      <note>Already exists (Epic 006). THE GOLDEN PATTERN to mirror.</note>
+    </interface>
+    <interface>
+      <name>AnalyticsService.__init__</name>
+      <kind>constructor</kind>
+      <signature>def __init__(self, session: AsyncSession, customer_id: int, client: TestIOClient)</signature>
+      <path>src/testio_mcp/services/analytics_service.py</path>
+      <note>Constructor signature change - add client parameter for repository instantiation.</note>
+    </interface>
+    <interface>
+      <name>Database Migration - tests.synced_at</name>
+      <kind>alembic migration</kind>
+      <signature>ALTER TABLE tests ADD COLUMN synced_at TIMESTAMP NULL</signature>
+      <path>alembic/versions/</path>
+      <note>Track test metadata sync time. NULL = never refreshed. Updated by TestRepository.get_tests_cached_or_refresh().</note>
+    </interface>
+    <interface>
+      <name>Database Migration - products.features_synced_at</name>
+      <kind>alembic migration</kind>
+      <signature>ALTER TABLE products ADD COLUMN features_synced_at TIMESTAMP NULL</signature>
+      <path>alembic/versions/</path>
+      <note>Track feature sync time per product. NULL = never synced. Updated by FeatureRepository.get_features_cached_or_refresh().</note>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      - Unit tests use pytest with @pytest.mark.unit decorator
+      - Integration tests use @pytest.mark.integration decorator
+      - Mock TestIOClient in unit tests to avoid API calls
+      - Use real AsyncSession with in-memory SQLite for integration tests
+      - All async tests decorated with @pytest.mark.asyncio
+      - Repository tests should test behavior (outcomes) not implementation (internal calls)
+      - Use realistic test data (full API response structures, not minimal mocks)
+      - Tests must pass: uv run pytest tests/unit/test_*_repository_staleness.py -v
+      - Type checking must pass: uv run mypy src/testio_mcp/repositories/ --strict
+    </standards>
+    <locations>
+      - tests/unit/test_test_repository_staleness.py (create new file)
+      - tests/unit/test_feature_repository_staleness.py (create new file)
+      - tests/integration/test_epic_007_e2e.py (add new tests to existing file)
+      - src/testio_mcp/repositories/test_repository.py (add method + migration)
+      - src/testio_mcp/repositories/feature_repository.py (add method + migration)
+      - src/testio_mcp/services/analytics_service.py (add staleness integration)
+    </locations>
+    <ideas>
+      <test_idea ac_ref="AC1.3">
+        - test_get_tests_cached_or_refresh_fresh - Verify cache hit for fresh tests (synced_at within TTL)
+        - test_get_tests_cached_or_refresh_stale - Verify refresh for stale mutable tests (synced_at > TTL)
+        - test_get_tests_cached_or_refresh_immutable - Verify archived/cancelled tests always use cache
+        - test_get_tests_cached_or_refresh_force - Verify force_refresh=True bypasses cache
+        - test_get_tests_cached_or_refresh_batch - Verify batch processing multiple tests efficiently
+        - test_get_tests_cached_or_refresh_empty - Verify empty test_ids list returns empty dict
+      </test_idea>
+      <test_idea ac_ref="AC2.3">
+        - test_get_features_cached_or_refresh_fresh - Verify cache hit for fresh features (features_synced_at within TTL)
+        - test_get_features_cached_or_refresh_stale - Verify refresh for stale products (features_synced_at > TTL)
+        - test_get_features_cached_or_refresh_force - Verify force_refresh=True bypasses cache
+        - test_get_features_cached_or_refresh_batch - Verify batch processing multiple products
+        - test_get_features_cached_or_refresh_empty - Verify empty product_ids list returns empty dict
+      </test_idea>
+      <test_idea ac_ref="AC3.6">
+        - test_analytics_with_fresh_data - All cache hits, no warnings in response
+        - test_analytics_with_stale_tests - Tests refreshed, warning added to response
+        - test_analytics_with_stale_bugs - Bugs refreshed, warning added to response
+        - test_analytics_with_stale_features - Features refreshed, warning added to response
+        - test_analytics_with_all_stale - All 3 warnings present in response
+        - test_analytics_refresh_failure - Graceful degradation on API error (stale data returned with warning)
+      </test_idea>
+    </ideas>
+  </tests>
+</story-context>

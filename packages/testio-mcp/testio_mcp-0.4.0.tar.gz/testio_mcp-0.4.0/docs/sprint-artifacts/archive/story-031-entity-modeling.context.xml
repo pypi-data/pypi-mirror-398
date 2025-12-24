@@ -1,0 +1,128 @@
+<story-context id="story-031-entity-modeling" v="1.0">
+  <metadata>
+    <epicId>EPIC-006</epicId>
+    <storyId>STORY-031</storyId>
+    <title>Entity Modeling</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-11-22</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-031-entity-modeling.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>As a developer using SQLModel,</asA>
+    <iWant>I want ORM models for all existing database tables,</iWant>
+    <soThat>So that I can query and manipulate data with type safety and IDE autocomplete.</soThat>
+    <tasks>
+      <task>Create src/testio_mcp/models/orm/ package structure</task>
+      <task>Define SQLModel classes matching current schema exactly</task>
+      <task>Add relationships between models where applicable</task>
+      <task>Validate field types and constraints against database/schema.py</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion>src/testio_mcp/models/orm/ package created with proper __init__.py</criterion>
+    <criterion>SQLModel classes defined: Product, Test, Bug, SyncEvent, SyncMetadata</criterion>
+    <criterion>All field types match current SQLite schema (verified by comparing schema.py)</criterion>
+    <criterion>All constraints match current schema (primary keys, foreign keys, indexes)</criterion>
+    <criterion>Models include proper relationships (e.g., Test.bugs relationship)</criterion>
+    <criterion>Type checking passes: mypy src/testio_mcp/models/orm/ --strict</criterion>
+    <criterion>Models importable: from testio_mcp.models.orm import Product, Test, Bug</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-006-orm-refactor.md</path>
+        <title>Epic-006: ORM Refactor</title>
+        <section>STORY-031: Entity Modeling</section>
+        <snippet>Define SQLModel classes that mirror the existing database schema exactly to avoid immediate data migration issues. Entities: Product, Test, Bug, SyncEvent, SyncMetadata.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Local Data Store Strategy</section>
+        <snippet>SQLite database with repository pattern. Schema: products, tests, bugs, sync_metadata, sync_events. Uses WAL mode for concurrent reads.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/CODING-STANDARDS.md</path>
+        <title>Coding Standards</title>
+        <section>Code Quality Tools</section>
+        <snippet>Strict mypy required. All code must pass ruff format and check. Type hints required on all functions.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <item>
+        <path>src/testio_mcp/database/schema.py</path>
+        <kind>schema_definition</kind>
+        <symbol>initialize_schema</symbol>
+        <lines>110-263</lines>
+        <reason>Defines the EXACT schema structure (tables, columns, indexes) that the ORM models must match.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>TestRepository</symbol>
+        <lines>29-723</lines>
+        <reason>Shows how tests and products are currently queried and inserted. Useful for understanding data types and usage.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/repositories/bug_repository.py</path>
+        <kind>repository</kind>
+        <symbol>BugRepository</symbol>
+        <lines>26-549</lines>
+        <reason>Shows how bugs are queried and inserted. Shows relationship between tests and bugs.</reason>
+      </item>
+    </code>
+    <dependencies>
+      <ecosystem name="python">
+        <package name="sqlmodel" version=">=0.0.16" />
+        <package name="alembic" version=">=1.13.0" />
+        <package name="pydantic" version=">=2.12.0" />
+        <package name="greenlet" version=">=3.0.0" />
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Models must match src/testio_mcp/database/schema.py EXACTLY (table names, column names, types).</constraint>
+    <constraint>Use SQLModel (which combines SQLAlchemy and Pydantic).</constraint>
+    <constraint>Strict type checking (mypy --strict) must pass.</constraint>
+    <constraint>Do NOT modify the existing schema.py file in this story (it will be removed in STORY-034B).</constraint>
+    <constraint>Ensure all models have proper __tablename__ set to match existing tables.</constraint>
+    <constraint>Use proper relationship definitions (Relationship) for navigation properties.</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>Product</name>
+      <kind>SQLModel</kind>
+      <signature>class Product(SQLModel, table=True): id: int | None, customer_id: int, data: str, last_synced: datetime | None</signature>
+      <path>src/testio_mcp/models/orm/product.py</path>
+    </interface>
+    <interface>
+      <name>Test</name>
+      <kind>SQLModel</kind>
+      <signature>class Test(SQLModel, table=True): id: int | None, customer_id: int, product_id: int, data: str, status: str, ...</signature>
+      <path>src/testio_mcp/models/orm/test.py</path>
+    </interface>
+    <interface>
+      <name>Bug</name>
+      <kind>SQLModel</kind>
+      <signature>class Bug(SQLModel, table=True): id: int | None, test_id: int, title: str, ...</signature>
+      <path>src/testio_mcp/models/orm/bug.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>Unit tests should verify that models can be instantiated and that their fields match the expected types. Validation against the actual SQLite schema (via introspection) is recommended to ensure exact parity.</standards>
+    <locations>tests/unit/models/orm/</locations>
+    <ideas>
+      <idea>Test model instantiation with valid data</idea>
+      <idea>Test relationship navigation (e.g., test.bugs)</idea>
+      <idea>Verify table names match schema.py</idea>
+      <idea>Verify column types and nullability match schema.py</idea>
+    </ideas>
+  </tests>
+</story-context>

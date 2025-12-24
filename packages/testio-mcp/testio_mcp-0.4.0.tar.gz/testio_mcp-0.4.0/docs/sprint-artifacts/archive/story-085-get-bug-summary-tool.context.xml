@@ -1,0 +1,255 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>014</epicId>
+    <storyId>085</storyId>
+    <title>get_bug_summary Tool</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-085-get-bug-summary-tool.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a CSM drilling into a specific bug</asA>
+    <iWant>full bug details including rejection reason and reporter</iWant>
+    <soThat>I can understand why a bug was rejected</soThat>
+    <tasks>
+      - Task 1: Create Tool File (src/testio_mcp/tools/get_bug_summary_tool.py)
+      - Task 2: Create Service Method (add get_bug_summary() to bug_service.py)
+      - Task 3: Create Repository Method (add get_bug_by_id() to bug_repository.py)
+      - Task 4: Define Output Schema (BugSummaryOutput Pydantic model)
+      - Task 5: Create Exception (BugNotFoundException in exceptions.py)
+      - Task 6: Testing (unit tests, integration tests)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1" priority="must">
+      <title>Full Bug Details</title>
+      <description>
+        get_bug_summary(bug_id=12345) returns comprehensive bug information with:
+        - Core fields: id, title, severity, status, known
+        - Detail fields: actual_result, expected_result, steps
+        - Rejection field: rejection_reason (if status is rejected)
+      </description>
+    </criterion>
+    <criterion id="AC2" priority="must">
+      <title>Related Entities</title>
+      <description>
+        Return related entity information:
+        - reported_by_user: {id, username} of the tester who reported
+        - test: {id, title} of the parent test
+        - feature: {id, title} if bug is linked to a feature
+      </description>
+    </criterion>
+    <criterion id="AC3" priority="must">
+      <title>Metadata</title>
+      <description>
+        Include metadata fields:
+        - reported_at: When bug was reported
+        - data_as_of: Timestamp when summary was generated
+      </description>
+    </criterion>
+    <criterion id="AC4" priority="must">
+      <title>Error Handling</title>
+      <description>
+        Invalid bug_id raises ToolError with helpful message.
+        Format: "Bug ID 'X' not found\n Use list_bugs to find available bugs"
+      </description>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-014-mcp-usability-improvements.md</path>
+        <title>Epic 014: MCP Usability Improvements</title>
+        <section>STORY-085: get_bug_summary Tool (FR5b)</section>
+        <snippet>
+          Full bug details including rejection reason and reporter. Returns core fields (id, title, severity, status, known),
+          detail fields (actual_result, expected_result, steps), rejection field (rejection_reason if rejected),
+          attribution (reported_by_user, test, feature), and metadata (reported_at, data_as_of).
+        </snippet>
+      </doc>
+      <doc>
+        <path>docs/planning/mcp-usability-feedback.md</path>
+        <title>MCP Usability Feedback Log</title>
+        <section>Issue #7 / Friction #2: No "Drill Down" Capability</section>
+        <snippet>
+          When high rejection rate is seen, need to immediately see which bugs were rejected, why they were rejected,
+          and sample bug titles. Desired: get_test_bugs(test_id, status="rejected") with rejection reasons.
+        </snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/adrs/ADR-011-extensibility-patterns.md</path>
+        <title>ADR-011: Extensibility Infrastructure Patterns</title>
+        <section>BaseService Class & get_service() Helper</section>
+        <snippet>
+          BaseService provides standard dependency injection, cache helpers, and TTL constants.
+          get_service() helper reduces tool boilerplate from 5 lines to 1 line with full type safety.
+          Tools use ToolError exceptions (not dict returns) for FastMCP best practice.
+        </snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/SERVICE_LAYER_SUMMARY.md</path>
+        <title>Service Layer Architecture Summary</title>
+        <section>Service Layer Pattern with Repository Pattern</section>
+        <snippet>
+          Services handle business logic, repositories handle data access. Tools are thin wrappers that extract
+          dependencies, delegate to services, and convert domain exceptions to ToolError format.
+          Pattern: Tool → Service → Repository → Database/API.
+        </snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/tools/test_summary_tool.py</path>
+        <kind>tool</kind>
+        <symbol>get_test_summary</symbol>
+        <lines>1-114</lines>
+        <reason>
+          Reference pattern for get_*_summary tools. Shows proper structure: Pydantic input validation,
+          get_service_context() for resource management, domain exception to ToolError conversion with ❌ℹ️💡 format,
+          and output schema validation.
+        </reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/bug_repository.py</path>
+        <kind>repository</kind>
+        <symbol>BugRepository</symbol>
+        <lines>1-958</lines>
+        <reason>
+          Existing bug data access layer. Contains methods like get_bugs(), get_bug_stats(), refresh_bugs().
+          Will need new method: get_bug_by_id() for fetching single bug with related entities (user, test, feature).
+        </reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/exceptions.py</path>
+        <kind>exceptions</kind>
+        <symbol>TestNotFoundException, UserNotFoundException, FeatureNotFoundException</symbol>
+        <lines>1-177</lines>
+        <reason>
+          Existing domain exception patterns. Need to add BugNotFoundException following same structure:
+          inherits from TestIOException, stores bug_id, provides default message.
+        </reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/utilities/__init__.py</path>
+        <kind>utility</kind>
+        <symbol>get_service_context</symbol>
+        <lines>N/A</lines>
+        <reason>
+          Helper function for managed AsyncSession lifecycle (STORY-033). Pattern: async with get_service_context(ctx, ServiceClass) as service.
+          Ensures proper resource cleanup for database connections.
+        </reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="fastmcp" version=">=2.12.0" usage="MCP server framework, tool decorators, Context injection, ToolError exceptions"/>
+        <package name="pydantic" version=">=2.12.0" usage="Input/output validation, BaseModel for schemas, Field for validation rules"/>
+        <package name="httpx" version=">=0.28.0" usage="Async HTTP client for TestIO API calls"/>
+        <package name="sqlmodel" version=">=0.0.16" usage="ORM for SQLite database queries (AsyncSession, select, func)"/>
+        <package name="pytest" version=">=8.4.0" usage="Unit and integration test framework"/>
+        <package name="pytest-asyncio" version=">=0.24.0" usage="Async test support"/>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="architecture">
+      Follow service layer pattern (ADR-006): Tool → Service → Repository → Database.
+      Tools are thin wrappers only. All business logic in services. All data access in repositories.
+    </constraint>
+    <constraint type="testing">
+      Unit tests required (mark with @pytest.mark.unit). Integration tests optional but recommended.
+      Coverage target: 85%+. Test behavior (outputs), not implementation (internal calls).
+    </constraint>
+    <constraint type="error-handling">
+      Use FastMCP ToolError exceptions with ❌ℹ️💡 format (not dict returns).
+      Domain exceptions (BugNotFoundException) raised by services, converted to ToolError by tools.
+    </constraint>
+    <constraint type="resource-management">
+      Use async with get_service_context() for AsyncSession lifecycle management (STORY-033).
+      Never share AsyncSession across concurrent tasks (see CLAUDE.md Async Session Management).
+    </constraint>
+    <constraint type="typing">
+      Strict mypy compliance required (mypy --strict). All functions must have type hints.
+      Use type: ignore[arg-type] for SQLModel column methods (col().in_(), func.count()).
+    </constraint>
+    <constraint type="security">
+      Never log API tokens or sensitive data. Follow SEC-002 token sanitization requirements.
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>BugRepository.get_bug_by_id()</name>
+      <kind>repository_method</kind>
+      <signature>async def get_bug_by_id(self, bug_id: int) -> Bug | None</signature>
+      <path>src/testio_mcp/repositories/bug_repository.py</path>
+      <description>
+        New method to fetch single bug by ID from SQLite with joins for related entities:
+        - reported_by_user (User table via reported_by_user_id FK)
+        - test (Test table via test_id FK)
+        - feature (Feature table via test_feature_id FK)
+        Returns Bug ORM model or None if not found.
+      </description>
+    </interface>
+    <interface>
+      <name>BugService.get_bug_summary()</name>
+      <kind>service_method</kind>
+      <signature>async def get_bug_summary(self, bug_id: int) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/services/bug_service.py</path>
+      <description>
+        New method for business logic: fetch bug via repository, transform to output schema,
+        raise BugNotFoundException if not found. Returns dict with all required fields per AC1-3.
+      </description>
+    </interface>
+    <interface>
+      <name>get_bug_summary MCP Tool</name>
+      <kind>mcp_tool</kind>
+      <signature>@mcp.tool() async def get_bug_summary(bug_id: int, ctx: Context) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/tools/get_bug_summary_tool.py</path>
+      <description>
+        Thin wrapper: validate input, use get_service_context(), delegate to service,
+        convert BugNotFoundException to ToolError with helpful message per AC4.
+      </description>
+    </interface>
+    <interface>
+      <name>BugNotFoundException</name>
+      <kind>exception</kind>
+      <signature>class BugNotFoundException(TestIOException)</signature>
+      <path>src/testio_mcp/exceptions.py</path>
+      <description>
+        Domain exception raised by BugService when bug not found. Stores bug_id.
+        Pattern matches TestNotFoundException, UserNotFoundException, FeatureNotFoundException.
+      </description>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      All tests use pytest with async support (pytest-asyncio). Unit tests marked with @pytest.mark.unit (fast, no API).
+      Integration tests marked with @pytest.mark.integration (real API, requires credentials).
+      Mock dependencies in unit tests (AsyncMock for services/repos, MagicMock for context).
+      Test behavior (return values, exceptions), not implementation (internal method calls).
+      Follow pattern from test_test_summary_tool.py for tool tests.
+    </standards>
+    <locations>
+      tests/unit/test_get_bug_summary_tool.py (new file for tool wrapper tests)
+      tests/services/test_bug_service.py (add test_get_bug_summary method)
+      tests/unit/test_bug_repository.py (add test_get_bug_by_id method)
+      tests/integration/test_get_bug_summary_integration.py (optional, end-to-end test)
+    </locations>
+    <ideas>
+      <test criterion="AC1" description="Unit test: BugRepository.get_bug_by_id() returns Bug ORM with all core/detail/rejection fields populated from raw_data JSON"/>
+      <test criterion="AC2" description="Unit test: BugRepository.get_bug_by_id() joins and returns related entities (reported_by_user, test, feature)"/>
+      <test criterion="AC3" description="Unit test: BugService.get_bug_summary() includes metadata fields (reported_at, data_as_of timestamp)"/>
+      <test criterion="AC4" description="Unit test: get_bug_summary tool converts BugNotFoundException to ToolError with format: 'Bug ID X not found\n Use list_bugs...'"/>
+      <test criterion="AC4" description="Unit test: get_bug_summary tool handles invalid bug_id (non-integer) with validation error"/>
+      <test criterion="General" description="Integration test: get_bug_summary with real bug ID returns complete summary matching output schema"/>
+      <test criterion="General" description="Integration test: get_bug_summary with invalid bug_id raises ToolError"/>
+    </ideas>
+  </tests>
+</story-context>

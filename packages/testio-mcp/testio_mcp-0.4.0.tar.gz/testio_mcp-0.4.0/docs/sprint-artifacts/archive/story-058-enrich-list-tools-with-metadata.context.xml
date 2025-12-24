@@ -1,0 +1,288 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>008</epicId>
+    <storyId>058</storyId>
+    <title>Enrich List Tools with Metadata</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-058-enrich-list-tools-with-metadata.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>an AI agent exploring TestIO data</asA>
+    <iWant>list tools to return richer metadata (counts, activity)</iWant>
+    <soThat>I can understand data volume and activity without additional queries</soThat>
+    <tasks>
+      1. Enrich list_products with counts (test_count, bug_count, feature_count)
+      2. Add has_user_stories filter to list_features
+      3. Fix list_users timestamps (replace cache-based last_seen with meaningful last_activity)
+      4. Performance validation (< 500ms for typical queries)
+      5. Documentation updates
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1">
+      Enrich `list_products` response with computed subqueries:
+      - test_count per product
+      - bug_count per product
+      - feature_count per product
+    </criterion>
+    <criterion id="AC2">
+      Complete remaining work for `list_features`:
+      - test_count/bug_count already done in commit 6802f09
+      - Add has_user_stories filter parameter (true/false/None)
+      - Filter: when true, only return features with user_story_count > 0
+    </criterion>
+    <criterion id="AC3">
+      Fix `list_users` timestamps with meaningful activity:
+      - For customers: last_activity = MAX(tests.end_at) where created_by_user_id or submitted_by_user_id
+      - For testers: last_activity = MAX(bugs.created_at) where reported_by_user_id
+      - Keep first_seen for reference, document it's cache-based
+      - Note: Use end_at since created_at was dropped in STORY-054
+    </criterion>
+    <criterion id="AC4">
+      Repository layer implementation:
+      - ProductRepository.query_products() - add count subqueries
+      - FeatureRepository.query_features() - counts already done, add has_user_stories filter
+      - UserRepository.query_users() - add last_activity subquery
+    </criterion>
+    <criterion id="AC5">
+      Performance validation:
+      - Test with production-scale data (thousands of records)
+      - Verify query time < 500ms for typical queries
+      - Document performance characteristics
+    </criterion>
+    <criterion id="AC6">
+      Unit tests for enriched responses
+    </criterion>
+    <criterion id="AC7">
+      Update tool descriptions to document new fields
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-008-mcp-layer-optimization.md</path>
+        <title>Epic 008: MCP Layer Optimization</title>
+        <section>STORY-058: Enrich List Tools with Metadata</section>
+        <snippet>Goal: Optimize MCP tool layer for token efficiency (49% reduction), consistent taxonomy, and REST parity. Story 058 adds computed counts (test_count, bug_count, feature_count) to list tools for better "information scent" - enabling agents to decide which entities to explore further without calling get_*_summary for every entity.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-008-mcp-layer-optimization.md</path>
+        <title>Epic Technical Specification: MCP Layer Optimization</title>
+        <section>Computed Fields (via Subqueries)</section>
+        <snippet>Computed fields use subqueries (not denormalized columns) to ensure accuracy with read-through cache (ADR-017). Products: test_count, bug_count, feature_count. Features: test_count, bug_count. Users: last_activity (customer: last test created/submitted; tester: last bug reported).</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>TestIO MCP Server - System Architecture</title>
+        <section>Component Architecture - Service Layer</section>
+        <snippet>Service layer contains business logic and data access patterns. Repositories handle pure ORM queries with no business logic. All queries scoped to customer for data isolation. SQLite-first strategy with computed fields as subqueries ensures accuracy with read-through caching.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-057-add-summary-tools.md</path>
+        <title>Story 057: Add Summary Tools</title>
+        <section>Dev Agent Record - Completion Notes</section>
+        <snippet>Reference implementation for count subqueries: ProductRepository.get_product_with_counts (lines 283-352), FeatureRepository.get_feature_with_counts (lines 464-533), UserRepository.get_user_with_activity (lines 492-594). All use parameterized SQLModel ORM with session.exec() pattern. Field names: created_by_user_id, submitted_by_user_id, reported_by_user_id.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/repositories/product_repository.py</path>
+        <kind>repository</kind>
+        <symbol>query_products</symbol>
+        <lines>354-420</lines>
+        <reason>Current implementation handles sorting and pagination. Need to add count subqueries for test_count, bug_count, feature_count following get_product_with_counts pattern (lines 283-352).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/product_repository.py</path>
+        <kind>repository</kind>
+        <symbol>get_product_with_counts</symbol>
+        <lines>283-352</lines>
+        <reason>REFERENCE PATTERN from STORY-057: Shows how to compute test_count, bug_count, feature_count using subqueries. Pattern to reuse in query_products.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/feature_repository.py</path>
+        <kind>repository</kind>
+        <symbol>query_features</symbol>
+        <lines>360-450</lines>
+        <reason>Already computes test_count and bug_count (commit 6802f09). Need to add has_user_stories filter parameter.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/feature_repository.py</path>
+        <kind>repository</kind>
+        <symbol>get_feature_with_counts</symbol>
+        <lines>464-533</lines>
+        <reason>REFERENCE PATTERN from STORY-057: Shows subquery pattern for feature counts. Already implemented in query_features.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/user_repository.py</path>
+        <kind>repository</kind>
+        <symbol>query_users</symbol>
+        <lines>335-420</lines>
+        <reason>Current implementation handles sorting. Need to add last_activity subquery (customer vs tester logic).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/user_repository.py</path>
+        <kind>repository</kind>
+        <symbol>get_user_with_activity</symbol>
+        <lines>492-594</lines>
+        <reason>REFERENCE PATTERN from STORY-057: Shows conditional last_activity subquery (customer: tests, tester: bugs). Pattern to reuse in query_users.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/list_products_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_products</symbol>
+        <lines>1-150</lines>
+        <reason>Tool schema needs updates to include test_count, bug_count, feature_count in response model.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/list_features_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_features</symbol>
+        <lines>1-150</lines>
+        <reason>Tool schema needs has_user_stories filter parameter added.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/list_users_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_users</symbol>
+        <lines>1-150</lines>
+        <reason>Tool schema needs last_activity field documented with customer vs tester semantics.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/product.py</path>
+        <kind>model</kind>
+        <symbol>Product</symbol>
+        <lines>1-50</lines>
+        <reason>ORM model for Product. Reference for customer_id scoping and product_type field (STORY-054).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/feature.py</path>
+        <kind>model</kind>
+        <symbol>Feature</symbol>
+        <lines>1-50</lines>
+        <reason>ORM model for Feature. Reference for user_stories relationship.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/user.py</path>
+        <kind>model</kind>
+        <symbol>User</symbol>
+        <lines>1-50</lines>
+        <reason>ORM model for User. Reference for user_type field (customer vs tester).</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/test.py</path>
+        <kind>model</kind>
+        <symbol>Test</symbol>
+        <lines>1-80</lines>
+        <reason>ORM model for Test. Reference for created_by_user_id, submitted_by_user_id, end_at fields.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/bug.py</path>
+        <kind>model</kind>
+        <symbol>Bug</symbol>
+        <lines>1-80</lines>
+        <reason>ORM model for Bug. Reference for reported_by_user_id, created_at fields.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version=">=0.0.16">ORM with SQLAlchemy 2.0 integration</package>
+        <package name="pydantic" version=">=2.12.0">Data validation and schema models</package>
+        <package name="fastmcp" version=">=2.12.0">MCP server framework</package>
+        <package name="httpx" version=">=0.28.0">Async HTTP client</package>
+        <package name="aiosqlite" version=">=0.20.0">Async SQLite driver</package>
+        <package name="pytest" version="dev">Testing framework</package>
+        <package name="pytest-asyncio" version="dev">Async test support</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="architecture">
+      Service Layer Pattern (ADR-006): Tools are thin wrappers, repositories handle pure ORM queries, services contain business logic. No business logic in repositories.
+    </constraint>
+    <constraint type="database">
+      SQLite Query Pattern (STORY-056): Use session.exec() for ORM queries, NOT session.execute(). Use .first(), .one(), or .all() to extract models from Result.
+    </constraint>
+    <constraint type="security">
+      All ORM queries use parameterized SQLModel ORM (no raw SQL). All queries scoped to customer_id for data isolation.
+    </constraint>
+    <constraint type="performance">
+      Computed counts via subqueries (not denormalized columns). Target: query time < 500ms for typical queries. Performance acceptable at current scale (thousands of records).
+    </constraint>
+    <constraint type="data_integrity">
+      Read-through cache strategy (ADR-017): Subqueries ensure accuracy with cached data. Background sync refreshes stale data based on TTL.
+    </constraint>
+    <constraint type="testing">
+      Unit tests for all repository query logic. Behavioral testing (validate output structure, not implementation details). No FastMCP mocking in unit tests.
+    </constraint>
+    <constraint type="field_names">
+      Correct field names (from STORY-057): Test.created_by_user_id, Test.submitted_by_user_id, Bug.reported_by_user_id. Features don't have customer_id.
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>ProductRepository.query_products</name>
+      <kind>repository_method</kind>
+      <signature>async def query_products(self, sort_by: str | None = None, sort_order: str = "asc", page: int = 1, per_page: int = 50, offset: int = 0) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/repositories/product_repository.py:354</path>
+      <notes>Need to add test_count, bug_count, feature_count subqueries to response. Follow get_product_with_counts pattern (lines 283-352).</notes>
+    </interface>
+    <interface>
+      <name>FeatureRepository.query_features</name>
+      <kind>repository_method</kind>
+      <signature>async def query_features(self, product_id: int, sort_by: str | None = None, sort_order: str = "asc", page: int = 1, per_page: int = 100, offset: int = 0) -> list[dict[str, Any]]</signature>
+      <path>src/testio_mcp/repositories/feature_repository.py:360</path>
+      <notes>Already computes test_count and bug_count. Add has_user_stories filter parameter. Filter logic: user_story_count > 0 when has_user_stories=true.</notes>
+    </interface>
+    <interface>
+      <name>UserRepository.query_users</name>
+      <kind>repository_method</kind>
+      <signature>async def query_users(self, user_type: str | None = None, days: int = 30, sort_by: str | None = None, sort_order: str = "asc", page: int = 1, per_page: int = 100, offset: int = 0) -> list[User]</signature>
+      <path>src/testio_mcp/repositories/user_repository.py:335</path>
+      <notes>Need to add last_activity subquery. Customer: MAX(tests.end_at), Tester: MAX(bugs.created_at). Follow get_user_with_activity pattern (lines 492-594).</notes>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Pytest with async support (pytest-asyncio). Unit tests use AsyncMock for services, MagicMock for context. Test services directly with mocked client/cache (no FastMCP mocking). Behavioral testing: validate outcomes, not implementation. Strict type checking with mypy --strict. Fast feedback loop: unit tests ~0.5s, integration tests ~30s.
+    </standards>
+    <locations>
+      - tests/unit/test_tools_*.py (tool-level tests)
+      - tests/unit/test_repositories_*.py (repository query tests)
+      - tests/services/test_*_service.py (service layer tests)
+      - tests/integration/test_data_serving_integration.py (full stack integration)
+    </locations>
+    <ideas>
+      <idea ac="AC1">
+        Unit test: ProductRepository.query_products returns test_count, bug_count, feature_count in response.
+        Integration test: list_products tool returns enriched metadata for multiple products.
+      </idea>
+      <idea ac="AC2">
+        Unit test: FeatureRepository.query_features filters by has_user_stories=true (only returns features with stories).
+        Unit test: has_user_stories=false or None returns all features.
+      </idea>
+      <idea ac="AC3">
+        Unit test: UserRepository.query_users computes last_activity for customer users (MAX(tests.end_at)).
+        Unit test: UserRepository.query_users computes last_activity for tester users (MAX(bugs.created_at)).
+        Unit test: Verify last_activity uses correct field names (created_by_user_id, submitted_by_user_id, reported_by_user_id).
+      </idea>
+      <idea ac="AC5">
+        Performance test: Benchmark query_products with 100+ products, verify < 500ms.
+        Performance test: Benchmark query_features with counts, verify still < 500ms.
+        Performance test: Benchmark query_users with last_activity, verify < 500ms.
+      </idea>
+      <idea ac="AC6">
+        Unit test: Verify tool schemas updated with new fields (test_count, bug_count, feature_count, has_user_stories, last_activity).
+        Unit test: Verify Pydantic models validate enriched responses.
+      </idea>
+    </ideas>
+  </tests>
+</story-context>

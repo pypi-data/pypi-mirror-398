@@ -1,0 +1,203 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>12</epicId>
+    <storyId>5</storyId>
+    <title>Update Services for Test Environment and Known Bugs</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/story-073-service-layer.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>the service layer to expose test_environment and known_bugs_count</iWant>
+    <soThat>MCP tools can surface these fields to users</soThat>
+    <tasks>
+      <task id="1" ac="1">
+        <title>Update TestService.get_test_summary() to include test_environment</title>
+        <subtasks>
+          <subtask>Verify transformer already maps test_environment from repository data to ServiceTestDTO</subtask>
+          <subtask>Verify TestSummary schema includes test_environment field</subtask>
+          <subtask>Add unit test verifying test_environment is present in response</subtask>
+          <subtask>Add unit test verifying test_environment is None when not present in repository data</subtask>
+        </subtasks>
+      </task>
+      <task id="2" ac="2">
+        <title>Update TestService.get_test_summary() to calculate known_bugs_count</title>
+        <subtasks>
+          <subtask>Modify _aggregate_bug_summary() to count bugs where known == True</subtask>
+          <subtask>Add known_bugs_count to bug_summary dictionary</subtask>
+          <subtask>Verify BugSummary schema includes known_bugs_count field (already added in STORY-072)</subtask>
+          <subtask>Add unit test verifying known_bugs_count calculation with mixed known/unknown bugs</subtask>
+          <subtask>Add unit test verifying known_bugs_count = 0 when no bugs are known</subtask>
+        </subtasks>
+      </task>
+      <task id="3" ac="3">
+        <title>Update TestService.list_tests() to include test_environment</title>
+        <subtasks>
+          <subtask>Verify transformer maps test_environment from repository data to ServiceTestDTO</subtask>
+          <subtask>Verify TestDetails schema includes test_environment field</subtask>
+          <subtask>Add unit test verifying each test in list includes test_environment</subtask>
+          <subtask>Add unit test verifying graceful handling when test_environment is None</subtask>
+        </subtasks>
+      </task>
+      <task id="4" ac="all">
+        <title>Integration testing</title>
+        <subtasks>
+          <subtask>Run full test suite to verify no regressions</subtask>
+          <subtask>Verify mypy strict mode passes</subtask>
+          <subtask>Verify ruff formatting and linting passes</subtask>
+        </subtasks>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">
+      <title>Test summary includes test_environment</title>
+      <given>A test with test_environment data</given>
+      <when>TestService.get_test_summary() is called</when>
+      <then>The response includes test_environment: {id, title}</then>
+    </criterion>
+    <criterion id="2">
+      <title>Bug summary includes known_bugs_count</title>
+      <given>A test with bugs where some have known: true</given>
+      <when>TestService.get_test_summary() is called</when>
+      <then>The response bug_summary includes known_bugs_count as a separate metric</then>
+    </criterion>
+    <criterion id="3">
+      <title>List tests includes test_environment</title>
+      <given>Tests with test_environment data</given>
+      <when>TestService.list_tests() is called</when>
+      <then>Each test in the response includes test_environment</then>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-012-polish.md</path>
+        <title>Epic 012: Test Environments and Known Bugs</title>
+        <section>STORY-073: Update Services for Test Environment and Known Bugs</section>
+        <snippet>Service layer must expose test_environment and known_bugs_count. Calculate known_bugs_count by filtering bugs where known == True. Add to existing bug severity/platform breakdown in get_test_summary.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/adrs/ADR-006-service-layer-pattern.md</path>
+        <title>ADR-006: Service Layer Pattern</title>
+        <section>Service Class Structure</section>
+        <snippet>Services are stateless classes that receive dependencies in constructor. Business logic lives in services, not tools. Services orchestrate API calls, apply caching, and aggregate data.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing Strategy</title>
+        <section>Service Tests</section>
+        <snippet>Service tests mock repository layer and test business logic in isolation. Coverage target: 90%+ for services. Test behavior (outcomes), not implementation details.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/story-072-dtos-and-schemas.md</path>
+        <title>STORY-072: DTOs and Schemas (Prerequisite)</title>
+        <section>Completion Notes</section>
+        <snippet>ServiceTestDTO now includes test_environment field. ServiceBugDTO includes known field. BugSummary includes known_bugs_count. Service layer changes ALREADY IMPLEMENTED at test_service.py:246, 278-279, 335.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/services/test_service.py</path>
+        <kind>service</kind>
+        <symbol>TestService.get_test_summary</symbol>
+        <lines>120-203</lines>
+        <reason>Primary method to modify - needs to include test_environment in response dict at line 169-203. Field is already available in test dict from repository.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/test_service.py</path>
+        <kind>service</kind>
+        <symbol>TestService._aggregate_bug_summary</symbol>
+        <lines>205-340</lines>
+        <reason>Bug summary aggregation method. Already calculates known_bugs_count at lines 246, 278-279. Implementation complete from STORY-072.</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/test_service.py</path>
+        <kind>service</kind>
+        <symbol>TestService.list_tests</symbol>
+        <lines>426-557</lines>
+        <reason>List tests method. Returns tests from repository at line 552. Tests already include test_environment from repository - verify field is passed through.</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_test_service.py</path>
+        <kind>test</kind>
+        <symbol>test_get_test_summary_success</symbol>
+        <lines>45-83</lines>
+        <reason>Existing unit test for get_test_summary. Need to add assertions for test_environment field and verify known_bugs_count is present in bug summary.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python version=">=3.12">
+        <package name="pydantic" version=">=2.12.0" />
+        <package name="pytest" version=">=8.0.0" />
+        <package name="pytest-asyncio" version=">=0.24.0" />
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Service Layer Pattern (ADR-006): Business logic must remain in services, not tools. Services are framework-agnostic and stateless.</constraint>
+    <constraint>Type Safety: All service methods use Pydantic DTOs. Strict mypy validation enforced (mypy --strict).</constraint>
+    <constraint>Testing Standards: Service tests mock repository layer. Coverage target: 100% of new aggregation logic. Test behavior, not implementation.</constraint>
+    <constraint>Backward Compatibility: All new fields have defaults (None, False, 0). Existing tests must pass without modification.</constraint>
+    <constraint>Repository Pattern: Services receive data from repositories. test_environment and known fields are already available in repository output (STORY-071).</constraint>
+  </constraints>
+  <interfaces>
+    <interface>
+      <name>TestService.get_test_summary</name>
+      <kind>service method</kind>
+      <signature>async def get_test_summary(self, test_id: int) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/services/test_service.py</path>
+      <description>Returns test details with bug summary. Response dict must include test_environment in test object and known_bugs_count in bugs object.</description>
+    </interface>
+    <interface>
+      <name>TestService.list_tests</name>
+      <kind>service method</kind>
+      <signature>async def list_tests(self, product_id: int, ...) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/services/test_service.py</path>
+      <description>Returns paginated test list. Each test in response["tests"] must include test_environment field.</description>
+    </interface>
+    <interface>
+      <name>TestService._aggregate_bug_summary</name>
+      <kind>private helper</kind>
+      <signature>def _aggregate_bug_summary(self, bugs: list[dict[str, Any]]) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/services/test_service.py</path>
+      <description>Aggregates bug statistics. Already calculates known_bugs_count at lines 278-279 (STORY-072). Returns dict with known_bugs_count field.</description>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>Service tests mock repository layer and test business logic in isolation. Use pytest with @pytest.mark.unit and @pytest.mark.asyncio. Mock repositories with AsyncMock(). Test behavior (outcomes), not implementation details. Coverage target: 100% of new aggregation logic. All tests must pass strict mypy.</standards>
+    <locations>tests/unit/test_test_service.py</locations>
+    <ideas>
+      <idea ac="1">
+        <test>test_get_test_summary_includes_test_environment_when_present</test>
+        <description>Verify get_test_summary includes test_environment in response when repository provides it. Mock test_repo.get_test_with_bugs to return test with test_environment field. Assert response["test"]["test_environment"] matches expected value.</description>
+      </idea>
+      <idea ac="1">
+        <test>test_get_test_summary_handles_none_test_environment</test>
+        <description>Verify get_test_summary handles None test_environment gracefully. Mock test_repo to return test with test_environment=None. Assert response["test"]["test_environment"] is None (not missing).</description>
+      </idea>
+      <idea ac="2">
+        <test>test_aggregate_bug_summary_calculates_known_bugs_count_mixed</test>
+        <description>Verify _aggregate_bug_summary counts bugs where known==True. Pass bugs with mixed known values (3 known, 2 unknown). Assert summary["known_bugs_count"] == 3.</description>
+      </idea>
+      <idea ac="2">
+        <test>test_aggregate_bug_summary_known_bugs_count_zero_when_none_known</test>
+        <description>Verify known_bugs_count is 0 when no bugs are known. Pass bugs with all known=False. Assert summary["known_bugs_count"] == 0.</description>
+      </idea>
+      <idea ac="3">
+        <test>test_list_tests_includes_test_environment_in_each_test</test>
+        <description>Verify list_tests includes test_environment in each test. Mock test_repo.query_tests to return tests with test_environment. Assert all tests in response["tests"] have test_environment field.</description>
+      </idea>
+      <idea ac="3">
+        <test>test_list_tests_handles_none_test_environment_gracefully</test>
+        <description>Verify list_tests handles None test_environment. Mock test_repo to return tests with test_environment=None. Assert tests with None are included in results.</description>
+      </idea>
+    </ideas>
+  </tests>
+</story-context>

@@ -1,0 +1,114 @@
+<story-context id="story-069-database-columns" v="1.0">
+  <metadata>
+    <epicId>epic-012</epicId>
+    <storyId>story-069</storyId>
+    <title>Add Database Columns for Test Environment and Known Bug</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-30T19:00:00-06:00</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-069-database-columns.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>the database schema to include test_environment (JSON) and known (BOOLEAN) columns</iWant>
+    <soThat>these fields can be persisted and queried efficiently</soThat>
+    <tasks>
+      <task>Task 1: Update ORM Models</task>
+      <subtask>Update src/testio_mcp/models/orm/test.py to add test_environment column.</subtask>
+      <subtask>Update src/testio_mcp/models/orm/bug.py to add known column.</subtask>
+      <task>Task 2: Create Alembic Migration</task>
+      <subtask>Generate new migration script alembic/versions/xxxx_add_test_env_and_known_bug.py.</subtask>
+      <subtask>Implement upgrade() with batch_alter_table to add columns.</subtask>
+      <subtask>Implement data backfill using json_extract() for SQLite.</subtask>
+      <subtask>Implement downgrade() to remove columns.</subtask>
+      <task>Task 3: Verify Migration</task>
+      <subtask>Run migration upgrade on local database.</subtask>
+      <subtask>Verify columns exist and data is backfilled correctly.</subtask>
+      <subtask>Run migration downgrade and verify columns are removed.</subtask>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion>1. Database Schema Update: tests table has a new test_environment column (JSON, nullable); bugs table has a new known column (BOOLEAN, NOT NULL, server_default=0).</criterion>
+    <criterion>2. Migration Backfill (Tests): Existing test records with test_environment in their data JSON blob are updated; test_environment column is populated with {id, title} extracted from data.</criterion>
+    <criterion>3. Migration Backfill (Bugs): Existing bug records with known in their raw_data JSON blob are updated; known column is populated from raw_data (defaulting to FALSE if absent).</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-012-polish.md</path>
+        <title>Epic 012: Test Environments and Known Bugs</title>
+        <section>STORY-069: Add Database Columns for Test Environment and Known Bug</section>
+        <snippet>This epic addresses missing data fields, adding test environment tracking and known bug status to the TestIO MCP Server. The changes span database schema, repository layer, service layer, and MCP tools.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Local Data Store Strategy</section>
+        <snippet>SQLite database with repository pattern for data access. Schema includes products, tests, bugs, sync_metadata, and problematic_tests tables.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/MCP.md</path>
+        <title>MCP Server Architecture</title>
+        <section>Overview</section>
+        <snippet>This codebase implements a Model Context Protocol (MCP) server using FastMCP, with Pydantic models for type safety and future REST API integration.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <item>
+        <path>src/testio_mcp/models/orm/test.py</path>
+        <kind>model</kind>
+        <symbol>Test</symbol>
+        <lines>19-117</lines>
+        <reason>Target ORM model for adding test_environment column.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/models/orm/bug.py</path>
+        <kind>model</kind>
+        <symbol>Bug</symbol>
+        <lines>19-92</lines>
+        <reason>Target ORM model for adding known column.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/transformers/bug_transformers.py</path>
+        <kind>transformer</kind>
+        <symbol>BugOrmData</symbol>
+        <lines>14-48</lines>
+        <reason>TypedDict definition for Bug ORM creation, may need update for known field.</reason>
+      </item>
+    </code>
+    <dependencies>
+      <dependency>sqlalchemy</dependency>
+      <dependency>sqlmodel</dependency>
+      <dependency>alembic</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Use json_extract for backfilling JSON data in SQLite.</constraint>
+    <constraint>Use batch_alter_table for SQLite compatibility when dropping columns (in downgrade).</constraint>
+    <constraint>known column must be BOOLEAN, NOT NULL, server_default=0.</constraint>
+    <constraint>test_environment column must be JSON, nullable.</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>SQLModel</name>
+      <kind>ORM</kind>
+      <signature>class Test(SQLModel, table=True)</signature>
+      <path>src/testio_mcp/models/orm/test.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>Use pytest for unit/integration tests. Use alembic upgrade/downgrade for migration testing.</standards>
+    <locations>tests/, alembic/versions/</locations>
+    <ideas>
+      <idea>Verify migration creates columns correctly.</idea>
+      <idea>Verify data backfill populates columns from JSON blobs.</idea>
+      <idea>Verify downgrade removes columns without data loss in other fields.</idea>
+    </ideas>
+  </tests>
+</story-context>

@@ -1,0 +1,153 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>011</epicId>
+    <storyId>068</storyId>
+    <title>Strategic Analyst Capability</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-30</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-068-strategic-analyst-capability.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>CSM using the Strategic Analyst workflow</asA>
+    <iWant>to query metrics by quarter and rejection reason</iWant>
+    <soThat>I can generate data-backed Quarterly Business Reviews (QBRs) focusing on long-term trends and ROI.</soThat>
+    <tasks>
+- [ ] **Task 1: Implement Quarter Dimension**
+  - [ ] Update `src/testio_mcp/services/analytics_service.py` to add `quarter` to the dimension registry.
+  - [ ] Implement SQLite SQL logic for quarter grouping: `strftime('%Y-Q', end_at) || ((strftime('%m', end_at) + 2) / 3)`.
+  - [ ] Verify sorting by quarter works correctly.
+
+- [ ] **Task 2: Implement Rejection Reason Dimension**
+  - [ ] Update `src/testio_mcp/services/analytics_service.py` to add `rejection_reason` to the dimension registry.
+  - [ ] Map to `Bug.rejection_reason` column (added in Story 067).
+
+- [ ] **Task 3: Testing**
+  - [ ] Create unit tests in `tests/unit/test_analytics_service.py` for new dimensions.
+  - [ ] Verify `quarter` grouping logic with various dates.
+  - [ ] Verify `rejection_reason` grouping with populated data.
+
+- [ ] **Task 4: Validation**
+  - [ ] Execute a manual validation script or conversation to simulate the "Strategic Analyst" workflow.
+  - [ ] Verify the AI can generate a QBR narrative based on the returned metrics.
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. **Quarterly Analytics:**
+   - `query_metrics` tool accepts `dimensions=['quarter']`.
+   - Results are correctly grouped by year and quarter (e.g., "2024-Q3").
+   - Query completes in < 2 seconds for < 10k rows.
+
+2. **Rejection Reason Analytics:**
+   - `query_metrics` tool accepts `dimensions=['rejection_reason']`.
+   - Results include the parsed reasons (e.g., `ignored_instructions`) from the `rejection_reason` column.
+   - Unmatched reasons (NULL) are handled gracefully (e.g., grouped as "Unknown" or "Other").
+
+3. **Strategic Analyst Validation:**
+   - AI can successfully generate a quarterly trend report using `query_metrics` and Playbook templates.
+   - Report includes trends for Bug Count, Acceptance Rate, and Severity Breakdown over at least 4 quarters.
+</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-011.md</path>
+        <title>Epic Technical Specification: Showcase &amp; Polish</title>
+        <section>Detailed Design / Analytics Dimension</section>
+        <snippet>
+Key: quarter
+Description: "Group by Quarter (test end date)"
+SQL: strftime('%Y-Q', end_at) || ((strftime('%m', end_at) + 2) / 3) (SQLite approximation)
+
+Key: rejection_reason
+Description: "Group by Rejection Reason"
+SQL: Bug.rejection_reason (New column)
+        </snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/epic-011-showcase-and-polish.md</path>
+        <title>Epic 011: Showcase &amp; Polish</title>
+        <section>STORY-068: Strategic Analyst Capability</section>
+        <snippet>
+Goal: Polish tools to support the "Analyst" workflow.
+Tasks:
+- Analytics Polish: Add quarter and rejection_reason dimensions to query_metrics.
+- Validation: Verify the AI can generate a "Quarterly Quality Review" using the Playbook template and the new dimensions.
+        </snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Service Layer (ADR-006)</section>
+        <snippet>
+Framework-agnostic business logic layer separating domain operations from transport mechanisms.
+Services: TestService, ProductService, MultiTestReportService (and AnalyticsService).
+Pattern: Stateless services with constructor-injected dependencies.
+        </snippet>
+      </doc>
+    </docs>
+    <code>
+      <item>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>service</kind>
+        <symbol>AnalyticsService</symbol>
+        <lines>256-441</lines>
+        <reason>Core service implementing the "Metric Cube" pattern. Needs updates to `build_dimension_registry`.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>function</kind>
+        <symbol>build_dimension_registry</symbol>
+        <lines>84-168</lines>
+        <reason>Registry where new dimensions (quarter, rejection_reason) must be added.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/models/orm/bug.py</path>
+        <kind>model</kind>
+        <symbol>Bug</symbol>
+        <lines>19-90</lines>
+        <reason>ORM model containing the `rejection_reason` column to be used in the new dimension.</reason>
+      </item>
+    </code>
+    <dependencies>
+      <ecosystem name="python">
+        <package name="sqlalchemy" />
+        <package name="sqlmodel" />
+        <package name="aiosqlite" />
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Follow the "Metric Cube" pattern in `AnalyticsService` by adding to the registry, not creating custom queries.</constraint>
+    <constraint>Use SQLite `strftime` functions for date manipulation as the database is SQLite.</constraint>
+    <constraint>Ensure queries remain performant (target < 2s for < 10k rows).</constraint>
+    <constraint>Handle NULL values in `rejection_reason` gracefully in the analytics output.</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>AnalyticsService.query_metrics</name>
+      <kind>function signature</kind>
+      <signature>async def query_metrics(self, metrics: list[str], dimensions: list[str], filters: dict[str, Any] | None = None, start_date: str | None = None, end_date: str | None = None, sort_by: str | None = None, sort_order: str = "desc", limit: int | None = None) -> QueryResponse</signature>
+      <path>src/testio_mcp/services/analytics_service.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Unit tests should test pure logic and business rules in isolation using mocks. Integration tests should validate component interactions with the real API/DB. Maintain coverage >= 85%.
+    </standards>
+    <locations>
+      <location>tests/unit/test_analytics_service.py</location>
+    </locations>
+    <ideas>
+      <idea>Test `quarter` dimension grouping with tests spanning multiple years and quarters.</idea>
+      <idea>Test `rejection_reason` dimension grouping with a mix of known reasons, unknown reasons, and NULLs.</idea>
+      <idea>Verify sorting by `quarter` works correctly (chronological order).</idea>
+      <idea>Verify performance with a mocked large dataset if possible, or ensure SQL generated is efficient.</idea>
+    </ideas>
+  </tests>
+</story-context>

@@ -1,0 +1,406 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>008</epicId>
+    <storyId>055</storyId>
+    <title>Standardize Pagination &amp; Sorting</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-055-standardize-pagination-sorting.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>AI agent querying data</asA>
+    <iWant>consistent pagination and sorting across all list tools</iWant>
+    <soThat>I can predictably navigate and order results</soThat>
+    <tasks>
+      - [ ] Task 1: Update `list_products` Tool and Service (AC1, AC5)
+        - [ ] Add `sort_by`, `sort_order`, `page`, `per_page`, `offset` parameters to tool
+        - [ ] Update `ProductService.list_products()` signature
+        - [ ] Update `ProductRepository.query_products()` to handle sorting
+        - [ ] Add unit tests for product sorting
+
+      - [ ] Task 2: Update `list_tests` Tool and Service (AC2)
+        - [ ] Add `sort_by`, `sort_order`, `testing_type` parameters to tool
+        - [ ] Update `TestService.list_tests()` signature
+        - [ ] Update `TestRepository.query_tests()` to handle sorting and filtering
+        - [ ] Add unit tests for test sorting and testing_type filtering
+
+      - [ ] Task 3: Update `list_features` Tool and Service (AC3)
+        - [ ] Add `sort_by`, `sort_order` parameters to tool
+        - [ ] Update `FeatureService.list_features()` signature (if exists, else create)
+        - [ ] Update `FeatureRepository.query_features()` with computed subqueries
+        - [ ] Implement `test_count`, `bug_count` subqueries (only when sorting by these fields)
+        - [ ] Add unit tests for feature sorting with computed fields
+
+      - [ ] Task 4: Update `list_users` Tool and Service (AC4)
+        - [ ] Add `sort_by`, `sort_order` parameters to tool
+        - [ ] Update `UserService.list_users()` signature (if exists, else create)
+        - [ ] Update `UserRepository.query_users()` with `last_activity` subquery
+        - [ ] Implement `last_activity` subquery (only when sorting by this field)
+        - [ ] Add unit tests for user sorting with computed fields
+
+      - [ ] Task 5: Update `query_metrics` Tool and Service (AC6)
+        - [ ] Add `limit` parameter to `query_metrics` tool
+        - [ ] Update `AnalyticsService.query_metrics()` to apply limit
+        - [ ] Add unit tests for limit parameter
+
+      - [ ] Task 6: Integration Tests (AC9)
+        - [ ] Test pagination + sorting combined for each list tool
+        - [ ] Test computed field sorting (features, users)
+        - [ ] Test `limit` parameter in `query_metrics`
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. [ ] Add `sort_by`, `sort_order` parameters to `list_products`
+       - Available fields: `title`, `product_type`, `last_synced`
+       - Default: `sort_by="title"`, `sort_order="asc"`
+
+    2. [ ] Add `sort_by`, `sort_order` parameters to `list_tests`
+       - Available fields: `start_at`, `end_at`, `status`, `title`
+       - Default: `sort_by="end_at"`, `sort_order="desc"` (shows recent/active tests first)
+       - Note: `title` provided by STORY-054 (schema migration)
+       - Add `testing_type` filter parameter (values: coverage, focused, rapid)
+
+    3. [ ] Add `sort_by`, `sort_order` parameters to `list_features`
+       - Available fields: `title`, `test_count`, `bug_count`, `last_synced`
+       - Default: `sort_by="title"`, `sort_order="asc"`
+       - `test_count`, `bug_count` computed via subquery when used for sorting
+
+    4. [ ] Add `sort_by`, `sort_order` parameters to `list_users`
+       - Available fields: `username`, `user_type`, `last_activity`, `first_seen`
+       - Default: `sort_by="username"`, `sort_order="asc"`
+       - `last_activity` computed via subquery when used for sorting
+
+    5. [ ] Add pagination to `list_products`
+       - Optional parameter, default: 10
+       - Add `page`, `per_page`, `offset` parameters
+       - Match pattern from other list tools
+
+    6. [ ] Add `limit` parameter to `query_metrics`
+       - Optional parameter, default: None (unlimited up to 1000 row cap)
+       - Enables "top N" queries elegantly
+       - Example: `query_metrics(metrics=["bug_count"], dimensions=["feature"], limit=5)`
+
+    7. [ ] Repository layer: Implement sorting with computed subqueries
+       - `FeatureRepository.query_features()` - Support `test_count`, `bug_count` sort
+       - `UserRepository.query_users()` - Support `last_activity` sort
+       - Only compute subquery when sorting by computed field (optimization)
+
+    8. [ ] Unit tests for sorting by all available fields
+
+    9. [ ] Integration tests for pagination + sorting combined
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <!-- Epic Documentation -->
+      <doc>
+        <path>docs/epics/epic-008-mcp-layer-optimization.md</path>
+        <title>Epic-008: MCP Layer Optimization</title>
+        <section>Story 055: Standardize Pagination &amp; Sorting</section>
+        <snippet>User Story: As an AI agent querying data, I want consistent pagination and sorting across all list tools. Progressive Disclosure Goal: Slim Response Models - Return ONLY essential fields in list tools to force agents to use get_*_summary for details.</snippet>
+      </doc>
+
+      <!-- Technical Specification -->
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-008-mcp-layer-optimization.md</path>
+        <title>Epic Technical Specification: MCP Layer Optimization</title>
+        <section>Detailed Design - Data Models and Contracts</section>
+        <snippet>Computed Fields (Subqueries): Product: test_count, bug_count, feature_count; Feature: test_count, bug_count; User: last_activity (derived from tests/bugs timestamps)</snippet>
+      </doc>
+
+      <!-- Architecture -->
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>TestIO MCP Server - System Architecture</title>
+        <section>Service Layer Pattern, Repository Pattern</section>
+        <snippet>Service Layer (ADR-006): Framework-agnostic business logic layer separating domain operations from transport mechanisms. Repository Pattern: TestRepository, BugRepository, ProductRepository, FeatureRepository, UserRepository for clean data access.</snippet>
+      </doc>
+
+      <!-- Testing Guide -->
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing - TestIO MCP Server</title>
+        <section>Test Behavior, Not Implementation</section>
+        <snippet>Tests should validate WHAT the system does (behavior), not HOW it does it (implementation). Assert on observable outcomes, allow implementation flexibility, use realistic test data. Coverage target: ≥85% overall, ≥90% for services.</snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <!-- Repository Layer - Products -->
+      <artifact>
+        <path>src/testio_mcp/repositories/product_repository.py</path>
+        <kind>repository</kind>
+        <symbol>ProductRepository</symbol>
+        <lines>23-282</lines>
+        <reason>Will need query_products() method with sorting support for title, product_type, last_synced. STORY-054 added product_type column for efficient filtering.</reason>
+      </artifact>
+
+      <!-- Repository Layer - Tests -->
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>TestRepository</symbol>
+        <lines>37-150</lines>
+        <reason>Will need query_tests() method with sorting support for start_at, end_at, status, title (STORY-054), and testing_type filter. Uses SQLModel session.exec() pattern for ORM queries.</reason>
+      </artifact>
+
+      <!-- Repository Layer - Features -->
+      <artifact>
+        <path>src/testio_mcp/repositories/feature_repository.py</path>
+        <kind>repository</kind>
+        <symbol>FeatureRepository</symbol>
+        <lines>27-150</lines>
+        <reason>Will need query_features() method with computed subqueries for test_count, bug_count sorting. Must optimize by computing subquery only when sorting by computed fields.</reason>
+      </artifact>
+
+      <!-- Repository Layer - Users -->
+      <artifact>
+        <path>src/testio_mcp/repositories/user_repository.py</path>
+        <kind>repository</kind>
+        <symbol>UserRepository</symbol>
+        <lines>24-150</lines>
+        <reason>Will need query_users() method with computed last_activity subquery. Last_activity computed from MAX(tests.end_at) for customers, MAX(bugs.created_at) for testers.</reason>
+      </artifact>
+
+      <!-- Service Layer Examples -->
+      <artifact>
+        <path>src/testio_mcp/services/product_service.py</path>
+        <kind>service</kind>
+        <symbol>ProductService</symbol>
+        <lines>all</lines>
+        <reason>Service layer pattern reference for implementing list_products with pagination/sorting delegation to repository.</reason>
+      </artifact>
+
+      <!-- Tools Layer Reference -->
+      <artifact>
+        <path>src/testio_mcp/tools/list_products_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_products</symbol>
+        <lines>all</lines>
+        <reason>Will need to add sort_by, sort_order, page, per_page, offset parameters. Tool delegates to ProductService.</reason>
+      </artifact>
+
+      <!-- ORM Models -->
+      <artifact>
+        <path>src/testio_mcp/models/orm/product.py</path>
+        <kind>orm_model</kind>
+        <symbol>Product</symbol>
+        <lines>all</lines>
+        <reason>STORY-054 added product_type column - available for sorting. Title field already exists.</reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/models/orm/test.py</path>
+        <kind>orm_model</kind>
+        <symbol>Test</symbol>
+        <lines>all</lines>
+        <reason>STORY-054 added title and testing_type columns - available for sorting/filtering. Created_at removed (never populated).</reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/models/orm/feature.py</path>
+        <kind>orm_model</kind>
+        <symbol>Feature</symbol>
+        <lines>all</lines>
+        <reason>Feature model for computed count subqueries via test_features and bugs relationships.</reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/models/orm/user.py</path>
+        <kind>orm_model</kind>
+        <symbol>User</symbol>
+        <lines>all</lines>
+        <reason>User model for last_activity computation via tests and bugs relationships.</reason>
+      </artifact>
+    </code>
+
+    <dependencies>
+      <python>
+        <!-- Core Dependencies -->
+        <package name="sqlmodel" version="^0.0.22">SQLModel for ORM queries and type-safe database operations</package>
+        <package name="sqlalchemy" version="^2.0.0">SQLAlchemy 2.0 for subquery expressions (func.count, select)</package>
+        <package name="pydantic" version="^2.0.0">Pydantic for tool parameter validation (sort_by, sort_order enums)</package>
+
+        <!-- Testing Dependencies -->
+        <package name="pytest" version="^8.0.0">Unit and integration test framework</package>
+        <package name="pytest-asyncio" version="^0.23.0">Async test support</package>
+        <package name="pytest-cov" version="^4.1.0">Coverage reporting (target: ≥85%)</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <!-- Architectural Constraints from CLAUDE.md -->
+    - **SQLModel Query Pattern (CRITICAL):** ALWAYS use `session.exec()` for ORM queries, NOT `session.execute()`. session.exec() returns ORM models with attribute access, session.execute() returns Row objects requiring dict-like access.
+
+    - **Sort Validation Pattern:** Validate sort_by field in repository layer. Raise ValueError if invalid field. Example: `VALID_SORT_FIELDS = ["title", "product_type", "last_synced"]`
+
+    - **Computed Subquery Pattern:** Only compute subquery when sorting by computed field (optimization). Example: `if sort_by == "test_count": stmt = stmt.order_by(test_count_subquery.desc())`
+
+    - **Service Layer Pattern (ADR-006):** Business logic goes in services (ProductService, TestService, etc.). Tools are thin wrappers that delegate to services. Services are framework-agnostic and reusable.
+
+    - **Repository Pattern:** Data access logic in repositories (ProductRepository.query_products). Repositories handle ORM queries, services handle business logic.
+
+    - **Testing Standards (TESTING.md):** Test behavior, not implementation. Use set membership, not list equality. Avoid hardcoded magic numbers. Coverage target: ≥85% overall, ≥90% for services.
+
+    - **Type Safety:** Strict mypy enforcement. All sort_by/sort_order parameters must be typed (Literal types for enums).
+
+    - **Pagination Pattern:** page (1-indexed), per_page, offset parameters consistent across all list tools.
+
+    - **Default Sort Behavior:** list_products/list_features: sort_by="title", sort_order="asc". list_tests: sort_by="end_at", sort_order="desc" (shows recent/active first). list_users: sort_by="username", sort_order="asc".
+  </constraints>
+
+  <interfaces>
+    <!-- Repository Methods to Implement -->
+    <interface>
+      <name>ProductRepository.query_products</name>
+      <kind>repository_method</kind>
+      <signature>async def query_products(self, sort_by: str | None = None, sort_order: str = "asc", page: int = 1, per_page: int = 50, offset: int = 0) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/repositories/product_repository.py</path>
+    </interface>
+
+    <interface>
+      <name>TestRepository.query_tests</name>
+      <kind>repository_method</kind>
+      <signature>async def query_tests(self, product_id: int, sort_by: str | None = None, sort_order: str = "desc", testing_type: str | None = None, page: int = 1, per_page: int = 50) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/repositories/test_repository.py</path>
+    </interface>
+
+    <interface>
+      <name>FeatureRepository.query_features</name>
+      <kind>repository_method</kind>
+      <signature>async def query_features(self, product_id: int, sort_by: str | None = None, sort_order: str = "asc") -> list[dict[str, Any]]</signature>
+      <path>src/testio_mcp/repositories/feature_repository.py</path>
+    </interface>
+
+    <interface>
+      <name>UserRepository.query_users</name>
+      <kind>repository_method</kind>
+      <signature>async def query_users(self, user_type: str | None = None, sort_by: str | None = None, sort_order: str = "asc") -> list[dict[str, Any]]</signature>
+      <path>src/testio_mcp/repositories/user_repository.py</path>
+    </interface>
+
+    <!-- Service Layer Updates -->
+    <interface>
+      <name>ProductService.list_products</name>
+      <kind>service_method</kind>
+      <signature>async def list_products(self, sort_by: str | None = None, sort_order: str = "asc", page: int = 1, per_page: int = 50, offset: int = 0) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/services/product_service.py</path>
+    </interface>
+
+    <interface>
+      <name>TestService.list_tests</name>
+      <kind>service_method</kind>
+      <signature>async def list_tests(self, product_id: int, sort_by: str | None = None, sort_order: str = "desc", testing_type: str | None = None, page: int = 1, per_page: int = 50) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/services/test_service.py</path>
+    </interface>
+
+    <!-- MCP Tool Parameters -->
+    <interface>
+      <name>list_products tool parameters</name>
+      <kind>mcp_tool</kind>
+      <signature>@mcp.tool() async def list_products(sort_by: Literal["title", "product_type", "last_synced"] | None = None, sort_order: Literal["asc", "desc"] = "asc", page: int = 1, per_page: int = 50, offset: int = 0, ctx: Context) -> dict</signature>
+      <path>src/testio_mcp/tools/list_products_tool.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      From TESTING.md: Test behavior, not implementation. Assert on observable outcomes (return values, state changes), not internal method calls or private functions. Use realistic test data, not minimal mocks. Allow implementation flexibility - tests should survive refactoring. Avoid hardcoded magic numbers from implementation details. Use set membership for unordered results, not list equality. Follow Arrange-Act-Assert pattern for clarity. Coverage target: ≥85% overall, ≥90% for services.
+    </standards>
+
+    <locations>
+      tests/unit/test_*_repository.py - Unit tests for repository sorting logic
+      tests/services/test_*_service.py - Service layer tests with mocked repositories
+      tests/integration/test_*_integration.py - Integration tests with real API
+      tests/unit/test_tools_*.py - Tool wrapper tests with mocked services
+    </locations>
+
+    <ideas>
+      <!-- AC1: list_products sorting -->
+      <test ac="1">
+        <description>Verify list_products returns products sorted by title ascending (default)</description>
+        <location>tests/unit/test_product_repository.py</location>
+      </test>
+      <test ac="1">
+        <description>Verify list_products supports sorting by product_type, last_synced</description>
+        <location>tests/unit/test_product_repository.py</location>
+      </test>
+      <test ac="1">
+        <description>Verify list_products raises ValueError for invalid sort_by field</description>
+        <location>tests/unit/test_product_repository.py</location>
+      </test>
+
+      <!-- AC2: list_tests sorting and filtering -->
+      <test ac="2">
+        <description>Verify list_tests returns tests sorted by end_at descending (default)</description>
+        <location>tests/unit/test_test_repository.py</location>
+      </test>
+      <test ac="2">
+        <description>Verify list_tests supports sorting by start_at, status, title</description>
+        <location>tests/unit/test_test_repository.py</location>
+      </test>
+      <test ac="2">
+        <description>Verify list_tests filters by testing_type (coverage, focused, rapid)</description>
+        <location>tests/unit/test_test_repository.py</location>
+      </test>
+
+      <!-- AC3: list_features with computed counts -->
+      <test ac="3">
+        <description>Verify list_features supports sorting by title, last_synced</description>
+        <location>tests/unit/test_feature_repository.py</location>
+      </test>
+      <test ac="3">
+        <description>Verify list_features computes test_count subquery only when sorting by test_count</description>
+        <location>tests/unit/test_feature_repository.py</location>
+      </test>
+      <test ac="3">
+        <description>Verify list_features computes bug_count subquery only when sorting by bug_count</description>
+        <location>tests/unit/test_feature_repository.py</location>
+      </test>
+
+      <!-- AC4: list_users with computed last_activity -->
+      <test ac="4">
+        <description>Verify list_users supports sorting by username, user_type, first_seen</description>
+        <location>tests/unit/test_user_repository.py</location>
+      </test>
+      <test ac="4">
+        <description>Verify list_users computes last_activity for customers (MAX tests.end_at)</description>
+        <location>tests/unit/test_user_repository.py</location>
+      </test>
+      <test ac="4">
+        <description>Verify list_users computes last_activity for testers (MAX bugs.created_at)</description>
+        <location>tests/unit/test_user_repository.py</location>
+      </test>
+
+      <!-- AC5: list_products pagination -->
+      <test ac="5">
+        <description>Verify list_products respects page, per_page, offset parameters</description>
+        <location>tests/services/test_product_service.py</location>
+      </test>
+
+      <!-- AC6: query_metrics limit -->
+      <test ac="6">
+        <description>Verify query_metrics applies limit parameter for top N queries</description>
+        <location>tests/services/test_analytics_service.py</location>
+      </test>
+
+      <!-- AC9: Integration tests -->
+      <test ac="9">
+        <description>Verify pagination + sorting combined for list_products</description>
+        <location>tests/integration/test_list_products_integration.py</location>
+      </test>
+      <test ac="9">
+        <description>Verify computed field sorting works end-to-end for features</description>
+        <location>tests/integration/test_list_features_integration.py</location>
+      </test>
+      <test ac="9">
+        <description>Verify computed field sorting works end-to-end for users</description>
+        <location>tests/integration/test_list_users_integration.py</location>
+      </test>
+    </ideas>
+  </tests>
+</story-context>

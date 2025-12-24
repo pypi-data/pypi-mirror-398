@@ -1,0 +1,172 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>null</epicId>
+    <storyId>STORY-039</storyId>
+    <title>Alembic Migration Strategy Implementation</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-24</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-039-alembic-migration-strategy.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer making schema changes</asA>
+    <iWant>a sustainable migration strategy with CI protection</iWant>
+    <soThat>I can add new migrations without "duplicate column" conflicts and catch schema drift automatically</soThat>
+    <tasks>
+      <task id="AC1" title="Add pytest-alembic Dependency">
+        <file>pyproject.toml</file>
+        <action>Add pytest-alembic>=0.11.0 to dev dependencies</action>
+      </task>
+      <task id="AC2" title="Modify env.py for pytest-alembic Compatibility">
+        <file>alembic/env.py</file>
+        <action>Allow pytest-alembic to inject connection via config.attributes</action>
+      </task>
+      <task id="AC3" title="Create Alembic Test Fixtures">
+        <file>tests/conftest.py</file>
+        <action>Add alembic_config() and alembic_engine() fixtures</action>
+      </task>
+      <task id="AC4" title="Create Integration Test File for Alembic">
+        <file>tests/integration/test_alembic_migrations.py</file>
+        <action>Import pytest_alembic built-in tests for explicit collection</action>
+      </task>
+      <task id="AC5" title="Convert Baseline to Explicit DDL">
+        <file>alembic/versions/0965ad59eafa_baseline_existing_schema.py</file>
+        <action>Replace metadata.create_all() with explicit op.create_table() calls</action>
+      </task>
+      <task id="AC6" title="Freeze Baseline Downgrade">
+        <file>alembic/versions/0965ad59eafa_baseline_existing_schema.py</file>
+        <action>Replace metadata.drop_all() with explicit op.drop_table() calls</action>
+      </task>
+      <task id="AC7" title="Update CLAUDE.md Migration Documentation">
+        <file>CLAUDE.md</file>
+        <action>Update Database Migrations section to reference ADR-016</action>
+      </task>
+      <task id="AC8" title="Verify pytest-alembic Tests Pass">
+        <action>Run pytest --test-alembic and verify all 4 built-in tests pass</action>
+      </task>
+      <task id="AC9" title="Add pytest-alembic to CI (Optional)">
+        <file>.github/workflows/test.yml</file>
+        <action>Add --test-alembic flag to pytest command (if CI exists)</action>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1" title="Add pytest-alembic Dependency">
+      <description>pytest-alembic>=0.11.0 added to pyproject.toml dev dependencies</description>
+      <verification>uv pip install -e ".[dev]" && python -c "import pytest_alembic"</verification>
+    </criterion>
+    <criterion id="AC2" title="Modify env.py for pytest-alembic Compatibility">
+      <description>env.py modified to allow pytest-alembic connection injection</description>
+      <verification>pytest --test-alembic --collect-only shows 4 tests</verification>
+    </criterion>
+    <criterion id="AC3" title="Create Alembic Test Fixtures">
+      <description>alembic_config() and alembic_engine() fixtures in conftest.py</description>
+      <verification>pytest --test-alembic -v shows tests running</verification>
+    </criterion>
+    <criterion id="AC4" title="Create Integration Test File">
+      <description>tests/integration/test_alembic_migrations.py imports pytest_alembic tests</description>
+      <verification>pytest tests/integration/test_alembic_migrations.py -v lists 4 tests</verification>
+    </criterion>
+    <criterion id="AC5" title="Convert Baseline to Explicit DDL">
+      <description>Baseline migration uses explicit op.create_table() calls, not metadata.create_all()</description>
+      <verification>rm ~/.testio-mcp/cache.db && alembic upgrade head succeeds</verification>
+    </criterion>
+    <criterion id="AC6" title="Freeze Baseline Downgrade">
+      <description>Baseline downgrade uses explicit op.drop_table() calls</description>
+      <verification>alembic downgrade base && alembic upgrade head succeeds</verification>
+    </criterion>
+    <criterion id="AC7" title="Update CLAUDE.md">
+      <description>Database Migrations section updated with ADR-016 reference</description>
+      <verification>CLAUDE.md contains "ADR-016" and "pytest-alembic" references</verification>
+    </criterion>
+    <criterion id="AC8" title="All pytest-alembic Tests Pass">
+      <description>All 4 built-in pytest-alembic tests pass</description>
+      <verification>pytest --test-alembic -v shows 4 PASSED</verification>
+    </criterion>
+    <criterion id="AC9" title="CI Integration (Optional)" optional="true">
+      <description>--test-alembic flag added to CI pytest command</description>
+      <verification>CI pipeline includes migration checks</verification>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/architecture/adrs/ADR-016-alembic-migration-strategy.md" title="ADR-016: Alembic Migration Strategy" section="Decision" snippet="Adopt single-path migration strategy with frozen baseline DDL and pytest-alembic CI protection. Core principles: single code path, frozen baseline, CI protection, no stamp head."/>
+      <doc path="docs/architecture/TESTING.md" title="Testing Strategy" section="CI/CD Integration" snippet="Coverage targets, pytest configuration, and test organization. Integration tests in tests/integration/ directory."/>
+      <doc path="docs/index.md" title="Documentation Index" section="Architecture Decision Records" snippet="ADR index navigation and master AI entry point for documentation."/>
+      <doc path="CLAUDE.md" title="Project Instructions" section="Database Migrations" snippet="Current migration strategy using flattened baseline with metadata.create_all(). This section needs updating per ADR-016."/>
+    </docs>
+    <code>
+      <file path="alembic/env.py" kind="migration-config" symbol="run_migrations_online" lines="106-131" reason="Current migration runner - needs modification for pytest-alembic connection injection"/>
+      <file path="alembic/versions/0965ad59eafa_baseline_existing_schema.py" kind="migration" symbol="upgrade/downgrade" lines="49-82" reason="Baseline migration using metadata.create_all() - needs conversion to explicit DDL"/>
+      <file path="tests/conftest.py" kind="test-fixtures" symbol="async_engine, async_session" lines="254-310" reason="Existing ORM test fixtures - pytest-alembic fixtures should follow this pattern"/>
+      <file path="pyproject.toml" kind="config" symbol="project.optional-dependencies.dev" lines="56-72" reason="Dev dependencies list where pytest-alembic should be added"/>
+      <file path="src/testio_mcp/models/orm/__init__.py" kind="orm-models" symbol="__all__" lines="1-31" reason="All ORM models that define the schema baseline"/>
+      <file path="src/testio_mcp/models/orm/product.py" kind="orm-model" symbol="Product" lines="16-43" reason="Example ORM model with features_synced_at column (trigger for this story)"/>
+    </code>
+    <dependencies>
+      <ecosystem name="python">
+        <package name="pytest-alembic" version=">=0.11.0" note="TO BE ADDED - pytest plugin for Alembic migration testing"/>
+        <package name="alembic" version=">=1.13.0" note="Current - Database migration framework"/>
+        <package name="sqlmodel" version=">=0.0.16" note="Current - ORM with Pydantic validation"/>
+        <package name="pytest" version=">=8.4.0" note="Current - Test framework"/>
+        <package name="pytest-asyncio" version=">=0.24.0" note="Current - Async test support"/>
+        <package name="aiosqlite" version=">=0.20.0" note="Current - Async SQLite driver"/>
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="pattern">Follow existing test fixture patterns in tests/conftest.py</constraint>
+    <constraint type="pattern">Use pytest markers (@pytest.mark.integration) for migration tests</constraint>
+    <constraint type="pattern">Keep baseline DDL frozen after conversion - new changes go in new migrations</constraint>
+    <constraint type="architecture">Single migration path: always use alembic upgrade head</constraint>
+    <constraint type="architecture">No stamp head pattern - avoid divergent code paths</constraint>
+    <constraint type="testing">All pytest-alembic built-in tests must pass before story is complete</constraint>
+    <constraint type="compatibility">env.py must support both CLI mode and programmatic API mode</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="run_migrations_online" kind="function" path="alembic/env.py">
+      <signature>def run_migrations_online() -> None</signature>
+      <note>Must check config.attributes.get("connection") for pytest-alembic injection</note>
+    </interface>
+    <interface name="alembic_config" kind="pytest-fixture" path="tests/conftest.py">
+      <signature>@pytest.fixture def alembic_config() -> Config</signature>
+      <note>Returns pytest_alembic.config.Config() for test configuration</note>
+    </interface>
+    <interface name="alembic_engine" kind="pytest-fixture" path="tests/conftest.py">
+      <signature>@pytest.fixture def alembic_engine() -> Engine</signature>
+      <note>Returns SQLAlchemy Engine for migration tests (in-memory SQLite)</note>
+    </interface>
+    <interface name="pytest-alembic built-in tests" kind="test-imports" path="tests/integration/test_alembic_migrations.py">
+      <signature>from pytest_alembic.tests import test_model_definitions_match_ddl, test_single_head_revision, test_up_down_consistency, test_upgrade</signature>
+      <note>Import these tests for explicit collection (alternative to --test-alembic flag)</note>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Testing follows TESTING.md guidelines: behavioral testing, arrange-act-assert pattern, pytest markers.
+      Integration tests require real database operations and are marked with @pytest.mark.integration.
+      pytest-alembic tests validate migration chain integrity and ORM/DDL synchronization.
+      All tests must pass before story completion (pytest --test-alembic -v shows 4 PASSED).
+    </standards>
+    <locations>
+      <location>tests/integration/test_alembic_migrations.py (new file for migration tests)</location>
+      <location>tests/conftest.py (add alembic_config and alembic_engine fixtures)</location>
+    </locations>
+    <ideas>
+      <idea criterion="AC2">test_pytest_alembic_connection_injection - Verify env.py accepts injected connection</idea>
+      <idea criterion="AC5">test_baseline_creates_all_tables - Verify explicit DDL creates complete schema</idea>
+      <idea criterion="AC5">test_baseline_idempotent - Verify running baseline twice doesn't fail</idea>
+      <idea criterion="AC6">test_downgrade_drops_all_tables - Verify explicit downgrade removes all tables</idea>
+      <idea criterion="AC8">test_model_definitions_match_ddl - Built-in: ORM matches migrations</idea>
+      <idea criterion="AC8">test_single_head_revision - Built-in: No diverging branches</idea>
+      <idea criterion="AC8">test_upgrade - Built-in: Migration chain works</idea>
+      <idea criterion="AC8">test_up_down_consistency - Built-in: All downgrades succeed</idea>
+    </ideas>
+  </tests>
+</story-context>

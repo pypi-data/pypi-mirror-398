@@ -1,0 +1,163 @@
+<story-context id="story-054-context" v="1.0">
+  <metadata>
+    <epicId>epic-008</epicId>
+    <storyId>story-054</storyId>
+    <title>Schema Migration - Normalize Key Fields</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-054-schema-migration-normalize-key-fields.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer optimizing queries</asA>
+    <iWant>key fields extracted from JSON into proper columns</iWant>
+    <soThat>filtering, sorting, and indexing is efficient</soThat>
+    <tasks>
+      - Task 1: Product Schema Migration (AC1, AC2, AC4)
+      - Task 2: Product Repository Updates (AC3)
+      - Task 3: Product Tool Updates (AC5)
+      - Task 4: Test Schema Migration (AC6, AC7, AC9)
+      - Task 5: Test Repository Updates (AC8)
+      - Task 6: Test Tool Updates (AC10, AC11)
+      - Task 7: Drop created_at (AC12, AC13, AC14, AC15)
+      - Task 8: Validation (AC16, AC17, AC18)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. Create Alembic migration to add `product_type` column
+    2. Backfill existing rows from JSON
+    3. Update `ProductRepository.upsert_product()` to extract and store `product_type`
+    4. Update `Product` ORM model with `product_type` field
+    5. Update `list_products` tool to use column for filtering (instead of JSON)
+    6. Create Alembic migration to add columns: `title`, `testing_type`, `goal`, `instructions`, `out_of_scope`, `enable_low`, `enable_high`, `enable_critical`
+    7. Backfill existing rows from JSON
+    8. Update `TestRepository` to extract and store these fields during upsert
+    9. Update `Test` ORM model with new fields
+    10. Update `list_tests` tool: Add `title` sort, `testing_type` filter
+    11. Consider adding `testing_type` as analytics dimension (future)
+    12. Verify `created_at` is NULL in all rows
+    13. Create Alembic migration to drop `created_at` column from tests table
+    14. Remove `created_at` field from `Test` ORM model
+    15. Remove any code that writes to `created_at`
+    16. Migration tested on fresh and existing databases
+    17. Type checking passes: `mypy src/testio_mcp/models/orm/ --strict`
+    18. All tests pass after schema changes
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-008-mcp-layer-optimization.md</path>
+        <title>Epic-008: MCP Layer Optimization</title>
+        <section>STORY-054: Schema Migration - Normalize Key Fields</section>
+        <snippet>
+          Goal: Optimize the MCP tool layer for token efficiency, consistency, and usability while adding REST API parity for all tools.
+          Schema Changes: Add product_type column to products table (extract from JSON).
+        </snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>TestIO MCP Server - System Architecture</title>
+        <section>Local Data Store Strategy</section>
+        <snippet>
+          Design: SQLite database with repository pattern for data access.
+          Schema: products, tests, bugs, sync_metadata, problematic_tests.
+        </snippet>
+      </doc>
+    </docs>
+    <code>
+      <item>
+        <path>src/testio_mcp/models/orm/product.py</path>
+        <kind>model</kind>
+        <symbol>Product</symbol>
+        <reason>Target for adding product_type column</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/models/orm/test.py</path>
+        <kind>model</kind>
+        <symbol>Test</symbol>
+        <reason>Target for adding title, testing_type, and other fields; removing created_at</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/repositories/product_repository.py</path>
+        <kind>repository</kind>
+        <symbol>ProductRepository</symbol>
+        <reason>Needs update to extract/store product_type</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>TestRepository</symbol>
+        <reason>Needs update to extract/store new test fields and remove created_at</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/tools/list_products_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_products</symbol>
+        <reason>Needs update to filter by product_type column</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/tools/list_tests_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_tests</symbol>
+        <reason>Needs update to sort by title and filter by testing_type</reason>
+      </item>
+    </code>
+    <dependencies>
+      <dep>alembic</dep>
+      <dep>sqlmodel</dep>
+      <dep>pydantic</dep>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Use `batch_alter_table` for SQLite compatibility in Alembic migrations.</constraint>
+    <constraint>Ensure all new fields are nullable initially for backfill.</constraint>
+    <constraint>Do not break existing functionality during migration.</constraint>
+    <constraint>Maintain type safety with `mypy`.</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>ProductRepository.upsert_product</name>
+      <kind>method</kind>
+      <signature>async def upsert_product(self, product_data: dict[str, Any]) -> None</signature>
+      <path>src/testio_mcp/repositories/product_repository.py</path>
+    </interface>
+    <interface>
+      <name>TestRepository.insert_test</name>
+      <kind>method</kind>
+      <signature>async def insert_test(self, test_data: dict[str, Any], product_id: int, user_id_map: dict[str, int] | None = None) -> None</signature>
+      <path>src/testio_mcp/repositories/test_repository.py</path>
+    </interface>
+    <interface>
+      <name>TestRepository.update_test</name>
+      <kind>method</kind>
+      <signature>async def update_test(self, test_data: dict[str, Any], product_id: int) -> None</signature>
+      <path>src/testio_mcp/repositories/test_repository.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Use `pytest` for unit and integration tests.
+      Mock repositories for unit tests.
+      Use real database (SQLite) for integration tests.
+      Ensure `mypy` passes with strict mode.
+    </standards>
+    <locations>
+      <loc>tests/unit/</loc>
+      <loc>tests/integration/</loc>
+    </locations>
+    <ideas>
+      <idea>Test migration up and down.</idea>
+      <idea>Test backfill logic with sample JSON data.</idea>
+      <idea>Test filtering `list_products` by `product_type`.</idea>
+      <idea>Test sorting `list_tests` by `title`.</idea>
+      <idea>Test filtering `list_tests` by `testing_type`.</idea>
+      <idea>Verify `created_at` removal doesn't break existing queries.</idea>
+    </ideas>
+  </tests>
+</story-context>

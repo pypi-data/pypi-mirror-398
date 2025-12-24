@@ -1,0 +1,1566 @@
+FORMAT: 1A
+HOST: https://api.test.io/customer/v2/
+
+# Customer API V2
+
+Test IO REST API for customers. It provides access and basic operations for certain resources in the customer interface.
+
+## Authentication
+
+All API requests require an API token for authentication.
+The token can be retrieved from the `Integrations` → `API` section of the test IO account.
+
+Include the token in the HTTP Authorization header using the following format:
+
+`Authorization: Token TheApiToken`
+
+## Binary Apps [/binary_apps]
+
+### Upload a binary application file [POST]
+
++ Attributes
+  * file (string, required) - Binary application file (up to 1 gigabyte). Supported extensions: .ipa, .apk, .xap, .appx, .zip, .wgt
+
++ Response 201 (application/json)
+    + Attributes
+        * binary_app (BinaryApp)
+
+### Get S3 upload URL [GET /binary_apps/upload_url]
+
++ Request (application/json)
+    + Headers
+
+            Authorization: token YOUR_API_TOKEN
+
++ Response 200 (application/json)
+    + Body
+
+            {
+                "binary_app_id": 123,
+                "url": "https://my-bucket.s3.eu-west-1.amazonaws.com",
+                "fields": {
+                    "key": "uploads/binary_app/package/123/${filename}",
+                    "success_action_status": "201",
+                    "policy": "eyJleHBpcmF0aW9uIjoiMjAyNS0xMS0wNFQxNjo0NzoxNVoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJteS1idWNrZXQifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsInVwbG9hZHMvYmluYXJ5X2FwcC9wYWNrYWdlLzEyMy8iXSx7InN1Y2Nlc3NfYWN0aW9uX3N0YXR1cyI6IjIwMSJ9LFsiY29udGVudC1sZW5ndGgtcmFuZ2UiLDEsMTA3Mzc0MTgyNF1dfQ==",
+                    "x-amz-credential": "AKIAEXAMPLE/20251104/eu-west-1/s3/aws4_request",
+                    "x-amz-algorithm": "AWS4-HMAC-SHA256",
+                    "x-amz-date": "20251104T154715Z",
+                    "x-amz-signature": "abc123def456..."
+                }
+            }
+
+
+### Finalize binary app upload [PUT /binary_apps/{id}]
+
+Finalizes a direct S3 upload by validating metadata, verifying the file exists in S3, and generating a public download URL.
+
++ Parameters
+    + id: 123 (number, required) - Binary app ID from GET /binary_apps/upload_url
+
++ Request (application/json)
+    + Headers
+
+            Authorization: token YOUR_API_TOKEN
+
+    + Body
+
+            {
+                "filename": "MyApp-v1.2.3.apk",
+                "file_size": 524288000,
+                "content_type": "application/vnd.android.package-archive",
+                "bundle_identifier": "com.example.myapp",
+                "bundle_version": "1.2.3"
+            }
+
++ Response 200 (application/json)
+    + Body
+
+            {
+                "binary_app": {
+                    "id": 123,
+                    "filename": "MyApp-v1.2.3.apk",
+                    "file_size": 524288000,
+                    "url": "https://s3.amazonaws.com/bucket/uploads/binary_app/package/123/MyApp-v1.2.3.apk"
+                }
+            }
+
++ Response 422 (application/json)
+
+    + Body
+
+            {
+                "error": "File not found in S3: uploads/binary_app/package/123/MyApp-v1.2.3.apk"
+            }
+
+## Connection [/connections]
+
+### Create connection [POST]
+
++ Attributes
+  * name (string, required)
+  * url (string, optional)
+  * fixed (boolean, optional)
+  * product_ids (array[number], optional)
+  * section_ids (array[number], optional)
+
++ Response 201 (application/json)
+    + Attributes
+        * connection (Connection)
+
+### Get connection [GET /connections/{connection_id}]
++ Attributes
+  * name (string, required)
+  * url (string, optional)
+  * fixed (boolean, optional)
+  * product_ids (array[number], optional)
+  * section_ids (array[number], optional)
+
++ Response 200 (application/json)
+    + Attributes
+        * connection (Connection)
+
+### Update connection [PUT /connections/{connection_id}]
++ Attributes
+  * name (string, required)
+  * url (string, optional)
+  * fixed (boolean, optional)
+  * product_ids (array[number], optional)
+  * section_ids (array[number], optional)
+
++ Response 200 (application/json)
+    + Attributes
+        * connection (Connection)
+
+### Delete connection [DELETE /connections/{connection_id}]
+
++ Attributes
+
++ Response 200 (application/json)
+    + Attributes
+        * connection (Connection)
+
+## User stories [/]
+
+### Get user story [GET /user_stories/{user_story_id}]
+
++ Parameters
+  * user_story_id: 1 (number, required) - ID of the User story.
+
++ Request
+
+  Returns the specified user story.
+
+  * Body
+
++ Response 200 (application/json)
+
+        {
+          "id": 1,
+          "path": "User story title",
+          "title": "User story title"
+        }
+
+### List user stories [GET /products/{product_id}/user_stories{?section_id}]
+
++ Parameters
+  * product_id: 1 (number, required) - ID of the Product.
+  * section_id: 2 (number, optional) - ID of the Section. Must be provided for product with sections.
+
++ Request
+
+  Returns user stories of all features under the specified product.
+  - For products **without sections**, the response includes user stories from all features of the product.
+  - For products **with sections**, the `section_id` query parameter must be provided. In this case, the response includes user stories from all features that associated with the specified section of the product.
+
+  * Body
+
++ Response 200 (application/json)
+
+        {
+          "user_stories": [
+            {
+              "id": 1,
+              "path": "First user story",
+              "title": "First user story"
+            },
+            {
+              "id": 2,
+              "path": "Second user story",
+              "title": "Second user story"
+            }
+          ]
+        }
+
+### Create user story [POST /products/{product_id}/user_stories{?section_id}]
+
++ Parameters
+  * product_id: 1 (number, required) - ID of the Product.
+  * section_id: 2 (number, optional) - ID of the Section. Must be provided for product with sections.
+
++ Request (application/json)
+
+  Creates a new user story under the feature of the specified product.
+  - For products **without sections**, the user story can be created under any feature of the product.
+  - For products **with sections**, the `section_id` query parameter must be provided. In this case, the user story can only be created under a feature associated with the specified section of the product.
+
+  All attributes must be provided inside the root object `user_story`.
+
+  ###### Attributes:
+  - `feature_id` *(number, **required**)* - ID of the feature under which the user story will be created.
+  - `path` *(string, **required**)* - Description of the user story.
+
+  * Body
+
+            {
+              "user_story": {
+                "feature_id": 1,
+                "path": "The greatest title"
+              }
+            }
+
++ Response 201 (application/json)
+
+        {
+          "id": 1,
+          "path": "The greatest title",
+          "title": "The greatest title"
+        }
+
+### Update user story [PUT /products/{product_id}/user_stories/{user_story_id}{?section_id}]
+
++ Parameters
+  * product_id: 1 (number, required) - ID of the Product.
+  * user_story_id: 2 (number, required) - ID of the User story.
+  * section_id: 2 (number, optional) - ID of the Section. Must be provided for product with sections.
+
++ Request (application/json)
+
+  Updates the specified user story within the product.
+  - For products **without sections**, the user story must be associated with a feature of the specified product.
+  - For products **with sections**, the `section_id` query parameter must be provided. In this case, the user story must be associated with a feature that is part of a section of the specified product.
+
+  All attributes must be provided inside the root object `user_story`.
+
+  ###### Attributes:
+  - `path` *(string, **required**)* - Description of the user story.
+
+  * Body
+
+            {
+              "user_story": {
+                "path": "The updated title"
+              }
+            }
+
++ Response 200 (application/json)
+
+        {
+          "id": 2,
+          "path": "The updated title",
+          "title": "The updated title"
+        }
+
+### Delete user story [DELETE /products/{product_id}/user_stories/{user_story_id}{?section_id}]
+
++ Parameters
+  * product_id: 1 (number, required) - ID of the Product.
+  * user_story_id: 2 (number, required) - ID of the User story.
+  * section_id: 2 (number, optional) - ID of the Section. Must be provided for product with sections.
+
++ Request
+
+  Deletes the specified user story from the product.
+  - For products **without sections**, the user story must be associated with a feature of the specified product.
+  - For products **with sections**, the `section_id` query parameter must be provided. In this case, the user story must be associated with a feature that is part of a section of the specified product.
+
+  * Body
+
++ Response 200 (application/json)
+
+        {
+          "id": 2,
+          "path": "The greatest title",
+          "title": "The greatest title"
+        }
+
+## Features [/products/{product_id}/features]
+
+### List features [GET]
+
++ Attributes
+  * product_id (number, required)
+
++ Response 200 (application/json)
+    + Attributes
+        * features (array[Feature])
+
+### Create feature [POST /features]
+
++ Request (application/json)
+    + Attributes
+        * product_id (number, required)
+        * section_ids (array)
+            + 1 (number)
+        * feature (object, required)
+            * title (string, required)
+            * description (string, required)
+            * howtofind (string)
+            * target_idx (string)
+            * user_stories (array)
+                + User story 1 (string)
+            * use_markdown (boolean)
+
++ Response 201 (application/json)
+    + Attributes
+        * feature (Feature)
+
+## Bugs [/bugs]
+
+### Fetch bugs [GET]
+
++ Attributes
+  * filter_product_ids (string, optional)
+  * filter_section_ids (string, optional)
+  * filter_test_cycle_ids (string, optional)
+  * export_status (ExportStatus, optional )
+
++ Response 200 (application/json)
+    + Attributes
+      * bugs (array[Bug])
+
+
+### Get bug [GET /bugs/{bug_id}]
+
++ Response 200 (application/json)
+    + Attributes
+      * bug (Bug)
+
+### Search bug [POST]
+
++ Attributes
+  * bug (BugSearch, required)
+
++ Response 200 (application/json)
+    + Attributes
+      * bugs (array[Bug])
+
+### Fetch Reject Reasons [GET /bugs/reject_reasons]
+
++ Response 200 (application/json)
+    + Attributes
+      * reject_reasons (array[RejectReason])
+
+### Accept bug [PUT /bugs/{bug_id}/accept]
+
++ Attributes
+  * bug_id (number, required)
++ Response 200 (application/json)
+    + Attributes
+      * bug (Bug)
+
+### Mark As Exported [PUT /bugs/{bug_id}/mark_as_exported]
+
++ Attributes
+  * bug_id (number, required)
++ Response 200 (application/json)
+    + Attributes
+      * bug (Bug)
+
+### Mark As Known [PUT /bugs/{bug_id}/mark_as_known]
+
++ Attributes
+  * bug_id (number, required)
++ Response 200 (application/json)
+    + Attributes
+      * bug (Bug)
+
+### Mark As Fixed [PUT /bugs/{bug_id}/mark_as_fixed]
+
++ Attributes
+  * bug_id (number, required)
++ Response 200 (application/json)
+    + Attributes
+      * bug (Bug)
+
+### Reject bug [PUT /bugs/{bug_id}/reject]
+
++ Attributes
+  * bug_id (number, required)
+  * reason (string, required)
+  * comment (string, required)
++ Response 200 (application/json)
+    + Attributes
+      * bug (Bug)
+
+
+## Exploratory tests [/ ]
+
+### Get exploratory test [GET /exploratory_tests/{exploratory_test_id}]
+
++ Parameters
+  * exploratory_test_id: 1 (number, required) - ID of the Exploratory test.
+
++ Request
+
+  Returns the specified exploratory test.
+
+  * Body
+
++ Response 200 (application/json)
+
+        {
+          "exploratory_test": {
+            "id": 1,
+            "test_title": "Test title",
+            "title": "Test title",
+            "status": "running",
+            "test_environment": {
+              "id": 2,
+              "title": "Test environment",
+              "url": "https://example.com/",
+              "username": "",
+              "password": "",
+              "access": "https://access.claims/pages/123",
+              "proxy": false,
+              "allow_orders": false,
+              "access_type": "url",
+              "environment_test_information": null,
+              "binary_app": null
+            },
+            "features": [
+              {
+                "id": 4,
+                "feature_id": 15,
+                "title": "Feature title",
+                "description": "Feature description",
+                "location": "Could be found anywhere",
+                "howtofind": "Could be found anywhere",
+                "target_idx": null,
+                "enable_default": true,
+                "enable_content": null,
+                "enable_visual": true,
+                "custom_report_configurations": [],
+                "user_stories": [
+                  "User story 1"
+                ]
+              }
+            ],
+            "goal": "**Test goal**",
+            "goal_text": "Test goal",
+            "out_of_scope": "**Out of scope information**",
+            "out_of_scope_text": "Out of scope information",
+            "instructions": "**Test instructions**",
+            "instructions_text": "Test instructions",
+            "testing_type": "coverage",
+            "attachments": [],
+            "requirements": [
+              {
+                "id": 1,
+                "browsers": [
+                  {
+                    "id": 2,
+                    "name": "Chrome",
+                    "key": "chrome"
+                  },
+                  {
+                    "id": 3,
+                    "name": "Firefox",
+                    "key": "firefox"
+                  }
+                ],
+                "category": {
+                  "id": 1,
+                  "key": "computer",
+                  "name": "Computers"
+                },
+                "devices": [],
+                "input_devices": [],
+                "max_operating_system_version": null,
+                "min_operating_system_version": {
+                  "id": 198,
+                  "name": "10"
+                },
+                "operating_system": {
+                  "id": 6,
+                  "key": "windows",
+                  "name": "Windows"
+                },
+                "vendor": null,
+                "browser_based": true,
+                "gaming": false
+              }
+            ],
+            "report_language": "en",
+            "section": {
+              "id": 2,
+              "name": "default-section",
+              "connection": null,
+              "test_templates": {
+                "total": 20,
+                "count": 0
+              }
+            },
+            "product": {
+              "id": 1,
+              "name": "Product",
+              "description": null,
+              "type": "website",
+              "default_section_id": 2,
+              "sections": [],
+              "sections_with_default": [
+                {
+                  "id": 2,
+                  "name": "default-section",
+                  "connection": null,
+                  "test_templates": {
+                    "total": 20,
+                    "count": 0
+                  }
+                }
+              ],
+              "connection": null,
+              "remote_device_testing": false
+            },
+            "enable_low": true,
+            "enable_high": true,
+            "enable_critical": true,
+            "allow_device_clouds_test_scenario": false,
+            "created_by": null,
+            "submitted_by": null,
+            "start_at": "2021-04-08T13:00:00+02:00",
+            "end_at": "2021-04-09T13:00:00+02:00",
+            "allowed_bug_types": [
+              "default",
+              "content",
+              "visual"
+            ],
+            "reviews": [
+              {
+                "status": "successful",
+                "instruction_comment": null,
+                "test_environment_comment": null,
+                "feature_comment": null,
+                "bug_type_comment": null,
+                "reviewed_at": "2021-04-08T12:09:55+02:00"
+              }
+            ],
+            "review_status": "review_successful",
+            "demo": false
+          }
+        }
+
+### List exploratory tests [GET /products/{product_id}/exploratory_tests{?page,per_page}]
+
++ Parameters
+  * product_id: 1 (number, required) - ID of the Product.
+  * page: 1 (number, optional) - Page number of the result set.
+  * per_page (number, optional) - Number of items per page when pagination is applied. Used only if **page** is provided.
+      * Default: 25
+
++ Request
+
+  Returns a paginated list of exploratory tests for the specified product.
+  If `page` parameter is omitted, pagination is not applied and the last 150 tests are returned.
+
+  * Body
+
++ Response 200 (application/json)
+
+        {
+          "exploratory_tests": [
+            {
+              "id": 1,
+              "test_title": "Test title",
+              "title": "Test title",
+              "status": "running",
+              "test_environment": {
+                "id": 2,
+                "title": "Test environment",
+                "url": "https://example.com/",
+                "username": "",
+                "password": "",
+                "access": "https://access.claims/pages/123",
+                "proxy": false,
+                "allow_orders": false,
+                "access_type": "url",
+                "environment_test_information": null,
+                "binary_app": null
+              },
+              "features": [
+                {
+                  "id": 4,
+                  "feature_id": 15,
+                  "title": "Feature title",
+                  "description": "Feature description",
+                  "location": "Could be found anywhere",
+                  "howtofind": "Could be found anywhere",
+                  "target_idx": null,
+                  "enable_default": true,
+                  "enable_content": null,
+                  "enable_visual": true,
+                  "custom_report_configurations": [],
+                  "user_stories": [
+                    "User story 1"
+                  ]
+                }
+              ],
+              "goal": "**Test goal**",
+              "goal_text": "Test goal",
+              "out_of_scope": "**Out of scope information**",
+              "out_of_scope_text": "Out of scope information",
+              "instructions": "**Test instructions**",
+              "instructions_text": "Test instructions",
+              "testing_type": "coverage",
+              "attachments": [],
+              "requirements": [
+                {
+                  "id": 1,
+                  "browsers": [
+                    {
+                      "id": 2,
+                      "name": "Chrome",
+                      "key": "chrome"
+                    },
+                    {
+                      "id": 3,
+                      "name": "Firefox",
+                      "key": "firefox"
+                    }
+                  ],
+                  "category": {
+                    "id": 1,
+                    "key": "computer",
+                    "name": "Computers"
+                  },
+                  "devices": [],
+                  "input_devices": [],
+                  "max_operating_system_version": null,
+                  "min_operating_system_version": {
+                    "id": 198,
+                    "name": "10"
+                  },
+                  "operating_system": {
+                    "id": 6,
+                    "key": "windows",
+                    "name": "Windows"
+                  },
+                  "vendor": null,
+                  "browser_based": true,
+                  "gaming": false
+                }
+              ],
+              "report_language": "en",
+              "section": {
+                "id": 2,
+                "name": "default-section",
+                "connection": null,
+                "test_templates": {
+                  "total": 20,
+                  "count": 0
+                }
+              },
+              "product": {
+                "id": 1,
+                "name": "Product",
+                "description": null,
+                "type": "website",
+                "default_section_id": 2,
+                "sections": [],
+                "sections_with_default": [
+                  {
+                    "id": 2,
+                    "name": "default-section",
+                    "connection": null,
+                    "test_templates": {
+                      "total": 20,
+                      "count": 0
+                    }
+                  }
+                ],
+                "connection": null,
+                "remote_device_testing": false
+              },
+              "enable_low": true,
+              "enable_high": true,
+              "enable_critical": true,
+              "allow_device_clouds_test_scenario": false,
+              "created_by": null,
+              "submitted_by": null,
+              "start_at": "2021-04-08T13:00:00+02:00",
+              "end_at": "2021-04-09T13:00:00+02:00",
+              "allowed_bug_types": [
+                "default",
+                "content",
+                "visual"
+              ],
+              "reviews": [
+                {
+                  "status": "successful",
+                  "instruction_comment": null,
+                  "test_environment_comment": null,
+                  "feature_comment": null,
+                  "bug_type_comment": null,
+                  "reviewed_at": "2021-04-08T12:09:55+02:00"
+                }
+              ],
+              "review_status": "review_successful",
+              "demo": false
+            }
+          ]
+        }
+
+### Create exploratory test [POST /products/{product_id}/exploratory_tests]
+
++ Parameters
+  * product_id: 1 (number, required) - ID of the Product.
+
++ Request (application/json)
+
+  Creates a new exploratory test for the specified product.
+
+  All attributes must be provided inside the root object `exploratory_test`.
+
+  ###### Attributes:
+  - `test_title` *(string, **optional**)* - Test title.
+  - `goal` *(string, **optional**)* - Goal of the test.
+  - `out_of_scope` *(string, **optional**)* - Out of scope items.
+  - `instructions` *(string, **optional**)* - Additional requirements for testers.
+  - `start_at` *(string, **optional**)* - Start date and time of the test. Default: within the next full hour.
+  - `duration` *(string, **optional**)* - Duration of the test. Default:
+      - 2 hours for rapid test
+      - 24 hours for usability and focused test
+      - 28 hours for coverage test
+  - `report_language` *(string, **optional**, default: **en**)* - Language in which bugs will be reported. Allowed values: ***en***, ***de***.
+  - `testing_type` *(string, **optional**, default: **coverage**)* - Type of the test. Allowed values: ***coverage***, ***usability***, ***rapid***, ***focused***.
+  - `bug_severities` *(object, **optional**)* - Bug severities related attributes (only applicable if `testing_type` is ***focused***).
+      - `low` *(boolean, **optional**, default: **false**)* - Enable low-severity bugs.
+      - `high` *(boolean, **optional**, default: **false**)* - Enable high-severity bugs.
+      - `critical` *(boolean, **optional**, default: **false**)* - Enable critical-severity bugs.
+  - `section_id` *(number, **optional**)* - Section ID to associate the test with.
+  - `allow_device_clouds` *(boolean, **optional**, default: **false**)* - Allow testers to use device clouds.
+  - `requirements` *(array, **optional**)* - Device requirements.
+      - `category` *(object, **optional**)* - Category related attributes.
+          - `id` *(number, **optional**)* - Category ID.
+      - `vendor` *(object, **optional**)* - Vendor related attributes.
+          - `id` *(number, **optional**)* - Vendor ID.
+      - `devices` *(array, **optional**)* - Devices.
+          - `id` *(number, **optional**)* - Device ID.
+      - `operating_system` *(object, **optional**)* - Operating system related attributes.
+          - `id` *(number, **optional**)* - Operating system ID.
+      - `min_operating_system_version` *(object, **optional**)* - Min. operating system version related attributes.
+          - `id` *(number, **optional**)* - Operating system version ID.
+      - `max_operating_system_version` *(object, **optional**)* - Max. operating system version related attributes.
+          - `id` *(number, **optional**)* - Operating system version ID.
+      - `browsers` *(array, **optional**)* - Browsers.
+          - `id` *(number, **optional**)* - Browser ID.
+      - `input_devices` *(array, **optional**)* - Input devices.
+          - `id` *(number, **optional**)* - Input device ID.
+  - `attachments` *(array, **optional**)* - Test attachments.
+      - `id` *(number, **optional**)* - ID of an existing attachment.
+      - `file_url` *(string, **optional**)* - Attachment file url.
+  - `use_default_devices` *(boolean, **optional**, default: **true**)* - Whether to use default devices selection.
+  - `test_environment` *(object, **required**)* - Test environment related attributes.
+      - `id` *(number, **optional**)* - ID of an existing test environment.
+      - `title` *(string, **optional**)* - Title of the new test environment.
+      - `url` *(string, **optional**)* - URL of the website or app.
+      - `file_url` *(string, **optional**)* - URL of the app file (APK, IPA).
+      - `file_base_64` *(string, **optional**)* - App file (APK, IPA) encoded in base64.
+      - `file_name` *(string, **optional**)* - File name of the uploaded app (***required*** if `file_base_64` is provided).
+      - `username` *(string, **optional**)* - Username to access the test environment.
+      - `password` *(string, **optional**)* - Password to access the test environment.
+      - `access` *(string, **optional**)* - Additional access information.
+      - `proxy` *(boolean, **optional**)* - Enable proxy.
+      - `allow_orders` *(boolean, **optional**)* - Allow testers to place orders and bookings.
+  - `features` *(array, **optional**)* - Features to be tested.
+      - `id` *(number, **optional**)* - ID of an existing feature.
+      - `title` *(string, **optional**)* - Title of the feature. Used both for lookup and for new feature creation.
+      - `description` *(string, **optional**)* - Description of the feature.
+      - `howtofind` *(string, **optional**)* - Instructions on how to locate the feature.
+      - `enable_default` *(boolean, **optional**)* - Allow functional bugs to be submitted.
+      - `enable_content` *(boolean, **optional**)* - Allow content bugs to be submitted.
+      - `enable_visual` *(boolean, **optional**)* - Allow visual bugs to be submitted.
+      - `user_stories` *(array, **optional**)* - List of descriptions for user stories. Used both for lookup and for new user stories creation.
+      - `custom_report_configuration_ids` *(array, **optional**)* - Custom report configuration IDs.
+      - `use_markdown` *(boolean, **optional**, default: **true**)* - Whether markdown is enabled for the feature `description`/`howtofind` fields.
+  - `test_template` *(object, **optional**)* - Test template related attributes.
+      - `id` *(number, **optional**)* - Test template ID.
+
+  ⚠️ **Constraint**: `features` and `test_template` are mutually exclusive - exactly one must be provided.
+
+  ℹ️ For objects in `attachments` array and for `test_environment` object exactly one of the following must be provided:
+  - Existing entity reference
+      - Supply only the `id` field.
+      - The referenced entity must already exist.
+  - Entity creation
+      - Omit `id`.
+      - Provide the necessary attributes to create a new entity within this request.
+
+  ⚠️ If both `id` and other attributes are given, the `id` takes precedence and the additional attributes will be ignored.
+
+  ℹ️ For each object in `features` array, the resolution logic is the following:
+      1. If `id` is provided, the system looks up the feature by id.
+      2. If no `id` is provided, the system attempts to find an existing feature by `title`.
+      3. If no matching feature is found, a new feature is created using the provided attributes.
+      4. If a matching feature is found and both `description` and `howtofind` attributes are provided, the existing feature is updated with those values (and `use_markdown` if set).
+
+  * Body
+
+            {
+              "exploratory_test": {
+                "test_title": "Checkout Flow Test",
+                "goal": "Validate the checkout process for usability and bugs",
+                "out_of_scope": "Payment provider integration",
+                "instructions": "Focus on speed and clarity of the checkout process.",
+                "start_at": "2025-09-20T14:00:00Z",
+                "duration": "30",
+                "report_language": "en",
+                "testing_type": "focused",
+                "bug_severities": {
+                  "high": true,
+                  "critical": true
+                },
+                "section_id": 42,
+                "allow_device_clouds": true,
+                "requirements": [
+                  {
+                    "category": {
+                      "id": 5
+                    },
+                    "vendor": {
+                      "id": 10
+                    },
+                    "devices": [
+                      {
+                        "id": 101
+                      },
+                      {
+                        "id": 102
+                      }
+                    ],
+                    "operating_system": {
+                      "id": 20
+                    },
+                    "min_operating_system_version": {
+                      "id": 200
+                    },
+                    "max_operating_system_version": {
+                      "id": 205
+                    },
+                    "browsers": [
+                      {
+                        "id": 301
+                      }
+                    ],
+                    "input_devices": [
+                      {
+                        "id": 401
+                      }
+                    ]
+                  }
+                ],
+                "attachments": [
+                  {
+                    "id": 5
+                  },
+                  {
+                    "file_url": "https://example.com/checkout_flow.pdf"
+                  }
+                ],
+                "use_default_devices": false,
+                "test_environment": {
+                  "title": "Staging Checkout Environment",
+                  "url": "https://staging.example.com/",
+                  "username": "tester",
+                  "password": "secret",
+                  "access": "VPN required",
+                  "allow_orders": false
+                },
+                "features": [
+                  {
+                    "id": 15
+                  },
+                  {
+                    "title": "Shopping Cart",
+                    "description": "Verify adding and removing items works as expected.",
+                    "howtofind": "Navigate to cart after adding an item.",
+                    "enable_default": true,
+                    "enable_content": true,
+                    "enable_visual": false,
+                    "user_stories": [
+                      "As a customer, I want to add items to my cart so I can purchase them.",
+                      "As a customer, I want to remove items from my cart if I change my mind."
+                    ],
+                    "use_markdown": true
+                  }
+                ]
+              }
+            }
+
++ Response 201 (application/json)
+
+        {
+          "exploratory_test": {
+            "id": 5,
+            "test_title": "Checkout Flow Test",
+            "title": "Checkout Flow Test",
+            "status": "running",
+            "test_environment": {
+              "id": 5,
+              "title": "Staging Checkout Environment",
+              "url": "https://staging.example.com/",
+              "username": "tester",
+              "password": "secret",
+              "access": "VPN required",
+              "proxy": false,
+              "allow_orders": false,
+              "access_type": "url",
+              "environment_test_information": null,
+              "binary_app": null
+            },
+            "features": [
+              {
+                "id": 4,
+                "feature_id": 15,
+                "title": "Feature title",
+                "description": "Feature description",
+                "location": "Could be found anywhere",
+                "howtofind": "Could be found anywhere",
+                "target_idx": null,
+                "enable_default": true,
+                "enable_content": null,
+                "enable_visual": true,
+                "custom_report_configurations": [],
+                "user_stories": [
+                  "User story 1"
+                ]
+              },
+              {
+                "id": 5,
+                "feature_id": 16,
+                "title": "Shopping Cart",
+                "description": "Verify adding and removing items works as expected.",
+                "location": "Navigate to cart after adding an item.",
+                "howtofind": "Navigate to cart after adding an item.",
+                "target_idx": null,
+                "enable_default": true,
+                "enable_content": true,
+                "enable_visual": false,
+                "custom_report_configurations": [],
+                "user_stories": [
+                  "As a customer, I want to add items to my cart so I can purchase them.",
+                  "As a customer, I want to remove items from my cart if I change my mind."
+                ]
+              }
+            ],
+            "goal": "Validate the checkout process for usability and bugs",
+            "goal_text": "Validate the checkout process for usability and bugs",
+            "out_of_scope": "Payment provider integration",
+            "out_of_scope_text": "Payment provider integration",
+            "instructions": "Focus on speed and clarity of the checkout process.",
+            "instructions_text": "Focus on speed and clarity of the checkout process.",
+            "testing_type": "focused",
+            "attachments": [
+              {
+                "id": 85,
+                "url": "https://example.com/checkout_flow.pdf",
+                "thumbnail_urls": {
+                  "50x50": "https://api.test.io/assets/filethumb-fallback-1.png",
+                  "150x150": "https://api.test.io/assets/filethumb-fallback-2.png",
+                  "200x200": "https://api.test.io/assets/filethumb-fallback-3.png",
+                  "x250": "https://api.test.io/assets/filethumb-fallback-4.png",
+                  "50x36": "https://api.test.io/assets/filethumb-fallback-5.png"
+                },
+                "content_type": "application/pdf",
+                "original_filename": "checkout_flow.pdf"
+              }
+            ],
+            "requirements": [
+              {
+                "id": 123,
+                "browsers": [
+                  {
+                    "id": 301,
+                    "name": "Chrome",
+                    "key": "chrome"
+                  }
+                ],
+                "category": {
+                  "id": 5,
+                  "key": "computer",
+                  "name": "Computers"
+                },
+                "devices": [
+                  {
+                    "id": 101,
+                    "name": "Device 1"
+                  },
+                  {
+                    "id": 102,
+                    "name": "Device 2"
+                  }
+                ],
+                "input_devices": [
+                  {
+                    "id": 401,
+                    "input_type": "controller"
+                  }
+                ],
+                "max_operating_system_version": {
+                  "id": 205,
+                  "name": "15"
+                },
+                "min_operating_system_version": {
+                  "id": 200,
+                  "name": "10"
+                },
+                "operating_system": {
+                  "id": 20,
+                  "key": "windows",
+                  "name": "Windows"
+                },
+                "vendor": {
+                  "id": 10,
+                  "name": "Vendor"
+                },
+                "browser_based": true,
+                "gaming": false
+              }
+            ],
+            "report_language": "en",
+            "section": {
+              "id": 42,
+              "name": "default-section",
+              "connection": null,
+              "test_templates": {
+                "total": 20,
+                "count": 0
+              }
+            },
+            "product": {
+              "id": 1,
+              "name": "Product",
+              "description": null,
+              "type": "website",
+              "default_section_id": 42,
+              "sections": [],
+              "sections_with_default": [
+                {
+                  "id": 42,
+                  "name": "default-section",
+                  "connection": null,
+                  "test_templates": {
+                    "total": 20,
+                    "count": 0
+                  }
+                }
+              ],
+              "connection": null,
+              "remote_device_testing": false
+            },
+            "enable_low": true,
+            "enable_high": true,
+            "enable_critical": true,
+            "allow_device_clouds_test_scenario": false,
+            "created_by": null,
+            "submitted_by": null,
+            "start_at": "2021-04-08T13:00:00+02:00",
+            "end_at": "2021-04-09T13:00:00+02:00",
+            "allowed_bug_types": [
+              "default",
+              "content",
+              "visual"
+            ],
+            "reviews": [
+              {
+                "status": "successful",
+                "instruction_comment": null,
+                "test_environment_comment": null,
+                "feature_comment": null,
+                "bug_type_comment": null,
+                "reviewed_at": "2021-04-08T12:09:55+02:00"
+              }
+            ],
+            "review_status": "review_successful",
+            "demo": false
+          }
+        }
+
+## Test cases [/products/{product_id}/test_cases]
+### Create a bulk of test cases [POST]
++ Attributes
+  * product_id (number, required)
+
++ Request (application/json)
+    + Attributes
+        * test_cases (array[TestCase])
+
++ Response 201 (application/json)
+    + Attributes
+        * test_cases (array[TestCase])
+
+## Products [/products]
+### List products [GET]
++ Attributes
+    + filter (object)
+        + product_ids (array[number])
++ Response 200 (application/json)
+    + Attributes
+        * products (array[Product])
+
+### Get product [GET /products/{product_id}]
++ Attributes
+  * product_id (number, required)
+
++ Response 200 (application/json)
+    + Attributes
+        * product (Product))
+
+### Create product [POST]
++ Request (application/json)
+    + Attributes
+        * product (Product Create)
+
++ Response 201 (application/json)
+    + Attributes
+        * product (Product)
+
+### Update product [PUT /products/{product_id}]
++ Attributes
+  * product_id (number, required)
+
++ Request (application/json)
+    + Attributes
+        * product (Product Update)
+
++ Response 200 (application/json)
+    + Attributes
+        * product (Product)
+
+### Delete product [DELETE /products/{product_id}]
++ Attributes
+  * product_id (number, required)
+
++ Response 200 (application/json)
+    + Attributes
+        * product (Product)
+
+## Test case test [/products/{product_id}/test_case_test]
+### Create a test case test [POST]
++ Attributes
+  * product_id (number, required)
+
++ Request (application/json)
+    + Attributes
+        * test_case_test (TestCaseTest Create)
+
++ Response 201 (application/json)
+    + Attributes
+        * test_case_test (TestCaseTest)
+
+## Test environments [/products/{product_id}/test_environments]
+
+### List test environments [GET]
+
++ Attributes
+  * product_id (number, required)
+
++ Response 200 (application/json)
+    + Attributes
+        * test_environments (array[TestEnvironment])
+
+### Get test environment [GET /products/{product_id}/test_environments/{test_environment_id}]
+
++ Attributes
+  * product_id (number, required)
+  * test_environment_id (number, required)
+
++ Response 200 (application/json)
+    + Attributes
+        * test_environment (TestEnvironment)
+
+### Create test environment [POST]
+
++ Attributes
+  * product_id (number, required)
+
++ Request (application/json)
+    + Attributes
+        * test_environment (TestEnvironment Create)
+
++ Response 201 (application/json)
+    + Attributes
+        * test_environment (TestEnvironment)
+
+### Update test environment [PUT /products/{product_id}/test_environments/{test_environment_id}]
+
++ Attributes
+  * product_id (number, required)
+  * test_environment_id (number, required)
+
++ Request (application/json)
+    + Attributes
+        * test_environment (TestEnvironment Create)
+
++ Response 200 (application/json)
+    + Attributes
+        * test_environment (TestEnvironment)
+
+### Delete test environment [DELETE /products/{product_id}/test_environments/{test_environment_id}]
+
++ Attributes
+  * product_id (number, required)
+  * test_environment_id (number, required)
+
++ Response 200 (application/json)
+    + Attributes
+        * test_environment (TestEnvironment)
+
+## Test templates [/test_templates]
+
+### List test templates [GET]
+
++ Attributes
+  * product_id (number, required)
+  * section_id (number, optional)
+
++ Response 200 (application/json)
+  + Attributes
+      * test_templates (array[TestTemplate])
+
+## Bug Report Confirmations [/bug_report_confirmations]
+
+### Create a bug report confirmation [POST]
+
++ Request (application/json)
+    + Attributes
+        + product_id: 1 (number, required) - Product ID
+        + bug_id: 1 (number, required) - Bug ID
+        + section_id: 1 (number, optional) - Section ID
+        + allow_device_clouds: false (boolean, optional) - Allow device clouds (default: false)
+        + requirements (array[Requirement Create])
+        + bug_report_confirmation_requirement_attributes (object, required)
+            + screen_size_enabled: true (boolean, optional)
+            + browser_version_enabled: false (boolean, optional)
+            + question_enabled: false (boolean, optional)
+            + question: What is this? (string, optional) - Your question (if enabled)
+            + internet_speed_enabled: true (boolean, optional)
+            + console_enabled: false (boolean, optional)
+            + camera_enabled: false (boolean, optional)
+            + logs_enabled: false (boolean, optional)
+
++ Response 201 (application/json)
+    + Attributes
+        * bug_report_confirmation (BugReportConfirmation)
+
+## Data Structures
+
+### Attachment (object)
++ id (number)
++ url: https://upload.test.io/attachements/image.png (string)
+
+### Author (object)
++ name: toto (string)
+
+### BugSearch (object)
++ external_idx: id in the system (string)
+
+### Bug (object)
++ id (number)
++ title: Summary of the bug (string)
++ severity: Low, high, critical (string)
++ language (ReportLanguage)
++ feature (Feature)
++ location: url of the issue (string)
++ author (Author)
++ expected_result: Expected result (string)
++ actual_result: Actual result (string)
++ test (Test)
++ product (Product)
++ steps: Step to reproduce the bug (string)
++ comments (array[Comment])
++ devices (array[Device])
++ attachments (array[Attachment])
++ known (boolean)
++ exported_at (string)
+
+### Connection
++ id (number)
++ name (string)
++ url (string)
++ fixed (boolean)
+
+### Comment
++ id (number)
++ body: comment message (string)
++ author (Author)
+
+### Device
++ id (number)
++ category (object)
+  + name: Smartphones (string)
++ vendor (object)
+  + name: Google (string)
++ devices (object)
+  + name: Nexus 5 (string)
++ operating_system (object)
+  + id (number)
+  + name: Android (string)
++ browsers (array[object])
+  + (object)
+      + name: Chrome (string)
+
+### ExploratoryTest (object)
++ id: 1234
++ test_title: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string) - Title of the test
++ test_environment (TestEnvironment)
++ app_sections: Legacy, please refer to the "features" node
++ features(array[Feature])
++ goal: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string) - Goal of the test
++ out_of_scope: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string) - What is out of scope of the test
++ instructions: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string) - Additional instructions for the crowd
++ testing_type (TestingType)
++ requirements (array[Requirement])
++ report_language (ReportLanguage)
++ section (Section)
++ product (Product)
++ start_at: 2017-09-04T17:00:00.000Z (string) - Start date and time of test. Default: within the next full hour
++ end_at: 2017-09-04T19:00:00.000Z (string) - End date and time of the test.
+
+### ExportStatus (enum)
+#### Members
++ export_requested
++ not_exported
++ exported
+
+### Feature Create (object)
++ title: Account (string, required)
++ description: Manage your account information (string, required)
++ howtofind: Top right of the screen (string, optional)
+
+### Feature (object)
++ id (number)
++ title: Account (string)
++ description: Manage your account information (string)
++ howtofind: Top right of the screen (string)
++ user_stories: user stories you want to test (array[string])
+
+### ProductIndustry (enum)
+#### Members
++ retail
++ media
++ travel
++ social
++ health
++ sports
++ education
++ finance
++ games
++ other
+
+### Product (object)
++ id (number)
++ name: Name of the product (string)
++ description: Description of the product (string)
++ default_section_id: 0 (number)
++ sections (array[Section])
++ connection (Connection)
+
+### Product Create (object)
++ title: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string, required) - Title of the product
++ description: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string, optional) - Description of the product
++ product_type (ProductType, required)
++ industry (ProductIndustry, required)
+
+### Product Update (object)
++ description: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string, optional) - Description of the product
+
+### ProductType (enum)
+#### Members
++ website
++ mobile_app_ios
++ mobile_app_android
++ mobile_app_windows
++ streaming_app
++ gaming
+
+### RejectReason (object)
++ key: known_bug (string)
++ name: Known bug (string)
++ default_comment: Rejected - this is a legit bug but already known. (string)
+
+### ReportLanguage (enum)
+#### Default
++ en
+#### Members
++ en
++ de
+
+### Requirement (object)
++ category (object)
+  + id (number)
+  + name: Smartphones (string)
++ vendor (object)
+  + id (number)
+  + name: Google (string)
++ devices (array)
+  + (object)
+      + id (number)
+      + name: Nexus 5 (string)
++ operating_system (object)
+  + id (number)
+  + name: Android (string)
++ min_operating_system_version (object)
+  + id (number)
+  + name: 4.4 (string)
++ max_operating_system_version (object)
+  + id (number)
+  + name: 6.0.1 (string)
++ browsers (array)
+  + (object)
+      + id (number)
+      + name: Chrome (string)
+
+### Requirement Create (object)
++ category (object, optional)
+  + id (number, required)
++ vendor (object, optional)
+  + id (number, required)
++ devices (array, optional)
+  + (object)
+      + id (number, required)
++ operating_system (object, optional)
+  + id (number, required)
++ min_operating_system_version (object, optional)
+  + id (number, required)
++ max_operating_system_version (object, optional)
+  + id (number, required)
++ browsers (array, optional)
+  + (object)
+      + id (number, required)
+
+### Section (object)
++ id (number)
++ name (string)
+
+### Test (object)
++ id (number)
++ title (string)
+
+### TestCase (object)
++ id (number)
++ title (string)
++ feature_id (number)
++ target_idx (string)
++ steps (array[TestCaseStep])
+
+### TestCase Create (object)
++ id (number)
+
+### TestCaseStep (object)
++ id (number)
++ description (string)
++ test_case_id (number)
++ target_idx (string)
+
+### TestCaseTest (object)
++ test_title: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string) - Title of the test
++ goal: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string) - Goal of the test
++ out_of_scope: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string) - What is out of scope of the test
++ instructions: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string) - Additional instructions for the crowd
++ start_at: 2017-09-04T17:00:00.000Z (string) - Start date and time of test. Default: within the next full hour
++ duration: 24 (string) - Duration of the test in hours
++ report_language (ReportLanguage)
++ requirements (array[Requirement])
++ test_cases(array[TestCase])
++ test_environment (TestEnvironment)
+
+### TestCaseTest Create (object)
++ test_title: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string, optional) - Title of the test
++ goal: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string, optional) - Goal of the test
++ out_of_scope: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string, optional) - What is out of scope of the test
++ instructions: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (string, optional) - Additional instructions for the crowd
++ start_at: 2017-09-04T17:00:00.000Z (string, optional) - Start date and time of test. Default: within the next full hour
++ duration: 24 (string, optional) - Duration of the test in hours
++ report_language (ReportLanguage, optional)
++ requirements (array[Requirement Create], optional)
++ test_cases(array[TestCase Create], required)
++ test_environment (TestEnvironment Create, required)
+
+### TestEnvironment (object)
++ id (number)
++ title: Staging (string)
++ url: staging.example.com (string)
++ username: John (string)
++ password: qwerty (string)
++ access: Click on the login button (string)
++ proxy: false (boolean) - Set true to use test IO proxy
++ allow_orders: false (boolean, optional) - Allowing testers to place orders and bookings
++ access_type: url (string)
++ environment_test_information (EnvironmentTestInformation)
++ binary_app (BinaryApp)
+
+### TestEnvironment Create (object)
++ title: Staging (string, required)
++ url: staging.example.com (string, optional)
++ username: John (string, optional)
++ password: qwerty (string, optional)
++ access: Click on the login button (string, optional)
++ proxy: false (boolean, optional) - Set true to use test IO proxy (default: false)
++ allow_orders: false (boolean, optional) - Allowing testers to place orders and bookings (default: false)
++ binary_app_id: 5 (number, optional)
++ file_url: http://example.com/foo/bar/app-123.apk (string, optional) - URL of the app build to be downloaded
++ file_base_64: tuyiqwtiuyweqyi (string, optional) - App file APK, IPA for mobile app tests encoded in base 64
++ file_name: build.ipa (string, optional) - name the app file APK, IPA for mobile app tests, require when file base 64 is provided
++ environment_test_information (EnvironmentTestInformation Create, optional)
+
+### TestTemplate (object)
++ id (number)
++ title: Title of test template (string)
++ test_scenario_template: ExploratoryTest
++ max_test_duration: 48 (number) - Max duration of the test in hours
++ min_test_duration: 2 (number) - Min duration of the test in hours
++ default_test_duration: 24 (number) - Default duration of the test in hours
+
+### EnvironmentTestInformation (object)
++ id (number)
++ page_url: http://example.com/foo (string)
++ description: Test information description (string)
++ data_type: custom (string)
+
+### EnvironmentTestInformation Create (object)
++ data_type: custom (string, required)
++ page_url: http://example.com/foo (string, required)
++ description (string, optional)
+
+### BinaryApp (object)
++ id (number)
++ filename: file (string)
++ file_size: 42 (number)
+
+### TestingType (enum)
+#### Default
++ coverage
+#### Members
++ custom - deprecated, supported until 01.06.2020
++ rapid
++ usability
++ focused
++ coverage
+
+### BugReportConfirmation (object)
++ id: 1 (number)
++ status: pending (string)
++ requirements (array[Requirement])
++ bug_report_confirmation_requirement (object)
+  + screen_size_enabled: true (boolean)
+  + browser_version_enabled: false (boolean)
+  + question_enabled: false (boolean)
+  + question: What is this? (string)
+  + internet_speed_enabled: true (boolean)
+  + console_enabled: false (boolean)
+  + camera_enabled: false (boolean)
+  + logs_enabled: false (boolean)
++ created_at: `2024-01-30T10:44:42.000Z`
++ expired_at: `2024-03-30T10:44:42.000Z`
++ status_updated_at: `2024-01-30T10:44:42.000Z`
++ allow_device_clouds: false (boolean)

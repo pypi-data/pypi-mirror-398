@@ -1,0 +1,233 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>12</epicId>
+    <storyId>3</storyId>
+    <title>Update Repository Read Paths to Thread New Columns</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/story-071-repository-read-paths.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>the repository layer to surface test_environment and known on reads</iWant>
+    <soThat>services receive the new fields without manual JSON parsing</soThat>
+    <tasks>
+      <task id="1" acs="1,2">
+        <title>Update Test Repository Read Paths</title>
+        <subtasks>
+          <subtask>Update `get_test_with_bugs` in `src/testio_mcp/repositories/test_repository.py` (~line 526) to override `data["test_environment"]` with `test.test_environment` column value</subtask>
+          <subtask>Update `query_tests` in `src/testio_mcp/repositories/test_repository.py` (~line 1033) to override `data["test_environment"]` with `test.test_environment` column value</subtask>
+          <subtask>Add unit tests verifying `test_environment` is read from column, not JSON</subtask>
+        </subtasks>
+      </task>
+      <task id="2" acs="3,4">
+        <title>Update Bug Repository Read Paths</title>
+        <subtasks>
+          <subtask>Update `get_bugs` in `src/testio_mcp/repositories/bug_repository.py` (~line 106) to override `raw_data["known"]` with `bug.known` column value</subtask>
+          <subtask>Update `get_bugs_cached_or_refresh` in `src/testio_mcp/repositories/bug_repository.py` (~line 576-582) to override `raw_data["known"]` with `bug.known` column value</subtask>
+          <subtask>Add unit tests verifying `known` is read from column, not JSON</subtask>
+        </subtasks>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">
+      <title>Test Repository - get_test_with_bugs()</title>
+      <when>TestRepository.get_test_with_bugs() is called for a test with `test_environment` column populated</when>
+      <then>The returned dict includes `test_environment` from the column (not from `data` JSON)</then>
+    </criterion>
+    <criterion id="2">
+      <title>Test Repository - query_tests()</title>
+      <when>TestRepository.query_tests() is called</when>
+      <then>Each returned test dict includes `test_environment` from the column</then>
+    </criterion>
+    <criterion id="3">
+      <title>Bug Repository - get_bugs()</title>
+      <when>BugRepository.get_bugs() is called for bugs with `known` column populated</when>
+      <then>The returned bug dict includes `known` from the column (overriding any JSON value)</then>
+    </criterion>
+    <criterion id="4">
+      <title>Bug Repository - get_bugs_cached_or_refresh()</title>
+      <when>BugRepository.get_bugs_cached_or_refresh() is called</when>
+      <then>The returned bug dict includes `known` from the column (overriding any JSON value)</then>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-012-polish.md</path>
+        <title>Epic 012: Test Environments and Known Bugs</title>
+        <section>STORY-071: Update Repository Read Paths to Thread New Columns</section>
+        <snippet>Override pattern: After parsing JSON, explicitly override the field with the column value. The denormalized column is the authoritative source, not the JSON blob. This story ensures write paths (STORY-070) and read paths are aligned.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-070-repository-write-paths.md</path>
+        <title>STORY-070: Repository Write Paths</title>
+        <section>Dev Notes - Learnings</section>
+        <snippet>Write paths implemented for test_environment and known columns. Security filtering: test_environment sanitized to only store {id, title}. Transformer pattern: BugOrmData TypedDict updated. Critical dependency: STORY-071 completes data flow by ensuring services can read what STORY-070 writes.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-069-database-columns.md</path>
+        <title>STORY-069: Database Columns</title>
+        <section>Acceptance Criteria</section>
+        <snippet>tests table has test_environment column (JSON, nullable). bugs table has known column (BOOLEAN, NOT NULL, server_default=0). Migration backfill applied to existing data.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Repository Pattern</section>
+        <snippet>2 repositories: TestRepository (tests + products), BugRepository (bugs). Repository pattern provides clean separation of data access logic. Services tested with mock repositories.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>get_test_with_bugs</symbol>
+        <lines>1044-1090</lines>
+        <reason>Read path that needs test_environment override from column (AC1)</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>query_tests</symbol>
+        <lines>476-650</lines>
+        <reason>Read path that needs test_environment override from column (AC2)</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/bug_repository.py</path>
+        <kind>repository</kind>
+        <symbol>get_bugs</symbol>
+        <lines>106-139</lines>
+        <reason>Read path that needs known override from column - existing pattern for status override (AC3)</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/bug_repository.py</path>
+        <kind>repository</kind>
+        <symbol>get_bugs_cached_or_refresh</symbol>
+        <lines>400-650</lines>
+        <reason>Read path that needs known override from column (AC4)</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/test.py</path>
+        <kind>model</kind>
+        <symbol>Test</symbol>
+        <lines>1-100</lines>
+        <reason>ORM model with test_environment column (STORY-069)</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/orm/bug.py</path>
+        <kind>model</kind>
+        <symbol>Bug</symbol>
+        <lines>1-100</lines>
+        <reason>ORM model with known column (STORY-069)</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version="~=0.0.14">ORM and query builder</package>
+        <package name="sqlalchemy" version="~=2.0">Database toolkit (via SQLModel)</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>
+      <type>pattern</type>
+      <description>Column as Source of Truth: Follow existing pattern for bug.status override. Denormalized column is authoritative, not JSON blob.</description>
+    </constraint>
+    <constraint>
+      <type>pattern</type>
+      <description>Override Pattern: After parsing JSON, explicitly override field with column value. Example: bug_dict["status"] = bug_orm.status</description>
+    </constraint>
+    <constraint>
+      <type>consistency</type>
+      <description>Align read paths with write paths (STORY-070). Data written to columns must be read from columns.</description>
+    </constraint>
+    <constraint>
+      <type>null-handling</type>
+      <description>NULL column values must be handled gracefully. Do not crash if test_environment or known columns are NULL.</description>
+    </constraint>
+    <constraint>
+      <type>testing</type>
+      <description>Unit tests must verify column value takes precedence over JSON value when both exist.</description>
+    </constraint>
+    <constraint>
+      <type>sqlmodel</type>
+      <description>Use session.exec() for ORM queries, not session.execute(). Returns ORM models, not Row objects.</description>
+    </constraint>
+  </constraints>
+  <interfaces>
+    <interface>
+      <name>TestRepository.get_test_with_bugs</name>
+      <kind>repository_method</kind>
+      <signature>async def get_test_with_bugs(self, test_id: int) -> dict[str, Any] | None</signature>
+      <path>src/testio_mcp/repositories/test_repository.py</path>
+      <description>Returns test data with bugs. Must override test_environment from column.</description>
+    </interface>
+    <interface>
+      <name>TestRepository.query_tests</name>
+      <kind>repository_method</kind>
+      <signature>async def query_tests(self, product_id: int, ...) -> list[dict[str, Any]]</signature>
+      <path>src/testio_mcp/repositories/test_repository.py</path>
+      <description>Returns list of tests. Must override test_environment from column for each test.</description>
+    </interface>
+    <interface>
+      <name>BugRepository.get_bugs</name>
+      <kind>repository_method</kind>
+      <signature>async def get_bugs(self, test_id: int) -> list[dict[str, Any]]</signature>
+      <path>src/testio_mcp/repositories/bug_repository.py</path>
+      <description>Returns bugs for test. Already overrides status column. Must also override known column.</description>
+    </interface>
+    <interface>
+      <name>BugRepository.get_bugs_cached_or_refresh</name>
+      <kind>repository_method</kind>
+      <signature>async def get_bugs_cached_or_refresh(self, test_ids: list[int]) -> tuple[dict[int, list[dict]], dict]</signature>
+      <path>src/testio_mcp/repositories/bug_repository.py</path>
+      <description>Returns bugs with cache stats. Must override known column (lines 576-582 pattern).</description>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>
+      Unit tests for repository read paths should use mock_persistent_cache fixture and verify database state. Tests must be behavioral (test outcomes, not implementation). Use session.exec() for ORM queries. Follow Arrange-Act-Assert pattern. Coverage target: ≥90% for repository methods.
+    </standards>
+    <locations>
+      <location>tests/unit/test_test_repository_reads.py</location>
+      <location>tests/unit/test_bug_repository_reads.py</location>
+    </locations>
+    <ideas>
+      <test_idea ac="1">
+        <description>Test get_test_with_bugs returns test_environment from column</description>
+        <approach>Insert test with test_environment in both column and JSON (different values). Verify column value is returned, not JSON value.</approach>
+      </test_idea>
+      <test_idea ac="1">
+        <description>Test get_test_with_bugs handles NULL test_environment gracefully</description>
+        <approach>Insert test with NULL test_environment column. Verify method returns None or empty dict for test_environment field.</approach>
+      </test_idea>
+      <test_idea ac="2">
+        <description>Test query_tests returns test_environment from column for all tests</description>
+        <approach>Insert multiple tests with test_environment in columns. Query tests. Verify all returned tests have test_environment from columns.</approach>
+      </test_idea>
+      <test_idea ac="3">
+        <description>Test get_bugs returns known from column (overriding JSON)</description>
+        <approach>Insert bug with known=True in column, known=False in JSON. Verify get_bugs returns known=True.</approach>
+      </test_idea>
+      <test_idea ac="3">
+        <description>Test get_bugs handles NULL known gracefully</description>
+        <approach>Insert bug with NULL known column. Verify get_bugs returns known=False (default).</approach>
+      </test_idea>
+      <test_idea ac="4">
+        <description>Test get_bugs_cached_or_refresh returns known from column</description>
+        <approach>Insert bugs with known column populated. Call get_bugs_cached_or_refresh. Verify returned bugs have known from column.</approach>
+      </test_idea>
+      <test_idea ac="all">
+        <description>Integration test: Verify read paths work with STORY-070 write paths</description>
+        <approach>Use STORY-070 write paths to insert data. Use STORY-071 read paths to retrieve. Verify data consistency.</approach>
+      </test_idea>
+    </ideas>
+  </tests>
+</story-context>

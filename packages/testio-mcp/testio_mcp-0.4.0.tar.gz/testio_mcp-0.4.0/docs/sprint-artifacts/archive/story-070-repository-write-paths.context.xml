@@ -1,0 +1,122 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>012</epicId>
+    <storyId>070</storyId>
+    <title>Update Repository Write Paths for New Columns</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-30</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-070-repository-write-paths.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>the repository layer to extract and store test_environment and known on writes</iWant>
+    <soThat>new synced data populates the new columns correctly</soThat>
+    <tasks>
+      - [ ] **Task 1: Update Bug Transformers and Types** (AC: 2, 3)
+        - [ ] Update `BugOrmData` TypedDict in `src/testio_mcp/transformers/bug_transformers.py` to include `known: bool`.
+        - [ ] Update transformer logic to extract `known` field from API response, defaulting to `False`.
+      - [ ] **Task 2: Update Test Repository Writes** (AC: 1)
+        - [ ] Update `insert_test` in `src/testio_mcp/repositories/test_repository.py` to extract and store `test_environment`.
+        - [ ] Update `update_test` in `src/testio_mcp/repositories/test_repository.py` to update `test_environment`.
+        - [ ] Implement security filtering to only store `id` and `title` from `test_environment`.
+        - [ ] Add unit tests for `insert_test` and `update_test` verifying `test_environment` persistence.
+      - [ ] **Task 3: Update Bug Repository Writes** (AC: 2, 3)
+        - [ ] Update `_write_bugs_to_db` in `src/testio_mcp/repositories/bug_repository.py` to include `known` in the UPSERT `set_` clause.
+        - [ ] Verify `known` is correctly passed from transformer to ORM model.
+        - [ ] Add unit tests for `_write_bugs_to_db` verifying `known` persistence and default value.
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. **Test Repository Write Path:**
+       - When `TestRepository.insert_test()` or `update_test()` is called with a test API response containing `test_environment`.
+       - The `test.test_environment` column stores `{id, title}` (extracting only these fields for security).
+
+    2. **Bug Repository Write Path:**
+       - When `BugRepository._write_bugs_to_db()` or `refresh_bugs()` is called with a bug API response containing `known`.
+       - The `bug.known` column is set to the boolean value from the API.
+
+    3. **Bug Known Default Value:**
+       - If the bug API response is missing the `known` field.
+       - The `bug.known` column defaults to `False`.
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      - path: docs/epics/epic-012-polish.md
+        title: Epic 012: Test Environments and Known Bugs
+        section: STORY-070: Update Repository Write Paths for New Columns
+        snippet: As a developer, I want the repository layer to extract and store test_environment and known on writes, So that new synced data populates the new columns correctly.
+      - path: docs/architecture/ARCHITECTURE.md
+        title: System Architecture
+        section: Local Data Store Strategy
+        snippet: SQLite database with repository pattern for data access. TestRepository handles tests + products queries, BugRepository handles bugs.
+    </docs>
+    <code>
+      - path: src/testio_mcp/repositories/test_repository.py
+        kind: repository
+        symbol: TestRepository
+        lines: 120-321
+        reason: Contains insert_test and update_test methods that need to be updated to handle test_environment.
+      - path: src/testio_mcp/repositories/bug_repository.py
+        kind: repository
+        symbol: BugRepository
+        lines: 706-800
+        reason: Contains _write_bugs_to_db method that needs to be updated to handle known field.
+      - path: src/testio_mcp/transformers/bug_transformers.py
+        kind: transformer
+        symbol: BugOrmData
+        lines: 14-48
+        reason: TypedDict definition needs to be updated to include known field.
+      - path: src/testio_mcp/models/orm/test.py
+        kind: model
+        symbol: Test
+        reason: ORM model defining the test_environment column.
+      - path: src/testio_mcp/models/orm/bug.py
+        kind: model
+        symbol: Bug
+        reason: ORM model defining the known column.
+    </code>
+    <dependencies>
+      - ecosystem: python
+        packages:
+          - sqlmodel
+          - sqlalchemy
+          - pydantic
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - Security: Explicitly filter `test_environment` fields. Do not store the raw dictionary blindly.
+    - ORM: SQLAlchemy handles JSON serialization for `test_environment`.
+    - UPSERT: Ensure `known` is included in the `on_conflict_do_update` set clause for bugs.
+  </constraints>
+  <interfaces>
+    - name: TestRepository.insert_test
+      kind: function signature
+      signature: async def insert_test(self, test_data: dict[str, Any], product_id: int, user_id_map: dict[str, int] | None = None) -> None
+      path: src/testio_mcp/repositories/test_repository.py
+    - name: TestRepository.update_test
+      kind: function signature
+      signature: async def update_test(self, test_data: dict[str, Any], product_id: int) -> None
+      path: src/testio_mcp/repositories/test_repository.py
+    - name: BugRepository._write_bugs_to_db
+      kind: function signature
+      signature: async def _write_bugs_to_db(self, bugs_data: list[dict[str, Any]], test_ids: list[int]) -> dict[int, int]
+      path: src/testio_mcp/repositories/bug_repository.py
+  </interfaces>
+  <tests>
+    <standards>Unit tests should use `mock_persistent_cache` and verify DB state. Test cases should cover `test_environment` present/missing/malformed and `known` true/false/missing.</standards>
+    <locations>tests/unit</locations>
+    <ideas>
+      - Test insert_test with valid test_environment
+      - Test insert_test with missing test_environment
+      - Test update_test with changed test_environment
+      - Test _write_bugs_to_db with known=True
+      - Test _write_bugs_to_db with known=False
+      - Test _write_bugs_to_db with missing known (default False)
+    </ideas>
+  </tests>
+</story-context>

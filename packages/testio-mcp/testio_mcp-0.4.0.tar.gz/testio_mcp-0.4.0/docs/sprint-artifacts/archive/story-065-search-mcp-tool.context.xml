@@ -1,0 +1,215 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>10</epicId>
+    <storyId>065</storyId>
+    <title>Search MCP Tool</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-29</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-065-search-mcp-tool.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>MCP user (CSM, PM, QA lead)</asA>
+    <iWant>a unified search tool that finds entities by semantic meaning</iWant>
+    <soThat>I can discover features, bugs, and tests without knowing exact names</soThat>
+    <tasks>
+      - [ ] **Task 0: Update FTS5 Schema (Critical)**
+        - Create migration: Add `timestamp` column (UNINDEXED) to `search_index`
+        - Update triggers to populate `timestamp`:
+          - Tests: `end_at` (never null)
+          - Bugs: `reported_at`
+          - Features: `NULL` (excluded from time filtering)
+          - Products: `NULL` (excluded from time filtering)
+        - Update `FTS5QueryBuilder` to support date range filtering on `timestamp` column
+          - Note: Time filters will implicitly exclude Features and Products
+        - Rebuild index (or backfill) to populate timestamps
+
+      - [ ] **Task 1: Create SearchService**
+        - Inject SearchRepository
+        - Validate query (non-empty, minimum length 2-3 chars)
+        - Validate entities list using `SEARCHABLE_ENTITIES` constant (DRY)
+        - Handle `match_mode` ("simple" vs "raw")
+        - Handle `start_date` and `end_date` filtering (use `parse_flexible_date`)
+        - Call repository and format results (include score and rank)
+        - Handle FTS5 syntax errors gracefully (translate to domain exceptions)
+        - Add `optimize_index()` method for maintenance
+
+      - [ ] **Task 2: Create search_tool.py**
+        - MCP tool with parameters: query (str), entities (list[str] | None), product_ids (list[int] | None), start_date (str | None), end_date (str | None), limit (int), match_mode (str)
+        - Update `src/testio_mcp/utilities/service_helpers.py` to wire `SearchService` (requires AsyncSession + SearchRepository)
+        - Use `get_service_context(ctx, SearchService)` pattern
+        - Transform exceptions to ToolError with ❌ℹ️💡 format
+        - Document tool with clear parameter descriptions (including match_mode)
+
+      - [ ] **Task 3: Define Result Schema**
+        - SearchResult dataclass/model: entity_type, entity_id, title, score, rank
+        - Response format: { results: [...], total: int, query: str }
+
+      - [ ] **Task 4: Add Tool Documentation**
+        - Update CLAUDE.md Available MCP Tools
+        - Update README.md MCP Tools section
+
+      - [ ] **Task 5: Add REST Endpoint**
+        - Add `GET /api/search` endpoint in `src/testio_mcp/api.py` (consistent with `/api/*` prefix)
+        - Reuse SearchService (same business logic as MCP tool)
+        - Parse comma-separated entities query param
+        - Support `match_mode` query param
+        - Support `start_date` and `end_date` query params
+        - Return same JSON format as MCP tool (parity check)
+
+      - [ ] **Task 6: Write Tests**
+        - Unit tests for SearchService (mock repository)
+        - Unit tests for search_tool (mock service, test error handling)
+        - Integration test: end-to-end MCP search flow
+        - Integration test: end-to-end REST search flow
+
+      - [ ] **Task 7: SyncService Integration**
+        - Update `src/testio_mcp/services/sync_service.py`
+        - Call `search_service.optimize_index()` after "nuke" or full refresh cycles
+        - Ensure index maintenance doesn't block critical sync path
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    - **Given** the FTS5 search_index exists with data
+    - **When** I call `search(query="borders")`
+    - **Then** I receive ranked results from all entity types sorted by BM25 relevance
+    - **And** results include entity_type, entity_id, title, and score
+    - **And** I can filter by `entities=["feature", "bug"]` to limit result types
+    - **And** I can filter by `product_ids=[598, 601]` to scope search to specific products
+    - **And** I can filter by `start_date` and `end_date` to limit results by time (supports ISO and natural language)
+    - **And** empty query returns validation error with helpful message
+    - **And** invalid FTS5 syntax returns friendly error (not raw SQL error)
+    - **And** REST endpoint `GET /search?query=borders&entities=feature,bug` returns same results
+    - **And** REST endpoint handles query param parsing (comma-separated entities)
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/tech-spec-fts-search.md</path>
+        <title>Technical Specification: Full-Text Search</title>
+        <section>The Change</section>
+        <snippet>Implement SQLite FTS5 (Full-Text Search version 5) with BM25 relevance ranking as a unified `search` MCP tool. Built into SQLite (no external dependencies). Supports phrase search, prefix matching, boolean operators.</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-spec-fts-search.md</path>
+        <title>Technical Specification: Full-Text Search</title>
+        <section>Search MCP Tool (Story 3)</section>
+        <snippet>Unified `search` tool with entity filtering. BM25 relevance ranking. Product scope filtering (optional). Result grouping by entity type.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/epic-010-full-text-search.md</path>
+        <title>Epic 010: Full-Text Search</title>
+        <section>Story 10.3: Search MCP Tool + REST Endpoint</section>
+        <snippet>As an MCP user (CSM, PM, QA lead) or REST client, I want a unified search tool that finds entities by semantic meaning. SearchService + search_tool.py + REST endpoint; shared Search API contract.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Component Architecture</section>
+        <snippet>MCP Tools (8 tools) - THIN WRAPPERS. Extract dependencies from FastMCP context. Create service instances (per-request). Delegate to service layer for business logic. Convert service exceptions to MCP error format (❌ℹ️💡).</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/MCP.md</path>
+        <title>MCP Server Architecture</title>
+        <section>Tool Parameter Guidelines</section>
+        <snippet>LLMs parse parameter schemas more reliably than tool descriptions. Tool descriptions should be concise. Technical details belong in parameter descriptions.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <item>
+        <path>src/testio_mcp/tools/list_features_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_features</symbol>
+        <lines>52-140</lines>
+        <reason>Reference for MCP tool implementation pattern using get_service_context and Pydantic models.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/services/feature_service.py</path>
+        <kind>service</kind>
+        <symbol>FeatureService</symbol>
+        <lines>19-121</lines>
+        <reason>Reference for Service Layer pattern, repository injection, and business logic implementation.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/utilities/service_helpers.py</path>
+        <kind>utility</kind>
+        <symbol>get_service_context</symbol>
+        <lines>116-280</lines>
+        <reason>Helper for creating service instances with proper dependency injection and AsyncSession lifecycle management.</reason>
+      </item>
+      <item>
+        <path>src/testio_mcp/utilities/service_helpers.py</path>
+        <kind>utility</kind>
+        <symbol>_build_service</symbol>
+        <lines>23-113</lines>
+        <reason>Internal helper for wiring service dependencies. Needs update to support SearchService.</reason>
+      </item>
+    </code>
+    <dependencies>
+      <ecosystem name="python">
+        <package name="fastmcp" version=">=2.12.0" />
+        <package name="pydantic" version=">=2.12.0" />
+        <package name="aiosqlite" version=">=0.20.0" />
+        <package name="dateparser" version=">=1.2.0" />
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - **Service Layer Pattern (ADR-006):** Tools must be thin wrappers around Services. Services contain all business logic.
+    - **Dependency Injection:** Services must be instantiated via `get_service_context` which handles dependency injection and resource cleanup.
+    - **AsyncSession Management:** Use `get_service_context` to ensure AsyncSession is properly closed after each request to prevent connection pool exhaustion.
+    - **Error Handling:** Tools must catch domain exceptions and raise `ToolError` with the standard ❌ℹ️💡 format.
+    - **Output Schemas:** Use Pydantic models for output schemas and apply `inline_schema_refs` to ensure compatibility with all MCP clients.
+    - **REST Parity:** The REST endpoint must share the same Service and return the same data structure as the MCP tool.
+    - **FTS5 Syntax:** Do not expose raw SQL errors to the user. Catch FTS5 syntax errors and return friendly messages.
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>SearchService.search</name>
+      <kind>function signature</kind>
+      <signature>async def search(self, query: str, entities: list[str] | None = None, product_ids: list[int] | None = None, start_date: str | None = None, end_date: str | None = None, limit: int = 20, match_mode: str = "simple") -> dict[str, Any]</signature>
+      <path>src/testio_mcp/services/search_service.py</path>
+    </interface>
+    <interface>
+      <name>search tool</name>
+      <kind>MCP Tool</kind>
+      <signature>@mcp.tool() async def search(ctx: Context, query: str, entities: list[str] | None = None, product_ids: list[int] | None = None, start_date: str | None = None, end_date: str | None = None, limit: int = 20, match_mode: str = "simple") -> dict[str, Any]</signature>
+      <path>src/testio_mcp/tools/search_tool.py</path>
+    </interface>
+    <interface>
+      <name>GET /api/search</name>
+      <kind>REST Endpoint</kind>
+      <signature>@api.get("/api/search") async def search_endpoint(query: str, entities: str | None = None, product_ids: str | None = None, start_date: str | None = None, end_date: str | None = None, limit: int = 20, match_mode: str = "simple") -> dict</signature>
+      <path>src/testio_mcp/api.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Use `pytest` with `pytest-asyncio` for all tests.
+      Unit tests should mock dependencies (repositories for services, services for tools).
+      Integration tests should use a real (test) database with FTS5 enabled and verify end-to-end functionality.
+      Test error handling scenarios (invalid query, empty query, invalid entities).
+    </standards>
+    <locations>
+      tests/unit/test_search_service.py
+      tests/unit/test_search_tool.py
+      tests/integration/test_search_integration.py
+    </locations>
+    <ideas>
+      - Test search with empty query (should raise validation error)
+      - Test search with valid query returning results
+      - Test search with entity filtering (e.g., only bugs)
+      - Test search with product scoping
+      - Test search with date filtering (start_date, end_date)
+      - Test invalid FTS5 syntax handling
+      - Test REST endpoint parameter parsing
+      - Verify MCP and REST return identical results for same input
+    </ideas>
+  </tests>
+</story-context>

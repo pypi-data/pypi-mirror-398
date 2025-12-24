@@ -1,0 +1,397 @@
+<story-context id="story-040-pagination-for-data-serving-tools" v="1.0">
+  <metadata>
+    <epicId>EPIC-005</epicId>
+    <storyId>STORY-040</storyId>
+    <title>Pagination for Data-Serving Tools</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-24</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-040-pagination-for-data-serving-tools.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>user querying product data via AI or web apps</asA>
+    <iWant>pagination support in list_features, list_user_stories, and list_users tools</iWant>
+    <soThat>I can efficiently browse large datasets without token overhead or performance degradation</soThat>
+    <tasks>
+      <task id="1">
+        <title>Implement list_features Pagination</title>
+        <subtasks>
+          <subtask>Update list_features_tool.py with pagination params (page, per_page, offset)</subtask>
+          <subtask>Update FeatureService.list_features() with pagination logic</subtask>
+          <subtask>Update FeatureRepository.get_features_for_product() with SQL pagination</subtask>
+          <subtask>Add FeatureRepository.count_features() method</subtask>
+          <subtask>Write unit tests (tool + service)</subtask>
+          <subtask>Run: uv run pytest tests/unit/test_tools_list_features.py tests/services/test_feature_service.py -v</subtask>
+        </subtasks>
+      </task>
+      <task id="2">
+        <title>Implement list_user_stories Pagination (In-Memory)</title>
+        <subtasks>
+          <subtask>Update list_user_stories_tool.py with pagination params</subtask>
+          <subtask>Update UserStoryService.list_user_stories() with in-memory pagination</subtask>
+          <subtask>Write unit tests for in-memory slicing logic</subtask>
+          <subtask>Test edge cases: empty, single page, last page, large offset</subtask>
+          <subtask>Run: uv run pytest tests/unit/test_tools_list_user_stories.py tests/services/test_user_story_service.py -v</subtask>
+        </subtasks>
+      </task>
+      <task id="3">
+        <title>Implement list_users Pagination with Activity Ordering</title>
+        <subtasks>
+          <subtask>Update list_users_tool.py with pagination params</subtask>
+          <subtask>Update UserService.list_users() with pagination logic</subtask>
+          <subtask>Update UserRepository.get_active_users() with JOIN queries</subtask>
+          <subtask>Add UserRepository.count_active_users() method</subtask>
+          <subtask>Test activity ordering: testers by last bug, customers by last test</subtask>
+          <subtask>Run: uv run pytest tests/unit/test_tools_list_users.py tests/services/test_user_service.py -v</subtask>
+        </subtasks>
+      </task>
+      <task id="4">
+        <title>Documentation Updates</title>
+        <subtasks>
+          <subtask>Update CLAUDE.md with pagination examples</subtask>
+          <subtask>Update tool descriptions with pagination guidance</subtask>
+          <subtask>Document activity ordering strategy for list_users</subtask>
+          <subtask>Update MCP_SETUP.md if needed</subtask>
+        </subtasks>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <ac id="AC1" title="list_features Tool - Add Pagination Parameters">
+      <description>Add page, per_page, offset parameters to list_features MCP tool following list_tests pattern</description>
+      <validation>
+        <item>Pagination parameters added with correct annotations</item>
+        <item>Uses shared PaginationInfo schema from src/testio_mcp/schemas/tests.py</item>
+        <item>Default per_page=0 uses TESTIO_DEFAULT_PAGE_SIZE</item>
+        <item>Tool works: npx @modelcontextprotocol/inspector uv run python -m testio_mcp</item>
+      </validation>
+    </ac>
+    <ac id="AC2" title="FeatureService - Add Pagination Logic">
+      <description>Update FeatureService.list_features() to accept pagination params and return metadata</description>
+      <validation>
+        <item>Service signature updated with pagination params</item>
+        <item>Calls repository with pagination</item>
+        <item>Calculates has_more heuristic: len(results) == per_page</item>
+        <item>Returns pagination metadata dict</item>
+      </validation>
+    </ac>
+    <ac id="AC3" title="FeatureRepository - Add SQL Pagination">
+      <description>Update FeatureRepository.get_features_for_product() with LIMIT/OFFSET</description>
+      <validation>
+        <item>Repository method updated with pagination params</item>
+        <item>SQL uses ORDER BY id ASC for consistent ordering</item>
+        <item>SQL uses .limit(per_page).offset(actual_offset)</item>
+        <item>count_features() method added</item>
+        <item>Offset calculation: offset + (page - 1) * per_page</item>
+      </validation>
+    </ac>
+    <ac id="AC4" title="list_user_stories Tool - Add Pagination Parameters">
+      <description>Add pagination params to list_user_stories tool</description>
+      <validation>
+        <item>Pagination parameters added</item>
+        <item>Uses shared PaginationInfo schema</item>
+        <item>Keeps existing feature_id filter</item>
+      </validation>
+    </ac>
+    <ac id="AC5" title="UserStoryService - Add In-Memory Pagination">
+      <description>Implement in-memory pagination with list slicing (user stories embedded in Feature JSON)</description>
+      <validation>
+        <item>Service loads all features (no SQL pagination for stories)</item>
+        <item>In-memory slicing with [start:end]</item>
+        <item>has_more calculation: end &lt; total_count</item>
+        <item>Performance: &lt; 200ms for 346 features</item>
+      </validation>
+    </ac>
+    <ac id="AC6" title="list_users Tool - Add Pagination Parameters">
+      <description>Add pagination params to list_users tool</description>
+      <validation>
+        <item>Pagination parameters added</item>
+        <item>Keeps existing user_type and days filters</item>
+        <item>Uses shared PaginationInfo schema</item>
+      </validation>
+    </ac>
+    <ac id="AC7" title="UserService - Add Activity-Based Ordering with Pagination">
+      <description>Update UserService.list_users() with pagination and activity ordering</description>
+      <validation>
+        <item>Service calls repository with pagination params</item>
+        <item>Calculates has_more heuristic</item>
+        <item>Returns pagination metadata</item>
+      </validation>
+    </ac>
+    <ac id="AC8" title="UserRepository - Add Activity-Based Ordering via JOIN Queries">
+      <description>Update UserRepository.get_active_users() with JOIN for activity ordering</description>
+      <validation>
+        <item>Repository uses LEFT JOIN with Bug/Test tables for activity ordering</item>
+        <item>ORDER BY MAX(created_at) DESC NULLS LAST for testers/customers</item>
+        <item>Falls back to ORDER BY last_seen DESC when no type filter</item>
+        <item>count_active_users() method added (no JOIN needed)</item>
+        <item>Performance: &lt; 200ms for JOIN queries</item>
+      </validation>
+    </ac>
+    <ac id="AC9" title="Unit Tests - list_features Tool">
+      <description>Write unit tests for list_features pagination</description>
+      <validation>
+        <item>Test parameter delegation to service</item>
+        <item>Test PaginationInfo calculation (start_index, end_index, has_more)</item>
+        <item>Test empty results (end_index = -1)</item>
+        <item>Test default per_page uses settings</item>
+      </validation>
+    </ac>
+    <ac id="AC10" title="Service Tests - FeatureService Pagination">
+      <description>Write service tests for FeatureService pagination</description>
+      <validation>
+        <item>Test pagination parameter delegation</item>
+        <item>Test offset calculation: offset + (page-1)*per_page</item>
+        <item>Test has_more heuristic: len(results) == per_page</item>
+      </validation>
+    </ac>
+    <ac id="AC11" title="Service Tests - UserStoryService In-Memory Pagination">
+      <description>Write service tests for in-memory pagination logic</description>
+      <validation>
+        <item>Test in-memory slicing with multi-feature dataset</item>
+        <item>Test edge cases: empty features, single page, last page, large offset</item>
+        <item>Test feature_id filter with pagination</item>
+      </validation>
+    </ac>
+    <ac id="AC12" title="Service Tests - UserService Activity Ordering">
+      <description>Write service tests for activity-based ordering</description>
+      <validation>
+        <item>Test service delegation to repository</item>
+        <item>Test pagination metadata calculation</item>
+        <item>Mock JOIN query results from repository</item>
+      </validation>
+    </ac>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-005-data-enhancement-and-serving.md</path>
+        <title>Epic-005: Data Enhancement and Serving</title>
+        <section>STORY-037: Data Serving Layer</section>
+        <snippet>Epic-005 establishes Features, User Stories, and Users as first-class entities. STORY-037 created the data-serving MCP tools; STORY-040 adds pagination support.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Service Layer Pattern, Pagination Flow</section>
+        <snippet>Service layer pattern (ADR-006) separates business logic from transport. Standard page/offset pagination with PaginationInfo schema for consistent metadata.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/SERVICE_LAYER_SUMMARY.md</path>
+        <title>Service Layer Architecture</title>
+        <section>Service Patterns, Repository Integration</section>
+        <snippet>Services handle business logic with constructor-injected dependencies. Repository pattern for data access. get_service_context() for managed lifecycle.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing Guide</title>
+        <section>Test Philosophy, Coverage Requirements</section>
+        <snippet>Test behavior not implementation. Service layer tests are primary focus. Minimum 85% coverage, 90%+ for services.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-020-pagination-support.md</path>
+        <title>STORY-020: Pagination Support (Reference)</title>
+        <section>Reference Implementation</section>
+        <snippet>Original pagination implementation for list_tests tool. Establishes pattern: page/per_page/offset params, PaginationInfo schema, has_more heuristic.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/tools/list_features_tool.py</path>
+        <kind>mcp-tool</kind>
+        <symbol>list_features</symbol>
+        <lines>1-102</lines>
+        <reason>Target file - add pagination params (page, per_page, offset) and PaginationInfo output</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/list_user_stories_tool.py</path>
+        <kind>mcp-tool</kind>
+        <symbol>list_user_stories</symbol>
+        <lines>1-106</lines>
+        <reason>Target file - add pagination params and PaginationInfo output</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/list_users_tool.py</path>
+        <kind>mcp-tool</kind>
+        <symbol>list_users</symbol>
+        <lines>1-120</lines>
+        <reason>Target file - add pagination params and PaginationInfo output</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/list_tests_tool.py</path>
+        <kind>mcp-tool</kind>
+        <symbol>list_tests</symbol>
+        <lines>1-210</lines>
+        <reason>Reference implementation - pagination pattern with page/per_page/offset and PaginationInfo</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/feature_service.py</path>
+        <kind>service</kind>
+        <symbol>FeatureService.list_features</symbol>
+        <lines>42-70</lines>
+        <reason>Target method - add pagination params and return pagination metadata</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/user_story_service.py</path>
+        <kind>service</kind>
+        <symbol>UserStoryService.list_user_stories</symbol>
+        <lines>44-93</lines>
+        <reason>Target method - add in-memory pagination with slicing</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/user_service.py</path>
+        <kind>service</kind>
+        <symbol>UserService.list_users</symbol>
+        <lines>43-72</lines>
+        <reason>Target method - add pagination params and activity ordering</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/feature_repository.py</path>
+        <kind>repository</kind>
+        <symbol>FeatureRepository.get_features_for_product</symbol>
+        <lines>311-326</lines>
+        <reason>Target method - add SQL pagination with LIMIT/OFFSET, add count_features()</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/repositories/user_repository.py</path>
+        <kind>repository</kind>
+        <symbol>UserRepository.get_active_users</symbol>
+        <lines>191-213</lines>
+        <reason>Target method - add pagination and activity-based JOIN ordering</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/schemas/tests.py</path>
+        <kind>schema</kind>
+        <symbol>PaginationInfo</symbol>
+        <lines>50-67</lines>
+        <reason>Shared pagination schema - reuse for all 3 tools</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/config.py</path>
+        <kind>config</kind>
+        <symbol>TESTIO_DEFAULT_PAGE_SIZE</symbol>
+        <reason>Settings source for default per_page value</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_tools_list_features.py</path>
+        <kind>test</kind>
+        <symbol>test_delegates_to_service</symbol>
+        <lines>1-115</lines>
+        <reason>Existing tests to extend with pagination test cases</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_tools_list_user_stories.py</path>
+        <kind>test</kind>
+        <reason>Existing tests to extend with pagination test cases</reason>
+      </artifact>
+      <artifact>
+        <path>tests/unit/test_tools_list_users.py</path>
+        <kind>test</kind>
+        <reason>Existing tests to extend with pagination test cases</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package>fastmcp>=2.12.0</package>
+        <package>pydantic>=2.12.0</package>
+        <package>sqlmodel>=0.0.16</package>
+        <package>pytest>=8.4.0</package>
+        <package>pytest-asyncio>=0.24.0</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="pattern">Follow list_tests pagination pattern (STORY-020)</constraint>
+    <constraint type="pattern">Use shared PaginationInfo schema from src/testio_mcp/schemas/tests.py</constraint>
+    <constraint type="pattern">Services are thin orchestrators - repositories handle SQL queries</constraint>
+    <constraint type="pattern">Use get_service_context() async context manager for resource cleanup</constraint>
+    <constraint type="performance">list_user_stories: in-memory pagination must be &lt;200ms for 346 features</constraint>
+    <constraint type="performance">list_users JOIN queries must be &lt;200ms</constraint>
+    <constraint type="testing">Unit tests required for all pagination logic</constraint>
+    <constraint type="testing">Service tests are primary focus (behavioral)</constraint>
+    <constraint type="code-quality">mypy strict mode - all type hints required</constraint>
+    <constraint type="code-quality">pre-commit hooks must pass (ruff, mypy, detect-secrets)</constraint>
+    <constraint type="adrs">ADR-006: Service Layer Pattern</constraint>
+    <constraint type="adrs">ADR-013: User Story embedding in Feature JSON (in-memory pagination)</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>PaginationInfo</name>
+      <kind>pydantic-model</kind>
+      <signature>class PaginationInfo(BaseModel): page: int; per_page: int; offset: int; start_index: int; end_index: int; total_count: int; has_more: bool</signature>
+      <path>src/testio_mcp/schemas/tests.py</path>
+    </interface>
+    <interface>
+      <name>get_service_context</name>
+      <kind>function</kind>
+      <signature>async with get_service_context(ctx: Context, ServiceClass: Type[T]) as service: T</signature>
+      <path>src/testio_mcp/utilities/__init__.py</path>
+    </interface>
+    <interface>
+      <name>FeatureService.list_features</name>
+      <kind>method</kind>
+      <signature>async def list_features(self, product_id: int) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/services/feature_service.py</path>
+    </interface>
+    <interface>
+      <name>UserStoryService.list_user_stories</name>
+      <kind>method</kind>
+      <signature>async def list_user_stories(self, product_id: int, feature_id: int | None = None) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/services/user_story_service.py</path>
+    </interface>
+    <interface>
+      <name>UserService.list_users</name>
+      <kind>method</kind>
+      <signature>async def list_users(self, user_type: str | None = None, days: int = 365) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/services/user_service.py</path>
+    </interface>
+    <interface>
+      <name>FeatureRepository.get_features_for_product</name>
+      <kind>method</kind>
+      <signature>async def get_features_for_product(self, product_id: int) -> list[Feature]</signature>
+      <path>src/testio_mcp/repositories/feature_repository.py</path>
+    </interface>
+    <interface>
+      <name>UserRepository.get_active_users</name>
+      <kind>method</kind>
+      <signature>async def get_active_users(self, user_type: str | None = None, days: int = 30) -> list[User]</signature>
+      <path>src/testio_mcp/repositories/user_repository.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Test pyramid: 50% unit, 35% integration, 15% E2E. Service layer tests are primary focus with mocked dependencies.
+      Test behavior not implementation. Use Arrange-Act-Assert pattern. Minimum 85% coverage overall, 90%+ for services.
+      All tests marked with @pytest.mark.unit or @pytest.mark.integration. Use pytest-asyncio for async tests.
+    </standards>
+    <locations>
+      <location>tests/unit/test_tools_list_features.py</location>
+      <location>tests/unit/test_tools_list_user_stories.py</location>
+      <location>tests/unit/test_tools_list_users.py</location>
+      <location>tests/services/test_feature_service.py</location>
+      <location>tests/services/test_user_story_service.py</location>
+      <location>tests/services/test_user_service.py</location>
+    </locations>
+    <ideas>
+      <idea acId="AC9">test_list_features_pagination_parameters - verify page/per_page/offset passed to service</idea>
+      <idea acId="AC9">test_list_features_pagination_metadata - verify PaginationInfo calculation</idea>
+      <idea acId="AC9">test_list_features_empty_results - verify end_index = -1 for empty results</idea>
+      <idea acId="AC9">test_list_features_default_per_page - verify 0 uses settings.TESTIO_DEFAULT_PAGE_SIZE</idea>
+      <idea acId="AC10">test_feature_service_pagination_delegation - verify repository called with pagination</idea>
+      <idea acId="AC10">test_feature_service_offset_calculation - verify offset + (page-1)*per_page</idea>
+      <idea acId="AC10">test_feature_service_has_more_heuristic - verify len(results) == per_page logic</idea>
+      <idea acId="AC11">test_user_story_in_memory_slicing - verify [start:end] slicing with multi-feature data</idea>
+      <idea acId="AC11">test_user_story_pagination_last_page - verify has_more=False on final page</idea>
+      <idea acId="AC11">test_user_story_pagination_with_feature_filter - verify filter + pagination combined</idea>
+      <idea acId="AC12">test_list_users_activity_ordering - verify JOIN query for testers/customers</idea>
+      <idea acId="AC12">test_list_users_pagination_metadata - verify total_count and has_more</idea>
+      <idea acId="AC12">test_list_users_fallback_ordering - verify last_seen DESC when no type filter</idea>
+    </ideas>
+  </tests>
+</story-context>

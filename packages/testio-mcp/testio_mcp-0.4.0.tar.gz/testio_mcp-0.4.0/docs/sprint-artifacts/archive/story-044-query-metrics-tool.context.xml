@@ -1,0 +1,356 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-007</epicId>
+    <storyId>STORY-044</storyId>
+    <title>Query Metrics Tool</title>
+    <status>todo</status>
+    <generatedAt>2025-11-25</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-044-query-metrics-tool.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>AI agent analyzing testing data</asA>
+    <iWant>a `query_metrics` tool with rich usability features</iWant>
+    <soThat>I can dynamically explore metrics and answer analytical questions</soThat>
+    <tasks>
+      - Implement query_metrics tool in src/testio_mcp/tools/query_metrics_tool.py
+      - Implement get_analytics_capabilities tool in src/testio_mcp/tools/get_analytics_capabilities_tool.py
+      - Add AnalyticsService to service_helpers.py (follow FeatureService pattern)
+      - Register tools in server.py
+      - Add integration tests to tests/integration/test_epic_007_e2e.py
+      - Verify type checking passes with mypy --strict
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+### AC1: query_metrics Tool Created
+
+**File:** `src/testio_mcp/tools/query_metrics_tool.py`
+
+**Implementation:**
+- MCP tool created with FastMCP decorator
+- Comprehensive docstring with mental model, patterns, examples
+- All parameters documented with types and examples
+- Uses `get_service_context()` for resource cleanup
+- Error handling with ToolError (❌ℹ️💡 format)
+- Tool works in MCP inspector
+
+**Validation:**
+- [ ] MCP tool created with FastMCP decorator
+- [ ] Comprehensive docstring with mental model, patterns, examples
+- [ ] All parameters documented with types and examples
+- [ ] Uses `get_service_context()` for resource cleanup
+- [ ] Error handling with ToolError (❌ℹ️💡 format)
+- [ ] Tool works: `npx @modelcontextprotocol/inspector uv run python -m testio_mcp`
+
+---
+
+### AC2: get_analytics_capabilities Tool Created
+
+**File:** `src/testio_mcp/tools/get_analytics_capabilities_tool.py`
+
+**Implementation:**
+- Tool created with FastMCP decorator
+- Returns all dimensions with key, description, example
+- Returns all metrics with key, description, formula
+- Returns limits (max_dimensions, max_rows, timeout)
+- Tool works in MCP inspector
+
+**Validation:**
+- [ ] Tool created with FastMCP decorator
+- [ ] Returns all dimensions with key, description, example
+- [ ] Returns all metrics with key, description, formula
+- [ ] Returns limits (max_dimensions, max_rows, timeout)
+- [ ] Tool works in MCP inspector
+
+---
+
+### AC3: AnalyticsService Added to service_helpers.py
+
+**File:** `src/testio_mcp/utilities/service_helpers.py`
+
+**Pattern:** Follow FeatureService pattern (lines 201-213 from STORY-037)
+
+**Implementation:**
+- AnalyticsService case added to service_helpers.py
+- Follows FeatureService pattern
+- Creates AsyncSession for service
+- Passes customer_id to service
+- Uses try/finally to ensure session cleanup (prevents resource leaks)
+- Type checking passes
+
+**Validation:**
+- [ ] AnalyticsService case added to service_helpers.py
+- [ ] Follows FeatureService pattern
+- [ ] Creates AsyncSession for service
+- [ ] Passes customer_id to service
+- [ ] Uses try/finally to ensure session cleanup
+- [ ] Type checking passes
+
+---
+
+### AC4: Tools Registered in server.py
+
+**File:** `src/testio_mcp/server.py`
+
+**Validation:**
+- [ ] `query_metrics` tool imported and registered
+- [ ] `get_analytics_capabilities` tool imported and registered
+- [ ] Tools appear in MCP inspector tool list
+- [ ] Tools callable via MCP protocol
+
+---
+
+### AC5: Integration Tests Added
+
+**File:** `tests/integration/test_epic_007_e2e.py`
+
+**Test Cases:**
+- test_sync_populates_test_features() - Verify sync populates test_features table
+- test_sync_populates_bug_test_feature_id() - Verify bugs have test_feature_id
+- test_query_metrics_direct_attribution() - Test direct Bug → TestFeature attribution
+- test_query_metrics_date_range_filtering() - Test date range on Test.end_at
+- test_query_metrics_dimension_filters() - Test dimension value filtering
+- test_query_metrics_sort_control() - Test sort_by and sort_order
+- test_query_metrics_rich_entity_context() - Verify IDs + display names
+- test_query_metrics_metadata() - Verify comprehensive metadata
+- test_query_metrics_natural_language_explanation() - Verify human-readable explanation
+- test_get_analytics_capabilities() - Test capabilities discovery
+
+**Validation:**
+- [ ] Integration tests cover full sync → query flow
+- [ ] Tests verify direct attribution works end-to-end
+- [ ] Tests verify all usability features (date range, filters, sort, metadata)
+- [ ] Tests verify get_analytics_capabilities returns correct data
+- [ ] All tests pass: `pytest tests/integration/test_epic_007_e2e.py -v`
+
+---
+
+### AC6: Type Checking Passes
+
+**Validation:**
+- [ ] `mypy src/testio_mcp/tools/query_metrics_tool.py --strict` passes
+- [ ] `mypy src/testio_mcp/tools/get_analytics_capabilities_tool.py --strict` passes
+- [ ] `mypy src/testio_mcp/utilities/service_helpers.py --strict` passes
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <artifact>
+        <path>docs/epics/epic-007-generic-analytics-framework.md</path>
+        <title>Epic-007: Generic Analytics Framework</title>
+        <section>Story-044: Query Metrics Tool</section>
+        <snippet>Implement query_metrics tool with rich usability features (date range, filters, sort, metadata). Uses AnalyticsService (STORY-043) for dynamic SQL generation. Includes get_analytics_capabilities for discovery.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/stories/story-044b-analytics-staleness-warnings.md</path>
+        <title>STORY-044B: Analytics Staleness Warnings (Repository Pattern)</title>
+        <section>Repository-level staleness for Tests, Bugs, Features</section>
+        <snippet>Implements repository-level staleness checks via get_*_cached_or_refresh() methods. TestRepository, BugRepository, FeatureRepository all provide intelligent caching based on mutability. AnalyticsService integrates these patterns with warnings if cache_hit_rate < 50%.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/stories/story-044c-referential-integrity-pattern.md</path>
+        <title>STORY-044C: Referential Integrity Pattern (Repository Layer)</title>
+        <section>Write-time integrity checks in repository layer</section>
+        <snippet>Implements proactive referential integrity checks at repository layer. TestRepository checks for missing features BEFORE insert, uses composition pattern to fetch missing data via FeatureRepository. Per-product locks prevent thundering herd. Graceful degradation on fetch failure.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Service Layer Pattern</section>
+        <snippet>Service layer architecture separates business logic from transport. MCP Tools → Service Layer → Infrastructure. AnalyticsService is read-only, uses AsyncSession directly for SQL queries.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture/adrs/ADR-011-extensibility-patterns.md</path>
+        <title>ADR-011: Extensibility Infrastructure Patterns</title>
+        <section>Tool creation patterns with get_service() helper</section>
+        <snippet>Establishes pattern for creating MCP tools with minimal boilerplate. Use get_service() helper for 1-line dependency injection. ToolError exceptions for consistent error handling (❌ℹ️💡 format). Auto-discovery via pkgutil.</snippet>
+      </artifact>
+      <artifact>
+        <path>CLAUDE.md</path>
+        <title>Development Guide for Claude Code</title>
+        <section>Adding New Tools</section>
+        <snippet>Pattern: Create service class inheriting BaseService, create MCP tool using get_service() helper, ToolError for exceptions. Tools auto-register via pkgutil. For tools needing AsyncSession, use get_service_context() for resource cleanup.</snippet>
+      </artifact>
+    </docs>
+    <code>
+      <artifact>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>service</kind>
+        <symbol>AnalyticsService</symbol>
+        <lines>81-223</lines>
+        <reason>AnalyticsService implemented in STORY-043, provides query_metrics() method that tools will delegate to</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>service</kind>
+        <symbol>query_metrics</symbol>
+        <lines>151-223</lines>
+        <reason>Core method that query_metrics tool will call. Implements dynamic SQL generation, staleness checks, warnings</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/utilities/service_helpers.py</path>
+        <kind>utility</kind>
+        <symbol>get_service_context</symbol>
+        <lines>147-249</lines>
+        <reason>Pattern for creating service instances with AsyncSession cleanup. Critical for resource management when using AnalyticsService</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/utilities/service_helpers.py</path>
+        <kind>utility</kind>
+        <symbol>_build_service</symbol>
+        <lines>23-146</lines>
+        <reason>Shared service construction logic. Need to add AnalyticsService case here (around line 100-120)</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/list_features_tool.py</path>
+        <kind>tool</kind>
+        <symbol>list_features</symbol>
+        <lines>1-80</lines>
+        <reason>Example tool pattern from STORY-037 showing get_service_context() usage, ToolError exceptions, comprehensive docstring</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/tools/generate_ebr_report_tool.py</path>
+        <kind>tool</kind>
+        <symbol>generate_ebr_report</symbol>
+        <lines>1-150</lines>
+        <reason>Example complex tool with multiple parameters, date parsing, error handling, comprehensive documentation</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/server.py</path>
+        <kind>server</kind>
+        <symbol>mcp</symbol>
+        <lines>1-50</lines>
+        <reason>FastMCP server instance where tools auto-register. No manual registration needed due to pkgutil auto-discovery</reason>
+      </artifact>
+      <artifact>
+        <path>tests/integration/test_epic_007_e2e.py</path>
+        <kind>test</kind>
+        <symbol>test_epic_007_e2e</symbol>
+        <lines>1-200</lines>
+        <reason>Integration test file where STORY-044 tests should be added. Already has tests for STORY-041, 042, 043, 044B, 044C</reason>
+      </artifact>
+      <artifact>
+        <path>src/testio_mcp/models/analytics.py</path>
+        <kind>model</kind>
+        <symbol>QueryResponse</symbol>
+        <lines>1-50</lines>
+        <reason>Response model for query_metrics tool. Includes data, metadata, query_explanation, warnings</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <fastmcp>2.12.0+</fastmcp>
+        <sqlmodel>0.0.16+</sqlmodel>
+        <pydantic>2.12.0+</pydantic>
+        <httpx>0.28.0+</httpx>
+        <pytest>8.4.0+</pytest>
+        <pytest-asyncio>0.24.0+</pytest-asyncio>
+        <mypy>1.13.0+</mypy>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - Follow ADR-011 extensibility patterns (BaseService, get_service_context, ToolError)
+    - Use get_service_context() for AsyncSession lifecycle management (prevents resource leaks)
+    - AnalyticsService is read-only (no repositories), just needs AsyncSession + customer_id + client
+    - Tools must use ToolError exceptions with ❌ℹ️💡 format for consistency
+    - All tools auto-register via pkgutil (no manual imports in server.py)
+    - Type checking must pass with mypy --strict
+    - Follow service_helpers.py pattern for AnalyticsService (similar to FeatureService but simpler - no repositories)
+    - Integration tests must use shared_cache fixture pattern from STORY-044B
+    - Error messages must be informative and guide users to get_analytics_capabilities for discovery
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>AnalyticsService.query_metrics</name>
+      <kind>Service method (async)</kind>
+      <signature>async def query_metrics(
+    self,
+    metrics: list[str],
+    dimensions: list[str],
+    filters: dict[str, Any] = {},
+    start_date: str | None = None,
+    end_date: str | None = None,
+    sort_by: str | None = None,
+    sort_order: str = "desc"
+) -> dict</signature>
+      <path>src/testio_mcp/services/analytics_service.py:151-223</path>
+    </interface>
+    <interface>
+      <name>AnalyticsService._dimensions registry</name>
+      <kind>Class attribute (dict)</kind>
+      <signature>_dimensions: dict[str, DimensionDef]</signature>
+      <path>src/testio_mcp/services/analytics_service.py:110-135</path>
+    </interface>
+    <interface>
+      <name>AnalyticsService._metrics registry</name>
+      <kind>Class attribute (dict)</kind>
+      <signature>_metrics: dict[str, MetricDef]</signature>
+      <path>src/testio_mcp/services/analytics_service.py:137-149</path>
+    </interface>
+    <interface>
+      <name>get_service_context</name>
+      <kind>Async context manager</kind>
+      <signature>@asynccontextmanager
+async def get_service_context(
+    ctx: Context | Request,
+    service_class: type[ServiceT],
+) -> AsyncGenerator[ServiceT, None]</signature>
+      <path>src/testio_mcp/utilities/service_helpers.py:147-249</path>
+    </interface>
+    <interface>
+      <name>MCP Tool Pattern</name>
+      <kind>Function signature</kind>
+      <signature>@mcp.tool()
+async def tool_name(
+    param1: type1,
+    param2: type2,
+    ctx: Context = None
+) -> dict</signature>
+      <path>src/testio_mcp/tools/*_tool.py</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Testing follows pytest patterns with async support. Integration tests use real AsyncSession with in-memory SQLite. Tools tested via direct function call (extract from FastMCP wrapper). Services tested with mocked dependencies. Type checking enforced via mypy --strict. All tests must be behavioral (test outcomes, not implementation details).
+    </standards>
+    <locations>
+      - tests/unit/test_tools_query_metrics.py (if needed for edge cases)
+      - tests/integration/test_epic_007_e2e.py (primary test location)
+      - Type checks: mypy src/testio_mcp/tools/ --strict
+    </locations>
+    <ideas>
+      <test id="AC1">
+        - Verify tool schema includes all required parameters
+        - Test error transformation (ValueError → ToolError)
+        - Test service delegation (parameters passed correctly)
+        - Test ToolError format (❌ℹ️💡 structure)
+      </test>
+      <test id="AC2">
+        - Verify capabilities tool returns all dimensions/metrics
+        - Verify limits included in response
+        - Test dimension/metric discovery workflow
+      </test>
+      <test id="AC3">
+        - Verify AsyncSession created and cleaned up
+        - Verify customer_id passed to service
+        - Test resource leak prevention (session.close called)
+      </test>
+      <test id="AC5">
+        - test_query_metrics_direct_attribution - Verify bug counts are integers (no fractional)
+        - test_query_metrics_date_range_filtering - Verify only requested date range returned
+        - test_query_metrics_dimension_filters - Verify filter applied correctly
+        - test_query_metrics_sort_control - Verify descending/ascending order
+        - test_query_metrics_rich_entity_context - Verify both IDs and display names
+        - test_query_metrics_metadata - Verify comprehensive metadata included
+        - test_query_metrics_natural_language_explanation - Verify human-readable summary
+        - test_get_analytics_capabilities - Verify discovery tool works end-to-end
+      </test>
+    </ideas>
+  </tests>
+</story-context>

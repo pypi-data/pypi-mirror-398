@@ -1,0 +1,445 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>EPIC-007</epicId>
+    <storyId>STORY-042</storyId>
+    <title>Historical Data Backfill</title>
+    <status>backlog</status>
+    <generatedAt>2025-11-25</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-042-historical-data-backfill.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer preparing to launch analytics features</asA>
+    <iWant>all existing tests and bugs backfilled with TestFeature data</iWant>
+    <soThat>analytics queries return complete historical data from day one</soThat>
+    <tasks>
+      - Create backfill script with CLI interface (AC1)
+      - Implement test_features backfill from Test.data JSON (AC2)
+      - Implement Bug.test_feature_id backfill from Bug.raw_data JSON (AC3)
+      - Add data validation (>95% coverage) (AC4)
+      - Implement progress reporting with statistics (AC5)
+      - Add dry-run mode for safe testing (AC6)
+      - Ensure idempotent operation (AC7)
+      - Implement robust error handling (AC8)
+      - Add comprehensive documentation (AC9)
+      - Validate >95% coverage passes (AC10)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1" priority="high">
+      <title>Backfill Script Created</title>
+      <description>CLI script tools/backfill_test_features.py with --dry-run, --verbose, --batch-size flags. Returns 0 on success, non-zero on failure.</description>
+      <testable>true</testable>
+    </criterion>
+
+    <criterion id="AC2" priority="high">
+      <title>Test Features Backfilled</title>
+      <description>
+        - Uses session.exec() not session.execute() (SQLModel pattern)
+        - Uses .all() and .first() for ORM model results
+        - Includes customer_id in both insert and update operations
+        - Processes tests in batches (default 500)
+        - Parses Test.data JSON for features array
+        - Inserts or updates TestFeature records
+        - Handles missing/malformed data gracefully (None → [])
+        - Shows progress bar with ETA
+        - Commits per batch (not per record)
+        - Rollback on batch failure, continue processing
+      </description>
+      <testable>true</testable>
+    </criterion>
+
+    <criterion id="AC3" priority="high">
+      <title>Bug Attribution Backfilled</title>
+      <description>
+        - Processes bugs in batches
+        - Parses Bug.raw_data JSON for test_feature.id
+        - Updates Bug.test_feature_id
+        - Handles bugs without test_feature gracefully (leaves NULL)
+        - Shows progress bar
+      </description>
+      <testable>true</testable>
+    </criterion>
+
+    <criterion id="AC4" priority="high">
+      <title>Data Validation</title>
+      <description>
+        - Validates >95% test coverage (tests with test_features)
+        - Validates >95% bug attribution (bugs with test_feature_id)
+        - Validates >95% customer_id coverage (test_features with non-null customer_id)
+        - Returns validation_passed boolean
+        - Logs validation results
+      </description>
+      <testable>true</testable>
+    </criterion>
+
+    <criterion id="AC5" priority="medium">
+      <title>Progress Reporting</title>
+      <description>Prints formatted summary report with test features statistics, bug attribution statistics, validation results, and errors (first 10).</description>
+      <testable>true</testable>
+    </criterion>
+
+    <criterion id="AC6" priority="medium">
+      <title>Dry Run Mode</title>
+      <description>--dry-run flag prevents database commits. Shows what WOULD be changed without modifying data.</description>
+      <testable>true</testable>
+    </criterion>
+
+    <criterion id="AC7" priority="high">
+      <title>Idempotent Operation</title>
+      <description>Script can be run multiple times safely. Uses upsert logic. No duplicate records created. Re-running updates existing records correctly.</description>
+      <testable>true</testable>
+    </criterion>
+
+    <criterion id="AC8" priority="high">
+      <title>Error Handling</title>
+      <description>Individual record errors don't stop processing. Errors logged. Script returns non-zero exit code if >5% failure rate. Graceful handling of missing/malformed JSON.</description>
+      <testable>true</testable>
+    </criterion>
+
+    <criterion id="AC9" priority="low">
+      <title>Documentation</title>
+      <description>Comprehensive docstring with usage examples, expected runtime, validation criteria, and exit codes.</description>
+      <testable>true</testable>
+    </criterion>
+
+    <criterion id="AC10" priority="high">
+      <title>Validation Passes</title>
+      <description>>95% of tests have test_features records, >95% of bugs have test_feature_id populated. Script completes in &lt;10 minutes for typical dataset. No data corruption.</description>
+      <testable>true</testable>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-007-generic-analytics-framework.md</path>
+        <title>Epic 007 - Generic Analytics Framework</title>
+        <section>STORY-042: Historical Data Backfill</section>
+        <snippet>Backfill historical data from existing Test.data and Bug.raw_data JSON fields. Uses batch processing (500 per batch) to manage memory. Includes dry-run mode, idempotent operation, and >95% validation criteria.</snippet>
+      </doc>
+
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>System Architecture</title>
+        <section>Testing Strategy</section>
+        <snippet>Unit tests (50%) for pure logic, integration tests (35%) for component interactions, E2E tests (15%) for full system journeys. Fast feedback loop using pytest with unit marker (~0.5s for suite).</snippet>
+      </doc>
+
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing Guide</title>
+        <section>Test Levels & Organization</section>
+        <snippet>Tests validate WHAT the system does (behavior), not HOW it does it (implementation). Use realistic test data, assert on observable outcomes, allow implementation flexibility. Coverage targets: Overall 85%+, Services 90%+.</snippet>
+      </doc>
+
+      <doc>
+        <path>CLAUDE.md</path>
+        <title>Project Instructions</title>
+        <section>SQLModel Query Patterns</section>
+        <snippet>CRITICAL: Use session.exec() not session.execute() for ORM queries. SQLModel's exec() returns Result[Model], SQLAlchemy's execute() returns Result[Row]. Always use .first() or .all() to extract models. Avoid mixing patterns.</snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>_upsert_test_feature</symbol>
+        <lines>635-695</lines>
+        <reason>Reference implementation for test_features upsert logic. Shows correct JSON parsing, TestFeature model usage, and customer_id handling. Backfill script must follow same pattern.</reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>insert_test</symbol>
+        <lines>111-201</lines>
+        <reason>Shows test_features extraction pattern (lines 156-159). Backfill must replicate this logic for historical tests.</reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <symbol>update_test</symbol>
+        <lines>202-250</lines>
+        <reason>Shows test_features extraction in update path (lines 246-249). Backfill must handle both new and existing TestFeature records.</reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/repositories/bug_repository.py</path>
+        <kind>repository</kind>
+        <symbol>refresh_bugs</symbol>
+        <lines>414-486</lines>
+        <reason>Reference for Bug.test_feature_id extraction pattern. Shows how to parse raw_data JSON and extract test_feature.id (line 453 mentioned in epic).</reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/models/orm/test_feature.py</path>
+        <kind>model</kind>
+        <symbol>TestFeature</symbol>
+        <lines>16-49</lines>
+        <reason>ORM model definition. Backfill must create instances with all required fields: id, customer_id, test_id, feature_id, title, description, howtofind, user_stories, enable_* flags.</reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/models/orm/test.py</path>
+        <kind>model</kind>
+        <symbol>Test</symbol>
+        <lines>18-86</lines>
+        <reason>Test model with data field (JSON blob). Backfill parses data["features"] array. Shows customer_id field required for security filtering.</reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/models/orm/bug.py</path>
+        <kind>model</kind>
+        <symbol>Bug</symbol>
+        <lines>18-75</lines>
+        <reason>Bug model with raw_data field (JSON blob) and test_feature_id (NEW FK). Backfill updates test_feature_id by parsing raw_data["test_feature"]["id"].</reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/database/engine.py</path>
+        <kind>infrastructure</kind>
+        <symbol>create_async_engine_for_sqlite</symbol>
+        <lines>28-63</lines>
+        <reason>Shows how to create async engine for SQLite. Backfill script needs engine setup for standalone execution outside MCP server context.</reason>
+      </artifact>
+
+      <artifact>
+        <path>src/testio_mcp/database/engine.py</path>
+        <kind>infrastructure</kind>
+        <symbol>create_session_factory</symbol>
+        <lines>66-86</lines>
+        <reason>Shows how to create session factory. Backfill script uses async_sessionmaker pattern for batch processing.</reason>
+      </artifact>
+    </code>
+
+    <dependencies>
+      <python>
+        <package name="sqlmodel" version=">=0.0.16" purpose="ORM framework (SQLAlchemy 2.0 + Pydantic)"/>
+        <package name="aiosqlite" version=">=0.20.0" purpose="Async SQLite driver"/>
+        <package name="alembic" version=">=1.13.0" purpose="Database migrations (schema exists after STORY-041)"/>
+        <package name="tqdm" version="any" purpose="Progress bar for batch processing"/>
+        <package name="rich" version=">=13.7.0" purpose="Terminal output formatting (already in pyproject.toml)"/>
+        <package name="pytest" version=">=8.4.0" purpose="Unit test framework"/>
+        <package name="pytest-asyncio" version=">=0.24.0" purpose="Async test support"/>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="pattern" priority="high">
+      <title>SQLModel Query Pattern (CRITICAL)</title>
+      <description>MUST use session.exec() not session.execute() for ORM queries. This is a production bug vector (STORY-034B lesson learned). Use .first() or .all() to extract models from Result.</description>
+    </constraint>
+
+    <constraint type="pattern" priority="high">
+      <title>Batch Processing Required</title>
+      <description>Default batch size 500. Commit per batch to avoid memory issues. Rollback on batch failure, continue processing remaining batches.</description>
+    </constraint>
+
+    <constraint type="security" priority="high">
+      <title>Customer ID Required</title>
+      <description>All TestFeature records MUST include customer_id for security filtering. This is critical for multi-tenant isolation.</description>
+    </constraint>
+
+    <constraint type="pattern" priority="high">
+      <title>Idempotent Upsert</title>
+      <description>Check if TestFeature exists before insert. Update if exists, insert if not. Use same _upsert_test_feature pattern as TestRepository.</description>
+    </constraint>
+
+    <constraint type="pattern" priority="medium">
+      <title>Progress Visibility</title>
+      <description>Use tqdm progress bar with total count, batch updates, and ETA. Essential for long-running backfill operations.</description>
+    </constraint>
+
+    <constraint type="error-handling" priority="high">
+      <title>Graceful Degradation</title>
+      <description>Individual record errors must not stop processing. Log error, increment counter, continue. Only fail if >5% error rate (validation criteria).</description>
+    </constraint>
+
+    <constraint type="testing" priority="high">
+      <title>Dry Run Mode Mandatory</title>
+      <description>Must support --dry-run flag that shows changes without committing. Essential for safe testing before production run.</description>
+    </constraint>
+
+    <constraint type="validation" priority="high">
+      <title>95% Coverage Threshold</title>
+      <description>Validation must check: (1) >95% tests have test_features, (2) >95% bugs have test_feature_id, (3) >95% test_features have customer_id. Fail script if any below threshold.</description>
+    </constraint>
+
+    <constraint type="pattern" priority="medium">
+      <title>Async Context Management</title>
+      <description>Use async with get_database_url() and async_sessionmaker pattern. Follow engine.py infrastructure patterns for session lifecycle.</description>
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>backfill_test_features CLI</name>
+      <kind>command-line</kind>
+      <signature>
+        uv run python tools/backfill_test_features.py [--dry-run] [--verbose] [--batch-size N]
+      </signature>
+      <path>tools/backfill_test_features.py (to be created)</path>
+      <description>Backfill script with CLI argument parsing. Returns 0 on success (validation passed), 1 on failure (validation failed or >5% errors).</description>
+    </interface>
+
+    <interface>
+      <name>backfill_test_features function</name>
+      <kind>async function</kind>
+      <signature>
+        async def backfill_test_features(batch_size: int = 500, dry_run: bool = False, verbose: bool = False) -> dict[str, Any]
+      </signature>
+      <path>tools/backfill_test_features.py (to be created)</path>
+      <description>Main backfill function for test_features. Returns statistics dict with tests_processed, test_features_inserted/updated, errors, success_rate.</description>
+    </interface>
+
+    <interface>
+      <name>backfill_bug_test_feature_ids function</name>
+      <kind>async function</kind>
+      <signature>
+        async def backfill_bug_test_feature_ids(batch_size: int = 500, dry_run: bool = False, verbose: bool = False) -> dict[str, Any]
+      </signature>
+      <path>tools/backfill_test_features.py (to be created)</path>
+      <description>Backfill function for Bug.test_feature_id. Returns statistics dict with bugs_processed, bugs_updated, bugs_with_attribution, attribution_rate.</description>
+    </interface>
+
+    <interface>
+      <name>validate_backfill function</name>
+      <kind>async function</kind>
+      <signature>
+        async def validate_backfill() -> dict[str, Any]
+      </signature>
+      <path>tools/backfill_test_features.py (to be created)</path>
+      <description>Validation function checking >95% coverage. Returns dict with total counts, coverage rates, and validation_passed boolean.</description>
+    </interface>
+
+    <interface>
+      <name>print_summary function</name>
+      <kind>function</kind>
+      <signature>
+        def print_summary(test_stats: dict, bug_stats: dict, validation: dict) -> None
+      </signature>
+      <path>tools/backfill_test_features.py (to be created)</path>
+      <description>Pretty-print summary report with statistics, validation results, and errors (first 10).</description>
+    </interface>
+
+    <interface>
+      <name>AsyncSession.exec()</name>
+      <kind>ORM method</kind>
+      <signature>
+        async def exec(statement: Select) -> Result[Model]
+      </signature>
+      <path>sqlmodel.ext.asyncio.session.AsyncSession</path>
+      <description>SQLModel async query execution. CRITICAL: Use this, not execute(). Returns Result that yields ORM models via .first() or .all().</description>
+    </interface>
+
+    <interface>
+      <name>get_database_url()</name>
+      <kind>function</kind>
+      <signature>
+        def get_database_url() -> str
+      </signature>
+      <path>testio_mcp.database.engine (inferred)</path>
+      <description>Returns SQLite database URL from settings. Used by backfill script to connect to production database.</description>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Follow testio-mcp testing standards: Unit tests for pure logic (fast, mocked), integration tests for real database operations. Use pytest with asyncio support. Mock AsyncSession for unit tests, use real database for integration tests. Target 85%+ coverage. Tests validate behavior (outcomes), not implementation details. Use realistic test data, avoid magic numbers.
+    </standards>
+
+    <locations>
+      - tests/unit/test_backfill_test_features.py (unit tests for validation logic, statistics calculation)
+      - tests/integration/test_backfill_integration.py (integration tests with real database)
+      - tools/backfill_test_features.py (main script)
+    </locations>
+
+    <ideas>
+      <idea ac_id="AC1">
+        <description>Test CLI argument parsing</description>
+        <test_cases>
+          - Default arguments (no flags)
+          - --dry-run flag sets dry_run=True
+          - --verbose flag sets verbose=True
+          - --batch-size 1000 sets batch_size=1000
+          - Invalid arguments show help message
+        </test_cases>
+      </idea>
+
+      <idea ac_id="AC2">
+        <description>Test test_features backfill logic</description>
+        <test_cases>
+          - Parse Test.data JSON and extract features array
+          - Insert new TestFeature records (includes customer_id)
+          - Update existing TestFeature records (includes customer_id)
+          - Handle missing features array (empty list)
+          - Handle None user_stories (convert to empty array)
+          - Batch processing (commit every 500 records)
+          - Progress bar updates correctly
+          - Uses session.exec() not session.execute()
+        </test_cases>
+      </idea>
+
+      <idea ac_id="AC3">
+        <description>Test Bug.test_feature_id backfill logic</description>
+        <test_cases>
+          - Parse Bug.raw_data JSON and extract test_feature.id
+          - Update Bug.test_feature_id field
+          - Handle bugs without test_feature (leave NULL)
+          - Handle malformed JSON gracefully
+          - Batch processing works correctly
+        </test_cases>
+      </idea>
+
+      <idea ac_id="AC4">
+        <description>Test validation logic</description>
+        <test_cases>
+          - Calculate test coverage rate (tests with test_features / total tests)
+          - Calculate bug attribution rate (bugs with test_feature_id / total bugs)
+          - Calculate customer_id coverage rate (test_features with customer_id / total test_features)
+          - validation_passed = True when all rates >95%
+          - validation_passed = False when any rate &lt;95%
+        </test_cases>
+      </idea>
+
+      <idea ac_id="AC7">
+        <description>Test idempotent operation</description>
+        <test_cases>
+          - Run backfill twice, verify no duplicate records
+          - Second run updates existing records correctly
+          - No errors on re-run
+        </test_cases>
+      </idea>
+
+      <idea ac_id="AC8">
+        <description>Test error handling</description>
+        <test_cases>
+          - Individual record error continues processing
+          - Batch error rolls back, continues to next batch
+          - Script returns non-zero if >5% failure rate
+          - Script returns zero if &lt;=5% failure rate
+          - Errors logged to console/file
+        </test_cases>
+      </idea>
+
+      <idea ac_id="AC10">
+        <description>Integration test - Full backfill validation</description>
+        <test_cases>
+          - Create test database with historical data
+          - Run backfill script (dry-run first)
+          - Run backfill script (real run)
+          - Verify >95% test coverage
+          - Verify >95% bug attribution
+          - Verify >95% customer_id coverage
+          - Spot check random records for data integrity
+        </test_cases>
+      </idea>
+    </ideas>
+  </tests>
+</story-context>

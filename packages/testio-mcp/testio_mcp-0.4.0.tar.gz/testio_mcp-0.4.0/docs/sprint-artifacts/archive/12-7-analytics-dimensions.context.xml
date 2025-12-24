@@ -1,0 +1,266 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>12</epicId>
+    <storyId>7</storyId>
+    <title>Add Analytics Dimensions for Test Environment and Known Bug</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/story-075-analytics-dimensions.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>CSM</asA>
+    <iWant>to query metrics grouped by test environment or known bug status</iWant>
+    <soThat>I can analyze patterns across environments and understand known issue impact</soThat>
+    <tasks>
+      <task id="1" title="Add test_environment dimension" acceptanceCriteria="1, 2">
+        <subtask>Add test_environment to AnalyticsService dimension registry</subtask>
+        <subtask>Use json_extract for title extraction from test_environment column</subtask>
+        <subtask>Add proper null filtering (is_not(None) AND != 'null')</subtask>
+        <subtask>Cast id_column to Integer for numeric sorting</subtask>
+      </task>
+      <task id="2" title="Add known_bug dimension" acceptanceCriteria="1, 3">
+        <subtask>Add known_bug to AnalyticsService dimension registry</subtask>
+        <subtask>Use Bug.known boolean column directly</subtask>
+        <subtask>Format boolean values as 'true'/'false' strings in output</subtask>
+      </task>
+      <task id="3" title="Add unit tests" acceptanceCriteria="All">
+        <subtask>Test test_environment dimension with valid data</subtask>
+        <subtask>Test test_environment dimension with NULL values (excluded)</subtask>
+        <subtask>Test known_bug dimension with true/false values</subtask>
+        <subtask>Test dimension registry includes both new dimensions</subtask>
+        <subtask>Test SQL generation for both dimensions</subtask>
+      </task>
+      <task id="4" title="Integration testing" acceptanceCriteria="All">
+        <subtask>Run full test suite to verify no regressions</subtask>
+        <subtask>Verify mypy strict mode passes</subtask>
+        <subtask>Verify ruff formatting and linting passes</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">
+      <given>the analytics system</given>
+      <when>get_analytics_capabilities() is called</when>
+      <then>test_environment and known_bug appear as available dimensions</then>
+    </criterion>
+    <criterion id="2">
+      <given>tests with different test_environment values</given>
+      <when>query_metrics(dimensions=['test_environment'], metrics=['bug_count']) is called</when>
+      <then>results are grouped by environment name (title) AND tests where test_environment is NULL are excluded</then>
+    </criterion>
+    <criterion id="3">
+      <given>bugs with different known values</given>
+      <when>query_metrics(dimensions=['known_bug'], metrics=['bug_count']) is called</when>
+      <then>results show bug counts grouped by true vs false</then>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-012-polish.md</path>
+        <title>Epic 012: Test Environments and Known Bugs</title>
+        <section>story-075-add-analytics-dimensions</section>
+        <snippet>Story 075 requirement for adding test_environment and known_bug dimensions to analytics framework</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/epic-007-generic-analytics-framework.md</path>
+        <title>Epic 007: Generic Analytics Framework</title>
+        <section>overview</section>
+        <snippet>Metric Cube pattern where dimensions are registered declaratively in AnalyticsService</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/ARCHITECTURE.md</path>
+        <title>Architecture Overview</title>
+        <section>service-layer-adr-006</section>
+        <snippet>Service layer separation of business logic from transport layer</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/adrs/ADR-006-service-layer-pattern.md</path>
+        <title>ADR-006: Service Layer Pattern</title>
+        <section>pattern</section>
+        <snippet>Business logic in services, thin wrappers in tools, infrastructure for HTTP/cache</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/CODING-STANDARDS.md</path>
+        <title>Coding Standards</title>
+        <section>overview</section>
+        <snippet>Type safety, mypy strict mode, ruff formatting requirements</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/TESTING.md</path>
+        <title>Testing Strategy</title>
+        <section>overview</section>
+        <snippet>100% coverage target for new functionality, behavioral testing patterns</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/story-074-quality-report-tool.md</path>
+        <title>STORY-074: Quality Report Tool</title>
+        <section>dev-agent-record</section>
+        <snippet>test_environment and known fields are available from repository layer (STORY-071)</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/story-073-service-layer.md</path>
+        <title>STORY-073: Service Layer</title>
+        <section>overview</section>
+        <snippet>TestService.list_tests() returns test_environment data</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/story-071-repository-read-paths.md</path>
+        <title>STORY-071: Repository Read Paths</title>
+        <section>overview</section>
+        <snippet>Repository layer surfaces test_environment JSON column and Bug.known boolean</snippet>
+      </doc>
+    </docs>
+    <code>
+      <file>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>service</kind>
+        <symbol>AnalyticsService</symbol>
+        <lines>1-300+</lines>
+        <reason>Primary file to modify: build_dimension_registry() method contains dimension registration logic</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>service</kind>
+        <symbol>build_dimension_registry</symbol>
+        <lines>100-300</lines>
+        <reason>Add test_environment and known_bug dimensions using existing pattern</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/services/analytics_service.py</path>
+        <kind>service</kind>
+        <symbol>get_analytics_capabilities</symbol>
+        <reason>Return test_environment and known_bug in dimensions list</reason>
+      </file>
+      <file>
+        <path>tests/unit/test_analytics_service.py</path>
+        <kind>test</kind>
+        <reason>Primary location for unit tests covering new dimension logic</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/models/orm/test.py</path>
+        <kind>model</kind>
+        <symbol>Test</symbol>
+        <reason>test_environment column structure already exists (STORY-071)</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/models/orm/bug.py</path>
+        <kind>model</kind>
+        <symbol>Bug</symbol>
+        <reason>known boolean column used for known_bug dimension</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/repositories/test_repository.py</path>
+        <kind>repository</kind>
+        <reason>Test data access already includes test_environment from STORY-071</reason>
+      </file>
+      <file>
+        <path>src/testio_mcp/repositories/bug_repository.py</path>
+        <kind>repository</kind>
+        <reason>Bug data access includes known field</reason>
+      </file>
+    </code>
+    <dependencies>
+      <ecosystem name="python">
+        <package name="sqlmodel" version="0.0.18+">SQLAlchemy 2.0 ORM with Pydantic models</package>
+        <package name="sqlalchemy" version="2.0+">json_extract() function for JSON column access</package>
+        <package name="pytest" version="8.0+">Unit and integration test framework</package>
+        <package name="mypy" version="1.7+">Type checking with strict mode</package>
+        <package name="ruff" version="0.5+">Linting and formatting</package>
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="architecture">
+      <description>Service Layer Pattern (ADR-006): Business logic belongs in AnalyticsService, not tools</description>
+    </constraint>
+    <constraint type="architecture">
+      <description>Generic Analytics Framework (Epic 007): Uses declarative dimension registry pattern</description>
+    </constraint>
+    <constraint type="database">
+      <description>SQLite JSON Functions: Use json_extract() for extracting title from test_environment JSON column</description>
+    </constraint>
+    <constraint type="database">
+      <description>Null Handling: test_environment NULL values must be filtered using is_not(None) AND != 'null'</description>
+    </constraint>
+    <constraint type="sorting">
+      <description>Numeric Sorting: Cast test_environment id_column to Integer for proper numeric sorting</description>
+    </constraint>
+    <constraint type="type-safety">
+      <description>All changes must pass mypy strict mode validation</description>
+    </constraint>
+    <constraint type="testing">
+      <description>100% coverage target for new dimension logic</description>
+    </constraint>
+    <constraint type="code-quality">
+      <description>Ruff formatting and linting must pass without errors</description>
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>AnalyticsService.build_dimension_registry</name>
+      <kind>method</kind>
+      <description>Dimension registry builder that registers available dimensions for analytics</description>
+      <signature>def build_dimension_registry(self) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/services/analytics_service.py</path>
+    </interface>
+    <interface>
+      <name>AnalyticsService.get_analytics_capabilities</name>
+      <kind>method</kind>
+      <description>Returns available dimensions and metrics for analytics queries</description>
+      <signature>async def get_analytics_capabilities(self) -> dict[str, Any]</signature>
+      <path>src/testio_mcp/services/analytics_service.py</path>
+    </interface>
+    <interface>
+      <name>query_metrics</name>
+      <kind>mcp-tool</kind>
+      <description>MCP tool for custom analytics with pivot tables, now supports test_environment and known_bug dimensions</description>
+      <signature>async def query_metrics(dimensions: list[str], metrics: list[str], filters: dict | None = None) -> dict</signature>
+      <path>src/testio_mcp/tools/query_metrics_tool.py</path>
+    </interface>
+    <interface>
+      <name>dimension:test_environment</name>
+      <kind>analytics-dimension</kind>
+      <description>Group test metrics by test environment (title extracted from JSON)</description>
+      <usage>query_metrics(dimensions=['test_environment'], metrics=['bug_count'])</usage>
+    </interface>
+    <interface>
+      <name>dimension:known_bug</name>
+      <kind>analytics-dimension</kind>
+      <description>Group bug metrics by known status (true/false)</description>
+      <usage>query_metrics(dimensions=['known_bug'], metrics=['bug_count'])</usage>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+Unit tests use mocked repository/database to test SQL generation and dimension registry without API calls. Test location: tests/unit/test_analytics_service.py. Target 100% coverage of new dimension logic. Follow behavioral testing patterns: test outcomes (query results, capabilities) not implementation details. Cover edge cases including NULL test_environment values, boolean true/false values, and numeric id sorting.
+    </standards>
+    <locations>
+      <location>tests/unit/test_analytics_service.py</location>
+      <location pattern="tests/unit/test_*.py">General unit test pattern</location>
+      <location>tests/integration/</location>
+    </locations>
+    <ideas>
+      <idea acceptanceCriteria="1">Test that get_analytics_capabilities() returns test_environment and known_bug in dimensions list</idea>
+      <idea acceptanceCriteria="2">Test test_environment dimension queries with valid data - results grouped by environment name (title)</idea>
+      <idea acceptanceCriteria="2">Test test_environment dimension with NULL values - verify they are properly excluded from results</idea>
+      <idea acceptanceCriteria="2">Test test_environment JSON extraction - verify title is correctly extracted from nested structure</idea>
+      <idea acceptanceCriteria="2">Test test_environment numeric sorting - verify id_column cast to Integer works correctly</idea>
+      <idea acceptanceCriteria="3">Test known_bug dimension with true/false values - results grouped correctly by boolean status</idea>
+      <idea acceptanceCriteria="3">Test known_bug dimension string formatting - verify 'true'/'false' strings appear in output</idea>
+      <idea acceptanceCriteria="3">Test dimension registry includes both test_environment and known_bug entries</idea>
+      <idea acceptanceCriteria="1,2,3">Test SQL generation for both dimensions - verify correct query construction</idea>
+      <idea acceptanceCriteria="1,2,3">Test full query_metrics end-to-end with new dimensions - integration test</idea>
+      <idea acceptanceCriteria="1,2,3">Verify mypy strict mode passes on all changes</idea>
+      <idea acceptanceCriteria="1,2,3">Verify ruff formatting and linting passes on all changes</idea>
+      <idea acceptanceCriteria="1,2,3">Run full test suite to verify no regressions - should be 666+ tests passing</idea>
+    </ideas>
+  </tests>
+</story-context>
