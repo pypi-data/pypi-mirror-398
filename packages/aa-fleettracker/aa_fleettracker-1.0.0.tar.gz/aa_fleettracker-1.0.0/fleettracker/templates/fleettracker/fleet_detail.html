@@ -1,0 +1,95 @@
+{% extends "fleettracker/base.html" %}
+{% load fleettracker_tags %}
+{% load i18n %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="card mb-3">
+    <div class="card-header">
+      <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
+        <div class="me-3">
+          <strong>
+            {% if snap.label %}{{ snap.label }}{% else %}{% blocktrans with fleet_id=snap.fleet_id %}Fleet {{ fleet_id }}{% endblocktrans %}{% endif %}
+          </strong><br>
+          <small class="text-muted">{% blocktrans with created_at=snap.created_at commander_name=snap.commander_name %}{{ created_at }} — Commander: {{ commander_name }}{% endblocktrans %}</small>
+        </div>
+        <form method="get" class="d-flex align-items-center gap-2 m-0">
+          <select name="corp" class="form-select form-select-sm" style="flex: 30%;" onchange="this.form.submit()">
+            <option value="" {% if not selected_corp_id %}selected{% endif %}>{% trans "All corps" %}</option>
+            {% for c in corp_options %}
+              <option value="{{ c.corporation_id }}"
+                {% if selected_corp_id == c.corporation_id %}selected{% endif %}>
+                {{ c.corporation_name|default:c.corporation_id }} ({{ c.cnt }})
+              </option>
+            {% endfor %}
+          </select>
+          <span class="text-muted small">
+            {% blocktrans with filtered_count=filtered_count %}Showing: <strong>{{ filtered_count }}</strong>{% endblocktrans %}
+          </span>
+        </form>
+        <a class="btn btn-sm btn-secondary" href="{% url 'fleettracker:dashboard' %}">{% trans "Back" %}</a>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-lg-4">
+          <h6>{% trans "By Corporation" %}</h6>
+          {% for row in corp_rows %}
+            <div class="d-flex align-items-center mb-2">
+              <img src="{% corp_logo_url row.corporation_id 32 %}" width="24" height="24" class="me-2" alt="">
+              <div class="flex-grow-1">{{ row.corporation_name|default:row.corporation_id }}</div>
+              <span class="badge bg-secondary">{{ row.cnt }}</span>
+            </div>
+          {% empty %}
+            <div class="text-muted">{% trans "No data." %}</div>
+          {% endfor %}
+        </div>
+
+        <div class="col-lg-4">
+          <h6>{% trans "By Ship Type" %}</h6>
+          {% for row in ship_rows %}
+            <div class="d-flex justify-content-between mb-1">
+              <div>{{ row.ship_type_name|default:row.ship_type_id }}</div>
+              <span class="badge bg-secondary">{{ row.cnt }}</span>
+            </div>
+          {% empty %}
+            <div class="text-muted">{% trans "No data." %}</div>
+          {% endfor %}
+        </div>
+
+        <div class="col-lg-12">
+          <h6 class="mt-3">{% trans "Members" %}</h6>
+          <div class="table-responsive">
+            <table class="table table-sm table-striped">
+              <thead>
+                <tr>
+                  <th>{% trans "Character" %}</th>
+                  <th>{% trans "Corporation" %}</th>
+                  <th>{% trans "Ship" %}</th>
+                  <th>{% trans "Role" %}</th>
+                  <th>{% trans "System Name" %}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for m in members %}
+                  <tr>
+                    <td>{{ m.character_name|default:m.character_id }}</td>
+                    <td>{{ m.corporation_name|default:m.corporation_id }}</td>
+                    <td>{{ m.ship_type_name|default:m.ship_type_id }}</td>
+                    <td>{{ m.role_name|default:m.role }}</td>
+                    <td>{{ m.solar_system_id }}</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="5" class="text-muted">{% trans "No members saved." %}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends "fleettracker/base.html" %}
+{% load fleettracker_tags %}
+{% load i18n %}
+{% block header_nav_collapse_right %}
+  {{ block.super }}
+    <form method="get" action="{% url 'fleettracker:connect_fc_token' %}">
+      <button type="submit" class="btn btn-success">{% trans "Log in with your character" %}</button>
+    </form>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+
+  <div class="card mb-3">
+    <div class="card-header">
+      <strong>{% trans "Fleet Snapshots" %}</strong>
+    </div>
+    <div class="card-body">
+      <form method="post" action="{% url 'fleettracker:snapshot_now' %}" class="row g-2">
+        {% csrf_token %}
+        <div class="col-md-6">
+          {{ form.label }}
+          <div class="form-text">{{ form.label.help_text }}</div>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          {% if perms.fleettracker.take_snapshot %}
+          <button class="btn btn-primary" type="submit">
+            <i class="fas fa-camera"></i> {% trans "Take snapshot" %}
+          </button>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% for s in snaps %}
+    <a href="{% url 'fleettracker:fleet_detail' s.id %}" class="card mb-3 text-decoration-none text-reset ft-card-link">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+          <strong>
+            {% if s.label %}{{ s.label }}{% else %}{% blocktrans with fleet_id=s.fleet_id %}Fleet {{ fleet_id }}{% endblocktrans %}{% endif %}
+          </strong><br>
+          <small class="text-muted">{{ s.created_at }}</small>
+        </div>
+
+        <div class="d-flex gap-2 align-items-center">
+          <span class="badge bg-primary">{% blocktrans with member_count=s.member_count %}{{ member_count }} members{% endblocktrans %}</span>
+        </div>
+      </div>
+      
+      <div class="card-body">
+        <div class="d-flex flex-wrap gap-2">
+          {% for row in s.corp_rows %}
+            <div class="ft-chip">
+              <img src="{% corp_logo_url row.corporation_id 32 %}" width="24" height="24" class="me-2" alt="">
+              <span class="me-2">{{ row.corporation_name|default:row.corporation_id }}</span>
+              <span class="badge bg-secondary">{{ row.cnt }}</span>
+            </div>
+          {% empty %}
+            <div class="text-muted">{% trans "No members stored." %}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </a>
+  {% empty %}
+    <div class="alert alert-info">{% trans "Brak snapshotów." %}</div>
+  {% endfor %}
+
+</div>
+{% endblock %}
