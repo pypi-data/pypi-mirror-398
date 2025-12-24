@@ -1,0 +1,78 @@
+Metadata-Version: 2.4
+Name: cerebrixos-auth
+Version: 0.1.1
+Summary: JWT/OIDC + multi-tenant scoping helpers for CerebrixOS services
+Author-email: CerebrixOS <vc@cerebrixos.com>
+License: MIT License
+        
+        Copyright (c) 2025
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Homepage, https://www.cerebrixos.com
+Project-URL: Repository, https://www.cerebrixos.com
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: python-jose[cryptography]>=3.3.0
+Requires-Dist: requests>=2.31.0
+Dynamic: license-file
+
+# cerebrixos_auth
+
+Auth helpers for CerebrixOS-style multi-tenant systems.
+
+## Install
+
+```bash
+pip install cerebrixos_auth
+```
+
+## Environment variables
+
+Required:
+- CEREBRIX_ENV=test|prod
+- OIDC_ISSUER
+- OIDC_AUDIENCE
+- WEBHOOK_HMAC_SECRET
+- DOWNLOAD_SIGNING_KEY
+
+Test-only:
+- TEST_JWT_SECRET (required when CEREBRIX_ENV=test)
+
+Optional:
+- FILE_URL_TTL_SECONDS (default 900)
+- JWKS_CACHE_TTL_SECONDS (default 3600)
+- JWKS_TIMEOUT_SECONDS (default 5)
+
+## Quick usage (FastAPI)
+
+```python
+from fastapi import FastAPI, Request
+from cerebrixos_auth import load_config_from_env, verify_bearer_jwt, tenant_user_from_payload
+
+app = FastAPI()
+cfg = load_config_from_env()
+
+@app.get("/secure")
+def secure(req: Request):
+    payload = verify_bearer_jwt(req.headers.get("authorization"), cfg)
+    tenant_id, user_id = tenant_user_from_payload(payload)
+    return {"tenant_id": tenant_id, "user_id": user_id}
+```
