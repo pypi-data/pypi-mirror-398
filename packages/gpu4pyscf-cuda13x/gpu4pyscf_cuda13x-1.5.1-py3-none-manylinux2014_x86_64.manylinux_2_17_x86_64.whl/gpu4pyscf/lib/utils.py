@@ -1,0 +1,154 @@
+# Copyright 2021-2024 The PySCF Developers. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
+import sys
+import time
+import platform
+import h5py
+import functools
+import cupy
+import numpy
+import scipy
+import pyscf
+from pyscf import lib
+from pyscf.lib import parameters as param
+import gpu4pyscf
+
+def patch_cpu_kernel(cpu_kernel):
+    '''Generate a decorator to patch cpu function to gpu function'''
+    def patch(gpu_kernel):
+        @functools.wraps(cpu_kernel)
+        def hybrid_kernel(method, *args, **kwargs):
+            if getattr(method, 'device', 'cpu') == 'gpu':
+                return gpu_kernel(method, *args, **kwargs)
+            else:
+                return cpu_kernel(method, *args, **kwargs)
+        hybrid_kernel.__package__ = 'gpu4pyscf'
+        return hybrid_kernel
+    return patch
+
+class _OmniObject:
+    '''Class with default attributes. When accessing an attribute that is not
+    initialized, a default value will be returned than raising an AttributeError.
+    '''
+    verbose = 0
+    max_memory = param.MAX_MEMORY
+    stdout = sys.stdout
+
+    def __init__(self, default_factory=None):
+        self._default = default_factory
+
+    def __getattr__(self, key):
+        return self._default
+
+omniobj = _OmniObject()
+omniobj.mol = omniobj
+omniobj._scf = omniobj
+omniobj.base = omniobj
+
+def to_cpu(method, out=None):
+    if method.__module__.startswith('pyscf'):
+        return method
+
+    if out is None:
+        import pyscf
+
+        if isinstance(method, (lib.SinglePointScanner, lib.GradScanner)):
+            method = method.undo_scanner()
+
+        from importlib import import_module
+        mod = import_module(method.__module__.replace('gpu4pyscf', 'pyscf'))
+        cls = getattr(mod, method.__class__.__name__)
+        out = method.view(cls)
+
+    cls_keys = set.union(*[getattr(cls, '_keys', ()) for cls in out.__class__.__mro__[:-1]])
+    gpu_keys = set.union(*[getattr(cls, '_keys', ()) for cls in method.__class__.__mro__[:-1]])
+    # Discards keys that are only defined in GPU classes
+    discards = gpu_keys.difference(cls_keys)
+    for k in discards:
+        out.__dict__.pop(k, None)
+
+    for key, val in method.__dict__.items():
+        # Convert only the keys that are defined in the corresponding GPU class
+        if key in cls_keys:
+            if hasattr(val, 'to_cpu'):
+                val = val.to_cpu()
+            elif isinstance(val, cupy.ndarray):
+                val = val.get()
+        setattr(out, key, val)
+
+    for key in ['_scf', '_numint']:
+        val = getattr(method, key, None)
+        if hasattr(val, 'to_cpu'):
+            setattr(out, key, val.to_cpu())
+
+    if hasattr(out, 'reset'):
+        try:
+            out.reset()
+        except NotImplementedError:
+            pass
+    return out
+
+def to_gpu(method, device=None):
+    return method
+
+@property
+def device(obj):
+    if 'gpu4pyscf' in obj.__class__.__module__:
+        return 'gpu'
+    else:
+        return 'cpu'
+
+#@patch_cpu_kernel(lib.misc.format_sys_info)
+def format_sys_info():
+    '''Format a list of system information for printing.'''
+    from cupyx._runtime import get_runtime_info
+    from gpu4pyscf.__config__ import num_devices, mem_fraction, props as device_props
+
+    pyscf_info = lib.repo_info(pyscf.__file__)
+    gpu4pyscf_info = lib.repo_info(os.path.join(__file__, '..', '..'))
+    cuda_version = cupy.cuda.runtime.runtimeGetVersion()
+    cuda_version = f"{cuda_version // 1000}.{(cuda_version % 1000) // 10}"
+
+    runtime_info = get_runtime_info()
+    result = [
+        f'System: {platform.uname()}  Threads {lib.num_threads()}',
+        f'Python {sys.version}',
+        f'numpy {numpy.__version__}  scipy {scipy.__version__}  '
+        f'h5py {h5py.__version__}',
+        f'Date: {time.ctime()}',
+        f'PySCF version {pyscf.__version__}',
+        f'PySCF path  {pyscf_info["path"]}',
+        'CUDA Environment',
+        f'    CuPy {runtime_info.cupy_version}',
+        f'    CUDA Path {runtime_info.cuda_path}',
+        f'    CUDA Build Version {runtime_info.cuda_build_version}',
+        f'    CUDA Driver Version {runtime_info.cuda_driver_version}',
+        f'    CUDA Runtime Version {runtime_info.cuda_runtime_version}',
+        'CUDA toolkit',
+        f'    cuSolver {runtime_info.cusolver_version}',
+        f'    cuBLAS {runtime_info.cublas_version}',
+        f'    cuTENSOR {runtime_info.cutensor_version}',
+        'Device info',
+        f'    Device name {device_props["name"]}',
+        f'    Device global memory {device_props["totalGlobalMem"] / 1024**3:.2f} GB',
+        f'    CuPy memory fraction {mem_fraction}',
+        f'    Num. Devices {num_devices}',
+        f'GPU4PySCF {gpu4pyscf.__version__}',
+        f'GPU4PySCF path  {gpu4pyscf_info["path"]}'
+    ]
+    if 'git' in pyscf_info:
+        result.append(pyscf_info['git'])
+    return result
