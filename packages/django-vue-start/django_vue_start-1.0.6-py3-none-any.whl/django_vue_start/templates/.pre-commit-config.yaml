@@ -1,0 +1,72 @@
+# Pre-commit configuration
+# Install: pip install pre-commit && pre-commit install
+
+repos:
+  # Python formatting
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3.11
+        args: ['--line-length=88']
+        files: ^backend/
+
+  # Python import sorting
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ['--profile=black']
+        files: ^backend/
+
+  # Python linting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.9
+    hooks:
+      - id: ruff
+        args: ['--fix']
+        files: ^backend/
+
+  # JavaScript/Vue formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        types_or: [javascript, vue, css, json, yaml, markdown]
+        files: ^frontend/
+
+  # JavaScript linting
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v8.56.0
+    hooks:
+      - id: eslint
+        files: ^frontend/.*\.(js|vue)$
+        additional_dependencies:
+          - eslint@8.56.0
+          - eslint-plugin-vue@9.20.0
+
+  # General checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Security checks
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        args: ['-c', 'pyproject.toml', '-r']
+        files: ^backend/
+        additional_dependencies: ['bandit[toml]']
+
+ci:
+  autofix_commit_msg: 'style: auto-fixes from pre-commit hooks'
+  autoupdate_commit_msg: 'chore: update pre-commit hooks'
