@@ -1,0 +1,3 @@
+"""
+gopylink - A placeholder package
+"""
