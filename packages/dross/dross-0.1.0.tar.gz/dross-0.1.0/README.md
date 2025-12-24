@@ -1,0 +1,244 @@
+# Dross
+
+> *The byproduct of refinement becomes the foundation of insight.*
+
+**Dross** is a reusable ML pipeline framework for Kaggle and data science projects. It provides:
+
+- **Medallion Architecture**: Bronze (ingestion) → Silver (cleaning) → Gold (preparation)
+- **MLflow Integration**: Experiment tracking and model versioning
+- **Unity Catalog**: Centralized data governance and catalog management
+- **Extensible Models**: BaseModel ABC for custom implementations
+- **Feature Extraction**: TF-IDF vectorization utilities
+
+## Quick Start
+
+### Installation
+
+```bash
+pip install dross
+```
+
+### Basic Usage
+
+```python
+from dross.data import MedallionPipeline
+from dross.tracking import ExperimentTracker, UCClient
+from dross.models import BaseModel, get_model
+from dross.utilities import TfidfVectorizer
+
+# Setup medallion pipeline
+uc_client = UCClient(server="http://localhost:8080")
+pipeline = MedallionPipeline(cfg.unity_catalog, uc_client, storage_base)
+
+# Ingest data to Bronze
+await pipeline.ingest(raw_csv_path, columns=schema_def)
+
+# Clean data to Silver
+await pipeline.clean(source_table, target_table, transform_func)
+
+# Prepare for training in Gold
+await pipeline.prepare(source_table, target_table)
+
+# Track experiments
+tracker = ExperimentTracker(experiment_name="my-experiment")
+tracker.start_run(run_name="run-1", tags={"model": "logistic_regression"})
+tracker.log_metrics({"accuracy": 0.95})
+tracker.end_run()
+```
+
+## Architecture
+
+### Medallion Layers
+
+```
+Bronze Layer (Raw)
+    ↓ [ingest]
+Silver Layer (Cleaned)
+    ↓ [clean]
+Gold Layer (Prepared)
+    ↓ [train/analyze]
+```
+
+### Configuration
+
+Dross expects configuration via `kef.yaml`:
+
+```yaml
+unity_catalog:
+  project_name: my_project
+  schema:
+    bronze: my_project_bronze
+    silver: my_project_silver
+    gold: my_project_gold
+  storage_base: file:///data/kaggle/my_project
+
+mlflow:
+  experiment_name: my-experiment
+  tracking_uri: http://localhost:5000
+
+tables:
+  bronze:
+    raw: raw
+  silver:
+    cleaned: cleaned
+  gold:
+    dataset: dataset
+```
+
+## CLI
+
+Dross includes minimal CLI utilities:
+
+```bash
+# Validate configuration
+dross config validate
+
+# Show schema expectations
+dross schema
+
+# Version info
+dross --version
+```
+
+## Project Integration
+
+### Step 1: Add Dross Dependency
+
+```toml
+# pyproject.toml
+dependencies = [
+    "dross",
+    "kef",
+    ...
+]
+```
+
+### Step 2: Implement Project Models
+
+```python
+# src/my_project/models/custom_model.py
+from dross.models import BaseModel
+from sklearn.ensemble import GradientBoostingClassifier
+
+class GradBoostModel(BaseModel):
+    def build(self):
+        self.model = GradientBoostingClassifier(
+            n_estimators=self.config.get("n_estimators", 100)
+        )
+```
+
+### Step 3: Use in Data Pipeline
+
+```python
+# src/my_project/data/ingest.py
+from dross.data import MedallionPipeline
+from dross.tracking import UCClient
+from kef import cfg
+
+async def run_ingest():
+    uc = UCClient(server=cfg.unity_catalog.get("server"))
+    pipeline = MedallionPipeline(cfg.unity_catalog, uc, cfg.paths.storage)
+    await pipeline.ingest(source_csv, columns=schema_def)
+```
+
+### Step 4: Define Make Targets
+
+```makefile
+# Makefile - data pipeline targets
+data.ingest:
+	uv run python -m my_project.data.ingest
+
+data.clean:
+	uv run python -m my_project.data.clean
+
+data.prepare:
+	uv run python -m my_project.data.prepare
+
+data.pipeline: data.ingest data.clean data.prepare
+
+train:
+	uv run python -m my_project.train
+
+eval:
+	uv run python -m my_project.evaluate
+```
+
+## Components
+
+### `dross.data.MedallionPipeline`
+
+Orchestrates medallion layers with DuckDB and Unity Catalog.
+
+**Methods:**
+- `ingest(source_file, catalog, schema_name, table_name, columns)` - Bronze ingestion
+- `clean(source_table, target_table, transform_func, ...)` - Silver transformation
+- `prepare(source_table, target_table, ...)` - Gold preparation
+
+### `dross.tracking.ExperimentTracker`
+
+MLflow experiment tracking wrapper.
+
+**Methods:**
+- `start_run(run_name, tags)` - Start tracking run
+- `log_params(params)` - Log hyperparameters
+- `log_metrics(metrics, step)` - Log metrics
+- `log_model(model, name)` - Log model artifact
+- `log_artifact(local_path, artifact_path)` - Log file artifact
+- `end_run(status)` - End run
+
+### `dross.tracking.UCClient`
+
+Unity Catalog client wrapper.
+
+**Methods:**
+- `catalog_create(name)` - Create catalog
+- `schema_create(catalog, name)` - Create schema
+- `table_create(catalog, schema, name, columns, storage_location)` - Create table
+
+### `dross.models.BaseModel`
+
+Abstract base for model implementations.
+
+**Methods:**
+- `build()` - Initialize model instance
+- `fit(X, y)` - Train model
+- `predict(X)` - Get predictions
+- `predict_proba(X)` - Get probability predictions
+
+### `dross.utilities.TfidfVectorizer`
+
+Scikit-learn TF-IDF wrapper with sensible defaults.
+
+```python
+from dross.utilities import TfidfVectorizer
+
+vectorizer = TfidfVectorizer(max_features=5000, lowercase=True)
+X = vectorizer.fit_transform(texts)
+```
+
+## Development
+
+```bash
+# Setup
+make sync
+
+# Format & lint
+make fmt
+make lint
+
+# Type check
+make typecheck
+
+# Run tests
+make test
+
+# Full QA
+make qa
+
+# Build
+make build
+```
+
+## License
+
+MIT - See LICENSE file
