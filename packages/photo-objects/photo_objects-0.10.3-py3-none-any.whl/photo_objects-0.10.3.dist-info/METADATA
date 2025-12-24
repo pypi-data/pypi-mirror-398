@@ -1,0 +1,118 @@
+Metadata-Version: 2.4
+Name: photo-objects
+Version: 0.10.3
+Summary: Application for storing photos in S3 compatible object-storage.
+Author: Toni Kangas
+License: MIT License
+        
+        Copyright (c) 2024 Toni Kangas
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Homepage, https://github.com/kangasta/photo-objects
+Project-URL: Repository, https://github.com/kangasta/photo-objects.git
+Classifier: Environment :: Web Environment
+Classifier: Framework :: Django
+Classifier: Framework :: Django :: 5.0
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Internet :: WWW/HTTP :: Dynamic Content
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: markdown~=3.7
+Requires-Dist: minio<7.2.19,>=7.2.0
+Requires-Dist: pillow~=10.4
+Dynamic: license-file
+
+# Photo Objects
+
+[![CI](https://github.com/kangasta/photo-objects/actions/workflows/ci.yml/badge.svg)](https://github.com/kangasta/photo-objects/actions/workflows/ci.yml)
+
+Application for storing photos in S3 compatible object-storage.
+
+## Developing
+
+Make migrations:
+
+```sh
+python3 back/manage.py makemigrations --pythonpath="$(pwd)"
+```
+
+## Testing
+
+### Static analysis
+
+Check and automatically fix formatting with:
+
+```sh
+pycodestyle --exclude back/api/settings.py,*/migrations/*.py back photo_objects
+autopep8 -aaar --in-place --exclude back/api/settings.py,*/migrations/*.py back photo_objects
+```
+
+Run static analysis with:
+
+```sh
+pylint back/api photo_objects
+```
+
+### Integration tests
+
+Run integration tests (in the `api` directory) with:
+
+```sh
+python3 runtests.py
+```
+
+Get test coverage with:
+
+```sh
+coverage run --branch --source photo_objects runtests.py
+coverage report -m
+```
+
+### End-to-end tests
+
+Run end-to-end tests with Docker Compose:
+
+```sh
+docker compose -f docker-compose.test.yaml up --exit-code-from test --build
+```
+
+Run end-to-end tests in interactive mode (in the `tests` directory):
+
+```sh
+# Install dependencies
+npm ci
+
+# Start test target
+docker compose up -d
+
+# Configure credentials
+export USERNAME=admin
+export PASSWORD=$(docker compose exec api cat /var/photo_objects/initial_admin_password)
+
+# Start test UI
+npx playwright test --ui
+```
