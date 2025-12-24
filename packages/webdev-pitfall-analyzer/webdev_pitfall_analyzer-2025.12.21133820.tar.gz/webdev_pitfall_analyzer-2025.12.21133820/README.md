@@ -1,0 +1,154 @@
+# webdev-pitfall-analyzer
+[![PyPI version](https://badge.fury.io/py/webdev-pitfall-analyzer.svg)](https://badge.fury.io/py/webdev-pitfall-analyzer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/webdev-pitfall-analyzer)](https://pepy.tech/project/webdev-pitfall-analyzer)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**webdev-pitfall-analyzer** helps developers quickly spot common web‑development pitfalls—security issues, accessibility problems, performance bottlenecks, outdated patterns, and more—by analysing short text inputs such as code snippets, design questions, or discussion fragments. The package uses an LLM (by default **ChatLLM7** from `langchain_llm7`) to return a concise, structured list of warnings and best‑practice recommendations.
+
+---
+
+## 📦 Installation
+
+```bash
+pip install webdev_pitfall_analyzer
+```
+
+---
+
+## 🚀 Quick start
+
+```python
+from webdev_pitfall_analyzer import webdev_pitfall_analyzer
+
+# Example HTML/JS snippet
+snippet = """
+<input type="text" onblur="doBadThing()" />
+<script>
+  function doBadThing() {
+    eval(userInput);   // <- unsafe!
+  }
+</script>
+"""
+
+warnings = webdev_pitfall_analyzer(user_input=snippet)
+print(warnings)
+```
+
+**Output (example)**
+
+```
+[
+  "⚠️ Use of `eval` can lead to XSS vulnerabilities. Consider safer alternatives.",
+  "⚠️ Missing `label` element for the input; this hurts accessibility.",
+  "⚠️ Inline event handlers (`onblur`) are discouraged; attach listeners via JavaScript instead."
+]
+```
+
+---
+
+## 🛠️ Function signature
+
+```python
+def webdev_pitfall_analyzer(
+    user_input: str,
+    api_key: Optional[str] = None,
+    llm: Optional[BaseChatModel] = None,
+) -> List[str]:
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_input` | `str` | The text (code, question, description, etc.) you want analysed. |
+| `api_key` | `Optional[str]` | API key for **ChatLLM7**. If omitted, the function will look for the `LLM7_API_KEY` environment variable; if still not found it falls back to an unauthenticated request (may be rate‑limited). |
+| `llm` | `Optional[BaseChatModel]` | Any LangChain‑compatible LLM instance. If not supplied, the default `ChatLLM7` (from `langchain_llm7`) is used. |
+
+The function returns a list of warning/recommendation strings. If the underlying LLM call fails, a `RuntimeError` is raised.
+
+---
+
+## 🔧 Using a custom LLM
+
+You can pass any LangChain chat model that follows the `BaseChatModel` interface.
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from webdev_pitfall_analyzer import webdev_pitfall_analyzer
+
+my_llm = ChatOpenAI(model="gpt-4o-mini")
+result = webdev_pitfall_analyzer(user_input="...", llm=my_llm)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from webdev_pitfall_analyzer import webdev_pitfall_analyzer
+
+my_llm = ChatAnthropic(model="claude-3-haiku-20240307")
+result = webdev_pitfall_analyzer(user_input="...", llm=my_llm)
+```
+
+### Google GenAI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from webdev_pitfall_analyzer import webdev_pitfall_analyzer
+
+my_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+result = webdev_pitfall_analyzer(user_input="...", llm=my_llm)
+```
+
+---
+
+## 🔑 API key for ChatLLM7
+
+*The default free tier of LLM7 is sufficient for most occasional analyses.*
+
+- Set the key once in your environment:
+
+```bash
+export LLM7_API_KEY="your_llm7_key"
+```
+
+- Or pass it directly:
+
+```python
+result = webdev_pitfall_analyzer(user_input="...", api_key="your_llm7_key")
+```
+
+Obtain a free key by registering at <https://token.llm7.io/>.
+
+---
+
+## 📚 What the analyzer looks for
+
+- **Security** – unsafe functions (`eval`, `innerHTML`, etc.), injection risks.
+- **Accessibility** – missing ARIA attributes, improper heading structure, unlabeled form controls.
+- **Performance** – blocking synchronous XHR, large inline assets, unnecessary reflows.
+- **Modern best practices** – deprecated APIs, outdated HTML5 elements, inefficient CSS selectors.
+
+The underlying prompt (`human_prompt`, `system_prompt`) can be customised by forking the repository.
+
+---
+
+## 📂 Repository
+
+🛠️ Issues & feature requests: <https://github.com/chigwell/webdev_pitfall_analyzer/issues>
+
+---
+
+## 👤 Author
+
+**Eugene Evstafev**  
+Email: <hi@eugene.plus>  
+GitHub: <https://github.com/chigwell>
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License**. See the `LICENSE` file for details.
