@@ -1,0 +1,54 @@
+<div align=center>
+<h1>
+libm-ext
+</h1>
+<p align="center">
+A Python package wrapping the essential mathematical special functions in <a href="https://crates.io/crates/libm-ext">libm-ext</a> with vectorized support.
+</p>
+<p align="center">
+<img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/crates/l/libm-ext?style=for-the-badge">
+<a href="https://pypi.org/project/libm-ext/"> <img alt="PyPI" src="https://img.shields.io/pypi/v/libm-ext?style=for-the-badge"> </a>
+</p>
+</div>
+
+## Trigonometric functions
+
+- `sinpi` / `sinpif` for $\sin(\pi x)$ (double-precision / single-precision)
+- `cospi` / `cospif` for $\cos(\pi x)$ (double-precision / single-precision)
+- `sincospi` / `sincospif` for $\sin(\pi x)$ and $\cos(\pi x)$ (double-precision / single-precision)
+
+## Usage
+### Scalar functions
+
+```python
+from libm_ext import sinpi, cospi, sincospi
+
+sinpi(1.0)
+cospi(1.0)
+sincospi(1.0)
+```
+### Vectorized functions with NumPy ndarray
+
+```python
+import numpy as np
+from libm_ext.vectorized import sinpi, cospi
+
+x = np.random.standard_normal(16000)
+sinpi(x)
+cospi(x)
+```
+
+## License
+
+Licensed under either of:
+
+ * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or <https://www.apache.org/licenses/LICENSE-2.0>)
+ * MIT license ([LICENSE-MIT](LICENSE-MIT) or <https://opensource.org/licenses/MIT>)
+
+at your option.
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any
+additional terms or conditions.
