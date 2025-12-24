@@ -1,0 +1,89 @@
+# rossmann-appearance-analyzer
+[![PyPI version](https://badge.fury.io/py/rossmann-appearance-analyzer.svg)](https://badge.fury.io/py/rossmann-appearance-analyzer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/rossmann-appearance-analyzer)](https://pepy.tech/project/rossmann-appearance-analyzer)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A Python package for analyzing user inputs to avoid negative or unwelcome appearances on a Louis Rossmann video. The package processes text input to identify key factors or common pitfalls and provides structured recommendations to prevent such outcomes.
+
+## Installation
+
+You can install the package via pip:
+
+```bash
+pip install rossmann_appearance_analyzer
+```
+
+## Usage
+
+Here's a basic example of how to use the package:
+
+```python
+from rossmann_appearance_analyzer import rossmann_appearance_analyzer
+
+user_input = "Your text input here..."
+results = rossmann_appearance_analyzer(user_input=user_input)
+print(results)
+```
+
+### Using a Different LLM
+
+By default, the package uses `ChatLLM7` from `langchain_llm7` (see [PyPI](https://pypi.org/project/langchain-llm7/)). However, you can pass your own LangChain-compatible LLM instance. For example, to use OpenAI:
+
+```python
+from langchain_openai import ChatOpenAI
+from rossmann_appearance_analyzer import rossmann_appearance_analyzer
+
+llm = ChatOpenAI()
+response = rossmann_appearance_analyzer(user_input="Your input", llm=llm)
+```
+
+To use Anthropic:
+
+```python
+from langchain_anthropic import ChatAnthropic
+from rossmann_appearance_analyzer import rossmann_appearance_analyzer
+
+llm = ChatAnthropic()
+response = rossmann_appearance_analyzer(user_input="Your input", llm=llm)
+```
+
+To use Google Generative AI:
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from rossmann_appearance_analyzer import rossmann_appearance_analyzer
+
+llm = ChatGoogleGenerativeAI()
+response = rossmann_appearance_analyzer(user_input="Your input", llm=llm)
+```
+
+### Providing an API Key
+
+If you want to use the default `ChatLLM7` with your own API key (for higher rate limits), you can set it via environment variable or pass it directly:
+
+```python
+from rossmann_appearance_analyzer import rossmann_appearance_analyzer
+
+# Via environment variable (set LLM7_API_KEY)
+# Or directly:
+response = rossmann_appearance_analyzer(user_input="Your input", api_key="your_api_key_here")
+```
+
+You can get a free API key by registering at [https://token.llm7.io/](https://token.llm7.io/).
+
+## Parameters
+
+- `user_input` (str): The text input to process.
+- `llm` (Optional[BaseChatModel]): A LangChain LLM instance. If not provided, defaults to `ChatLLM7`.
+- `api_key` (Optional[str]): API key for `ChatLLM7`. If not provided, the package will try to use the `LLM7_API_KEY` environment variable.
+
+## Contributing
+
+If you encounter any issues or have suggestions, please open an issue on [GitHub](https://github.com/chigwell/rossmann-appearance-analyzer/issues).
+
+## Author
+
+- **Eugene Evstafev** - [hi@euegne.plus](mailto:hi@euegne.plus)
+- GitHub: [chigwell](https://github.com/chigwell)
