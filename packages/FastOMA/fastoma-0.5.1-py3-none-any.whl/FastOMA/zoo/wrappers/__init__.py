@@ -1,0 +1,4 @@
+class WrapperError(Exception):
+    pass
+
+
