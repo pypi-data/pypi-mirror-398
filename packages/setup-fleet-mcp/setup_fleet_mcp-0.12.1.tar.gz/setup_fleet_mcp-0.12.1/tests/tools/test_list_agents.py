@@ -1,0 +1,322 @@
+"""Tests for list_agents MCP tool (Layer 1 - Tool Layer)."""
+
+from datetime import datetime
+from unittest.mock import AsyncMock
+
+import pytest
+from fleet_mcp.models import Agent, AgentStatus, ListAgentsResponse
+from fleet_mcp.tools.list_agents import list_agents
+
+
+@pytest.fixture
+def mock_agent_service():
+    """Mock AgentService for testing."""
+    return AsyncMock()
+
+
+@pytest.fixture
+def sample_agents():
+    """Sample agent data for tests."""
+    return [
+        Agent(
+            name="agent-1",
+            workspace_id="ws-1",
+            status=AgentStatus.IDLE,
+            role="coder",
+            project="Setup",
+            last_task="Test task 1",
+            created_at=datetime(2025, 11, 7, 10, 0, 0),
+            updated_at=datetime(2025, 11, 7, 10, 30, 0),
+        ),
+        Agent(
+            name="agent-2",
+            workspace_id="ws-2",
+            status=AgentStatus.BUSY,
+            role="analyst",
+            project="DataOne",
+            last_task="Test task 2",
+            created_at=datetime(2025, 11, 7, 11, 0, 0),
+            updated_at=datetime(2025, 11, 7, 11, 30, 0),
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+class TestListAgents:
+    """Test list_agents MCP tool."""
+
+    async def test_list_agents_returns_correct_response_format(
+        self, mock_agent_service, sample_agents
+    ):
+        """Test that list_agents returns proper MCP response format."""
+        # Arrange
+        mock_agent_service.list_agents.return_value = sample_agents
+
+        # Act
+        result = await list_agents(mock_agent_service)
+
+        # Assert
+        assert isinstance(result, ListAgentsResponse)
+        assert len(result.agents) == 2
+        assert result.total_count == 2
+        assert result.agents[0].name == "agent-1"
+        assert result.agents[1].name == "agent-2"
+
+    async def test_list_agents_delegates_to_service(
+        self, mock_agent_service, sample_agents
+    ):
+        """Test that list_agents delegates to AgentService."""
+        # Arrange
+        mock_agent_service.list_agents.return_value = sample_agents
+
+        # Act
+        await list_agents(mock_agent_service)
+
+        # Assert
+        mock_agent_service.list_agents.assert_called_once_with(
+            status_filter=None, project_filter=None
+        )
+
+    async def test_list_agents_with_status_filter(
+        self, mock_agent_service, sample_agents
+    ):
+        """Test list_agents with status filter parameter."""
+        # Arrange
+        idle_agents = [a for a in sample_agents if a.status == AgentStatus.IDLE]
+        mock_agent_service.list_agents.return_value = idle_agents
+
+        # Act
+        result = await list_agents(mock_agent_service, status_filter=AgentStatus.IDLE)
+
+        # Assert
+        assert isinstance(result, ListAgentsResponse)
+        assert len(result.agents) == 1
+        assert result.agents[0].status == AgentStatus.IDLE
+        mock_agent_service.list_agents.assert_called_once_with(
+            status_filter=AgentStatus.IDLE, project_filter=None
+        )
+
+    async def test_list_agents_with_project_filter(
+        self, mock_agent_service, sample_agents
+    ):
+        """Test list_agents with project filter parameter."""
+        # Arrange
+        setup_agents = [a for a in sample_agents if a.project == "Setup"]
+        mock_agent_service.list_agents.return_value = setup_agents
+
+        # Act
+        result = await list_agents(mock_agent_service, project_filter="Setup")
+
+        # Assert
+        assert isinstance(result, ListAgentsResponse)
+        assert len(result.agents) == 1
+        assert result.agents[0].project == "Setup"
+        mock_agent_service.list_agents.assert_called_once_with(
+            status_filter=None, project_filter="Setup"
+        )
+
+    async def test_list_agents_empty_list(self, mock_agent_service):
+        """Test list_agents when no agents exist."""
+        # Arrange
+        mock_agent_service.list_agents.return_value = []
+
+        # Act
+        result = await list_agents(mock_agent_service)
+
+        # Assert
+        assert isinstance(result, ListAgentsResponse)
+        assert len(result.agents) == 0
+        assert result.total_count == 0
+
+    async def test_list_agents_calculates_total_count(
+        self, mock_agent_service, sample_agents
+    ):
+        """Test that total_count is accurately calculated."""
+        # Arrange
+        mock_agent_service.list_agents.return_value = sample_agents
+
+        # Act
+        result = await list_agents(mock_agent_service)
+
+        # Assert
+        assert result.total_count == len(sample_agents)
+        assert result.total_count == 2
+
+    async def test_list_agents_excludes_workspace_id(
+        self, mock_agent_service, sample_agents
+    ):
+        """Test that workspace_id and updated_at are excluded from list view."""
+        # Arrange
+        mock_agent_service.list_agents.return_value = sample_agents
+
+        # Act
+        result = await list_agents(mock_agent_service)
+
+        # Assert
+        assert isinstance(result, ListAgentsResponse)
+        assert len(result.agents) == 2
+
+        # Verify agents in list don't expose workspace_id or updated_at
+        for agent_view in result.agents:
+            # Agent view should not have workspace_id or updated_at attributes
+            assert not hasattr(
+                agent_view, "workspace_id"
+            ), "workspace_id should not be exposed in list view"
+            assert not hasattr(
+                agent_view, "updated_at"
+            ), "updated_at should not be exposed in list view"
+
+            # Agent view should have other fields
+            assert hasattr(agent_view, "name")
+            assert hasattr(agent_view, "status")
+            assert hasattr(agent_view, "role")
+            assert hasattr(agent_view, "project")
+            assert hasattr(agent_view, "last_task")
+            assert hasattr(agent_view, "created_at")
+
+    async def test_list_agents_includes_metadata_field(self, mock_agent_service):
+        """Test that list_agents includes metadata field with count and PR number."""
+        # Arrange - Create agents with metadata
+        agents_with_metadata = [
+            Agent(
+                name="agent-1",
+                workspace_id="ws-1",
+                status=AgentStatus.IDLE,
+                role="coder",
+                project="Setup",
+                last_task="Test task 1",
+                created_at=datetime(2025, 11, 7, 10, 0, 0),
+                updated_at=datetime(2025, 11, 7, 10, 30, 0),
+                metadata={
+                    "data": {
+                        "pull_request_number": {
+                            "value": 819,
+                            "error": None,
+                            "schema": {
+                                "description": "PR number",
+                                "include_in_list": True,
+                            },
+                        },
+                        "git_branch": {
+                            "value": "feature/metadata",
+                            "error": None,
+                            "schema": {
+                                "description": "Git branch",
+                                "include_in_list": True,
+                            },
+                        },
+                    },
+                    "meta": {"version": "1.0"},
+                },
+            ),
+            Agent(
+                name="agent-2",
+                workspace_id="ws-2",
+                status=AgentStatus.BUSY,
+                role="analyst",
+                project="DataOne",
+                last_task="Test task 2",
+                created_at=datetime(2025, 11, 7, 11, 0, 0),
+                updated_at=datetime(2025, 11, 7, 11, 30, 0),
+                metadata=None,  # Agent without metadata
+            ),
+        ]
+        mock_agent_service.list_agents.return_value = agents_with_metadata
+
+        # Act
+        result = await list_agents(mock_agent_service)
+
+        # Assert
+        assert isinstance(result, ListAgentsResponse)
+        assert len(result.agents) == 2
+
+        # Verify first agent has metadata field
+        assert hasattr(result.agents[0], "metadata"), "Agent should have metadata field"
+        assert hasattr(
+            result.agents[0], "metadata_count"
+        ), "Agent should have metadata_count field"
+        assert result.agents[0].metadata is not None
+        assert result.agents[0].metadata_count == 2
+        # Verify metadata contains only include_in_list=True fields and values only
+        assert "pull_request_number" in result.agents[0].metadata
+        assert "git_branch" in result.agents[0].metadata
+        assert result.agents[0].metadata["pull_request_number"] == 819
+        assert result.agents[0].metadata["git_branch"] == "feature/metadata"
+
+        # Verify second agent has no metadata
+        assert hasattr(result.agents[1], "metadata"), "Agent should have metadata field"
+        assert hasattr(
+            result.agents[1], "metadata_count"
+        ), "Agent should have metadata_count field"
+        assert result.agents[1].metadata is None
+        assert result.agents[1].metadata_count == 0
+
+
+@pytest.mark.asyncio
+async def test_list_agents_metadata_count_shows_total_not_filtered(
+    mock_agent_service,
+):
+    """Test that metadata_count shows total fields, not just filtered fields."""
+    # Arrange: Create agent with 3 total fields, but only 1 with include_in_list=true
+    agents_with_metadata = [
+        Agent(
+            name="test-agent",
+            workspace_id="ws-123",
+            status=AgentStatus.IDLE,
+            role="coder",
+            project="TestProject",
+            last_task="Test task",
+            created_at=datetime(2025, 11, 7, 10, 0, 0),
+            updated_at=datetime(2025, 11, 7, 10, 30, 0),
+            metadata={
+                "data": {
+                    "pull_request_number": {
+                        "value": 819,
+                        "error": None,
+                        "schema": {
+                            "description": "PR number",
+                            "include_in_list": True,  # This one is included in list
+                        },
+                    },
+                    "git_branch": {
+                        "value": "feature/metadata",
+                        "error": None,
+                        "schema": {
+                            "description": "Git branch",
+                            "include_in_list": False,  # This one is NOT included
+                        },
+                    },
+                    "commit_sha": {
+                        "value": "abc123",
+                        "error": None,
+                        "schema": {
+                            "description": "Commit SHA",
+                            "include_in_list": False,  # This one is NOT included
+                        },
+                    },
+                },
+                "meta": {"version": "1.0"},
+            },
+        ),
+    ]
+    mock_agent_service.list_agents.return_value = agents_with_metadata
+
+    # Act
+    result = await list_agents(mock_agent_service)
+
+    # Assert
+    assert isinstance(result, ListAgentsResponse)
+    assert len(result.agents) == 1
+
+    # Verify metadata_count shows TOTAL (3), not filtered count (1)
+    assert (
+        result.agents[0].metadata_count == 3
+    ), "metadata_count should show total fields (3), not just filtered (1)"
+
+    # Verify metadata contains only the 1 field with include_in_list=true
+    assert result.agents[0].metadata is not None
+    assert len(result.agents[0].metadata) == 1
+    assert "pull_request_number" in result.agents[0].metadata
+    assert "git_branch" not in result.agents[0].metadata
+    assert "commit_sha" not in result.agents[0].metadata
+    assert result.agents[0].metadata["pull_request_number"] == 819

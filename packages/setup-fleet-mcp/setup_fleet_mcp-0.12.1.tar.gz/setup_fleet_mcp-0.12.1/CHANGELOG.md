@@ -1,0 +1,99 @@
+## 0.12.1 (2025-12-21)
+
+### 🩹 Fixes
+
+- Update project configuration to cache release outputs ([#859](https://github.com/vgijssel/setup/pull/859))
+
+## 0.12.0 (2025-11-18)
+
+### 🚀 Features
+
+- Add authentication support to metadata client ([#838](https://github.com/vgijssel/setup/pull/838))
+
+  Add Coder session token authentication to MetadataClient to fix issue where metadata fetches from Coder proxy URLs resulted in 303 redirects and empty metadata. The CODER_SESSION_TOKEN is now passed through the application stack and included as a Coder-Session-Token header in HTTP requests when available.
+
+## 0.11.0 (2025-11-15)
+
+### 🚀 Features
+
+- Add workspace metadata to root endpoint ([#834](https://github.com/vgijssel/setup/pull/834))
+
+  Updated the root endpoint (/) to return workspace metadata (git branch, PR number, etc.) collected from the workspace's Taskfile. This provides easy access to workspace context at the root URL for improved observability and monitoring.
+
+## 0.10.0 (2025-11-15)
+
+### 🚀 Features
+
+- Add support for environment-based bearer token configuration. TokenManager now prioritizes FLEET_MCP_AUTH_TOKEN environment variable over file-based tokens, enabling secure token injection from workspace provisioners while maintaining backward compatibility. ([#833](https://github.com/vgijssel/setup/pull/833))
+
+## 0.9.1 (2025-11-15)
+
+### 🩹 Fixes
+
+- docs: Document Taskfile metadata collection in README ([#832](https://github.com/vgijssel/setup/pull/832))
+
+## 0.9.0 (2025-11-15)
+
+### 🚀 Features
+
+- Add workspace metadata collection via Taskfile integration ([#830](https://github.com/vgijssel/setup/pull/830))
+
+  Fleet-mcp now collects and returns workspace metadata (git branch, commit SHA, PR number, etc.) through both `show_agent` and `list_agents` tools. Metadata fields are dynamically defined in workspace Taskfile.yml files, enabling flexible tracking of agent workspace context for PR workflows and fleet coordination.
+
+## 0.8.0 (2025-11-13)
+
+### 🚀 Features
+
+- Add HTTP server console script entry point (setup-fleet-mcp-serve) ([#828](https://github.com/vgijssel/setup/pull/828))
+
+## 0.7.5 (2025-11-13)
+
+### 🩹 Fixes
+
+- Pin Python version to 3.10 to ensure consistent environment and validate compatibility with lower Python versions ([#829](https://github.com/vgijssel/setup/pull/829))
+
+## 0.7.4 (2025-11-12)
+
+### 🩹 Fixes
+
+- Add console script entrypoint and lower Python version to 3.10 ([#827](https://github.com/vgijssel/setup/pull/827))
+
+## 0.7.3 (2025-11-12)
+
+### 🩹 Fixes
+
+- Let uv handle trusted publisher token ([#826](https://github.com/vgijssel/setup/pull/826))
+
+## 0.7.2 (2025-11-12)
+
+### 🩹 Fixes
+
+- Build the right version for fleet-mcp publish ([#825](https://github.com/vgijssel/setup/pull/825))
+
+## 0.7.1 (2025-11-12)
+
+### 🩹 Fixes
+
+- Fix release script invocation ([#824](https://github.com/vgijssel/setup/pull/824))
+
+## 0.7.0 (2025-11-12)
+
+### 🚀 Features
+
+- Enable publishing of the fleet-mcp package to pypi under "setup-fleet-mcp"  ([#823](https://github.com/vgijssel/setup/pull/823))
+
+## 0.6.0 (2025-11-12)
+
+### 🚀 Features
+
+- Add header-based Bearer token authentication with opt-in configuration support ([#817](https://github.com/vgijssel/setup/pull/817))
+
+### 🩹 Fixes
+
+- Initialize authentication token on startup when auth is enabled ([#817](https://github.com/vgijssel/setup/pull/817))
+
+## 0.5.0 (2025-11-10)
+
+### 🚀 Features
+
+- Refactor fleet-mcp to clean architecture. This improves maintainability and scalability of the library and reduces confusion when developed on by Claude Code. ([#808](https://github.com/vgijssel/setup/pull/808))
