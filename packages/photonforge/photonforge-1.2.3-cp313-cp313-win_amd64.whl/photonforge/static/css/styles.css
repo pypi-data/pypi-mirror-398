@@ -1,0 +1,378 @@
+body { 
+    margin: 0; 
+    overflow: hidden; 
+    display: flex; 
+    flex-direction: column;
+    height: 100vh;
+    cursor: default;
+}
+#toolbar {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: transparent;
+    padding: 8px 16px;
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    z-index: 1000;
+}
+button, label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 45px;
+    height: 45px;
+    padding: 8px;
+    border: none;
+    background: transparent;
+    color: #666;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+    background: rgba(255, 255, 255, 0.8);
+}
+button img, 
+label img {
+    width: 28px;
+    height: 28px;
+    filter: invert(40%); /* This gives the grey color */
+}
+button:hover, label:hover {
+    background: rgba(196, 60, 92, 0.1);
+    color: #c43c5c;
+}
+button:hover img, 
+label:hover img {
+    filter: invert(27%) sepia(51%) saturate(2878%) hue-rotate(316deg) brightness(89%) contrast(97%); /* This gives the #c43c5c color */
+}
+button.active, label.active {
+    background: rgba(196, 60, 92, 0.1);
+    color: #c43c5c;
+}
+button.active img, 
+label.active img {
+    filter: invert(27%) sepia(51%) saturate(2878%) hue-rotate(316deg) brightness(89%) contrast(97%); /* This gives the #c43c5c color */
+}
+#svg-container {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    background: #fff;
+    cursor: default;
+}
+#svg-container.dragging {
+    cursor: grabbing;
+}
+#svg-content {
+    position: absolute;
+    transform-origin: 0 0;
+}
+#rulerButton {
+    transition: all 0.2s ease;
+}
+#rulerButton.active {
+    background: rgba(196, 60, 92, 0.1);
+    color: #c43c5c;
+}
+#rulerButton.active + .toolbar-label {
+    color: #c43c5c;
+}
+.toolbar-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+.toolbar-label {
+    font-size: 11px;
+    color: #666;
+    font-family: system-ui, -apple-system, sans-serif;
+    user-select: none;
+}
+button.grid-button {
+    position: relative;
+}
+button.grid-button input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    margin: 0;
+    cursor: pointer;
+}
+#right-panel {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(196, 60, 92, 0.1);
+    z-index: 1000;
+    width: 250px;
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;  /* Maximum height of 90% of viewport height */
+}
+#component-section,
+#layer-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;  /* Allow sections to shrink */
+    max-height: 50%;  /* Each section can take up to half of the panel */
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(2px);
+}
+#component-section.collapsed,
+#layer-section.collapsed {
+    flex: 0;  /* Remove flex growth when collapsed */
+    min-height: 0;
+    height: auto;
+}
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    font-weight: bold;
+    border-bottom: 1px solid #ddd;
+    color: #c43c5c;
+    font-family: system-ui, -apple-system, sans-serif;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(1px);
+}
+.section-header .caret {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease;
+}
+.section-header .caret::after {
+    content: '▼';  /* Default state is collapsed (pointing down) */
+    display: block;
+}
+.section-header .caret.expanded::after {
+    content: '▲';  /* Expanded state points up */
+}
+.section-content {
+    transition: all 0.3s ease-out;
+    overflow: hidden;
+    flex: 1;
+}
+.section-content.collapsed {
+    max-height: 0 !important;
+    flex: 0;
+    padding: 0;
+    margin: 0;
+    border: none;
+    overflow: hidden;  /* Hide scrollbars when collapsed */
+}
+.scrollable-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    padding: 10px;
+    min-height: 0;
+}
+.scrollable-content.collapsed {
+    padding: 0;
+    overflow: hidden;
+}
+.layer-item,
+.component-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0;
+    padding: 4px 8px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    color: #666;
+    min-width: min-content;
+    white-space: nowrap;
+}
+.layer-item input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #c43c5c;
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+}
+.layer-item input[type="checkbox"]:checked {
+    background-color: #c43c5c;
+}
+.layer-item input[type="checkbox"]:checked::after {
+    content: '✓';
+    position: absolute;
+    color: white;
+    font-size: 12px;
+    left: 2px;
+    top: -1px;
+}
+.component-item {
+    position: relative;
+    padding-left: calc(8px + var(--level, 0) * 20px);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Toggle button for expandable items */
+.component-toggle {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #c43c5c;
+    font-size: 12px;
+    margin-right: 4px;
+}
+
+.component-toggle::after {
+    content: '▼';
+    transition: transform 0.2s ease;
+}
+
+.component-toggle.collapsed::after {
+    transform: rotate(-90deg);
+}
+
+/* Hide children when collapsed */
+.component-children.collapsed {
+    display: none;
+}
+.scrollable-content::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+.scrollable-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+.scrollable-content::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+.scrollable-content::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+#component-section {
+    border-bottom: 1px solid #ddd;
+}
+#component-section.collapsed {
+    border-bottom: none;  /* Remove border when collapsed */
+}
+.layer-color-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    border: 1px solid #ddd;
+}
+#toolbar button, 
+#toolbar label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 45px;
+    height: 45px;
+    padding: 8px;
+    border: none;
+    background: transparent;
+    color: #666;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+    background: rgba(255, 255, 255, 0.8);
+}
+#toolbar button img, 
+#toolbar label img {
+    width: 28px;
+    height: 28px;
+    filter: invert(40%); /* This gives the grey color */
+}
+#toolbar button:hover, 
+#toolbar label:hover {
+    background: rgba(196, 60, 92, 0.1);
+    color: #c43c5c;
+}
+#toolbar button:hover img, 
+#toolbar label:hover img {
+    filter: invert(27%) sepia(51%) saturate(2878%) hue-rotate(316deg) brightness(89%) contrast(97%); /* This gives the #c43c5c color */
+}
+#toolbar button.active, 
+#toolbar label.active {
+    background: rgba(196, 60, 92, 0.1);
+    color: #c43c5c;
+}
+#toolbar button.active img, 
+#toolbar label.active img {
+    filter: invert(27%) sepia(51%) saturate(2878%) hue-rotate(316deg) brightness(89%) contrast(97%); /* This gives the #c43c5c color */
+}
+#zoom-display,
+#coordinates {
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #c43c5c;
+    padding: 6px 12px;
+}
+.refresh-icon {
+    display: inline-block;
+    cursor: pointer;
+    font-size: 14px;
+    color: #666;
+}
+
+.refresh-icon:hover {
+    color: #333;
+}
+
+.controls-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.component-container {
+    min-width: min-content;
+}
+
+.component-children {
+    min-width: min-content;
+}
+
+.scrollable-content::-webkit-scrollbar-horizontal {
+    height: 4px;
+}
+
+.scrollable-content::-webkit-scrollbar-track:horizontal {
+    background: #f1f1f1;
+    border-radius: 2px;
+}
+
+.scrollable-content::-webkit-scrollbar-thumb:horizontal {
+    background: #c1c1c1;
+    border-radius: 2px;
+}
+
+.scrollable-content::-webkit-scrollbar-thumb:horizontal:hover {
+    background: #a8a8a8;
+}
