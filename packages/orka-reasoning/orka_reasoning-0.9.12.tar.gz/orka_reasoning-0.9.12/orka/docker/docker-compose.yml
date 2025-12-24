@@ -1,0 +1,83 @@
+services:
+  # ===================
+  # Cleanup Service
+  # ===================
+  cleanup:
+    image: docker:24-cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      sh -c "
+        echo 'Cleaning up previous containers...' &&
+        docker container prune -f &&
+        docker system prune -f &&
+        docker network prune -f &&
+        echo 'Cleanup completed!'
+      "
+
+  # ===================
+  # Redis Infrastructure
+  # ===================
+  redis:
+    image: redis/redis-stack-server:7.2.0-v6
+    ports:
+      - "6380:6379"  # Map external 6380 to internal 6379 (Redis default)
+    volumes:
+      - redis_data:/data
+    command: >
+      redis-stack-server 
+      --appendonly yes 
+      --maxmemory 2gb 
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+    restart: always
+    networks:
+      - orka-redis-network
+    profiles:
+      - redis
+      - default  # Make redis the default profile
+    environment:
+      - REDIS_ARGS=--appendonly yes --dir /data --maxmemory 2gb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2.5G
+        reservations:
+          memory: 1G
+
+  # ===================
+  # Orka Services
+  # ===================
+  orka-start-redis:
+    build:
+      context: ../..
+      dockerfile: orka/docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - ORKA_MEMORY_BACKEND=redisstack
+      - REDIS_URL=redis://redis:6380/0
+      - ORKA_PORT=8000
+    depends_on:
+      redis:
+        condition: service_healthy
+      cleanup:
+        condition: service_completed_successfully
+    restart: always
+    networks:
+      - orka-redis-network
+    profiles:
+      - redis
+      - default  # Make this the default service
+
+volumes:
+  redis_data:
+
+networks:
+  orka-redis-network:
+    driver: bridge
