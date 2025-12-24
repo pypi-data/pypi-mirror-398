@@ -1,0 +1,82 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools-scm>=8.0", "wheel", "numpy"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ciffy"
+dynamic = ["version"]
+description = "Fast mmCIF parser for structural biology"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    {name = "Hamish M. Blair"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+torch = ["torch"]
+vis = ["matplotlib"]
+dev = ["pytest", "pytest-xdist", "torch", "matplotlib"]
+
+[project.scripts]
+ciffy = "ciffy.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/hmblair/ciffy"
+Repository = "https://github.com/hmblair/ciffy"
+
+[tool.setuptools]
+packages = [
+    "ciffy",
+    "ciffy.backend",
+    "ciffy.utils",
+    "ciffy.types",
+    "ciffy.biochemistry",
+    "ciffy.operations",
+    "ciffy.io",
+    "ciffy.nn",
+    "ciffy.nn.vae",
+    "ciffy.visualize",
+    "ciffy.cli",
+    "ciffy.internal",
+    "ciffy.sampling",
+]
+
+[tool.setuptools.package-data]
+ciffy = ["data/*.npz"]
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "node-and-date"
+tag_regex = "^v(?P<version>.*)$"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --ignore=tests/profile.py"
+# For parallel execution: pytest -n auto (requires pytest-xdist)
+
+[tool.cibuildwheel]
+build = "cp39-* cp310-* cp311-* cp312-*"
+skip = "*-win32 *-manylinux_i686 *-musllinux*"
+test-requires = ["pytest", "numpy"]
+test-command = "pytest {project}/tests -v --ignore={project}/tests/profile.py"
+
+[tool.cibuildwheel.linux]
+before-build = "pip install numpy"
+
+[tool.cibuildwheel.macos]
+before-build = "pip install numpy"
+environment = { LDFLAGS="-L/opt/homebrew/opt/libomp/lib -L/usr/local/opt/libomp/lib", CPPFLAGS="-I/opt/homebrew/opt/libomp/include -I/usr/local/opt/libomp/include" }

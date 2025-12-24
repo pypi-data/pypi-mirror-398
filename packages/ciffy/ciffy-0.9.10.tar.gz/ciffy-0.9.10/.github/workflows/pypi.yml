@@ -1,0 +1,99 @@
+name: Build and Publish to PyPI
+
+on:
+  push:
+    tags:
+      - 'v*'  # Only trigger on version tags
+
+  # Allow manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  # ============================================================================
+  # TEST
+  # Run tests before building to catch issues early.
+  # ============================================================================
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for setuptools-scm versioning
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y gperf
+
+      - name: Install dependencies
+        run: |
+          pip install numpy pytest
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e .
+
+      - name: Run tests
+        run: pytest tests/ -v --ignore=tests/profile.py
+
+  # ============================================================================
+  # BUILD SOURCE DISTRIBUTION
+  # Platform-independent source archive.
+  # ============================================================================
+  build-sdist:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for setuptools-scm versioning
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y gperf
+
+      - name: Install build tools
+        run: pip install build numpy
+
+      - name: Generate hash tables
+        run: python -m codegen.generate
+
+      - name: Build sdist
+        run: python -m build --sdist
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  # ============================================================================
+  # PUBLISH TO PYPI
+  # Upload source distribution using trusted publishing (OIDC).
+  # Requires PyPI project to be configured for GitHub Actions publishing.
+  # ============================================================================
+  publish:
+    needs: build-sdist
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for trusted publishing
+
+    steps:
+      - name: Download sdist
+        uses: actions/download-artifact@v4
+        with:
+          name: sdist
+          path: dist
+
+      - name: List artifacts
+        run: ls -la dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # Uses trusted publishing - no API token needed
+        # Configure at: https://pypi.org/manage/project/ciffy/settings/publishing/
