@@ -1,0 +1,1 @@
+# dbt-mp : dbt manifest parser for agentic context 
