@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html data-theme="system">
+  <head>
+    <title>YouTube Subscriptions Viewer</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHJ4PSI4IiBmaWxsPSIjZmZmZmZmIi8+PHBhdGggZD0iTTEyIDh2MTZsMTItOEwxMiA4eiIgZmlsbD0iI2ZmMDAwMCIvPjxwYXRoIGQ9Ik0xMiA4djE2bDEyLThMMTIgOHoiIGZpbGw9ImJsYWNrIiBmaWxsLW9wYWNpdHk9IjAuMiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMCwgLTAuNSkiLz48cGF0aCBkPSJNMTIgOHYxNmwxMi04TDEyIDh6IiBmaWxsPSJ3aGl0ZSIgZmlsbC1vcGFjaXR5PSIwLjIiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDAsIDAuNSkiLz48L3N2Zz4="
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"
+    />
+    <style>
+      :root {
+        /* Dark theme colors */
+        --dark-bg: #0f0f0f;
+        --dark-surface: #1f1f1f;
+        --dark-text: #fff;
+        --dark-text-secondary: #aaa;
+        --dark-hover: #404040;
+        --dark-toolbar: #1f1f1f;
+        --dark-button: #303030;
+
+        /* Light theme colors */
+        --light-bg: #ffffff;
+        --light-surface: #f9f9f9;
+        --light-text: #0f0f0f;
+        --light-text-secondary: #606060;
+        --light-hover: #e5e5e5;
+        --light-toolbar: #ffffff;
+        --light-button: #f2f2f2;
+
+        /* Default to system preference */
+        --bg: var(--dark-bg);
+        --surface: var(--dark-surface);
+        --text: var(--dark-text);
+        --text-secondary: var(--dark-text-secondary);
+        --hover: var(--dark-hover);
+        --toolbar: var(--dark-toolbar);
+        --button: var(--dark-button);
+      }
+
+      /* System auto detection */
+      @media (prefers-color-scheme: light) {
+        :root[data-theme="system"] {
+          --bg: var(--light-bg);
+          --surface: var(--light-surface);
+          --text: var(--light-text);
+          --text-secondary: var(--light-text-secondary);
+          --hover: var(--light-hover);
+          --toolbar: var(--light-toolbar);
+          --button: var(--light-button);
+        }
+      }
+
+      /* Light theme */
+      :root[data-theme="light"] {
+        --bg: var(--light-bg);
+        --surface: var(--light-surface);
+        --text: var(--light-text);
+        --text-secondary: var(--light-text-secondary);
+        --hover: var(--light-hover);
+        --toolbar: var(--light-toolbar);
+        --button: var(--light-button);
+      }
+
+      body {
+        margin: 0;
+        font-family: "Roboto", sans-serif;
+        background-color: var(--bg);
+        color: var(--text);
+      }
+      .video-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+        padding: 20px;
+      }
+      .video-card {
+        background-color: var(--surface);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: transform 0.2s;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+      }
+      .video-card:hover {
+        transform: translateY(-2px);
+      }
+      .video-thumbnail {
+        width: 100%;
+        aspect-ratio: 16/9;
+        object-fit: cover;
+        position: relative;
+      }
+      .video-info {
+        padding: 12px;
+      }
+      .video-title {
+        font-size: 1rem;
+        font-weight: 500;
+        margin-bottom: 8px;
+      }
+      .channel-name {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .verified-badge {
+        color: var(--text-secondary);
+        font-size: 14px;
+      }
+      .video-stats {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        margin-top: 4px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .popularity-score {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background-color: rgba(0, 0, 0, 0.8);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #fff;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .info-icon {
+        opacity: 0.7;
+        font-size: 14px;
+      }
+      .performance-popover {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        background-color: var(--surface);
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        color: var(--text);
+        width: 280px;
+        z-index: 2;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.2s, visibility 0.2s;
+      }
+      .popularity-score:hover .performance-popover {
+        opacity: 1;
+        visibility: visible;
+      }
+      .performance-stat {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .performance-stat:last-child {
+        margin-bottom: 0;
+      }
+      .performance-label {
+        color: var(--text-secondary);
+      }
+      .toolbar {
+        background-color: var(--toolbar);
+        padding: 12px 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        border-bottom: 1px solid var(--hover);
+      }
+      .time-filter {
+        background-color: var(--button);
+        color: var(--text);
+        border: none;
+        padding: 8px 16px;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+      .time-filter:hover {
+        background-color: var(--hover);
+      }
+      .time-filter.active {
+        background-color: var(--text);
+        color: var(--bg);
+      }
+      .theme-toggle {
+        margin-left: auto;
+        position: relative;
+      }
+      .theme-button {
+        background-color: var(--button);
+        color: var(--text);
+        border: none;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        line-height: 0;
+      }
+      .theme-button span {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .theme-button:hover {
+        background-color: var(--hover);
+      }
+      .theme-dropdown {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        margin-top: 0;
+        background-color: var(--surface);
+        border-radius: 8px;
+        box-shadow: 0 4px 12px color-mix(in srgb, var(--text) 20%, transparent);
+        padding: 4px 0;
+        min-width: 120px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px);
+        transition: all 0.2s ease;
+        z-index: 100;
+      }
+      .theme-toggle.open .theme-dropdown {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+      }
+      .theme-option {
+        padding: 8px 16px;
+        cursor: pointer;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+        font-size: 14px;
+      }
+      .theme-option:hover {
+        background-color: var(--hover);
+      }
+      .theme-option.active {
+        color: var(--text);
+      }
+      .theme-button svg {
+        width: 20px;
+        height: 20px;
+      }
+      .theme-option svg {
+        width: 16px;
+        height: 16px;
+      }
+      .duration-badge {
+        position: absolute;
+        bottom: 8px;
+        right: 8px;
+        background-color: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <script type="module">
+      // Import standalone bundle for Preact and HTM
+      import {
+        html,
+        render,
+        useEffect,
+        useState,
+        useMemo,
+      } from "https://unpkg.com/htm/preact/standalone.module.js";
+
+      // Import signals separately
+      import {
+        signal,
+        computed,
+        effect,
+      } from "https://esm.sh/@preact/signals-core";
+
+      // Initialize theme immediately to prevent flash
+      const savedTheme = localStorage.getItem("theme") || "system";
+      document.documentElement.setAttribute("data-theme", savedTheme);
+
+      const timeRanges = {
+        day: { label: "Last 2 days", days: 2 },
+        week: { label: "Last week", days: 7 },
+        twoweeks: { label: "Last 2 weeks", days: 14 },
+        month: { label: "Last month", days: 30 },
+      };
+
+      const themes = {
+        system: {
+          label: "System Default",
+          icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="color: var(--text)">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M5.75736 14.2426C6.84315 15.3284 8.34315 16 10 16C13.3137 16 16 13.3137 16 10C16 8.34315 15.3284 6.84315 14.2426 5.75736C13.1569 4.67157 11.6569 4 10 4C6.68629 4 4 6.68629 4 10C4 11.6569 4.67157 13.1569 5.75736 14.2426ZM10 15C12.7614 15 15 12.7614 15 10C15 8.61929 14.4404 7.36929 13.5355 6.46447L6.46447 13.5355C7.36929 14.4404 8.61929 15 10 15Z" fill="currentColor"/>
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18ZM10 17C13.866 17 17 13.866 17 10C17 6.13401 13.866 3 10 3C6.13401 3 3 6.13401 3 10C3 13.866 6.13401 17 10 17Z" fill="currentColor"/>
+          </svg>`,
+        },
+        light: {
+          label: "Light Theme",
+          icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="color: var(--text)">
+            <circle cx="10" cy="10" r="7.5" stroke="currentColor"/>
+            <path d="M10 4C6.68629 4 4 6.68629 4 10C4 13.3137 6.68629 16 10 16V4Z" fill="currentColor"/>
+          </svg>`,
+        },
+        dark: {
+          label: "Dark Theme",
+          icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="color: var(--text)">
+            <circle cx="10" cy="10" r="7.5" stroke="currentColor"/>
+            <path d="M10 4C13.3137 4 16 6.68629 16 10C16 13.3137 13.3137 16 10 16V4Z" fill="currentColor"/>
+          </svg>`,
+        },
+      };
+
+      // Initialize signals after theme is set
+      const videoData = VIDEO_DATA_PLACEHOLDER;
+      const videos = signal(videoData);
+      const selectedTimeRange = signal("day");
+      const currentTheme = signal(savedTheme);
+      const isThemeDropdownOpen = signal(false);
+
+      const filteredVideos = computed(() => {
+        const now = new Date();
+        const cutoffDays = timeRanges[selectedTimeRange.value].days;
+        const currentVideos = videos.value;
+
+        const filtered = currentVideos
+          .filter((video) => {
+            if (!video.published_date) return false;
+            try {
+              const videoDate = new Date(video.published_date);
+              if (isNaN(videoDate.getTime())) return false;
+              const ageInDays = (now - videoDate) / (1000 * 60 * 60 * 24);
+              return ageInDays <= cutoffDays;
+            } catch (e) {
+              return false;
+            }
+          })
+          .sort((a, b) => b.performance_score - a.performance_score);
+
+        return filtered;
+      });
+
+      function formatNumber(num) {
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+        if (num >= 1000) return Math.round(num / 1000) + "K";
+        return num.toString();
+      }
+
+      function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diff = (now - date) / 1000; // seconds
+
+        if (diff < 3600) return Math.floor(diff / 60) + " minutes ago";
+        if (diff < 86400) return Math.floor(diff / 3600) + " hours ago";
+        if (diff < 604800) return Math.floor(diff / 86400) + " days ago";
+        if (diff < 2592000) return Math.floor(diff / 604800) + " weeks ago";
+        return Math.floor(diff / 2592000) + " months ago";
+      }
+
+      function formatPerformance(score) {
+        return `${Math.round(score * 100)}%`;
+      }
+
+      function getPerformanceColor(score) {
+        // Convert score to percentage (0-100)
+        const percentage = Math.min(Math.max(score * 100, 0), 100);
+
+        // Red component: starts at 239 (ef) and decreases to 34 (22)
+        const r = Math.round(239 - (percentage * (239 - 34)) / 100);
+
+        // Green component: starts at 68 (44) and increases to 197 (c5)
+        const g = Math.round(68 + (percentage * (197 - 68)) / 100);
+
+        // Blue component: stays at 68 (44) for red and 94 (5e) for green
+        const b = Math.round(68 + (percentage * (94 - 68)) / 100);
+
+        return `#${r.toString(16).padStart(2, "0")}${g
+          .toString(16)
+          .padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+      }
+
+      function setTheme(theme) {
+        document.documentElement.setAttribute("data-theme", theme);
+        currentTheme.value = theme;
+        isThemeDropdownOpen.value = false;
+      }
+
+      // Define click outside handler at module level
+      function handleClickOutside(event) {
+        if (!event.target.closest(".theme-toggle")) {
+          isThemeDropdownOpen.value = false;
+        }
+      }
+
+      function App() {
+        const [_, setUpdate] = useState(0);
+
+        // Add listener for system color scheme changes
+        useEffect(() => {
+          const mediaQuery = window.matchMedia("(prefers-color-scheme: light)");
+          const handleChange = () => {
+            // Only update if we're using system theme
+            if (currentTheme.value === "system") {
+              // Force a re-render to update the theme
+              setUpdate((n) => n + 1);
+            }
+          };
+
+          mediaQuery.addEventListener("change", handleChange);
+          return () => mediaQuery.removeEventListener("change", handleChange);
+        }, []);
+
+        // Add click outside handler to close dropdown
+        useEffect(() => {
+          document.addEventListener("mousedown", handleClickOutside);
+          return () =>
+            document.removeEventListener("mousedown", handleClickOutside);
+        }, []);
+
+        // Subscribe to signal changes
+        useEffect(() => {
+          const dispose = effect(() => {
+            selectedTimeRange.value;
+            currentTheme.value;
+            isThemeDropdownOpen.value;
+            setUpdate((n) => n + 1);
+          });
+          return () => dispose();
+        }, []);
+
+        const handleThemeChange = (theme) => {
+          setTheme(theme);
+          localStorage.setItem("theme", theme);
+        };
+
+        const toggleThemeDropdown = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          isThemeDropdownOpen.value = !isThemeDropdownOpen.value;
+        };
+
+        return html`
+          <div>
+            <div class="toolbar">
+              ${Object.entries(timeRanges).map(
+                ([key, { label }]) => html`
+                  <button
+                    class="time-filter ${selectedTimeRange.value === key
+                      ? "active"
+                      : ""}"
+                    onClick=${() => (selectedTimeRange.value = key)}
+                  >
+                    ${label}
+                  </button>
+                `
+              )}
+              <div
+                class="theme-toggle ${isThemeDropdownOpen.value ? "open" : ""}"
+              >
+                <button
+                  class="theme-button"
+                  onClick=${toggleThemeDropdown}
+                  title="Change theme"
+                  aria-label="Theme settings"
+                  aria-expanded=${isThemeDropdownOpen.value}
+                  aria-haspopup="true"
+                >
+                  <span
+                    dangerouslySetInnerHTML=${{
+                      __html: themes[currentTheme.value].icon,
+                    }}
+                  ></span>
+                </button>
+                <div class="theme-dropdown" role="menu">
+                  ${Object.entries(themes).map(
+                    ([key, { label, icon }]) => html`
+                      <div
+                        class="theme-option ${currentTheme.value === key
+                          ? "active"
+                          : ""}"
+                        onClick=${(e) => {
+                          e.stopPropagation();
+                          handleThemeChange(key);
+                        }}
+                        role="menuitem"
+                        tabindex="0"
+                        onKeyDown=${(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleThemeChange(key);
+                          }
+                        }}
+                      >
+                        <span
+                          dangerouslySetInnerHTML=${{ __html: icon }}
+                          aria-hidden="true"
+                        ></span>
+                        ${label.replace(" Theme", "").replace(" Default", "")}
+                      </div>
+                    `
+                  )}
+                </div>
+              </div>
+            </div>
+            <div class="video-grid">
+              ${filteredVideos.value.map(
+                (video) => html`
+                  <a
+                    href=${video.url}
+                    target="_blank"
+                    rel="noopener"
+                    class="video-card"
+                  >
+                    <div style="position: relative;">
+                      <img
+                        class="video-thumbnail"
+                        src=${video.thumbnail}
+                        alt=${video.title}
+                      />
+                      ${video.duration &&
+                      html`<div class="duration-badge">${video.duration}</div>`}
+                      <div
+                        class="popularity-score"
+                        style="background-color: ${getPerformanceColor(
+                          video.performance_score
+                        )}"
+                        onClick=${(e) => e.preventDefault()}
+                      >
+                        ${formatPerformance(video.performance_score)}
+                        <span class="info-icon">ⓘ</span>
+                        <div class="performance-popover">
+                          <div class="performance-stat">
+                            <span class="performance-label"
+                              >Channel Performance:</span
+                            >
+                            <span
+                              >${formatPerformance(
+                                video.performance_details.relative_performance
+                              )}</span
+                            >
+                          </div>
+                          <div class="performance-stat">
+                            <span class="performance-label"
+                              >Subscriber Reach:</span
+                            >
+                            <span
+                              >${formatPerformance(
+                                video.performance_details.subscriber_reach
+                              )}</span
+                            >
+                          </div>
+                          <div class="performance-stat">
+                            <span class="performance-label"
+                              >Forecast vs Channel (48h):</span
+                            >
+                            <span
+                              >${formatPerformance(
+                                video.performance_details
+                                  .forecast_relative_performance
+                              )}</span
+                            >
+                          </div>
+                          <div class="performance-stat">
+                            <span class="performance-label"
+                              >Velocity:</span
+                            >
+                            <span
+                              >${video.performance_details.views_per_hour.toFixed(
+                                0
+                              )} views/hr</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="video-info">
+                      <div class="video-title">${video.title}</div>
+                      <div class="channel-name">
+                        ${video.channel.name}
+                        ${video.channel.is_verified &&
+                        html`<span class="verified-badge">✓</span>`}
+                      </div>
+                      <div class="video-stats">
+                        <span>${formatNumber(video.views)} views</span>
+                        <span>•</span>
+                        <span>${formatDate(video.published_date)}</span>
+                      </div>
+                    </div>
+                  </a>
+                `
+              )}
+            </div>
+          </div>
+        `;
+      }
+
+      render(html`<${App} />`, document.getElementById("app"));
+    </script>
+  </body>
+</html>
