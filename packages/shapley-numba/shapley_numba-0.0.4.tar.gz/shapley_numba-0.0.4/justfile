@@ -1,0 +1,96 @@
+# List available commands
+default:
+    @just --list
+
+# Install dependencies
+install:
+    uv sync --all-groups
+
+# Run all linting checks
+lint:
+    uv run ruff format
+    uv run ruff check shapley_numba
+    uv run mypy shapley_numba
+
+# Run ruff formatter
+format:
+    uv run ruff format
+
+# Run ruff linter
+check:
+    uv run ruff check .
+
+# Run mypy type checker
+typecheck:
+    uv run mypy shapley_numba
+
+# Run all tests
+test:
+    uv run pytest
+
+# Run tests with verbose output
+test-verbose:
+    uv run pytest -v
+
+# Run tests with coverage (excluding JIT-required tests)
+coverage:
+    NUMBA_DISABLE_JIT=1 uv run pytest --cov=shapley_numba --cov-report=term --cov-report=html -m "not requires_jit"
+
+# Open coverage report in browser
+coverage-view:
+    @echo "Opening coverage report..."
+    xdg-open htmlcov/index.html
+
+# Run tests that require JIT compilation
+test-jit:
+    uv run pytest -m "requires_jit"
+
+# Run specific test file
+test-file FILE:
+    uv run pytest {{FILE}}
+
+# Build documentation
+docs:
+    cp README.md docs/README.md
+    uv run sphinx-build -b html docs/ public/
+    uv run sphinx-build -b html docs/ public/
+
+# Build documentation and open in browser
+docs-view:
+    just docs
+    xdg-open public/index.html
+
+# Build package
+build:
+    uv build
+
+# Clean build artifacts and cache
+clean:
+    rm -rf dist/ build/ *.egg-info .pytest_cache .coverage htmlcov/ public/
+    find . -type d -name __pycache__ -exec rm -rf {} +
+    find . -type f -name "*.pyc" -delete
+
+# Run full CI pipeline locally (lint + test + coverage)
+ci:
+    just lint
+    just test
+    just coverage
+
+# Run notebooks
+notebooks:
+    #!/usr/bin/env bash
+    source .venv/bin/activate
+    python -m ipykernel install --user --name=shapley_numba
+    cd docs
+    for notebook in *.ipynb; do
+        echo "Executing $notebook"
+        uvx --from nbclient jupyter-execute "$notebook" --kernel_name=shapley_numba
+    done
+
+# Check for typos
+typos:
+    uv run typos
+
+# Update dependencies
+update:
+    uv sync --all-groups --upgrade

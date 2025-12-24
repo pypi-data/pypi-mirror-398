@@ -1,0 +1,252 @@
+image: "ghcr.io/astral-sh/uv:python3.13-bookworm"
+
+stages:
+    - lint
+    - test
+    - deploy
+
+before_script:
+    - uv sync --all-groups
+
+.test:
+    image: "ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-bookworm"
+    variables:
+        uv_python: ${PYTHON_VERSION}
+    needs:
+        - lint
+    script:
+        - uv run pytest --junitxml=junit.xml
+    artifacts:
+        when: always
+        reports:
+            junit:
+                - junit.xml
+
+lint:
+    stage: lint
+    script:
+        - uv run ruff format
+        - uv run ruff check .
+        - uv run mypy shapley_numba
+
+test:
+    extends: .test
+    stage: test
+    parallel:
+        matrix:
+            - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13"]
+    
+test_numba_versions:
+    extends: .test
+    stage: test
+    parallel:
+        matrix:
+            - PYTHON_VERSION: ["3.10", "3.13"]
+              NUMBA_VERSION: ["0.61", "0.62"]
+    before_script:
+        - uv sync --all-groups
+        - uv pip install "numba~=${NUMBA_VERSION}.0"
+
+test_numba_rc:
+    extends: .test
+    stage: test
+    variables:
+        PYTHON_VERSION: 3.13
+        uv_python: 3.13
+    before_script:
+        - uv sync --all-groups
+        - uv pip install --prerelease=allow "numba==0.63.0rc1"
+
+test_numba_dev:
+    extends: .test
+    parallel:
+        matrix:
+            - PYTHON_VERSION: ["3.10", "3.13"]
+    stage: test
+    allow_failure: true
+    before_script:
+        - uv sync --all-groups
+        - uv pip install  --prerelease=allow git+https://github.com/numba/numba.git
+
+coverage:
+    image: "ghcr.io/astral-sh/uv:python3.13-bookworm"
+    variables:
+        NUMBA_DISABLE_JIT: "1"
+    stage: test
+    needs:
+        - lint
+    script:
+        - uv run pytest --cov=shapley_numba --cov-report=term --cov-report=xml:coverage.xml -m "not requires_jit"
+    coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+    artifacts:
+        reports:
+            coverage_report:
+                coverage_format: cobertura
+                path: coverage.xml
+
+run_notebooks:
+    stage: test
+    needs:
+        - test
+    script:
+        - source .venv/bin/activate
+        - python -m ipykernel install --user --name=shapley_numba
+        - cd docs
+        - |
+            for notebook in *.ipynb; do 
+                 echo "Executing $notebook" 
+                 uvx --from nbclient jupyter-execute "$notebook" --kernel_name=shapley_numba;
+            done
+
+publish_test_local:
+    stage: test
+    needs:
+        - lint
+    script:
+        - export VERSION="0.0.1.dev${CI_PIPELINE_ID}"
+        - sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+        - export TWINE_USERNAME=gitlab-ci-token
+        - export TWINE_PASSWORD=${CI_JOB_TOKEN}
+        - uv build
+        - uv run twine upload --repository-url ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi dist/*
+        - echo "PACKAGE_VERSION=$VERSION" > package_version.env
+    artifacts:
+        reports:
+            dotenv: package_version.env
+        expire_in: 1 hour
+
+test_package_imports:
+    stage: test
+    image: python:3.13
+    needs:
+        - job: publish_test_local
+          artifacts: true
+    variables:
+        GIT_STRATEGY: none
+    before_script: []
+    script:
+        - pip install --index-url https://__token__:${CI_JOB_TOKEN}@gitlab.com/api/v4/projects/${CI_PROJECT_ID}/packages/pypi/simple shapley-numba==${PACKAGE_VERSION}
+        - python -c "import shapley_numba; print('✓ Base import works')"
+        - python -c "from shapley_numba import numba_game; print('✓ numba_game import works')"
+        - python -c "from shapley_numba import CoalitionType, GameProtocol, GameSpecType, ShapleyNumbaGameProtocol; print('✓ Type imports work')"
+        - python -c "from shapley_numba import common, examples, game_templates, harsanyi, harsanyi_naive, shapley; print('✓ Submodule imports work')"
+        - python -c "from shapley_numba.harsanyi import HarsanyiDividends"
+        - python -c "from shapley_numba.harsanyi_large import HarsanyiDividendsLarge"
+        - python -c "from shapley_numba.shapley import shapley"
+        - |
+          python << 'EOF'
+          from shapley_numba import numba_game
+          @numba_game()
+          def test_game(coalition):
+              return len(coalition)
+          print('✓ Basic functionality works')
+          EOF
+        - |
+          python << 'EOF'
+          from shapley_numba.shapley import shapley
+          from shapley_numba.examples import GloveGame
+          glove_game = GloveGame(num_left_gloves=1)
+          print(shapley(glove_game, num_players=3))
+          EOF
+
+
+
+run_notebooks_from_pip_package:
+    image: python:3.13
+    extends: run_notebooks
+    needs:
+        - job: publish_test_local
+          artifacts: true
+    before_script:
+        - python -m venv .venv
+        - source .venv/bin/activate
+        - pip install --index-url https://__token__:${CI_JOB_TOKEN}@gitlab.com/api/v4/projects/${CI_PROJECT_ID}/packages/pypi/simple shapley-numba==${PACKAGE_VERSION}
+        - pip install ipykernel
+        - pip install nbclient
+    script:
+        - python -m ipykernel install --user --name=shapley_numba
+        - cd docs
+        - |
+            for notebook in *.ipynb; do
+                 echo "Executing $notebook"
+                 jupyter-execute "$notebook" --kernel_name=shapley_numba;
+            done
+
+cleanup_test_packages:
+    stage: test
+    image: alpine:latest
+    needs:
+        - job: publish_test_local
+          artifacts: true
+        - job: test_package_imports
+          optional: true
+        - job: run_notebooks_from_pip_package
+          optional: true
+    variables:
+        GIT_STRATEGY: none
+    before_script:
+        - apk add --no-cache curl jq
+    script:
+        - echo "Cleaning up test package version ${PACKAGE_VERSION}"
+        - |
+          PACKAGE_ID=$(curl --silent --header "PRIVATE-TOKEN: ${CLEANUP_TOKEN}" \
+            "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages?package_name=shapley-numba&package_version=${PACKAGE_VERSION}" \
+            | jq -r '.[0].id')
+        - |
+          if [ "$PACKAGE_ID" != "null" ] && [ -n "$PACKAGE_ID" ]; then
+            echo "Deleting package ID: $PACKAGE_ID"
+            HTTP_CODE=$(curl --silent --output /tmp/response.txt --write-out "%{http_code}" \
+              --request DELETE --header "PRIVATE-TOKEN: ${CLEANUP_TOKEN}" \
+              "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/$PACKAGE_ID")
+            if [ "$HTTP_CODE" = "204" ] || [ "$HTTP_CODE" = "200" ]; then
+              echo "Package deleted successfully (HTTP $HTTP_CODE)"
+            else
+              echo "Failed to delete package (HTTP $HTTP_CODE)"
+              cat /tmp/response.txt
+              exit 1
+            fi
+          else
+            echo "Package not found or already deleted"
+          fi
+    when: always
+
+pages:
+    stage: deploy
+    needs:
+        - test
+    script:
+        - |
+            # Update version from git tag if available, otherwise use latest tag or default
+            if [ -n "$CI_COMMIT_TAG" ]; then
+                VERSION="${CI_COMMIT_TAG#v}"
+            else
+                VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.0dev")
+            fi
+            sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+        - uv sync --all-groups  # Reinstall with updated version
+        - cp README.md docs/README.md
+        - uv run sphinx-build -b html docs/ public/
+        - uv run sphinx-build -b html docs/ public/ # running twice helps update references
+        - echo $CI_PAGES_URL
+    artifacts:
+        paths:
+            - public
+    rules:
+        - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+release:
+    stage: deploy
+    needs:
+        - test
+    id_tokens:
+        PYPI_ID_TOKEN:
+            aud: pypi
+    script:
+        - sed -i "s/^version = .*/version = \"${CI_COMMIT_TAG#v}\"/" pyproject.toml
+        - uv build
+        - uv run twine upload --verbose dist/*
+    environment:
+        name: pypi
+        url: https://pypi.org/project/shapley-numba/
+    rules:
+        - if: $CI_COMMIT_TAG
