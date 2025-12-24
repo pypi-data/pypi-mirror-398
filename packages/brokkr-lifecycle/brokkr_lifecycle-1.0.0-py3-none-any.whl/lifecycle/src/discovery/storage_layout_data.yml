@@ -1,0 +1,605 @@
+---
+
+direct:
+  performance:
+    read: Variable
+    write: Variable
+  special_notes:
+    - Only the first disk will be formatted and partitioned for system use
+    - Any disks beyond the first will remain unmodified and available for future use
+  use_cases:
+    - Simple setup for basic storage needs
+    - Direct disk access with no additional features
+    - Suitable for single-user systems or non-critical data
+    - Testing environments where data persistence is not critical
+    - Temporary storage for easily reproducible data
+  expandability: Limited
+  rebuild_time: N/A
+  data_safety: Low
+  pros:
+    - Simple setup with no additional configuration
+    - Full disk capacity available for use
+    - No performance overhead from RAID calculations
+    - Easy to recover individual files
+    - Straightforward disk management
+  cons:
+    - No data redundancy or fault tolerance
+    - Limited to individual disk sizes
+    - No protection against disk failures
+    - No performance improvements for I/O operations
+    - Limited scalability for growing storage needs
+  backup_recommendations:
+    - Regular backups are crucial
+    - Implement a robust backup strategy including off-site backups
+    - Consider redundant storage solutions
+    - 'Recommended: Daily incremental and weekly full backups'
+  file_systems:
+    - ext4
+    - xfs
+    # - btrfs
+    - zfs
+
+lvm:
+  performance:
+    read: Good
+    write: Good
+  special_notes: []
+  use_cases:
+    - Flexible volume management across multiple disks
+    - Easy resizing of storage volumes as needs change
+    - Snapshot creation for point-in-time backups
+    - Thin provisioning for optimized storage allocation
+    - Environments requiring frequent storage reallocation
+  expandability: Excellent
+  rebuild_time: N/A
+  data_safety: Low
+  pros:
+    - Flexible management of storage
+    - Easy resizing of volumes
+    - Can span multiple disks
+    - Supports snapshots for point-in-time backups
+    - Allows for thin provisioning
+    - Easy to add or remove storage
+    - Can migrate data between physical volumes without downtime
+  cons:
+    - No built-in redundancy
+    - Potential for data loss if not backed up
+    - Slight performance overhead compared to raw partitions
+    - More complex to manage than direct partitioning
+    - Requires careful planning to avoid running out of space
+    - Recovery can be more complex if the LVM metadata is corrupted
+  backup_recommendations:
+    - Regular backups are essential
+    - Utilize LVM snapshots for consistent backups
+    - Implement off-site backup solutions
+    - Consider using backup software that supports LVM for efficient backups
+  file_systems:
+    - ext4
+    - xfs
+   # - btrfs
+
+lvm_striped:
+  performance:
+    read: Excellent
+    write: Excellent
+  special_notes: []
+  use_cases:
+    - Improved read/write performance for large files
+    - Flexible management of storage across multiple disks
+    - Environments requiring high I/O throughput
+    - Large file storage with frequent access needs
+    - Video editing or media processing workstations
+  expandability: Good
+  rebuild_time: N/A
+  data_safety: Low
+  pros:
+    - Improved read and write performance
+    - Full capacity utilization across multiple disks
+    - Flexible management and easy resizing
+    - Can significantly boost performance for large file operations
+    - Allows for balancing I/O across multiple physical drives
+  cons:
+    - No fault tolerance or redundancy
+    - Data loss if any disk in the stripe set fails
+    - Increased complexity in data recovery
+    - All disks must be online for the volume to be accessible
+    - Performance can degrade if one disk is slower than others
+    - Backup strategies need to account for the striped nature of data
+  backup_recommendations:
+    - Frequent backups are critical due to increased risk of data loss
+    - Implement a comprehensive backup strategy with multiple backup copies
+    - Include off-site storage in backup strategy
+    - Consider using backup software that can handle striped volumes efficiently
+  file_systems:
+    - ext4
+    - xfs
+   # - btrfs
+
+lvm_mirrored:
+  performance:
+    read: Excellent
+    write: Good
+  special_notes: []
+  use_cases:
+    - Data redundancy with flexible management
+    - Critical data storage with improved read performance
+    - Environments requiring high availability for specific volumes
+    - Database servers with moderate performance needs
+    - File servers for important but not mission-critical data
+  expandability: Good
+  rebuild_time: Fast
+  data_safety: High
+  pros:
+    - Data redundancy for improved reliability
+    - Improved read performance through load balancing
+    - Flexible management and easy resizing
+    - Can survive single disk failures without data loss
+    - Allows for online mirror recovery
+    - Supports snapshots for consistent backups
+  cons:
+    - Half of total capacity used for redundancy
+    - Slightly complex setup compared to basic LVM
+    - Write performance may be slightly impacted
+    - Increased storage cost due to redundancy
+    - Synchronization required when adding new mirrors
+    - Potential for split-brain scenario if not properly managed
+  backup_recommendations:
+    - Regular backups are important despite mirroring
+    - Use LVM snapshots for consistent backups
+    - Maintain off-site backups
+    - Implement a backup schedule that includes both incremental and full backups
+  file_systems:
+    - ext4
+    - xfs
+   # - btrfs
+
+lvm_striped_mirrored:
+  performance:
+    read: Excellent
+    write: Good
+  special_notes: []
+  use_cases:
+    - High performance and redundancy with flexible management
+    - Environments requiring both speed and data protection
+    - High-traffic database servers
+    - Virtualization hosts running multiple VMs
+    - Enterprise applications with high I/O and reliability requirements
+  expandability: Moderate
+  rebuild_time: Moderate
+  data_safety: High
+  pros:
+    - High read and write performance
+    - Data redundancy for improved reliability
+    - Flexible management of storage
+    - Combines benefits of striping (performance) and mirroring (redundancy)
+    - Can survive single disk failures without data loss
+    - Good for applications requiring both high performance and data protection
+  cons:
+    - Complex setup and management
+    - Half of total capacity used for redundancy
+    - Higher hardware requirements (minimum 4 disks recommended)
+    - Increased cost due to redundancy and performance requirements
+    - Recovery process can be more complex
+    - Potential for performance variability if disk speeds are not consistent
+  backup_recommendations:
+    - Regular backups are necessary
+    - Utilize snapshots
+    - Ensure off-site backups are maintained
+    - Implement a backup strategy that can efficiently handle the striped and mirrored configuration
+  file_systems:
+    - ext4
+    - xfs
+   # - btrfs
+
+raid0:
+  performance:
+    read: Excellent
+    write: Excellent
+  special_notes: []
+  use_cases:
+    - High performance storage for non-critical data
+    - Temporary data processing for big data applications
+    - Render farms or other compute-intensive tasks
+    - Gaming rigs where load times are critical
+    - Scratch space for video editing or 3D rendering
+  expandability: Easy
+  rebuild_time: N/A
+  data_safety: Low
+  pros:
+    - Highest read and write performance among RAID levels
+    - Full capacity utilization of all disks
+    - Improved performance for large file operations
+    - No parity calculations overhead
+    - Ideal for temporary data or easily reproducible data
+  cons:
+    - No fault tolerance or data redundancy
+    - High risk of data loss - failure of any disk causes complete array failure
+    - Not suitable for critical data storage
+    - Data recovery is extremely difficult if a disk fails
+    - Requires at least two disks
+  backup_recommendations:
+    - Frequent and redundant backups are essential due to high risk of data loss
+    - Implement multiple backup solutions, including off-site and cloud backups
+    - Consider near-continuous data protection methods
+  file_systems:
+    - ext4
+    - xfs
+   # - btrfs
+
+raid1:
+  performance:
+    read: Excellent
+    write: Good
+  special_notes: []
+  use_cases:
+    - Storage for critical data requiring high availability
+    - Fast read performance for frequently accessed data
+    - Small business servers with important data
+    - Boot drives for servers requiring high uptime
+    - Mirroring of operating system drives
+  expandability: Easy
+  rebuild_time: Fast
+  data_safety: High
+  pros:
+    - Simple and full data redundancy
+    - Excellent read performance
+    - Fast rebuild times when a disk fails
+    - Easy to implement and manage
+    - Improved reliability for critical data
+  cons:
+    - Higher cost per usable TB of storage
+    - Write performance similar to a single disk
+    - Limited scalability for large storage needs
+    - Only 50% of total disk space is usable
+    - Minimum of two disks required
+  backup_recommendations:
+    - Regular backups are recommended despite mirroring
+    - Implement snapshot-based backup solutions
+    - Maintain off-site backups
+    - Consider using one mirror for backup purposes periodically
+  file_systems:
+    - ext4
+    - xfs
+   # - btrfs
+
+raid5:
+  performance:
+    read: Good
+    write: Average
+  special_notes: []
+  use_cases:
+    - Balance of performance, capacity, and redundancy
+    - General purpose storage for small to medium businesses
+    - Archival storage with moderate access needs
+    - Web servers with moderate traffic and storage requirements
+  expandability: Moderate
+  rebuild_time: Slow
+  data_safety: Good
+  pros:
+    - Good balance of performance, capacity, and redundancy
+    - Can survive one disk failure
+    - Better read performance than a single drive
+    - More efficient capacity usage compared to RAID 1
+    - Good for mixed read/write workloads
+  cons:
+    - Write performance penalty due to parity calculations
+    - Long rebuild times, especially with large disks
+    - Risk of data loss during rebuild if another disk fails
+    - Not recommended for arrays with large capacity drives
+    - Minimum of three disks required
+  backup_recommendations:
+    - Regular backups are important, especially during rebuild processes
+    - Implement a backup strategy that includes full and incremental backups
+    - Ensure backups are tested regularly for integrity
+  file_systems:
+    - ext4
+    - xfs
+   # - btrfs
+
+raid6:
+  performance:
+    read: Good
+    write: Below Average
+  special_notes: []
+  use_cases:
+    - Large arrays with high data protection requirements
+    - Storage for critical data in environments with many drives
+    - Archival storage for important long-term data
+    - Large-scale NAS (Network Attached Storage) systems
+    - Backup targets for enterprise environments
+  expandability: Moderate
+  rebuild_time: Very Slow
+  data_safety: Very High
+  pros:
+    - Can survive two simultaneous disk failures
+    - Good read performance
+    - Better redundancy than RAID 5
+    - Suitable for arrays with large capacity drives
+    - Good for applications requiring high availability
+  cons:
+    - Write performance penalty due to double parity calculations
+    - Very long rebuild times
+    - Higher cost than RAID 5 due to additional parity disk
+    - Complex parity calculations
+    - Minimum of four disks required
+  backup_recommendations:
+    - Regular backups are recommended, critical during rebuild processes
+    - Implement a comprehensive backup strategy including off-site backups
+    - Consider more frequent backups during rebuild operations
+  file_systems:
+    - ext4
+    - xfs
+   # - btrfs
+
+raid10:
+  performance:
+    read: Excellent
+    write: Good
+  special_notes: []
+  use_cases:
+    - High performance and redundancy for critical applications
+    - Database servers requiring both speed and reliability
+    - Virtual machine storage in enterprise environments
+    - High-traffic web servers with dynamic content
+    - Email servers for large organizations
+  expandability: Moderate
+  rebuild_time: Fast
+  data_safety: Very High
+  pros:
+    - Excellent read and write performance
+    - Good redundancy - can survive multiple disk failures
+    - Fast rebuild times
+    - Better write performance than RAID 5/6
+    - Good for high-performance, high-reliability needs
+  cons:
+    - Higher cost per usable TB
+    - Less efficient capacity usage (50% overhead)
+    - Complex setup for large arrays
+    - Requires a minimum of four disks
+    - Scaling can be more complex than other RAID levels
+  backup_recommendations:
+    - Regular backups are recommended
+    - Implement snapshot-based backup solutions
+    - Maintain off-site backups
+    - Leverage the RAID 10 structure for creating quick, consistent backups
+  file_systems:
+    - ext4
+    - xfs
+   # - btrfs
+
+raid50:
+  performance:
+    read: Very Good
+    write: Good
+  special_notes: []
+  use_cases:
+    - Large arrays with balanced performance and redundancy
+    - Storage for large databases with high transaction rates
+    - Big data analytics platforms
+    - Large-scale media streaming servers
+    - Enterprise file servers with high concurrent access
+  expandability: Difficult
+  rebuild_time: Slow
+  data_safety: Good
+  pros:
+    - Better performance than RAID 5, especially for writes
+    - Can handle multiple disk failures if in different RAID 5 sets
+    - Good for large arrays requiring performance and redundancy
+    - Improved read performance due to striping
+    - Better rebuild times than a large RAID 5 array
+  cons:
+    - Complex setup and management
+    - Less efficient capacity usage than RAID 5
+    - Longer rebuild times than RAID 10
+    - Higher risk of data loss during rebuild compared to RAID 6
+    - Requires a minimum of six disks
+  backup_recommendations:
+    - Regular backups are important, especially during rebuild processes
+    - Implement a robust backup strategy that can handle the RAID 50 structure efficiently
+    - Ensure off-site backups are maintained
+  file_systems:
+    - ext4
+    - xfs
+   # - btrfs
+
+raid60:
+  performance:
+    read: Very Good
+    write: Average
+  special_notes: []
+  use_cases:
+    - Very large arrays requiring high redundancy and performance
+    - Mission-critical data storage for large enterprises
+    - Large-scale surveillance systems with many high-resolution cameras
+    - Cloud storage platforms requiring high durability
+    - Scientific computing environments with large datasets
+  expandability: Difficult
+  rebuild_time: Very Slow
+  data_safety: Very High
+  pros:
+    - Better redundancy than RAID 50
+    - Can handle multiple disk failures
+    - Good for very large arrays requiring high availability
+    - Improved read performance due to striping
+    - Better rebuild times than a large RAID 6 array
+  cons:
+    - Complex setup and management
+    - Higher cost due to increased number of parity disks
+    - Write performance penalty due to double parity
+    - Very long rebuild times
+    - Requires a minimum of eight disks
+  backup_recommendations:
+    - Regular backups are recommended, critical during rebuild processes
+    - Implement a comprehensive backup strategy including off-site backups
+    - Consider more frequent backups during rebuild operations
+  file_systems:
+    - ext4
+    - xfs
+   # - btrfs
+
+zfs_stripe:
+  performance:
+    read: Excellent
+    write: Excellent
+  special_notes: []
+  use_cases:
+    - High performance ZFS setup without redundancy
+    - Temporary storage for data processing in ZFS environments
+    - Scratch space for ZFS-based render farms
+    - High-speed cache for frequently accessed data
+    - Testing environments where ZFS features are needed but redundancy is not
+  expandability: Difficult
+  rebuild_time: N/A
+  data_safety: Low
+  pros:
+    - Maximum storage capacity utilization
+    - Improved performance for large sequential operations
+    - Simple ZFS setup
+    - Flexible and easy to expand
+    - Benefits from ZFS features like compression and snapshots
+  cons:
+    - No data redundancy or fault tolerance
+    - Failure of any disk results in complete data loss
+    - Not suitable for critical data
+    - Limited by the performance of the slowest disk
+    - Requires careful backup strategy
+  backup_recommendations:
+    - Frequent and redundant backups are essential due to lack of redundancy
+    - Utilize ZFS snapshots and send/receive feature for efficient backups
+    - Implement multiple off-site backup solutions
+  file_systems:
+    - zfs
+
+zfs_mirror:
+  performance:
+    read: Excellent
+    write: Good
+  special_notes: []
+  use_cases:
+    - ZFS setup with simple redundancy, good for critical data
+    - Small business servers using ZFS for data integrity
+    - Home NAS systems requiring data protection
+    - ZFS boot environments for servers
+    - Mirrored storage pools for important user data
+  expandability: Moderate
+  rebuild_time: Fast
+  data_safety: High
+  pros:
+    - Full data redundancy
+    - Excellent read performance
+    - Fast resilvering (rebuild) times
+    - Can survive one disk failure per mirror
+    - Benefits from ZFS features like self-healing and snapshots
+  cons:
+    - Higher cost per usable TB of storage
+    - Only 50% of total disk space is usable
+    - Write performance similar to a single disk
+    - Limited scalability for very large storage needs
+    - Minimum of two disks required
+  backup_recommendations:
+    - Regular backups are recommended despite mirroring
+    - Utilize ZFS snapshots and send/receive feature for consistent backups
+    - Maintain off-site backups
+    - Consider periodic full backups
+  file_systems:
+    - zfs
+
+raidz1:
+  performance:
+    read: Good
+    write: Average
+  special_notes: []
+  use_cases:
+    - ZFS equivalent of RAID5 with better data integrity
+    - General purpose storage for ZFS-based systems
+    - Small to medium-sized NAS deployments
+    - File servers requiring moderate performance and redundancy
+    - Archival storage with ZFS data integrity features
+  expandability: Difficult
+  rebuild_time: Slow
+  data_safety: Good
+  pros:
+    - Similar to RAID 5 with ZFS benefits
+    - Protects against bit rot and silent data corruption
+    - No RAID write hole issue
+    - Can survive one disk failure
+    - Space-efficient for small number of disks
+  cons:
+    - Write performance penalty due to parity calculations
+    - Difficult to expand (need to create new vdev)
+    - Long rebuild (resilvering) times
+    - Risk of data loss during resilvering if another disk fails
+    - Minimum of three disks required
+  backup_recommendations:
+    - Regular ZFS snapshots and backups are recommended
+    - Utilize ZFS send/receive for efficient backups
+    - Implement a backup strategy that includes off-site backups
+    - Perform regular integrity checks
+  file_systems:
+    - zfs
+
+raidz2:
+  performance:
+    read: Good
+    write: Below Average
+  special_notes: []
+  use_cases:
+    - ZFS equivalent of RAID6 with enhanced protection
+    - Large-scale storage arrays in ZFS environments
+    - Backup targets for ZFS-based systems
+    - Data warehousing with emphasis on data integrity
+    - Large home or small business NAS with high reliability needs
+  expandability: Difficult
+  rebuild_time: Very Slow
+  data_safety: Very High
+  pros:
+    - Similar to RAID 6 with ZFS benefits
+    - Better data integrity than traditional RAID 6
+    - Can survive two disk failures
+    - No RAID write hole issue
+    - Good for arrays with large capacity drives
+  cons:
+    - Write performance penalty due to double parity calculations
+    - Difficult to expand (need to create new vdev)
+    - Very long rebuild (resilvering) times
+    - Higher cost than RAIDZ1 due to additional parity
+    - Minimum of four disks required
+  backup_recommendations:
+    - Regular ZFS snapshots and backups are recommended
+    - Leverage ZFS features for consistent and efficient backups
+    - Maintain off-site backups and implement a comprehensive backup schedule
+  file_systems:
+    - zfs
+
+raidz3:
+  performance:
+    read: Good
+    write: Below Average
+  special_notes: []
+  use_cases:
+    - Highest data protection in ZFS environments
+    - Critical data storage requiring maximum redundancy
+    - Long-term archival storage with minimal risk tolerance
+    - Large-scale storage systems in research or financial sectors
+    - Enterprise backup systems prioritizing data durability
+  expandability: Difficult
+  rebuild_time: Extremely Slow
+  data_safety: Extremely High
+  pros:
+    - Highest data protection in ZFS
+    - Can survive three disk failures
+    - Excellent for archival data and large arrays
+    - No RAID write hole issue
+    - Best protection against data loss during resilvering
+  cons:
+    - Significant write performance penalty
+    - Difficult to expand (need to create new vdev)
+    - Extremely long rebuild (resilvering) times
+    - Higher cost due to three-disk parity overhead
+    - Minimum of five disks required
+  backup_recommendations:
+    - Regular ZFS snapshots and backups are recommended, though less critical due to high redundancy
+    - Utilize ZFS send/receive for backups
+    - Maintain off-site copies for disaster recovery
+  file_systems:
+    - zfs
