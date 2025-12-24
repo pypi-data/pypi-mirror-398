@@ -1,0 +1,48 @@
+name: main
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [ staging, master ]
+  schedule:
+    # Weekly on Sunday
+    - cron: '0 0 * * 0'
+
+jobs:
+  pre-commit:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+    - uses: pre-commit/action@v3.0.1
+      with:
+        extra_args: --hook-stage manual --all-files
+
+  checks:
+    name: Check Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-24.04", "macos-14", "windows-2022"]
+        python-version: ["3.10", "3.11", "3.12"]
+        include:
+          - os: ubuntu-24.04
+            python-version: 3.9
+          - os: ubuntu-24.04
+            python-version: 3.13
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install package
+      run: python -m pip install .[test]
+    - name: Configure token access
+      run: |
+        viresclient set_token "https://vires.services/ows" ${{ secrets.VIRES_TOKEN_SWARM }}
+        viresclient set_default_server https://vires.services/ows
+    - name: Test package
+      run: python -m pytest -ra
