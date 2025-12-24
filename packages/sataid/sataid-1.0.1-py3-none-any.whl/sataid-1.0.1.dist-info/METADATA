@@ -1,0 +1,222 @@
+Metadata-Version: 2.4
+Name: sataid
+Version: 1.0.1
+Summary: A Python package for reading and visualizing SATAID binary satellite data (Himawari, etc.).
+Project-URL: Homepage, https://github.com/sepriando/sataid
+Project-URL: Repository, https://github.com/sepriando/sataid
+Author-email: Sepriando <meteo.go@gmail.com>
+License: MIT
+Keywords: himawari,meteorology,sataid,satellite,visualization,weather
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering :: Atmospheric Science
+Classifier: Topic :: Scientific/Engineering :: Visualization
+Requires-Python: >=3.8
+Requires-Dist: cartopy
+Requires-Dist: matplotlib
+Requires-Dist: numpy
+Provides-Extra: all
+Requires-Dist: netcdf4; extra == 'all'
+Requires-Dist: rasterio; extra == 'all'
+Requires-Dist: scipy; extra == 'all'
+Requires-Dist: xarray; extra == 'all'
+Provides-Extra: netcdf
+Requires-Dist: netcdf4; extra == 'netcdf'
+Description-Content-Type: text/markdown
+
+# SATAID
+
+[![PyPI version](https://badge.fury.io/py/sataid.svg)](https://badge.fury.io/py/sataid)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A Python package for reading and visualizing **SATAID** binary satellite data files (Himawari-8/9).
+
+## Features
+
+- 📖 Read SATAID binary files (`.Z*` format) and SZDD-compressed WIS files
+- 🗺️ Visualize with Cartopy geographic projections
+- 🎨 Built-in custom colormaps: `EH`, `SW`, `WE`, `IR_GOES`
+- ✂️ Subset data by lat/lon bounding box or point extraction
+- 💾 Export to NetCDF4, GeoTIFF, and xarray
+
+## Installation
+
+```bash
+pip install sataid
+```
+
+For optional features:
+```bash
+pip install sataid[all]  # Includes netCDF4, rasterio, xarray, scipy
+```
+
+## Quick Start
+
+### Reading Data
+
+```python
+import sataid
+
+# Read a SATAID file
+sat = sataid.read_sataid("H09_B13_Indonesia_20251126.Z0700")
+
+# View metadata
+sat.description()
+```
+
+**Output:**
+```
+=== Data Description ===
+Time: 2025-11-26 07:00 UTC
+Channel: L2
+Dimension: 3000x2000
+Resolution: 0.02
+Units: °C
+
+=== Satellite Description ===
+Satellite: Himawari-9
+Nadir Coordinate: -0.025393, 140.787445
+Altitude: 42163.33 km
+```
+
+### Visualization
+
+```python
+# Simple plot with Cartopy
+sat.plot()
+
+# With custom colormap
+sat.plot(cmap='IR_GOES')  # GOES-16 style
+sat.plot(cmap='EH')       # BMKG Enhanced IR
+sat.plot(cmap='SW')       # Sandwitch 
+sat.plot(cmap='WE')       # Water Vapor enhancement
+
+# Save to file
+sat.savefig("output.png", cmap='EH')
+```
+
+### Available Colormaps
+
+| Colormap | Description | Best For |
+|----------|-------------|----------|
+| `IR_GOES` | GOES-16 style infrared | IR channels (B13, B14, etc.) |
+| `EH` | BMKG Enhanced IR | Cloud top temperature |
+| `SW` | Sandwitch gradient | IR channels |
+| `WE` | Water Vapor enhancement | WV channels (B08, B09, B10) |
+
+### Subsetting Data
+
+```python
+# Extract a region
+subset = sat.sel(
+    latitude=slice(-10, 0),
+    longitude=slice(100, 120)
+)
+subset.plot()
+
+# Extract a single point
+value = sat.sel(latitude=-6.2, longitude=106.8)
+print(f"Temperature: {value}°C")
+
+# With interpolation
+value = sat.sel(latitude=-6.2, longitude=106.8, method='linear')
+```
+
+### Export Data
+
+```python
+# To NetCDF4 (requires netCDF4)
+sat.to_netcdf("output.nc")
+
+# To GeoTIFF (requires rasterio)
+sat.to_geotiff("output.tif")
+
+# To xarray DataArray (requires xarray)
+da = sat.to_xarray()
+
+# Back to SATAID format
+sat.to_sataid("output.sataid")
+```
+
+### Access Raw Arrays
+
+```python
+lat, lon, data = sat.to_array()
+
+# Or directly
+print(sat.lat)   # 1D latitude array
+print(sat.lon)   # 1D longitude array
+print(sat.data)  # 2D data array
+```
+
+## API Reference
+
+### `sataid.read_sataid(filename)`
+
+Read a SATAID binary file and return a `SataidArray` object.
+
+**Parameters:**
+- `filename` (str): Path to SATAID file (`.Z*` or `.wis`)
+
+**Returns:**
+- `SataidArray`: Object containing data and metadata
+
+### `SataidArray` Methods
+
+| Method | Description |
+|--------|-------------|
+| `.description()` | Print formatted metadata |
+| `.plot(cmap=None, cartopy=True)` | Interactive visualization |
+| `.savefig(filename, cmap=None)` | Save plot to image file |
+| `.sel(latitude, longitude)` | Subset by coordinates |
+| `.to_netcdf(filename)` | Export to NetCDF4 |
+| `.to_geotiff(filename)` | Export to GeoTIFF |
+| `.to_xarray()` | Convert to xarray DataArray |
+| `.to_sataid(filename)` | Write to SATAID format |
+| `.to_array()` | Return (lat, lon, data) tuple |
+
+### `SataidArray` Properties
+
+| Property | Description |
+|----------|-------------|
+| `.lat` | 1D latitude array (north → south) |
+| `.lon` | 1D longitude array (west → east) |
+| `.data` | 2D calibrated data array |
+| `.units` | Data units ('Reflectance' or '°C') |
+| `.satellite_name` | Satellite name (e.g., 'Himawari-9') |
+| `.channel_name` | Channel name (e.g., 'IR', 'WV') |
+
+## Dependencies
+
+**Required:**
+- numpy
+- matplotlib
+- cartopy
+
+**Optional:**
+- netCDF4 (for `.to_netcdf()`)
+- rasterio (for `.to_geotiff()`)
+- xarray (for `.to_xarray()`)
+- scipy (for interpolation in `.sel()`)
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Author
+
+**Sepriando** - [meteo.go@gmail.com](mailto:meteo.go@gmail.com)
+
+## Links
+
+- [PyPI](https://pypi.org/project/sataid/)
+- [GitHub](https://github.com/sepriando/sataid)
