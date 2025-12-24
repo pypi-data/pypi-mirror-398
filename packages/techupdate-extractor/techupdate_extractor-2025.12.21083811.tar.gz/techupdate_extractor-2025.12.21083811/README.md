@@ -1,0 +1,103 @@
+# TechUpdate Extractor
+[![PyPI version](https://badge.fury.io/py/techupdate-extractor.svg)](https://badge.fury.io/py/techupdate-extractor)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/techupdate-extractor)](https://pepy.tech/project/techupdate-extractor)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+TechUpdate Extractor is a Python package designed to interpret and extract structured technical insights from user-submitted hardware and software update summaries. It processes concise text inputs about hardware support changes or driver updates and outputs a detailed, organized report highlighting key components affected, compatibility considerations, and recommended actions, ensuring clarity for system administrators or developers.
+
+## Installation
+
+To install the TechUpdate Extractor package, run the following command:
+
+```bash
+pip install techupdate_extractor
+```
+
+## Usage
+
+Here is an example of how to use the `techupdate_extractor` function:
+
+```python
+from techupdate_extractor import techupdate_extractor
+
+user_input = "Example hardware update summary text."
+response = techupdate_extractor(user_input)
+print(response)
+```
+
+### Using a Custom LLM
+
+You can also use a custom LLM instance from LangChain. For example, to use the OpenAI LLM:
+
+```python
+from langchain_openai import ChatOpenAI
+from techupdate_extractor import techupdate_extractor
+
+llm = ChatOpenAI()
+response = techupdate_extractor(user_input, llm=llm)
+print(response)
+```
+
+Or to use the Anthropic LLM:
+
+```python
+from langchain_anthropic import ChatAnthropic
+from techupdate_extractor import techupdate_extractor
+
+llm = ChatAnthropic()
+response = techupdate_extractor(user_input, llm=llm)
+print(response)
+```
+
+Or to use the Google LLM:
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from techupdate_extractor import techupdate_extractor
+
+llm = ChatGoogleGenerativeAI()
+response = techupdate_extractor(user_input, llm=llm)
+print(response)
+```
+
+### Using an API Key
+
+If you want to use a specific API key for LLM7, you can pass it directly or set it as an environment variable:
+
+```python
+from techupdate_extractor import techupdate_extractor
+
+# Using an API key directly
+response = techupdate_extractor(user_input, api_key="your_api_key")
+
+# Or set the environment variable
+import os
+os.environ["LLM7_API_KEY"] = "your_api_key"
+response = techupdate_extractor(user_input)
+```
+
+## Parameters
+
+- `user_input` (str): The user input text to process.
+- `llm` (Optional[BaseChatModel]): The LangChain LLM instance to use. If not provided, the default `ChatLLM7` will be used.
+- `api_key` (Optional[str]): The API key for LLM7. If not provided, the environment variable `LLM7_API_KEY` will be used.
+
+## Default LLM
+
+By default, the package uses `ChatLLM7` from the `langchain_llm7` package. You can find more information about `ChatLLM7` [here](https://pypi.org/project/langchain-llm7/).
+
+## Rate Limits
+
+The default rate limits for the LLM7 free tier are sufficient for most use cases of this package. If you need higher rate limits, you can pass your own API key via the `api_key` parameter or set the `LLM7_API_KEY` environment variable. You can get a free API key by registering at [LLM7](https://token.llm7.io/).
+
+## Issues
+
+If you encounter any issues, please report them on the [GitHub issues page](https://github.com/chigwell/techupdate-extractor/issues).
+
+## Author
+
+- **Eugene Evstafev**
+- **Email**: hi@eugene.plus
+- **GitHub**: [chigwell](https://github.com/chigwell)
