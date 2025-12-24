@@ -1,0 +1,234 @@
+# PyIoneer
+
+A Python library and CLI for idealizing single-channel current recordings from electrophysiology experiments.
+
+## Features
+
+- **Multiple Idealization Methods**:
+  - Hidden Markov Models (HMM)
+  - Threshold-crossing detection
+  - Change-point detection
+  
+- **Block Detection**: Detect blocking events in single-channel recordings (adapted from [synapse-abf](https://github.com/Adorey92-git/synapse-abf))
+
+- **Batch Processing**: Analyze multiple ABF files automatically
+
+- **Direct ABF Support**: Works directly with Axon Binary Format files via pyABF
+
+- **No GUI Required**: Perfect for automation and pipelines
+
+- **Cross-platform**: Works on Windows, macOS, and Linux
+
+## Installation
+
+```bash
+pip install pyioneer
+```
+
+For all features including HMM and change-point detection:
+
+```bash
+pip install pyioneer[all]
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/Adorey92-git/pyioneer
+cd pyioneer
+pip install -e .
+```
+
+## Quick Start
+
+### Python API
+
+```python
+from pyioneer import load_abf, segment_threshold, detect_blocks
+
+# Load ABF file
+reader = load_abf("recording.abf")
+time, current = reader.get_sweep(sweep=0, channel=0)
+
+# Segment using threshold method
+result = segment_threshold(time, current, threshold=0.5)
+
+# Get event list with dwell times
+for event in result.events:
+    print(f"State {event.state}: {event.dwell_time:.4f}s at {event.amplitude:.2f} pA")
+
+# Detect blocks
+blocks = detect_blocks(time, current)
+print(f"Found {len(blocks)} blocks")
+```
+
+### Command Line
+
+```bash
+# Segment a file
+pyioneer idealize recording.abf --method threshold --threshold 0.5
+
+# Detect blocks
+pyioneer blocks recording.abf --sweep 0
+
+# Batch process directory
+pyioneer batch /path/to/abf/files --method threshold --threshold 0.5 --output results.json
+```
+
+## Idealization Methods
+
+### Threshold-Crossing
+
+Simple and fast method that detects state transitions when the current crosses a threshold.
+
+```python
+result = segment_threshold(
+    time, current,
+    threshold=0.5,  # Threshold in pA
+    min_dwell=0.001,  # Minimum dwell time in seconds
+    baseline=None  # Auto-detect baseline
+)
+```
+
+### Hidden Markov Models (HMM)
+
+Model-based approach, ideal for noisy data.
+
+```python
+result = segment_hmm(
+    time, current,
+    n_states=2,  # Number of states (e.g., open/closed)
+    method="gaussian",
+    max_iter=100
+)
+```
+
+### Change-Point Detection
+
+Detects abrupt changes in signal statistics.
+
+```python
+result = segment_change_point(
+    time, current,
+    n_states=2,
+    method="binseg",  # or "window", "dynp"
+    min_size=2
+)
+```
+
+## Block Detection
+
+Detect blocking events in single-channel recordings where current moves toward zero from baseline.
+
+```python
+from pyioneer import detect_blocks, BlockDetector
+
+# Simple detection
+blocks = detect_blocks(
+    time, current,
+    baseline=None,  # Auto-detect
+    block_threshold_factor=2.0,
+    min_block_duration=0.001
+)
+
+# Advanced detection with custom parameters
+detector = BlockDetector(
+    baseline_threshold=-0.25,  # Known baseline
+    block_threshold_factor=2.0,
+    min_block_duration=0.001
+)
+blocks = detector.detect(time, current, sweep_number=0)
+```
+
+## Batch Processing
+
+Process multiple files automatically:
+
+```python
+from pyioneer import batch_analyze, idealize_threshold
+from pathlib import Path
+
+results = batch_analyze(
+    Path("/path/to/abf/files"),
+    idealize_threshold,
+    idealization_kwargs={"threshold": 0.5},
+    detect_blocks=True,
+    output_path=Path("results.json")
+)
+```
+
+## Output Format
+
+Idealization results include:
+
+- **Events**: List of detected events with:
+  - `start_time`: Event start time (seconds)
+  - `end_time`: Event end time (seconds)
+  - `dwell_time`: Duration of event (seconds)
+  - `amplitude`: Mean current during event (pA)
+  - `state`: State index (0=closed, 1=open, etc.)
+
+- **Idealized trace**: Array of idealized current values
+- **States**: Array of state assignments for each sample
+
+Convert to pandas DataFrame:
+
+```python
+df = result.to_dataframe()
+df.to_csv("events.csv")
+```
+
+## Comparison with pClamp
+
+PyIoneer provides similar functionality to pClamp's idealization features but:
+
+- ✅ **No GUI required** - perfect for automation
+- ✅ **Cross-platform** - works on all operating systems
+- ✅ **Modern Python API** - easy to integrate into pipelines
+- ✅ **Open source** - fully customizable
+- ✅ **Tailored for single-channel** - optimized for patch-clamp recordings
+
+## Requirements
+
+- Python 3.8+
+- pyABF 2.3.8+
+- NumPy 1.24.0+
+- SciPy 1.10.0+
+- Click 8.0.0+
+
+Optional dependencies:
+- `hmmlearn` for HMM idealization
+- `ruptures` for change-point detection
+- `pandas` for DataFrame export
+
+## Documentation
+
+See [examples/](examples/) for more detailed usage examples.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues or pull requests.
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Acknowledgments
+
+- Built with [pyABF](https://github.com/swharden/pyABF) for ABF file support
+- Block detection adapted from [synapse-abf](https://github.com/Adorey92-git/synapse-abf)
+- Inspired by QuB and pClamp idealization tools
+
+## Citation
+
+If you use PyIoneer in your research, please cite:
+
+```bibtex
+@software{pyioneer2025,
+  title={PyIoneer: A Python library for idealizing single-channel current recordings},
+  author={Your Name},
+  year={2025},
+  url={https://github.com/Adorey92-git/pyioneer}
+}
+```
+
