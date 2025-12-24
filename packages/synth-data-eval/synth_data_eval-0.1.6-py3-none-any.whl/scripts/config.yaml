@@ -1,0 +1,210 @@
+# Experiment Configuration
+
+# Datasets to evaluate
+datasets:
+  adult:
+    file: "datasets/adult.csv"
+    target: "income"
+    task: "classification"
+    test_size: 0.2
+    discrete_columns:
+      - workclass
+      - education
+      - marital_status
+      - occupation
+      - relationship
+      - race
+      - sex
+      - native_country
+    sensitive_columns:
+      - race
+      - sex
+
+  credit:
+    file: "datasets/credit.csv"
+    target: "default_payment_next_month"
+    task: "classification"
+    test_size: 0.2
+    discrete_columns: []
+    sensitive_columns: []
+
+  diabetes:
+    file: "datasets/diabetes.csv"
+    target: "target"
+    task: "regression"
+    test_size: 0.2
+    discrete_columns: []
+    sensitive_columns: []
+
+  california_housing:
+    file: "datasets/california_housing.csv"
+    target: "MedHouseVal"
+    task: "regression"
+    test_size: 0.2
+    discrete_columns: []
+    sensitive_columns: []
+
+  wine_quality:
+    file: "datasets/wine_quality.csv"
+    target: "quality"
+    task: "regression"
+    test_size: 0.2
+    discrete_columns: []
+    sensitive_columns: []
+
+  # Low-Resource Datasets for Meta-Evaluation
+  iris:
+    file: "datasets/iris.csv"
+    target: "target"
+    task: "classification"
+    test_size: 0.2
+    discrete_columns: []
+    sensitive_columns: []
+
+  pima_diabetes:
+    file: "datasets/pima_diabetes.csv"
+    target: "Outcome"
+    task: "classification"
+    test_size: 0.2
+    discrete_columns: []
+    sensitive_columns: []
+
+  heart_disease:
+    file: "datasets/heart_disease.csv"
+    target: "target"
+    task: "classification"
+    test_size: 0.2
+    discrete_columns:
+      - sex
+      - cp
+      - fbs
+      - restecg
+      - exang
+      - slope
+    sensitive_columns:
+      - sex
+      - age
+
+  breast_cancer:
+    file: "datasets/breast_cancer.csv"
+    target: "target"
+    task: "classification"
+    test_size: 0.2
+    discrete_columns: []
+    sensitive_columns: []
+
+  german_credit:
+    file: "datasets/german_credit.csv"
+    target: "target"
+    task: "classification"
+    test_size: 0.2
+    discrete_columns:
+      - checking_status
+      - credit_history
+      - purpose
+      - savings_status
+      - employment
+      - personal_status_sex
+      - other_parties
+      - property_magnitude
+      - other_payment_plans
+      - housing
+      - job
+      - own_telephone
+      - foreign_worker
+    sensitive_columns:
+      - age
+      - personal_status_sex
+
+  student_performance:
+    file: "datasets/student_performance.csv"
+    target: "pass"
+    task: "classification"
+    test_size: 0.2
+    discrete_columns:
+      - school
+      - sex
+      - address
+      - famsize
+      - Pstatus
+      - Mjob
+      - Fjob
+      - reason
+      - guardian
+      - schoolsup
+      - famsup
+      - paid
+      - activities
+      - nursery
+      - higher
+      - internet
+      - romantic
+    sensitive_columns:
+      - sex
+      - age
+
+# Generators to evaluate
+generators:
+  ctgan:
+    class: "CTGANGenerator"
+    params:
+      epochs: 5
+      batch_size: 200
+      verbose: true
+
+  tvae:
+    class: "TVAEGenerator"
+    params:
+      epochs: 5
+      batch_size: 200
+      verbose: true
+
+  kan_ctgan:
+    class: "KAN_CTGAN_Generator"
+    params:
+      epochs: 5
+      batch_size: 200  # Must be even for KAN-CTGAN
+      verbose: true
+
+  kan_tvae:
+    class: "KAN_TVAE_Generator"
+    params:
+      epochs: 5
+      batch_size: 200
+      verbose: true
+
+  gaussian_copula:
+    class: "GaussianCopulaGenerator"
+    params:
+      default_distribution: "beta"
+
+  smote:
+    class: "SMOTEGenerator"
+    params:
+      k_neighbors: 5
+      sampling_strategy: "auto"
+
+# Progressive sampling for meta-evaluation
+progressive_sampling:
+  enabled: true
+  sample_sizes: [100, 500, 1000, 5000, 10000]  # Adjust based on dataset sizes
+  n_repeats_per_size: 10  # Higher for small samples to ensure statistical robustness
+  stratify: true
+
+# Evaluation settings
+evaluation:
+  n_runs: 5  # Number of runs for averaging and statistical significance
+  n_synthetic_samples: null  # null = match training size
+  metrics:
+    - sdmetrics
+    - ml_utility
+    - privacy
+
+  random_seed: 42
+
+# Output settings
+output:
+  results_dir: "results"
+  save_synthetic_data: false
+  save_plots: true
+  plot_format: "png"
