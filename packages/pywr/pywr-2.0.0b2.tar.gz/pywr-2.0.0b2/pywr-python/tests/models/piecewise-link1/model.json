@@ -1,0 +1,159 @@
+{
+  "metadata": {
+    "title": "Test of piecewise link."
+  },
+  "timestepper": {
+    "start": "2021-01-01",
+    "end": "2021-12-31",
+    "timestep": {
+      "type": "Days",
+      "days": 1
+    }
+  },
+  "network": {
+    "nodes": [
+      {
+        "meta": {
+          "name": "input1"
+        },
+        "type": "Input",
+        "max_flow": {
+          "type": "Timeseries",
+          "name": "inflow",
+          "columns": {
+            "type": "Column",
+            "name": "inflow"
+          }
+        },
+        "min_flow": {
+          "type": "Timeseries",
+          "name": "inflow",
+          "columns": {
+            "type": "Column",
+            "name": "inflow"
+          }
+        }
+      },
+      {
+        "meta": {
+          "name": "link1"
+        },
+        "type": "Link"
+      },
+      {
+        "meta": {
+          "name": "mrf1"
+        },
+        "type": "PiecewiseLink",
+        "steps": [
+          {
+            "cost": {
+              "type": "Literal",
+              "value": -10.0
+            },
+            "max_flow": {
+              "type": "Literal",
+              "value": 1.0
+            }
+          },
+          {
+          }
+        ]
+      },
+      {
+        "meta": {
+          "name": "term1"
+        },
+        "type": "Output"
+      },
+      {
+        "meta": {
+          "name": "demand1"
+        },
+        "type": "Output",
+        "cost": {
+          "type": "Literal",
+          "value": -5.0
+        },
+        "max_flow": {
+          "type": "Parameter",
+          "name": "demand"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from_node": "input1",
+        "to_node": "link1"
+      },
+      {
+        "from_node": "link1",
+        "to_node": "mrf1"
+      },
+      {
+        "from_node": "mrf1",
+        "to_node": "term1"
+      },
+      {
+        "from_node": "link1",
+        "to_node": "demand1"
+      }
+    ],
+    "parameters": [
+      {
+        "meta": {
+          "name": "demand"
+        },
+        "type": "Constant",
+        "value": {
+          "type": "Literal",
+          "value": 10.0
+        }
+      }
+    ],
+    "timeseries": [
+      {
+        "meta": {
+          "name": "inflow"
+        },
+        "type": "Polars",
+        "url": "inflow.csv"
+      }
+    ],
+    "metric_sets": [
+      {
+        "name": "nodes",
+        "metrics": [
+          {
+            "type": "Node",
+            "name": "input1"
+          },
+          {
+            "type": "Node",
+            "name": "link1"
+          },
+          {
+            "type": "Node",
+            "name": "mrf1"
+          },
+          {
+            "type": "Node",
+            "name": "demand1"
+          },
+          {
+            "type": "Node",
+            "name": "term1"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "outputs",
+        "type": "HDF5",
+        "filename": "outputs.h5",
+        "metric_set": "nodes"
+      }
+    ]
+  }
+}
