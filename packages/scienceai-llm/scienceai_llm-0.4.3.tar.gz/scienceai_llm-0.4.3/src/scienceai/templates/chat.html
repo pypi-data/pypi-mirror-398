@@ -1,0 +1,213 @@
+<div id="chat" class="panel">
+    <div id="chat-panel-messages" class="panel-messages">
+        {% set context_limit_hit = namespace(value=false) %}
+        {% set last_user_idx = namespace(value=-1) %}
+        {% set first_user_idx = namespace(value=-1) %}
+        {# Check if context percentage is at or above 100% #}
+        {% if context_percentage is defined and context_percentage is not none and context_percentage >= 100 %}
+        {% set context_limit_hit.value = true %}
+        {% endif %}
+        {# Find the first and last user message indices #}
+        {% for message in messages %}
+        {% if message.role == 'user' %}
+        {% if first_user_idx.value == -1 %}
+        {% set first_user_idx.value = loop.index0 %}
+        {% endif %}
+        {% set last_user_idx.value = loop.index0 %}
+        {% endif %}
+        {% endfor %}
+        {% for message in messages %}
+        {% if 'CONTEXTLIMITREACHED' in message.content %}
+        {% set context_limit_hit.value = true %}
+        {% elif message.role == 'user' %}
+        <div class="chat-bubble-area-user">
+            <div class="chat-bubble-user">
+                <span>{{ message.content | safe }}</span>
+            </div>
+            <div class="chat-bubble-timestamp">
+                Created: {{ message.time }} Status: {{ message.status }}
+                {% if loop.index0 == first_user_idx.value and message.status == 'Processed' %}
+                <button class="undo-request-btn reset-btn" onclick="showResetConfirmModal()"
+                    title="Reset conversation (remove all analysts and generated files)">
+                    🗑️ Reset All
+                </button>
+                {% endif %}
+                {% if loop.index0 == last_user_idx.value and loop.index0 != first_user_idx.value and message.status ==
+                'Processed' %}
+                <button class="undo-request-btn {% if undo_blocked %}disabled{% endif %}"
+                    onclick="{% if undo_blocked %}showUndoBlockedModal(){% else %}showUndoConfirmModal(){% endif %}"
+                    title="{% if undo_blocked %}Cannot undo (code was executed){% else %}Undo this request{% endif %}">
+                    ↩️ Undo
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        {% elif message.role == 'tool' %}
+        <div class="chat-bubble-area-tool" onclick="toggleContent(this)">
+            <div class="chat-bubble-tool" style="display: none;">
+                <span>{{ message.content | safe }}</span>
+            </div>
+            <div class="show-work-button">Show work...</div>
+            <div class="chat-bubble-timestamp">Created: {{ message.time }} Status: {{ message.status }}</div>
+        </div>
+        {% else %}
+        <div class="chat-bubble-area-ai">
+            <div class="chat-bubble-ai">
+                <span>{{ message.content | safe }}</span>
+            </div>
+            <div class="chat-bubble-timestamp">Created: {{ message.time }} Status: {{ message.status }}</div>
+        </div>
+        {% endif %}
+        {% endfor %}
+
+        {% if context_limit_hit.value %}
+        <div class="context-limit-banner">
+            <div class="context-limit-icon">⚠️</div>
+            <div class="context-limit-text">
+                <strong>Context Limit Reached</strong>
+                <p>I'm sorry, but you have reached the context limit of this Science Discussion. The conversation has
+                    grown too large for me to continue processing.</p>
+                <p>You can still:</p>
+                <ul>
+                    <li>📊 Extract and download your data from the Analysts panel</li>
+                    <li>📁 Browse your Analysis database</li>
+                    <li>💾 Save a checkpoint of your project</li>
+                </ul>
+                <p>To continue discussing, please <strong>create a new project</strong> with your papers.</p>
+                {% if can_compress is not defined or can_compress %}
+                <div class="context-compress-section">
+                    <hr style="margin: 1rem 0; border-color: #d97706;">
+                    <strong>🗜️ Want to try compressing the conversation?</strong>
+                    <p>This will summarize the first 50% of tool calls and responses to free up context space.
+                        <strong>Save a checkpoint first!</strong> This cannot be undone.
+                    </p>
+                    <button class="compress-context-btn" onclick="compressContext()">
+                        Compress Conversation
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <script>
+            function toggleContent(element) {
+                var contentDiv = element.querySelector('.chat-bubble-tool');
+                var buttonDiv = element.querySelector('.show-work-button');
+                if (contentDiv.style.display === 'none') {
+                    contentDiv.style.display = 'block';
+                    buttonDiv.textContent = 'Hide work...';
+                } else {
+                    contentDiv.style.display = 'none';
+                    buttonDiv.textContent = 'Show work...';
+                }
+            }
+        </script>
+    </div>
+    {% if context_limit_hit.value %}
+    <script>
+        // Context limit reached - hide all input elements
+        document.getElementById('typing-indicator').style.display = 'none';
+        document.getElementById('chat-input').style.display = 'none';
+        document.getElementById('send-message').style.display = 'none';
+        var progressContainer = document.getElementById('progress-wheel-container');
+        if (progressContainer) {
+            progressContainer.style.display = 'none';
+        }
+    </script>
+    {% elif messages %}
+    {% set last = messages|last %}
+    {# Hide input if: last message is Pending OR last message is from user (waiting for AI response) #}
+    {% if last.status == 'Pending' or last.role == 'user' %}
+    <script>
+        var progressContainer = document.getElementById('progress-wheel-container');
+        var typingIndicator = document.getElementById('typing-indicator');
+
+        // Only show typing indicator if progress wheel is NOT visible
+        if (progressContainer && progressContainer.style.display === 'block') {
+            typingIndicator.style.display = 'none';
+            typingIndicator.style.visibility = 'hidden';
+        } else {
+            typingIndicator.style.display = 'flex';
+            typingIndicator.style.visibility = 'visible';
+        }
+        document.getElementById('chat-input').style.display = 'none';
+        document.getElementById('send-message').style.display = 'none';
+    </script>
+    {% else %}
+    <script>
+        document.getElementById('typing-indicator').style.display = 'none';
+        document.getElementById('chat-input').style.display = 'flex';
+        document.getElementById('send-message').style.display = 'flex';
+    </script>
+    {% endif %}
+    {% else %}
+    <script>
+        document.getElementById('typing-indicator').style.display = 'none';
+        document.getElementById('chat-input').style.display = 'flex';
+        document.getElementById('send-message').style.display = 'flex';
+    </script>
+    {% endif %}
+    <script>
+        var messageInput = document.getElementById('chat-input');
+
+        messageInput.addEventListener('keydown', function (event) {
+            // Check if the Enter key was pressed without the Shift key
+            if (event.key === 'Enter') {
+                // Prevent the form from being submitted
+                event.preventDefault();
+                // Insert a newline at the current cursor position
+                var start = this.selectionStart;
+                var end = this.selectionEnd;
+
+                // Set textarea value to: text before caret + newline + text after caret
+                this.value = this.value.substring(0, start) + "\n" + this.value.substring(end);
+
+                // Move the caret to right after the inserted newline
+                this.selectionStart = this.selectionEnd = start + 1;
+
+                // expand the chat box by a line height
+                this.rows = this.rows + 1;
+
+                var chat = document.getElementById('chat');
+                chat.scrollTop = chat.scrollHeight;
+
+            }
+        });
+
+    </script>
+    <script>
+        var chat = document.getElementById('chat');
+        chat.scrollTop = chat.scrollHeight;
+
+        // Update heading text without destroying the context indicator
+        (function () {
+            var heading = document.getElementById('chat-heading');
+            var contextIndicator = document.getElementById('context-indicator');
+            if (heading) {
+                // Find the text node (first non-element child with text content)
+                var textNode = null;
+                for (var i = 0; i < heading.childNodes.length; i++) {
+                    if (heading.childNodes[i].nodeType === Node.TEXT_NODE &&
+                        heading.childNodes[i].textContent.trim().length > 0) {
+                        textNode = heading.childNodes[i];
+                        break;
+                    }
+                }
+                if (textNode) {
+                    textNode.textContent = ' ↻ Science Discussion ↻ ';
+                    setTimeout(function () {
+                        textNode.textContent = ' Science Discussion ';
+                    }, 500);
+                }
+            }
+        })();
+
+        {% if context_percentage is defined and context_percentage is not none %}
+        // Update context indicator with server-calculated percentage
+        if (typeof updateContext === 'function') {
+            updateContext({{ context_percentage }});
+        }
+        {% endif %}
+    </script>
+</div>

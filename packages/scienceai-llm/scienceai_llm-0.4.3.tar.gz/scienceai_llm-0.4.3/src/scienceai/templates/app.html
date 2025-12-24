@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScienceAI</title>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧪</text></svg>">
+    <link rel="stylesheet" type="text/css" href="/static/apps.css" />
+    <link href="/static/json-viewer/jquery.json-viewer.css" rel="stylesheet" type="text/css">
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery-ui@1.13.2/dist/jquery-ui.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/ext/ws.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/dist/ag-grid-community.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="/static/main.js"></script>
+    <script src="/static/json-viewer/jquery.json-viewer.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <!-- WebSocket connection for progress updates -->
+    <div hx-ext="ws" ws-connect="/progress" style="display: none;"></div>
+    <!-- WebSocket connection for context usage updates -->
+    <div hx-ext="ws" ws-connect="/context" style="display: none;"></div>
+
+    <div id="container">
+        <div class="resize-section glass-panel" id="left-section">
+            <div class="resize-section-internal" id="left-section-internal">
+                <h2 style="text-align: center;" id="papers-heading">Papers <button id="add-paper-button"
+                        class="icon-button" style="font-size: 0.8em;" title="Add Paper">➕</button></h2>
+                <script>
+                    document.getElementById('papers-heading').innerHTML = '&#x21bb; Papers &#x21bb;';
+                    setTimeout(() => {
+                        document.getElementById('papers-heading').innerHTML = 'Papers <button id="add-paper-button" class="icon-button" style="font-size: 0.8em;" title="Add Paper">➕</button>';
+                    }, 500);
+                </script>
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Filter...">
+                    <button id="searchButton">Search</button>
+                </div>
+                <div id="tagsContainer" style="margin-top: 10px;"></div>
+                <div class="papers-container" hx-ext="ws" ws-connect="/papers">
+                    <div id="papers-grid" class="grid">
+                        Loading...
+                        <div id="refresh-message" style="display: none;"></div>
+                        <script>
+                            setTimeout(function () {
+                                if (document.getElementById('refresh-message') == undefined) {
+                                    return;
+                                }
+                                location.reload();
+                            }, 30000);
+                        </script>
+                    </div>
+                </div>
+            </div>
+            <div class="resize-title">Papers</div>
+            <div class="resize-handle"></div>
+        </div>
+        <div class="resize-section glass-panel" id="middle-section">
+            <div class="resize-section-internal" id="middle-section-internal">
+                <h2 style="text-align: center; position: relative;" xmlns="http://www.w3.org/1999/html"
+                    id="chat-heading">
+                    Science Discussion
+                    <span id="context-indicator" class="context-indicator" title="Context window usage">
+                        <span id="context-percentage">0%</span>
+                    </span>
+                </h2>
+                <div hx-ext="ws" ws-connect="/discussion">
+                    <div id="chat" class="panel">
+                        Loading...
+                        <div id="refresh-message-chat" style="display: none;"></div>
+                        <script>
+                            setTimeout(function () {
+                                if (document.getElementById('refresh-message-chat') == undefined) {
+                                    return;
+                                }
+                                location.reload();
+                            }, 30000);
+                        </script>
+                    </div>
+                </div>
+                <div class="chat-input-container">
+                    <form id="chat-form" class="chat-form" hx-post="/send_message" hx-swap="outerHTML">
+                        <div class="typing-indicator" id="typing-indicator"><span></span><span></span><span></span>
+                        </div>
+                        <script>
+                            // Optimistic UI: Show user message immediately on send
+                            document.addEventListener('DOMContentLoaded', function () {
+                                const form = document.getElementById('chat-form');
+                                if (form) {
+                                    form.addEventListener('htmx:beforeRequest', function (event) {
+                                        const chatInput = document.getElementById('chat-input');
+                                        const messageText = chatInput ? chatInput.value.trim() : '';
+
+                                        if (messageText) {
+                                            // Create the optimistic message bubble
+                                            const chatPanel = document.getElementById('chat-panel-messages');
+                                            if (chatPanel) {
+                                                const now = new Date();
+                                                const timeStr = now.toLocaleString('en-US', {
+                                                    month: 'long', day: 'numeric', year: 'numeric',
+                                                    hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+                                                });
+
+                                                // Create user message bubble
+                                                const bubbleArea = document.createElement('div');
+                                                bubbleArea.className = 'chat-bubble-area-user';
+                                                bubbleArea.id = 'optimistic-message';
+                                                bubbleArea.innerHTML = `
+                                                    <div class="chat-bubble-user">
+                                                        <span>${messageText.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</span>
+                                                    </div>
+                                                    <div class="chat-bubble-timestamp">
+                                                        Created: ${timeStr} Status: Sending...
+                                                    </div>
+                                                `;
+
+                                                chatPanel.appendChild(bubbleArea);
+
+                                                // Scroll to the new message
+                                                const chat = document.getElementById('chat');
+                                                if (chat) {
+                                                    chat.scrollTop = chat.scrollHeight;
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+                        </script>
+                        <!-- Progress Wheel Indicator -->
+                        <div id="progress-wheel-container" class="progress-wheel-container" style="display: none;">
+                            <div class="progress-wheel-card">
+                                <div class="progress-wheel-visual">
+                                    <svg class="progress-circle" width="60" height="60">
+                                        <circle class="progress-circle-bg" cx="30" cy="30" r="24"></circle>
+                                        <circle class="progress-circle-fill" cx="30" cy="30" r="24"></circle>
+                                    </svg>
+                                    <div class="progress-text">
+                                        <span id="progress-numerator">0</span>/<span id="progress-denominator">0</span>
+                                    </div>
+                                </div>
+                                <div class="progress-info">
+                                    <div class="progress-label" id="progress-label">Data Extraction</div>
+                                    <div class="progress-description"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <textarea rows="1" id="chat-input" name="text" class="chat-input"
+                            placeholder="Talk to ScienceAI..." /></textarea>
+                        <button id="send-message">Send</button>
+                    </form>
+                </div>
+            </div>
+            <div class="resize-title">Discussion</div>
+            <div class="resize-handle"></div>
+        </div>
+        <div class="resize-section glass-panel" id="right-section">
+            <div class="resize-title">Analysis</div>
+            <div class="resize-section-internal" id="right-section-internal">
+                <div hx-get="/start-database" hx-trigger="load" hx-target="#right-section-internal">
+                    Loading...
+                    <div id="refresh-message-db" style="display: none;"></div>
+                    <script>
+                        setTimeout(function () {
+                            if (document.getElementById('refresh-message-db') == undefined) {
+                                return;
+                            }
+                            location.reload();
+                        }, 30000);
+                    </script>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="project-menu">
+        <button id="save-button" class="menu-toggle" hx-get="/save_project" hx-trigger="click" hx-swap="innerHTML"
+            hx-target="#last-checkpoint-save">
+            <span data-text="Checkpoints">💾</span>
+        </button>&nbsp
+        <button id="export-button" class="menu-toggle">
+            <span data-text="Papers">📦</span>
+        </button>&nbsp
+        <button id="analysis-button" class="menu-toggle" onclick="window.location.href = '/download_analysis'">
+            <span data-text="Extracted Data">📊</span>
+        </button>&nbsp
+        <button id="compress-button" class="menu-toggle" onclick="showCompactModal()">
+            <span data-text="Compact">🗜️</span>
+        </button>&nbsp
+        <button id="pause-button" class="menu-toggle" onclick="showPauseModal()">
+            <span data-text="Pause">⏸️</span>
+        </button>&nbsp
+        <button id="close-button" class="menu-toggle" hx-get="/close_project" hx-trigger="click" hx-swap="innerHTML"
+            hx-target="#last-checkpoint-close">
+            <span data-text="Close">❌</span>
+        </button>
+    </div>
+
+    <!-- Dark Mode Toggle -->
+    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">
+        <span class="icon sun-icon">☀️</span>
+        <span class="icon moon-icon">🌙</span>
+    </button>
+
+
+    <!-- Save Modal -->
+    <div id="save-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('save-modal')">&times;</span>
+            <h2>Last Save Checkpoint</h2>
+            <div id="last-checkpoint-save">
+            </div>
+        </div>
+    </div>
+
+    <!-- Papers Modal -->
+    <div id="papers-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('papers-modal')">&times;</span>
+            <h2>Export Papers</h2>
+            <form id="papers-form">
+                <div>
+                    <h3>List:</h3>
+                    <label><input type="checkbox" id="list-select-mode" name="list" checked> All</label><br>
+                    <label id="analystName" style="display: none;"><input type="text" name="analystName"
+                            placeholder="Enter Analyst Name"></label>
+                    <label id="listName" style="display: none;"><input type="text" name="listName"
+                            placeholder="Enter List Name"></label><br>
+                    <script>
+                        document.getElementById('list-select-mode').addEventListener('change', function () {
+                            if (this.checked) {
+                                document.getElementById('analystName').style.display = 'none';
+                                document.getElementById('listName').style.display = 'none';
+                                document.getElementById('scienceAIList').style.display = 'none';
+                            } else {
+                                document.getElementById('analystName').style.display = 'block';
+                                document.getElementById('listName').style.display = 'block';
+                                document.getElementById('scienceAIList').style.display = 'block';
+                            }
+                        });
+                    </script>
+                </div>
+                <div id="papers-form-options">
+                    <h3>Fields:</h3>
+                    <label><input type="checkbox" name="tag"> User Defined Tag</label>
+                    <input type="text" id="user-defined-tag" name="userDefinedTag"
+                        placeholder="Enter user-defined tag"><br>
+                    <label id="scienceAIList" style="display: none;"><input type="checkbox" name="scienceAIList">
+                        ScienceAI List</label><br>
+                    <label><input type="checkbox" name="doi"> DOI</label><br>
+                    <label><input type="checkbox" name="dateOfPublication"> Date of Publication</label><br>
+                    <label><input type="checkbox" name="firstAuthor"> First Author</label><br>
+                    <label><input type="checkbox" name="title"> Title</label><br>
+                    <label><input type="checkbox" name="journal"> Journal</label><br>
+                </div>
+                <h3>Order:</h3>
+                <p>This determines the file name from start to finish.</p>
+                <ul id="order-list" class="draggable-list">
+                    <!-- Draggable list items will be added here dynamically -->
+                </ul>
+                <label for="separator">Separator:</label>
+                <input type="text" id="separator" name="separator" value="_"><br>
+                <p></p>
+                <button type="button" onclick="exportPapers()">Export</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Close Modal -->
+    <div id="close-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('close-modal')">&times;</span>
+            <h2>Close</h2>
+            <div id="last-checkpoint-close">
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Paper Modals -->
+    <div id="pending-messages-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('pending-messages-modal')">&times;</span>
+            <h2>Cannot Add Papers Yet</h2>
+            <p>Please wait for the current message to finish processing before adding papers.</p>
+            <button onclick="closeModal('pending-messages-modal')">OK</button>
+        </div>
+    </div>
+
+    <div id="upload-warning-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('upload-warning-modal')">&times;</span>
+            <h2>Warning</h2>
+            <p>Adding papers to an existing project will not automatically update previous extractions or analyses. The
+                new papers will be available for future queries, but existing data will remain unchanged unless you
+                explicitly request re-analysis.</p>
+            <div style="margin-top: 20px; text-align: right;">
+                <button onclick="closeModal('upload-warning-modal')">Cancel</button>
+                <button onclick="showUploadModal()" class="danger">I Understand</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="upload-papers-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('upload-papers-modal')">&times;</span>
+            <h2>Add Papers</h2>
+            <form id="upload-papers-form" enctype="multipart/form-data">
+                <input type="file" name="files" multiple accept=".pdf" required>
+                <div style="margin-top: 20px; text-align: right;">
+                    <button type="button" onclick="closeModal('upload-papers-modal')">Cancel</button>
+                    <button type="submit">Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Undo Request Confirm Modal -->
+    <div id="undo-confirm-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('undo-confirm-modal')">&times;</span>
+            <h2>⏪ Undo Request</h2>
+            <p>Are you sure you want to undo this request? This will:</p>
+            <ul>
+                <li>Remove your message and all AI responses after it</li>
+                <li>Delete any Analysts created by this request</li>
+            </ul>
+            <p style="color: #d9534f;"><strong>⚠️ WARNING: This action is PERMANENT and cannot be undone.</strong></p>
+            <div style="margin-top: 20px; text-align: right;">
+                <button onclick="closeModal('undo-confirm-modal')">Cancel</button>
+                <button onclick="executeUndoRequest()" class="danger">Undo Request</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Undo Request Blocked Modal -->
+    <div id="undo-blocked-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('undo-blocked-modal')">&times;</span>
+            <h2>⚠️ Cannot Undo</h2>
+            <p>This request cannot be undone because the AI executed Python code.</p>
+            <p>When <code>run_python_code</code> is used, the AI may have created files, performed calculations, or made
+                other changes that cannot be automatically reverted.</p>
+            <p>To undo this work, you would need to restore from a checkpoint.
+            </p>
+            <div style="margin-top: 20px; text-align: right;">
+                <button onclick="closeModal('undo-blocked-modal')">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Conversation Confirm Modal -->
+    <div id="reset-confirm-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('reset-confirm-modal')">&times;</span>
+            <h2>🗑️ Reset Conversation</h2>
+            <p>Are you sure you want to reset the entire conversation? This will:</p>
+            <ul>
+                <li>Remove <strong>ALL</strong> messages in this conversation</li>
+                <li>Delete <strong>ALL</strong> Analysts and their extracted data</li>
+                <li>Delete <strong>ALL</strong> generated files (plots, CSVs, bundles, etc.)</li>
+            </ul>
+            <p><strong>Your uploaded papers will be preserved.</strong></p>
+            <p style="color: #d9534f;"><strong>⚠️ WARNING: This action is PERMANENT and cannot be undone. Consider
+                    saving a checkpoint first.</strong></p>
+            <div style="margin-top: 20px; text-align: right;">
+                <button onclick="closeModal('reset-confirm-modal')">Cancel</button>
+                <button onclick="executeResetConversation()" class="danger">Reset
+                    Everything</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compact Conversation Confirm Modal -->
+    <div id="compact-confirm-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('compact-confirm-modal')">&times;</span>
+            <h2>🗜️ Compact Conversation</h2>
+            <p>This will summarize the <strong>first 50%</strong> of tool call outputs to free up context space.</p>
+            <ul>
+                <li>Older tool outputs will be replaced with AI-generated summaries</li>
+                <li>Your original papers and extracted data remain intact</li>
+                <li>This helps continue long conversations that approach context limits</li>
+            </ul>
+            <p style="color: #d9534f;"><strong>⚠️ This cannot be undone. Consider saving a checkpoint first.</strong>
+            </p>
+            <div style="margin-top: 20px; text-align: right;">
+                <button onclick="closeModal('compact-confirm-modal')">Cancel</button>
+                <button onclick="executeCompaction()" class="primary">Compact Now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Processing Confirm Modal -->
+    <div id="pause-confirm-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('pause-confirm-modal')">&times;</span>
+            <h2>⏸️ Pause Processing</h2>
+            <p>This will pause the conversation at the <strong>next safe opportunity</strong>.</p>
+            <ul>
+                <li>The current tool call or operation will complete first</li>
+                <li>No new LLM calls will be made after pausing</li>
+                <li>You can resume by sending a new message</li>
+            </ul>
+            <p style="color: var(--text-muted);">Use this when you want to interrupt a long-running operation.</p>
+            <div style="margin-top: 20px; text-align: right;">
+                <button onclick="closeModal('pause-confirm-modal')">Cancel</button>
+                <button onclick="executePause()" class="primary">Pause Now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Pending Modal -->
+    <div id="pause-pending-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="cancelPause()">&times;</span>
+            <h2>⏳ Pause Requested</h2>
+            <p>Waiting for current operation to complete...</p>
+            <p style="color: var(--text-muted);">The conversation will pause after the current tool call finishes.</p>
+            <div style="margin-top: 20px; text-align: right;">
+                <button onclick="cancelPause()" class="secondary">Cancel Pause</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    <script>
+        document.getElementById('save-button').onclick = function () {
+            openModal('save-modal');
+        };
+
+        document.getElementById('export-button').onclick = function () {
+            openModal('papers-modal');
+        };
+
+        document.getElementById('close-button').onclick = function () {
+            openModal('close-modal');
+        };
+
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('#add-paper-button');
+            if (btn) {
+                // Check for pending messages
+                const typingIndicator = document.getElementById('typing-indicator');
+
+                // Check last message status directly from DOM
+                let isPending = false;
+                const timestamps = document.querySelectorAll('.chat-bubble-timestamp');
+                if (timestamps.length > 0) {
+                    const lastTimestamp = timestamps[timestamps.length - 1];
+                    if (lastTimestamp.textContent.includes('Status: Pending')) {
+                        isPending = true;
+                    }
+                }
+
+                if ((typingIndicator.style.display !== 'none' && typingIndicator.style.display !== '') || isPending) {
+                    openModal('pending-messages-modal');
+                } else {
+                    openModal('upload-warning-modal');
+                }
+            }
+        });
+
+        function showUploadModal() {
+            closeModal('upload-warning-modal');
+            openModal('upload-papers-modal');
+        }
+
+        document.getElementById('upload-papers-form').onsubmit = async function (e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = 'Uploading...';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch('/add_papers_to_existing_project', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    closeModal('upload-papers-modal');
+                    this.reset();
+                    // Force a refresh of the papers list if needed, but the backend should handle the chat updates
+                } else {
+                    alert('Failed to upload papers');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error uploading papers');
+            } finally {
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+            }
+        };
+
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+
+        function exportPapers() {
+            let selectedFields = [];
+            $('#papers-form-options input:checked').each(function () {
+                selectedFields.push($(this).siblings('label').text());
+            });
+
+            let orderedFields = [];
+            $('#order-list .draggable-item').each(function () {
+                orderedFields.push($(this).text());
+            });
+
+            let separator = $('#separator').val();
+            let userDefinedTag = $('#user-defined-tag').val();
+
+            alert('Papers exported: ' + orderedFields.join(separator).replace('User Defined Tag', userDefinedTag).replaceAll(" ", "_") + '.pdf');
+            window.location.href = '/export_papers?fields=' + orderedFields.join(',') + '&separator=' + separator + '&userDefinedTag=' + userDefinedTag + '&analystName=' + $('#analystName input').val() + '&listName=' + $('#listName input').val();
+        }
+
+        // Initialize draggable list
+        $(function () {
+            $('#order-list').sortable();
+            $('#order-list').disableSelection();
+
+            $('#papers-form-options input[type="checkbox"]').change(function () {
+                let fieldName = $(this).closest('label').text().trim();
+                if ($(this).is(':checked')) {
+                    $('#order-list').append('<li class="draggable-item">' + fieldName + '</li>');
+                } else {
+                    $('#order-list .draggable-item').filter(function () {
+                        return $(this).text().trim() === fieldName;
+                    }).remove();
+                }
+            });
+        });
+
+        // Close the modal when the user clicks anywhere outside of the modal
+        window.onclick = function (event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        }
+
+        // Undo Request Functions
+        function showUndoConfirmModal() {
+            openModal('undo-confirm-modal');
+        }
+
+        function showUndoBlockedModal() {
+            openModal('undo-blocked-modal');
+        }
+
+        async function executeUndoRequest() {
+            // Show processing state in modal
+            const modal = document.getElementById('undo-confirm-modal');
+            const modalContent = modal.querySelector('.modal-content');
+            modalContent.innerHTML = '<h2>⏳ Processing...</h2><p>Undoing request and cleaning up...</p>';
+
+            try {
+                const response = await fetch('/undo_last_request', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    modalContent.innerHTML = '<h2>✅ Done</h2><p>Request undone. Refreshing...</p>';
+                    setTimeout(() => location.reload(), 2500);
+                } else {
+                    closeModal('undo-confirm-modal');
+                    if (data.blocked) {
+                        showUndoBlockedModal();
+                    } else {
+                        alert('Failed to undo: ' + data.error);
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                closeModal('undo-confirm-modal');
+                alert('Error undoing request');
+            }
+        }
+
+        // Reset Conversation Functions
+        function showResetConfirmModal() {
+            openModal('reset-confirm-modal');
+        }
+
+        async function executeResetConversation() {
+            // Show processing state in modal
+            const modal = document.getElementById('reset-confirm-modal');
+            const modalContent = modal.querySelector('.modal-content');
+            modalContent.innerHTML = '<h2>⏳ Processing...</h2><p>Removing analysts and clearing generated files...</p>';
+
+            try {
+                const response = await fetch('/reset_conversation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    modalContent.innerHTML = '<h2>✅ Done</h2><p>Reset in progress. Page will refresh in 10 seconds...</p>';
+                    setTimeout(() => location.reload(), 10000);
+                } else {
+                    closeModal('reset-confirm-modal');
+                    alert('Failed to reset: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                closeModal('reset-confirm-modal');
+                alert('Error resetting conversation');
+            }
+        }
+
+        // Compaction Modal and trigger
+        function showCompactModal() {
+            openModal('compact-confirm-modal');
+        }
+
+        async function executeCompaction() {
+            closeModal('compact-confirm-modal');
+
+            const compressBtn = document.getElementById('compress-button');
+            const originalHTML = compressBtn.innerHTML;
+            compressBtn.innerHTML = '<span>⏳</span>';
+            compressBtn.disabled = true;
+
+            try {
+                const response = await fetch('/compress_context', { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    compressBtn.innerHTML = '<span data-text="Done!">✅</span>';
+                    setTimeout(() => {
+                        compressBtn.innerHTML = originalHTML;
+                        compressBtn.disabled = false;
+                    }, 3000);
+                } else if (data.already_running) {
+                    alert('Compression is already in progress. Please wait.');
+                    compressBtn.innerHTML = originalHTML;
+                    compressBtn.disabled = false;
+                } else {
+                    alert('Compression failed: ' + (data.error || 'Unknown error'));
+                    compressBtn.innerHTML = originalHTML;
+                    compressBtn.disabled = false;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error triggering compaction');
+                compressBtn.innerHTML = originalHTML;
+                compressBtn.disabled = false;
+            }
+        }
+
+        // Pause Processing Modal and handlers
+        function showPauseModal() {
+            openModal('pause-confirm-modal');
+        }
+
+        async function executePause() {
+            closeModal('pause-confirm-modal');
+
+            const pauseBtn = document.getElementById('pause-button');
+            const originalHTML = pauseBtn.innerHTML;
+            pauseBtn.innerHTML = '<span>⏳</span>';
+            pauseBtn.disabled = true;
+
+            try {
+                const response = await fetch('/pause_processing', { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    // Show pending modal
+                    openModal('pause-pending-modal');
+                    pauseBtn.innerHTML = '<span data-text="Pending">⏸️</span>';
+                } else {
+                    alert('Pause failed: ' + (data.error || 'Unknown error'));
+                    pauseBtn.innerHTML = originalHTML;
+                    pauseBtn.disabled = false;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error requesting pause');
+                pauseBtn.innerHTML = originalHTML;
+                pauseBtn.disabled = false;
+            }
+        }
+
+        async function cancelPause() {
+            closeModal('pause-pending-modal');
+
+            const pauseBtn = document.getElementById('pause-button');
+
+            try {
+                const response = await fetch('/cancel_pause', { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    pauseBtn.innerHTML = '<span data-text="Pause">⏸️</span>';
+                    pauseBtn.disabled = false;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                // Reset button anyway
+                pauseBtn.innerHTML = '<span data-text="Pause">⏸️</span>';
+                pauseBtn.disabled = false;
+            }
+        }
+    </script>
+
+    <script>
+
+        const collapseThreshold = 50; // Minimum width in pixels before section collapses
+
+        // load the window width and height from local storage
+        var windowWidth = localStorage.getItem('windowWidth');
+        var windowHeight = localStorage.getItem('windowHeight');
+        // see if the window width and height match the current window width and height
+        if (windowWidth && windowHeight) {
+            if (window.innerWidth === parseInt(windowWidth) && window.innerHeight === parseInt(windowHeight)) {
+                // Load the section locations from local storage if they exist
+                var sectionLocations = localStorage.getItem('sectionLocations');
+                if (sectionLocations) {
+                    sectionLocations = JSON.parse(sectionLocations);
+                    var sections = document.querySelectorAll('.resize-section');
+                    sections.forEach((section, index) => {
+                        // set the width of the section
+                        section.style.width = sectionLocations[index];
+                    });
+                }
+            }
+        }
+
+        interact('.resize-section:not(:last-child)')
+            .resizable({
+                edges: { right: '.resize-handle' }, // Resize from the right edge
+                modifiers: [
+                    interact.modifiers.restrictSize({
+                        min: { width: collapseThreshold },
+                    }),
+                ],
+                inertia: true,
+            })
+            .on('resizemove', resizeMoveHandler);
+
+        // Handler for resizing movement
+        function resizeMoveHandler(event) {
+            // if 1.1x collapseThreshold is met then show the resize title otherwise hide it
+            var resizeTitle = event.target.querySelector('.resize-title');
+            if (event.rect.width > 1.05 * collapseThreshold) {
+                resizeTitle.style.display = 'none';
+            } else {
+                resizeTitle.style.display = 'block';
+            }
+
+            var target = event.target;
+            var nextSibling = target.nextElementSibling;
+
+            if (nextSibling && nextSibling.classList.contains('resize-section')) {
+                var resizeTitleSibling = nextSibling.querySelector('.resize-title');
+                var totalAvailableWidth = target.parentNode.getBoundingClientRect().width;
+                var otherSectionsWidth = 0;
+                Array.from(target.parentNode.children).forEach(child => {
+                    if (child !== target && child !== nextSibling) {
+                        otherSectionsWidth += child.getBoundingClientRect().width;
+                    }
+                });
+
+                var spaceForNextSibling = totalAvailableWidth - event.rect.width - otherSectionsWidth;
+                if (spaceForNextSibling < collapseThreshold) {
+                    // Adjust current section width to ensure next sibling respects its minimum width
+                    var correctedWidth = totalAvailableWidth - collapseThreshold - otherSectionsWidth;
+                    target.style.width = `${correctedWidth}px`;
+                    nextSibling.style.width = `${collapseThreshold}px`;
+                    resizeTitleSibling.style.display = 'block';
+                } else {
+                    // Apply the original logic if the next sibling can maintain its minimum width
+                    target.style.width = event.rect.width + 'px';
+                    nextSibling.style.width = `${spaceForNextSibling}px`;
+                    resizeTitleSibling.style.display = 'none';
+                }
+            } else {
+                // If there's no next sibling to worry about (for future-proofing)
+                target.style.width = event.rect.width + 'px';
+            }
+            // Adjust for margins if necessary by subtracting the total margins from the calculated widths
+            // store the locations of the sections in local storage
+            var sections = document.querySelectorAll('.resize-section');
+            var sectionLocations = [];
+            sections.forEach(section => {
+                sectionLocations.push(section.style.width);
+            });
+            localStorage.setItem('sectionLocations', JSON.stringify(sectionLocations));
+            // save the window width and height in local storage
+            localStorage.setItem('windowWidth', window.innerWidth);
+            localStorage.setItem('windowHeight', window.innerHeight);
+        }
+
+        // Adjust sections on window resize to fill new space
+        window.addEventListener('resize', function () {
+            const containerWidth = document.getElementById('container').getBoundingClientRect().width;
+            const sections = document.querySelectorAll('.resize-section');
+            const newSectionWidth = containerWidth / sections.length;
+
+            sections.forEach(section => {
+                section.style.width = `${newSectionWidth}px`;
+            });
+        });
+
+        // Dark Mode Toggle Functionality
+        (function () {
+            const themeToggle = document.getElementById('theme-toggle');
+            const html = document.documentElement;
+
+            // Check for saved theme preference or default to 'light'
+            const currentTheme = localStorage.getItem('theme') || 'light';
+            html.setAttribute('data-theme', currentTheme);
+
+            // Toggle theme
+            themeToggle.addEventListener('click', function () {
+                const theme = html.getAttribute('data-theme');
+                const newTheme = theme === 'light' ? 'dark' : 'light';
+
+                html.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+            });
+        })();
+
+    </script>
+
+</body>
+
+</html>
