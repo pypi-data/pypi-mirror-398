@@ -1,0 +1,317 @@
+from locale import normalize
+import numpy as np
+from collections import namedtuple
+from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KernelDensity
+from sklearn.model_selection import GridSearchCV
+from scipy.stats import gaussian_kde
+from tqdm import tqdm
+from ..nonconformist import IcpRegressor
+from ..nonconformist import RegressorNc
+from ..nonconformist import RegressorNormalizer, AbsErrorErrFunc
+from ..utils import Progbar
+from ..simulation import simulate_replications
+
+
+class PredictionInterval(BaseEstimator, RegressorMixin):
+    """Class PredictionInterval: Obtain prediction intervals.
+
+    Attributes:
+
+        obj: an object;
+            fitted object containing methods `fit` and `predict`
+
+        method: a string;
+            method for constructing the prediction intervals.
+            Currently "splitconformal" (default) and "localconformal"
+
+        level: a float;
+            Confidence level for prediction intervals. Default is 95,
+            equivalent to a miscoverage error of 5 (%)
+
+        replications: an integer;
+            Number of replications for simulated conformal (default is `None`)
+
+        type_pi: a string;
+            type of prediction interval: currently `None`
+            (split conformal without simulation)
+            for type_pi in:
+                - 'bootstrap': Bootstrap resampling.
+                - 'kde': Kernel Density Estimation.
+
+        type_split: a string;
+            "random" (random split of data) or "sequential" (sequential split of data)
+
+        seed: an integer;
+            Reproducibility of fit (there's a random split between fitting and calibration data)
+    """
+
+    def __init__(
+        self,
+        obj,
+        method="splitconformal",
+        level=95,
+        type_pi=None,
+        type_split="random",
+        replications=None,
+        kernel=None,
+        agg="mean",
+        seed=123,
+    ):
+        self.obj = obj
+        self.method = method
+        self.level = level
+        self.type_pi = type_pi
+        self.type_split = type_split
+        self.replications = replications
+        self.kernel = kernel
+        self.agg = agg
+        self.seed = seed
+        self.alpha_ = 1 - self.level / 100
+        self.quantile_ = None
+        self.icp_ = None
+        self.calibrated_residuals_ = None
+        self.scaled_calibrated_residuals_ = None
+        self.calibrated_residuals_scaler_ = None
+        self.kde_ = None
+        self.aic_ = None
+        self.aicc_ = None
+        self.bic_ = None
+        self.sse_ = None
+
+    def fit(self, X, y, sample_weight=None, **kwargs):
+        """Fit the `method` to training data (X, y).
+
+        Args:
+
+            X: array-like, shape = [n_samples, n_features];
+                Training set vectors, where n_samples is the number
+                of samples and n_features is the number of features.
+
+            y: array-like, shape = [n_samples, ]; Target values.
+
+            sample_weight: array-like, shape = [n_samples]
+                Sample weights.
+
+        """
+
+        if self.type_split == "random":
+            X_train, X_calibration, y_train, y_calibration = train_test_split(
+                X, y, test_size=0.5, random_state=self.seed
+            )
+
+        elif self.type_split == "sequential":
+            n_x = X.shape[0]
+            n_x_half = n_x // 2
+            first_half_idx = range(0, n_x_half)
+            second_half_idx = range(n_x_half, n_x)
+            X_train = X[first_half_idx, :]
+            X_calibration = X[second_half_idx, :]
+            y_train = y[first_half_idx]
+            y_calibration = y[second_half_idx]
+
+        if self.method == "splitconformal":
+            self.obj.fit(X_train, y_train)
+            preds_calibration = self.obj.predict(X_calibration)
+            self.calibrated_residuals_ = y_calibration - preds_calibration
+            absolute_residuals = np.abs(self.calibrated_residuals_)
+            self.calibrated_residuals_scaler_ = StandardScaler(
+                with_mean=True, with_std=True
+            )
+            self.scaled_calibrated_residuals_ = (
+                self.calibrated_residuals_scaler_.fit_transform(
+                    self.calibrated_residuals_.reshape(-1, 1)
+                ).ravel()
+            )
+            try:
+                # numpy version >= 1.22
+                self.quantile_ = np.quantile(
+                    a=absolute_residuals, q=self.level / 100, method="higher"
+                )
+            except Exception:
+                # numpy version < 1.22
+                self.quantile_ = np.quantile(
+                    a=absolute_residuals,
+                    q=self.level / 100,
+                    interpolation="higher",
+                )
+
+        if self.method == "localconformal":
+            mad_estimator = ExtraTreesRegressor()
+            normalizer = RegressorNormalizer(
+                self.obj, mad_estimator, AbsErrorErrFunc()
+            )
+            nc = RegressorNc(self.obj, AbsErrorErrFunc(), normalizer)
+            self.icp_ = IcpRegressor(nc)
+            self.icp_.fit(X_train, y_train)
+            self.icp_.calibrate(X_calibration, y_calibration)
+
+        # Calculate AIC
+        # Get predictions
+        preds = self.obj.predict(X_calibration)
+
+        # Calculate SSE
+        self.sse_ = np.sum((y_calibration - preds) ** 2)
+
+        # Get number of parameters from the base model
+        n_params = (
+            getattr(self.obj, "n_hidden_features", 0) + X_calibration.shape[1]
+        )
+
+        # Calculate AIC
+        n_samples = len(y_calibration)
+        temp = n_samples * np.log(self.sse_ / n_samples)
+        self.aic_ = temp + 2 * n_params
+        self.bic_ = temp + np.log(n_samples) * n_params
+
+        return self
+
+    def predict(self, X, return_pi=False):
+        """Obtain predictions and prediction intervals
+
+        Args:
+
+            X: array-like, shape = [n_samples, n_features];
+                Testing set vectors, where n_samples is the number
+                of samples and n_features is the number of features.
+
+            return_pi: boolean
+                Whether the prediction interval is returned or not.
+                Default is False, for compatibility with other _estimators_.
+                If True, a tuple containing the predictions + lower and upper
+                bounds is returned.
+
+        """
+
+        if self.method == "splitconformal":
+            pred = self.obj.predict(X)
+
+        if self.method == "localconformal":
+            pred = self.icp_.predict(X)
+
+        if self.method == "splitconformal":
+            if (
+                self.replications is None and self.type_pi is None
+            ):  # type_pi is not used here, no bootstrap or kde
+                if return_pi:
+                    DescribeResult = namedtuple(
+                        "DescribeResult", ("mean", "lower", "upper")
+                    )
+                    return DescribeResult(
+                        pred, pred - self.quantile_, pred + self.quantile_
+                    )
+
+                else:
+                    return pred
+
+            else:  # self.method == "splitconformal" and if self.replications is not None, type_pi must be used
+                raise NotImplementedError
+
+                if self.type_pi is None:
+                    self.type_pi = "kde"
+                    raise Warning("type_pi must be set, setting to 'kde'")
+
+                if self.replications is None:
+                    self.replications = 100
+                    raise Warning("replications must be set, setting to 100")
+
+                assert self.type_pi in (
+                    "bootstrap",
+                    "kde",
+                    "normal",
+                    "ecdf",
+                    "permutation",
+                    "smooth-bootstrap",
+                ), "`self.type_pi` must be in ('bootstrap', 'kde', 'normal', 'ecdf', 'permutation', 'smooth-bootstrap')"
+
+                if self.type_pi == "bootstrap":
+                    np.random.seed(self.seed)
+                    self.residuals_sims_ = np.asarray(
+                        [
+                            np.random.choice(
+                                a=self.scaled_calibrated_residuals_,
+                                size=X.shape[0],
+                            )
+                            for _ in range(self.replications)
+                        ]
+                    ).T
+                    self.sims_ = np.asarray(
+                        [
+                            pred
+                            + self.calibrated_residuals_scaler_.scale_[0]
+                            * self.residuals_sims_[:, i].ravel()
+                            for i in range(self.replications)
+                        ]
+                    ).T
+                elif self.type_pi == "kde":
+                    self.kde_ = gaussian_kde(
+                        dataset=self.scaled_calibrated_residuals_
+                    )
+                    self.sims_ = np.asarray(
+                        [
+                            pred
+                            + self.calibrated_residuals_scaler_.scale_[0]
+                            * self.kde_.resample(
+                                size=X.shape[0], seed=self.seed + i
+                            ).ravel()
+                            for i in range(self.replications)
+                        ]
+                    ).T
+                else:  # self.type_pi == "normal" or "ecdf" or "permutation" or "smooth-bootstrap"
+                    self.residuals_sims_ = np.asarray(
+                        simulate_replications(
+                            data=self.scaled_calibrated_residuals_,
+                            method=self.type_pi,
+                            num_replications=self.replications,
+                            n_obs=X.shape[0],
+                            seed=self.seed,
+                        )
+                    ).T
+                    self.sims_ = np.asarray(
+                        [
+                            pred
+                            + self.calibrated_residuals_scaler_.scale_[0]
+                            * self.residuals_sims_[:, i].ravel()
+                            for i in range(self.replications)
+                        ]
+                    ).T
+
+                self.mean_ = np.mean(self.sims_, axis=1)
+                self.lower_ = np.quantile(
+                    self.sims_, q=self.alpha_ / 200, axis=1
+                )
+                self.upper_ = np.quantile(
+                    self.sims_, q=1 - self.alpha_ / 200, axis=1
+                )
+
+                DescribeResult = namedtuple(
+                    "DescribeResult", ("mean", "sims", "lower", "upper")
+                )
+
+                return DescribeResult(
+                    self.mean_, self.sims_, self.lower_, self.upper_
+                )
+
+        if self.method == "localconformal":
+            if self.replications is None:
+                if return_pi:
+                    predictions_bounds = self.icp_.predict(
+                        X, significance=1 - self.level
+                    )
+                    DescribeResult = namedtuple(
+                        "DescribeResult", ("mean", "lower", "upper")
+                    )
+                    return DescribeResult(
+                        pred, predictions_bounds[:, 0], predictions_bounds[:, 1]
+                    )
+
+                else:
+                    return pred
+
+            else:  # (self.method == "localconformal") and if self.replications is not None
+                raise NotImplementedError(
+                    "When self.method == 'localconformal', there are no simulations"
+                )
