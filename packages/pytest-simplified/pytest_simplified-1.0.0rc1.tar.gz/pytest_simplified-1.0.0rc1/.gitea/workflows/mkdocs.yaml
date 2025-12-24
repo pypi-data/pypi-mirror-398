@@ -1,0 +1,217 @@
+---
+
+name: 'Ansible Collection'
+
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - '*'
+
+
+jobs:
+
+
+  lint:
+    name: 'Lint'
+    env:
+      MDLINT_PATHS: '"docs/*.md docs/**/*.md docs/**/**/*.md docs/**/**/**/*.md docs/**/**/**/**/**/*.md #CHANGELOG.md !gitlab-ci !website-template"'
+    runs-on: ubuntu-latest
+    steps:
+
+
+      - name: Checkout Code - ${{ github.ref_name }}
+        uses: actions/checkout@v4
+
+
+      - name: Init Git Submodules
+        shell: bash
+        run: |
+          git submodule update --init;
+          git submodule foreach git submodule update --init;
+
+          ls -ls
+
+
+      - name: Install Dependencies
+        shell: bash
+        run: |
+          sudo apt update;
+          sudo apt install -y --no-install-recommends npm;
+
+
+      - name: Install Linter
+        shell: bash
+        run: |
+          npm install markdownlint-cli2@v0.18.1 --global
+          npm install markdownlint-cli2-formatter-junit --global       
+
+
+      - name: Create Artifact directory
+        shell: bash
+        run: |
+          mkdir -p artifacts
+
+
+      - name: Add linting rules
+        shell: bash
+        run: |
+          if [ ! -f ".markdownlint.json" ]; then
+
+            ls -la website-template;
+
+            cp "website-template/.markdownlint.json" ".markdownlint.json";
+
+          fi;
+
+          if [ ! -f ".markdownlint-cli2.jsonc" ]; then
+
+            ls -la gitlab-ci/lint
+
+            cp -f "gitlab-ci/lint/.markdownlint-cli2.jsonc" ".markdownlint-cli2.jsonc";
+
+          fi
+
+          ls -la;
+
+
+      - name: Lint
+        id: lint
+        shell: bash
+        run: |
+          markdownlint-cli2 $MDLINT_PATHS 1>&1 || EXITCODE=$?
+
+          if [ "${EXITCODE}" ]; then
+
+            echo "exit_code=${EXITCODE}" >> $GITHUB_OUTPUT
+
+          else
+
+            echo "exit_code=0" >> $GITHUB_OUTPUT
+
+          fi
+
+          echo "[Trace] GITHUB_OUTPUT[$(cat $GITHUB_OUTPUT)]";
+
+          ls -la;
+          
+          mv -vf markdown.junit.xml "artifacts/markdown_lint.junit.xml"
+
+
+      - name: debug ls
+        if: ${{ success() || failure() }}
+        shell: bash
+        run: |
+          ls -la artifacts/;
+
+
+      - name: Check if Linting Error Occured
+        shell: bash
+        run: |
+          if [ ${{ steps.lint.outputs.exit_code }} -ge 3 ]; then
+
+            echo "[Error] ansible lint failed with  ${{ steps.lint.outputs.exit_code }}";
+            
+            exit ${{ steps.lint.outputs.exit_code }};
+
+          fi # don't fail the job?? 1=failed test, 2=failed command i.e. switch/flag
+
+
+      - name: Upload build Artifact
+        if: ${{ success() || failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mkdocs-lint
+          path: artifacts/
+
+
+      - name: Should the Job be force failed?
+        shell: bash
+        run: |
+          if [ "0${{ inputs.ANSIBLE_LINTING_MUST_PASS }}" == "0true" ]; then
+
+            if [ ${{ steps.lint.outputs.exit_code }} -gt 0 ]; then
+
+              echo "[Trace] ANSIBLE_LINTING_MUST_PASS[${{ inputs.ANSIBLE_LINTING_MUST_PASS }}]";
+              
+              echo "[Error] ansible lint failed with ${{ steps.lint.outputs.exit_code }}";
+            
+              exit ${{ steps.lint.outputs.exit_code }};
+          
+            fi
+
+          fi
+
+
+  lint-reports:
+    name: 'Linting Reports'
+    if: success() || failure()
+    needs:
+      - lint
+    runs-on: ubuntu-latest
+    steps:
+
+
+      - name: Markdown Lint Report
+        if: success() || failure()
+        uses: dorny/test-reporter@v1
+        with:
+          artifact: mkdocs-lint
+          name: Markdown Lint Report
+          path: 'markdown_lint.junit.xml'
+          reporter: java-junit
+
+
+  # build:
+  #   name: Build
+  #   if: false
+  #   needs:
+  #     - lint
+  #   runs-on: ubuntu-latest
+  #   steps:
+
+
+  #     - name: Debug
+  #       shell: bash
+  #       run: |
+
+  #         echo "To be created";
+
+
+  # publish:
+  #   name: Publish to Galaxy
+  #   if: false
+  #   needs:
+  #     - lint
+  #     - build
+  #   runs-on: ubuntu-latest
+  #   steps:
+
+
+  #     - name: to be created
+  #       shell: bash
+  #       run: |
+  #         echo "to be created";
+
+
+  # release:
+  #   if: false
+  #   needs:
+  #     - publish
+  #   name: Mark Release Live
+  #   runs-on: ubuntu-latest
+  #   steps:
+
+
+  #     - name: to be created
+  #       shell: bash
+  #       run: |
+  #         echo "to be created";
+
+  #     # - name: Publish Release
+  #     #   uses: grzegorzkrukowski/action-publish-github-release@v1
+  #     #   with:
+  #     #     tag_name: ${{ github.ref_name }}
+  #     #     token: ${{ secrets.GITHUB_TOKEN }}

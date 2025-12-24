@@ -1,0 +1,48 @@
+---
+
+name: Pull Requests
+
+
+on:
+  pull_request: {}
+
+
+jobs:
+
+  conventional-pr-title:
+    name: Conventional PR Title
+    runs-on: ubuntu-latest
+    steps:
+
+
+      - name: Conventional Commit PR Title
+        uses: agenthunt/conventional-commit-checker-action@v1.0.0
+        with:
+          pr-title-regex: "^(.+)(?:(([^)s]+)))?: (.+)"
+          pr-body-regex: "(.*)"
+
+
+  conventional-commits:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Check Commits
+        uses: taskmedia/action-conventional-commits@v1.1.17
+        with:
+          token: ${{ github.token }}
+          skip_merge: true
+          skip_revert: true
+          types: "build|bump|chore|ci|docs|feat|fix|perf|refactor|revert|style|test"
+
+
+  pr_dependencies:
+    runs-on: ubuntu-latest
+    name: Dependency Check
+    steps:
+
+      - uses: gregsdennis/dependencies-action@ae6e0529ef70f1366a21972f40b1ad0e1b5e3218     # v1.4.1
+        # with:
+        #   custom-domains: my-custom-domain.io another.domain.com
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
