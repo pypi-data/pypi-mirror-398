@@ -1,0 +1,249 @@
+Metadata-Version: 2.4
+Name: kondoo
+Version: 0.1.11
+Summary: A flexible, self-hosted RAG chatbot framework for containerized deployments.
+Author-email: Luis Pereida <luis.pereida@sysadminctl.services>, Haydee Padilla <haydee.padilla@sysadminctl.services>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/sysadminctl-services/kondoo
+Project-URL: Repository, https://github.com/sysadminctl-services/kondoo
+Project-URL: Bug Tracker, https://github.com/sysadminctl-services/kondoo/issues
+Keywords: chatbot,rag,llm,ollama,gemini,self-hosted,docker,podman,container,framework,python,flask,llama-index
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Communications :: Chat
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: flask
+Requires-Dist: flask-cors
+Requires-Dist: python-dotenv
+Requires-Dist: google-generativeai
+Requires-Dist: llama-index
+Requires-Dist: llama-index-llms-google-genai
+Requires-Dist: llama-index-llms-openai
+Requires-Dist: llama-index-llms-openai-like
+Requires-Dist: llama-index-embeddings-ollama
+Requires-Dist: llama-index-embeddings-huggingface
+Requires-Dist: llama-index-embeddings-openai
+Requires-Dist: pyyaml
+Requires-Dist: gunicorn
+Dynamic: license-file
+
+# Kondoo 🦙
+
+**Kondoo** is not just a chatbot; it is a framework for building **autonomous digital minds**. Its name is inspired by the word “condominium,” a system of independent dwellings that share the same structure. Similarly, Kondoo allows multiple bots to operate independently, each with its own personality and knowledge base, but sharing the same robust, containerized framework.
+
+This project was born with a **“self-hosted first”** philosophy, giving you complete control over your data and the models you use, from a local `tinyllama` to cloud APIs such as Gemini.
+
+> **Kondoo: Your knowledge, your rules, your assistants.**
+
+---
+
+## 🚀 Key Features
+
+* **Framework Agnostic:** Not tied to a specific provider. Use an `ANSWER_LLM_PROVIDER` to choose your answer engine (Gemini, OpenAI, Ollama) and a `KNOWLEDGE_PROVIDER` for your embeddings (Ollama, local, OpenAI).
+* **Containerized by Design:** Built on **Podman** and `compose`, ensuring maximum portability and clean, repeatable deployment.
+* **Self-Hosted First:** Designed to run 100% locally, using Ollama for both embeddings and response generation, giving you full control and privacy.
+* **Extensible:** The `src/` structure makes it an installable Python package, ready to be imported into larger projects.
+* **Decoupled Identity:** Separates the bot's identity (persona.yaml) from its behavioral rules (behavior.txt), allowing for scalable management of multiple bots with standardized service quality.
+
+## 🏛️ Project Structure
+
+Kondoo is structured as a Python framework, separating reusable code from implementation examples:
+
+* `src/kondoo/`: The source code for the `kondoo` framework (installable via `pip`).
+* `example/example_bot/`: A complete and functional example bot that shows how to use the framework. This is your starting point.
+* `pyproject.toml`: Defines the project and all its dependencies.
+* `.env.example`: A universal template with all available environment variables.
+
+## ⚡ Quickstart Guide
+
+Try Kondoo in 5 minutes using the sample bot.
+
+### 1. Prerequisites
+
+* [Podman](https://podman.io/) and `podman-compose`.
+* [Python 3.9+](https://www.python.org/)
+* Your own Ollama service (local or remote) or an API Key (e.g., Google Gemini).
+* [SynapsIA](https://pypi.org/project/synapsia/) to create the knowledge base.
+
+### 2. Clone the Repository
+
+```bash
+git clone https://github.com/sysadminctl-services/kondoo.git
+cd kondoo
+```
+
+### 3. Set Up the Example Bot
+Copy the configuration template to the example bot directory:
+
+```bash
+cp .env.example example/example_bot/.env
+```
+
+Edit the `.env` file and fill in the variables. For a 100% local test with Ollama:
+
+```Ini, TOML
+# example/example_bot/.env
+ANSWER_LLM_PROVIDER=ollama_compatible
+KNOWLEDGE_PROVIDER=ollama
+
+LLM_MODEL_NAME="tinyllama"
+LLM_BASE_URL="http://host.containers.internal:11434/v1"
+
+EMBEDDING_MODEL_NAME="mxbai-embed-large"
+OLLAMA_BASE_URL="http://host.containers.internal:11434"
+
+BOT_PERSONA_FILE=/app/persona.yaml
+BOT_BEHAVIOR_FILE=/app/behavior.txt
+```
+
+### 4. Create the Knowledge Base
+
+Create the directories for the documents and the knowledge base:
+
+```bash
+cd example/example_bot
+mkdir -p docs knowledge
+```
+
+1. Define Identity: Edit `persona.yaml` to define the bot's name and role.
+
+2. Define Behavior: Edit `behavior.txt` to set the interaction rules.
+
+3. Create Documents: Add your source files to the `docs/` folder.
+
+```bash
+echo "Kondoo is a RAG chatbot framework created by sysadminctl.services." > docs/info.txt
+```
+4. Ingest Knowledge: Use the installed synapsia command:
+
+```bash
+synapsia --docs ./docs/ --knowledge ./knowledge/
+```
+
+### 5. Launch the Container
+
+Return to the bot directory and run podman-compose:
+
+```bash
+# While in example/example_bot/
+podman-compose up --build
+```
+
+### 6. Test the Bot
+Open a new terminal and send a query using curl:
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is Kondoo?"}' \
+  http://localhost:5000/query
+```
+
+You should receive a JSON response generated by your local tinyllama.
+
+### 7. Production Deployment
+For production environments, the container uses **Gunicorn** as the WSGI server. This ensures better performance and stability under load compared to the Flask development server.
+114: 
+### 7. Chat Mode (History)
+To maintain a conversation history, add a `session_id` to your request:
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"query": "My name is Luis", "session_id": "user-123"}' \
+  http://localhost:5000/query
+```
+
+The bot will remember context for that specific session ID (stored in RAM, resets on restart).
+
+
+## ⚙️ Configuration (.env)
+
+All configuration variables are documented in the `.env.example` file. Variables are loaded from `.env` in your bot's directory (e.g., `example/example_bot/.env`).
+
+### 1. Provider Selection
+
+These variables act as "switches" to choose which services to use.
+
+* `ANSWER_LLM_PROVIDER`: Choose your response (LLM) engine.
+    * `gemini`: (Cloud) Google Gemini (requires `LLM_API_KEY`).
+    * `openai`: (Cloud) OpenAI (requires `LLM_API_KEY`).
+    * `ollama_compatible`: (Self-Hosted) Any OpenAI-compatible API, like Ollama (requires `LLM_BASE_URL` and `LLM_MODEL_NAME`).
+* `KNOWLEDGE_PROVIDER`: Choose your embeddings (knowledge) engine.
+    * `ollama`: (Self-Hosted) Use an Ollama service (requires `OLLAMA_BASE_URL` and `EMBEDDING_MODEL_NAME`).
+    * `local`: (Local) Use a HuggingFace model on the CPU/GPU (requires `EMBEDDING_MODEL_NAME`).
+    * `openai`: (Cloud) Use OpenAI's embeddings API (requires `LLM_API_KEY`).
+
+---
+
+### 2. Provider-Specific Settings
+
+These are the "control knobs" required by the providers you selected above.
+
+#### Answer Engine (LLM) Settings
+
+* `LLM_API_KEY`:
+    * **Required by:** `gemini`, `openai`.
+    * **Description:** Your secret API key for the chosen cloud service.
+* `LLM_MODEL_NAME`:
+    * **Required by:** `gemini`, `openai`, `ollama_compatible`.
+    * **Description:** The specific model name to use for generating answers.
+    * **Examples:** `models/gemini-1.5-flash`, `gpt-4o`, `tinyllama`.
+* `LLM_BASE_URL`:
+    * **Required by:** `ollama_compatible`.
+    * **Description:** The full base URL of your self-hosted LLM's OpenAI-compatible API.
+    * **Example (Ollama):** `http://host.containers.internal:11434/v1`
+
+#### Knowledge (Embedding) Settings
+
+* `EMBEDDING_MODEL_NAME`:
+    * **Required by:** `ollama`, `local`, `openai`.
+    * **Description:** The specific model name to use for embeddings.
+    * **Examples:** `mxbai-embed-large`, `nomic-embed-text`.
+* `OLLAMA_BASE_URL`:
+    * **Required by:** `ollama` (provider).
+    * **Description:** The base URL of your Ollama service (the non-`/v1` endpoint).
+    * **Example:** `http://host.containers.internal:11434`
+
+---
+
+---
+
+### 3. Fine Tuning
+
+Customize the bot's creativity and retrieval precision.
+
+* `LLM_TEMPERATURE`:
+    * **Description:** Controls the randomness of the model. `0.0` is deterministic (good for data extraction), `1.0` is creative.
+    * **Default:** `0.1`
+* `RAG_TOP_K`:
+    * **Description:** Number of text chunks to retrieve from the knowledge base for each query.
+    * **Default:** `2`
+
+---
+
+### 4. Bot Configuration
+
+These variables control the bot's identity and data paths.
+
+* `BOT_PERSONA_FILE`:
+    * **Description:** Path to the YAML file defining the specific identity (Name, Role, Tone).
+    * **Default:** `/app/persona.yaml`.
+* `BOT_BEHAVIOR_FILE`:
+    * **Description:** Path to the TXT or Markdown file defining global interaction rules.
+    * **Default:** `/app/behavior.txt`.
+* `KNOWLEDGE_DIR`:
+    * **Description:** The path where the bot will load its knowledge base from.
+    * **Default:** `/app/knowledge`.
+
+## ⚖️ License
+This project is licensed under the MIT License. See the LICENSE file for more details.
