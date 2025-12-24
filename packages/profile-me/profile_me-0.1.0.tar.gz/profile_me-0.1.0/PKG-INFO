@@ -1,0 +1,153 @@
+Metadata-Version: 2.4
+Name: profile-me
+Version: 0.1.0
+Summary: Enable external profiler attachment for Python processes
+Project-URL: Homepage, https://github.com/deepankarsharma/profile-me
+Project-URL: Documentation, https://github.com/deepankarsharma/profile-me
+Project-URL: Repository, https://github.com/deepankarsharma/profile-me
+Author: Deepankar Sharma
+License-Expression: MIT
+License-File: LICENSE
+Keywords: debugging,performance,profiling,ptrace,py-spy,yantra
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Software Development :: Debuggers
+Classifier: Topic :: System :: Monitoring
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
+# profile-me
+
+Enable external profiler attachment for Python processes on Linux.
+
+## The Problem
+
+Modern Linux distributions use [Yama LSM](https://www.kernel.org/doc/html/latest/admin-guide/LSM/Yama.html) to restrict which processes can use `ptrace`. By default (`ptrace_scope=1`), only parent processes can attach to their children.
+
+This means tools like **py-spy**, **Yantra**, **gdb**, and other profilers/debuggers cannot attach to your Python process unless you either:
+- Run as root
+- Change system-wide ptrace settings
+- Have the target process explicitly opt-in
+
+## The Solution
+
+`profile-me` provides a simple one-liner to opt your process in:
+
+```python
+import profile_me
+profile_me.enable_profiling()
+```
+
+This calls `prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)` which tells the kernel "allow any process owned by my user to attach to me."
+
+## Installation
+
+```bash
+pip install profile-me
+```
+
+## Usage
+
+### Basic Usage
+
+Add this near the top of your script:
+
+```python
+import profile_me
+profile_me.enable_profiling()
+
+# Your code here...
+```
+
+### One-liner (no import needed at top)
+
+```python
+__import__('profile_me').enable_profiling()
+```
+
+### Environment Variable
+
+Set `PROFILE_ME=1` to auto-enable when the module is imported:
+
+```bash
+PROFILE_ME=1 python my_script.py
+```
+
+Add `PROFILE_ME_QUIET=1` to suppress the message.
+
+### Context Manager
+
+```python
+import profile_me
+
+with profile_me.profiling_enabled():
+    # Code you want to profile
+    run_computation()
+```
+
+### Check Status
+
+```python
+import profile_me
+
+profile_me.enable_profiling()
+print(f"Enabled: {profile_me.is_profiling_enabled()}")
+print(f"PID: {profile_me.get_pid()}")
+```
+
+## Example with py-spy
+
+```bash
+# Terminal 1
+PROFILE_ME=1 python my_server.py
+
+# Terminal 2
+py-spy record -p <PID> -o profile.svg
+```
+
+## API Reference
+
+### `enable_profiling(quiet=False) -> bool`
+
+Enable external profiler attachment. Returns `True` on success.
+
+- `quiet`: If `True`, suppress the informational message to stderr.
+
+### `is_profiling_enabled() -> bool`
+
+Check if profiling has been enabled for this process.
+
+### `get_pid() -> int`
+
+Get the current process ID (convenience wrapper around `os.getpid()`).
+
+### `profiling_enabled(quiet=False)`
+
+Context manager that calls `enable_profiling()` on entry.
+
+## Platform Support
+
+- **Linux**: Full support
+- **macOS**: No-op (macOS doesn't have Yama)
+- **Windows**: No-op (Windows doesn't have Yama)
+
+## Security Considerations
+
+Calling `enable_profiling()` allows any process running as your user to attach to your Python process. This is the same permission model as running with `ptrace_scope=0`.
+
+Only use this in development/debugging scenarios or when you trust all processes running under your user account.
+
+## License
+
+MIT
