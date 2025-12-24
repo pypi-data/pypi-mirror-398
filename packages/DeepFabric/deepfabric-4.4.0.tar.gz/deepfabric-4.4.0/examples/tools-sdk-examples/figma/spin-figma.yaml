@@ -1,0 +1,109 @@
+#####################################################################
+# Spin Figma Tools Dataset Configuration
+#####################################################################
+# This configuration demonstrates using Figma MCP tools via Spin
+# for generating synthetic design assistant training data.
+#
+# Prerequisites:
+#   1. Start the Spin service:
+#      cd tools-sdk
+#      spin build && spin up
+#
+#   2. Import tools from Figma MCP server:
+#      deepfabric import-tools --transport stdio \
+#        --command "npx -y figma-developer-mcp --stdio" \
+#        --env "FIGMA_API_KEY=your-key" \
+#        --spin http://localhost:3000
+#
+#   3. Load mock data for realistic responses:
+#      cd tools-sdk/examples
+#      ./load-figma-mock-data.sh
+#
+#   4. Run deepfabric:
+#      deepfabric start examples/spin-figma.yaml
+#####################################################################
+
+# Topic generation - creates a tree of Figma design-related topics
+topics:
+  prompt: "Tasks for a Figma design assistant that exports icons, downloads images, and helps developers implement visual assets from UI designs"
+  mode: graph
+  system_prompt: ""
+  depth: 3
+  degree: 3
+  max_concurrent: 3
+  save_as: "figma-topics.jsonl"
+
+  llm:
+    provider: "gemini"
+    model: "gemini-2.5-flash"
+    temperature: 0.8
+
+# Data generation with Figma tool execution
+generation:
+  system_prompt: |
+    You are a Figma design assistant helping developers understand and implement UI designs.
+    You have access to tools that can download images and fetch Figma file data.
+
+    IMPORTANT: Your PRIMARY tool is download_figma_images. Use it for:
+    - Exporting icons, logos, illustrations, and any visual assets
+    - Getting screenshots of UI components or screens
+    - Downloading images for implementation reference
+    - Any request involving visual elements, graphics, or assets
+
+    Only use get_figma_data when you specifically need:
+    - Exact spacing values, padding, margins
+    - Typography details (font sizes, weights, line heights)
+    - Color values in precise format
+    - Component structure and hierarchy information
+
+    For most design tasks, download_figma_images is the right choice. When in doubt, prefer downloading images over fetching raw data.
+
+  conversation:
+    type: chain_of_thought
+    reasoning_style: agent
+    agent_mode: single_turn
+
+  tools:
+    # Spin service endpoint
+    spin_endpoint: "http://localhost:3000"
+    # Load tool definitions from mock endpoint
+    tools_endpoint: "http://localhost:3000/mock/list-tools"
+
+    # Component-based routing: 'mock' routes to /mock/execute
+    components:
+      mock:
+        - download_figma_images
+        - get_figma_data
+
+    max_per_query: 3
+    strict: false
+
+    # ReAct loop configuration
+    max_agent_steps: 5
+
+  max_retries: 3
+
+  llm:
+    provider: "gemini"
+    model: "gemini-2.5-flash"
+    temperature: 0.4
+
+# Output configuration
+output:
+  system_prompt: |
+    You are a Figma design assistant that helps developers understand and implement UI designs.
+    You have access to the following tools:
+
+    - get_figma_data: Fetch comprehensive Figma file data including layout, content, visuals, and component information
+    - download_figma_images: Download SVG and PNG images from Figma designs
+
+    When given a task:
+    1. Use the appropriate Figma tools to retrieve design information
+    2. Analyze the design structure, spacing, colors, and typography
+    3. Provide clear implementation guidance for developers
+    4. Export images when needed for implementation
+
+  include_system_message: false
+  num_samples: 5
+  batch_size: 3
+  save_as: "figma-dataset.jsonl"
