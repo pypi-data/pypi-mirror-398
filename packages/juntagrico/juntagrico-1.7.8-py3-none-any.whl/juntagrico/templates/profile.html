@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load juntagrico.config %}
+{% load crispy_forms_tags %}
+
+{% block page_title %}
+    <h3>
+        {% trans "Mitgliedschaft" %}
+    </h3>
+{% endblock %}
+
+{% block content %}
+    {% block membership %}
+        <div class="row mb-5 membership-status">
+            <div class="col-md-3">
+                {% trans "Status" %}
+            </div>
+            <div class="col-md-9">
+                {% if member.canceled %}
+                    <div class="alert alert-warning">
+                        {% block info_canceled %}
+                            {% blocktrans trimmed with cd=member.cancellation_date|date:"d.m.Y" v_memebr_type=vocabulary.member_type %}
+                                Deine {{ v_member_type }}schaft ist seit dem {{ cd }} gekündigt.
+                            {% endblocktrans %}
+                        {% endblock %}
+                    </div>
+                {% elif not member.inactive%}
+                    <div class="alert alert-success">
+                        {% block info_active %}
+                            {% blocktrans with v_member_type=vocabulary.member_type %}Deine {{ v_member_type }}schaft ist aktiv.{% endblocktrans %}
+                        {% endblock %}
+                    </div>
+                {% endif %}
+
+                {% if member.number %}
+                    <p>
+                        {% blocktrans trimmed with number=member.number %}
+                            Nummer: {{ number }}
+                        {% endblocktrans %}
+                    </p>
+                {% endif %}
+
+                {% if not member.canceled %}
+                    {% block button_cancel_membership %}
+                        <a href="{% url 'cancel-membership' %}" class="btn btn-outline-danger">
+                            {% trans "Mitgliedschaft künden" %}
+                        </a>
+                    {% endblock %}
+                {% endif %}
+            </div>
+        </div>
+    {% endblock %}
+
+    {% block documents %}
+        {% include "juntagrico/snippets/documents.html" %}
+    {% endblock %}
+
+    {% block password %}
+        <div class="row mb-5 password">
+            <div class="col-md-3">
+                {% trans "Passwort" %}
+            </div>
+            <div class="col-md-9">
+                {% block button_change_password %}
+                    <a href="{% url 'password' %}" class="btn btn-primary">
+                        {% trans "Passwort ändern" %}
+                    </a>
+                {% endblock %}
+            </div>
+        </div>
+    {% endblock %}
+
+    {% block profile %}
+        <div class="mb-5">
+            <h4>
+                {% trans "Personalien" %}
+            </h4>
+            {% if success %}
+                <div class="alert alert-success">
+                    {% trans "Personalien erfolgreich geändert" %}
+                </div>
+            {% endif %}
+            <form method="post" class="mb-4">
+                {% crispy memberform %}
+            </form>
+        </div>
+    {% endblock %}
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends "../../base.html" %}
+{% load i18n %}
+{% load juntagrico.config %}
+{% load juntagrico.common %}
+
+{% block page_title %}
+    {% vocabulary "depot_pl" as v_depot_pl %}
+    <h3>
+        {% blocktrans %}{{ v_depot_pl }}-Änderungsliste{% endblocktrans %}
+    </h3>
+{% endblock %}
+
+{% block content %}
+    {% include '../../member/snippets/toggle_buttons.html' with co_members=True %}
+    {{ block.super }}
+{% endblock %}
+
+{% block list %}
+    {% vocabulary "depot" as v_depot %}
+    <table id="filter-table" class="list table">
+        <thead>
+            <tr>
+                <th class="filter">
+                    {% vocabulary "subscription" %}
+                </th>
+                <th class="filter">
+                    {% trans "Inhalt" %}
+                </th>
+                <th class="filter">
+                    {% trans "Kontakt" %}
+                </th>
+                <th class="filter">
+                    {% blocktrans %}{{ v_depot }} Bisher{% endblocktrans %}
+                </th>
+                <th class="filter">
+                    {% blocktrans %}{{ v_depot }} Neu{% endblocktrans %}
+                </th>
+                <th>
+                    {% trans "Aktionen" %}
+                </th>
+                <th class="filter">
+                    {% trans "Notizen" %}
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for subscription in object_list %}
+                <tr>
+                    <td>
+                        {% include '../snippets/display_linked.html' %}
+                        <span class="d-none subscription_id">
+                            {{ subscription.id }}
+                        </span>
+                    </td>
+                    <td>
+                        {% for item in subscription.content_strings %}
+                            <div>
+                                {{ item }}
+                            </div>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% include '../snippets/members_linked.html' %}
+                    </td>
+                    <td>
+                        {{ subscription.depot }}
+                    </td>
+                    <td>
+                        {{ subscription.future_depot }}
+                    </td>
+                    <td>
+                        <a href="{% url 'manage-sub-depot-change-confirm-single' subscription.id %}" class="btn btn-primary">
+                            {% trans "Ändern" %}
+                        </a>
+                    </td>
+                    <td>
+                        {{ subscription.notes }}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}
+
+{% block datatable_constructor %}
+    {{ block.super }}
+    config.layout.topStart.features.buttons.push(
+        id_action_button(
+            '<i class="fa-solid fa-rotate"></i> {% trans "Ändern" %}',
+            '{% url 'manage-sub-depot-change-confirm' %}',
+            '{% csrf_token %}',
+            '.subscription_id',
+            'ids',
+            [
+                {% vocabulary "depot" as v_depot %}
+                {% vocabulary "subscription" as v_subscription %}
+                '{% blocktrans %}{{ v_depot }} von 1 {{ v_subscription }} ändern?{% endblocktrans %}',
+                {% vocabulary "depot_pl" as v_depot_pl %}
+                {% vocabulary "subscription_pl" as v_subscription_pl %}
+                '{% blocktrans %}{{ v_depot_pl }} von {count} {{ v_subscription_pl }} ändern?{% endblocktrans %}'
+            ]
+        ),
+    )
+{% endblock %}

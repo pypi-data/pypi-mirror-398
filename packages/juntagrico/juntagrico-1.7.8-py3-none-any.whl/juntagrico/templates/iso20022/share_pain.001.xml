@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+{% load i18n %}
+{% load juntagrico.config %}
+{% load juntagrico.share %}
+{% vocabulary "share" as v_share %}
+<Document
+        xsi:schemaLocation="urn:iso:std:iso:20022:tech:xsd:pain.001.001.09 pain.001.001.09.ch.03.xsd"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.09">
+    <CstmrCdtTrfInitn>
+        <GrpHdr>
+            <MsgId>MsgId-001</MsgId>
+            <CreDtTm>{{ now|date:"Y-m-d" }}T{{ now|date:"H:i:s" }}</CreDtTm>
+            <NbOfTxs>{{ nmbr_of_tx }}</NbOfTxs>
+            <CtrlSum>{{ total_amount | floatformat:"2u" }}</CtrlSum>
+            <InitgPty>
+                <Nm>{{ name }}</Nm>
+                <CtctDtls>
+                    <Othr>
+                        <ChanlTp>NAME</ChanlTp>
+                        <Id>juntagrico</Id>
+                    </Othr>
+                    <Othr>
+                        <ChanlTp>VRSN</ChanlTp>
+                        <Id>{{ version }}</Id>
+                    </Othr>
+                </CtctDtls>
+            </InitgPty>
+        </GrpHdr>
+        <PmtInf>
+            <PmtInfId>PmtInfId-001-01</PmtInfId>
+            <PmtMtd>TRF</PmtMtd>
+            <BtchBookg>true</BtchBookg>
+            <ReqdExctnDt>
+                <Dt>{{ now|date:"Y-m-d" }}</Dt>
+            </ReqdExctnDt>
+            <Dbtr>
+                <Nm>{{ name }}</Nm>
+            </Dbtr>
+            <DbtrAcct>
+                <Id>
+                    <IBAN>{{ banking_info.IBAN | clean_iban }}</IBAN>
+                </Id>
+                <Tp>
+                    <Prtry>CND</Prtry>
+                </Tp>
+            </DbtrAcct>
+            <DbtrAgt>
+                <FinInstnId>
+                    <BICFI>{{ banking_info.BIC }}</BICFI>
+                </FinInstnId>
+            </DbtrAgt>
+            {% for share in shares %}
+            <CdtTrfTxInf>
+                <PmtId>
+                    <InstrId>InstrId-001-01-{{ forloop.counter }}</InstrId>
+                    <EndToEndId>EndToEndId-001-01-{{ share.id }}</EndToEndId>
+                </PmtId>
+                <Amt>
+                    <InstdAmt Ccy="CHF">{{ share.value | floatformat:"2u" }}</InstdAmt>
+                </Amt>
+                <Cdtr>
+                    <Nm>{{ share.member.first_name }} {{ share.member.last_name }}</Nm>
+                    <PstlAdr>
+                        <StrtNm>{{ share.member.addr_street }}</StrtNm>
+                        <PstCd>{{ share.member.addr_zipcode }}</PstCd>
+                        <TwnNm>{{ share.member.addr_location }}</TwnNm>
+                    </PstlAdr>
+                </Cdtr>
+                <CdtrAcct>
+                    <Id>
+                        <IBAN>{{ share.member.iban|clean_iban }}</IBAN>
+                    </Id>
+                </CdtrAcct>
+                <RmtInf>
+                    <Ustrd>{% blocktrans with sn=share.number|default_if_none:"" sid=share.id %}{{ v_share }} Rückzahlung | {{ sn }}(Intern: {{ sid }} ){% endblocktrans %}</Ustrd>
+                </RmtInf>
+            </CdtTrfTxInf>
+            {% endfor %}
+        </PmtInf>
+    </CstmrCdtTrfInitn>
+</Document>

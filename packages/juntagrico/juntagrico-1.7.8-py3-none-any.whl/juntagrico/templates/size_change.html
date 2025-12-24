@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load juntagrico.config %}
+{% load crispy_forms_tags %}
+{% block page_title %}
+    {% vocabulary "subscription" as v_subscription %}
+    <h3>
+        {% blocktrans %}{{ v_subscription }}-Bestandteile ändern{% endblocktrans %}
+    </h3>
+{% endblock %}
+{% block content %}
+    {% config "enable_shares" as c_enable_shares %}
+    {% vocabulary "subscription" as v_subscription %}
+    {% vocabulary "subscription_pl" as v_subscription_pl %}
+    {% vocabulary "share_pl" as v_share_pl %}
+
+    <div class="row mb-3">
+        <h4>{% trans "Bestandteile verwalten" %}</h4>
+    </div>
+    <div class="row">
+        <table class="table subscription-table">
+            <thead>
+                <tr>
+                    <th>
+                        {% trans "Name" %}
+                    </th>
+                    <th>
+                        {% trans "Status" %}
+                    </th>
+                    <th>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for part in subscription.active_and_future_parts.is_normal %}
+                    <tr>
+                        <td>
+                            {{ part }}
+                        </td>
+                        <td>
+                            {{ part.state_text }}
+                        </td>
+                        <td>
+                            {% if part.cancellation_date is None %}
+                                {% if can_change_part %}
+                                    <a href="{% url 'part-change' part.id %}" class="btn btn-primary">
+                                        {% trans "ändern" %}
+                                    </a>
+                                {% elif part.subscription.future_parts.is_normal.count == 1 %}
+                                    {% blocktrans %} Dein/e {{ v_subscription }} braucht mindestens 1 Bestandteil{% endblocktrans %}
+                                    {% if not part.subscription.canceled and not part.subscription.inactive %}
+                                        <br/><a href="{% url 'sub-cancel' subscription.id %}">{% blocktrans %}{{ v_subscription }} komplett künden{% endblocktrans %}</a>
+                                    {% endif %}
+                                {% endif %}
+                                {% if part.subscription.future_parts.is_normal.count > 1 %}
+                                    <a href="{% url 'part-cancel' part.id subscription.id %}" class="btn btn-danger"
+                                    onclick="return confirm('{% trans "Bist du sicher, dass du diesen Bestandteil kündigen möchtest?" %}')">
+                                        {% trans "kündigen" %}
+                                    </a>
+                                {% endif %}
+                            {% else %}
+                                {% blocktrans trimmed with cd=part.cancellation_date %}
+                                    Gekündigt am {{cd}}
+                                {% endblocktrans %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+{% if parts_order_allowed %}
+    <div class="row mt-5 mb-3">
+        <h4>{% trans "Bestandteile bestellen" %}</h4>
+    </div>
+
+    {% crispy form %}
+
+{% else %}
+    <div>
+        <i>{% blocktrans %}Für gekündigte {{ v_subscription_pl }} können keine Bestandteile bestellt werden.{% endblocktrans %}</i>
+    </div>
+{% endif %}
+    {% if not subscription.canceled and not subscription.inactive %}
+        <div class="row mt-5 mb-3">
+            <b>{% blocktrans %}{{ v_subscription }} kündigen{% endblocktrans %}</b>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <a href="{% url 'sub-cancel' subscription.id %}" class="btn btn-danger">
+                    {% blocktrans %}{{ v_subscription }} komplett kündigen{% endblocktrans %}
+                </a>
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}
+{% block scripts %}
+    <script type="text/javascript" src="{% static 'juntagrico/external/bootstrap-input-spinner.js' %}">
+    </script>
+    <script type="text/javascript" src="{% static 'juntagrico/external/require.min.js' %}" data-main="{% static 'juntagrico/js/initChangeExtra.js' %}">
+    </script>
+{% endblock %}

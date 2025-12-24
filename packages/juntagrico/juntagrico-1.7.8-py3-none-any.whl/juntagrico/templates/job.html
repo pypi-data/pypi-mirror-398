@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+{% load i18n %}
+{% load juntagrico.common %}
+{% load juntagrico.config %}
+{% load static %}
+{% block page_title %}
+    <h3>
+        {{ job.type.get_name }}
+        {% if edit_url.strip %}
+         <a href="{{ edit_url }}" class="edit">
+            <i class="fas fa-pen">
+            </i>
+        </a>
+        {% endif %}
+    </h3>
+{% endblock %}
+{% block styles %}
+    <link rel="stylesheet" href="{% static 'juntagrico/external/leaflet/leaflet.css' %}" />
+{% endblock %}
+{% block content %}
+    {% vocabulary "assignment_pl" as v_assignment_pl %}
+    {% block time %}
+        <div class="row pb-4">
+            <div class="col-md-3">
+                {% trans "Zeitpunkt" %}:
+            </div>
+            <div class="col-md-5">
+                {{ job.time |date:"l, d.m.Y, H:i" }} - {{ job.end_time|date:"H:i" }}
+                <br/>
+                {% if job_is_in_past %}
+                    (vor {{ job.end_time|timesince }})
+                {% elif job_is_running %}
+                    (seit {{ job.time|timesince }})
+                {% else %}
+                    (in {{ job.time|timeuntil }})
+                {% endif %}
+            </div>
+        </div>
+    {% endblock %}
+
+    {% if not job.infinite_slots %}
+        {% block status %}
+            <div class="row pb-4">
+                <div class="col-md-3">
+                    {% trans "Status" %}:
+                </div>
+                {% with slots_taken=job.occupied_slots %}
+                    <div class="col-md-5" title="{{ slots_taken }} von {{ job.slots }} gebucht">
+                        {% spaceless %}
+                            {% for _ in ''|ljust:job.slots %}
+                                {% if forloop.counter <= slots_taken %}
+                                    <img src="{% images "single_full" %}" alt="{% trans "Belegter Platz" %}"/>
+                                {% else %}
+                                    <img src="{% images "single_empty" %}" alt="{% trans "Freier Platz" %}"/>
+                                {% endif %}
+                            {% endfor %}
+                        {% endspaceless %}
+                    </div>
+                {% endwith %}
+            </div>
+        {% endblock %}
+    {% endif %}
+
+    {% block multiplier %}
+        {% if job.multiplier == 0 %}
+            <div class="row pb-4">
+                <div class="col-md-3">
+                    {% vocabulary "assignment_pl" %}:
+                </div>
+                <div class="col-md-5">
+                    {% blocktrans trimmed with jm=job.multiplier %}
+                    Du erhältst für diese Veranstaltung keine {{ v_assignment_pl }} gutgeschrieben.
+                    {% endblocktrans %}
+                </div>
+            </div>
+        {% elif job.multiplier != 1 %}
+            <div class="row pb-4">
+                <div class="col-md-3">
+                    {% vocabulary "assignment_pl" %}:
+                </div>
+                <div class="col-md-5">
+                    {% blocktrans trimmed with jm=job.multiplier %}
+                    Du erhältst für diesen Einsatz das {{ jm }}-Fache an {{ v_assignment_pl }} gutgeschrieben.
+                    {% endblocktrans %}
+                </div>
+            </div>
+        {% endif %}
+    {% endblock %}
+
+    {% if job.extras.strip %}
+        {% block extras %}
+            <div class="row pb-4">
+                <div class="col-md-3">
+                    {% trans "Extras" %}:
+                </div>
+                <div class="col-md-5">
+                    {% for extra in job.empty_per_job_extras %}
+                        {{ extra.extra_type.display_empty|safe }}
+                    {% endfor %}
+                    {% for extra in job.full_per_job_extras %}
+                        {{ extra.extra_type.display_full|safe }}
+                    {% endfor %}
+                </div>
+            </div>
+        {% endblock %}
+    {% endif %}
+
+    {% block location %}
+        <div class="row pb-4">
+            <div class="col-md-3">
+                {% trans "Ort" %}:
+            </div>
+            <div class="col-md-5" id="map-container">
+                {{ job.type.location.to_html|safe }}
+                {% if job.type.location.google_maps_query %}
+                    <br>
+                    {% if job.type.location.has_coordinates %}
+                        <a class="open-map" href="#">{% trans "Karte" %}</a> -
+                    {% endif %}
+                    <a href="https://www.google.com/maps/dir/?api=1&destination={{ job.type.location.google_maps_query | urlencode }}" target="_blank">
+                        {% trans "Wegbeschreibung" %}
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    {% endblock %}
+
+    {% block description %}
+        <div class="row pb-4">
+            <div class="col-md-3">
+                {% trans "Beschreibung" %}:
+            </div>
+            <div class="col-md-5">
+                <div class="job-description">{{ job.type.description|richtext|safe }}</div>
+                {% if job.additional_description %}
+                    <div class="job-additional-description">{{ job.additional_description|richtext|safe }}</div>
+                {% endif %}
+            </div>
+        </div>
+    {% endblock %}
+
+    {% block contact %}
+        <div class="row pb-4">
+            <div class="col-md-3">
+                {% trans "Kontakt" %}:
+            </div>
+            <div class="col-md-5">
+                {% for contact in job.contacts %}
+                    {{ contact.to_html }}
+                {% endfor %}
+            </div>
+        </div>
+    {% endblock %}
+
+    {% block participants %}
+        <div class="row pb-4">
+            <div class="col-md-3">
+                {% trans "Dabei sind" %}:
+            </div>
+            <div class="col-md-5">
+                {% if job.occupied_slots == 0 and job.free_slots != 0 %}
+                    {% trans "Noch niemand" %} 🥺
+                {% else %}
+                    {% include "juntagrico/job/snippets/participant_list.html" %}
+                {% endif %}
+            </div>
+        </div>
+    {% endblock %}
+
+    {% block subscribe %}
+        {% if form.can_interact %}
+            {% crispy form %}
+        {% endif %}
+    {% endblock %}
+{% endblock %}
+{% block scripts %}
+    {{ job.type.location.map_info|json_script:'location_data' }}
+    {% include 'snippets/scripts/leaflet.html' %}
+    <script type="text/javascript" src="{% static 'juntagrico/external/require.min.js' %}" data-main="{% static 'juntagrico/js/initJob.js' %}">
+    </script>
+{% endblock %}
