@@ -1,0 +1,65 @@
+name: Monthly Filter Validation
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'  # 매월 1일 00:00 UTC
+  workflow_dispatch:  # 수동 실행 가능
+
+jobs:
+  validate-filters:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run filter validation tests
+        run: |
+          uv run pytest tests/test_filter_fix.py tests/test_all_provider_filters.py -v
+        continue-on-error: true
+        id: filter-test
+
+      - name: Create issue if filters changed
+        if: steps.filter-test.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚠️ Filter codes validation failed - BigKinds API may have changed',
+              body: `### Filter Validation Failed
+
+              The monthly filter validation detected potential changes in BigKinds API filter codes.
+
+              **Action Required:**
+              1. Run \`uv run python scripts/collect_provider_codes.py\` locally
+              2. Compare with existing codes in \`src/bigkinds_mcp/tools/utils.py\`
+              3. Update \`PROVIDER_CODES\` and \`CATEGORY_CODES\` if needed
+              4. Update tests in \`tests/test_filter_fix.py\`
+              5. Run \`uv run pytest tests/test_filter_fix.py -v\` to verify
+
+              **Date:** ${new Date().toISOString().split('T')[0]}
+              **Workflow:** [View Run](${context.payload.repository.html_url}/actions/runs/${context.runId})
+
+              See [Act Phase documentation](docs/pdca/improvement-2025-12-15/act.md) for detailed procedures.
+              `,
+              labels: ['maintenance', 'filter-validation']
+            })
+
+      - name: Post success comment
+        if: steps.filter-test.outcome == 'success'
+        run: |
+          echo "✅ Filter validation passed - no action needed"
