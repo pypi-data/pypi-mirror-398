@@ -1,0 +1,189 @@
+[project]
+name = "asynkit"
+version = "0.17.6"
+description = "A toolkit for Python coroutines"
+authors = [
+    {name = "Kristján Valur Jónsson", email = "sweskman@gmail.com"}
+]
+readme = "README.md"
+keywords = ["asyncio", "eventloop"]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Framework :: AsyncIO",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "typing-extensions>=4.4.0",
+]
+
+[project.urls]
+Repository = "https://github.com/kristjanvalur/py-asynkit"
+
+[dependency-groups]
+dev = [
+    "mypy>=0.991",
+    "pytest>=7.1.1",
+    "pytest-cov>=3.0.0",
+    "poethepoet>=0.29.0",
+    "ruff>=0.4.0",
+    "anyio>=4.0.0",
+    "types-setuptools",  # Type stubs for setuptools (dev/build only)
+    "mdformat>=0.7.0",
+    "mdformat-ruff>=0.1.0",
+]
+
+[project.optional-dependencies]
+# trio 0.31.0 supports Python 3.13+
+trio = [
+    "trio>=0.31.0",
+]
+
+[tool.poe]
+# Use simple executor instead of Poetry
+executor = {type = "simple"}
+
+[tool.poe.tasks]
+lint = "ruff check ."
+format = "ruff format ."
+format-c = "python scripts/format_c.py format"
+test = "pytest tests examples"
+cov = "pytest --cov=asynkit --cov-report term-missing --cov-branch"
+typing = "mypy -p asynkit -p tests -p examples"
+format-docs = "mdformat --number *.md docs/*.md"
+formatall = ["format", "format-c", "format-docs"]
+check = ["style", "style-c", "style-docs", "lint", "typing", "cov"]
+
+[tool.poe.tasks.style]
+help = "Validate code style"
+cmd  = "ruff format . --check --diff"
+
+[tool.poe.tasks.style-c]
+help = "Validate C code style"
+cmd  = "python scripts/format_c.py check"
+
+[tool.poe.tasks.style-docs]
+help = "Validate documentation style"
+cmd  = "mdformat --check --number *.md docs/*.md"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["asynkit._cext"]
+
+[tool.setuptools.package-data]
+asynkit = ["py.typed"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["_cext/*"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/asynkit",
+    "tests",
+    "examples",
+    "README.md",
+    "LICENSE",
+    "CHANGES.md",
+]
+
+[tool.pytest.ini_options]
+#addopts = "-ra -q"
+python_files = [
+    "test_*.py",
+    "example_*.py",
+    "middleware.py",
+]
+testpaths = [
+    "tests",
+    "examples",
+]
+filterwarnings = [
+    'ignore:You seem to already have a custom sys.excepthook:RuntimeWarning'
+]
+markers = [
+    "trio: marks tests that require trio backend (skipped on Python 3.13+ where trio 0.21.0 is incompatible)",
+]
+
+[tool.ruff]
+src = ["src"]
+target-version = "py310"  # Enforce Python 3.10+ idioms
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade - automatically upgrade syntax for newer Python versions
+]
+ignore = [
+    "E501",  # Line too long - trust ruff formatter for line length decisions
+]
+
+# Ignore `F401` (unused import) in all `__init__.py` files
+# Ignore `F403` (importing *) in all `__init__.py` files
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403"]
+
+[tool.mypy]
+python_version = "3.10"  # Enforce Python 3.10+ type semantics
+
+[[tool.mypy.overrides]]
+module = "asynkit.*"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "examples.*"]
+check_untyped_defs = false
+allow_untyped_defs = true
+allow_untyped_calls = true
+disallow_untyped_defs = false
+warn_return_any = false
+disable_error_code = ["call-arg", "no-untyped-def", "var-annotated", "truthy-function"]
+
+[[tool.mypy.overrides]]
+module = [
+    "asynkit.compat",
+    "asynkit.experimental.interrupt",
+    "asynkit.experimental.priority",
+    "asynkit.loop.eventloop",
+    "asynkit.tools",
+    "tests.test_coro",
+    "tests.test_anyio",
+    "tests.conftest",
+    "tests.misc.eager_task_factory_benchmark",
+    "tests.test_implementation_params",
+    "tests.test_eager_task_factory_context",
+]
+warn_unused_ignores=false
+
+[[tool.mypy.overrides]]
+module = "trio"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "asynkit.compat"
+disable_error_code="call-arg"
+
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "@overload",
+  "@abstractmethod",
+  "assert False",
+  "TYPE_CHECKING",
+  ]
