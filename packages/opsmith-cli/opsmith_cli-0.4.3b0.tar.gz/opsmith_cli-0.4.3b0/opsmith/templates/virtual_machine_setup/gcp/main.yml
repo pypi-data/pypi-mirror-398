@@ -1,0 +1,90 @@
+
+- name: Install and configure Docker on GCP GCE (Debian)
+  hosts: all
+  become: true
+  tasks:
+    - name: Install Docker
+      ansible.builtin.apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+
+    - name: Set compose arch
+      ansible.builtin.set_fact:
+        compose_arch: "{{ 'aarch64' if ansible_facts.architecture == 'aarch64' else 'x86_64' }}"
+
+    - name: Create docker cli-plugins directory
+      ansible.builtin.file:
+        path: "/usr/local/lib/docker/cli-plugins"
+        state: directory
+        mode: "0755"
+
+    - name: Install Docker Compose
+      ansible.builtin.get_url:
+        url: "https://github.com/docker/compose/releases/download/v2.38.2/docker-compose-linux-{{ compose_arch }}"
+        dest: "/usr/local/lib/docker/cli-plugins/docker-compose"
+        mode: "0755"
+
+    - name: Start Docker service
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add remote user to docker group
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+- name: Install and configure Cloudlog monitoring on GCP
+  hosts: all
+  become: true
+  tasks:
+    - name: Configure Ops Agent logging for Docker
+      ansible.builtin.copy:
+        dest: /etc/google-cloud-ops-agent/config.yaml
+        mode: "0644"
+        content: |
+          logging:
+            receivers:
+              docker_compose_journald:
+                type: systemd_journald
+            processors:
+              # Filter for Docker container logs only
+              docker_filter:
+                type: exclude_logs
+                match_any:
+                  - 'NOT jsonPayload.CONTAINER_NAME =~ ".+"'
+            service:
+              pipelines:
+                docker_compose_pipeline:
+                  receivers: [docker_compose_journald]
+                  processors: [docker_filter]
+          
+                # Override default system log pipeline to disable it
+                default_pipeline:
+                  receivers: []
+          metrics:
+            receivers:
+              hostmetrics:
+                type: hostmetrics
+                collection_interval: 60s
+            processors:
+              metrics_filter:
+                type: exclude_metrics
+                metrics_pattern: []
+            service:
+              pipelines:
+                default_pipeline:
+                  receivers: [hostmetrics]
+                  processors: [metrics_filter]
+          
+      notify: restart cloud-ops
+
+
+  handlers:
+    - name: restart cloud-ops
+      ansible.builtin.service:
+        name: google-cloud-ops-agent
+        state: restarted

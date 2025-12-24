@@ -1,0 +1,74 @@
+- name: Build and Deploy Frontend to GCS
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+    content_type_map:
+      css: "text/css"
+      html: "text/html"
+      js: "application/javascript"
+      json: "application/json"
+      png: "image/png"
+      jpg: "image/jpeg"
+      jpeg: "image/jpeg"
+      gif: "image/gif"
+      svg: "image/svg+xml"
+      ico: "image/x-icon"
+      woff: "font/woff"
+      woff2: "font/woff2"
+      ttf: "font/ttf"
+      eot: "application/vnd.ms-fontobject"
+
+  tasks:
+    - name: Run build command
+      ansible.builtin.shell: "{{ build_cmd }}"
+      args:
+        chdir: "{{ project_root }}"
+      environment: "{{ {'PATH': (project_root ~ '/' ~ build_path ~ ':' if build_path else '') ~ lookup('env', 'PATH'), 'HOME': lookup('env', 'HOME')} | combine(build_env_vars | default({})) }}"
+
+    - name: Set full build path
+      ansible.builtin.set_fact:
+        full_build_path: "{{ project_root }}/{{ build_dir }}"
+
+    - name: Create empty directory for sync
+      ansible.builtin.tempfile:
+        state: directory
+      register: empty_dir_for_sync
+
+    - name: Empty GCS bucket to remove old files
+      shell: |
+        gsutil -m rsync -r -d \
+          {{ empty_dir_for_sync.path }}/ \
+          gs://{{ bucket_name }}/
+      register: sync_result
+      changed_when: "'TOTAL' in sync_result.stderr"
+
+    - name: Remove temporary directory
+      ansible.builtin.file:
+        path: "{{ empty_dir_for_sync.path }}"
+        state: absent
+      when: empty_dir_for_sync.path is defined
+
+    - name: Find all files in build directory
+      ansible.builtin.find:
+        paths: "{{ full_build_path }}"
+        recurse: yes
+        file_type: file
+      register: build_files
+
+    - name: Upload files to GCS with correct Content-Type
+      shell: |
+        gsutil -h "Content-Type:{{ content_type_map[item.path | splitext | last | replace('.', '')] | default('application/octet-stream') }}" \
+          cp "{{ item.path }}" "gs://{{ bucket_name }}/{{ item.path | replace(full_build_path + '/', '') }}"
+      loop: "{{ build_files.files }}"
+      loop_control:
+        label: "{{ item.path | replace(full_build_path + '/', '') }}"
+
+    - name: Invalidate CDN cache
+      shell: |
+        gcloud compute url-maps invalidate-cdn-cache {{ cdn_url_map }} \
+          --path "/*" \
+          --project {{ project_id }}
+      register: gcloud_invalidation
+
