@@ -1,0 +1,144 @@
+# Paytm API
+
+A simple and reliable Python library to **verify Paytm transaction status** using your Merchant ID (MID) and Order ID.
+
+---
+
+## 📘 Overview
+
+**Paytm API** provides a direct interface to Paytm’s merchant gateway so you can instantly check payment status, transaction type, and response messages — all with a single function call.
+
+---
+
+## 📦 Installation
+
+```bash
+pip install paytm-api
+````
+
+---
+
+## ⚙️ Usage Example
+
+### ✅ Basic Example
+
+```python
+from paytm_api import verify_payment
+
+result = verify_payment("YOUR_MID", "YOUR_ORDER_ID")
+print(result)
+```
+
+---
+
+## 🧾 Example Output (Success)
+
+Here’s an example of a real Paytm API response for a successful transaction:
+
+```json
+{
+  "TXNID": "202511090110400001085612669023341",
+  "BANKTXNID": "0109851755",
+  "ORDERID": "ORD9587488",
+  "TXNAMOUNT": "100.00",
+  "STATUS": "TXN_SUCCESS",
+  "TXNTYPE": "SALE",
+  "GATEWAYNAME": "PPBL",
+  "RESPCODE": "01",
+  "RESPMSG": "Txn Success",
+  "MID": "sndhMJASHA214512",
+  "PAYMENTMODE": "UPI",
+  "REFUNDAMT": "0.0",
+  "TXNDATE": "2025-11-09 01:09:55.0",
+  "POS_ID": "DEFAULT",
+  "UDF_1": "DEFAULT",
+  "currentTxnCount": "1"
+}
+```
+
+---
+
+## ⚠️ Example Output (Missing or Invalid Parameters)
+
+```json
+{
+  "RESPCODE": "335",
+  "RESPMSG": "Missing parameters 'mid' or 'order_id'"
+}
+```
+
+---
+
+## 🧩 Parameters
+
+| Name       | Type | Required | Description                           |
+| ---------- | ---- | -------- | ------------------------------------- |
+| `mid`      | str  | ✅        | Your Paytm Merchant ID                |
+| `order_id` | str  | ✅        | The Paytm Order ID you want to verify |
+
+---
+
+## 🔁 Response Object
+
+The function returns a Python dictionary with fields such as:
+
+| Field         | Description                                                    |
+| ------------- | -------------------------------------------------------------- |
+| `RESPCODE`    | Response code (`01` for success, `335` for missing parameters) |
+| `RESPMSG`     | Response message (e.g., “Txn Successful”, “Invalid Order Id.”) |
+| `ORDERID`     | The Order ID you supplied                                      |
+| `TXNAMOUNT`   | Transaction amount                                             |
+| `STATUS`      | Transaction status (`TXN_SUCCESS`, `TXN_FAILURE`, etc.)        |
+| `PAYMENTMODE` | Payment method used (`UPI`, `CARD`, `NB`, etc.)                |
+| `TXNDATE`     | Transaction date and time                                      |
+| `REFUNDAMT`   | Refunded amount (if applicable)                                |
+
+Additional fields may appear based on Paytm’s API response.
+
+---
+
+## ❗ Error Handling
+
+If required parameters are missing or invalid, the function returns a clean JSON response indicating the issue.
+
+```python
+from paytm_api import verify_payment
+
+result = verify_payment("", "")
+print(result)
+# Output: {'RESPCODE': '335', 'RESPMSG': "Missing parameters 'mid' or 'order_id'"}
+```
+
+---
+
+## 🔌 Integrations
+
+You can easily integrate this library with:
+
+* Telegram bots (for checking payment status)
+* Django / Flask / FastAPI apps
+* Admin dashboards or back-end systems
+* Automation scripts and cron jobs
+
+---
+
+## 👤 Author
+
+**Author:** DragoServer
+
+**GitHub:** [https://github.com/DragoServer](https://github.com/DragoServer)
+
+---
+
+## 🪪 License
+
+**License:** MIT License
+You’re free to use, modify, and distribute this package with proper credit.
+
+---
+
+### ⭐ Thank you for using Paytm API
+
+If you encounter any issues or want to contribute improvements, please open an issue.
+
+
