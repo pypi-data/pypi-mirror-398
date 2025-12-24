@@ -1,0 +1,87 @@
+{
+  "name": "@amzn/sagemaker-jupyterlab-extension-common",
+  "description": "SageMaker JupyterLab workspace common module",
+  "version": "0.2.16",
+  "author": "Amazon",
+  "homepage": "https://aws.amazon.com/sagemaker/",
+  "license": "Amazon Software License",
+  "licenses": [
+    {
+      "type": "Amazon Software License",
+      "url": "http://aws.amazon.com/asl"
+    }
+  ],
+  "directories": {
+    "test": "__tests__"
+  },
+  "files": [
+    "lib/**/*.{d.ts,eot,gif,html,jpg,js,js.map,json,png,svg,woff2,ttf}",
+    "style/**/*.{css,js,eot,gif,html,jpg,json,png,svg,woff2,ttf}",
+    "schema/*.json"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "build:labextension": "tsc && jupyter labextension build .",
+    "build:labextension:dev": "jupyter labextension build --development True --source-map True .",
+    "lint:check": "eslint . --ext .js,.ts,.tsx",
+    "lint:fix": "eslint --fix . --ext .js,.ts,.tsx",
+    "release": "run-s build",
+    "install:extension": "jlpm run build",
+    "watch:src": "tsc -w",
+    "watch:labextension": "jupyter labextension watch .",
+    "watch": "run-p watch:src watch:labextension",
+    "test": "jest",
+    "dev:setup": "run-s -n dev:docker:build dev:docker:reset dev:docker:create",
+    "dev:docker:build": "(cd devSetup ; sh pull-jupyterlab-base-image.sh && docker build . --tag jupyterlab_ext_dev_image_common --build-arg CONTAINER_USER_ID=$(id -u) --build-arg CONTAINER_GROUP_ID=$(id -g))",
+    "dev:docker:reset": "docker stop jupyterlab_ext_dev_container_common || true && docker rm jupyterlab_ext_dev_container_common || true",
+    "dev:docker:create": "docker create --name jupyterlab_ext_dev_container_common --publish 8888:8888 --volume $(pwd):/sagemaker-studio-extension --volume $HOME/.aws:/home/sagemaker-user/.aws jupyterlab_ext_dev_image_common",
+    "dev:start": "docker start jupyterlab_ext_dev_container_common --attach",
+    "test:watch": "jest --watch"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "@emotion/css": "^11.1.3",
+    "@jupyterlab/application": "^4.0.5",
+    "@jupyterlab/apputils": "^4.0.5",
+    "@jupyterlab/coreutils": "^6.0.5",
+    "@jupyterlab/jupyterlab-telemetry": "^1.0.3",
+    "@jupyterlab/services": "^7.0.0",
+    "@jupyterlab/statusbar": "^4.0.5",
+    "@jupyterlab/ui-components": "^4.3.4",
+    "@lumino/coreutils": "^2.1.2",
+    "@lumino/signaling": "^2.1.2",
+    "@lumino/widgets": "^2.1.2",
+    "@testing-library/jest-dom": "^6.1.6",
+    "isomorphic-fetch": "^3.0.0",
+    "p-retry": "^6.1.0",
+    "react": "^18.2.0",
+    "uuid": "^9.0.1",
+    "wildcard-match": "^5.1.3"
+  },
+  "jupyterlab": {
+    "extension": true,
+    "outputDir": "sagemaker_jupyterlab_extension_common/labextension"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.22.7",
+    "@babel/preset-react": "^7.22.5",
+    "@jupyterlab/builder": "^4.0.5",
+    "@testing-library/react": "^13.0.0",
+    "@types/jest": "^29.5.12",
+    "@types/lodash": "^4.14.172",
+    "@types/uuid": "^9.0.6",
+    "@typescript-eslint/eslint-plugin": "^5.61.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-plugin-import": "^2.27.5",
+    "eslint-plugin-json": "^3.1.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "eslint-plugin-react": "^7.32.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "jest": "^28.0.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^2.4.1",
+    "ts-jest": "^28.0.5",
+    "typescript": "^4.3.5"
+  }
+}
