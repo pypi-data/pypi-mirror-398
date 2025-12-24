@@ -1,0 +1,30 @@
+from trustwise.sdk.async_client import TrustwiseAsyncClient
+from trustwise.sdk.metrics.base import BaseMetric
+from trustwise.sdk.metrics.v4.types import (
+    ContextRelevancyRequest,
+    ContextRelevancyResponse,
+)
+
+
+class ContextRelevancyMetricAsync(BaseMetric[ContextRelevancyRequest, ContextRelevancyResponse]):
+    """Async context relevancy metric for v4 API."""
+    response_type = ContextRelevancyResponse
+    
+    def __init__(self, client: TrustwiseAsyncClient) -> None:
+        self.client = client
+        self.base_url = client.config.get_metrics_url("v4")
+
+    def _build_request(self, query: str, context: list, **kwargs) -> dict:
+        """Build the request dictionary for context relevancy evaluation."""
+        return self.validate_request_model(ContextRelevancyRequest, query=query, context=context, **kwargs).to_dict()
+
+    async def evaluate(self, *, query: str, context: list, **kwargs) -> ContextRelevancyResponse:
+        request_dict = self._build_request(query=query, context=context, **kwargs)
+        result = await self.client.post(
+            endpoint=f"{self.base_url}/context_relevancy",
+            data=request_dict
+        )
+        return self._parse_response(result)
+
+    async def batch_evaluate(self, inputs: list[dict]) -> list[ContextRelevancyResponse]:
+        raise NotImplementedError("Batch evaluation not yet supported")

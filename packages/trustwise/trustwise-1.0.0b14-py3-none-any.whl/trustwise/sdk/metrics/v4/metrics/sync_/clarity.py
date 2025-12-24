@@ -1,0 +1,30 @@
+from trustwise.sdk.client import TrustwiseClient
+from trustwise.sdk.metrics.base import BaseMetric
+from trustwise.sdk.metrics.v4.types import (
+    ClarityRequest,
+    ClarityResponse,
+)
+
+
+class ClarityMetric(BaseMetric[ClarityRequest, ClarityResponse]):
+    """Clarity metric for v4 API."""
+    response_type = ClarityResponse
+    
+    def __init__(self, client: TrustwiseClient) -> None:
+        self.client = client
+        self.base_url = client.config.get_metrics_url("v4")
+
+    def _build_request(self, text: str, **kwargs) -> dict:
+        """Build the request dictionary for clarity evaluation."""
+        return self.validate_request_model(ClarityRequest, text=text, **kwargs).to_dict()
+
+    def evaluate(self, *, text: str, **kwargs) -> ClarityResponse:
+        request_dict = self._build_request(text=text, **kwargs)
+        result = self.client._post(
+            endpoint=f"{self.base_url}/clarity",
+            data=request_dict
+        )
+        return self._parse_response(result)
+
+    def batch_evaluate(self, inputs: list[dict]) -> list[ClarityResponse]:
+        raise NotImplementedError("Batch evaluation not yet supported")
