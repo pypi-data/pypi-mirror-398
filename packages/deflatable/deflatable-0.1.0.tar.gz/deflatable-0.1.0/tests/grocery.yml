@@ -1,0 +1,109 @@
+database: sqlite:///grocery.db
+table_order:
+  - product
+  - aisle
+  - cost
+settings:
+  grouping:
+    recommendations:
+      max_distinct_values: 200
+      max_cardinality_ratio: 0.7
+      min_distinct_values: 2
+  display:
+    reverse_fk_preview_items: 2
+    cell_truncation_length: 80
+views:
+  product:
+    active_view: Refrigerated Foods
+    record_links:
+      aisle_id:
+        display_name: "Aisle"
+        lookup_fields:
+          - field: "refrigerated"
+            display_name: "Refrigerated"
+    views:
+      All:
+        visible_fields:
+          - id
+          - name
+          - brand
+          - aisle_id
+          - aisle_id__refrigerated
+          - size
+          - weight
+        grouping: []
+        sort_config: []
+      Large items on Aisle 2:
+        visible_fields:
+          - brand
+          - weight
+          - name
+        grouping: []
+        sort_config: []
+        filters:
+          - - aisle_id
+            - is
+            - "2"
+            - AND
+          - - size
+            - is
+            - Large
+            - AND
+      Refrigerated Foods:
+        visible_fields:
+          - name
+          - brand
+          - aisle_id
+          - aisle_id__refrigerated
+        grouping: []
+        sort_config: []
+        filters:
+          - - aisle_id__refrigerated
+            - is
+            - "1"
+            - AND
+  aisle:
+    active_view: All
+    views:
+      All:
+        visible_fields:
+          - id
+          - length_feet
+          - has_endcaps
+          - refrigerated
+        grouping: []
+        sort_config: []
+      Refrigerated aisles:
+        visible_fields:
+          - id
+          - length_feet
+          - has_endcaps
+          - refrigerated
+        grouping:
+          - refrigerated
+        sort_config: []
+  cost:
+    active_view: All
+    views:
+      All:
+        visible_fields:
+          - id
+          - date
+          - price
+          - product_id
+        grouping: []
+        sort_config: []
+      Cost more than $5.00:
+        visible_fields:
+          - product_id
+          - date
+          - price
+        grouping: []
+        sort_config:
+          - - Price
+            - asc
+        filters:
+          - - price
+            - gte
+            - "5"
+            - AND
