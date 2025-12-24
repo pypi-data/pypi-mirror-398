@@ -1,0 +1,120 @@
+{% load custom_tags_and_filters %}
+<div class="panel-body">
+    <h3 class="customization-section-title">Training</h3>
+    <form method="POST" action="{% url 'customize' 'training' %}" class="form-horizontal">
+        {% csrf_token %}
+        <div class="form-group">
+            <label class="control-label col-sm-4 col-md-3">Tool control (trainers only)</label>
+            <div class="col-sm-8 col-md-9">
+                <div class="checkbox">
+                    <label>
+                        <input onchange="show_hide_training_options()"
+                               type="checkbox"
+                               id="show_training_option"
+                               {% if training_show_self_option_in_tool_control or training_show_behalf_option_in_tool_control %}checked{% endif %}>
+                        Check to show option to use a tool for training
+                    </label>
+                    <div id="training_options" class="col-md-offset-1" style="display: none;margin-top: 5px">
+                        <label>
+                            <input type="checkbox"
+                                   id="training_show_self_option_in_tool_control"
+                                   name="training_show_self_option_in_tool_control"
+                                   {% if training_show_self_option_in_tool_control %}checked{% endif %}
+                                   value="enabled">
+                            When using the tool for self
+                        </label>
+                        <br>
+                        <label>
+                            <input type="checkbox"
+                                   id="training_show_behalf_option_in_tool_control"
+                                   name="training_show_behalf_option_in_tool_control"
+                                   {% if training_show_behalf_option_in_tool_control %}checked{% endif %}
+                                   value="enabled">
+                            When using the tool on behalf of someone else (staff only)
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="control-label col-lg-3 col-md-4 col-sm-5">Training types allowed</label>
+            <div class="col-lg-9 col-md-8 col-sm-7">
+                <div class="checkbox">
+                    {% for val, name in training_types %}
+                        <label>
+                            <input type="checkbox"
+                                   name="training_type_list"
+                                   {% if not training_only_type or training_only_type == val|stringformat:'i' %}checked{% endif %}
+                                   value="{{ val }}">
+                            {{ name }}
+                        </label>
+                        <br />
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="control-label col-lg-3 col-md-4 col-sm-5">Training date</label>
+            <div class="col-lg-9 col-md-8 col-sm-7">
+                <div class="checkbox">
+                    <label>
+                        <input type="checkbox"
+                               id="training_allow_date"
+                               name="training_allow_date"
+                               {% if training_allow_date %}checked{% endif %}
+                               value="enabled">
+                        Allow trainer to pick the training date for each entry
+                    </label>
+                </div>
+                <div class="help-block light-grey" style="margin-bottom: 0">Qualifications will still happen in real time</div>
+            </div>
+        </div>
+        <div class="form-group {% if errors.training_included_hidden_tools %}has-error{% endif %}">
+            <label class="control-label col-lg-3 col-md-4 col-sm-5" for="include_hidden_tool">Included hidden tools</label>
+            <div class="col-lg-9 col-md-8 col-sm-7">
+                <input id="include_hidden_tool"
+                       type="text"
+                       autocomplete="off"
+                       class="form-control"
+                       placeholder="Search for a non-visible tool to include">
+            </div>
+            {% if errors.training_included_hidden_tools %}
+                <div class="col-lg-offset-3 col-md-offset-4 col-sm-offset-5 col-lg-9 col-md-8 col-sm-7 help-block light-grey">
+                    {{ errors.training_included_hidden_tools.error }}
+                </div>
+            {% endif %}
+        </div>
+        <div class="form-group">
+            <div id="include-hidden-list"
+                 class="col-lg-offset-3 col-md-offset-4 col-sm-offset-5 col-lg-9 col-md-8 col-sm-7">
+                No hidden tools are included.
+            </div>
+        </div>
+        <div class="customization-separation" style="margin-bottom: 15px"></div>
+        <div class="text-center">{% button type="save" value="Save settings" %}</div>
+    </form>
+</div>
+<script>
+	function add_tool(jquery_event, search_selection, dataset_name)
+	{
+        $(this).typeahead('val', '').focus();
+		add_to_list("#include-hidden-list", "remove_tool", search_selection.id, search_selection.name, "Remove " + search_selection.name, "training_included_hidden_tools_list");
+	}
+
+    function remove_tool(tool_id)
+	{
+		remove_from_list("#include-hidden-list", "#training_included_hidden_tools_list_" + tool_id, "No hidden tools are included.");
+	}
+
+    function show_hide_training_options()
+    {
+        $('#training_options').toggle($('#show_training_option').prop('checked'));
+    }
+
+	$('#include_hidden_tool').autocomplete('tools', add_tool, {{ tools|json_search_base }});
+    {% for tool in included_hidden_tools %}
+		add_tool(undefined, {name:'{{ tool.name }}', id:{{ tool.id }}});
+	{% endfor %}
+	auto_size_textarea(document.getElementById("training_request_default_message_placeholder"));
+    show_hide_training_options();
+</script>
