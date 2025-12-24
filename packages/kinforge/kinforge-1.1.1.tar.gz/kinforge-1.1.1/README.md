@@ -1,0 +1,102 @@
+# Kinforge
+
+Kinforge is a compiler that generates robot and world models
+(SDF / URDF) from structured, versioned JSON specifications.
+
+It is designed to:
+- separate *model intent* from *simulator formats*
+- produce deterministic, testable output
+- support multi-robot and multi-instance worlds
+- evolve safely via schema versioning
+
+---
+
+## Why Kinforge?
+
+URDF and SDF are:
+- verbose
+- error-prone
+- hard to version
+- difficult to refactor
+
+Kinforge lets you describe **what the robot is**, not **how SDF is written**.
+
+---
+
+## Features
+
+- Versioned JSON schemas (v0, v1)
+- Canonical internal representation (IR)
+- SDF exporter (Gazebo)
+- URDF exporter (ROS-compatible)
+- Deterministic output
+- Frame support (`tool0`, mounts)
+- Joint limits
+- Default joint states (v1)
+- Golden-file testing
+
+---
+
+## Installation
+
+```bash
+pip install kinforge
+```
+
+For development:
+
+```bash
+git clone https://github.com/kinforge-dev/kinforge
+cd kinforge
+pip install -e .
+```
+
+## Shell Completion
+
+Kinforge supports shell tab completion via `argcomplete`.
+
+### Bash
+```bash
+pip install argcomplete
+activate-global-python-argcomplete
+```
+
+## Quick start
+
+```bash
+kinforge build examples/kuka_like_arm_v1.json --out arm.sdf
+
+# Output
+arm.sdf
+kinforge build examples/kuka_like_arm_v1.json --out arm.sdf
+
+
+```
+
+If you have Gazebo (Fortress or above) installed, you can view the model:
+
+```bash
+gz sdf -p simple_arm.sdf
+```
+
+## Philosophy
+
+Kinforge treats robot models as compiled artifacts, not hand-written XML.
+
+It is designed to be:
+
+- predictable
+
+- composable
+
+- testable
+
+- extensible
+
+## Schema Design
+
+More read [here](docs/schema.md).
+
+## Design Decisions
+
+More read [here](docs/design.md).
