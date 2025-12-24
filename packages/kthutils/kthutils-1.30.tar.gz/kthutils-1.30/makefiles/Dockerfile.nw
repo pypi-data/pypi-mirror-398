@@ -1,0 +1,94 @@
+We need an environment to run in.
+The makefiles should work on most systems without any problem.
+However, here we will create a Docker Image with an environment that is 
+guaranteed to work and can be used for, \eg, continuous integration.
+This image is built using a [[<<Dockerfile>>]].
+
+The [[<<Dockerfile>>]] will have the following structure:
+<<Dockerfile>>=
+<<base image to use>>
+<<image info>>
+<<install packages>>
+<<copy makefiles>>
+@
+
+We will base the environment on Ubuntu.
+<<base image to use>>=
+FROM ubuntu:latest
+ENV DEBIAN_FRONTEND noninteractive
+@
+
+We will provide some basic information about who maintains this image and where 
+more information can be found.
+<<image info>>=
+MAINTAINER Daniel Bosk <dbosk@kth.se>
+LABEL se.bosk.daniel.makefiles.version="$Id$"
+LABEL se.bosk.daniel.makefiles.url="https://github.com/dbosk/makefiles"
+@
+
+We install the basic packages needed.
+To make as small a Docker image as we can, we will do as much as possible with 
+as few RUN commands as possible\footnote{%
+  See \url{https://hackernoon.com/tips-to-reduce-docker-image-sizes-876095da3b34} 
+  for a discussion on how to reduce the size of images.
+}.
+We will put TeXLive in its own layer, to avoid redoing that whenever we update 
+this image.
+<<install packages>>=
+RUN apt-get update -y && \
+  apt-get install --no-install-recommends -y \
+    texlive-* \
+    latexmk \
+    xindy \
+    biber \
+    bibtool \
+  && \
+  apt-get purge -fy *-doc && \
+  apt-get autoremove -y && \
+  rm -Rf /var/lib/apt/lists/* && \
+  rm -Rf /usr/share/doc && \
+  rm -Rf /usr/share/man
+@
+
+We will now concentrate smaller packages to a separate RUN command.
+<<install packages>>=
+RUN apt-get update -y && \
+  apt-get install --no-install-recommends -y \
+    curl \
+    git \
+    gnuplot \
+    imagemagick \
+    inkscape \
+    make \
+    noweb \
+    pandoc \
+    python3-matplotlib \
+    python3-numpy \
+    python3-pygments \
+    python3-scipy \
+    python3-pip \
+    qrencode \
+    unzip \
+  && \
+  apt-get purge -fy *-doc && \
+  rm -Rf /var/lib/apt/lists/* && \
+  rm -Rf /usr/share/doc && \
+  rm -Rf /usr/share/man
+@
+
+We copy every makefile into the image's directory [[/usr/local/include]] to 
+make them generally available inside the environment.
+<<copy makefiles>>=
+COPY doc.mk /usr/local/include
+COPY exam.mk /usr/local/include
+COPY haskell.mk /usr/local/include
+COPY latexmkrc /usr/local/include
+COPY noweb.mk /usr/local/include
+COPY pkg.mk /usr/local/include
+COPY portability.mk /usr/local/include
+COPY pub.mk /usr/local/include
+COPY results.mk /usr/local/include
+COPY subdir.mk /usr/local/include
+COPY tex.mk /usr/local/include
+COPY transform.mk /usr/local/include
+@

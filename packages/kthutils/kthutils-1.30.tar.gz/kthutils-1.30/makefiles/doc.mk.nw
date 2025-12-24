@@ -1,0 +1,332 @@
+\section{Introduction and usage}
+
+When working with large sets of documents we sometimes want to do some 
+operations on them, \eg print them or convert them between formats.
+This include file provides exactly that.
+
+We provide a target [[print]] which prints its prerequisites, see 
+\cref{Printing} for details.
+It prints them using [[${LPR} ${LPRFLAGS} <file>]].
+Each of these variables has specialized [[LPR-<file>]] and [[LPRFLAGS-<file>]] 
+versions, which means that different documents can be printed with different 
+commands and flags.
+
+We also provide a target [[wc]] which counts the words of its prerequisites 
+(\cref{WordCounting}).
+The counting is done with [[${WC} ${WCFLAGS} <file>]].
+There is also a [[todo]] target (\cref{ToDoLists}) which grep's its 
+prerequisites for common todo comments (\eg TODO, XXX, FIXME).
+
+Each of [[wc]] and [[todo]] has the specialized [[-<file>]] versions of the 
+variables, same as for [[print]].
+However, [[wc]] and [[todo]] additionally have a [[PREWC]] and [[PRETODO]] 
+commands which pipe their output to the [[WC]] and [[TODO]] commands, 
+respectively.
+These variables have [[-<file>]] versions, but no flags variable.
+
+Finally, we also provide a set of suffix rules for automatic conversion between 
+different formats, see \cref{FormatConversion} for details about the formats.
+In general, we provide the variable [[CONVERT.a.b]] which can be used in 
+recipes to convert a file of format [[.a]] to a file of format [[.b]].
+The command run is designed to fit a rule of the form [[%.b: %.a]].
+
+
+\section{Implementation}
+
+Since the makefile is designed for inclusion, we want to ensure that it is not 
+included more than once --- like we do in C and C++.
+Then first comes our variables described above followed by the targets.
+<<doc.mk>>=
+ifndef DOC_MK
+DOC_MK=true
+
+INCLUDE_MAKEFILES?=.
+include ${INCLUDE_MAKEFILES}/portability.mk
+
+<<variables>>
+<<target for printing>>
+<<target for word counting>>
+<<target for to-do lists>>
+<<suffix rules for format conversion>>
+
+endif
+@
+
+\subsection{Printing}
+\label{Printing}
+
+We provide a target [[print]] to print all documents in a set.
+The usage is simply that documents are added as prerequisites, then the target 
+prints all documents in its dependency list.
+The printing is done using the [[lpr]] command by default.
+However, this can be changed with the [[LPR]] variable.
+<<variables>>=
+LPR?=       lpr
+LPRFLAGS?=
+@
+
+If [[lpr]] is used, we note that the files added as prerequisites for the 
+[[print]] target must be printable by [[lpr]], \eg we must supply 
+PostScript-files instead of PDF-files.
+Fortunately, the automatic file format conversion (\cref{FormatConversion}) 
+solves most of those problems.
+For example, if you want to print a PDF-file [[something.pdf]], then just add 
+[[something.ps]] as a prerequisite to print and the suffix rules below will do 
+the rest.
+
+The implementation is quite simple.
+We will iterate through the list of prerequisites and process them one by
+one.
+For each document we will check if there is an overriding setting for the 
+printing command and its arguments, if there is not we use the default set 
+above.
+<<target for printing>>=
+.PHONY: print
+print:
+	$(foreach doc,$^,\
+	  $(if ${LPR-${doc}},${LPR-${doc}},${LPR}) \
+	  $(if ${LPRFLAGS-${doc}},${LPRFLAGS-${doc}},${LPRFLAGS}) \
+	  ${doc};)
+@
+
+\subsection{Counting words}
+\label{WordCounting}
+
+We provide a [[wc]] target which counts the words in its prerequisites.
+The files added as prerequisites must thus be text files.
+Similarly as for print, there are suffix rules to convert \eg TeX-files to 
+plain text files using [[detex]].
+
+The implementation is similar to that for [[print]].
+The counting is done using the [[wc]] command by default, but we allow 
+overrides using the following variable.
+<<variables>>=
+WC?=        wc
+WCFLAGS?=   -w
+@
+
+We will simply iterate through the list of prerequisites and process them one 
+by one using [[wc]].
+We first print the name followed by a colon, then we print the word count.
+Similarly as above, we check for each document whether there is an overriding 
+setting for the word counting command.
+We also check if there is a preprocessing command, \eg it might be useful to 
+run detex(1) on TeX files before counting the words.
+<<target for word counting>>=
+.PHONY: wc
+wc:
+	$(foreach doc,$^,echo -n "${doc}: "; ${CAT} ${doc} | \
+	  $(if ${PREWC-${doc}},${PREWC-${doc}} |,$(if ${PREWC},${PREWC} |,)) \
+	  $(if ${WC-${doc}},${WC-${doc}},${WC}) \
+	  $(if ${WCFLAGS-${doc}},${WCFLAGS-${doc}},${WCFLAGS});)
+@
+
+\subsection{To-do lists}%
+\label{ToDoLists}
+
+Similarly to the [[wc]] target, we would also like to add a [[todo]] target 
+which generates a to-do list from the to-do comments in the source files (\ie 
+\enquote{TODO}, \enquote{XXX} or \enquote{FIXME}).
+<<target for to-do lists>>=
+.PHONY: todo
+todo:
+	$(foreach doc,$^,echo "${doc}: "; ${CAT} ${doc} | \
+	  $(if ${PRETODO-${doc}},${PRETODO-${doc}} |,$(if ${PRETODO},${PRETODO} |,)) \
+	  $(if ${TODO-${doc}},${TODO-${doc}},${TODO}) \
+	  $(if ${TODOFLAGS-${doc}},${TODOFLAGS-${doc}},${TODOFLAGS});echo;)
+@
+
+We will use the grep(1) utility to grep for these flags in the files.
+<<variables>>=
+TODO?=        ${GREP} "\(XXX\|TODO\|FIXME\)"
+TODOFLAGS?=
+@
+
+\subsection{Format conversion}
+\label{FormatConversion}
+
+We often want to convert a file from one format to another.
+We will now write a pattern along the lines of make's conventions for 
+compilation targets~\cite[Sect.~10.2, second to last paragraph]{GNUMake}.
+\Ie, [[CONVERT.a.b]] will convert a file with suffix [[.a]] to a format with 
+suffix [[.b]].
+However, we will only provide pattern rules for the most common direction, \eg 
+from [[.a]] to [[.b]] but not from [[.b]] to [[.a]].
+Having both will cause make to drop one due to circular dependencies.
+
+We provide the following patterns:
+<<suffix rules for format conversion>>=
+<<PS to PDF>>
+<<DVI to PS>>
+<<ODF to PDF>>
+
+<<SVG to PDF>>
+<<SVG to PS>>
+<<DIA to TeX>>
+<<XCF to PNG>>
+
+<<MD to TeX>>
+<<MD, TeX to HTML>>
+<<TeX to text>>
+@
+
+\subsubsection{Document formats}
+
+To convert PDFs to PostScript format, we use the [[pdf2ps]] command by default.
+<<variables>>=
+PDF2PS?=          pdf2ps
+PDF2PSFLAGS?=
+CONVERT.pdf.ps?=  ${PDF2PS} ${PDF2PSFLAGS} $<
+
+PS2PDF?=          ps2pdf
+PS2PDFFLAGS?=
+CONVERT.ps.pdf?=  ${PS2PDF} ${PS2PDFFLAGS} $<
+@ This allows us to specify the rules as follows.
+<<PS to PDF>>=
+%.pdf: %.ps
+	${CONVERT.ps.pdf}
+@
+
+We do similarly for DVI-files that we want to convert to PostScript.
+<<variables>>=
+DVIPS?=           dvips
+DVIPSFLAGS?=
+CONVERT.dvi.ps?=  ${DVIPS} ${DVIPSFLAGS} $<
+@ With those variables we let
+<<DVI to PS>>=
+%.ps: %.dvi
+	${CONVERT.dvi.ps}
+@
+
+There is no good conversion program for the Open Document Format (ODF) files.
+We will use LibreOffice although that will incur some manual labour.
+<<variables>>=
+ODF2PDF?=         soffice --convert-to pdf
+ODF2PDFFLAGS?=    --headless
+CONVERT.odt.pdf?= ${ODF2PDF} ${ODF2PDFFLAGS} $<
+CONVERT.ods.pdf?= ${ODF2PDF} ${ODF2PDFFLAGS} $<
+CONVERT.odg.pdf?= ${ODF2PDF} ${ODF2PDFFLAGS} $<
+CONVERT.odp.pdf?= ${ODF2PDF} ${ODF2PDFFLAGS} $<
+CONVERT.doc.pdf?= ${ODF2PDF} ${ODF2PDFFLAGS} $<
+CONVERT.docx.pdf?=${ODF2PDF} ${ODF2PDFFLAGS} $<
+CONVERT.xls.pdf?= ${ODF2PDF} ${ODF2PDFFLAGS} $<
+CONVERT.xlsx.pdf?=${ODF2PDF} ${ODF2PDFFLAGS} $<
+CONVERT.ppt.pdf?= ${ODF2PDF} ${ODF2PDFFLAGS} $<
+CONVERT.pptx.pdf?=${ODF2PDF} ${ODF2PDFFLAGS} $<
+@ Then we can generate the suffix rules as follows.
+<<ODF to PDF>>=
+define def_convert_rule
+%.pdf: %.$(1)
+	${CONVERT.$(1).pdf}
+endef
+$(foreach suf,odt ods odg odp doc docx xls xlsx ppt pptx,\
+  $(eval $(call def_convert_rule,${suf})))
+@
+
+\subsubsection{Figure formats}
+
+Usually we want to keep figures in their source form, so that we can still edit
+them later.
+However, just as usually, we cannot use the source form directly in TeX 
+documents, so we want to convert them to TeX or PDF.
+
+When working with SVG-files, there are two things: the graphics and the text in 
+the graphics.
+We will use Inkscape for working with SVGs, because Inkscape allows us to 
+export the graphics part as PDF and all text in it as TeX.
+Unlike previously, we will only allow flags for [[inkscape]] to be set.
+<<variables>>=
+INKSCAPE?=        inkscape
+INKSCAPEFLAGS?=   -D -z --export-latex
+CONVERT.svg.pdf?= ${INKSCAPE} ${INKSCAPEFLAGS} --file=$< --export-pdf=$@
+CONVERT.svg.ps?=  ${INKSCAPE} ${INKSCAPEFLAGS} --file=$< --export-ps=$@
+CONVERT.svg.eps?= ${INKSCAPE} ${INKSCAPEFLAGS} --file=$< --export-eps=$@
+@
+<<SVG to PDF>>=
+%.pdf: %.svg
+	${CONVERT.svg.pdf}
+@ We can thus create similar rules for the formats PS and EPS, instead of PDF.
+<<SVG to PS>>=
+%.ps %.eps: %.svg
+	${CONVERT.svg$(suffix $@)}
+@
+
+Dia is a useful tool for making figures over network topologies etc.
+Fortunately, Dia can output native TeX.
+Similarly to Inkscape, we will only provide flags for Dia.
+<<variables>>=
+DIA?=             dia
+DIAFLAGS?=
+CONVERT.dia.tex?= ${DIA} ${DIAFLAGS} -e $@ -t pgf-tex $<
+@ That gives the suffix rule as follows.
+<<DIA to TeX>>=
+%.tex: %.dia
+	${CONVERT.dia.tex}
+@
+
+Gimp is a useful tool for raster graphics.
+We can convert Gimps own format XCF to PNG using the ImageMagic library.
+<<variables>>=
+XCF2PNGFLAGS?=    -flatten
+XCF2PNG?=         convert ${XCF2PNGFLAGS} $< $@
+TRIM?=            convert -trim $@ $@
+CONVERT.xcf.png?= ${XCF2PNG} && ${TRIM}
+@ Then we can have the following rule:
+<<XCF to PNG>>=
+%.png: %.xcf
+	${CONVERT.xcf.png}
+@
+
+\subsubsection{Text-based formats}
+
+The conversion of the text-based formats differ from the formats above.
+Most of these tools automatically write their output to stdout, which is 
+customary when working with text in the terminal.
+
+We use the [[pandoc]] program to convert between Markdown and TeX.
+<<variables>>=
+MD2TEX?=        pandoc
+MD2TEXFLAGS?=   -s
+CONVERT.md.tex?=${MD2TEX} ${MD2TEXFLAGS} -o $@ $<
+
+TEX2MD?=        pandoc
+TEX2MDFLAGS?=   -s
+CONVERT.tex.md?=${TEX2MD} ${TEX2MDFLAGS} -o $@ $<
+@ This gives the following suffix rules.
+<<MD to TeX>>=
+%.md: %.tex
+	${CONVERT.tex.md}
+@
+
+Sometimes we want to convert to HTML, we will use [[pandoc]] to convert both 
+Markdown and LaTeX to HTML.
+<<variables>>=
+MD2HTML?=           pandoc
+MD2HTMLFLAGS?=      -s
+CONVERT.md.html?=   ${MD2HTML} ${MD2HTMLFLAGS} -o $@ $<
+
+TEX2HTML?=          pandoc
+TEX2HTMLFLAGS?=     -s
+CONVERT.tex.html?=  ${TEX2HTML} ${TEX2HTMLFLAGS} -o $@ $<
+@ Then we can provide following two rules:
+<<MD, TeX to HTML>>=
+define to_html_rule
+%.html: %.$(1)
+	${CONVERT.$(1).html}
+endef
+$(foreach suf,md tex,$(eval $(call to_html_rule,${suf})))
+@
+
+There are times when we want to convert out TeX-files to plain text, \eg to 
+count the words.
+To do this we simply use the [[detex]] program.
+<<variables>>=
+TEX2TEXT?=        detex
+TEX2TEXTFLAGS?=
+CONVERT.tex.txt?= ${TEX2TEXT} ${TEX2TEXTFLAGS} -o $@ $<
+@ This gives us the following suffix rule.
+<<TeX to text>>=
+%.txt: %.tex
+	${CONVERT.tex.txt}
+@
+
