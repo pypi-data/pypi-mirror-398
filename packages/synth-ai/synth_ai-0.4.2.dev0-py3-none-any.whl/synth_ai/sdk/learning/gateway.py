@@ -1,0 +1,2 @@
+class OfflineGateway:
+    pass
