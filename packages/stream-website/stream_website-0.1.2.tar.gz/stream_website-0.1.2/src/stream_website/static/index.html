@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>My Stream - HD</title>
+    <!-- Site icon and social preview -->
+    <link rel="icon" type="image/png" href="/static/sitem2.png">
+    <meta property="og:image" content="/static/sitem2.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="/static/sitem2.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #070916;
+            padding: 100px 20px 40px;
+        }
+
+        .input-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            background: rgba(7, 9, 22, 0.98);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(40, 40, 60, 0.4);
+        }
+
+        .input-bar input[type="text"] {
+            flex: 1;
+            max-width: 600px;
+            padding: 12px 20px;
+            font-size: 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(60, 60, 80, 0.4);
+            background: rgba(30, 32, 50, 0.25);
+            color: #fff;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .input-bar button {
+            padding: 12px 24px;
+            font-size: 15px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+        }
+
+        .clock {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(20, 22, 40, 0.7);
+            backdrop-filter: blur(20px);
+            color: #e0e6f0;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-size: 16px;
+            z-index: 2001;
+            border: 1px solid rgba(40, 40, 60, 0.4);
+        }
+
+        .theme-controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 2002;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1600px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .video-wrapper {
+            width: 100%;
+            position: relative;
+            border-radius: 20px;
+            overflow: hidden;
+            background: #0a0e27;
+            border: 1px solid rgba(40, 40, 60, 0.4);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+        }
+
+        #videoElement {
+            width: 100%;
+            height: auto;
+            display: block;
+            /* BULANIKLIK ÇÖZÜMÜ: Filtreleri kaldırdık, rendering'i düzelttik */
+            object-fit: contain;
+            image-rendering: high-quality;
+            filter: contrast(1.1) saturate(1.1);
+            -webkit-filter: contrast(1.1) saturate(1.1);
+        }
+
+        .custom-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            gap: 15px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 100;
+        }
+
+        .video-wrapper:hover .custom-controls {
+            opacity: 1;
+        }
+
+        /* Tam ekranda sadece ses ve fullscreen butonları göster */
+        :fullscreen .custom-controls > :not(.volume-container):not(#fullscreenBtn),
+        :-webkit-full-screen .custom-controls > :not(.volume-container):not(#fullscreenBtn) {
+            display: none !important;
+        }
+        :fullscreen .custom-controls,
+        :-webkit-full-screen .custom-controls {
+            opacity: 1 !important;
+            pointer-events: auto;
+        }
+        
+        /* Hide controls in fullscreen */
+        :fullscreen .custom-controls,
+        :-webkit-full-screen .custom-controls {
+            opacity: 0 !important;
+            pointer-events: none;
+        }
+
+        .control-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(20, 22, 40, 0.8);
+            border: 2px solid rgba(40, 40, 60, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .volume-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(20, 22, 40, 0.8);
+            padding: 10px 15px;
+            border-radius: 25px;
+            border: 2px solid rgba(40, 40, 60, 0.4);
+        }
+
+        .volume-slider {
+            width: 90px;
+            height: 6px;
+            background: rgba(80, 90, 120, 0.3);
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .volume-fill {
+            height: 100%;
+            background: #2563eb;
+            border-radius: 6px;
+            width: 100%;
+            position: relative;
+        }
+
+        .offline-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(20, 22, 40, 0.95);
+            color: #e0e6f0;
+            padding: 20px 40px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .offline-message.show { display: block; }
+    </style>
+</head>
+<body>
+    <div class="clock" id="clock">00:00:00</div>
+    
+    <div class="input-bar">
+        <input type="text" id="m3u8Input" placeholder="Yayın URL'sini buraya yapıştırın...">
+        <button onclick="loadM3U8()">Yayını Yükle</button>
+    </div>
+
+    <div class="container">
+        <div class="video-wrapper">
+            <video id="videoElement" playsinline autoplay muted></video>
+            <div class="offline-message" id="offlineMessage">YAYIN YOK</div>
+            
+            <div class="custom-controls" id="customControls">
+                <div class="control-btn" id="playPauseBtn">
+                    <svg id="playIcon" viewBox="0 0 24 24" width="24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+                    <svg id="pauseIcon" viewBox="0 0 24 24" width="24" fill="white" style="display: none;"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
+                </div>
+                
+                <div class="volume-container">
+                    <div id="muteBtn" style="cursor:pointer">
+                        <svg viewBox="0 0 24 24" width="20" fill="white"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+                    </div>
+                    <input type="range" min="0" max="1" step="0.01" value="1" class="volume-slider" id="volumeSlider" style="width:90px;">
+                </div>
+
+                <div class="control-btn" id="fullscreenBtn" style="margin-left: auto;">
+                    <svg viewBox="0 0 24 24" width="24" fill="white"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script>
+        let hls;
+        const video = document.getElementById('videoElement');
+        const offlineMsg = document.getElementById('offlineMessage');
+        const volumeFill = document.getElementById('volumeFill');
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').textContent = now.toLocaleTimeString('tr-TR');
+        }
+        setInterval(updateClock, 1000);
+
+        function loadM3U8() {
+            const url = document.getElementById('m3u8Input').value || "http://localhost:8888/live/stream/index.m3u8";
+
+            if (hls) hls.destroy();
+            offlineMsg.classList.remove('show');
+
+            // Ensure muted before loading for autoplay
+            video.muted = true;
+            video.autoplay = true;
+
+            if (Hls.isSupported()) {
+                hls = new Hls({
+                    // NETLİK AYARLARI
+                    capLevelToPlayerSize: false, // Player boyutuna göre kısıtlamayı kapattık ki HD gelsin
+                    enableWorker: true,
+                    autoStartLoad: true,
+                    startLevel: -1, // En iyi kaliteyle başla (Auto)
+                    abrEwmaDefaultEstimate: 5000000 // 5Mbps tahmini ile başla
+                });
+
+                hls.loadSource(url);
+                hls.attachMedia(video);
+
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    video.play().catch(() => console.log("Oynatma başlatılamadı, etkileşim bekleniyor."));
+                });
+
+                hls.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) offlineMsg.classList.add('show');
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+            }
+        }
+
+        // Kontroller
+        document.getElementById('playPauseBtn').onclick = () => {
+            if (video.paused) {
+                video.play();
+                document.getElementById('playIcon').style.display = 'none';
+                document.getElementById('pauseIcon').style.display = 'block';
+            } else {
+                video.pause();
+                document.getElementById('playIcon').style.display = 'block';
+                document.getElementById('pauseIcon').style.display = 'none';
+            }
+        };
+
+        document.getElementById('fullscreenBtn').onclick = () => {
+            if (video.requestFullscreen) video.requestFullscreen();
+            else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
+        };
+
+        // Ses ayarı: input range ile daha hassas
+        const volumeSlider = document.getElementById('volumeSlider');
+        volumeSlider.addEventListener('input', (e) => {
+            video.volume = parseFloat(e.target.value);
+            volumeFill.style.width = (video.volume * 100) + '%';
+            video.muted = false;
+        });
+        // İlk yüklemede doğru göster
+        window.addEventListener('DOMContentLoaded', () => {
+            volumeSlider.value = video.volume;
+            volumeFill.style.width = (video.volume * 100) + '%';
+        });
+
+
+        // Prevent pause/play on single click on video
+        video.onclick = (e) => {
+            e.stopPropagation();
+        };
+
+        // Double click toggles fullscreen
+        video.ondblclick = (e) => {
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            } else {
+                if (video.requestFullscreen) video.requestFullscreen();
+                else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
+            }
+        };
+
+        window.onload = loadM3U8;
+
+        // Tema Kodları
+        const darkToggle = document.getElementById('darkToggle');
+        darkToggle.onclick = () => {
+            const isDark = document.body.style.background.includes('0a0e27') || document.body.style.background.includes('070916');
+            if (isDark) {
+                document.body.style.background = "#181a20";
+                darkToggle.textContent = "Dark";
+            } else {
+                document.body.style.background = "#070916";
+                darkToggle.textContent = "Light";
+            }
+        };
+    </script>
+</body>
+</html>
