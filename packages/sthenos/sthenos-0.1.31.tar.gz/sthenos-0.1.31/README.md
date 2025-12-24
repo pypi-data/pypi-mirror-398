@@ -1,0 +1,538 @@
+# Sthenos
+
+**Sthenos** is a modern, high-performance load testing tool written in Go. It combines the raw power of Go with the simplicity of Python-like scripting (Starlark) for an effortless developer experience.
+
+## Features
+
+- **High Performance**: Built on Go, using lightweight goroutines for Virtual Users (VUs).
+- **Python-like Scripting**: Write test scripts in Starlark (a dialect of Python).
+- **CLI Driven**: Simple, powerful command-line interface.
+- **Metrics**: Detailed breakdown of HTTP request lifecycle (DNS, TLS, TTFB, etc.).
+- **Thresholds**: Define pass/fail criteria directly in your script.
+- **Stages**: Ramp up/down VUs to simulate real-world traffic patterns.
+- **Zero-Dependency Installation**: `pip install sthenos` works instantly (bundles pre-compiled binaries).
+- **K6 Compatibility**: Supports Stages, Checks, Thresholds, and Setup/Teardown lifecycles.
+- **Detailed Metrics**: Breakdown of DNS, TLS, TTFB, and more.
+- **Auto-JSON**: Pass `json={...}` to automatically serialize, set headers, and send.
+- **Query Params**: Pass `query={'q': 'foo'}` to automatically encode URL parameters.
+
+## Installation
+
+### Via PyPI (Recommended)
+
+```bash
+pip install sthenos
+```
+
+### From Source
+
+```bash
+git clone https://github.com/richard24se/Sthenos.git
+cd Sthenos/sthenos
+go build -o sthenos main.go
+```
+
+## Usage
+
+### Basic Run
+
+```bash
+./sthenos run script.py
+```
+
+### Options
+
+Override script defaults via CLI flags:
+
+```bash
+./sthenos run \
+  --vus 10 \
+  --duration 30s \
+  --out json=results.json \
+  --env HOST=api.staging.com \
+  script.py
+```
+
+| Flag | Description | Default |
+| :--- | :--- | :--- |
+| `--vus` | Number of Virtual Users | 1 |
+| `--duration` | Test duration (e.g., `10s`, `1m`) | `10s` |
+| `--env` | Set environment variable (`KEY=VAL`) | - |
+| `--out` | Output format (currently `json=path`) | - |
+| `--graceful-stop` | Timeout to wait for active VUs | `30s` |
+| `--verbose` | Show detailed timing breakdown | `false` |
+
+## API Reference
+
+### HTTP Module (`sthenos.http`)
+
+Sthenos supports all standard HTTP methods.
+
+**Methods:**
+- `http.get(url, params=?, query=?, stop_failure=?)`
+- `http.post(url, body=?, json=?, params=?, query=?, stop_failure=?)`
+- `http.put(url, body=?, json=?, params=?, query=?, stop_failure=?)`
+- `http.del(url, body=?, json=?, params=?, query=?, stop_failure=?)` (alias: `delete`)
+- `http.patch(url, body=?, json=?, params=?, query=?, stop_failure=?)`
+- `http.head(url, params=?, query=?, stop_failure=?)`
+- `http.options(url, params=?, query=?, stop_failure=?)`
+
+**Arguments:**
+- `url` (string): Target URL.
+- `body` (string): Raw request body (text/xml/binary).
+- `json` (dict): Auto-serializes to JSON and sets `Content-Type: application/json`.
+- `query` (dict): Appends URL query parameters (e.g., `?limit=10`).
+- `headers` (dict): Custom HTTP headers (e.g., `{'Authorization': 'Bearer ...'}`).
+- `params` (dict): **Deprecated**. Use `headers` instead. Backward compatibility only.
+- `stop_failure` (bool): Overrides the global stop-on-failure setting for this request.
+
+**Response Object:**
+Returned by all HTTP methods.
+- `res.status` (int): HTTP status code (e.g., 200, 404).
+- `res.body` (string): Response body text.
+- `res.headers` (dict): Response headers.
+
+### Checks (`sthenos.check`)
+
+Validate responses without stopping the test.
+```python
+check(res, {
+    "is status 200": lambda r: r.status == 200,
+    "body has error": lambda r: "error" not in r.body,
+})
+```
+
+### Global Objects
+- `ENV` (dict): Access environment variables passed via `--env key=val`.
+- `sleep(seconds)`: Pause VU execution.
+
+## Examples & Features
+
+Sthenos scripting is designed to be intuitive. Below are examples covering all major features.
+Scripts are written in **Starlark**, which looks and feels like Python.
+
+### 1. Basic Request (`01_basic.py`)
+
+The simplest test—hitting an endpoint repeatedly.
+
+```python
+# Command: sthenos run --vus 5 --duration 5s examples/01_basic.py
+# 01_basic.py: Minimal load test
+
+from sthenos import http, sleep
+
+def default():
+    # Perform a simple GET request
+    http.get("http://localhost:9001/")
+    sleep(0.2)
+    sleep(1)
+```
+
+### 2. Traffic Stages (`02_stages.py`)
+
+Simulate ramping up and down traffic patterns.
+
+```python
+# Command: sthenos run examples/02_stages.py
+# 02_stages.py: Ramping VUs using stages
+
+from sthenos import http, sleep
+
+# Define ramping stages
+options = {
+    "stages": [
+        {"duration": "2s", "target": 5},   # Ramp up to 5 VUs
+        {"duration": "5s", "target": 10},   # Stay at 5 VUs
+        {"duration": "2s", "target": 0},   # Ramp down to 0
+    ]
+}
+
+def default():
+    http.get("http://localhost:9001/")
+    sleep(0.5)
+
+```
+
+### 3. Fail/Pass Criteria (`03_thresholds.py`)
+
+Ensure your system meets specific SLIs. The test exits with code 1 if thresholds fail.
+
+```python
+# Command: sthenos run examples/03_thresholds.py
+# 03_thresholds.py: Defining Pass/Fail criteria
+
+from sthenos import http, check, sleep
+
+options = {
+    # Thresholds allow CI/CD integration
+    "thresholds": {
+        "http_req_duration": ["p(95) < 500"], # 95% of requests must be faster than 500ms
+        "checks": ["rate > 0.95"],            # 95% of checks must pass
+        "http_req_failed": ["rate < 0.01"],   # Less than 1% errors
+    },
+    "stages": [
+        {"duration": "5s", "target": 100},
+    ]
+}
+
+def default(ctx):
+    res = http.get("http://localhost:9001/")
+    
+    # This check feeds the "checks" metric
+    check(res, {
+        "is status 200": lambda r: r.status == 200,
+    })
+    
+    sleep(1)
+
+```
+
+### 4. Validating Responses (`04_env_vars.py`)
+
+This example shows how to use environment variables.
+
+```python
+# Command: sthenos run --env HOST=https://httpbin.org --env USER=admin examples/04_env_vars.py
+# 04_env_vars.py: Using Environment Variables
+
+from sthenos import http, check, sleep, ENV
+
+def setup():
+    # Access injected env vars via global ENV dict
+    host = ENV.get("HOST", "http://localhost:9001")
+    user = ENV.get("USER", "guest")
+    print("[Setup] Target: {host}, User: {user}".format(host=host, user=user))
+    return {"host": host}
+
+def default(ctx):
+    url = "{host}/".format(host=ctx["host"])
+    http.get(url)
+    sleep(1)
+
+```
+
+### 5. POST JSON Data (`05_post_json.py`)
+
+Send JSON payloads easily.
+
+```python
+# Command: sthenos run --vus 2 --duration 5s examples/05_post_json.py
+# 05_post_json.py: Sending POST requests
+
+from sthenos import http, check, sleep
+
+def default(ctx):
+    # TODO: Current MVP implementation supports basic POST
+    # Future: support full JSON body as dict
+    payload = '{"foo": "bar"}'
+    
+    res = http.post("http://localhost:9001/post", payload)
+    
+    check(res, {
+        "status is 200": lambda r: r.status == 200,
+    })
+    
+    sleep(0.1)
+
+```
+
+### 6. Environment Variables (`06_checks.py`)
+
+This example shows how to use checks to validate responses.
+
+```python
+# Command: sthenos run --vus 5 --duration 5s examples/06_checks.py
+# 06_checks.py: Validating responses
+
+from sthenos import http, check, sleep
+
+def default(ctx):
+    res = http.get("http://localhost:9001/get")
+    
+    # Checks don't stop execution but are recorded
+    success = check(res, {
+        "status is 200": lambda r: r.status == 200,
+        "body size > 0": lambda r: len(r.body) > 0,
+    })
+    
+    if not success:
+        print("Request failed validation!")
+    
+    sleep(1)
+
+```
+
+### 7. Full Lifecycle (`07_lifecycle.py`)
+
+Use `setup()` (once globally) to prepare data, and `teardown()` (once globally) to clean up.
+
+```python
+# Command: sthenos run examples/07_lifecycle.py
+# 07_lifecycle.py: Demonstrating the full test lifecycle
+# Init -> Setup(once) -> VU(many) -> Teardown(once)
+
+from sthenos import http, check, sleep
+
+# 1. INIT PHASE
+# Executed once per VU process/thread
+print("[Phase] Init")
+
+
+# 2. SETUP PHASE
+# Executed once globally. Returns 'ctx' data.
+def setup():
+    print("[Phase] Setup: Generating Test Data...")
+    return {"token": "secret_abc_123", "items": [1, 2, 3]}
+
+
+# 3. VU PHASE
+# Executed repeatedly. Receives 'ctx'.
+def default(ctx):
+    # print("[Phase] VU: Using token {}".format(token)) # Uncomment to see per-VU logs
+
+    # Simulate work
+    res = http.get("http://localhost:9001/headers", {"headers": {"Authorization": ctx["token"]}})
+
+    # Validate that server received the token via Response Headers
+    check(
+        res,
+        {
+            "status is 200": lambda r: r.status == 200,
+        },
+    )
+    check(
+        res,
+        {
+            "token verified": lambda r: r.headers.get("X-Token-Received") == ctx["token"],
+        },
+    )
+
+    sleep(0.5)
+
+
+# 4. TEARDOWN PHASE
+# Executed once globally. Receives 'ctx'.
+def teardown(ctx):
+    print("[Phase] Teardown: Data {} clean up complete.".format(ctx["items"]))
+
+```
+
+### 8. Complete Scenario (`08_ecommerce.py`)
+
+Combine everything to simulate a real user journey.
+
+```python
+# Command: sthenos run examples/08_ecommerce.py
+# 08_ecommerce.py: User Journey Simulation
+# Features: Stages, Thresholds, Env Vars, Setup, Checks, Sleep, POST
+
+from sthenos import http, check, sleep, ENV  
+
+# 1. Option Configuration
+options = {
+    # Ramping Load Pattern
+    "stages": [
+        {"duration": "10s", "target": 50},   # Ramp up to 5 users
+        {"duration": "5s", "target": 5},   # Stay at 5 users
+        {"duration": "2s", "target": 0},   # Ramp down to 0
+    ],
+    # Pass/Fail Criteria
+    "thresholds": {
+        "http_req_duration": ["p(95)<500"], # 95% of requests must be faster than 500ms
+        "checks": ["rate>0.95"],            # 95% of checks must pass
+        "http_req_failed": ["rate<0.01"],   # Less than 1% failure
+    },
+}
+
+# 2. Setup Phase
+def setup():
+    # Use Environment Variable for dynamic targeting
+    # usage: sthenos run --env HOST=https://my-api.com examples/08_ecommerce.py
+    # usage: sthenos run --env HOST=https://my-api.com examples/08_ecommerce.py
+    host = ENV.get("HOST", "http://localhost:9001")
+    print("Setup: Targeting {}".format(host))
+    return {"host": host}
+
+# 3. VU Logic
+def default(ctx):
+    host = ctx["host"]
+    
+    # Step 1: Browse Home Page
+    res = http.get("{}/get?page=home".format(host))
+    check(res, {
+        "home status 200": lambda r: r.status == 200,
+    })
+    sleep(1.0) # User thinks
+    
+    # Step 2: View Product
+    res = http.get("{}/get?product=123".format(host))
+    check(res, {
+        "product status 200": lambda r: r.status == 200,
+    })
+    sleep(0.5)
+    
+    # Step 3: Add to Cart (POST)
+    # Note: Sthenos supports string body for POST
+    payload = '{"product_id": 123, "qty": 1}'
+    params = {
+        "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer secret_token",
+        }
+    }
+    res = http.post("{}/post".format(host), payload, params)
+    
+    check(res, {
+        "cart add status 200": lambda r: r.status == 200,
+    })
+    
+    sleep(1.0)
+
+def teardown(data):
+    print("Teardown: Test Complete.")
+
+```
+### 12. POST JSON Auto-Serialization (`12_http_json.py`)
+
+Automatically serialize dictionaries to JSON and set Content-Type.
+
+```python
+# Command: sthenos run examples/12_http_json.py
+# 12_http_json.py
+
+from sthenos import http, check, sleep
+
+def default(ctx):
+    # Pass dict to 'json' argument -> converts to body + sets Content-Type
+    res = http.post(
+        "http://localhost:9001/post",
+        json={"tool": "sthenos", "active": True}
+    )
+
+    check(res, {
+        "status is 200": lambda r: r.status == 200,
+    })
+    sleep(1)
+```
+
+### 13. Raw HTTP Body (`13_http_body.py`)
+
+Send raw text, XML, or binary data with custom headers.
+
+```python
+# Command: sthenos run examples/13_http_body.py
+# 13_http_body.py
+
+from sthenos import http, check, sleep
+
+def default(ctx):
+    # XML Post
+    body_xml = "<user><name>Fausto</name></user>"
+    res = http.post(
+        "http://localhost:9001/echo_xml",
+        body=body_xml,
+        params={"headers": {"Content-Type": "application/xml"}}
+    )
+    
+    check(res, {"status is 200": lambda r: r.status == 200})
+    sleep(1)
+```
+
+### 14. Iteration Failures (`14_iteration_failed.py`)
+
+Demonstrates how network errors or timeouts trigger an efficient "Failed" status without stopping the test (unless configured).
+
+```python
+# Command: sthenos run examples/14_iteration_failed.py
+# 14_iteration_failed.py
+
+from sthenos import http, sleep
+
+def default():
+    # Successful request
+    http.get("http://localhost:9001/")
+    
+    # Failed request (Connection Refused)
+    # By default, this aborts the iteration immediately (stop_failure=True)
+    http.get("http://localhost:12345/") 
+    
+    # This line is never reached by default
+    sleep(1)
+```
+
+### 15. Stop-on-Failure Configuration (`15_iteration_failed_options.py`)
+
+Control whether a failure keeps the VU alive (continue) or aborts the iteration.
+
+```python
+# Command: sthenos run examples/15_iteration_failed_options.py
+# 15_iteration_failed_options.py
+
+from sthenos import http
+
+options = {
+    "stop_failure": False, # Global Override: Don't stop on error
+}
+
+def default():
+    # Will fail, but continue because of global option
+    http.get("http://localhost:12345/") 
+    
+    # Explicit override: This WILL stop the iteration
+    http.get("http://localhost:12345/", stop_failure=True)
+```
+## Metrics Output
+
+Sthenos produces a k6-inspired summary to the console:
+
+```text
+
+   _____ _______ _    _ ______ _   _  ____   _____
+  / ____|__   __| |  | |  ____| \ | |/ __ \ / ____|
+ | (___    | |  | |__| | |__  |  \| | |  | | (___
+  \___ \   | |  |  __  |  __| | .   | |  | |\___ \
+  ____) |  | |  | |  | | |____| |\  | |__| |____) |
+ |_____/   |_|  |_|  |_|______|_| \_|\____/|_____/
+
+Initial VUs: 100, Duration: 5s
+Running Setup...
+Setup: Targeting http://localhost:9001
+Mode: Forced Constant (CLI Overrides). VUs: 100, Duration: 5s
+Starting Constant Load: 100 VUs for 5s
+running [=========================] 5s / 5s
+
+Stopping VUs and waiting for graceful exit...
+Running Teardown...
+Teardown: Test Complete.
+
+✓ checks...........................:   100.00% ✓     600 / 600
+data_received......................:   118.4 kB      23.2 kB/s
+data_sent..........................:   49.4 kB       9.7 kB/s
+http_req_duration..................:   avg=10.67ms   min=0.00ms   med=1.06ms   max=85.21ms   p(90)=44.67ms   p(95)=65.27ms
+http_reqs..........................:   600           117.47/s
+http_req_failed....................:   0             0.00%
+vus................................:   100           min=100   max=100
+vus_max............................:   100           min=100   max=100
+
+
+--- Thresholds ---
+http_req_duration   p(95)<500   ... PASS
+checks              rate>0.95   ... PASS
+http_req_failed     rate<0.01   ... PASS
+------------------
+```
+## Comparisons
+
+| Feature | k6 (OSS) | Sthenos |
+| :--- | :--- | :--- |
+| **Language** | Go | Go |
+| **Scripting** | JavaScript (ES6) | Starlark (Python dialect) |
+| **Engine** | goja | go.starlark.net |
+| **Concurrency** | Goroutines | Goroutines |
+| **Ecosystem** | Mature | Experimental |
+
+
+
+## License
+
+STHENOS LICENSE
