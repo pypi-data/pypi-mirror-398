@@ -1,0 +1,400 @@
+import dataclasses
+import types
+import typing
+import uuid
+from enum import Enum
+from typing import Any, TypeVar, Union, get_type_hints
+
+import sqlalchemy as sql
+from sqlalchemy import BigInteger, ForeignKey, Integer, LargeBinary, orm
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm.decl_api import DeclarativeMeta
+
+from ..catalog.update_status import UpdateStatus
+
+# Base has to be marked explicitly as a type, in order to be used elsewhere as a type hint. But in addition to being
+# a type, it's also a `DeclarativeMeta`. The following pattern enables us to expose both `Base` and `Base.metadata`
+# outside of the module in a typesafe way.
+Base: type = orm.declarative_base()
+assert isinstance(Base, DeclarativeMeta)
+base_metadata = Base.metadata
+
+T = TypeVar('T')
+
+
+def md_from_dict(type_: type[T], data: Any) -> T:
+    """Re-instantiate a dataclass instance that contains nested dataclasses from a dict."""
+    if dataclasses.is_dataclass(type_):
+        fieldtypes = get_type_hints(type_)
+        return type_(**{f: md_from_dict(fieldtypes[f], data[f]) for f in data})
+
+    origin = typing.get_origin(type_)
+    if origin is not None:
+        type_args = typing.get_args(type_)
+        if (origin is Union or origin is types.UnionType) and type(None) in type_args:
+            # handling T | None, T | None
+            non_none_args = [arg for arg in type_args if arg is not type(None)]
+            assert len(non_none_args) == 1
+            return md_from_dict(non_none_args[0], data) if data is not None else None
+        elif origin is list:
+            return [md_from_dict(type_args[0], elem) for elem in data]  # type: ignore[return-value]
+        elif origin is dict:
+            key_type = type_args[0]
+            val_type = type_args[1]
+            return {key_type(key): md_from_dict(val_type, val) for key, val in data.items()}  # type: ignore[return-value]
+        elif origin is tuple:
+            return tuple(md_from_dict(arg_type, elem) for arg_type, elem in zip(type_args, data))  # type: ignore[return-value]
+        else:
+            raise AssertionError(origin)
+    elif isinstance(type_, type) and issubclass(type_, Enum):
+        return type_(data)
+    else:
+        return data
+
+
+def _md_dict_factory(data: list[tuple[str, Any]]) -> dict:
+    """Use this to serialize <>Md instances with dataclasses.asdict()"""
+    # serialize enums to their values
+    return {k: v.value if isinstance(v, Enum) else v for k, v in data}
+
+
+# structure of the stored metadata:
+# - each schema entity that grows somehow proportionally to the data (# of output_rows, total insert operations,
+#   number of schema changes) gets its own table
+# - each table has an 'md' column that basically contains the payload
+# - exceptions to that are foreign keys without which lookups would be too slow (ex.: TableSchemaVersions.tbl_id)
+# - the md column contains a dataclass serialized to json; this has the advantage of making changes to the metadata
+#   schema easier (the goal is not to have to rely on some schema migration framework; if that breaks for some user,
+#   it would be very difficult to patch up)
+
+
+@dataclasses.dataclass
+class SystemInfoMd:
+    schema_version: int
+
+
+class SystemInfo(Base):
+    """A single-row table that contains system-wide metadata."""
+
+    __tablename__ = 'systeminfo'
+
+    dummy = sql.Column(Integer, primary_key=True, default=0, nullable=False)
+    md = sql.Column(JSONB, nullable=False)  # SystemInfoMd
+
+
+@dataclasses.dataclass
+class DirMd:
+    name: str
+    user: str | None
+    additional_md: dict[str, Any]  # deprecated
+
+
+class Dir(Base):
+    __tablename__ = 'dirs'
+
+    id: orm.Mapped[uuid.UUID] = orm.mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False
+    )
+    parent_id: orm.Mapped[uuid.UUID] = orm.mapped_column(UUID(as_uuid=True), ForeignKey('dirs.id'), nullable=True)
+    md: orm.Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)  # DirMd
+    additional_md: orm.Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False, default=dict)
+
+    # used to force acquisition of an X-lock via an Update stmt
+    lock_dummy: orm.Mapped[int] = orm.mapped_column(BigInteger, nullable=True)
+
+
+@dataclasses.dataclass
+class ColumnMd:
+    """
+    Records the non-versioned metadata of a column.
+    - immutable attributes: type, primary key, etc.
+    - when a column was added/dropped, which is needed to GC unreachable storage columns
+      (a column that was added after table snapshot n and dropped before table snapshot n+1 can be removed
+      from the stored table).
+    """
+
+    id: int
+    schema_version_add: int
+    schema_version_drop: int | None
+    col_type: dict
+
+    # if True, is part of the primary key
+    is_pk: bool
+
+    # if set, this is a computed column
+    value_expr: dict | None
+
+    # if True, the column is present in the stored table
+    stored: bool | None
+
+    # If present, the URI for the destination for column values
+    destination: str | None = None
+
+
+@dataclasses.dataclass
+class IndexMd:
+    """
+    Metadata needed to instantiate an EmbeddingIndex
+    """
+
+    id: int
+    name: str
+    indexed_col_tbl_id: str  # UUID of the table (as string) that contains column being indexed
+    indexed_col_id: int  # column being indexed
+    index_val_col_id: int  # column holding the values to be indexed
+    index_val_undo_col_id: int  # column holding index values for deleted rows
+    schema_version_add: int
+    schema_version_drop: int | None
+    class_fqn: str
+    init_args: dict[str, Any]
+
+
+# a stored table version path is a list of (table id as str, effective table version)
+TableVersionPath = list[tuple[str, int | None]]
+
+
+@dataclasses.dataclass
+class ViewMd:
+    is_snapshot: bool
+    include_base_columns: bool
+
+    # (table id, version); for mutable views, all versions are None
+    base_versions: TableVersionPath
+
+    # filter predicate applied to the base table; view-only
+    predicate: dict[str, Any] | None
+
+    # sampling predicate applied to the base table; view-only
+    sample_clause: dict[str, Any] | None
+
+    # ComponentIterator subclass; only for component views
+    iterator_class_fqn: str | None
+
+    # args to pass to the iterator class constructor; only for component views
+    iterator_args: dict[str, Any] | None
+
+
+class TableState(Enum):
+    """The operational state of the table"""
+
+    LIVE = 0
+    ROLLFORWARD = 1  # finalizing pending table ops
+    ROLLBACK = 2  # rolling back pending table ops
+
+
+class TableStatement(Enum):
+    """The top-level DDL/DML operation (corresponding to a statement in SQL; not: a TableOp) currently being executed"""
+
+    CREATE_TABLE = 0
+    CREATE_VIEW = 1
+    DROP_TABLE = 2
+    ADD_COLUMNS = 3
+    DROP_COLUMNS = 4
+    ADD_INDEX = 5
+    DROP_INDEX = 6
+
+
+@dataclasses.dataclass
+class TableMd:
+    tbl_id: str  # uuid.UUID
+    name: str
+    is_replica: bool
+
+    user: str | None
+
+    # monotonically increasing w/in Table for both data and schema changes, starting at 0
+    current_version: int
+    # each version has a corresponding schema version (current_version >= current_schema_version)
+    current_schema_version: int
+
+    next_col_id: int  # used to assign Column.id
+    next_idx_id: int  # used to assign IndexMd.id
+
+    # - used to assign the rowid column in the storage table
+    # - every row is assigned a unique and immutable rowid on insertion
+    next_row_id: int
+
+    # sequence number to track changes in the set of mutable views of this table (ie, this table = the view base)
+    # - incremented for each add/drop of a mutable view
+    # - only maintained for mutable tables
+    # TODO: replace with mutable_views: list[UUID] to help with debugging
+    view_sn: int
+
+    # Metadata format for external stores:
+    # {'class': 'pixeltable.io.label_studio.LabelStudioProject', 'md': {'project_id': 3}}
+    external_stores: list[dict[str, Any]]
+
+    column_md: dict[int, ColumnMd]  # col_id -> ColumnMd
+    index_md: dict[int, IndexMd]  # index_id -> IndexMd
+    view_md: ViewMd | None
+    # TODO: Remove additional_md from this and other Md dataclasses (and switch to using the separate additional_md
+    #     column in all cases)
+    additional_md: dict[str, Any]  # deprecated
+
+    # deprecated
+    has_pending_ops: bool = False
+
+    tbl_state: TableState = TableState.LIVE
+    pending_stmt: TableStatement | None = None
+
+    @property
+    def is_snapshot(self) -> bool:
+        return self.view_md is not None and self.view_md.is_snapshot
+
+    @property
+    def is_mutable(self) -> bool:
+        return not self.is_snapshot and not self.is_replica
+
+    @property
+    def is_pure_snapshot(self) -> bool:
+        return (
+            self.view_md is not None
+            and self.view_md.is_snapshot
+            and self.view_md.sample_clause is None
+            and self.view_md.predicate is None
+            and len(self.column_md) == 0
+        )
+
+    @property
+    def ancestors(self) -> TableVersionPath:
+        if self.view_md is None:
+            return []
+        return self.view_md.base_versions
+
+
+class Table(Base):
+    """
+    Table represents both tables and views.
+
+    Views are in essence a subclass of tables, because they also store materialized columns. The differences are:
+    - views have a base, which is either a (live) table or a snapshot
+    - views can have a filter predicate
+
+    dir_id: NULL for dropped tables
+    """
+
+    __tablename__ = 'tables'
+
+    MAX_VERSION = 9223372036854775807  # 2^63 - 1
+
+    id: orm.Mapped[uuid.UUID] = orm.mapped_column(UUID(as_uuid=True), primary_key=True, nullable=False)
+    dir_id: orm.Mapped[uuid.UUID] = orm.mapped_column(UUID(as_uuid=True), ForeignKey('dirs.id'), nullable=True)
+    md: orm.Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)  # TableMd
+    additional_md: orm.Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False, default=dict)
+
+    # used to force acquisition of an X-lock via an Update stmt
+    lock_dummy: orm.Mapped[int] = orm.mapped_column(BigInteger, nullable=True)
+
+
+@dataclasses.dataclass
+class VersionMd:
+    tbl_id: str  # uuid.UUID
+    created_at: float  # time.time()
+    version: int
+    schema_version: int
+    user: str | None = None  # User that created this version
+    update_status: UpdateStatus | None = None  # UpdateStatus of the change that created this version
+    # A version fragment cannot be queried or instantiated via get_table(). A fragment represents a version of a
+    # replica table that has incomplete data, and exists only to provide base table support for a dependent view.
+    is_fragment: bool = False
+    additional_md: dict[str, Any] = dataclasses.field(default_factory=dict)  # deprecated
+
+
+class TableVersion(Base):
+    __tablename__ = 'tableversions'
+
+    tbl_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
+        UUID(as_uuid=True), ForeignKey('tables.id'), primary_key=True, nullable=False
+    )
+    version: orm.Mapped[int] = orm.mapped_column(BigInteger, primary_key=True, nullable=False)
+    md: orm.Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)
+    additional_md: orm.Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False, default=dict)
+
+
+@dataclasses.dataclass
+class SchemaColumn:
+    """
+    Records the versioned metadata of a column.
+    """
+
+    pos: int
+    name: str
+
+    # media validation strategy of this particular media column; if not set, TableMd.media_validation applies
+    # stores column.MediaValiation.name.lower()
+    media_validation: str | None
+
+
+@dataclasses.dataclass
+class SchemaVersionMd:
+    """
+    Records all versioned table metadata.
+    """
+
+    tbl_id: str  # uuid.UUID
+    schema_version: int
+    preceding_schema_version: int | None
+    columns: dict[int, SchemaColumn]  # col_id -> SchemaColumn
+    num_retained_versions: int
+    comment: str
+
+    # default validation strategy for any media column of this table
+    # stores column.MediaValiation.name.lower()
+    media_validation: str
+    additional_md: dict[str, Any]  # deprecated
+
+
+# versioning: each table schema change results in a new record
+class TableSchemaVersion(Base):
+    __tablename__ = 'tableschemaversions'
+
+    tbl_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
+        UUID(as_uuid=True), ForeignKey('tables.id'), primary_key=True, nullable=False
+    )
+    schema_version: orm.Mapped[int] = orm.mapped_column(BigInteger, primary_key=True, nullable=False)
+    md: orm.Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)  # TableSchemaVersionMd
+    additional_md: orm.Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False, default=dict)
+
+
+class PendingTableOp(Base):
+    """
+    Table operation that needs to be completed before the table can be used.
+
+    Operations need to be completed in order of increasing seq_num.
+    """
+
+    __tablename__ = 'pendingtableops'
+
+    tbl_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
+        UUID(as_uuid=True), ForeignKey('tables.id'), primary_key=True, nullable=False
+    )
+    op_sn: orm.Mapped[int] = orm.mapped_column(Integer, primary_key=True, nullable=False)  # catalog.TableOp.op_sn
+    op: orm.Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)  # catalog.TableOp
+
+
+@dataclasses.dataclass
+class FunctionMd:
+    name: str
+    py_version: str  # platform.python_version
+    class_name: str  # name of the Function subclass
+    md: dict  # part of the output of Function.to_store()
+
+
+class Function(Base):
+    """
+    User-defined functions that are not module functions (ie, aren't available at runtime as a symbol in a known
+    module).
+    Functions without a name are anonymous functions used in the definition of a computed column.
+    Functions that have names are also assigned to a database and directory.
+    We store the Python version under which a Function was created (and the callable pickled) in order to warn
+    against version mismatches.
+    """
+
+    __tablename__ = 'functions'
+
+    id: orm.Mapped[uuid.UUID] = orm.mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False
+    )
+    dir_id: orm.Mapped[uuid.UUID] = orm.mapped_column(UUID(as_uuid=True), ForeignKey('dirs.id'), nullable=True)
+    md: orm.Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)  # FunctionMd
+    binary_obj: orm.Mapped[bytes | None] = orm.mapped_column(LargeBinary, nullable=True)
