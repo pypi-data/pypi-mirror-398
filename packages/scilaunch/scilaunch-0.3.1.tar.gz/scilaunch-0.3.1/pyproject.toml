@@ -1,0 +1,163 @@
+[project]
+name = "scilaunch"
+version = "0.3.1"
+description = "A tiny program for you, setting up the ground for grand discoveries. (2023)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "Simon M. Hofmann", email = "simon.hofmann@pm.me" }]
+maintainers = [{ name = "Simon M. Hofmann", email = "simon.hofmann@pm.me" }]
+keywords = ["template", "BIDS", "reproducibilty", "standardization"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+
+dependencies = [
+    "cookiecutter>=2.6.0, <3.0",
+    'GitPython>=3.1, <4.0',
+    "python-box>=7.0, <8.0",
+    "pyyaml>=5.3, <7.0"
+]
+
+[project.optional-dependencies]
+develop = [
+    "bumpver==2025.1131",
+    "ruff>=0.14.10, <2.0.0",
+    "tox>=4.30.2, <4.31.0",
+    "pytest>=9.0.2, <10.0.0",
+    "pytest-cov",
+    "toml>=0.10.2, <0.11.0",
+    "ty>=0.0.4, <2.0.0",
+]
+
+docs = [
+    "blacken-docs>=1.13",
+    "docutils>=0.20.1",
+    "markdown-callouts>=0.2",
+    "markdown-exec[ansi]>=0.5",
+    "mkdocs>=1.5",
+    "mkdocs-autorefs>=0.5.0",
+    "mkdocs-coverage>=0.2",
+    "mkdocs-gen-files>=0.3",
+    # "mkdocs-git-committers-plugin-2>=1.1",
+    "mkdocs-literate-nav>=0.4",
+    "mkdocs-material>=7.3",
+    "mkdocs-material-extensions",
+    "mkdocs-minify-plugin>=0.6.4",
+    "mkdocs-redirects>=1.2.0",
+    "mkdocstrings[python]",  # add language-specific extensions
+    "pypandoc>=1.12",  # if issue: install via conda install -c conda-forge pypandoc
+]
+
+[project.urls]
+GitHub = "https://github.com/SHEscher/scilaunch"
+Cookiecutter-Template = "https://github.com/SHEscher/research-project"
+Documentation = "https://shescher.github.io/scilaunch/"
+
+# For command line interface (CLI)
+[project.scripts]
+scilaunch = "scilaunch.main:main"
+
+[tool.setuptools]
+platforms = ["unix", "linux", "osx", "cygwin", "win32"]
+zip-safe = false
+
+# To automatically find the package(s) (Beta feature (Oct, 2022)):
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["scilaunch"]
+exclude = ["tests"]
+
+[tool.setuptools.package-data]
+scilaunch = ["**/*.json", "**/.cookiecutterrc"]
+
+[tool.flake8]
+max-line-length = 119
+
+[tool.ruff]
+lint.select = ["ALL"]
+lint.unfixable = [ # list of rules to consider non-autofix-able.
+    "ERA001", # Found commented-out code
+    "F401",   # unused imports
+]
+lint.ignore = ["ANN", "COM", "D203", "D212", "FBT","ISC001", "N806", "T201"]
+
+extend-exclude = []
+line-length = 119   # Same as flake8 and black
+# target-version = "py311"
+src = ["src/scilaunch", "src/tests"]
+output-format = "concise" # or "full"
+
+[tool.ruff.lint.extend-per-file-ignores]
+"*/tests/*.py" = [
+    "ERA001",
+    "S101",
+    "SLF001",
+] # ignore assert statements, & comments in tests
+
+[tool.ty.terminal]
+output-format = "concise" # or "full"
+
+[tool.black]
+line-length = 119
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+src = ["src/scilaunch", "src/tests"]
+
+# ALL ABOVE IS ADAPTATION OF THE FORMER setup.cfg
+# ALL BELOW WAS ALREADY PART OF pyproject.toml [Oct, 2022]
+
+[build-system]
+requires = ["setuptools>=65.5", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+#addopts = "--cov=scilaunch"
+testpaths = ["src/tests"]
+
+[tool.mypy]
+mypy_path = "src"
+check_untyped_defs = true
+disallow_any_generics = true
+ignore_missing_imports = true
+no_implicit_optional = true
+show_error_codes = true
+strict_equality = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_configs = true
+no_implicit_reexport = true
+
+[tool.coverage.run]
+data_file = "src/tests/.coverage"
+
+[tool.coverage.report]
+exclude_lines = ["if __name__ == .__main__.:"]
+
+[tool.coverage.html]
+directory = "src/tests/coverage_html_report"
+
+# For instance, run in shell: bumpver update --dry --no-fetch --patch
+[tool.bumpver]
+current_version = "0.3.1"
+version_pattern = "MAJOR.MINOR.PATCH"
+pre_commit_hook = "scripts/badge.sh"
+commit_message = "bump version {old_version} -> {new_version}"
+commit = true
+tag = true
+push = false
+
+[tool.bumpver.file_patterns]
+"pyproject.toml" = ['^version = "{version}"', 'current_version = "{version}"']
+"src/scilaunch/__init__.py" = ['^__version__ = "{version}"']
