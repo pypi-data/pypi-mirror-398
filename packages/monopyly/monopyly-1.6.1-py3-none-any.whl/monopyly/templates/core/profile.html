@@ -1,0 +1,93 @@
+{% extends "layout.html" %}
+
+
+{% block javascript %}
+
+  <script>
+    const UPDATE_BANK_NAME_ENDPOINTS = {
+      {% for bank in banks %}
+        {{ bank.id }}: "{{ url_for('banking.update_bank_name', bank_id=bank.id) }}",
+      {% endfor %}
+    };
+  </script>
+  <script type="module" src="{{ url_for('static', filename='js/expand-bank.js') }}">
+  </script>
+  <script type="module" src="{{ url_for('static', filename='js/update-bank-name.js') }}">
+  </script>
+
+{% endblock %}
+
+
+{% block header %}
+  <h1>{% block title %}Profile{% endblock %}</h1>
+{% endblock %}
+
+
+{% block content %}
+
+  <div id="profile">
+
+    <div class="username-section">
+      <p class="username">{{ g.user.username }}</span>
+    </div>
+
+    <div class="profile-sections-container">
+
+      <div class="settings profile-section">
+
+        <h2>Settings</h2>
+
+        <div class=user-settings">
+
+          <div class="password">
+            <a style="color: gray;" href="{{ url_for('auth.change_password') }}">
+              Change password
+            </a>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="banking profile-section">
+
+        <h2>Banks</h2>
+
+        <div class="bank-list box-table">
+          {% for bank in banks %}
+
+            <div class="bank-block box-row action update-db-widget" data-bank-id="{{ bank.id }}">
+
+              <div class="widget-text">
+                <div class="bank widget-display">{{ bank.bank_name }}</div>
+                <input class="widget-input" type="text" name="bank_name" value="{{ bank.bank_name }}" />
+              </div>
+
+              <div class="expanded">
+                <div class="options">
+                  <a class="icon-button action delete" href="{{ url_for('banking.delete_bank', bank_id=bank.id) }}" onclick="return confirm('Are you sure you want to delete this bank from the current user profile?');">
+                  </a>
+                  <img class="icon-button edit widget-edit-button" src="{{ url_for('static', filename='img/icons/edit.png') }}" />
+                </div>
+              </div>
+
+            </div>
+
+          {% endfor %}
+        </div>
+
+      </div>
+
+      <div class="transactions profile-section">
+
+        <h2>Transactions</h2>
+
+        <a href="{{ url_for('banking.load_tags') }}">Manage transaction tags</a>
+
+      </div>
+
+    </div>
+
+  </div>
+
+{% endblock %}

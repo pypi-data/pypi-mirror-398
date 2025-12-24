@@ -1,0 +1,83 @@
+{% extends 'layout.html' %}
+
+
+{% block javascript %}
+
+  <script>
+    const EXPAND_TRANSACTION_ENDPOINT = "{{ url_for('banking.expand_transaction') }}";
+    const LINKED_TRANSACTION_ENDPOINT = "{{ url_for('banking.show_linked_transaction') }}";
+    const LOAD_TRANSACTIONS_ENDPOINT = "{{ url_for('banking.load_more_transactions') }}";
+    const LOAD_TRANSACTIONS_SELECTORS = {
+      "account_id": {{ account.id }},
+      "block_count": 1
+    };
+    const BALANCE_CHART_DATA = {{ chart_data|tojson }};
+  </script>
+  <script type="module" src="{{ url_for('static', filename='js/load-more-transactions.js') }}">
+  </script>
+  <script type="module" src="{{ url_for('static', filename='js/expand-transaction.js') }}">
+  </script>
+  <script type="module" src="{{ url_for('static', filename='js/show-linked-transaction.js') }}">
+  </script>
+  <script type="module" src="{{ url_for('static', filename='js/create-balance-chart.js') }}">
+  </script>
+
+{% endblock %}
+
+
+{% block header %}
+
+  <h1>
+    {% block title %}
+      Account Details
+    {% endblock %}
+  </h1>
+
+{% endblock %}
+
+
+{% block content %}
+
+  <div id="bank-account-details" class="details">
+
+    <div id="bank-account-info" class="primary-info">
+
+      <div id="account-summary-container" class="summary-container">
+        {% include 'banking/account_summary.html' %}
+      </div>
+
+      <div id="balance-chart-container">
+        <div id="balance-chart" class="ct-chart ct-octave"></div>
+      </div>
+
+      <div id="account-transactions-container" class="transactions-container">
+        {% include 'banking/transactions_table/table.html' %}
+
+        {% if transactions|length < total_transactions %}
+          <div id="more-transactions" class="button">
+            <img class="icon" src="{{ url_for('static', filename='img/icons/plus-thick.png') }}">
+            <div>Load more transactions</div>
+          </div>
+        {% endif %}
+      </div>
+
+    </div>
+
+  </div>
+
+{% endblock %}
+
+
+{% block right_sidebar %}
+
+    <div class="sidebar-menu">
+
+      <div class="button">
+        <a class="action" href="{{ url_for('banking.add_transaction', bank_id=account.bank_id, account_id=account.id) }}">
+          <img class="icon" src="{{ url_for('static', filename='img/icons/plus.png') }}" />
+        </a>
+      </div>
+
+    </div>
+
+{% endblock %}

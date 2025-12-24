@@ -1,0 +1,84 @@
+<div id="statement-summary" class="summary-box">
+
+  <div class="account suptitle">
+    {{ statement.card.account.bank.bank_name.upper() }} {{ statement.card.last_four_digits }}
+  </div>
+
+  <div id="issue-date" class="title">
+    {{ statement.issue_date.strftime('%B %Y') }}
+  </div>
+
+  <div class="balance">
+    {% with statement_balance = statement.balance|currency %}
+      {% set vbox_width = calculate_summary_balance_width(statement_balance) %}
+      <svg viewBox="0 0 {{ vbox_width }} 100">
+        <text x="0" y="75" fill="currentColor">$</text>
+        <text x="75" y="75" fill="currentColor">{{ statement_balance }}</text>
+      </svg>
+    {% endwith %}
+  </div>
+
+  <div id="payment">
+
+    <div id="due">
+      <div>DUE</div>
+      <div id="due-date" class="update-db-widget right-hover-style">
+        <div class="widget-text">
+          <div class="widget-display">{{ statement.due_date }}</div>
+          <input class="widget-input" type="text" name="due_date" value="{{ statement.due_date }}" />
+        </div>
+        <img class="widget-edit-button" src="{{ url_for('static', filename='img/icons/edit.png') }}" />
+      </div>
+    </div>
+
+    {% if statement.payment_date and (statement.balance or statement.due_date < date_today) %}
+
+      {% if statement.payment_date > date_today %}
+        {% set scheduled = ' scheduled' %}
+      {% endif %}
+
+      <div id="paid" class="paid-notice{{ scheduled }} slide-text-gadget">
+        <div class="sleeve">
+          <div class="main">{{ 'Scheduled' if scheduled else 'Paid' }}</div>
+          <div class="reveal">{{ statement.payment_date }}</div>
+        </div>
+      </div>
+
+    {% elif statement.balance %}
+
+      <form id="pay" action="" method="post">
+
+        <div class="form-inputs">
+
+          <div class="form-line">
+            <div class="dollar-sign">$</div>
+            <input id="pay-amount" type="number" name="pay_amount" value="{{ statement.balance }}" step="0.01" />
+            <input id="pay-date" type="date" name="pay_date" value="{{ date_today }}" />
+          </div>
+
+          <div class="form-line">
+            <select id="pay-bank-account" form="pay">
+              <optgroup>
+                <option value="0">Select a bank</option>
+                {% for account in bank_accounts %}
+                  <option value="{{ account.id }}">
+                    {{ account.bank.bank_name }} {{ account.account_type_view.type_name }} ({{ account.last_four_digits }})
+                  </option>
+                {% endfor %}
+              </optgroup>
+            </select>
+          </div>
+
+        </div>
+
+        <button id="make-payment" class="dark-background" type="button">
+          <div id="prompt">Make a payment</div>
+          <img class="icon" src="{{ url_for('static', filename='img/icons/checkmark.png') }}" />
+        </button>
+
+      </form>
+
+    {% endif %}
+  </div>
+
+</div>
