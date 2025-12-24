@@ -1,0 +1,389 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nirajang20/AskCSV/main/assets/logo.png" width="240" alt="AskCSV logo" />
+</p>
+
+<h1 align="center">AskCSV</h1>
+
+<p align="center">
+  Chat with your CSV locally in a clean web UI — powered by Gemini.
+</p>
+
+<p align="center">
+  <a href="https://github.com/nirajang20/AskCSV">GitHub</a> •
+  <a href="https://github.com/nirajang20/AskCSV/issues">Issues</a>
+</p>
+
+---
+
+## What is AskCSV?
+
+**AskCSV** is a Python package that launches a **local web app** where you can chat with your CSV file using natural language.
+
+You run one command:
+
+```bash
+askcsv web your_file.csv
+````
+
+…and AskCSV opens your browser to a chat UI. You can ask questions like:
+
+* “How many rows are in this dataset?”
+* “Top 5 categories by total amount, bar chart”
+* “Male vs female distribution, pie chart”
+
+AskCSV keeps your data processing **local**. Gemini is used only to generate a **safe analysis plan** (not to execute code on your machine).
+
+---
+
+## Key features
+
+* ✅ **Local web chat UI** (FastAPI + static frontend)
+* ✅ Works with **any CSV**
+* ✅ **Charts** (bar / pie / line / histogram) rendered inside chat
+* ✅ **Privacy controls** (send only schema or summarized profile to Gemini)
+* ✅ Safe-by-design: Gemini returns a **JSON plan**, AskCSV validates it, then executes locally
+
+---
+
+## Requirements
+
+### System requirements
+
+* Python **3.9+** (recommended: Python 3.10/3.11/3.12)
+* macOS / Linux / Windows
+
+### Gemini requirements
+
+* A **Gemini API key**
+* Gemini is currently the **only supported AI provider** (more providers can be added later)
+
+---
+
+## Installation
+
+### Option A: Install from PyPI (recommended)
+
+Once published on PyPI:
+
+```bash
+python3 -m pip install "askcsv[gemini]"
+```
+
+> Why `[gemini]`?
+> AskCSV keeps Gemini support as an optional dependency so the core package stays lightweight.
+
+### Option B: Install from source (GitHub)
+
+```bash
+git clone https://github.com/nirajang20/AskCSV.git
+cd AskCSV
+python3 -m pip install -e ".[gemini]"
+```
+
+---
+
+## Dependencies
+
+AskCSV uses these main packages:
+
+* **pandas** — CSV loading and data operations
+* **matplotlib** — chart generation
+* **fastapi** — local web API
+* **uvicorn** — local ASGI server
+* **google-genai** — Gemini API client (installed via `askcsv[gemini]`)
+
+If you installed with:
+
+```bash
+python3 -m pip install "askcsv[gemini]"
+```
+
+…you already have everything needed.
+
+---
+
+## Setup: Gemini API key
+
+AskCSV reads your Gemini API key from the environment.
+
+### macOS / Linux
+
+```bash
+export GEMINI_API_KEY="YOUR_API_KEY_HERE"
+```
+
+### Windows (PowerShell)
+
+```powershell
+setx GEMINI_API_KEY "YOUR_API_KEY_HERE"
+```
+
+Restart your terminal after using `setx`.
+
+---
+
+## Quick start
+
+Create a simple test CSV `test.csv`:
+
+```csv
+category,amount,date
+Food,120,2024-01-01
+Food,80,2024-01-02
+Rent,1000,2024-01-01
+Transport,50,2024-01-03
+Food,60,2024-01-03
+```
+
+Run AskCSV:
+
+```bash
+askcsv web test.csv --model gemini-3-flash-preview
+```
+
+Your browser should open automatically.
+
+Try prompts:
+
+* `Describe this dataset`
+* `Total amount`
+* `Total amount by category, pie chart`
+* `Top 2 categories by total amount, bar chart`
+
+---
+
+## Usage
+
+### Launch the web UI
+
+```bash
+askcsv web <path_to_csv>
+```
+
+Example:
+
+```bash
+askcsv web people_100.csv --model gemini-3-flash-preview
+```
+
+### Full CLI options
+
+```bash
+askcsv web --help
+```
+
+---
+
+## Choosing a Gemini model
+
+AskCSV lets you choose the Gemini model via `--model`.
+
+Example:
+
+```bash
+askcsv web data.csv --model gemini-3-flash-preview
+```
+
+If you don’t specify `--model`, AskCSV uses its default model (configured in the package).
+Different Google accounts/regions can have different model availability, so if you see a “model not found” error, simply switch the model name.
+
+### Common working models
+
+* `gemini-3-flash-preview` (fast + great for planning)
+* (If you have access) `gemini-3-pro` (more accurate, usually slower)
+
+> Tip: If you want to discover available models for your API key, you can use a small script with the `google-genai` client to list models. Availability can change over time.
+
+---
+
+## Privacy modes (important)
+
+AskCSV supports multiple privacy modes. These control what metadata is shared with Gemini.
+
+### `profile_summary` (recommended)
+
+Sends a compact summary like:
+
+* column names
+* dtypes
+* missing values
+* numeric min/max/mean
+* top categorical values
+
+### `sample_rows`
+
+Sends a small random sample of rows.
+
+### `schema_only`
+
+Sends only column names + dtypes.
+
+Choose with:
+
+```bash
+askcsv web data.csv --privacy-mode profile_summary
+```
+
+Options:
+
+* `schema_only`
+* `sample_rows`
+* `profile_summary`
+
+You can also control sample size (when relevant):
+
+```bash
+askcsv web data.csv --privacy-mode sample_rows --sample-rows 40
+```
+
+---
+
+## Charts
+
+AskCSV can generate charts when your prompt includes a chart request. Examples:
+
+* `Male vs female distribution, pie chart`
+* `Top 5 job titles by count, bar chart`
+* `Total amount by date, line chart`
+* `Distribution of amount, hist`
+
+AskCSV returns charts as images directly in the chat UI.
+
+---
+
+## Tips for best results
+
+### Use exact column names
+
+If your CSV has columns like:
+
+`Date of birth` (with spaces), it’s best to reference it exactly:
+
+* ✅ `How many people were born after 1990 using Date of birth?`
+
+### If it guesses wrong
+
+Be more explicit:
+
+* ✅ `Count rows where Sex == Female`
+* ✅ `Group by Job Title and count`
+
+---
+
+## Troubleshooting
+
+### 1) “command not found: askcsv”
+
+You probably installed into a different Python environment.
+
+Use:
+
+```bash
+python3 -m pip install -e ".[gemini]"
+```
+
+Then verify:
+
+```bash
+which askcsv
+askcsv --help
+```
+
+---
+
+### 2) “GEMINI_API_KEY missing”
+
+Set it:
+
+```bash
+export GEMINI_API_KEY="YOUR_API_KEY"
+```
+
+Then rerun:
+
+```bash
+askcsv web data.csv --model gemini-3-flash-preview
+```
+
+---
+
+### 3) “404 model not found”
+
+This means the model name isn’t available for your account/API version.
+
+Fix by switching models:
+
+```bash
+askcsv web data.csv --model gemini-3-flash-preview
+```
+
+---
+
+### 4) Server crashes on macOS when creating charts (NSWindow / main thread)
+
+AskCSV generates charts server-side and must use a non-GUI Matplotlib backend.
+
+If you see errors like:
+`NSWindow should only be instantiated on the main thread`
+
+Make sure Matplotlib uses the `Agg` backend inside `src/askcsv/core/charts.py`:
+
+```python
+import matplotlib
+matplotlib.use("Agg")
+```
+
+---
+
+### 5) Browser doesn’t open automatically
+
+The server still prints the URL. Open it manually:
+
+`http://127.0.0.1:<PORT>`
+
+---
+
+## Development
+
+Clone and run locally:
+
+```bash
+git clone https://github.com/nirajang20/AskCSV.git
+cd AskCSV
+python3 -m pip install -e ".[gemini]"
+export GEMINI_API_KEY="YOUR_KEY"
+askcsv web test.csv --model gemini-3-flash-preview
+```
+
+Build package:
+
+```bash
+python3 -m pip install --upgrade build twine
+rm -rf dist build *.egg-info
+python3 -m build
+python3 -m twine check dist/*
+```
+
+---
+
+## Roadmap (planned improvements)
+
+* CSV upload directly from the UI
+* DuckDB backend for very large CSVs (1M+ rows)
+* Better date handling (auto parsing “born after 1990”)
+* More chart types + export buttons
+* More LLM providers (optional)
+
+---
+
+## License
+
+This project is licensed under the terms of the license file in this repo. See: `LICENSE`
+
+---
+
+## Author
+
+Built by **Nirajan Ghimire**
+GitHub: [https://github.com/nirajang20](https://github.com/nirajang20)
+
