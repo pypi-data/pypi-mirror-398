@@ -1,0 +1,1305 @@
+"""
+Graphics Generation Service
+Generates HTML-based graphics (openfigma style) and converts to PNG.
+Perfect for blog graphics: headlines, quotes, metrics, CTAs, infographics.
+
+Uses:
+- HTML/CSS templates (dark theme, glassmorphism)
+- Playwright for HTML → PNG conversion
+- Base64 encoding for image output (Google Drive removed)
+"""
+
+import os
+import re
+import io
+import time
+import base64
+import asyncio
+import logging
+import html  # For HTML escaping to prevent XSS
+from typing import Optional, Dict, Any, Literal
+from dataclasses import dataclass
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+
+# Google Drive integration removed
+# from google.oauth2 import service_account
+# from googleapiclient.discovery import build
+# from googleapiclient.http import MediaInMemoryUpload
+
+logger = logging.getLogger(__name__)
+
+# Import from openfigma library (optional - only for graphics generation)
+try:
+    from openfigma import GraphicsBuilder, Theme
+    OPENFIGMA_AVAILABLE = True
+except ImportError:
+    OPENFIGMA_AVAILABLE = False
+    GraphicsBuilder = None
+    Theme = None
+    logger.warning("openfigma not available - graphics generation will be limited")
+
+
+@dataclass
+class GraphicsGenerationRequest:
+    """Request for graphics generation."""
+    graphic_type: Literal["headline", "quote", "metric", "cta", "infographic"]
+    content: Dict[str, Any]  # Type-specific content
+    company_data: Optional[Dict[str, Any]] = None
+    project_folder_id: Optional[str] = None
+    dimensions: tuple = (1920, 1080)  # Default: Horizontal format (16:9 landscape)
+
+
+@dataclass
+class GraphicsGenerationResponse:
+    """Response from graphics generation."""
+    success: bool
+    image_url: str = ""
+    alt_text: str = ""
+    drive_file_id: str = ""
+    generation_time_seconds: float = 0.0
+    error: Optional[str] = None
+
+
+class GraphicsGenerator:
+    """
+    Generates HTML-based graphics (openfigma style) and converts to PNG.
+    
+    Supports:
+    - Headlines (case study style)
+    - Quotes (testimonial style)
+    - Metrics (statistics with icons)
+    - CTAs (call-to-action cards)
+    - Infographics (diagram-style)
+    """
+    
+    # Drive folder structure: Project → Content Output → Graphics (Final)
+    CONTENT_OUTPUT_FOLDER = "04 - Content Output"
+    GRAPHICS_FOLDER = "Graphics (Final)"
+    
+    # Google Drive integration removed
+    
+    def __init__(self, theme: Optional[Theme] = None):
+        # Initialize Google Drive service
+        self.drive_service = self._init_drive_service()
+        
+        # Initialize component builder with theme (if provided)
+        # If theme is None, GraphicsBuilder will use default theme
+        if OPENFIGMA_AVAILABLE:
+            self.builder = GraphicsBuilder(theme=theme) if theme else GraphicsBuilder()
+        else:
+            self.builder = None
+            logger.warning("GraphicsBuilder not available - graphics generation will use fallback templates")
+        
+        # Check for Playwright
+        try:
+            from playwright.async_api import async_playwright
+            self._playwright_available = True
+            logger.info("Graphics generator initialized (Playwright available)")
+        except ImportError:
+            self._playwright_available = False
+            logger.warning("Playwright not available - graphics generation will be limited")
+    
+    def _init_drive_service(self):
+        """Initialize Google Drive API service (disabled - Google Drive integration removed)."""
+        logger.warning("Google Drive integration removed - Drive upload disabled")
+        return None
+    
+    async def generate(self, request: GraphicsGenerationRequest) -> GraphicsGenerationResponse:
+        """
+        Generate graphics from HTML template and convert to PNG.
+        
+        Steps:
+        1. Generate HTML from template
+        2. Convert HTML to PNG using Playwright
+        3. Upload to Google Drive (or return base64)
+        4. Make publicly viewable
+        5. Return URL and metadata
+        """
+        start_time = time.time()
+        
+        try:
+            logger.info(f"Starting graphics generation: {request.graphic_type}")
+            
+            # Step 1: Generate HTML
+            html_content = self._generate_html(request)
+            logger.info(f"Generated HTML ({len(html_content)} chars)")
+            
+            # Step 2: Convert HTML to PNG
+            if not self._playwright_available:
+                raise ValueError("Playwright not available - install with: pip install playwright && playwright install chromium")
+            
+            image_bytes = await self._html_to_png(html_content, request.dimensions)
+            logger.info(f"Converted to PNG ({len(image_bytes)} bytes)")
+            
+            # Step 3: Upload to Drive (or return base64)
+            drive_file_id = None
+            image_url = ""
+            
+            if request.project_folder_id and self.drive_service:
+                try:
+                    target_folder_id = await self._get_graphics_folder(request.project_folder_id)
+                    if not target_folder_id:
+                        target_folder_id = request.project_folder_id
+                    
+                    file_name = f"graphic_{request.graphic_type}_{int(time.time())}.png"
+                    drive_file_id = await self._upload_to_drive(image_bytes, file_name, target_folder_id)
+                    
+                    if drive_file_id:
+                        await self._make_public(drive_file_id)
+                        image_url = f"https://drive.google.com/uc?export=view&id={drive_file_id}"
+                        logger.info(f"Graphics uploaded to Drive: {drive_file_id}")
+                except Exception as drive_error:
+                    logger.warning(f"Drive upload failed: {drive_error}, returning base64")
+                    image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+                    image_url = f"data:image/png;base64,{image_b64}"
+            else:
+                # No Drive configured - return base64
+                logger.info("No Drive folder ID or Drive service, returning base64 image")
+                image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+                image_url = f"data:image/png;base64,{image_b64}"
+            
+            generation_time = time.time() - start_time
+            
+            return GraphicsGenerationResponse(
+                success=True,
+                image_url=image_url,
+                alt_text=self._generate_alt_text(request),
+                drive_file_id=drive_file_id or "",
+                generation_time_seconds=generation_time,
+            )
+            
+        except Exception as e:
+            generation_time = time.time() - start_time
+            logger.error(f"Graphics generation failed: {e}", exc_info=True)
+            return GraphicsGenerationResponse(
+                success=False,
+                generation_time_seconds=generation_time,
+                error=str(e),
+            )
+    
+    def _generate_html(self, request: GraphicsGenerationRequest) -> str:
+        """
+        Generate HTML content based on graphic type.
+        
+        Supports two modes:
+        1. Legacy mode: Uses graphic_type to select template
+        2. JSON config mode: If content contains 'config' key, uses component builder
+        """
+        # Check if using JSON config mode
+        if isinstance(request.content, dict) and "config" in request.content:
+            config = request.content["config"].copy()
+            # Add dimensions to config if not present
+            if "dimensions" not in config:
+                config["dimensions"] = request.dimensions
+            
+            # Keep theme as dict - build_from_config expects dict, not Theme object
+            # Clean up any internal keys
+            if "theme" in config and isinstance(config["theme"], dict):
+                theme_dict = config["theme"]
+                config["theme"] = {k: v for k, v in theme_dict.items() if not k.startswith("_")}
+            
+            # Build from JSON config using component system
+            if not OPENFIGMA_AVAILABLE or self.builder is None:
+                raise ValueError("OpenFigma graphics builder not available. Install openfigma package for JSON config mode.")
+            return self.builder.build_from_config(config)
+        
+        # Legacy mode: use template-based generation
+        if request.graphic_type == "headline":
+            return self._generate_headline_html(request)
+        elif request.graphic_type == "quote":
+            return self._generate_quote_html(request)
+        elif request.graphic_type == "metric":
+            return self._generate_metric_html(request)
+        elif request.graphic_type == "cta":
+            return self._generate_cta_html(request)
+        elif request.graphic_type == "infographic":
+            return self._generate_infographic_html(request)
+        else:
+            raise ValueError(f"Unknown graphic type: {request.graphic_type}")
+    
+    async def generate_from_config(
+        self,
+        config: Dict[str, Any],
+        dimensions: tuple = (1920, 1080),
+        project_folder_id: Optional[str] = None,
+    ) -> GraphicsGenerationResponse:
+        """
+        Generate graphics from JSON config (new component-based API).
+        
+        Args:
+            config: JSON config dict with theme and components
+            dimensions: Image dimensions (width, height)
+            project_folder_id: Optional Drive folder ID for upload
+        
+        Example config:
+        {
+          "theme": {
+            "accent": "#ff6b6b",
+            "background": "#ffffff"
+          },
+          "components": [
+            {"type": "badge", "content": {"text": "Case Study", "icon": "case-study"}},
+            {"type": "headline", "content": {"text": "Amazing Results", "size": "large"}},
+            # Logo cards removed - graphics should focus on content, not branding
+          ]
+        }
+        """
+        # Create a copy of config to avoid mutating the original
+        config_copy = config.copy()
+        
+        # Add dimensions to config if not present
+        if "dimensions" not in config_copy:
+            config_copy["dimensions"] = dimensions
+        
+        # Keep theme as dict - build_from_config expects dict, not Theme object
+        # The openfigma library will handle Theme conversion internally if needed
+        # We just ensure it's a clean dict without internal keys
+        if "theme" in config_copy and isinstance(config_copy["theme"], dict):
+            theme_dict = config_copy["theme"]
+            # Remove any internal keys (keys starting with _)
+            config_copy["theme"] = {k: v for k, v in theme_dict.items() if not k.startswith("_")}
+        
+        # Build HTML from config (OpenFigma API: build_from_config(config))
+        # According to OpenFigma docs, build_from_config takes only config
+        if not OPENFIGMA_AVAILABLE or self.builder is None:
+            raise ValueError("OpenFigma graphics builder not available. Install openfigma package for JSON config mode.")
+        html_content = self.builder.build_from_config(config_copy)
+        
+        # Convert to PNG
+        if not self._playwright_available:
+            raise ValueError("Playwright not available")
+        
+        image_bytes = await self._html_to_png(html_content, dimensions)
+        
+        # Upload or return base64
+        drive_file_id = None
+        image_url = ""
+        
+        if False:  # Drive upload disabled
+            try:
+                target_folder_id = await self._get_graphics_folder(project_folder_id)
+                if not target_folder_id:
+                    target_folder_id = project_folder_id
+                
+                file_name = f"graphic_config_{int(time.time())}.png"
+                drive_file_id = await self._upload_to_drive(image_bytes, file_name, target_folder_id)
+                
+                if drive_file_id:
+                    await self._make_public(drive_file_id)
+                    image_url = f"https://drive.google.com/uc?export=view&id={drive_file_id}"
+            except Exception as drive_error:
+                logger.warning(f"Drive upload failed: {drive_error}, returning base64")
+                image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+                image_url = f"data:image/png;base64,{image_b64}"
+        else:
+            image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+            image_url = f"data:image/png;base64,{image_b64}"
+        
+        return GraphicsGenerationResponse(
+            success=True,
+            image_url=image_url,
+            alt_text="Custom graphic",
+            drive_file_id=drive_file_id or "",
+            generation_time_seconds=0.0,
+        )
+    
+    def _generate_headline_html(self, request: GraphicsGenerationRequest) -> str:
+        """Generate headline graphic HTML (case study style - openfigma quality)."""
+        content = request.content
+        headline = content.get("headline", "")
+        subheadline = content.get("subheadline", "")
+        badge_text = content.get("badge", "Case Study")
+        company_name = request.company_data.get("name", "") if request.company_data else ""
+        show_logos = content.get("show_logos", True)
+        
+        bold_parts = content.get("bold_parts", [])
+        muted_parts = content.get("muted_parts", [])
+        
+        logos_html = ""
+        if show_logos and company_name:
+            logos_html = f"""
+  <div class="logos-card">
+    <div class="logo">
+      <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M4 6h16M4 12h16M4 18h10"/>
+      </svg>
+      {company_name.upper()}
+    </div>
+    <div class="logo-divider"></div>
+    <div class="logo">
+      <div class="scaile-icon"></div>
+      SCAILE
+    </div>
+  </div>"""
+        
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Headline Graphic</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #f8f8f8;
+      width: {request.dimensions[0]}px;
+      height: {request.dimensions[1]}px;
+      display: flex;
+      flex-direction: column;
+      padding: 80px 120px;
+      position: relative;
+    }}
+    body::before {{
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(0,0,0,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.025) 1px, transparent 1px);
+      background-size: 20px 20px;
+      pointer-events: none;
+    }}
+    .badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: white;
+      border: 1px solid #e8e8e8;
+      border-radius: 100px;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a1a;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      width: fit-content;
+      margin-bottom: 50px;
+    }}
+    .badge svg {{ width: 20px; height: 20px; }}
+    .headline {{
+      text-align: center;
+      font-size: 56px;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: auto;
+      padding: 0;
+      max-width: 100%;
+    }}
+    .headline .bold {{ color: #1a1a1a; }}
+    .headline .muted {{ color: #b0b0b0; }}
+    .subheadline {{
+      margin-top: 30px;
+      font-size: 24px;
+      font-weight: 500;
+      color: #6b7280;
+      text-align: center;
+    }}
+    .logos-card {{
+      background: #f0f0f0;
+      border-radius: 28px;
+      padding: 40px 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 30px;
+    }}
+    .logo {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 28px;
+      font-weight: 800;
+      color: #1a1a1a;
+      letter-spacing: -0.02em;
+    }}
+    /* Logo styles removed - graphics should focus on content, not branding */
+  </style>
+</head>
+<body>
+  <div class="badge">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <rect x="3" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/>
+      <rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+    {badge_text}
+  </div>
+
+  <h1 class="headline">
+    {self._format_headline(headline, bold_parts, muted_parts)}
+  </h1>
+  {f'<p class="subheadline">{html.escape(subheadline)}</p>' if subheadline else ''}
+{logos_html}
+</body>
+</html>"""
+    
+    def _format_headline(self, headline: str, bold_parts: list, muted_parts: list) -> str:
+        """Format headline with bold/muted styling."""
+        if not bold_parts and not muted_parts:
+            # No styling specified - return as bold
+            return f'<span class="bold">{html.escape(headline)}</span>'
+        
+        words = headline.split(" ")
+        formatted = []
+        for word in words:
+            word_clean = re.sub(r'[^\w]', '', word.lower())
+            if bold_parts and any(word_clean in re.sub(r'[^\w]', '', p.lower()) for p in bold_parts):
+                formatted.append(f'<span class="bold">{html.escape(word)}</span>')
+            elif muted_parts and any(word_clean in re.sub(r'[^\w]', '', p.lower()) for p in muted_parts):
+                formatted.append(f'<span class="muted">{html.escape(word)}</span>')
+            else:
+                formatted.append(f'<span class="bold">{html.escape(word)}</span>')
+        return " ".join(formatted)
+    
+    def _generate_quote_html(self, request: GraphicsGenerationRequest) -> str:
+        """Generate quote graphic HTML (testimonial style - openfigma quality)."""
+        content = request.content
+        quote = content.get("quote", "")
+        quote_emphasis = content.get("quote_emphasis", [])  # Parts to emphasize with <strong>
+        author = content.get("author", "")
+        role = content.get("role", "")
+        author_avatar = content.get("author_avatar", "")
+        badge_text = content.get("badge", "Case Study")
+        company_name = request.company_data.get("name", "") if request.company_data else ""
+        show_logos = content.get("show_logos", True)
+        
+        # Format quote with emphasis
+        formatted_quote = quote
+        for emphasis in quote_emphasis:
+            formatted_quote = formatted_quote.replace(emphasis, f"<strong>{html.escape(emphasis)}</strong>")
+        
+        logos_html = ""
+        if show_logos and company_name:
+            logos_html = f"""
+  <div class="logos-card">
+    <div class="logo">
+      <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M4 6h16M4 12h16M4 18h10"/>
+      </svg>
+      {company_name.upper()}
+    </div>
+    <div class="logo-divider"></div>
+    <div class="logo">
+      <div class="scaile-icon"></div>
+      SCAILE
+    </div>
+  </div>"""
+        
+        avatar_html = ""
+        if author_avatar:
+            avatar_html = f'<div class="author-avatar"><img src="{html.escape(author_avatar)}" alt="{html.escape(author)}"></div>'
+        else:
+            # Generate placeholder avatar
+            initials = "".join([n[0].upper() for n in author.split()[:2]]) if author else "?"
+            avatar_html = f'<div class="author-avatar"><div class="avatar-placeholder">{html.escape(initials)}</div></div>'
+        
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quote Graphic</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #f8f8f8;
+      width: {request.dimensions[0]}px;
+      height: {request.dimensions[1]}px;
+      display: flex;
+      flex-direction: column;
+      padding: 80px 120px;
+      position: relative;
+    }}
+    body::before {{
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(0,0,0,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.025) 1px, transparent 1px);
+      background-size: 20px 20px;
+      pointer-events: none;
+    }}
+    .badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: white;
+      border: 1px solid #e8e8e8;
+      border-radius: 100px;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a1a;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      width: fit-content;
+      margin-bottom: 40px;
+    }}
+    .badge svg {{ width: 20px; height: 20px; }}
+    .quote-card {{
+      background: white;
+      border-radius: 28px;
+      padding: 50px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }}
+    .quote-text {{
+      font-size: 32px;
+      line-height: 1.45;
+      color: #6b7280;
+      margin-bottom: 50px;
+    }}
+    .quote-text strong {{
+      color: #1a1a1a;
+      font-weight: 700;
+    }}
+    .quote-author {{
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }}
+    .author-avatar {{
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: #e5e5e5;
+      overflow: hidden;
+      flex-shrink: 0;
+    }}
+    .author-avatar img {{
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }}
+    .avatar-placeholder {{
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: 700;
+      color: #6b7280;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+    }}
+    .author-info {{
+      display: flex;
+      flex-direction: column;
+    }}
+    .author-name {{
+      font-size: 26px;
+      font-weight: 700;
+      color: #1a1a1a;
+    }}
+    .author-role {{
+      font-size: 22px;
+      color: #6b7280;
+      margin-top: 4px;
+    }}
+    .logos-card {{
+      background: #f0f0f0;
+      border-radius: 28px;
+      padding: 40px 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 30px;
+    }}
+    .logo {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 28px;
+      font-weight: 800;
+      color: #1a1a1a;
+      letter-spacing: -0.02em;
+    }}
+    /* Logo styles removed - graphics should focus on content, not branding */
+  </style>
+</head>
+<body>
+  <div class="badge">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <rect x="3" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/>
+      <rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+    {badge_text}
+  </div>
+
+  <div class="quote-card">
+    <p class="quote-text">"{formatted_quote}"</p>
+    <div class="quote-author">
+      {avatar_html}
+      <div class="author-info">
+        <div class="author-name">{html.escape(author)}</div>
+        {f'<div class="author-role">{html.escape(role)}</div>' if role else ''}
+      </div>
+    </div>
+  </div>
+{logos_html}
+</body>
+</html>"""
+    
+    def _generate_metric_html(self, request: GraphicsGenerationRequest) -> str:
+        """Generate metric graphic HTML (statistics style - openfigma quality)."""
+        content = request.content
+        headline = content.get("headline", "")  # Optional headline above metric
+        value = content.get("value", "")
+        label = content.get("label", "")
+        quote = content.get("quote", "")  # Optional quote below metric
+        quote_emphasis = content.get("quote_emphasis", [])
+        change = content.get("change", "")
+        change_type = content.get("change_type", "positive")
+        badge_text = content.get("badge", "Case Study")
+        company_name = request.company_data.get("name", "") if request.company_data else ""
+        show_logos = content.get("show_logos", True)
+        
+        # Format quote with emphasis
+        formatted_quote = quote
+        if quote_emphasis:
+            for emphasis in quote_emphasis:
+                formatted_quote = formatted_quote.replace(emphasis, f"<strong>{html.escape(emphasis)}</strong>")
+        
+        logos_html = ""
+        if show_logos and company_name:
+            logos_html = f"""
+  <div class="logos-card">
+    <div class="logo">
+      <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M4 6h16M4 12h16M4 18h10"/>
+      </svg>
+      {company_name.upper()}
+    </div>
+    <div class="logo-divider"></div>
+    <div class="logo">
+      <div class="scaile-icon"></div>
+      SCAILE
+    </div>
+  </div>"""
+        
+        headline_html = ""
+        if headline:
+            bold_parts = content.get("bold_parts", [])
+            muted_parts = content.get("muted_parts", [])
+            headline_html = f'<h1 class="headline">{self._format_headline(headline, bold_parts, muted_parts)}</h1>'
+        
+        quote_html = ""
+        if quote:
+            quote_html = f'<p class="quote-text">"{html.escape(formatted_quote)}"</p>'
+        
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Metric Graphic</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #f8f8f8;
+      width: {request.dimensions[0]}px;
+      height: {request.dimensions[1]}px;
+      display: flex;
+      flex-direction: column;
+      padding: 80px 120px;
+      position: relative;
+    }}
+    body::before {{
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(0,0,0,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.025) 1px, transparent 1px);
+      background-size: 20px 20px;
+      pointer-events: none;
+    }}
+    .badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: white;
+      border: 1px solid #e8e8e8;
+      border-radius: 100px;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a1a;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      width: fit-content;
+      margin-bottom: 60px;
+    }}
+    .badge svg {{ width: 20px; height: 20px; }}
+    .headline {{
+      font-size: 56px;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 50px;
+    }}
+    .headline .muted {{ color: #b0b0b0; }}
+    .headline .bold {{ color: #1a1a1a; }}
+    .quote-card {{
+      background: white;
+      border-radius: 28px;
+      padding: 50px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }}
+    .metric-value {{
+      font-size: 120px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 20px;
+      text-align: center;
+    }}
+    .metric-label {{
+      font-size: 28px;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 16px;
+      text-align: center;
+    }}
+    .metric-change {{
+      font-size: 20px;
+      font-weight: 500;
+      color: {'#22c55e' if change_type == 'positive' else '#ef4444'};
+      text-align: center;
+    }}
+    .quote-text {{
+      font-size: 30px;
+      line-height: 1.5;
+      color: #6b7280;
+      margin-top: 40px;
+    }}
+    .quote-text strong {{
+      color: #1a1a1a;
+      font-weight: 700;
+    }}
+    .logos-card {{
+      background: #f0f0f0;
+      border-radius: 28px;
+      padding: 40px 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 30px;
+    }}
+    .logo {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 28px;
+      font-weight: 800;
+      color: #1a1a1a;
+      letter-spacing: -0.02em;
+    }}
+    /* Logo styles removed - graphics should focus on content, not branding */
+  </style>
+</head>
+<body>
+  <div class="badge">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <rect x="3" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/>
+      <rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+    {badge_text}
+  </div>
+
+  {headline_html}
+
+  <div class="quote-card">
+    <div class="metric-value">{value}</div>
+    <div class="metric-label">{label}</div>
+    {f'<div class="metric-change">{html.escape(change)}</div>' if change else ''}
+    {quote_html}
+  </div>
+{logos_html}
+</body>
+</html>"""
+    
+    def _generate_cta_html(self, request: GraphicsGenerationRequest) -> str:
+        """Generate CTA graphic HTML (openfigma quality)."""
+        content = request.content
+        headline = content.get("headline", "")
+        description = content.get("description", "")
+        button_text = content.get("button_text", "Get Started")
+        badge_text = content.get("badge", "Get Started")
+        company_name = request.company_data.get("name", "") if request.company_data else ""
+        # Logos disabled - graphics should focus on content, not branding
+        logos_html = ""
+        
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CTA Graphic</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #f8f8f8;
+      width: {request.dimensions[0]}px;
+      height: {request.dimensions[1]}px;
+      display: flex;
+      flex-direction: column;
+      padding: 80px 120px;
+      position: relative;
+    }}
+    body::before {{
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(0,0,0,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.025) 1px, transparent 1px);
+      background-size: 20px 20px;
+      pointer-events: none;
+    }}
+    .badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: white;
+      border: 1px solid #e8e8e8;
+      border-radius: 100px;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a1a;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      width: fit-content;
+      margin-bottom: 40px;
+    }}
+    .badge svg {{ width: 20px; height: 20px; }}
+    .cta-card {{
+      background: white;
+      border-radius: 28px;
+      padding: 60px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }}
+    .cta-headline {{
+      font-size: 56px;
+      font-weight: 800;
+      color: #1a1a1a;
+      margin-bottom: 30px;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+    }}
+    .cta-description {{
+      font-size: 28px;
+      color: #6b7280;
+      margin-bottom: 50px;
+      line-height: 1.5;
+      max-width: 700px;
+    }}
+    .cta-button {{
+      display: inline-block;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+      padding: 24px 56px;
+      border-radius: 16px;
+      font-size: 24px;
+      font-weight: 700;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+      transition: transform 0.2s;
+    }}
+    .cta-button:hover {{
+      transform: translateY(-2px);
+    }}
+    .logos-card {{
+      background: #f0f0f0;
+      border-radius: 28px;
+      padding: 40px 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 30px;
+    }}
+    .logo {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 28px;
+      font-weight: 800;
+      color: #1a1a1a;
+      letter-spacing: -0.02em;
+    }}
+    /* Logo styles removed - graphics should focus on content, not branding */
+  </style>
+</head>
+<body>
+  <div class="badge">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <rect x="3" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/>
+      <rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+    {badge_text}
+  </div>
+
+  <div class="cta-card">
+    <h1 class="cta-headline">{headline}</h1>
+    <p class="cta-description">{description}</p>
+    <a class="cta-button">{button_text}</a>
+  </div>
+{logos_html}
+</body>
+</html>"""
+    
+    def _generate_infographic_html(self, request: GraphicsGenerationRequest) -> str:
+        """Generate infographic HTML (openfigma quality)."""
+        content = request.content
+        title = content.get("title", "")
+        items = content.get("items", [])
+        badge_text = content.get("badge", "Process")
+        company_name = request.company_data.get("name", "") if request.company_data else ""
+        # Logos disabled - graphics should focus on content, not branding
+        logos_html = ""
+        
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infographic</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #f8f8f8;
+      width: {request.dimensions[0]}px;
+      height: {request.dimensions[1]}px;
+      display: flex;
+      flex-direction: column;
+      padding: 80px 120px;
+      position: relative;
+    }}
+    body::before {{
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(0,0,0,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.025) 1px, transparent 1px);
+      background-size: 20px 20px;
+      pointer-events: none;
+    }}
+    .badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: white;
+      border: 1px solid #e8e8e8;
+      border-radius: 100px;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a1a;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      width: fit-content;
+      margin-bottom: 40px;
+    }}
+    .badge svg {{ width: 20px; height: 20px; }}
+    .infographic-card {{
+      background: white;
+      border-radius: 28px;
+      padding: 50px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }}
+    .infographic-title {{
+      font-size: 48px;
+      font-weight: 800;
+      color: #1a1a1a;
+      margin-bottom: 50px;
+      text-align: center;
+      letter-spacing: -0.02em;
+    }}
+    .infographic-items {{
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      flex: 1;
+      justify-content: center;
+    }}
+    .infographic-item {{
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 28px;
+      background: #f8f8f8;
+      border-radius: 20px;
+      border: 1px solid #e8e8e8;
+      transition: transform 0.2s;
+    }}
+    .infographic-item:hover {{
+      transform: translateX(4px);
+    }}
+    .item-number {{
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 700;
+      color: white;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }}
+    .item-text {{
+      font-size: 26px;
+      font-weight: 600;
+      color: #1a1a1a;
+      line-height: 1.4;
+    }}
+    .logos-card {{
+      background: #f0f0f0;
+      border-radius: 28px;
+      padding: 40px 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 30px;
+    }}
+    .logo {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 28px;
+      font-weight: 800;
+      color: #1a1a1a;
+      letter-spacing: -0.02em;
+    }}
+    /* Logo styles removed - graphics should focus on content, not branding */
+  </style>
+</head>
+<body>
+  <div class="badge">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <rect x="3" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/>
+      <rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+    {badge_text}
+  </div>
+
+  <div class="infographic-card">
+    <h1 class="infographic-title">{title}</h1>
+    <div class="infographic-items">
+      {''.join([f'<div class="infographic-item"><div class="item-number">{i+1}</div><div class="item-text">{item}</div></div>' for i, item in enumerate(items)])}
+    </div>
+  </div>
+{logos_html}
+</body>
+</html>"""
+    
+    async def _html_to_png(self, html_content: str, dimensions: tuple) -> bytes:
+        """Convert HTML to PNG using Playwright."""
+        from playwright.async_api import async_playwright
+        
+        # Try to import PIL for image cropping (optional)
+        try:
+            from PIL import Image
+            PIL_AVAILABLE = True
+        except ImportError:
+            PIL_AVAILABLE = False
+            logger.warning("PIL/Pillow not available - will use full_page screenshot without cropping")
+        
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            
+            # openfigma generates HTML with hardcoded 1920x1080 dimensions
+            # We'll render at that size to capture all content, then scale down
+            openfigma_default_width = 1920
+            openfigma_default_height = 1080
+            
+            # Set viewport to openfigma's default size to capture full content
+            page = await browser.new_page(viewport={"width": openfigma_default_width, "height": openfigma_default_height})
+            
+            # Write HTML to temp file
+            with NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+                f.write(html_content)
+                temp_path = f.name
+            
+            try:
+                # Load HTML file
+                await page.goto(f"file://{temp_path}")
+                await page.wait_for_load_state("networkidle")
+                
+                # Wait for rendering to complete
+                await page.wait_for_timeout(1000)
+                
+                # Capture full page at openfigma's default size (1920x1080) to get all content
+                screenshot_bytes = await page.screenshot(
+                    full_page=True,
+                    type="png"
+                )
+                
+                # Scale down to desired dimensions using PIL
+                if PIL_AVAILABLE:
+                    img = Image.open(io.BytesIO(screenshot_bytes))
+                    actual_size = img.size
+                    logger.debug(f"Captured at openfigma default size: {actual_size}, scaling to target: {dimensions}")
+                    
+                    # UNIVERSAL ASPECT RATIO HANDLING:
+                    # This logic works for ANY aspect ratio (square, landscape, portrait, etc.)
+                    # Scale proportionally to fit within target dimensions (maintains aspect ratio)
+                    # Then crop to exact dimensions if aspect ratios differ
+                    scale_w = dimensions[0] / actual_size[0]
+                    scale_h = dimensions[1] / actual_size[1]
+                    scale = min(scale_w, scale_h)  # Use smaller scale to ensure content fits
+                    
+                    # Resize maintaining aspect ratio
+                    new_width = int(actual_size[0] * scale)
+                    new_height = int(actual_size[1] * scale)
+                    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    
+                    # Crop to exact dimensions (centered) - handles any aspect ratio mismatch
+                    if new_width != dimensions[0] or new_height != dimensions[1]:
+                        left = (new_width - dimensions[0]) // 2
+                        top = (new_height - dimensions[1]) // 2
+                        right = left + dimensions[0]
+                        bottom = top + dimensions[1]
+                        img = img.crop((max(0, left), max(0, top), min(new_width, right), min(new_height, bottom)))
+                    
+                    # If image is smaller than target, pad it (shouldn't happen, but handle it)
+                    if img.size[0] < dimensions[0] or img.size[1] < dimensions[1]:
+                        new_img = Image.new('RGB', dimensions, color='white')
+                        new_img.paste(img, ((dimensions[0] - img.size[0]) // 2, (dimensions[1] - img.size[1]) // 2))
+                        img = new_img
+                    
+                    buffer = io.BytesIO()
+                    img.save(buffer, format="PNG")
+                    screenshot_bytes = buffer.getvalue()
+                    logger.debug(f"Scaled and cropped to exact dimensions: {dimensions}")
+                else:
+                    # Without PIL, fall back to viewport screenshot with clip
+                    logger.warning("PIL not available - using viewport screenshot (content may be cut)")
+                    await page.set_viewport_size({"width": dimensions[0], "height": dimensions[1]})
+                    screenshot_bytes = await page.screenshot(
+                        full_page=False,
+                        type="png",
+                        clip={"x": 0, "y": 0, "width": dimensions[0], "height": dimensions[1]}
+                    )
+                
+                return screenshot_bytes
+            finally:
+                await browser.close()
+                # Clean up temp file
+                try:
+                    os.unlink(temp_path)
+                except:
+                    pass
+    
+    def _generate_alt_text(self, request: GraphicsGenerationRequest) -> str:
+        """Generate alt text for the graphic."""
+        content = request.content
+        if request.graphic_type == "headline":
+            return f"Blog graphic: {content.get('headline', 'Headline')}"
+        elif request.graphic_type == "quote":
+            return f"Quote graphic: {content.get('quote', '')[:100]}"
+        elif request.graphic_type == "metric":
+            return f"Metric graphic: {content.get('value', '')} {content.get('label', '')}"
+        elif request.graphic_type == "cta":
+            return f"CTA graphic: {content.get('headline', 'Call to action')}"
+        else:
+            return f"Infographic: {content.get('title', 'Infographic')}"
+    
+    async def _get_graphics_folder(self, project_folder_id: str) -> Optional[str]:
+        """Navigate to Graphics (Final) folder within project structure."""
+        if not self.drive_service:
+            return None
+        
+        try:
+            # Find Content Output folder
+            content_folder = self._find_folder(project_folder_id, self.CONTENT_OUTPUT_FOLDER)
+            if not content_folder:
+                content_folder = self._create_folder(self.CONTENT_OUTPUT_FOLDER, project_folder_id)
+            
+            # Find or create Graphics folder
+            graphics_folder = self._find_folder(content_folder, self.GRAPHICS_FOLDER)
+            if not graphics_folder:
+                graphics_folder = self._create_folder(self.GRAPHICS_FOLDER, content_folder)
+            
+            return graphics_folder
+            
+        except Exception as e:
+            logger.error(f"Failed to get graphics folder: {e}")
+            return None
+    
+    def _find_folder(self, parent_id: str, name: str) -> Optional[str]:
+        """Find a folder by name within a parent folder (disabled - Google Drive integration removed)."""
+        logger.warning("Google Drive integration removed - folder operations disabled")
+        return None
+    
+    def _create_folder(self, name: str, parent_id: str) -> Optional[str]:
+        """Create a folder in Drive (disabled - Google Drive integration removed)."""
+        logger.warning("Google Drive integration removed - folder creation disabled")
+        return None
+    
+    async def _upload_to_drive(
+        self,
+        image_bytes: bytes,
+        file_name: str,
+        folder_id: Optional[str] = None
+    ) -> str:
+        """Upload image to Google Drive."""
+        if not self.drive_service:
+            raise ValueError("Drive service not initialized - cannot upload")
+        
+        # Google Drive integration removed
+        logger.warning("Google Drive integration removed - upload disabled")
+        return None
+    
+    async def _make_public(self, file_id: str):
+        """Make a Google Drive file publicly accessible (disabled - Google Drive integration removed)."""
+        logger.warning("Google Drive integration removed - cannot make file public")
+        return None
+
