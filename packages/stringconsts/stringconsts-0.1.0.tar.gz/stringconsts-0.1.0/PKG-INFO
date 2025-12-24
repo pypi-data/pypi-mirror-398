@@ -1,0 +1,157 @@
+Metadata-Version: 2.4
+Name: stringconsts
+Version: 0.1.0
+Summary: Automatic generation of string constants from attribute names with optional handler
+Author-email: Rus Sh <break1@yandex.ru>
+License: MIT License
+        
+        Copyright (c) 2025 Ruslan
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Dynamic: license-file
+
+# stringconsts
+
+`stringconsts` is a lightweight Python library for defining immutable string constants in a class. It automatically generates string values for attributes and allows custom handlers and filters for flexible usage.
+
+## Installation
+
+```bash
+pip install stringconsts
+```
+
+The "init_str" value is used to initialize class member constants. Initialization occurs via the metaclass. Only attributes assigned the value "init_str" will be automatically initialized. If the value is already defined, it will not be overridden. init_str is initially set to None - the variable is used for user convenience to make it clear that class members are being auto-generated.
+
+A filter is used to exclude values ​​from auto-processing. The default filter excludes dunder methods (methods beginning with two underscores).
+default filter:
+```python
+lambda name, val: not name.startswith("__")
+```
+
+By default, the handler assigns attribute values ​​(for which the class value is assigned equal to init_str) a value equal to the attribute name, with the exception of attributes ending with a single underscore. This exception is made to allow the use of Python keywords such as "class" in a linter-safe manner.
+default handler:
+```python
+lambda name: name.rstrip("_") if name.endswith("_") else name
+```
+
+If the user overrides the handler and filter, they control which values ​​are assigned and which are filtered. There's no hidden magic involved. Behavior is fully controlled by user. Therefore, when implementing your own filter, remember to filter dunder methods — they're essential for the proper operation of Python classes.
+
+To use it, simply inherit the "StrConsts" base class. The filter and handler are defined via the ```__handler__``` and ```__filter__``` dunder members, if needed. This class is not intended for instantiation; it should be used as a reference object for string constants.
+
+## Usage
+
+```python
+from stringconsts import StrConsts, init_str
+
+# Simple example
+class Colors(StrConsts):
+    red = init_str
+    green = init_str
+    blue = init_str
+    class_ = init_str
+    fixed = "not touched"
+c = Colors
+
+print(c.red) # red
+print(c.green) # green
+print(c.blue) # blue
+print(c.class_) # class
+print(c.fixed) # not touched
+print(c.as_dict()) # {'red': 'red', 'green': 'green', 'blue': 'blue', 'class_': 'class'}
+print(c.as_dict().keys()) # dict_keys(['red', 'green', 'blue', 'class_'])
+print(c.as_dict().values()) # dict_values(['red', 'green', 'blue', 'class'])
+print(c.as_dict().items()) # dict_items([('red', 'red'), ('green', 'green'), ('blue', 'blue'), ('class_', 'class')])
+print(c.keys()) # dict_keys(['red', 'green', 'blue', 'class_']) - the same c.as_dict().keys() - the same c.as_dict().keys()
+print(c.values()) # dict_values(['red', 'green', 'blue', 'class']) - the same c.as_dict().values() - the same c.as_dict().values()
+print(c.items()) # dict_items([('red', 'red'), ('green', 'green'), ('blue', 'blue'), ('class_', 'class')]) - the same c.as_dict().items()
+
+# iteration by keys
+for i in c:
+    print(i, type(i))
+# red <class 'str'>
+# green <class 'str'>
+# blue <class 'str'>
+# class_ <class 'str'>
+# fixed <class 'str'>    
+
+# check value in Str
+print("red" in c) # True
+print("magenta" in c) # False
+
+
+# Example explain default handler's
+class JSWords(StrConsts):
+    class_= init_str
+    display = init_str
+    style = init_str
+    __test__ = init_str
+
+print(JSWords.display) # display
+print(JSWords.style) # style
+print(JSWords.class_) # class - default handler remove last underscore
+print(JSWords.__test__) # None (original value preserved, attribute excluded from constants). init_str is None, this key removed by filter.
+print(JSWords.as_dict()) # {'class_': 'class', 'display': 'display', 'style': 'style'} - no dunder
+for i in JSWords:
+    print(i)
+# class_
+# display
+# style
+
+
+# Example explain custom handler and filter
+def colonize(name: str) -> str:
+    return name.rstrip("_") if name.endswith("_") else name.replace("_", ":")
+
+# Default filter excludes dunder attributes automatically.
+# User-defined __filter__ can fully control filtering, including dunders.
+class Fields(StrConsts):
+    __handler__ = colonize
+    __filter__ = lambda name, val: not name.startswith("internal_") and not name.startswith("__")  # exclude internal attributes and dunders
+
+    some_attr = init_str           # automatically generated
+    other_attr = init_str          # automatically generated
+    class_ = init_str              # automatically generated - the standard behavior of removing the last underscore is preserved, since we added this to our custom handler.
+    internal_attr = init_str       # filtered out
+    fixed_value = "fixed_string"   # user-defined fixed value
+
+print(Fields.some_attr)       # "some:attr"
+print(Fields.other_attr)      # "other:attr"
+print(Fields.class_)          # "class"
+print(Fields.fixed_value)     # "fixed_string"
+print(list(Fields))           # ['some_attr', 'other_attr', 'class_', 'fixed_value']
+print(Fields.as_dict())       # {'some_attr': 'some:attr', 'other_attr': 'other:attr', 'class_': 'class', 'fixed_value': 'fixed_string'}    ```
+```
+
+## Features
+
+- Automatic generation of string constants from attribute names.
+- Immutable constants after class creation.
+- Custom handler functions to transform attribute names into values.
+- Custom filter functions to include or exclude attributes.
+- Dictionary-like access: `as_dict()`, `keys()`, `values()`, `items()`, iteration, and membership test (`in`).
+
