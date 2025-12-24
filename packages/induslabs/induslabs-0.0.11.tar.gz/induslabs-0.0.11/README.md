@@ -1,0 +1,355 @@
+# IndusLabs Python SDK
+
+Official Python SDK for IndusLabs Voice API - providing Text-to-Speech (TTS) and Speech-to-Text (STT) capabilities.
+
+## Installation
+
+```bash
+pip install induslabs
+```
+
+## Quick Start
+
+```python
+from induslabs import Client
+
+# Initialize client
+client = Client(api_key="your_api_key_here")
+# Or use environment variable: export INDUSLABS_API_KEY="your_api_key_here"
+client = Client()
+
+# Text-to-Speech
+response = client.tts.speak(
+    text="नमस्ते, यह एक टेस्ट है",
+    voice="urvashi",
+    language="hi-IN"
+)
+response.save("output.wav")
+
+# Speech-to-Text
+result = client.stt.transcribe("audio.wav", language="hi")
+print(result.text)
+```
+
+## Features
+
+- ✅ **Synchronous and Asynchronous APIs** - Use sync methods or async for better performance
+- ✅ **Streaming Support** - Start playing audio as soon as first bytes arrive
+- ✅ **Multiple Audio Formats** - Support for WAV, MP3, and PCM formats
+- ✅ **Concurrent Requests** - Built-in support for making multiple requests simultaneously
+- ✅ **File-like Objects** - Work with audio in memory without saving to disk
+- ✅ **Type Hints** - Full type annotations for better IDE support
+- ✅ **Comprehensive Error Handling** - Clear error messages and exceptions
+
+## Text-to-Speech (TTS)
+
+### Basic Usage
+
+```python
+from induslabs import Client
+
+client = Client(api_key="your_api_key")
+
+# Simple speech synthesis
+response = client.tts.speak(
+    text="Hello, this is a test",
+    voice="urvashi"
+)
+response.save("output.wav")
+```
+
+### Streaming Audio
+
+Stream audio and start playing immediately:
+
+```python
+# Enable streaming
+response = client.tts.speak(
+    text="This is streaming audio",
+    voice="urvashi",
+    stream=True
+)
+
+# Iterate over audio chunks as they arrive
+for chunk in response.iter_bytes(chunk_size=8192):
+    # Play or process chunk immediately
+    audio_player.play(chunk)
+
+# Or save to file
+response.save("output.wav")
+```
+
+### Working with File Objects
+
+No need to save to disk - work with audio in memory:
+
+```python
+response = client.tts.speak(text="Test audio", voice="urvashi")
+
+# Get as file-like object
+audio_file = response.to_file_object()
+
+# Get raw bytes
+audio_bytes = response.get_audio_data()
+
+# Access metadata
+print(f"Sample Rate: {response.sample_rate}Hz")
+print(f"Channels: {response.channels}")
+print(f"Bit Depth: {response.bit_depth}")
+```
+
+### Different Audio Formats
+
+```python
+# WAV format (default)
+wav_response = client.tts.speak(text="Test", voice="urvashi", output_format="wav")
+
+# MP3 format
+mp3_response = client.tts.speak(text="Test", voice="urvashi", output_format="mp3")
+
+# PCM format
+pcm_response = client.tts.speak(text="Test", voice="urvashi", output_format="pcm")
+```
+
+### Advanced Options
+
+```python
+response = client.tts.speak(
+    text="Advanced TTS example",
+    voice="urvashi",
+    language="hi-IN",
+    output_format="wav",
+    stream=True,
+    model="orpheus-3b",  # default model
+    temperature=0.7,      # optional: control randomness
+    max_tokens=2000       # optional: limit generation
+)
+```
+
+## Speech-to-Text (STT)
+
+### Basic Usage
+
+```python
+from induslabs import Client
+
+client = Client(api_key="your_api_key")
+
+# Transcribe audio file
+result = client.stt.transcribe("audio.wav", language="hi")
+print(result.text)
+print(f"Detected language: {result.language_detected}")
+print(f"Duration: {result.audio_duration_seconds}s")
+```
+
+### From File-like Objects
+
+```python
+# From bytes
+with open("audio.wav", "rb") as f:
+    result = client.stt.transcribe(f, language="hi")
+    print(result.text)
+
+# From BytesIO
+from io import BytesIO
+audio_buffer = BytesIO(audio_bytes)
+result = client.stt.transcribe(audio_buffer, language="hi")
+```
+
+### Advanced Options
+
+```python
+result = client.stt.transcribe(
+    file="audio.wav",
+    language="hi",
+    chunk_length_s=6,    # chunk length in seconds
+    stride_s=5.9,        # stride length in seconds
+    overlap_words=7      # number of overlapping words
+)
+
+# Access detailed information
+print(f"Text: {result.text}")
+print(f"Processing time: {result.processing_time_seconds}s")
+print(f"First token time: {result.first_token_time_seconds}s")
+print(f"Credits used: {result.credits_used}")
+print(f"Request ID: {result.request_id}")
+
+# Get raw response
+raw_data = result.to_dict()
+```
+
+## Async API
+
+For better performance with concurrent requests:
+
+```python
+import asyncio
+from induslabs import Client
+
+async def main():
+    client = Client(api_key="your_api_key")
+    
+    # Async TTS
+    response = await client.tts.speak_async(
+        text="Async speech synthesis",
+        voice="urvashi",
+        stream=True
+    )
+    
+    # Async iteration over chunks
+    async for chunk in response.iter_bytes():
+        # Process chunk
+        pass
+    
+    # Async STT
+    result = await client.stt.transcribe_async("audio.wav", language="hi")
+    print(result.text)
+    
+    # Clean up
+    await client.close()
+
+# Run
+asyncio.run(main())
+```
+
+### Async Context Manager
+
+```python
+async def main():
+    async with Client(api_key="your_api_key") as client:
+        response = await client.tts.speak_async(text="Test", voice="urvashi")
+        result = await client.stt.transcribe_async("audio.wav")
+        # Auto cleanup on exit
+
+asyncio.run(main())
+```
+
+## Concurrent Requests
+
+### Sync Concurrent Requests
+
+```python
+from concurrent.futures import ThreadPoolExecutor
+from induslabs import Client
+
+client = Client(api_key="your_api_key")
+
+texts = ["Text 1", "Text 2", "Text 3", "Text 4"]
+
+def generate_speech(text):
+    return client.tts.speak(text=text, voice="urvashi")
+
+# Generate multiple audio files concurrently
+with ThreadPoolExecutor(max_workers=4) as executor:
+    responses = list(executor.map(generate_speech, texts))
+
+for i, response in enumerate(responses):
+    response.save(f"output_{i}.wav")
+```
+
+### Async Concurrent Requests
+
+```python
+import asyncio
+from induslabs import Client
+
+async def main():
+    client = Client(api_key="your_api_key")
+    
+    texts = ["Text 1", "Text 2", "Text 3", "Text 4"]
+    
+    # Create tasks
+    tasks = [
+        client.tts.speak_async(text=text, voice="urvashi")
+        for text in texts
+    ]
+    
+    # Run concurrently
+    responses = await asyncio.gather(*tasks)
+    
+    # Save all
+    for i, response in enumerate(responses):
+        response.save(f"output_{i}.wav")
+    
+    await client.close()
+
+asyncio.run(main())
+```
+
+## Error Handling
+
+```python
+from induslabs import Client
+import requests
+
+client = Client(api_key="your_api_key")
+
+try:
+    response = client.tts.speak(text="Test", voice="urvashi")
+    response.save("output.wav")
+except requests.exceptions.HTTPError as e:
+    print(f"HTTP error occurred: {e}")
+except ValueError as e:
+    print(f"Invalid parameter: {e}")
+except Exception as e:
+    print(f"An error occurred: {e}")
+```
+
+## Available Voices
+
+Currently supported voices:
+- `urvashi` (Hindi female)
+- More voices coming soon!
+
+## Supported Languages
+
+The API supports multiple languages. Specify using language codes:
+- `hi` or `hi-IN` - Hindi
+- `en` or `en-US` - English
+- And more...
+
+## Audio Format Details
+
+### WAV (default)
+- Sample Rate: 24000 Hz
+- Channels: 1 (mono)
+- Bit Depth: 16-bit
+- Best for: Quality and compatibility
+
+### MP3
+- Compressed format
+- Best for: Smaller file sizes
+
+### PCM
+- Raw audio data
+- Best for: Direct audio processing
+
+## Environment Variables
+
+```bash
+# Set API key
+export INDUSLABS_API_KEY="your_api_key_here"
+
+# Then use without passing api_key
+client = Client()
+```
+
+## Requirements
+
+- Python >= 3.7
+- requests >= 2.25.0
+- aiohttp >= 3.8.0
+
+## Support
+
+- Documentation: https://docs.induslabs.io
+- Issues: https://github.com/INDUS-AI-DEV/induslabs-python/issues
+- Email: support@induslabs.io
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
