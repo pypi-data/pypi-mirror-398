@@ -1,0 +1,40 @@
+# Prometheus alerting rules for Raindrop.io MCP
+
+groups:
+  - name: raindropio-mcp
+    rules:
+      - alert: RaindropServerDown
+        expr: up{job="raindropio-mcp"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Raindrop.io MCP server is down"
+          description: "No metrics have been scraped from the Raindrop.io MCP server for over 1 minute."
+
+      - alert: RaindropHealthFailing
+        expr: probe_success{job="raindropio-mcp-health"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Raindrop.io MCP health check failing"
+          description: "The server health endpoint has been returning errors for more than 2 minutes."
+
+      - alert: RaindropHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="raindropio-mcp"}[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time for Raindrop.io MCP"
+          description: "95th percentile response time has exceeded 5 seconds for the last 5 minutes."
+
+      - alert: RaindropHighErrorRate
+        expr: rate(http_requests_total{job="raindropio-mcp",status=~"5.."}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated error rate in Raindrop.io MCP"
+          description: "More than 0.1 failed requests per second detected in the last 5 minutes."
