@@ -1,0 +1,1401 @@
+#!/usr/bin/env python3
+import requests
+import argparse
+import subprocess
+import json
+import time
+from datetime import datetime, timedelta
+import os
+import openpyxl
+import csv
+from io import StringIO
+import xml.etree.ElementTree as ET
+import configparser
+import requests_cache
+import sys
+import readline # For better interactive input
+from jinja2 import Environment, FileSystemLoader
+from concurrent.futures import ThreadPoolExecutor
+import random
+import importlib.resources
+
+BANNER_TEXT = """
+ o      8                                     
+        8                                     
+o8 .oPYo8 ooYoYo. o    o .oPYo. o    o .oPYo. 
+ 8 8    8 8' 8  8 8    8 8    ' Y.  .P 8oooo8 
+ 8 8    8 8  8  8 8    8 8    . `b..d' 8.     
+ 8 `YooP' 8  8  8 `YooP8 `YooP'  `YP'  `Yooo' 
+:..:.....:..:..:..:....8 :.....:::...:::.....:
+::::::::::::::::::::ooP'.:::::::::::::::::::::
+::::::::::::::::::::...:::::::::::::::::::::::
+"""
+
+# ANSI escape codes for colors
+RED = "\033[91m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+MAGENTA = "\033[95m"
+CYAN = "\033[96m"
+BOLD = "\033[1m"
+RESET = "\033[0m"
+
+# Define a list of colors for the banner
+COLORS = [
+    "\033[91m", # Red
+    "\033[92m", # Green
+    "\033[93m", # Yellow
+    "\033[94m", # Blue
+    "\033[95m", # Magenta
+    "\033[96m", # Cyan
+    "\033[90m", # Gray (Bright Black)
+    "\033[37m", # White
+    "\033[38;5;208m", # Orange (256-color)
+    "\033[38;5;129m", # Purple (256-color)
+    "\033[38;5;46m", # Bright Green (256-color)
+]
+
+# Initialize cached session
+session = requests_cache.CachedSession('nvd_cache', expire_after=3600)
+
+def render_template(template_path, cve_list):
+    """Renders a Jinja2 template with the provided CVE data."""
+    template_dir = os.path.dirname(template_path)
+    template_name = os.path.basename(template_path)
+
+    env = Environment(loader=FileSystemLoader(template_dir))
+    env.globals['BOLD'] = BOLD
+    env.globals['RED'] = RED
+    env.globals['YELLOW'] = YELLOW
+    env.globals['GREEN'] = GREEN
+    env.globals['MAGENTA'] = MAGENTA
+    env.globals['RESET'] = RESET
+    template = env.get_template(template_name)
+
+    return template.render(cves=cve_list)
+
+def get_exploit_availability(cve_ids, verbose=False):
+    """Checks Exploit-DB for exploit availability for a list of CVE IDs."""
+    exploit_data = {cve_id: {"available": False, "links": []} for cve_id in cve_ids}
+    if not cve_ids:
+        return exploit_data
+
+    try:
+        # cve_searchsploit accepts multiple CVE IDs as arguments
+        command = ["cve_searchsploit"] + list(cve_ids) + ["--json"]
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        output = json.loads(result.stdout)
+
+        if output and output.get("RESULTS"):
+            for res in output["RESULTS"]:
+                cve_id = res.get("CVE")
+                if cve_id and res.get("URL"):
+                    exploit_data[cve_id]["available"] = True
+                    exploit_data[cve_id]["links"].append(res["URL"])
+    except FileNotFoundError:
+        if verbose:
+            print(f"Warning: cve_searchsploit not found. Exploit availability check skipped for CVEs: {', '.join(cve_ids)}.")
+        else:
+            print(f"Warning: cve_searchsploit not found. Exploit availability check skipped.")
+    except subprocess.CalledProcessError as e:
+        # cve_searchsploit returns non-zero if no exploits are found, which is expected.
+        # However, we should still print stderr for debugging if it exists.
+        if e.stderr:
+            if verbose:
+                print(f"Warning: cve_searchsploit returned an error for CVEs: {', '.join(cve_ids)}. Stderr: {e.stderr.strip()}")
+            else:
+                print(f"Warning: cve_searchsploit returned an error. Stderr: {e.stderr.strip()}")
+        else:
+            if verbose:
+                print(f"Info: cve_searchsploit found no exploits for CVEs: {', '.join(cve_ids)}.")
+            else:
+                print(f"Info: cve_searchsploit found no exploits.")
+    except json.JSONDecodeError:
+        if verbose:
+            print(f"Warning: Could not decode JSON from cve_searchsploit for CVEs: {', '.join(cve_ids)}. Output: {result.stdout}")
+        else:
+            print(f"Warning: Could not decode JSON from cve_searchsploit. Output: {result.stdout}")
+    except Exception as e:
+        if verbose:
+            print(f"An unexpected error occurred during exploit check for CVEs: {', '.join(cve_ids)}: {e}")
+        else:
+            print(f"An unexpected error occurred during exploit check: {e}")
+
+    return exploit_data
+
+def run_interactive_mode():
+    try:
+        start_time = datetime.now()
+        # Set banner content
+        banner_content = BANNER_TEXT
+
+        # Choose a random color for the banner
+        random_color = random.choice(COLORS)
+
+        # Print banner
+        terminal_width = 80  # Default fallback width
+        if sys.stdout.isatty():  # Check if running in an interactive terminal
+            try:
+                terminal_width = os.get_terminal_size().columns
+            except OSError:
+                pass  # Fallback to default if terminal size cannot be determined
+
+        if terminal_width < 80:  # Ensure a minimum width
+            terminal_width = 80
+        print(f"{random_color}{banner_content.center(terminal_width)}{RESET}")
+        print()  # Blank line after banner
+
+        github_link = " < https://github.com/ghostescript/idmycve > "
+        print(f"{BOLD}{RED}{github_link}{RESET}")  # Left-aligned
+        print()  # Blank line after
+        print(f"{BOLD}{CYAN}Welcome to the Interactive CVE Search.{RESET}")
+        print(f"{BOLD}{CYAN}This tool performs on-demand CVE ID, Description, Affected Products/Versions, CVSS Score (v3.1 and v2.0), CVSS Vector (v3.1 and v2.0), CWE IDs, Last Modified Date, Source Identifier, References, Publication Date, Exploit Availability, EPSS Score, and Vulnerability Lifecycle Metrics (Age, Days Since Last Modified, Days Between Publish and Modify). Information like 'Mitigations/Workarounds' and 'Proof of Concept (PoC)' are not directly extracted but may be found in the provided references.{RESET}\n")
+
+        search_type = input("Choose search type: [1] Recent CVEs, [2] By CVE ID(s): ")
+
+        days = None
+        severity = None
+        count = None
+        cpe_filter = None
+        min_epss = None
+        exploit_available = None
+        id_list = None
+
+        if search_type == '1':
+            try:
+                days_str = input("Enter number of days to look back (default: 7): ")
+                days = int(days_str) if days_str else 7
+            except ValueError:
+                print("Invalid input. Using default of 7 days.")
+                days = 7
+
+            severity = input("Filter by severity (c/h/m/l, default: none): ").lower() or None
+            if severity not in ['c', 'h', 'm', 'l', None]:
+                print("Invalid severity. Not filtering by severity.")
+                severity = None
+
+            try:
+                count_str = input("Number of CVEs to display (default: all): ")
+                count = int(count_str) if count_str else None
+            except ValueError:
+                print("Invalid input. Displaying all CVEs.")
+                count = None
+        
+            cpe_filter_str = input("Filter by CPE (e.g., 'apache:http_server', 'microsoft:windows:10', comma-separated, default: none): ")
+            cpe_filter = [f.strip() for f in cpe_filter_str.split(',')] if cpe_filter_str else None
+        
+            try:
+                min_epss_str = input("Filter by minimum EPSS score (0.0-1.0, default: none): ")
+                min_epss = float(min_epss_str) if min_epss_str else None
+            except ValueError:
+                print("Invalid input. Not filtering by EPSS score.")
+                min_epss = None
+        
+            exploit_available_str = input("Filter by exploit availability (y/n, default: none): ").lower()
+            if exploit_available_str == 'y':
+                exploit_available = True
+            elif exploit_available_str == 'n':
+                exploit_available = False
+        elif search_type == '2':
+            ids_input = input("Enter CVE ID(s) separated by spaces, or a path to a file containing IDs (one per line for .txt, .json, .xml, or .xlsx): ")
+            if not ids_input:
+                print("No CVE IDs provided. Exiting.")
+                return
+
+            if os.path.isfile(ids_input):
+                file_path = ids_input
+                if file_path.lower().endswith('.xlsx'):
+                    id_list = read_xlsx_ids(file_path)
+                elif file_path.lower().endswith('.json'):
+                    id_list = read_json_ids(file_path)
+                elif file_path.lower().endswith('.xml'):
+                    id_list = read_xml_ids(file_path)
+                else:
+                    try:
+                        with open(file_path, 'r') as f:
+                            id_list = [line.strip() for line in f if line.strip()]
+                    except IOError as e:
+                        print(f"Error reading file {file_path}: {e}")
+                        return
+            else:
+                id_list = ids_input.split()
+
+            if not id_list:
+                print("No CVE IDs found in input. Exiting.")
+                return
+        else:
+            print("Invalid choice. Exiting.")
+            return
+
+        report_format = input("Enter report format (md, json, html, txt, csv, xlsx, xml) or path to custom Jinja2 template (e.g., 'my_template.j2'), or leave blank for console output: ") or None
+
+        # --- Execution Logic ---
+        all_cve_ids_to_process = []
+        raw_cve_data_from_nvd = None
+
+        if search_type == '1':
+            raw_cve_data_from_nvd = get_cves(days)
+            if raw_cve_data_from_nvd and 'vulnerabilities' in raw_cve_data_from_nvd:
+                all_cve_ids_to_process.extend([vulnerability['cve']['id'] for vulnerability in raw_cve_data_from_nvd['vulnerabilities']])
+        elif search_type == '2':
+            all_cve_ids_to_process.extend(id_list)
+
+        if not all_cve_ids_to_process and not raw_cve_data_from_nvd:
+            print("No CVEs found to process.")
+            return
+
+        # Fetch EPSS scores and exploit availability in batch
+        unique_cve_ids = list(set(all_cve_ids_to_process))
+        epss_scores_map = get_epss_score(unique_cve_ids)
+        exploit_data_map = get_exploit_availability(unique_cve_ids)
+
+        extracted_cves = []
+        severity_counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "N/A": 0}
+
+        if search_type == '1':
+            extracted_cves = extract_cve_data(raw_cve_data_from_nvd, severity, count, cpe_filter, min_epss, epss_scores_map, exploit_data_map)
+        elif search_type == '2':
+            for cve_id in id_list:
+                print(f"Fetching details for {cve_id}...")
+                cve_details = get_cve_details_by_id(cve_id)
+                if cve_details:
+                    extracted_cves.append(extract_single_cve_data(cve_details, epss_scores_map, exploit_data_map))
+
+            # Manual filtering for ID-based search
+            if cpe_filter:
+                original_count = len(extracted_cves)
+                filtered_cves_by_cpe = []
+                for cve in extracted_cves:
+                    cpe_match_found = False
+                    for product in cve.get("affected_products", []):
+                        for filter_pattern in cpe_filter:
+                            filter_components = filter_pattern.split(':')
+                            if all(comp.lower() in product.lower() for comp in filter_components):
+                                cpe_match_found = True
+                                break
+                        if cpe_match_found:
+                            break
+                    if cpe_match_found:
+                        filtered_cves_by_cpe.append(cve)
+                extracted_cves = filtered_cves_by_cpe
+                print(f"Filtered {original_count} CVEs down to {len(extracted_cves)} based on CPE filter: '{', '.join(cpe_filter)}'")
+            if min_epss is not None:
+                extracted_cves = [cve for cve in extracted_cves if cve.get("epss_score") is not None and float(cve.get("epss_score")) >= min_epss]
+            if exploit_available is not None:
+                extracted_cves = [cve for cve in extracted_cves if cve.get("exploit_available") == exploit_available]
+
+        if not extracted_cves:
+            print("No CVEs found matching the criteria.")
+            return
+
+        # Populate severity_counts
+        for cve in extracted_cves:
+            severity_text = cve.get('severity', 'N/A')
+            if severity_text in severity_counts:
+                severity_counts[severity_text] += 1
+            else:
+                severity_counts['N/A'] += 1
+
+        # --- Report Generation ---
+        if report_format:
+            if report_format.lower().endswith('.j2') and os.path.isfile(report_format):
+                try:
+                    formatted_report = render_template(report_format, extracted_cves)
+                    template_base_name = os.path.splitext(os.path.basename(report_format))[0]
+                    filename = generate_filename(template_base_name, 'txt', severity, cpe_filter)
+                    message = save_report(formatted_report, filename)
+                    print(message)
+                except Exception as e:
+                    print(f"Error rendering template {report_format}: {e}")
+            else:
+                custom_report_name = None
+                final_output_format = 'md'  # Default output format
+
+                if '.' in report_format:
+                    parts = report_format.rsplit('.', 1)
+                    custom_report_name = parts[0]
+                    provided_extension = parts[1].lower()
+                    known_formats = ['md', 'json', 'html', 'txt', 'csv', 'xlsx', 'xml']
+                    if provided_extension in known_formats:
+                        final_output_format = provided_extension
+                    else:
+                        print(f"Unsupported output format extension: {provided_extension}. Defaulting to markdown.")
+                        custom_report_name = report_format
+                        final_output_format = 'md'
+                else:
+                    known_formats = ['md', 'json', 'html', 'txt', 'csv', 'xlsx', 'xml']
+                    if report_format.lower() in known_formats:
+                        final_output_format = report_format.lower()
+                    else:
+                        custom_report_name = report_format
+                        final_output_format = 'md'
+
+                filename = generate_filename(custom_report_name, final_output_format, severity, cpe_filter)
+
+                if final_output_format == 'xlsx':
+                    message = save_as_xlsx(extracted_cves, filename)
+                    print(message)
+                else:
+                    formatted_report = ""
+                    if final_output_format == 'md':
+                        formatted_report = format_as_markdown(extracted_cves)
+                    elif final_output_format == 'json':
+                        formatted_report = format_as_json(extracted_cves)
+                    elif final_output_format == 'html':
+                        formatted_report = format_as_html(extracted_cves)
+                    elif final_output_format == 'txt':
+                        formatted_report = format_as_markdown(extracted_cves)
+                    elif final_output_format == 'csv':
+                        formatted_report = format_as_csv(extracted_cves)
+                    elif final_output_format == 'xml':
+                        formatted_report = format_as_xml(extracted_cves)
+                    else:
+                        print(f"Unexpected output format: {final_output_format}. Defaulting to markdown.")
+                        formatted_report = format_as_markdown(extracted_cves)
+
+                    message = save_report(formatted_report, filename)
+                    print(message)
+        else:
+            # Default to console output if no format is specified
+            print(format_as_markdown(extracted_cves, use_colors=True))
+
+        end_time = datetime.now()
+        duration = end_time - start_time
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Always print a summary message at the end
+        if extracted_cves:
+            print(f"\n{BOLD}{GREEN}Scan completed at {current_time}. Total CVEs found and processed: {len(extracted_cves)}. Duration: {duration}.{RESET}")
+            print() # Blank line above Critical
+            
+            sorted_severity_counts = sorted(severity_counts.items(), key=lambda item: item[1], reverse=True)
+            
+            severity_colors = {
+                "CRITICAL": f"{BOLD}{RED}",
+                "HIGH": f"{BOLD}{MAGENTA}",
+                "MEDIUM": f"{BOLD}{YELLOW}",
+                "LOW": f"{BOLD}{GREEN}",
+                "N/A": f"{CYAN}"
+            }
+
+            for severity_level, count in sorted_severity_counts:
+                color = severity_colors.get(severity_level, BOLD)
+                print(f"{color}{severity_level.capitalize()}: {count}{RESET}")
+
+            if days:
+                print(f"{BOLD}{RESET}Days: {days}{RESET}") # Days in bold white (RESET for default white)
+        else:
+            print(f"\n{BOLD}{YELLOW}Scan completed at {current_time}. No CVEs were found or processed. Duration: {duration}.{RESET}")
+
+    except KeyboardInterrupt:
+        print(f"\n{RED}[ABORTED]{RESET} Operation cancelled by user.")
+
+def generate_sample_config(filename="config.ini"):
+    """Generates a sample config.ini file."""
+    config = configparser.ConfigParser()
+    config['NVD'] = {
+        'api_key': 'YOUR_NVD_API_KEY_HERE'
+    }
+    config['DefaultSearch'] = {
+        'days_ago': '7',
+        'severity': ''
+    }
+    config['Output'] = {
+        'default_format': 'md'
+    }
+    try:
+        with open(filename, 'w') as configfile:
+            config.write(configfile)
+        return f"Sample configuration file '{filename}' generated."
+    except IOError as e:
+        return f"Error generating sample configuration file: {e}"
+
+def generate_sample_template(filename="sample_template.j2"):
+    """Generates a sample Jinja2 template file."""
+    template_content = """CVE Report - Custom Template
+
+{% for cve in cves %}
+CVE ID: {{ cve.id }}
+Description: {{ cve.description }}
+Severity: {{ cve.severity }} ({{ cve.cvss_score }})
+Published: {{ cve.published }}
+Last Modified: {{ cve.last_modified }}
+{% if cve.epss_percentile is not none %}EPSS Score: {{ cve.epss_score }} ({{ "%.2f" | format(cve.epss_percentile|float * 100) }} percentile){% endif %}
+{% if cve.exploit_available %}Exploit Available: Yes{% endif %}
+{% if cve.exploit_links %}
+Exploit Links:
+{% for link in cve.exploit_links %}- {{ link }}
+{% endfor %}
+{% endif %}
+---
+{% endfor %}
+"""
+    try:
+        with open(filename, 'w') as f:
+            f.write(template_content)
+        return f"Sample Jinja2 template '{filename}' generated."
+    except IOError as e:
+        return f"Error generating sample Jinja2 template: {e}"
+
+def get_cves(days_ago, max_retries=5, initial_delay=1):
+    """Fetches CVEs from the NVD API with exponential backoff."""
+    base_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+    pub_start_date = (datetime.now() - timedelta(days=days_ago)).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+    pub_end_date = datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+
+    params = {
+        "pubStartDate": pub_start_date,
+        "pubEndDate": pub_end_date,
+    }
+
+    for attempt in range(max_retries):
+        try:
+            response = session.get(base_url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching CVEs (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                delay = initial_delay * (2 ** attempt)
+                print(f"Retrying in {delay} seconds...")
+                time.sleep(delay)
+            else:
+                print("Max retries reached. Aborting.")
+                return None
+    return None
+
+def get_epss_score(cve_ids):
+    """Fetches EPSS scores for a list of CVE IDs with batching."""
+    epss_scores = {cve_id: (None, None) for cve_id in cve_ids}
+    if not cve_ids:
+        return epss_scores
+
+    BATCH_SIZE = 50  # Number of CVEs to send in each batch
+    all_epss_data = []
+
+    for i in range(0, len(cve_ids), BATCH_SIZE):
+        batch = cve_ids[i:i + BATCH_SIZE]
+        cve_ids_str = ",".join(batch)
+        try:
+            response = session.get(f"https://api.first.org/data/v1/epss?cve={cve_ids_str}")
+            response.raise_for_status()
+            data = response.json()
+            if data.get("data"):
+                all_epss_data.extend(data["data"])
+        except requests.exceptions.RequestException as e:
+            print(f"Warning: Error fetching EPSS scores for batch {i//BATCH_SIZE + 1}: {e}")
+        except json.JSONDecodeError:
+            print(f"Warning: Could not decode JSON from EPSS API for batch {i//BATCH_SIZE + 1}. CVEs: {cve_ids_str}")
+        except Exception as e:
+            print(f"An unexpected error occurred during EPSS score check for batch {i//BATCH_SIZE + 1}. CVEs: {cve_ids_str}: {e}")
+
+    for entry in all_epss_data:
+        cve_id = entry.get("cve")
+        epss = entry.get("epss")
+        percentile = entry.get("percentile")
+        if cve_id:
+            epss_scores[cve_id] = (epss, percentile)
+
+    return epss_scores
+
+def calculate_lifecycle_metrics(cve_entry):
+    """Calculates and adds lifecycle metrics to a CVE entry."""
+    published_str = cve_entry.get('published')
+    modified_str = cve_entry.get('last_modified')
+
+    if published_str and published_str != 'N/A':
+        published_date = datetime.fromisoformat(published_str.replace('Z', '+00:00'))
+        cve_entry['age_of_vulnerability_days'] = (datetime.now(published_date.tzinfo) - published_date).days
+    else:
+        cve_entry['age_of_vulnerability_days'] = 'N/A'
+
+    if modified_str and modified_str != 'N/A':
+        modified_date = datetime.fromisoformat(modified_str.replace('Z', '+00:00'))
+        cve_entry['time_since_last_modified_days'] = (datetime.now(modified_date.tzinfo) - modified_date).days
+    else:
+        cve_entry['time_since_last_modified_days'] = 'N/A'
+
+    if published_str and published_str != 'N/A' and modified_str and modified_str != 'N/A':
+        published_date = datetime.fromisoformat(published_str.replace('Z', '+00:00'))
+        modified_date = datetime.fromisoformat(modified_str.replace('Z', '+00:00'))
+        cve_entry['time_between_publish_and_modify_days'] = (modified_date - published_date).days
+    else:
+        cve_entry['time_between_publish_and_modify_days'] = 'N/A'
+
+    return cve_entry
+
+def generate_filename(custom_report_name, output_format, severity, cpe_filter=None):
+    """Generates a filename for the report."""
+    now = datetime.now().strftime("%Y%m%d_%H%M%S")
+    severity_label = severity if severity else "all"
+    if cpe_filter:
+        if isinstance(cpe_filter, list):
+            cpe_label = "_" + "_".join([f.replace(':', '_').replace('/', '_') for f in cpe_filter])
+        else:
+            cpe_label = f"_{cpe_filter.replace(':', '_').replace('/', '_')}"
+    else:
+        cpe_label = ""
+
+    if custom_report_name:
+        return f"{custom_report_name}_{now}_{severity_label}{cpe_label}.{output_format}"
+    else:
+        return f"cve_report_{now}_{severity_label}{cpe_label}.{output_format}"
+
+def save_report(report_content, filename):
+    """Saves the report to a file."""
+    try:
+        with open(filename, 'w') as f:
+            f.write(report_content)
+        return f"Report saved to {BOLD}{CYAN}{filename}{RESET}"
+    except IOError as e:
+        return f"Error saving report: {e}"
+
+def extract_cve_data(cve_data, display_severity, count, cpe_filter=None, min_epss=None, epss_scores_map=None, exploit_data_map=None):
+    """Extracts and filters CVE data into a structured format."""
+    if epss_scores_map is None:
+        epss_scores_map = {}
+    if exploit_data_map is None:
+        exploit_data_map = {}
+    if isinstance(cve_data, str):
+        print(cve_data)
+        return []
+
+    if 'vulnerabilities' not in cve_data or not cve_data['vulnerabilities']:
+        print("No CVEs found for the specified period.")
+        return []
+
+    severity_map = {'c': 'CRITICAL', 'h': 'HIGH', 'm': 'MEDIUM', 'l': 'LOW'}
+    target_severity = severity_map.get(display_severity.lower()) if display_severity else None
+
+    extracted_cves = []
+    for vulnerability in cve_data['vulnerabilities']:
+        cve = vulnerability['cve']
+
+        epss_score, epss_percentile = epss_scores_map.get(cve['id'], (None, None))
+        exploit_info = exploit_data_map.get(cve['id'], {"available": False, "links": []})
+        exploit_available = exploit_info["available"]
+        exploit_links = exploit_info["links"]
+
+        if min_epss is not None and (epss_score is None or float(epss_score) < min_epss):
+            continue
+
+        cve_entry = {
+            "id": cve['id'],
+            "published": cve['published'],
+            "last_modified": cve.get('lastModified', 'N/A'),
+            "source_identifier": cve.get('sourceIdentifier', 'N/A'),
+            "description": cve['descriptions'][0]['value'] if 'descriptions' in cve and cve['descriptions'] else 'N/A',
+            "cvss_score": 'N/A',
+            "cvss_vector": 'N/A',
+            "severity": 'N/A',
+            "impact_score": 'N/A',
+            "cvss_v2_score": 'N/A',
+            "cvss_v2_vector": 'N/A',
+            "cvss_v2_severity": 'N/A',
+            "epss_score": epss_score,
+            "epss_percentile": epss_percentile,
+            "exploit_available": exploit_available,
+            "exploit_links": exploit_links,
+            "cwe_ids": [],
+            "affected_products": [],
+            "references": []
+        }
+
+        if 'metrics' in cve:
+            if 'cvssMetricV31' in cve['metrics']:
+                cvss_v3 = cve['metrics']['cvssMetricV31'][0]
+                cve_entry["cvss_score"] = cvss_v3['cvssData']['baseScore']
+                cve_entry["cvss_vector"] = cvss_v3['cvssData']['vectorString']
+                cve_entry["severity"] = cvss_v3['cvssData']['baseSeverity']
+                cve_entry["impact_score"] = cvss_v3.get('impactScore', 'N/A')
+            if 'cvssMetricV2' in cve['metrics']:
+                cvss_v2 = cve['metrics']['cvssMetricV2'][0]
+                cve_entry["cvss_v2_score"] = cvss_v2['cvssData']['baseScore']
+                cve_entry["cvss_v2_vector"] = cvss_v2['cvssData']['vectorString']
+                cve_entry["cvss_v2_severity"] = cvss_v2['baseSeverity']
+
+        # Apply severity filter
+        if target_severity:
+            # Check if either v3.1 or v2.0 severity matches the target
+            v3_match = cve_entry["severity"] == target_severity
+            v2_match = cve_entry["cvss_v2_severity"] == target_severity
+            if not (v3_match or v2_match):
+                continue
+
+        if 'weaknesses' in cve:
+            for weakness in cve['weaknesses']:
+                if 'description' in weakness:
+                    for desc in weakness['description']:
+                        if desc['lang'] == 'en':
+                            cve_entry["cwe_ids"].append(desc['value'])
+
+        if 'configurations' in cve:
+            for config in cve['configurations']:
+                for node in config.get('nodes', []):
+                    for cpe_match in node.get('cpeMatch', []):
+                        cve_entry["affected_products"].append(cpe_match['criteria'])
+
+        if 'references' in cve:
+            for ref in cve['references']:
+                cve_entry["references"].append(ref['url'])
+
+        # Apply granular CPE filter
+        if cpe_filter:
+            cpe_match_found = False
+            for product in cve_entry["affected_products"]:
+                for filter_pattern in cpe_filter:
+                    filter_components = filter_pattern.split(':')
+                    # Check if all components of the filter pattern are present in the product string
+                    if all(comp.lower() in product.lower() for comp in filter_components):
+                        cpe_match_found = True
+                        break
+                if cpe_match_found:
+                    break
+            if not cpe_match_found:
+                continue
+
+        extracted_cves.append(calculate_lifecycle_metrics(cve_entry))
+
+    return extracted_cves[:count] if count else extracted_cves
+
+def get_cve_details_by_id(cve_id, max_retries=5, initial_delay=1):
+    """Fetches detailed information for a single CVE ID from the NVD API with exponential backoff."""
+    base_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+    params = {"cveId": cve_id}
+
+    for attempt in range(max_retries):
+        try:
+            response = session.get(base_url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            if 'vulnerabilities' in data and data['vulnerabilities']:
+                return data['vulnerabilities'][0]['cve']
+            return None
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching details for {cve_id} (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                delay = initial_delay * (2 ** attempt)
+                print(f"Retrying in {delay} seconds...")
+                time.sleep(delay)
+            else:
+                print("Max retries reached. Aborting.")
+                return None
+    return None
+
+def extract_single_cve_data(cve, epss_scores_map=None, exploit_data_map=None):
+    """Extracts and formats data for a single CVE entry."""
+    if epss_scores_map is None:
+        epss_scores_map = {}
+    if exploit_data_map is None:
+        exploit_data_map = {}
+
+    epss_score, epss_percentile = epss_scores_map.get(cve['id'], (None, None))
+    exploit_info = exploit_data_map.get(cve['id'], {"available": False, "links": []})
+    exploit_available = exploit_info["available"]
+    exploit_links = exploit_info["links"]
+    cve_entry = {
+        "id": cve['id'],
+        "published": cve['published'],
+        "last_modified": cve.get('lastModified', 'N/A'),
+        "source_identifier": cve.get('sourceIdentifier', 'N/A'),
+        "description": cve['descriptions'][0]['value'] if 'descriptions' in cve and cve['descriptions'] else 'N/A',
+        "cvss_score": 'N/A',
+        "cvss_vector": 'N/A',
+        "severity": 'N/A',
+        "impact_score": 'N/A',
+        "cvss_v2_score": 'N/A',
+        "cvss_v2_vector": 'N/A',
+        "cvss_v2_severity": 'N/A',
+        "epss_score": epss_score,
+        "epss_percentile": epss_percentile,
+        "exploit_available": exploit_available,
+        "exploit_links": exploit_links,
+        "cwe_ids": [],
+        "affected_products": [],
+        "references": []
+    }
+
+    if 'metrics' in cve:
+        if 'cvssMetricV31' in cve['metrics']:
+            cvss_v3 = cve['metrics']['cvssMetricV31'][0]
+            cve_entry["cvss_score"] = cvss_v3['cvssData']['baseScore']
+            cve_entry["cvss_vector"] = cvss_v3['cvssData']['vectorString']
+            cve_entry["severity"] = cvss_v3['cvssData']['baseSeverity']
+            cve_entry["impact_score"] = cvss_v3.get('impactScore', 'N/A')
+        if 'cvssMetricV2' in cve['metrics']:
+            cvss_v2 = cve['metrics']['cvssMetricV2'][0]
+            cve_entry["cvss_v2_score"] = cvss_v2['cvssData']['baseScore']
+            cve_entry["cvss_v2_vector"] = cvss_v2['cvssData']['vectorString']
+            cve_entry["cvss_v2_severity"] = cvss_v2['baseSeverity']
+
+    if 'weaknesses' in cve:
+        for weakness in cve['weaknesses']:
+            if 'description' in weakness:
+                for desc in weakness['description']:
+                    if desc['lang'] == 'en':
+                        cve_entry["cwe_ids"].append(desc['value'])
+
+    if 'configurations' in cve:
+        for config in cve['configurations']:
+            for node in config.get('nodes', []):
+                for cpe_match in node.get('cpeMatch', []):
+                    cve_entry["affected_products"].append(cpe_match['criteria'])
+
+    if 'references' in cve:
+        for ref in cve['references']:
+            cve_entry["references"].append(ref['url'])
+
+    return calculate_lifecycle_metrics(cve_entry)
+import openpyxl
+
+def read_xlsx_ids(file_path):
+    """Reads CVE/CWE IDs from the first column of the first sheet of an XLSX file."""
+    ids = []
+    try:
+        workbook = openpyxl.load_workbook(file_path)
+        sheet = workbook.active  # Get the active sheet
+        for row in sheet.iter_rows(min_row=1, max_col=1, values_only=True):
+            if row[0]:  # Check if the cell is not empty
+                ids.append(str(row[0]).strip())
+    except FileNotFoundError:
+        print(f"Error: XLSX file not found at {file_path}")
+    except Exception as e:
+        print(f"Error reading XLSX file {file_path}: {e}")
+    return ids
+
+def read_json_ids(file_path):
+    """Reads CVE IDs from a JSON file. Assumes a list of strings or a dictionary with a 'cve_ids' key."""
+    ids = []
+    try:
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                ids = [item for item in data if isinstance(item, str)]
+            elif isinstance(data, dict) and 'cve_ids' in data and isinstance(data['cve_ids'], list):
+                ids = [item for item in data['cve_ids'] if isinstance(item, str)]
+            else:
+                print(f"Error: JSON file {file_path} has an unsupported format. Expected a list or a dictionary with a 'cve_ids' key containing a list.")
+    except FileNotFoundError:
+        print(f"Error: JSON file not found at {file_path}")
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON from {file_path}: {e}")
+    except Exception as e:
+        print(f"Error reading JSON file {file_path}: {e}")
+    return ids
+
+def read_xml_ids(file_path):
+    """Reads CVE IDs from an XML file. Assumes CVE IDs are in <cve_id> tags."""
+    ids = []
+    try:
+        tree = ET.parse(file_path)
+        root = tree.getroot()
+        for cve_id_elem in root.findall(".//cve_id"):
+            if cve_id_elem.text:
+                ids.append(cve_id_elem.text.strip())
+    except FileNotFoundError:
+        print(f"Error: XML file not found at {file_path}")
+    except ET.ParseError as e:
+        print(f"Error parsing XML from {file_path}: {e}")
+    except Exception as e:
+        print(f"Error reading XML file {file_path}: {e}")
+    return ids
+
+def colorize_severity(severity_text, use_colors=True):
+    if not use_colors:
+        return f"({severity_text})"
+    if severity_text == "CRITICAL":
+        return f"{BOLD}{RED}({severity_text}){RESET}"
+    elif severity_text == "HIGH":
+        return f"{BOLD}{MAGENTA}({severity_text}){RESET}"
+    elif severity_text == "MEDIUM":
+        return f"{BOLD}{YELLOW}({severity_text}){RESET}"
+    elif severity_text == "LOW":
+        return f"{BOLD}{GREEN}({severity_text}){RESET}"
+    elif severity_text == "N/A":
+        return f"{BOLD}{CYAN}({severity_text}){RESET}"
+    return f"({severity_text})"
+
+def format_as_markdown(cve_list, use_colors=False):
+    """Formats the CVE list as a Markdown string."""
+    if not cve_list:
+        return "No CVEs found for the specified criteria."
+
+    report_parts = []
+    report_parts.append("# Executive Summary")
+    report_parts.append(f"Found {len(cve_list)} vulnerabilities.\n")
+    report_parts.append("_For Mitigations/Workarounds and Proof of Concept (PoC), please refer to the provided references._\n")
+
+    report_parts.append("# Vulnerability Details")
+    for cve_entry in cve_list:
+        report_parts.append(f"## {cve_entry['id']}")
+        report_parts.append(f"**Published:** {cve_entry['published']}")
+        report_parts.append(f"**Last Modified:** {cve_entry['last_modified']}")
+        if cve_entry.get('age_of_vulnerability_days') != 'N/A':
+            report_parts.append(f"**Age of Vulnerability:** {cve_entry['age_of_vulnerability_days']} days")
+        if cve_entry.get('time_since_last_modified_days') != 'N/A':
+            report_parts.append(f"**Days Since Last Modified:** {cve_entry['time_since_last_modified_days']} days")
+        if cve_entry.get('time_between_publish_and_modify_days') != 'N/A':
+            report_parts.append(f"**Days Between Publish and Modify:** {cve_entry['time_between_publish_and_modify_days']} days")
+        report_parts.append(f"**Source Identifier:** {cve_entry['source_identifier']}")
+        report_parts.append(f"**Severity:** {cve_entry['cvss_score']} {colorize_severity(cve_entry['severity'], use_colors=use_colors)}")
+        report_parts.append(f"**CVSS Vector:** {cve_entry['cvss_vector']}")
+        report_parts.append(f"**Impact Score:** {cve_entry['impact_score']}")
+        if cve_entry.get('cvss_v2_score') != 'N/A':
+            report_parts.append(f"**CVSS v2.0 Score:** {cve_entry['cvss_v2_score']} {colorize_severity(cve_entry['cvss_v2_severity'], use_colors=use_colors)}")
+            report_parts.append(f"**CVSS v2.0 Vector:** {cve_entry['cvss_v2_vector']}")
+        if cve_entry.get('epss_score') is not None:
+            report_parts.append(f"**EPSS Score:** {cve_entry['epss_score']} ({float(cve_entry['epss_percentile'])*100:.2f} percentile)")
+        if cve_entry.get('exploit_available'):
+            report_parts.append(f"**Exploit Available:** Yes")
+            if cve_entry.get('exploit_links'):
+                report_parts.append("**Exploit Links:**")
+                for link in cve_entry['exploit_links']:
+                    report_parts.append(f"- {link}")
+        else:
+            report_parts.append(f"**Exploit Available:** No")
+        report_parts.append(f"**Description:** {cve_entry['description']}\n")
+
+        if cve_entry['cwe_ids']:
+            report_parts.append("**CWE IDs:**")
+            for cwe_id in cve_entry['cwe_ids']:
+                report_parts.append(f"- {cwe_id}")
+            report_parts.append("\n")
+
+        if cve_entry['affected_products']:
+            report_parts.append("**Affected Products/Versions:**")
+            for product in cve_entry['affected_products']:
+                report_parts.append(f"- {product}")
+            report_parts.append("\n")
+
+        if cve_entry['references']:
+            report_parts.append("**References:**")
+            for ref in cve_entry['references']:
+                report_parts.append(f"- {ref}")
+            report_parts.append("\n")
+
+        report_parts.append("---") # Separator for each CVE
+
+    return "\n".join(report_parts)
+
+def format_as_json(cve_list):
+    """Formats the CVE list as a JSON string."""
+    if not cve_list:
+        return json.dumps({"message": "No CVEs found for the specified criteria."})
+
+    # Add a note about mitigations/PoCs to the JSON output
+    json_output = {
+        "cves": cve_list,
+        "note": "For Mitigations/Workarounds and Proof of Concept (PoC), please refer to the 'references' field within each CVE entry."
+    }
+    return json.dumps(json_output, indent=4)
+
+def format_as_html(cve_list):
+    """Formats the CVE list as an HTML string."""
+    if not cve_list:
+        return "<html><body><h1>No CVEs found for the specified criteria.</h1></body></html>"
+
+    html_parts = []
+    html_parts.append("<!DOCTYPE html>\n<html>\n<head>\n<title>CVE Report</title>")
+    html_parts.append("<style>\nbody { font-family: sans-serif; margin: 20px; }\nh1, h2 { color: #333; }\nh2 { border-bottom: 1px solid #ccc; padding-bottom: 5px; }\n.cve-entry { margin-bottom: 20px; padding: 10px; border: 1px solid #eee; border-radius: 5px; }\n.severity-critical { color: red; font-weight: bold; }\n.severity-high { color: magenta; font-weight: bold; }\n.severity-medium { color: orange; }\n.severity-low { color: green; }\n.severity-none { color: cyan; }\n</style>")
+    html_parts.append("</head>\n<body>")
+    html_parts.append("<h1>Executive Summary</h1>")
+    html_parts.append(f"<p>Found {len(cve_list)} vulnerabilities.</p>")
+    html_parts.append("<p><em>For Mitigations/Workarounds and Proof of Concept (PoC), please refer to the provided references.</em></p>\n") # Moved to top
+    html_parts.append("<h1>Vulnerability Details</h1>")
+
+    for cve_entry in cve_list:
+        severity_class = ""
+        if cve_entry['severity'] == 'CRITICAL':
+            severity_class = "severity-critical"
+        elif cve_entry['severity'] == 'HIGH':
+            severity_class = "severity-high"
+        elif cve_entry['severity'] == 'MEDIUM':
+            severity_class = "severity-medium"
+        elif cve_entry['severity'] == 'LOW':
+            severity_class = "severity-low"
+        elif cve_entry['severity'] == 'NONE':
+            severity_class = "severity-none"
+        html_parts.append(f"<div class='cve-entry'>")
+        html_parts.append(f"<h2>{cve_entry['id']}</h2>")
+        html_parts.append(f"<p><strong>Published:</strong> {cve_entry['published']}</p>")
+        html_parts.append(f"<p><strong>Last Modified:</strong> {cve_entry['last_modified']}</p>")
+        if cve_entry.get('age_of_vulnerability_days') != 'N/A':
+            html_parts.append(f"<p><strong>Age of Vulnerability:</strong> {cve_entry['age_of_vulnerability_days']} days</p>")
+        if cve_entry.get('time_since_last_modified_days') != 'N/A':
+            html_parts.append(f"<p><strong>Days Since Last Modified:</strong> {cve_entry['time_since_last_modified_days']} days</p>")
+        if cve_entry.get('time_between_publish_and_modify_days') != 'N/A':
+            html_parts.append(f"<p><strong>Days Between Publish and Modify:</strong> {cve_entry['time_between_publish_and_modify_days']} days</p>")
+        html_parts.append(f"<p><strong>Source Identifier:</strong> {cve_entry['source_identifier']}</p>")
+        html_parts.append(f"<p><strong>Severity:</strong> <span class='{severity_class}'>{cve_entry['cvss_score']} {colorize_severity(cve_entry['severity'], use_colors=False)}</span></p>")
+        html_parts.append(f"<p><strong>CVSS Vector:</strong> {cve_entry['cvss_vector']}</p>")
+        html_parts.append(f"<p><strong>Impact Score:</strong> {cve_entry['impact_score']}</p>")
+        if cve_entry.get('cvss_v2_score') != 'N/A':
+            html_parts.append(f"<p><strong>CVSS v2.0 Score:</strong> {cve_entry['cvss_v2_score']} ({cve_entry['cvss_v2_severity']})</p>")
+            html_parts.append(f"<p><strong>CVSS v2.0 Vector:</strong> {cve_entry['cvss_v2_vector']}</p>")
+        if cve_entry.get('epss_score') is not None:
+            html_parts.append(f"<p><strong>EPSS Score:</strong> {cve_entry['epss_score']} ({float(cve_entry['epss_percentile'])*100:.2f} percentile)</p>")
+        if cve_entry.get('exploit_available'):
+            html_parts.append(f"<p><strong>Exploit Available:</strong> Yes</p>")
+            if cve_entry.get('exploit_links'):
+                html_parts.append("<p><strong>Exploit Links:</strong></p><ul>")
+                for link in cve_entry['exploit_links']:
+                    html_parts.append(f"<li><a href='{link}'>{link}</a></li>")
+                html_parts.append("</ul>")
+        else:
+            html_parts.append(f"<p><strong>Exploit Available:</strong> No</p>")
+        html_parts.append(f"<p><strong>Description:</strong> {cve_entry['description']}</p>")
+
+        if cve_entry['cwe_ids']:
+            html_parts.append("<p><strong>CWE IDs:</strong></p><ul>")
+            for cwe_id in cve_entry['cwe_ids']:
+                html_parts.append(f"<li>{cwe_id}</li>")
+            html_parts.append("</ul>")
+
+        if cve_entry['affected_products']:
+            html_parts.append("<p><strong>Affected Products/Versions:</strong></p><ul>")
+            for product in cve_entry['affected_products']:
+                html_parts.append(f"<li>{product}</li>")
+            html_parts.append("</ul>")
+
+        if cve_entry['references']:
+            html_parts.append("<p><strong>References:</strong></p><ul>")
+            for ref in cve_entry['references']:
+                html_parts.append(f"<li><a href='{ref}'>{ref}</a></li>")
+            html_parts.append("</ul>")
+        html_parts.append("</div>")
+
+    html_parts.append("</body>\n</html>")
+    return "\n".join(html_parts)
+
+def format_as_csv(cve_list):
+    """Formats the CVE list as a CSV string."""
+    if not cve_list:
+        return "No CVEs found for the specified criteria."
+
+    output = StringIO()
+    # Define CSV headers based on the keys in cve_entry
+    # Flatten nested lists (cwe_ids, affected_products, references) for CSV
+    fieldnames = [
+        "id", "published", "last_modified", "source_identifier", "description",
+        "cvss_score", "cvss_vector", "severity", "impact_score",
+        "cvss_v2_score", "cvss_v2_vector", "cvss_v2_severity",
+        "epss_score", "epss_percentile", "exploit_available", "exploit_links",
+        "age_of_vulnerability_days", "time_since_last_modified_days", "time_between_publish_and_modify_days",
+        "cwe_ids", "affected_products", "references"
+    ]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+
+    writer.writeheader()
+    for cve_entry in cve_list:
+        # Prepare data for CSV, flattening lists into strings
+        row = cve_entry.copy()
+        row['exploit_links'] = "; ".join(row['exploit_links'])
+        row['cwe_ids'] = "; ".join(row['cwe_ids'])
+        row['affected_products'] = "; ".join(row['affected_products'])
+        row['references'] = "; ".join(row['references'])
+        writer.writerow(row)
+
+    return output.getvalue()
+
+def format_as_xml(cve_list):
+    """Formats the CVE list as an XML string."""
+    if not cve_list:
+        return "<cve_report><message>No CVEs found for the specified criteria.</message></cve_report>"
+
+    root = ET.Element("cve_report")
+    ET.SubElement(root, "executive_summary").text = f"Found {len(cve_list)} vulnerabilities."
+    ET.SubElement(root, "note").text = "For Mitigations/Workarounds and Proof of Concept (PoC), please refer to the provided references."
+
+    vulnerabilities_elem = ET.SubElement(root, "vulnerability_details")
+    for cve_entry in cve_list:
+        cve_elem = ET.SubElement(vulnerabilities_elem, "cve")
+        # Ensure a consistent order for XML elements
+        order = [
+            "id", "published", "last_modified", "source_identifier", "description",
+            "cvss_score", "cvss_vector", "severity", "impact_score",
+            "cvss_v2_score", "cvss_v2_vector", "cvss_v2_severity",
+            "epss_score", "epss_percentile", "exploit_available", "exploit_links",
+            "age_of_vulnerability_days", "time_since_last_modified_days", "time_between_publish_and_modify_days",
+            "cwe_ids", "affected_products", "references"
+        ]
+        for key in order:
+            value = cve_entry.get(key)
+            if value is None: continue
+
+            if isinstance(value, list):
+                list_elem = ET.SubElement(cve_elem, key)
+                for item in value:
+                    ET.SubElement(list_elem, "item").text = str(item)
+            else:
+                ET.SubElement(cve_elem, key).text = str(value)
+
+    return ET.tostring(root, encoding='unicode')
+
+def save_as_xlsx(cve_list, filename):
+    """Saves the CVE list as an XLSX file."""
+    if not cve_list:
+        try:
+            workbook = openpyxl.Workbook()
+            sheet = workbook.active
+            sheet.title = "CVE Report"
+            sheet.cell(row=1, column=1, value="No CVEs found for the specified criteria.")
+            workbook.save(filename)
+            return f"Report saved to {filename}"
+        except Exception as e:
+            return f"Error saving XLSX file: {e}"
+
+    try:
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = "CVE Report"
+
+        headers = [
+            "id", "published", "last_modified", "source_identifier", "description",
+            "cvss_score", "cvss_vector", "severity", "impact_score",
+            "cvss_v2_score", "cvss_v2_vector", "cvss_v2_severity",
+            "epss_score", "epss_percentile", "exploit_available", "exploit_links",
+            "age_of_vulnerability_days", "time_since_last_modified_days", "time_between_publish_and_modify_days",
+            "cwe_ids", "affected_products", "references"
+        ]
+        sheet.append(headers)
+
+        for cve_entry in cve_list:
+            row = [
+                cve_entry.get("id", ""),
+                cve_entry.get("published", ""),
+                cve_entry.get("last_modified", ""),
+                cve_entry.get("source_identifier", ""),
+                cve_entry.get("description", ""),
+                cve_entry.get("cvss_score", ""),
+                cve_entry.get("cvss_vector", ""),
+                cve_entry.get("severity", ""),
+                cve_entry.get("impact_score", ""),
+                cve_entry.get("cvss_v2_score", ""),
+                cve_entry.get("cvss_v2_vector", ""),
+                cve_entry.get("cvss_v2_severity", ""),
+                cve_entry.get("epss_score", ""),
+                cve_entry.get("epss_percentile", ""),
+                cve_entry.get("exploit_available", ""),
+                "; ".join(cve_entry.get("exploit_links", [])),
+                cve_entry.get("age_of_vulnerability_days", ""),
+                cve_entry.get("time_since_last_modified_days", ""),
+                cve_entry.get("time_between_publish_and_modify_days", ""),
+                "; ".join(cve_entry.get("cwe_ids", [])),
+                "; ".join(cve_entry.get("affected_products", [])),
+                "; ".join(cve_entry.get("references", []))
+            ]
+            sheet.append(row)
+
+        workbook.save(filename)
+        return f"Report saved to {filename}"
+    except Exception as e:
+        return f"Error saving XLSX file: {e}"
+
+def update_searchsploit_database():
+    """Updates the Exploit-DB database using 'searchsploit -u'."""
+    print(f"{BOLD}{CYAN}Updating Exploit-DB database...{RESET}")
+    try:
+        command = ["searchsploit", "-u"]
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        print(f"{GREEN}Exploit-DB database updated successfully!{RESET}")
+        if result.stdout:
+            print(result.stdout)
+    except FileNotFoundError:
+        print(f"{RED}Error: 'searchsploit' command not found. Please ensure searchsploit is installed and in your system's PATH.{RESET}")
+    except subprocess.CalledProcessError as e:
+        print(f"{RED}Error updating Exploit-DB database: {e}{RESET}")
+        if e.stdout:
+            print(f"{RED}Stdout: {e.stdout}{RESET}")
+        if e.stderr:
+            print(f"{RED}Stderr: {e.stderr}{RESET}")
+    except Exception as e:
+        print(f"{RED}An unexpected error occurred during Exploit-DB update: {e}{RESET}")
+
+class CustomHelpFormatter(argparse.HelpFormatter):
+    def _format_action_invocation(self, action):
+        if not action.option_strings or action.nargs == 0:
+            return super()._format_action_invocation(action)
+        default = self._get_default_metavar_for_optional(action)
+        args_string = self._format_args(action, default)
+        return f"{', '.join(action.option_strings)} {args_string}"
+
+def main():
+    """Main function."""
+    if len(sys.argv) == 1:
+        run_interactive_mode()
+        return
+
+    parser = argparse.ArgumentParser(description="Search for CVEs from the NVD.", formatter_class=CustomHelpFormatter)
+    parser.add_argument("-d", "--days", type=int, help="Number of days to look back for CVEs.")
+    parser.add_argument("-s", "--severity", type=str, choices=['c', 'h', 'm', 'l'], help="Filter by severity: c (critical), h (high), m (medium), l (low).")
+    parser.add_argument("-c", "--count", type=int, help="Display only the top specified number of most recent CVEs.")
+    parser.add_argument("-i", "--id", nargs='+', help="Enter one or more CVE/CWE IDs separated by spaces, or a path to a file containing IDs (one per line for .txt, .json, .xml, or .xlsx).")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Display all CVE IDs found and processed.")
+    parser.add_argument("-r", "--report-format", nargs='?', const='', default=None, help="Save the report to a file. If a filename is provided (e.g., 'my_report.json'), it's used. If no filename is given, a default name is generated using the format from config.ini (or 'md'). If this flag is not used, output is printed to the console. Supported formats: md, json, html, txt, csv, xlsx, xml.")
+    parser.add_argument("--template", type=str, help="Path to a custom Jinja2 template file for report generation.")
+    parser.add_argument("--generate-template", nargs='?', const='sample_template.j2', default=None, help="Generate a sample Jinja2 template file, optionally specifying a filename.")
+    parser.add_argument("--cpe-filter", nargs='*', help="Filter CVEs by one or more granular CPE patterns (e.g., 'apache:http_server', 'microsoft:windows:10').")
+    parser.add_argument("--min-epss", type=float, help="Filter CVEs by a minimum EPSS score (0.0 to 1.0). Only shows CVEs with a score equal to or higher than the value.")
+    parser.add_argument("--exploit-available", action="store_true", help="Filter CVEs to show only those with known exploits available.")
+    parser.add_argument("--config", type=str, default="config.ini", help="Path to the configuration file.")
+    parser.add_argument("--generate-config", action="store_true", help="Generate a sample configuration file.")
+    parser.add_argument("--clear-cache", action="store_true", help="Clear the API cache.")
+    parser.add_argument("-u", "--update-searchsploit", action="store_true", help="Update the Exploit-DB database using 'searchsploit -u'.")
+    args = parser.parse_args()
+
+    if args.update_searchsploit:
+        update_searchsploit_database()
+        return
+
+    if args.generate_config:
+        message = generate_sample_config(args.config if args.config != 'config.ini' else 'config.ini')
+        print(message)
+        return
+
+    if args.generate_template is not None:
+        filename = args.generate_template if args.generate_template != 'sample_template.j2' else 'sample_template.j2'
+        message = generate_sample_template(filename)
+        print(message)
+        return
+
+    if args.clear_cache:
+        if os.path.exists('nvd_cache.sqlite'):
+            os.remove('nvd_cache.sqlite')
+            print("API cache cleared.")
+        else:
+            print("API cache not found.")
+        return
+
+    config = configparser.ConfigParser()
+    if os.path.exists(args.config):
+        config.read(args.config)
+
+    # Set default values from config file, allowing command-line args to override
+    days = args.days if args.days is not None else config.getint('DefaultSearch', 'days_ago', fallback=7)
+    severity = args.severity if args.severity is not None else config.get('DefaultSearch', 'severity', fallback=None)
+    
+    count = args.count
+    if count is None:
+        try:
+            count = config.getint('DefaultSearch', 'count')
+        except (ValueError, configparser.NoOptionError, configparser.NoSectionError):
+            # Fallback to None if 'count' is missing, empty, or not a valid integer
+            count = None
+            
+
+    try:
+        start_time = datetime.now()
+        # Set banner content
+        banner_content = BANNER_TEXT
+
+        # Choose a random color for the banner
+        random_color = random.choice(COLORS)
+
+        # Print banner
+        print(f"{random_color}{banner_content.center(80)}{RESET}")
+        print() # Blank line after banner
+
+        github_link = " < https://github.com/ghostescript/idmycve > "
+        print(f"{BOLD}{RED}{github_link}{RESET}") # Left-aligned
+        print() # Blank line after
+        print(f"{BOLD}{CYAN}Welcome to the Interactive CVE Search.{RESET}")
+        print(f"{BOLD}{CYAN}This tool performs on-demand CVE ID, Description, Affected Products/Versions, CVSS Score (v3.1 and v2.0), CVSS Vector (v3.1 and v2.0), CWE IDs, Last Modified Date, Source Identifier, References, Publication Date, Exploit Availability, EPSS Score, and Vulnerability Lifecycle Metrics (Age, Days Since Last Modified, Days Between Publish and Modify). Information like 'Mitigations/Workarounds' and 'Proof of Concept (PoC)' are not directly extracted but may be found in the provided references.{RESET}\n")
+
+        all_cve_ids_to_process = []
+        raw_cve_data_from_nvd = None
+
+        if args.id:
+            cve_ids_from_args = []
+            if len(args.id) == 1 and os.path.isfile(args.id[0]):
+                file_path = args.id[0]
+                if file_path.lower().endswith('.xlsx'):
+                    cve_ids_from_args = read_xlsx_ids(file_path)
+                elif file_path.lower().endswith('.json'):
+                    cve_ids_from_args = read_json_ids(file_path)
+                elif file_path.lower().endswith('.xml'):
+                    cve_ids_from_args = read_xml_ids(file_path)
+                else:
+                    try:
+                        with open(file_path, 'r') as f:
+                            cve_ids_from_args = [line.strip() for line in f if line.strip()]
+                    except IOError as e:
+                        print(f"Error reading file {file_path}: {e}")
+                        return
+            else:
+                cve_ids_from_args = args.id
+            all_cve_ids_to_process.extend(cve_ids_from_args)
+        else:
+            raw_cve_data_from_nvd = get_cves(days)
+            if raw_cve_data_from_nvd and 'vulnerabilities' in raw_cve_data_from_nvd:
+                all_cve_ids_to_process.extend([vulnerability['cve']['id'] for vulnerability in raw_cve_data_from_nvd['vulnerabilities']])
+
+        if not all_cve_ids_to_process and not raw_cve_data_from_nvd:
+            print("No CVEs found to process.")
+            return
+
+        # Fetch EPSS scores and exploit availability in batch
+        unique_cve_ids = list(set(all_cve_ids_to_process))
+        epss_scores_map = get_epss_score(unique_cve_ids)
+        exploit_data_map = get_exploit_availability(unique_cve_ids, args.verbose)
+
+        extracted_cves = []
+        severity_counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "N/A": 0}
+
+        if args.id:
+            for cve_id in all_cve_ids_to_process:
+                if args.verbose:
+                    print(f"Fetching details for {cve_id}...")
+                cve_details = get_cve_details_by_id(cve_id)
+                if cve_details:
+                    extracted_cves.append(extract_single_cve_data(cve_details, epss_scores_map, exploit_data_map))
+        else:
+            extracted_cves = extract_cve_data(raw_cve_data_from_nvd, severity, count, args.cpe_filter, args.min_epss, epss_scores_map, exploit_data_map)
+
+        if not extracted_cves:
+            print("No CVEs found for the specified period and filters.")
+            return
+
+        # Populate severity_counts
+        for cve in extracted_cves:
+            severity_text = cve.get('severity', 'N/A')
+            if severity_text in severity_counts:
+                severity_counts[severity_text] += 1
+            else:
+                severity_counts['N/A'] += 1
+        # Apply CPE and EPSS filters to ID-based search results as well
+        if args.id:
+            if args.cpe_filter:
+                original_count = len(extracted_cves)
+                filtered_cves_by_cpe = []
+                for cve in extracted_cves:
+                    cpe_match_found = False
+                    for product in cve.get("affected_products", []):
+                        for filter_pattern in args.cpe_filter:
+                            filter_components = filter_pattern.split(':')
+                            if all(comp.lower() in product.lower() for comp in filter_components):
+                                cpe_match_found = True
+                                break
+                        if cpe_match_found:
+                            break
+                    if cpe_match_found:
+                        filtered_cves_by_cpe.append(cve)
+                extracted_cves = filtered_cves_by_cpe
+                print(f"Filtered {original_count} CVEs down to {len(extracted_cves)} based on CPE filter: '{', '.join(args.cpe_filter)}'")
+
+            if args.min_epss is not None:
+                original_count = len(extracted_cves)
+                extracted_cves = [cve for cve in extracted_cves if cve.get("epss_score") is not None and float(cve.get("epss_score")) >= args.min_epss]
+                print(f"Filtered {original_count} CVEs down to {len(extracted_cves)} based on min EPSS score: {args.min_epss}")
+
+            if args.exploit_available:
+                original_count = len(extracted_cves)
+                extracted_cves = [cve for cve in extracted_cves if cve.get("exploit_available", False)]
+                print(f"Filtered {original_count} CVEs down to {len(extracted_cves)} based on exploit availability.")
+
+        # Report generation logic
+        if args.report_format is not None or args.template is not None:
+            # --- Report Generation to File ---
+            
+            # Handle Jinja2 template
+            if args.template:
+                try:
+                    formatted_report = render_template(args.template, extracted_cves)
+                    template_base_name = os.path.splitext(os.path.basename(args.template))[0]
+                    filename = generate_filename(template_base_name, 'txt', severity, args.cpe_filter)
+                    message = save_report(formatted_report, filename)
+                    print(message)
+                    return
+                except Exception as e:
+                    print(f"Error rendering template {args.template}: {e}")
+                    return
+
+            # Handle standard report formats if --report-format is used
+            report_format_arg = args.report_format if args.report_format is not None else ""
+            default_format_from_config = config.get('Output', 'default_format', fallback='md')
+
+            custom_report_name = None
+            final_output_format = default_format_from_config
+
+            if report_format_arg: # Not None and not empty string
+                if '.' in report_format_arg:
+                    parts = report_format_arg.rsplit('.', 1)
+                    custom_report_name = parts[0]
+                    provided_extension = parts[1].lower()
+                    known_formats = ['md', 'json', 'html', 'txt', 'csv', 'xlsx', 'xml']
+                    if provided_extension in known_formats:
+                        final_output_format = provided_extension
+                    else:
+                        print(f"Unsupported output format extension: {provided_extension}. Using default from config: {default_format_from_config}.")
+                        custom_report_name = report_format_arg
+                        final_output_format = default_format_from_config
+                else:
+                    known_formats = ['md', 'json', 'html', 'txt', 'csv', 'xlsx', 'xml']
+                    if report_format_arg.lower() in known_formats:
+                        final_output_format = report_format_arg.lower()
+                    else:
+                        custom_report_name = report_format_arg
+            else: # This else belongs to 'if report_format_arg:'
+                final_output_format = default_format_from_config
+            
+            filename = generate_filename(custom_report_name, final_output_format, severity, args.cpe_filter)
+
+            if final_output_format == 'xlsx':
+                message = save_as_xlsx(extracted_cves, filename)
+                print(message)
+                return
+
+            formatted_report = ""
+            if final_output_format == 'md':
+                formatted_report = format_as_markdown(extracted_cves)
+            elif final_output_format == 'json':
+                formatted_report = format_as_json(extracted_cves)
+            elif final_output_format == 'html':
+                formatted_report = format_as_html(extracted_cves)
+            elif final_output_format == 'txt':
+                formatted_report = format_as_markdown(extracted_cves)
+            elif final_output_format == 'csv':
+                formatted_report = format_as_csv(extracted_cves)
+            elif final_output_format == 'xml':
+                formatted_report = format_as_xml(extracted_cves)
+            else:
+                print(f"Unexpected output format: {final_output_format}. Defaulting to markdown.")
+                formatted_report = format_as_markdown(extracted_cves)
+
+            message = save_report(formatted_report, filename)
+            print(message)
+        else:
+            # --- Console Output ---
+            # Default to console output if no report flag is specified
+            print(format_as_markdown(extracted_cves, use_colors=True))
+
+        end_time = datetime.now()
+        duration = end_time - start_time
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Always print a summary message at the end
+        if extracted_cves:
+            print(f"\n{BOLD}{GREEN}Scan completed at {current_time}. Total CVEs found and processed: {len(extracted_cves)}. Duration: {duration}.{RESET}")
+            print() # Blank line above Critical
+            
+            sorted_severity_counts = sorted(severity_counts.items(), key=lambda item: item[1], reverse=True)
+            
+            severity_colors = {
+                "CRITICAL": f"{BOLD}{RED}",
+                "HIGH": f"{BOLD}{MAGENTA}",
+                "MEDIUM": f"{BOLD}{YELLOW}",
+                "LOW": f"{BOLD}{GREEN}",
+                "N/A": f"{CYAN}"
+            }
+
+            for severity_level, count in sorted_severity_counts:
+                color = severity_colors.get(severity_level, BOLD)
+                print(f"{color}{severity_level.capitalize()}: {count}{RESET}")
+
+            print(f"{BOLD}{RESET}Days: {days}{RESET}") # Days in bold white (RESET for default white)
+        else:
+            print(f"\n{BOLD}{YELLOW}Scan completed at {current_time}. No CVEs were found or processed. Duration: {duration}.{RESET}")
+    except KeyboardInterrupt:
+        print(f"\n{RED}[ABORTED]{RESET} Operation cancelled by user.")
+
+if __name__ == "__main__":
+    main()
