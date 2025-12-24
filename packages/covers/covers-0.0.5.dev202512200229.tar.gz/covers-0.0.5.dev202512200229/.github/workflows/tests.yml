@@ -1,0 +1,79 @@
+name: tests
+
+on:
+  push:
+    paths:
+      - src/**
+      - src_rust/**
+      - tests/**
+      - Cargo.toml
+      - pyproject.toml
+      - .github/workflows/tests.yml
+
+  pull_request:
+
+  workflow_dispatch:
+
+jobs:
+  run-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        python: [ '3.12', '3.13', '3.14' ]
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Set up Python ${{ matrix.python }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python }}
+        allow-prereleases: true
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Run tests with tox
+      shell: bash
+      run: |
+        # Convert Python version (e.g., 3.12) to tox env (e.g., py312)
+        TOX_ENV="py$(echo ${{ matrix.python }} | tr -d '.')"
+        uv tool run --with tox-uv tox -e $TOX_ENV
+
+  # Test building from source distribution
+  test-build-from-source:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.12', '3.13', '3.14']
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          allow-prereleases: true
+
+      - name: Install build dependencies
+        run: |
+          python3 -m pip install -U pip
+          python3 -m pip install maturin build
+
+      - name: Build sdist
+        run: python3 -m build --sdist
+
+      - name: Test building from sdist
+        run: |
+          tar xzf dist/covers*.tar.gz
+          cd covers*
+          python3 -m pip install maturin
+          python3 -m build --wheel

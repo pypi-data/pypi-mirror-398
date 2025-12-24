@@ -1,0 +1,111 @@
+[tools]
+ruff = "0.14"
+python = "3.14"
+uv = "latest"
+rust = { version = "1.91", profile = "default", components = "llvm-tools-preview" }
+
+[tasks.python_lint]
+description = "Run Python linting with ruff"
+run = [
+  "ruff check --fix .",
+  "ruff format .",
+]
+
+[tasks.rust_lint]
+description = "Run Rust linting with clippy and rustfmt"
+run = [
+  "cargo fmt",
+  "cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features -- -D warnings",
+]
+
+[tasks.toml_lint]
+description = "Run toml formatting with tombi"
+tools."aqua:tombi-toml/tombi" = "latest"
+run = "tombi format"
+
+[tasks.lint]
+description = "Run all linting tasks"
+depends = ["python_lint", "rust_lint", "toml_lint"]
+
+[tasks.test_py312]
+description = "Run pytest with Python 3.12"
+tools.python = "3.12"
+usage = 'arg "[files]" var=#true help="Files to test"'
+run = "uv run --python 3.12 --group test pytest -- ${usage_files}"
+
+[tasks.test_py313]
+description = "Run pytest with Python 3.13"
+tools.python = "3.13"
+usage = 'arg "[files]" var=#true help="Files to test"'
+run = "uv run --python 3.13 --group test pytest -- ${usage_files}"
+
+[tasks.test_py314]
+description = "Run pytest with Python 3.14"
+tools.python = "3.14"
+alias = "test"
+usage = 'arg "[files]" var=#true help="Files to test"'
+run = "uv run --python 3.14 --group test pytest -- ${usage_files}"
+
+[tasks.test_all_versions]
+description = "Run tests on all Python versions (3.12, 3.13, 3.14)"
+usage = 'arg "[files]" var=#true help="Files to test"'
+run = [
+  "mise run test_py312 ${usage_files}",
+  "mise run test_py313 ${usage_files}",
+  "mise run test_py314 ${usage_files}"
+]
+
+[tasks.build]
+description = "Builds the project (in development mode)"
+run = "uv build"
+
+[tasks.clean]
+description = "Clean build artifacts and caches"
+run = [
+  "rm -rf *.so src/covers/*.so || true",
+  "rm -rf src/*.egg-info || true",
+  "rm -rf build dist target || true",
+  "find . -iname __pycache__ -exec rm -r '{}' \\+ || true",
+  "rm -rf .pytest_cache || true",
+]
+
+[tasks.benchmark]
+description = "Run benchmarks"
+run = [
+  "uv run --config-setting 'build-args=--profile=release' --group benchmark -- python benchmarks/benchmarks.py run",
+]
+
+[tasks.plot]
+description = "Generate benchmark plots"
+run = [
+  "uv run --group benchmark -- python benchmarks/benchmarks.py plot --os=Linux --python=3.14.0 --out benchmarks/cpython.png --speedup --title \"Covers Coverage Speedup on CPython (higher is better)\" --bar-labels --edit-readme \"CPython-range\"",
+]
+
+[tasks.coverage]
+description = "Run code coverage for Python and Rust"
+tools."github:taiki-e/cargo-llvm-cov" = "latest"
+run = '''
+  # Clean up old coverage files
+  rm -f coverage_py.lcov coverage_rust.lcov coverage.lcov
+
+  # Set up environment variables for Rust instrumentation coverage
+  eval "$(cargo llvm-cov show-env --export-prefix 2>/dev/null | grep '^export')"
+
+  # Clean previous profiling data
+  cargo llvm-cov clean --workspace
+
+  # Run Rust tests with coverage instrumentation
+  cargo test
+
+  # Run Python tests with Python coverage (this will also exercise Rust code)
+  uv run --group test -- maturin develop --uv
+  uv run --group test -- covers --lcov --out coverage_py.lcov -m pytest
+
+  # Generate Rust coverage report from all profraw files (includes coverage from Python tests)
+  cargo llvm-cov report --lcov --output-path coverage_rust.lcov
+
+  # Combine coverage files
+  cat coverage_py.lcov coverage_rust.lcov > coverage.lcov
+
+  echo 'Coverage generated: coverage_py.lcov (Python), coverage_rust.lcov (Rust), coverage.lcov (combined)'
+'''

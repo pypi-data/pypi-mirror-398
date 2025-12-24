@@ -1,0 +1,130 @@
+#
+# On push to main: uploads a ".devNNN" build to production pypi
+# When executed manually: uploads a ".devNNN" build to testpypi
+# On release: uploads a regular build to production pypi
+#
+name: build & upload
+
+on:
+  release:
+    types: [ published ]
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  pick-devN:
+    name: create .devN build date coordinated across all matrix jobs
+    runs-on: ubuntu-latest
+    steps:
+      - run: TZ='America/New_York' date '+%Y%m%d%H%M' > dev-build.txt
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: devN
+          path: dev-build.txt
+
+  build-wheel:
+    needs: pick-devN
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ['ubuntu-latest', 'macos-latest', 'windows-latest']
+        # Build for Python 3.12+ with abi3 support
+        target: [x86_64, aarch64]
+        exclude:
+          # Windows doesn't support aarch64 building from x86_64
+          - os: windows-latest
+            target: aarch64
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Maturin
+        run: python3 -m pip install maturin
+
+      - name: Get coordinated .devN
+        if: github.event_name != 'release'
+        uses: actions/download-artifact@v7
+        with:
+          name: devN
+
+      - name: Modify version for dev build
+        if: github.event_name != 'release'
+        shell: bash
+        run: |
+          DEV_N=$(cat dev-build.txt)
+          # Read current version from Cargo.toml
+          CURRENT_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          # Append -dev.N to the version (Rust semver format)
+          NEW_VERSION="${CURRENT_VERSION}-dev.${DEV_N}"
+          echo "Updating version from ${CURRENT_VERSION} to ${NEW_VERSION}"
+          # Update Cargo.toml with the new version (portable across Linux, macOS, Windows)
+          if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/^version = \"${CURRENT_VERSION}\"/version = \"${NEW_VERSION}\"/" Cargo.toml
+          else
+            sed -i "s/^version = \"${CURRENT_VERSION}\"/version = \"${NEW_VERSION}\"/" Cargo.toml
+          fi
+          # Verify the change
+          grep '^version = ' Cargo.toml | head -1
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          manylinux: auto
+        env:
+          # Define _GNU_SOURCE to expose le16toh/be16toh macros from endian.h
+          # This is required for tree-sitter C code compilation
+          CFLAGS: "-D_GNU_SOURCE"
+
+      - name: Build source dist
+        if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64'
+        run: maturin sdist --out dist
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v6
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.target }}
+          path: dist
+
+  publish:
+    name: Publish to PyPI
+    needs: build-wheel
+    runs-on: ubuntu-latest
+    permissions:
+      # Required for trusted publishing (OIDC)
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish to TestPyPI (manual dev builds)
+        if: github.event_name == 'workflow_dispatch'
+        uses: PyO3/maturin-action@v1
+        with:
+          command: upload
+          args: --skip-existing dist/*
+        env:
+          MATURIN_REPOSITORY: testpypi
+
+      - name: Publish to PyPI (releases and main branch)
+        if: github.event_name == 'release' || github.event_name == 'push'
+        uses: PyO3/maturin-action@v1
+        with:
+          command: upload
+          args: --skip-existing dist/*
