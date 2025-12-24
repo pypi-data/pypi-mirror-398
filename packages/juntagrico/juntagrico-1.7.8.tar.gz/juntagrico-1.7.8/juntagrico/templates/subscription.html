@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load juntagrico.config %}
+{% load juntagrico.common %}
+{% load juntagrico.subscription %}
+{% block page_title %}
+    {% vocabulary "subscription" as v_subscription %}
+    <h3>
+        {% blocktrans %}{{ v_subscription }} Übersicht{% endblocktrans %}
+    </h3>
+{% endblock %}
+{% block content %}
+    {% has_extra_subscriptions as b_has_extra_subscriptions %}
+    {% config "enable_shares" as c_enable_shares %}
+    {% vocabulary "subscription" as v_subscription %}
+    {% vocabulary "share_pl" as v_share_pl %}
+    {% vocabulary "co_member_pl" as v_co_member_pl %}
+    {% vocabulary "depot" as v_depot %}
+    {% if future_subscription %}
+        <div class="alert alert-success">
+            {% trans "Du bist auf der Warteliste" %}
+            <br/>
+            <a href="{% url 'subscription-single' member.subscription_future.id %}">
+                {% trans "Mehr Infos und Optionen dazu findest du hier" %}
+            </a>
+        </div>
+    {% elif can_order %}
+        <div class="alert alert-warning">
+            {% blocktrans %}Du bist entweder kein/e {{ v_subscription }}-BezieherIn oder hast gekündigt.{% endblocktrans %}
+            <br/>
+            {% blocktrans %}{{ v_subscription }} (wieder) neu beziehen?{% endblocktrans %}
+            {% trans "Melde dich hier an" %}:
+            <a href="{% url 'cs-subscription' %}">
+                {% blocktrans %}{{ v_subscription }} erstellen{% endblocktrans %}
+            </a>
+        </div>
+    {% endif %}
+    {% if no_subscription %}
+        {% if c_enable_shares %}
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    {% vocabulary "share_pl" %}
+                </div>
+                <div class="col-md-9">
+                    {{ shares|add:shares_unpaid }}
+                    {% if shares_unpaid > 0 %}
+                        ({% blocktrans %}davon {{ shares_unpaid }} noch nicht bezahlt{% endblocktrans %})
+                    {% endif %}
+                    <br/>
+                    <a href="{% url 'manage-shares' %}">
+                        {% blocktrans %}{{ v_share_pl }} verwalten{% endblocktrans %}
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="row mb-3">
+            <div class="col-md-3">
+                {% blocktrans %}{{ v_subscription }}-Bestandteile{% endblocktrans %}
+            </div>
+            <div class="col-md-9">
+                {% if subscription.waiting %}
+                {{ subscription.future_part_overview|overview|safe }}
+                {% else %}
+                {{ subscription.part_overview|overview|safe }}
+                {% endif %}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-3">
+                {% trans "Status" %}
+            </div>
+            <div class="col-md-9">
+                {% if subscription.active %}
+                    {% trans "aktiv" %}
+                {% elif subscription.waiting %}
+                    <span class="text-error">
+                        {% trans "Auf der Warteliste" %}
+                    </span>
+                {% elif subscription.inactive %}
+                    <span class="text-error">
+                        {% trans "deaktiviert" %}
+                    </span>
+                {% endif %}
+                {% if subscription.canceled %}
+                    <br>
+                    {% blocktrans trimmed with cd=subscription.cancellation_date ed=end_date %}
+                        Gekündigt am {{ cd }} auf den {{ ed }}.
+                    {% endblocktrans %}
+                {% endif %}
+            </div>
+        </div>
+        {% if c_enable_shares %}
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    {% vocabulary "share_pl" %}
+                </div>
+                <div class="col-md-9">
+                    {{ shares|add:shares_unpaid }}
+                    {% if shares_unpaid > 0 %}
+                        ({% blocktrans %}davon {{ shares_unpaid }} noch nicht bezahlt{% endblocktrans %})
+                    {% endif %}
+                    <br/>
+                    <a href="{% url 'manage-shares' %}">
+                        {% blocktrans %}{{ v_share_pl }} verwalten{% endblocktrans %}
+                    </a>
+                    <br/>
+                    <br/>
+                    {% blocktrans %}{{ v_share_pl }} von {{ v_co_member_pl }}{% endblocktrans %}:
+                    <ul>
+                        {% for co_member in  co_members %}
+                            <li>
+                                {% blocktrans trimmed with csc=co_member.share_set.count fn=co_member.first_name ln=co_member.last_name %}
+                                {{ csc }} von {{ fn }}
+                                {{ ln }}
+                                {% endblocktrans %}
+                                {% if not co_member.confirmed %}
+                                    ({% trans "E-Mail-Adresse nicht bestätigt" %})
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        {% endif %}
+        <div class="row mb-3">
+            <div class="col-md-3">
+                {% blocktrans %}{{ v_subscription }} geteilt mit{% endblocktrans %}
+            </div>
+            <div class="col-md-9">
+                {% if co_members|length > 0 %}
+                    {% if co_members|length > 1 %}
+                        <ul>
+                            {% for sharee in co_members %}
+                                <li>
+                                    {{ sharee.first_name }} {{ sharee.last_name }}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        {% for sharee in co_members %}
+                            {{ sharee.first_name }} {{ sharee.last_name }}
+                        {% endfor %}
+                        <br/>
+                    {% endif %}
+                {% else %}
+                    {% blocktrans %}Du hast noch keine {{ v_co_member_pl }} eingetragen.{% endblocktrans %}
+                    <br/>
+                {% endif %}
+                {% if primary %}
+                    <a href="{% url 'add-member' subscription.id %}">
+                        {% blocktrans %}Hier {{ v_co_member_pl }} eintragen{% endblocktrans %}
+                    </a>
+                {% else %}
+                    {% blocktrans trimmed %}
+                    Nur Haupt-{{ v_subscription }}-BeziehierIn kann weitere {{ v_co_member_pl }} hinzufügen.
+                    {% endblocktrans %}
+                {% endif %}
+            </div>
+        </div>
+        {% if subscription.nickname %}
+        <div class="row mb-3">
+            <div class="col-md-3">
+                {% blocktrans %}Name auf {{ v_depot }}-Liste{% endblocktrans %}
+            </div>
+            <div class="col-md-9">
+                {% include "juntagrico/snippets/subscription/recipients.html" %}
+            </div>
+        </div>
+        {% endif %}
+        <div class="row mb-3">
+            <div class="col-md-3">
+                {{ v_depot }}
+            </div>
+            <div class="col-md-9">
+                {{ subscription.depot.name }}
+                <a href="{% url 'depot' subscription.depot.id %}">
+                    {% blocktrans %}Weitere Infos zu/r/m {{ v_depot }}{% endblocktrans %}
+                </a>
+            </div>
+        </div>
+        {% if b_has_extra_subscriptions %}
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    {% trans "Zusatzabos" %}
+                </div>
+                <div class="col-md-9">
+                    <ul>
+                        {% for extra_subscription in subscription.extra_subscriptions %}
+                            <li>
+                                {{ extra_subscription.type.display_name }}
+                            </li>
+                        {% empty %}
+                            <li>{% trans "Keine Zusatzabos" %}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% if subscription.extrasubscriptions_changed %}
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        {% trans "Neue Zusatzabos" %}
+                    </div>
+                    <div class="col-md-9">
+                        ({% blocktrans trimmed with nes=next_extra_subscription_date|date:"d.m.Y" %}
+                        Die Änderungen treten voraussichtlich am {{ nes }} in Kraft
+                        {% endblocktrans %})
+                        <ul>
+                            {% for extra_subscription in subscription.future_extra_subscriptions %}
+                                <li>
+                                    {{ extra_subscription.type.display_name }}
+                                </li>
+                            {% empty %}
+                                <li>{% trans "Keine Zusatzabos" %}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            {% endif %}
+        {% endif %}
+        {% if subscription.types_changed %}
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    {% blocktrans %}Neue {{ v_subscription }}-Bestandteile{% endblocktrans %}
+                </div>
+                <div class="col-md-9">
+                    ({% blocktrans trimmed with nes=next_size_date|date:"d.m.Y" %}
+                    Die Änderung tritt voraussichtlich am {{ nes }} in Kraft
+                    {% endblocktrans %})
+                    <br/>
+                    {{ subscription.future_part_overview|overview|safe }}
+                </div>
+            </div>
+        {% endif %}
+        {% for sub_overview_addon in sub_overview_addons %}
+            {% include sub_overview_addon %}
+        {% endfor %}
+        {% if not subscription.inactive %}
+            <div class="row mb-3">
+                <div class="offset-3 col-md-9">
+                    <a href="{% if primary %}{% url 'sub-change' subscription.id %}{% endif %}" class="btn btn-success {% if not primary %}disabled{% endif %}">
+                        {% blocktrans %}{{ v_subscription }} ändern{% endblocktrans %}
+                    </a>
+                    {% if not primary %}
+                        {% trans "Nur der Hauptbezieher kann Änderungen durchführen." %}
+                    {% endif %}
+                </div>
+            </div>
+            {% if can_leave %}
+                <div class="row mb-3">
+                    <div class="offset-3 col-md-9">
+                        <a href="{% url 'sub-leave' subscription.id %}" class="btn btn-danger">
+                            {% blocktrans %}{{ v_subscription }} verlassen{% endblocktrans %}
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
+        {% endif %}
+    {% endif %}
+{% endblock %}
