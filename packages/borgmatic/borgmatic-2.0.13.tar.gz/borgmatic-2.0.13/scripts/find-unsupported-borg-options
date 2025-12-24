@@ -1,0 +1,75 @@
+#!/bin/bash
+
+set -o nounset
+
+# For each Borg sub-command that borgmatic uses, print out the Borg flags that borgmatic does not
+# appear to support yet. This script isn't terribly robust. It's intended as a basic tool to ferret
+# out unsupported Borg options so that they can be considered for addition to borgmatic.
+
+# Generate a sample borgmatic configuration with all options set, and uncomment all options.
+generate-borgmatic-config --destination temp.yaml
+cat temp.yaml | sed -e 's/# \S.*$//' | sed -e 's/#//' > temp.yaml.uncommented
+mv temp.yaml.uncommented temp.yaml
+
+# For each sub-command (prune, create, and check), collect the Borg command-line flags that result
+# from running borgmatic with the generated configuration. Then, collect the full set of available
+# Borg flags as reported by "borg --help" for that sub-command. Finally, compare the two lists of
+# flags to determine which Borg flags borgmatic doesn't yet support.
+for sub_command in prune create check list info; do
+    echo "********** borg $sub_command **********"
+
+    for line in $(borgmatic --config temp.yaml $sub_command -v 2 2>&1 | grep "borg\w* $sub_command") ; do
+        echo "$line" | grep '^-' >> borgmatic_borg_flags
+    done
+    sort borgmatic_borg_flags > borgmatic_borg_flags.sorted
+    mv borgmatic_borg_flags.sorted borgmatic_borg_flags
+
+    for word in $(borg $sub_command --help | grep '^  -') ; do
+        # Exclude a bunch of flags that borgmatic actually supports, but don't get exercised by the
+        # generated sample config, and also flags that don't make sense to support.
+        echo "$word" | grep ^-- | sed -e 's/,$//' \
+            | grep -v '^--archives-only$' \
+            | grep -v '^--critical$' \
+            | grep -v '^--debug$' \
+            | grep -v '^--dry-run$' \
+            | grep -v '^--error$' \
+            | grep -v '^--help$' \
+            | grep -v '^--info$' \
+            | grep -v '^--json$' \
+            | grep -v '^--keep-last$' \
+            | grep -v '^--list$' \
+            | grep -v '^--bsdflags$' \
+            | grep -v '^--pattern$' \
+            | grep -v '^--progress$' \
+            | grep -v '^--stats$' \
+            | grep -v '^--read-special$' \
+            | grep -v '^--repository-only$' \
+            | grep -v '^--show-rc$' \
+            | grep -v '^--stats$' \
+            | grep -v '^--verbose$' \
+            | grep -v '^--warning$' \
+            | grep -v '^--exclude' \
+            | grep -v '^--exclude-from' \
+            | grep -v '^--first' \
+            | grep -v '^--format' \
+            | grep -v '^--glob-archives' \
+            | grep -v '^--match-archives' \
+            | grep -v '^--last' \
+            | grep -v '^--format' \
+            | grep -v '^--patterns-from' \
+            | grep -v '^--prefix' \
+            | grep -v '^--short' \
+            | grep -v '^--sort-by' \
+            | grep -v '^-h$' \
+            >> all_borg_flags
+    done
+
+    sort all_borg_flags > all_borg_flags.sorted
+    mv all_borg_flags.sorted all_borg_flags
+
+    comm -13 borgmatic_borg_flags all_borg_flags
+
+    rm ./*_borg_flags
+done
+
+rm temp.yaml

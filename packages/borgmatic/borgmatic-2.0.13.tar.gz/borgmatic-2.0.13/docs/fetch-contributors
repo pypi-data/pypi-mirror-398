@@ -1,0 +1,83 @@
+#!/usr/bin/python
+
+'''
+A script to fetch recent contributors to borgmatic, used during documentation generation.
+'''
+
+import datetime
+import itertools
+import operator
+import subprocess
+
+import requests
+
+
+def list_merged_pulls(url):
+    '''
+    Given a Gitea or GitHub API endpoint URL for pull requests, fetch and return the corresponding
+    JSON for all such merged pull requests.
+    '''
+    response = requests.get(f'{url}?state=closed', headers={'Accept': 'application/json', 'Content-Type': 'application/json'})
+
+    if not response.ok:
+        response.raise_for_status()
+
+    return tuple(pull for pull in response.json() if pull.get('merged_at'))
+
+
+def list_contributing_issues(url):
+    response = requests.get(url, headers={'Accept': 'application/json', 'Content-Type': 'application/json'})
+
+    if not response.ok:
+        response.raise_for_status()
+
+    return tuple(response.json())
+
+
+PULLS_API_ENDPOINT_URLS = (
+    'https://projects.torsion.org/api/v1/repos/borgmatic-collective/borgmatic/pulls',
+    'https://api.github.com/repos/borgmatic-collective/borgmatic/pulls',
+)
+ISSUES_API_ENDPOINT_URL = 'https://projects.torsion.org/api/v1/repos/borgmatic-collective/borgmatic/issues?state=all'
+RECENT_CONTRIBUTORS_CUTOFF_DAYS = 365
+
+
+def get_item_timestamp(item):
+    return item.get('merged_at') or item.get('created_at')
+
+
+def print_contributors():
+    '''
+    Display the recent contributors as a row of avatars in an HTML fragment.
+    '''
+    pulls = tuple(itertools.chain.from_iterable(list_merged_pulls(url) for url in PULLS_API_ENDPOINT_URLS))
+    issues = list_contributing_issues(ISSUES_API_ENDPOINT_URL)
+    seen_user_ids = set()
+
+    print('<p>')
+
+    for item in sorted(pulls + issues, key=get_item_timestamp, reverse=True):
+        timestamp = get_item_timestamp(item)
+        user = item.get('user')
+
+        if not timestamp or not user:
+            continue
+
+        user_id = user.get('id')
+
+        if not user_id or user_id in seen_user_ids:
+            continue
+
+        if datetime.datetime.fromisoformat(timestamp) < datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=RECENT_CONTRIBUTORS_CUTOFF_DAYS):
+            continue
+
+        seen_user_ids.add(user_id)
+        print(
+            f'''<a href="{user.get('html_url')}?tab=activity"><img src="{user.get('avatar_url')}" width="50" height="50" title="{user.get('full_name') or user.get('login')}" /></a>'''
+        )
+
+    print('</p>')
+
+
+if __name__ == '__main__':
+    print_contributors()

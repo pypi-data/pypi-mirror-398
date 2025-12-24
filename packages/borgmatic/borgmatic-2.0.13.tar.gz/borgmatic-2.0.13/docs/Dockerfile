@@ -1,0 +1,37 @@
+FROM docker.io/alpine:3.20.1 AS borgmatic
+
+COPY . /app
+RUN apk add --no-cache py3-pip py3-ruamel.yaml py3-ruamel.yaml.clib
+RUN pip install --break-system-packages --no-cache /app && borgmatic config generate && borgmatic config generate --destination /etc/borgmatic --split && chmod +r /etc/borgmatic/*.yaml
+RUN mkdir /command-line \
+    && borgmatic --help > /command-line/global.txt \
+    && for action in repo-create transfer create prune compact check delete extract config "config bootstrap" "config generate" "config validate" export-tar mount umount repo-delete restore repo-list list repo-info info break-lock "key export" "key import" "key change-passphrase" recreate borg; do \
+           borgmatic $action --help > /command-line/${action/ /-}.txt; done
+RUN /app/docs/fetch-contributors >> /contributors.html
+
+FROM docker.io/node:22.4.0-alpine AS html
+
+ARG ENVIRONMENT=production
+
+WORKDIR /source
+
+RUN npm install @11ty/eleventy \
+    @11ty/eleventy-plugin-syntaxhighlight \
+    @11ty/eleventy-plugin-inclusive-language \
+    @11ty/eleventy-navigation \
+    eleventy-plugin-code-clipboard \
+    markdown-it \
+    markdown-it-anchor \
+    markdown-it-replace-link
+COPY --from=borgmatic /etc/borgmatic/* /source/docs/_includes/borgmatic/
+COPY --from=borgmatic /etc/borgmatic/options.json /source/docs/reference/configuration/index.json
+COPY --from=borgmatic /command-line/* /source/docs/_includes/borgmatic/command-line/
+COPY --from=borgmatic /contributors.html /source/docs/_includes/borgmatic/contributors.html
+COPY . /source
+RUN NODE_ENV=${ENVIRONMENT} npx eleventy --input=/source/docs --output=/output
+RUN npx -y pagefind --site /output
+
+FROM docker.io/nginx:1.26.1-alpine
+
+COPY --from=html /output /usr/share/nginx/html
+COPY --from=borgmatic /etc/borgmatic/config.yaml /usr/share/nginx/html/reference/config.yaml
