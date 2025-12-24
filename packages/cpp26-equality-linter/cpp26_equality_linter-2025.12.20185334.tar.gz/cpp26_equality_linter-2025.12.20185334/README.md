@@ -1,0 +1,125 @@
+# C++26 Equality Linter
+
+[![PyPI version](https://badge.fury.io/py/cpp26-equality-linter.svg)](https://pypi.org/project/cpp26-equality-linter/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/personalized-badge/cpp26-equality-linter?period=total&units=international_system&left_color=grey&right_color=orange&left_text=Downloads)](https://pepy.tech/project/cpp26-equality-linter)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/eugene-evstafev/)
+
+A new package that automates equality checks in C++ code by leveraging the upcoming reflection capabilities in C++26. This tool allows developers to input C++ code snippets or class definitions, and the package will use llmatch-messages to parse and analyze the code, ensuring that equality operators (like ==, !=) are correctly implemented and consistent with the class's structure.
+
+## Features
+
+- Automated equality checks for C++ code
+- Leverages C++26 reflection capabilities
+- Provides structured feedback on potential issues
+- Suggests corrections and verifies best practices
+- Easy integration with existing C++ codebases
+
+## Installation
+
+```bash
+pip install cpp26-equality-linter
+```
+
+## Usage
+
+### Basic Usage
+
+```python
+from cpp26-equality-linter import cpp26_equality_linter
+
+response = cpp26_equality_linter(user_input="your C++ code here")
+print(response)
+```
+
+### Using a Custom LLM
+
+```python
+from langchain_openai import ChatOpenAI
+from cpp26-equality-linter import cpp26_equality_linter
+
+llm = ChatOpenAI()
+response = cpp26_equality_linter(user_input="your C++ code here", llm=llm)
+print(response)
+```
+
+### Using LLM7 with API Key
+
+```python
+from cpp26-equality-linter import cpp26_equality_linter
+
+response = cpp26_equality_linter(user_input="your C++ code here", api_key="your_api_key")
+print(response)
+```
+
+## Parameters
+
+- `user_input` (str): The user input text to process
+- `llm` (Optional[BaseChatModel]): The langchain llm instance to use, if not provided the default ChatLLM7 will be used.
+- `api_key` (Optional[str]): The api key for llm7, if not provided
+
+## Default LLM
+
+The package uses [ChatLLM7](https://pypi.org/project/langchain-llm7/) from `langchain_llm7` by default. You can safely pass your own llm instance if you want to use another LLM.
+
+### Example with OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from cpp26-equality-linter import cpp26_equality_linter
+
+llm = ChatOpenAI()
+response = cpp26_equality_linter(user_input="your C++ code here", llm=llm)
+print(response)
+```
+
+### Example with Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from cpp26-equality-linter import cpp26_equality_linter
+
+llm = ChatAnthropic()
+response = cpp26_equality_linter(user_input="your C++ code here", llm=llm)
+print(response)
+```
+
+### Example with Google
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from cpp26-equality-linter import cpp26_equality_linter
+
+llm = ChatGoogleGenerativeAI()
+response = cpp26_equality_linter(user_input="your C++ code here", llm=llm)
+print(response)
+```
+
+## Rate Limits
+
+The default rate limits for LLM7 free tier are sufficient for most use cases of this package. If you want higher rate limits for LLM7, you can pass your own api_key via environment variable `LLM7_API_KEY` or via passing it directly like:
+
+```python
+from cpp26-equality-linter import cpp26_equality_linter
+
+response = cpp26_equality_linter(user_input="your C++ code here", api_key="your_api_key")
+print(response)
+```
+
+You can get a free api key by registering at [LLM7](https://token.llm7.io/).
+
+## Issues
+
+If you encounter any issues or have suggestions, please open an issue on [GitHub](https://github.com/chigwell/cpp26-equality-linter/issues).
+
+## Author
+
+**Eugene Evstafev**
+
+- **Email:** hi@eugene.plus
+- **GitHub:** [chigwell](https://github.com/chigwell)
+- **LinkedIn:** [Eugene Evstafev](https://www.linkedin.com/in/eugene-evstafev/)
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
