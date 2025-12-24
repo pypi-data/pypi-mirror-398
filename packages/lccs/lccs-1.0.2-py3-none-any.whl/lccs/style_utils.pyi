@@ -1,0 +1,3 @@
+class SldGenerator:
+    @classmethod
+    def create_sld(cls, options: dict, rules: list, layer_name: str = '', userstyletitle=None, featuretypestylename=None): ...
