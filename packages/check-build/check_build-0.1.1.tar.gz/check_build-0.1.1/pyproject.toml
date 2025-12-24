@@ -1,0 +1,243 @@
+# SPDX-FileCopyrightText: Peter Pentchev <roam@ringlet.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+[build-system]
+requires = [
+  "hatchling >= 1.26, < 2",
+
+  # Transitional for `uv --resolution=lowest`
+  "trove-classifiers >= 2024.5.17",
+]
+build-backend = "hatchling.build"
+
+[project]
+name = "check-build"
+description = "Check whether some example programs can be compiled and built"
+readme = "README.md"
+requires-python = ">= 3.11"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: DFSG approved",
+  "License :: Freely Distributable",
+  "License :: OSI Approved",
+  "License :: OSI Approved :: BSD License",
+  "Operating System :: POSIX",
+  "Operating System :: Unix",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Topic :: Software Development",
+  "Topic :: Software Development :: Testing",
+  "Topic :: Utilities",
+  "Typing :: Typed",
+]
+dynamic = ["version"]
+dependencies = [
+  "click >= 8.1, < 9",
+  "media-type-version >= 0.2, < 0.3",
+  "typedload >= 2.22, < 3",
+]
+
+[[project.authors]]
+name = "Peter Pentchev"
+email = "roam@ringlet.net"
+
+[project.scripts]
+check-build = "check_build.__main__:main"
+
+[project.urls]
+Homepage = "https://gitlab.com/ppentchev/check-build"
+Changes = "https://gitlab.com/ppentchev/check-build/-/blob/main/CHANGELOG.md"
+"Issue Tracker" = "https://gitlab.com/ppentchev/check-build/-/issues"
+"Source Code" = "https://gitlab.com/ppentchev/check-build"
+
+[dependency-groups]
+testenv-mypy = [
+  {include-group = "testenv-unit-tests"},
+  "mypy >= 1.18, < 2",
+]
+testenv-pyupgrade = [
+  "pyupgrade >= 3, < 4",
+]
+testenv-ruff = [
+  "ruff == 0.14.10",
+]
+testenv-ty = [
+  {include-group = "testenv-unit-tests"},
+  "ty == 0.0.4",
+]
+testenv-unit-tests = [
+  "pytest >= 8, < 10",
+]
+testenv-uvoxen = [
+  "uvoxen >= 0.2.1, < 0.3",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/check_build"]
+
+[tool.hatch.version]
+path = "src/check_build/defs.py"
+
+[tool.mypy]
+strict = true
+
+[tool.ruff]
+extend = "ruff-base.toml"
+output-format = "concise"
+preview = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+
+[tool.test-stages]
+stages = ["@check and @quick and not @manual", "@check and not @manual", "@tests and not @manual"]
+
+[tool.uvoxen]
+mediaType = "vnd.ringlet.devel.uvoxen.config/uvoxen.v0.3+toml"
+envlist = [
+  "ruff",
+  "format",
+  "ty",
+  "mypy",
+  "unit-tests",
+  "functional",
+  "uvoxen-sync-check",
+]
+
+[tool.uvoxen.defs]
+pyfiles = [
+  "src/check_build",
+  "tests/functional",
+  "tests/unit",
+]
+
+[tool.uvoxen.tox]
+header = """
+# SPDX-FileCopyrightText: Peter Pentchev <roam@ringlet.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+"""
+
+[tool.uvoxen.env.ruff]
+tags = [
+  "check",
+  "quick",
+]
+dependency-groups = [
+  "testenv-ruff",
+]
+commands = [
+  "ruff check -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.format]
+tags = [
+  "check",
+  "quick",
+]
+dependency-groups = [
+  "testenv-ruff",
+]
+commands = [
+  "ruff check --config ruff-base.toml --select=I --diff -- {[defs]pyfiles}",
+  "ruff format --check --config ruff-base.toml --diff -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.reformat]
+tags = [
+  "format",
+  "manual",
+]
+dependency-groups = [
+  "testenv-ruff",
+]
+commands = [
+  "ruff check --config ruff-base.toml --select=I --fix -- {[defs]pyfiles}",
+  "ruff format --config ruff-base.toml -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.ty]
+tags = [
+  "check",
+]
+dependency-groups = [
+  "testenv-ty",
+]
+install-dependencies = true
+commands = [
+  "ty check -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.mypy]
+tags = [
+  "check",
+]
+dependency-groups = [
+  "testenv-mypy",
+]
+install-dependencies = true
+commands = [
+  "mypy -- {[defs]pyfiles}",
+]
+
+[tool.uvoxen.env.unit-tests]
+tags = [
+  "tests",
+]
+dependency-groups = [
+  "testenv-unit-tests",
+]
+install-project = true
+commands = [
+  "pytest --strict -s -vv tests/unit",
+]
+
+[tool.uvoxen.env.functional]
+tags = [
+  "tests",
+]
+install-project = true
+allowlist-externals = [
+  "sh",
+]
+commands = [
+  "python3 -B -u -m check_build_test {envdir}/bin/check-build",
+]
+
+[tool.uvoxen.env.functional.setenv]
+PYTHONPATH = "{toxinidir}/tests/functional"
+
+[tool.uvoxen.env.pyupgrade]
+tags = [
+  "upgrade",
+  "manual",
+]
+dependency-groups = [
+  "testenv-pyupgrade",
+]
+allowlist-externals = [
+  "sh",
+]
+commands = [
+  "sh -c 'pyupgrade --py311-plus src/check_build/*.py tests/unit/*.py'",
+]
+
+[tool.uvoxen.env.uvoxen-sync-check]
+tags = [
+  "check",
+  "quick",
+]
+dependency-groups = [
+  "testenv-uvoxen",
+]
+commands = [
+  "uvoxen tox generate --check --diff",
+]
