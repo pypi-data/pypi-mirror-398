@@ -1,0 +1,54 @@
+{% extends "default/module.html.jinja2" %}
+
+{% macro docstring(var) %}
+	{% if var.docstring %}
+		<div class="docstring">{{ var.docstring | to_markdown | myfilter | to_html | linkify(namespace=var.qualname) }}</div>
+	{% endif %}
+{% endmacro %}
+
+{% block module_contents %}
+	<h1>Reference</h1>
+	{% for m in module.flattened_own_members if is_public(m) | trim %}
+		<section id="{{ m.qualname or m.name }}">
+			{{ member(m) }}
+			{% if m.kind == "class" %}
+				{% for m in m.own_members if m.kind != "class" and is_public(m) | trim %}
+					<div id="{{ m.qualname }}" class="classattr">
+						{{ member(m) }}
+					</div>
+				{% endfor %}
+			{% endif %}
+		</section>
+	{% endfor %}
+{% endblock %}
+
+{% block title %}{{ module.modulename }} Documentation{% endblock %}
+
+{% block nav_members %}
+	{% if module.members %}
+		<h2>Reference</h2>
+		{{ nav_members(module.members.values()) }}
+	{% endif %}
+{% endblock %}
+
+{% block module_info %}
+	<section class="module-info">
+		{% block edit_button %}
+			{% if edit_url %}
+				{% if "github.com" in edit_url %}
+					{% set edit_text = "Edit on GitHub" %}
+				{% elif "gitlab" in edit_url %}
+					{% set edit_text = "Edit on GitLab" %}
+				{% else %}
+					{% set edit_text = "Edit Source" %}
+				{% endif %}
+				<a class="pdoc-button git-button" href="{{ edit_url }}">{{ edit_text }}</a>
+			{% endif %}
+		{% endblock %}
+		{{ module_name() }}
+		{{ docstring(module) }}
+		{{ view_source_state(module) }}
+		{{ view_source_button(module) }}
+		{{ view_source_code(module) }}
+	</section>
+{% endblock %}
