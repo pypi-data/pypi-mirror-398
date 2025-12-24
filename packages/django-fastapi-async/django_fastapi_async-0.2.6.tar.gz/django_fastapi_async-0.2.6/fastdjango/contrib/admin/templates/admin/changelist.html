@@ -1,0 +1,183 @@
+{% extends "admin/base.html" %}
+
+{% block header %}{{ model_name|title }} - List{% endblock %}
+
+{% block content %}
+<div x-data="changeList()" x-init="loadData()">
+    <!-- Toolbar -->
+    <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <!-- Search -->
+            {% if search_fields %}
+            <div class="flex-1 max-w-md">
+                <input
+                    type="text"
+                    x-model="search"
+                    @input.debounce.300ms="loadData()"
+                    placeholder="Search..."
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+            </div>
+            {% endif %}
+
+            <!-- Actions -->
+            <div class="flex items-center space-x-2">
+                <a href="/admin/{{ app_label }}/{{ model_name }}/add/"
+                   class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                    + Add {{ model_name }}
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left">
+                        <input type="checkbox" @click="toggleAll()" class="rounded">
+                    </th>
+                    {% for field in list_display %}
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                        @click="setOrdering('{{ field }}')">
+                        {{ field|replace('_', ' ')|title }}
+                        <span x-show="ordering === '{{ field }}'" class="ml-1">↑</span>
+                        <span x-show="ordering === '-{{ field }}'" class="ml-1">↓</span>
+                    </th>
+                    {% endfor %}
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                <template x-for="item in items" :key="item.pk">
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4">
+                            <input type="checkbox" :value="item.pk" x-model="selected" class="rounded">
+                        </td>
+                        {% for field in list_display %}
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="item['{{ field }}'] || item['__str__']">
+                        </td>
+                        {% endfor %}
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <a :href="`/admin/{{ app_label }}/{{ model_name }}/${item.pk}/change/`"
+                               class="text-blue-600 hover:text-blue-900 mr-3">Edit</a>
+                            <button @click="deleteItem(item.pk)" class="text-red-600 hover:text-red-900">Delete</button>
+                        </td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+
+        <!-- Empty State -->
+        <div x-show="items.length === 0 && !loading" class="text-center py-12">
+            <p class="text-gray-500">No {{ model_name }} found.</p>
+        </div>
+
+        <!-- Loading -->
+        <div x-show="loading" class="text-center py-12">
+            <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="mt-4 flex items-center justify-between">
+        <div class="text-sm text-gray-700">
+            Showing <span x-text="((page - 1) * perPage) + 1"></span> to
+            <span x-text="Math.min(page * perPage, total)"></span> of
+            <span x-text="total"></span> results
+        </div>
+        <div class="flex space-x-2">
+            <button @click="prevPage()" :disabled="page <= 1"
+                    class="px-3 py-1 border rounded disabled:opacity-50">
+                Previous
+            </button>
+            <button @click="nextPage()" :disabled="page >= pages"
+                    class="px-3 py-1 border rounded disabled:opacity-50">
+                Next
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function changeList() {
+    return {
+        items: [],
+        loading: true,
+        search: '',
+        ordering: '',
+        page: 1,
+        perPage: 25,
+        total: 0,
+        pages: 1,
+        selected: [],
+
+        async loadData() {
+            this.loading = true;
+            const params = new URLSearchParams({
+                page: this.page,
+                per_page: this.perPage,
+            });
+            if (this.search) params.set('search', this.search);
+            if (this.ordering) params.set('ordering', this.ordering);
+
+            const response = await fetch(`/admin/api/{{ app_label }}/{{ model_name }}?${params}`);
+            const data = await response.json();
+
+            this.items = data.items;
+            this.total = data.total;
+            this.pages = data.pages;
+            this.loading = false;
+        },
+
+        setOrdering(field) {
+            if (this.ordering === field) {
+                this.ordering = `-${field}`;
+            } else if (this.ordering === `-${field}`) {
+                this.ordering = '';
+            } else {
+                this.ordering = field;
+            }
+            this.loadData();
+        },
+
+        toggleAll() {
+            if (this.selected.length === this.items.length) {
+                this.selected = [];
+            } else {
+                this.selected = this.items.map(i => i.pk);
+            }
+        },
+
+        prevPage() {
+            if (this.page > 1) {
+                this.page--;
+                this.loadData();
+            }
+        },
+
+        nextPage() {
+            if (this.page < this.pages) {
+                this.page++;
+                this.loadData();
+            }
+        },
+
+        async deleteItem(pk) {
+            if (!confirm('Are you sure you want to delete this item?')) return;
+
+            await fetch(`/admin/api/{{ app_label }}/{{ model_name }}/${pk}`, {
+                method: 'DELETE',
+            });
+            this.loadData();
+        }
+    };
+}
+</script>
+{% endblock %}
