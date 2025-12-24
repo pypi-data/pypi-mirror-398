@@ -1,0 +1,365 @@
+Metadata-Version: 2.4
+Name: miriel-python
+Version: 0.2.5
+Summary: Library for interacting with the Miriel API
+Author-email: Andy Barkett <andy@miriel.ai>
+License: MIT
+Project-URL: Homepage, https://github.com/miriel-ai/miriel-python
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.0
+Requires-Dist: python-json-logger>=2.0.7
+Provides-Extra: dev
+Requires-Dist: build>=1.0; extra == "dev"
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Dynamic: license-file
+
+# Miriel Python Client
+
+This is the official Python client library for interacting with the Miriel API.
+
+## Installation
+
+You can install the Miriel Python client using pip:
+
+```bash
+pip install miriel-python
+```
+
+And update with:
+
+```bash
+pip install --upgrade miriel-python
+```
+
+Or you can run:
+
+```bash
+pip install .
+```
+
+in the directory into which you cloned this repo.
+
+## Basic Usage
+
+To use the Miriel Python client, you need an API key. You can get your API key by signing up for an account on the [Miriel website](https://miriel.ai).
+
+Once you have your API key, initialize the client and begin interacting with the API. Here's a basic example:
+
+```python
+from miriel import Miriel
+
+# Initialize the client with your API key
+miriel_client = Miriel(api_key="your_api_key")
+
+# Add data (string example)
+miriel_client.learn(
+    "The Founders of Miriel are David Garcia, Josh Paulson, and Andrew Barkett",
+    wait_for_complete=True
+)
+
+# Query the documents
+query_response = miriel_client.query("Who are the founders of Miriel?")
+print(f"Query response: {query_response}")
+```
+
+Miriel accepts many types of data: strings, file paths, directories, URLs, S3 buckets, RTSP feeds, and more.
+
+Before you can query data, it must first be fully ingested with `learn()`. This can take less than a second or be a few minutes depending on the data. You can run `learn()` and `query()` as separate steps (recommended), or use `wait_for_complete=True` to ensure the learn job finishes before proceeding in a script.
+
+Each query returns documents ranked by relevance. You can control the maximum number of results that are returned using the `num_results` parameter (default is 10). Note: This includes any pinned documents (see priority below).
+
+```python
+# Query with more results
+query_response = miriel_client.query(
+    "Who are the founders of Miriel?",
+    num_results=20
+)
+print(f"Query response: {query_response}")
+```
+
+## Using Learn
+### Running Multiple Jobs and Waiting for Completion
+
+You can enqueue multiple `learn()` jobs quickly, then block until only *those jobs* are finished before running queries:
+
+```python
+from miriel import Miriel
+
+m = Miriel(api_key="your_api_key")
+
+# Enqueue two files without waiting
+job_ids = []
+for inp in ["https://example.com/a.pdf", "https://example.com/b.pdf"]:
+    job_ids.extend(m.learn(inp, wait_for_complete=False)["job_ids"])
+
+# Wait for exactly these jobs to complete
+m.wait_for_jobs(job_ids, polling_interval=2)
+
+# Now safely query
+print(m.query("your query")["results"]["llm_result"])
+```
+
+This avoids waiting on unrelated jobs and keeps scripts fast and predictable.
+
+See also [exhaustive queries and waiting for query results](#exhaustive-queries)
+
+### Setting Metadata
+
+You can attach metadata to any document using the `learn()` function. Metadata is stored as key-value pairs and must be passed as a Python dictionary.
+
+Metadata can be used to tag documents by category, source, access level, version, or any other custom label. Miriel also assigns certain metadata fields automatically—such as `priority`, `project`, image data, document permissions, and other information—unless they are explicitly overwritten. You can view metadata fields in the Miriel dashboard.
+
+These fields can be used for filtering results or managing documents during queries.
+
+Examples adding metadata:
+
+```python
+# Adding a custom metadata field to a string
+miriel_client.learn(
+    "The document ID is 12345",
+    metadata={"internal_docs": True}
+)
+
+# Adding multiple metadata fields
+miriel_client.learn(
+    "The celebration is on the forest moon",
+    metadata={"department": "engineering", "team": "83"}
+)
+```
+
+You can assign any field name and value, as long as the key is a string and the value is a valid JSON-compatible type (e.g., string, number, boolean).
+
+See also [filtering query results by metadata](#filtering-query-results-by-metadata)
+
+### Document Priority and Pinning
+
+Miriel uses a priority field, attached as metadata to a document, to influence how documents are ranked during retrieval. By default, every document is assigned `priority=100` and this allows Miriel to determine each document's relative importance when ranking the results from a query. Overriding priority to set a higher value will slightly increase a document's ranking, while lower values will slightly decrease it. You can also filter the query results by using priority as a metadata field.
+
+Miriel supports two special priority values:
+
+- Setting `-1` or `"norank"` forces the document to not be ranked or returned in ranked results unless no other higher-ranked content exists. The document is still indexed and retrievable via metadata filters.  
+- Setting `-2` or `"pin"` forces the document to always rank above non-pinned documents. Within the pinned group, documents are still ranked by relevance.  
+
+**Important**: The `num_results` limit applies across all documents, including pinned ones. For example, if `num_results=10` and 11 documents have `priority="pin"`, only the 10 highest-ranking pinned documents will be returned. No unpinned content will appear unless the total pinned is less than `num_results`.
+
+```python
+# Add data that should not show up in ranked results
+miriel_client.learn(
+    "archived version of this doc",
+    priority="norank"
+)
+
+# Add data that should always be ranked highest
+miriel_client.learn(
+    "important reminder relevant for all queries",
+    priority="pin"
+)
+```
+
+## Using Query
+### Adding an Image to the Query
+
+```python
+query_response = miriel_client.query(
+    "What does this image show?",
+    input_images="https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+)
+print(f"Query response: {query_response}")
+```
+
+### Setting a Structured Output for the LLM Response
+
+```python
+# Define a schema for the structured output
+output_schema = {
+    "founders": ["string"],
+    "number_of_founders": "integer"
+}
+
+query_response = miriel_client.query(
+    "Who are the founders of Miriel?",
+    response_format=output_schema
+)
+print(f"Query response: {query_response}")
+# result is a json string with the given output schema
+llm_result = query_response['results']['llm_result']
+result_obj = json.loads(llm_result)
+```
+
+Only `"integer"`, `"float"`, `"string"`, `"boolean"`, `"array"` (list), and `"object"` (dict) are supported. Default values are not yet supported.
+
+### Filtering Query Results by Metadata
+
+You can filter query results using metadata fields by passing a string to the `metadata_query` parameter. This lets you narrow results based on metadata values set during the `learn()` step.
+
+The format uses `key=value` (also supports `>`, `<`, `>=`, `<=`) with support for `AND`, `OR`, and simple grouping.
+
+**Important**: `AND` / `OR` must be surrounded by spaces (e.g., `a=1 AND b=2`). Keys and values are matched case-sensitively.
+
+```python
+# Query only internal documents
+query_response = miriel_client.query(
+    "What is the document ID?",
+    metadata_query="internal_docs=True"
+)
+print(f"Query response: {query_response}")
+
+# Limit your query to the engineering department and team 83
+query_response = miriel_client.query(
+    "Where is the party?",
+    metadata_query="department=engineering AND team=83"
+)
+print(f"Query response: {query_response}")
+```
+
+### Exhaustive Queries
+Sometimes a query requires processing a large / exhaustive volume of documents in order to determine the proper answer.  For example, 'How many of my contracts mention sales tax?'  To ensure the LLM has the proper context, Miriel supports exhaustive query mode, where we ensure that every relevant document is reviewed.
+
+```python
+from miriel import Miriel, ExhaustiveOptions
+
+miriel_client = Miriel(api_key='my_key')
+query = 'How many of my contracts mention sales tax?'
+response = miriel_client.query(query, force_exhaustive=ExhaustiveOptions.FORCE_ON)
+
+# exhaustive queries can take a long time, so a query id is returned
+result = response['results']
+query_id = result['query_id']
+status = result['status']
+
+# check query until it is complete
+while status != 'complete':
+    time.sleep(10)
+    query_response = miriel_client.get_query(query_id)
+    status = query_response['status']
+
+print(query_response['result'])
+```
+
+Note the retrieval of the query id and subsequent request for the query result.  When an exhaustive query is executed, a response is dispatched immediately with the query id, and the client must fetch the full response later.
+
+Here is a table of the possible scenarios:
+
+| Option                      | Behavior |
+|-----------------------------|----------|
+| `ExhaustiveOptions.FORCE_ON`  | Exhaustive query will be used. Client must poll for result. |
+| `ExhaustiveOptions.FORCE_OFF` | Exhaustive query not used. Query returns synchronously (check results dict when request completes). |
+| `ExhaustiveOptions.AUTO`      | Miriel decides what mode to use. Response will be one of the above, so the client must inspect response and ensure status = 'complete'. 
+
+Also note the slight differences between the different routes.  `/query` returns an object of:
+
+```jsonc
+{
+    results: {
+        // other fields...
+        status: <query status>
+    },
+    results_diff: [...]
+}
+```
+
+...whereas `/query/<query_id>` returns just the query result object:
+
+```jsonc
+{
+    id,
+    parent_query_id,
+    status: <query status>,
+    query_text,
+    result_summary,
+    // rest of the fields...
+}
+```
+
+### Email Query Results
+Use `email_results` argument to automatically email a query result when the query is complete.
+
+## Projects
+
+Projects let you group documents into logical collections for scoping, organization, and access control. You can:
+
+- **Add documents to a project** at `learn()` time.  
+- **Scope queries** to one or more projects.  
+- **List projects** you've used before.
+
+**Notes & behavior**
+
+- The `project` parameter accepts a string (single project) or a list of strings (multiple projects).  
+- Project values are stored in document metadata and used for filtering.  
+- Project names are cached for convenience and can be listed with `get_projects()`.
+
+**Examples**
+
+Add and query within a single project:
+
+```python
+from miriel import Miriel
+
+m = Miriel(api_key="your_api_key")
+
+# Add documents to a project
+m.learn("Welcome to Miriel!", project="onboarding_docs")
+m.learn("Runbook: Reset primary DB", project="eng_docs", metadata={"doc_type": "runbook", "team": "eng-docs"})
+
+# Query only within that project
+resp = m.query("What is Miriel?", project="onboarding_docs")
+print(resp)
+```
+
+Add to multiple projects:
+
+```python
+m.learn(
+    "SRE handbook: incident workflow",
+    project=["eng_docs", "sre_docs"],
+    metadata={"doc_type": "handbook", "team": "eng-docs"}
+)
+```
+
+List known projects:
+
+```python
+print(m.get_projects())  # → [{'name': 'eng_docs'}, {'name': 'onboarding_docs'}, ...]
+```
+
+### Combining Projects with Metadata Filters
+
+You can scope a query to a project **and** narrow results by metadata. The example below adds engineering docs with meaningful metadata, then queries within the `eng_docs` project for runbooks owned by eng-docs:
+
+```python
+from miriel import Miriel
+
+m = Miriel(api_key="your_api_key")
+
+# Add docs into the 'eng_docs' project with relevant metadata
+m.learn(
+    "Runbook: Reset the primary database",
+    project="eng_docs",
+    metadata={"doc_type": "runbook", "team": "eng-docs"}
+)
+m.learn(
+    "Onboarding checklist for engineers",
+    project="eng_docs",
+    metadata={"doc_type": "onboarding", "team": "eng-docs"}
+)
+
+# Query only within the project and only runbooks owned by eng-docs
+resp = m.query(
+    "How do I reset the database?",
+    project="eng_docs",
+    metadata_query="doc_type=runbook AND team=eng-docs"
+)
+print(resp["results"]["llm_result"])
+```
+
+The `metadata_query` syntax above is valid with Miriel's metadata parser.
+
+## API Documentation
+
+For more details on the API, see the [API Documentation](API.md).
