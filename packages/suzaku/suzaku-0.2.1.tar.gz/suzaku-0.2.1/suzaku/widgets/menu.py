@@ -1,0 +1,30 @@
+from ..event import SkEvent
+from .container import SkContainer
+from .textbutton import SkTextButton
+
+
+class SkMenu(SkTextButton):
+    def __init__(
+        self,
+        parent: SkContainer,
+        text: str = "",
+        menu=None,
+        style: str = "SkMenu",
+        **kwargs,
+    ):
+        super().__init__(parent, text=text, style=style, **kwargs)
+
+        self.attributes["popupmenu"] = menu
+        self.bind("click", self._on_click)
+        self.help_parent_scroll = True
+
+    def _on_click(self, event: SkEvent):
+        popupmenu = self.cget("popupmenu")
+        if popupmenu and not self.cget("disabled"):
+            if popupmenu.is_popup:
+                popupmenu.hide()
+            else:
+                self.cget("popupmenu").popup(
+                    x=self.canvas_x - self.parent.x_offset,
+                    y=self.canvas_y - self.parent.y_offset + self.height,
+                )
