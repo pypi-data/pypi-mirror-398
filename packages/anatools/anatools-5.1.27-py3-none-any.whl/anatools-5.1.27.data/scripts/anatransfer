@@ -1,0 +1,400 @@
+#!python
+# Copyright 2019-2025 DADoES, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License in the root directory in the "LICENSE" file or at:
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import argparse
+import sys
+import os
+
+# Check for boto3 before doing anything else
+try:
+    import boto3
+except ImportError:
+    print('\n\033[91mError: boto3 is required for anatransfer but is not installed.\033[0m\n')
+    print('anatransfer uses boto3 for high-performance S3 operations.')
+    print('\nTo install boto3, run:')
+    print('\033[38;2;145;230;0m  pip install boto3\033[0m')
+    print('\nOr install anatools with boto3 support:')
+    print('\033[38;2;145;230;0m  pip install anatools boto3\033[0m')
+    print()
+    sys.exit(1)
+
+import anatools
+from anatools.lib.transfer import transfer_data, get_volume_id_from_mountpoint
+from anatools.lib.print import print_color
+from anatools.anaclient._menu import _arrow_select
+
+parser = argparse.ArgumentParser(
+    description="""
+Transfer data between volumes and local paths efficiently using parallel operations.
+
+Examples:
+    # Interactive mode (easiest!)
+    anatransfer
+    anatransfer -i
+
+    # Transfer entire volume to another volume
+    anatransfer --source vol-abc123 --dest vol-def456
+
+    # Transfer specific directory using prefix notation
+    anatransfer --source vol-abc123:data/train --dest vol-def456:backup/train
+
+    # Upload local directory to volume
+    anatransfer --source /home/user/data --dest vol-abc123:uploads
+
+    # Download volume data to local path
+    anatransfer --source vol-abc123:results --dest /home/user/downloads
+
+    # Sync mode (only transfer changed files)
+    anatransfer --source vol-abc123:data --dest vol-def456:mirror --sync
+
+    # Dry run to preview transfer
+    anatransfer --source vol-abc123 --dest vol-def456 --dry-run
+
+    # Custom parallelism and verbose output
+    anatransfer --source vol-abc123 --dest vol-def456 --parallel 20 --verbose
+""",
+    formatter_class=argparse.RawDescriptionHelpFormatter
+)
+
+# Required arguments (made optional for interactive mode)
+parser.add_argument('--source', type=str, required=False,
+                   help='Source location: volumeId[:prefix] or local path')
+parser.add_argument('--dest', type=str, required=False,
+                   help='Destination location: volumeId[:prefix] or local path')
+
+# Interactive mode
+parser.add_argument('--interactive', '-i', action='store_true', default=False,
+                   help='Run in interactive mode with guided prompts')
+
+# Transfer options
+parser.add_argument('--recursive', action='store_true', default=True,
+                   help='Transfer directories recursively (default: true)')
+parser.add_argument('--no-recursive', dest='recursive', action='store_false',
+                   help='Do not transfer recursively')
+parser.add_argument('--parallel', type=int, default=10,
+                   help='Number of parallel workers (default: 10)')
+parser.add_argument('--dry-run', action='store_true', default=False,
+                   help='Show what would be transferred without executing')
+
+# Authentication
+parser.add_argument('--email', type=str, default=None,
+                   help='Email for Rendered.ai Platform authentication')
+parser.add_argument('--password', type=str, default=None,
+                   help='Password for Rendered.ai Platform authentication')
+parser.add_argument('--environment', type=str, default=None,
+                   help='Environment to use (e.g., production, staging)')
+parser.add_argument('--endpoint', type=str, default=None,
+                   help='Custom API endpoint')
+parser.add_argument('--local', action='store_true', default=False,
+                   help='Use local API endpoint')
+
+# Output control
+parser.add_argument('--verbose', action='store_true', default=False,
+                   help='Verbose output with detailed logging')
+parser.add_argument('--version', action='store_true', default=False,
+                   help='Show version and exit')
+
+def get_mounted_volumes(client=None):
+    """Get list of currently mounted volumes from /proc/mounts."""
+    volumes = []
+    try:
+        with open('/proc/mounts', 'r') as f:
+            for line in f.readlines():
+                parts = line.split()
+                if len(parts) >= 2:
+                    device = parts[0]
+                    mount_point = parts[1]
+                    # Look for volume mounts (bucket:/org-id/volume-id pattern)
+                    if ':/' in device and 'volume' in mount_point.lower():
+                        import re
+                        match = re.match(r'^[^:]+:/[a-f0-9\-]+/([a-f0-9\-]+)/?$', device)
+                        if match:
+                            volume_id = match.group(1)
+
+                            # Try to get the actual volume name from API
+                            display_name = None
+                            if client:
+                                try:
+                                    volume_list = client.get_volumes(volumeId=volume_id)
+                                    if volume_list and len(volume_list) > 0 and 'name' in volume_list[0]:
+                                        display_name = volume_list[0]['name']
+                                except Exception as e:
+                                    # Silently fail and use fallback
+                                    pass
+
+                            # Fallback: use short ID if API call failed
+                            if not display_name:
+                                display_name = volume_id.split('-')[-1][:8]
+
+                            volumes.append({
+                                'id': volume_id,
+                                'path': mount_point,
+                                'name': display_name
+                            })
+    except:
+        pass
+    return volumes
+
+
+def interactive_mode(client):
+    """Run anatransfer in interactive mode."""
+    print_color(f'\n=== anatransfer Interactive Mode ===\n', 'brand')
+
+    # Get mounted volumes with names from API
+    mounted_volumes = get_mounted_volumes(client)
+
+    def prompt_location(prompt_text):
+        """Prompt user for a location (source or destination)."""
+        location = None
+        is_volume = False
+
+        # Build options list
+        options = ['Enter volume ID', 'Enter local path']
+        if mounted_volumes:
+            options.append('Select from mounted volumes')
+
+        # Arrow key selection
+        choice = _arrow_select(options, title=prompt_text)
+
+        if choice == 'Enter volume ID':
+            # Volume ID input
+            location = input('Enter volume ID: ').strip()
+            if not location:
+                print_color('Error: Volume ID cannot be empty', 'error')
+                sys.exit(1)
+            is_volume = True
+
+        elif choice == 'Enter local path':
+            # Local path input
+            location = input('Enter local path: ').strip()
+            if not location:
+                print_color('Error: Path cannot be empty', 'error')
+                sys.exit(1)
+            is_volume = False
+
+        elif choice == 'Select from mounted volumes':
+            # Build volume display list
+            volume_options = [f"{vol['name']}" for vol in mounted_volumes]
+            selected_name = _arrow_select(volume_options, title='Select a volume:')
+
+            # Find the selected volume
+            selected = next(v for v in mounted_volumes if v['name'] == selected_name)
+            print_color(f'Selected: {selected["path"]}', 'brand')
+            location = selected['path']
+            is_volume = True
+
+        # If it's a volume, ask for subdirectory/prefix
+        if is_volume:
+            subdir = input('\nSpecific subdirectory within volume (press Enter for root): ').strip()
+            if subdir:
+                # Handle both volume ID format and path format
+                if location.startswith('/'):
+                    # It's a mount path, append subdirectory
+                    location = f"{location.rstrip('/')}/{subdir.lstrip('/')}"
+                else:
+                    # It's a volume ID, use colon notation
+                    location = f"{location}:{subdir.lstrip('/')}"
+                print_color(f'Full location: {location}', 'brand')
+
+        return location
+
+    # Prompt for source
+    source = prompt_location('Select SOURCE location')
+
+    # Prompt for destination
+    dest = prompt_location('Select DESTINATION location')
+
+    # Prompt for transfer options
+    print_color('\n=== Transfer Options ===', 'brand')
+
+    # Parallel workers
+    parallel_options = ['10 workers (default)', '5 workers', '20 workers', 'Custom']
+    parallel_choice = _arrow_select(parallel_options, title='Number of parallel workers:')
+    if parallel_choice == 'Custom':
+        parallel_input = input('Enter number of workers (1-100): ').strip()
+        parallel = int(parallel_input) if parallel_input.isdigit() else 10
+        parallel = max(1, min(100, parallel))
+    else:
+        parallel = int(parallel_choice.split()[0])
+
+    # Dry run
+    dry_run_choice = _arrow_select(['No', 'Yes'], title='Dry run (preview without transferring)?')
+    dry_run = dry_run_choice == 'Yes'
+
+    # Verbose
+    verbose_choice = _arrow_select(['No', 'Yes'], title='Verbose output?')
+    verbose = verbose_choice == 'Yes'
+
+    # Show summary and confirm
+    print_color('\n=== Transfer Summary ===', 'brand')
+    print(f'Source:      {source}')
+    print(f'Destination: {dest}')
+    print(f'Mode:        Copy (all files)')
+    print(f'Parallel:    {parallel} workers')
+    print(f'Dry run:     {dry_run}')
+    print(f'Verbose:     {verbose}')
+
+    # Generate equivalent command for dry-run mode
+    if dry_run:
+        print_color('\n=== Equivalent Command ===', 'brand')
+        cmd_parts = ['anatransfer']
+        cmd_parts.append(f'--source "{source}"')
+        cmd_parts.append(f'--dest "{dest}"')
+        if parallel != 10:
+            cmd_parts.append(f'--parallel {parallel}')
+        if verbose:
+            cmd_parts.append('--verbose')
+
+        cmd = ' '.join(cmd_parts)
+        print(f'{cmd}')
+        print()
+    else:
+        print()
+
+    confirm_choice = _arrow_select(['Yes, proceed', 'No, cancel'], title='Proceed with transfer?')
+    if confirm_choice != 'Yes, proceed':
+        print_color('Transfer cancelled', 'warning')
+        sys.exit(0)
+
+    return {
+        'source': source,
+        'dest': dest,
+        'parallel': parallel,
+        'dry_run': dry_run,
+        'verbose': verbose,
+        'recursive': True
+    }
+
+
+args = parser.parse_args()
+
+# Show version and exit
+if args.version:
+    print(f'anatransfer {anatools.__version__}')
+    sys.exit(0)
+
+# Check if we should run in interactive mode
+if args.interactive or (not args.source and not args.dest):
+    # Need to create client first for interactive mode
+    verbose_mode = 'debug' if args.verbose else False
+    interactive_auth = False
+    if args.email and args.password is None:
+        interactive_auth = True
+
+    try:
+        client = anatools.client(
+            email=args.email,
+            password=args.password,
+            environment=args.environment,
+            endpoint=args.endpoint,
+            local=args.local,
+            interactive=interactive_auth,
+            verbose=verbose_mode
+        )
+    except Exception as e:
+        print_color(f'\nAuthentication failed: {str(e)}', 'error')
+        print('\nPlease check your credentials and try again.')
+        if args.email:
+            print(f'Email: {args.email}')
+        print('\nYou can also set the RENDEREDAI_API_KEY environment variable:')
+        print_color('  export RENDEREDAI_API_KEY=your-api-key', 'brand')
+        sys.exit(1)
+
+    transfer_opts = interactive_mode(client)
+    args.source = transfer_opts['source']
+    args.dest = transfer_opts['dest']
+    args.parallel = transfer_opts['parallel']
+    args.dry_run = transfer_opts['dry_run']
+    args.verbose = transfer_opts['verbose']
+    args.recursive = transfer_opts['recursive']
+else:
+    client = None
+
+# Validate arguments
+if not args.source:
+    print_color('Error: --source is required', 'error')
+    parser.print_help()
+    sys.exit(1)
+
+if not args.dest:
+    print_color('Error: --dest is required', 'error')
+    parser.print_help()
+    sys.exit(1)
+
+if args.parallel < 1 or args.parallel > 100:
+    print_color('Error: --parallel must be between 1 and 100', 'error')
+    sys.exit(1)
+
+# Prepare verbose mode
+verbose = 'debug' if args.verbose else False
+interactive = False
+if args.email and args.password is None:
+    interactive = True
+
+# Display transfer info
+print_color(f'anatransfer v{anatools.__version__}', 'brand')
+print(f'Source:      {args.source}')
+print(f'Destination: {args.dest}')
+print(f'Mode:        Copy (all files)')
+print(f'Recursive:   {args.recursive}')
+print(f'Parallel:    {args.parallel} workers')
+if args.dry_run:
+    print_color('DRY RUN MODE - No actual transfer will occur', 'warning')
+print()
+
+try:
+    # Create anatools client (if not already created in interactive mode)
+    if client is None:
+        if args.verbose:
+            print("Authenticating to Rendered.ai Platform...")
+
+        client = anatools.client(
+            email=args.email,
+            password=args.password,
+            environment=args.environment,
+            endpoint=args.endpoint,
+            local=args.local,
+            interactive=interactive,
+            verbose=verbose
+        )
+
+    # Execute transfer
+    success = transfer_data(
+        client=client,
+        source=args.source,
+        dest=args.dest,
+        recursive=args.recursive,
+        parallel=args.parallel,
+        sync=False,
+        delete=False,
+        dry_run=args.dry_run,
+        verbose=args.verbose
+    )
+
+    if success:
+        sys.exit(0)
+    else:
+        print_color('\nTransfer completed with errors', 'error')
+        sys.exit(1)
+
+except KeyboardInterrupt:
+    print_color('\n\nTransfer interrupted by user', 'warning')
+    sys.exit(130)
+except Exception as e:
+    print_color(f'\nError: {str(e)}', 'error')
+    if args.verbose:
+        import traceback
+        traceback.print_exc()
+    sys.exit(1)
