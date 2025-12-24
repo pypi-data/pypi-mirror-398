@@ -1,0 +1,84 @@
+# This workflow is executed as part of CI/CD on Github.
+# Configure projects and integrations in opendapi.config.yaml
+
+name: metadata-extraction/woven-ai
+on:
+  # Invoke for every Pull Request targeting {{ mainline_branch_name }} and push to {{ mainline_branch_name }} branch
+  pull_request:
+    branches:
+      - '{{ mainline_branch_name }}'
+  push:
+    branches:
+      - '{{ mainline_branch_name }}'
+
+env:
+{%- raw %}
+  GITHUB_BRANCH: ${{ github.event.pull_request.head.ref || github.ref }}
+  PYPI_INDEX_URL: ${{ vars.OPENDAPI_PINNED_VERSION && 'https://test.pypi.org/simple/' || 'https://pypi.org/simple/' }}
+  OPENDAPI_VERSION: ${{ vars.OPENDAPI_PINNED_VERSION || 'opendapi' }}
+  WOVEN_CONFIGURATION: ${{ vars.WOVEN_CONFIGURATION }}
+{%- endraw %}
+
+{% raw %}
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        # Fetch all branches and history to help create a suggestion PR
+        fetch-depth: 0
+        # Checkout the working branch for PRs instead of merge branch
+        ref: ${{ env.GITHUB_BRANCH }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    # Add any additional steps here in case a specific runtime needs to be prepared for the run
+    # For example, if you need to enter a docker container or install specific dependencies
+
+    - name: OpenDAPI CI
+      shell: bash
+      run: |
+        pip install --index-url ${{ env.PYPI_INDEX_URL }}                   \
+                    --extra-index-url https://pypi.org/simple               \
+                    ${{ env.OPENDAPI_VERSION }}
+        opendapi github github run
+{% endraw %}
+
+      env:
+        DAPI_SERVER_HOST: '{{ dapi_server_hostname }}'
+        MAINLINE_BRANCH_NAME: "{{ mainline_branch_name }}"
+
+{% raw %}
+        # Store credentials in Github as a secret
+        DAPI_SERVER_API_KEY: ${{ secrets.DAPI_SERVER_API_KEY }}
+
+        # Configure when DAPIs should be registered.
+        # PRs do not register but only validate and provide suggestions
+        REGISTER_ON_MERGE_TO_MAINLINE: True
+
+        # Other github environment variables needed for opendapi
+        GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+{% endraw %}
+{%- if include_dbt %}
+  {% raw %}
+        # DBT Cloud settings (used only if dbt is enabled)
+        # The Github admin has to configure the following repo secrets
+        # (optional) the URL of the DBT Cloud instance
+        DAPI_DBT_CLOUD_URL: ${{ vars.DAPI_DBT_CLOUD_URL }}
+
+        # (optional) - a read-only token is sufficient
+        DAPI_DBT_CLOUD_API_TOKEN: ${{ secrets.DAPI_DBT_CLOUD_API_TOKEN }}
+
+        # (optional) - retry count for fetching dbt artifacts
+        DAPI_DBT_CLOUD_RETRY_COUNT: ${{ github.event_name == 'push' && 1 || vars.DAPI_DBT_CLOUD_RETRY_COUNT }}
+
+        # (optional) - retry interval for fetching dbt artifacts
+        DAPI_DBT_CLOUD_RETRY_INTERVAL: ${{ github.event_name == 'push' && 1 || vars.DAPI_DBT_CLOUD_RETRY_INTERVAL }}
+  {% endraw %}
+{%- endif %}

@@ -1,0 +1,317 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opendapi.org/spec/0-0-1/dapi.json",
+  "$defs": {
+    "datastore": {
+      "type": "object",
+      "properties": {
+        "urn": {
+          "type": "string",
+          "pattern": "^([\\w-]+\\.)+[\\w-]+$",
+          "examples": ["company.datastore_name.account_name", "acme.snowflake.acme_aws", "acme.mysql.cluster_1"],
+          "description": "The URN of the datastore as defined in spec/datastores.json.",
+          "order": 0
+        },
+        "business_purposes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "description": "The business purpose for this dataset as defined in spec/purposes.json."
+          },
+          "description": "The business purposes supported by this data in this datastore."
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "identifier": {
+              "type": "string",
+              "examples": ["table_name", "view_name", "event_name"],
+              "order": 1
+            },
+            "namespace": {
+              "type": "string",
+              "examples": ["database_name.schema_name", "prefix", "topic_name"],
+              "description": "Identifies the namespace for this dataset in this datastore, if any",
+              "order": 2
+            },
+            "replication_mechanism": {
+              "type": "string",
+              "description": "The replication mechanism used to replicate from the origin to this sink.",
+              "enum": ["fivetran", "other"],
+              "order": 3
+            },
+            "origin_urn": {
+              "type": "string",
+              "description": "The origin datastore urn.",
+              "order": 4
+            },
+            "freshness": {
+              "type": "string",
+              "description": "Time for data to become accessible in this datastore",
+              "order": 5
+            },
+            "replication_config_urn": {
+              "type": "string",
+              "description": "The replication config urn.",
+              "order": 6
+            }
+          },
+          "order": 1,
+          "required": ["identifier"],
+          "if": {
+            "anyOf": [
+              { "required": ["replication_config_urn"] },
+              { "required": ["origin_urn"] },
+              { "required": ["freshness"] },
+              { "required": ["replication_mechanism"] }
+            ]
+          },
+          "then": {
+            "required": ["replication_config_urn", "origin_urn", "freshness", "replication_mechanism"]
+          },
+          "description": "Identifies the DAPI in this datastore, along with replication information"
+        },
+        "retention_days": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "The number of days data is retained in this datastore. Leave blank for indefinite retention."
+        }
+      },
+      "required": ["urn", "data"],
+      "description": "Data store information for this DAPI"
+    },
+    "field": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the field.",
+          "examples": ["column_name"],
+          "order": 1
+        },
+        "data_type": {
+          "type": "string",
+          "description": "The data type of the field.",
+          "order": 2
+        },
+        "is_nullable": {
+          "type": "boolean",
+          "description": "Indicates if the field is nullable.",
+          "order": 3
+        },
+        "description": {
+          "type": ["string", "null"],
+          "description": "Describe this field in detail very clearly for human and AI data consumers.",
+          "order": 9
+        },
+        "deprecation": {
+          "type": "object",
+          "properties": {
+            "date": {
+              "type": "string",
+              "format": "date",
+              "description": "The date when the field will be deprecated."
+            },
+            "notice": {
+              "type": "string",
+              "description": "Context for deprecating the field and any suggested alternatives."
+            }
+          },
+          "order": 10
+        },
+        "data_subjects_and_categories": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "subject_urn": {
+                "type": "string",
+                "pattern": "^[\\w.-]+$",
+                "description": "The URN of the data subject as defined in *.subjects.json/yml files.",
+                "order": 1
+              },
+              "category_urn": {
+                "type": "string",
+                "pattern": "^[\\w.-]+$",
+                "description": "The URN of the data category as defined in *.categories.json/yml files.",
+                "order": 2
+              }
+            },
+            "required": ["subject_urn", "category_urn"]
+          },
+          "description": "The data subjects and categories that pertain to this field.",
+          "examples": [
+            {
+              "subject_urn": "employee",
+              "category_urn": "contact.email"
+            }
+          ],
+          "order": 11
+        },
+        "sensitivity_level": {
+          "type": ["string", "null"],
+          "enum": ["public", "internal", "confidential", "restricted", "classified", null],
+          "description": "The sensitivity level of the data as a function of the data category when applied to the data subject.",
+          "order": 11
+        },
+        "is_personal_data": {
+          "type": ["boolean", "null"],
+          "description": "A boolean communicating if this category of data, when applied to this subject, constitutes personal data.",
+          "order": 12
+        },
+        "is_direct_identifier": {
+          "type": ["boolean", "null"],
+          "description": "A boolean communicating if this category of data, when applied to this subject, constitutes a direct identifier.",
+          "order": 13
+        },
+        "enum_values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The values of the field when the field is an enum.",
+          "order": 14
+        }
+      },
+      "required": ["name", "data_type", "is_nullable"],
+      "description": "DAPI Field information."
+    }
+  },
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string",
+      "format": "uri",
+      "default": "https://opendapi.org/spec/0-0-1/dapi.json",
+      "description": "The URI schema version for this data",
+      "examples": ["https://opendapi.org/spec/0-0-1/dapi.json"],
+      "order": 0
+    },
+    "urn": {
+      "type": "string",
+      "pattern": "^([\\w-]+\\.)+[\\w-]+$",
+      "description": "The URN for this data that is unique across the organization",
+      "examples": ["company.domain.dapi_name", "acme.ecommerce.cart", "acme.membership.UserCreatesAccount"],
+      "order": 1
+    },
+    "type": {
+      "type": "string",
+      "enum": ["entity", "event"],
+      "description": "The type of data whether it is an entity or an event",
+      "examples": ["entity", "event"],
+      "order": 4
+    },
+    "description": {
+      "type": ["string", "null"],
+      "examples": ["This event is fired when the user signs up with the product after passing identity verification"],
+      "description": "Describe this Data API in detail very clearly for human and AI data consumers",
+      "order": 3
+    },
+    "owner_team_urn": {
+      "type": ["string", "null"],
+      "examples": ["acme.engineering.ecommerce"],
+      "description": "The URN of the owning team of the entity as defined in spec/teams.json",
+      "order": 2
+    },
+    "datastores": {
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/datastore" },
+          "description": "Datastores where the DAPI is sourced or produced (written and read)",
+          "order": 1
+        },
+        "sinks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/datastore" },
+          "description": "Datastores where the DAPI can be accessed for consumption.",
+          "order": 2
+        }
+      },
+      "required": ["sources", "sinks"],
+      "description": "Datastores used for production or consumption of this data",
+      "order": 9
+    },
+    "fields": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/field" },
+      "minItems": 1,
+      "description": "List of fields in this data.",
+      "order": 8
+    },
+    "primary_key": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "description": "The name of the field.",
+        "examples": ["column_name_1"]
+      },
+      "description": "Ordered list of fields that make the primary key for this dataset.",
+      "order": 7
+    },
+    "privacy_requirements": {
+      "type": "object",
+      "description": "Information relating to the management of personal data for this DAPI.",
+      "order": 10,
+      "properties": {
+        "dsr_access_endpoint": {
+          "type": ["string", "null"],
+          "description": "The endpoint for data subject access requests (DSR) for this data.",
+          "order": 1
+        },
+        "dsr_deletion_endpoint": {
+          "type": ["string", "null"],
+          "description": "The endpoint for data subject deletion requests (DSR) for this data.",
+          "order": 2
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string",
+          "description": "The service that produces this data",
+          "examples": ["acme.ecommerce", "dbt_project_1"],
+          "order": 3
+        },
+        "integration": {
+          "type": "string",
+          "description": "The model type of this data",
+          "examples": ["dbt", "sqlalchemy", "pynamodb"],
+          "order": 5
+        },
+        "rel_model_path": {
+          "type": "string",
+          "description": "The relative path from DAPI to the model that produces this data",
+          "examples": ["models/ecommerce.py", "models/ecommerce/ltv.sql"],
+          "order": 9
+        },
+        "rel_doc_path": {
+          "type": "string",
+          "description": "The relative path from DAPI to the documentation for this data",
+          "examples": ["docs/ecommerce.yml", "docs/ecommerce/ltv.md"],
+          "order": 9
+        },
+        "syntax": {
+          "type": "string",
+          "description": "The syntax of the model that produces this data",
+          "examples": ["proto3", "proto2"],
+          "order": 11
+        }
+      },
+      "description": "Contextual information about the DAPI integration",
+      "order": 11
+    },
+    "retention_reference": {
+      "type": ["string", "null"],
+      "examples": ["updated_at", "created_at"],
+      "description": "The field that is used to compute when data is required to be retained",
+      "order": 12
+    }
+  },
+  "required": ["schema", "urn", "fields", "primary_key"],
+  "description": "Describes the DAPI or Data API to help with data sharing and discovery",
+  "title": "Data API Specification"
+}
