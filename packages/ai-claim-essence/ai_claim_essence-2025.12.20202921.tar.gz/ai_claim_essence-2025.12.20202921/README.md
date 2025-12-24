@@ -1,0 +1,95 @@
+# AI Claim Essence
+
+[![PyPI version](https://badge.fury.io/py/ai-claim-essence.svg)](https://pypi.org/project/ai-claim-essence/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/personalized-badge/ai-claim-essence?period=total&units=international_system&left_color=grey&right_color=orange&left_text=Downloads)](https://pepy.tech/project/ai-claim-essence)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/eugene-evstafev/)
+
+A Python package that extracts and summarizes the core idea from a user's input about AI's societal impact.
+
+## Installation
+
+```bash
+pip install ai_claim_essence
+```
+
+## Usage
+
+```python
+from ai_claim_essence import ai_claim_essence
+
+response = ai_claim_essence("AI is revolutionary, but not egalitarian")
+print(response)
+```
+
+## Parameters
+
+- `user_input` (str): The user input text to process.
+- `llm` (Optional[BaseChatModel]): The LangChain LLM instance to use. If not provided, the default `ChatLLM7` will be used.
+- `api_key` (Optional[str]): The API key for LLM7. If not provided, the environment variable `LLM7_API_KEY` will be used.
+
+## Using Different LLMs
+
+By default, this package uses `ChatLLM7` from [langchain_llm7](https://pypi.org/project/langchain-llm7/). You can safely pass your own LLM instance if you want to use another LLM.
+
+### Example with OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from ai_claim_essence import ai_claim_essence
+
+llm = ChatOpenAI()
+response = ai_claim_essence("AI is revolutionary, but not egalitarian", llm=llm)
+print(response)
+```
+
+### Example with Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from ai_claim_essence import ai_claim_essence
+
+llm = ChatAnthropic()
+response = ai_claim_essence("AI is revolutionary, but not egalitarian", llm=llm)
+print(response)
+```
+
+### Example with Google
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from ai_claim_essence import ai_claim_essence
+
+llm = ChatGoogleGenerativeAI()
+response = ai_claim_essence("AI is revolutionary, but not egalitarian", llm=llm)
+print(response)
+```
+
+## Rate Limits
+
+The default rate limits for LLM7 free tier are sufficient for most use cases of this package. If you want higher rate limits for LLM7, you can pass your own API key via the environment variable `LLM7_API_KEY` or directly via the `api_key` parameter.
+
+```python
+from ai_claim_essence import ai_claim_essence
+
+response = ai_claim_essence("AI is revolutionary, but not egalitarian", api_key="your_api_key")
+print(response)
+```
+
+You can get a free API key by registering at [LLM7](https://token.llm7.io/).
+
+## Issues
+
+If you encounter any issues, please report them on the [GitHub issues page](https://github.com/chigwell/ai-claim-essence/issues).
+
+## Author
+
+**Eugene Evstafev**
+
+- Email: hi@eugene.plus
+- GitHub: [chigwell](https://github.com/chigwell)
+- LinkedIn: [Eugene Evstafev](https://www.linkedin.com/in/eugene-evstafev/)
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
