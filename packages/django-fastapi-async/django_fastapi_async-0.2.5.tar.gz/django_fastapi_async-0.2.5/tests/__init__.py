@@ -1,0 +1,3 @@
+"""
+FastDjango test suite.
+"""

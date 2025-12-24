@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Blog - FastDjango{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+    <!-- Main Content -->
+    <div class="lg:col-span-3">
+        <h1 class="text-3xl font-bold text-gray-800 mb-8">Latest Posts</h1>
+
+        <div class="space-y-8">
+            {% for post in posts %}
+            <article class="bg-white rounded-lg shadow-md overflow-hidden">
+                <div class="p-6">
+                    {% if post.featured %}
+                    <span class="inline-block px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded mb-2">
+                        Featured
+                    </span>
+                    {% endif %}
+
+                    <h2 class="text-xl font-bold text-gray-800 mb-2">
+                        <a href="/blog/post/{{ post.slug }}" class="hover:text-blue-600">
+                            {{ post.title }}
+                        </a>
+                    </h2>
+
+                    <p class="text-gray-600 mb-4">
+                        {{ post.excerpt or post.content[:200] }}...
+                    </p>
+
+                    <div class="flex items-center justify-between text-sm text-gray-500">
+                        <div class="flex items-center space-x-4">
+                            {% if post.author %}
+                            <span>By {{ post.author.username }}</span>
+                            {% endif %}
+                            {% if post.category %}
+                            <a href="/blog/category/{{ post.category.slug }}" class="text-blue-600 hover:underline">
+                                {{ post.category.name }}
+                            </a>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <span>{{ post.views }} views</span>
+                            <span>{{ post.created_at|datetime('%b %d, %Y') }}</span>
+                        </div>
+                    </div>
+                </div>
+            </article>
+            {% else %}
+            <div class="text-center py-12 bg-white rounded-lg shadow-md">
+                <p class="text-gray-500">No posts yet. Check back later!</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="lg:col-span-1">
+        <div class="bg-white rounded-lg shadow-md p-6 sticky top-4">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">Categories</h3>
+            <ul class="space-y-2">
+                {% for category in categories %}
+                <li>
+                    <a href="/blog/category/{{ category.slug }}"
+                       class="text-gray-600 hover:text-blue-600">
+                        {{ category.name }}
+                    </a>
+                </li>
+                {% else %}
+                <li class="text-gray-500">No categories yet</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </aside>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// WebSocket for live updates
+const ws = new WebSocket(`ws://${window.location.host}/blog/ws/live`);
+
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === 'new_post') {
+        // Show notification for new posts
+        console.log('New post:', data.post);
+    }
+};
+</script>
+{% endblock %}
