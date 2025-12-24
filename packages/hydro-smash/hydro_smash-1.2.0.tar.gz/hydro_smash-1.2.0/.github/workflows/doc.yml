@@ -1,0 +1,49 @@
+# This workflow will build the doc
+name: Documentation
+
+on:
+
+    push:
+        branches:
+        - main
+
+    pull_request:
+        branches:
+        - main
+        - maintenance/**
+        
+    # Allows you to run this workflow manually from the Actions tab
+    workflow_dispatch:
+
+jobs:
+    ubuntu:
+        name: Documentation ubuntu-latest
+        runs-on: ubuntu-latest
+        steps:
+        - uses: actions/checkout@v5
+          with:
+            fetch-depth: 0
+
+        - name: Set up Python
+          uses: actions/setup-python@v6
+          with:
+            python-version: '3.13'
+
+        - name: Install dependencies
+          run: |
+            sudo apt-get update
+            sudo apt-get install build-essential gfortran
+            python -m venv test
+            . test/bin/activate
+            python -m pip install --upgrade pip
+            pip install -r requirements-dev.txt
+
+        - name: Build
+          run: |
+            . test/bin/activate
+            make
+
+        - name: Build Documentation
+          run: |
+            . test/bin/activate
+            make doc

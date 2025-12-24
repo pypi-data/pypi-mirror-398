@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+import os
+
+import numpy as np
+import pytest
+
+import smash
+
+
+def generic_xy_mesh(**kwargs) -> dict:
+    flwdir = smash.factory.load_dataset("flwdir")
+
+    mesh = smash.factory.generate_mesh(
+        flwdir,
+        x=[840_261, 826_553, 828_269],
+        y=[6_457_807, 6_467_115, 6_469_198],
+        area=[381.7 * 1e6, 107 * 1e6, 25.3 * 1e6],
+        code=["V3524010", "V3515010", "V3517010"],
+        epsg=2154,
+    )
+    res = {"xy_mesh." + k: np.array(v, ndmin=1) for (k, v) in mesh.items()}
+
+    return res
+
+
+def test_xy_mesh():
+    res = generic_xy_mesh()
+
+    for key, value in res.items():
+        if value.dtype.char == "U":
+            value = value.astype("S")
+            # % Check xy_mesh
+            assert np.array_equal(value, pytest.baseline[key][:]), key
+        else:
+            # % Check xy_mesh
+            assert np.allclose(value, pytest.baseline[key][:], atol=1e-06), key
+
+
+def generic_bbox_mesh(**kwargs) -> dict:
+    flwdir = smash.factory.load_dataset("flwdir")
+
+    mesh = smash.factory.generate_mesh(
+        flwdir,
+        bbox=(100_000, 200_000, 6_050_000, 6_150_000),
+        epsg=2154,
+    )
+    res = {"bbox_mesh." + k: np.array(v, ndmin=1) for (k, v) in mesh.items()}
+
+    return res
+
+
+def test_bbox_mesh():
+    res = generic_bbox_mesh()
+
+    for key, value in res.items():
+        if value.dtype.char == "U":
+            value = value.astype("S")
+            # % Check bbox_mesh
+            assert np.array_equal(value, pytest.baseline[key][:]), key
+        else:
+            # % Check bbox_mesh
+            assert np.allclose(value, pytest.baseline[key][:], atol=1e-06), key
+
+
+def test_bbox_padding():
+    # 1km resolution (xres = yres)
+    flwdir = smash.factory.load_dataset("flwdir")
+
+    bbox = (670_000, 770_000, 6_600_000, 6_700_000)
+    bbox_exp = (670_000, 770_000, 6_600_000, 6_700_000)
+
+    bbox_loff = (670_100, 770_100, 6_600_100, 6_700_100)
+    bbox_loff_exp = (670_000, 770_000, 6_600_000, 6_700_000)
+
+    bbox_roff = (670_900, 770_900, 6_600_900, 6_700_900)
+    bbox_roff_exp = (671_000, 771_000, 6_601_000, 6_701_000)
+
+    bbox_moff = (670_500, 770_500, 6_600_500, 6_700_500)
+    bbox_moff_exp = (671_000, 771_000, 6_601_000, 6_701_000)
+
+    mesh = smash.factory.generate_mesh(flwdir, bbox=bbox, epsg=2154)
+    mesh_loff = smash.factory.generate_mesh(flwdir, bbox=bbox_loff, epsg=2154)
+    mesh_roff = smash.factory.generate_mesh(flwdir, bbox=bbox_roff, epsg=2154)
+    mesh_moff = smash.factory.generate_mesh(flwdir, bbox=bbox_moff, epsg=2154)
+
+    # % Check bounding box padding
+    assert bbox_exp[0] == mesh["xmin"], "overlap_read_data.nopad_xmin"
+    assert bbox_exp[3] == mesh["ymax"], "overlap_read_data.nopad_ymax"
+
+    assert bbox_loff_exp[0] == mesh_loff["xmin"], "overlap_read_data.loffpad_xmin"
+    assert bbox_loff_exp[3] == mesh_loff["ymax"], "overlap_read_data.loffpad_ymax"
+
+    assert bbox_roff_exp[0] == mesh_roff["xmin"], "overlap_read_data.uoffpad_xmin"
+    assert bbox_roff_exp[3] == mesh_roff["ymax"], "overlap_read_data.uoffpad_ymax"
+
+    assert bbox_moff_exp[0] == mesh_moff["xmin"], "overlap_read_data.moffpad_xmin"
+    assert bbox_moff_exp[3] == mesh_moff["ymax"], "overlap_read_data.moffpad_ymax"
+
+
+def test_detect_sink():
+    flwdir = smash.factory.load_dataset("flwdir")
+
+    sink = smash.factory.detect_sink(flwdir, "./tmp_flwdir_sink.tif")
+
+    # % Check detect_sink - There should be no sinks in the flow direction file
+    assert np.all(sink == 0), "detect_sink.all_zero"
+
+    # % Check detect_sink - A file with sinks should have been created
+    assert os.path.exists("./tmp_flwdir_sink.tif"), "detect_sink.file_exists"
