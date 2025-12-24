@@ -1,0 +1,520 @@
+# This file contains parameters for acoustic scattering models of relevance to fisheries acoustics.
+#
+# The initial set of model and parameters are those given in Jech et al, (2015).
+#
+# Jech, J. M., Horne, J. K., Chu, D., Demer, D. A., Francis, D. T. I., Gorska, N., Jones, B., et al. 2015.
+# Comparisons among ten models of acoustic backscattering used in aquatic ecosystem research.
+# Journal of the Acoustical Society of America, 138: 3742–3764, https://doi.org/10.1121/1.4937607
+
+# All values in this file must use the units given below. Add more as needed, using the conventions prescribed
+# by the CF metadata convention (https://cfconventions.org/Data/cf-conventions/cf-conventions-1.11/cf-conventions.html#units).
+[units]
+density = "kg/m^3"
+sound_speed = "m/s"
+radius = "m"
+length = "m"
+thickness = "m"
+diameter = "m"
+
+# Model parameters (add more as needed).
+#
+# Model parameter names must end in one of the labels in the units section above as this provides the linkage
+# between a parameter value and its' unit.
+[parameters]
+# These values are from Jech at al, 2015.
+medium_sound_speed = 1477.3  # The paper has 1477.4 (e.g., in Table II), but 1477.3 gives TS that agrees best with the benchmark results in the paper.
+medium_density = 1026.8
+target_gas_density = 1.24
+target_gas_sound_speed = 345.0
+target_shell_gas_filled_density = 1070.0
+target_shell_gas_filled_sound_speed = 1570.0
+target_shell_pressure_release_density = 1028.9
+target_shell_pressure_release_sound_speed = 1480.3
+target_shell_weakly_density = 1028.9
+target_shell_weakly_sound_speed = 1480.3
+target_interior_weakly_density = 1031.0
+target_interior_weakly_sound_speed = 1483.3
+target_weakly_density = 1028.9
+target_weakly_sound_speed = 1480.3
+
+sphere_radius = 0.01
+prolate_spheroid_major_axis_radius = 0.07
+prolate_spheroid_minor_axis_radius = 0.01
+finite_cylinder_radius = 0.01
+finite_cylinder_length = 0.07
+target_shell_thickness = 0.001
+
+# These are nominal values for WC and Cu calibration spheres
+WC_density = 14900
+WC_longitudinal_sound_speed = 6853
+WC_transverse_sound_speed = 4171
+Cu_density = 8947
+Cu_longitudinal_sound_speed = 4760
+Cu_transverse_sound_speed = 2288.5
+
+# These values are for testing of how to specify ranges or distributions of values
+example1_medium_sound_speed_dist = {type="normal", mean=1490, std=40, num=100} # normal distribution
+# Which of these two to support? Both?
+example2_medium_sound_speed_dist = {type="linspace", start=1490, stop=1500, num=100} #
+example3_medium_sound_speed_dist = {type="arange", start=1490, stop=1500, step=1} # stop is not guaranteed to be in the output
+
+# For each reference target, include a [[target]] section below.
+#
+# Where sensible, use names from the parameter section above for specifying
+# target parameters (e.g., the sound speed, density, size, etc). # The 'name' entry should be unique.
+# Substitution of the parameter names with their values from the parameters section should be done in the
+# code that reads this file.
+#
+# The source item in each section should be used to identify the source of the model configuration.
+# It is expected that most model configurations will come from existing reports and/or papers, so use
+# a DOI or URL if avaiable, otherwise use a sufficiently detailed description of the source.
+
+[[target]]
+name = "fixed rigid sphere"
+shape = "sphere"
+boundary_type = "fixed-rigid"
+description = "A fixed rigid sphere"
+a = "sphere_radius"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "mss"
+
+[[target]]
+name = "pressure release sphere"
+shape = "sphere"
+boundary_type = "pressure-release"
+description = "A sphere with a pressure release surface"
+a = "sphere_radius"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "mss"
+
+[[target]]
+name = "gas filled sphere"
+shape = "sphere"
+boundary_type = "fluid-filled"
+description = "A sphere with a fluid-filled interior with properties representative of air"
+a = "sphere_radius"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "target_gas_density"
+target_c = "target_gas_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "mss"
+
+[[target]]
+name = "weakly scattering sphere"
+shape = "sphere"
+boundary_type = "fluid-filled"
+description = "A sphere with a fluid-filled interior with similar density and sound speed to the surrounding medium"
+a = "sphere_radius"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "target_weakly_density"
+target_c = "target_weakly_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "mss"
+
+[[target]]
+name = "spherical fluid shell with pressure release interior"
+shape = "sphere"
+boundary_type = "fluid shell pressure release interior"
+description = "A fluid spherical shell with pressure release surface"
+a = "sphere_radius"
+shell_thickness = "target_shell_thickness"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+shell_rho = "target_shell_pressure_release_density"
+shell_c = "target_shell_pressure_release_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "mss"
+
+[[target]]
+name = "spherical fluid shell with gas interior"
+shape = "sphere"
+boundary_type = "fluid shell fluid interior"
+description = "A fluid spherical shell with gas interior"
+a = "sphere_radius"
+shell_thickness = "target_shell_thickness"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+shell_rho = "target_shell_gas_filled_density"
+shell_c = "target_shell_gas_filled_sound_speed"
+target_rho = "target_gas_density"
+target_c = "target_gas_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "mss"
+
+[[target]]
+name = "spherical fluid shell with weakly scattering interior"
+shape = "sphere"
+boundary_type = "fluid shell fluid interior"
+description = "A fluid spherical shell with a weakly scattering shell and interior"
+a = "sphere_radius"
+shell_thickness = "target_shell_thickness"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+shell_rho = "target_shell_weakly_density"
+shell_c = "target_shell_weakly_sound_speed"
+target_rho = "target_interior_weakly_density"
+target_c = "target_interior_weakly_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "mss"
+
+[[target]]
+name = "fixed rigid prolate spheroid"
+shape = "prolate spheroid"
+boundary_type = "fixed-rigid"
+description = "A fixed rigid prolate spheroid"
+a = "prolate_spheroid_major_axis_radius"
+b = "prolate_spheroid_minor_axis_radius"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "psms"
+
+[[target]]
+name = "pressure release prolate spheroid"
+shape = "prolate spheroid"
+boundary_type = "pressure-release"
+description = "A prolate spheroid with a pressure release surface"
+a = "prolate_spheroid_major_axis_radius"
+b = "prolate_spheroid_minor_axis_radius"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "psms"
+
+[[target]]
+name = "gas filled prolate spheroid"
+shape = "prolate spheroid"
+boundary_type = "fluid-filled"
+description = "A prolate spheroid with a fluid-filled interior with properties representative of air"
+a = "prolate_spheroid_major_axis_radius"
+b = "prolate_spheroid_minor_axis_radius"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "target_gas_density"
+target_c = "target_gas_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "psms"
+
+[[target]]
+name = "weakly scattering prolate spheroid"
+shape = "prolate spheroid"
+boundary_type = "fluid-filled"
+description = "A prolate spheroid with a fluid-filled interior with similar properties to the surrounding medium"
+a = "prolate_spheroid_major_axis_radius"
+b = "prolate_spheroid_minor_axis_radius"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "target_weakly_density"
+target_c = "target_weakly_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "psms"
+
+[[target]]
+name = "fixed rigid finite cylinder"
+shape = "finite cylinder"
+boundary_type = "fixed-rigid"
+description = "A fixed rigid finite cylinder"
+a = "finite_cylinder_radius"
+b = "finite_cylinder_length"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "dcm"
+
+[[target]]
+name = "pressure release finite cylinder"
+shape = "finite cylinder"
+boundary_type = "pressure-release"
+description = "A finite cylinder with a pressure release surface"
+a = "finite_cylinder_radius"
+b = "finite_cylinder_length"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "dcm"
+
+[[target]]
+name = "gas filled finite cylinder"
+shape = "finite cylinder"
+boundary_type = "fluid-filled"
+description = "A finite cylinder with fluid-filled interior with properties representative of air"
+a = "finite_cylinder_radius"
+b = "finite_cylinder_length"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "target_gas_density"
+target_c = "target_gas_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "dcm"
+
+[[target]]
+name = "weakly scattering finite cylinder"
+shape = "finite cylinder"
+boundary_type = "fluid-filled"
+description = "A finite cylinder with fluid-filled interior with properties similar to the surrounding medium"
+a = "finite_cylinder_radius"
+b = "finite_cylinder_length"
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "target_weakly_density"
+target_c = "target_weakly_sound_speed"
+source = "https://doi.org/10.1121/1.4937607"
+benchmark_model = "dcm"
+
+[[target]]
+name = "WC20 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 20 mm diameter tungsten carbide sphere with 6% cobalt binder"
+a = 0.01 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "WC_density"
+target_longitudinal_c = "WC_longitudinal_sound_speed"
+target_transverse_c = "WC_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "WC21 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 21 mm diameter tungsten carbide sphere with 6% cobalt binder"
+a = 0.015 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "WC_density"
+target_longitudinal_c = "WC_longitudinal_sound_speed"
+target_transverse_c = "WC_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "WC22 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 22 mm diameter tungsten carbide sphere with 6% cobalt binder"
+a = 0.011 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "WC_density"
+target_longitudinal_c = "WC_longitudinal_sound_speed"
+target_transverse_c = "WC_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "WC25 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 25 mm diameter tungsten carbide sphere with 6% cobalt binder"
+a = 0.0125 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "WC_density"
+target_longitudinal_c = "WC_longitudinal_sound_speed"
+target_transverse_c = "WC_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "WC38.1 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 38.1 mm diameter tungsten carbide sphere with 6% cobalt binder"
+a = 0.01905 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "WC_density"
+target_longitudinal_c = "WC_longitudinal_sound_speed"
+target_transverse_c = "WC_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "WC57.2 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 57.2 mm diameter tungsten carbide sphere with 6% cobalt binder"
+a = 0.0286 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "WC_density"
+target_longitudinal_c = "WC_longitudinal_sound_speed"
+target_transverse_c = "WC_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "WC60 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 60 mm diameter tungsten carbide sphere with 6% cobalt binder"
+a = 0.030 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "WC_density"
+target_longitudinal_c = "WC_longitudinal_sound_speed"
+target_transverse_c = "WC_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "WC64 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 64 mm diameter tungsten carbide sphere with 6% cobalt binder"
+a = 0.032 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "WC_density"
+target_longitudinal_c = "WC_longitudinal_sound_speed"
+target_transverse_c = "WC_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "Cu10.3 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 10.3 mm diameter copper sphere"
+a = 0.00515 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "Cu_density"
+target_longitudinal_c = "Cu_longitudinal_sound_speed"
+target_transverse_c = "Cu_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "Cu13.7 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 13.7 mm diameter copper sphere"
+a = 0.00685 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "Cu_density"
+target_longitudinal_c = "Cu_longitudinal_sound_speed"
+target_transverse_c = "Cu_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "Cu23 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 23 mm diameter copper sphere"
+a = 0.0115 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "Cu_density"
+target_longitudinal_c = "Cu_longitudinal_sound_speed"
+target_transverse_c = "Cu_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "Cu32 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 32 mm diameter copper sphere"
+a = 0.016 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "Cu_density"
+target_longitudinal_c = "Cu_longitudinal_sound_speed"
+target_transverse_c = "Cu_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "Cu32.1 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 32.1 mm diameter copper sphere"
+a = 0.01605 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "Cu_density"
+target_longitudinal_c = "Cu_longitudinal_sound_speed"
+target_transverse_c = "Cu_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "Cu42 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 42 mm diameter copper sphere"
+a = 0.021 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "Cu_density"
+target_longitudinal_c = "Cu_longitudinal_sound_speed"
+target_transverse_c = "Cu_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "Cu45 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 45 mm diameter copper sphere"
+a = 0.0225 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "Cu_density"
+target_longitudinal_c = "Cu_longitudinal_sound_speed"
+target_transverse_c = "Cu_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "Cu60 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 60 mm diameter copper sphere"
+a = 0.030 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "Cu_density"
+target_longitudinal_c = "Cu_longitudinal_sound_speed"
+target_transverse_c = "Cu_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "Cu63 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 63 mm diameter copper sphere"
+a = 0.0315 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "Cu_density"
+target_longitudinal_c = "Cu_longitudinal_sound_speed"
+target_transverse_c = "Cu_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
+
+[[target]]
+name = "Cu64 calibration sphere"
+shape = "sphere"
+boundary_type = "elastic"
+description = "A 64 mm diameter copper sphere"
+a = 0.032 # radius
+medium_rho = "medium_density"
+medium_c = "medium_sound_speed"
+target_rho = "Cu_density"
+target_longitudinal_c = "Cu_longitudinal_sound_speed"
+target_transverse_c = "Cu_transverse_sound_speed"
+source = "https://doi.org/10.17895/ices.pub.5494"
+benchmark_model = "es"
