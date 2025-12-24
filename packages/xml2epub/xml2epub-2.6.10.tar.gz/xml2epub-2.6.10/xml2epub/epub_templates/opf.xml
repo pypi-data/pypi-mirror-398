@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?> 
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+    <dc:title>{{  title  }}</dc:title>
+    <dc:creator opf:role="aut">{{ creator }}</dc:creator>
+    <dc:language>{{ language }}</dc:language>
+    <dc:rights>{{ rights }}</dc:rights>
+    <dc:publisher>{{ publisher }}</dc:publisher>
+    <dc:identifier opf:scheme="UUID">{{ uid }}</dc:identifier>
+    <dc:date>{{ date }}</dc:date>
+    <meta name="cover" content="cover-image"/>
+  </metadata>
+  <manifest>
+    {%- if cover_image.type == 'jpg' %}
+    <item properties="cover-image" id="cover-image" href="{{ cover_image.link }}" media-type="image/jpeg" />
+    {%- else %}
+    <item properties="cover-image" id="cover-image" href="{{ cover_image.link }}" media-type="image/{{ cover_image.type }}" />
+    {%- endif %}
+    <item href="toc.ncx" id="ncx" media-type="application/x-dtbncx+xml"/>
+    <item href="toc.html" id="toc" media-type="application/xhtml+xml"/>
+    {%- for chapter in chapters %}
+    <item href="{{ chapter.link }}" id="{{ chapter.id }}" media-type="application/xhtml+xml"/>
+    {%- endfor %}
+    {%- for c in css %}
+    <item href="{{ c.link }}" id="{{ c.id }}" media-type="text/{{ c.type }}"/>
+    {%- endfor %}
+    {%- for img in imgs %}
+    {%- if img.type == 'jpg' %}
+    <item href="{{ img.link }}" id="{{ img.id }}" media-type="image/jpeg"/>
+    {%- else %}
+    <item href="{{ img.link }}" id="{{ img.id }}" media-type="image/{{ img.type }}"/>
+    {%- endif %}
+    {%- endfor %}
+  </manifest>
+  <spine toc="ncx">
+
+    {%- if toc_location == 'beginning' %}
+        <itemref idref="toc"/>
+    {%- endif %}
+
+    {%- for chapter in chapters %}
+        {%- if toc_location == 'afterFirstChapter' and loop.first %}
+          <itemref idref="{{ chapter.id }}"/>
+          <itemref idref="toc"/>
+        {%- else %}
+          <itemref idref="{{ chapter.id }}"/>
+        {%- endif %}
+    {%- endfor %}
+
+    {%- if toc_location == 'end' %}
+        <itemref idref="toc"/>
+    {%- endif %}
+  </spine>
+  <guide>
+    <reference href="{{ cover_image.link }}" title="Cover" type="cover"/>
+    <reference type="toc" href="toc.html" title="Table of Contents"/>
+  </guide>
+</package>
