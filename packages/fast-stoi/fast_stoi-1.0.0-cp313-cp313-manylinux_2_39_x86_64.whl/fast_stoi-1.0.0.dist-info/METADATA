@@ -1,0 +1,77 @@
+Metadata-Version: 2.4
+Name: fast-stoi
+Version: 1.0.0
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Requires-Dist: numpy>=1.24.4
+Requires-Dist: torch>=2.5.1 ; extra == 'torch'
+Provides-Extra: torch
+Summary: Fast STOI implementation in Rust with Python bindings
+Keywords: rust,stoi,audio
+Author-email: Thibaut de Saivre <thibaut2saivre@gmail.com>
+License-Expression: MIT OR Apache-2.0
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+
+# Fast STOI
+
+Python bindings for the fast stoi rust library.
+
+It uses numpy `float32` internally for faster simd computations,
+and because this is the default type for `pytorch` data.
+Calling its functions with `float64` will trigger conversions which may
+lose you some performance.
+
+See [the repository](https://github.com/GnRlLeclerc/Fast-STOI) for more details.
+
+## Installation
+
+```python
+pip install fast_stoi
+```
+
+## Usage
+
+Compute STOI from numpy data:
+
+```python
+import numpy as np
+from fast_stoi import stoi
+
+x = np.random.randn(24_000).astype(np.float32)
+y = np.random.randn(24_000).astype(np.float32)
+
+score = stoi(x, y, fs_sig=8_000, extended=False)
+
+```
+
+> [!NOTE]
+> You can pass 2D arrays of batched waveforms to leverage
+> rust multithreading
+
+```python
+import numpy as np
+from fast_stoi import stoi
+
+x = np.random.randn(16, 24_000).astype(np.float32)
+y = np.random.randn(16, 24_000).astype(np.float32)
+
+score = stoi(x, y, fs_sig=8_000, extended=False)
+
+```
+
+Compute STOI with the torch wrapper:
+
+```python
+import torch
+from fast_stoi import STOI
+
+stoi = STOI(fs_sig=8_000, extended=False)
+
+x = torch.randn(24_000)
+y = torch.randn(24_000)
+
+score = stoi(x, y)
+```
+
