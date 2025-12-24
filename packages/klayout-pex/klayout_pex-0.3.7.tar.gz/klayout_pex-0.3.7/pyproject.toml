@@ -1,0 +1,102 @@
+[tool.poetry]
+name = "klayout-pex"
+version = "0.3.7"
+description = "Parasitic Extraction Tool for KLayout"
+authors = ["Martin Köhler <info@martinjankoehler.com>"]
+homepage = "https://iic-jku.github.io/klayout-pex-website/"
+repository = "https://github.com/iic-jku/klayout-pex.git"
+license = "GPL-3.0-or-later"
+readme = "README.md"
+keywords = ["electronic", "pex", "parasitic", "extraction", "vlsi", "eda", "ic", "spice",
+            "klayout", "analog", "fsic", "gds", "FasterCap", "magic"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Manufacturing",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)"
+]
+
+packages = [
+    { include = "klayout_pex" },
+    { include = "pdk", to = "klayout_pex" },
+    { include = "klayout_pex_protobuf" }
+]
+include = [
+    "kpex",
+    "pdk/**/*",
+    "klayout_pex_protobuf/__init__.py",
+    # NOTE: explicitly mention generated protobuf files,
+    #       otherwise the .gitignore entries would suppress them
+    { path = "klayout_pex_protobuf/ihp_sg13g2_tech.pb.json", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/sky130A_tech.pb.json", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/kpex/geometry/shapes_pb2.py", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/kpex/layout/location_pb2.py", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/kpex/layout/device_pb2.py", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/kpex/layout/layer_ref_pb2.py", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/kpex/layout/layer_region_pb2.py", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/kpex/layout/pin_pb2.py", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/kpex/klayout/r_extractor_tech_pb2.py", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/kpex/c/capacitance_pb2.py", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/kpex/r/r_network_pb2.py", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/kpex/request/pex_request_pb2.py", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/kpex/result/pex_result_pb2.py", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/kpex/tech/tech_pb2.py", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/kpex/tech/process_parasitics_pb2.py", format = ["sdist", "wheel"] },
+    { path = "klayout_pex_protobuf/kpex/tech/process_stack_pb2.py", format = ["sdist", "wheel"] }
+]
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/iic-jku/klayout-pex/issues"
+
+[tool.poetry.scripts]
+kpex = 'klayout_pex.__main__:main'
+netlist = 'klayout_pex.netlist.__main__:main'
+
+[tool.poetry.dependencies]
+python = "^3.12"
+cairosvg = ">= 2.7.1"
+# NOTE klayout version info:
+#      0.30.0 … *NeighborhoodVisitor, *WithProperties
+#      0.30.2 … klayout.pex module
+#      0.30.3 … bugfixes for resistance extraction
+klayout = ">= 0.30.3"
+matplotlib = ">= 3.10.1"
+protobuf = ">= 6.31.0"
+rich = ">= 13.9.4"
+rich-argparse = ">= 1.6.0"
+
+[tool.poetry.group.test.dependencies]
+pytest = ">= 8.3.3"
+pytest-cov = ">= 6.0.0"
+pytest-html = ">= 4.1.1"
+allure-pytest = ">= 2.13.5"
+csv-diff = ">= 1.2"
+coverage = ">= 7.6.8"
+
+[tool.poetry.group.dev.dependencies]
+pylint = ">= 3.3.1"
+pylint-json2html = ">= 0.5.0"
+licenseheaders = ">= 0.8.8"
+
+[build-system]
+requires = ["poetry-core>=1.0.0", "setuptools>=42"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "serial",
+    "wip: mark tests as work-in-progress (delect with '-m \"not wip\"')",
+    "fastercap: mark tests running FasterCap (deselect with '-m \"not fastercap\"')",
+]
+
+[tool.poetry_bumpversion.file."klayout_pex/version.py"]
+
