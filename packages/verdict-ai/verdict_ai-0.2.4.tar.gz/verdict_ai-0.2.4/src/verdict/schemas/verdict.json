@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Verdict Schema",
+  "description": "Schema for Verdict Agent output - a singular decision with reasoning",
+  "type": "object",
+  "required": ["decision", "reasoning", "scope", "confidence", "verdict_summary"],
+  "properties": {
+    "decision": {
+      "type": "string",
+      "enum": ["proceed", "reject", "alternative"],
+      "description": "The singular verdict: proceed with idea, reject it, or propose specific alternative"
+    },
+    "reasoning": {
+      "type": "string",
+      "minLength": 50,
+      "description": "Clear explanation of why this decision was made (minimum 50 characters)"
+    },
+    "scope": {
+      "type": "object",
+      "required": ["included", "excluded", "constraints"],
+      "properties": {
+        "included": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1,
+          "description": "What is included in this verdict"
+        },
+        "excluded": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "What is explicitly excluded"
+        },
+        "constraints": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Constraints that must be respected"
+        }
+      }
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Confidence level in this decision (0.0 to 1.0)"
+    },
+    "verdict_summary": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "One-sentence summary of the verdict"
+    },
+    "alternative": {
+      "type": "object",
+      "description": "Required if decision is 'alternative'",
+      "required": ["description", "why_better"],
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "The specific alternative to pursue instead"
+        },
+        "why_better": {
+          "type": "string",
+          "description": "Why this alternative is better than the original idea"
+        }
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of when verdict was made"
+    }
+  },
+  "if": {
+    "properties": {"decision": {"const": "alternative"}}
+  },
+  "then": {
+    "required": ["alternative"]
+  }
+}
