@@ -1,0 +1,57 @@
+@startuml llm_class
+!include ../common/book-clean.puml
+
+
+' External dependencies
+package "external_dependencies" <<Folder>> {
+    class "pydantic.BaseModel" as BaseModel
+}
+
+' Data structures
+package "llm_agents_from_scratch.data_structures.llm" <<Folder>> {
+  class CompleteResult {
+    +response: str
+    +prompt: str
+  }
+
+  class ChatMessage {
+    +role: ChatRole
+    +content: Any | None
+    +tool_calls: list[ToolCall]
+    ---
+    +<<constructor>> from_tool_call_result(result: ToolCallResult)
+  }
+
+  enum ChatRole {
+    SYSTEM
+    USER
+    ASSISTANT
+    TOOL
+  }
+}
+
+' BaseLLM
+package "llm_agents_from_scratch.base.llm" <<Folder>> {
+  abstract class BaseLLM {
+    --
+    +<<async>> complete(\n\tprompt: str\n): CompleteResult\n
+    +<<async>> chat(\n\tinput: str,\n\tchat_history: list[ChatMessage],\n\ttools: list[BaseTool | AsyncBaseTool]\n): tuple[ChatMessage, ChatMessage]\n
+    +<<async>> continue_chat_with_tool_results(\n\ttool_call_results: list[ToolCallResult],\n\tchat_history: list[ChatMessage],\n\ttools: list[BaseTool | AsyncBaseTool]\n): tuple[list[ChatMessage], ChatMessage]\n
+    +<<async>> structured_output<T>(\n\tprompt:str,\n\tmdl: type[T]\n): T
+  }
+}
+
+
+llm_agents_from_scratch.data_structures.llm -[hidden]down- llm_agents_from_scratch.base
+
+' Relations
+BaseModel <|-- CompleteResult : " inherits"
+BaseModel <|-- ChatMessage : " inherits"
+ChatMessage *-left- ChatRole
+
+ChatMessage -up-> BaseLLM::chat : " optional input"
+ChatMessage <-down- BaseLLM::chat : " returns"
+
+CompleteResult <-- BaseLLM::complete : " returns"
+
+@enduml
