@@ -1,0 +1,50 @@
+# Individual Consistency eXplorer (icx) Python Package
+
+This package provides the functionality for an interactive Streamlit dashboard designed to support stakeholders in exploring individual fairness notions within algorithmic decision-making systems.
+
+The dashboard allows users to:
+* Explore and operate on a tabular dataset of individuals provided with their corresponding binary classifications;
+* Define how similarity between individuals is measured, by configuring categorisation of attributes and how distances between attribute values are computed;
+* Compute and visualise five individual fairness metrics that summarise the consistency of classifications across the dataset; and
+* Inspect attributes of specific individuals and of those individuals most similar to them, to explore variations in attribute values and allow like-for-like comparisons of classifications.
+
+This package implements the functionality described in a ECAI Demo Track paper 2025, available at [Individual Consistency eXplorer (ICX): An Interactive Dashboard for the Exploration of Individual Fairness](https://kclpure.kcl.ac.uk/ws/portalfiles/portal/345016883/ECAI-25-Demos_paper_71.pdf)
+
+To see an online version of the dashboard, see [Individual Consistency eXplorer Online](https://individual-consistency-explorer.streamlit.app).
+
+To see an online version of the dashboard, see [Individual Consistency eXplorer Online](https://individual-consistency-explorer.streamlit.app).
+
+
+## 📦 Installation
+
+It is recommended to install icx in a virtual environment (e.g., conda).
+
+```
+pip install icx
+```
+
+## Basic Usage
+
+```
+from icx import dashboard
+```
+
+### Run the dashboard
+
+```
+dashboard.run()
+```
+
+In the dashboard there is the ability to upload your own datasets or use the demo datasets provided.
+
+
+Shield: [![CC BY-NC-SA 4.0][cc-by-nc-sa-shield]][cc-by-nc-sa]
+
+This work is licensed under a
+[Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License][cc-by-nc-sa].
+
+[![CC BY-NC-SA 4.0][cc-by-nc-sa-image]][cc-by-nc-sa]
+
+[cc-by-nc-sa]: http://creativecommons.org/licenses/by-nc-sa/4.0/
+[cc-by-nc-sa-image]: https://licensebuttons.net/l/by-nc-sa/4.0/88x31.png
+[cc-by-nc-sa-shield]: https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg
