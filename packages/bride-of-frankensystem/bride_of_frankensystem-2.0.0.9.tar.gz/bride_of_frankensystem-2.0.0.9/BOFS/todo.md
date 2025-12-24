@@ -1,0 +1,5 @@
+- [ ] Default models should not load using the default blueprint mechanism, so that typehints can be provided.
+- [ ] Migrate over the style.css loading override logic.
+- [ ] lower_case variable style.
+- [ ] Introduce tests for basic core functionality.
+- [ ] Refactor PAGE_LIST and possibly revisit how each participant's process is shown in the admin progress page. 

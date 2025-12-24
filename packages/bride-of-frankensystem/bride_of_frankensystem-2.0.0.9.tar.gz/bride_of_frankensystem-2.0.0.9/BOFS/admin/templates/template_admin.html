@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    {% include "template_admin_head.html" %}
+    {% block head %}{% endblock %}
+</head>
+<body style="padding: 65px 20px 20px 20px">
+
+<header data-bs-theme="dark">
+    <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">{{ config['TITLE'] }}</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                      <a class="nav-link" href="{{ url_for('admin.route_progress') }}">Progress</a>
+                    </li>
+
+                    {% if logGridClicks %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Export</a>
+                        <div class="dropdown-menu">
+                            <a class="dropdown-item" href="{{ url_for('admin.route_export') }}">Questionnaire Data</a>
+                            <a class="dropdown-item" href="{{ url_for('admin.route_export_item_timing') }}">Grid Timing Data</a><
+                        </div>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin.route_export') }}">Export</a>
+                    </li>
+                    {% endif %}
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin.route_results') }}">Preview Results</a>
+                    </li>
+
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Preview Questionnaires</a>
+                        <div class="dropdown-menu">
+                            {% for q in questionnairesSystem %}
+                            <a class="dropdown-item" href="{{ url_for('admin.route_preview_questionnaire', questionnaireName=q) }}">
+                                {{ q }}
+                                {% if q in questionnairesLive %}*{% endif %}
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin.route_preview_procedure') }}">Preview Procedure</a>
+                    </li>
+
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Database</a>
+                        <div class="dropdown-menu">
+                            {% if isSqliteDb %}
+                            <a class="dropdown-item" href="{{ url_for('admin.route_database_delete') }}">Delete Database</a>
+                            <a class="dropdown-item" href="{{ url_for('admin.route_database_download') }}">Download Database</a>
+                            {% endif %}
+                            <h6 class="dropdown-header">Tables</h6>
+                            {% for t in tableNames %}
+                            <a class="dropdown-item" href="{{ url_for('admin.route_table_view', tableName=t) }}">{{ t }}</a>
+                            {% endfor %}
+                        </div>
+                    </li>
+
+                    {% if additionalAdminPages %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Custom Pages</a>
+                        <div class="dropdown-menu">
+                            {% for page in additionalAdminPages %}
+                                {% if 'route' in page %}
+                                <a class="dropdown-item" href="{{ url_for(page['route']) }}">{{ page['title'] }}</a>
+                                {% elif 'url' in page %}
+                                <a class="dropdown-item" href="{{ page['url'] }}">{{ page['title'] }}</a>
+                                {% else %}
+                                <a class="dropdown-item" href="#">{{ page['title'] }}</a>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+</header>
+
+<main>
+{% block content %}
+{% endblock %}
+</main>
+
+<script>
+    function check_logged_in() {
+        // make Ajax call here, inside the callback call:
+        setTimeout(check_logged_in, 5000);
+        $.ajax({
+            url: '/admin/logged_in',
+            type: 'GET',
+            dataType: 'text',
+            success: function(res, status) {
+              if (res !== "True") {
+                  location.reload();  // Reload the page, which should bring up the log-in screen.
+              }
+            }
+        });
+    }
+
+    check_logged_in();
+</script>
+
+</body>
+</html>

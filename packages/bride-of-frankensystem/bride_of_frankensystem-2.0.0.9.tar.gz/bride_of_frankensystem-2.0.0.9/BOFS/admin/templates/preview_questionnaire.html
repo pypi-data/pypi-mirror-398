@@ -1,0 +1,72 @@
+{% extends "template_admin.html" %}
+{% from "questionnaire_macro.html" import createQuestionnaire with context %}
+{% block head %}
+{% endblock %}
+{% block content %}
+
+    {% if (config['CONDITIONS'] | length) > 1 %}
+    <div class="bg-body-tertiary p-3 rounded">
+        <form class="row g-3 pt-3" method="post">
+            <div class="col-auto col-form-label">
+                <label for="condition">Condition</label>
+            </div>
+            <div class="col-auto">
+                <select class="form-select" id="condition" name="condition">
+                    {% for condition in config['CONDITIONS'] %}
+                    <option value="{{ loop.index }}" {% if session['condition'] == loop.index %}selected{% endif %}>{{ condition['label'] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary mb-3">Override Current Condition</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if (errors | length) > 0 %}
+        <div class="error-box">
+            <b>Errors were found</b>
+            <ul>
+                {% for e in errors %}
+                <li>{{ e | safe }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    {% if not 'participantID' in session %}
+    <div class="error-box">
+        <b>Error:</b> Cannot render questions until you have a valid session. Please first view your study as a participant and then come back here.
+    </div>
+    {% endif %}
+
+    <form id="form">
+
+    {{ createQuestionnaire(q, q_html) }}
+
+    </form>
+
+    <br>
+
+    <div class="question padding">
+        <h3>{{ q.title if q.title else "Questionnaire Metadata"}}</h3>
+
+        <ul>
+            <li><b>Reference:</b> {{ q.reference if q.reference }}</li>
+            <li><b>DOI: </b> {{ ('<a href="{0}">{0}</a>'.format(q.doi) | safe if q.doi.startswith("http") else '<a href="https://doi.org/{0}">https://doi.org/{0}</a>'.format(q.doi) | safe) if q.doi }}</li>
+        </ul>
+    </div>
+    {% if q.participant_calculations %}
+    <div class="question padding">
+        <h3>Per-Response Calculations</h3>
+
+        <ul>
+            {% for name, calc in q.participant_calculations.items() %}
+            <li><b>{{ name }}</b>: <pre>{{ calc }}</pre></li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+{% endblock %}
