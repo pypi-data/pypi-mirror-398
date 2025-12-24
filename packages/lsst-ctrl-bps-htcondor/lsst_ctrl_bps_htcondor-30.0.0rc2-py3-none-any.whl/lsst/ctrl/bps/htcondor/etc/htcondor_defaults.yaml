@@ -1,0 +1,57 @@
+# Set a global default memory limit (in MiB) for the automatic memory scaling
+# mechanism. The value, 480 GiB, picked based on the cluster specifications
+# available at
+#
+#     https://s3df.slac.stanford.edu/public/doc/#/batch-compute
+memoryLimit: 491520
+
+# Define how to provision resources automatically.
+provisioning:
+  provisioningNodeCount: 10
+  provisioningMaxIdleTime: 900
+  provisioningCheckInterval: 600
+  provisioningQueue: "milano"
+  provisioningAccountingUser: "rubin:developers"
+  provisioningExtraOptions: ""
+  provisioningPlatform: "s3df"
+  provisioningScript: |
+    #!/bin/bash
+    set -e
+    set -x
+    while true; do
+        ${CTRL_EXECUTE_DIR}/bin/allocateNodes.py \
+            --account {provisioningAccountingUser} \
+            --auto \
+            --node-count {provisioningNodeCount} \
+            --maximum-wall-clock {provisioningMaxWallTime} \
+            --glidein-shutdown {provisioningMaxIdleTime} \
+            --queue {provisioningQueue} \
+            {provisioningExtraOptions} \
+            {provisioningPlatform}
+        sleep {provisioningCheckInterval}
+    done
+    exit 0
+  provisioningScriptConfig: |
+    config.platform["{provisioningPlatform}"].user.name="${USER}"
+    config.platform["{provisioningPlatform}"].user.home="${HOME}"
+  provisioningScriptConfigPath: "${HOME}/.lsst/condor-info.py"
+
+# By default, disable automatic provisioning of resources.
+provisionResources: false
+
+# Whether automatic job retries overwrite stdout/stderr of previous attempt.
+overwriteJobFiles: true
+finalJob:
+  overwriteJobFiles: false
+
+# Define the default DAGMan configuration.
+wmsConfig:
+  # A comma separated list of variable names to add to the DAGMan *.condor.sub
+  # file’s getenv option. If set to "TRUE" (a string, not a boolean!), DAGMan
+  # will effectively lift all environmental variables from the user's shell
+  # environment.
+  DAGMAN_MANAGER_JOB_APPEND_GETENV: "TRUE"
+
+  # A boolean flag controlling whether DAGMan should generate submit files for
+  # nested DAGs automatically.
+  DAGMAN_GENERATE_SUBDAG_SUBMITS: true
