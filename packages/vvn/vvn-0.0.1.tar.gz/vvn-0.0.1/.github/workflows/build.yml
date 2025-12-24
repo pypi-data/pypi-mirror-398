@@ -1,0 +1,105 @@
+# SPDX-FileCopyrightText: 2025 René de Hesselle <dehesselle@web.de>
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+name: Build
+on:
+  push:
+jobs:
+  #-----------------------------------------------------------------------------
+
+  Build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Black
+        uses: psf/black@stable
+        with:
+          options: "--check --verbose"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build project
+        run: uv build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/vvn*.*
+
+  #-----------------------------------------------------------------------------
+
+  Prerelease:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: Build
+    if: startsWith(github.ref, 'refs/heads/develop')
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+
+      - name: Update prerelease
+        uses: ncipollo/release-action@v1
+        with:
+          name: develop
+          artifacts: vvn*.*
+          prerelease: true
+          allowUpdates: true
+          removeArtifacts: true
+          tag: latest
+          body: |
+            This prerelease follows the develop branch.
+            For testing purposes only.
+
+  #-----------------------------------------------------------------------------
+
+  Release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: Build
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: vvn*.*
+          draft: true
+
+  #-----------------------------------------------------------------------------
+
+  PyPI:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    needs:
+      - Build
+      - Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment:
+      name: pypi
+      url: https://pypi.org/p/vvn
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
