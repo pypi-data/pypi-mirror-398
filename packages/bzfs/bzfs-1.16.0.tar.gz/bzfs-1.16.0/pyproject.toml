@@ -1,0 +1,356 @@
+[build-system]
+requires = ["setuptools >= 75.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bzfs"
+version = "1.16.0"
+
+description = """
+bzfs is a reliable near real-time, parallel replication and backup command-line tool for ZFS. It replicates snapshots \
+from many local or remote source ZFS datasets (and their descendants) to local or remote destination datasets, using \
+zfs send/receive and ssh, and can operate at sub-second intervals across large fleets of hosts.
+bzfs incrementally replicates all ZFS snapshots since the most recent common snapshot, supporting disaster recovery \
+and high availability (DR/HA), scale-out deployments, and protection against data loss or ransomware."""
+
+authors = [
+  {name = "Wolfgang Hoschek", email = "wolfgang.hoschek@mac.com"},
+]
+maintainers = [
+  {name = "Wolfgang Hoschek", email = "wolfgang.hoschek@mac.com"},
+]
+readme = "README.md"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["bzfs", "ZFS", "snapshot", "replication", "backup", "synchronization"]
+license = {text = "Apache License (2.0)"}
+requires-python = ">= 3.9"
+dependencies = [
+]
+
+[project.urls]
+Homepage = "https://github.com/whoschek/bzfs"
+Repository = "https://github.com/whoschek/bzfs"
+Tests = "https://github.com/whoschek/bzfs/actions/workflows/python-app.yml?query=event%3Aschedule"
+Coverage = "https://whoschek.github.io/bzfs/coverage"
+Issues = "https://github.com/whoschek/bzfs/issues"
+Changelog = "https://github.com/whoschek/bzfs/blob/main/CHANGELOG.md"
+Distribution = "https://pypi.org/project/bzfs"
+
+[project.optional-dependencies]
+dev = [  # for development only
+  "argparse-manpage==4.7",          # see https://github.com/praiskup/argparse-manpage
+  # "pandoc", # instead use this for pandoc >= 3.5: sudo apt-get -y install pandoc (Ubuntu) or brew install pandoc (OSX)
+  "genbadge[coverage]==1.1.3",      # see https://smarie.github.io/python-genbadge/
+  "commitizen==4.10.1",             # see https://github.com/commitizen-tools/commitizen
+  "pre-commit==4.5.1",              # see https://github.com/pre-commit/pre-commit
+  "black==25.11.0",                 # see https://github.com/psf/black
+  "ruff==0.14.10",                  # see https://github.com/astral-sh/ruff
+  "coverage>=7.6",                  # see https://github.com/nedbat/coveragepy
+  "mypy==1.19.1",                   # see https://github.com/python/mypy
+  "shellcheck-py==0.11.0.1",        # see https://github.com/shellcheck-py/shellcheck-py
+  # "ast-grep-cli==0.39.9",         # see https://github.com/ast-grep/ast-grep
+]
+# Example that installs the optional python development dependencies (see above) into a venv:
+# cd ~/devel/bzfs
+# rm -rf venv
+# python3 -m venv venv                      # Create a Python virtual environment
+# source venv/bin/activate                  # Activate the venv
+# pip install -e '.[dev]'                   # Install all development dependencies
+# pre-commit install --install-hooks        # Set up linters/formatters to run on every commit
+# pip list --not-required
+
+[project.scripts]
+bzfs = "bzfs_main.bzfs:main"
+bzfs_jobrunner = "bzfs_main.bzfs_jobrunner:main"
+bzfs-test = "bzfs_tests.test_all:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["bzfs_docs", "bash_completion_d", "lab"]
+
+[tool.setuptools.package-data]
+bzfs_tests = ["*.json"]
+
+[tool.commitizen]  # release mgmt via https://github.com/commitizen-tools/commitizen + https://www.conventionalcommits.org
+name = "cz_conventional_commits"
+version_provider = "pep621"
+version_files = ["bzfs_main/argparse_cli.py:__version__"]
+tag_format = "v$version"
+bump_message = "chore(release): v$new_version"
+update_changelog_on_bump = false
+
+[tool.coverage.run]  # see https://coverage.readthedocs.io/
+branch = true
+include = ["bzfs_main/**/*.py"]
+omit = ["bzfs_tests/**/*.py", "**/__init__.py"]
+
+[tool.docformatter]         # auto-format Python docstrings to follow PEP 257 and wrap them to a specific line length
+wrap-summaries = 125        # summary / one-liner length; see https://docformatter.readthedocs.io/en/latest/usage.html
+wrap-descriptions = 125     # long-description line length
+force-wrap = false          # force descriptions to be wrapped even if it may result in a mess?
+in-place = true             # let pre-commit make changes to files instead of printing diffs
+
+[tool.black]
+line_length = 125
+target_version = ["py39", "py310", "py311", "py312", "py313", "py314"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 125
+fix = true            # allow safe auto-fixes?
+unsafe-fixes = false  # allow FA100 and similar "unsafe" auto-fixes?
+show-fixes = true     # display which rule triggered an auto-fix
+exclude = [   # toggles to exclude overly strict `ruff` checks of these Python source code directories in development mode:
+#    "bzfs_main",
+#    "bzfs_tests",
+#    ".github-workflow-scripts",
+]
+
+[tool.ruff.lint]
+select = [      # see https://docs.astral.sh/ruff/rules/
+    "A",        # builtins
+    "ASYNC",    # flake8-async
+    "B",        # bugbear
+    "C4",       # flake8-comprehensions
+    "D100", "D101", "D102", "D103", "D106", "D200", "D206", "D403", "D404", "D414", "D418", "D419",  # pydocstyle
+    "E",        # pycodestyle error
+    "EXE",      # shebang
+    "F",        # pyflakes
+    "FA",       # forward annotations
+    "FAST",     # fastAPI
+    "FURB122", "FURB129", "FURB132", "FURB136", "FURB142", "FURB167", "FURB168", "FURB169", "FURB177", "FURB181", "FURB187",
+    "G",        # flake8-logging-format
+    "I",        # isort: auto-sort and auto-format imports
+    "ICN",      # flake8-import-conventions
+    "INP",      # flake8-no-pep420
+    "ISC",      # flake8-implicit-str-concat
+    "LOG",      # flake8-logging
+    "N",        # pep8-naming, snake_case
+    "PERF101",  # unnecessary-list-cast
+    "PERF402",  # use list or list.copy to create a copy of a list
+    "PGH",      # pygrep-hooks
+    "PIE",      # flake8-pie
+    "PLC",      # pylint-convention
+    "PLE",      # pylint-error
+    "PLR0206",  # pylint-refactor: property-with-parameters
+    "PLR0402",  # pylint-refactor: use from {module} import {name} in lieu of alias
+    "PLR1711",  # pylint-refactor: useless return statement at end of function
+    "PLR1722",  # pylint-refactor: use sys.exit() instead of exit()
+    "PLR1730",  # pylint-refactor: replace if statement with min() or max() if possible
+    "PLR1733",  # pylint-refactor: unnecessary lookup of dictionary value by key
+    "PLR1736",  # pylint-refactor: list index lookup in enumerate() loop
+    "PLR2044",  # pylint-refactor: line with empty comment
+    "PLW",      # pylint-warning
+    "RET501", "RET502", "RET503",  # flake8-return
+    "RUF",      # ruff-specifc rules
+    "S",        # bandit
+    "SIM115",   # flake8-simplify: use a context manager for opening files
+    "SIM118",   # flake8-simplify: use `key in foo` instead of `key in foo.keys()`
+    "SIM208",   # flake8-simplify: use `a` instead of `not (not a)`
+    "SIM300",   # flake8-simplify: yoda condition detected
+    "SIM401",   # flake8-simplify: use dict.get(x, default) instead of if statement
+    "SIM910",   # flake8-simplify: dict.get(x, None)
+    "SIM911",   # flake8-simplify: use dict.items() instead of zip()
+    "SLF",      # private member accessed
+    "T100",     # check for debugger imports and breakpoint() calls
+    "TC001", "TC004", "TC005", "TC007","TC008", "TC010",  # flake8-type-checking conditions
+    "TID",      # flake8-tidy-imports
+    "TRY",      # tryceratops raises
+    "TRY201",   # use `raise` without specifying exception name
+    "UP",       # pyupgrade
+    "YTT",      # flake8-2020
+]
+preview = true                 # enable preview rules
+explicit-preview-rules = true  # only opt into specific preview rules via extend-select whitelist (no blank opt-in)
+extend-select = [
+    "CPY001",   # copyright
+    "PLR0202",  # no-classmethod-decorator
+    "PLR0203",  # no-staticmethod-decorator
+]
+ignore = [  # toggles to exclude overly strict `ruff` checks:
+    "E501",     # line too long (defer autofix to `black`)
+    "G004",     # logging statement uses f-string
+    "PLC0415",  # `import` should be at the top-level of a file
+    "PLW0108",  # lambda may be unnecessary; consider inlining inner function
+    "PLW1510",  # subprocess-run
+    "PLW2901",  # redefined-loop-name
+    "RUF005",   # collection-literal-concatenation
+    "S101",     # use of assert detected (harmless)
+    "S404",     # use of subprocess module (this use is intended)
+    "S603",     # use of subprocess without shell=True (this use is intended)
+    "TRY003",   # avoid specifying long messages outside the exception class
+    "TRY300",   # consider moving this statement to an else block
+    "TRY301",   # abstract raise to an inner function
+    "TRY400",   # use logging.exception instead of logging.error
+    "UP012",    # unnecessary-encode-utf8
+    "UP015",    # redundant-read-open-mode
+    "UP022",    # use capture_output keyword argument (capture_output is less readable in our bimodal context)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"bzfs_tests/**/*" = [
+    "D101", "D102", "D103", "D104", "D105", "D106", "D107",  # pydocstyle: ignore all D rules except the ones we want
+    "PERF402",  # use list or list.copy to create a copy of a list
+    "PGH003",   # pygrep-hooks blanket-type-ignore
+    "PLW0603",  # global-statement
+    "S",        # bandit
+    "SLF",      # private member accessed
+]
+"bash_completion_d/**/*" = [
+    "SLF",      # private member accessed
+]
+".github-workflow-scripts/**/*" = [
+    "N999",     # invalid-module-name
+]
+"**/__init__.py" = [
+    "CPY",      # copyright
+]
+"**/check_range.py" = [
+    "CPY",      # copyright
+]
+
+[tool.ruff.lint.flake8-copyright]
+notice-rgx = """Copyright (\\(c\\) )?\\d{4}([-,]\\d{4})* Wolfgang Hoschek AT mac DOT com\
+(\\s#.*){0,2}\\s\
+#\\s\
+# Licensed under the Apache License, Version 2\\.0"""
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# Deprecated in Python 3.11:
+"locale.getdefaultlocale".msg = "Use locale.setlocale() and locale.getlocale() instead."
+# Deprecated in Python 3.12:
+"datetime.datetime.utcnow".msg = "Use datetime.datetime.now(tz=datetime.timezone.utc)"
+"datetime.datetime.utcfromtimestamp".msg = "Use datetime.datetime.fromtimestamp(tz=datetime.timezone.utc)"
+"typing.Hashable".msg = "Use collections.abc.Hashable"
+"typing.Sized".msg = "Use collections.abc.Sized"
+
+[tool.ruff.lint.flake8-import-conventions]  # ICN
+# forbid-aliased-import-of-modules, e.g. forbids 'import bzfs_main.bzfs as foo'
+aliases = { "bzfs_main.bzfs" = "bzfs", "bzfs_main.bzfs_jobrunner" = "bzfs_jobrunner" }
+
+# forbid-aliased-import-of-attributes, e.g. forbids 'from bzfs_main import bzfs as foo'
+extend-aliases = { "bzfs_main.bzfs" = "bzfs", "bzfs_main.bzfs_jobrunner" = "bzfs_jobrunner" }
+
+[tool.ruff.lint.isort]
+known-first-party = ["bzfs_*"]
+no-lines-before = ["standard-library"]   # no blank line before std-lib
+lines-between-types = 0                  # keep `import ...` and `from ...` tight
+split-on-trailing-comma = true           # retain multi-line blocks when a trailing comma is present
+#force-single-line = true                # forces all `from` imports to appear on their own line
+
+[tool.ruff.lint.pydocstyle]
+ignore-decorators = [  # Don't require docstrings (via D102) for items decorated w/ these specified decorators
+  "property",
+  "functools.cached_property",
+  "cached_property",
+  "typing.overload",
+]
+
+[tool.isort]
+profile="black"
+line_length = 125
+known_first_party = ["bzfs_*"]
+no_lines_before = ["STDLIB"]
+lines_between_types = 0
+no_inline_sort = true
+split_on_trailing_comma = true
+include_trailing_comma = true
+use_parentheses = true
+force_grid_wrap = 1  # ruff does not have this option, which is why we still use `isort`.
+                     # See https://github.com/astral-sh/ruff/issues/2601
+
+[tool.pylint.main]
+py-version = "3.9"
+
+[tool.pylint."MESSAGES CONTROL"]  # see https://pylint.readthedocs.io/en/latest/user_guide/messages/messages_overview.html
+# Preferably only include checks that are not yet supported by ruff or mypy; see https://github.com/astral-sh/ruff/issues/970
+enable  = [
+    "E",     # errors
+    "W",     # warnings
+]
+disable = [
+#    "all",  # turn all checks off ...
+    "C",     # convention
+    "E1101", # no-member
+    "E0606", # possibly-used-before-assignment
+    "I",     # information
+    "R",     # refactor
+    "W0106", # expression-not-assigned
+    "W0108", # unnecessary-lambda
+    "W0511", # fixme
+    "W0613", # unused-argument
+    "W0718", # broad-exception-caught
+    "W1510", # subprocess-run-check
+]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+disallow_any_generics = false
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+no_implicit_reexport = true
+#ignore_errors = true  #  big toggle to exclude all `mypy` checks in development mode
+disable_error_code = [  # toggles to exclude overly strict `mypy` checks in development mode:
+#    see https://mypy.readthedocs.io/en/stable/error_code_list.html#error-code-list
+#    and https://mypy.readthedocs.io/en/stable/error_code_list2.html
+    "import-untyped"
+#    "arg-type",
+#    "assignment",
+#    "attr-defined",
+#    "call-arg",
+#    "call-overload",
+#    "exit-return",
+#    "func-returns-value",
+#    "index",
+#    "misc",
+#    "name-defined",
+#    "no-redef",
+#    "operator",
+#    "return",
+#    "return-value",
+#    "str-bytes-safe",
+#    "type-arg",
+#    "type-var",
+#    "union-attr",
+#    "var-annotated",
+]
+
+[tool.pyrefly]
+python-version = "3.9"
+#untyped-def-behavior = "check-and-infer-return-type"
+#project-includes = ["**/bzfs_*/**"]
+project-excludes = ["bzfs_tests/bzfs_job_example.py", "**/.venv/**"]
+
+[tool.codespell]  # Auto-fix typos
+skip = "bzfs_tests/test_*.py,venv*,dist*,*.egg-info*,htmlcov*"
+write-changes = true                      # let pre-commit make changes to files instead of printing diffs
+interactive = 0                           # no interactivity on making changes to files
+ignore-words-list = [                     # project-specific words that should not be treated as typos
+    "cach",
+    "grup",
+    "mut",
+]
