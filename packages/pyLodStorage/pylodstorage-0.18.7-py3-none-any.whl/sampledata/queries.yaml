@@ -1,0 +1,205 @@
+#
+# Sample Queries for pyLodStorage library
+#
+# WF 2020-08-22
+'WikidataUpdateState':
+  title: Wikidata state
+  description: Returns total triple count and dateModified of the Wikidata root node
+  short_urls:
+    wikidata: https://w.wiki/GEGh
+    wikidata-scholarly: https://w.wiki/GEH3
+    wikidata-legacy-full: https://w.wiki/GEHu
+  sparql: |
+    # show the number of triples and the timestamp of the last modification
+    # see https://github.com/WolfgangFahl/pyLoDStorage/issues/143
+    PREFIX schema: <http://schema.org/>
+
+    SELECT
+      (?count as ?tripleCount)
+      ?dateModified
+      (STR(?dateModified) as ?timestamp)
+    WHERE {
+      {
+        SELECT (COUNT(*) AS ?count) {
+          ?s ?p ?o
+        }
+      }
+      OPTIONAL {
+        <http://www.wikidata.org> schema:dateModified ?dateModified
+      }
+    }
+'classHistogramm':
+  sparql: |
+    SELECT ?c (COUNT(?c) AS ?count)
+    WHERE {
+      ?subject a ?c
+    }
+    GROUP BY ?c
+    HAVING (?count >100)
+    ORDER BY DESC(?count)
+'propertyHistogramm':
+  sparql: |
+    SELECT ?property (COUNT(?property) AS ?propTotal)
+    WHERE { ?s ?property ?o . }
+    GROUP BY ?property
+    HAVING (?propTotal >1000)
+    ORDER BY DESC(?propTotal)
+'Predicate usage':
+    sparql: |
+        SELECT ?p (count(?p) as ?numberOfPredicates)
+        WHERE {
+            ?s ?p ?o .
+        }
+        group by ?p
+        order by desc(?numberOfPredicates)
+'Predicate usage grouped by source':
+    sparql: |
+        PREFIX cr: <http://cr.bitplan.com/>
+        SELECT ?p (count(?p) as ?numberOfPredicates) ?source
+        WHERE {
+            ?s ?p ?o ;
+            cr:Event_source ?source.
+        }
+        group by ?p ?source
+        order by ?source desc(?numberOfPredicates)
+'Conference Series':
+    sparql: |
+        # Conference Series wikidata query
+        # see https://confident.dbis.rwth-aachen.de/dblpconf/wikidata
+        # WF 2021-01-30
+        PREFIX wd: <http://www.wikidata.org/entity/>
+        PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+        SELECT (?confSeries as ?eventSeriesId) ?acronym ?title ?homepage ?DBLP_pid ?WikiCFP_pid ?FreeBase_pid ?Microsoft_Academic_pid ?Publons_pid ?ACM_pid ?GND_pid
+        WHERE
+        {
+          #  scientific conference series (Q47258130)
+          ?confSeries wdt:P31 wd:Q47258130.
+          OPTIONAL { ?confSeries wdt:P1813 ?short_name . }
+          BIND (?confSeriesLabel AS ?title)
+          BIND (COALESCE(?short_name,?confSeriesLabel) AS ?acronym).
+          #  official website (P856)
+          OPTIONAL {
+            ?confSeries wdt:P856 ?homepage
+          }
+          # any item with a DBLP venue ID
+          OPTIONAL {
+            ?confSeries wdt:P8926 ?DBLP_pid.
+          }
+          # WikiCFP pid
+          optional {
+             ?confSeries wdt:P5127 ?WikiCFP_pid.
+          }
+          # FreeBase pid
+          optional {
+              ?confSeries wdt:P646 ?FreeBase_pid.
+          }
+          # Microsoft Academic ID
+          optional {
+              ?confSeries wdt:P6366 ?Microsoft_Academic_pid.
+          }
+          # Publons journals/conferences ID
+          optional {
+              ?confSeries wdt:P7461 ?Publons_pid.
+          }
+          # ACM conference ID
+          optional {
+            ?confSeries wdt:P7979 ?ACM_pid.
+          }
+          # GND pid
+          optional {
+            ?confSeries wdt:P227 ?GND_pid.
+          }
+          # label
+          ?confSeries rdfs:label ?confSeriesLabel filter (lang(?confSeriesLabel) = "en").
+        }
+        ORDER BY (?acronym)
+    title: Scientific conference series
+    tryItUrl: https://query.wikidata.org
+    endpoint: https://query.wikidata.org/sparql
+'US President Nicknames':
+    description: https://stackoverflow.com/questions/70206791/sparql-i-have-individual-with-multiple-values-for-single-object-property-how
+    prefixes: []
+    formats:
+        - president:wikidata
+    sparql: |
+        SELECT ?president ?presidentLabel (GROUP_CONCAT(DISTINCT ?nickName; SEPARATOR=",") as ?nickNames)
+        WHERE
+        {
+          # president
+          ?president wdt:P39 wd:Q11696.
+          # nickname
+          ?president wdt:P1449 ?nickName.
+          ?president rdfs:label ?presidentLabel.
+          FILTER (LANG(?presidentLabel)="en")
+        } GROUP BY ?president ?presidentLabel
+    title: Nick names of US Presidents
+    tryItUrl: https://query.wikidata.org
+    endpoint: https://query.wikidata.org/sparql
+'10 Largest Cities Of The World':
+    title: Ten largest cities of the world
+    description: Ten Largest cities of the world see also http://wiki.bitplan.com/index.php/PyLoDStorage#Examples
+    sparql: |
+        PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+        PREFIX wd: <http://www.wikidata.org/entity/>
+        PREFIX wikibase: <http://wikiba.se/ontology#>
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+        # Ten Largest cities of the world
+        # WF 2021-08-23
+        # see also http://wiki.bitplan.com/index.php/PyLoDStorage#Examples
+        SELECT DISTINCT ?city ?cityLabel ?population ?country ?countryLabel
+        WHERE {
+          VALUES ?cityClass { wd:Q1549591 }. # big city - million city does not work any more
+          ?city wdt:P31 ?cityClass .
+          ?city wdt:P1082 ?population .
+          ?city wdt:P17 ?country .
+          ?city rdfs:label ?cityLabel.
+          FILTER(LANG(?cityLabel) = "en").
+          ?country rdfs:label ?countryLabel.
+          FILTER(LANG(?countryLabel) = "en").
+        }
+        ORDER BY DESC(?population)
+        LIMIT 10
+'Sample Count':
+    sql: |
+        SELECT count(*) FROM sample
+'Samples':
+    sql: |
+        SELECT * FROM sample
+        LIMIT 5
+'cities':
+    title: 'Cities of a country by population'
+    sparql: |
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+        PREFIX wd: <http://www.wikidata.org/entity/>
+        PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+        SELECT ?city_id ?name (MAX(?population_claim) AS ?population) WHERE {
+          ?city_id wdt:P31/wdt:P279* wd:Q515 .
+          ?city_id wdt:P17 wd:{{country}}.
+          ?city_id wdt:P1082 ?population_claim .
+          ?city_id rdfs:label ?name .
+          FILTER (LANG(?name) = "en")
+        }
+        GROUP BY ?city_id ?name
+        ORDER BY DESC(?population)
+
+'FirstTriple':
+    title: First Triple
+    description: Get the first triple of the triplestore as a generic test query
+    sparql: |
+        # Generic SPARQL test query
+        # First triple
+        # 2022-02-15
+        SELECT ?s ?p ?o WHERE {
+          ?s ?p ?o
+        } LIMIT 1
+'CountAllTriples':
+    title: Count All Triples
+    description: Get the total number of triples in the triplestore
+    sparql: |
+        # Generic SPARQL test query
+        # Count triples
+        # 2025-11-23
+        SELECT (COUNT(*) as ?count) WHERE {
+          ?s ?p ?o
+        }
