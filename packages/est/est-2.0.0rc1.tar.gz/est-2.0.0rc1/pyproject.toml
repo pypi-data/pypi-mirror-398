@@ -1,0 +1,122 @@
+[build-system]
+requires = ["setuptools>=46.4"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+# consider_namespace_packages = true  # for pytest>=8.1
+addopts = "--import-mode=importlib" # for all pytest versions, pytest-cov needs `pip install -e .`
+
+[project]
+name = "est"
+version = "2.0.0rc1"
+keywords = ['orange3 add-on', 'ewoks']
+authors = [{name = "ESRF", email = "dau-pydev@esrf.fr"}]
+description = "Spectroscopy workflows"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {file = "LICENSE"}
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "numpy",
+    "pydantic>=2",
+    "scipy",
+    "h5py >=3.1",
+    "silx >=0.15",
+    "Pint",
+    "ewokscore",
+    "ewoksorange >=3.1.0",
+    "importlib_resources; python_version < '3.9'",
+]
+
+[project.urls]
+Homepage = "https://gitlab.esrf.fr/workflow/ewoksapps/est/"
+Documentation = "https://ewoksest.readthedocs.io/"
+Repository = "https://gitlab.esrf.fr/workflow/ewoksapps/est/"
+Issues = "https://gitlab.esrf.fr/workflow/ewoksapps/est/issues"
+Changelog = "https://gitlab.esrf.fr/workflow/ewoksapps/est/-/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+pymca = [
+    "pymca >=5.8.1",
+]
+larch = [
+    "xraylarch >=0.9.71",
+]
+orange = [
+    "ewoksorange[orange] >=3.1.0",
+]
+full = [
+    "est[pymca]",
+    "est[larch]",
+    "est[orange]",
+]
+test_no_larch_or_pymca = [
+    "pytest >=7",
+    "testbook",
+    "ipykernel",
+    "pyqt5",
+]
+test = [
+    "ewoks",
+    "est[full]",
+    "est[test_no_larch_or_pymca]",
+]
+dev = [
+    "est[test]",
+    "black >=25",
+    "flake8 >=4",
+    "flake8_nb >= 0.3.1",
+    "pillow >= 10.0",
+    "isort",
+]
+doc = [
+    "est[test]",
+    "est[full]",
+    "sphinx >=4.5",
+    "sphinx-autodoc-typehints >=1.16",
+    "ipykernel",
+    "nbsphinx",
+    "nbsphinx_link",
+    "docutils < 0.21",  # v0.21 incompatible with nbsphinx_link: https://github.com/vidartf/nbsphinx-link/issues/22
+    "pydata_sphinx_theme",
+    "sphinx-copybutton",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*"= ['*.ows', '*.png', '*.svg', '*.dat', '*.xmu', '*.ipynb']
+
+[tool.coverage.run]
+omit = ['*/tests/*']
+
+[project.scripts]
+est = "est.__main__:main"
+
+[project.entry-points."orange3.addon"]
+"est-add-on" = "orangecontrib.est"
+
+[project.entry-points."orange.widgets"]
+"Est" = "orangecontrib.est.widgets"
+
+[project.entry-points."orange.widgets.tutorials"]
+"Est" = "orangecontrib.est.tutorials"
+
+[project.entry-points."orange.canvas.help"]
+"html-index" = "orangecontrib.est.widgets:WIDGET_HELP_PATH"
+
+[project.entry-points."ewoks.tasks.class"]
+"est.core.process.*" = "est1"
+"est.core.process.*.*" = "est2"
+
+[tool.isort]
+profile = "black"
+force_single_line = true
