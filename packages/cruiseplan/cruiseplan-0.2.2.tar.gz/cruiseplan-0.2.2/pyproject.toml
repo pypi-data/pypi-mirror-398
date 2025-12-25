@@ -1,0 +1,160 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [
+  "setuptools>=61.0",
+  "setuptools-scm[toml]>=3.4",
+  "wheel",
+]
+
+[project]
+name = "cruiseplan"
+description = "Oceanographic Research Cruise Planning System"
+readme = "README.md"
+license = { file = "LICENSE" }
+maintainers = [
+  { name = "Eleanor Frajka-Williams", email = "eleanorfrajka@gmail.com" },
+]
+requires-python = ">=3.9"
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: GIS",
+]
+
+# Define which fields are read from files/tools
+dynamic = ["version", "dependencies", "optional-dependencies"]
+
+# THIS ENABLES THE 'cruiseplan' TERMINAL COMMAND
+[project.scripts]
+cruiseplan = "cruiseplan.cli.main:main"
+
+[project.urls]
+documentation = "https://github.com/ocean-uhh/cruiseplan"
+homepage = "https://github.com/ocean-uhh/cruiseplan"
+repository = "https://github.com/ocean-uhh/cruiseplan"
+
+
+# ---------------------------------------------------------
+# TOOL CONFIGURATION
+# ---------------------------------------------------------
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cruiseplan*"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.dynamic.optional-dependencies]
+dev = { file = ["requirements-dev.txt"] }
+# pip install -e ".[dev]"
+
+[tool.setuptools_scm]
+write_to = "cruiseplan/_version.py"
+write_to_template = "__version__ = '{version}'"
+version_scheme = "no-guess-dev"
+local_scheme = "no-local-version"
+
+[tool.check-manifest]
+ignore = [
+  "docs",
+  "docs/*",
+  "notebooks",
+  "notebooks/*",
+  "tests",
+  "tests/*",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.ruff]
+target-version = "py39"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+  "E",       # pycodestyle errors
+  "W",       # pycodestyle warnings
+  "F",       # pyflakes errors
+  "I",       # isort
+  "B",       # flake8-bugbear
+  "UP",      # pyupgrade
+  "D",       # pydocstyle (Docstrings)
+  "C901",    # mccabe complexity
+  "PLR",     # pylint refactor (includes function length)
+]
+ignore = [
+  "D107",    # missing docstring in __init__
+  "D203",    # 1 blank line required before class docstring
+  "D213",    # multi-line summary docstring style
+  "D401",    # first line should be in imperative mood
+  "E501",    # line‑length (handled by black)
+]
+
+# Per-file ignores for complex legacy functions (to be refactored gradually)
+[tool.ruff.lint.per-file-ignores]
+"cruiseplan/calculators/scheduler.py" = ["C901", "PLR0912", "PLR0915"]  # Legacy complex functions
+"cruiseplan/core/validation.py" = ["C901", "PLR0912", "PLR0915"]  # Complex validation functions
+"cruiseplan/output/netcdf_generator.py" = ["C901", "PLR0912", "PLR0915"]  # Large data processing functions
+"cruiseplan/data/pangaea.py" = ["C901"]  # Complex API handling functions
+"cruiseplan/output/map_generator.py" = ["C901"]  # Complex plotting functions
+"cruiseplan/cli/enrich.py" = ["C901", "PLR0912", "PLR0915"]  # CLI main functions (temporary)
+"cruiseplan/cli/main.py" = ["C901", "PLR0915"]  # CLI argument parsing
+"cruiseplan/cli/*.py" = ["C901"]  # CLI functions can be complex (temporary)
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.mccabe]
+# Maximum allowed complexity for functions (start lenient, can tighten later)
+max-complexity = 15
+
+[tool.ruff.lint.pylint]
+# Maximum number of statements in a function body (your CONTRIBUTING.md suggests ~50 lines)
+max-statements = 75
+# Maximum number of arguments for function / method
+max-args = 8
+# Maximum number of branches for function / method body  
+max-branches = 20
+# Maximum number of return statements in function / method body
+max-returns = 8
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # Start lenient, can tighten later
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true
+strict_equality = true
+
+# Scientific computing packages often lack good type stubs
+[[tool.mypy.overrides]]
+module = [
+    "matplotlib.*",
+    "folium.*", 
+    "pangaeapy.*",
+    "branca.*",
+    "netCDF4.*",
+    "scipy.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "--verbose"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks integration tests",
+]
