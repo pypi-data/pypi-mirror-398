@@ -1,0 +1,192 @@
+We want to show data for a student.
+For this, we need a student identifier.
+We want to use it like this:
+\begin{minted}{bash}
+ladok student 700101-1234
+\end{minted}
+We also want to optionally print courses.
+\begin{minted}{bash}
+ladok student 700101-1234 -c "DD131[0-9]"
+\end{minted}
+
+
+\section{The [[student]] subcommand}\label{StudentCommand}
+
+This is a subcommand is run as part of the [[ladok3.cli]] module.
+We provide a function [[add_command_options]] that adds the subcommand options 
+to a given parser.
+We need access to LADOK through the [[ladok3]] module.
+<<student.py>>=
+import csv
+import ladok3.cli
+
+<<functions>>
+
+def add_command_options(parser):
+  """Add the 'student' subcommand options to the argument parser.
+  
+  Creates a subparser for displaying student information with options
+  for course filtering and result display.
+  
+  Args:
+      parser (ArgumentParser): The parent parser to add the subcommand to.
+  """
+  student_parser = parser.add_parser("student",
+    help="Shows a student's information in LADOK",
+    description="""
+    Show a student's information in LADOK.
+    Shows information like name, personnummer, contact information.
+    """
+  )
+  student_parser.set_defaults(func=command)
+  <<add student command arguments to student parser>>
+
+def command(ladok, args):
+  """Execute the student information display command.
+  
+  Args:
+      ladok (LadokSession): The LADOK session for data access.
+      args: Parsed command line arguments containing student ID and display options.
+  """
+  <<print info depending on args>>
+@
+
+
+\section{The student command options}
+
+\subsection{The student identifier}
+
+As mentioned above, we want to take one positional argument, the student 
+identifier.
+Since our API (\cref{GetStudent}) can handle both personnummer and LADOK ID 
+transparently, we don't have to care about that either.
+<<add student command arguments to student parser>>=
+student_parser.add_argument("id",
+  help="The student's ID, either personnummer or LADOK ID"
+)
+@
+
+\subsection{An optional course identifier}
+
+We also want an option for the course code.
+<<add student command arguments to student parser>>=
+student_parser.add_argument("-c", "--course",
+  nargs="?", const=".*",
+  help="A regular expression for which course codes to list, " \
+    "use no value for listing all courses."
+)
+@
+
+\subsection{A results flag}
+
+We also want a flag for specifying whether or not to include the results of 
+each course.
+<<add student command arguments to student parser>>=
+student_parser.add_argument("-r", "--results",
+  action="store_true", default=False,
+  help="Set to include results for each course listed."
+)
+@
+
+\subsection{A contact information flag}
+
+We also want a flag for specifying whether or not to include the student's 
+contact information (email, phone, address).
+<<add student command arguments to student parser>>=
+student_parser.add_argument("--contact",
+  action="store_true", default=False,
+  help="Include contact information (email, phone, address)."
+)
+@
+
+\section{Print the student data}
+
+Now that we have the student identifier, we can simply use that to fetch the 
+student from LADOK.
+Note that we access the [[student.alive]] attribute just to force pulling the 
+personal data from LADOK to trigger any error in the try-statement.
+<<print info depending on args>>=
+try:
+  student = ladok.get_student(args.id)
+  student.alive
+except Exception as err:
+  ladok3.cli.err(-1, f"can't fetch student data for {args.id}: {err}")
+
+print_student_data(student, args)
+
+if args.course:
+  print()
+  print_course_data(student, args)
+@
+
+\subsection{Printing personal student data}
+
+To print the student's personal data, we simply print the most interesting 
+attributes.
+<<functions>>=
+def print_student_data(student, args):
+  """Prints the student data, all attributes, to stdout.
+  
+  Args:
+    student: A Student object with the student's data
+    args: Command line arguments, including flags like --contact
+  """
+  print(f"First name:   {student.first_name}")
+  print(f"Last name:    {student.last_name}")
+  print(f"Personnummer: {student.personnummer}")
+  print(f"LADOK ID:     {student.ladok_id}")
+  print(f"Alive:        {student.alive}")
+  <<print info about suspensions for [[student]]>>
+  <<print contact info if requested>>
+@
+
+We want to print whether the student is currently suspended or not.
+We want to make this really clear.
+<<print info about suspensions for [[student]]>>=
+print(f"Suspended:    ", end="")
+if any(map(lambda x: x.is_current, student.suspensions)):
+  print("YES")
+else:
+  print("no")
+@ Then we also want to print all the times the student has been suspended.
+We only want to print this if the student has been suspended at least once.
+<<print info about suspensions for [[student]]>>=
+if student.suspensions:
+  print(f"Suspenions:   ", end="")
+  for suspension in student.suspensions:
+    print(f"{suspension}", end="\n              ")
+  print()
+@
+
+Now we add the contact information display. 
+We only want to print this if the user has requested it using the [[--contact]] flag.
+<<print contact info if requested>>=
+if args.contact:
+  print("Contact information:")
+  if student.email:
+    print(f"Email:        {student.email}")
+  if student.phone:
+    print(f"Phone:        {student.phone}")
+  if student.address:
+    print(f"Address:      {student.address[0]}")
+    for line in student.address[1:]:
+      print(f"              {line}")
+@
+
+
+\subsection{Printing student's course data}
+
+To print the student's course data, we simply filter the courses on the option 
+that the user supplies.
+We then print all courses and, if the flag is set, we also print the results 
+for each course.
+<<functions>>=
+def print_course_data(student, args):
+  """Prints the courses"""
+  print("Courses:")
+  for course in student.courses(code=args.course):
+    print(f"{course}")
+    if args.results:
+      for result in course.results():
+        print(f"  {result}")
+@
