@@ -1,0 +1,617 @@
+Metadata-Version: 2.4
+Name: vtkapi-mcp
+Version: 1.3.0
+Summary: VTK API validation utilities and MCP server tooling
+Author: Patrick O'Leary
+License: MIT License
+        
+        Copyright (c) 2025 Patrick O'Leary
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Homepage, https://github.com/patrickoleary/vtkapi-mcp
+Project-URL: Bug Tracker, https://github.com/patrickoleary/vtkapi-mcp/issues
+Keywords: vtk,validation,mcp,api,llm
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Testing
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Framework :: AsyncIO
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: mcp==1.24.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23.0; extra == "dev"
+Requires-Dist: ruff>=0.8.0; extra == "dev"
+Dynamic: license-file
+
+# VTK API Validation via MCP
+
+Post-generation validation of VTK Python code using Model Context Protocol (MCP).
+
+## Overview
+
+This module provides automatic validation of generated VTK code to catch API hallucinations:
+
+- ✅ **Direct API lookups** - No vector search overhead, exact class/method verification
+- ✅ **Method existence validation** - Detects when LLM invents non-existent methods
+- ✅ **Import validation** - Verifies VTK classes are imported from correct modules
+- ✅ **Fast in-memory index** - Loads ~2,900 VTK classes at startup
+- ✅ **Structured error reporting** - Clear error messages with suggestions
+
+---
+
+## Quick Start
+
+### 1. Install the Package
+
+From PyPI (recommended once published):
+
+```bash
+pip install vtkapi-mcp
+```
+
+For local development we standardize on **uv** to manage the virtualenv and extras:
+
+```bash
+uv venv .venv
+source .venv/bin/activate
+uv sync --extra dev      # runtime + pytest + ruff
+```
+
+> **Note:** The 64 MB `data/vtk-python-docs.jsonl` file is required at runtime but is not bundled in the wheel. Place it under `data/` (or pass `--api-docs /path/to/file`) before launching the MCP server.
+
+Prefer automation? `./setup.sh` now wraps the same uv workflow and accepts `--dev` to include the testing toolchain.
+
+### 2. Test MCP Integration (Optional)
+
+```bash
+uv run python demo_mcp_integration.py
+```
+
+This runs a complete demo showing how to use vtkapi-mcp as an MCP server (not as standalone Python library). It demonstrates all 17 MCP tools and error detection.
+
+### 3. Developer Workflow (uv-native)
+
+| Task | Command |
+|------|---------|
+| Run unit + integration tests | `uv run pytest` |
+| Run tests with coverage report | `uv run pytest --cov=vtkapi_mcp --cov-report=term-missing` |
+| Run Ruff lint & format checks | `uv run ruff check` / `uv run ruff format --check` |
+
+> These commands automatically reuse the `.venv` created via `uv venv` / `uv sync`. No manual activation is required.
+
+### 3. Configure MCP Client
+
+Add to your MCP settings (e.g., Claude Desktop config):
+
+```json
+{
+  "mcpServers": {
+    "vtk-api": {
+      "command": "python",
+      "args": [
+        "-m",
+        "vtkapi_mcp",
+        "--api-docs",
+        "/absolute/path/to/vtkapi-mcp/data/vtk-python-docs.jsonl"
+      ]
+    }
+  }
+}
+```
+
+### 4. Use VTK Tools
+
+The MCP server provides 17 tools for VTK API validation and lookup. See [MCP Tools](#mcp-tools-provided) below.
+
+---
+
+## Project Structure
+
+### Package Organization
+
+```
+vtkapi_mcp/
+├── core/              # API indexing and data loading
+│   └── api_index.py
+├── validation/        # Code validation logic
+│   ├── models.py
+│   ├── validator.py
+│   ├── import_validator.py
+│   ├── class_validator.py
+│   └── method_validator.py
+├── server/           # MCP server implementation
+│   ├── mcp_server.py
+│   └── tools.py
+└── utils/            # Utilities for parsing and search
+    ├── extraction.py
+    └── search.py
+```
+
+### Supporting Files
+
+| File | Purpose |
+|------|---------|
+| `demo_mcp_integration.py` | Demo showing proper MCP integration (not standalone) |
+| `pyproject.toml` | Python package configuration and dependencies |
+| `README.md` | This file |
+
+### Data
+
+| File | Purpose | Size |
+|------|---------|------|
+| `data/vtk-python-docs.jsonl` | VTK API documentation (~2,900 classes) | ~64 MB |
+
+---
+
+## Architecture
+
+### VTKAPIIndex (vtkapi_mcp/core/api_index.py)
+
+Fast in-memory index of all VTK classes and methods:
+
+```
+VTKAPIIndex
+├── Classes Dict: {class_name → {module, methods, docs}}
+├── Modules Dict: {module_name → [class_names]}
+└── Load Time: <1 second for ~2,900 classes
+```
+
+**Key Methods:**
+- `get_class_info(class_name)` - Get module and documentation
+- `search_classes(query)` - Search by name or keyword
+- `get_module_classes(module)` - List classes in module
+- `class_exists(class_name)` - Check if class exists
+
+### VTKCodeValidator (vtkapi_mcp/validation/validator.py)
+
+AST-based validation of generated Python code:
+
+```
+VTKCodeValidator
+├── Parse Code: Uses Python's ast module
+├── Extract VTK Usage:
+│   ├── Import statements
+│   ├── Class instantiations
+│   └── Method calls
+├── Validate Against Index:
+│   ├── Check classes exist
+│   ├── Check imports correct
+│   └── Check methods exist
+└── Generate Error Report
+```
+
+**Validation Types:**
+1. **Import Validation** - Verifies module paths
+2. **Class Validation** - Checks class existence
+3. **Method Validation** - Detects hallucinated methods
+
+---
+
+## MCP Tools Provided
+
+When running as MCP server, provides these 17 tools:
+
+### 1. `vtk_get_class_info`
+Get complete information about a VTK class.
+
+**Input:**
+```json
+{
+  "class_name": "vtkPolyDataMapper"
+}
+```
+
+**Output:**
+```json
+{
+  "class_name": "vtkPolyDataMapper",
+  "module": "vtkmodules.vtkRenderingCore",
+  "content_preview": "vtkPolyDataMapper - map vtkPolyData to graphics primitives..."
+}
+```
+
+### 2. `vtk_search_classes`
+Search for VTK classes by name or keyword.
+
+**Input:**
+```json
+{
+  "query": "reader",
+  "limit": 5
+}
+```
+
+**Output:**
+```json
+[
+  {
+    "class_name": "vtkSTLReader",
+    "module": "vtkmodules.vtkIOGeometry",
+    "description": "Read ASCII or binary stereo lithography files."
+  }
+]
+```
+
+### 5. `vtk_validate_import`
+Validate and correct VTK import statements.
+
+**Input:**
+```json
+{
+  "import_statement": "from vtkmodules.vtkCommonDataModel import vtkPolyDataMapper"
+}
+```
+
+**Output:**
+```json
+{
+  "valid": false,
+  "message": "Incorrect module. 'vtkPolyDataMapper' is in 'vtkmodules.vtkRenderingCore'",
+  "suggested": "from vtkmodules.vtkRenderingCore import vtkPolyDataMapper"
+}
+```
+
+### 6. `vtk_get_method_info`
+Get full information about a specific method including section context.
+
+**Input:**
+```json
+{
+  "class_name": "vtkPolyDataMapper",
+  "method_name": "SetInputData"
+}
+```
+
+**Output:**
+```json
+{
+  "class_name": "vtkPolyDataMapper",
+  "method_name": "SetInputData",
+  "content": "SetInputData(vtkDataObject) - Set the input data...",
+  "section": "Methods defined here"
+}
+```
+
+### 7. `vtk_get_method_doc`
+Get just the docstring for a specific method.
+
+**Input:**
+```json
+{
+  "class_name": "vtkPolyDataMapper",
+  "method_name": "SetInputData"
+}
+```
+
+**Output:**
+```json
+{
+  "class_name": "vtkPolyDataMapper",
+  "method_name": "SetInputData",
+  "docstring": "SetInputData(vtkDataObject) - Set the input data...",
+  "found": true
+}
+```
+
+### 8. `vtk_get_class_doc`
+Get the class documentation string.
+
+**Input:**
+```json
+{
+  "class_name": "vtkPolyDataMapper"
+}
+```
+
+**Output:**
+```json
+{
+  "class_name": "vtkPolyDataMapper",
+  "class_doc": "vtkPolyDataMapper - map vtkPolyData to graphics primitives. Superclass: vtkMapper",
+  "found": true
+}
+```
+
+### 9. `vtk_get_class_synopsis`
+Get a brief synopsis/summary of what a class does.
+
+**Input:**
+```json
+{
+  "class_name": "vtkPolyDataMapper"
+}
+```
+
+**Output:**
+```json
+{
+  "class_name": "vtkPolyDataMapper",
+  "synopsis": "Maps polygonal data (vtkPolyData) to graphics primitives for rendering.",
+  "found": true
+}
+```
+
+### 10. `vtk_get_class_action_phrase`
+Get the action phrase describing what a class does.
+
+**Input:**
+```json
+{
+  "class_name": "vtkPolyDataMapper"
+}
+```
+
+**Output:**
+```json
+{
+  "class_name": "vtkPolyDataMapper",
+  "action_phrase": "polygon mapping",
+  "found": true
+}
+```
+
+### 11. `vtk_get_class_role`
+Get the functional role/category of a class.
+
+**Input:**
+```json
+{
+  "class_name": "vtkPolyDataMapper"
+}
+```
+
+**Output:**
+```json
+{
+  "class_name": "vtkPolyDataMapper",
+  "role": "rendering",
+  "found": true
+}
+```
+
+### 12. `vtk_get_class_visibility`
+Get the visibility/exposure level of a class.
+
+**Input:**
+```json
+{
+  "class_name": "vtkPolyDataMapper"
+}
+```
+
+**Output:**
+```json
+{
+  "class_name": "vtkPolyDataMapper",
+  "visibility": "likely",
+  "found": true
+}
+```
+
+### 13. `vtk_get_module_classes`
+List all classes in a specific module.
+
+**Input:**
+```json
+{
+  "module": "vtkmodules.vtkRenderingCore"
+}
+```
+
+**Output:**
+```json
+{
+  "module": "vtkmodules.vtkRenderingCore",
+  "classes": ["vtkActor", "vtkPolyDataMapper", ...],
+  "count": 42
+}
+```
+
+### 14. `vtk_get_class_module`
+Return the vtkmodules.* import path for a given VTK class.
+
+**Input:**
+```json
+{
+  "class_name": "vtkPolyDataMapper"
+}
+```
+
+**Output:**
+```json
+{
+  "class_name": "vtkPolyDataMapper",
+  "module": "vtkmodules.vtkRenderingCore",
+  "found": true
+}
+```
+
+### 15. `vtk_get_class_input_datatype`
+Get the input data type for a VTK class.
+
+**Input:**
+```json
+{
+  "class_name": "vtkPolyDataMapper"
+}
+```
+
+**Output:**
+```json
+{
+  "class_name": "vtkPolyDataMapper",
+  "input_datatype": "vtkPolyData",
+  "found": true
+}
+```
+
+### 16. `vtk_get_class_output_datatype`
+Get the output data type for a VTK class.
+
+**Input:**
+```json
+{
+  "class_name": "vtkContourFilter"
+}
+```
+
+**Output:**
+```json
+{
+  "class_name": "vtkContourFilter",
+  "output_datatype": "vtkPolyData",
+  "found": true
+}
+```
+
+### 17. `vtk_get_class_semantic_methods`
+Get semantically tagged methods for a VTK class (input setters, output getters, configuration methods).
+
+**Input:**
+```json
+{
+  "class_name": "vtkContourFilter"
+}
+```
+
+**Output:**
+```json
+{
+  "class_name": "vtkContourFilter",
+  "semantic_methods": {
+    "input_setters": ["SetInputData", "SetInputConnection"],
+    "output_getters": ["GetOutput", "GetOutputPort"],
+    "configuration": ["SetValue", "SetNumberOfContours"]
+  },
+  "found": true
+}
+```
+
+---
+
+## Benefits Over RAG Retrieval
+
+| Aspect | RAG Retrieval | MCP Validation |
+|--------|---------------|----------------|
+| **Speed** | Vector search + reranking | Direct hash lookup (instant) |
+| **Accuracy** | Semantic similarity (can drift) | Exact API match (100%) |
+| **Coverage** | Top-K only (~10 results) | All ~2,900 classes available |
+| **Tokens** | Consumes prompt tokens | Tool calls (minimal cost) |
+| **Errors** | Silent hallucinations | Explicit error messages |
+
+---
+
+## Validation Examples
+
+### Example 1: Method Hallucination (CAUGHT ✅)
+
+**Generated Code:**
+```python
+stencil = vtkImageStencilToImage()
+stencil.SetOutputWholeExtent([0, 10, 0, 10, 0, 10])  # ❌ Doesn't exist!
+```
+
+**Validation Error:**
+```
+UNKNOWN_METHOD: Method 'SetOutputWholeExtent' not found on class 'vtkImageStencilToImage'
+Suggestion: Did you mean SetOutputOrigin or SetOutputSpacing?
+```
+
+### Example 2: Wrong Import Module (CAUGHT ✅)
+
+**Generated Code:**
+```python
+from vtkmodules.vtkCommonDataModel import vtkPolyDataMapper  # ❌ Wrong module!
+```
+
+**Validation Error:**
+```
+IMPORT_ERROR: 'vtkPolyDataMapper' is not in module 'vtkmodules.vtkCommonDataModel'
+Correct import: from vtkmodules.vtkRenderingCore import vtkPolyDataMapper
+```
+
+### Example 3: Non-existent Class (CAUGHT ✅)
+
+**Generated Code:**
+```python
+converter = vtkImageDataToPolyDataConverter()  # ❌ Class doesn't exist!
+```
+
+**Validation Error:**
+```
+UNKNOWN_CLASS: Class 'vtkImageDataToPolyDataConverter' not found in VTK
+Suggestion: Did you mean vtkImageDataGeometryFilter?
+```
+
+---
+
+## Data Source
+
+**Input:** `data/vtk-python-docs.jsonl`
+
+Each line is a VTK class documentation in JSON format:
+
+```json
+{
+  "class_name": "vtkPolyDataMapper",
+  "module_name": "vtkmodules.vtkRenderingCore",
+  "class_doc": "vtkPolyDataMapper - map vtkPolyData to graphics primitives. Superclass: vtkMapper",
+  "synopsis": "Maps polygonal data (vtkPolyData) to graphics primitives for rendering.",
+  "action_phrase": "polygon mapping",
+  "role": "rendering",
+  "visibility_score": "likely",
+  "input_datatype": "vtkPolyData",
+  "output_datatype": "",
+  "semantic_methods": { "input_setters": [...], "output_getters": [...] },
+  "structured_docs": { "sections": { ... } }
+}
+```
+
+**Coverage:** ~2,900 VTK classes from VTK Python API
+
+---
+
+## Future Enhancements
+
+- [ ] **Method signature validation** - Check parameter types and counts
+- [ ] **Deprecation warnings** - Flag deprecated VTK methods
+- [ ] **Pipeline validation** - Verify data flow compatibility
+- [ ] **Auto-fix suggestions** - Generate corrected code automatically
+- [ ] **Performance profiling** - Track validation overhead
+- [ ] **Cache layer** - Cache frequent lookups for speed
+
+---
+
+## License
+
+This is a standalone MCP server for VTK API validation. Extracted from the [vtk-rag](https://github.com/your-username/vtk-rag) project.
+
+---
+
+**Status:** Production ready MCP server for VTK API validation.
