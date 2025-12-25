@@ -1,0 +1,78 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Automatically stop old builds on the same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pre-commit-checks:
+    name: Pre-commit Checks
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # needed for 'pre-commit-mirrors-insert-license'
+          fetch-depth: 0
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@28eb668aafebd9dede9d97c4ba1cd9989a4d0004 # v0.9.2
+        with:
+          environments: default lint
+      - name: Install Rust
+        run: rustup show
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2.8.1
+      - name: pre-commit
+        run: pixi run pre-commit-run --color=always --show-diff-on-failure
+
+  unit-tests:
+    name: Unit Tests (${{ contains(matrix.os, 'ubuntu') && 'Linux' || (contains(matrix.os, 'windows') && 'Windows' || 'macOS') }}) - ${{ matrix.environment }}
+    timeout-minutes: 30
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        environment: [py310, py311, py312, py313, py314]
+        with_optionals: [false]
+        include:
+          - os: ubuntu-latest
+            environment: py314-optionals
+            with_optionals: true
+          - os: windows-latest
+            environment: py314-optionals
+            with_optionals: true
+          - os: macos-latest
+            environment: py314-optionals
+            with_optionals: true
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@28eb668aafebd9dede9d97c4ba1cd9989a4d0004 # v0.9.2
+        with:
+          environments: ${{ matrix.environment }}
+          # FIXME: Remove when `s3_server` fixture does not start a process anymore
+          post-cleanup: ${{ matrix.os != 'windows-latest' }}
+      - name: Install Rust
+        run: rustup show
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2.8.1
+      - name: Install repository
+        run: pixi run -e ${{ matrix.environment }} postinstall
+      - name: Run pytest
+        run: pixi run -e ${{ matrix.environment }} test-coverage --color=yes ${{ matrix.with_optionals && '-m with_optionals' || '-m "not with_optionals"'}} --cov=dataframely --cov-report=xml
+      - name: Upload codecov
+        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
+        with:
+          files: ./coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
