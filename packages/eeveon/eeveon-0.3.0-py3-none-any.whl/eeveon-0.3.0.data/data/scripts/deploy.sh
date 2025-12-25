@@ -1,0 +1,253 @@
+#!/bin/bash
+#
+# Eeveon CI/CD Deployment Script
+# Deploys code from repository to production
+#
+
+set -e
+
+# Get project name from argument
+PROJECT_NAME="$1"
+
+if [ -z "$PROJECT_NAME" ]; then
+    echo "Usage: $0 <project-name>"
+    exit 1
+fi
+
+# Base directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(dirname "$SCRIPT_DIR")"
+CONFIG_FILE="$BASE_DIR/config/pipeline.json"
+LOG_DIR="$BASE_DIR/logs"
+
+# Ensure log directory exists
+mkdir -p "$LOG_DIR"
+
+# Log function
+log() {
+    local level="$1"
+    shift
+    local message="$@"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local log_file="$LOG_DIR/deploy-$(date '+%Y-%m-%d').log"
+    
+    echo "[$timestamp] [$level] [$PROJECT_NAME] $message" | tee -a "$log_file"
+}
+
+# Check if jq is installed
+if ! command -v jq &> /dev/null; then
+    log "ERROR" "jq is not installed. Please install it: sudo apt install jq"
+    exit 1
+fi
+
+# Load project configuration
+if [ ! -f "$CONFIG_FILE" ]; then
+    log "ERROR" "Configuration file not found: $CONFIG_FILE"
+    exit 1
+fi
+
+# Extract project configuration
+REPO_URL=$(jq -r ".\"$PROJECT_NAME\".repo_url" "$CONFIG_FILE")
+BRANCH=$(jq -r ".\"$PROJECT_NAME\".branch" "$CONFIG_FILE")
+DEPLOY_PATH=$(jq -r ".\"$PROJECT_NAME\".deploy_path" "$CONFIG_FILE")
+DEPLOYMENT_DIR=$(jq -r ".\"$PROJECT_NAME\".deployment_dir" "$CONFIG_FILE")
+STRATEGY=$(jq -r ".\"$PROJECT_NAME\".strategy // \"standard\"" "$CONFIG_FILE")
+
+if [ "$REPO_URL" == "null" ]; then
+    log "ERROR" "Project '$PROJECT_NAME' not found in configuration"
+    exit 1
+fi
+
+REPO_DIR="$DEPLOYMENT_DIR/repo"
+DEPLOYIGNORE_FILE="$DEPLOYMENT_DIR/.deployignore"
+ENV_FILE="$DEPLOYMENT_DIR/.env"
+
+log "INFO" "Starting deployment for: $PROJECT_NAME"
+log "INFO" "Strategy: $STRATEGY"
+
+# Determine Target Path based on strategy
+if [ "$STRATEGY" == "blue-green" ]; then
+    # In blue-green mode, DEPLOY_PATH is a symlink
+    # We check where it currently points to determine which one is inactive
+    ACTIVE_PATH=""
+    if [ -L "$DEPLOY_PATH" ]; then
+        ACTIVE_PATH=$(readlink -f "$DEPLOY_PATH")
+    fi
+
+    if [[ "$ACTIVE_PATH" == *"_blue" ]]; then
+        TARGET_COLOR="green"
+    else
+        TARGET_COLOR="blue"
+    fi
+
+    TARGET_PATH="${DEPLOY_PATH}_${TARGET_COLOR}"
+    log "INFO" "Blue-Green mode: Target color is $TARGET_COLOR"
+    log "INFO" "Target path: $TARGET_PATH"
+else
+    TARGET_PATH="$DEPLOY_PATH"
+    log "INFO" "Standard mode: Target path: $TARGET_PATH"
+fi
+
+# Ensure target path exists
+mkdir -p "$TARGET_PATH"
+
+# Ensure repository exists
+REPO_DIR="$DEPLOYMENT_DIR/repo"
+if [ ! -d "$REPO_DIR/.git" ]; then
+    log "INFO" "Repository not found at $REPO_DIR. Cloning..."
+    mkdir -p "$DEPLOYMENT_DIR"
+    git clone --branch "$BRANCH" "$REPO_URL" "$REPO_DIR"
+    
+    if [ $? -ne 0 ]; then
+        log "ERROR" "Failed to clone repository"
+        exit 1
+    fi
+    log "SUCCESS" "Repository cloned successfully"
+fi
+
+# Pull latest changes
+cd "$REPO_DIR"
+log "INFO" "Pulling latest changes from $BRANCH..."
+
+# Use fetch + reset to ensure we match remote exactly
+git fetch origin "$BRANCH"
+git reset --hard "origin/$BRANCH"
+
+if [ $? -ne 0 ]; then
+    log "ERROR" "Failed to fetch latest changes"
+    exit 1
+fi
+
+CURRENT_COMMIT=$(git rev-parse HEAD)
+COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+COMMIT_AUTHOR=$(git log -1 --pretty=format:"%an")
+
+log "INFO" "Commit: ${CURRENT_COMMIT:0:7}"
+log "INFO" "Message: $COMMIT_MSG"
+log "INFO" "Author: $COMMIT_AUTHOR"
+
+# Create rsync exclude file from .deployignore
+RSYNC_EXCLUDE_FILE="/tmp/eeveon-exclude-$PROJECT_NAME.txt"
+if [ -f "$DEPLOYIGNORE_FILE" ]; then
+    cp "$DEPLOYIGNORE_FILE" "$RSYNC_EXCLUDE_FILE"
+    log "INFO" "Using .deployignore patterns"
+else
+    # Default excludes
+    cat > "$RSYNC_EXCLUDE_FILE" << 'EOF'
+.git
+.gitignore
+.env.template
+.deployignore
+node_modules
+__pycache__
+*.pyc
+.DS_Store
+.vscode
+.idea
+EOF
+    log "INFO" "Using default exclude patterns"
+fi
+
+# Always exclude .git directory
+echo ".git" >> "$RSYNC_EXCLUDE_FILE"
+
+# Sync files to target path
+log "INFO" "Syncing files to $TARGET_PATH..."
+
+rsync -av --delete \
+    --exclude-from="$RSYNC_EXCLUDE_FILE" \
+    "$REPO_DIR/" "$TARGET_PATH/"
+
+if [ $? -ne 0 ]; then
+    log "ERROR" "Failed to sync files"
+    rm -f "$RSYNC_EXCLUDE_FILE"
+    exit 1
+fi
+
+rm -f "$RSYNC_EXCLUDE_FILE"
+
+rm -f "$RSYNC_EXCLUDE_FILE"
+
+# Copy .env file if it exists and append encrypted secrets
+log "INFO" "Generating environment variables..."
+if [ -f "$ENV_FILE" ]; then
+    cp "$ENV_FILE" "$TARGET_PATH/.env"
+else
+    touch "$TARGET_PATH/.env"
+fi
+
+# Inject encrypted secrets from EEveon store
+python3 "$BASE_DIR/eeveon/cli.py" decrypt-env "$PROJECT_NAME" >> "$TARGET_PATH/.env"
+
+# Run post-deployment hooks if they exist
+HOOKS_DIR="$DEPLOYMENT_DIR/hooks"
+POST_DEPLOY_HOOK="$HOOKS_DIR/post-deploy.sh"
+
+if [ -f "$POST_DEPLOY_HOOK" ]; then
+    log "INFO" "Running post-deployment hook..."
+    cd "$TARGET_PATH"
+    bash "$POST_DEPLOY_HOOK"
+    
+    if [ $? -eq 0 ]; then
+        log "SUCCESS" "Post-deployment hook completed"
+    else
+        log "WARNING" "Post-deployment hook failed"
+    fi
+fi
+
+# Set proper permissions
+log "INFO" "Setting permissions..."
+find "$TARGET_PATH" -type f -exec chmod 644 {} \;
+find "$TARGET_PATH" -type d -exec chmod 755 {} \;
+
+# Make scripts executable if there's a bin directory
+if [ -d "$TARGET_PATH/bin" ]; then
+    chmod +x "$TARGET_PATH/bin/"* 2>/dev/null || true
+fi
+
+# PHASE 3: Health Checks (before swap in Blue-Green)
+if [ -f "$SCRIPT_DIR/health_check.sh" ]; then
+    log "INFO" "Running health checks..."
+    # We pass the TARGET_PATH as the 3rd argument to health_check.sh
+    if ! bash "$SCRIPT_DIR/health_check.sh" "$PROJECT_NAME" "post" "$TARGET_PATH"; then
+        log "ERROR" "Health checks failed. Deployment aborted."
+        # In Blue-Green, we just leave the target path as is, no symlink swap
+        exit 1
+    fi
+fi
+
+# PHASE 4: Atomic Swap (for Blue-Green)
+if [ "$STRATEGY" == "blue-green" ]; then
+    log "INFO" "Performing atomic swap to $TARGET_COLOR..."
+    
+    # Create temp symlink for atomic swap
+    TEMP_LINK="${DEPLOY_PATH}_tmp"
+    ln -sfn "$TARGET_PATH" "$TEMP_LINK"
+    mv -Tf "$TEMP_LINK" "$DEPLOY_PATH"
+    
+    log "SUCCESS" "Traffic switched to $TARGET_COLOR"
+fi
+
+log "SUCCESS" "Deployment completed successfully!"
+log "INFO" "Deployed commit: ${CURRENT_COMMIT:0:7}"
+log "INFO" "Active code path: $(readlink -f "$DEPLOY_PATH")"
+
+# Create deployment marker file
+DEPLOY_INFO="$TARGET_PATH/.deploy-info"
+cat > "$DEPLOY_INFO" << EOF
+{
+  "project": "$PROJECT_NAME",
+  "commit": "$CURRENT_COMMIT",
+  "commit_message": "$COMMIT_MSG",
+  "commit_author": "$COMMIT_AUTHOR",
+  "deployed_at": "$(date -Iseconds)",
+  "deployed_by": "$(whoami)",
+  "branch": "$BRANCH",
+  "strategy": "$STRATEGY",
+  "color": "$TARGET_COLOR"
+}
+EOF
+
+log "INFO" "Deployment info saved to $DEPLOY_INFO"
+
+exit 0
