@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# Copyright 2023-2025 EMBL - European Bioinformatics Institute
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+import argparse
+import fileinput
+import logging
+import re
+from pathlib import Path
+
+logging.basicConfig(level=logging.INFO)
+
+
+HMM_HIT_EVALUE: float = 1e-15
+
+
+def main():
+    args = parse_args()
+    hmm_file, overview_file, genome_gff, outfile, dbcan_ver = (
+        args.hmm_file,
+        args.overview_file,
+        args.genome_gff,
+        args.outfile,
+        args.dbcan_ver,
+    )
+
+    hmm_path = Path(hmm_file)
+    overview_path = Path(overview_file)
+
+    if not hmm_path.is_file():
+        raise FileNotFoundError(f"Input hmm path does not exist: {hmm_file}")
+
+    if not overview_path.is_file():
+        raise FileNotFoundError(f"Input overview path does not exist: {overview_file}")
+
+    substrates = load_substrates(hmm_path)
+    genome_gff_lines = load_gff(genome_gff)
+
+    print_gff(overview_file, outfile, dbcan_ver, substrates, genome_gff_lines)
+
+
+def load_gff(gff):
+    genome_gff_lines = dict()
+    with fileinput.hook_compressed(gff, "r", encoding="utf-8") as gff:
+        for line in gff:
+            if line.startswith("##FASTA"):
+                return genome_gff_lines
+
+            fields = line.strip().split("\t")
+            if len(fields) != 9 or fields[2] != "CDS":
+                continue
+
+            if "Parent=" in line:
+                # Get transcript name from the 9th column for mettannotator
+                match = re.search(r"Parent=([^;]+)", fields[8])
+            elif "ID=" in line:
+                # Get transcript name from the 9th column for ASA
+                match = re.search(r"ID=([^;]+)", fields[8])
+            else:
+                logging.error("Not sure what gff annotation delimiter is in use. Exiting")
+                exit(1)
+
+            transcript_name = match.group(1)
+            genome_gff_lines.setdefault(transcript_name, []).append(line)
+    return genome_gff_lines
+
+
+def print_gff(overview_file: Path, outfile: str, dbcan_version: str, substrates: dict, genome_gff_lines: dict):
+    """
+    Writes a GFF3 file with the cleaned and merged data from dbcan output files.
+
+    :param overview_file: Path to the input overview file containing annotations and dbCAN tool information.
+    :param outfile: Path to the output GFF3 file to be generated.
+    :param dbcan_version: Version of the dbCAN tool used to annotate.
+    :param substrates: A dictionary where keys are transcript identifiers and values are substrate annotation strings.
+    :param genome_gff_lines: A dictionary where keys are transcript identifiers and values are lists of GFF3 lines corresponding to those transcripts.
+    """
+    with open(outfile, "w") as file_out:
+        file_out.write("##gff-version 3\n")
+        with fileinput.hook_compressed(overview_file, "r", encoding="utf-8") as file_in:
+            for line in file_in:
+                # TODO: why do we have such strict rule?
+                if not line.startswith("MGYG") and not line.startswith("ERZ"):
+                    continue
+
+                line = line.strip()
+                temp_list = line.split("\t")
+                transcript = temp_list[0]
+                ec_number_raw = temp_list[1]
+                num_of_tools = temp_list[5]
+                recc_subfamily = temp_list[6]
+
+                # EC is reported as 2.4.99.-:5 with :5 meaning 5 proteins in the subfamily have EC 2.4.99.-
+
+                ec_number = ""
+                ec_list = ec_number_raw.split("|")
+                for ec in ec_list:
+                    if ec != "-":
+                        ec_number += ec.split(":")[0] + "|"
+
+                ec_number = ec_number.strip("|")
+
+                # Assemble information to add to the 9th column
+                if recc_subfamily == "-":
+                    continue
+
+                substrates_str = ",".join(sorted(substrates.get(transcript, ["N/A"])))
+
+                col9_parts = [
+                    f"protein_family={recc_subfamily}",
+                    # The N/A is added when there are no substrates
+                    f"substrate_dbcan-sub={substrates_str}",
+                ]
+
+                if ec_number:
+                    col9_parts.append(f"eC_number={ec_number}")
+
+                col9_parts.append(f"num_tools={num_of_tools}")
+                col9_text = ";".join(col9_parts)
+
+                for gff_line in genome_gff_lines[transcript]:
+                    fields = gff_line.strip().split("\t")
+                    # Replace the tool
+                    fields[1] = f"dbCAN:{dbcan_version}"
+                    # Replace the feature
+                    fields[2] = "CAZyme"
+                    # Replace the confidence value
+                    fields[5] = "."
+                    # Keep only the ID in the 9th column
+                    attributes = fields[8].split(";")[0]
+                    # Add dbcan information to the 9th column
+                    attributes = f"{attributes};{col9_text};"
+                    fields[8] = attributes
+                    file_out.write("\t".join(fields) + "\n")
+
+
+def load_substrates(hmm_path: Path) -> dict:
+    """
+    Loads substrate prediction data from the dbcan - hmmer output file. This function processes the tsv to
+    extract substrate information for each gene/transcript, filters results based on e-value 1e-15 (default in dbcan).
+    The result dictionary is keyed by gene ID, and the values are set deduplicated substrate predictions.
+
+    :param hmm_path: The path to the HMM output file. The file must be in a tab-delimited format and may be compressed.
+    :return: A dictionary where keys are gene IDs and values are substrate predictions.
+             If multiple substrates are associated with a gene, they will be concatenated
+             into a single string separated by commas.
+    """
+    substrates = dict()
+    with fileinput.hook_compressed(hmm_path, "r", encoding="utf-8") as file_in:
+        header = next(file_in)
+        header_fields = header.strip().split("\t")
+        substrate_idx = header_fields.index("Substrate")
+        gene_idx = header_fields.index("Target Name")
+        evalue_idx = header_fields.index("i-Evalue")
+        for line in file_in:
+            fields = line.strip().split("\t")
+            if float(fields[evalue_idx]) < HMM_HIT_EVALUE:  # evalue is the default from dbcan
+                substrate_str = fields[substrate_idx]
+                if substrate_str != "-":
+                    # The substrate string may have multiple values separated by ';' (in previous versions ',')
+                    # Example: "cellulose;chitin;xylan", we try with both (';' and ',') just in case
+                    raw_parts = re.split(r"[;,]\s*", substrate_str)
+                    stripped_parts = [s.strip() for s in raw_parts]
+                    substrate_parts = [s for s in stripped_parts if s and s != "N/A"]
+                    gene_id = fields[gene_idx]
+                    # Use set to automatically deduplicate substrates for each gene
+                    substrates.setdefault(gene_id, set()).update(substrate_parts)
+    return substrates
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="The script takes dbCAN outputs and parses them to create a standalone GFF.")
+    parser.add_argument(
+        "-hmm",
+        dest="hmm_file",
+        required=True,
+        help="Path to the hmm file.",
+    )
+    parser.add_argument(
+        "-ov",
+        dest="overview_file",
+        required=True,
+        help="Path to the overview file.",
+    )
+    parser.add_argument(
+        "-g",
+        dest="genome_gff",
+        required=True,
+        help="Path to the genome GFF.",
+    )
+    parser.add_argument(
+        "-o",
+        dest="outfile",
+        required=True,
+        help="Path to the output file.",
+    )
+    parser.add_argument(
+        "-v",
+        dest="dbcan_ver",
+        required=True,
+        help="dbCAN version used.",
+    )
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    main()
