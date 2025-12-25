@@ -1,0 +1,160 @@
+[project]
+name = "pyview-web"
+version = "0.8.0a1"
+description = "LiveView in Python"
+authors = [{ name = "Larry Ogrodnek", email = "ogrodnek@gmail.com" }]
+license = { text = "MIT" }
+readme = "readme.md"
+requires-python = ">=3.11,<3.15"
+keywords = ["web", "api", "LiveView"]
+
+classifiers = [
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python",
+    "Topic :: Internet",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development",
+    "Typing :: Typed",
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Framework :: AsyncIO",
+    "Framework :: Pydantic",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Internet :: WWW/HTTP",
+]
+
+dependencies = [
+    "starlette>=0.50.0,<0.51",
+    "wsproto>=1.3.0,<2",
+    "APScheduler>=3.11.0,<4",
+    "markupsafe>=3.0.2,<4",
+    "itsdangerous>=2.2.0,<3",
+    "pydantic>=2.11,<3",
+    "click>=8.1.7,<9",
+]
+
+[project.scripts]
+pv = "pyview.cli.main:cli"
+
+[project.urls]
+Homepage = "https://pyview.rocks"
+Repository = "https://github.com/ogrodnek/pyview"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2.0,<9",
+    "ruff>=0.14.0",
+    "pyright>=1.1.403,<2",
+    "pytest-cov>=6.1.1,<7",
+    "pytest-asyncio>=1.3.0,<2",
+]
+profiling = [
+    "scalene>=1.5.51,<2; python_version != '3.11.0'",
+]
+docs = [
+    "mkdocs>=1.6.1,<2",
+    "mkdocs-material>=9.6.14,<10",
+]
+
+[build-system]
+requires = ["uv_build>=0.7,<1"]
+build-backend = "uv_build"
+
+[tool.uv]
+package = true
+
+[tool.uv.build-backend]
+module-root = "."
+module-name = "pyview"
+
+[tool.pyright]
+exclude = [
+    ".venv",
+    "examples",
+    "examples/.venv",
+    "**/vendor",
+    "**/node_modules",
+    "**/__pycache__",
+    # T-string files require Python 3.14+
+    "pyview/components/renderer.py",
+    "tests/test_live_view_template.py",
+    "tests/test_template_view.py",
+    "tests/test_stream_tstring.py",
+    "tests/components/test_statics_sharing.py",
+    "tests/components/test_lifecycle.py",
+    "tests/components/test_slots.py",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [
+    # T-string files require Python 3.14+ syntax
+    "pyview/template/__init__.py",
+    "pyview/template/template_view.py",
+    "pyview/template/live_view_template.py",
+    "pyview/components/slots.py",
+    "examples/views/count/count_tstring.py",
+    "examples/views/streams/streams_tstring.py",
+    "examples/views/components/slots_demo.py",
+    "examples/views/components/stateful_demo.py",
+    "examples/views/components/stateless_demo.py",
+    "tests/test_live_view_template.py",
+    "tests/test_template_view.py",
+    "tests/test_stream_tstring.py",
+    "tests/components/test_slots.py",
+    "tests/components/test_statics_sharing.py",
+    "tests/components/test_lifecycle.py",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "UP007",  # use-pep604-annotation (Union[X, Y] -> X | Y)
+    "UP035",  # deprecated-import (keep typing.Iterator instead of collections.abc.Iterator)
+    "UP045",  # non-pep604-annotation (keep Optional[X] instead of X | None)
+    "N802",   # mixed case function names
+    "N803",   # mixed case variable
+    "N806",   # mixed case variable in function
+    "N815",   # mixed case attributes
+    "N818",   # exception naming (keep AuthException, not AuthError)
+    "N999",   # invalid module name (allow PascalCase module names)
+    "SIM108", # prefer if-else blocks over ternary operators for readability
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pyview"]
+
+[tool.ruff.lint.per-file-ignores]
+"pyview/vendor/**" = ["E722", "F811", "N818", "SIM102", "SIM103", "SIM118", "UP031"]  # Ignore vendored code issues
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
