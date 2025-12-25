@@ -1,0 +1,162 @@
+# debugscribe
+[![PyPI version](https://badge.fury.io/py/debugscribe.svg)](https://badge.fury.io/py/debugscribe)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/debugscribe)](https://pepy.tech/project/debugscribe)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A small yet powerful helper package that turns error messages or unexpected program behaviour into structured, step‑by‑step troubleshooting guidance.  
+It sends your problem description to LLM7 (or any other LLM you provide), matches the LLM’s reply against a strict regex pattern using `llmatch-messages`, and returns a plain list of strings containing the recommended fix steps.
+
+> **Main function** – `debugscribe().`  
+> **Package name** – `debugscribe`
+
+---
+
+## Features
+
+| Feature | Details |
+|---------|---------|
+| **LLM‑agnostic** | Uses `ChatLLM7` by default, but you can pass any `langchain` `BaseChatModel`. |
+| **Structured output** | Output is filtered through a regex; you get clean, consistently formatted text. |
+| **Quick installation** | One pip command. |
+| **Easy integration** | Works in scripts, Jupyter notebooks, or any Python project. |
+
+---
+
+## Installation
+
+```bash
+pip install debugscribe
+```
+
+The package pulls in its dependencies automatically:
+
+* `langchain-core`
+* `langchain-llm7` – the default LLM7 wrapper
+* `llmatch-messages` – for regex‑based validation
+
+---
+
+## Quick Start
+
+### Simple usage
+
+```python
+from debugscribe import debugscribe
+
+error_msg = """
+Traceback (most recent call last):
+  File "/home/user/app.py", line 5, in <module>
+    main()
+  File "/home/user/app.py", line 2, in main
+    x = 1/0
+ZeroDivisionError: division by zero
+"""
+
+steps = debugscribe(error_msg)
+for i, step in enumerate(steps, 1):
+    print(f"{i}. {step}")
+```
+
+### Using a custom LLM instead of LLM7
+
+You can hand‑off any `langchain` model.  
+Here are a few popular examples.
+
+#### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from debugscribe import debugscribe
+
+llm = ChatOpenAI()   # automatically picks up OpenAI API key from env
+response = debugscribe(error_msg, llm=llm)
+```
+
+#### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from debugscribe import debugscribe
+
+llm = ChatAnthropic()   # needs ANTHROPIC_API_KEY
+response = debugscribe(error_msg, llm=llm)
+```
+
+#### Google Gemini
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from debugscribe import debugscribe
+
+llm = ChatGoogleGenerativeAI()   # needs GOOGLE_API_KEY
+response = debugscribe(error_msg, llm=llm)
+```
+
+> **Tip** – The default `ChatLLM7` is accessed with `from langchain_llm7 import ChatLLM7`; it will pick up the free‑tier rate limits unless you provide your own `api_key` or set `LLM7_API_KEY` in the environment.
+
+---
+
+## Parameters
+
+```python
+debugscribe(
+    user_input: str,
+    api_key: Optional[str] = None,
+    llm: Optional[BaseChatModel] = None
+) -> List[str]
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_input` | `str` | The raw error message or behaviour description you want to debug. |
+| `llm` | `Optional[BaseChatModel]` | Any `langchain` LLM instance. If omitted, a `ChatLLM7` instance is created. |
+| `api_key` | `Optional[str]` | API key for LLM7. If omitted, the library checks the `LLM7_API_KEY` environment variable or falls back to the default free‑tier key. |
+
+---
+
+## Behind the scenes
+
+1. **Prompt construction** – The function stitches together a system prompt and the user input according to a pattern defined in `prompts.py`.  
+2. **LLM call** – `llmatch()` from `llmatch-messages` sends the request via the chosen LLM.  
+3. **Regex validation** – The LLM’s reply is matched against a compiled pattern; only well‑formed replies are surfaced.  
+4. **Return value** – A list of strings, each a distinct step for resolution.  
+
+---
+
+## Getting an LLM7 API key
+
+The default free tier offers generous limits suitable for most developers.  
+If you require higher limits, acquire an API key at [https://token.llm7.io/](https://token.llm7.io/) and either:
+
+```bash
+export LLM7_API_KEY="my_awesome_key"
+```
+
+or pass it directly:
+
+```python
+response = debugscribe(error_msg, api_key="my_awesome_key")
+```
+
+---
+
+## Contributing & Issues
+
+Pull requests are welcome! For bug reports, questions, or suggestions, open an issue in the dedicated GitHub Issues tracker:  
+[https://github.com/chigwell/debugscribe/issues](https://github.com/chigwell/debugscribe/issues)
+
+---
+
+## Contact
+
+- **Author**: Eugene Evstafev  
+- **Email**: hi@euegne.plus  
+- **GitHub**: [@chigwell](https://github.com/chigwell)
+
+---
+
+## License
+
+MIT © Eugene Evstafev
