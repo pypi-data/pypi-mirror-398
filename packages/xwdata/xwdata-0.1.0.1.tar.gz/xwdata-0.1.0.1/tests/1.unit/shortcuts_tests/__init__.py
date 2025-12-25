@@ -1,0 +1,4 @@
+"""
+Shortcuts tests package.
+"""
+
