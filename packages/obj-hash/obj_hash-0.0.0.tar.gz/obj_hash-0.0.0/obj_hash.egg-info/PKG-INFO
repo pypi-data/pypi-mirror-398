@@ -1,0 +1,132 @@
+Metadata-Version: 2.1
+Name: obj-hash
+Version: 0.0.0
+Summary: A tool that converts objects into hashes that can be reproduced quickly.
+Home-page: https://github.co.jp/
+Author: bib_inf
+Author-email: contact.bibinf@gmail.com
+License: CC0 v1.0
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Software Development :: Libraries
+Classifier: License :: CC0 1.0 Universal (CC0 1.0) Public Domain Dedication
+Description-Content-Type: text/markdown
+
+English description follows Japanese.
+
+---
+
+# obj-hash Documentation (English)
+
+## Overview
+
+**obj-hash** is a Python library that generates fast, deterministic hash values from JSON-serializable objects.
+
+Unlike Python’s built-in `hash()` function, which produces different values on each interpreter run, **obj-hash** always returns the same hash for the same logical object structure.
+
+## Key Features
+
+* Deterministic hashing for JSON-serializable objects
+* Order-independent hashing for dictionaries and similar structures
+* Uses **BLAKE3**, which is faster than SHA-256
+* Default output length is **16 bytes** (same number of combinations as UUID)
+
+## How It Works (Conceptually)
+
+The input object is interpreted by its **logical structure and values**, not by incidental factors such as:
+
+* Dictionary key insertion order
+* Runtime-specific hash seeds
+
+Objects that are logically equivalent (for example, dictionaries with the same keys and values but different orderings) produce the **same hash value**.
+
+## Usage Example
+
+```python
+import obj_hash
+
+h = obj_hash("hogehoge")
+print(h)
+# -> 66787eb34e4b87df2788806ba4750390
+
+print(obj_hash({"23": "hoge", "list": []}))
+# -> 1e3145f8a5679e6a00a802f88b7b5ba8
+
+print(obj_hash({"23": "hoge", "list": []}, length=100))
+# -> 1e3145f... (100 characters)
+
+print(
+  obj_hash({"23": "hoge", "list": []})
+  == obj_hash({"list": [], "23": "hoge"})
+)
+# -> True
+```
+
+### Parameters
+
+* **object**
+
+  * Any JSON-serializable Python object
+* **length** (optional)
+
+  * Length of the hexadecimal hash string
+  * Default: 16 bytes (32 hex characters)
+
+---
+
+# obj-hash ドキュメント（日本語）
+
+## 概要
+
+**obj-hash** は、JSON化可能なオブジェクトを高速かつ決定的にハッシュ化する Python ライブラリです。
+
+Python 標準の `hash()` は実行ごとに値が変わりますが、**obj-hash** は常に同じ論理構造に対して同じハッシュ値を返します。
+
+## 特徴
+
+* JSON化可能なオブジェクトを決定的にハッシュ化
+* 辞書のキー順序に依存しない
+* SHA-256 より高速な **BLAKE3** を内部で使用
+* デフォルトの出力長は **16バイト**（UUIDと同等の組み合わせ数）
+
+## 論理的な動作について
+
+このライブラリは、オブジェクトを **見た目ではなく意味的な構造** として扱います。
+
+そのため、以下のような要素はハッシュ値に影響しません。
+
+* 辞書のキー追加順序
+* 実行環境や起動回ごとの差異
+
+同じ内容を表すオブジェクトであれば、構造が同一と判断され、**必ず同じハッシュ値**が生成されます。
+
+## 使い方
+
+```python
+import obj_hash
+
+h = obj_hash("hogehoge")
+print(h)
+# -> 66787eb34e4b87df2788806ba4750390
+
+print(obj_hash({"23": "hoge", "list": []}))
+# -> 1e3145f8a5679e6a00a802f88b7b5ba8
+
+print(obj_hash({"23": "hoge", "list": []}, length=100))
+# -> 1e3145f...（100桁）
+
+print(
+  obj_hash({"23": "hoge", "list": []})
+  == obj_hash({"list": [], "23": "hoge"})
+)
+# -> True
+```
+
+### 引数
+
+* **object**
+
+  * JSON化可能な任意の Python オブジェクト
+* **length**（省略可）
+
+  * 16進文字列としての出力長
+  * デフォルトは 16バイト（32文字）
