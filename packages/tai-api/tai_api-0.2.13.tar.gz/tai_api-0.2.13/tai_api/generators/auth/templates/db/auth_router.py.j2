@@ -1,0 +1,230 @@
+"""
+{{ project_name }} - Authentication Endpoints
+Generado automáticamente por tai-api set-auth
+
+Este módulo contiene los endpoints de login y logout con manejo de sesiones.
+"""
+
+from fastapi import APIRouter, Depends
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
+{% if has_password_expiration %}
+from datetime import datetime
+{% endif %}
+
+from .jwt import JWTHandler
+from .dependencies import get_current_user, CurrentUser
+from {{ crud_import_path }} import {{ crud_class }}, {{ auth_table_name}}UpdateValues
+from {{ resources_import_path }} import (
+    APIResponse,
+    InvalidCredentialsException,
+    {% if has_session_management %}
+    ConcurrentSessionDetectedException,
+    {% endif %}
+    DatabaseException
+)
+
+router = APIRouter(prefix="/auth", tags=["Autenticación"])
+
+class LoginRequest(BaseModel):
+    """Modelo para datos de login"""
+    {{ username_field }}: str
+    {{ password_field }}: str
+
+class LoginData(BaseModel):
+    """Modelo para datos de respuesta de login"""
+    access_token: str
+    token_type: str = "bearer"
+    user: dict  # Información básica del usuario
+    {% if has_session_management %}
+    session_id: str
+    {% endif %}
+
+class LogoutData(BaseModel):
+    """Modelo para datos de respuesta de logout"""
+    message: str = "Sesión cerrada exitosamente"
+
+class UserInfoData(BaseModel):
+    """Modelo para datos de información de usuario"""
+    {{ username_field }}: str
+    {% if has_password_expiration %}
+    {{ password_expiration_field }}: datetime
+    {% endif %}
+
+
+async def authenticate(
+    {{ username_field }}: str,
+    {{ password_field }}: str,
+    api: PublicAsyncDBAPI,
+    from_swagger: bool=False
+) -> APIResponse[LoginData] | LoginData:
+    """
+    Función auxiliar que realiza la lógica de login compartida.
+    
+    Args:
+        username: Nombre de usuario
+        password: Contraseña
+        api: DAO para acceso a datos
+        
+    Returns:
+        APIResponse[LoginData]: Respuesta estándar con token y datos de usuario
+        
+    Raises:
+        InvalidCredentialsException: Si credenciales son incorrectas
+        DatabaseException: Si hay error en BD
+    """
+    try:
+        # 1. Buscar usuario
+        user = await api.{{ auth_table_name.lower() }}.find(
+            {{ username_field }}={{ username_field }}
+        )
+        
+        if not user:
+            raise InvalidCredentialsException()
+        
+        # 2. Verificar contraseña
+        if user.{{ password_field }} != {{ password_field }}:
+            raise InvalidCredentialsException()
+        
+        {% if has_session_management %}
+        # 3. Generar nuevo session_id
+        new_session_id = JWTHandler.generate_session_id()
+        
+        # 4. Actualizar session_id en BD
+        await api.{{ auth_table_name.lower() }}.update(
+            {{ username_field }}=user.{{ username_field }},
+            updated_values={{ auth_table_name}}UpdateValues(
+                {{ session_id_field }}=new_session_id
+            )
+        )
+        
+        # Refrescar el objeto user
+        user = await api.{{ auth_table_name.lower() }}.find({{ username_field }}=user.{{ username_field }})
+        {% endif %}
+        
+        # 5. Generar token JWT
+        token = JWTHandler.create_token(
+            username={{ username_field }},
+            {% if has_session_management %}
+            session_id=new_session_id
+            {% endif %}
+        )
+        
+        # 6. Preparar respuesta (sin datos sensibles)
+        user_data = {
+            "{{ username_field }}": user.{{ username_field }},
+            # Agregar otros campos públicos según necesites
+        }
+        
+        login_data = LoginData(
+            access_token=token,
+            user=user_data,
+            {% if has_session_management %}
+            session_id=new_session_id
+            {% endif %}
+        )
+
+        if from_swagger:
+            return login_data
+        
+        return APIResponse.success(
+            data=login_data,
+            message="Autenticación exitosa"
+        )
+        
+    except Exception as e:
+        if isinstance(e, (InvalidCredentialsException, {% if has_session_management %}ConcurrentSessionDetectedException{% endif %})):
+            raise e
+        raise DatabaseException(f"Error en login: {str(e)}")
+
+
+@router.post("/login", response_model=APIResponse[LoginData])
+async def login(
+    credentials: LoginRequest,
+    api: PublicAsyncDBAPI = Depends(PublicAsyncDBAPI)
+):
+    """
+    Endpoint de autenticación de usuarios
+    """
+    return await authenticate(credentials.{{ username_field }}, credentials.{{ password_field }}, api)
+
+
+@router.post("/docslogin", response_model=LoginData, include_in_schema=False)
+async def docs_login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    api: PublicAsyncDBAPI = Depends(PublicAsyncDBAPI)
+):
+    """
+    Endpoint de autenticación para la documentación de FastAPI (formulario)
+    """
+    return await authenticate(form_data.{{ username_field }}, form_data.{{ password_field }}, api, from_swagger=True)
+
+
+@router.post("/logout", response_model=APIResponse[LogoutData])
+async def logout(
+    current_user: CurrentUser = Depends(get_current_user),
+    api: {{ crud_class }} = Depends({{ crud_class }})
+):
+    """
+    Endpoint para cerrar sesión.
+    {% if has_session_management %}
+    Invalida la sesión actual eliminando o cambiando el session_id
+    {% endif %}
+    
+    Args:
+        current_user: Usuario autenticado (obtenido de token)
+        
+    Returns:
+        APIResponse[LogoutData]: Respuesta estándar de confirmación de logout
+        
+    Raises:
+        DatabaseException: Si hay error al invalidar sesión
+    """
+    
+    try:
+        {% if has_session_management %}
+        # Invalidar sesión actual
+        await api.{{ auth_table_name.lower() }}.update(
+            {{ username_field }}=current_user.{{ username_field }},
+            updated_values={{ auth_table_name}}UpdateValues(
+                {{ session_id_field }}=None
+            )
+        )
+        {% endif %}
+        
+        logout_data = LogoutData()
+        return APIResponse.success(
+            data=logout_data,
+            message="Sesión cerrada exitosamente"
+        )
+        
+    except Exception as e:
+        raise DatabaseException(f"Error en logout: {str(e)}")
+
+
+@router.get("/me", response_model=APIResponse[UserInfoData])
+async def get_current_user_info(current_user: CurrentUser = Depends(get_current_user)):
+    """
+    Endpoint para obtener información del usuario actual.
+    
+    Útil para verificar si el token sigue siendo válido
+    y obtener datos actualizados del usuario.
+    
+    Args:
+        current_user: Usuario autenticado
+        
+    Returns:
+        APIResponse[UserInfoData]: Respuesta estándar con información pública del usuario
+    """
+    
+    user_info = UserInfoData(
+        {{ username_field }}=current_user.{{ username_field }},
+        {% if has_password_expiration %}
+        {{ password_expiration_field }}=current_user.{{ password_expiration_field }},
+        {% endif %}
+    )
+    
+    return APIResponse.success(
+        data=user_info,
+        message="Información del usuario obtenida exitosamente"
+    )

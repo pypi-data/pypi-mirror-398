@@ -1,0 +1,135 @@
+"""
+{{ project_name }} - Authentication Dependencies
+Generado automáticamente por tai-api set-auth
+
+Este módulo contiene las dependencias de FastAPI para autenticación,
+incluyendo get_current_user y validación de sesiones.
+"""
+from __future__ import annotations
+from fastapi import APIRouter, Depends
+from fastapi.security import OAuth2PasswordRequestForm
+from tai_keycloak import KeycloakAsyncAPIClient, UserInfo
+from {{ resources_import_path }} import (
+    APIResponse,
+    InvalidCredentialsException,
+    InvalidTokenException
+)
+from .utils import (
+    get_keycloak_client,
+    LoginRequest,
+    LoginData
+)
+
+router = APIRouter(prefix="/auth", tags=["Autenticación"])
+
+async def authenticate_user(username: str, password: str, kc: KeycloakAsyncAPIClient) -> LoginData:
+    """
+    Lógica común de autenticación para login.
+    
+    Args:
+        username: Nombre de usuario
+        password: Contraseña
+        kc: Cliente de Keycloak
+        
+    Returns:
+        LoginData con token y información del usuario
+        
+    Raises:
+        HTTPException: Si la autenticación falla
+    """
+    # 1. Solicitar token a Keycloak
+    result = await kc.token.request(
+        username=username,
+        password=password,
+    )
+
+    if not result.success:
+        raise InvalidCredentialsException("Username/password inválidos")
+    
+    # 2. Decodificar token para obtener información del usuario
+    decoded_token = kc.token.decode(result.data.access_token, kc.public_key, expected_audience=["api"])
+
+    if not decoded_token.success:
+        raise InvalidTokenException(decoded_token.message)
+    
+    # 3. Extraer información del usuario del token decodificado
+    user = UserInfo(
+        sub=decoded_token.data.sub,
+        preferred_username=decoded_token.data.preferred_username,
+        given_name=decoded_token.data.given_name,
+        family_name=decoded_token.data.family_name,
+        name=decoded_token.data.name,
+        email=decoded_token.data.email,
+        email_verified=decoded_token.data.email_verified,
+        roles=decoded_token.data.api_roles + decoded_token.data.realm_roles
+    )
+
+    return LoginData(
+        access_token=result.data.access_token,
+        token_type="bearer",
+        user=user
+    )
+
+
+# ============================================================================
+# ENDPOINTS DE AUTENTICACIÓN
+# ============================================================================
+
+@router.post("/login", response_model=APIResponse[LoginData])
+async def login(
+    login_request: LoginRequest,
+    kc: KeycloakAsyncAPIClient = Depends(get_keycloak_client),
+):
+    """
+    Endpoint de login público para obtener tokens de acceso.
+    
+    Este endpoint está diseñado para ser usado por otros servicios, aplicaciones
+    cliente, o herramientas de desarrollo que necesiten autenticarse programáticamente.
+    
+    **Uso:**
+    ```python
+    import requests
+    
+    response = requests.post("/login", json={
+        "username": "usuario",
+        "password": "contraseña"
+    })
+    
+    if response.status_code == 200:
+        data = response.json()
+        token = data["access_token"]
+        user_info = data["user"]
+    ```
+    """
+
+    login_data = await authenticate_user(
+        username=login_request.username,
+        password=login_request.password,
+        kc=kc
+    )
+
+    return APIResponse.success(
+        data=login_data,
+        message="Autenticación exitosa"
+    )
+
+
+
+@router.post("/docslogin", include_in_schema=False, response_model=LoginData)
+async def docs_login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    kc: KeycloakAsyncAPIClient = Depends(get_keycloak_client),
+):
+    """
+    Endpoint de login exclusivo para Swagger UI.
+    
+    Este endpoint está oculto de la documentación (include_in_schema=False)
+    y solo se usa internamente por Swagger para el botón "Authorize".
+    
+    NO usar este endpoint directamente desde código - usar /login en su lugar.
+    """
+    return await authenticate_user(
+        username=form_data.username,
+        password=form_data.password,
+        kc=kc
+    )

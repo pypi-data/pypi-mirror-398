@@ -1,0 +1,187 @@
+"""
+{{ project_name }} - Keycloak Router
+Generado automáticamente por tai-api set-auth
+
+Este módulo contiene endpoints para la gestión de usuarios en Keycloak.
+"""
+from tai_keycloak import User, Group, RLSAttribute
+from fastapi import APIRouter, Depends
+from typing import List
+from api.resources import APIResponse, PaginatedResponse
+
+from .dependencies import requires_permissions
+from .utils import raise_if_exception, KeycloakDep
+
+kc_router = APIRouter(tags=["Keycloak"], dependencies=[Depends(requires_permissions('admin', 'keycloak'))])
+
+# ============ Endpoints CRUD de Usuarios ============
+# Métodos disponibles: create, list, get, update, delete
+
+@kc_router.post("/user", response_model=APIResponse[User])
+async def create_user(
+    user: User,
+    kc: KeycloakDep
+):
+    """Crear un nuevo usuario en Keycloak"""
+
+    result = raise_if_exception(await kc.user.create(user))
+
+    return APIResponse.success(
+        data=result.data,
+        message="Usuario creado exitosamente"
+    )
+
+@kc_router.get("/user", response_model=APIResponse[List[User]])
+async def list_users(
+    kc: KeycloakDep,
+    limit: int = 100,
+    offset: int = 0
+):
+    """Listar todos los usuarios en Keycloak"""
+
+    result = raise_if_exception(await kc.user.list(limit=limit, offset=offset))
+
+    if limit is not None or offset is not None:
+        total_result = raise_if_exception(await kc.user.count())
+        total = total_result.data
+    else:
+        total = len(result.data)
+
+    return PaginatedResponse.success_paginated(
+        data=result.data,
+        total=total,
+        limit=limit,
+        offset=offset,
+        message=f"Usuarios obtenidos exitosamente"
+    )
+
+@kc_router.get("/role", response_model=APIResponse[List[Group]])
+async def list_roles(
+    kc: KeycloakDep
+):
+    """Listar todos los roles en Keycloak"""
+
+    result = raise_if_exception(await kc.group.list())
+
+    return APIResponse.success(
+        data=result.data,
+        message="Roles obtenidos exitosamente"
+    )
+
+@kc_router.get("/user/{username}", response_model=APIResponse[User])
+async def get_user(
+    username: str,
+    kc: KeycloakDep
+):
+    """Obtener un usuario específico por nombre de usuario"""
+
+    result = raise_if_exception(await kc.user.get(username))
+
+    return APIResponse.success(
+        data=result.data,
+        message="Usuario obtenido exitosamente"
+    )
+
+@kc_router.patch("/user/{username}", response_model=APIResponse[User])
+async def update_user(
+    username: str,
+    user: User,
+    kc: KeycloakDep
+):
+    """
+    Actualizar atributos de un usuario en Keycloak
+    """
+
+    result = raise_if_exception(await kc.user.update(username, user))
+
+    return APIResponse.success(
+        data=result.data,
+        message="Usuario actualizado exitosamente"
+    )
+
+@kc_router.delete("/user/{username}", response_model=APIResponse[str])
+async def delete_user(
+    username: str,
+    kc: KeycloakDep
+):
+    """Eliminar un usuario de Keycloak"""
+
+    raise_if_exception(await kc.user.delete(username))
+
+    return APIResponse.success(
+        data=username,
+        message="Usuario eliminado exitosamente"
+    )
+
+# ============ Endpoints de Gestión de Grupos ============
+# Métodos disponibles de usuario: add_to_group, remove_from_group, switch_groups
+# Métodos disponibles de grupo: create, list, get, delete, add_user, remove_user
+
+@kc_router.post("/user/{username}/role/{role_name}", response_model=APIResponse[bool])
+async def assign_role_to_user(
+    username: str,
+    role_name: str,
+    kc: KeycloakDep
+):
+    """Agregar un usuario a un grupo de Keycloak"""
+
+    raise_if_exception(await kc.user.add_to_group(username, role_name))
+
+    return APIResponse.success(
+        data=True,
+        message="Usuario agregado al grupo exitosamente",
+        meta={"role": role_name, "username": username}
+    )
+
+@kc_router.delete("/user/{username}/role/{role_name}", response_model=APIResponse[bool])
+async def remove_role_from_user(
+    username: str,
+    role_name: str,
+    kc: KeycloakDep
+):
+    """Remover un usuario de un grupo de Keycloak"""
+
+    raise_if_exception(await kc.user.remove_from_group(username, role_name))
+
+    return APIResponse.success(
+        data=True,
+        message="Usuario eliminado del grupo exitosamente",
+        meta={"role": role_name, "username": username}
+    )
+
+# ============ Endpoints de Atributos RLS (Row Level Security) ============
+# Métodos disponibles: add_attribute, remove_attribute
+
+@kc_router.put("/user/{username}/rls", response_model=APIResponse[bool])
+async def set_rls(
+    username: str,
+    rls_attributes: List[RLSAttribute],
+    kc: KeycloakDep
+):
+    """Definir el RLS para un usuario para seguridad a nivel de fila"""
+
+    raise_if_exception(await kc.user.set_attributes(username, rls_attributes))
+
+    return APIResponse.success(
+        data=True,
+        message="Atributos RLS agregado exitosamente"
+    )
+
+@kc_router.get("/user/{username}/rls", response_model=APIResponse[List[RLSAttribute]])
+async def get_rls(
+    username: str,
+    kc: KeycloakDep
+):
+    """
+    Obtener valores RLS de un usuario
+    """
+    result = await kc.user.get(username)
+
+    raise_if_exception(result)
+
+    return APIResponse.success(
+        data=result.data.attributes,
+        message="Atributos RLS obtenidos exitosamente",
+        meta={"username": username}
+    )
+

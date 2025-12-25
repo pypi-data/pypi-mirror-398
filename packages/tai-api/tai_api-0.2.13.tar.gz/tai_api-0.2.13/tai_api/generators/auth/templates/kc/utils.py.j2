@@ -1,0 +1,57 @@
+"""
+{{ project_name }} - Utils
+Generado automáticamente por tai-api set-auth
+
+Este módulo contiene utilidades para la integración con Keycloak.
+"""
+from pydantic import BaseModel
+from fastapi import Depends
+from typing import Annotated
+from tai_keycloak import KeycloakAsyncAPIClient, UserInfo
+from typing import List
+from tai_keycloak.service.dtos import OperationResult
+from api.resources import APIException, ErrorCode
+
+class LoginRequest(BaseModel):
+    """Modelo para solicitud de login"""
+    username: str
+    password: str
+
+
+class LoginData(BaseModel):
+    """Modelo para datos de respuesta de login"""
+    access_token: str
+    token_type: str = "bearer"
+    user: UserInfo
+
+
+def raise_if_exception(result: OperationResult) -> OperationResult:
+    """Manejador de excepciones para Keycloak SDK"""
+    if not result.success:
+        raise APIException(
+            message=result.message,
+            error_code=ErrorCode.from_http_code(result.error.code if result.error else 500),
+            details={
+                "error_type": result.error.error_type if result.error else "Unknown",
+                "error_message": result.error.message if result.error else "No message",
+                "description": result.error.description if result.error else "No additional details"
+            }
+        )
+
+    return result
+
+
+def get_keycloak_client() -> KeycloakAsyncAPIClient:
+    """Dependencia para obtener el cliente de Keycloak configurado con .env"""
+    try:
+        api_client = KeycloakAsyncAPIClient()
+        return api_client
+    except ValueError as ve:
+        raise APIException(
+            message="Error de configuración del cliente Keycloak",
+            error_code=500,
+            details={"error_message": str(ve)}
+        )
+
+KeycloakDep = Annotated[KeycloakAsyncAPIClient, Depends(get_keycloak_client)]
+
