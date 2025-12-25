@@ -1,0 +1,49 @@
+[metadata]
+name = "MkList"
+group = "container"
+icon = "octicon:list-unordered-24"
+
+[requirements.extension.def_list]
+
+[examples.regular]
+title = "Regular"
+jinja = """
+{{ ["Item 1", "Item 2", "Item 3"] | MkList }}
+"""
+
+[examples.shorten]
+title = "Shorten"
+jinja = """
+{{ ["Item 1", "Item 2", "Item 3"] | MkList(shorten_after=2) }}
+"""
+
+[examples.ordered]
+title = "Ordered"
+jinja = """
+{{ ["Item 1", "Item 2", "Item 3"] | MkList(ordered=True) }}
+"""
+
+[examples.nested]
+title = "Nested"
+jinja = """
+{{ [_mk.MkAdmonition("Nested!")] | MkList }}
+"""
+
+[output.markdown]
+template = """
+{% for item in node.get_items()[: node.shorten_after] %}
+  {{ (loop.index ~ ".") if node.ordered else "*" }} {{ node._prep(item)}}
+{% endfor %}
+{% if node.shorten_after and node.get_items() | length > node.shorten_after %}
+  {{ (node.shorten_after + 1 ~ ".") if node.ordered else "*" }} ...
+{% endif %}
+
+"""
+
+[output.html]
+template = """
+<{{ "ol" if node.ordered else "ul" }}>{% for item in node.get_items()[: node.shorten_after] %}<li>{{ node._prep(item)}}</li>{% endfor %}
+{% if node.shorten_after and node.get_items() | length > node.shorten_after %}
+<li>...</li>{% endif %}
+</{{ "ol" if node.ordered else "ul" }}>
+"""

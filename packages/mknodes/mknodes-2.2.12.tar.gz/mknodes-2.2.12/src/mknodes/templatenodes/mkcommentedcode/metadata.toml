@@ -1,0 +1,47 @@
+[metadata]
+icon = "mdi:code-json"
+name = "MkCommentedCode"
+status = "new"
+group = "documentation"
+virtual_children = true
+
+[examples.from_text]
+title = "From text"
+jinja = """
+{{
+"
+# Comment sections automatically get converted to non-codeblock sections.
+# That way you can explain your code in-line.
+
+# ## you can use headers.
+
+some_code = 1 + 2
+
+# !!! note
+#     Admonitions and everything else work, too.
+#
+
+" | MkCommentedCode
+}}
+"""
+
+[examples.from_function]
+title = "From function"
+jinja = """
+{{ mk.MkCommentedCode.create_example_page | MkCommentedCode }}
+"""
+
+[output.markdown]
+template = """
+{% for section in node.iter_code_sections() %}
+{% if section.typ == "code" %}
+{{ section.code | MkCode(linenums=section.start_line) }}
+{% elif node.style == "text" %}
+{{ section.code }}
+{% elif node.style == "bubble" %}
+{{ section.code | MkSpeechBubble }}
+{% elif node.style == "admonition" %}
+{{ section.code | MkAdmonition }}
+{% endif %}
+{% endfor %}
+"""

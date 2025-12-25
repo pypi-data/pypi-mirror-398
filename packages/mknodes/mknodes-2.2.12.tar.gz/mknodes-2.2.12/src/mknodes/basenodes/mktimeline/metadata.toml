@@ -1,0 +1,71 @@
+[metadata]
+icon = "mdi:timeline"
+name = "MkTimeline"
+
+[[resources.css]]
+filename = "timeline.css"
+
+[[resources.js]]
+is_library = true
+link = "https://cdn.jsdelivr.net/npm/scrollreveal@3.4.0/dist/scrollreveal.min.js"
+
+[[resources.js]]
+link = "https://code.jquery.com/jquery-2.2.4.min.js"
+is_library = true
+
+[[resources.js]]
+filename = "timeline.js"
+
+[examples.toml]
+title = "From TOML format"
+jinja = """
+{{
+"
+['Step 1']
+title = 'test'
+content = 'Some **markdown**'
+image = 'https://picsum.photos/400'
+['Step 2']
+title = 'test'
+content = 'Some **markdown**'
+image = 'https://picsum.photos/401'
+
+" | load_toml | MkTimeline
+}}
+"""
+
+[fragments]
+item = """
+<div class="timeline-item">
+<div class="timeline-img"></div>
+<div class="timeline-content{{ " timeline-card" if node.image else "" }} js--fadeIn{{ node.fade_direction | capitalize }}">
+{% if node.image %}
+<div style="background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.4)), url({{ node.image }}) center center no-repeat; background-size: cover;" class="timeline-img-header">
+<p>
+<h2>{{ node.title }}</h2>
+</p>
+</div>
+{% else %}
+<h2>{{ node.title }}</h2>
+{% endif %}
+{% if node.label %}
+<div class="date">{{ node.label }}</div>
+{% endif %}
+<p>
+{{ node.content | to_html }}
+</p>
+{{ node.button_text | html_link(node.link, class_="bnt-more") }}
+</div>
+</div>
+"""
+
+# [output.markdown]
+# template = """
+
+# <section class="timeline">
+# {% for item in node.get_items() %}
+# {{ "fragments/item" | render_template(node=item) }}
+# {% endfor %}
+# </section>
+
+# """

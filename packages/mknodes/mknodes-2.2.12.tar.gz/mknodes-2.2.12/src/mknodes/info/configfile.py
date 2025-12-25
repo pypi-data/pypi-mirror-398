@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+import yamling
+
+from mknodes.utils import superdict
+
+
+if TYPE_CHECKING:
+    from upath.types import JoinablePathLike
+
+
+class ConfigFile(superdict.SuperDict[Any]):
+    filetype: yamling.SupportedFormats | None = None
+
+    def __init__(self, path: JoinablePathLike | None = None) -> None:
+        """Constructor.
+
+        Args:
+            path: Path to the config file (supports fsspec protocol URLs)
+        """
+        super().__init__()
+        self.path = str(path or "")
+        if self.path:
+            self.load_file(self.path)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.path!r})"
+
+    def __bool__(self) -> bool:
+        return bool(self._data or self.path)
+
+    def get_section_text(self, *sections: str, keep_path: bool = False) -> str:
+        """Try to get data from given path as text.
+
+        If Key path does not exist, return empty string.
+
+        Args:
+            sections: Sections to dig into
+            keep_path: Return result with original nesting
+        """
+        if not sections:
+            raise ValueError(sections)
+        s = self.get_section(*sections, keep_path=keep_path)
+        return "" if s is None else yamling.dump(s, mode=self.filetype or "json")
+
+    def load_file(self, path: JoinablePathLike, **storage_options: Any) -> None:
+        """Load a file with loader of given file type.
+
+        Args:
+            path: Path to the config file (also supports fsspec protocol URLs)
+            storage_options: Options for fsspec backend
+        """
+        self._data = yamling.load_file(path, storage_options=storage_options or {})
+
+
+class TomlFile(ConfigFile):
+    filetype = "toml"
+    _raw_text: str = ""
+
+    def load_file(self, path: JoinablePathLike, **storage_options: Any) -> None:
+        """Load a file with loader of given file type.
+
+        Args:
+            path: Path to the config file (also supports fsspec protocol URLs)
+            storage_options: Options for fsspec backend
+        """
+        from upath import UPath
+
+        upath = UPath(path, **storage_options) if storage_options else UPath(path)
+        self._raw_text = upath.read_text(encoding="utf-8")
+        self._data = yamling.load(self._raw_text, mode="toml")
+
+    @property
+    def raw_text(self) -> str:
+        """Return raw TOML text (preserves comments)."""
+        return self._raw_text
+
+
+class YamlFile(ConfigFile):
+    filetype = "yaml"
+
+    def load_file(self, path: JoinablePathLike, **storage_options: Any) -> None:
+        """Load a file with loader of given file type.
+
+        Args:
+            path: Path to the config file (also supports fsspec protocol URLs)
+            storage_options: Options for fsspec backend
+        """
+        self._data = yamling.load_yaml_file(
+            path,
+            storage_options=storage_options or {},
+            resolve_inherit=True,
+        )
+        # type: ignore[arg-type]
+
+
+if __name__ == "__main__":
+    info = TomlFile("github://phil65:mknodes@main/pyproject.toml")
+    text = info.get_section_text("tool", "hatch", keep_path=True)
+    print(text)
