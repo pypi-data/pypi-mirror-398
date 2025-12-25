@@ -1,0 +1,179 @@
+[project]
+name = "unitelabs-sila"
+version = "0.5.0"
+description = "An un-opinionated SiLA 2 library."
+keywords = ["SiLA 2", "laboratory", "automation", "connectivity"]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.9,<4.0"
+authors = [
+    { name = "UniteLabs", email = "developers+sila@unitelabs.io" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "grpcio >= 1.70.0",
+    "jsonschema ~= 4.25",
+    "typing-extensions",
+    "zeroconf >= 0.147.0",
+    "xmlschema ~= 4.2",
+]
+
+[project.urls]
+homepage = "https://sila-standard.com"
+repository = "https://gitlab.com/unitelabs/sila2/sila-python"
+documentation = "https://gitlab.com/unitelabs/sila2/sila-python/-/README.md"
+"Bug Tracker" = "https://gitlab.com/unitelabs/sila2/sila-python/-/issues"
+
+[project.optional-dependencies]
+dev = [
+    "cryptography >= 43.0.3",
+    "ruff",
+    "pre-commit",
+    "commitizen",
+]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+]
+docs = ["unitelabs-jsondocs[clog]~=0.2.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "--color=yes"
+
+[tool.ruff]
+src = ["src", "tests"]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "F",      # pyflakes (ruff default)
+    "E",      # pycodestyle: error (ruff default: E4, E7, E9)
+    "A",      # flake8-builtins
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "ARG",    # flake8-unused-arguments
+    "ASYNC",  # flake8-async
+    "D",      # pydocstyle
+    "D213",   # gDoc-style tweak: multi-line-summary-second-line
+    "D401",   # gDoc-style tweak: non-imperative-mood
+    "DOC",    # pydoclint (preview-only)
+    "ANN001", # flake8-annotations: missing-type-function-argument
+    "ANN201", # flake8-annotations: missing-return-type-undocumented-public-function
+    "ANN202", # flake8-annotations: missing-return-type-private-function
+    "ANN401", # flake8-annotations: any-type
+    "EM",     # flake8-errmsg
+    "BLE",    # flake8-blind-except
+    "PIE",    # flake8-pie
+    "SIM",    # flake8-simplify
+    "PERF",   # perflint: performance
+    "RET",    # flake8-return
+    "RSE",    # flake8-raise
+    "RUF",    # ruff-specific-rules
+    "ISC",    # flake8-implicit-str-concat
+    "RET",    # flake8-return
+    "PTH",    # flake8-use-pathlib
+    "PLW",    # pylint warning
+    "UP006",  # non-pep585-annotation
+]
+ignore = [
+    "D100",    # undocumented-public-module
+    "D104",    # undocumented-public-package
+    "D105",    # undocumented-magic-method
+    "D107",    # undocumented-public-init
+    "D202",    # blank-line-after-function
+    "D212",    # multi-line-summary-first-line
+    "D418",    # overload-with-docstring
+    "PERF203", # try-except-in-loop
+]
+
+[tool.ruff.lint.per-file-ignores]
+"!src/**.py" = [
+    "D",
+    "ANN",
+    "ARG",
+] # ignore documentation and typing in tests
+
+[tool.ruff.lint.flake8-annotations]
+mypy-init-return = false
+
+[tool.ruff.lint.flake8-comprehensions]
+allow-dict-calls-with-keyword-arguments = true
+
+[tool.ruff.lint.flake8-unused-arguments]
+ignore-variadic-names = true
+
+[tool.ruff.lint.pycodestyle]
+ignore-overlong-task-comments = true
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+ignore-var-parameters = true
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = true
+docstring-code-line-length = 80
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "v$version"
+version_scheme = "semver2"
+version_provider = "pep621"
+major_version_zero = true
+bump_message = "chore: bump version $current_version → $new_version"
+pre_bump_hooks = [
+    "echo '[PRE] CZ PreBumpHook...'",
+    "if [ \"$(git rev-parse --abbrev-ref HEAD)\" = \"main\" ]; then hatch run docs:mk-release; else hatch run docs:log; fi",
+]
+post_bump_hooks = [
+    "echo '[POST] CZ PostBumpHook...'",
+    "git push origin main --tags --follow-tags --no-verify -o ci.skip",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "pragma: no cover",
+    "@typing.overload",
+    "if typing.TYPE_CHECKING:",
+    "\\.\\.\\.",
+]
+
+[tool.uv]
+prerelease = "if-necessary-or-explicit"
+
+[[tool.uv.index]]
+name = "unitelabs"
+url = "https://gitlab.com/api/v4/groups/1009252/-/packages/pypi/simple"
+authenticate = "always"
+
+[tool.uv.sources]
+unitelabs-jsondocs = { index = "unitelabs" }
+
+[tool.hatch.build]
+include = ["src/sila/resources/*.xsd",]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sila"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
