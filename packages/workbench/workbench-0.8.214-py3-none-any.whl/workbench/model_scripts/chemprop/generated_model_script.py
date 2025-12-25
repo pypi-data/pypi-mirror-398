@@ -1,0 +1,573 @@
+# ChemProp Model Template for Workbench
+#
+# This template handles molecular property prediction using ChemProp 2.x MPNN with:
+# - K-fold cross-validation ensemble training (or single train/val split)
+# - Multi-task regression support
+# - Hybrid mode (SMILES + extra molecular descriptors)
+# - Classification (single-target only)
+
+import argparse
+import glob
+import json
+import os
+
+import awswrangler as wr
+import joblib
+import numpy as np
+import pandas as pd
+import torch
+from lightning import pytorch as pl
+from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
+from sklearn.preprocessing import LabelEncoder
+
+# Enable Tensor Core optimization for GPUs that support it
+torch.set_float32_matmul_precision("medium")
+
+from chemprop import data, models, nn
+
+from model_script_utils import (
+    check_dataframe,
+    compute_classification_metrics,
+    compute_regression_metrics,
+    expand_proba_column,
+    input_fn,
+    output_fn,
+    print_classification_metrics,
+    print_confusion_matrix,
+    print_regression_metrics,
+)
+
+# =============================================================================
+# Default Hyperparameters
+# =============================================================================
+DEFAULT_HYPERPARAMETERS = {
+    # Training
+    "n_folds": 5,
+    "max_epochs": 400,
+    "patience": 40,
+    "batch_size": 16,
+    # Message Passing
+    "hidden_dim": 700,
+    "depth": 6,
+    "dropout": 0.15,
+    # FFN
+    "ffn_hidden_dim": 2000,
+    "ffn_num_layers": 2,
+    # Random seed
+    "seed": 42,
+}
+
+# Template parameters (filled in by Workbench)
+TEMPLATE_PARAMS = {
+    "model_type": "uq_regressor",
+    "targets": ['udm_asy_res_efflux_ratio'],
+    "feature_list": ['smiles', 'smr_vsa4', 'tpsa', 'numhdonors', 'nhohcount', 'nbase', 'vsa_estate3', 'fr_guanido', 'mollogp', 'peoe_vsa8', 'peoe_vsa1', 'fr_imine', 'vsa_estate2', 'estate_vsa10', 'asphericity', 'xc_3dv', 'smr_vsa3', 'charge_centroid_distance', 'c3sp3', 'nitrogen_span', 'estate_vsa2', 'minpartialcharge', 'hba_hbd_ratio', 'slogp_vsa1', 'axp_7d', 'nocount', 'vsa_estate4', 'vsa_estate6', 'estate_vsa4', 'xc_4dv', 'xc_4d', 'num_s_centers', 'vsa_estate9', 'chi2v', 'axp_5d', 'mi', 'mse', 'bcut2d_mrhi', 'smr_vsa6', 'hallkieralpha', 'balabanj', 'amphiphilic_moment', 'type_ii_pattern_count', 'minabsestateindex', 'bcut2d_mwlow', 'axp_0dv', 'slogp_vsa5', 'axp_2d', 'axp_1dv', 'xch_5d', 'peoe_vsa10'],
+    "id_column": "udm_mol_bat_id",
+    "model_metrics_s3_path": "s3://ideaya-sageworks-bucket/models/caco2-er-reg-chemprop-hybrid/training",
+    "hyperparameters": {},
+}
+
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+def find_smiles_column(columns: list[str]) -> str:
+    """Find SMILES column (case-insensitive match for 'smiles')."""
+    smiles_col = next((c for c in columns if c.lower() == "smiles"), None)
+    if smiles_col is None:
+        raise ValueError("Column list must contain a 'smiles' column (case-insensitive)")
+    return smiles_col
+
+
+def create_molecule_datapoints(
+    smiles_list: list[str],
+    targets: np.ndarray | None = None,
+    extra_descriptors: np.ndarray | None = None,
+) -> tuple[list[data.MoleculeDatapoint], list[int]]:
+    """Create ChemProp MoleculeDatapoints from SMILES strings."""
+    from rdkit import Chem
+
+    datapoints, valid_indices = [], []
+    targets = np.atleast_2d(np.array(targets)).T if targets is not None and np.array(targets).ndim == 1 else targets
+
+    for i, smi in enumerate(smiles_list):
+        if Chem.MolFromSmiles(smi) is None:
+            continue
+        y = targets[i].tolist() if targets is not None else None
+        x_d = extra_descriptors[i] if extra_descriptors is not None else None
+        datapoints.append(data.MoleculeDatapoint.from_smi(smi, y=y, x_d=x_d))
+        valid_indices.append(i)
+
+    return datapoints, valid_indices
+
+
+def build_mpnn_model(
+    hyperparameters: dict,
+    task: str = "regression",
+    num_classes: int | None = None,
+    n_targets: int = 1,
+    n_extra_descriptors: int = 0,
+    x_d_transform: nn.ScaleTransform | None = None,
+    output_transform: nn.UnscaleTransform | None = None,
+    task_weights: np.ndarray | None = None,
+) -> models.MPNN:
+    """Build an MPNN model with specified hyperparameters."""
+    hidden_dim = hyperparameters["hidden_dim"]
+    depth = hyperparameters["depth"]
+    dropout = hyperparameters["dropout"]
+    ffn_hidden_dim = hyperparameters["ffn_hidden_dim"]
+    ffn_num_layers = hyperparameters["ffn_num_layers"]
+
+    mp = nn.BondMessagePassing(d_h=hidden_dim, depth=depth, dropout=dropout)
+    agg = nn.NormAggregation()
+    ffn_input_dim = hidden_dim + n_extra_descriptors
+
+    if task == "classification" and num_classes is not None:
+        ffn = nn.MulticlassClassificationFFN(
+            n_classes=num_classes, input_dim=ffn_input_dim,
+            hidden_dim=ffn_hidden_dim, n_layers=ffn_num_layers, dropout=dropout,
+        )
+    else:
+        weights_tensor = torch.tensor(task_weights, dtype=torch.float32) if task_weights is not None else None
+        ffn = nn.RegressionFFN(
+            input_dim=ffn_input_dim, hidden_dim=ffn_hidden_dim, n_layers=ffn_num_layers,
+            dropout=dropout, n_tasks=n_targets, output_transform=output_transform, task_weights=weights_tensor,
+        )
+
+    return models.MPNN(message_passing=mp, agg=agg, predictor=ffn, batch_norm=True, metrics=None, X_d_transform=x_d_transform)
+
+
+# =============================================================================
+# Model Loading (for SageMaker inference)
+# =============================================================================
+def model_fn(model_dir: str) -> dict:
+    """Load ChemProp MPNN ensemble from the specified directory."""
+    metadata = joblib.load(os.path.join(model_dir, "ensemble_metadata.joblib"))
+    ensemble_models = []
+    for i in range(metadata["n_ensemble"]):
+        model = models.MPNN.load_from_file(os.path.join(model_dir, f"chemprop_model_{i}.pt"))
+        model.eval()
+        ensemble_models.append(model)
+
+    print(f"Loaded {len(ensemble_models)} model(s), targets={metadata['target_columns']}")
+    return {"ensemble_models": ensemble_models, "n_ensemble": metadata["n_ensemble"], "target_columns": metadata["target_columns"]}
+
+
+# =============================================================================
+# Inference (for SageMaker inference)
+# =============================================================================
+def predict_fn(df: pd.DataFrame, model_dict: dict) -> pd.DataFrame:
+    """Make predictions with ChemProp MPNN ensemble."""
+    model_type = TEMPLATE_PARAMS["model_type"]
+    model_dir = os.environ.get("SM_MODEL_DIR", "/opt/ml/model")
+
+    ensemble_models = model_dict["ensemble_models"]
+    target_columns = model_dict["target_columns"]
+
+    # Load artifacts
+    label_encoder = None
+    encoder_path = os.path.join(model_dir, "label_encoder.joblib")
+    if os.path.exists(encoder_path):
+        label_encoder = joblib.load(encoder_path)
+
+    feature_metadata = None
+    feature_path = os.path.join(model_dir, "feature_metadata.joblib")
+    if os.path.exists(feature_path):
+        feature_metadata = joblib.load(feature_path)
+        print(f"Hybrid mode: {len(feature_metadata['extra_feature_cols'])} extra features")
+
+    # Find SMILES column and validate
+    smiles_column = find_smiles_column(df.columns.tolist())
+    smiles_list = df[smiles_column].tolist()
+
+    valid_mask = np.array([bool(s and isinstance(s, str) and s.strip()) for s in smiles_list])
+    valid_smiles = [s.strip() for i, s in enumerate(smiles_list) if valid_mask[i]]
+    print(f"Valid SMILES: {sum(valid_mask)} / {len(smiles_list)}")
+
+    # Initialize output columns
+    if model_type == "classifier":
+        df["prediction"] = pd.Series([None] * len(df), dtype=object)
+    else:
+        for tc in target_columns:
+            df[f"{tc}_pred"] = np.nan
+            df[f"{tc}_pred_std"] = np.nan
+
+    if sum(valid_mask) == 0:
+        return df
+
+    # Prepare extra features (raw, unscaled - model handles scaling)
+    extra_features = None
+    if feature_metadata is not None:
+        extra_cols = feature_metadata["extra_feature_cols"]
+        col_means = np.array(feature_metadata["col_means"])
+        valid_indices = np.where(valid_mask)[0]
+
+        extra_features = np.zeros((len(valid_indices), len(extra_cols)), dtype=np.float32)
+        for j, col in enumerate(extra_cols):
+            if col in df.columns:
+                values = df.iloc[valid_indices][col].values.astype(np.float32)
+                values[np.isnan(values)] = col_means[j]
+                extra_features[:, j] = values
+            else:
+                extra_features[:, j] = col_means[j]
+
+    # Create datapoints and predict
+    datapoints, rdkit_valid = create_molecule_datapoints(valid_smiles, extra_descriptors=extra_features)
+    if len(datapoints) == 0:
+        return df
+
+    dataset = data.MoleculeDataset(datapoints)
+    dataloader = data.build_dataloader(dataset, shuffle=False)
+    trainer = pl.Trainer(accelerator="auto", logger=False, enable_progress_bar=False)
+
+    # Ensemble predictions
+    all_preds = []
+    for model in ensemble_models:
+        with torch.inference_mode():
+            predictions = trainer.predict(model, dataloader)
+        preds = np.concatenate([p.numpy() for p in predictions], axis=0)
+        if preds.ndim == 3 and preds.shape[1] == 1:
+            preds = preds.squeeze(axis=1)
+        all_preds.append(preds)
+
+    preds = np.mean(np.stack(all_preds), axis=0)
+    preds_std = np.std(np.stack(all_preds), axis=0)
+    if preds.ndim == 1:
+        preds, preds_std = preds.reshape(-1, 1), preds_std.reshape(-1, 1)
+
+    print(f"Inference complete: {preds.shape[0]} predictions")
+
+    # Map predictions back to valid positions
+    valid_positions = np.where(valid_mask)[0][rdkit_valid]
+    valid_mask = np.zeros(len(df), dtype=bool)
+    valid_mask[valid_positions] = True
+
+    if model_type == "classifier" and label_encoder is not None:
+        if preds.shape[1] > 1:
+            class_preds = np.argmax(preds, axis=1)
+            df.loc[valid_mask, "prediction"] = label_encoder.inverse_transform(class_preds)
+            proba = pd.Series([None] * len(df), dtype=object)
+            proba.loc[valid_mask] = [p.tolist() for p in preds]
+            df["pred_proba"] = proba
+            df = expand_proba_column(df, label_encoder.classes_)
+        else:
+            df.loc[valid_mask, "prediction"] = label_encoder.inverse_transform((preds.flatten() > 0.5).astype(int))
+    else:
+        for t_idx, tc in enumerate(target_columns):
+            df.loc[valid_mask, f"{tc}_pred"] = preds[:, t_idx]
+            df.loc[valid_mask, f"{tc}_pred_std"] = preds_std[:, t_idx]
+        df["prediction"] = df[f"{target_columns[0]}_pred"]
+        df["prediction_std"] = df[f"{target_columns[0]}_pred_std"]
+
+    return df
+
+
+# =============================================================================
+# Training
+# =============================================================================
+if __name__ == "__main__":
+    # -------------------------------------------------------------------------
+    # Setup: Parse arguments and load data
+    # -------------------------------------------------------------------------
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model-dir", type=str, default=os.environ.get("SM_MODEL_DIR", "/opt/ml/model"))
+    parser.add_argument("--train", type=str, default=os.environ.get("SM_CHANNEL_TRAIN", "/opt/ml/input/data/train"))
+    parser.add_argument("--output-data-dir", type=str, default=os.environ.get("SM_OUTPUT_DATA_DIR", "/opt/ml/output/data"))
+    args = parser.parse_args()
+
+    # Extract template parameters
+    target_columns = TEMPLATE_PARAMS["targets"]
+    model_type = TEMPLATE_PARAMS["model_type"]
+    feature_list = TEMPLATE_PARAMS["feature_list"]
+    id_column = TEMPLATE_PARAMS["id_column"]
+    model_metrics_s3_path = TEMPLATE_PARAMS["model_metrics_s3_path"]
+    hyperparameters = {**DEFAULT_HYPERPARAMETERS, **(TEMPLATE_PARAMS["hyperparameters"] or {})}
+
+    if not target_columns or not isinstance(target_columns, list):
+        raise ValueError("'targets' must be a non-empty list of target column names")
+    n_targets = len(target_columns)
+
+    smiles_column = find_smiles_column(feature_list)
+    extra_feature_cols = [f for f in feature_list if f != smiles_column]
+    use_extra_features = len(extra_feature_cols) > 0
+
+    print(f"Target columns ({n_targets}): {target_columns}")
+    print(f"SMILES column: {smiles_column}")
+    print(f"Extra features: {extra_feature_cols if use_extra_features else 'None (SMILES only)'}")
+    print(f"Hyperparameters: {hyperparameters}")
+
+    # Load training data
+    training_files = [os.path.join(args.train, f) for f in os.listdir(args.train) if f.endswith(".csv")]
+    print(f"Training Files: {training_files}")
+    all_df = pd.concat([pd.read_csv(f, engine="python") for f in training_files])
+    check_dataframe(all_df, "training_df")
+
+    # Clean data
+    initial_count = len(all_df)
+    all_df = all_df.dropna(subset=[smiles_column])
+    all_df = all_df[all_df[target_columns].notna().any(axis=1)]
+    if len(all_df) < initial_count:
+        print(f"Dropped {initial_count - len(all_df)} rows with missing SMILES/targets")
+
+    print(f"Data shape: {all_df.shape}")
+    for tc in target_columns:
+        print(f"  {tc}: {all_df[tc].notna().sum()} samples")
+
+    # -------------------------------------------------------------------------
+    # Classification setup
+    # -------------------------------------------------------------------------
+    label_encoder = None
+    num_classes = None
+    if model_type == "classifier":
+        if n_targets > 1:
+            raise ValueError("Multi-task classification not supported")
+        label_encoder = LabelEncoder()
+        all_df[target_columns[0]] = label_encoder.fit_transform(all_df[target_columns[0]])
+        num_classes = len(label_encoder.classes_)
+        print(f"Classification: {num_classes} classes: {label_encoder.classes_}")
+
+    # -------------------------------------------------------------------------
+    # Prepare features
+    # -------------------------------------------------------------------------
+    task = "classification" if model_type == "classifier" else "regression"
+    n_extra = len(extra_feature_cols) if use_extra_features else 0
+
+    all_extra_features, col_means = None, None
+    if use_extra_features:
+        all_extra_features = all_df[extra_feature_cols].values.astype(np.float32)
+        col_means = np.nanmean(all_extra_features, axis=0)
+        for i in range(all_extra_features.shape[1]):
+            all_extra_features[np.isnan(all_extra_features[:, i]), i] = col_means[i]
+
+    all_targets = all_df[target_columns].values.astype(np.float32)
+
+    # Filter invalid SMILES
+    _, valid_indices = create_molecule_datapoints(all_df[smiles_column].tolist(), all_targets, all_extra_features)
+    all_df = all_df.iloc[valid_indices].reset_index(drop=True)
+    all_targets = all_targets[valid_indices]
+    if all_extra_features is not None:
+        all_extra_features = all_extra_features[valid_indices]
+    print(f"Data after SMILES validation: {all_df.shape}")
+
+    # Task weights for multi-task (inverse sample count)
+    task_weights = None
+    if n_targets > 1 and model_type != "classifier":
+        counts = np.array([np.sum(~np.isnan(all_targets[:, t])) for t in range(n_targets)])
+        task_weights = (1.0 / counts) / (1.0 / counts).min()
+        print(f"Task weights: {dict(zip(target_columns, task_weights.round(3)))}")
+
+    # -------------------------------------------------------------------------
+    # Cross-validation setup
+    # -------------------------------------------------------------------------
+    n_folds = hyperparameters["n_folds"]
+    batch_size = hyperparameters["batch_size"]
+
+    if n_folds == 1:
+        if "training" in all_df.columns:
+            print("Using 'training' column for train/val split")
+            train_idx = np.where(all_df["training"])[0]
+            val_idx = np.where(~all_df["training"])[0]
+        else:
+            print("WARNING: No 'training' column, using random 80/20 split")
+            train_idx, val_idx = train_test_split(np.arange(len(all_df)), test_size=0.2, random_state=42)
+        folds = [(train_idx, val_idx)]
+    else:
+        if model_type == "classifier":
+            kfold = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=42)
+            folds = list(kfold.split(all_df, all_df[target_columns[0]]))
+        else:
+            kfold = KFold(n_splits=n_folds, shuffle=True, random_state=42)
+            folds = list(kfold.split(all_df))
+
+    print(f"Training {'single model' if n_folds == 1 else f'{n_folds}-fold ensemble'}...")
+
+    # -------------------------------------------------------------------------
+    # Training loop
+    # -------------------------------------------------------------------------
+    oof_predictions = np.full((len(all_df), n_targets), np.nan, dtype=np.float64)
+    oof_proba = np.full((len(all_df), num_classes), np.nan, dtype=np.float64) if model_type == "classifier" and num_classes else None
+
+    ensemble_models = []
+    for fold_idx, (train_idx, val_idx) in enumerate(folds):
+        print(f"\n{'='*50}")
+        print(f"Fold {fold_idx + 1}/{len(folds)} - Train: {len(train_idx)}, Val: {len(val_idx)}")
+        print(f"{'='*50}")
+
+        # Split data
+        df_train, df_val = all_df.iloc[train_idx].reset_index(drop=True), all_df.iloc[val_idx].reset_index(drop=True)
+        train_targets, val_targets = all_targets[train_idx], all_targets[val_idx]
+        train_extra = all_extra_features[train_idx] if all_extra_features is not None else None
+        val_extra = all_extra_features[val_idx] if all_extra_features is not None else None
+        val_extra_raw = val_extra.copy() if val_extra is not None else None
+
+        # Create datasets
+        train_dps, _ = create_molecule_datapoints(df_train[smiles_column].tolist(), train_targets, train_extra)
+        val_dps, _ = create_molecule_datapoints(df_val[smiles_column].tolist(), val_targets, val_extra)
+        train_dataset, val_dataset = data.MoleculeDataset(train_dps), data.MoleculeDataset(val_dps)
+
+        # Scale features/targets
+        x_d_transform = None
+        if use_extra_features:
+            scaler = train_dataset.normalize_inputs("X_d")
+            val_dataset.normalize_inputs("X_d", scaler)
+            x_d_transform = nn.ScaleTransform.from_standard_scaler(scaler)
+
+        output_transform = None
+        if model_type in ["regressor", "uq_regressor"]:
+            target_scaler = train_dataset.normalize_targets()
+            val_dataset.normalize_targets(target_scaler)
+            output_transform = nn.UnscaleTransform.from_standard_scaler(target_scaler)
+
+        train_loader = data.build_dataloader(train_dataset, batch_size=batch_size, shuffle=True)
+        val_loader = data.build_dataloader(val_dataset, batch_size=batch_size, shuffle=False)
+
+        # Build and train model
+        pl.seed_everything(hyperparameters["seed"] + fold_idx)
+        mpnn = build_mpnn_model(
+            hyperparameters, task=task, num_classes=num_classes, n_targets=n_targets,
+            n_extra_descriptors=n_extra, x_d_transform=x_d_transform,
+            output_transform=output_transform, task_weights=task_weights,
+        )
+
+        trainer = pl.Trainer(
+            accelerator="auto", max_epochs=hyperparameters["max_epochs"], logger=False, enable_progress_bar=True,
+            callbacks=[
+                pl.callbacks.EarlyStopping(monitor="val_loss", patience=hyperparameters["patience"], mode="min"),
+                pl.callbacks.ModelCheckpoint(dirpath=args.model_dir, filename=f"best_{fold_idx}", monitor="val_loss", mode="min", save_top_k=1),
+            ],
+        )
+        trainer.fit(mpnn, train_loader, val_loader)
+
+        # Load best checkpoint
+        if trainer.checkpoint_callback and trainer.checkpoint_callback.best_model_path:
+            checkpoint = torch.load(trainer.checkpoint_callback.best_model_path, weights_only=False)
+            mpnn.load_state_dict(checkpoint["state_dict"])
+
+        mpnn.eval()
+        ensemble_models.append(mpnn)
+
+        # Out-of-fold predictions (using raw features)
+        val_dps_raw, _ = create_molecule_datapoints(df_val[smiles_column].tolist(), val_targets, val_extra_raw)
+        val_loader_pred = data.build_dataloader(data.MoleculeDataset(val_dps_raw), batch_size=batch_size, shuffle=False)
+
+        with torch.inference_mode():
+            fold_preds = np.concatenate([p.numpy() for p in trainer.predict(mpnn, val_loader_pred)], axis=0)
+        if fold_preds.ndim == 3 and fold_preds.shape[1] == 1:
+            fold_preds = fold_preds.squeeze(axis=1)
+
+        if model_type == "classifier" and fold_preds.ndim == 2:
+            oof_predictions[val_idx, 0] = np.argmax(fold_preds, axis=1)
+            if oof_proba is not None:
+                oof_proba[val_idx] = fold_preds
+        else:
+            if fold_preds.ndim == 1:
+                fold_preds = fold_preds.reshape(-1, 1)
+            oof_predictions[val_idx] = fold_preds
+
+    print(f"\nTraining complete! Trained {len(ensemble_models)} model(s).")
+
+    # -------------------------------------------------------------------------
+    # Prepare validation results
+    # -------------------------------------------------------------------------
+    if n_folds == 1:
+        val_mask = ~np.isnan(oof_predictions).all(axis=1)
+        df_val = all_df[val_mask].copy()
+        preds = oof_predictions[val_mask]
+        y_validate = all_targets[val_mask]
+        if oof_proba is not None:
+            oof_proba = oof_proba[val_mask]
+        val_extra_features = all_extra_features[val_mask] if all_extra_features is not None else None
+    else:
+        df_val = all_df.copy()
+        preds = oof_predictions
+        y_validate = all_targets
+        val_extra_features = all_extra_features
+
+    # -------------------------------------------------------------------------
+    # Compute metrics and prepare output
+    # -------------------------------------------------------------------------
+    if model_type == "classifier":
+        class_preds = preds[:, 0].astype(int)
+        target_name = target_columns[0]
+        y_true_decoded = label_encoder.inverse_transform(y_validate[:, 0].astype(int))
+        preds_decoded = label_encoder.inverse_transform(class_preds)
+
+        score_df = compute_classification_metrics(y_true_decoded, preds_decoded, label_encoder.classes_, target_name)
+        print_classification_metrics(score_df, target_name, label_encoder.classes_)
+        print_confusion_matrix(y_true_decoded, preds_decoded, label_encoder.classes_)
+
+        # Decode target column back to string labels (was encoded for training)
+        df_val[target_name] = y_true_decoded
+        df_val["prediction"] = preds_decoded
+        if oof_proba is not None:
+            df_val["pred_proba"] = [p.tolist() for p in oof_proba]
+            df_val = expand_proba_column(df_val, label_encoder.classes_)
+    else:
+        # Compute ensemble std
+        preds_std = None
+        if len(ensemble_models) > 1:
+            print("Computing prediction_std from ensemble...")
+            val_dps, _ = create_molecule_datapoints(df_val[smiles_column].tolist(), y_validate, val_extra_features)
+            val_loader = data.build_dataloader(data.MoleculeDataset(val_dps), batch_size=batch_size, shuffle=False)
+            trainer_pred = pl.Trainer(accelerator="auto", logger=False, enable_progress_bar=False)
+
+            all_ens_preds = []
+            for m in ensemble_models:
+                with torch.inference_mode():
+                    ens_preds = np.concatenate([p.numpy() for p in trainer_pred.predict(m, val_loader)], axis=0)
+                if ens_preds.ndim == 3 and ens_preds.shape[1] == 1:
+                    ens_preds = ens_preds.squeeze(axis=1)
+                all_ens_preds.append(ens_preds)
+            preds_std = np.std(np.stack(all_ens_preds), axis=0)
+            if preds_std.ndim == 1:
+                preds_std = preds_std.reshape(-1, 1)
+
+        print("\n--- Per-target metrics ---")
+        for t_idx, t_name in enumerate(target_columns):
+            valid_mask = ~np.isnan(y_validate[:, t_idx])
+            if valid_mask.sum() > 0:
+                metrics = compute_regression_metrics(y_validate[valid_mask, t_idx], preds[valid_mask, t_idx])
+                print_regression_metrics(metrics)
+
+            df_val[f"{t_name}_pred"] = preds[:, t_idx]
+            df_val[f"{t_name}_pred_std"] = preds_std[:, t_idx] if preds_std is not None else 0.0
+
+        df_val["prediction"] = df_val[f"{target_columns[0]}_pred"]
+        df_val["prediction_std"] = df_val[f"{target_columns[0]}_pred_std"]
+
+    # -------------------------------------------------------------------------
+    # Save validation predictions to S3
+    # -------------------------------------------------------------------------
+    output_columns = [id_column] if id_column in df_val.columns else []
+    output_columns += target_columns
+    output_columns += [f"{t}_pred" for t in target_columns] + [f"{t}_pred_std" for t in target_columns]
+    output_columns += ["prediction", "prediction_std"]
+    output_columns += [c for c in df_val.columns if c.endswith("_proba")]
+    output_columns = [c for c in output_columns if c in df_val.columns]
+
+    wr.s3.to_csv(df_val[output_columns], f"{model_metrics_s3_path}/validation_predictions.csv", index=False)
+
+    # -------------------------------------------------------------------------
+    # Save model artifacts
+    # -------------------------------------------------------------------------
+    for idx, m in enumerate(ensemble_models):
+        models.save_model(os.path.join(args.model_dir, f"chemprop_model_{idx}.pt"), m)
+    print(f"Saved {len(ensemble_models)} model(s)")
+
+    # Clean up checkpoints
+    for ckpt in glob.glob(os.path.join(args.model_dir, "best_*.ckpt")):
+        os.remove(ckpt)
+
+    joblib.dump({"n_ensemble": len(ensemble_models), "n_folds": n_folds, "target_columns": target_columns}, os.path.join(args.model_dir, "ensemble_metadata.joblib"))
+
+    with open(os.path.join(args.model_dir, "hyperparameters.json"), "w") as f:
+        json.dump(hyperparameters, f, indent=2)
+
+    if label_encoder:
+        joblib.dump(label_encoder, os.path.join(args.model_dir, "label_encoder.joblib"))
+
+    if use_extra_features:
+        joblib.dump({"extra_feature_cols": extra_feature_cols, "col_means": col_means.tolist()}, os.path.join(args.model_dir, "feature_metadata.joblib"))
+        print(f"Saved feature metadata for {len(extra_feature_cols)} extra features")
+
+    print(f"\nModel training complete! Artifacts saved to {args.model_dir}")
