@@ -1,0 +1,42 @@
+from domain.value_objects.screen_text import ScreenText
+from domain.value_objects.keywords import Keywords
+from domain.services.signature_service import SignatureService
+from shared.normalization import normalize, extract_keywords
+from application.dto.error_result_dto import ErrorResultDTO
+from domain.services.cache_callback import CacheSaveCallback
+
+
+class DetectErrorUseCase:
+    def __init__(self, cache_callback: CacheSaveCallback, ai_client):
+        self.cache_callback = cache_callback
+        self.ai_client = ai_client
+
+    def execute(self, raw_text: str) -> ErrorResultDTO:
+        screen_text = ScreenText(raw_text)
+        keywords_list = extract_keywords(screen_text.raw_text)
+        keywords = Keywords(keywords_list)
+
+        signature = SignatureService.generate(keywords)
+
+        cached = self.cache_callback.load(signature)
+        if cached:
+            return ErrorResultDTO(
+                cached["error_code"],
+                cached["short_description"],
+                cached["keywords"],
+                cached["suggested_action"],
+                source="CACHE",
+            )
+
+        ai_result = self.ai_client.analyze(screen_text.raw_text)
+
+        # 🔥 CALLBACK SAVE
+        self.cache_callback.save(signature, ai_result)
+
+        return ErrorResultDTO(
+            ai_result["error_code"],
+            ai_result["short_description"],
+            ai_result["keywords"],
+            ai_result["suggested_action"],
+            source="AI",
+        )
