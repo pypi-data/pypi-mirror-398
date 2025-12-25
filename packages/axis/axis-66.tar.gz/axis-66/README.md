@@ -1,0 +1,1 @@
+Python project to set up a connection towards Axis Communications devices and to subscribe to specific events on the metadatastream.
