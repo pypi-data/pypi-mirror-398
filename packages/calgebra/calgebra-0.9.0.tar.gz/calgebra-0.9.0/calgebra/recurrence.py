@@ -1,0 +1,860 @@
+"""Recurring interval generators using RFC 5545 recurrence rules.
+
+This module provides a clean Python API for generating recurring time patterns,
+backed by python-dateutil's battle-tested rrule implementation.
+"""
+
+from collections.abc import Iterable
+from datetime import datetime, timedelta
+from typing import Any, Generic, Literal, TypeAlias, TypeVar
+from zoneinfo import ZoneInfo
+
+from dateutil.rrule import (
+    DAILY,
+    FR,
+    MO,
+    MONTHLY,
+    SA,
+    SU,
+    TH,
+    TU,
+    WE,
+    WEEKLY,
+    YEARLY,
+    rrule,
+    weekday,
+)
+from typing_extensions import override
+
+from calgebra.core import Timeline, flatten
+from calgebra.interval import Interval
+from calgebra.util import DAY, WEEK
+
+IvlOut = TypeVar("IvlOut", bound=Interval)
+
+DayRFC5545 = Literal["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
+DayRFC5545Lower = Literal["mo", "tu", "we", "th", "fr", "sa", "su"]
+DayFull = Literal[
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"
+]
+Day: TypeAlias = DayRFC5545 | DayRFC5545Lower | DayFull
+
+# Mapping from day names to dateutil weekday constants
+_DAY_MAP: dict[str, weekday] = {
+    "monday": MO,
+    "tuesday": TU,
+    "wednesday": WE,
+    "thursday": TH,
+    "friday": FR,
+    "saturday": SA,
+    "sunday": SU,
+    "MO": MO,
+    "TU": TU,
+    "WE": WE,
+    "TH": TH,
+    "FR": FR,
+    "SA": SA,
+    "SU": SU,
+    "mo": MO,
+    "tu": TU,
+    "we": WE,
+    "th": TH,
+    "fr": FR,
+    "sa": SA,
+    "su": SU,
+}
+
+_FREQ_MAP = {
+    "daily": DAILY,
+    "weekly": WEEKLY,
+    "monthly": MONTHLY,
+    "yearly": YEARLY,
+}
+
+# Reverse mapping from dateutil constants to RFC 5545 strings
+_FREQ_TO_STRING = {
+    DAILY: "DAILY",
+    WEEKLY: "WEEKLY",
+    MONTHLY: "MONTHLY",
+    YEARLY: "YEARLY",
+}
+
+# Mapping from dateutil weekday constants to RFC 5545 strings
+_WEEKDAY_TO_STRING = {
+    MO: "MO",
+    TU: "TU",
+    WE: "WE",
+    TH: "TH",
+    FR: "FR",
+    SA: "SA",
+    SU: "SU",
+}
+
+# Mapping from weekday integer (0=Monday, 6=Sunday) to RFC 5545 strings
+_WEEKDAY_INT_TO_STRING = {
+    0: "MO",  # Monday
+    1: "TU",  # Tuesday
+    2: "WE",  # Wednesday
+    3: "TH",  # Thursday
+    4: "FR",  # Friday
+    5: "SA",  # Saturday
+    6: "SU",  # Sunday
+}
+
+# Fields that take a list of integers and map to capitalized keys
+_RRULE_LIST_FIELDS = {
+    "bymonth": "BYMONTH",
+    "bymonthday": "BYMONTHDAY",
+    "byweekno": "BYWEEKNO",
+    "byyearday": "BYYEARDAY",
+    "bysetpos": "BYSETPOS",
+    "byhour": "BYHOUR",
+    "byminute": "BYMINUTE",
+    "bysecond": "BYSECOND",
+}
+
+
+def _to_int_list(val: int | str | list[int | str] | None) -> list[int] | None:
+    """Helper to sanitize loose inputs into a list of integers."""
+    if val is None:
+        return None
+    val_list = [val] if not isinstance(val, list) else val
+    return [int(x) for x in val_list]
+
+
+def rrule_kwargs_to_rrule_string(rrule_kwargs: dict[str, Any]) -> str:
+    """Convert dateutil rrule kwargs to RFC 5545 RRULE string.
+
+    Args:
+        rrule_kwargs: Dictionary of rrule parameters (from dateutil.rrule)
+
+    Returns:
+        RFC 5545 RRULE string (e.g., "FREQ=WEEKLY;BYDAY=MO;INTERVAL=2")
+
+    Examples:
+        >>> from dateutil.rrule import WEEKLY, MO
+        >>> kwargs = {"freq": WEEKLY, "byweekday": [MO], "interval": 2}
+        >>> rrule_kwargs_to_rrule_string(kwargs)
+        'FREQ=WEEKLY;BYDAY=MO;INTERVAL=2'
+
+        >>> from dateutil.rrule import MONTHLY, MO
+        >>> kwargs = {"freq": MONTHLY, "byweekday": [MO(1)]}  # First Monday
+        >>> rrule_kwargs_to_rrule_string(kwargs)
+        'FREQ=MONTHLY;BYDAY=1MO'
+    """
+    parts: list[str] = []
+
+    # FREQ (required)
+    freq = rrule_kwargs.get("freq")
+    if freq is None:
+        raise ValueError("rrule_kwargs must include 'freq'")
+    if freq not in _FREQ_TO_STRING:
+        raise ValueError(f"Unsupported frequency: {freq}")
+    parts.append(f"FREQ={_FREQ_TO_STRING[freq]}")
+
+    # INTERVAL (only include if > 1)
+    interval = rrule_kwargs.get("interval", 1)
+    if interval != 1:
+        parts.append(f"INTERVAL={interval}")
+
+    # BYDAY (for weekly/monthly patterns with day-of-week)
+    byweekday = rrule_kwargs.get("byweekday")
+    if byweekday is not None:
+        if not isinstance(byweekday, list):
+            byweekday = [byweekday]
+
+        day_strings: list[str] = []
+        for wd in byweekday:
+            if isinstance(wd, weekday):
+                # Get weekday string from integer (0=Monday, 6=Sunday)
+                weekday_str = _WEEKDAY_INT_TO_STRING.get(wd.weekday)
+                if weekday_str is None:
+                    raise ValueError(f"Unsupported weekday integer: {wd.weekday}")
+
+                # Check if weekday has an offset (e.g., MO(1) for first Monday)
+                # Note: wd.n is None when there's no offset, not 0
+                if wd.n is not None and wd.n != 0:
+                    # Format: "1MO" for first Monday, "-1MO" for last Monday
+                    day_strings.append(f"{wd.n}{weekday_str}")
+                else:
+                    # No offset, just the day
+                    day_strings.append(weekday_str)
+            else:
+                # Fallback: try direct lookup (for weekday constants like MO, TU)
+                if wd in _WEEKDAY_TO_STRING:
+                    day_strings.append(_WEEKDAY_TO_STRING[wd])
+                else:
+                    raise ValueError(f"Unsupported weekday: {wd}")
+
+        if day_strings:
+            parts.append(f"BYDAY={','.join(day_strings)}")
+
+    # Generic list fields (BYMONTH, BYMONTHDAY, BYSETPOS, etc.)
+    for key, ical_key in _RRULE_LIST_FIELDS.items():
+        val = rrule_kwargs.get(key)
+        if val is not None:
+            if isinstance(val, list):
+                # Map to string to handle integers safely
+                parts.append(f"{ical_key}={','.join(map(str, val))}")
+            else:
+                parts.append(f"{ical_key}={val}")
+
+    # WKST
+    wkst = rrule_kwargs.get("wkst")
+    if wkst is not None:
+        if isinstance(wkst, weekday):
+            s = _WEEKDAY_INT_TO_STRING.get(wkst.weekday)
+            if s:
+                parts.append(f"WKST={s}")
+        elif isinstance(wkst, int) and wkst in _WEEKDAY_INT_TO_STRING:
+            parts.append(f"WKST={_WEEKDAY_INT_TO_STRING[wkst]}")
+
+    return ";".join(parts)
+
+
+class RecurringPattern(Timeline[IvlOut], Generic[IvlOut]):
+    """Generate recurring intervals based on RFC 5545 recurrence rules.
+
+    Supports both mask mode (no metadata) and rich mode (with interval_class and
+    metadata).
+    """
+
+    @property
+    @override
+    def _is_mask(self) -> bool:
+        """Mask only if using base Interval class with no metadata."""
+        return self.interval_class is Interval and not self.metadata
+
+    @property
+    def recurrence_rule(self) -> Any:
+        """Return the rrule for this recurring pattern.
+
+        Reconstructs the rrule from stored parameters. This is used by
+        MutableTimeline.add() to determine if a timeline can be written
+        symbolically to a backend.
+        """
+        # Return a fresh rrule instance with our parameters
+        # Note: No dtstart here, it's computed dynamically in fetch()
+        return rrule(**self.rrule_kwargs)
+
+    def to_rrule_string(self) -> str:
+        """Convert this recurring pattern to an RFC 5545 RRULE string.
+
+        Returns:
+            RFC 5545 RRULE string suitable for Google Calendar and other
+            iCalendar-compatible systems.
+
+        Examples:
+            >>> pattern = RecurringPattern(freq="weekly", day="monday", interval=2)
+            >>> pattern.to_rrule_string()
+            'FREQ=WEEKLY;INTERVAL=2;BYDAY=MO'
+
+            >>> pattern = RecurringPattern(freq="monthly", week=1, day="monday")
+            >>> pattern.to_rrule_string()
+            'FREQ=MONTHLY;BYDAY=1MO'
+        """
+        return rrule_kwargs_to_rrule_string(self.rrule_kwargs)
+
+    def __init__(
+        self,
+        freq: Literal["daily", "weekly", "monthly", "yearly"],
+        *,
+        interval: int = 1,
+        day: Day | list[Day] | None = None,
+        week: int | None = None,
+        day_of_month: int | str | list[int | str] | None = None,
+        month: int | str | list[int | str] | None = None,
+        start: datetime | int = 0,
+        duration: int = DAY,
+        tz: str | None = None,
+        interval_class: type[IvlOut] = Interval,  # type: ignore
+        exdates: Iterable[int] | None = None,
+        # Advanced RRULE parts
+        bysetpos: int | list[int] | None = None,
+        byweekno: int | list[int] | None = None,
+        byyearday: int | list[int] | None = None,
+        byhour: int | list[int] | None = None,
+        byminute: int | list[int] | None = None,
+        bysecond: int | list[int] | None = None,
+        wkst: Day | None = None,
+        **metadata: Any,
+    ):
+        """
+        Initialize a recurring pattern.
+
+        Args:
+            freq: Frequency - "daily", "weekly", "monthly", or "yearly"
+            interval: Repeat every N units (default 1)
+            day: Day(s) of week for weekly/monthly patterns
+                ("monday", ["monday", "wednesday"], or "MO"/"1MO")
+            week: Which week of month for monthly patterns (1=first, -1=last).
+                Alternatively use day="1MO".
+            day_of_month: Day(s) of month (1-31, or -1 for last day)
+            month: Month(s) for yearly patterns (1-12)
+            start: Either a full timestamp (seconds since epoch) or time-of-day
+                (seconds from midnight). If > DAY, treated as timestamp with
+                anchor date extracted. If <= DAY, treated as time-of-day only.
+            duration: Duration of each occurrence in seconds (default DAY = full day)
+            tz: IANA timezone name (inferred from start if datetime with tzinfo)
+            interval_class: Class to instantiate for each interval (default: Interval)
+            exdates: Optional set of excluded start timestamps (seconds from epoch)
+            bysetpos: The Nth occurrence of the set of recurrence instances
+                (e.g. -1 for last)
+            byweekno: The week(s) of the year
+            byyearday: The day(s) of the year
+            byhour: The hour(s) of the day
+            byminute: The minute(s) of the hour
+            bysecond: The second(s) of the minute
+            wkst: The first day of the week (default MO)
+            **metadata: Additional metadata to store on generated intervals
+        """
+        self.freq = freq
+        self.interval = interval
+        self.duration_seconds = duration
+        self.interval_class = interval_class
+        self.metadata = metadata
+        self.exdates = set(exdates) if exdates else set()
+
+        # Infer timezone: explicit tz > start's tzinfo > UTC
+        if tz is not None:
+            self.zone = ZoneInfo(tz)
+        elif isinstance(start, datetime) and start.tzinfo is not None:
+            self.zone = start.tzinfo  # type: ignore[assignment]
+        else:
+            self.zone = ZoneInfo("UTC")
+
+        # Interpret start: can be datetime, timestamp (int > DAY), or time-of-day
+        anchor_dt: datetime | None = None
+        if isinstance(start, datetime):
+            # datetime object: use directly as anchor
+            anchor_dt = start if start.tzinfo else start.replace(tzinfo=self.zone)
+            self.anchor_timestamp: int | None = int(anchor_dt.timestamp())
+            self.start_seconds = (
+                anchor_dt.hour * 3600 + anchor_dt.minute * 60 + anchor_dt.second
+            )
+        elif start > DAY:
+            # Large int: treat as Unix timestamp
+            anchor_dt = datetime.fromtimestamp(start, tz=self.zone)
+            self.anchor_timestamp = start
+            self.start_seconds = (
+                anchor_dt.hour * 3600 + anchor_dt.minute * 60 + anchor_dt.second
+            )
+        else:
+            # Small int: seconds from midnight (mask-style, no anchor)
+            self.anchor_timestamp = None
+            self.start_seconds = start
+
+        # Validate: if day is specified and start is a full datetime/timestamp,
+        # the start date should fall on one of the specified days
+        if day is not None and anchor_dt is not None:
+            days_list = [day] if isinstance(day, (str, weekday)) else day
+            # Get the weekday of anchor_dt (0=Monday, 6=Sunday)
+            anchor_weekday = anchor_dt.weekday()
+
+            # Map day names to weekday integers using _DAY_MAP
+            valid_weekdays = set()
+            for d in days_list:
+                if isinstance(d, weekday):
+                    valid_weekdays.add(d.weekday)
+                    continue
+
+                d_lower = d.lower()
+                if d_lower in _DAY_MAP:
+                    valid_weekdays.add(_DAY_MAP[d_lower].weekday)
+                # If invalid day, we'll catch it later in initialization
+
+            # If valid_weekdays is empty, let normal validation handle it
+            if valid_weekdays and anchor_weekday not in valid_weekdays:
+                # Find readable name for error message
+                day_name_map = {
+                    0: "monday",
+                    1: "tuesday",
+                    2: "wednesday",
+                    3: "thursday",
+                    4: "friday",
+                    5: "saturday",
+                    6: "sunday",
+                }
+                anchor_day_name = day_name_map.get(anchor_weekday, str(anchor_weekday))
+                raise ValueError(
+                    f"start date ({anchor_dt.date()}) is a {anchor_day_name}, "
+                    f"but day={day!r} specifies different day(s).\n"
+                    f"Hint: Use a start date that falls on one of the specified days, "
+                    f"or use time-of-day only (e.g., start=18*HOUR)."
+                )
+
+        # Store original recurrence parameters for easy reconstruction
+        self.day = day
+        self.week = week
+        self.day_of_month = day_of_month
+        self.month = month
+
+        # Advanced attributes
+        self.bysetpos = bysetpos
+        self.byweekno = byweekno
+        self.byyearday = byyearday
+        self.byhour = byhour
+        self.byminute = byminute
+        self.bysecond = bysecond
+        self.wkst = wkst
+
+        # Build rrule kwargs
+        rrule_kwargs: dict[str, Any] = {
+            "freq": _FREQ_MAP[freq],
+            "interval": interval,
+        }
+
+        # Handle day-of-week
+        # Handle day-of-week
+        if day is not None:
+            days = [day] if isinstance(day, str) else day
+            weekdays: list[weekday] = []
+            for d in days:
+                # Parse string: "monday", "MO", "1MO", "-1FR", etc.
+                s = d.upper()
+                # Check directly in map first (MO, MONDAY)
+                if d.lower() in _DAY_MAP:
+                    wd = _DAY_MAP[d.lower()]
+                    # Apply legacy 'week' offset if present and this is a simple day
+                    # name
+                    if week is not None:
+                        wd = wd(week)
+                    weekdays.append(wd)
+                    continue
+
+                # Try parsing numbered day: 1MO
+                # Last 2 chars are code
+                if len(s) > 2:
+                    code = s[-2:]
+                    prefix = s[:-2]
+                    # Check code in map (must use lower for map key)
+                    if code.lower() in _DAY_MAP:
+                        wd_const = _DAY_MAP[code.lower()]
+                        try:
+                            n = int(prefix)
+                            weekdays.append(wd_const(n))
+                            continue
+                        except ValueError:
+                            pass
+
+                # If we get here, invalid
+                valid = ", ".join(sorted(_DAY_MAP.keys()))
+                raise ValueError(
+                    f"Invalid day name: '{d}'\n"
+                    f"Valid days: {valid} or numbered (e.g. 1MO)\n"
+                )
+
+            rrule_kwargs["byweekday"] = weekdays
+
+        # Handle standard list fields
+        # Note: 'day_of_month' maps to 'bymonthday' in rrule logic,
+        # but the actual kwarg passed to __init__ is 'day_of_month'.
+        # So we handle day_of_month specially, or remap it.
+        # Here we just iterate the ones directly passed as kwargs
+
+        list_args = {
+            "bymonthday": day_of_month,
+            "bymonth": month,
+            "bysetpos": bysetpos,
+            "byweekno": byweekno,
+            "byyearday": byyearday,
+            "byhour": byhour,
+            "byminute": byminute,
+            "bysecond": bysecond,
+        }
+
+        for key, val in list_args.items():
+            if val is not None:
+                rrule_kwargs[key] = _to_int_list(val)
+
+        if wkst is not None:
+            if isinstance(wkst, weekday):
+                rrule_kwargs["wkst"] = wkst
+            elif isinstance(wkst, str) and wkst.lower() in _DAY_MAP:
+                rrule_kwargs["wkst"] = _DAY_MAP[wkst.lower()]
+            elif isinstance(wkst, int) and wkst in _WEEKDAY_INT_TO_STRING:
+                # dateutil accepts int 0-6
+                rrule_kwargs["wkst"] = wkst
+
+        # Store rrule (without start date - we'll set that dynamically based on query)
+        self.rrule_kwargs: dict[str, Any] = rrule_kwargs
+
+        # Store original start date components for phase calculations
+        # We assume the pattern "started" at epoch (1970-01-01) for phase alignment
+        # unless otherwise specified. Since rrule doesn't have an explicit "start date"
+        # in our API (only time-of-day), we align to 1970-01-01.
+        self._epoch = datetime(1970, 1, 1, tzinfo=self.zone)
+
+    def _get_safe_anchor(self, start_dt: datetime) -> datetime:
+        """Calculate a phase-aligned start date for rrule near the target date.
+
+        If the pattern was created with an anchored datetime/timestamp, align the
+        recurrence phase to that anchor. Otherwise fall back to the epoch-based
+        alignment used previously.
+        """
+        # Prefer the original anchor for phase alignment; otherwise use legacy defaults:
+        # - weekly aligns to the Monday before epoch
+        # - others align to epoch (1970-01-01)
+        if getattr(self, "anchor_timestamp", None) is not None:
+            base_anchor = datetime.fromtimestamp(self.anchor_timestamp, tz=self.zone)
+        elif self.freq == "weekly":
+            # Align to the Monday before the epoch for weekly phase
+            base_anchor = datetime(1969, 12, 29, tzinfo=self.zone)
+        else:
+            base_anchor = self._epoch
+
+        if self.freq == "daily":
+            delta_days = (start_dt.date() - base_anchor.date()).days
+            offset = delta_days % self.interval
+            aligned_days = delta_days - offset
+            return base_anchor + timedelta(days=aligned_days)
+
+        elif self.freq == "weekly":
+            # Align in whole weeks relative to the anchor
+            delta_days = (start_dt.date() - base_anchor.date()).days
+            weeks = delta_days // 7
+            offset = weeks % self.interval
+            aligned_weeks = weeks - offset
+            return base_anchor + timedelta(weeks=aligned_weeks)
+
+        elif self.freq == "monthly":
+            # Months since anchor
+            delta_years = start_dt.year - base_anchor.year
+            delta_months = start_dt.month - base_anchor.month
+            total_months = delta_years * 12 + delta_months
+            offset = total_months % self.interval
+
+            target_total = total_months - offset
+            abs_total = (base_anchor.year * 12 + base_anchor.month - 1) + target_total
+            year = abs_total // 12
+            month = (abs_total % 12) + 1
+            return base_anchor.replace(year=year, month=month)
+
+        elif self.freq == "yearly":
+            delta_years = start_dt.year - base_anchor.year
+            offset = delta_years % self.interval
+            return base_anchor.replace(year=start_dt.year - offset)
+
+        return start_dt
+
+    @override
+    def fetch(
+        self, start: int | None, end: int | None, *, reverse: bool = False
+    ) -> Iterable[IvlOut]:
+        """Generate recurring intervals using a single continuous rrule iterator.
+
+        Supports unbounded end queries (forward) and chunked reverse iteration.
+        """
+        if reverse:
+            return self._fetch_reverse(start, end)
+        return self._fetch_forward(start, end)
+
+    def _fetch_forward(self, start: int | None, end: int | None) -> Iterable[IvlOut]:
+        """Forward iteration through recurrences."""
+        if start is None:
+            raise ValueError(
+                "Recurring timeline requires finite start, got start=None.\n"
+                "Fix: Use explicit start when slicing: recurring(...)[start:]\n"
+                "Example: list(mondays[1704067200:])"
+            )
+
+        # 1. Determine where to start looking (Lookback)
+        # We need to start early enough to catch events that started before 'start'
+        # but overlap with it.
+        # Safe bet: Look back by duration + 1 interval period
+        lookback_buffer = self.duration_seconds
+        if self.freq == "daily":
+            lookback_buffer += self.interval * DAY
+        elif self.freq == "weekly":
+            lookback_buffer += self.interval * WEEK
+        elif self.freq == "monthly":
+            lookback_buffer += self.interval * 32 * DAY  # Approx
+        elif self.freq == "yearly":
+            lookback_buffer += self.interval * 366 * DAY  # Approx
+
+        lookback_start_ts = start - lookback_buffer
+        lookback_start_dt = datetime.fromtimestamp(lookback_start_ts, tz=self.zone)
+
+        # 2. Calculate Phase-Aligned Anchor
+        # Find a valid start date for the rrule that preserves the cadence
+        anchor_dt = self._get_safe_anchor(lookback_start_dt)
+
+        # Ensure anchor starts at midnight to match rrule expectations
+        anchor_dt = anchor_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # 3. Create Iterator
+        # We use the anchor as dtstart. rrule will generate valid occurrences
+        # from there.
+        rules = rrule(dtstart=anchor_dt, **self.rrule_kwargs)
+
+        # 4. Stream results
+        for occurrence in rules:
+            # Check if this occurrence is excluded
+            timestamp = int(occurrence.timestamp())
+            if timestamp in self.exdates:
+                continue
+
+            ivl = self._occurrence_to_interval(occurrence)
+
+            # Fast-forward: Skip if it ends before our query window
+            if ivl.end is not None and ivl.end <= start:
+                continue
+
+            # Stop: If we've passed the query window
+            # Note: rrule yields in order, so once we pass end, we're done.
+            # fetch() end bound is inclusive, so we stop only if start > end
+            if end is not None and ivl.start is not None and ivl.start > end:
+                break
+
+            yield ivl
+
+    def _occurrence_to_interval(self, occurrence: datetime) -> IvlOut:
+        """Convert an rrule occurrence to an Interval with time window and metadata."""
+        start_hour_int = self.start_seconds // 3600
+        remaining = self.start_seconds % 3600
+        start_minute = remaining // 60
+        start_second = remaining % 60
+
+        window_start = occurrence.replace(
+            hour=start_hour_int, minute=start_minute, second=start_second
+        )
+        # Intervals are now exclusive [start, end), so end = start + duration
+        window_end = window_start + timedelta(seconds=self.duration_seconds)
+
+        # Create interval with metadata
+        base_interval = self.interval_class(
+            start=int(window_start.timestamp()),
+            end=int(window_end.timestamp()),
+            **self.metadata,
+        )
+
+        return base_interval
+
+    def _fetch_reverse(self, start: int | None, end: int | None) -> Iterable[IvlOut]:
+        """Reverse iteration through recurrences using chunked approach.
+
+        Since rrule only generates forward, we fetch chunks and reverse them.
+        Each chunk contains occurrences in a time window, yielded in reverse order.
+        """
+        if end is None:
+            raise ValueError(
+                "Reverse iteration requires finite end bound, got end=None.\n"
+                "Fix: Use explicit end when slicing: recurring(...)[end:start:-1]\n"
+                "Example: list(mondays[now::-1])"
+            )
+
+        # Use chunked approach: fetch windows of time backward
+        # Chunk size based on frequency for reasonable batch sizes
+        if self.freq == "daily":
+            chunk_size = 30 * DAY  # ~30 occurrences per chunk
+        elif self.freq == "weekly":
+            chunk_size = 12 * WEEK  # ~12 occurrences per chunk
+        elif self.freq == "monthly":
+            chunk_size = 365 * DAY  # ~12 occurrences per chunk
+        else:  # yearly
+            chunk_size = 5 * 365 * DAY  # ~5 occurrences per chunk
+
+        current_end = end
+        effective_start = start if start is not None else end - (10 * 365 * DAY)
+
+        while current_end > effective_start:
+            chunk_start = max(effective_start, current_end - chunk_size)
+
+            # Fetch this chunk forward, then reverse
+            chunk = list(self._fetch_forward(chunk_start, current_end))
+            yield from reversed(chunk)
+
+            current_end = chunk_start
+
+            # Stop if we hit the start bound
+            if start is not None and current_end <= start:
+                break
+
+
+def recurring(
+    freq: Literal["daily", "weekly", "monthly", "yearly"],
+    *,
+    interval: int = 1,
+    day: Day | list[Day] | None = None,
+    week: int | None = None,
+    day_of_month: int | str | list[int | str] | None = None,
+    month: int | str | list[int | str] | None = None,
+    start: datetime | int = 0,
+    duration: int = DAY,
+    tz: str | None = None,
+) -> Timeline[Interval]:
+    """
+    Create a timeline with recurring intervals based on frequency and constraints.
+
+    Supports unbounded end queries (e.g., recurring(...)[start:]) via infinite
+    streaming.
+
+    Args:
+        freq: Frequency - "daily", "weekly", "monthly", or "yearly"
+        interval: Repeat every N units (e.g., interval=2 for bi-weekly). Default: 1
+        day: Day(s) of week ("monday", ["tuesday", "thursday"], etc.)
+        week: Which week of month (1=first, -1=last). Only for freq="monthly"
+        day_of_month: Day(s) of month (1-31, or -1 for last day). For freq="monthly"
+        month: Month(s) (1-12). For freq="yearly"
+        start: Either a datetime/timestamp (first occurrence) or seconds from midnight
+            (time-of-day only). If > 86400, treated as timestamp with anchor date.
+        duration: Duration of each occurrence in seconds (default DAY = full day)
+        tz: IANA timezone name (inferred from start's tzinfo if not provided)
+
+    Returns:
+        Timeline yielding recurring intervals
+
+    Examples:
+        >>> from calgebra import recurring, HOUR, MINUTE
+        >>>
+        >>> # Every Monday at 9:30am for 30 minutes
+        >>> monday_standup = recurring(
+        ...     freq="weekly",
+        ...     day="monday",
+        ...     start=9*HOUR + 30*MINUTE,
+        ...     duration=30*MINUTE,
+        ...     tz="US/Pacific"
+        ... )
+        >>>
+        >>> # First Monday of each month
+        >>> first_monday = recurring(
+        ...     freq="monthly",
+        ...     week=1,
+        ...     day="monday",
+        ...     tz="UTC"
+        ... )
+        >>>
+        >>> # Last Friday of each month at 4pm for 1 hour
+        >>> monthly_review = recurring(
+        ...     freq="monthly",
+        ...     week=-1,
+        ...     day="friday",
+        ...     start=16*HOUR,
+        ...     duration=HOUR,
+        ...     tz="US/Pacific"
+        ... )
+        >>>
+        >>> # Every other Tuesday (bi-weekly, full day)
+        >>> biweekly = recurring(
+        ...     freq="weekly",
+        ...     interval=2,
+        ...     day="tuesday",
+        ...     tz="UTC"
+        ... )
+        >>>
+        >>> # 1st and 15th of every month (full day)
+        >>> paydays = recurring(
+        ...     freq="monthly",
+        ...     day_of_month=[1, 15],
+        ...     tz="UTC"
+        ... )
+        >>>
+        >>> # Quarterly (every 3 months on the 1st, full day)
+        >>> quarterly = recurring(
+        ...     freq="monthly",
+        ...     interval=3,
+        ...     day_of_month=1,
+        ...     tz="UTC"
+        ... )
+        >>>
+        >>> # Unbounded queries (with itertools)
+        >>> from itertools import islice
+        >>> mondays = recurring(freq="weekly", day="monday", tz="UTC")
+        >>> next_five = list(islice(mondays[start:], 5))
+    """
+    return RecurringPattern(
+        freq,
+        interval=interval,
+        day=day,
+        week=week,
+        day_of_month=day_of_month,
+        month=month,
+        start=start,
+        duration=duration,
+        tz=tz,
+    )
+
+
+def day_of_week(days: Day | list[Day], tz: str = "UTC") -> Timeline[Interval]:
+    """
+    Convenience function for filtering by specific day(s) of the week.
+
+    Generates intervals spanning entire days (00:00:00 to 23:59:59) for the
+    specified weekday(s).
+
+    Args:
+        days: Single day name or list of day names
+            (e.g., "monday", ["tuesday", "thursday"])
+        tz: IANA timezone name for day boundaries
+
+    Returns:
+        Timeline yielding intervals for the specified day(s) of the week
+
+    Example:
+        >>> from calgebra import day_of_week
+        >>>
+        >>> # All Mondays
+        >>> mondays = day_of_week("monday", tz="UTC")
+        >>>
+        >>> # Weekdays (Mon-Fri)
+        >>> weekdays = day_of_week(
+        ...     ["monday", "tuesday", "wednesday", "thursday", "friday"]
+        ... )
+    """
+    return flatten(recurring(freq="weekly", day=days, tz=tz))
+
+
+def time_of_day(
+    start: int = 0, duration: int = DAY, tz: str = "UTC"
+) -> Timeline[Interval]:
+    """
+    Convenience function for filtering by time of day.
+
+    Generates intervals for a specific time window repeated daily (e.g., 9am-5pm
+    every day).
+
+    Args:
+        start: Start time in seconds from midnight (default 0)
+        duration: Duration in seconds (default DAY = full day)
+        tz: IANA timezone name for time boundaries
+
+    Returns:
+        Timeline yielding daily intervals for the specified time window
+
+    Example:
+        >>> from calgebra import time_of_day, HOUR
+        >>>
+        >>> # 9am-5pm every day (8 hours)
+        >>> work_hours = time_of_day(start=9*HOUR, duration=8*HOUR, tz="US/Pacific")
+        >>>
+        >>> # Combine with day_of_week for business hours
+        >>> weekdays = day_of_week(
+        ...     ["monday", "tuesday", "wednesday", "thursday", "friday"]
+        ... )
+        >>> business_hours = weekdays & work_hours
+    """
+    # Validate parameters
+    if not (0 <= start < DAY):
+        raise ValueError(
+            f"start must be in range [0, {DAY}), got {start}.\n"
+            f"Use 0 for midnight, 12*HOUR for noon, 23*HOUR for 11pm.\n"
+            f"Example: start=9*HOUR + 30*MINUTE for 9:30am"
+        )
+    if duration <= 0:
+        raise ValueError(
+            f"duration must be positive, got {duration}.\n"
+            f"Example: duration=8*HOUR for an 8-hour window (like 9am-5pm)"
+        )
+    if start + duration > DAY:
+        raise ValueError(
+            f"start + duration cannot exceed 24 hours ({DAY} seconds).\n"
+            f"Got: {start} + {duration} = {start + duration}\n"
+            f"time_of_day() cannot span midnight. "
+            f"For overnight windows, use recurring():\n"
+            f"  from calgebra import recurring, HOUR\n"
+            f"  overnight = recurring(\n"
+            f"      freq='daily', start=20*HOUR, duration=5*HOUR, tz='UTC'\n"
+            f"  )\n"
+        )
+
+    return flatten(recurring(freq="daily", start=start, duration=duration, tz=tz))
