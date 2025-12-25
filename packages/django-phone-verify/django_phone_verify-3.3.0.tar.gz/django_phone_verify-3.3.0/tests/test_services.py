@@ -1,0 +1,201 @@
+# -*- coding: utf-8 -*-
+
+import importlib
+import warnings
+
+# Third Party Stuff
+import pytest
+from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
+from django.test import override_settings
+from nexmo.errors import ClientError
+from twilio.base.exceptions import TwilioRestException
+
+# phone_verify Stuff
+import phone_verify.services
+from phone_verify.constants import get_security_code_expiration
+from phone_verify.services import (
+    PhoneVerificationService,
+    send_security_code_and_generate_session_token,
+)
+
+from .test_backends import _get_backend_cls
+
+pytestmark = pytest.mark.django_db
+
+
+def test_message_generation_and_sending_service(client, mocker, backend):
+    with override_settings(PHONE_VERIFICATION=backend):
+        service = PhoneVerificationService(phone_number="+13478379634")
+        backend_service = backend.get("BACKEND")
+        mock_api = mocker.patch(f"{backend_service}.send_sms")
+        service.send_verification("+13478379634", "123456")
+
+        assert mock_api.called
+
+
+def test_exception_is_logged_when_raised(client, mocker, backend):
+    with override_settings(PHONE_VERIFICATION=backend):
+        mock_send_verification = mocker.patch(
+            "phone_verify.services.PhoneVerificationService.send_verification"
+        )
+        mock_logger = mocker.patch("phone_verify.services.logger")
+        backend_cls = _get_backend_cls(backend)
+        if (
+            backend_cls == "nexmo.NexmoBackend"
+            or backend_cls == "nexmo.NexmoSandboxBackend"
+        ):
+            exc = ClientError()
+            mock_send_verification.side_effect = exc
+        elif (
+            backend_cls == "twilio.TwilioBackend"
+            or backend_cls == "twilio.TwilioSandboxBackend"
+        ):
+            exc = TwilioRestException(status=mocker.Mock(), uri=mocker.Mock())
+            mock_send_verification.side_effect = exc
+        send_security_code_and_generate_session_token(phone_number="+13478379634")
+        mock_logger.error.assert_called_once_with(
+            f"Error in sending verification code to +13478379634: {exc}"
+        )
+
+
+@override_settings(
+    PHONE_VERIFICATION={
+        "BACKEND": "phone_verify.backends.twilio.TwilioBackend",
+        "MESSAGE": "Welcome to {app}! Please use security code {security_code} to proceed.",
+        "APP_NAME": "Phone Verify",
+        "SECURITY_CODE_EXPIRATION_SECONDS": 1,
+        "VERIFY_SECURITY_CODE_ONLY_ONCE": False,
+    }
+)
+def test_exception_is_raised_when_improper_settings(client):
+    with pytest.raises(ImproperlyConfigured) as exc:
+        PhoneVerificationService(phone_number="+13478379634")
+        assert (
+            exc.info
+            == "Please specify following settings in settings.py: OPTIONS, TOKEN_LENGTH"
+        )
+
+
+def test_exception_is_raised_when_no_settings(client, backend):
+    with override_settings(PHONE_VERIFICATION=backend):
+        del settings.PHONE_VERIFICATION
+        with pytest.raises(ImproperlyConfigured) as exc:
+            importlib.reload(phone_verify.services)
+            PhoneVerificationService(phone_number="+13478379634")
+            assert exc.info == "Please define PHONE_VERIFICATION in settings"
+
+
+def test_settings_validation_accepts_deprecated_expiration_time(backend):
+    """Test that settings validation accepts deprecated SECURITY_CODE_EXPIRATION_TIME."""
+    backend_copy = backend.copy()
+    del backend_copy["SECURITY_CODE_EXPIRATION_SECONDS"]
+    backend_copy["SECURITY_CODE_EXPIRATION_TIME"] = 600
+
+    with override_settings(PHONE_VERIFICATION=backend_copy):
+        # Should not raise ImproperlyConfigured
+        service = PhoneVerificationService(phone_number="+13478379634")
+        assert service is not None
+
+
+def test_settings_validation_accepts_new_expiration_seconds(backend):
+    """Test that settings validation accepts new SECURITY_CODE_EXPIRATION_SECONDS."""
+    with override_settings(PHONE_VERIFICATION=backend):
+        # Should not raise ImproperlyConfigured
+        service = PhoneVerificationService(phone_number="+13478379634")
+        assert service is not None
+
+
+def test_settings_validation_fails_without_expiration_setting(backend):
+    """Test that settings validation fails when neither expiration setting is present."""
+    backend_copy = backend.copy()
+    if "SECURITY_CODE_EXPIRATION_SECONDS" in backend_copy:
+        del backend_copy["SECURITY_CODE_EXPIRATION_SECONDS"]
+    if "SECURITY_CODE_EXPIRATION_TIME" in backend_copy:
+        del backend_copy["SECURITY_CODE_EXPIRATION_TIME"]
+
+    with override_settings(PHONE_VERIFICATION=backend_copy):
+        with pytest.raises(ImproperlyConfigured) as exc:
+            PhoneVerificationService(phone_number="+13478379634")
+        assert "SECURITY_CODE_EXPIRATION" in str(exc.value)
+
+
+def test_deprecation_warning_for_old_expiration_setting(backend):
+    """Test that a deprecation warning is issued when using SECURITY_CODE_EXPIRATION_TIME."""
+    backend_copy = backend.copy()
+    del backend_copy["SECURITY_CODE_EXPIRATION_SECONDS"]
+    backend_copy["SECURITY_CODE_EXPIRATION_TIME"] = 600
+
+    with override_settings(PHONE_VERIFICATION=backend_copy):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            # Call the utility function that should issue the warning
+            expiration = get_security_code_expiration()
+            assert expiration == 600
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "SECURITY_CODE_EXPIRATION_TIME is deprecated" in str(w[0].message)
+
+
+class DummyBackend:
+    def __init__(self):
+        self.sent_messages = []
+
+    def send_sms(self, number, message):
+        self.sent_messages.append((number, message))
+
+
+class CustomBackendWithMessage(DummyBackend):
+    def generate_message(self, security_code, context=None):
+        return f"Custom: {security_code} / {context.get('extra', '')}"
+
+
+@pytest.mark.django_db
+def test_generate_message_default_fallback(settings):
+    settings.PHONE_VERIFICATION = {
+        'BACKEND': 'tests.test_services.DummyBackend',
+        'OPTIONS': {},
+        'TOKEN_LENGTH': 6,
+        'MESSAGE': 'Code: {security_code} from {app}, note: {extra}',
+        'APP_NAME': 'TestApp',
+        'SECURITY_CODE_EXPIRATION_SECONDS': 300,
+        'VERIFY_SECURITY_CODE_ONLY_ONCE': True,
+    }
+
+    svc = PhoneVerificationService(phone_number="+1234567890", backend=DummyBackend())
+    msg = svc._generate_message("123456", context={"extra": "extra-info"})
+
+    assert msg == "Code: 123456 from TestApp, note: extra-info"
+
+
+@pytest.mark.django_db
+def test_generate_message_from_custom_backend(settings):
+    settings.PHONE_VERIFICATION = {
+        'BACKEND': 'tests.test_services.CustomBackendWithMessage',
+        'OPTIONS': {},
+        'TOKEN_LENGTH': 6,
+        'MESSAGE': 'SHOULD NOT BE USED',
+        'APP_NAME': 'TestApp',
+        'SECURITY_CODE_EXPIRATION_SECONDS': 300,
+        'VERIFY_SECURITY_CODE_ONLY_ONCE': True,
+    }
+
+    svc = PhoneVerificationService(phone_number="+1234567890", backend=CustomBackendWithMessage())
+    msg = svc._generate_message("999999", context={"extra": "runtime"})
+
+    assert msg == "Custom: 999999 / runtime"
+
+
+@pytest.mark.django_db
+def test_i18n_message_generation_and_sending_service(client, mocker, backend):
+    with override_settings(PHONE_VERIFICATION=backend):
+        zh_verification_message = "歡迎使用 {app}! 請使用安全碼 {security_code} 繼續。"
+        mocker.patch('phone_verify.services.gettext', return_value=zh_verification_message)
+        service = PhoneVerificationService(phone_number="+13478379634", language='zh-hant')
+        backend_service = backend.get("BACKEND")
+        mock_api = mocker.patch(f"{backend_service}.send_sms")
+        service.send_verification("+13478379634", "123456")
+        actual_message = zh_verification_message.format(
+            app=backend['APP_NAME'], security_code="123456"
+        )
+        mock_api.assert_called_with("+13478379634", actual_message)

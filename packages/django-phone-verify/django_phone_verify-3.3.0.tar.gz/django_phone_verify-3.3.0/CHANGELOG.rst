@@ -1,0 +1,186 @@
+Release Notes
+-------------
+
+[3.3.0] - 2025-12-21
+^^^^^^^^^^^^^^^^^^^^
+
+Added
+"""""
+- **Django 6.0 Support**: Added official support for Django 6.0. Note that Django 6.0 requires Python 3.12+.
+- **Admin Interface Enhancements**: Added expiration status display in Django admin with ``is_valid`` column showing intuitive boolean indicators (green checkmark for valid codes, red X for expired codes). Added ``is_expired`` property to ``SMSVerification`` model for easy expiration checking.
+- **Database Cleanup**: Added ``cleanup_phone_verifications`` management command to automatically delete old verification records. Supports ``--days`` parameter to customize retention period and ``--dry-run`` mode for previewing deletions. New ``RECORD_RETENTION_DAYS`` setting (default: 30 days) for configuring default retention period.
+
+Changed
+"""""""
+- **Settings**: ``SECURITY_CODE_EXPIRATION_TIME`` is now deprecated in favor of the more explicit ``SECURITY_CODE_EXPIRATION_SECONDS``. Both settings are supported for backward compatibility, with ``SECURITY_CODE_EXPIRATION_SECONDS`` taking precedence. A deprecation warning is issued when the old setting name is used. The old name will be removed in a future major version.
+
+[3.2.0] - 2025-10-19
+^^^^^^^^^^^^^^^^^^^^
+
+Added
+"""""
+- **Brute Force Protection**: Added comprehensive brute force protection for SMS verification codes to prevent automated attacks. New settings: ``MAX_FAILED_ATTEMPTS`` (default: 5) for session lockout threshold and ``MIN_TOKEN_LENGTH`` (default: 6) to enforce minimum security code length. Added ``failed_attempts`` field to ``SMSVerification`` model with migration for backward compatibility. Contributed by `Harsh <https://github.com/Kaos599>`_. Closes `#100 <https://github.com/CuriousLearner/django-phone-verify/issues/100>`_.
+- **Internationalization (i18n)**: Added support for localizing verification messages based on the ``Accept-Language`` HTTP header. The library now automatically detects the user's preferred language and sends verification messages in that language using Django's translation system. Contributed by `Hari Mahadevan <https://github.com/harikvpy>`_.
+- **Documentation**: Completely overhauled documentation to professional, enterprise-grade quality:
+
+  - **Getting Started Guide** - Expanded with prerequisites, step-by-step configuration, environment variables, and testing instructions
+  - **Architecture & Flow** - New comprehensive guide explaining system architecture, verification flow diagrams, security features, and extension points
+  - **Security Best Practices** - Detailed guide covering rate limiting, credential storage, compliance (GDPR, CCPA, TCPA), and production deployment
+  - **API Reference** - Complete documentation of all services, backends, models, serializers, and viewsets with code examples
+  - **Advanced Examples** - 8 real-world implementations: 2FA, password reset, marketing opt-in, multi-tenant, async/Celery, custom messages, fallback providers, phone number updates
+  - **Configuration Reference** - Detailed explanations of all settings with security recommendations and examples
+  - **Troubleshooting Guide** - Common issues and solutions for installation, configuration, SMS, verification, and performance
+  - **FAQ** - 30+ frequently asked questions covering all aspects of the library
+  - **Enhanced README** - Added "What It Does" section, improved features list, better Quick Start with response examples
+
+- **Security**: Added ``SECURITY.md`` file with vulnerability reporting process, supported versions, and security best practices summary
+- **Package Metadata**: Added ``__version__`` attribute to ``phone_verify`` module for programmatic version checking
+- **Modern Packaging**: Added ``pyproject.toml`` for PEP 518 compliance with modern Python tooling and consolidated configuration
+
+Changed
+"""""""
+- **Python Support**: Officially dropped support for Python 3.6 and 3.7 (both EOL). Minimum Python version is now 3.8
+- **README**: Improved with Quick Start section showing actual usage examples, better configuration examples, and fixed documentation links
+- **CI/CD**: Updated GitHub Actions workflow to test Python 3.8-3.13 for full coverage
+- **Testing**: Updated tox configuration to include Python 3.8 in test matrix
+
+[3.1.0]
+^^^^^^^
+
+Added
+"""""
+- Allow custom backends to override ``generate_message(security_code, context=None)`` for dynamic message generation at runtime
+- ``context`` parameter support added to ``send_verification()`` for passing additional formatting data dynamically
+
+Changed
+"""""""
+- ``PhoneVerificationService`` now delegates message generation to the backend if ``generate_message()`` is implemented
+- Moved ``phone_settings`` inside ``__init__`` for better error handling when ``PHONE_VERIFICATION`` is missing from settings
+
+[3.0.1]
+^^^^^^^
+
+Added
+"""""
+- Optional dependencies (``twilio``, ``nexmo``) are now only required if explicitly used in the ``PHONE_VERIFICATION["BACKEND"]`` setting.
+- Improved error messaging to guide users to install the required backend package (e.g., ``twilio``, ``nexmo``) only when needed.
+- Custom backends now raise a clear ``RuntimeError`` if the import fails, instead of misleading dependency errors.
+- Support for Python 3.11, 3.12, 3.13
+- CI tests for Py{311,312,313}-Django{2x,3x,4x,5x}.
+
+Changed
+"""""""
+
+- ``phonenumbers`` dependency is replaced with ``phonenumberslite`` to reduce the package size.
+
+[3.0.0]
+^^^^^^^
+
+Added
+"""""
+- Support for Django 4.x.
+- Support for Django 3.2.
+
+Changed
+"""""""
+- Method ``phone_verify.backends.nexmo.NexmoBackend.send_sms`` changes parameter name from ``numbers`` to ``number`` to be consistent with rest of the inherited classes.
+
+[2.0.1]
+^^^^^^^
+
+Added
+"""""
+- Support for Python 3.8 & Python 3.9.
+- CI tests for Py{36,37,38,39}-Django{20,21,22,30,31}.
+
+Changed
+"""""""
+- Fixed issue ``generate_session_token`` to handle cases in Py38, Py39 when the ``session_token`` is already ``string`` instead of ``bytes``.
+
+[2.0.0]
+^^^^^^^
+
+**NOTE**: The previous version of this library provided the ``security_code`` in the JWT ``session_token``. You would have to re-verify ``phone_numbers`` in *this* version to ensure they are authentically verified.
+
+Added
+"""""
+
+- Tests added to provide 100% coverage on the package.
+- Add ``nexmo.errors.ClientError`` as exception class in ``phone_verify.backends.nexmo.NexmoBackend`` & ``phone_verify.backends.nexmo.NexmoSandboxBackend``.
+
+Changed
+"""""""
+
+- Method signature changed for ``phone_verify.backends.BaseBackend.generate_session_token``. It now accepts only ``phone_number`` instead of combination of ``phone_number`` and ``security_code``.
+- Remove the ``security_code`` from JWT ``session_token`` to avoid leaking information.
+- Add nonce in ``session_token`` to generate unique tokens for each ``phone_number``.
+- Fixes call to ``phone_verify.backends.nexmo.NexmoBackend.send_sms`` method.
+
+[1.1.0]
+^^^^^^^
+
+Added
+"""""
+
+- Support ``Nexmo`` as a backend service along with ``Twilio``.
+- Add docs for writing a custom backend.
+
+Changed
+"""""""
+
+- Update ``backends.base.BaseBackend.validate_security_code`` to use ``save()`` instead of ``update()`` to allow Django to emit its ``post_save()`` signal.
+
+[1.0.0]
+^^^^^^^
+
+Added
+"""""
+
+- Add coverage report through ``coveralls``.
+- Support for One-Time Passwords (OTP) using ``VERIFY_SECURITY_CODE_ONLY_ONCE`` as ``True`` in the settings.
+- Script to support makemigrations for development.
+- ``BaseBackend`` status now have ``SECURITY_CODE_VERIFIED`` and ``SESSION_TOKEN_INVALID`` status to support new states.
+
+Changed
+"""""""
+
+- Rename ``TWILIO_SANDBOX_TOKEN`` to ``SANDBOX_TOKEN``.
+- Fix signature for ``send_bulk_sms`` method in ``TwilioBackend`` and ``TwilioSandboxBackend``.
+- Response for ``/api/phone/register`` contains key ``session_token`` instead of ``session_code``.
+- Request payload for ``/api/phone/verify`` now expects ``session_token`` key instead of ``session_code``.
+- Response for ``/api/phone/verify`` now sends additional response of ``Security code is already verified`` in case ``VERIFY_SECURITY_CODE_ONLY_ONCE`` is set to ``True``.
+- Rename ``otp`` to ``security_code`` in code and docs to be more consistent.
+- Rename ``BaseBackend`` status from ``VALID``, ``INVALID``, ``EXPIRED`` to ``SECURITY_CODE_VALID``, ``SECURITY_CODE_INVALID``, and ``SECURITY_CODE_EXPIRED`` respectively.
+- Rename ``session_code`` to ``session_token`` to be consistent in code and naming across the app.
+- Rename service ``send_otp_and_generate_session_code`` to ``send_security_code_and_generate_session_token``.
+- Rename method ``BaseBackend.generate_token`` to ``BaseBackend.generate_security_code``.
+- Rename method ``create_otp_and_session_token`` to ``create_security_code_and_session_token``.
+- Rename method ``BaseBackend.validate_token`` to ``BaseBackend.validate_security_code`` with an additional parameter of ``session_token``.
+
+[0.2.0]
+^^^^^^^
+
+Added
+"""""
+
+- ``pre-commit-config`` to maintain code quality using black and other useful tools.
+- Docs for integration and usage in :doc:`getting_started`
+- Tox for testing on `py{37}-django{20,21,22}`.
+- Travis CI for testing builds.
+
+Changed
+"""""""
+
+- Convert ``*.md`` docs to reST Markup.
+- Fix issue with installing required package dependencies via ``install_requires``.
+
+[0.1.1]
+^^^^^^^
+
+Added
+"""""
+
+- README and documentation of API endpoints.
+- ``setup.cfg`` to manage coverage.
+- ``phone_verify`` app including backends, requirements, tests.
+- Initial app setup.
