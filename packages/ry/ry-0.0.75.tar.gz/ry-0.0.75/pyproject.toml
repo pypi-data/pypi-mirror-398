@@ -1,0 +1,157 @@
+[build-system]
+build-backend = "maturin"
+
+requires = [ "maturin>=1,<2" ]
+
+[project]
+name = "ry"
+description = "ry = rust + python"
+keywords = [
+  "datetime",
+  "http",
+  "jiff",
+  "json",
+  "pyo3",
+  "reqwest",
+  "rust",
+  "tokio",
+  "xxhash",
+  "zstd",
+]
+license = "MIT OR Apache-2.0"
+maintainers = [ { name = "jesse rubin", email = "jessekrubin@gmail.com" } ]
+authors = [ { name = "jesse rubin", email = "jessekrubin@gmail.com" } ]
+
+requires-python = ">=3.11"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "Programming Language :: Rust",
+  "Topic :: Utilities",
+  "Typing :: Typed",
+]
+dynamic = [ "readme", "version" ]
+
+urls.Changelog = "https://github.com/jessekrubin/ry/blob/main/CHANGELOG.md"
+urls.Homepage = "https://github.com/jessekrubin/ry"
+urls.Issues = "https://github.com/jessekrubin/ry/issues"
+urls.Source = "https://github.com/jessekrubin/ry"
+
+[dependency-groups]
+dev = [
+  "anyio>=4.8",
+  "coverage[toml]>=7.10.7",
+  "hypothesis>=6.124.2",
+  "ipython>=9.5.0",
+  "maturin>=1.8.6",
+  "mypy>=1.14.1",
+  "orjson>=3.10.18; implementation_name=='cpython'",
+  "prek>=0.2.2",
+  "pydantic>=2.11.7",
+  "pytest>=9.0.1",
+  "pytest-asyncio>=1.0.0",
+  "pytest-benchmark>=5.1",
+  "pytest-cov>=6.2.1",
+  "rich>=14.0.0",
+  "ruff>=0.11.12",
+  "tzdata>=2025.2",
+  "uvicorn>=0.34",
+]
+misc = [ "griffe>=1.12.1" ]
+
+[tool.maturin]
+python-source = "python"
+strip = true
+features = [ "pyo3/extension-module" ]
+module-name = "ry.ryo3"
+bindings = "pyo3"
+
+[tool.uv]
+package = false # don't build package w/ uv
+# UV problemo: https://github.com/astral-sh/setup-uv/issues/489
+# BUG IN UV: https://github.com/astral-sh/setup-uv/issues/489#issuecomment-3085384851
+required-version = ">=0.7.0"
+
+[tool.uv.sources]
+ry = { workspace = true }
+
+[tool.ruff]
+extend = "./ruff.toml"
+
+[tool.pytest.ini_options]
+testpaths = [ "tests" ]
+filterwarnings = [ "ignore:ry not compiled in release mode:RuntimeWarning" ]
+addopts = [ "--doctest-modules" ]
+asyncio_mode = 'auto'
+asyncio_default_fixture_loop_scope = "function"
+norecursedirs = [
+  ".git",
+  ".nox",
+  ".pytest_cache",
+  ".venv",
+  "build",
+  "dist",
+  "scratch",
+  "node_modules",
+  "venv",
+  "*.bak",
+  "*.egg-info",
+  "*.egg",
+  ".*",
+  "target",
+]
+markers = [
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "bench",
+]
+
+[tool.coverage.run]
+source = [ "python/ry" ]
+omit = [ "python/ry/dev/__main__.py" ]
+branch = true
+relative_files = true
+context = '${CONTEXT}'
+
+[tool.coverage.report]
+precision = 2
+exclude_lines = [
+  "pragma: no cover",
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+  "if typing.TYPE_CHECKING:",
+  "if t.TYPE_CHECKING:",
+  '\(Protocol\):$',
+  # any generic protocol from `ry.protocols`
+  "^\\s*class\\s+\\w+\\(.*\\b(?:typing\\.|t\\.)?Protocol(?:\\[[^\\]]*\\])?.*\\):\\s*(?:#.*)?$",
+
+  # 'typing.assert_never',
+  # 'assert_never',
+]
+
+[tool.coverage.paths]
+source = [ 'python/ry/' ]
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+python_version = "3.11"
+enable_error_code = [ "deprecated" ]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_missing_imports = true
+check_untyped_defs = true
+
+[tool.pyright]
+include = [ 'ry', 'tests' ]
+reportUnnecessaryTypeIgnoreComment = true
