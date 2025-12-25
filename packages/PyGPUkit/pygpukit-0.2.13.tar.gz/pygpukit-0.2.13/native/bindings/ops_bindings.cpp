@@ -1,0 +1,1090 @@
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+
+#include "../ops/ops.cuh"
+#include "../ops/audio/audio.hpp"
+#include "../jit/cublaslt_loader.hpp"
+
+namespace py = pybind11;
+using namespace pygpukit;
+
+void init_ops_bindings(py::module_& m) {
+    // ========================================================================
+    // Binary Element-wise operations
+    // ========================================================================
+
+    // Add
+    m.def("add", py::overload_cast<const GPUArray&, const GPUArray&>(&ops::add),
+          py::arg("a"), py::arg("b"),
+          "Element-wise addition of two GPUArrays");
+
+    m.def("add_", py::overload_cast<const GPUArray&, const GPUArray&, GPUArray&>(&ops::add),
+          py::arg("a"), py::arg("b"), py::arg("out"),
+          "Element-wise addition with output array");
+
+    // Sub
+    m.def("sub", py::overload_cast<const GPUArray&, const GPUArray&>(&ops::sub),
+          py::arg("a"), py::arg("b"),
+          "Element-wise subtraction of two GPUArrays");
+
+    m.def("sub_", py::overload_cast<const GPUArray&, const GPUArray&, GPUArray&>(&ops::sub),
+          py::arg("a"), py::arg("b"), py::arg("out"),
+          "Element-wise subtraction with output array");
+
+    // Mul
+    m.def("mul", py::overload_cast<const GPUArray&, const GPUArray&>(&ops::mul),
+          py::arg("a"), py::arg("b"),
+          "Element-wise multiplication of two GPUArrays");
+
+    m.def("mul_", py::overload_cast<const GPUArray&, const GPUArray&, GPUArray&>(&ops::mul),
+          py::arg("a"), py::arg("b"), py::arg("out"),
+          "Element-wise multiplication with output array");
+
+    // Div
+    m.def("div", py::overload_cast<const GPUArray&, const GPUArray&>(&ops::div),
+          py::arg("a"), py::arg("b"),
+          "Element-wise division of two GPUArrays");
+
+    m.def("div_", py::overload_cast<const GPUArray&, const GPUArray&, GPUArray&>(&ops::div),
+          py::arg("a"), py::arg("b"), py::arg("out"),
+          "Element-wise division with output array");
+
+    // ========================================================================
+    // Unary Element-wise operations (float only)
+    // ========================================================================
+
+    // Exp
+    m.def("exp", py::overload_cast<const GPUArray&>(&ops::exp),
+          py::arg("a"),
+          "Element-wise exponential (float32/float64 only)");
+
+    m.def("exp_", py::overload_cast<const GPUArray&, GPUArray&>(&ops::exp),
+          py::arg("a"), py::arg("out"),
+          "Element-wise exponential with output array");
+
+    // Log
+    m.def("log", py::overload_cast<const GPUArray&>(&ops::log),
+          py::arg("a"),
+          "Element-wise natural logarithm (float32/float64 only)");
+
+    m.def("log_", py::overload_cast<const GPUArray&, GPUArray&>(&ops::log),
+          py::arg("a"), py::arg("out"),
+          "Element-wise natural logarithm with output array");
+
+    // ReLU
+    m.def("relu", py::overload_cast<const GPUArray&>(&ops::relu),
+          py::arg("a"),
+          "Element-wise ReLU: max(0, x) (float32/float64 only)");
+
+    m.def("relu_", py::overload_cast<const GPUArray&, GPUArray&>(&ops::relu),
+          py::arg("a"), py::arg("out"),
+          "Element-wise ReLU with output array");
+
+    // ========================================================================
+    // Matrix operations
+    // ========================================================================
+
+    m.def("matmul", py::overload_cast<const GPUArray&, const GPUArray&>(&ops::matmul),
+          py::arg("a"), py::arg("b"),
+          "Matrix multiplication of two GPUArrays");
+
+    m.def("matmul_", py::overload_cast<const GPUArray&, const GPUArray&, GPUArray&>(&ops::matmul),
+          py::arg("a"), py::arg("b"), py::arg("out"),
+          "Matrix multiplication with output array");
+
+    // TF32 variants
+    m.def("matmul_tf32", py::overload_cast<const GPUArray&, const GPUArray&, bool>(&ops::matmul),
+          py::arg("a"), py::arg("b"), py::arg("use_tf32"),
+          "Matrix multiplication with explicit TF32 control");
+
+    m.def("matmul_tf32_", py::overload_cast<const GPUArray&, const GPUArray&, GPUArray&, bool>(&ops::matmul),
+          py::arg("a"), py::arg("b"), py::arg("out"), py::arg("use_tf32"),
+          "Matrix multiplication with explicit TF32 control and output array");
+
+    // ========================================================================
+    // Reduction operations
+    // ========================================================================
+
+    m.def("sum", &ops::sum,
+          py::arg("a"),
+          "Sum of all elements (float32/float64 only), returns scalar GPUArray");
+
+    m.def("mean", &ops::mean,
+          py::arg("a"),
+          "Mean of all elements (float32/float64 only), returns scalar GPUArray");
+
+    m.def("max", &ops::max,
+          py::arg("a"),
+          "Max of all elements (float32/float64 only), returns scalar GPUArray");
+
+    // ========================================================================
+    // Neural Network operations
+    // ========================================================================
+
+    // Transpose
+    m.def("transpose", &ops::transpose,
+          py::arg("input"),
+          "Matrix transpose: input [rows, cols] -> output [cols, rows]");
+
+    // GELU activation
+    m.def("gelu", &ops::gelu,
+          py::arg("input"),
+          "GELU activation: x * 0.5 * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))");
+
+    // Bias add (in-place)
+    m.def("bias_add_inplace", &ops::bias_add_inplace,
+          py::arg("output"), py::arg("bias"),
+          "Add bias to output in-place: output[batch, features] += bias[features]");
+
+    // LayerNorm
+    m.def("layernorm", &ops::layernorm,
+          py::arg("input"), py::arg("gamma"), py::arg("beta"), py::arg("eps") = 1e-5f,
+          "Layer normalization: (x - mean) / sqrt(var + eps) * gamma + beta");
+
+    // Softmax
+    m.def("softmax", &ops::softmax,
+          py::arg("input"),
+          "Softmax: y[i] = exp(x[i] - max(x)) / sum(exp(x - max(x)))\n"
+          "Applied row-wise: input [batch, features] -> output [batch, features]");
+
+    // RMSNorm
+    m.def("rmsnorm", py::overload_cast<const GPUArray&, const GPUArray&, float>(&ops::rmsnorm),
+          py::arg("input"), py::arg("gamma"), py::arg("eps") = 1e-5f,
+          "RMS normalization: x / sqrt(mean(x^2) + eps) * gamma\n"
+          "Simpler than LayerNorm (no mean subtraction, no beta)\n"
+          "input: [batch, features], gamma: [features]");
+
+    // RMSNorm with output buffer (for CUDA Graph capture)
+    m.def("rmsnorm_", py::overload_cast<const GPUArray&, const GPUArray&, GPUArray&, float>(&ops::rmsnorm),
+          py::arg("input"), py::arg("gamma"), py::arg("out"), py::arg("eps") = 1e-5f,
+          "RMS normalization with output buffer (for CUDA Graph capture)");
+
+    // ========================================================================
+    // Fused Operations (CUTLASS Epilogue Fusion)
+    // ========================================================================
+
+    // Linear + BiasGELU (fused kernel)
+    m.def("linear_bias_gelu", &ops::linear_bias_gelu,
+          py::arg("input"), py::arg("weight"), py::arg("bias"),
+          "Fused linear + bias + GELU: output = gelu(input @ weight^T + bias)\n"
+          "Uses CUTLASS TensorCore epilogue fusion for efficiency.\n"
+          "input: [batch, in_features], weight: [out_features, in_features], bias: [out_features]");
+
+    // ========================================================================
+    // Additional Neural Network Operations
+    // ========================================================================
+
+    // SiLU (Swish) activation
+    m.def("silu", py::overload_cast<const GPUArray&>(&ops::silu),
+          py::arg("input"),
+          "SiLU (Swish) activation: y = x * sigmoid(x)");
+
+    // SiLU with output buffer (for CUDA Graph capture)
+    m.def("silu_", py::overload_cast<const GPUArray&, GPUArray&>(&ops::silu),
+          py::arg("input"), py::arg("out"),
+          "SiLU with output buffer (for CUDA Graph capture)");
+
+    // RoPE (Rotary Position Embedding) - In-place
+    m.def("rope_inplace", &ops::rope_inplace,
+          py::arg("q"), py::arg("k"), py::arg("cos"), py::arg("sin"),
+          "Apply RoPE to Q and K tensors in-place.\n"
+          "q: [seq_len, n_heads_q, head_dim]\n"
+          "k: [seq_len, n_heads_k, head_dim]\n"
+          "cos, sin: [seq_len, head_dim]");
+
+    // RoPE with FP32 cos/sin tables (higher precision for bf16/f16)
+    m.def("rope_inplace_f32table", &ops::rope_inplace_f32table,
+          py::arg("q"), py::arg("k"), py::arg("cos"), py::arg("sin"),
+          "Apply RoPE with FP32 cos/sin tables (higher precision).\n"
+          "q: [seq_len, n_heads_q, head_dim] (bf16 or f16)\n"
+          "k: [seq_len, n_heads_k, head_dim] (bf16 or f16)\n"
+          "cos, sin: [seq_len, head_dim] (f32)");
+
+    // Split fused QKV projection output into separate Q, K, V tensors
+    m.def("split_qkv_batch", &ops::split_qkv_batch,
+          py::arg("qkv"), py::arg("q_out"), py::arg("k_out"), py::arg("v_out"),
+          py::arg("q_dim"), py::arg("k_dim"), py::arg("v_dim"),
+          "Split fused QKV projection [seq_len, q_dim+k_dim+v_dim] into Q, K, V.\n"
+          "Output buffers must be pre-allocated for CUDA Graph compatibility.");
+
+    // Scaled Dot-Product Attention with Causal Mask
+    m.def("sdpa_causal", py::overload_cast<const GPUArray&, const GPUArray&, const GPUArray&, float>(&ops::sdpa_causal),
+          py::arg("Q"), py::arg("K"), py::arg("V"), py::arg("scale") = 0.0f,
+          "Scaled Dot-Product Attention with causal mask.\n"
+          "Q: [n_heads, q_len, head_dim]\n"
+          "K: [n_heads, kv_len, head_dim]\n"
+          "V: [n_heads, kv_len, head_dim]\n"
+          "Output: [n_heads, q_len, head_dim]\n"
+          "scale: 1/sqrt(head_dim), auto-computed if <= 0");
+
+    // SDPA with output buffer (for CUDA Graph capture)
+    m.def("sdpa_causal_", py::overload_cast<const GPUArray&, const GPUArray&, const GPUArray&, GPUArray&, float>(&ops::sdpa_causal),
+          py::arg("Q"), py::arg("K"), py::arg("V"), py::arg("out"), py::arg("scale") = 0.0f,
+          "SDPA with output buffer (for CUDA Graph capture)");
+
+    // SDPA with fixed-length KV cache support
+    m.def("sdpa_causal_fixed_cache", &ops::sdpa_causal_fixed_cache,
+          py::arg("Q"), py::arg("K"), py::arg("V"), py::arg("out"),
+          py::arg("context_len"), py::arg("scale") = 0.0f,
+          "SDPA with fixed-length KV cache support.\n"
+          "K/V are pre-allocated to max_seq_len, context_len specifies actual valid tokens.");
+
+    m.def("sdpa_causal_fixed_cache_ptr", &ops::sdpa_causal_fixed_cache_ptr,
+          py::arg("Q"), py::arg("K"), py::arg("V"), py::arg("out"),
+          py::arg("context_len_buf"), py::arg("max_kv_len"), py::arg("scale") = 0.0f,
+          "SDPA with pointer-based context_len for CUDA Graph support.\n"
+          "context_len_buf: GPU int32 buffer containing actual context_len.\n"
+          "max_kv_len: Max context length (for shared memory allocation at graph capture).");
+
+    // ========================================================================
+    // Tensor Manipulation Operations
+    // ========================================================================
+
+    // Concat along axis 0
+    m.def("concat_axis0", &ops::concat_axis0,
+          py::arg("a"), py::arg("b"),
+          "Concat two tensors along axis 0.\n"
+          "a: [dim0_a, ...], b: [dim0_b, ...]\n"
+          "Output: [dim0_a + dim0_b, ...]");
+
+    // Repeat interleave along axis 1 (for GQA)
+    m.def("repeat_interleave_axis1", &ops::repeat_interleave_axis1,
+          py::arg("input"), py::arg("repeats"),
+          "Repeat tensor along axis 1 (interleaved).\n"
+          "input: [dim0, dim1, dim2] -> output: [dim0, dim1 * repeats, dim2]");
+
+    // Transpose 3D: [d0, d1, d2] -> [d1, d0, d2]
+    m.def("transpose_3d_021", py::overload_cast<const GPUArray&>(&ops::transpose_3d_021),
+          py::arg("input"),
+          "Transpose 3D tensor: [d0, d1, d2] -> [d1, d0, d2]");
+
+    // Transpose 3D with output buffer (for CUDA Graph capture)
+    m.def("transpose_3d_021_", py::overload_cast<const GPUArray&, GPUArray&>(&ops::transpose_3d_021),
+          py::arg("input"), py::arg("out"),
+          "Transpose 3D tensor with output buffer (for CUDA Graph capture)");
+
+    // Reshape with copy
+    m.def("reshape_copy", py::overload_cast<const GPUArray&, const std::vector<size_t>&>(&ops::reshape_copy),
+          py::arg("input"), py::arg("new_shape"),
+          "Reshape tensor with copy (ensures contiguous output).");
+
+    // Reshape with copy into output buffer (for CUDA Graph capture)
+    m.def("reshape_copy_", py::overload_cast<const GPUArray&, GPUArray&>(&ops::reshape_copy),
+          py::arg("input"), py::arg("out"),
+          "Reshape with copy into output buffer (for CUDA Graph capture).");
+
+    // ========================================================================
+    // Fixed-Length KV Cache Operations (CUDA Graph Support)
+    // ========================================================================
+
+    m.def("kv_cache_update", &ops::kv_cache_update,
+          py::arg("new_kv"), py::arg("cache"), py::arg("position"),
+          "Update KV cache at a single position (decode step).\n"
+          "new_kv: [1, num_kv_heads, head_dim]\n"
+          "cache: [max_seq_len, num_kv_heads, head_dim]\n"
+          "position: where to write in cache (0-indexed)");
+
+    m.def("kv_cache_prefill", &ops::kv_cache_prefill,
+          py::arg("new_kv"), py::arg("cache"), py::arg("start_pos"),
+          "Prefill KV cache from sequence.\n"
+          "new_kv: [seq_len, num_kv_heads, head_dim]\n"
+          "cache: [max_seq_len, num_kv_heads, head_dim]\n"
+          "start_pos: where to start writing in cache");
+
+    // GQA-expanded KV cache operations (CUDA Graph optimization)
+    m.def("kv_cache_update_gqa", &ops::kv_cache_update_gqa,
+          py::arg("new_kv"), py::arg("cache"), py::arg("num_heads"), py::arg("position"),
+          "Update GQA-expanded KV cache at single position.\n"
+          "new_kv: [1, num_kv_heads, head_dim]\n"
+          "cache: [num_heads, max_seq_len, head_dim] (transposed, GQA-expanded)\n"
+          "num_heads: total number of attention heads\n"
+          "position: where to write in cache");
+
+    m.def("kv_cache_prefill_gqa", &ops::kv_cache_prefill_gqa,
+          py::arg("new_kv"), py::arg("cache"), py::arg("num_heads"), py::arg("start_pos"),
+          "Prefill GQA-expanded KV cache from sequence.\n"
+          "new_kv: [seq_len, num_kv_heads, head_dim]\n"
+          "cache: [num_heads, max_seq_len, head_dim] (transposed, GQA-expanded)\n"
+          "num_heads: total number of attention heads\n"
+          "start_pos: where to start writing in cache");
+
+    // GPU position pointer variants (for CUDA Graph replay without recapture)
+    m.def("kv_cache_update_gqa_ptr", &ops::kv_cache_update_gqa_ptr,
+          py::arg("new_kv"), py::arg("cache"), py::arg("num_heads"), py::arg("position_buf"),
+          "Update GQA-expanded KV cache reading position from GPU buffer.\n"
+          "position_buf: GPUArray[1] int32 containing position value");
+
+    // GPU-only embedding lookup (for CUDA Graph)
+    m.def("embedding_lookup", &ops::embedding_lookup,
+          py::arg("embed_matrix"), py::arg("out"), py::arg("token_id"),
+          "Lookup embedding on GPU without CPU transfer.\n"
+          "embed_matrix: [vocab_size, hidden_size]\n"
+          "out: [1, hidden_size] pre-allocated buffer\n"
+          "token_id: row index to copy");
+
+    m.def("embedding_lookup_ptr", &ops::embedding_lookup_ptr,
+          py::arg("embed_matrix"), py::arg("out"), py::arg("token_id_buf"),
+          "Lookup embedding reading index from GPU buffer.\n"
+          "token_id_buf: GPUArray[1] int32 containing token/position value");
+
+    m.def("embedding_lookup_batch", &ops::embedding_lookup_batch,
+          py::arg("embed_matrix"), py::arg("out"), py::arg("token_ids_buf"),
+          py::arg("batch_size"),
+          "Batch embedding lookup from GPU token ID array.\n"
+          "Looks up multiple rows: out[i, :] = embed_matrix[token_ids[i], :]");
+
+    m.def("slice_rows_range_ptr", &ops::slice_rows_range_ptr,
+          py::arg("table"), py::arg("out"), py::arg("start_pos_buf"),
+          py::arg("count"),
+          "Slice consecutive rows from table using GPU-stored start position.\n"
+          "Copies `count` rows: out[i, :] = table[start_pos + i, :]");
+
+    // In-place addition (for CUDA Graph)
+    m.def("add_inplace", &ops::add_inplace,
+          py::arg("a"), py::arg("b"),
+          "In-place addition: a += b");
+
+    // In-place multiplication (for CUDA Graph)
+    m.def("mul_inplace", &ops::mul_inplace,
+          py::arg("a"), py::arg("b"),
+          "In-place multiplication: a *= b");
+
+    // GPU-to-GPU copy (for CUDA Graph)
+    m.def("copy_to", &ops::copy_to,
+          py::arg("src"), py::arg("dst"),
+          "Copy src to dst on GPU");
+
+    // ========================================================================
+    // Dtype Cast Operations
+    // ========================================================================
+
+    m.def("cast_f32_to_bf16", py::overload_cast<const GPUArray&>(&ops::cast_f32_to_bf16),
+          py::arg("src"),
+          "Cast float32 to bfloat16 on GPU (round to nearest even)");
+
+    m.def("cast_f32_to_bf16_", py::overload_cast<const GPUArray&, GPUArray&>(&ops::cast_f32_to_bf16),
+          py::arg("src"), py::arg("dst"),
+          "Cast float32 to bfloat16 on GPU (in-place version)");
+
+    m.def("cast_f32_to_f16", &ops::cast_f32_to_f16,
+          py::arg("src"),
+          "Cast float32 to float16 on GPU");
+
+    m.def("cast_bf16_to_f32", &ops::cast_bf16_to_f32,
+          py::arg("src"),
+          "Cast bfloat16 to float32 on GPU");
+
+    m.def("cast_f16_to_f32", &ops::cast_f16_to_f32,
+          py::arg("src"),
+          "Cast float16 to float32 on GPU");
+
+    // ========================================================================
+    // Quantization Operations (#85)
+    // ========================================================================
+
+    // Dequantize INT8 to FP16/FP32
+    m.def("dequantize_int8", &ops::dequantize_int8,
+          py::arg("input"), py::arg("scale"), py::arg("output_dtype"),
+          "Dequantize INT8 tensor to FP16/FP32.\n"
+          "output = input_int8 * scale\n"
+          "input: [rows, cols] INT8, scale: [cols], output_dtype: Float16 or Float32");
+
+    // Quantized Linear (INT8 weight x FP16 activation)
+    m.def("linear_int8", [](const GPUArray& activation, const GPUArray& weight_int8,
+                            const GPUArray& scale, const GPUArray* bias) {
+              return ops::linear_int8(activation, weight_int8, scale, bias);
+          },
+          py::arg("activation"), py::arg("weight_int8"), py::arg("scale"),
+          py::arg("bias") = nullptr,
+          "Quantized Linear layer with INT8 weights.\n"
+          "output = activation @ (weight_int8 * scale).T\n"
+          "activation: [M, K] FP16, weight_int8: [N, K] INT8, scale: [N] FP16\n"
+          "Dequantization happens on-the-fly (memory efficient).");
+
+    // Quantize to INT8
+    m.def("quantize_to_int8", &ops::quantize_to_int8,
+          py::arg("input"),
+          "Quantize FP16/FP32 tensor to INT8 with per-column scaling.\n"
+          "Returns (weight_int8, scale) tuple.\n"
+          "weight_int8: [rows, cols] INT8, scale: [cols] same dtype as input");
+
+    // ========================================================================
+    // Paged Attention Operations (#87)
+    // ========================================================================
+
+    m.def("paged_attention_v1", &ops::paged_attention_v1,
+          py::arg("Q"), py::arg("K_cache"), py::arg("V_cache"),
+          py::arg("block_tables"), py::arg("context_lens"),
+          py::arg("scale") = 0.0f,
+          "Paged Attention v1: single-query attention with paged KV cache.\n"
+          "Q: [num_seqs, num_heads, head_dim]\n"
+          "K_cache, V_cache: [num_blocks, num_kv_heads, block_size, head_dim]\n"
+          "block_tables: [num_seqs, max_num_blocks_per_seq] int32\n"
+          "context_lens: [num_seqs] int32\n"
+          "Output: [num_seqs, num_heads, head_dim]");
+
+    m.def("copy_to_paged_cache", &ops::copy_to_paged_cache,
+          py::arg("K_new"), py::arg("V_new"),
+          py::arg("K_cache"), py::arg("V_cache"),
+          py::arg("slot_mapping"),
+          "Copy new KV entries to paged cache (decode phase).\n"
+          "K_new, V_new: [num_seqs, num_kv_heads, head_dim]\n"
+          "slot_mapping: [num_seqs] int32 - physical slot indices");
+
+    m.def("reshape_and_cache", &ops::reshape_and_cache,
+          py::arg("K"), py::arg("V"),
+          py::arg("K_cache"), py::arg("V_cache"),
+          py::arg("slot_mapping"),
+          "Reshape and copy KV from prefill format to paged cache.\n"
+          "K, V: [total_tokens, num_kv_heads, head_dim]\n"
+          "slot_mapping: [total_tokens] int32");
+
+    m.def("allocate_kv_cache", &ops::allocate_kv_cache,
+          py::arg("num_blocks"), py::arg("num_kv_heads"),
+          py::arg("block_size"), py::arg("head_dim"),
+          "Allocate KV cache blocks.\n"
+          "Returns: [num_blocks, num_kv_heads, block_size, head_dim] FP16");
+
+    // ========================================================================
+    // Continuous Batching Operations (#86)
+    // ========================================================================
+
+    m.def("gather_embeddings", &ops::gather_embeddings,
+          py::arg("token_ids"), py::arg("embeddings"), py::arg("total_tokens"),
+          "Gather token embeddings for a batch.\n"
+          "token_ids: [total_tokens] int32\n"
+          "embeddings: [vocab_size, hidden_size] FP16\n"
+          "Returns: [total_tokens, hidden_size] FP16");
+
+    m.def("scatter_last_token_logits", &ops::scatter_last_token_logits,
+          py::arg("logits"), py::arg("seq_start_positions"),
+          py::arg("seq_lens"), py::arg("batch_size"), py::arg("vocab_size"),
+          "Scatter last-token logits from batch output.\n"
+          "logits: [batch_tokens, vocab_size] FP16\n"
+          "Returns: [batch_size, vocab_size] FP16");
+
+    m.def("prepare_position_ids", &ops::prepare_position_ids,
+          py::arg("seq_start_positions"), py::arg("seq_context_lens"),
+          py::arg("is_prefill"), py::arg("input_lens"),
+          py::arg("batch_size"), py::arg("total_tokens"),
+          "Prepare position IDs for rotary embeddings.\n"
+          "Returns: [total_tokens] int32");
+
+    m.def("argmax_sample", &ops::argmax_sample,
+          py::arg("logits"), py::arg("batch_size"), py::arg("vocab_size"),
+          "Argmax sampling from logits.\n"
+          "logits: [batch_size, vocab_size] FP16\n"
+          "Returns: [batch_size] int32 - sampled token IDs");
+
+    m.def("check_eos", &ops::check_eos,
+          py::arg("tokens"), py::arg("eos_token_id"),
+          "Check for EOS tokens.\n"
+          "tokens: [batch_size] int32\n"
+          "Returns: [batch_size] int32 - 1 if EOS, 0 otherwise");
+
+    m.def("compute_cumsum", &ops::compute_cumsum,
+          py::arg("input"),
+          "Compute exclusive prefix sum.\n"
+          "input: [n] int32\n"
+          "Returns: [n] int32");
+
+    m.def("prepare_batch_inputs", &ops::prepare_batch_inputs,
+          py::arg("token_lists"),
+          "Prepare batch inputs from Python lists.\n"
+          "token_lists: List of token ID lists\n"
+          "Returns: (token_ids GPUArray, total_tokens count)");
+
+    // ========================================================================
+    // GPU Sampling Operations (#v0.2.10)
+    // ========================================================================
+
+    m.def("sample_greedy", &ops::sample_greedy,
+          py::arg("logits"),
+          "Greedy sampling (argmax) from logits.\n"
+          "logits: [vocab_size] or [1, vocab_size]\n"
+          "Returns: sampled token ID (int)");
+
+    m.def("sample_multinomial", &ops::sample_multinomial,
+          py::arg("logits"), py::arg("temperature"),
+          "Multinomial sampling with temperature.\n"
+          "logits: [vocab_size] or [1, vocab_size]\n"
+          "temperature: > 0 (lower = more deterministic)\n"
+          "Returns: sampled token ID (int)");
+
+    m.def("sample_topk", &ops::sample_topk,
+          py::arg("logits"), py::arg("top_k"), py::arg("temperature"),
+          "Top-K sampling.\n"
+          "logits: [vocab_size] or [1, vocab_size]\n"
+          "top_k: number of top tokens to consider\n"
+          "temperature: > 0\n"
+          "Returns: sampled token ID (int)");
+
+    m.def("sample_topk_to_buf", &ops::sample_topk_to_buf,
+          py::arg("logits"), py::arg("result_buf"), py::arg("top_k"),
+          py::arg("temperature"), py::arg("random_val"),
+          "Top-K sampling (CUDA Graph compatible).\n"
+          "Writes result to pre-allocated buffer, no sync/D2H.\n"
+          "logits: [vocab_size] or [1, vocab_size]\n"
+          "result_buf: pre-allocated int32 buffer [1]\n"
+          "top_k: number of top tokens to consider\n"
+          "temperature: > 0\n"
+          "random_val: pre-generated random value [0, 1)");
+
+    m.def("sample_topk_to_buf_ptr", &ops::sample_topk_to_buf_ptr,
+          py::arg("logits"), py::arg("result_buf"), py::arg("random_val_buf"),
+          py::arg("top_k"), py::arg("temperature"),
+          "Top-K sampling with pointer (CUDA Graph replay compatible).\n"
+          "random_val is read from GPU buffer, allowing update before replay.\n"
+          "logits: [vocab_size] or [1, vocab_size] (float16 only)\n"
+          "result_buf: pre-allocated int32 buffer [1]\n"
+          "random_val_buf: pre-allocated float32 buffer [1]\n"
+          "top_k: number of top tokens to consider\n"
+          "temperature: > 0");
+
+    m.def("sample_topp", &ops::sample_topp,
+          py::arg("logits"), py::arg("top_p"), py::arg("temperature"),
+          "Top-P (nucleus) sampling.\n"
+          "logits: [vocab_size] or [1, vocab_size]\n"
+          "top_p: cumulative probability threshold (0 < p <= 1)\n"
+          "temperature: > 0\n"
+          "Returns: sampled token ID (int)");
+
+    m.def("sample_token_gpu", &ops::sample_token_gpu,
+          py::arg("logits"),
+          py::arg("temperature") = 1.0f,
+          py::arg("top_k") = 0,
+          py::arg("top_p") = 1.0f,
+          "Unified GPU sampling API.\n"
+          "Automatically selects sampling method:\n"
+          "- temperature=0: greedy (argmax)\n"
+          "- top_k > 0: top-k sampling\n"
+          "- top_p < 1: top-p sampling\n"
+          "- otherwise: multinomial with temperature\n"
+          "Returns: sampled token ID (int)");
+
+    m.def("set_sampling_seed", &ops::set_sampling_seed,
+          py::arg("seed"),
+          "Set random seed for reproducible GPU sampling.");
+
+    // ========================================================================
+    // Audio Processing Operations (#96)
+    // ========================================================================
+
+    m.def("audio_pcm_to_float32", &ops::audio::pcm_to_float32,
+          py::arg("input"),
+          "Convert int16 PCM samples to float32.\n"
+          "Input: GPUArray of int16 samples\n"
+          "Returns: GPUArray of float32 samples normalized to [-1.0, 1.0]");
+
+    m.def("audio_stereo_to_mono", &ops::audio::stereo_to_mono,
+          py::arg("input"),
+          "Convert stereo audio to mono by averaging channels.\n"
+          "Input: GPUArray of interleaved stereo samples [L,R,L,R,...]\n"
+          "Returns: GPUArray of mono samples");
+
+    m.def("audio_normalize_peak", &ops::audio::normalize_peak,
+          py::arg("input"),
+          "Peak normalize audio to [-1.0, 1.0] range (in-place).\n"
+          "Input: GPUArray of float32 samples (modified in-place)");
+
+    m.def("audio_normalize_rms", &ops::audio::normalize_rms,
+          py::arg("input"), py::arg("target_db") = -20.0f,
+          "RMS normalize audio to target dB level (in-place).\n"
+          "Input: GPUArray of float32 samples (modified in-place)\n"
+          "target_db: Target RMS level in dB (default -20.0)");
+
+    m.def("audio_resample", &ops::audio::resample,
+          py::arg("input"), py::arg("src_rate"), py::arg("dst_rate"),
+          "Resample audio from source to target sample rate.\n"
+          "Currently supports 48kHz -> 16kHz (3:1 decimation).\n"
+          "Input: GPUArray of float32 samples\n"
+          "src_rate: Source sample rate (e.g., 48000)\n"
+          "dst_rate: Target sample rate (e.g., 16000)\n"
+          "Returns: Resampled GPUArray");
+
+    // ========================================================================
+    // Audio Streaming Operations (#97)
+    // ========================================================================
+
+    m.def("audio_ring_buffer_write", &ops::audio::ring_buffer_write,
+          py::arg("input"), py::arg("ring_buffer"), py::arg("write_pos"),
+          "Write samples to a ring buffer with wrap-around.\n"
+          "input: GPUArray of float32 samples to write\n"
+          "ring_buffer: GPUArray ring buffer (modified in-place)\n"
+          "write_pos: Current write position in ring buffer");
+
+    m.def("audio_ring_buffer_read", &ops::audio::ring_buffer_read,
+          py::arg("ring_buffer"), py::arg("read_pos"), py::arg("num_samples"),
+          "Read samples from a ring buffer (linearized).\n"
+          "ring_buffer: GPUArray ring buffer\n"
+          "read_pos: Read position in ring buffer\n"
+          "num_samples: Number of samples to read\n"
+          "Returns: Linearized GPUArray");
+
+    m.def("audio_apply_hann_window", &ops::audio::apply_hann_window,
+          py::arg("data"),
+          "Apply Hann window to audio data (in-place).\n"
+          "data: GPUArray of float32 samples (modified in-place)");
+
+    m.def("audio_overlap_add", &ops::audio::overlap_add,
+          py::arg("input"), py::arg("output"), py::arg("output_offset"),
+          "Overlap-add: add windowed chunk to output buffer.\n"
+          "input: Windowed input chunk\n"
+          "output: Output buffer (accumulated, modified in-place)\n"
+          "output_offset: Offset in output buffer");
+
+    // ========================================================================
+    // Voice Activity Detection (VAD)
+    // ========================================================================
+
+    m.def("vad_compute_energy", &ops::audio::vad_compute_energy,
+          py::arg("audio"), py::arg("frame_size"), py::arg("hop_size"),
+          "Compute frame-level RMS energy for VAD.\n"
+          "audio: Input audio samples (float32)\n"
+          "frame_size: Frame size in samples\n"
+          "hop_size: Hop size in samples\n"
+          "Returns: GPUArray of frame energies");
+
+    m.def("vad_compute_zcr", &ops::audio::vad_compute_zcr,
+          py::arg("audio"), py::arg("frame_size"), py::arg("hop_size"),
+          "Compute frame-level zero-crossing rate for VAD.\n"
+          "audio: Input audio samples (float32)\n"
+          "frame_size: Frame size in samples\n"
+          "hop_size: Hop size in samples\n"
+          "Returns: GPUArray of frame ZCR values [0, 1]");
+
+    m.def("vad_decide", &ops::audio::vad_decide,
+          py::arg("frame_energy"), py::arg("frame_zcr"),
+          py::arg("energy_threshold"), py::arg("zcr_low"), py::arg("zcr_high"),
+          "Apply threshold-based VAD decision.\n"
+          "frame_energy: Frame energy values (float32)\n"
+          "frame_zcr: Frame ZCR values (float32)\n"
+          "energy_threshold: Energy threshold for speech detection\n"
+          "zcr_low: Lower ZCR bound for voiced speech\n"
+          "zcr_high: Upper ZCR bound\n"
+          "Returns: GPUArray of int32 VAD flags (0=silence, 1=speech)");
+
+    m.def("vad_apply_hangover", &ops::audio::vad_apply_hangover,
+          py::arg("vad_input"), py::arg("hangover_frames"),
+          "Apply hangover smoothing to VAD output.\n"
+          "Extends speech regions by hangover_frames after speech ends.\n"
+          "vad_input: Input VAD flags (int32)\n"
+          "hangover_frames: Number of frames to extend\n"
+          "Returns: Smoothed VAD flags (int32)");
+
+    m.def("vad_compute_noise_floor", &ops::audio::vad_compute_noise_floor,
+          py::arg("frame_energy"),
+          "Compute noise floor (minimum energy) for adaptive thresholding.\n"
+          "frame_energy: Frame energy values (float32)\n"
+          "Returns: Minimum energy value (float)");
+
+    // ========================================================================
+    // Audio Preprocessing Operations
+    // ========================================================================
+
+    m.def("audio_preemphasis", &ops::audio::preemphasis,
+          py::arg("input"), py::arg("alpha") = 0.97f,
+          "Apply pre-emphasis filter (in-place).\n"
+          "y[n] = x[n] - alpha * x[n-1]\n"
+          "input: GPUArray of float32 samples (modified in-place)\n"
+          "alpha: Pre-emphasis coefficient (default 0.97)");
+
+    m.def("audio_deemphasis", &ops::audio::deemphasis,
+          py::arg("input"), py::arg("alpha") = 0.97f,
+          "Apply de-emphasis filter (in-place).\n"
+          "y[n] = x[n] + alpha * y[n-1]\n"
+          "input: GPUArray of float32 samples (modified in-place)\n"
+          "alpha: De-emphasis coefficient (default 0.97)");
+
+    m.def("audio_remove_dc", &ops::audio::remove_dc,
+          py::arg("input"),
+          "Remove DC offset from audio signal (in-place).\n"
+          "Subtracts the mean value from all samples.\n"
+          "input: GPUArray of float32 samples (modified in-place)");
+
+    m.def("audio_highpass_filter", &ops::audio::highpass_filter,
+          py::arg("input"), py::arg("cutoff_hz") = 20.0f, py::arg("sample_rate") = 16000,
+          "Apply high-pass filter for DC removal (in-place).\n"
+          "Uses single-pole IIR filter.\n"
+          "input: GPUArray of float32 samples (modified in-place)\n"
+          "cutoff_hz: Cutoff frequency in Hz (default 20.0)\n"
+          "sample_rate: Sample rate in Hz (default 16000)");
+
+    m.def("audio_noise_gate", &ops::audio::noise_gate,
+          py::arg("input"), py::arg("threshold") = 0.01f,
+          "Apply simple noise gate (in-place).\n"
+          "Zeros samples with absolute value below threshold.\n"
+          "input: GPUArray of float32 samples (modified in-place)\n"
+          "threshold: Amplitude threshold (default 0.01)");
+
+    m.def("audio_spectral_gate", &ops::audio::spectral_gate,
+          py::arg("input"), py::arg("threshold") = 0.01f,
+          py::arg("attack_samples") = 64, py::arg("release_samples") = 256,
+          "Apply spectral gate for noise reduction (in-place).\n"
+          "Attenuates samples in frames with energy below threshold.\n"
+          "input: GPUArray of float32 samples (modified in-place)\n"
+          "threshold: Energy threshold (linear scale, default 0.01)\n"
+          "attack_samples: Frame size for energy computation (default 64)\n"
+          "release_samples: Smoothing release (reserved, default 256)");
+
+    m.def("audio_compute_short_term_energy", &ops::audio::compute_short_term_energy,
+          py::arg("input"), py::arg("frame_size"),
+          "Compute short-term energy for adaptive noise gating.\n"
+          "input: GPUArray of float32 audio samples\n"
+          "frame_size: Frame size in samples\n"
+          "Returns: GPUArray of frame energies");
+
+    // ========================================================================
+    // Spectral Processing Operations
+    // ========================================================================
+
+    m.def("audio_stft", &ops::audio::stft,
+          py::arg("input"), py::arg("n_fft") = 400, py::arg("hop_length") = 160,
+          py::arg("win_length") = -1, py::arg("center") = true,
+          "Compute Short-Time Fourier Transform (STFT).\n"
+          "input: GPUArray of float32 audio samples\n"
+          "n_fft: FFT size (must be power of 2, default 400 for Whisper)\n"
+          "hop_length: Hop size (default 160 for Whisper)\n"
+          "win_length: Window length (default n_fft)\n"
+          "center: Whether to pad input (default true)\n"
+          "Returns: Complex STFT output [n_frames, n_fft/2+1, 2] (real, imag)");
+
+    m.def("audio_power_spectrum", &ops::audio::power_spectrum,
+          py::arg("stft_output"),
+          "Compute power spectrogram from STFT output.\n"
+          "power = real^2 + imag^2\n"
+          "stft_output: STFT output [n_frames, n_freq, 2]\n"
+          "Returns: Power spectrogram [n_frames, n_freq]");
+
+    m.def("audio_magnitude_spectrum", &ops::audio::magnitude_spectrum,
+          py::arg("stft_output"),
+          "Compute magnitude spectrogram from STFT output.\n"
+          "magnitude = sqrt(real^2 + imag^2)\n"
+          "stft_output: STFT output [n_frames, n_freq, 2]\n"
+          "Returns: Magnitude spectrogram [n_frames, n_freq]");
+
+    m.def("audio_create_mel_filterbank", &ops::audio::create_mel_filterbank,
+          py::arg("n_mels"), py::arg("n_fft"), py::arg("sample_rate"),
+          py::arg("f_min") = 0.0f, py::arg("f_max") = -1.0f,
+          "Create Mel filterbank matrix.\n"
+          "n_mels: Number of mel bands (default 80 for Whisper)\n"
+          "n_fft: FFT size\n"
+          "sample_rate: Sample rate in Hz\n"
+          "f_min: Minimum frequency (default 0)\n"
+          "f_max: Maximum frequency (default sample_rate/2)\n"
+          "Returns: Mel filterbank matrix [n_mels, n_fft/2+1]");
+
+    m.def("audio_apply_mel_filterbank", &ops::audio::apply_mel_filterbank,
+          py::arg("spectrogram"), py::arg("mel_filterbank"),
+          "Apply Mel filterbank to power/magnitude spectrogram.\n"
+          "spectrogram: Input spectrogram [n_frames, n_fft/2+1]\n"
+          "mel_filterbank: Mel filterbank [n_mels, n_fft/2+1]\n"
+          "Returns: Mel spectrogram [n_frames, n_mels]");
+
+    m.def("audio_log_mel_spectrogram", &ops::audio::log_mel_spectrogram,
+          py::arg("mel_spectrogram"), py::arg("eps") = 1e-10f,
+          "Compute log-mel spectrogram.\n"
+          "log_mel = log(mel + eps)\n"
+          "mel_spectrogram: Mel spectrogram [n_frames, n_mels]\n"
+          "eps: Small constant for numerical stability (default 1e-10)\n"
+          "Returns: Log-mel spectrogram [n_frames, n_mels]");
+
+    m.def("audio_to_decibels", &ops::audio::to_decibels,
+          py::arg("input"), py::arg("eps") = 1e-10f,
+          "Convert to decibels.\n"
+          "dB = 10 * log10(x + eps)\n"
+          "input: Input array\n"
+          "eps: Small constant for numerical stability (default 1e-10)\n"
+          "Returns: dB values");
+
+    m.def("audio_mfcc", &ops::audio::mfcc,
+          py::arg("log_mel"), py::arg("n_mfcc") = 13,
+          "Compute MFCC from log-mel spectrogram using DCT-II.\n"
+          "log_mel: Log-mel spectrogram [n_frames, n_mels]\n"
+          "n_mfcc: Number of MFCC coefficients (default 13)\n"
+          "Returns: MFCC [n_frames, n_mfcc]");
+
+    m.def("audio_delta_features", &ops::audio::delta_features,
+          py::arg("features"), py::arg("order") = 1, py::arg("width") = 2,
+          "Compute delta (differential) features.\n"
+          "features: Input features [n_frames, n_features]\n"
+          "order: Delta order (1 for delta, 2 for delta-delta)\n"
+          "width: Window width for computation (default 2)\n"
+          "Returns: Delta features [n_frames, n_features]");
+
+    m.def("audio_whisper_mel_spectrogram", &ops::audio::whisper_mel_spectrogram,
+          py::arg("input"), py::arg("n_fft") = 400, py::arg("hop_length") = 160,
+          py::arg("n_mels") = 80,
+          "Compute Whisper-compatible log-mel spectrogram in one call.\n"
+          "Combines: STFT -> power -> mel filterbank -> log\n"
+          "input: Input audio (float32, 16kHz expected)\n"
+          "n_fft: FFT size (default 400)\n"
+          "hop_length: Hop size (default 160)\n"
+          "n_mels: Number of mel bands (default 80)\n"
+          "Returns: Log-mel spectrogram [n_frames, n_mels]");
+
+    // ========================================================================
+    // Inverse STFT
+    // ========================================================================
+
+    m.def("audio_istft", &ops::audio::istft,
+          py::arg("stft_output"), py::arg("hop_length") = 160,
+          py::arg("win_length") = -1, py::arg("center") = true,
+          py::arg("length") = -1,
+          "Compute Inverse Short-Time Fourier Transform (ISTFT).\n"
+          "stft_output: STFT output [n_frames, n_fft/2+1, 2] (real, imag)\n"
+          "hop_length: Hop size (default 160)\n"
+          "win_length: Window length (default n_fft)\n"
+          "center: Whether input was padded (default true)\n"
+          "length: Expected output length (optional, -1 for auto)\n"
+          "Returns: Reconstructed audio signal");
+
+    // ========================================================================
+    // Griffin-Lim Algorithm
+    // ========================================================================
+
+    m.def("audio_griffin_lim", &ops::audio::griffin_lim,
+          py::arg("magnitude"), py::arg("n_iter") = 32,
+          py::arg("hop_length") = 160, py::arg("win_length") = -1,
+          "Griffin-Lim phase reconstruction algorithm.\n"
+          "Reconstructs audio from magnitude spectrogram.\n"
+          "magnitude: Magnitude spectrogram [n_frames, n_fft/2+1]\n"
+          "n_iter: Number of iterations (default 32)\n"
+          "hop_length: Hop size (default 160)\n"
+          "win_length: Window length (default n_fft * 2 - 2)\n"
+          "Returns: Reconstructed audio signal");
+
+    // ========================================================================
+    // Pitch Detection
+    // ========================================================================
+
+    m.def("audio_autocorrelation", &ops::audio::autocorrelation,
+          py::arg("input"), py::arg("max_lag"),
+          "Compute autocorrelation of signal.\n"
+          "input: Input audio samples\n"
+          "max_lag: Maximum lag to compute\n"
+          "Returns: Autocorrelation values [max_lag]");
+
+    m.def("audio_detect_pitch_yin", &ops::audio::detect_pitch_yin,
+          py::arg("input"), py::arg("sample_rate"),
+          py::arg("f_min") = 50.0f, py::arg("f_max") = 2000.0f,
+          py::arg("threshold") = 0.1f,
+          "Detect pitch using YIN algorithm.\n"
+          "input: Input audio samples (single frame)\n"
+          "sample_rate: Sample rate in Hz\n"
+          "f_min: Minimum frequency (default 50 Hz)\n"
+          "f_max: Maximum frequency (default 2000 Hz)\n"
+          "threshold: YIN threshold (default 0.1)\n"
+          "Returns: Detected pitch in Hz (0 if unvoiced)");
+
+    m.def("audio_detect_pitch_yin_frames", &ops::audio::detect_pitch_yin_frames,
+          py::arg("input"), py::arg("sample_rate"),
+          py::arg("frame_size"), py::arg("hop_size"),
+          py::arg("f_min") = 50.0f, py::arg("f_max") = 2000.0f,
+          py::arg("threshold") = 0.1f,
+          "Detect pitch for multiple frames using YIN algorithm.\n"
+          "input: Input audio samples\n"
+          "sample_rate: Sample rate in Hz\n"
+          "frame_size: Frame size in samples\n"
+          "hop_size: Hop size in samples\n"
+          "f_min: Minimum frequency (default 50 Hz)\n"
+          "f_max: Maximum frequency (default 2000 Hz)\n"
+          "threshold: YIN threshold (default 0.1)\n"
+          "Returns: Detected pitches [n_frames] in Hz (0 if unvoiced)");
+
+    // ========================================================================
+    // Spectral Features
+    // ========================================================================
+
+    m.def("audio_spectral_centroid", &ops::audio::spectral_centroid,
+          py::arg("spectrum"), py::arg("sample_rate"),
+          "Compute spectral centroid (center of mass of spectrum).\n"
+          "spectrum: Magnitude/power spectrogram [n_frames, n_freq]\n"
+          "sample_rate: Sample rate in Hz\n"
+          "Returns: Spectral centroid per frame [n_frames] in Hz");
+
+    m.def("audio_spectral_bandwidth", &ops::audio::spectral_bandwidth,
+          py::arg("spectrum"), py::arg("centroids"),
+          py::arg("sample_rate"), py::arg("p") = 2,
+          "Compute spectral bandwidth.\n"
+          "spectrum: Magnitude/power spectrogram [n_frames, n_freq]\n"
+          "centroids: Pre-computed centroids [n_frames]\n"
+          "sample_rate: Sample rate in Hz\n"
+          "p: Order of the bandwidth norm (default 2)\n"
+          "Returns: Spectral bandwidth per frame [n_frames] in Hz");
+
+    m.def("audio_spectral_rolloff", &ops::audio::spectral_rolloff,
+          py::arg("spectrum"), py::arg("sample_rate"),
+          py::arg("roll_percent") = 0.85f,
+          "Compute spectral rolloff point.\n"
+          "spectrum: Magnitude/power spectrogram [n_frames, n_freq]\n"
+          "sample_rate: Sample rate in Hz\n"
+          "roll_percent: Rolloff percentage (default 0.85 = 85%)\n"
+          "Returns: Rolloff frequency per frame [n_frames] in Hz");
+
+    m.def("audio_spectral_flatness", &ops::audio::spectral_flatness,
+          py::arg("spectrum"),
+          "Compute spectral flatness (Wiener entropy).\n"
+          "spectrum: Magnitude/power spectrogram [n_frames, n_freq]\n"
+          "Returns: Flatness per frame [n_frames] in [0, 1]");
+
+    m.def("audio_spectral_contrast", &ops::audio::spectral_contrast,
+          py::arg("spectrum"), py::arg("n_bands") = 6,
+          py::arg("alpha") = 0.02f,
+          "Compute spectral contrast.\n"
+          "spectrum: Magnitude/power spectrogram [n_frames, n_freq]\n"
+          "n_bands: Number of frequency bands (default 6)\n"
+          "alpha: Percentile for peak/valley (default 0.02 = 2%)\n"
+          "Returns: Spectral contrast [n_frames, n_bands]");
+
+    m.def("audio_zero_crossing_rate", &ops::audio::zero_crossing_rate,
+          py::arg("input"), py::arg("frame_size"), py::arg("hop_size"),
+          "Compute zero-crossing rate.\n"
+          "input: Input audio samples\n"
+          "frame_size: Frame size in samples\n"
+          "hop_size: Hop size in samples\n"
+          "Returns: ZCR per frame [n_frames] in [0, 1]");
+
+    // ========================================================================
+    // CQT (Constant-Q Transform)
+    // ========================================================================
+
+    m.def("audio_cqt", &ops::audio::cqt,
+          py::arg("input"), py::arg("sample_rate"),
+          py::arg("hop_length") = 512, py::arg("f_min") = 32.7f,
+          py::arg("n_bins") = 84, py::arg("bins_per_octave") = 12,
+          "Compute Constant-Q Transform.\n"
+          "input: Input audio samples\n"
+          "sample_rate: Sample rate in Hz\n"
+          "hop_length: Hop size (default 512)\n"
+          "f_min: Minimum frequency (default 32.7 Hz, C1)\n"
+          "n_bins: Number of CQT bins (default 84, 7 octaves)\n"
+          "bins_per_octave: Bins per octave (default 12)\n"
+          "Returns: Complex CQT output [n_frames, n_bins, 2]");
+
+    m.def("audio_cqt_magnitude", &ops::audio::cqt_magnitude,
+          py::arg("cqt_output"),
+          "Compute CQT magnitude spectrogram.\n"
+          "cqt_output: CQT output [n_frames, n_bins, 2]\n"
+          "Returns: Magnitude spectrogram [n_frames, n_bins]");
+
+    // ========================================================================
+    // Chromagram
+    // ========================================================================
+
+    m.def("audio_chroma_stft", &ops::audio::chroma_stft,
+          py::arg("spectrum"), py::arg("sample_rate"),
+          py::arg("n_chroma") = 12, py::arg("tuning") = 0.0f,
+          "Compute chromagram from STFT.\n"
+          "spectrum: Power/magnitude spectrogram [n_frames, n_freq]\n"
+          "sample_rate: Sample rate in Hz\n"
+          "n_chroma: Number of chroma bins (default 12)\n"
+          "tuning: Tuning deviation from A440 in cents (default 0)\n"
+          "Returns: Chromagram [n_frames, n_chroma]");
+
+    m.def("audio_chroma_cqt", &ops::audio::chroma_cqt,
+          py::arg("cqt_mag"), py::arg("bins_per_octave") = 12,
+          "Compute chromagram from CQT.\n"
+          "cqt_mag: CQT magnitude [n_frames, n_bins]\n"
+          "bins_per_octave: Bins per octave (must match CQT, default 12)\n"
+          "Returns: Chromagram [n_frames, 12]");
+
+    // ========================================================================
+    // HPSS (Harmonic-Percussive Source Separation)
+    // ========================================================================
+
+    m.def("audio_hpss", [](const GPUArray& stft_magnitude, int kernel_size,
+                           float power, float margin) {
+              auto [h, p] = ops::audio::hpss(stft_magnitude, kernel_size, power, margin);
+              return py::make_tuple(std::move(h), std::move(p));
+          },
+          py::arg("stft_magnitude"), py::arg("kernel_size") = 31,
+          py::arg("power") = 2.0f, py::arg("margin") = 1.0f,
+          "Harmonic-percussive source separation.\n"
+          "stft_magnitude: STFT magnitude [n_frames, n_freq]\n"
+          "kernel_size: Median filter kernel size (default 31)\n"
+          "power: Mask power for softness (default 2.0)\n"
+          "margin: Margin for separation (default 1.0)\n"
+          "Returns: Tuple of (harmonic_magnitude, percussive_magnitude)");
+
+    m.def("audio_harmonic", &ops::audio::harmonic,
+          py::arg("stft_magnitude"), py::arg("kernel_size") = 31,
+          py::arg("power") = 2.0f, py::arg("margin") = 1.0f,
+          "Get harmonic component from HPSS.\n"
+          "Returns: Harmonic magnitude [n_frames, n_freq]");
+
+    m.def("audio_percussive", &ops::audio::percussive,
+          py::arg("stft_magnitude"), py::arg("kernel_size") = 31,
+          py::arg("power") = 2.0f, py::arg("margin") = 1.0f,
+          "Get percussive component from HPSS.\n"
+          "Returns: Percussive magnitude [n_frames, n_freq]");
+
+    // ========================================================================
+    // Time Stretch / Pitch Shift
+    // ========================================================================
+
+    m.def("audio_time_stretch", &ops::audio::time_stretch,
+          py::arg("input"), py::arg("rate"),
+          py::arg("n_fft") = 2048, py::arg("hop_length") = -1,
+          "Time-stretch audio using phase vocoder.\n"
+          "input: Input audio samples\n"
+          "rate: Time stretch rate (>1 = slower, <1 = faster)\n"
+          "n_fft: FFT size (default 2048)\n"
+          "hop_length: Hop size (default n_fft/4)\n"
+          "Returns: Time-stretched audio");
+
+    m.def("audio_pitch_shift", &ops::audio::pitch_shift,
+          py::arg("input"), py::arg("sample_rate"), py::arg("n_steps"),
+          py::arg("n_fft") = 2048, py::arg("hop_length") = -1,
+          "Pitch-shift audio.\n"
+          "input: Input audio samples\n"
+          "sample_rate: Sample rate in Hz\n"
+          "n_steps: Number of semitones to shift\n"
+          "n_fft: FFT size (default 2048)\n"
+          "hop_length: Hop size (default n_fft/4)\n"
+          "Returns: Pitch-shifted audio");
+
+    // ========================================================================
+    // cuBLASLt debug functions
+    // ========================================================================
+
+    m.def("cublaslt_is_available", &cublaslt::is_available,
+          "Check if cuBLASLt is dynamically loaded and available.");
+
+    m.def("cublaslt_get_library_path", &cublaslt::get_library_path,
+          "Get the path to the loaded cuBLASLt library.");
+
+    m.def("cublaslt_get_version", []() {
+        auto [major, minor, patch] = cublaslt::get_version();
+        return py::make_tuple(major, minor, patch);
+    }, "Get cuBLASLt version as (major, minor, patch) tuple.");
+
+    m.def("cublaslt_test_gemm", [](const GPUArray& a, const GPUArray& b) {
+        // Test GEMM and return status code
+        size_t M = a.shape()[0];
+        size_t K = a.shape()[1];
+        size_t N = b.shape()[1];
+
+        GPUArray c({M, N}, a.dtype());
+
+        cudaError_t err = cublaslt::gemm_fp16(
+            static_cast<const __half*>(a.data()),
+            static_cast<const __half*>(b.data()),
+            static_cast<__half*>(c.data()),
+            M, N, K, nullptr);
+
+        return static_cast<int>(err);
+    }, py::arg("a"), py::arg("b"),
+       "Test cuBLASLt FP16 GEMM and return error code (0 = success).");
+
+    m.def("cublaslt_get_last_error", &cublaslt::get_last_cublaslt_error,
+          "Get last cuBLASLt status code for debugging.");
+
+    m.def("cublaslt_get_last_step", &cublaslt::get_last_cublaslt_step,
+          "Get which step failed (1=handle, 2=desc, 3-5=layout, 6=matmul).");
+
+    m.def("cublaslt_get_handle", []() {
+        auto handle = cublaslt::get_handle();
+        return reinterpret_cast<uintptr_t>(handle);
+    }, "Get cuBLASLt handle address for debugging (0 if not available).");
+}
