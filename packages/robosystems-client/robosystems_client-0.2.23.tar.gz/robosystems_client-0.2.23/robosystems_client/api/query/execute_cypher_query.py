@@ -1,0 +1,568 @@
+from http import HTTPStatus
+from typing import Any, cast
+
+import httpx
+
+from ... import errors
+from ...client import AuthenticatedClient, Client
+from ...models.cypher_query_request import CypherQueryRequest
+from ...models.execute_cypher_query_response_200 import ExecuteCypherQueryResponse200
+from ...models.http_validation_error import HTTPValidationError
+from ...models.response_mode import ResponseMode
+from ...types import UNSET, Response, Unset
+
+
+def _get_kwargs(
+  graph_id: str,
+  *,
+  body: CypherQueryRequest,
+  mode: None | ResponseMode | Unset = UNSET,
+  chunk_size: int | None | Unset = UNSET,
+  test_mode: bool | Unset = False,
+) -> dict[str, Any]:
+  headers: dict[str, Any] = {}
+
+  params: dict[str, Any] = {}
+
+  json_mode: None | str | Unset
+  if isinstance(mode, Unset):
+    json_mode = UNSET
+  elif isinstance(mode, ResponseMode):
+    json_mode = mode.value
+  else:
+    json_mode = mode
+  params["mode"] = json_mode
+
+  json_chunk_size: int | None | Unset
+  if isinstance(chunk_size, Unset):
+    json_chunk_size = UNSET
+  else:
+    json_chunk_size = chunk_size
+  params["chunk_size"] = json_chunk_size
+
+  params["test_mode"] = test_mode
+
+  params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
+
+  _kwargs: dict[str, Any] = {
+    "method": "post",
+    "url": f"/v1/graphs/{graph_id}/query",
+    "params": params,
+  }
+
+  _kwargs["json"] = body.to_dict()
+
+  headers["Content-Type"] = "application/json"
+
+  _kwargs["headers"] = headers
+  return _kwargs
+
+
+def _parse_response(
+  *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Any | ExecuteCypherQueryResponse200 | HTTPValidationError | None:
+  if response.status_code == 200:
+    content_type = response.headers.get("content-type", "")
+    if (
+      "application/x-ndjson" in content_type
+      or response.headers.get("x-stream-format") == "ndjson"
+    ):
+      return None
+    response_200 = ExecuteCypherQueryResponse200.from_dict(response.json())
+
+    return response_200
+
+  if response.status_code == 202:
+    response_202 = cast(Any, None)
+    return response_202
+
+  if response.status_code == 400:
+    response_400 = cast(Any, None)
+    return response_400
+
+  if response.status_code == 403:
+    response_403 = cast(Any, None)
+    return response_403
+
+  if response.status_code == 408:
+    response_408 = cast(Any, None)
+    return response_408
+
+  if response.status_code == 422:
+    response_422 = HTTPValidationError.from_dict(response.json())
+
+    return response_422
+
+  if response.status_code == 429:
+    response_429 = cast(Any, None)
+    return response_429
+
+  if response.status_code == 500:
+    response_500 = cast(Any, None)
+    return response_500
+
+  if response.status_code == 503:
+    response_503 = cast(Any, None)
+    return response_503
+
+  if client.raise_on_unexpected_status:
+    raise errors.UnexpectedStatus(response.status_code, response.content)
+  else:
+    return None
+
+
+def _build_response(
+  *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Any | ExecuteCypherQueryResponse200 | HTTPValidationError]:
+  return Response(
+    status_code=HTTPStatus(response.status_code),
+    content=response.content,
+    headers=response.headers,
+    parsed=_parse_response(client=client, response=response),
+  )
+
+
+def sync_detailed(
+  graph_id: str,
+  *,
+  client: AuthenticatedClient,
+  body: CypherQueryRequest,
+  mode: None | ResponseMode | Unset = UNSET,
+  chunk_size: int | None | Unset = UNSET,
+  test_mode: bool | Unset = False,
+) -> Response[Any | ExecuteCypherQueryResponse200 | HTTPValidationError]:
+  r"""Execute Cypher Query
+
+   Execute a Cypher query with intelligent response optimization.
+
+  **IMPORTANT: Write operations depend on graph type:**
+  - **Main Graphs**: READ-ONLY. Write operations (CREATE, MERGE, SET, DELETE) are not allowed.
+  - **Subgraphs**: WRITE-ENABLED. Full Cypher write operations are supported for development and
+  report creation.
+
+  To load data into main graphs, use the staging pipeline:
+  1. Create file upload: `POST /v1/graphs/{graph_id}/tables/{table_name}/files`
+  2. Ingest to graph: `POST /v1/graphs/{graph_id}/tables/ingest`
+
+  **Security Best Practice - Use Parameterized Queries:**
+  ALWAYS use query parameters instead of string interpolation to prevent injection attacks:
+  - ✅ SAFE: `MATCH (n:Entity {type: $entity_type}) RETURN n` with `parameters: {\"entity_type\":
+  \"Company\"}`
+  - ❌ UNSAFE: `MATCH (n:Entity {type: \"Company\"}) RETURN n` with user input concatenated into query
+  string
+
+  Query parameters provide automatic escaping and type safety. All examples in this API use
+  parameterized queries.
+
+  This endpoint automatically selects the best execution strategy based on:
+  - Query characteristics (size, complexity)
+  - Client capabilities (SSE, NDJSON, JSON)
+  - System load (queue status, concurrent queries)
+  - User preferences (mode parameter, headers)
+
+  **Response Modes:**
+  - `auto` (default): Intelligent automatic selection
+  - `sync`: Force synchronous JSON response (best for testing)
+  - `async`: Force queued response with SSE monitoring endpoints (no polling needed)
+  - `stream`: Force streaming response (SSE or NDJSON)
+
+  **Client Detection:**
+  - Automatically detects testing tools (Postman, Swagger UI)
+  - Adjusts behavior for better interactive experience
+  - Respects Accept and Prefer headers for capabilities
+
+  **Streaming Support (SSE):**
+  - Real-time events with progress updates
+  - Maximum 5 concurrent SSE connections per user
+  - Rate limited to 10 new connections per minute
+  - Automatic circuit breaker for Redis failures
+  - Graceful degradation if event system unavailable
+  - 30-second keepalive to prevent timeouts
+
+  **Streaming Support (NDJSON):**
+  - Efficient line-delimited JSON for large results
+  - Automatic chunking (configurable 10-10000 rows)
+  - No connection limits (stateless streaming)
+
+  **Queue Management:**
+  - Automatic queuing under high load
+  - Real-time monitoring via SSE events (no polling needed)
+  - Priority based on subscription tier
+  - Queue position and progress updates pushed via SSE
+  - Connect to returned `/v1/operations/{id}/stream` endpoint for updates
+
+  **Error Handling:**
+  - `429 Too Many Requests`: Rate limit or connection limit exceeded
+  - `503 Service Unavailable`: Circuit breaker open or SSE disabled
+  - Clients should implement exponential backoff
+
+  **Subgraph Support:**
+  This endpoint accepts both parent graph IDs and subgraph IDs.
+  - Parent graph: Use `graph_id` like `kg0123456789abcdef`
+  - Subgraph: Use full subgraph ID like `kg0123456789abcdef_dev`
+  Subgraphs share the same instance as their parent graph and have independent data.
+
+  **Note:**
+  Query operations are included - no credit consumption required.
+  Queue position is based on subscription tier for priority.
+
+  Args:
+      graph_id (str):
+      mode (None | ResponseMode | Unset): Response mode override
+      chunk_size (int | None | Unset): Rows per chunk for streaming
+      test_mode (bool | Unset): Enable test mode for better debugging Default: False.
+      body (CypherQueryRequest): Request model for Cypher query execution.
+
+  Raises:
+      errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+      httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+  Returns:
+      Response[Any | ExecuteCypherQueryResponse200 | HTTPValidationError]
+  """
+
+  kwargs = _get_kwargs(
+    graph_id=graph_id,
+    body=body,
+    mode=mode,
+    chunk_size=chunk_size,
+    test_mode=test_mode,
+  )
+
+  response = client.get_httpx_client().request(
+    **kwargs,
+  )
+
+  return _build_response(client=client, response=response)
+
+
+def sync(
+  graph_id: str,
+  *,
+  client: AuthenticatedClient,
+  body: CypherQueryRequest,
+  mode: None | ResponseMode | Unset = UNSET,
+  chunk_size: int | None | Unset = UNSET,
+  test_mode: bool | Unset = False,
+) -> Any | ExecuteCypherQueryResponse200 | HTTPValidationError | None:
+  r"""Execute Cypher Query
+
+   Execute a Cypher query with intelligent response optimization.
+
+  **IMPORTANT: Write operations depend on graph type:**
+  - **Main Graphs**: READ-ONLY. Write operations (CREATE, MERGE, SET, DELETE) are not allowed.
+  - **Subgraphs**: WRITE-ENABLED. Full Cypher write operations are supported for development and
+  report creation.
+
+  To load data into main graphs, use the staging pipeline:
+  1. Create file upload: `POST /v1/graphs/{graph_id}/tables/{table_name}/files`
+  2. Ingest to graph: `POST /v1/graphs/{graph_id}/tables/ingest`
+
+  **Security Best Practice - Use Parameterized Queries:**
+  ALWAYS use query parameters instead of string interpolation to prevent injection attacks:
+  - ✅ SAFE: `MATCH (n:Entity {type: $entity_type}) RETURN n` with `parameters: {\"entity_type\":
+  \"Company\"}`
+  - ❌ UNSAFE: `MATCH (n:Entity {type: \"Company\"}) RETURN n` with user input concatenated into query
+  string
+
+  Query parameters provide automatic escaping and type safety. All examples in this API use
+  parameterized queries.
+
+  This endpoint automatically selects the best execution strategy based on:
+  - Query characteristics (size, complexity)
+  - Client capabilities (SSE, NDJSON, JSON)
+  - System load (queue status, concurrent queries)
+  - User preferences (mode parameter, headers)
+
+  **Response Modes:**
+  - `auto` (default): Intelligent automatic selection
+  - `sync`: Force synchronous JSON response (best for testing)
+  - `async`: Force queued response with SSE monitoring endpoints (no polling needed)
+  - `stream`: Force streaming response (SSE or NDJSON)
+
+  **Client Detection:**
+  - Automatically detects testing tools (Postman, Swagger UI)
+  - Adjusts behavior for better interactive experience
+  - Respects Accept and Prefer headers for capabilities
+
+  **Streaming Support (SSE):**
+  - Real-time events with progress updates
+  - Maximum 5 concurrent SSE connections per user
+  - Rate limited to 10 new connections per minute
+  - Automatic circuit breaker for Redis failures
+  - Graceful degradation if event system unavailable
+  - 30-second keepalive to prevent timeouts
+
+  **Streaming Support (NDJSON):**
+  - Efficient line-delimited JSON for large results
+  - Automatic chunking (configurable 10-10000 rows)
+  - No connection limits (stateless streaming)
+
+  **Queue Management:**
+  - Automatic queuing under high load
+  - Real-time monitoring via SSE events (no polling needed)
+  - Priority based on subscription tier
+  - Queue position and progress updates pushed via SSE
+  - Connect to returned `/v1/operations/{id}/stream` endpoint for updates
+
+  **Error Handling:**
+  - `429 Too Many Requests`: Rate limit or connection limit exceeded
+  - `503 Service Unavailable`: Circuit breaker open or SSE disabled
+  - Clients should implement exponential backoff
+
+  **Subgraph Support:**
+  This endpoint accepts both parent graph IDs and subgraph IDs.
+  - Parent graph: Use `graph_id` like `kg0123456789abcdef`
+  - Subgraph: Use full subgraph ID like `kg0123456789abcdef_dev`
+  Subgraphs share the same instance as their parent graph and have independent data.
+
+  **Note:**
+  Query operations are included - no credit consumption required.
+  Queue position is based on subscription tier for priority.
+
+  Args:
+      graph_id (str):
+      mode (None | ResponseMode | Unset): Response mode override
+      chunk_size (int | None | Unset): Rows per chunk for streaming
+      test_mode (bool | Unset): Enable test mode for better debugging Default: False.
+      body (CypherQueryRequest): Request model for Cypher query execution.
+
+  Raises:
+      errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+      httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+  Returns:
+      Any | ExecuteCypherQueryResponse200 | HTTPValidationError
+  """
+
+  return sync_detailed(
+    graph_id=graph_id,
+    client=client,
+    body=body,
+    mode=mode,
+    chunk_size=chunk_size,
+    test_mode=test_mode,
+  ).parsed
+
+
+async def asyncio_detailed(
+  graph_id: str,
+  *,
+  client: AuthenticatedClient,
+  body: CypherQueryRequest,
+  mode: None | ResponseMode | Unset = UNSET,
+  chunk_size: int | None | Unset = UNSET,
+  test_mode: bool | Unset = False,
+) -> Response[Any | ExecuteCypherQueryResponse200 | HTTPValidationError]:
+  r"""Execute Cypher Query
+
+   Execute a Cypher query with intelligent response optimization.
+
+  **IMPORTANT: Write operations depend on graph type:**
+  - **Main Graphs**: READ-ONLY. Write operations (CREATE, MERGE, SET, DELETE) are not allowed.
+  - **Subgraphs**: WRITE-ENABLED. Full Cypher write operations are supported for development and
+  report creation.
+
+  To load data into main graphs, use the staging pipeline:
+  1. Create file upload: `POST /v1/graphs/{graph_id}/tables/{table_name}/files`
+  2. Ingest to graph: `POST /v1/graphs/{graph_id}/tables/ingest`
+
+  **Security Best Practice - Use Parameterized Queries:**
+  ALWAYS use query parameters instead of string interpolation to prevent injection attacks:
+  - ✅ SAFE: `MATCH (n:Entity {type: $entity_type}) RETURN n` with `parameters: {\"entity_type\":
+  \"Company\"}`
+  - ❌ UNSAFE: `MATCH (n:Entity {type: \"Company\"}) RETURN n` with user input concatenated into query
+  string
+
+  Query parameters provide automatic escaping and type safety. All examples in this API use
+  parameterized queries.
+
+  This endpoint automatically selects the best execution strategy based on:
+  - Query characteristics (size, complexity)
+  - Client capabilities (SSE, NDJSON, JSON)
+  - System load (queue status, concurrent queries)
+  - User preferences (mode parameter, headers)
+
+  **Response Modes:**
+  - `auto` (default): Intelligent automatic selection
+  - `sync`: Force synchronous JSON response (best for testing)
+  - `async`: Force queued response with SSE monitoring endpoints (no polling needed)
+  - `stream`: Force streaming response (SSE or NDJSON)
+
+  **Client Detection:**
+  - Automatically detects testing tools (Postman, Swagger UI)
+  - Adjusts behavior for better interactive experience
+  - Respects Accept and Prefer headers for capabilities
+
+  **Streaming Support (SSE):**
+  - Real-time events with progress updates
+  - Maximum 5 concurrent SSE connections per user
+  - Rate limited to 10 new connections per minute
+  - Automatic circuit breaker for Redis failures
+  - Graceful degradation if event system unavailable
+  - 30-second keepalive to prevent timeouts
+
+  **Streaming Support (NDJSON):**
+  - Efficient line-delimited JSON for large results
+  - Automatic chunking (configurable 10-10000 rows)
+  - No connection limits (stateless streaming)
+
+  **Queue Management:**
+  - Automatic queuing under high load
+  - Real-time monitoring via SSE events (no polling needed)
+  - Priority based on subscription tier
+  - Queue position and progress updates pushed via SSE
+  - Connect to returned `/v1/operations/{id}/stream` endpoint for updates
+
+  **Error Handling:**
+  - `429 Too Many Requests`: Rate limit or connection limit exceeded
+  - `503 Service Unavailable`: Circuit breaker open or SSE disabled
+  - Clients should implement exponential backoff
+
+  **Subgraph Support:**
+  This endpoint accepts both parent graph IDs and subgraph IDs.
+  - Parent graph: Use `graph_id` like `kg0123456789abcdef`
+  - Subgraph: Use full subgraph ID like `kg0123456789abcdef_dev`
+  Subgraphs share the same instance as their parent graph and have independent data.
+
+  **Note:**
+  Query operations are included - no credit consumption required.
+  Queue position is based on subscription tier for priority.
+
+  Args:
+      graph_id (str):
+      mode (None | ResponseMode | Unset): Response mode override
+      chunk_size (int | None | Unset): Rows per chunk for streaming
+      test_mode (bool | Unset): Enable test mode for better debugging Default: False.
+      body (CypherQueryRequest): Request model for Cypher query execution.
+
+  Raises:
+      errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+      httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+  Returns:
+      Response[Any | ExecuteCypherQueryResponse200 | HTTPValidationError]
+  """
+
+  kwargs = _get_kwargs(
+    graph_id=graph_id,
+    body=body,
+    mode=mode,
+    chunk_size=chunk_size,
+    test_mode=test_mode,
+  )
+
+  response = await client.get_async_httpx_client().request(**kwargs)
+
+  return _build_response(client=client, response=response)
+
+
+async def asyncio(
+  graph_id: str,
+  *,
+  client: AuthenticatedClient,
+  body: CypherQueryRequest,
+  mode: None | ResponseMode | Unset = UNSET,
+  chunk_size: int | None | Unset = UNSET,
+  test_mode: bool | Unset = False,
+) -> Any | ExecuteCypherQueryResponse200 | HTTPValidationError | None:
+  r"""Execute Cypher Query
+
+   Execute a Cypher query with intelligent response optimization.
+
+  **IMPORTANT: Write operations depend on graph type:**
+  - **Main Graphs**: READ-ONLY. Write operations (CREATE, MERGE, SET, DELETE) are not allowed.
+  - **Subgraphs**: WRITE-ENABLED. Full Cypher write operations are supported for development and
+  report creation.
+
+  To load data into main graphs, use the staging pipeline:
+  1. Create file upload: `POST /v1/graphs/{graph_id}/tables/{table_name}/files`
+  2. Ingest to graph: `POST /v1/graphs/{graph_id}/tables/ingest`
+
+  **Security Best Practice - Use Parameterized Queries:**
+  ALWAYS use query parameters instead of string interpolation to prevent injection attacks:
+  - ✅ SAFE: `MATCH (n:Entity {type: $entity_type}) RETURN n` with `parameters: {\"entity_type\":
+  \"Company\"}`
+  - ❌ UNSAFE: `MATCH (n:Entity {type: \"Company\"}) RETURN n` with user input concatenated into query
+  string
+
+  Query parameters provide automatic escaping and type safety. All examples in this API use
+  parameterized queries.
+
+  This endpoint automatically selects the best execution strategy based on:
+  - Query characteristics (size, complexity)
+  - Client capabilities (SSE, NDJSON, JSON)
+  - System load (queue status, concurrent queries)
+  - User preferences (mode parameter, headers)
+
+  **Response Modes:**
+  - `auto` (default): Intelligent automatic selection
+  - `sync`: Force synchronous JSON response (best for testing)
+  - `async`: Force queued response with SSE monitoring endpoints (no polling needed)
+  - `stream`: Force streaming response (SSE or NDJSON)
+
+  **Client Detection:**
+  - Automatically detects testing tools (Postman, Swagger UI)
+  - Adjusts behavior for better interactive experience
+  - Respects Accept and Prefer headers for capabilities
+
+  **Streaming Support (SSE):**
+  - Real-time events with progress updates
+  - Maximum 5 concurrent SSE connections per user
+  - Rate limited to 10 new connections per minute
+  - Automatic circuit breaker for Redis failures
+  - Graceful degradation if event system unavailable
+  - 30-second keepalive to prevent timeouts
+
+  **Streaming Support (NDJSON):**
+  - Efficient line-delimited JSON for large results
+  - Automatic chunking (configurable 10-10000 rows)
+  - No connection limits (stateless streaming)
+
+  **Queue Management:**
+  - Automatic queuing under high load
+  - Real-time monitoring via SSE events (no polling needed)
+  - Priority based on subscription tier
+  - Queue position and progress updates pushed via SSE
+  - Connect to returned `/v1/operations/{id}/stream` endpoint for updates
+
+  **Error Handling:**
+  - `429 Too Many Requests`: Rate limit or connection limit exceeded
+  - `503 Service Unavailable`: Circuit breaker open or SSE disabled
+  - Clients should implement exponential backoff
+
+  **Subgraph Support:**
+  This endpoint accepts both parent graph IDs and subgraph IDs.
+  - Parent graph: Use `graph_id` like `kg0123456789abcdef`
+  - Subgraph: Use full subgraph ID like `kg0123456789abcdef_dev`
+  Subgraphs share the same instance as their parent graph and have independent data.
+
+  **Note:**
+  Query operations are included - no credit consumption required.
+  Queue position is based on subscription tier for priority.
+
+  Args:
+      graph_id (str):
+      mode (None | ResponseMode | Unset): Response mode override
+      chunk_size (int | None | Unset): Rows per chunk for streaming
+      test_mode (bool | Unset): Enable test mode for better debugging Default: False.
+      body (CypherQueryRequest): Request model for Cypher query execution.
+
+  Raises:
+      errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+      httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+  Returns:
+      Any | ExecuteCypherQueryResponse200 | HTTPValidationError
+  """
+
+  return (
+    await asyncio_detailed(
+      graph_id=graph_id,
+      client=client,
+      body=body,
+      mode=mode,
+      chunk_size=chunk_size,
+      test_mode=test_mode,
+    )
+  ).parsed
