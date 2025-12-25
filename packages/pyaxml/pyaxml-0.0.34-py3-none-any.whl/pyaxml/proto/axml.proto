@@ -1,0 +1,294 @@
+syntax = "proto3";
+
+package axml;
+
+enum ResType {
+    option allow_alias = true;
+    RES_NULL_TYPE = 0x0000;
+    RES_STRING_POOL_TYPE = 0x0001;
+    RES_TABLE_TYPE = 0x0002;
+    RES_XML_TYPE = 0x0003;
+
+    
+    RES_XML_FIRST_CHUNK_TYPE    = 0x0100;
+    RES_XML_START_NAMESPACE_TYPE= 0x0100;
+    RES_XML_END_NAMESPACE_TYPE  = 0x0101;
+    RES_XML_START_ELEMENT_TYPE  = 0x0102;
+    RES_XML_END_ELEMENT_TYPE    = 0x0103;
+    RES_XML_CDATA_TYPE          = 0x0104;
+    RES_XML_LAST_CHUNK_TYPE     = 0x017f;
+
+    RES_XML_RESOURCE_MAP_TYPE   = 0x0180;
+
+    RES_TABLE_PACKAGE_TYPE      = 0x0200;
+    RES_TABLE_TYPE_TYPE         = 0x0201;
+    RES_TABLE_TYPE_SPEC_TYPE    = 0x0202;
+    RES_TABLE_LIBRARY_TYPE      = 0x0203;
+    RES_TABLE_OVERLAYABLE_TYPE        = 0x0204;
+    RES_TABLE_OVERLAYABLE_POLICY_TYPE = 0x0205;
+    RES_TABLE_STAGED_ALIAS_TYPE       = 0x0206;
+}
+
+enum Flag {
+    FLAG_NULL = 0x0;
+    
+    SORTED_FLAG = 1;
+    UTF8_FLAG = 256;
+}
+
+
+
+// Generic Header
+
+message AXMLHeader {
+    ResType type = 1; // 16 bits sized
+    fixed32 header_size = 2;
+    uint32 size = 3; // 16 bits sized
+}
+
+// AXMLHeaderRESTABLE
+
+message AXMLHeaderRESTABLE {
+    AXMLHeader hnd = 1;
+    fixed32 package_count = 2;
+}
+
+// AXMLResTablePackage
+
+message AXMLResTablePackage {
+    AXMLHeader hnd = 1;
+    fixed32 id = 2; // mResId = self.id << 24
+    string name = 3; // 256 char sized packagename
+    fixed32 typeStrings = 4; // offset
+    fixed32 lastPublicType = 5;
+    fixed32 keyStrings = 6; // offset
+    fixed32 lastPublicKey = 7;
+    bytes padding = 8;
+    
+    //AXMLHeader type_sp_header = 8;
+    StringBlocks type_sp_string = 9;
+
+    //AXMLHeader key_sp_header = 10;
+    StringBlocks key_sp_string = 11;
+
+    repeated ARSCResType restypes = 12;
+
+
+}
+
+message ARSCResType {
+    AXMLHeader hnd = 1;
+    optional ARSCResTypeSpec typespec = 2;
+    optional ARSCResTypeType typetype = 3;
+}
+
+message ARSCResTypeSpec {
+    fixed32 id = 2; // 1
+    fixed32 res0 = 3; // 1
+    fixed32 res1 = 4; // 2
+    fixed32 entryCount = 5; // 4
+
+    repeated fixed32 entries = 6; // 4
+}
+
+message ARSCResTypeType {
+    fixed32 id = 2; // 1
+    fixed32 flags = 3; // 1
+    fixed32 reserved = 4; // 2
+    fixed32 entryCount = 5; // 4
+    fixed32 entryStart = 6; // 4
+    ARSCResTableConfig config = 7;
+
+    repeated fixed32 entries = 8;
+    repeated ARSCResTableEntry tables = 9;
+}
+
+message ARSCResTableEntry {
+    fixed32 size = 1; // 2
+    fixed32 flags = 2; // 2
+    fixed32 index = 3; // 4
+    bool present = 4;
+    optional ARSCComplex item = 5; 
+    optional ARSCResStringPoolRef key = 6;// TODO
+}
+
+message ARSCResStringPoolRef {
+    fixed32 size = 1; //2
+    fixed32 res0 = 2; //1
+    fixed32 data_type = 3; // 1
+    fixed32 data = 4; // 4
+}
+
+message ARSCComplex {
+    fixed32 id_parent = 1; // 4
+    fixed32 count = 2; // 4
+    repeated ItemComplex items = 3; 
+}
+
+message ItemComplex {
+    fixed32 id = 1; // 4
+    ARSCResStringPoolRef data = 2;
+}
+
+message ARSCResTableConfig {
+    fixed32 size = 1; // 4
+    fixed32 imsi = 2; // 4
+    fixed32 locale = 3; // 4
+    fixed32 screenType = 4; // 4
+    optional fixed32 input = 5; // 4
+    optional fixed32 screen_size = 6; //4
+    optional fixed32 version = 7; // 4
+    optional fixed32 screen_config = 8; //4
+    optional fixed32 screen_size_dp = 9; //4
+    optional fixed32 locale_script = 10; //4
+    optional fixed32 locale_variant = 11; //4
+    optional fixed32 screen_config2 = 12; //4
+    bytes padding = 13; //4
+
+}
+
+// AXMLHeaderSTRINGPOOL
+
+message AXMLHeaderSTRINGPOOL {
+    AXMLHeader hnd = 1;
+    fixed32 len_stringblocks = 2;
+    fixed32 len_styleblocks = 3;
+
+    fixed32 flag = 4;
+    fixed32 stringoffset = 5;
+    fixed32 styleoffset = 6;
+}
+
+
+// String Blocks
+
+message StringBlocks {
+    AXMLHeaderSTRINGPOOL hnd = 2;
+    repeated fixed32 stringoffsets = 4;
+    repeated fixed32 styleoffsets = 5;
+    repeated StringBlock stringblocks = 6;
+    bytes pad_stringblocks = 7;
+    repeated StyleBlock styleblocks = 8;
+    bytes pad_styleblocks = 9;
+}
+
+message StringBlock {
+    uint32 size = 1; // 2
+    optional uint32 redundant_size = 2; // 2
+    bytes data = 3;
+    bytes padding = 4;
+}
+
+message StyleBlock {
+    int32 name = 1; // id in StringBlocks
+    int32 start = 2;
+    int32 end = 3;
+}
+
+
+
+
+
+
+
+// ResourceXML
+
+message ResourceXML {
+    repeated XMLElement elts = 1;
+}
+
+message XMLElement {
+    AXMLHeader header = 1;
+    optional ResXMLStartElement start_elt = 2;
+    optional ResXMLEndElement end_elt = 3;
+    optional ResXMLStartNamespace start_ns = 4;
+    optional ResXMLEndNamespace end_ns = 5;
+    optional ResXMLCDATA cdata = 6;
+}
+
+// Generic XML elements
+
+message ResXML {
+    //uint32 type = 1;
+    //uint32 header_size = 2;
+    //fixed32 size = 3;
+
+    fixed32 lineNumber = 4;
+    fixed32 Comment = 5;
+}
+
+// All XML elements
+
+// -------------------------------------------
+
+message ResXMLCDATA {
+    ResXML generic = 1;
+    fixed32 name = 2;
+    ARSCResStringPoolRef res = 3; // TODO check if it's correct
+}
+
+message ResXMLStartElement {
+    ResXML generic = 1;
+    fixed32 namespaceURI = 2; // 4 bytes
+    fixed32 name = 3; // 4 bytes
+    fixed32 at_start = 4; // 2 bytes
+    fixed32 at_size = 5; //2 bytes
+    fixed32 attributevalue = 6;
+    fixed32 len_attributes = 7;
+    int32 styleAttribute = 8;
+    int32 classAttribute = 9;
+    repeated Attribute attributes = 10;
+}
+
+message Attribute {
+    fixed32 namespaceURI = 1;
+    fixed32 name = 2;
+    fixed32 value = 3;
+    fixed32 type = 4;
+    fixed32 data = 5;
+    bytes padding = 6;
+}
+// -------------------------------------------
+
+message ResXMLEndElement {
+    ResXML generic = 1;
+    fixed32 namespaceURI = 2;
+    fixed32 name = 3;
+}
+
+message ResXMLStartNamespace {
+    ResXML generic = 1;
+    fixed32 prefix = 2;
+    fixed32 uri = 3;
+}
+
+message ResXMLEndNamespace {
+    ResXML generic = 1;
+    fixed32 prefix = 2;
+    fixed32 uri = 3;
+}
+
+
+
+
+// ResourceMap
+
+message ResourceMap {
+    AXMLHeader header = 1;
+    repeated fixed32 res = 2;
+}
+
+// Main object
+
+message AXML {
+    AXMLHeader header_xml = 1;
+    StringBlocks stringblocks = 3;
+    optional ResourceMap resourcemap = 4;
+    ResourceXML resourcexml = 5;
+}
+
+message ARSC {
+    AXMLHeaderRESTABLE header_res = 1;
+    StringBlocks stringblocks = 3;
+    repeated AXMLResTablePackage  restablespackage = 4;
+}
