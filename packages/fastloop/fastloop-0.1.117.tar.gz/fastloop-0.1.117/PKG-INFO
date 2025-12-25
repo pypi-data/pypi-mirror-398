@@ -1,0 +1,93 @@
+Metadata-Version: 2.4
+Name: fastloop
+Version: 0.1.117
+Summary: A Python package for deploying stateful loops
+Project-URL: Homepage, https://github.com/beam-cloud/fastloop
+Project-URL: Repository, https://github.com/beam-cloud/fastloop
+Project-URL: Issues, https://github.com/beam-cloud/fastloop/issues
+Author-email: Luke Lombardi <luke@beaml.cloud>
+License: MIT
+Keywords: agentic,ai,baml,workflow
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.12
+Requires-Dist: aioboto3>=15.0.0
+Requires-Dist: aiohttp>=3.9.0
+Requires-Dist: cloudpickle>=3.1.1
+Requires-Dist: croniter>=2.0.0
+Requires-Dist: fastapi>=0.115.14
+Requires-Dist: fastmcp==2.9.0
+Requires-Dist: httpx>=0.24.0
+Requires-Dist: hypercorn>=0.17.3
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: redis>=6.2.0
+Requires-Dist: slack-sdk>=3.27.0
+Provides-Extra: dev
+Requires-Dist: build>=1.0.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.8.0; extra == 'dev'
+Requires-Dist: twine>=4.0.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# FastLoop
+
+A Python package for building and deploying stateful loops. We use this at [beam.cloud](https://www.beam.cloud) to deploy agents.
+
+## Installation
+
+```bash
+pip install fastloop
+```
+
+## Usage
+
+### Basic Example
+
+```python
+from fastloop import FastLoop, LoopContext, LoopEvent
+
+app = FastLoop(name="my-app")
+
+@app.event("user_message")
+class UserMessage(LoopEvent):
+    user_id: str
+    message: str
+
+@app.loop(name="chat", start_event=UserMessage)
+async def chat_loop(context: LoopContext):
+    user_msg = await context.wait_for(UserMessage, timeout=5.0)
+    print(f"User {user_msg.user_id} sent a message: {user_msg.message}")
+    
+    # Your loop logic here
+
+    # If you want to stop the loop
+    context.stop()
+
+    # If you want to pause the loop
+    context.pause()
+
+    # By default, we just run it again
+
+if __name__ == "__main__":
+    app.run(port=8000)
+```
+
+## Development
+
+This project uses `uv` for dependency management.
+
+```bash
+# Install dependencies
+uv sync
+
+# Run tests
+uv run pytest
+
+# Build package
+uv build
+```

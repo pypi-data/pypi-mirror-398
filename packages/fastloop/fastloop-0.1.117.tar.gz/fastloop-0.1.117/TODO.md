@@ -1,0 +1,12 @@
+- slack integration - WIP
+   - rx messages and start loops - DONE
+   - map thread_id to loop_id for persistence - DONE
+   - tx messages to slack - DONE
+   - more events...
+
+- class based instantiation 
+- different executors for thread/process handling of different loops
+- vis endpoint
+- voice integration / client side streaming 
+- auto capture llm calls for fixture data
+- graph based evals?
