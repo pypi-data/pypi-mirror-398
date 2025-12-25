@@ -1,0 +1,146 @@
+"""
+Edge encoder for Napistu-Torch.
+
+This module provides a simple MLP-based edge encoder for learning edge importance weights.
+"""
+
+from typing import Any, Dict
+
+import torch
+import torch.nn as nn
+
+from napistu_torch.models.constants import (
+    EDGE_ENCODER_ARGS,
+    EDGE_ENCODER_ARGS_TO_MODEL_CONFIG_NAMES,
+    MODEL_DEFS,
+)
+
+
+class EdgeEncoder(nn.Module):
+    """
+    Learns edge importance weights from edge features.
+
+    This is a standalone module that composes with GNNEncoder to provide
+    learned edge weights for message passing.
+
+    Architecture
+    ------------
+    edge_features → MLP → sigmoid → edge_weights [0, 1]
+
+    The output edge weights scale message contributions during GNN aggregation,
+    effectively learning to filter out noisy edges.
+
+    Parameters
+    ----------
+    edge_dim : int
+        Dimensionality of input edge features
+    hidden_dim : int, default=32
+        Hidden layer size. Keep small to avoid overfitting.
+    dropout : float, default=0.1
+        Dropout probability for regularization
+    init_bias : float, default=0.0
+        Initial bias for output layer. Controls starting edge weights:
+        - 0.0 → sigmoid(0) = 0.5 (neutral, equal weighting)
+        - 1.4 → sigmoid(1.4) ≈ 0.8 (optimistic, most edges good)
+        - -1.4 → sigmoid(-1.4) ≈ 0.2 (pessimistic, most edges bad)
+
+    Public Methods
+    --------------
+    config(self) -> Dict[str, Any]:
+        Get the configuration dictionary for this edge encoder.
+    forward(self, edge_attr: torch.Tensor) -> torch.Tensor:
+        Compute edge importance weights from edge features.
+    get_summary(self, to_model_config_names: bool = False) -> Dict[str, Any]:
+        Get the summary dictionary for this edge encoder.
+
+    Examples
+    --------
+    >>> # Create edge encoder
+    >>> edge_encoder = EdgeEncoder(edge_dim=10, hidden_dim=32)
+    >>>
+    >>> # Use with GNNEncoder
+    >>> edge_weights = edge_encoder(edge_attr)  # [num_edges, 10] -> [num_edges]
+    >>> z = gnn_encoder(x, edge_index, edge_weight=edge_weights)
+
+    Notes
+    -----
+    - Output is in [0, 1] via sigmoid
+    - Very lightweight: ~edge_dim * hidden_dim parameters
+    - Learns end-to-end with the main task
+    - Can be initialized to approximate existing heuristics
+    """
+
+    def __init__(
+        self,
+        edge_dim: int,
+        hidden_dim: int = 32,
+        dropout: float = 0.1,
+        init_bias: float = 0.0,
+    ):
+        super().__init__()
+
+        # Store all initialization parameters FIRST
+        self._init_args = {
+            MODEL_DEFS.EDGE_IN_CHANNELS: edge_dim,
+            EDGE_ENCODER_ARGS.HIDDEN_DIM: hidden_dim,
+            EDGE_ENCODER_ARGS.DROPOUT: dropout,
+            EDGE_ENCODER_ARGS.INIT_BIAS: init_bias,
+        }
+
+        self.edge_dim = edge_dim
+        self.hidden_dim = hidden_dim
+
+        # Simple MLP: edge_features -> importance score
+        self.net = nn.Sequential(
+            nn.Linear(edge_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, 1),
+            nn.Sigmoid(),  # [0, 1] range for weights
+        )
+
+        # Initialize output layer bias
+        with torch.no_grad():
+            self.net[-2].bias.fill_(init_bias)
+
+    @property
+    def config(self) -> Dict[str, Any]:
+        """Get the configuration dictionary for this edge encoder."""
+        return self._init_args.copy()
+
+    def forward(self, edge_attr: torch.Tensor) -> torch.Tensor:
+        """
+        Compute edge importance weights from edge features.
+
+        Parameters
+        ----------
+        edge_attr : torch.Tensor
+            Edge features [num_edges, edge_dim]
+
+        Returns
+        -------
+        edge_weight : torch.Tensor
+            Learned edge importance weights [num_edges]
+            Values in range [0, 1] where higher = more important
+        """
+        return self.net(edge_attr).squeeze(-1)
+
+    def get_summary(self, to_model_config_names: bool = False) -> Dict[str, Any]:
+        """
+        Get the summary dictionary for this edge encoder.
+
+        Returns a dict containing all initialization parameters needed
+        to reconstruct this edge encoder instance.
+        """
+
+        if to_model_config_names:
+            summary = {}
+            for k, v in self._init_args.items():
+                if k in EDGE_ENCODER_ARGS_TO_MODEL_CONFIG_NAMES:
+                    summary[EDGE_ENCODER_ARGS_TO_MODEL_CONFIG_NAMES[k]] = v
+                else:
+                    summary[k] = v
+        else:
+            summary = self.config
+
+        return summary
