@@ -1,0 +1,722 @@
+---
+title: "ADM Standalone Model Report"
+title-block-banner: true
+author: "Pega Data Scientist tools"
+date: today
+subtitle: >
+  Details of one ADM model instance
+execute:
+  echo: false
+format:
+  html:
+    page-layout: full
+    code-fold: true
+    standalone: true
+    code-tools: true
+    toc: true
+    toc-title: Table of Contents
+    theme:
+        light: flatly
+    fontsize: small
+    css: assets/pega-report-overrides.css
+jupyter: python3
+---
+
+```{python}
+# | code-fold: true
+# | output: false
+
+import sys
+import os.path
+from pathlib import Path
+import traceback
+
+from pdstools import datasets, ADMDatamart, read_ds_export
+from pdstools.utils.cdh_utils import z_ratio, lift
+import polars as pl
+from IPython.display import display, Markdown
+from great_tables import GT, style, md, html, loc
+import plotly.express as px
+from plotly.graph_objects import Figure
+from typing import Union, Optional, Literal
+
+# from pdstools.adm.CDH_Guidelines import CDHGuidelines
+# from pdstools.utils import pega_template
+from pdstools.utils import report_utils
+
+```
+
+```{python}
+# | tags: [parameters]
+
+# Insert the paths to your data files here to run the notebook from your IDE.
+# Edit the _quarto.yml to enable/disable specific sections of the quarto output.
+# Parameters will be overriden by quarto when a parameters yaml is provided
+
+title = "ADM Model Details"
+subtitle = "Sample data"
+
+model_file_path = None
+predictor_file_path = None
+query = None
+model_id = None
+
+only_active_predictors = True
+
+```
+
+```{python}
+# Below needed because current Yaml lib reads None back in as the string None
+# TODO consider a different lib that supports roundtrip preservation like ruamel.yaml
+if model_file_path and model_file_path == "None":
+    model_file_path = None
+if predictor_file_path and predictor_file_path == "None":
+    predictor_file_path = None
+if query and query == "None":
+    query = None
+if model_id and model_id == "None":
+    model_id = None
+
+if model_id is not None and predictor_file_path is not None:
+    datamart = ADMDatamart.from_ds_export(
+        model_filename=model_file_path,
+        predictor_filename=predictor_file_path,
+        query=pl.col("ModelID") == model_id,
+    )
+
+    # .fillMissing()
+else:
+    # fall back to sample data
+    model_id = "bd70a915-697a-5d43-ab2c-53b0557c85a0"
+    datamart = datasets.cdh_sample(query=pl.col("ModelID") == model_id)
+
+# TODO ensure this is only one predictor snapshot, just in case? although it would be
+# neat to show predictor evolution, if available
+
+# # Simple way to make sure Treatment is set and not null
+# if "Treatment" in datamart.model_data.collect_schema().names():
+#     datamart.model_data = datamart.model_data.with_columns(
+#         pl.col("Treatment").fill_null("-")
+#     )
+# else:
+#     datamart.model_data = datamart.model_data.with_columns(
+#         pl.lit("-").alias("Treatment")
+#     )
+
+if only_active_predictors:
+    status_filter = pl.col("EntryType") == "Active"
+else:
+    status_filter = pl.col("EntryType") != "Classifier"
+```
+
+```{python}
+channel_name = (
+    datamart.aggregates.last()
+    .select(
+        pl.concat_str(
+            report_utils.polars_subset_to_existing_cols(
+                datamart.aggregates.last().collect_schema().names(),
+                ["Direction", "Channel"],
+            ),
+            separator="/", ignore_nulls=True
+        )
+    )
+    .unique()
+    .collect()
+    .item()
+)
+model_name_in_context = (
+    datamart.aggregates.last()
+    .select(
+        pl.concat_str(
+            report_utils.polars_subset_to_existing_cols(
+                datamart.aggregates.last().collect_schema().names(),
+                ["Issue", "Group", "Name", "Treatment"],
+            ),
+            separator="/", ignore_nulls=True
+        )
+    )
+    .unique()
+    .collect()
+    .item()
+)
+model_name = (
+    datamart.aggregates.last()
+    .select(
+        pl.concat_str(
+            report_utils.polars_subset_to_existing_cols(
+                datamart.aggregates.last().collect_schema().names(),
+                ["Name", "Treatment"],
+            ),
+            separator="/", ignore_nulls=True
+        )
+    )
+    .unique()
+    .collect()
+    .item()
+)
+
+report_utils.quarto_print(
+    f"""
+# {title}
+
+{subtitle}
+
+## {model_name_in_context}
+
+| Channel | ID |
+|:-----|------:|
+| {channel_name} | {model_id} |
+
+"""
+)
+```
+
+```{python}
+try:
+    fig = datamart.plot.score_distribution(model_id=model_id)
+
+    # Customize some of the default styling of the plot
+
+    fig.update_layout(
+        title=f"Classifier Score Distribution<br>{model_name}", xaxis_title=""
+    )
+    fig.data[0].opacity = 0.5
+    fig.data[1].line.color = "#EF8B08"
+    fig.data[1].line.width = 3
+    fig.data[1].marker.color = "black"
+
+    fig.show()
+except Exception as e:
+    report_utils.quarto_plot_exception("Classifier Score Distribution", e)
+
+```
+
+::: callout-tip
+The charts are built with [Plotly](https://plotly.com/python/) and have [user controls for panning, zooming etc](https://plotly.com/chart-studio-help/zoom-pan-hover-controls/) but note that these interactive plots do not render well in portals like Sharepoint or Box. It is preferable to view them from a browser.
+:::
+
+## Model Performance
+
+```{python}
+
+# unfortunately and TODO return_df on the previous plot doesnt give all the columns we'd need so we have to fetch the data separately
+
+try:
+    classifier = (
+        datamart.aggregates.last(table="predictor_data")
+        .filter(pl.col("ModelID") == model_id)
+        .filter(pl.col("EntryType") == "Classifier")
+        .sort("BinIndex")
+    )
+
+    active_range_info = datamart.active_ranges(model_id).collect().to_dicts()[0]
+
+    auc_roc = round(active_range_info['AUC_ActiveRange'], 4)
+
+    report_utils.quarto_print(
+        f"The model performance is **{auc_roc}** measured as AUC-ROC. This number is calculated from the 'active' bins of the Classifier. In Pega, AUC is always scaled to a number 50-100."
+    )
+except Exception as e:
+    report_utils.quarto_plot_exception("Model Performance", e)
+```
+
+The classifier maps the model scores (average of the log odds of the active predictors) to a propensity value. The “active” bins are the ones that can be reached from the current binning of the active predictors.
+
+See the [ADM Explained](https://pegasystems.github.io/pega-datascientist-tools/Python/articles/ADMExplained.html) article for more information on how ADM exactly works.
+
+```{python}
+try:
+    gt = (
+        report_utils.table_standard_formatting(
+            classifier.collect().select(
+                pl.last("ResponseCount"),
+                pl.last("Positives"),
+                (pl.last("Positives") / pl.last("ResponseCount")).alias(
+                    "Base Propensity"
+                ),
+                (pl.lit(auc_roc) * 100).alias("Performance"),
+            ),
+            highlight_limits={
+                "Responses": "ResponseCount",
+                "Positive Responses": "Positives",
+                "Model Performance": "Performance",
+                "CTR": "Base Propensity",
+            },
+        ).cols_label(
+            ResponseCount="Responses",
+        )
+    )
+
+    display(gt)
+except Exception as e:
+    report_utils.quarto_plot_exception("Model Performance", e)
+```
+
+## Score Distribution
+
+The Score Distribution shows the volume and average propensity in every bin of the score ranges of the Classifier.
+
+Propensity is defined as $\frac{positives}{positives+negatives}$ per bin. The adjusted propensity that is returned is a small modification (*Laplace smoothing*) to this and calculated as $\frac{0.5+positives}{1+positives+negatives}$ so new models initially return a propensity of 0.5. This helps to address the cold start when introducing new actions.
+
+Bins outside the "active range" are not shown here. The active range is the range of values that are possible with the current binning of all the (active) predictors. Score values outside of that range may still be captured by bins in the classifier but cannot occur. The AUC calculation in Pega is not using those out-of-range bins but they are present in the datamart exports.
+
+```{python}
+
+active_range_filter_expr = (pl.col("Index") >= active_range_info["idx_min"]) & (
+    pl.col("Index") <= active_range_info["idx_max"]
+)
+
+try:
+
+    human_friendly_scoredistribution = (
+        classifier.rename({"BinIndex": "Index", "BinSymbol": "Bin"}).filter(active_range_filter_expr).select(
+            "Index",
+            "Bin",
+            pl.col("BinResponseCount").alias("Responses"),
+            pl.col("BinPositives").alias("Positives"),
+            (
+                100
+                * (pl.col("BinPositives").cum_sum(reverse=True))
+                / pl.sum("BinPositives")
+            )
+            .round(2)
+            .alias("Cum. Positives (%)"),
+            (
+                100
+                * (pl.col("BinResponseCount").cum_sum(reverse=True))
+                / pl.sum("BinResponseCount")
+            )
+            .round(2)
+
+            .alias("Cum. Total (%)"),
+            (100 * pl.col("BinPropensity")).round(3).alias("Propensity (%)"),
+            z_ratio(pl.col("BinPositives"), pl.col("BinNegatives"))
+            .round(3)
+            .alias("Z Ratio"),
+            (lift(pl.col("BinPositives"), pl.col("BinNegatives")) * 100)
+            .round(2)
+            .alias("Lift (%)"),
+            (pl.col("BinAdjustedPropensity") * 100)
+            .round(3)
+            .alias("Adjusted Propensity (%)"),
+        )
+    ).collect()
+
+    # TODO some of the formatting could be done in GT instead of in polars
+
+    gt = report_utils.table_standard_formatting(
+        human_friendly_scoredistribution, title="Score Distribution"
+    ).tab_style(
+        # this won't happen now - we could consider adding
+        # that info to the list
+        style=style.text(color="grey"),
+        locations=loc.body(rows=~active_range_filter_expr),
+    )
+
+    display(gt)
+except Exception as e:
+    report_utils.quarto_plot_exception("Score Distribution", e)
+```
+
+## Cumulative Gains and Lift charts
+
+Below are alternative ways to view the Classifier.
+
+The Cumulative Gains chart shows the percentage of he overall cases in the "positive" category gained by targeting a percentage of the total number of cases. For example, this view shows how large a percentage of the total expected responders you target by targeting only the top decile.
+
+The Lift chart is derived from this and shows the ratio of the cumulative gain and the targeted volume.
+
+::: {layout-ncol="2"}
+```{python}
+
+# TODO perhaps this should move into the pdstools plot functions "plotCumulativeGains"
+# however it is so trivial, not really sure it should be. See also the other gains charts
+# in the health check.
+# TODO in HC there now is a beter way to plot gains, use that when it has progressed into PDS tools
+try:
+    fig = (
+        px.area(
+            human_friendly_scoredistribution,
+            x="Cum. Total (%)",
+            y="Cum. Positives (%)",
+            title="Cumulative Gains",
+            template="pega",
+        )
+        .add_shape(type="line", line=dict(dash="dash"), x0=0, x1=100, y0=0, y1=100)
+        .update_yaxes(
+            scaleanchor="x",
+            scaleratio=1,
+            constrain="domain",
+            title="% of Positive Responders",
+        )
+        .update_xaxes(constrain="domain", title="% of Population")
+        .update_layout(
+            autosize=False,
+            width=400,
+            height=400,
+        )
+    )
+
+    fig.show()
+except Exception as e:
+    report_utils.quarto_plot_exception("Cumulative Gains", e)
+
+```
+
+```{python}
+# TODO perhaps this should move into the pdstools plot functions "plotCumulativeLift"
+try:
+    fig = (
+        px.area(
+            human_friendly_scoredistribution,
+            x="Cum. Total (%)",
+            y="Lift (%)",
+            title="Lift",
+            template="pega",
+        )
+        .update_yaxes(
+            scaleanchor="x", scaleratio=0.01, constrain="domain", title="Propensity Lift"
+        )
+        .update_xaxes(constrain="domain", title="% of Population")
+        .update_layout(
+            autosize=False,
+            width=400,
+            height=400,
+        )
+    )
+
+    fig.show()
+except Exception as e:
+    report_utils.quarto_plot_exception("Lift", e)
+
+```
+:::
+
+```{python}
+try:
+    fig = px.bar(
+        classifier.unpivot(
+            index=["BinSymbol", "BinIndex"],
+            on=["BinPositives", "BinNegatives"],
+            value_name="Count",
+            variable_name="Response",
+        ).with_columns(
+            (pl.col("Count") / pl.col("Count").max()).over("Response").alias("Relative Count")
+        ).collect(),
+        x="BinIndex",
+        y="Relative Count",
+        color="Response",
+        barmode="group",
+        template="pega",
+        title="Class Separation",
+        height=400, width=600,
+        color_discrete_map={
+            'BinNegatives': 'orangered',
+            'BinPositives': 'green'
+        }
+    ).update_layout(xaxis_title=None).update_xaxes(showticklabels=False)
+    fig.show()
+except Exception as e:
+    report_utils.quarto_plot_exception("Class Separation", e)
+
+```
+
+# Trend charts
+
+::: {layout-ncol="2"}
+```{python}
+# TODO see if we can put the various trend charts in tabs - although this seems to require go not express, then gain .data[0] probably gives the go objects
+
+# But maybe .data[0] gives the trace
+try:
+    fig = (
+        datamart.plot.over_time("Performance")
+        .update_layout(
+            title="Model Performance Trend",
+            yaxis_title="ROC-AUC",
+            xaxis_title="",
+            showlegend=False,
+            autosize=False,
+            width=400,
+            height=300,
+        )
+    )
+
+    fig.show()
+except Exception as e:
+    report_utils.quarto_plot_exception("Model Performance Trend", e)
+
+```
+
+```{python}
+try:
+    fig = (
+        datamart.plot.over_time("SuccessRate")
+        .update_layout(
+            title="Success Rate Trend",
+            yaxis_title="Success Rate",
+            xaxis_title="",
+            showlegend=False,
+            autosize=False,
+            width=400,
+            height=300,
+        )
+        .update_yaxes(rangemode="tozero")
+    )
+
+    fig.show()
+except Exception as e:
+    report_utils.quarto_plot_exception("Success Rate Trend", e)
+```
+:::
+
+# Performance by Predictor Category
+
+Showing the performance across all predictors. The predictor categories default to the text before the first dot. This can be customized when reading the data for a particular customer.
+
+```{python}
+# | error: true
+
+try:
+    fig = datamart.plot.predictor_category_performance()
+
+    fig.update_layout(
+        title="Predictor Performance per Category",
+        yaxis_title="",
+        showlegend=False,
+        height=300,
+        width=500,
+    )
+
+    fig.show()
+except Exception as e:
+    report_utils.quarto_plot_exception("Predictor Performance per Category", e)
+
+```
+
+# Predictor Overview
+
+The predictors for this model are sorted by performance and grouped if they are correlated (shown with an indentation and a lighter color).
+
+The negatives and positives counts are usually the same across all the predictors but will be different when predictors have been removed or added. IH predictors often have slightly lower counts.
+
+For Adaptive Gradient Boosting models ("AGB") the number of positives and negatives is not available.
+
+```{python}
+# TODO add a list of correlated predictors as a list, to show in the
+# single predictor view (not the overview, that already shows them with indentation)
+# See https://github.com/pegasystems/pega-datascientist-tools/issues/127
+
+predictors_summary_info = (
+    datamart.aggregates.predictors_overview(model_id=model_id,
+    additional_aggregations=[pl.col("BinResponseCount").cast(pl.String).alias("Binning")])
+    .with_columns(pl.col("isActive").any().over("GroupIndex").alias("AnyActiveInGroup"))
+    .with_columns(
+        pl.when(pl.col("isActive").not_() & pl.col("AnyActiveInGroup"))
+        .then(pl.lit("&nbsp;&nbsp;&nbsp;&nbsp;"))
+        .otherwise(pl.lit(""))
+        .alias("Indentation")
+    )
+    .with_columns(
+        pl.col("Binning").list.join(" "),
+        pl.when(status_filter)
+        .then(
+            pl.format(
+                "{} [{}](#{})",
+                pl.col("Indentation"),
+                pl.col("PredictorName"),
+                pl.col("PredictorName")
+                .cast(pl.String)
+                .str.to_lowercase()
+                .str.replace_all(" ", "-", literal=True),
+            )
+        )
+        .otherwise(pl.format("{}{}", pl.col("Indentation"), pl.col("PredictorName")))
+        .alias("PredictorLink"),
+    )
+)
+
+
+# TODO we can easily color the predictors by Category
+
+gt = (
+    report_utils.table_standard_formatting(
+        predictors_summary_info.filter(pl.col("EntryType") != "Classifier").collect(),
+        rowname_col="PredictorLink",
+        title="Predictor Overview"
+    )
+)
+
+display(
+    gt.cols_hide(
+        [
+            "Positives",
+            "Responses",
+            "PredictorName",
+            "isActive",
+            "GroupIndex",
+            "AnyActiveInGroup",
+            "Indentation",
+        ]
+    )
+    .cols_label(EntryType="Status")
+    .fmt_number(
+        decimals=2,
+        scale_by=100.0,
+        columns=["Univariate Performance"],
+    )
+    .fmt_number(
+        decimals=2,
+        columns=["Missing %", "Residual %"],
+    )
+    .tab_style(
+        style=style.text(color="grey"),
+        locations=loc.body(rows=pl.col("isActive").not_()),
+    )
+    .fmt_nanoplot(columns="Binning", plot_type="bar")
+    .fmt_markdown(columns=["PredictorLink"])
+)
+```
+
+# Binning of the Predictors
+
+The predictors are listed in the same order as in the summary above.
+
+```{python}
+report_utils.quarto_print(
+    f"""
+Here we show **{'only the active' if only_active_predictors else 'all'}**
+predictors. This can be configured via a parameter to this report.
+"""
+)
+```
+
+```{python}
+# | output: asis
+
+def show_single_predictor(pred):
+    report_utils.quarto_print(f"## {pred}")
+
+    predictor_binning_data = (
+        datamart.aggregates.last(table="predictor_data")
+        .filter(pl.col("ModelID") == model_id)
+        .filter(pl.col("PredictorName") == pred)
+        .sort("BinIndex")
+    )
+
+    predictor_properties = predictors_summary_info.filter(pl.col("PredictorName") == pred)
+
+    base_propensity = (
+        predictor_properties.select(pl.col("Positives") / pl.col("Responses"))
+        .collect()
+        .item()
+    )
+
+    # Predictor summary
+
+    display(
+        report_utils.table_standard_formatting(predictor_properties.collect())
+        .fmt_number(
+            decimals=2,
+            scale_by=100.0,
+            columns=["Univariate Performance"],
+        )
+        .fmt_number(
+            decimals=2,
+            columns=["Missing %", "Residual %"],
+        )
+        .fmt_number(
+            decimals=0,
+            columns=["Positives", "Responses"],
+        )
+        .cols_hide(["PredictorName", "isActive", "GroupIndex", "AnyActiveInGroup", "Indentation", "Binning", "PredictorLink"])
+        .cols_label(EntryType="Status")
+    )
+
+    # Predictor binning
+
+    try:
+        fig = datamart.plot.predictor_binning(model_id=model_id, predictor_name=pred)
+
+        # Customize some of the default styling of the plot
+
+        fig.update_layout(title="Predictor Binning", xaxis_title="")
+        # fig.layout.yaxis2.tickformat = ",.3%"
+        fig.data[0].opacity = 0.5
+        fig.data[1].line.color = "#EF8B08"
+        fig.data[1].line.width = 3
+        fig.data[1].marker.color = "black"
+
+        # Add line for base propensity, TODO consider putting back in the library
+        fig.add_hline(y=base_propensity, line_dash="dash", line_color="grey", yref="y2")
+        # fig.update_xaxes(type='category') # prevent plotly from trying to guess
+
+        fig.update_layout(width=700, height=250)
+        fig.show()
+
+        # Alternative view in the binning Lift plot
+
+        report_utils.quarto_print("   ")
+        report_utils.quarto_print("___")  # renders as horizontal line
+
+        fig = datamart.plot.binning_lift(model_id=model_id, predictor_name=pred)
+        fig.update_layout(width=700, height=250)
+        fig.show()
+    except Exception as e:
+        report_utils.quarto_plot_exception(f"Error in Predictor Binning plot for {pred}", e)
+
+    # Table with binning details
+
+    human_friendly_binning_table = predictor_binning_data.select(
+        pl.col("BinIndex").alias("Index"),
+        pl.col("BinSymbol").alias("Bin"),
+        pl.col("BinResponseCount").alias("Responses"),
+        pl.col("BinPositives").alias("Positives"),
+        z_ratio(pl.col("BinPositives"), pl.col("BinNegatives"))
+        .round(3)
+        .alias("Z Ratio"),
+        ((lift(pl.col("BinPositives"), pl.col("BinNegatives")) - 1.0) * 100)
+        .round(2)
+        .alias("Lift (%)"),
+        (pl.col("BinPropensity") * 100).round(3).alias("Propensity (%)"),
+    ).collect()
+
+    display(
+        report_utils.table_standard_formatting(human_friendly_binning_table)
+        .fmt_nanoplot(columns="Z Ratio", plot_type="bar", autoscale=False)
+    )
+
+    report_utils.quarto_print("   ")
+    report_utils.quarto_print("___")  # renders as horizontal line
+
+
+for pred in (
+    predictors_summary_info.filter(status_filter)
+    .select("PredictorName")
+    .collect()
+    .to_series(0)
+):
+    show_single_predictor(pred)
+```
+
+# Credits
+
+```{python}
+# | echo: false
+
+# unfortunately no way to get the quarto source file name, so that is hardcoded
+report_utils.show_credits("pega-datascientist-tools/python/pdstools/reports/ModelReport.qmd")
+```
+
+::: {.callout-note collapse="true"}
+## Expand for detailed version information
+
+```{python}
+# | code-fold: false
+from pdstools.utils import show_versions
+show_versions.show_versions()
+```
+:::
+
+For more information please see the [Pega Data Scientist Tools](https://github.com/pegasystems/pega-datascientist-tools).

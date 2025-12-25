@@ -1,0 +1,95 @@
+[build-system]
+requires      = ["setuptools>=61.0.0", "wheel", "pdstools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["python", 'reports']
+include = ['pdstools*']
+exclude = ['/tests/*', '*.dist-info', '/docs/*']
+
+[tool.setuptools.package-data]
+"*" = ['*.qmd', '*/pega-report-overrides.css', 'py.typed', '*.sql', 'GlobalExplanations/**/*']
+
+[project]
+name = "pdstools"
+dynamic = ["version"]
+description = "Open source tooling that helps Data Scientists to analyze Pega models and conduct impactful analyses."
+readme = "README.md"
+authors = [ { name = "Stijn Kas", email = "stijn.kas@pega.com" } ]
+license = {text = "Apache-2.0"}
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+]
+keywords = [
+    "pega",
+    "pegasystems",
+    "pdstools",
+    "datascientist",
+    "tools",
+]
+requires-python = ">=3.9,<3.14"
+dependencies = [
+    "polars>=1.30,!=1.35.1,<=1.36.1",
+    'typing_extensions',
+]
+
+[tool.setuptools.dynamic]
+version = {attr="pdstools.__version__"}
+
+[project.optional-dependencies]
+adm = [
+    "plotly[express]>=6.0",
+    'requests',
+]
+pega_io = ['aioboto3', 'polars_hash']
+api = ['httpx', 'pydantic', 'anyio']
+healthcheck = ['pdstools[adm]', 'great_tables>=0.13', 'quarto', 'papermill', 'xlsxwriter>=3.0', 'pydot']
+explanations = ['duckdb', "plotly[express]", "pyarrow", "pyyaml", "ipywidgets"]
+app = ['pdstools[healthcheck]', 'streamlit>=1.45']
+onnx = [
+    'scikit-learn>=1.6.1',
+    'skl2onnx>=1.19.1',  # Updated to be compatible with onnx 1.19.0+
+    'onnx>=1.18,<1.20',      # Using ONNX 1.18.x specifically
+    'pdstools[api]',
+    "onnxruntime==1.18.1 ; python_full_version < '3.10'",
+    "onnxruntime>=1.22 ; python_full_version >= '3.10'",
+    "scipy>=1.15.3 ; python_full_version >= '3.10'",
+]
+all = ['pdstools[app, pega_io, onnx, explanations]']
+dev = ['pre-commit']
+docs = ['sphinx','furo','sphinx-autoapi','nbsphinx','sphinx-copybutton','sphinx-tabs','myst-parser', 'sphinx-argparse', 'xgboost', 'pydantic', 'httpx', 'streamlit', 'duckdb', 'anyio']
+tests = [
+    'testbook',
+    'pytest',
+    'pytest-cov',
+    'pytest-httpx',
+    'pytest-mock',
+    "pytest-asyncio",
+    'moto',
+    'openpyxl',
+    'pdstools[all]',
+    'coverage',
+]
+
+[project.urls]
+"Homepage" = "https://github.com/pegasystems/pega-datascientist-tools"
+"Bug Tracker" = "https://github.com/pegasystems/pega-datascientist-tools/issues"
+"Docs" = "https://pegasystems.github.io/pega-datascientist-tools/"
+
+[project.scripts]
+pdstools = 'pdstools.cli:main'
+
+[dependency-groups]
+dev = [
+    "flake8>=7.3.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "--strict-markers"
+markers = [
+    "slow: marks tests as slow (report generation, integration tests)"
+]
