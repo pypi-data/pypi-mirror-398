@@ -1,0 +1,13 @@
+from ..Base import *
+from ..Proxy import *
+from .AcadToolbar import *
+
+class AcadToolbars(AppObjectCollection):
+    def __init__(self, obj) -> None: ...
+    Application: AcadApplication
+    Count: int
+    LargeButtons: bool
+    Parent: AppObject
+    def Add(self, Name: str) -> AcadToolbar: ...
+    def Item(self, Index: int | str) -> AcadToolbar: ...
+    def __iter__(self): ...
