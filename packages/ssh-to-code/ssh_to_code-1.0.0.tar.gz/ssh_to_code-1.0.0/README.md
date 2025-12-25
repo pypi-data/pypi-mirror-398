@@ -1,0 +1,351 @@
+# SSH Directory Browser
+
+A terminal-based directory browser that lets you SSH into a remote server, navigate through directories interactively, and open selected directories directly in VS Code using the Remote-SSH extension.
+
+![Terminal UI](https://img.shields.io/badge/Terminal-Based-blue)
+![Python](https://img.shields.io/badge/Python-3.7+-green)
+![VS Code](https://img.shields.io/badge/VS%20Code-Remote--SSH-purple)
+
+
+## Features
+
+- 🚀 **Interactive Terminal UI** - Browse remote directories with an intuitive curses-based interface
+- 🔐 **Secure SSH Connection** - Support for key-based and password authentication
+- 📂 **Visual File Browser** - Clear indicators for directories, files, executables, and symlinks
+- 💻 **VS Code Integration** - Open any remote directory directly in VS Code with one keystroke
+- ⚙️ **Configuration Management** - Save frequently used SSH hosts for quick access
+- 🎨 **Keyboard Navigation** - Fast and efficient navigation using arrow keys
+
+## Requirements
+
+- Python 3.7 or higher
+- VS Code with Remote-SSH extension
+- SSH access to remote server
+
+## Installation
+
+### 1. Clone the repository
+
+```bash
+git clone <repository-url>
+cd ssh-to-code
+```
+
+### 2. Install Python dependencies
+
+```bash
+pip install paramiko
+```
+
+Or use the provided requirements file:
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Make the script executable
+
+```bash
+chmod +x ssh_dir_browser.py
+```
+
+### 4. (Optional) Add to PATH
+
+For easy access from anywhere:
+
+```bash
+# Add to your ~/.bashrc or ~/.zshrc
+export PATH="$PATH:/path/to/ssh-to-code"
+
+# Or create a symlink
+sudo ln -s /path/to/ssh-to-code/ssh_dir_browser.py /usr/local/bin/ssh-browse
+```
+
+## Quick Start
+
+### Basic Usage
+
+Connect to a remote server and start browsing:
+
+```bash
+# Option 1: Use the wrapper script (automatically activates venv)
+./ssh-browse user@hostname
+
+# Option 2: Activate venv manually
+source venv/bin/activate
+python ssh_dir_browser.py user@hostname
+```
+
+### With Custom Port
+
+```bash
+./ssh-browse user@hostname -p 2222
+```
+
+### With SSH Key
+
+```bash
+./ssh-browse user@hostname -i ~/.ssh/my_key
+```
+
+### Start in Specific Directory
+
+```bash
+./ssh-browse user@hostname --start-path /var/www
+```
+
+### Password Authentication
+
+```bash
+./ssh-browse user@hostname --password
+```
+
+### AWS EC2 Example
+
+```bash
+./ssh-browse ubuntu@ec2-12-34-56-78.compute.amazonaws.com -i ~/Downloads/aws-key.pem
+```
+
+## Usage
+
+### Keyboard Controls
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Navigate up/down |
+| `Enter` | Open directory |
+| `o` | Open current directory in VS Code |
+| `n` | Create new folder |
+| `h` | Go to home directory |
+| `r` | Refresh directory listing |
+| `q` | Quit |
+
+### Navigation
+
+1. Use arrow keys to move through the directory listing
+2. Press `Enter` to enter a directory
+3. Select `..` to go to parent directory
+4. Press `n` to create a new folder in the current directory
+5. Press `r` to refresh the directory contents
+6. Press `o` when you want to open the current directory in VS Code
+
+### VS Code Integration
+
+When you press `o`, the application will:
+1. Open VS Code
+2. Connect to the remote server via Remote-SSH
+3. Open the selected directory
+4. Exit the browser
+
+Make sure you have:
+- VS Code installed with the `code` command in your PATH
+- Remote-SSH extension installed in VS Code
+- SSH host properly configured (or the app will help configure it)
+
+### Authentication Methods
+
+The tool supports multiple authentication methods:
+
+1. **Unencrypted SSH Keys**: Automatic authentication
+2. **Encrypted SSH Keys**: Will prompt for passphrase (3 attempts)
+3. **Password Authentication**: Use `--password` flag
+4. **SSH Agent**: Automatically uses keys from ssh-agent
+
+**See [AUTH_GUIDE.md](AUTH_GUIDE.md) for detailed authentication instructions**, including:
+- How to handle encrypted PEM files
+- What to do when you don't have the passphrase
+- Using SSH agent for convenience
+- Troubleshooting authentication issues
+- Cloud provider specific examples (AWS, DigitalOcean, etc.)
+
+## Configuration
+
+### Saving SSH Hosts
+
+You can save frequently used SSH connections:
+
+```python
+from config_manager import ConfigManager
+
+config = ConfigManager()
+config.add_host(
+    name="myserver",
+    hostname="example.com",
+    username="myuser",
+    port=22,
+    key_file="~/.ssh/id_rsa",
+    default_path="/var/www"
+)
+```
+
+### Configuration File
+
+The configuration is stored in `~/.ssh-dir-browser.json`:
+
+```json
+{
+  "version": "1.0",
+  "hosts": [
+    {
+      "name": "myserver",
+      "hostname": "example.com",
+      "username": "myuser",
+      "port": 22,
+      "key_file": "~/.ssh/id_rsa",
+      "default_path": "/var/www"
+    }
+  ],
+  "preferences": {
+    "default_start_path": "~",
+    "save_last_path": true
+  }
+}
+```
+
+## Project Structure
+
+```
+ssh-to-code/
+├── ssh_dir_browser.py      # Main application with terminal UI
+├── ssh_handler.py           # SSH connection management
+├── vscode_integration.py    # VS Code Remote-SSH integration
+├── config_manager.py        # Configuration file management
+├── requirements.txt         # Python dependencies
+├── config.json.example      # Example configuration
+└── README.md               # This file
+```
+
+## Examples
+
+### Example 1: Browse and Open Web Server Directory
+
+```bash
+./ssh_dir_browser.py webdev@myserver.com --start-path /var/www/html
+```
+
+Navigate to your project directory and press `o` to open it in VS Code.
+
+### Example 2: Access Development Server with Custom Key
+
+```bash
+./ssh_dir_browser.py dev@staging.example.com -i ~/.ssh/staging_key -p 2222
+```
+
+### Example 3: Quick Access to Home Directory
+
+```bash
+./ssh_dir_browser.py user@server.com
+# Press 'h' in the browser to go to home directory
+# Navigate to desired folder
+# Press 'o' to open in VS Code
+```
+
+## Troubleshooting
+
+### VS Code Command Not Found
+
+Make sure VS Code is installed and the `code` command is in your PATH:
+
+```bash
+# For macOS
+# Open VS Code, press Cmd+Shift+P, type "shell command"
+# Select "Shell Command: Install 'code' command in PATH"
+
+# For Linux
+sudo ln -s /usr/share/code/bin/code /usr/local/bin/code
+
+# Verify installation
+code --version
+```
+
+### Remote-SSH Extension Not Installed
+
+Install it from VS Code:
+1. Open VS Code
+2. Go to Extensions (Cmd+Shift+X)
+3. Search for "Remote - SSH"
+4. Install the extension from Microsoft
+
+### SSH Connection Issues
+
+- Verify SSH key permissions: `chmod 600 ~/.ssh/id_rsa`
+- Test SSH connection manually: `ssh user@hostname`
+- Check if SSH agent is running: `ssh-add -l`
+- Add key to agent: `ssh-add ~/.ssh/id_rsa`
+
+### Python Module Not Found
+
+Install the required dependency:
+
+```bash
+pip install paramiko
+```
+
+## Advanced Features
+
+### Adding Custom SSH Config
+
+The tool can automatically add SSH hosts to your `~/.ssh/config`:
+
+```python
+from vscode_integration import VSCodeRemote
+
+VSCodeRemote.add_ssh_host_to_config(
+    hostname="example.com",
+    username="myuser",
+    port=22,
+    key_file="~/.ssh/id_rsa",
+    alias="myserver"
+)
+```
+
+### Programmatic Usage
+
+You can use the components in your own scripts:
+
+```python
+from ssh_handler import SSHHandler
+from ssh_dir_browser import DirectoryBrowser
+import curses
+
+# Connect to server
+ssh = SSHHandler("example.com", "myuser", port=22)
+ssh.connect()
+
+# Browse directories
+browser = DirectoryBrowser(ssh, start_path="/var/www")
+curses.wrapper(browser.run)
+
+# Cleanup
+ssh.disconnect()
+```
+
+## Contributing
+
+Contributions are welcome! Feel free to:
+- Report bugs
+- Suggest features
+- Submit pull requests
+
+## License
+
+This project is open source and available under the MIT License.
+
+## Author
+
+Created for seamless remote development workflow with VS Code.
+
+## Roadmap
+
+- [ ] Support for bookmarking favorite directories
+- [ ] Search functionality within directories
+- [ ] File preview support
+- [ ] Support for multiple simultaneous SSH connections
+- [ ] Fuzzy search for quick navigation
+- [ ] Integration with other editors (Neovim, Sublime Text, etc.)
+
+## Acknowledgments
+
+- Built with [Paramiko](https://www.paramiko.org/) for SSH connectivity
+- Uses Python's [curses](https://docs.python.org/3/library/curses.html) for terminal UI
+- Integrates with [VS Code Remote-SSH](https://code.visualstudio.com/docs/remote/ssh)
