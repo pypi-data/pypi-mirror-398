@@ -1,0 +1,313 @@
+Metadata-Version: 2.4
+Name: mehdashti-auth-kit
+Version: 0.2.0
+Summary: Authentication utilities for Smart Platform - JWT, password hashing, and auth services
+Project-URL: Homepage, https://github.com/mehdashti/smart-platform
+Project-URL: Repository, https://github.com/mehdashti/smart-platform.git
+Project-URL: Issues, https://github.com/mehdashti/smart-platform/issues
+Author: mehdashti
+License: MIT
+Keywords: authentication,fastapi,jwt,oauth,password-hashing
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: FastAPI
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.13
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: loguru>=0.7.2
+Requires-Dist: passlib[argon2]>=1.7.4
+Requires-Dist: pydantic-settings>=2.6.0
+Requires-Dist: pydantic>=2.10.0
+Requires-Dist: python-jose[cryptography]>=3.3.0
+Provides-Extra: dev
+Requires-Dist: pytest-asyncio>=0.24.0; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.8.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# smart-auth-kit
+
+> Authentication utilities for Smart Platform - JWT tokens, password hashing, and extensible auth services
+
+## Installation
+
+```bash
+pip install smart-auth-kit
+```
+
+## Features
+
+- ✅ **JWT Tokens**: Access and refresh token generation with role-based claims
+- ✅ **Password Hashing**: Argon2id for secure password storage
+- ✅ **Auth Service**: Extensible authentication service with hooks
+- ✅ **FastAPI Integration**: Dependencies for current user and role-based access
+- ✅ **Multi-tenancy**: Built-in tenant ID support
+- ✅ **Type Safe**: Full type hints with Pydantic
+
+## Quick Start
+
+### 1. Implement User Provider
+
+```python
+from uuid import UUID
+from typing import Optional
+from mehdashti_auth.services.auth_service import UserProvider
+
+class MyUserProvider:
+    """Custom user provider backed by your database."""
+
+    def __init__(self, db):
+        self.db = db
+
+    async def get_user_by_email(self, email: str) -> Optional[dict]:
+        # Query your database
+        user = await self.db.users.find_one({"email": email})
+        if not user:
+            return None
+        return {
+            "uid": user["id"],
+            "email": user["email"],
+            "hashed_password": user["password"],
+            "is_active": user["is_active"],
+            "role": user["role"],
+        }
+
+    async def get_user_by_uid(self, uid: UUID) -> Optional[dict]:
+        user = await self.db.users.find_one({"id": uid})
+        if not user:
+            return None
+        return {
+            "uid": user["id"],
+            "email": user["email"],
+            "is_active": user["is_active"],
+            "role": user["role"],
+        }
+
+    async def create_user(self, user_data: dict) -> dict:
+        result = await self.db.users.insert_one(user_data)
+        return {**user_data, "uid": result.inserted_id}
+```
+
+### 2. Setup Auth Service
+
+```python
+from mehdashti_auth import AuthService, AuthServiceConfig, hash_password
+
+# Configuration
+config = AuthServiceConfig(
+    secret_key="your-secret-key-here",
+    access_token_expire_minutes=30,
+    refresh_token_expire_days=7,
+)
+
+# Initialize
+user_provider = MyUserProvider(db)
+auth_service = AuthService(config, user_provider)
+```
+
+### 3. FastAPI Integration
+
+```python
+from fastapi import FastAPI, Depends
+from typing import Annotated
+from mehdashti_auth.dependencies.current_user import (
+    create_get_current_user_dependency,
+    create_require_roles_dependency,
+)
+
+app = FastAPI()
+
+# Create dependencies
+get_current_user = create_get_current_user_dependency(auth_service)
+require_admin = create_require_roles_dependency(auth_service, ["admin"])
+
+# Login endpoint
+@app.post("/auth/login")
+async def login(email: str, password: str):
+    try:
+        result = await auth_service.login(email, password)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+# Refresh token
+@app.post("/auth/refresh")
+async def refresh(refresh_token: str):
+    try:
+        result = await auth_service.refresh_access_token(refresh_token)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+# Protected endpoint
+@app.get("/users/me")
+async def read_users_me(current_user: Annotated[dict, Depends(get_current_user)]):
+    return current_user
+
+# Admin-only endpoint
+@app.delete("/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    current_user: Annotated[dict, Depends(require_admin)]
+):
+    # Only admins can access this
+    return {"message": f"User {user_id} deleted"}
+```
+
+## Password Hashing
+
+```python
+from mehdashti_auth import hash_password, verify_password
+
+# Hash password
+hashed = hash_password("my_secure_password")
+
+# Verify password
+is_valid = verify_password("my_secure_password", hashed)  # True
+is_valid = verify_password("wrong_password", hashed)      # False
+```
+
+## JWT Tokens
+
+### Creating Tokens
+
+```python
+from mehdashti_auth import create_access_token, create_refresh_token
+
+# Access token
+access_token = create_access_token(
+    subject="user-uuid",
+    secret_key="your-secret",
+    roles=["admin", "user"],
+    tenant_id="tenant-123",
+    email="user@example.com",
+)
+
+# Refresh token
+refresh_token = create_refresh_token(
+    subject="user-uuid",
+    secret_key="your-secret",
+)
+```
+
+### Decoding Tokens
+
+```python
+from mehdashti_auth import decode_token, verify_token_type
+
+# Decode token
+payload = decode_token(token, "your-secret")
+
+# Verify type
+if payload and verify_token_type(payload, "access"):
+    user_id = payload["sub"]
+    roles = payload["roles"]
+```
+
+## Extension Points
+
+### Custom Role Extraction
+
+```python
+class CustomAuthService(AuthService):
+    def get_user_roles(self, user: dict) -> list[str]:
+        # Custom logic: combine role + permissions
+        roles = [user["role"]]
+        if user.get("is_superuser"):
+            roles.append("superuser")
+        return roles
+```
+
+### Custom Login Validation
+
+```python
+class MFAAuthService(AuthService):
+    async def validate_login(self, user: dict) -> None:
+        # Add MFA check
+        if user.get("mfa_enabled"):
+            # Verify MFA code (implementation depends on your MFA system)
+            if not await self.verify_mfa(user):
+                raise ValueError("Invalid MFA code")
+```
+
+## Multi-Tenancy
+
+```python
+# Create token with tenant
+token = create_access_token(
+    subject="user-uuid",
+    secret_key="secret",
+    tenant_id="tenant-123",
+)
+
+# Extract tenant from token
+payload = decode_token(token, "secret")
+tenant_id = payload.get("tenant_id")
+```
+
+## Error Handling
+
+```python
+from mehdashti_auth import AuthService
+
+try:
+    result = await auth_service.login(email, password)
+except ValueError as e:
+    # Authentication failed
+    # Possible reasons:
+    # - Invalid email or password
+    # - User account is inactive
+    # - Custom validation failed
+    print(f"Login failed: {e}")
+```
+
+## Security Best Practices
+
+1. **Secret Key**: Use a strong, random secret key (at least 32 characters)
+   ```python
+   import secrets
+   secret_key = secrets.token_urlsafe(32)
+   ```
+
+2. **Password Requirements**: Enforce strong passwords in your application
+3. **Token Expiration**: Use short expiration for access tokens (30 min)
+4. **HTTPS Only**: Always use HTTPS in production
+5. **Token Storage**: Store tokens securely (HttpOnly cookies recommended)
+
+## Configuration
+
+### Auth Service Config
+
+```python
+from mehdashti_auth import AuthServiceConfig
+
+config = AuthServiceConfig(
+    secret_key="your-secret-key",
+    access_token_expire_minutes=30,  # Access token TTL
+    refresh_token_expire_days=7,     # Refresh token TTL
+)
+```
+
+### Environment Variables
+
+```bash
+# .env file
+SECRET_KEY=your-secret-key-here
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=7
+```
+
+## Complete Example
+
+See the `examples/` directory for a complete FastAPI application with:
+- User registration
+- Login/logout
+- Token refresh
+- Protected endpoints
+- Role-based access control
+
+## License
+
+MIT
