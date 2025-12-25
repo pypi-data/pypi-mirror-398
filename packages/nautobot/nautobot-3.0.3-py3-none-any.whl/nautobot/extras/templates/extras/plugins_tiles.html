@@ -1,0 +1,90 @@
+{% load helpers %}
+{% load static %}
+
+{% block extra_styles %}
+    <style>
+        .nb-tiles .nb-tile .nb-tile-header {
+            display: block;
+        }
+
+        .nb-tiles .nb-tile .nb-tile-header h2 {
+            margin-bottom: 0.5rem; /* 8px */
+            margin-top: 0;
+        }
+
+        .nb-tiles .nb-tile .nb-tile-actions-placeholder {
+            height: 2rem; /* 32px */
+            margin-left: 0.25rem; /* 4px */
+        }
+
+        .nb-tiles .nb-tile .nb-tile-description {
+            margin-top: 0.5rem; /* 8px */
+            min-height: 3.5rem;  /* 56px - allow room for three rows of text */
+        }
+
+        .nb-tile-actions {
+            display: flex;
+            gap: 0.25rem; /* 4px */
+            position: absolute;
+            right: 1.0625rem; /* 17px */
+            top: 0.8125rem; /* 13px */
+        }
+
+        .nb-tile-actions .btn {
+            padding: 0.375rem 0.5rem;  /* 6px 8px - enlarge action buttons to 32px x 32px */
+        }
+    </style>
+{% endblock %}
+
+<section class="nb-tiles">
+    {% for row in table.page.object_list|default:table.rows %}
+        <div class="position-relative">
+            <a class="nb-tile nb-clickable" href="{% url 'apps:app_detail' app=row.record.app_label %}">
+                <header class="nb-tile-header">
+                    <img
+                        alt="{{ row.record.name }}"
+                        src="{% if app_icons|get_item:row.record.package != None %}{{ app_icons|get_item:row.record.package }}{% else %}{% static 'img/nautobot_icon_192x192.png' %}{% endif %}"
+                        style="height: 4rem; width: 4rem;"
+                    />
+
+                    <!--
+                       Occupy `.tile-actions` dedicated space with `.tile-actions-placeholder`. See comment above
+                       `.tile-actions` element for detailed explanation of this solution and why it is required here.
+                    -->
+                    {% with actions_count=3 %}
+                        <div
+                            aria-hidden="true"
+                            class="nb-tile-actions-placeholder float-end"
+                            style="width: calc(2rem * {{ actions_count }} + 0.25rem * {{ actions_count|add:-1 }})">
+                        </div>
+                    {% endwith %}
+
+                    <h2>{{ row.record.name }}</h2>
+                </header>
+
+                <p class="nb-tile-description">{{ row.record.headline }}</p>
+
+                <footer class="nb-tile-footer">
+                    <div>By: {{ row.record.author }}</div>
+                    <div>
+                        <span class="badge bg-body-secondary border">{{ row.record.availability }}</span>
+                        v{{ row.record.version }}
+                    </div>
+                </footer>
+            </a>
+
+            <!--
+                Place app action links outside the "main" `a` tile to adhere to HTML rule that forbid nesting anchors
+                within anchors. Absolutely position the actions to make them appear inside the tile though. Fill their
+                dedicated space with `.nb-tile-actions-placeholder` element.
+            -->
+            <div class="nb-tile-actions">
+                {% for column, cell in row.items %}
+                    {% if column.verbose_name == "" %}
+                        {{ cell }}
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    {% endfor %}
+</section>
