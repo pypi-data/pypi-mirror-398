@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<object xmlns="http://textgrid.info/namespaces/metadata/core/2010" xmlns:tg="http://textgrid.info/relation-ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:tei="http://www.tei-c.org/ns/1.0" xmlns:eltec="https://textgridrep.org/terminology/eltec/">
+    <generic>
+        <provided>
+{% if work.title %}
+            <title>{{ work.title }}</title>
+{% endif %}
+            <format>text/tg.work+xml</format>
+{% if work.id %}
+    {% for id in work.id %}
+            <identifier type="URL">{{ id }}</identifier>
+    {% endfor %}
+{% endif %}
+        </provided>
+    </generic>
+    <work>
+{% if work.author.fullname %}
+    {% if work.author.id %}
+        <agent role="author" id="{{ work.author.id }}">{{ work.author.fullname }}</agent>
+    {% else %}
+        <agent role="author">{{ work.author.fullname }}</agent>
+    {% endif %}
+{% endif %}
+{% set range = work.dateOfCreation.range %}
+{% set default = work.dateOfCreation.default %}
+{% if work.dateOfCreation.date  %}
+        <dateOfCreation date="{{ work.dateOfCreation.date }}">{{ work.dateOfCreation.date }}</dateOfCreation>
+{% elif range  %}
+        <dateOfCreation notBefore="{{ range.notBefore }}" notAfter="{{ range.notAfter }}">{{ range.text }}</dateOfCreation>
+{% else %}
+        <dateOfCreation notBefore="{{ default.notBefore }}" notAfter="{{ default.notAfter }}">{{ default.text }}</dateOfCreation>
+{% endif %}
+{% for base_class in basic_classifications %}
+    {% if all_not_none([base_class.id, base_class.value, base_class.url]) %}
+        <subject>
+            <id type="{{ base_class.url }}">{{ base_class.id }}</id>
+            <value>{{ base_class.value }}</value>
+        </subject>
+    {% endif %}
+{% endfor %}
+{% for gnd_subject in gnd_subjects %}
+    {% if all([gnd_subject.id, gnd_subject.value, gnd_subject.url]) %}
+        <subject>
+            <id type="{{ gnd_subject.url }}">{{ gnd_subject.id }}</id>
+            <value>{{ gnd_subject.value }}</value>
+        </subject>
+    {% endif %}
+{% endfor %}
+{% if work.genre %}
+        <genre>{{ work.genre }}</genre>
+{% endif %}
+    </work>
+{% if any([eltec.time_slot, eltec.gender, eltec.size, eltec.reprint_count, eltec.corpus_collection]) %}
+    <relations>
+        <rdf:RDF>
+            <rdf:Description rdf:about="">
+    {% if eltec.time_slot %}
+                <eltec:timeSlot>{{ eltec.time_slot }}</eltec:timeSlot>
+                <!-- T1(1840-1859)/T2(1860-1879/T3(1880-1899)/T4(1900-1920) -->
+    {% endif %}
+    {% if eltec.gender %}
+                <eltec:authorGender>{{ eltec.gender }}</eltec:authorGender><!--
+                    M(male)/F(female)/U(unknown)/X(mixed) -->
+    {% endif %}
+    {% if eltec.size %}
+                <eltec:size>{{ eltec.size }}</eltec:size><!--
+                    number of words: long(>100.000)/medium(50.000-100.000)/short(10.000-50.000) -->
+    {% endif %}
+    {% if eltec.reprint_count %}
+                <eltec:reprintCount>{{ eltec.reprint_count }}</eltec:reprintCount><!-- low/high/unspecified -->
+    {% endif %}
+    {% if eltec.corpus_collection %}
+                <eltec:corpusCollection>{{ eltec.corpus_collection }}</eltec:corpusCollection>
+    {% endif %}
+            </rdf:Description>
+        </rdf:RDF>
+    </relations>
+{% endif %}
+</object>

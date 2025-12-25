@@ -1,0 +1,269 @@
+collection:
+    title:
+        comments:
+            - Title of the collection
+        short:
+            comments:
+                - Short title of the collection (required)
+        long:
+            comments:
+                - Long title of the collection (required)
+    rights_holder:
+        comments:
+            - 'Collection rights holder (required)'
+            - ' examples:'
+            - '- fullname: Lanegan, Mark'
+            - '  url: https://en.wikipedia.org/wiki/Mark_Lanegan'
+            - '- fullname: Gossard, Stone'
+            - '  url: https://en.wikipedia.org/wiki/Stone_Gossard'
+        required:
+            attr_name: rights_holder  # Name of attribute in TEIParser
+            iso_date: false  # No date validation needed
+            or_attrib: null # No alternative attributes available
+            and_attrib: null # No additional attributes required
+    collector:
+        comments:
+            - 'Collection collector (required)'
+            - ' examples:'
+            - '- fullname: Vedder, Eddie'
+            - '  url: https://en.wikipedia.org/wiki/Eddie_Vedder'
+            - '- fullname: Cornell, Chris'
+            - '  url: https://en.wikipedia.org/wiki/Chris_Cornell'
+        required:
+            attr_name: collector
+            iso_date: false
+            or_attrib: null
+            and_attrib: null
+    attributes:
+        comments:
+            - define an xpath for each attribute within TEI file
+        work:
+            title:
+                comments:
+                    - Main title (required)
+                proposals:
+                    - //fileDesc//titleStmt//title
+                    - //fileDesc//titleStmt//name
+            author:
+                id:
+                    proposals:
+                        - //sourceDesc//author//idno[@type='gnd']/@type
+                        - //fileDesc//titleStmt//author/@ref
+                fullname:
+                    comments:
+                        - "The author's name can be given as either first name and surname (preferred option) or full name. Every work must be attributed to a person. If no author is available (for example, for anonymous works), the name of the person responsible for the collection will be used as the collector."
+                    proposals:
+                        - //fileDesc/titleStmt//author//name[@type="full"]
+                        - //fileDesc/titleStmt//author
+                        - //sourceDesc/bibl[@type="work"]/author/name
+                    required:
+                        attr_name: author_fullname
+                        iso_date: false
+                        or_attrib: null
+                        and_attrib: null
+                firstname:
+                    proposals:
+                        - //sourceDesc//author//forename
+                        - //sourceDesc//author//firstname
+                        - //fileDesc/titleStmt//author//persName//forename
+                lastname:
+                    proposals:
+                        - //sourceDesc//author//surname
+                        - //sourceDesc//author//lastname
+                        - //fileDesc/titleStmt//author//persName//lastname
+                        - //fileDesc/titleStmt//author//persName//surname
+            genre:
+                comments:
+                    - "TextGrid-Repository genre (required). Possible values: drama, prose, verse, reference work, non-fiction, non-text, other"
+                proposals:
+                    - //profileDesc//term[@type='text.form']
+                    - //profileDesc//term[@type='text.genre']
+                    - //keywords[@scheme="http://textgrid.info/namespaces/metadata/core/2010#genre"]/term
+                required:
+                    attr_name: genre
+                    iso_date: false
+                    or_attrib: null
+                    and_attrib: null
+            dateOfCreation:
+                date:
+                    comments:
+                        - "It is required that every work is associated to some date of the creation. You can associate the works with one specific date (field date) or define a range of years for each work (through the fields notBefore and notAfter). One of the two options is required. Many projects don't have this information available for different reasons. One possibility would be to define a very large range of years between the work needed to be created, for example 1800 and 1900 or even -5000 and 2025."
+                    proposals:
+                        - //listBibl//bibl[@type="print-source"]//date
+                        - //sourceDesc//biblFull//publicationStmt//date
+                        - //sourceDesc//bibl[@type="printSource"]//date
+                    required:
+                        attr_name: work_date
+                        iso_date: true  # Must be ISO date format
+                        or_attrib:  # OR: These attributes are alternatives
+                            - work_notBefore
+                            - work_notAfter
+                        and_attrib: null
+                notBefore:
+                    proposals:
+                    required:
+                        attr_name: work_notBefore
+                        iso_date: true
+                        or_attrib:
+                            - work_date
+                        and_attrib: # AND: Needs end date too
+                            - work_notAfter
+                notAfter:
+                    proposals:
+                    required:
+                        attr_name: work_notAfter
+                        iso_date: true
+                        or_attrib:
+                            - work_date
+                        and_attrib: # AND: Needs start date too
+                            - work_notBefore
+            place:
+                proposals:
+                    - //listBibl//bibl[@type="print-source"]//pubPlace
+                    - //sourceDesc//biblFull//publicationStmt//pubPlace
+                    - //sourceDesc//bibl[@type="printSource"]//pubPlace
+            id:
+                proposals:
+                    - //sourceDesc//title//idno[@type]/@corresp
+                    - //sourceDesc/bibl[@type="work"]/idno/@corresp
+
+        edition:
+            title:
+                comments:
+                    - Main title of the edition (required)
+                proposals:
+                    - //sourceDesc//bibl[@type="firstEdition"]//title
+                    - //fileDesc//titleStmt//title
+                    - //fileDesc//titleStmt
+            author:
+                id:
+                    proposals:
+                        - //sourceDesc//bibl[@type="firstEdition"]//author/@ref
+                        - //sourceDesc//author//idno[@type='gnd']/@type
+                        - //fileDesc//titleStmt//author/@ref
+                fullname:
+                    comments:
+                        - "The author's name can be given as either first name and surname (preferred option) or full name. Every edition must be attributed to a person. If no author is available (for example, for anonymous editions), the name of the person responsible for the collection will be used as the collector."
+                    proposals:
+                        - //sourceDesc//bibl[@type="firstEdition"]//author
+                        - //fileDesc/titleStmt//author//name[@type="full"]
+                        - //fileDesc/titleStmt//author
+                firstname:
+                    proposals:
+                        - //sourceDesc//bibl[@type="firstEdition"]//forename
+                        - //sourceDesc//bibl[@type="firstEdition"]//firstname
+                        - //sourceDesc//author//forename
+                        - //sourceDesc//author//firstname
+                        - //fileDesc/titleStmt//author//persName//forename
+                lastname:
+                    proposals:
+                        - //sourceDesc//bibl[@type="firstEdition"]//surname
+                        - //sourceDesc//bibl[@type="firstEdition"]//lastname
+                        - //sourceDesc//author//surname
+                        - //sourceDesc//author//lastname
+            license:
+                title:
+                    comments: "License title, for example 'Creative Commons Attribution 4.0 International (CC-BY)' (required)"
+                    proposals:
+                        - //licence
+                    required:
+                        attr_name: edition_license_title
+                        iso_date: false
+                        or_attrib: null
+                        and_attrib: null
+                url:
+                    comments: "License URL, for example 'https://creativecommons.org/licenses/by/4.0/' (required)"
+                    proposals:
+                        - //licence/@target
+                    required:
+                        attr_name: edition_license_url
+                        iso_date: false
+                        or_attrib: null
+                        and_attrib: null
+            date:
+                proposals:
+                    - //sourceDesc//bibl[@type="firstEdition"]//date
+                    - //publicationStmt/date
+            place:
+                proposals:
+                    - //sourceDesc//bibl[@type="firstEdition"]//pubPlace
+            language:
+                comments: "Using the ISO norm 639-3, such as deu, eng, spa, fra, etc. More information: https://iso639-3.sil.org/code_tables/639/data"
+                proposals:
+                    - //profileDesc//term[@type='text.language']
+                    - //profileDesc//term[@type='text.lang']
+                    - //profileDesc/languageUsage/language
+                    - //profileDesc/langUsage/language
+                    - //profileDesc/langUsage/language/@ident
+            wordcount:
+                proposals:
+                    - //fileDesc/extent/measure[@unit='ws']
+                    - //fileDesc/extent/measure[@unit='words']
+                    - //fileDesc/extent/measure[@unit='tokens']
+
+    basic_classifications:
+        comments:
+            - 'basic_classifications can be defined as a list of dictionaries with the following'
+            - 'examples:'
+            - '- id:'
+            - '     value:'
+            - '  url:'
+            - '     value: https://d-nb.info/gnd/'
+            - '  value:'
+            - '     value: I am a fixed value'
+        id:
+            proposals:
+                - //keywords[@scheme="http://uri.gbv.de/terminology/bk/"]/term/@key
+        url:
+            proposals:
+                - //keywords[@scheme="http://uri.gbv.de/terminology/bk/"]/@scheme
+        value:
+            proposals:
+                - //keywords[@scheme="http://uri.gbv.de/terminology/bk/"]/term
+    gnd_subjects:
+        comments:
+            - 'gnd_subjects can be defined as a list of dictionaries with the following'
+            - 'examples:'
+            - '- id:'
+            - '     value:'
+            - '  url:'
+            - '     value: https://d-nb.info/gnd/'
+            - '  value:'
+            - '     value:'
+        id:
+            proposals:
+                - //keywords[@scheme="https://d-nb.info/gnd/"]/term/@key
+        url:
+            proposals:
+                - //keywords[@scheme="https://d-nb.info/gnd/"]/@scheme
+        value:
+            proposals:
+                - //keywords[@scheme="https://d-nb.info/gnd/"]/term
+    eltec_specs:
+        comments:
+            - eltec_specifications
+        time_slot:
+            proposals:
+                # - //profileDesc//@{http://distantreading.net/eltec/ns}/@timeSlot
+        author_gender:
+            proposals:
+                - //profileDesc//term[@type='author.gender']
+                - //profileDesc//term[@type='author.sex']
+                - //fileDesc//notesStmt/note[@type='author-gender']
+                # - //profileDesc//@{http://distantreading.net/eltec/ns}/@authorGender
+        size:
+            proposals:
+                # - //profileDesc//@{http://distantreading.net/eltec/ns}/@size
+        reprintCount:
+            proposals:
+                # - //profileDesc//@{http://distantreading.net/eltec/ns}/@reprintCount
+        corpus_collection:
+            proposals:
+                - //keywords//term[@type="collection"]
+    images:
+        proposals:
+            - //text//graphic/@url
+            - //text//pb/@facs
+            - //text//ptr/@target
+
+    elements: []
