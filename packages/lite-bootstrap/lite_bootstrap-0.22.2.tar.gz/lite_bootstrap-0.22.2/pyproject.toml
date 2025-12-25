@@ -1,0 +1,174 @@
+[project]
+name = "lite-bootstrap"
+description = "Lite package for bootstrapping new microservices"
+authors = [
+    { name = "Artur Shiriev", email = "me@shiriev.ru" },
+]
+readme = "README.md"
+requires-python = ">=3.10,<4"
+license = "MIT"
+keywords = [
+    "python",
+    "microservice",
+    "bootstrap",
+    "opentelemetry",
+    "sentry",
+    "error-tracing",
+    "fastapi",
+    "litestar",
+    "faststream",
+    "structlog",
+]
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+    "Topic :: Software Development :: Libraries",
+]
+version = "0.22.2"
+
+[project.urls]
+repository = "https://github.com/modern-python/lite-bootstrap"
+
+[project.optional-dependencies]
+sentry = [
+    "sentry-sdk",
+]
+otl = [
+    "opentelemetry-api",
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp",
+    "opentelemetry-instrumentation",
+]
+logging = [
+    "structlog",
+]
+free-all = [
+    "lite-bootstrap[sentry,otl,logging]",
+]
+fastapi = [
+    "fastapi",
+]
+fastapi-sentry = [
+    "lite-bootstrap[fastapi,sentry]",
+]
+fastapi-otl = [
+    "lite-bootstrap[fastapi,otl]",
+    "opentelemetry-instrumentation-fastapi",
+]
+fastapi-logging = [
+    "lite-bootstrap[fastapi,logging]",
+]
+fastapi-metrics = [
+    "lite-bootstrap[fastapi]",
+    "prometheus-fastapi-instrumentator>=6.1",
+]
+fastapi-all = [
+    "lite-bootstrap[fastapi-sentry,fastapi-otl,fastapi-logging,fastapi-metrics]",
+]
+litestar = [
+    "litestar>=2.9",
+    "sniffio",  # remove after release of https://github.com/litestar-org/litestar/issues/4505
+]
+litestar-sentry = [
+    "lite-bootstrap[litestar,sentry]",
+]
+litestar-otl = [
+    "lite-bootstrap[litestar,otl]",
+    "opentelemetry-instrumentation-asgi>=0.46b0",
+]
+litestar-logging = [
+    "lite-bootstrap[litestar,logging]",
+]
+litestar-metrics = [
+    "lite-bootstrap[litestar]",
+    "prometheus-client>=0.20",
+]
+litestar-all = [
+    "lite-bootstrap[litestar-sentry,litestar-otl,litestar-logging,litestar-metrics]",
+]
+faststream = [
+    "faststream",
+]
+faststream-sentry = [
+    "lite-bootstrap[faststream,sentry]",
+]
+faststream-otl = [
+    "lite-bootstrap[faststream,otl]",
+]
+faststream-logging = [
+    "lite-bootstrap[faststream,logging]",
+]
+faststream-metrics = [
+    "lite-bootstrap[faststream]",
+    "prometheus-client>=0.20",
+]
+faststream-all = [
+    "lite-bootstrap[faststream-sentry,faststream-otl,faststream-logging,faststream-metrics]",
+    "lite-bootstrap[sentry,otl,logging,faststream,faststream-metrics]"
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "httpx",  # for test client
+    "redis>=5.2.1",
+]
+lint = [
+    "mypy",
+    "ruff",
+    "eof-fixer",
+]
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "lite_bootstrap"
+module-root = ""
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+
+[tool.ruff]
+fix = false
+unsafe-fixes = true
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D1", # allow missing docstrings
+    "S101", # allow asserts
+    "TCH", # ignore flake8-type-checking
+    "FBT", # allow boolean args
+    "D203", # "one-blank-line-before-class" conflicting with D211
+    "D213", # "multi-line-summary-second-line" conflicting with D212
+    "COM812", # flake8-commas "Trailing comma missing"
+    "ISC001", # flake8-implicit-str-concat
+    "G004", # allow f-strings in logging
+]
+isort.lines-after-imports = 2
+isort.no-lines-before = ["standard-library", "local-folder"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=. --cov-report term-missing"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.report]
+exclude_also = [
+    "if typing.TYPE_CHECKING:",
+    "except ImportError:"
+]
