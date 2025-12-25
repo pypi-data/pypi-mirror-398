@@ -1,0 +1,30 @@
+name: 'Run Test Cases'
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Set up Python and Pip
+        uses: actions/setup-python@v4
+        with:
+          cache: 'pip'
+          python-version: '3.10'
+      - name: Upgrade Pip
+        run: python3 -m pip install --upgrade pip
+      - name: Install tool
+        run: pip install .
+      - name: Build CPE dictionary
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: NVD_API_KEY=$NVD_API_KEY cpe_search -u
+      - name: Test matching CPEs
+        run: python3 tests/test_cpes.py
+      # skip for now because of non-deterministic issues
+      # - name: Test CPE suggestions
+      #   run: python3 tests/test_cpe_suggestions.py
