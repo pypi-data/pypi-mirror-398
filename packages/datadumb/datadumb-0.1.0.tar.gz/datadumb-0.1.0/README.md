@@ -1,0 +1,256 @@
+# datadumb
+
+Smart data loader with automatic format detection and parameter inference for pandas and polars DataFrames.
+
+## Overview
+
+`datadumb` eliminates the need for manual configuration when loading data files. It automatically detects file formats (CSV, Excel, Parquet) and infers optimal parameters like CSV separators and header locations, providing a unified API for both pandas and polars backends.
+
+## Features
+
+- **Automatic format detection** - Identifies file types through content analysis and extension
+- **Smart CSV parameter inference** - Detects separators, skip rows, and quoted field handling
+- **Dual backend support** - Unified API for both pandas and polars DataFrames
+- **Extensible architecture** - Plugin-style system for adding new formats and features
+- **Comprehensive error handling** - Clear messages and debug logging for troubleshooting
+
+## Installation
+
+Install using `uv`:
+
+```bash
+# Basic installation (no DataFrame backends)
+uv add datadumb
+
+# With pandas support
+uv add datadumb[pandas]
+
+# With polars support
+uv add datadumb[polars]
+
+# With both backends
+uv add datadumb[all]
+
+# With Excel support
+uv add datadumb[excel]
+```
+
+Or using pip:
+
+```bash
+pip install datadumb
+pip install datadumb[pandas]  # with pandas
+pip install datadumb[polars]  # with polars
+pip install datadumb[all]     # with all backends
+```
+
+## Requirements
+
+- Python 3.11 or higher
+- Optional: pandas >= 1.0.0
+- Optional: polars >= 0.18.0
+- Optional: openpyxl >= 3.0.0 (for Excel support)
+- Optional: xlrd >= 2.0.0 (for legacy Excel support)
+
+## Quick Start
+
+### Loading with pandas
+
+```python
+from datadumb import pandas_load
+
+# Load any supported format - automatic detection
+df = pandas_load("data.csv")
+df = pandas_load("data.xlsx")
+df = pandas_load("data.parquet")
+
+# CSV with automatic parameter inference
+df = pandas_load("messy_data.csv")  # Detects separator, skip rows, etc.
+```
+
+### Loading with polars
+
+```python
+from datadumb import polars_load
+
+# Same API, different backend
+df = polars_load("data.csv")
+df = polars_load("data.xlsx")
+df = polars_load("data.parquet")
+```
+
+## Usage Examples
+
+### Basic Usage
+
+```python
+from datadumb import pandas_load, polars_load
+
+# Load CSV with automatic separator detection
+df = pandas_load("sales_data.csv")
+
+# Load Excel file
+df = pandas_load("financial_report.xlsx")
+
+# Load Parquet file
+df = polars_load("large_dataset.parquet")
+```
+
+### Handling Complex CSV Files
+
+`datadumb` automatically handles:
+- Different separators (comma, semicolon, tab, pipe)
+- Metadata rows before the actual data
+- Quoted fields with embedded separators
+- Various encoding formats
+
+```python
+from datadumb import pandas_load
+
+# Automatically detects semicolon separator
+df = pandas_load("european_data.csv")
+
+# Automatically skips metadata rows
+df = pandas_load("data_with_header.csv")
+
+# Handles quoted fields correctly
+df = pandas_load("complex_data.csv")
+```
+
+### Error Handling
+
+```python
+from datadumb import pandas_load
+from datadumb.core.exceptions import (
+    FormatDetectionError,
+    BackendNotAvailableError,
+    ParameterInferenceError
+)
+
+try:
+    df = pandas_load("data.xyz")
+except FormatDetectionError as e:
+    print(f"Unsupported format: {e}")
+except BackendNotAvailableError as e:
+    print(f"Backend not installed: {e}")
+except FileNotFoundError as e:
+    print(f"File not found: {e}")
+```
+
+### Debug Logging
+
+Enable debug logging to see detection and inference details:
+
+```python
+import logging
+from datadumb import pandas_load
+
+# Enable debug logging
+logging.basicConfig(level=logging.DEBUG)
+
+df = pandas_load("data.csv")
+# Logs will show:
+# - Format detection process
+# - Parameter inference confidence scores
+# - Selected parameters and reasoning
+```
+
+## Supported Formats
+
+| Format | Extensions | Auto-detection | Parameter Inference |
+|--------|-----------|----------------|---------------------|
+| CSV | .csv, .txt | ✓ | ✓ (separator, skip rows, quoting) |
+| Excel | .xlsx, .xls | ✓ | - |
+| Parquet | .parquet | ✓ | - |
+
+## Architecture
+
+`datadumb` uses a modular, extensible architecture:
+
+```
+Public API (pandas_load, polars_load)
+    ↓
+Loading Orchestrator
+    ↓
+Format Detection → Parameter Inference → Backend Adapters
+```
+
+### Components
+
+- **Format Detector**: Identifies file formats using content analysis
+- **Parameter Inferrer**: Detects optimal loading parameters for CSV files
+- **Backend Adapters**: Provides consistent interface for pandas and polars
+- **Loading Orchestrator**: Coordinates the detection, inference, and loading process
+
+## Development
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/jlb-jlb/datadumb.git
+cd datadumb
+
+# Install with development dependencies
+uv sync --all-extras
+
+# Run tests
+uv run pytest
+
+# Run property-based tests
+uv run pytest -v -k "property"
+```
+
+### Testing
+
+The project uses both unit tests and property-based tests with Hypothesis:
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run with coverage
+uv run pytest --cov=src --cov-report=html
+
+# Run only property-based tests
+uv run pytest tests/property/
+
+# Run only unit tests
+uv run pytest tests/unit/
+```
+
+### Package Name Validation
+
+The package name was validated using `nameisok`:
+
+```bash
+uv run nameisok datadumb
+```
+
+Note: The name "datadumb" was flagged as similar to existing packages (datadump, datadb, etc.), but was chosen for this project to reflect its straightforward, no-configuration approach to data loading.
+
+## Contributing
+
+Contributions are welcome! The architecture is designed for extensibility:
+
+- **Add new formats**: Register format detectors in `detection/format_detector.py`
+- **Add new backends**: Implement `BackendAdapter` interface in `backends/`
+- **Extend inference**: Add parameter strategies in `detection/parameter_inferrer.py`
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Links
+
+- **Homepage**: https://github.com/jlb-jlb/datadumb
+- **Repository**: https://github.com/jlb-jlb/datadumb
+- **Issues**: https://github.com/jlb-jlb/datadumb/issues
+
+## Acknowledgments
+
+Built with:
+- [uv](https://github.com/astral-sh/uv) - Fast Python package manager
+- [pandas](https://pandas.pydata.org/) - Data analysis library
+- [polars](https://www.pola.rs/) - Fast DataFrame library
+- [Hypothesis](https://hypothesis.readthedocs.io/) - Property-based testing framework
