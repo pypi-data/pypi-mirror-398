@@ -1,0 +1,99 @@
+# csrf-sentry
+[![PyPI version](https://badge.fury.io/py/csrf-sentry.svg)](https://badge.fury.io/py/csrf-sentry)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/csrf-sentry)](https://pepy.tech/project/csrf-sentry)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A Python package that helps developers implement CSRF (Cross-Site Request Forgery) protection without relying on traditional tokens or hidden form fields. The package takes a user's input describing their web application's structure and security requirements, and returns a structured response with a tailored CSRF protection strategy.
+
+## Installation
+
+```bash
+pip install csrf_sentry
+```
+
+## Usage
+
+### Basic Usage
+
+```python
+from csrf_sentry import csrf_sentry
+
+# Basic usage with default LLM
+response = csrf_sentry("Describe your web application structure and security requirements")
+print(response)
+```
+
+### Using Custom LLM
+
+You can use any Langchain-compliant LLM with csrf_sentry:
+
+#### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from csrf_sentry import csrf_sentry
+
+llm = ChatOpenAI()
+response = csrf_sentry(user_input, llm=llm)
+```
+
+#### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from csrf_sentry import csrf_sentry
+
+llm = ChatAnthropic()
+response = csrf_sentry(user_input, llm=llm)
+```
+
+#### Google
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from csrf_sentry import csrf_sentry
+
+llm = ChatGoogleGenerativeAI()
+response = csrf_sentry(user_input, llm=llm)
+```
+
+### Using Custom API Key
+
+If you need to use your own LLM7 API key:
+
+```python
+from csrf_sentry import csrf_sentry
+
+# Pass API key directly
+response = csrf_sentry(user_input, api_key="your_api_key_here")
+
+# Or set environment variable
+import os
+os.environ["LLM7_API_KEY"] = "your_api_key_here"
+response = csrf_sentry(user_input)
+```
+
+## Parameters
+
+- `user_input` (str): The user input text describing your web application structure and security requirements
+- `llm` (Optional[BaseChatModel]): A Langchain LLM instance. If not provided, defaults to ChatLLM7
+- `api_key` (Optional[str]): API key for LLM7. If not provided, uses the environment variable LLM7_API_KEY or the default free tier
+
+## Getting an API Key
+
+You can get a free API key for LLM7 by registering at https://token.llm7.io/
+
+## Default LLM
+
+The package uses ChatLLM7 from langchain_llm7 by default. The free tier rate limits are sufficient for most use cases of this package. If you need higher rate limits, you can provide your own API key.
+
+## Support
+
+For issues and questions, please visit our [GitHub issues page](https://github...)
+
+## Author
+
+- **Eugene Evstafev** - hi@euegne.plus
+- GitHub: [chigwell](https://github.com/chigwell)
