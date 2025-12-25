@@ -1,0 +1,263 @@
+Metadata-Version: 2.4
+Name: easy-start-qunjielong
+Version: 0.1.1
+Summary: 一个用于群接龙开放平台集成的 Python 包，提供简洁易用的 API 接口，支持同步和异步操作，帮助开发者快速实现群接龙相关功能。
+Home-page: https://gitee.com/guolei19850528/easy_start_qunjielong
+Author: guolei
+Author-email: 174000902@qq.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: httpx
+Requires-Dist: diskcache
+Requires-Dist: redis
+Requires-Dist: jsonschema
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# easy-start-qunjielong
+
+一个用于群接龙开放平台集成的 Python 包，提供简洁易用的 API 接口，支持同步和异步操作，帮助开发者快速实现群接龙相关功能。
+
+## 功能特性
+
+- 🚀 支持同步和异步 API 请求
+- 🔐 自动管理访问令牌的获取与刷新
+- 📊 响应数据的 JSON Schema 验证
+- 💾 支持多种缓存后端（diskcache 和 Redis）
+- 🎯 简洁易用的 API 接口设计
+- 🔄 自动处理令牌过期和刷新逻辑
+- ⚡ 基于 httpx 实现高性能 HTTP 请求
+
+## 安装方法
+
+### 使用 pip 安装
+
+```bash
+pip install easy-start-qunjielong
+```
+
+### 从源码安装
+
+```bash
+git clone https://gitee.com/guolei19850528/easy_start_qunjielong.git
+cd easy_start_qunjielong
+pip install -e .
+```
+
+## 快速开始
+
+### 同步方式
+
+```python
+from easy_start_qunjielong.open import Api
+
+# 初始化 API 客户端
+api = Api(secret="your_secret_key")
+
+# 刷新访问令牌
+api.refresh_token()
+
+# 发送 API 请求
+success, data, response = api.request(
+    method="GET", 
+    url="/open/api/ghome/getGhomeInfo"
+)
+
+if success:
+    print(f"请求成功，数据: {data}")
+else:
+    print(f"请求失败，状态码: {response.status_code}")
+```
+
+### 异步方式
+
+```python
+import asyncio
+from easy_start_qunjielong.open import Api
+
+async def main():
+    # 初始化 API 客户端
+    api = Api(secret="your_secret_key")
+    
+    # 异步刷新访问令牌
+    await api.async_refresh_token()
+    
+    # 异步发送 API 请求
+    success, data, response = await api.async_request(
+        method="GET", 
+        url="/open/api/ghome/getGhomeInfo"
+    )
+    
+    if success:
+        print(f"请求成功，数据: {data}")
+    else:
+        print(f"请求失败，状态码: {response.status_code}")
+
+# 运行异步函数
+asyncio.run(main())
+```
+
+### 使用缓存功能
+
+```python
+import diskcache
+import redis
+from easy_start_qunjielong.open import Api
+
+# 选项1: 使用 diskcache 本地缓存
+cache = diskcache.Cache('./runtime/diskcache/default')
+
+# 选项2: 使用 Redis 分布式缓存
+# cache = redis.Redis(host='localhost', port=6379, db=0)
+
+# 初始化 API 客户端并配置缓存
+api = Api(
+    secret="your_secret_key",
+    cache_config={
+        "instance": cache,
+        "expire": 7100  # 缓存过期时间（秒），建议设置为小于 2 小时
+    }
+)
+
+# 刷新访问令牌（会自动缓存）
+api.refresh_token()
+
+# 再次获取令牌会从缓存中读取，提高性能
+success, data, response = api.request(
+    method="GET", 
+    url="/open/api/ghome/getGhomeInfo"
+)
+```
+
+## API 文档
+
+### Api 类
+
+#### 初始化参数
+
+```python
+Api(base_url: str = "https://openapi.qunjielong.com", secret: str = "", cache_config: dict = None)
+```
+
+- `base_url`: 群接龙开放平台 API 基础 URL，默认为 `"https://openapi.qunjielong.com"`
+- `secret`: 应用密钥，用于获取访问令牌，必填参数
+- `cache_config`: 缓存配置字典，可选参数，支持以下键：
+  - `key`: 缓存键名，默认为 `"qunjielong_open_access_token_{secret}"`
+  - `expire`: 缓存过期时间（秒），默认为 `7100`
+  - `instance`: 缓存实例，可以是 `diskcache.Cache` 或 `redis.Redis`/`redis.StrictRedis`
+
+#### 主要方法
+
+##### 同步方法
+
+- `client(**kwargs)`: 创建并返回同步 HTTP 客户端
+  - 参数: `**kwargs` - 传递给 `httpx.Client` 的额外参数
+  - 返回: `httpx.Client` 对象
+
+- `token(client=None, validate_json_schema=None, **kwargs)`: 获取访问令牌
+  - 参数:
+    - `client`: 已配置的同步 HTTP 客户端，可选
+    - `validate_json_schema`: 响应数据的 JSON Schema 验证规则，可选
+    - `**kwargs`: 传递给 `client.request` 的额外参数
+  - 返回: `(验证状态, 访问令牌, 原始响应)` 三元组
+
+- `ghome_getGhomeInfo(client=None, validate_json_schema=None, access_token=None, **kwargs)`: 获主页信息
+  - 参数:
+    - `client`: 已配置的同步 HTTP 客户端，可选
+    - `validate_json_schema`: 响应数据的 JSON Schema 验证规则，可选
+    - `access_token`: 访问令牌，可选，默认使用客户端存储的令牌
+    - `**kwargs`: 传递给 `client.request` 的额外参数
+  - 返回: `(验证状态, 响应数据, 原始响应)` 三元组
+
+- `refresh_token(client=None)`: 刷新访问令牌（自动处理缓存）
+  - 参数: `client` - 已配置的同步 HTTP 客户端，可选
+  - 返回: 客户端实例本身（支持链式调用）
+
+- `request(client=None, validate_json_schema=None, access_token=None, **kwargs)`: 发送 API 请求
+  - 参数:
+    - `client`: 已配置的同步 HTTP 客户端，可选
+    - `validate_json_schema`: 响应数据的 JSON Schema 验证规则，可选
+    - `access_token`: 访问令牌，可选，默认使用客户端存储的令牌
+    - `**kwargs`: 传递给 `client.request` 的额外参数，包括 `method`、`url`、`params`、`json` 等
+  - 返回: `(验证状态, 响应数据, 原始响应)` 三元组
+
+##### 异步方法
+
+- `async_client(**kwargs)`: 创建并返回异步 HTTP 客户端
+  - 参数: `**kwargs` - 传递给 `httpx.AsyncClient` 的额外参数
+  - 返回: `httpx.AsyncClient` 对象
+
+- `async_token(client=None, validate_json_schema=None, **kwargs)`: 异步获取访问令牌
+  - 参数:
+    - `client`: 已配置的异步 HTTP 客户端，可选
+    - `validate_json_schema`: 响应数据的 JSON Schema 验证规则，可选
+    - `**kwargs`: 传递给 `client.request` 的额外参数
+  - 返回: `(验证状态, 访问令牌, 原始响应)` 三元组
+
+- `async_ghome_getGhomeInfo(client=None, validate_json_schema=None, access_token=None, **kwargs)`: 异步获主页信息
+  - 参数:
+    - `client`: 已配置的异步 HTTP 客户端，可选
+    - `validate_json_schema`: 响应数据的 JSON Schema 验证规则，可选
+    - `access_token`: 访问令牌，可选，默认使用客户端存储的令牌
+    - `**kwargs`: 传递给 `client.request` 的额外参数
+  - 返回: `(验证状态, 管家信息, 原始响应)` 三元组
+
+- `async_refresh_token(client=None)`: 异步刷新访问令牌（自动处理缓存）
+  - 参数: `client` - 已配置的异步 HTTP 客户端，可选
+  - 返回: 客户端实例本身（支持链式调用）
+
+- `async_request(client=None, validate_json_schema=None, access_token=None, **kwargs)`: 发送异步 API 请求
+  - 参数:
+    - `client`: 已配置的异步 HTTP 客户端，可选
+    - `validate_json_schema`: 响应数据的 JSON Schema 验证规则，可选
+    - `access_token`: 访问令牌，可选，默认使用客户端存储的令牌
+    - `**kwargs`: 传递给 `client.request` 的额外参数，包括 `method`、`url`、`params`、`json` 等
+  - 返回: `(验证状态, 响应数据, 原始响应)` 三元组
+
+#### 响应格式
+
+所有 API 请求方法返回一个三元组 `(success, data, response)`:
+
+- `success`: 布尔值，表示 API 响应是否符合 JSON Schema 验证
+- `data`: API 响应的 `data` 字段内容
+- `response`: 原始的 `httpx.Response` 对象
+
+## 依赖项
+
+- `httpx`: 用于发送 HTTP 请求
+- `diskcache`: 用于本地缓存访问令牌
+- `redis`: 用于分布式缓存访问令牌
+- `jsonschema`: 用于验证 API 响应格式
+
+### 项目结构
+
+```
+easy_start_qunjielong/
+├── easy_start_qunjielong/
+│   ├── __init__.py
+│   ├── open.py
+├── requirements.txt
+├── README.md
+```
+
+## 许可证
+
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+
+## 作者信息
+
+- **作者**: guolei
+- **邮箱**: 174000902@qq.com
+- **项目地址**: [https://gitee.com/guolei19850528/easy_start_qunjielong](https://gitee.com/guolei19850528/easy_start_qunjielong)
