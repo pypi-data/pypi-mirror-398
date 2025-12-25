@@ -1,0 +1,344 @@
+Metadata-Version: 2.4
+Name: rossetta-fastapi
+Version: 0.1.4
+Summary: Zero-config network request obfuscation middleware for FastAPI - protect your APIs from reverse engineering
+Home-page: https://github.com/yiheinchai/rossetta-api
+Author: Rossetta API Team
+Author-email: 
+License: MIT
+Project-URL: Bug Tracker, https://github.com/yiheinchai/rossetta-api/issues
+Project-URL: Documentation, https://github.com/yiheinchai/rossetta-api#readme
+Project-URL: Source Code, https://github.com/yiheinchai/rossetta-api/tree/main/packages/rossetta-fastapi
+Keywords: fastapi middleware encryption obfuscation security rossetta api-security aes-256 hmac endpoint-obfuscation
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Framework :: FastAPI
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Security :: Cryptography
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: fastapi>=0.100.0
+Requires-Dist: cryptography>=41.0.0
+Requires-Dist: python-multipart>=0.0.6
+Requires-Dist: starlette>=0.27.0
+Requires-Dist: itsdangerous>=2.1.0
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: project-url
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# rossetta-fastapi
+
+Zero-config network request obfuscation middleware for FastAPI
+
+## Features
+
+- 🔒 **Automatic endpoint obfuscation** - API endpoints are hashed and unreadable
+- 🔐 **Request/response encryption** - AES-256-CBC encryption for all data
+- ✅ **Session-based key management** - No hardcoded secrets in frontend
+- 🛡️ **Anti-replay protection** - Timestamp validation prevents replay attacks
+- 📝 **Request signatures** - HMAC-SHA256 ensures request integrity
+
+## Installation
+
+```bash
+pip install rossetta-fastapi
+```
+
+## Quick Start
+
+```python
+from fastapi import FastAPI, Request
+from starlette.middleware.sessions import SessionMiddleware
+from rossetta_fastapi import setup_rossetta
+
+app = FastAPI()
+
+# Setup Rossetta - this adds middleware AND creates /api/init-session endpoint
+setup_rossetta(app)
+
+# Add session middleware (required)
+app.add_middleware(SessionMiddleware, secret_key="your-secret-key-here")
+
+# Define your routes normally - responses are automatically encrypted!
+@app.get("/api/users")
+async def get_users():
+    return {"users": []}  # Automatically encrypted
+
+@app.post("/api/users")
+async def create_user(request: Request):
+    data = request.state.decrypted_data  # Incoming data is auto-decrypted
+    return {"id": 1, "name": data["name"]}  # Response is auto-encrypted
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+That's it! All `/api/*` endpoints automatically get:
+
+- ✅ Request decryption (access via `request.state.decrypted_data`)
+- ✅ Response encryption (just return your data normally)
+- ✅ Session initialization endpoint at `/api/init-session`
+
+## Usage
+
+### Basic Setup
+
+```python
+from fastapi import FastAPI, Request
+from starlette.middleware.sessions import SessionMiddleware
+from rossetta_fastapi import setup_rossetta
+
+app = FastAPI()
+
+# Setup Rossetta - automatically creates /api/init-session and adds middleware
+setup_rossetta(
+    app,
+    secret="your-rossetta-secret",  # Optional
+    timestamp_window=300000  # 5 minutes (default)
+)
+
+# Add session middleware (required)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key="your-secret-key-here"
+)
+```
+
+All `/api/*` endpoints now automatically encrypt responses and decrypt requests!
+
+### Reading Decrypted Requests
+
+For POST/PUT/DELETE requests, access decrypted data via `request.state.decrypted_data`:
+
+```python
+@app.post("/api/create")
+async def create_item(request: Request):
+    # Decrypted data is automatically available
+    data = request.state.decrypted_data
+    name = data.get('name')
+
+    # Just return your response - encryption happens automatically
+    return {"id": 1, "name": name}
+```
+
+### Working with GET Requests
+
+GET requests return encrypted responses automatically:
+
+```python
+@app.get("/api/data")
+async def get_data(request: Request):
+    # Just return your data normally
+    return {"message": "Hello, World!"}  # Automatically encrypted
+```
+
+**Note**:
+
+- All `/api/*` endpoints are automatically encrypted (except `/api/init-session`)
+- The `/api/init-session` endpoint is automatically created by `setup_rossetta()`
+- You don't need to manually encrypt/decrypt - it's all handled for you!
+
+## How It Works
+
+1. **Session Initialization**: Client requests session keys
+2. **Key Generation**: Server generates unique encryption keys per session
+3. **Endpoint Obfuscation**: All endpoints are hashed using SHA-256
+4. **Request Encryption**: Client encrypts requests with session key
+5. **Server Decryption**: Middleware automatically decrypts and validates
+6. **Response Encryption**: Responses are encrypted before sending
+
+## Security Features
+
+- **No Hardcoded Secrets**: Keys are generated per session
+- **Perfect Forward Secrecy**: Each session has unique keys
+- **Replay Attack Prevention**: Timestamp-based validation
+- **Request Integrity**: HMAC signatures prevent tampering
+- **Endpoint Obfuscation**: API structure hidden from inspection
+
+## ⚠️ Production Deployment
+
+**IMPORTANT**: This package provides obfuscation and encryption at the application layer. For production use, you **MUST** also implement:
+
+### Required for Production:
+
+1. **HTTPS/TLS**: Always use HTTPS in production
+
+   - Obfuscation is NOT a replacement for TLS
+   - Use valid SSL/TLS certificates
+   - Configure HSTS headers
+
+2. **Environment Variables**: Never hardcode secrets
+
+   ```bash
+   ROSSETTA_SECRET_KEY=your-secure-random-key-here
+   ```
+
+3. **Rate Limiting**: Add rate limiting middleware
+
+   ```python
+   from slowapi import Limiter
+   limiter = Limiter(key_func=get_remote_address)
+   ```
+
+4. **Authentication & Authorization**: Add proper auth layer
+
+   - This package only handles obfuscation
+   - Implement JWT, OAuth, or session-based auth
+
+5. **Database Security**: Use parameterized queries/ORMs
+6. **Input Validation**: Validate all user inputs with Pydantic
+7. **CORS Configuration**: Restrict allowed origins
+
+### Recommended Security Stack:
+
+```
+[Client] → HTTPS/TLS → [Rate Limiter] → [Auth Middleware] → [Rossetta Middleware] → [Your API]
+```
+
+## Environment Variables
+
+```bash
+ROSSETTA_SECRET_KEY=your-secret-key-here  # Optional
+```
+
+## API Reference
+
+### `setup_rossetta(app, secret=None, timestamp_window=300000)`
+
+Main setup function that configures Rossetta for your FastAPI app.
+
+**Parameters:**
+
+- `app` (FastAPI): Your FastAPI application instance
+- `secret` (str): Secret key for encryption (auto-generated if not provided)
+- `timestamp_window` (int): Request validity window in milliseconds (default: 300000)
+
+**What it does:**
+
+- Creates the `/api/init-session` endpoint automatically
+- Adds the `RossettaMiddleware` to your app
+
+### `RossettaMiddleware`
+
+The underlying middleware class (automatically added by `setup_rossetta`).
+
+**Parameters:**
+
+- `secret` (str): Secret key for encryption (auto-generated if not provided)
+- `timestamp_window` (int): Request validity window in milliseconds (default: 300000)
+
+### Request State
+
+After middleware processing:
+
+- `request.state.rossetta['session_key']`: Current session encryption key
+- `request.state.rossetta['endpoint_salt']`: Salt for endpoint obfuscation
+- `request.state.rossetta['obfuscate_endpoint']`: Function to obfuscate endpoints
+- `request.state.rossetta['encrypt']`: Function to encrypt data
+- `request.state.rossetta['decrypt']`: Function to decrypt data
+- `request.state.decrypted_data`: Decrypted request payload
+
+### Helper Functions (Advanced Usage)
+
+Most users won't need these - automatic encryption is enabled by default for all `/api/*` endpoints.
+
+#### `encrypt_response(data, session_key)`
+
+Manually encrypt response data (rarely needed).
+
+**Parameters:**
+
+- `data` (dict): Data to encrypt
+- `session_key` (str): Session encryption key
+
+**Returns:** Encrypted string
+
+#### `@protected_route`
+
+Decorator for manual control over response encryption (rarely needed).
+
+**Usage:**
+
+```python
+from rossetta_fastapi import protected_route
+
+@app.get('/api/data')
+@protected_route
+async def get_data(request: Request):
+    return {'message': 'Hello, World!'}
+```
+
+**Note:** This decorator is optional since automatic encryption is enabled for all `/api/*` endpoints.
+
+## Complete Example
+
+```python
+from fastapi import FastAPI, Request
+from starlette.middleware.sessions import SessionMiddleware
+from rossetta_fastapi import setup_rossetta
+
+app = FastAPI()
+
+# Setup Rossetta - this creates /api/init-session automatically
+setup_rossetta(app)
+
+# Add session middleware
+app.add_middleware(SessionMiddleware, secret_key="super-secret")
+
+# All your API routes work normally - encryption is automatic!
+@app.get("/api/todos")
+async def list_todos(request: Request):
+    todos = [
+        {"id": 1, "text": "Learn Rossetta API", "completed": False}
+    ]
+    return todos  # Automatically encrypted
+
+@app.post("/api/todos")
+async def create_todo(request: Request):
+    # Access decrypted request data
+    data = request.state.decrypted_data
+
+    todo = {
+        "id": 2,
+        "text": data['text'],
+        "completed": False
+    }
+    # Just return the data - encryption is automatic
+    return todo
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+**That's it!** No manual encryption/decryption code needed. The middleware handles everything automatically for all `/api/*` endpoints.
+
+## Contributing
+
+DEPLOYMENT
+`cd /Users/yihein.chai/Documents/learn/rossetta-api/packages/rossetta-fastapi && python -m build`
+
+`python -m twine upload dist/rossetta_fastapi-0.1.2*`
+
+## License
+
+MIT
