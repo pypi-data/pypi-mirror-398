@@ -1,0 +1,121 @@
+Metadata-Version: 2.4
+Name: tilert
+Version: 0.1.1
+Summary: TileRT: Tile-Based Runtime for Ultra-Low-Latency LLM Inference.
+Author-email: TileRT-team <tile-ai@outlook.com>
+License: MIT
+Project-URL: Homepage, https://github.com/tile-ai/TileRT
+Project-URL: Issues, https://github.com/tile-ai/TileRT/issues
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Software Development :: Libraries
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: black==25.1.0; extra == "dev"
+Requires-Dist: flake8==7.1.2; extra == "dev"
+Requires-Dist: flake8-bugbear==24.12.12; extra == "dev"
+Requires-Dist: flake8-comprehensions==3.16.0; extra == "dev"
+Requires-Dist: flake8-docstrings==1.7.0; extra == "dev"
+Requires-Dist: flake8-simplify==0.21.0; extra == "dev"
+Requires-Dist: flake8-unused-arguments==0.0.13; extra == "dev"
+Requires-Dist: flake8-variables-names==0.0.6; extra == "dev"
+Requires-Dist: flake8-return==1.2.0; extra == "dev"
+Requires-Dist: flake8-print==5.0.0; extra == "dev"
+Requires-Dist: isort==6.0.1; extra == "dev"
+Requires-Dist: mypy==1.15.0; extra == "dev"
+Requires-Dist: bandit==1.8.3; extra == "dev"
+Requires-Dist: pyupgrade==3.19.1; extra == "dev"
+Requires-Dist: commitizen==4.4.1; extra == "dev"
+Requires-Dist: codespell==2.4.1; extra == "dev"
+Requires-Dist: pre-commit>=3.0.0; extra == "dev"
+Requires-Dist: mdformat==0.7.17; extra == "dev"
+Requires-Dist: mdformat-gfm==0.4.1; extra == "dev"
+Requires-Dist: mdformat-frontmatter==2.0.8; extra == "dev"
+Requires-Dist: mdformat-myst==0.2.1; extra == "dev"
+Requires-Dist: mdformat-tables==1.0.0; extra == "dev"
+Requires-Dist: mdformat-toc==0.3.0; extra == "dev"
+Requires-Dist: mdformat-black==0.1.1; extra == "dev"
+Requires-Dist: types-setuptools; extra == "dev"
+Requires-Dist: types-requests; extra == "dev"
+Requires-Dist: types-urllib3; extra == "dev"
+Requires-Dist: types-six; extra == "dev"
+Requires-Dist: tomli==2.2.1; extra == "dev"
+Dynamic: license-file
+Dynamic: requires-python
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/tile-ai/tilert/main/assets/logo.png" width="120"/>
+  <h1>TileRT: Tile-Based Runtime for<br>Ultra-Low-Latency LLM Inference</h1>
+  <p>
+    <a href="https://github.com/tile-ai/TileRT">
+      <img src="https://img.shields.io/badge/GitHub-Repo-1E90FF?logo=github&logoColor=white" alt="GitHub repository" height="22">
+    </a>
+    <a href="https://pypi.org/project/tilert/"><img src="https://img.shields.io/badge/PyPI-tilert-1E90FF" alt="PyPI version" height="20"></a>
+    <a href="https://huggingface.co/Tile-AI/DeepSeek-V3.2-Exp-TileRT"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-1E90FF"></a>
+  </p>
+</div>
+
+TileRT is an experimental project exploring core compiler techniques for serving large language models (LLMs) in **ultra-low-latency** scenarios. Its goal is to push the latency limits of LLMs without compromising model size or quality—for example, enabling models with hundreds of billions of parameters to achieve millisecond-level **time per output token (TPOT)**.
+
+Unlike traditional inference systems optimized for high-throughput batch processing, TileRT prioritizes **responsiveness**, which is critical for applications such as high-frequency trading, interactive AI, real-time decision-making, long-running agents, and AI-assisted coding, where the latency of individual requests matters most.
+
+To achieve this, TileRT introduces a **tile-level runtime engine**. Leveraging a compiler-driven approach, LLM operators are decomposed into fine-grained tile-level tasks, while the runtime dynamically reschedules computation, I/O, and communication across multiple devices in a highly overlapped manner. This design minimizes idle time and improves hardware utilization.
+
+We evaluated TileRT’s preliminary performance using the [**DeepSeek-V3.2-Exp**](https://huggingface.co/deepseek-ai/DeepSeek-V3.2-Exp) model (without lossy optimizations such as quantization or distillation) with a batch size of 1 on 8× NVIDIA B200 GPUs. As shown in the benchmark below, TileRT demonstrates substantial improvements over existing inference systems.
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/tile-ai/tilert/main/assets/perf.png" alt="TileRT Benchmark" alt="TileRT Benchmark" width="500"><br>
+Figure 2. Evaluation setup. Batch size: 1, Input sequence length/Output sequence length: 1K/1K; SGLang v0.5.6, TensorRT-LLM v1.2.0-rc5, vLLM v0.13.0, TileRT v0.1.1 with CUDA 12.9.
+</p>
+
+The project is actively evolving, and the underlying compiler techniques will be gradually shared with the community as they are integrated into **TileLang** and **TileScale**.
+
+## Installation
+
+Before installing the TileRT wheel package, please ensure your environment meets the following requirements:
+
+### Supported Environment
+
+This wheel is built and tested under the following conditions:
+
+- **Hardware:** 8× NVIDIA B200 GPUs
+- **Operating System:** Linux x86_64 (Ubuntu 20.04+ recommended)
+- **Python Versions:** 3.11 – 3.12
+- **CUDA Version:** 12.9
+- **CUDA Driver:** Compatible with the B200 runtime environment
+- **PyTorch Build:** PyTorch wheels compiled for CUDA 12.8 or 12.9 (matching the driver/runtime above for B200)
+
+### Python Package Installation
+
+> ***Disclaimer***: TileRT is an experimental project. The current preview build supports the 8-GPU B200 setup. For the most reliable experience, we strongly recommend installing the package within the provided Docker image.
+> For more details on the Docker environment and usage instructions, please refer to the TileRT project homepage on [GitHub](https://github.com/tile-ai/TileRT).
+
+#### Docker Installation
+
+To get started, pull the Docker image:
+
+```bash
+docker pull tileai/tilert:v0.1.0
+```
+
+Then, launch a Docker container using the following command:
+
+```bash
+IMAGE_NAME="tileai/tilert:v0.1.0"
+WORKSPACE_PATH="xxx"  # Path to the workspace you want to mount
+
+docker run --gpus all -it \
+    -v $WORKSPACE_PATH:/workspace/ \
+    $IMAGE_NAME
+```
+
+After the container starts, install the TileRT package:
+
+```bash
+pip install tilert
+```
