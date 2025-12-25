@@ -1,0 +1,216 @@
+/// Loosely based on TypeScript's binder
+/// see: typescript-go/internal/binder/binder.go
+use la_arena::Arena;
+use rowan::TextSize;
+use squawk_syntax::{SyntaxNodePtr, ast, ast::AstNode};
+
+use crate::scope::{Scope, ScopeId};
+use crate::symbols::{Name, Schema, Symbol, SymbolKind};
+
+pub(crate) struct SearchPathChange {
+    position: TextSize,
+    search_path: Vec<Schema>,
+}
+
+pub(crate) struct Binder {
+    pub(crate) scopes: Arena<Scope>,
+    pub(crate) symbols: Arena<Symbol>,
+    pub(crate) search_path_changes: Vec<SearchPathChange>,
+}
+
+impl Binder {
+    fn new() -> Self {
+        let mut scopes = Arena::new();
+        let _root_scope = scopes.alloc(Scope::with_parent(None));
+        Binder {
+            scopes,
+            symbols: Arena::new(),
+            search_path_changes: vec![SearchPathChange {
+                position: TextSize::from(0),
+                search_path: vec![Schema::new("pg_temp"), Schema::new("public")],
+            }],
+        }
+    }
+
+    pub(crate) fn root_scope(&self) -> ScopeId {
+        self.scopes
+            .iter()
+            .next()
+            .map(|(id, _)| id)
+            .expect("root scope must exist")
+    }
+
+    pub(crate) fn search_path_at(&self, position: TextSize) -> &[Schema] {
+        // We're assuming people don't actually use `set search_path` that much,
+        // so linear search is fine
+        for change in self.search_path_changes.iter().rev() {
+            if change.position <= position {
+                return &change.search_path;
+            }
+        }
+        // default search path
+        &self.search_path_changes[0].search_path
+    }
+}
+
+pub(crate) fn bind(file: &ast::SourceFile) -> Binder {
+    let mut binder = Binder::new();
+
+    bind_file(&mut binder, file);
+
+    binder
+}
+
+fn bind_file(b: &mut Binder, file: &ast::SourceFile) {
+    for stmt in file.stmts() {
+        bind_stmt(b, stmt);
+    }
+}
+
+fn bind_stmt(b: &mut Binder, stmt: ast::Stmt) {
+    match stmt {
+        ast::Stmt::CreateTable(create_table) => bind_create_table(b, create_table),
+        ast::Stmt::Set(set) => bind_set(b, set),
+        _ => {}
+    }
+}
+
+fn bind_create_table(b: &mut Binder, create_table: ast::CreateTable) {
+    let Some(path) = create_table.path() else {
+        return;
+    };
+    let Some(table_name) = item_name(&path) else {
+        return;
+    };
+    let name_ptr = path_to_ptr(&path);
+    let is_temp = create_table.temp_token().is_some() || create_table.temporary_token().is_some();
+    let schema = schema_name(&path, is_temp);
+
+    let table_id = b.symbols.alloc(Symbol {
+        kind: SymbolKind::Table,
+        ptr: name_ptr,
+        schema,
+    });
+
+    let root = b.root_scope();
+    b.scopes[root].insert(table_name, table_id);
+}
+
+fn item_name(path: &ast::Path) -> Option<Name> {
+    let segment = path.segment()?;
+
+    if let Some(name) = segment.name() {
+        return Some(Name::new(name.syntax().text().to_string()));
+    }
+    if let Some(name) = segment.name_ref() {
+        return Some(Name::new(name.syntax().text().to_string()));
+    }
+
+    None
+}
+
+fn path_to_ptr(path: &ast::Path) -> SyntaxNodePtr {
+    if let Some(segment) = path.segment() {
+        if let Some(name) = segment.name() {
+            return SyntaxNodePtr::new(name.syntax());
+        }
+        if let Some(name_ref) = segment.name_ref() {
+            return SyntaxNodePtr::new(name_ref.syntax());
+        }
+    }
+    SyntaxNodePtr::new(path.syntax())
+}
+
+fn schema_name(path: &ast::Path, is_temp: bool) -> Schema {
+    let default_schema = if is_temp { "pg_temp" } else { "public" };
+
+    let Some(segment) = path.qualifier().and_then(|q| q.segment()) else {
+        return Schema::new(default_schema);
+    };
+
+    let schema_name = if let Some(name) = segment.name() {
+        Name::new(name.syntax().text().to_string())
+    } else if let Some(name_ref) = segment.name_ref() {
+        Name::new(name_ref.syntax().text().to_string())
+    } else {
+        return Schema::new(default_schema);
+    };
+
+    Schema(schema_name)
+}
+
+fn bind_set(b: &mut Binder, set: ast::Set) {
+    let position = set.syntax().text_range().start();
+
+    // `set schema` is an alternative to `set search_path`
+    if set.schema_token().is_some() {
+        if let Some(literal) = set.literal() {
+            if let Some(string_value) = extract_string_literal(&literal) {
+                b.search_path_changes.push(SearchPathChange {
+                    position,
+                    search_path: vec![Schema::new(string_value)],
+                });
+            }
+        }
+        return;
+    }
+
+    let Some(path) = set.path() else { return };
+
+    if path.qualifier().is_some() {
+        return;
+    }
+
+    let Some(segment) = path.segment() else {
+        return;
+    };
+
+    let param_name = if let Some(name_ref) = segment.name_ref() {
+        name_ref.syntax().text().to_string()
+    } else {
+        return;
+    };
+
+    if !param_name.eq_ignore_ascii_case("search_path") {
+        return;
+    }
+
+    // `set search_path`
+    if set.default_token().is_some() {
+        b.search_path_changes.push(SearchPathChange {
+            position,
+            search_path: vec![Schema::new("pg_temp"), Schema::new("public")],
+        });
+    } else {
+        let mut search_path = vec![];
+        for config_value in set.config_values() {
+            match config_value {
+                ast::ConfigValue::Literal(literal) => {
+                    if let Some(string_value) = extract_string_literal(&literal) {
+                        if !string_value.is_empty() {
+                            search_path.push(Schema::new(string_value));
+                        }
+                    }
+                }
+                ast::ConfigValue::NameRef(name_ref) => {
+                    let schema_name = name_ref.syntax().text().to_string();
+                    search_path.push(Schema::new(schema_name));
+                }
+            }
+        }
+        b.search_path_changes.push(SearchPathChange {
+            position,
+            search_path,
+        });
+    }
+}
+
+fn extract_string_literal(literal: &ast::Literal) -> Option<String> {
+    let text = literal.syntax().text().to_string();
+
+    if text.starts_with('\'') && text.ends_with('\'') && text.len() >= 2 {
+        Some(text[1..text.len() - 1].to_string())
+    } else {
+        None
+    }
+}

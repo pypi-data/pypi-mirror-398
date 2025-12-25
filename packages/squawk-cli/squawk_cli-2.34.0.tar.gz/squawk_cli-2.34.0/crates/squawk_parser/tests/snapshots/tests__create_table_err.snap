@@ -1,0 +1,729 @@
+---
+source: crates/squawk_parser/tests/tests.rs
+input_file: crates/squawk_parser/tests/data/err/create_table.sql
+---
+SOURCE_FILE
+  CREATE_TABLE
+    COMMENT "-- with missing table name"
+    WHITESPACE "\n"
+    CREATE_KW "create"
+    WHITESPACE " "
+    TABLE_KW "table"
+    WHITESPACE " "
+    TABLE_ARG_LIST
+      L_PAREN "("
+      WHITESPACE "\n  "
+      COLUMN
+        NAME
+          IDENT "sensor_id"
+        WHITESPACE " "
+        PATH_TYPE
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                INTEGER_KW "INTEGER"
+      WHITESPACE "\n"
+      R_PAREN ")"
+  SEMICOLON ";"
+  WHITESPACE "\n\n"
+  CREATE_TABLE
+    COMMENT "-- missing type"
+    WHITESPACE "\n"
+    CREATE_KW "create"
+    WHITESPACE " "
+    TABLE_KW "table"
+    WHITESPACE " "
+    PATH
+      PATH_SEGMENT
+        NAME
+          IDENT "t"
+    WHITESPACE " "
+    TABLE_ARG_LIST
+      L_PAREN "("
+      COLUMN
+        NAME
+          IDENT "a"
+      R_PAREN ")"
+  SEMICOLON ";"
+  WHITESPACE "\n\n"
+  CREATE_TABLE
+    COMMENT "-- trailing comma"
+    WHITESPACE "\n"
+    CREATE_KW "create"
+    WHITESPACE " "
+    TABLE_KW "table"
+    WHITESPACE " "
+    PATH
+      PATH_SEGMENT
+        NAME
+          IDENT "t"
+    WHITESPACE " "
+    TABLE_ARG_LIST
+      L_PAREN "("
+      COLUMN
+        NAME
+          IDENT "a"
+        WHITESPACE " "
+        PATH_TYPE
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                TEXT_KW "text"
+      ERROR
+        COMMA ","
+      R_PAREN ")"
+  SEMICOLON ";"
+  WHITESPACE "\n\n"
+  CREATE_TABLE
+    COMMENT "-- missing columns / constraints"
+    WHITESPACE "\n"
+    CREATE_KW "create"
+    WHITESPACE " "
+    TABLE_KW "table"
+    WHITESPACE " "
+    PATH
+      PATH_SEGMENT
+        NAME
+          IDENT "t"
+    WHITESPACE " "
+    TABLE_ARG_LIST
+      L_PAREN "("
+      ERROR
+        COMMA ","
+      ERROR
+        COMMA ","
+      ERROR
+        COMMA ","
+      ERROR
+        COMMA ","
+      ERROR
+        COMMA ","
+      R_PAREN ")"
+  SEMICOLON ";"
+  WHITESPACE "\n\n"
+  CREATE_TABLE
+    COMMENT "-- a column list with SET DEFAULT is only supported for ON DELETE actions"
+    WHITESPACE "\n"
+    CREATE_KW "create"
+    WHITESPACE " "
+    TABLE_KW "table"
+    WHITESPACE " "
+    PATH
+      PATH_SEGMENT
+        NAME
+          IDENT "t"
+    WHITESPACE " "
+    TABLE_ARG_LIST
+      L_PAREN "("
+      WHITESPACE "\n  "
+      COLUMN
+        NAME
+          IDENT "a"
+        WHITESPACE " "
+        PATH_TYPE
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                INT_KW "int"
+      COMMA ","
+      WHITESPACE "\n  "
+      COLUMN
+        NAME
+          IDENT "b"
+        WHITESPACE " "
+        PATH_TYPE
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                INT_KW "int"
+        WHITESPACE " "
+        REFERENCES_CONSTRAINT
+          REFERENCES_KW "references"
+          WHITESPACE " "
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                IDENT "bar"
+          WHITESPACE " "
+          ON_UPDATE_ACTION
+            ON_KW "on"
+            WHITESPACE " "
+            UPDATE_KW "update"
+            WHITESPACE " "
+            CASCADE_KW "cascade"
+      COMMA ","
+      WHITESPACE "\n  "
+      COLUMN
+        NAME
+          IDENT "c"
+        WHITESPACE " "
+        PATH_TYPE
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                INT_KW "int"
+        WHITESPACE " "
+        REFERENCES_CONSTRAINT
+          REFERENCES_KW "references"
+          WHITESPACE " "
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                IDENT "bar"
+          WHITESPACE " "
+          ON_UPDATE_ACTION
+            ON_KW "on"
+            WHITESPACE " "
+            UPDATE_KW "update"
+            WHITESPACE " "
+            SET_NULL_COLUMNS
+              SET_KW "set"
+              WHITESPACE " "
+              NULL_KW "null"
+      COMMA ","
+      WHITESPACE "\n  "
+      COLUMN
+        NAME
+          IDENT "d"
+        WHITESPACE " "
+        PATH_TYPE
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                INT_KW "int"
+        WHITESPACE " "
+        REFERENCES_CONSTRAINT
+          REFERENCES_KW "references"
+          WHITESPACE " "
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                IDENT "bar"
+          WHITESPACE " "
+          ON_UPDATE_ACTION
+            ON_KW "on"
+            WHITESPACE " "
+            UPDATE_KW "update"
+            WHITESPACE " "
+            SET_DEFAULT_COLUMNS
+              SET_KW "set"
+              WHITESPACE " "
+              DEFAULT_KW "default"
+      COMMA ","
+      WHITESPACE "\n  "
+      COLUMN
+        NAME
+          IDENT "e"
+        WHITESPACE " "
+        PATH_TYPE
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                INT_KW "int"
+        WHITESPACE " "
+        REFERENCES_CONSTRAINT
+          REFERENCES_KW "references"
+          WHITESPACE " "
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                IDENT "bar"
+          WHITESPACE " "
+          ON_UPDATE_ACTION
+            ON_KW "on"
+            WHITESPACE " "
+            UPDATE_KW "update"
+            WHITESPACE " "
+            SET_DEFAULT_COLUMNS
+              SET_KW "set"
+              WHITESPACE " "
+              DEFAULT_KW "default"
+              WHITESPACE " "
+              COLUMN_LIST
+                L_PAREN "("
+                COLUMN
+                  NAME_REF
+                    IDENT "a"
+                COMMA ","
+                WHITESPACE " "
+                COLUMN
+                  NAME_REF
+                    IDENT "b"
+                COMMA ","
+                WHITESPACE " "
+                COLUMN
+                  NAME_REF
+                    IDENT "c"
+                R_PAREN ")"
+      WHITESPACE "\n"
+      R_PAREN ")"
+  SEMICOLON ";"
+  WHITESPACE "\n\n"
+  CREATE_TABLE
+    COMMENT "-- conflicting options"
+    WHITESPACE "\n"
+    CREATE_KW "create"
+    WHITESPACE " "
+    UNLOGGED_KW "unlogged"
+    WHITESPACE " "
+    TABLE_KW "table"
+    WHITESPACE " "
+    PATH
+      PATH_SEGMENT
+        NAME
+          IDENT "t"
+    WHITESPACE " "
+    TABLE_ARG_LIST
+      L_PAREN "("
+      WHITESPACE "\n  "
+      COLUMN
+        NAME
+          IDENT "a"
+        WHITESPACE " "
+        PATH_TYPE
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                INT_KW "int"
+        WHITESPACE " "
+        GENERATED_CONSTRAINT
+          GENERATED_KW "generated"
+          WHITESPACE " "
+          ALWAYS_KW "always"
+          WHITESPACE " "
+          AS_KW "as"
+          WHITESPACE " "
+          IDENTITY_KW "identity"
+      COMMA ","
+      WHITESPACE "\n  "
+      COLUMN
+        NAME
+          IDENT "b"
+        WHITESPACE " "
+        PATH_TYPE
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                INT_KW "int"
+        WHITESPACE " "
+        GENERATED_CONSTRAINT
+          GENERATED_KW "generated"
+          WHITESPACE " "
+          ALWAYS_KW "always"
+          WHITESPACE " "
+          AS_KW "as"
+          WHITESPACE " "
+          IDENTITY_KW "identity"
+          WHITESPACE " "
+          SEQUENCE_OPTION_LIST
+            L_PAREN "("
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              AS_KW "as"
+              WHITESPACE " "
+              PATH_TYPE
+                PATH
+                  PATH_SEGMENT
+                    NAME_REF
+                      BIGINT_KW "bigint"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              CACHE_KW "cache"
+              WHITESPACE " "
+              LITERAL
+                INT_NUMBER "100"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              INCREMENT_KW "increment"
+              WHITESPACE " "
+              BY_KW "by"
+              WHITESPACE " "
+              LITERAL
+                INT_NUMBER "10"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              INCREMENT_KW "increment"
+              WHITESPACE " "
+              LITERAL
+                INT_NUMBER "10"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              SEQUENCE_KW "sequence"
+              WHITESPACE " "
+              NAME_KW "name"
+              WHITESPACE " "
+              NAME_REF
+                IDENT "foo"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              RESTART_KW "restart"
+              WHITESPACE " "
+              WITH_KW "with"
+              WHITESPACE " "
+              LITERAL
+                INT_NUMBER "500"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              LOGGED_KW "logged"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              UNLOGGED_KW "unlogged"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              START_KW "start"
+              WHITESPACE " "
+              WITH_KW "with"
+              WHITESPACE " "
+              LITERAL
+                INT_NUMBER "10"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              START_KW "start"
+              WHITESPACE " "
+              LITERAL
+                INT_NUMBER "25"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              OWNED_KW "owned"
+              WHITESPACE " "
+              BY_KW "by"
+              WHITESPACE " "
+              NONE_KW "none"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              OWNED_KW "owned"
+              WHITESPACE " "
+              BY_KW "by"
+              WHITESPACE " "
+              PATH
+                PATH
+                  PATH_SEGMENT
+                    NAME_REF
+                      IDENT "fooo"
+                DOT "."
+                PATH_SEGMENT
+                  NAME_REF
+                    IDENT "bar"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              MAXVALUE_KW "maxvalue"
+              WHITESPACE " "
+              LITERAL
+                INT_NUMBER "70"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              MINVALUE_KW "minvalue"
+              WHITESPACE " "
+              LITERAL
+                INT_NUMBER "150"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              NO_KW "no"
+              WHITESPACE " "
+              MINVALUE_KW "minvalue"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              NO_KW "no"
+              WHITESPACE " "
+              CYCLE_KW "cycle"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              NO_KW "no"
+              WHITESPACE " "
+              MAXVALUE_KW "maxvalue"
+            WHITESPACE "\n    "
+            SEQUENCE_OPTION
+              CYCLE_KW "cycle"
+            WHITESPACE "\n  "
+            R_PAREN ")"
+      WHITESPACE "\n"
+      R_PAREN ")"
+  SEMICOLON ";"
+  WHITESPACE "\n\n"
+  CREATE_TABLE
+    CREATE_KW "create"
+    WHITESPACE " "
+    TABLE_KW "table"
+    WHITESPACE " "
+    PATH
+      PATH_SEGMENT
+        NAME
+          IDENT "t"
+    WHITESPACE " "
+    PARTITION_OF
+      PARTITION_KW "partition"
+      WHITESPACE " "
+      OF_KW "of"
+      WHITESPACE " "
+      PATH
+        PATH_SEGMENT
+          NAME_REF
+            IDENT "u"
+    WHITESPACE "\n    "
+    COMMENT "-- missing some commas"
+    WHITESPACE "\n    "
+    PARTITION_FOR_VALUES_FROM
+      FOR_KW "for"
+      WHITESPACE " "
+      VALUES_KW "values"
+      WHITESPACE " "
+      FROM_KW "from"
+      WHITESPACE " "
+      L_PAREN "("
+      LITERAL
+        STRING "'2024-01-01'"
+      WHITESPACE "  "
+      LITERAL
+        INT_NUMBER "1"
+      R_PAREN ")"
+      WHITESPACE " "
+      TO_KW "to"
+      WHITESPACE " "
+      L_PAREN "("
+      LITERAL
+        STRING "'2024-04-01'"
+      WHITESPACE "  "
+      LITERAL
+        INT_NUMBER "5"
+      R_PAREN ")"
+  SEMICOLON ";"
+  WHITESPACE "\n\n"
+  CREATE_TABLE
+    CREATE_KW "create"
+    WHITESPACE " "
+    TABLE_KW "table"
+    WHITESPACE " "
+    PATH
+      PATH_SEGMENT
+        NAME
+          IDENT "t"
+    WHITESPACE " "
+    PARTITION_OF
+      PARTITION_KW "partition"
+      WHITESPACE " "
+      OF_KW "of"
+      WHITESPACE " "
+      PATH
+        PATH_SEGMENT
+          NAME_REF
+            IDENT "u"
+    WHITESPACE "\n    "
+    COMMENT "-- missing some commas"
+    WHITESPACE "\n    "
+    PARTITION_FOR_VALUES_IN
+      FOR_KW "for"
+      WHITESPACE " "
+      VALUES_KW "values"
+      WHITESPACE " "
+      IN_KW "in"
+      WHITESPACE " "
+      L_PAREN "("
+      LITERAL
+        INT_NUMBER "1"
+      WHITESPACE "  "
+      LITERAL
+        INT_NUMBER "2"
+      WHITESPACE "  "
+      LITERAL
+        INT_NUMBER "3"
+      R_PAREN ")"
+  SEMICOLON ";"
+  WHITESPACE "\n\n"
+  CREATE_TABLE
+    COMMENT "-- exclude missing a comma"
+    WHITESPACE "\n"
+    CREATE_KW "create"
+    WHITESPACE " "
+    TABLE_KW "table"
+    WHITESPACE " "
+    PATH
+      PATH_SEGMENT
+        NAME
+          IDENT "t"
+    WHITESPACE " "
+    TABLE_ARG_LIST
+      L_PAREN "("
+      WHITESPACE "\n  "
+      COLUMN
+        NAME
+          IDENT "a"
+        WHITESPACE " "
+        PATH_TYPE
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                INT_KW "int"
+      COMMA ","
+      WHITESPACE "\n  "
+      COLUMN
+        NAME
+          IDENT "b"
+        WHITESPACE " "
+        PATH_TYPE
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                TEXT_KW "text"
+      COMMA ","
+      WHITESPACE "\n  "
+      EXCLUDE_CONSTRAINT
+        EXCLUDE_KW "exclude"
+        WHITESPACE " "
+        CONSTRAINT_INDEX_METHOD
+          USING_KW "using"
+          WHITESPACE " "
+          NAME_REF
+            IDENT "btree"
+        WHITESPACE " "
+        CONSTRAINT_EXCLUSION_LIST
+          L_PAREN "("
+          WHITESPACE " "
+          CONSTRAINT_EXCLUSION
+            NAME_REF
+              IDENT "a"
+            WHITESPACE " "
+            WITH_KW "with"
+            WHITESPACE " "
+            OP
+              PATH
+                PATH
+                  PATH_SEGMENT
+                    NAME_REF
+                      IDENT "buzz"
+                DOT "."
+                PATH_SEGMENT
+              R_ANGLE ">"
+          WHITESPACE " "
+          CONSTRAINT_EXCLUSION
+            NAME_REF
+              IDENT "b"
+            WHITESPACE " "
+            WITH_KW "with"
+            WHITESPACE " "
+            OP
+              L_ANGLE "<"
+          R_PAREN ")"
+      WHITESPACE " \n"
+      R_PAREN ")"
+  SEMICOLON ";"
+  WHITESPACE "\n\n"
+  CREATE_TABLE
+    CREATE_KW "create"
+    WHITESPACE " "
+    TABLE_KW "table"
+    WHITESPACE " "
+    PATH
+      PATH_SEGMENT
+        NAME
+          IDENT "z"
+    WHITESPACE " "
+    TABLE_ARG_LIST
+      L_PAREN "("
+      WHITESPACE "\n  "
+      COLUMN
+        NAME
+          IDENT "a"
+        WHITESPACE " "
+        PATH_TYPE
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                INT_KW "int"
+      WHITESPACE "\n"
+      R_PAREN ")"
+  WHITESPACE "\n"
+  COMMENT "-- ^ missing semi"
+  WHITESPACE "\n\n"
+  SELECT
+    WITH_CLAUSE
+      WITH_KW "with"
+      WHITESPACE " "
+      WITH_TABLE
+        NAME
+          IDENT "t"
+        WHITESPACE " "
+        AS_KW "as"
+        WHITESPACE " "
+        L_PAREN "("
+        WHITESPACE "\n  "
+        SELECT
+          SELECT_CLAUSE
+            SELECT_KW "select"
+            WHITESPACE " "
+            TARGET_LIST
+              TARGET
+                LITERAL
+                  INT_NUMBER "1"
+        WHITESPACE "\n"
+        R_PAREN ")"
+    WHITESPACE "\n"
+    SELECT_CLAUSE
+      SELECT_KW "select"
+      WHITESPACE " "
+      TARGET_LIST
+        TARGET
+          STAR "*"
+    WHITESPACE " "
+    FROM_CLAUSE
+      FROM_KW "from"
+      WHITESPACE " "
+      FROM_ITEM
+        NAME_REF
+          IDENT "t"
+  SEMICOLON ";"
+  WHITESPACE "\n"
+---
+error[syntax-error]: expected path name
+  ╭▸ 
+2 │ create table (
+  ╰╴            ━
+error[syntax-error]: unexpected trailing comma
+   ╭▸ 
+10 │ create table t (a text,);
+   ╰╴                      ━
+error[syntax-error]: unexpected comma
+   ╭▸ 
+13 │ create table t (,,,,,);
+   ╰╴                ━
+error[syntax-error]: unexpected comma
+   ╭▸ 
+13 │ create table t (,,,,,);
+   ╰╴                 ━
+error[syntax-error]: unexpected comma
+   ╭▸ 
+13 │ create table t (,,,,,);
+   ╰╴                  ━
+error[syntax-error]: unexpected comma
+   ╭▸ 
+13 │ create table t (,,,,,);
+   ╰╴                   ━
+error[syntax-error]: unexpected comma
+   ╭▸ 
+13 │ create table t (,,,,,);
+   ╰╴                    ━
+error[syntax-error]: expected COMMA
+   ╭▸ 
+51 │     for values from ('2024-01-01'  1) to ('2024-04-01'  5);
+   ╰╴                                 ━
+error[syntax-error]: expected COMMA
+   ╭▸ 
+51 │     for values from ('2024-01-01'  1) to ('2024-04-01'  5);
+   ╰╴                                                      ━
+error[syntax-error]: expected COMMA
+   ╭▸ 
+55 │     for values in (1  2  3);
+   ╰╴                    ━
+error[syntax-error]: expected COMMA
+   ╭▸ 
+55 │     for values in (1  2  3);
+   ╰╴                       ━
+error[syntax-error]: expected COMMA
+   ╭▸ 
+61 │   exclude using btree ( a with buzz.> b with <) 
+   ╰╴                                     ━
+error[syntax-error]: expected SEMICOLON
+   ╭▸ 
+66 │   )
+   │ ┏━━┛
+67 │ ┃ -- ^ missing semi
+   ╰╴┗━┛

@@ -1,0 +1,151 @@
+---
+source: crates/squawk_parser/tests/tests.rs
+input_file: crates/squawk_parser/tests/data/err/create_function.sql
+---
+SOURCE_FILE
+  CREATE_FUNCTION
+    CREATE_KW "create"
+    WHITESPACE " "
+    FUNCTION_KW "function"
+    WHITESPACE " "
+    PATH
+      PATH_SEGMENT
+        NAME
+          IDENT "f"
+    PARAM_LIST
+      L_PAREN "("
+      R_PAREN ")"
+    WHITESPACE "\n"
+    COMMENT "-- missing comma"
+    WHITESPACE "\n"
+    RET_TYPE
+      RETURNS_KW "returns"
+      WHITESPACE " "
+      TABLE_KW "table"
+      WHITESPACE " "
+      L_PAREN "("
+      NAME_REF
+        IDENT "a"
+      WHITESPACE " "
+      PATH_TYPE
+        PATH
+          PATH_SEGMENT
+            NAME_REF
+              TEXT_KW "text"
+      WHITESPACE "  "
+      NAME_REF
+        IDENT "b"
+      WHITESPACE " "
+      PATH_TYPE
+        PATH
+          PATH_SEGMENT
+            NAME_REF
+              INT_KW "int"
+      R_PAREN ")"
+    WHITESPACE "\n"
+    FUNC_OPTION_LIST
+      AS_FUNC_OPTION
+        AS_KW "as"
+        WHITESPACE " "
+        LITERAL
+          STRING "''"
+      WHITESPACE " "
+      LANGUAGE_FUNC_OPTION
+        LANGUAGE_KW "language"
+        WHITESPACE " "
+        SQL_KW "sql"
+  SEMICOLON ";"
+  WHITESPACE "\n\n"
+  CREATE_FUNCTION
+    CREATE_KW "create"
+    WHITESPACE " "
+    FUNCTION_KW "function"
+    WHITESPACE " "
+    PATH
+      PATH_SEGMENT
+        NAME
+          IDENT "foo"
+    PARAM_LIST
+      L_PAREN "("
+      PARAM
+        NAME
+          IDENT "arg"
+        WHITESPACE " "
+        PATH_TYPE
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                FLOAT_KW "float"
+        WHITESPACE " "
+        PARAM_DEFAULT
+          EQ "="
+          WHITESPACE " "
+          LITERAL
+            INT_NUMBER "1"
+      WHITESPACE " "
+      PARAM
+        PATH_TYPE
+          PATH
+            PATH_SEGMENT
+              NAME_REF
+                IDENT "int4"
+        WHITESPACE " "
+        PARAM_DEFAULT
+          EQ "="
+          WHITESPACE " "
+          LITERAL
+            INT_NUMBER "4"
+      R_PAREN ")"
+    WHITESPACE "\n"
+    COMMENT "-- missing comma                 ^"
+    WHITESPACE "\n"
+    RET_TYPE
+      RETURNS_KW "returns"
+      WHITESPACE " "
+      PATH_TYPE
+        PATH
+          PATH_SEGMENT
+            NAME_REF
+              IDENT "void"
+    WHITESPACE "\n"
+    FUNC_OPTION_LIST
+      AS_FUNC_OPTION
+        AS_KW "as"
+        WHITESPACE " "
+        LITERAL
+          STRING "''"
+      WHITESPACE "\n"
+      LANGUAGE_FUNC_OPTION
+        LANGUAGE_KW "language"
+        WHITESPACE " "
+        SQL_KW "sql"
+  SEMICOLON ";"
+  WHITESPACE "\n\n"
+  COMMENT "-- regression partial definition"
+  WHITESPACE "\n"
+  CREATE_FUNCTION
+    CREATE_KW "create"
+    WHITESPACE " "
+    FUNCTION_KW "function"
+  WHITESPACE "\n\n"
+---
+error[syntax-error]: expected COMMA
+  ╭▸ 
+3 │ returns table (a text  b int)
+  ╰╴                     ━
+error[syntax-error]: expected COMMA
+  ╭▸ 
+6 │ create function foo(arg float = 1 int4 = 4)
+  ╰╴                                 ━
+error[syntax-error]: expected path name
+   ╭▸ 
+13 │   create function
+   │ ┏━━━━━━━━━━━━━━━━┛
+14 │ ┃
+   ╰╴┗━┛
+error[syntax-error]: expected param list
+   ╭▸ 
+13 │   create function
+   │ ┏━━━━━━━━━━━━━━━━┛
+14 │ ┃
+   ╰╴┗━┛

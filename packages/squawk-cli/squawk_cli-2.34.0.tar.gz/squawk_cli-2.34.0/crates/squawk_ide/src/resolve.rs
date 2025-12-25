@@ -1,0 +1,91 @@
+use rowan::TextSize;
+use squawk_syntax::{
+    SyntaxNodePtr,
+    ast::{self, AstNode},
+};
+
+use crate::binder::Binder;
+use crate::symbols::{Name, Schema, SymbolKind};
+
+#[derive(Debug)]
+enum NameRefContext {
+    DropTable,
+    Table,
+}
+
+pub(crate) fn resolve_name_ref(binder: &Binder, name_ref: &ast::NameRef) -> Option<SyntaxNodePtr> {
+    let context = classify_name_ref_context(name_ref)?;
+
+    match context {
+        NameRefContext::DropTable | NameRefContext::Table => {
+            let path = find_containing_path(name_ref)?;
+            let table_name = extract_table_name(&path)?;
+            let schema = extract_schema_name(&path);
+            let position = name_ref.syntax().text_range().start();
+            resolve_table(binder, &table_name, &schema, position)
+        }
+    }
+}
+
+fn classify_name_ref_context(name_ref: &ast::NameRef) -> Option<NameRefContext> {
+    for ancestor in name_ref.syntax().ancestors() {
+        if ast::DropTable::can_cast(ancestor.kind()) {
+            return Some(NameRefContext::DropTable);
+        }
+        if ast::Table::can_cast(ancestor.kind()) {
+            return Some(NameRefContext::Table);
+        }
+    }
+
+    None
+}
+
+fn resolve_table(
+    binder: &Binder,
+    table_name: &Name,
+    schema: &Option<Schema>,
+    position: TextSize,
+) -> Option<SyntaxNodePtr> {
+    let symbols = binder.scopes[binder.root_scope()].get(table_name)?;
+
+    if let Some(schema) = schema {
+        let symbol_id = symbols.iter().copied().find(|id| {
+            let symbol = &binder.symbols[*id];
+            symbol.kind == SymbolKind::Table && &symbol.schema == schema
+        })?;
+        return Some(binder.symbols[symbol_id].ptr);
+    } else {
+        let search_path = binder.search_path_at(position);
+        for search_schema in search_path {
+            if let Some(symbol_id) = symbols.iter().copied().find(|id| {
+                let symbol = &binder.symbols[*id];
+                symbol.kind == SymbolKind::Table && &symbol.schema == search_schema
+            }) {
+                return Some(binder.symbols[symbol_id].ptr);
+            }
+        }
+    }
+    None
+}
+
+fn find_containing_path(name_ref: &ast::NameRef) -> Option<ast::Path> {
+    for ancestor in name_ref.syntax().ancestors() {
+        if let Some(path) = ast::Path::cast(ancestor) {
+            return Some(path);
+        }
+    }
+    None
+}
+
+fn extract_table_name(path: &ast::Path) -> Option<Name> {
+    let segment = path.segment()?;
+    let name_ref = segment.name_ref()?;
+    Some(Name::new(name_ref.syntax().text().to_string()))
+}
+
+fn extract_schema_name(path: &ast::Path) -> Option<Schema> {
+    path.qualifier()
+        .and_then(|q| q.segment())
+        .and_then(|s| s.name_ref())
+        .map(|name_ref| Schema(Name::new(name_ref.syntax().text().to_string())))
+}
