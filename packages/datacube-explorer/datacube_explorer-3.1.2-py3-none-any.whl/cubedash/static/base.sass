@@ -1,0 +1,808 @@
+$bold_highlight: #212121
+
+$content_background: lighten($bold_highlight, 75%)
+
+$header_base: lighten(#082e41, 5%)
+$breadcrumb_base: #00718b
+$menu_base: lighten($breadcrumb_base, 5%)
+
+// Timeline widget on main map
+$timeline_base: lighten($header_base, 10%)
+// Color of buttons, popups, tooltips etc.
+$widget_base: $timeline_base
+
+// The color of the little header in each panel
+$section_header_base: darken($header_base, 5%)
+
+$header_highlight: lighten($bold_highlight, 12%)
+$panel_highlight: lighten($bold_highlight, 15%)
+$header_background: lighten($bold_highlight, 30%)
+
+$muted_text: lighten($bold_highlight, 32%)
+
+$panel_color: #e6edef
+$panel_odd_color: #fafafa
+
+
+:root
+    // "s" is the default spacing throughout our layout.
+    // Margins, gaps, paddings are calculated as a multiple of it.
+    --s: 15px
+
+    // (Previously we made it smaller on smaller screens... which is why it exists)
+
+// Adjust standard padding based on screen width. We can't use CSS vars due to IE support.
+@mixin box_padding($scale_top:1, $scale_bottom:1, $scale_horizontal:1)
+    padding: calc(var(--s)*#{$scale_top}) calc(2*var(--s)*#{$scale_horizontal}) calc(var(--s)*#{$scale_bottom})
+
+// Add the standard padding multiples, but only on the left side.
+@mixin left_padding($scale:1)
+    padding-left: calc(var(--s)*#{$scale})
+
+@mixin horiz_margin($scale:1)
+    margin-right: calc(var(--s)*#{$scale})
+    margin-left: calc(var(--s)*#{$scale})
+
+@mixin top_padding($scale:1)
+    padding-top: calc(var(--s)*#{$scale})
+
+@mixin wide_padding
+    @include box_padding(1)
+
+@mixin square_padding
+    @include box_padding(2, 2)
+
+@mixin header_padding
+    // Place a header closer to its contents below.
+    @include box_padding(2, 1)
+
+
+// On small screens, move the description to the info panel.
+.product-description
+    display: none
+
+@media (max-width: 600px)
+    .option-description
+        display: none
+
+    .product-description
+        display: block
+
+body
+    font-family: Helvetica, Arial, sans-serif
+    //background: linear-gradient(to bottom, desaturate(lighten($header_base, 10%), 100%) 90px, desaturate(lighten($header_base, 20%), 100%) 800px)
+    background: linear-gradient(to bottom, $header_base 90px, lighten($header_base, 15%) 800px)
+
+    min-height: calc(100vh - 50px)
+    color: $bold_highlight
+    font-size: 0.86em
+    margin: 0 auto
+    padding: 0 15px
+    max-width: 1024px
+
+html
+    scrollbar-color: #95d3f4 #d4dadc
+
+a
+    color: #2b2b2b
+
+ul
+    list-style: square
+
+.content-wrapper
+    position: relative
+
+.header
+    background: $header_base
+
+    @include box_padding($scale_top:2, $scale_bottom:1, $scale_horizontal:1)
+
+    display: flex
+    // On a phone, stack the header vertically.
+    @media (max-width: 750px)
+        flex-direction: column
+
+    justify-content: space-between
+
+    &::after
+        clear: both
+
+
+    #logo
+        color: #fff
+
+        img
+            vertical-align: middle
+            padding-right: 2px
+            display: inline-block
+            // We don't want a tall image (Africa!) to shift our text height calculation.
+            // So make the space small and let it overflow.
+            margin: -10px 0
+
+        > a
+            display: inline-block
+            text-decoration: none
+            color: #fff
+            white-space: nowrap
+
+
+        > .instance-title
+            padding-left: 10px
+            margin-left: 10px
+            white-space: nowrap
+            @media (max-width: 800px)
+                position: absolute
+                bottom: 0
+                left: 0
+
+            &::before
+                display: inline-block
+                border-left: 1px solid #fff
+
+
+    #menu-link
+        text-align: left
+
+        // Negative offset for the padding on the buttons.
+        @include horiz_margin($scale:-1)
+
+        > ul
+            display: flex
+            justify-content: flex-end
+            flex-direction: row
+
+        color: #dedede
+        a
+            font-weight: bold
+            color: #dedede
+
+
+        .ex-menu-title, a
+            cursor: pointer
+            @include box_padding($scale_horizontal: 0.5)
+            display: block
+            white-space: nowrap
+            text-decoration: none
+        .ex-menu-title:hover
+            background-color: $menu_base
+        .is-open > .ex-menu-title
+            background-color: $menu_base
+
+        a:hover
+            color: $panel_highlight
+        ul
+            padding: 0
+            margin: 0
+            > li
+                list-style: none
+                position: relative
+
+                > ul > li
+                    background: $menu_base
+                    &:hover
+                        background-color: darken($menu_base, 5%)
+                        a
+                            color: #fff
+
+
+
+        .ex-menu > ul
+            display: none
+        .ex-menu.is-open > ul
+            display: block
+
+            position: absolute
+            top: 100%
+            left: 0
+            &.left
+                left: initial
+                right: 0
+
+            // Above maps etc.
+            z-index: 10000
+
+            li
+                .hide
+                    display: none
+                #show-hidden-product
+                    text-align: right
+                    color: #000
+                    font-size:12px
+
+.logo-text, .instance-title
+    display: inline-block
+    @include box_padding(1, 1, 0)
+
+// Menus that are expandable
+.ex-menu-title
+    // This hints to touch devices (such as iPads) to trigger "hover" on click rather than select the text.
+    cursor: pointer
+
+    &::after
+        content: ' ▾'
+        font-size: 0.8em
+
+#breadcrumb
+    background: $breadcrumb_base
+    color: #efefef
+    font-weight: bold
+    @include wide_padding
+
+    .item
+        color: #efefef
+
+// Pages with tabs: put the tabs in the margin.
+header
+    color: #efefef
+    padding: 0
+    display: flex
+    flex-direction: row
+    background: $header_background
+
+footer
+    @include wide_padding
+    text-align: right
+    color: #efefef
+    font-size: 0.7em
+    line-height: 2em
+
+#content
+    clear: right
+    position: relative
+    width: auto
+    background: $panel_color
+
+.map-panel
+    width: 100%
+
+// Spatial page
+#map
+    // Overridden below for wider displays.
+    height: 400px
+
+// show two columns on wide displays
+@media (min-width: 800px)
+    .panels
+        display: flex
+
+    .info-panel
+        width: 250px
+
+    #map
+        flex: 1 1
+        height: 100%
+        width: 100%
+
+.info-panel
+    ul
+        list-style-type: none
+        padding: 0
+        margin: 0
+
+h1
+    line-height: 30px
+    font-size: 18px
+    font-weight: normal
+
+    strong
+        display: block
+
+    color: #333
+
+h4
+    color: lighten($bold_highlight, 18%)
+
+// A Header followed by smaller text on the same line
+h2.followed, h3.followed
+    display: inline-block
+
+    // If the header is the only thing in the panel, the follower
+    // can stop normal margin collapse. So we'll manually do it.
+    &.lonesome
+        margin-bottom: 0
+
+
+.header-follow
+    display: inline-block
+    margin-top: 5px
+
+ul:last-child, ol:last-child
+    margin-bottom: 0
+
+// The default list indent should be a multiple of normal padding
+ul
+    @include left_padding(2)
+
+    // Quiet list: not adorned with bullets or anything.
+    &.quiet
+        list-style: none
+        padding-left: 0
+        margin: 0
+
+        li::marker
+            color: $muted_text
+            //content: "►"
+
+.message-box
+    position: absolute
+    left: calc(50% - 100px)
+    top: 25%
+    width: 200px
+    text-align: center
+    z-index: 9999
+    background: $panel_highlight
+    padding: 13px 15px
+    color: #fff
+
+    a
+        color: lighten($widget_base, 10%)
+
+h1, h2, h3, h4, th
+    .header-anchor
+        text-decoration: none
+        font-size: 0.7em
+        opacity: 0.6
+        // Displayed on hover (below)
+        visibility: hidden
+    &:hover .header-anchor
+        visibility: visible
+
+.panel
+    @include square_padding
+    line-height: 1.7em
+    background: $panel_color
+
+    h1, h2, h3, h4
+        margin: calc(2*var(--s)) 0 var(--s)
+        &:first-child
+            margin-top: 0
+        &:last-child
+            margin-bottom: 0
+        &.followed
+          margin-right: 10px
+
+    p, .p
+        margin: var(--s) 0
+        &:first-child
+            margin-top: 0
+        &:last-child
+            margin-bottom: 0
+
+    h3
+        font-size: 1.3em
+        color: $section_header_base
+
+    &.odd
+        background-color: $panel_odd_color
+        border-bottom: 0
+
+    &.highlight
+        background: $panel_highlight
+        color: #efefef
+        border-bottom: 0
+        > h1
+            color: #fff
+        a
+            color: #aeaeae
+
+        .muted
+            color: darken(#efefef, 20%)
+
+    // Allow horizontal scrolling rather than wrapping content
+    &.overflowable
+        overflow-x: auto
+
+    .dataset-location
+        @media (max-width: 750px)
+            table
+                tr
+                    th
+                        float: left
+                    td
+                        float: left
+
+.columned
+    column-count: 2
+    @media (max-width: 590px)
+        column-count: 1
+
+.header-option
+    position: relative
+    border-collapse: collapse
+    vertical-align: bottom
+
+    background-color: $panel_highlight
+
+    // Has limited, short options. Like a year or month.
+    // So we never want them wrapping.
+    &.limited
+        white-space: nowrap
+
+    &:hover
+        background-color: lighten($panel_highlight, 5%)
+    &.primary
+        background-color: $header_highlight
+        &:hover
+            background-color: lighten($header_highlight, 10%)
+
+    &.is-open
+        background-color: $menu_base
+        &:hover
+            background-color: $menu_base
+
+        .option-title
+            &:hover
+                color: #fff
+
+        .option-menu
+            background-color: $menu_base
+            display: table
+
+    .option-title
+        font-size: 1em
+        font-weight: normal
+        line-break: anywhere
+
+    .group-name
+        margin: 0
+        @include header_padding
+        font-size: 0.8em
+        color: $bold_highlight
+        text-transform: lowercase
+
+
+    > .option-title
+        @include wide_padding
+        margin: 0
+        line-height: 1.75em
+        flex: 1 1
+
+        // This hints to touch devices (such as iPads) to trigger "hover" on click rather than select the text.
+        cursor: pointer
+
+        &::after
+            content: ' ▾'
+
+    ul
+        margin: 0
+        padding: 0
+        list-style: none
+        li
+            margin: 0
+
+    a.option-menu-link
+        display: block
+        text-decoration: none
+        @include wide_padding
+        color: #fcfcfc
+        font-weight: bold
+
+        &.active
+            background-color: lighten($menu_base, 5%)
+
+        &:hover
+            background-color: lighten($menu_base, 10%)
+            text-decoration: underline
+            color: #fff
+
+    .option-menu
+        display: none
+        position: absolute
+        top: 100%
+        left: 0
+
+        li.empty
+            opacity: 0.6
+
+            a.option-menu-link
+                font-weight: normal
+
+        &.left
+            left: initial
+            right: 0
+
+        // Above maps etc
+        z-index: 10000
+
+        > ul
+            display: table-row
+            & > li
+                display: table-cell
+
+        > .footer
+            @include wide_padding
+    // The "All" menu items
+    .wildcard
+        font-weight: bold
+
+
+/* Table of values
+
+table.collapsed-head
+    th
+        text-align: left
+        font-weight: normal
+        padding-bottom: var(--s)
+
+.nowrap
+    white-space: nowrap
+
+.unavailable-metadata tbody
+    tr:nth-child(even)
+        background-color: darken($panel_color, 3%)
+
+    tr:nth-child(odd)
+        background-color: lighten($panel_color, 1%)
+
+
+.data-table
+    // Negate the horizontal margin as we have our own cell padding.
+    margin: 0 calc(-2*var(--s)) var(--s)
+
+    // On a small screen (eg: phone), these cells can
+    // be collapsed to a vertical list.
+    @media (max-width: 750px)
+        .collapse-when-small
+            display: block
+            margin-top: var(--s)
+
+            td
+                display: block
+
+    tbody tr:hover
+        // Add a row hover for data-intensive tables.
+        background-color: darken($panel_color, 5%)
+
+        .panel.highlight &
+            background-color: darken($panel_highlight, 4%)
+
+        .panel.odd &
+            background-color: darken($panel_odd_color, 4%)
+
+    th
+        font-weight: bold
+        font-size: 0.8em
+
+    tr.section-header th
+        padding-top: var(--s)
+
+    td, th
+        padding: 0 calc(2*var(--s))
+
+        text-align: left
+        @media (min-width: 800px)
+            line-height: calc(var(--s)*2)
+        vertical-align: top
+
+        // Numeric columns right-aligned for readability, like Excel.
+        &.numeric
+            text-align: right
+
+        // A column that we'd prefer not to be too tiny. Whitespace adds emphasis.
+        &.important-column
+            min-width: 90px
+.right
+    text-align: right
+.numeric
+    font-variant-numeric: tabular-nums
+
+/* lists of key-values
+
+.query-param-list
+    width: auto
+    display: grid
+
+@media (min-width: 800px)
+    .query-param-list.wide
+        grid-template-columns: 1fr 1fr
+        column-gap: 15px
+
+.query-param, .query-param-search
+    display: block
+    > .value
+        color: $muted_text
+        word-break: break-all
+
+    .missing-value
+        text-decoration-style: wavy
+        text-decoration-line: underline
+
+.query-param-search
+    width: fit-content
+    text-decoration: initial
+    > .search-icon
+        visibility: hidden
+    &:hover > .search-icon
+        visibility: visible
+
+button
+    margin: 5px 0
+    background-color: $widget_base
+    border: 0
+    color: #fff
+    padding: 10px 15px
+    cursor: pointer
+    font-weight: bold
+    font-size: inherit
+
+    &:hover
+        background-color: $widget_base
+
+    &.small
+        margin: 0
+        font-size: 12px
+        background-color: $panel_highlight
+
+// Similar to gridforms style
+label
+    text-transform: uppercase
+    letter-spacing: 1px
+    font-size: 10px
+    color: #333
+
+    &.disabled
+        color: #ccc
+
+.form-footer
+    margin: 1em 0
+    > label
+        padding: 8px
+        display: block
+
+    select
+        padding: 6px
+        width: 100%
+        text-overflow: ellipsis
+
+.chart-timeline
+    padding: var(--s) calc(3*var(--s)) var(--s) 0
+
+.chart-timeline-bars
+    font-size: 0
+    height: 50px
+    white-space: nowrap
+    display: flex
+    align-items: flex-end
+    border-bottom: 1px solid desaturate(lighten($timeline_base, 10%), 50%)
+
+
+.chart-timeline-bar
+    display: block
+    position: relative
+    $graph_highlight: $timeline_base
+    background-color: $graph_highlight
+
+    &.new-year
+        background-color: darken($graph_highlight, 5%)
+    &:hover
+        background-color: darken($graph_highlight, 10%)
+
+        .chart-timeline-year.tooltip
+            display: block
+
+.chart-timeline-year
+    z-index: 1
+    position: absolute
+    bottom: 0
+    text-align: left
+    font-size: 10px
+    font-weight: normal
+    color: #333
+    transform: translateY(calc(100% + 5px)) rotate(45deg)
+
+    transform-origin: top left
+
+    &.tooltip
+        z-index: 100
+        font-size: 12px
+        padding: 5px 10px
+        color: #fff
+        background-color: $widget_base
+        display: none
+
+
+.relative
+    position: relative
+
+// De-emphasized, less-important text
+.muted
+    color: $muted_text
+.addendum
+    font-size: 0.7em
+    font-weight: normal
+
+// An adornment to a title. Such as the data type.
+.badge
+    font-size: 0.7em
+    background-color: #ccc
+    white-space: nowrap
+    padding: 2px 4px
+
+    // 'font-awesome' icons
+    .fa
+        font-size: 1.1em
+
+    // A highlighted panel is reverse contrast: dark background, light foreground.
+    .panel.highlight &
+        background: darken($panel_highlight, 15%)
+        color: #efefef
+
+    // If it's in a header
+    .header-follow &:not(:first-child)
+        margin-left: 10px
+
+    &.header-badge
+        font-size: inherit
+
+.uri-path
+    font-family: monospace
+    font-size: 12px
+    line-break: anywhere
+
+.raw-metadata
+    .property
+        font-family: 'Courier New', monospace
+
+        .property, .array, .array-item
+            padding-left: var(--s)
+
+        & > .value
+            color: $muted_text
+            line-break: anywhere
+            white-space: pre-line
+
+        summary
+            font-style: italic
+            color: $muted_text
+
+// Information box shown when hovering a map dataset
+.dataset-info
+    background-color: $panel_odd_color
+    margin: 10px
+    padding: 15px
+
+.recenter-map
+    margin: 0
+    padding: 0
+
+
+details > summary
+  cursor: pointer
+
+@import gridforms/gridforms.sass
+
+// Minor tweak of gridforms defaults
+// Lighten borders
+.grid-form
+
+    +grid-form($grid-border-color: #777, $field-focus-color: lighten(#adb0b3, 8%))
+
+    [data-row-span].disabled
+        display: none
+
+@import "leaflet-1.7.1/leaflet"
+@import "leaflet-groupedlayercontrol/leaflet.groupedlayercontrol"
+
+
+.leaflet-tooltip
+    position: absolute
+    padding: 5px 10px
+    color: #fff
+    background-color: #637c6b
+    border: 0
+    border-radius: 0
+    box-shadow: unset
+    font-size: 12px
+
+    &.regions-tooltip
+        background-color: $widget_base
+
+// The little arrow that points on the map
+.leaflet-tooltip-top:before
+    border-top-color: $widget_base
+.leaflet-tooltip-bottom:before
+    border-bottom-color: $widget_base
+.leaflet-tooltip-left:before
+    border-left-color: $widget_base
+.leaflet-tooltip-right:before
+    border-right-color: $widget_base
