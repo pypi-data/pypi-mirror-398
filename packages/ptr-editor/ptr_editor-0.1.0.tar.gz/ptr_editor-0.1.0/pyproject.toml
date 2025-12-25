@@ -1,0 +1,209 @@
+[project]
+name = "ptr-editor"
+version = "0.1.0"
+description = "Utilities to edit PTR files."
+authors = [
+    { name = "Luca Penasa", email = "luca.penasa@inaf.it" },
+    { name = "Benoît Seignovert", email = "benoit.seignovert@univ-nantes.fr" },
+]
+requires-python = ">=3.11, <4.0"
+readme = "README.md"
+license = "MIT"
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "importlib-metadata>=8.5.0,<9",
+    "loguru>=0.7.2,<0.8",
+    "pandas>=2.2.3,<3",
+    "xmltodict>=0.14.2", # main xml to dict conveter and vice-versa
+    "cattrs>=24",
+    "ptwrapper>=2.7.0",
+    "planetary-coverage>=1.2.0",
+    "pint>=0.24.4",
+    "requests-cache>=1.2.1",
+    "platformdirs>=4.4.0",
+    "pyyaml>=6.0.3",
+    "plotly>=5",
+    "openpyxl>=3.1.5", # to support excel files
+    "lxml>=6.0.2",
+    # "numpy<=1.26.4", # needed for ptwrapper to work properly: see https://gitlab.esa.int/juice-soc-public/python/ptwrapper/-/issues/2
+    "haikunator>=2.1.0",
+    "python-dotenv>=1.0.0",
+    "quick-spice-manager>=0.0.3",
+    "xmldiff>=2.7.0",
+    "jsonschema>=4.0.0",
+    "requests>=2.31.0",
+]
+
+
+[project.urls]
+documentation = "https://luca-penasa.github.io/ptr-editor"
+homepage = "https://luca-penasa.github.io/ptr-editor"
+repository = "https://github.com/luca-penasa/ptr-editor"
+
+[project.scripts]
+ptr-editor = "ptr_cli.main:app"
+
+[dependency-groups]
+cli = [
+    "typer>=0.20.0",
+    "rich>=13.0.0",
+]
+spice = [
+    "quick-spice-manager>=0.0.2",
+    "spiceypy>=5",
+]
+dev = [
+    "mkdocstrings[python]>=0.23",
+    "mkdocs-material",
+    "mypy",
+    "pre-commit",
+    "pymdown-extensions",
+    "pytest",
+    "pytest-github-actions-annotate-failures",
+    "pytest-cov",
+    "pytest-sugar>=1.0.0,<2",
+    "python-kacl",
+    "pytest-xdist>=3.7.0",
+    "ruff>=0.2.0",
+    "ipykernel>=6.29.5,<7",
+    "nbmake>=1.4.6",
+    "bump-my-version>=0.27.0,<0.28",
+    "rust-just>=1.36.0,<2",
+    "xmldiff>=2.7.0,<3",
+    "xmltodict>=0.14.2,<0.15",
+    "xmlformatter>=0.2.8,<0.3",
+    "pandas-stubs>=2.2.3.241126,<3",
+    "pylint>=3.3.7",
+    "lizard>=1.18.0",
+    "vulture>=2.14",
+    "jupyterlab>=4.4.9",
+]
+tests = [
+    "bs4>=0.0.2",
+    "hypothesis>=6.148.3",
+    "hypothesis-jsonschema>=0.23.1",
+    "nbmake>=1.5.5",
+    "pytest-loguru>=0.4.0",
+]
+tutorials = [
+    "jupyter-book<2",
+]
+generators = [
+    "astropy>=7.1.1",
+]
+docs = [
+    "playwright>=1.55.0",
+]
+
+
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/attrs_xml",
+    "src/ptr_editor",
+    "src/ptr_compare",
+    "src/ptr_solver",
+    "src/time_segments"
+
+]
+
+[tool.hatch.build.targets.wheel]
+include = [
+    "src/attrs_xml",
+    "src/ptr_editor",
+    "src/ptr_compare",
+    "src/ptr_solver",
+    "src/time_segments"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src/attrs_xml" = "attrs_xml"
+"src/ptr_editor" = "ptr_editor"
+"src/ptr_compare" = "ptr_compare"
+"src/ptr_solver" = "ptr_solver"
+"src/time_segments" = "time_segments"
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py311" # The lowest supported version
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = 20
+
+[tool.ruff.lint]
+# By default, enable all the lint rules.
+# Add to the ignore list below if you don't want some rules.
+# If you need some ignores for certain modules, see tool.ruff.lint.per-file-ignores below.
+# For individual ignore cases, prefer inline `# noqa`s within the code.
+select = ["ALL"]
+ignore = [
+    "ANN",    # Type hints related, let mypy handle these.
+    "ERA001", # allow commented-out code
+    "D",      # Docstrings related, way too strict to our taste
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101", # "Use of `assert` detected"
+    "ARG",  # "Unused function argument". Fixtures are often unused.
+    "S105", # "Possible hardcoded password".
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pep8-naming]
+classmethod-decorators = [
+    "classmethod",
+    "pydantic.validator",
+    "pydantic.root_validator",
+]
+
+[tool.pytest.ini_options]
+pythonpath = "."
+log_cli = true
+log_cli_level = "INFO"
+addopts = """\
+    --cov attrs_xml \
+    --cov ptr_solver \
+    --cov ptr_editor \
+    --cov tests \
+    --cov tutorial \
+    --cov-report term-missing \
+    --no-cov-on-fail \
+    -n auto \
+    -vv \
+    --nbmake \   
+"""
+
+testpaths = ["tests", "tutorial"]
+
+# --nbmake \
+
+[tool.coverage.report]
+fail_under = 70 # relaxed coverage
+exclude_lines = ['if TYPE_CHECKING:', 'pragma: no cover']
+
+[tool.mypy]
+# This is the global mypy configuration.
+# Avoid changing this!
+strict = false                  # See all the enabled flags `mypy --help | grep -A 10 'Strict mode'`
+disallow_any_unimported = false
+disallow_untyped_defs = false
