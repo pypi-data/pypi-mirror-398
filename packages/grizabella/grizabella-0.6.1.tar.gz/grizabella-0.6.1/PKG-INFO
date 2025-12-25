@@ -1,0 +1,120 @@
+Metadata-Version: 2.3
+Name: grizabella
+Version: 0.6.1
+Summary: A tri-layer memory framework for LLM solutions.
+License: MIT
+Keywords: python,llm,memory,vector-database,graph-database,sqlite,lancedb,real_ladybug,pyside6,sentence-transformers,fastmcp,ai,multi-modal
+Author: Grizabella Project Contributors
+Author-email: contributors@example.com
+Requires-Python: >=3.12,<3.14
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Database
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Dist: PySide6 (>=6.7.0,<7.0.0)
+Requires-Dist: fastmcp (>=2.10.6,<3.0.0)
+Requires-Dist: kuzu (==0.10.1)
+Requires-Dist: lancedb (>=0.24.0,<0.25.0)
+Requires-Dist: litellm (>=1.74.4,<2.0.0)
+Requires-Dist: optimum (>=1.26.1,<2.0.0)
+Requires-Dist: pandas (>=2.3.0,<3.0.0)
+Requires-Dist: psutil (>=7.0.0,<8.0.0)
+Requires-Dist: pydantic (>=2.11.5,<3.0.0)
+Requires-Dist: pytest-asyncio (>=1.1.0,<2.0.0)
+Requires-Dist: qt_material (>=2.14,<3.0)
+Requires-Dist: real_ladybug (>=0.12.2,<0.13.0)
+Requires-Dist: sentence-transformers (>=3.0.0,<4.0.0)
+Project-URL: Documentation, https://pwilkin.github.io/grizabella
+Project-URL: Homepage, https://github.com/pwilkin/grizabella
+Project-URL: Repository, https://github.com/pwilkin/grizabella
+Description-Content-Type: text/markdown
+
+# Grizabella
+
+A tri-layer memory framework for LLM solutions.
+
+[![Docs](https://img.shields.io/badge/docs-passing-brightgreen)](https://pwilkin.github.io/grizabella/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+## Overview
+
+Grizabella is a sophisticated memory layer designed for Large Language Model (LLM) solutions. It provides a unified interface to manage and query data across relational, vector, and graph databases, enabling complex memory and knowledge retrieval for AI applications.
+
+## Key Features
+
+* **Tri-layer Storage:** Integrates SQLite (relational), LanceDB (vector), and LadybugDB (graph) for comprehensive data management.
+* **Unified Python API:** Offers a simple and consistent Python interface to interact with all three database layers.
+* **Complex Query Engine:** Allows for sophisticated queries that can span across the different data storage paradigms.
+* **GPU Acceleration:** Optional GPU support for faster embedding generation using Sentence Transformers.
+* **Bulk Processing:** Efficient bulk addition mode for high-throughput data ingestion.
+* **PySide6 UI:** Includes an optional desktop application for visualizing and managing data.
+* **MCP Server:** Can operate as a Model Context Protocol (MCP) server, allowing other tools to leverage its memory capabilities.
+
+## Quick Links
+
+* [User Guide](./docs/user_guide/)
+* [API Reference](./docs/api_reference/build/html/)
+* [Examples](./examples/)
+* [MCP Server Startup](./scripts/README.md)
+
+## Quick Installation
+
+For production use (once published):
+
+```bash
+pip install grizabella
+```
+
+For development:
+
+```bash
+git clone https://github.com/pwilkin/grizabella.git
+cd grizabella
+poetry install
+```
+
+## Basic Usage Snippet
+
+```python
+from grizabella import Grizabella
+
+# Initialize Grizabella (connects to default in-memory databases)
+gz = Grizabella()
+
+# Define an object type (implicitly creates a table/node type)
+gz.create_object_type("document", {"text": str, "source": str})
+
+# Add an object
+doc1 = gz.add_object(
+    object_type="document",
+    data={"text": "This is the first document.", "source": "manual"},
+    vector_data={"text": "This is the first document."} # Data for embedding
+)
+
+print(f"Added document with ID: {doc1.id}")
+
+# Bulk addition with GPU support
+with Grizabella(use_gpu=True) as gz:
+    gz.begin_bulk_addition()
+    for i in range(100):
+        gz.upsert_object(obj_instance) # Define obj_instance beforehand
+    gz.finish_bulk_addition()
+
+# Further operations (querying, adding relations, etc.) would go here.
+```
+
+## Contributing
+
+Contributions are welcome! Please see `CONTRIBUTING.md` (to be added) for guidelines on how to contribute to Grizabella.
+
+## License
+
+Grizabella is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
