@@ -1,0 +1,1 @@
+import{t as e}from"./stackClasses-Dqz_I4RF.js";import{Er as t,Fr as n,Ir as r,Mr as i,Tr as a,_r as o}from"./index-Bji-uPX5.js";throw n(),Error(`Could not resolve "@mui/material-pigment-css/Stack" imported by "@mui/material". Is it installed?`);export{s as default,e as stackClasses};var s;

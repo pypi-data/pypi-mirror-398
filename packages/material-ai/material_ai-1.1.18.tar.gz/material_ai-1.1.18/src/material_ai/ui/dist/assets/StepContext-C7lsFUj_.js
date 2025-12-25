@@ -1,0 +1,1 @@
+import{Fr as e,Ir as t}from"./index-Bji-uPX5.js";var n=t(e()),r=n.createContext({});function i(){return n.useContext(r)}var a=r,o=n.createContext({});function s(){return n.useContext(o)}var c=o;export{i,s as n,a as r,c as t};

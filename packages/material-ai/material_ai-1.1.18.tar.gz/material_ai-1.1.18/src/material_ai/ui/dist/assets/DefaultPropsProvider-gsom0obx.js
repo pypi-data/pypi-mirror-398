@@ -1,0 +1,1 @@
+import{ar as e,ir as t}from"./index-Bji-uPX5.js";export{t as default,e as useDefaultProps};
