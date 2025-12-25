@@ -1,0 +1,1424 @@
+// FIXME: this module should not depend on Leaflet
+import {
+  DomEvent,
+  GeoJSON,
+  stamp,
+  SVG,
+} from '../../../vendors/leaflet/leaflet-src.esm.js'
+import {
+  uMapAlert as Alert,
+  uMapAlertConflict as AlertConflict,
+} from '../../components/alerts/alert.js'
+import { MutatingForm, Form } from '../form/builder.js'
+import { translate } from '../i18n.js'
+import { DataLayerPermissions } from '../permissions.js'
+import { Default as DefaultLayer } from '../rendering/layers/base.js'
+import { Categorized, Choropleth, Circles } from '../rendering/layers/classified.js'
+import { Cluster } from '../rendering/layers/cluster.js'
+import { Heat } from '../rendering/layers/heat.js'
+import * as Schema from '../schema.js'
+import TableEditor from '../tableeditor.js'
+import * as Utils from '../utils.js'
+import * as DOMUtils from '../domutils.js'
+import { LineString, Point, Polygon } from './features.js'
+import Rules from '../rules.js'
+import { FeatureManager } from '../managers.js'
+import { Filters } from '../filters.js'
+import { Fields, getDefaultFields } from './fields.js'
+
+export const LAYER_TYPES = [
+  DefaultLayer,
+  Cluster,
+  Heat,
+  Choropleth,
+  Categorized,
+  Circles,
+]
+
+const LAYER_MAP = LAYER_TYPES.reduce((acc, klass) => {
+  acc[klass.TYPE] = klass
+  return acc
+}, {})
+
+export class DataLayer {
+  constructor(umap, leafletMap, data = {}) {
+    this._umap = umap
+    this.sync = umap.syncEngine.proxy(this)
+    this.features = new FeatureManager()
+    this._propertiesIndex = []
+
+    this._leafletMap = leafletMap
+    this.parentPane = this._leafletMap.getPane('overlayPane')
+    this.pane = this._leafletMap.createPane(`datalayer${stamp(this)}`, this.parentPane)
+    // FIXME: should be on layer
+    this.renderer = new SVG({ pane: this.pane })
+    this.defaultProperties = {
+      displayOnLoad: true,
+      inCaption: true,
+      browsable: true,
+      editMode: 'advanced',
+    }
+
+    this._isDeleted = false
+    this._referenceVersion = data._referenceVersion
+    // Do not save it later.
+    delete data._referenceVersion
+    data.id = data.id || crypto.randomUUID()
+
+    this.setProperties(data)
+    this.pane.dataset.id = this.id
+    if (this.properties.rank === undefined) {
+      this.properties.rank = this._umap.datalayers.count()
+    }
+
+    if (!Utils.isObject(this.properties.remoteData)) {
+      this.properties.remoteData = {}
+    }
+    // Retrocompat
+    if (this.properties.remoteData?.from) {
+      this.properties.fromZoom = this.properties.remoteData.from
+      delete this.properties.remoteData.from
+    }
+    if (this.properties.remoteData?.to) {
+      this.properties.toZoom = this.properties.remoteData.to
+      delete this.properties.remoteData.to
+    }
+    this.connectToMap()
+    this.permissions = new DataLayerPermissions(this._umap, this)
+
+    this._needsFetch = this.createdOnServer || this.isRemoteLayer()
+    this.fields = new Fields(this, this._umap.dialog)
+    this.filters = new Filters(this, this._umap)
+    this.rules = new Rules(umap, this)
+
+    if (!this.createdOnServer) {
+      if (this.showAtLoad()) this.show()
+    }
+
+    // Only layers that are displayed on load must be hidden/shown
+    // Automatically, others will be shown manually, and thus will
+    // be in the "forced visibility" mode
+    if (this.isVisible()) this.propagateShow()
+  }
+
+  get id() {
+    return this.properties.id
+  }
+
+  get createdOnServer() {
+    return Boolean(this._referenceVersion)
+  }
+
+  onDirty(status) {
+    if (status) {
+      // A layer can be made dirty by indirect action (like dragging layers)
+      // we need to have it loaded before saving it.
+      if (!this.isLoaded()) this.fetchData()
+    } else {
+      this.isDeleted = false
+    }
+  }
+
+  set isDeleted(status) {
+    this._isDeleted = status
+  }
+
+  get isDeleted() {
+    return this._isDeleted
+  }
+
+  get cssId() {
+    return `datalayer-${this.id}`
+  }
+
+  get rank() {
+    // Make sure we always have a valid rank. Undefined rank may happen
+    // after importing an old umap backup, and not touching the layers
+    // after that.
+    if (this.properties.rank === undefined) {
+      this.properties.rank = this.getDOMOrder()
+    }
+    return this.properties.rank
+  }
+
+  set rank(value) {
+    this.properties.rank = value
+  }
+
+  get sortKey() {
+    return this.getProperty('sortKey') || U.DEFAULT_LABEL_KEY
+  }
+
+  getSyncMetadata() {
+    return {
+      subject: 'datalayer',
+      metadata: { id: this.id },
+    }
+  }
+
+  render(fields, builder) {
+    // Propagate will remove the fields it has already
+    // processed
+    fields = this.propagate(fields)
+    if (fields.includes('properties.fields')) {
+      this.fields?.pull()
+      if (this._umap.browser.isOpen()) {
+        this._umap.browser.buildFilters()
+      }
+    }
+    if (fields.includes('properties.filters')) {
+      this.filters.load()
+      if (this._umap.browser.isOpen()) {
+        this._umap.browser.buildFilters()
+      }
+    }
+
+    const impacts = Utils.getImpactsFromSchema(fields)
+
+    for (const impact of impacts) {
+      switch (impact) {
+        case 'ui':
+          this._umap.onDataLayersChanged()
+          break
+        case 'data':
+          if (fields.includes('properties.type')) {
+            this.resetLayer()
+          }
+          for (const field of fields) {
+            this.layer.onEdit(field, builder)
+          }
+          this.redraw()
+          break
+        case 'remote-data':
+          this.fetchRemoteData()
+          break
+        case 'datalayer-rank':
+          this._umap.reorderDataLayers()
+          break
+      }
+    }
+  }
+
+  // This method does a targeted update of the UI,
+  // it would be merged with `render`` method and the
+  // SCHEMA at some point
+  propagate(fields = []) {
+    const impacts = {
+      'properties.name': () => {
+        Utils.eachElement('.datalayer-name', (el) => {
+          if (el.dataset.id === this.id) {
+            el.textContent = this.getName()
+            el.title = this.getName()
+          }
+        })
+      },
+    }
+    for (const [field, impact] of Object.entries(impacts)) {
+      if (!fields.length || fields.includes(field)) {
+        impact()
+        fields = fields.filter((item) => item !== field)
+      }
+    }
+    return fields
+  }
+
+  showAtLoad() {
+    return this.autoVisibility && this.showAtZoom()
+  }
+
+  get autoVisibility() {
+    if (this._autoVisibility === undefined) {
+      if (this._umap.datalayersFromQueryString) {
+        const datalayerIds = this._umap.datalayersFromQueryString
+        this._autoVisibility = datalayerIds.includes(this.id.toString())
+        if (this.properties.old_id) {
+          this._autoVisibility =
+            this._autoVisibility ||
+            datalayerIds.includes(this.properties.old_id.toString())
+        }
+      } else {
+        this._autoVisibility = this.properties.displayOnLoad
+      }
+    }
+    return this._autoVisibility
+  }
+
+  set autoVisibility(value) {
+    this._autoVisibility = value
+  }
+
+  insertBefore(other) {
+    if (!other) return
+    this.parentPane.insertBefore(this.pane, other.pane)
+  }
+
+  insertAfter(other) {
+    if (!other) return
+    this.parentPane.insertBefore(this.pane, other.pane.nextSibling)
+  }
+
+  bringToTop() {
+    this.parentPane.appendChild(this.pane)
+  }
+
+  hasDataVisible() {
+    return this.layer.hasDataVisible()
+  }
+
+  resetLayer(force) {
+    // Only reset if type is defined (undefined is the default) and different from current type
+    if (
+      this.layer &&
+      (!this.properties.type || this.properties.type === this.layer.getType()) &&
+      !force
+    ) {
+      return
+    }
+    const visible = this.isVisible()
+    if (this.layer) this.layer.clearLayers()
+    // delete this.layer?
+    if (visible) this._leafletMap.removeLayer(this.layer)
+    const Class = LAYER_MAP[this.properties.type] || DefaultLayer
+    this.layer = new Class(this)
+    // Rendering layer changed, so let's force reset the feature rendering too.
+    this.features.forEach((feature) => {
+      feature.makeUI()
+      this.showFeature(feature)
+    })
+    if (visible) this.show()
+    this.propagateRemote()
+  }
+
+  async fetchData() {
+    if (!this.createdOnServer) return
+    if (this._loading) return
+    this._loading = true
+    const [geojson, response, error] = await this._umap.server.get(this._dataUrl())
+    if (!error) {
+      this._umap.modifiedAt = response.headers.get('last-modified')
+      this.setReferenceVersion({ response, sync: false })
+      delete geojson._umap_options
+      // In case of maps pre 1.0 still around
+      delete geojson._storage
+      await this.fromUmapGeoJSON(geojson)
+      this._loading = false
+    }
+  }
+
+  dataChanged() {
+    if (!this.isLoaded() || this._batch) return
+    this._umap.onDataLayersChanged()
+    this.layer.dataChanged()
+  }
+
+  fromGeoJSON(geojson, sync = true) {
+    if (!geojson) return []
+    this._needsFetch = false
+    const features = this.addData(geojson, sync)
+    this.onDataLoaded()
+    return features
+  }
+
+  onDataLoaded() {
+    this.renderLegend()
+  }
+
+  async fromUmapGeoJSON(geojson) {
+    if (geojson._storage) {
+      // Retrocompat
+      geojson._umap_options = geojson._storage
+      delete geojson._storage
+    }
+    if (geojson._umap_options) this.setProperties(geojson._umap_options)
+    if (this.isRemoteLayer()) {
+      await this.fetchRemoteData()
+    } else {
+      this.fromGeoJSON(geojson, false)
+    }
+  }
+
+  showAtZoom() {
+    const from = Number.parseInt(this.properties.fromZoom, 10)
+    const to = Number.parseInt(this.properties.toZoom, 10)
+    const zoom = this._leafletMap.getZoom()
+    return !((!Number.isNaN(from) && zoom < from) || (!Number.isNaN(to) && zoom > to))
+  }
+
+  hasDynamicData() {
+    return this.isRemoteLayer() && Boolean(this.properties.remoteData?.dynamic)
+  }
+
+  async getUrl(url, initialUrl) {
+    const response = await this._umap.request.get(url)
+    return new Promise((resolve) => {
+      if (response?.ok) {
+        this._umap.modifiedAt = response.headers.get('last-modified')
+        return resolve(response.text())
+      }
+      Alert.error(
+        translate('Cannot load remote data for layer "{layer}" with url "{url}"', {
+          layer: this.getName(),
+          url: initialUrl || url,
+        })
+      )
+    })
+  }
+
+  async fetchRemoteData(force) {
+    if (!this.isRemoteLayer()) return
+    if (!this.hasDynamicData() && this.isLoaded() && !force) return
+    if (!this.isVisible()) return
+    // Keep non proxied url for later use in Alert.
+    const remoteUrl = this._umap.renderUrl(this.properties.remoteData.url)
+    let url = remoteUrl
+    if (this.properties.remoteData.proxy) {
+      url = this._umap.proxyUrl(url, this.properties.remoteData.ttl)
+    }
+    return await this.getUrl(url, remoteUrl).then((raw) => {
+      this.clear(false)
+      return this._umap.formatter
+        .parse(raw, this.properties.remoteData.format)
+        .then((geojson) => this.fromGeoJSON(geojson, false))
+        .catch((error) => {
+          console.debug(error)
+          Alert.error(
+            translate('Cannot parse remote data for layer "{layer}" with url "{url}"', {
+              layer: this.getName(),
+              url: remoteUrl,
+            })
+          )
+        })
+    })
+  }
+
+  isLoaded() {
+    return !this._needsFetch
+  }
+
+  setProperties(properties) {
+    delete properties.geojson
+    this.properties = Utils.CopyJSON(this.defaultProperties) // Start from fresh.
+    this.updateProperties(properties)
+  }
+
+  updateProperties(properties) {
+    this.properties = Object.assign(this.properties, properties)
+    this.resetLayer()
+  }
+
+  connectToMap() {
+    this._umap.datalayers.add(this)
+    this._umap.onDataLayersChanged()
+  }
+
+  _dataUrl() {
+    let url = this._umap.urls.get('datalayer_view', {
+      pk: this.id,
+      map_id: this._umap.id,
+    })
+
+    // No browser cache for owners/editors.
+    if (this._umap.hasEditMode()) url = `${url}?${Date.now()}`
+    return url
+  }
+
+  isRemoteLayer() {
+    return Boolean(this.properties.remoteData?.url && this.properties.remoteData.format)
+  }
+
+  isClustered() {
+    return this.properties.type === 'Cluster'
+  }
+
+  showFeature(feature) {
+    if (feature.isFiltered()) return
+    this.layer.addLayer(feature.ui)
+  }
+
+  hideFeature(feature) {
+    this.layer.removeLayer(feature.ui)
+  }
+
+  addFeature(feature, sync = false) {
+    feature.connectToDataLayer(this)
+    this.features.add(feature)
+    this._umap.featuresIndex[feature.getSlug()] = feature
+    // TODO: quid for remote data ?
+    this.inferFields(feature)
+    if (!this.fields.size && !this._umap.fields.size) {
+      this.properties.fields = getDefaultFields()
+      this.fields.pull()
+    }
+    try {
+      this.showFeature(feature)
+    } catch (error) {
+      console.error(error)
+      if (this._umap.editEnabled) {
+        Alert.error(translate('Skipping invalid geometry'))
+      }
+      console.error('Invalid geometry', feature)
+      this.removeFeature(feature, false)
+      return
+    }
+    this.dataChanged()
+    if (sync) {
+      feature.sync.upsert(feature.toGeoJSON(), null)
+    }
+    return feature
+  }
+
+  removeFeature(feature, sync) {
+    // This feature was not yet added, may be after
+    // hitting Escape while drawing a new line or
+    // polygon, not yet valid (not enough points)
+    if (!this.features.has(feature.id)) return
+    if (sync !== false) {
+      const oldValue = feature.toGeoJSON()
+      feature.sync.delete(oldValue)
+    }
+    try {
+      this.hideFeature(feature)
+    } catch {}
+    delete this._umap.featuresIndex[feature.getSlug()]
+    feature.disconnectFromDataLayer(this)
+    this.features.del(feature)
+    if (this.isVisible()) this.dataChanged()
+  }
+
+  inferFields(feature) {
+    for (const key in feature.properties) {
+      if (key && typeof feature.properties[key] !== 'object') {
+        if (key.indexOf('_') === 0) continue
+        if (this.fields.has(key)) continue
+        if (this._umap.fields.has(key)) continue
+        let type = 'String'
+        if (key === 'description') type = 'Text'
+        this.fields.add({ key, type })
+      }
+    }
+    this.fields.push()
+  }
+
+  renameField(oldName, newName) {
+    this.renameFeaturesField(oldName, newName)
+  }
+
+  renameFeaturesField(oldName, newName) {
+    this.features.forEach((feature) => {
+      feature.renameField(oldName, newName)
+    })
+  }
+
+  deleteField(name) {
+    this.deleteFeaturesField(name)
+  }
+
+  deleteFeaturesField(name) {
+    if (!this._umap.fields.has(name) && !this.fields.has(name)) {
+      this.features.forEach((feature) => {
+        feature.deleteField(name)
+      })
+    }
+  }
+
+  eachFeature(callback) {
+    this.features.forEach((feature) => callback(feature))
+  }
+
+  sortedValues(key) {
+    const field = this.fields.get(key) || this._umap.fields.get(key)
+    if (!field) return []
+    return field.values(this.features.all()).sort(Utils.naturalSort)
+  }
+
+  addData(geojson, sync) {
+    let data = []
+    this._batch = true
+    try {
+      // Do not fail if remote data is somehow invalid,
+      // otherwise the layer becomes uneditable.
+      data = this.makeFeatures(geojson, sync)
+    } catch (err) {
+      console.debug('Error with DataLayer', this.id)
+      console.error(err)
+    }
+    this._batch = false
+    this.dataChanged()
+    return data
+  }
+
+  makeFeatures(geojson = {}, sync = true) {
+    if (geojson.type === 'Feature' || geojson.coordinates) {
+      geojson = [geojson]
+    }
+    const collection = Array.isArray(geojson)
+      ? geojson
+      : geojson.features || geojson.geometries
+    if (!collection) return
+    const features = []
+    Utils.sortFeatures(collection, this.sortKey, U.lang)
+    for (const featureJson of collection) {
+      if (featureJson.geometry?.type === 'GeometryCollection') {
+        for (const geometry of featureJson.geometry.geometries) {
+          const feature = this.makeFeature({
+            type: 'Feature',
+            geometry,
+            properties: featureJson.properties,
+          })
+          if (feature) features.push(feature)
+        }
+      } else {
+        const feature = this.makeFeature(featureJson, sync)
+        if (feature) features.push(feature)
+      }
+    }
+    return features
+  }
+
+  makeFeature(geojson = {}, sync = true, id = null) {
+    // Both Feature and Geometry are valid geojson objects.
+    const geometry = geojson.geometry || geojson
+    let feature
+
+    switch (geometry.type) {
+      case 'Point':
+      case 'MultiPoint':
+        if (
+          geometry.coordinates?.length === 1 &&
+          Array.isArray(geometry.coordinates?.[0])
+        ) {
+          geojson.geometry.coordinates = geojson.geometry.coordinates[0]
+          geojson.geometry.type = 'Point'
+        } else if (geometry.type === 'MultiPoint' && this._umap.editEnabled) {
+          Alert.error(translate('Cannot process MultiPoint'))
+          break
+        }
+        feature = new Point(this._umap, this, geojson, id)
+        break
+      case 'MultiLineString':
+      case 'LineString':
+        feature = new LineString(this._umap, this, geojson, id)
+        break
+      case 'MultiPolygon':
+      case 'Polygon':
+        feature = new Polygon(this._umap, this, geojson, id)
+        break
+      default:
+        console.debug(geojson)
+        if (this._umap.editEnabled) {
+          Alert.error(
+            translate('Skipping unknown geometry.type: {type}', {
+              type: geometry.type || 'undefined',
+            })
+          )
+        }
+    }
+    if (feature && !feature.isEmpty()) {
+      return this.addFeature(feature, sync)
+    }
+  }
+
+  async importRaw(raw, format) {
+    return this._umap.formatter
+      .parse(raw, format)
+      .then((geojson) => {
+        this.sync.startBatch()
+        const data = this.addData(geojson)
+        this.sync.commitBatch()
+        return data
+      })
+      .catch((error) => {
+        console.debug(error)
+        Alert.error(translate('Import failed: invalid data'))
+      })
+  }
+
+  readFile(f) {
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result)
+      reader.readAsText(f)
+    })
+  }
+
+  async importFromFiles(files, type) {
+    const toLoad = []
+    for (const file of files) {
+      toLoad.push(this.importFromFile(file, type))
+    }
+    const features = await Promise.all(toLoad)
+    return new Promise((resolve) => {
+      resolve([].concat(...features))
+    })
+  }
+
+  async importFromFile(file, type) {
+    type = type || Utils.detectFileType(f)
+    const raw = await this.readFile(file)
+    return this.importRaw(raw, type)
+  }
+
+  async importFromUrl(uri, type) {
+    uri = this._umap.renderUrl(uri)
+    return await this.getUrl(uri).then((raw) => {
+      return this.importRaw(raw, type)
+    })
+  }
+
+  getColor() {
+    return this.properties.color || this._umap.getProperty('color')
+  }
+
+  getDeleteUrl() {
+    return this._umap.urls.get('datalayer_delete', {
+      pk: this.id,
+      map_id: this._umap.id,
+    })
+  }
+
+  getVersionsUrl() {
+    return this._umap.urls.get('datalayer_versions', {
+      pk: this.id,
+      map_id: this._umap.id,
+    })
+  }
+
+  getVersionUrl(ref) {
+    return this._umap.urls.get('datalayer_version', {
+      pk: this.id,
+      map_id: this._umap.id,
+      ref: ref,
+    })
+  }
+
+  del(sync = true) {
+    const oldValue = Utils.CopyJSON(this.umapGeoJSON())
+    // TODO merge datalayer del and features del in same
+    // batch
+    this.clear()
+    if (sync) {
+      this.isDeleted = true
+      this.sync.delete(oldValue)
+    }
+    this.hide()
+    this.parentPane.removeChild(this.pane)
+    this._umap.onDataLayersChanged()
+    this.layer.onDelete(this._leafletMap)
+    this.propagateDelete()
+    this._leaflet_events_bk = this._leaflet_events
+  }
+
+  empty() {
+    if (this.isRemoteLayer()) return
+    this.sync.startBatch()
+    this.clear()
+    this.sync.commitBatch()
+  }
+
+  clear(sync = true) {
+    this._batch = true
+    this.features.forEach((feature) => feature.del(sync))
+    this._batch = false
+    this.dataChanged()
+  }
+
+  clone() {
+    const properties = Utils.CopyJSON(this.properties)
+    properties.name = translate('Clone of {name}', { name: this.properties.name })
+    delete properties.id
+    const geojson = Utils.CopyJSON(this.umapGeoJSON())
+    const datalayer = this._umap.createDirtyDataLayer(properties)
+    datalayer.fromGeoJSON(geojson)
+    return datalayer
+  }
+
+  redraw() {
+    if (!this.isVisible()) return
+    this.features.forEach((feature) => feature.redraw())
+  }
+
+  reindex() {
+    this.features.sort(this.sortKey)
+    if (this.isBrowsable()) {
+      this.resetLayer(true)
+    }
+  }
+
+  _editMetadata(container) {
+    const metadataFields = [
+      'properties.name',
+      'properties.description',
+      [
+        'properties.type',
+        { handler: 'LayerTypeChooser', label: translate('Type of layer') },
+      ],
+      'properties.labelKey',
+      [
+        'properties.displayOnLoad',
+        { label: translate('Display on load'), handler: 'Switch' },
+      ],
+      [
+        'properties.browsable',
+        {
+          label: translate('Data is browsable'),
+          handler: 'Switch',
+          helpEntries: ['browsable'],
+        },
+      ],
+      [
+        'properties.inCaption',
+        {
+          label: translate('Show this layer in the caption'),
+          handler: 'Switch',
+        },
+      ],
+    ]
+    container.appendChild(
+      DOMUtils.loadTemplate(`
+      <h3><i class="icon icon-16 icon-layers"></i>${translate('Layer properties')}</h3>
+    `)
+    )
+    const builder = new MutatingForm(this, metadataFields)
+    builder.on('set', ({ detail }) => {
+      this._umap.onDataLayersChanged()
+      if (detail.helper.field === 'properties.type') {
+        this.edit().then((panel) => panel.scrollTo('details#layer-properties'))
+      }
+    })
+    container.appendChild(builder.build())
+  }
+
+  _editLayerProperties(container) {
+    const layerFields = this.layer.getEditableProperties()
+
+    if (layerFields.length) {
+      const builder = new MutatingForm(this, layerFields)
+      const template = `
+        <details id="layer-properties">
+          <summary><h4>${this.layer.getName()}: ${translate('settings')}</h4></summary>
+          <fieldset data-ref=fieldset></fieldset>
+        </details>
+      `
+      const [details, { fieldset }] = Utils.loadTemplateWithRefs(template)
+      container.appendChild(details)
+      fieldset.appendChild(builder.build())
+    }
+  }
+
+  _editShapeProperties(container) {
+    const fields = [
+      'properties.color',
+      'properties.iconClass',
+      'properties.iconSize',
+      'properties.iconUrl',
+      'properties.iconOpacity',
+      'properties.opacity',
+      'properties.stroke',
+      'properties.weight',
+      'properties.fill',
+      'properties.fillColor',
+      'properties.fillOpacity',
+    ]
+
+    const builder = new MutatingForm(this, fields, {
+      id: 'datalayer-advanced-properties',
+    })
+    const shapeFieldset = DOMUtils.createFieldset(
+      container,
+      translate('Shape properties')
+    )
+    shapeFieldset.appendChild(builder.build())
+  }
+
+  _editAdvancedProperties(container) {
+    const fields = [
+      'properties.smoothFactor',
+      'properties.dashArray',
+      'properties.zoomTo',
+      'properties.fromZoom',
+      'properties.toZoom',
+      'properties.sortKey',
+    ]
+
+    const builder = new MutatingForm(this, fields, {
+      id: 'datalayer-advanced-properties',
+    })
+    builder.on('set', ({ detail }) => {
+      if (detail.helper.field === 'properties.sortKey') {
+        this.reindex()
+      }
+    })
+    const advancedFieldset = DOMUtils.createFieldset(
+      container,
+      translate('Advanced properties')
+    )
+    advancedFieldset.appendChild(builder.build())
+  }
+
+  _editInteractionProperties(container) {
+    const fields = [
+      'properties.popupShape',
+      'properties.popupTemplate',
+      'properties.popupContentTemplate',
+      'properties.showLabel',
+      'properties.labelDirection',
+      'properties.labelInteractive',
+      'properties.outlinkTarget',
+      'properties.interactive',
+    ]
+    const builder = new MutatingForm(this, fields)
+    const popupFieldset = DOMUtils.createFieldset(
+      container,
+      translate('Interaction options')
+    )
+    popupFieldset.appendChild(builder.build())
+  }
+
+  _editTextPathProperties(container) {
+    const fields = [
+      'properties.textPath',
+      'properties.textPathColor',
+      'properties.textPathRepeat',
+      'properties.textPathRotate',
+      'properties.textPathSize',
+      'properties.textPathOffset',
+      'properties.textPathPosition',
+    ]
+    const builder = new MutatingForm(this, fields)
+    const fieldset = DOMUtils.createFieldset(container, translate('Line decoration'))
+    fieldset.appendChild(builder.build())
+  }
+
+  _editRemoteDataProperties(container) {
+    // XXX I'm not sure **why** this is needed (as it's set during `this.initialize`)
+    // but apparently it's needed.
+    if (!Utils.isObject(this.properties.remoteData)) {
+      this.properties.remoteData = {}
+    }
+
+    const fields = [
+      [
+        'properties.remoteData.url',
+        { handler: 'Url', label: translate('Url'), helpEntries: ['formatURL'] },
+      ],
+      [
+        'properties.remoteData.format',
+        { handler: 'DataFormat', label: translate('Format') },
+      ],
+      'properties.fromZoom',
+      'properties.toZoom',
+      [
+        'properties.remoteData.dynamic',
+        {
+          handler: 'Switch',
+          label: translate('Dynamic'),
+          helpEntries: ['dynamicRemoteData'],
+        },
+      ],
+      [
+        'properties.remoteData.licence',
+        {
+          label: translate('Licence'),
+          helpText: translate('Please be sure the licence is compliant with your use.'),
+        },
+      ],
+    ]
+    if (this._umap.properties.urls.ajax_proxy) {
+      fields.push([
+        'properties.remoteData.proxy',
+        {
+          handler: 'Switch',
+          label: translate('Proxy request'),
+          helpEntries: ['proxyRemoteData'],
+        },
+      ])
+      fields.push('properties.remoteData.ttl')
+    }
+
+    const remoteDataContainer = DOMUtils.createFieldset(
+      container,
+      translate('Remote data')
+    )
+    const builder = new MutatingForm(this, fields)
+    remoteDataContainer.appendChild(builder.build())
+    const button = DOMUtils.loadTemplate(`
+      <button class="umap-verify" type="button">${translate('Verify remote URL')}</button>
+    `)
+    button.addEventListener('click', () => this.fetchRemoteData(true))
+    remoteDataContainer.appendChild(button)
+  }
+
+  _buildAdvancedActions(container) {
+    const advancedActions = DOMUtils.createFieldset(
+      container,
+      translate('Advanced actions')
+    )
+    const filename = `${Utils.slugify(this.properties.name)}.geojson`
+    const tpl = `
+    <div class="button-bar half">
+      <button class="button" type="button" data-ref=del>
+        <i class="icon icon-24 icon-delete"></i>${translate('Delete')}
+      </button>
+      <button class="button" type="button" data-ref=empty hidden>
+        <i class="icon icon-24 icon-empty"></i>${translate('Empty')}
+      </button>
+      <button class="button" type="button" data-ref=clone>
+        <i class="icon icon-24 icon-clone"></i>${translate('Clone')}
+      </button>
+      <a class="button" href="${this._dataUrl()}" download="${filename}" data-ref=download hidden>
+        <i class="icon icon-24 icon-download"></i>${translate('Download')}
+      </a>
+    </div>
+    `
+    const [bar, { del, empty, clone, download }] = Utils.loadTemplateWithRefs(tpl)
+    advancedActions.appendChild(bar)
+    del.addEventListener('click', () => {
+      this.del()
+      this._umap.editPanel.close()
+    })
+
+    if (!this.isRemoteLayer()) {
+      empty.hidden = false
+      empty.addEventListener('click', () => this.empty())
+    }
+    clone.addEventListener('click', () => this.clone().edit())
+    if (this.createdOnServer) download.hidden = false
+  }
+
+  edit() {
+    if (!this._umap.editEnabled) {
+      return
+    }
+    const container = document.createElement('div')
+    this._editMetadata(container)
+    this._editLayerProperties(container)
+    this._editShapeProperties(container)
+    this._editAdvancedProperties(container)
+    this._editInteractionProperties(container)
+    this._editTextPathProperties(container)
+    this._editRemoteDataProperties(container)
+    this.fields.edit(container)
+    this.rules.edit(container)
+
+    if (this._umap.properties.urls.datalayer_versions) {
+      this.buildVersionsFieldset(container)
+    }
+
+    this._buildAdvancedActions(container)
+
+    const backButton = DOMUtils.loadTemplate(`
+      <button class="icon icon-16 icon-back" type="button" title="${translate('Back to layers')}"></button>
+    `)
+    // Fixme: remove me when this is merged and released
+    // https://github.com/Leaflet/Leaflet/pull/9052
+    DomEvent.disableClickPropagation(backButton)
+    backButton.addEventListener('click', () => this._umap.editDatalayers())
+
+    return this._umap.editPanel.open({
+      content: container,
+      highlight: 'layers',
+      actions: [backButton],
+    })
+  }
+
+  getOwnProperty(option) {
+    if (Utils.usableOption(this.properties, option)) return this.properties[option]
+  }
+
+  getProperty(key, feature) {
+    if (this.layer?.getOption) {
+      const value = this.layer.getOption(key, feature)
+      if (value !== undefined) return value
+    }
+    if (feature) {
+      const value = this.rules.getOption(key, feature)
+      if (value !== undefined) return value
+    }
+    if (this.getOwnProperty(key) !== undefined) {
+      return this.getOwnProperty(key)
+    }
+    if (this.layer?.defaults?.[key]) {
+      return this.layer.defaults[key]
+    }
+    return this._umap.getProperty(key, feature)
+  }
+
+  getOption(key, feature) {
+    // TODO: remove when field.js does not call blindly obj.getOption anymore
+    return this.getProperty(key, feature)
+  }
+
+  async buildVersionsFieldset(container) {
+    const appendVersion = (data) => {
+      const date = new Date(Number.parseInt(data.at, 10))
+      const content = `${date.toLocaleString(U.lang)} (${Number.parseInt(data.size) / 1000}Kb)`
+      const [el, { button }] = Utils.loadTemplateWithRefs(
+        `<div class="umap-datalayer-version">
+          <button type="button" title="${translate('Restore this version')}" data-ref=button>
+            <i class="icon icon-16 icon-restore"></i> ${content}
+          </button>
+        </div>`
+      )
+      versionsContainer.appendChild(el)
+      button.addEventListener('click', () => this.restore(data.ref))
+    }
+
+    const versionsContainer = DOMUtils.createFieldset(container, translate('Versions'))
+    versionsContainer.closest('details').addEventListener('toggle', async (event) => {
+      if (event.target.open) {
+        const [{ versions }, response, error] = await this._umap.server.get(
+          this.getVersionsUrl()
+        )
+        if (!error) versions.forEach(appendVersion)
+      }
+    })
+  }
+
+  async restore(version) {
+    if (!this._umap.editEnabled) return
+    this._umap.dialog
+      .confirm(translate('Are you sure you want to restore this version?'))
+      .then(async () => {
+        const [geojson, response, error] = await this._umap.server.get(
+          this.getVersionUrl(version)
+        )
+        if (!error) {
+          if (geojson._storage) {
+            // Retrocompat.
+            geojson._umap_options = geojson._storage
+            delete geojson._storage
+          }
+          if (geojson._umap_options) {
+            const oldProperties = Utils.CopyJSON(this.properties)
+            this.setProperties(geojson._umap_options)
+            this.sync.update('properties', this.properties, oldProperties)
+          }
+          this.empty()
+          if (this.isRemoteLayer()) {
+            this.fetchRemoteData()
+          } else {
+            this.sync.startBatch()
+            this.addData(geojson)
+            this.sync.commitBatch()
+          }
+        }
+      })
+  }
+
+  async show() {
+    this._leafletMap.addLayer(this.layer)
+    if (!this.isLoaded()) await this.fetchData()
+    this.propagateShow()
+  }
+
+  hide() {
+    this._leafletMap.removeLayer(this.layer)
+    this.propagateHide()
+  }
+
+  toggle(force) {
+    // From now on, do not try to how/hide
+    // automatically this layer, as user
+    // has taken control on this.
+    this.autoVisibility = false
+    let display = force
+    if (force === undefined) {
+      if (!this.isVisible()) display = true
+      else display = false
+    }
+    if (display) this.show()
+    else this.hide()
+    this._umap.bottomBar.redraw()
+  }
+
+  zoomTo() {
+    if (!this.isVisible()) return
+    const bounds = this.layer.getBounds()
+    this.zoomToBounds(bounds)
+  }
+
+  zoomToBounds(bounds) {
+    if (bounds.isValid()) {
+      const options = { maxZoom: this.getProperty('zoomTo') }
+      this._leafletMap.fitBounds(bounds, options)
+    }
+  }
+
+  // Is this layer type browsable in theorie
+  isBrowsable() {
+    return this.layer?.browsable
+  }
+
+  // Is this layer browsable in theorie
+  // AND the user allows it
+  allowBrowse() {
+    return !!this.properties.browsable && this.isBrowsable()
+  }
+
+  // Is this layer browsable in theorie
+  // AND the user allows it
+  // AND it makes actually sense (is visible, it has data…)
+  canBrowse() {
+    return this.allowBrowse() && this.isVisible() && this.hasData()
+  }
+
+  count() {
+    return this.features.count()
+  }
+
+  hasData() {
+    return !!this.count()
+  }
+
+  isVisible() {
+    return Boolean(this.layer && this._leafletMap.hasLayer(this.layer))
+  }
+
+  getNextFeature(feature) {
+    return this.features.next(feature) || this.getNextBrowsable().features.first()
+  }
+
+  getPreviousFeature(feature) {
+    return this.features.prev(feature) || this.getPreviousBrowsable().features.last()
+  }
+
+  getPreviousBrowsable() {
+    return this._umap.datalayers.prev(this)
+  }
+
+  getNextBrowsable() {
+    return this._umap.datalayers.next(this)
+  }
+
+  umapGeoJSON() {
+    const features = this.isRemoteLayer() ? [] : this.features.all()
+    const geojson = this._umap.formatter.toFeatureCollection(features)
+    geojson._umap_options = this.properties
+    return geojson
+  }
+
+  getDOMOrder() {
+    return Array.from(this.parentPane.children).indexOf(this.pane)
+  }
+
+  isReadOnly() {
+    // isReadOnly must return true if unset
+    return this.properties.editMode === 'disabled'
+  }
+
+  isDataReadOnly() {
+    // This layer cannot accept features
+    return this.isReadOnly() || this.isRemoteLayer()
+  }
+
+  setReferenceVersion({ response, sync }) {
+    this._referenceVersion = response.headers.get('X-Datalayer-Version')
+    if (sync) {
+      this.sync.update('_referenceVersion', this._referenceVersion, null, {
+        undo: false,
+      })
+    }
+  }
+
+  prepareProperties() {
+    const properties = Utils.CopyJSON(this.properties)
+    delete properties.permissions
+    return JSON.stringify(properties)
+  }
+
+  async save() {
+    if (this.isDeleted) return await this.saveDelete()
+    if (!this.isRemoteLayer() && !this.isLoaded()) return
+    const formData = new FormData()
+    formData.append('name', this.properties.name)
+    formData.append('display_on_load', !!this.properties.displayOnLoad)
+    formData.append('rank', this.rank)
+    formData.append('settings', this.prepareProperties())
+    const geojson = this.umapGeoJSON()
+    // Filename support is shaky, don't do it for now.
+    const blob = new Blob([JSON.stringify(geojson)], { type: 'application/json' })
+    formData.append('geojson', blob)
+    const saveURL = this._umap.urls.get('datalayer_save', {
+      map_id: this._umap.id,
+      pk: this.id,
+      created: this.createdOnServer,
+    })
+    const headers = this._referenceVersion
+      ? { 'X-Datalayer-Reference': this._referenceVersion }
+      : {}
+    const status = await this._trySave(saveURL, headers, formData)
+    return status
+  }
+
+  async _trySave(url, headers, formData) {
+    if (this._forceSave) {
+      headers = {}
+      this._forceSave = false
+    }
+    const [data, response, error] = await this._umap.server.post(url, headers, formData)
+    if (error) {
+      if (response && response.status === 412) {
+        AlertConflict.error(
+          translate(
+            'Whoops! Other contributor(s) changed some of the same map elements as you. ' +
+              'This situation is tricky, you have to choose carefully which version is pertinent.'
+          ),
+          async () => {
+            this._forceSave = true
+            await this._umap.saveAll()
+          }
+        )
+      } else {
+        console.debug(error)
+        Alert.error(translate('Cannot save layer, please try again in a few minutes.'))
+      }
+    } else {
+      // Response contains geojson only if save has conflicted and conflicts have
+      // been resolved. So we need to reload to get extra data (added by someone else)
+      if (data.geojson) {
+        this.clear(false)
+        this.fromGeoJSON(data.geojson)
+        delete data.geojson
+      }
+      delete data.id
+      delete data._referenceVersion
+      this.updateProperties(data)
+
+      this.setReferenceVersion({ response, sync: true })
+
+      this.connectToMap()
+      this.redraw() // Needed for reordering features
+      return true
+    }
+  }
+
+  async saveDelete() {
+    if (this.createdOnServer) {
+      await this._umap.server.post(this.getDeleteUrl())
+    }
+    this.commitDelete()
+    return true
+  }
+
+  commitDelete() {
+    delete this._umap.datalayers[this.id]
+  }
+
+  getName() {
+    return this.properties.name || translate('Untitled layer')
+  }
+
+  getPermalink() {
+    return `${Utils.getBaseUrl()}?${Utils.buildQueryString({ datalayers: this.id })}${
+      window.location.hash
+    }`
+  }
+
+  tableEdit() {
+    if (!this.isVisible()) return
+    const editor = new TableEditor(this._umap, this, this._leafletMap)
+    editor.open()
+  }
+
+  getFilterKeys() {
+    // This keys will be used to filter feature from the browser text input.
+    // By default, it will we use the "name" property, which is also the one used as label in the features list.
+    // When map owner has configured another label or sort key, we try to be smart and search in the same keys.
+    if (this._umap.properties.filterKey) return this._umap.properties.filterKey
+    if (this.getProperty('labelKey')) return this.getProperty('labelKey')
+    if (this._umap.properties.sortKey) return this._umap.properties.sortKey
+    return 'displayName'
+  }
+
+  renderLegend() {
+    for (const container of document.querySelectorAll(
+      `.${this.cssId} .datalayer-legend`
+    )) {
+      container.innerHTML = ''
+      if (this.layer.renderLegend) return this.layer.renderLegend(container)
+      const rules = new Map()
+      for (const rule of this.rules) {
+        rules.set(rule.condition, rule)
+      }
+      for (const rule of this._umap.rules) {
+        if (
+          !rules.has(rule.condition) &&
+          (this.fields.has(rule.field.key) || this._umap.fields.has(rule.field.key))
+        ) {
+          rules.set(rule.condition, rule)
+        }
+      }
+      if (rules.size) {
+        const ul = Utils.loadTemplate('<ul class="rules-caption"></ul>')
+        container.appendChild(ul)
+        for (const [_, rule] of rules) {
+          rule.renderLegend(ul)
+        }
+      } else {
+        const color = Utils.loadTemplate('<span class="datalayer-color"></span>')
+        color.style.backgroundColor = this.getColor()
+        container.appendChild(color)
+      }
+    }
+  }
+
+  renderToolbox(container) {
+    const [span, { toggle, table, zoomTo, edit, remove }] =
+      DOMUtils.loadTemplateWithRefs(`
+      <span>
+        <button class="icon icon-16 icon-eye" title="${translate('Show/hide layer')}" type="button" data-ref="toggle"></button>
+        <button class="icon icon-16 icon-table show-on-edit" title="${translate('Edit properties in a table')}" type="button" data-ref="table"></button>
+        <button class="icon icon-16 icon-zoom" title="${translate('Zoom to layer extent')}" type="button" data-ref="zoomTo"></button>
+        <button class="icon icon-16 icon-edit show-on-edit" title="${translate('Edit')}" type="button" data-ref="edit"></button>
+        <button class="icon icon-16 icon-delete show-on-edit" title="${translate('Delete layer')}" type="button" data-ref="remove"></button>
+      </span>
+    `)
+    container.appendChild(span)
+    if (this.isReadOnly()) {
+      container.classList.add('readonly')
+    } else {
+      edit.addEventListener('click', () => this.edit())
+      table.addEventListener('click', () => this.tableEdit())
+      remove.addEventListener('click', () => {
+        if (!this.isVisible()) return
+        this.del()
+      })
+    }
+    DomEvent.on(toggle, 'click', () => this.toggle())
+    DomEvent.on(zoomTo, 'click', this.zoomTo, this)
+    container.classList.add(this.cssId)
+    container.classList.toggle('off', !this.isVisible())
+  }
+
+  getHidableElements() {
+    return document.querySelectorAll(`.${this.cssId}`)
+  }
+
+  propagateDelete() {
+    const els = this.getHidableElements()
+    for (const el of els) {
+      el.remove()
+    }
+  }
+
+  propagateRemote() {
+    const els = this.getHidableElements()
+    for (const el of els) {
+      el.classList.toggle('remotelayer', this.isRemoteLayer())
+    }
+  }
+
+  propagateHide() {
+    const els = this.getHidableElements()
+    for (const el of els) {
+      el.classList.add('off')
+    }
+  }
+
+  propagateShow() {
+    const els = this.getHidableElements()
+    for (const el of els) {
+      el.classList.remove('off')
+    }
+  }
+}
