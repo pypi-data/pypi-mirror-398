@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en-US">
+
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,maximum-scale=2">
+    <link rel="stylesheet" type="text/css" media="screen" href="/docs/assets/css/style.css?v=">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Simulator Overview</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Simulator Overview" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="/docs/Simulator-overview.html" />
+<meta property="og:url" content="/docs/Simulator-overview.html" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Simulator Overview" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","headline":"Simulator Overview","url":"/docs/Simulator-overview.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/docs/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+
+          <h1 id="project_title"></h1>
+          <h2 id="project_tagline"></h2>
+
+            <section id="menu">
+              <a class="try_online_link" href="/">Try online</a>
+              <a class="release_link" href="https://pypi.org/project/nyancad-server/">Download</a>
+              <a class="documentation_link" href="/docs/Documentation.html">Documentation</a>
+              <a class="forkme_link" href="https://github.com/NyanCAD/Mosaic">Source code</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <p>The simulator user interface is a <a href="https://marimo.io/">Marimo</a> notebook that uses the <a href="Python-API.html">Python API</a> to run simulations and plot their results. The notebook provides a unified, fully customizable interface that combines simulation configuration, execution, and visualization in a single reactive environment.</p>
+
+<p>The intention is for the simulator notebook to remain relatively simple and accessible, while the same <a href="Python-API.html">Python API</a> can be used in other Python environments to create more advanced simulations, analysis, automation, and all that good stuff that would make the interface overly complex.</p>
+
+<h1 id="unified-notebook-interface">Unified Notebook Interface</h1>
+
+<p><img src="assets/images/notebook.png" alt="Notebook Interface" /></p>
+
+<p>The Marimo notebook provides a unified interface where all simulation configuration, execution, and visualization happen together. The interface is fully reactive - when you change simulation parameters, the notebook automatically updates to reflect those changes.</p>
+
+<h2 id="schematic-integration">Schematic Integration</h2>
+
+<p>At the top of the notebook, a schematic bridge widget connects directly to the schematic editor. When you click the simulate button from the schematic editor, the notebook automatically receives the schematic data and generates the SPICE netlist.</p>
+
+<h2 id="simulation-type-selection">Simulation Type Selection</h2>
+
+<p>The notebook uses a tabbed interface to select and configure different analysis types. The fields of each simulation correspond directly with the fields listed in section 15.3 of the <a href="https://ngspice.sourceforge.io/docs/ngspice-manual.pdf">NgSpice manual</a>. Currently supported analysis types include:</p>
+
+<ol>
+  <li><strong>Operating Point (op)</strong> - Find the DC operating point with capacitors open and inductors shorted</li>
+  <li><strong>DC Sweep (dc)</strong> - Compute DC operating point while sweeping independent sources</li>
+  <li><strong>AC Small-Signal Analysis (ac)</strong> - Perform small-signal AC analysis with linearized devices</li>
+  <li><strong>Transient Analysis (tran)</strong> - Perform non-linear time-domain simulation</li>
+  <li><strong>Pole-Zero Analysis (pz)</strong> - Compute poles and zeros of the transfer function</li>
+  <li><strong>Noise Analysis (noise)</strong> - Perform stochastic noise analysis at the DC operating point</li>
+  <li><strong>Distortion Analysis (disto)</strong> - Analyze harmonic or spectral distortion in the circuit</li>
+  <li><strong>Transfer Function Analysis (tf)</strong> - Compute DC small-signal transfer function, input and output resistance</li>
+  <li><strong>DC Sensitivity Analysis (dc_sens)</strong> - Compute sensitivity of DC operating point to device parameters</li>
+  <li><strong>AC Sensitivity Analysis (ac_sens)</strong> - Compute sensitivity of AC values to device parameters</li>
+</ol>
+
+<p>Each tab provides relevant parameters for that analysis type, with descriptions and appropriate input widgets. The notebook persists your configuration across sessions, so your settings are remembered.</p>
+
+<h2 id="vector-selection">Vector Selection</h2>
+
+<p>Below the simulation configuration, a multi-select widget allows you to choose which vectors (node voltages and branch currents) are plotted. The available vectors are automatically populated from the simulation results, showing all nodes and branches available in the circuit.</p>
+
+<p>If you select nothing, the simulation still runs and saves all node voltages and some branch currents, but only selected vectors will be displayed in the plot.</p>
+
+<h2 id="simulation-engine">Simulation Engine</h2>
+
+<p>The notebook supports multiple simulation engines through a dropdown selector:</p>
+
+<ul>
+  <li><strong>ngspice-shared</strong> - NgSpice using shared library interface (default)</li>
+  <li><strong>ngspice-subprocess</strong> - NgSpice as a subprocess</li>
+  <li><strong>xyce-serial</strong> - Xyce serial simulator</li>
+  <li><strong>xyce-parallel</strong> - Xyce parallel simulator (for large circuits)</li>
+</ul>
+
+<p>The simulator engine can be changed at any time to compare results or take advantage of specific simulator features.</p>
+
+<p>The notebook runs in both <strong>native</strong> and <strong>WebAssembly (WASM)</strong> modes. In native mode, all simulation engines are available depending on what’s installed on your system. In WASM mode (such as when running in the browser), only <strong>ngspice-shared</strong> is available, compiled to WebAssembly for in-browser execution.</p>
+
+<h2 id="interactive-plotting">Interactive Plotting</h2>
+
+<p>The plot area uses <a href="https://holoviews.org/">Holoviews</a> to display high-performance interactive plots. The type of plot is automatically selected based on the simulation type:</p>
+
+<ul>
+  <li><strong>DC Sweep</strong>: X-Y plot of swept parameter vs. selected vectors</li>
+  <li><strong>Transient</strong>: Time-domain waveforms</li>
+  <li><strong>AC Analysis</strong>: Bode plots (magnitude and phase vs. frequency)</li>
+</ul>
+
+<p>The plots are fully interactive with zoom, pan, and hover capabilities. For transient and sweep analyses with large datasets, the notebook can handle millions of points efficiently.</p>
+
+<h2 id="back-annotation">Back Annotation</h2>
+
+<p>For <strong>Operating Point</strong> analysis, the “Back-annotate” checkbox allows you to push simulation results back to the database, where they can be picked up from the schematic editor in [annotations]. This is useful for seeing operating point voltages and currents directly on the schematic.</p>
+
+<p>The intended use is for operating point analysis and small sweeps. It is possible but strongly discouraged to use this setting on transient analysis, which will potentially store millions of points in the database.</p>
+
+<h2 id="probe-integration">Probe Integration</h2>
+
+<p>When you use the probe tool in the schematic editor to click on a wire, its voltage is automatically added to the vector selection and plotted. This provides seamless integration between the schematic and simulation views.</p>
+
+<h2 id="notebook-customization">Notebook Customization</h2>
+
+<p>Since the interface is built with Marimo, you can fully customize the notebook by:</p>
+
+<ul>
+  <li>Adding additional analysis cells</li>
+  <li>Creating custom plots and visualizations</li>
+  <li>Adding Python code to process simulation results</li>
+  <li>Combining multiple simulations for comparison</li>
+  <li>Automating parameter sweeps and optimization</li>
+</ul>
+
+<p>The notebook file is located at <code class="language-plaintext highlighter-rouge">src/marimo/notebook.py</code> and can be edited to suit your workflow. Any changes are immediately reflected when you re-run the notebook.</p>
+
+<h2 id="running-standalone">Running Standalone</h2>
+
+<p>While the notebook integrates seamlessly with the schematic editor, it can also be run standalone using the <code class="language-plaintext highlighter-rouge">nyancad-server</code> command, which provides the necessary infrastructure for the schematic bridge widget:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>nyancad-server
+</code></pre></div></div>
+
+<p>This starts the integrated server that serves both the schematic editor and the notebook interface. The schematic bridge widget requires the nyancad-server infrastructure to function properly - running the notebook with plain <code class="language-plaintext highlighter-rouge">marimo edit</code> will not have a functional schematic bridge.</p>
+
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        
+        <p>Published with <a href="https://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+  </body>
+</html>
