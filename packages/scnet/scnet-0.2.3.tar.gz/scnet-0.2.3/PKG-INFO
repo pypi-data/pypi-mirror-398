@@ -1,0 +1,120 @@
+Metadata-Version: 2.2
+Name: scnet
+Version: 0.2.3
+Summary: Our method employs a unique dual-graph architecture based on graph neural networks (GNNs), enabling the joint representation of gene expression and PPI network data
+Home-page: https://github.com/madilabcode/scNET
+Author: Ron Sheinin
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch==2.6.0
+Requires-Dist: torch-geometric==2.6.1
+Requires-Dist: pandas>=2.2.1
+Requires-Dist: numpy==1.26.4
+Requires-Dist: networkx>=3.1
+Requires-Dist: scanpy>=1.11.0
+Requires-Dist: scikit-learn>=1.4.1
+Requires-Dist: gseapy>=1.1.6
+Requires-Dist: matplotlib>=3.8.0
+Requires-Dist: igraph
+Requires-Dist: leidenalg
+Requires-Dist: tqdm
+Dynamic: author
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: summary
+
+
+
+[![Published in Nature Methods](https://img.shields.io/badge/published-Nature%20Methods-brightgreen)](https://www.nature.com/articles/s41592-025-02627-0) [![Nature Methods Research Briefing](https://img.shields.io/badge/Nature%20Methods-Research%20Briefing-blue)](https://www.nature.com/articles/s41592-025-02628-z)
+[![PyPI Downloads](https://static.pepy.tech/badge/scnet)](https://pepy.tech/projects/scnet) [![PyPI version](https://img.shields.io/pypi/v/scnet.svg)](https://pypi.org/project/scnet/)
+
+
+# **scNET: Learning Context-Specific Gene and Cell Embeddings by Integrating Single-Cell Gene Expression Data with Protein-Protein Interaction Information**
+
+## **Overview**
+
+Recent advances in single-cell RNA sequencing (scRNA-seq) techniques have provided unprecedented insights into tissue heterogeneity. However, gene expression data alone often fails to capture changes in cellular pathways and complexes, which are more discernible at the protein level. Additionally, analyzing scRNA-seq data presents challenges due to high noise levels and zero inflation. In this study, we propose a novel approach to address these limitations by integrating scRNA-seq datasets with a protein-protein interaction (PPI) network. Our method employs a unique bi-graph architecture based on graph neural networks (GNNs), enabling the joint representation of gene expression and PPI network data. This approach models gene-to-gene relationships under specific biological contexts and refines cell-cell relations using an attention mechanism, resulting in new gene and cell embeddings.
+
+![Overview of the scNET Method](https://raw.githubusercontent.com/madilabcode/scNET/bb9385a9945e34e1e2500c8173baf5c8ece91f79/images/scNET.jpg)
+## Download via PIP
+`pip install scnet`
+
+## Download via git
+To clone the repository, use the following command:
+`git clone https://github.com/madilabcode/scNET`
+
+We recommend using the provided Conda environment located at ./Data/scNET-env.yaml.
+cd scNET
+conda env create -f ./Data/scNET-env.yaml
+
+## import scNET
+`import scNET`
+
+## API
+To train scNET on scRNA-seq data, first load an AnnData object using Scanpy, then initialize training with the following command:
+
+`scNET.run_scNET(obj, pre_processing_flag=False, human_flag=False, number_of_batches=3, split_cells= True, max_epoch=250, model_name = project_name)`
+
+with the following args:
+
+* **obj (AnnData, optional)**: AnnData obj.
+
+* **pre_processing_flag (bool, optional)**: If True, perform pre-processing steps.
+
+* **human_flag (bool, optional)**: Controls gene name casing in the network.
+
+* **number_of_batches (int, optional)**: Number of mini-batches for the training.
+
+* **split_cells (bool, optional)**: If True, split by cells instead of edges during training.
+
+* **n_neighbors (int, optional)**: Number of neighbors for building the adjacency graph.
+
+* **max_epoch (int, optional)**: Max number of epochs for model training.
+
+* **model_name (str, optional)**: Identifier for saving the model outputs.
+
+* **save_model_flag (bool, optional)**: If True, save the trained model.
+
+
+### Retrieve embeddings and model outputs with:
+
+`embedded_genes, embedded_cells, node_features , out_features =  scNET.load_embeddings(project_name)`
+
+where:
+* **embedded_genes (np.ndarray)**: Learned gene embeddings.
+  
+* **embedded_cells (np.ndarray)**: Learned cell embeddings.
+  
+* **node_features (pd.DataFrame)**: Original gene expression matrix.
+  
+* **out_features (np.ndarray)**: Reconstructed gene expression matrix
+  
+
+### Create a new AnnData object using model outputs:
+
+`recon_obj = scNET.create_reconstructed_obj(node_features, out_features, obj)`
+
+### Construct a co-embedded network using the gene embeddings:
+`scNET.build_co_embeded_network(embedded_genes, node_features)`
+## Tutorials
+
+For a basic usage example of our framework, please refer to the following notebook:
+[scNET Example Notebook](https://colab.research.google.com/github/madilabcode/scNET/blob/main/scNET.ipynb)
+
+For a uasge example with batch integration using bbknn graph, plese refer to the following notebook:
+[scNET Multi Batch Example Notebook](https://github.com/madilabcode/scNET/blob/main/scNET_Integration.ipynb)
+
+
+For a simple usage example on gene inference using scNET gene embedding,please refer to the following notebook:
+[scNET Icos embedding](https://github.com/madilabcode/scNET/blob/main/scNET_gene_inference.ipynb)
+
+
+For a simple example of predicting functional annotations using gene embeddings, please refer to the following notebook:
+[scNET functional annotations](https://github.com/madilabcode/scNET/blob/main/scNET_Predicting_Annotation_From_Gene_Embedding.ipynb)
+
+
+For a example of how to use scNET to identify CD8+ T Cells subpopulation please refer to the following notebook:
+[scNET subpouplation clustring](https://github.com/madilabcode/scNET/blob/main/scNET_CD8_subsets.ipynb)
+
