@@ -1,0 +1,187 @@
+Metadata-Version: 2.4
+Name: lapy
+Version: 1.5.0
+Summary: A package for differential geometry on meshes (Laplace, FEM)
+Author-email: Martin Reuter <martin.reuter@dzne.de>
+Maintainer-email: Martin Reuter <martin.reuter@dzne.de>
+License: MIT License
+        
+        Copyright (c) 2020 Deep Medical Imaging Lab (PI Reuter)
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: homepage, https://Deep-MI.github.io/LaPy/dev/index.html
+Project-URL: documentation, https://Deep-MI.github.io/LaPy/dev/index.html
+Project-URL: source, https://github.com/Deep-MI/LaPy
+Project-URL: tracker, https://github.com/Deep-MI/LaPy/issues
+Keywords: python,Laplace,FEM,ShapeDNA,BrainPrint,Triangle Mesh,Tetrahedra Mesh,Geodesics in Heat,Mean Curvature Flow
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: Unix
+Classifier: Operating System :: MacOS
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Natural Language :: English
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Intended Audience :: Science/Research
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: nibabel
+Requires-Dist: numpy>=1.21
+Requires-Dist: plotly
+Requires-Dist: psutil
+Requires-Dist: scipy!=1.13.0
+Provides-Extra: build
+Requires-Dist: build; extra == "build"
+Requires-Dist: twine; extra == "build"
+Provides-Extra: chol
+Requires-Dist: scikit-sparse>=0.4.16; extra == "chol"
+Provides-Extra: doc
+Requires-Dist: furo!=2023.8.17; extra == "doc"
+Requires-Dist: matplotlib; extra == "doc"
+Requires-Dist: memory-profiler; extra == "doc"
+Requires-Dist: numpydoc; extra == "doc"
+Requires-Dist: sphinx!=7.2.*; extra == "doc"
+Requires-Dist: sphinxcontrib-bibtex; extra == "doc"
+Requires-Dist: sphinx-copybutton; extra == "doc"
+Requires-Dist: sphinx-design; extra == "doc"
+Requires-Dist: sphinx-gallery; extra == "doc"
+Requires-Dist: sphinx-issues; extra == "doc"
+Requires-Dist: pypandoc; extra == "doc"
+Requires-Dist: nbsphinx; extra == "doc"
+Requires-Dist: IPython; extra == "doc"
+Requires-Dist: ipykernel; extra == "doc"
+Provides-Extra: style
+Requires-Dist: bibclean; extra == "style"
+Requires-Dist: codespell; extra == "style"
+Requires-Dist: pydocstyle[toml]; extra == "style"
+Requires-Dist: ruff; extra == "style"
+Provides-Extra: test
+Requires-Dist: pytest; extra == "test"
+Requires-Dist: pytest-cov; extra == "test"
+Requires-Dist: pytest-timeout; extra == "test"
+Provides-Extra: all
+Requires-Dist: lapy[build]; extra == "all"
+Requires-Dist: lapy[chol]; extra == "all"
+Requires-Dist: lapy[doc]; extra == "all"
+Requires-Dist: lapy[style]; extra == "all"
+Requires-Dist: lapy[test]; extra == "all"
+Provides-Extra: full
+Requires-Dist: lapy[all]; extra == "full"
+Dynamic: license-file
+
+[![PyPI version](https://badge.fury.io/py/lapy.svg)](https://pypi.org/project/lapy/)
+# LaPy
+
+LaPy is an open-source Python library for differential geometry and finite-element computations on triangle and tetrahedral meshes. It provides mesh data structures and fast, vectorized algorithms to compute differential operators, curvature flows, spectral descriptors and to solve PDEs such as Laplace, Poisson and Heat equations on surfaces and volumes.
+
+Key design goals:
+- Pure Python 3 implementation with heavy use of NumPy and SciPy for performance.
+- Sparse, memory-efficient mesh data structures and vectorized algorithms.
+- Utilities for IO, visualization, and common geometry processing tasks.
+
+## Table of contents
+- [Features](#features)
+- [Quick start](#quick-start)
+- [Installation](#installation)
+- [Solver backends](#solver-backends)
+- [Examples and documentation](#examples-and-documentation)
+- [Development and testing](#development-and-testing)
+- [References](#references)
+
+## Features
+- `TriaMesh`: triangle mesh class with orientation checking, boundary handling, normals, smoothing and quality metrics; efficient edge and adjacency representations; IO for OFF, VTK and related formats.
+- `TetMesh`: tetrahedral mesh utilities, boundary handling and IO.
+- `Solver`: FEM routines producing stiffness and mass matrices, sparse eigenvalue solvers, Poisson and heat equation solvers, and support for anisotropic operators.
+- `diffgeo`: gradient, divergence, mean-curvature flow and related differential operators.
+- `heat`: heat kernel and diffusion utilities, geodesics via heat method.
+- `shapedna`: compute ShapeDNA (Laplace spectra) for shape descriptors.
+- `conformal`: conformal mapping methods for genus-0 surfaces.
+- `io`: read/write vertex functions and eigenvector files.
+- `plot`: lightweight Plotly wrappers for interactive visualization.
+
+## Quick start
+
+Install the released package:
+```
+python3 -m pip install lapy
+```
+
+Import and inspect main classes:
+```
+import lapy as lp
+help(lp.TriaMesh)
+help(lp.Solver)
+```
+
+A minimal example (compute eigenpairs of a triangular mesh):
+```
+import lapy as lp
+mesh = lp.TriaMesh.from_off('examples/data/sample.off')  # or other supported reader
+solver = lp.Solver(mesh)
+vals, vecs = solver.eigensystem(k=20)  # compute 20 smallest nontrivial eigenpairs
+```
+
+## Installation
+
+Install the development version to a chosen source location:
+```
+python3 -m pip install --user --src /my/preferred/location --editable git+https://github.com/Deep-MI/Lapy.git#egg=lapy
+```
+
+### Dependencies and optional backends
+- Core: Python 3, NumPy, SciPy.
+- Optional (recommended): scikit-sparse (for CHOLMOD) to accelerate Cholesky sparse solves.
+Note: CHOLMOD (via scikit-sparse) is not currently installable via plain `pip` on all platforms; use `conda` when possible. If `use_cholmod=True` is requested, LaPy attempts to import CHOLMOD and will raise if it is unavailable. Install ordering: install `numpy` and `scipy` first, then `scikit-sparse`.
+
+## Solver backends
+- Default: SciPy sparse LU/QR routines.
+- Optional: CHOLMOD (faster for symmetric positive definite systems). Toggle with `use_cholmod=True` when constructing `Solver`.
+
+## Examples and documentation
+- Example Jupyter notebooks are available in the `examples` directory demonstrating common workflows (mesh IO, curvature, diffusion, ShapeDNA, geodesics).
+- Full API documentation: https://deep-mi.org/LaPy
+
+## Development and testing
+- The project includes unit tests and example notebooks. Use the development installation command above and run tests with your preferred test runner (e.g., `pytest`).
+- Contributions and issues are welcome via the repository issue tracker.
+
+## References
+If you use LaPy in publications, please cite:
+
+1. Reuter M, Wolter F-E, Peinecke N. "Laplace-Beltrami spectra as 'Shape-DNA' of surfaces and solids." Computer-Aided Design. 2006;38(4):342–366. http://dx.doi.org/10.1016/j.cad.2005.10.011
+
+2. Wachinger C, Golland P, Kremen W, Fischl B, Reuter M. "BrainPrint: a discriminative characterization of brain morphology." NeuroImage. 2015;109:232–248. http://dx.doi.org/10.1016/j.neuroimage.2015.01.032 http://www.ncbi.nlm.nih.gov/pubmed/25613439
+
+Additional algorithmic sources:
+- Crane K, Weischedel C, Wardetzky M. "Geodesics in heat." ACM Trans. Graph. (use for heat-based geodesics) https://doi.org/10.1145/2516971.2516977
+- Kazhdan M, Solomon J, Ben-Chen M. "Can Mean-Curvature Flow be Modified to be Non-singular?" Comput. Graph. Forum (2012) (for non-singular mean curvature flow) https://doi.org/10.1111/j.1467-8659.2012.03179.x
+- Choi PT, Lam KC, Lui LM. "FLASH: Fast Landmark Aligned Spherical Harmonic Parameterization for Genus-0 Closed Brain Surfaces." SIAM J. Imaging Sci. (for conformal mapping methods) https://doi.org/10.1137/130950008
+
+## Website
+- Lab / project page: https://deep-mi.org
+
+## License
+- See the repository `LICENSE` file for license terms.
+
+## Contact
+- Report issues or feature requests via the repository issue tracker on GitHub.
