@@ -1,0 +1,86 @@
+[project]
+name = "mcp-panther"
+version = "2.3.0rc1"
+description = "Panther Labs MCP Server"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Panther Labs Inc", email = "pypi@runpanther.io" }
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
+keywords = ["security", "ai", "mcp", "mcp-server", "panther"]
+dependencies = [
+    "aiohttp>=3.11.14,<4.0.0",
+    "gql>=3.5.2,<4.0.0",
+    "click>=8.1.0,<9.0.0",
+    "fastmcp~=2.14.0",
+    "sqlparse>=0.4.4,<1.0.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/panther-labs/mcp-panther"
+Repository = "https://github.com/panther-labs/mcp-panther.git"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.2",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.5",
+    "pytest-cov>=4.1.0",
+    "pytest-env>=1.1.1",
+]
+
+[project.scripts]
+mcp-panther = "mcp_panther.server:main"
+
+[tool.ruff]
+# Allow autofix behavior for specified rules
+fix = true
+
+target-version = "py312"
+
+[tool.ruff.lint]
+# Enable pycodestyle (E), pyflakes (F), isort (I), pep8-naming (N), type-checking (TCH)
+select = ["E", "F", "I", "N", "TCH"]
+# Ignore E402 - Module level import not at top of file
+# Ignore E501 - Line too long
+ignore = ["E402", "E501"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore imported but unused in __init__.py files
+"__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["mcp_panther"]
+
+[tool.pytest.ini_options]
+# Configure pytest
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --cov=src/mcp_panther --cov-report=term-missing"
+pythonpath = ["src"]
+# Note: Integration tests require real PANTHER_INSTANCE_URL and PANTHER_API_TOKEN
+# to be set in the environment. Unit tests mock the API and don't need them.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
