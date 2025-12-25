@@ -1,0 +1,157 @@
+
+# TrackLang
+
+## A programming language* using TrackMania terminology
+
+*TrackLang is a syntax-level wrapper around Python.*
+
+---
+
+## Overview
+
+TrackLang is a domain-specific language that maps TrackMania-inspired terminology
+to standard Python constructs.
+
+TrackLang does not introduce new semantics, runtime behavior, or execution
+models. All TrackLang programs are translated into valid Python and executed
+using the Python interpreter.
+
+If it works in Python, it works in TrackLang.
+
+---
+
+## Design Goals
+
+- Preserve full Python semantics
+- Avoid custom runtimes or interpreters
+- Keep translation logic simple and transparent
+- Remain honest about what the project is
+
+---
+
+## Non-Goals
+
+TrackLang does not aim to:
+- Improve performance
+- Replace Python
+- Introduce new language features
+- Be suitable for production use
+
+---
+
+## Example
+
+TrackLang source:
+
+    START_RACE main():
+        PB time = 3
+
+        LOOP_TRACK time FASTER_THAN 0:
+            CHAT time
+            PB time = time - 1
+        FINISH
+    FINISH
+
+    GO main()
+
+Translated Python:
+
+   ```python
+        def main():
+        time = 3
+        while time > 0:
+            print(time)
+            time = time - 1
+
+    main()
+```
+The programs are functionally identical.
+
+---
+
+## Syntax Overview
+
+TrackLang replaces a small set of Python keywords with TrackMania-themed aliases.
+All other syntax is standard Python.
+
+### Control Flow
+
+| TrackLang   | Python |
+| ----------- | ------ |
+| START_RACE  | def    |
+| CHECKPOINT  | if     |
+| ALT_ROUTE   | elif   |
+| ELSE_ROUTE  | else   |
+| LOOP_TRACK  | while  |
+| LAP         | for    |
+| FINISH      | end    |
+
+### Statements
+
+| TrackLang                                | Python              |
+| ---------------------------------------- | ----------------- |
+| CHAT                                     | print             |
+| PB x = y                                 | x = y             |
+| GO f()                                   | f()               |
+| RESTART_MAP                              | return            |
+| DNF                                      | break             |
+| RESET_RUN                                | continue          |
+| INSTALLOPENPLANETPLUGIN {module}        | import {module}   |
+| INSTALLOPENPLANETPLUGIN {module} AS {alias} | import {module} as {alias} |
+| DOWNLOADFROMNADEO {module} {thing}      | from {module} import {thing} |
+
+### Operators
+
+| TrackLang    | Python |
+| ------------ | ------ |
+| FASTER_THAN  | >      |
+| SLOWER_THAN  | <      |
+| EQUALS       | ==     |
+| NOT_PB       | !=     |
+| AT_LEAST     | >=     |
+| AT_MOST      | <=     |
+
+---
+
+## Indentation Model
+
+TrackLang uses explicit block terminators.
+
+- Blocks begin with control statements
+- Blocks end with FINISH
+- Indentation is generated automatically during translation
+
+This removes whitespace sensitivity while preserving Python compatibility.
+
+---
+
+## Installation
+
+    pip install tracklang
+
+---
+
+## Usage
+
+    tracklang example.tm
+
+---
+
+## Limitations
+
+- Errors originate from Python
+- Debugging occurs in translated Python
+- No sandboxing is provided
+
+---
+
+## Intended Use
+
+TrackLang is intended for:
+- Educational experiments
+- Language tooling exploration
+- Demonstrations
+- Jokes taken seriously
+
+It is not recommended for production systems.
+Seriously. It isn't.
