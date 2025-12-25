@@ -1,0 +1,114 @@
+# WinCP
+
+**WinCP** is a secure CMP compressor and extractor with both **GUI** and **CLI** interfaces.  
+It is designed for simplicity, security, and flexibility. Supports password-protected archives, compression levels, optional custom icons, and intuitive file navigation.
+
+---
+
+## Features
+
+### General
+
+- Compress and extract `.cmp` archives
+- AES-GCM encryption with optional password
+- Adjustable compression levels (1–9)
+- Optional custom icons for archives
+- Cross-platform GUI via PySide6
+- CLI interface for automation and scripting
+- Drag & drop support for files and folders
+- Right-click extraction in archive tree
+
+### GUI
+
+- **Compress Tab**:  
+  - Browse folders to compress  
+  - Set password and compression level  
+  - Choose optional icon  
+  - Select output file  
+  - Start compression and monitor progress
+
+- **Extract Tab**:  
+  - Browse and load `.cmp` archives  
+  - View file/folder tree structure  
+  - Drag & drop archives into the tab  
+  - Right-click files or folders to extract  
+  - Choose target folder via folder dialog  
+  - Recursive extraction of folders and files
+
+### CLI
+
+- Full command-line support for automated workflows
+- Compress folders
+- Extract archives
+- Password-protected and configurable compression levels
+
+---
+
+## Installation
+
+Install via pip:
+
+```bash
+pip install wincp
+
+CLI Usage
+
+Compress a folder
+
+wincp compress <folder> <output.cmp> [--password <password>] [--level <1-9>] [--icon <icon_path>]
+
+
+Example:
+
+
+wincp compress my_folder backup.cmp --password secret --level 9 --icon myicon.ico
+
+<folder>: path to the folder to compress
+
+<output.cmp>: output archive path
+
+--password: optional encryption password
+
+--level: compression level (1=fastest, 9=maximum)
+
+--icon: optional icon file for the archive
+
+Extract an archive
+
+wincp extract <archive.cmp> <output_folder> [--password <password>]
+
+
+Example:
+
+wincp extract backup.cmp restored_folder --password secret
+
+<archive.cmp>: path to the archive
+
+<output_folder>: folder where files/folders will be extracted
+
+--password: optional password if archive is protected
+
+GUI Mode
+
+Simply run:
+
+wincp
+
+
+License
+
+MIT License
+
+
+
+Changelog
+
+v0.1.0 – Initial release
+
+GUI with compress/extract tabs
+
+CLI support
+
+Password protection and icon support
+
+Drag & drop and right-click extraction
