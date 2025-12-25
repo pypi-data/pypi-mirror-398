@@ -1,0 +1,166 @@
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: 'Python version for build'
+        required: false
+        type: string
+        default: '3.12'
+      push-image:
+        description: 'Whether to push the container image to registry'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: ${{ inputs.python-version }}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker-build:
+    name: Build Docker Images
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.12.0
+
+      - name: Log in to Container Registry
+        if: inputs.push-image && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        uses: docker/login-action@v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5.10.0
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push container image
+        if: inputs.push-image && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Containerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+      - name: Build all container images
+        if: ${{ !inputs.push-image }}
+        run: |
+          docker buildx build -t msn-weather-app:test -f ./Containerfile --load .
+          docker buildx build -t msn-weather-frontend:test -f ./frontend/Containerfile --load ./frontend
+          docker buildx build -t msn-weather-playwright:test -f ./Containerfile.playwright --load .
+
+      - name: Test unified container
+        if: ${{ !inputs.push-image }}
+        run: |
+          docker rm -f test-app || true
+          docker run --rm -d --name test-app -p 8080:80 msn-weather-app:test
+          sleep 15
+          curl -f http://localhost:8080/api/health || exit 1
+          curl -f http://localhost:8080/ || exit 1
+          docker stop test-app || true
+
+      - name: Save Docker images as artifacts
+        if: ${{ !inputs.push-image && github.event_name != 'pull_request' }}
+        run: |
+          mkdir -p /tmp/docker-images
+          docker save msn-weather-app:test -o /tmp/docker-images/api.tar
+          docker save msn-weather-frontend:test -o /tmp/docker-images/frontend.tar
+          docker save msn-weather-playwright:test -o /tmp/docker-images/playwright.tar
+          cd /tmp/docker-images
+          tar -czf docker-images.tar.gz *.tar
+          rm -f *.tar
+
+      - name: Upload Docker images artifact
+        if: ${{ !inputs.push-image && github.event_name != 'pull_request' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: docker-images
+          path: /tmp/docker-images/docker-images.tar.gz
+          retention-days: 5
+
+  sbom:
+    name: Generate SBOM
+    runs-on: self-hosted
+    env:
+      LOCAL_BIN: /tmp/syft-bin
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-python-env
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Syft
+        run: |
+          mkdir -p "$LOCAL_BIN"
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "$LOCAL_BIN"
+          echo "$LOCAL_BIN" >> "$GITHUB_PATH"
+
+      - name: Generate Source SBOM
+        run: |
+          mkdir -p sbom_output
+          syft dir:. -o spdx-json > sbom_output/source_sbom.json
+          syft dir:. -o cyclonedx-json > sbom_output/source_cyclonedx.json
+
+      - name: Upload SBOM artifacts
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v6
+        with:
+          name: sbom-reports
+          path: sbom_output/
+          retention-days: 7
+
+  docs:
+    name: Build Documentation
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-python-env
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          install-dependencies: 'false'
+
+      - name: Install MkDocs
+        run: pip install mkdocs-material
+
+      - name: Build documentation
+        run: mkdocs build --strict
+
+      - name: Upload documentation
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v6
+        with:
+          name: documentation
+          path: site/
+          retention-days: 7

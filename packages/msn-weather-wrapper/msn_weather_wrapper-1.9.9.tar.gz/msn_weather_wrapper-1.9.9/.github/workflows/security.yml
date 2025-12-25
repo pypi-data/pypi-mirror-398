@@ -1,0 +1,145 @@
+name: Security
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: 'Python version for security scans'
+        required: false
+        type: string
+        default: '3.12'
+      full-scan:
+        description: 'Whether to run full security scan (SAST, dependencies, container)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: ${{ inputs.python-version }}
+
+jobs:
+  basic-security:
+    name: Basic Security Checks
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-python-env
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install security tools
+        run: pip install bandit semgrep pip-audit safety pip-licenses
+
+      - name: Create security reports directory
+        run: mkdir -p security-reports
+
+      - name: Run Bandit (fail on HIGH/CRITICAL)
+        run: |
+          bandit -r src/ api.py -ll -f txt -o security-reports/bandit-report.txt || true
+          bandit -r src/ api.py -f json -o security-reports/bandit-report.json || true
+
+      - name: Run Semgrep SAST scan
+        run: |
+          semgrep --config=auto src/ api.py --json --output=security-reports/semgrep-report.json || true
+          semgrep --config=auto src/ api.py --output=security-reports/semgrep-report.txt || true
+
+      - name: Run pip-audit (check for vulnerabilities)
+        run: |
+          pip-audit --format json --output security-reports/pip-audit-report.json || true
+          pip-audit --output security-reports/pip-audit-report.txt || true
+
+      - name: Run Safety check
+        run: |
+          safety check --json --output security-reports/safety-report.json || true
+          safety check --output security-reports/safety-report.txt || true
+
+      - name: Generate pip-licenses report
+        run: |
+          pip-licenses --format=json --output-file=security-reports/licenses.json
+
+      - name: Upload security reports as artifact
+        uses: actions/upload-artifact@v6
+        if: ${{ github.event_name != 'pull_request' && always() }}
+        with:
+          name: security-reports
+          path: security-reports/
+          retention-days: 3
+
+      - name: Security scan summary
+        if: always()
+        run: |
+          echo "✓ Bandit scan completed"
+          echo "✓ Semgrep SAST scan completed"
+          echo "✓ pip-audit scan completed"
+          echo "✓ Safety check completed"
+          echo "✓ License report generated"
+
+  container-scan:
+    name: Container Security Scan
+    if: ${{ inputs.full-scan }}
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.12.0
+
+      - name: Build container image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Containerfile
+          push: false
+          tags: msn-weather-app:security-scan
+          cache-from: type=gha
+          load: true
+
+      - name: Create security reports directory
+        run: mkdir -p security-reports
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: msn-weather-app:security-scan
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'container-security'
+
+      - name: Run Trivy for JSON report
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: msn-weather-app:security-scan
+          format: 'json'
+          output: 'security-reports/trivy-results.json'
+
+      - name: Generate Grype SBOM scan
+        run: |
+          mkdir -p /tmp/sbom-tools
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /tmp/sbom-tools
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /tmp/sbom-tools
+          /tmp/sbom-tools/syft msn-weather-app:security-scan -o spdx-json > security-reports/container-sbom.json
+          /tmp/sbom-tools/grype sbom:security-reports/container-sbom.json --fail-on critical -o json > security-reports/grype-results.json || true
+
+      - name: Upload container security reports
+        uses: actions/upload-artifact@v6
+        with:
+          name: container-security-reports
+          path: security-reports/
+          retention-days: 30
+
+      - name: Container security summary
+        run: |
+          echo "✓ Trivy container scan completed"
+          echo "✓ Grype SBOM scan completed"

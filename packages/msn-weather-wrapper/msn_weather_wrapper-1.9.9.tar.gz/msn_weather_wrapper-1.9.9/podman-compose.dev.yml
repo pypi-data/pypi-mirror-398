@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Containerfile.dev
+    container_name: msn-weather-api-dev
+    stdin_open: true
+    tty: true
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./src:/app/src:z
+      - ./api.py:/app/api.py:z
+      - ./tests:/app/tests:z
+      - ./pyproject.toml:/app/pyproject.toml:z
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - PYTHONUNBUFFERED=1
+    command: python api.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Containerfile.dev
+    container_name: msn-weather-frontend-dev
+    stdin_open: true
+    tty: true
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src:z
+      - ./frontend/tests:/app/tests:z
+      - ./frontend/public:/app/public:z
+      - ./frontend/playwright.config.ts:/app/playwright.config.ts:z
+    environment:
+      - NODE_ENV=development
+      - DOCKER_ENV=true
+    command: npm run dev -- --host 0.0.0.0
+    depends_on:
+      - api
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: Containerfile.dev
+    container_name: msn-weather-test-runner
+    volumes:
+      - ./src:/app/src:z
+      - ./api.py:/app/api.py:z
+      - ./tests:/app/tests:z
+      - ./pyproject.toml:/app/pyproject.toml:z
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: pytest --cov=msn_weather_wrapper --cov-report=term-missing --cov-report=html
+    profiles:
+      - test

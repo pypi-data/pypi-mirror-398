@@ -1,0 +1,126 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'api.py'
+      - 'tests/**'
+      - 'tools/**'
+      - 'pyproject.toml'
+      - 'Containerfile*'
+      - 'frontend/**'
+      - '.github/workflows/**'
+      - '.github/actions/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name != 'pull_request' }}
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '20'
+
+jobs:
+  # Test Phase: Run all tests including smoke, unit, integration, and coverage
+  test:
+    name: Run Tests
+    uses: ./.github/workflows/test.yml
+    with:
+      python-version: '3.12'
+      run-integration: false
+
+  # Security Phase: Run security scans (full on main branch and tags, basic on PR)
+  security:
+    name: Run Security Scans
+    uses: ./.github/workflows/security.yml
+    with:
+      python-version: '3.12'
+      full-scan: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
+
+  # Build Phase: Build Docker images and documentation
+  build:
+    name: Build Artifacts
+    needs: [test, security]
+    uses: ./.github/workflows/build.yml
+    with:
+      python-version: '3.12'
+      push-image: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
+    secrets: inherit
+
+  # Integration Tests: Run after build with the Docker image
+  integration-tests:
+    name: Integration Tests
+    needs: [build]
+    uses: ./.github/workflows/test.yml
+    with:
+      python-version: '3.12'
+      run-integration: true
+      artifact-suffix: '-integration'
+
+  # Performance Tests: Run performance benchmarks and load tests
+  performance:
+    name: Performance Tests
+    needs: [build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/performance.yml
+    with:
+      python-version: '3.12'
+
+  # Deploy Phase: Generate reports and deploy documentation (main branch only)
+  deploy:
+    name: Deploy Documentation
+    needs: [integration-tests, performance]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      python-version: '3.12'
+    secrets: inherit
+
+  # Trigger Auto-Version-Release: After successful CI on main branch
+  trigger-auto-version:
+    name: Trigger Auto-Version-Release
+    runs-on: self-hosted
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
+    needs: [test, security, build, integration-tests, deploy]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Get latest merged PR info
+        id: pr_info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_INFO=$(gh pr list --state merged --base main --limit 1 --json number,title -q '.[] | "\(.number)|\(.title)"')
+
+          if [[ -z "$PR_INFO" ]]; then
+            echo "No recent merged PR found - skipping auto-version"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          PR_NUMBER=$(echo "$PR_INFO" | cut -d'|' -f1)
+          PR_TITLE=$(echo "$PR_INFO" | cut -d'|' -f2)
+
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "pr_title=$PR_TITLE" >> $GITHUB_OUTPUT
+          echo "Found merged PR #$PR_NUMBER: $PR_TITLE"
+
+      - name: Trigger Auto-Version-Release workflow
+        if: steps.pr_info.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run auto-version-release.yml \
+            -f pr_number="${{ steps.pr_info.outputs.pr_number }}" \
+            -f pr_title="${{ steps.pr_info.outputs.pr_title }}" \
+            -f pr_merged="true"
+
+          echo "✓ Triggered auto-version-release workflow for PR #${{ steps.pr_info.outputs.pr_number }}"

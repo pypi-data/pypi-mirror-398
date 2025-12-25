@@ -1,0 +1,175 @@
+name: Dependency Update
+
+on:
+  schedule:
+    # Run every Monday at 9:00 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-dependencies:
+    name: Update Python Dependencies
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-tools
+
+      - name: Update dependencies
+        id: update
+        run: |
+          # Get current versions
+          pip list --format=freeze > before.txt
+
+          # Update all packages to latest
+          pip install --upgrade -e ".[dev]"
+
+          # Get new versions
+          pip list --format=freeze > after.txt
+
+          # Check if there are differences
+          if ! diff -q before.txt after.txt > /dev/null; then
+            echo "has_updates=true" >> $GITHUB_OUTPUT
+            echo "## Updated Dependencies" > update_summary.md
+            echo "" >> update_summary.md
+            diff before.txt after.txt | grep "^>" | sed 's/^> /- /' >> update_summary.md || true
+          else
+            echo "has_updates=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run tests
+        if: steps.update.outputs.has_updates == 'true'
+        run: |
+          pip install -e ".[dev]"
+          pytest tests/test_client.py tests/test_models.py tests/test_api.py tests/test_security.py -v
+
+      - name: Create Pull Request
+        if: steps.update.outputs.has_updates == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update dependencies'
+          title: 'chore: Update Python dependencies'
+          body-path: update_summary.md
+          branch: dependency-updates
+          delete-branch: true
+          labels: dependencies, automated
+          add-paths: |
+            pyproject.toml
+            requirements*.txt
+
+  update-frontend:
+    name: Update Frontend Dependencies
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package.json
+
+      - name: Update npm dependencies
+        id: update
+        working-directory: frontend
+        run: |
+          # Backup current package.json
+          cp package.json package.json.bak
+
+          # Update dependencies
+          npm update
+
+          # Check if there are changes
+          if ! diff -q package.json package.json.bak > /dev/null; then
+            echo "has_updates=true" >> $GITHUB_OUTPUT
+            echo "## Updated Frontend Dependencies" > ../frontend_update_summary.md
+            echo "" >> ../frontend_update_summary.md
+            npm outdated >> ../frontend_update_summary.md || true
+          else
+            echo "has_updates=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build frontend
+        if: steps.update.outputs.has_updates == 'true'
+        working-directory: frontend
+        run: npm run build
+
+      - name: Create Pull Request
+        if: steps.update.outputs.has_updates == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update frontend dependencies'
+          title: 'chore: Update frontend dependencies'
+          body-path: frontend_update_summary.md
+          branch: frontend-dependency-updates
+          delete-branch: true
+          labels: dependencies, frontend, automated
+          add-paths: |
+            frontend/package.json
+            frontend/package-lock.json
+
+  security-audit:
+    name: Security Audit
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install safety pip-audit
+
+      - name: Run Safety check
+        run: safety check --json --output safety-report.json
+        continue-on-error: true
+
+      - name: Run pip-audit
+        run: pip-audit --format json --output pip-audit-report.json
+        continue-on-error: true
+
+      - name: Upload audit reports
+        uses: actions/upload-artifact@v6
+        with:
+          name: security-audit
+          path: |
+            safety-report.json
+            pip-audit-report.json
+
+      - name: Frontend npm audit
+        working-directory: frontend
+        run: npm audit --json > npm-audit-report.json
+        continue-on-error: true
+
+      - name: Upload npm audit
+        uses: actions/upload-artifact@v6
+        with:
+          name: npm-security-audit
+          path: frontend/npm-audit-report.json

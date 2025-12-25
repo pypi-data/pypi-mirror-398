@@ -1,0 +1,203 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: 'Python version for deployment'
+        required: false
+        type: string
+        default: '3.12'
+
+env:
+  PYTHON_VERSION: ${{ inputs.python-version }}
+  REPORTS_DIR: 'docs/reports'
+
+permissions:
+  contents: write
+
+jobs:
+  generate-reports:
+    name: Generate Report Documentation
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download coverage reports
+        uses: actions/download-artifact@v7
+        with:
+          name: coverage-reports
+          path: artifacts/coverage/
+        continue-on-error: true
+
+      - name: Download security reports
+        uses: actions/download-artifact@v7
+        with:
+          name: security-reports
+          path: artifacts/security/
+        continue-on-error: true
+
+      - name: Download SAST reports
+        uses: actions/download-artifact@v7
+        with:
+          name: sast-reports
+          path: artifacts/security/
+        continue-on-error: true
+
+      - name: Download dependency reports
+        uses: actions/download-artifact@v7
+        with:
+          name: dependency-reports
+          path: artifacts/security/
+        continue-on-error: true
+
+      - name: Download container security reports
+        uses: actions/download-artifact@v7
+        with:
+          name: container-security-reports
+          path: artifacts/security/
+        continue-on-error: true
+
+      - name: Download test results
+        uses: actions/download-artifact@v7
+        with:
+          pattern: test-results-*
+          path: artifacts/tests/
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install report generation tools
+        run: |
+          pip install jinja2 junit2html pyyaml
+
+      - name: Create reports directory
+        run: mkdir -p ${{ env.REPORTS_DIR }}
+
+      - name: Generate test report
+        run: |
+          python tools/generate_reports.py --type test \
+            --input artifacts/tests/ \
+            --output ${{ env.REPORTS_DIR }}/test-report.md
+        continue-on-error: true
+
+      - name: Generate coverage report
+        run: |
+          python tools/generate_reports.py --type coverage \
+            --input artifacts/coverage/ \
+            --output ${{ env.REPORTS_DIR }}/coverage-report.md
+        continue-on-error: true
+
+      - name: Generate security report
+        run: |
+          python tools/generate_reports.py --type security \
+            --input artifacts/security/ \
+            --output ${{ env.REPORTS_DIR }}/security-report.md
+        continue-on-error: true
+
+      - name: Generate license report
+        run: |
+          python tools/generate_reports.py --type license \
+            --input artifacts/security/ \
+            --output ${{ env.REPORTS_DIR }}/license-report.md
+        continue-on-error: true
+
+      - name: Generate CI/CD summary
+        run: |
+          python tools/generate_reports.py --type cicd \
+            --output ${{ env.REPORTS_DIR }}/ci-cd.md
+        continue-on-error: true
+
+      - name: Prepare performance artifacts directory
+        run: mkdir -p artifacts/performance
+
+      - name: Download load test results
+        uses: actions/download-artifact@v7
+        with:
+          name: load-test-results
+          path: artifacts/performance/
+        continue-on-error: true
+
+      - name: Download benchmark results
+        uses: actions/download-artifact@v7
+        with:
+          name: benchmark-results
+          path: artifacts/performance/
+        continue-on-error: true
+
+      - name: Generate performance report
+        run: |
+          python tools/generate_reports.py --type performance \
+            --input artifacts/performance/ \
+            --output ${{ env.REPORTS_DIR }}/performance-report.md
+        continue-on-error: true
+
+      - name: Upload report documentation
+        uses: actions/upload-artifact@v6
+        with:
+          name: report-documentation
+          path: ${{ env.REPORTS_DIR }}/
+
+  deploy-docs:
+    name: Deploy Documentation to GitHub Pages
+    runs-on: self-hosted
+    needs: [generate-reports]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download report documentation
+        uses: actions/download-artifact@v7
+        with:
+          name: report-documentation
+          path: ci-reports/
+        continue-on-error: true
+
+      - name: Download coverage reports (for badges)
+        uses: actions/download-artifact@v7
+        with:
+          name: coverage-reports
+          path: docs/assets/
+        continue-on-error: true
+
+      - name: Verify and merge reports
+        run: |
+          echo "=== Generated Reports (from CI) ==="
+          ls -la ci-reports/ || echo "No generated reports found"
+          echo ""
+          echo "=== Existing Reports (from repo) ==="
+          git ls-files ${{ env.REPORTS_DIR }}/ || echo "No existing reports in repo"
+          echo ""
+          if [ -d "ci-reports" ] && [ "$(ls -A ci-reports 2>/dev/null)" ]; then
+            echo "Merging CI-generated reports into docs..."
+            cp -f ci-reports/*.md ${{ env.REPORTS_DIR }}/ 2>/dev/null || true
+          fi
+          echo ""
+          echo "=== Final Reports for Deployment ==="
+          find docs/reports -type f -name "*.md" | sort
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install MkDocs
+        run: pip install mkdocs-material
+
+      - name: Configure Git
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+
+      - name: Deploy to GitHub Pages
+        run: mkdocs gh-deploy --force

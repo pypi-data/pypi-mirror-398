@@ -1,0 +1,45 @@
+# Development Containerfile for MSN Weather API
+FROM python:3.12-slim-trixie@sha256:fa48eefe2146644c2308b909d6bb7651a768178f84fc9550dcd495e4d6d84d01
+
+WORKDIR /app
+
+# Install system dependencies including development tools
+RUN apt-get update && apt-get install -y \
+    gcc \
+    curl \
+    git \
+    vim \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Python project files
+COPY pyproject.toml .
+COPY README.md .
+
+# Install Python dependencies including dev dependencies
+RUN pip install --no-cache-dir -e ".[dev]"
+
+# Install additional development tools
+RUN pip install --no-cache-dir \
+    ipython \
+    ipdb \
+    pytest-watch \
+    geopy
+
+# Copy source code (will be overridden by volume in compose)
+COPY src/ src/
+COPY api.py .
+COPY tests/ tests/
+
+# Ensure package is installed in editable mode
+RUN pip install -e .
+
+# Expose Flask port
+EXPOSE 5000
+
+# Set environment variables for development
+ENV FLASK_ENV=development
+ENV FLASK_DEBUG=1
+ENV PYTHONUNBUFFERED=1
+
+# Default command (can be overridden in compose)
+CMD ["python", "api.py"]

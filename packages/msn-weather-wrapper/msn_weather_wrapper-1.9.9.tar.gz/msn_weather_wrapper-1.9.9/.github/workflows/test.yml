@@ -1,0 +1,213 @@
+name: Test
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: 'Python version for testing'
+        required: false
+        type: string
+        default: '3.12'
+      run-integration:
+        description: 'Whether to run integration tests'
+        required: false
+        type: boolean
+        default: false
+      artifact-suffix:
+        description: 'Suffix for artifact names to avoid conflicts'
+        required: false
+        type: string
+        default: ''
+
+env:
+  PYTHON_VERSION: ${{ inputs.python-version }}
+
+jobs:
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-python-env
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Quick validation
+        run: |
+          python -c "import msn_weather_wrapper; print(f'Version: {msn_weather_wrapper.__version__}')"
+          python -c "from msn_weather_wrapper import WeatherClient; print('Client import OK')"
+          ruff check src/ --select E,F
+          mypy src/msn_weather_wrapper --no-strict-optional --no-error-summary
+
+  code-quality:
+    needs: [smoke-tests]
+    name: Code Quality
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-python-env
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Run Ruff format check
+        run: ruff format --check . --output-format=github
+
+      - name: Run Ruff linting
+        run: ruff check . --output-format=github
+
+      - name: Run mypy type checking
+        run: mypy src/msn_weather_wrapper --strict --no-incremental
+
+  unit-tests:
+    needs: [smoke-tests]
+    name: Unit Tests (Python ${{ matrix.python-version }})
+    runs-on: self-hosted
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.12"]') || fromJSON('["3.10", "3.11", "3.12"]') }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-python-env
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run unit tests
+        run: pytest tests/test_client.py tests/test_models.py tests/test_api.py -v --tb=short -n auto -m "not integration" --junitxml=junit-${{ matrix.python-version }}.xml
+
+      - name: Run security tests
+        run: pytest tests/test_security.py -v --tb=short -n auto -m "not integration" --junitxml=junit-security-${{ matrix.python-version }}.xml
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v6
+        if: ${{ github.event_name != 'pull_request' || failure() }}
+        with:
+          name: test-results-${{ matrix.python-version }}${{ inputs.artifact-suffix }}
+          path: junit-*.xml
+          retention-days: 3
+
+  coverage:
+    needs: [smoke-tests]
+    name: Test Coverage
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-python-env
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/test_client.py tests/test_models.py tests/test_api.py tests/test_security.py \
+            --cov=src/msn_weather_wrapper --cov-report=xml --cov-report=html --cov-report=term --cov-report=json \
+            -n auto -m "not integration"
+
+      - name: Generate coverage badge
+        run: |
+          pip install coverage-badge
+          coverage-badge -o coverage.svg -f
+
+      - name: Generate coverage markdown report
+        run: |
+          pip install pycobertura
+          pycobertura show --format markdown coverage.xml > coverage-report.md || echo "Coverage: See HTML report" > coverage-report.md
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v6
+        if: ${{ github.event_name != 'pull_request' }}
+        with:
+          name: coverage-reports${{ inputs.artifact-suffix }}
+          path: |
+            coverage.xml
+            coverage.svg
+            coverage-report.md
+          retention-days: 7
+
+  integration-tests:
+    if: inputs.run-integration
+    name: Integration Tests
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-python-env
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.12.0
+
+      - name: Build container image for testing
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Containerfile
+          push: false
+          tags: msn-weather-app:test
+          cache-from: type=gha
+          load: true
+
+      - name: Start container
+        run: |
+          echo "Starting container..."
+          set -e
+          docker run -d --name msn-weather-app -p 8080:80 \
+            -e FLASK_DEBUG=false \
+            -e CORS_ORIGINS="*" \
+            -e RATE_LIMIT_ENABLED=true \
+            -e CACHE_ENABLED=true \
+            msn-weather-app:test || {
+            echo "✗ Failed to start container"
+            docker ps -a
+            exit 1
+          }
+          echo "✓ Container started successfully"
+          sleep 15
+
+      - name: Wait for API
+        run: |
+          echo "Waiting for API to become ready..."
+          API_READY=false
+          for i in {1..30}; do
+            if curl -f -s http://localhost:8080/api/v1/health > /dev/null 2>&1; then
+              echo "✓ API is ready! (attempt $i)"
+              API_READY=true
+              break
+            fi
+            echo "⏳ Waiting for API... ($i/30)"
+            sleep 2
+          done
+
+          if [ "$API_READY" = false ]; then
+            echo "✗ API failed to become ready after 60 seconds"
+            docker logs msn-weather-app || true
+            exit 1
+          fi
+
+      - name: Run integration tests
+        run: pytest tests/test_integration.py -v --tb=short
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs msn-weather-app
+
+      - name: Stop services
+        if: always()
+        run: docker stop msn-weather-app && docker rm msn-weather-app || true

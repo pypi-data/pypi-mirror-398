@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  frontend:
+    image: node:22-trixie-slim
+    container_name: frontend-test-server
+    working_dir: /app
+    volumes:
+      - ./frontend:/app:z
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    networks:
+      - test-network
+
+  playwright:
+    build:
+      context: .
+      dockerfile: Containerfile.playwright
+    container_name: playwright-tests
+    depends_on:
+      - frontend
+    environment:
+      - PLAYWRIGHT_BASE_URL=http://frontend:5173
+    volumes:
+      - ./frontend/tests:/app/tests:z
+      - ./frontend/playwright-report:/app/playwright-report:z
+      - ./frontend/test-results:/app/test-results:z
+    command: >
+      sh -c "
+        echo 'Waiting for frontend to be ready...';
+        for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+          if wget -q --spider http://frontend:5173 2>/dev/null; then
+            echo 'Frontend is ready!';
+            break;
+          fi;
+          echo 'Waiting... attempt '$i'/20';
+          sleep 3;
+        done;
+        npx playwright test --project=chromium
+      "
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
