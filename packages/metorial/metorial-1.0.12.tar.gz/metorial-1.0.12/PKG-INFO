@@ -1,0 +1,199 @@
+Metadata-Version: 2.4
+Name: metorial
+Version: 1.0.12
+Summary: Python SDK for Metorial - The open source integration platform for agentic AI
+Project-URL: Homepage, https://metorial.com
+Project-URL: Documentation, https://metorial.com/docs
+Project-URL: Repository, https://github.com/metorial/metorial-python
+Project-URL: Changelog, https://github.com/metorial/metorial-python/blob/main/CHANGELOG.md
+Author-email: Metorial Team <support@metorial.com>
+License: MIT
+License-File: LICENSE
+Keywords: ai,anthropic,chat,completions,llm,mcp,metorial,model-context-protocol,openai,sessions,tools
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Internet :: WWW/HTTP :: HTTP Servers
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.10
+Requires-Dist: aiohttp-sse-client>=0.2.1
+Requires-Dist: aiohttp>=3.8.0
+Requires-Dist: metorial-anthropic>=1.0.5
+Requires-Dist: metorial-core>=1.0.12
+Requires-Dist: metorial-deepseek>=1.0.5
+Requires-Dist: metorial-google>=1.0.5
+Requires-Dist: metorial-mcp-session>=1.0.6
+Requires-Dist: metorial-mistral>=1.0.5
+Requires-Dist: metorial-openai>=1.0.6
+Requires-Dist: metorial-togetherai>=1.0.5
+Requires-Dist: metorial-xai>=1.0.5
+Requires-Dist: typing-extensions>=4.0.0
+Provides-Extra: all
+Requires-Dist: anthropic>=0.69.0; extra == 'all'
+Requires-Dist: google-generativeai>=0.3.0; extra == 'all'
+Requires-Dist: mistralai>=0.4.0; extra == 'all'
+Requires-Dist: openai>=1.0.0; extra == 'all'
+Provides-Extra: anthropic
+Requires-Dist: anthropic>=0.69.0; extra == 'anthropic'
+Provides-Extra: deepseek
+Requires-Dist: openai>=1.0.0; extra == 'deepseek'
+Provides-Extra: dev
+Requires-Dist: black>=22.0.0; extra == 'dev'
+Requires-Dist: flake8>=4.0.0; extra == 'dev'
+Requires-Dist: mypy>=0.910; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.20.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Provides-Extra: google
+Requires-Dist: google-generativeai>=0.3.0; extra == 'google'
+Provides-Extra: mistral
+Requires-Dist: mistralai>=0.4.0; extra == 'mistral'
+Provides-Extra: openai
+Requires-Dist: openai>=1.0.0; extra == 'openai'
+Provides-Extra: togetherai
+Requires-Dist: openai>=1.0.0; extra == 'togetherai'
+Provides-Extra: xai
+Requires-Dist: openai>=1.0.0; extra == 'xai'
+Description-Content-Type: text/markdown
+
+# Metorial Python SDK
+
+The official Python SDK for [Metorial](https://metorial.com) - Connect your AI agents to any MCP server with a single line of code. Deploy tools like Slack, GitHub, SAP, and hundreds more without managing infrastructure.
+
+[Sign up for a free account](https://app.metorial.com) to get started.
+
+## Complete API Documentation
+**[API Documentation](https://metorial.com/api)** - Complete API reference and guides
+
+## Available Providers
+
+| Provider          | Import                      | Format                       | Models (non-exhaustive)                      |
+| ----------------- | --------------------------- | ---------------------------- | -------------------------------------------- |
+| OpenAI            | `MetorialOpenAI`            | OpenAI function calling      | `gpt-4.1`, `gpt-4o`, `o1`, `o3`              |
+| Anthropic         | `MetorialAnthropic`         | Claude tool format           | `claude-sonnet-4-5`, `claude-opus-4`         |
+| Google            | `MetorialGoogle`            | Gemini function declarations | `gemini-2.5-pro`, `gemini-2.5-flash`         |
+| Mistral           | `MetorialMistral`           | Mistral function calling     | `mistral-large-latest`, `codestral-latest`   |
+| DeepSeek          | `MetorialDeepSeek`          | OpenAI-compatible            | `deepseek-chat`, `deepseek-reasoner`         |
+| TogetherAI        | `MetorialTogetherAI`        | OpenAI-compatible            | `Llama-4`, `Qwen-3`                          |
+| XAI               | `MetorialXAI`               | OpenAI-compatible            | `grok-3`, `grok-3-mini`                      |
+| LangChain         | `MetorialLangChain`         | LangChain tools              | Any model via LangChain                      |
+| OpenAI-Compatible | `MetorialOpenAICompatible`  | OpenAI-compatible            | Any OpenAI-compatible API                    |
+
+## Installation
+
+```bash
+pip install metorial
+```
+
+## Quick Start
+
+```bash
+pip install metorial anthropic
+```
+
+```python
+import asyncio
+from metorial import Metorial, MetorialAnthropic
+from anthropic import AsyncAnthropic
+
+metorial = Metorial(api_key="your-metorial-api-key")
+anthropic = AsyncAnthropic(api_key="your-anthropic-api-key")
+
+async def main():
+    async def session_handler(session):
+        messages = [{"role": "user", "content": "What's the latest news on Hacker News?"}]
+
+        for _ in range(10):
+            response = await anthropic.messages.create(
+                model="claude-sonnet-4-5",
+                max_tokens=1024,
+                messages=messages,
+                tools=session["tools"]
+            )
+
+            tool_calls = [b for b in response.content if b.type == "tool_use"]
+            if not tool_calls:
+                print(response.content[0].text)
+                break
+
+            tool_responses = await session["callTools"](tool_calls)
+            messages.append({"role": "assistant", "content": response.content})
+            messages.append(tool_responses)
+
+        await session["closeSession"]()
+
+    await metorial.with_provider_session(
+        MetorialAnthropic,
+        {"serverDeployments": [{"serverDeploymentId": "your-server-deployment-id"}]},
+        session_handler
+    )
+
+asyncio.run(main())
+```
+
+## Session Options
+
+### Streaming Mode
+
+When using streaming with tool calls, enable the `streaming` flag:
+
+```python
+await metorial.with_provider_session(
+    metorial_provider,
+    {
+        "serverDeployments": [...],
+        "streaming": True,  # Required for streaming with tool calls
+    },
+    session_handler
+)
+```
+
+### Closing Sessions
+
+Always close your session when done to free up resources:
+
+```python
+async def session_handler(session):
+    tools = session["tools"]
+    close_session = session["closeSession"]
+
+    # Use tools...
+
+    # When finished, close the session
+    await close_session()
+```
+
+## Session Object
+
+The session object passed to your callback provides:
+
+```python
+async def session_handler(session):
+    tools = session["tools"]           # Tool definitions formatted for your provider
+    call_tools = session["callTools"]  # Execute tools and get responses
+    close_session = session["closeSession"]  # Close the session when done (always call this!)
+```
+
+## Error Handling
+
+```python
+from metorial import MetorialAPIError
+
+try:
+    await metorial.with_provider_session(...)
+except MetorialAPIError as e:
+    print(f"API Error: {e.message} (Status: {e.status})")
+except Exception as e:
+    print(f"Unexpected error: {e}")
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Support
+
+[Documentation](https://metorial.com/docs) · [GitHub Issues](https://github.com/metorial/metorial-python/issues) · [Email Support](mailto:support@metorial.com)
