@@ -1,0 +1,96 @@
+name: ci
+on:
+  push:
+    paths:
+      - '.github/workflows/ci.yml'
+      - 'src/**'
+      - 'tests/**'
+      - '.clang-format'
+      - 'meson.build'
+      - 'pyproject.toml'
+  workflow_dispatch:
+
+jobs:
+  style:
+    name: format C++ and lint Python
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./clang-format.bash check
+      - run: pipx run hatch fmt --check
+        if: success() || failure()
+
+  coverage:
+    needs: [style]
+    name: check code coverage
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+      - run: |
+          pip install -C build-dir=build -C setup-args=-Db_coverage=true -C setup-args=-Dbuildtype=debug -v .[cov]
+          pytest
+          gcovr --json-summary-pretty | tee coverage.json
+          [ $(jq '.line_percent*10' coverage.json) -ge 950 ]
+      - uses: stellarhub/push-gist-action@v1
+        with:
+          token: ${{ secrets.PAT }}
+          gist_id: 20ce6b322e80fe740f1ba6365fe7f110
+          file_path: coverage.json
+        if: github.ref_type == 'tag'
+
+  build-native:
+    needs: [style]
+    strategy:
+      matrix:
+        os: ['macos-14', 'macos-15-intel', 'ubuntu-24.04', 'windows-2025']
+    name: build-native on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pypa/cibuildwheel@v3.3.0
+        with:
+          output-dir: wheelhouse
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-${{ strategy.job-index }}
+          path: wheelhouse/*.whl
+
+  build-wasm:
+    needs: [style]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pypa/cibuildwheel@v3.3.0
+        with:
+          output-dir: wheelhouse
+        env:
+          CIBW_PLATFORM: pyodide
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-wasm-${{ strategy.job-index }}
+          path: wheelhouse/*.whl
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [coverage, build-native, build-wasm]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pysorteddict
+    permissions: write-all
+    steps:
+      - uses: actions/checkout@v4
+      - run: pipx run build -s
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist/
+      - run: |
+          gh release create ${{ github.ref_name }} -t ${{ github.ref_name }} --generate-notes
+          gh release upload ${{ github.ref_name }} dist/*
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: rm dist/*wasm*
+        name: exclude WASM wheels (not supported on PyPI)
+      - uses: pypa/gh-action-pypi-publish@release/v1

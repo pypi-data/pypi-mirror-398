@@ -1,0 +1,101 @@
+[build-system]
+requires = ["meson-python"]
+build-backend = "mesonpy"
+
+[dependency-groups]
+docs = ["furo~=2024.8", "myst-parser~=4.0"]
+
+[project]
+name = "pysorteddict"
+version = "0.13.0"
+authors = [
+    {name = "Vishal Pankaj Chandratreya"},
+]
+description = "Python dictionary in which the keys are always in ascending order"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "AGPL-3.0-or-later"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+
+[project.optional-dependencies]
+cov = ["gcovr", "pytest-xdist"]
+
+[project.urls]
+Homepage = "https://tfpf.github.io/pysorteddict/"
+Documentation = "https://tfpf.github.io/pysorteddict/documentation.html"
+Repository = "https://github.com/tfpf/pysorteddict"
+Changelog = "https://tfpf.github.io/pysorteddict/changelog.html"
+
+[tool.cibuildwheel]
+archs = ["auto64"]
+build-verbosity = 1
+enable = ["pypy", "pypy-eol"]
+test-command = "pytest {package}"
+test-requires = ["pytest-xdist"]
+
+[tool.cibuildwheel.config-settings]
+setup-args = ["-Db_lto=true"]
+
+[tool.cibuildwheel.pyodide]
+archs = ["wasm32"]
+test-command = "pytest -n 0 {package}"
+
+[tool.hatch.envs.default]
+dev-mode = false
+
+[tool.hatch.envs.cov]
+detached = true
+features = ["cov"]
+
+[tool.hatch.envs.cov.scripts]
+# To report C++ code coverage, the build directory must persist, because
+# reporting coverage requires data from both coverage and object files.
+cov = [
+    "rm -fr build/ cov/",
+    "pip install -C build-dir=build -C setup-args=-Db_coverage=true -C setup-args=-Dbuildtype=debug -q .",
+    "pytest",
+    "mkdir cov/",
+    "gcovr --html-details cov/index.html",
+]
+
+[tool.hatch.envs.docs]
+detached = true
+
+[tool.hatch.envs.docs.scripts]
+# Building the documentation does not require installing this project, but does
+# require some dependencies. I can't figure out a way to get Hatch to only
+# install those dependencies without repeating them here. Hence, install them
+# in this environment manually from the dependency group. Otherwise, the below
+# command will fail.
+docs = "sphinx-build docs/ docs/_build/"
+
+[tool.meson-python.args]
+compile = ["-v"]
+
+[tool.pytest.ini_options]
+addopts = "--dist=worksteal -n logical"
+
+[tool.ruff]
+extend-exclude = ["tests/performance/"]
+line-length = 119
+
+[tool.ruff.lint.per-file-ignores]
+"docs/conf.py" = ["A001", "INP001"]
+"examples/*" = ["S101", "T201"]
+"tests/functional/*" = ["S101", "S311"]
