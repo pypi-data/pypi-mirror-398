@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jupyter-retext-language-server"
+dependencies = [
+  "jupyter_lsp",
+  "traitlets"
+]
+version = "1.0.0.post2"
+readme = "README.md"
+description = "A language server for Markdown documents that supports retext plugins"
+
+[tool.hatch.build.targets.wheel]
+artifacts = ["jupyter_retext_language_server/dist/*"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"jupyter_retext_language_server/dist" = "share/jupyter-retext-language-server/bin/"
+"jupyter-config/server-config" = "etc/jupyter/jupyter_server_config.d"
+
+[tool.hatch.build.hooks.jupyter-builder]
+dependencies = ["hatch-jupyter-builder"]
+build-function = "hatch_jupyter_builder.npm_builder"
+ensured-targets = [
+"jupyter_retext_language_server/dist/server.cjs",
+"jupyter_retext_language_server/dist/retext-spell.cjs"
+]
+
+[project.entry-points.jupyter_lsp_spec_v1]
+jupyter-retext-language-server = "jupyter_retext_language_server.specs:retext"
+
+[project.entry-points.jupyter_retext_language_server_plugin_v1]
+retext-spell = "jupyter_retext_language_server.plugins:retext_spell"
