@@ -1,0 +1,58 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Generate Changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --verbose
+        env:
+          OUTPUT: CHANGELOG.md
+      
+      - name: Commit Changelog
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "docs: update CHANGELOG.md"
+          file_pattern: CHANGELOG.md
+          branch: master
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+      
+      - name: Set Version from Tag
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "🚀 Configurando versão para: $VERSION"
+          sed -i 's/version = ".*"/version = "'$VERSION'"/' pyproject.toml
+
+      - name: Build Package
+        run: |
+          pip install build
+          python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages_dir: dist/
+          skip_existing: true
