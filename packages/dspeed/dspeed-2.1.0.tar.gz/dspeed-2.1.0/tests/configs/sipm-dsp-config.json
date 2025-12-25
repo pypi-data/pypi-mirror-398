@@ -1,0 +1,85 @@
+{
+  "outputs": ["energies", "trigger_pos"],
+  "processors": {
+    "gaus_kernel": {
+      "function": "gaussian_filter1d",
+      "module": "dspeed.processors.gaussian_filter1d",
+      "args": [
+        "db.gauss.width",
+        "db.gauss.trunc",
+        "gaus_kernel(shape=round(db.gauss.trunc * db.gauss.width + 0.5)*2+1 , dtype='d')"
+      ],
+      "defaults": {
+        "db.gauss.width": 1,
+        "db.gauss.trunc": 4
+      }
+    },
+    "wf_gaus": {
+      "function": "reflected_convolve_wf",
+      "module": "dspeed.processors.convolutions",
+      "args": ["waveform", "gaus_kernel", "wf_gaus(len(waveform))"],
+      "unit": "ADC"
+    },
+    "curr": {
+      "function": "avg_current",
+      "module": "dspeed.processors.moving_windows",
+      "args": ["wf_gaus", 5, "curr(len(wf_gaus)-5)"],
+      "unit": "ADC"
+    },
+    "hist_weights , hist_borders": {
+      "function": "histogram",
+      "module": "dspeed.processors.histogram",
+      "args": ["curr", "hist_weights(100)", "hist_borders(101)"],
+      "unit": ["none", "ADC"]
+    },
+    "fwhm, idx_out_c, max_out": {
+      "function": "histogram_stats",
+      "module": "dspeed.processors",
+      "args": [
+        "hist_weights",
+        "hist_borders",
+        "idx_out_c",
+        "max_out",
+        "fwhm",
+        "np.nan"
+      ],
+      "unit": ["ADC", "non", "ADC"]
+    },
+    "vt_max_candidate_out, vt_min_out, n_max_out, n_min_out": {
+      "function": "get_multi_local_extrema",
+      "module": "dspeed.processors.get_multi_local_extrema",
+      "args": [
+        "curr",
+        5,
+        0.1,
+        1,
+        "3*fwhm",
+        0,
+        "vt_max_candidate_out(20, vector_len=n_max_out)",
+        "vt_min_out(20, vector_len=n_min_out)",
+        "n_max_out",
+        "n_min_out"
+      ],
+      "unit": ["ns", "ns", "none", "none"]
+    },
+    "trigger_pos, no_out": {
+      "function": "peak_snr_threshold",
+      "module": "dspeed.processors.peak_snr_threshold",
+      "args": [
+        "curr",
+        "vt_max_candidate_out",
+        0.8,
+        10,
+        "trigger_pos(vector_len=no_out)",
+        "no_out"
+      ],
+      "unit": ["ns", "none"]
+    },
+    "energies": {
+      "function": "multi_a_filter",
+      "module": "dspeed.processors.multi_a_filter",
+      "args": ["curr", "trigger_pos", "energies(vector_len=len(trigger_pos))"],
+      "unit": ["ADC"]
+    }
+  }
+}
