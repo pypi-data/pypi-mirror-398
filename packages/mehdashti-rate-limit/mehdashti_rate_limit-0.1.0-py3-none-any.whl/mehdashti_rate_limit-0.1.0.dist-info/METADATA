@@ -1,0 +1,201 @@
+Metadata-Version: 2.4
+Name: mehdashti-rate-limit
+Version: 0.1.0
+Summary: Rate limiting utilities with Redis and Memory providers for Smart Platform
+Author-email: Mahdi Ashti <mahdi@mehdashti.com>
+License: MIT
+Keywords: fastapi,rate-limit,redis,throttle
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.13
+Requires-Dist: fastapi>=0.104.0
+Requires-Dist: redis>=5.0.0
+Provides-Extra: dev
+Requires-Dist: httpx>=0.25.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest>=7.4.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Smart Rate Limit
+
+Rate limiting utilities with Redis and Memory providers for Smart Platform.
+
+## Features
+
+- **Multiple Providers**: Redis and in-memory rate limiting
+- **Sliding Window**: Accurate rate limiting algorithm
+- **FastAPI Integration**: Middleware and decorators
+- **Multiple Strategies**: IP-based, user-based, endpoint-based
+- **Async/Await**: Full async support
+
+## Installation
+
+```bash
+pip install smart-rate-limit
+```
+
+## Usage
+
+### Memory Rate Limiter
+
+```python
+from mehdashti_rate_limit import MemoryRateLimiter
+
+# Initialize limiter
+limiter = MemoryRateLimiter(cleanup_interval=300)
+await limiter.start_cleanup()
+
+# Check rate limit
+try:
+    info = await limiter.check(
+        key="user:123",
+        limit=100,
+        window=60,  # 100 requests per minute
+    )
+    print(f"Remaining: {info.remaining}")
+except RateLimitExceeded as e:
+    print(f"Rate limit exceeded. Retry after {e.retry_after} seconds")
+```
+
+### Redis Rate Limiter
+
+```python
+from mehdashti_rate_limit import RedisRateLimiter
+
+# Initialize limiter
+limiter = RedisRateLimiter(redis_url="redis://localhost:6379/0")
+
+# Check rate limit
+try:
+    info = await limiter.check(
+        key="user:123",
+        limit=1000,
+        window=3600,  # 1000 requests per hour
+    )
+    print(f"Remaining: {info.remaining}")
+except RateLimitExceeded as e:
+    print(f"Rate limit exceeded. Retry after {e.retry_after} seconds")
+```
+
+### FastAPI Middleware
+
+```python
+from fastapi import FastAPI
+from mehdashti_rate_limit import MemoryRateLimiter, RateLimitMiddleware
+
+app = FastAPI()
+limiter = MemoryRateLimiter()
+
+# Add middleware
+app.add_middleware(
+    RateLimitMiddleware,
+    limiter=limiter,
+    limit=100,
+    window=60,  # 100 requests per minute
+    exclude_paths=["/health", "/metrics"],
+)
+
+@app.get("/api/users")
+async def get_users():
+    return {"users": []}
+```
+
+### Decorators
+
+#### Basic Rate Limiting
+
+```python
+from fastapi import FastAPI, Request
+from mehdashti_rate_limit import MemoryRateLimiter, rate_limit
+
+app = FastAPI()
+limiter = MemoryRateLimiter()
+
+@app.get("/api/search")
+@rate_limit(limiter, limit=10, window=60)
+async def search(request: Request, query: str):
+    return {"results": []}
+```
+
+#### User-Based Rate Limiting
+
+```python
+from mehdashti_rate_limit import user_rate_limit
+
+@app.get("/api/profile")
+@user_rate_limit(limiter, limit=20, window=60)
+async def get_profile(request: Request):
+    # Rate limited by user ID (from request.state.user)
+    return {"profile": {}}
+```
+
+#### Endpoint-Based Rate Limiting
+
+```python
+from mehdashti_rate_limit import endpoint_rate_limit
+
+@app.post("/api/expensive-operation")
+@endpoint_rate_limit(limiter, limit=5, window=300)
+async def expensive_operation(request: Request):
+    # Rate limited per endpoint per IP
+    return {"status": "processing"}
+```
+
+### Custom Key Function
+
+```python
+from fastapi import Request
+from mehdashti_rate_limit import rate_limit
+
+def custom_key(request: Request) -> str:
+    # Rate limit by API key
+    api_key = request.headers.get("X-API-Key", "unknown")
+    return f"api_key:{api_key}"
+
+@app.get("/api/data")
+@rate_limit(limiter, limit=1000, window=3600, key_func=custom_key)
+async def get_data(request: Request):
+    return {"data": []}
+```
+
+## API
+
+### RateLimiter
+
+Base interface for all rate limiter providers.
+
+- `check(key, limit, window)`: Check and increment rate limit
+- `reset(key)`: Reset rate limit for a key
+- `get_info(key, limit, window)`: Get rate limit info without incrementing
+
+### RateLimitInfo
+
+Rate limit information returned by `check()` and `get_info()`.
+
+- `limit`: Maximum requests allowed
+- `remaining`: Remaining requests in current window
+- `reset_at`: Unix timestamp when limit resets
+- `retry_after`: Seconds until reset (only when limit exceeded)
+
+### RateLimitExceeded
+
+Exception raised when rate limit is exceeded.
+
+- `message`: Error message
+- `retry_after`: Seconds until rate limit resets
+
+## Response Headers
+
+Rate limit responses include these headers:
+
+- `X-RateLimit-Limit`: Maximum requests allowed
+- `X-RateLimit-Remaining`: Remaining requests
+- `X-RateLimit-Reset`: Unix timestamp when limit resets
+- `Retry-After`: Seconds until reset (only in 429 responses)
+
+## License
+
+MIT
