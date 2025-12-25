@@ -1,0 +1,415 @@
+"""Web server module for nemorosa."""
+
+import secrets
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi.responses import FileResponse, Response
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel, Field
+
+from . import __version__, config, logger
+from .api import cleanup_api, get_target_apis
+from .core import ProcessResponse, ProcessStatus, get_core
+from .db import cleanup_database
+from .scheduler import JobResponse, JobType, get_job_manager
+
+
+class AnnounceRequest(BaseModel):
+    """Announce request model."""
+
+    name: str = Field(..., description="Torrent name")
+    link: str = Field(..., description="Torrent download link")
+    album: str = Field(..., description="Album name for searching")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "name": "Example.Album.2024.FLAC-GROUP",
+                "link": "https://tracker.example.com/torrents.php?id=12345",
+                "album": "Example Album",
+            }
+        }
+    }
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Lifespan event handler for FastAPI app."""
+    # Initialize core components (torrent client, database, API connections, scheduler)
+    from .cli import async_init
+
+    await async_init()
+
+    # Get job manager after initialization
+    job_manager = get_job_manager()
+
+    # Add scheduled jobs if available
+    if job_manager and get_target_apis():
+        job_manager.add_scheduled_jobs()
+        logger.info("Scheduled jobs configured and added")
+
+    yield
+
+    # Shutdown
+    if job_manager:
+        job_manager.stop_scheduler()
+        logger.info("Scheduler stopped")
+
+    # Close all API client sessions
+    await cleanup_api()
+
+    # Cleanup database
+    await cleanup_database()
+
+
+# Create FastAPI app
+app = FastAPI(
+    title="Nemorosa Web Server",
+    description="Music torrent cross-seeding tool with automatic file mapping and seamless injection",
+    version=__version__,
+    lifespan=lifespan,
+)
+
+
+def verify_api_key(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(HTTPBearer(auto_error=False))],
+) -> bool:
+    """Verify API key."""
+    # Check if API key is configured in server config
+    api_key = config.cfg.server.api_key
+    if not api_key:
+        # No API key configured, allow all requests
+        return True
+
+    if not credentials or not secrets.compare_digest(credentials.credentials, api_key):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+
+    return True
+
+
+# Type alias for API key dependency
+ApiKeyDep = Annotated[bool, Depends(verify_api_key)]
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all requests."""
+    logger.debug(f"Incoming request: {request.method} {request.url}")
+    response = await call_next(request)
+    logger.debug(f"Response: {response.status_code}")
+    return response
+
+
+@app.get("/")
+async def root():
+    """Root endpoint."""
+    return {
+        "message": "Nemorosa Web Server",
+        "version": __version__,
+        "endpoints": {
+            "webhook": "/api/webhook",
+            "announce": "/api/announce",
+            "job": "/api/job",
+            "docs": "/docs",
+        },
+    }
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    """Serve favicon.ico."""
+    favicon_path = Path(__file__).parent / "static" / "favicon.ico"
+    return FileResponse(favicon_path)
+
+
+@app.post(
+    "/api/webhook",
+    response_model=ProcessResponse,
+    tags=["webhook"],
+    summary="Process torrent via webhook",
+    responses={
+        200: {"description": "Successfully processed (injected/saved/already exists)"},
+        204: {"description": "No matching torrent found (normal case)"},
+    },
+)
+async def webhook(
+    infohash: Annotated[str, Query(min_length=1, description="Torrent infohash (40-character hex string)")],
+    response: Response,
+    _: ApiKeyDep,
+) -> ProcessResponse:
+    """Process a single torrent via webhook.
+
+    This endpoint triggers cross-seed processing for a specific torrent
+    identified by its infohash.
+
+    Returns processing results with appropriate HTTP status codes:
+
+    - **200**: Successfully processed (injected/saved/already exists)
+    - **204**: No matching torrent found (this is normal, not an error)
+
+    Args:
+        infohash: Torrent infohash from URL parameter
+        response: FastAPI Response object for status code manipulation
+        _: API key verification
+
+    Returns:
+        WebhookResponse: Processing result with detailed information
+    """
+
+    try:
+        # Process the torrent
+        processor = get_core()
+        result = await processor.process_single_torrent(infohash)
+
+        if result.status == ProcessStatus.NOT_FOUND:
+            # No matches found
+            response.status_code = status.HTTP_204_NO_CONTENT
+            logger.info(f"No matches found for webhook: {infohash}")
+        elif result.status == ProcessStatus.ERROR:
+            # Processing error
+            logger.error(f"Error processing webhook: {infohash} - {result.message}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Processing error: {result.message}"
+            )
+        else:
+            # Successfully processed (SUCCESS, SKIPPED, etc.)
+            response.status_code = status.HTTP_200_OK
+            logger.info(f"Processed webhook: {infohash} (status: 200)")
+
+        # Return the result directly
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing torrent {infohash}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {str(e)}"
+        ) from e
+
+
+@app.post(
+    "/api/announce",
+    response_model=ProcessResponse,
+    tags=["announce"],
+    summary="Process torrent announce",
+    responses={
+        200: {"description": "Successfully processed (injected/saved/already exists)"},
+        204: {"description": "No matching torrent found (normal case)"},
+    },
+)
+async def announce(
+    request: AnnounceRequest,
+    response: Response,
+    _: ApiKeyDep,
+) -> ProcessResponse:
+    """Process torrent announce from tracker.
+
+    This endpoint receives announce notifications with torrent data
+    in JSON format from external systems like autobrr.
+
+    Returns detailed processing results with appropriate HTTP status codes:
+
+    - **200**: Successfully processed (injected/saved/already exists)
+    - **204**: No matching torrent found (this is normal, not an error)
+
+    Args:
+        request: Announce request containing torrent name, link, and data
+        response: FastAPI Response object for status code manipulation
+        _: API key verification
+
+    Returns:
+        WebhookResponse: Processing result with detailed information
+    """
+
+    try:
+        # Log the announce
+        logger.info(f"Received announce for torrent: {request.name} from {request.link}")
+
+        # Process the torrent for cross-seeding using the reverse announce function
+        processor = get_core()
+        result = await processor.process_reverse_announce_torrent(
+            torrent_name=request.name,
+            torrent_link=request.link,
+            album_name=request.album,
+        )
+
+        if result.status == ProcessStatus.NOT_FOUND:
+            # No matches found
+            response.status_code = status.HTTP_204_NO_CONTENT
+            logger.info(f"No matches found for announce: {request.name}")
+        elif result.status == ProcessStatus.ERROR:
+            # Processing error
+            logger.error(f"Error processing announce: {request.name} - {result.message}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Processing error: {result.message}"
+            )
+        elif result.status == ProcessStatus.SUCCESS:
+            # Successfully processed
+            response.status_code = status.HTTP_200_OK
+            logger.info(f"Successfully processed announce: {request.name} (status: 200)")
+        else:
+            # Default case - no specific action was taken (SKIPPED, etc.)
+            response.status_code = status.HTTP_204_NO_CONTENT
+
+        # Return the result directly
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing torrent announce {request.name}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {str(e)}"
+        ) from e
+
+
+@app.post(
+    "/api/job",
+    response_model=JobResponse,
+    tags=["jobs"],
+    summary="Trigger job execution",
+    responses={
+        200: {"description": "Job triggered successfully"},
+        404: {"description": "Job not found or disabled"},
+        409: {"description": "Job already running or not eligible"},
+    },
+)
+async def trigger_job(
+    job_type: Annotated[JobType, Query(description="Job type: 'search' or 'cleanup'")],
+    _: ApiKeyDep,
+) -> JobResponse:
+    """Trigger a scheduled job to run ahead of schedule.
+
+    Allows manual triggering of scheduled jobs for immediate execution.
+
+    Returns appropriate HTTP status codes:
+    - **200**: Job triggered successfully
+    - **404**: Job not found or disabled
+    - **409**: Job already running or not eligible
+
+    Args:
+        job_type: Type of job to trigger (search, cleanup)
+        _: API key verification
+
+    Returns:
+        JobResponse: Job trigger result with status and timing information
+    """
+    try:
+        # Trigger the job
+        result = await get_job_manager().trigger_job_early(job_type)
+
+        # Map internal status to HTTP status codes
+        if result.status == "not_found":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result.message)
+        elif result.status == "conflict":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=result.message)
+
+        return result
+
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"Error triggering job {job_type}: {str(e)}")
+        # Let FastAPI handle the 500 error automatically
+        raise
+
+
+@app.get(
+    "/api/job",
+    response_model=JobResponse,
+    tags=["jobs"],
+    summary="Get job status",
+    responses={
+        200: {"description": "Job status retrieved successfully"},
+        400: {"description": "Invalid job type"},
+        401: {"description": "Unauthorized - Invalid API key"},
+        500: {"description": "Internal server error"},
+    },
+)
+async def get_job_status(
+    job_type: Annotated[JobType, Query(description="Job type: 'search' or 'cleanup'")],
+    _: ApiKeyDep,
+) -> JobResponse:
+    """Get the current status and schedule of a job.
+
+    Retrieves information about a scheduled job including its status,
+    next run time, and last run time.
+
+    Args:
+        job_type: Type of job to get status for (search, cleanup)
+        _: API key verification
+
+    Returns:
+        JobResponse: Job status information including run times
+    """
+    try:
+        # Get job status
+        result = await get_job_manager().get_job_status(job_type)
+
+        return result
+
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"Error getting job status for {job_type}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {str(e)}"
+        ) from e
+
+
+def run_webserver():
+    """Run the web server."""
+    # Use config values if not provided
+    host = config.cfg.server.host
+    port = config.cfg.server.port
+    log_level = config.cfg.global_config.loglevel.value
+
+    # Log server startup
+    logger.info(f"Starting Nemorosa web server on {host if host is not None else 'all interfaces (IPv4/IPv6)'}:{port}")
+    logger.info(f"Using torrent client: {logger.redact_url_password(config.cfg.downloader.client)}")
+    logger.info(f"Target sites: {len(config.cfg.target_sites)}")
+
+    # Check if API key is configured
+    api_key = config.cfg.server.api_key
+    if api_key:
+        logger.info("API key authentication enabled")
+    else:
+        logger.info("API key authentication disabled")
+
+    # Check if scheduler should be initialized
+    if any(
+        [
+            config.cfg.server.search_cadence,
+            config.cfg.server.cleanup_cadence,
+        ]
+    ):
+        logger.info("Scheduler will be started with configured jobs")
+    else:
+        logger.info("No scheduled jobs configured")
+
+    # Import uvicorn here to avoid import issues
+    import uvicorn
+    from uvicorn.config import LOGGING_CONFIG
+
+    # Override uvicorn log format to match nemorosa log format
+    LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(asctime)s | %(levelprefix)s %(message)s"
+    LOGGING_CONFIG["formatters"]["default"]["datefmt"] = "%Y-%m-%d %H:%M:%S"
+    LOGGING_CONFIG["formatters"]["access"]["fmt"] = (
+        '%(asctime)s | %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'
+    )
+    LOGGING_CONFIG["formatters"]["access"]["datefmt"] = "%Y-%m-%d %H:%M:%S"
+
+    # Run server
+    uvicorn.run(
+        app="nemorosa.webserver:app",
+        host=host,  # type: ignore[arg-type]
+        port=port,
+        log_level=log_level,
+        reload=False,
+    )
