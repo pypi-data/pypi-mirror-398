@@ -1,0 +1,2 @@
+class TemplateLoader:
+    pass
