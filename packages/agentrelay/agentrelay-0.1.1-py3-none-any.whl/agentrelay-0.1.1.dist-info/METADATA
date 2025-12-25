@@ -1,0 +1,100 @@
+Metadata-Version: 2.4
+Name: agentrelay
+Version: 0.1.1
+Summary: Framework-agnostic transactional agent runtime with idempotent tool calls, saga compensations, and deterministic replay.
+Project-URL: Homepage, https://github.com/YalmanchiliTejas/agenttrail
+Project-URL: Repository, https://github.com/YalmanchiliTejas/agenttrail
+Project-URL: Issues, https://github.com/YalmanchiliTejas/agenttrail/issues
+Author: Tejas Yalamanchili
+License: MIT License
+        
+        Copyright (c) 2025 Tejas Yalamanchili
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in
+        all copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+        THE SOFTWARE.
+License-File: LICENSE.txt
+Keywords: agents,ai,idempotency,llm,orchestration,saga,workflow
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: System :: Distributed Computing
+Requires-Python: >=3.10
+Requires-Dist: pymysql>=1.1.0
+Requires-Dist: sqlalchemy>=2.0.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.8.0; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# AgentRelay
+
+AgentRelay is a framework-agnostic, transactional runtime for AI agents and tool-based workflows.
+
+It gives you:
+
+- **Tool-call idempotency** – prevent duplicate side effects (emails, payments, DB writes) even when your code retries.
+- **Saga-style compensations** – register compensating tools that run automatically on failure to roll back partial work.
+- **Deterministic replay** – re-run an agent workflow using recorded tool outputs instead of calling external systems again.
+- **Framework-agnostic SDK** – plug into any LLM / agent stack (OpenAI, Gemini, your own code) using a small Python SDK.
+- **SQL-backed durability** – store runs and tool calls in Postgres or MySQL with a simple schema.
+
+AgentRelay is designed for “production-style” agent workflows in domains like fintech, healthcare, and operations, where you care about not double-charging users, not sending emails twice, and being able to debug and audit what an agent actually did.
+
+---
+
+## Features
+
+- **Idempotent tool calls**
+  - Each tool invocation is assigned a deterministic idempotency key based on tool name, phase, and arguments.
+  - A unique index at the DB layer enforces “do not run the same tool call twice for a given run”.
+  - If the same call is retried, AgentRelay returns the previously persisted output instead of re-invoking the tool.
+
+- **Saga-style compensations**
+  - Tools can register a corresponding “compensation” tool.
+  - On failure, AgentRelay walks executed steps in reverse order and triggers compensation calls.
+  - Best-effort reversals: compensation failures are logged but do not crash the process again.
+
+- **Deterministic replay**
+  - You can replay a past run by opening a session in replay mode.
+  - Forward-phase tool calls are served from the `tool_calls` table instead of calling external APIs or LLMs again.
+  - This makes debugging and auditing easier and avoids re-running side effects.
+
+- **Framework-agnostic**
+  - AgentRelay does not depend on any specific LLM or agent framework.
+  - You bring your own agent code and LLM client (OpenAI, Gemini, etc.).
+  - AgentRelay just wraps tool calls and persists the workflow state.
+
+---
+
+## Installation
+
+Once published to PyPI:
+
+```bash
+pip install agentrelay
+```
+---
+## Coming soon:
+- **Documentation**
+- **An online dashboard for effective debugging**
+- **A cloud version (so no need of setup on your end, just call the library with the API and get going!)**
