@@ -1,0 +1,57 @@
+;; din5007m.xdy				Roger Kehr	 18 Jan 98
+;;----------------------------------------------------------------------
+
+;; Dieser Style implementiert die komplette Spezifikation der
+;; Sortierregeln gemäß DIN 5007 plus einiger notwendiger Erweiterungen
+;; für mehrphasiges Sortieren, welche vom Standard offengelassen wird.
+;; Diese Version bekommt den Anhang `m' um anzudeuten, daß wir es
+;; hierbei mit dem mehrphasigen sortieren zu tun haben.
+
+;; Die hier implementierten Regeln besagen, daß die Worte mit
+;; ausgeschriebenen Umlauten vor denen mit echten Umlauten stehen
+;; sollen. Also ist Mueller < Müller. Soll das anders sein, muß dazu
+;; ein neuer Style geschrieben werden.
+
+;; Weiterhin werden in der folgenden Phase die Worte mit
+;; Kleinbuchstaben nach denen mit Großbuchstaben sortiert. Wer genauer
+;; wissen will sie das funktioniert sollte sich in der testsuite mal
+;; die Ausgaben von deutsch.xlg anschauen. Dort könnte einem klarer
+;; werden, warum daß denn tatsächlich funktioniert. Ich gebe zu, daß
+;; es nicht ganz trivial ist...
+
+(require "rules/isolatin1-tolower.xdy")
+(require "lang/german/rules.xdy")
+
+;; In der ersten Phase wird die Groß-/Kleinschreibung nicht beachtet
+;; und die Umlaute werden ebenfalls nicht beachtet. Siehe dazu die
+;; Regelsätze in lang/german/rules.xdy. Die Reihenfolge din5007 vor
+;; isolatin1-tolower ist hier signifikant!
+
+(use-rule-set :run 0
+	      :rule-set ("din5007" "isolatin1-tolower"))
+
+;; Danach sind noch gleich:
+;; MUELLER, Mueller, Müller, mueller, müller, MÜLLER
+;; Schloss, Schloß
+
+(use-rule-set :run 1
+	      :rule-set ("resolve-umlauts"
+			 "resolve-sharp-s"
+			 "isolatin1-tolower"
+			 ))
+
+;; Danach sind noch gleich:
+;; {MUELLER, Mueller, mueller} < {MÜLLER, Müller, müller}
+;; ARM, Arm, arm
+
+;; Da in der Standard-Sortierung von ISO Latin1 implizit die
+;; Großbuchstaben vor den Kleinbuchstaben sind, muß hier nichts mehr
+;; getan werden, wenn man dies so haben will.
+;;
+;; Will man die Kleinbuchstaben vor den Großbuchstaben haben, kann man
+;; noch eine weitere Unterscheidung vornehmen:
+
+;; (require "rules/latin-exchange.xdy")
+;; (use-rule-set :run 2 :rule-set ("latin-exchange"))
+
+;; End
