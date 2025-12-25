@@ -1,0 +1,1 @@
+import{a as o}from"./chunk-JC2BH436.js";var b=o((j,t)=>{var i="[object String]",n=Object.prototype,c=n.toString,e=Array.isArray;function g(r){return!!r&&typeof r=="object"}function s(r){return typeof r=="string"||!e(r)&&g(r)&&c.call(r)==i}t.exports=s});export{b as a};
