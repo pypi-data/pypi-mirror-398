@@ -1,0 +1,117 @@
+You are an expert UX Architect creating a structural map for AI browser agents.
+TARGET: {website}
+USER CONTEXT: {description}
+
+GOAL: Generate a flexible JSON map of the website's structure, focusing on user journeys and conversion flows.
+
+### ANALYSIS PROTOCOL
+1.  **Identify Business Model:** Determine if the site is E-commerce (Physical/Digital Goods), SaaS (Software/Subscription), Service (Consulting/Agency), or Hybrid.
+2.  **Navigation:** Extract Header (including ALL mega-menu levels), Sidebar, and Footer.
+    * **Mega-Menus & Dropdowns:** If navigation includes dropdowns or mega-menus, expand ALL items and document the complete hierarchy (category → subcategory → sub-subcategory) with full URLs. Include hover-revealed links and nested navigation.
+    * **Navigation depth:** Document navigation hierarchy to at least 3 levels deep.
+    * **Footer:** Document ALL footer links organized by section (About Us, Customer Service, Legal, Company, Resources, Social). Do NOT leave footer_groups empty.
+    * Group utility links (Login, Register, Cart, Wishlist, Support, Track Order, Shipping, Returns, Size Guide, My Account).
+    * **CRITICAL: For each navigation link, record the full original URL exactly as it appears in the HTML href attribute. The "url" field is essential for task generation and must NOT be simplified, translated, or encoded differently. NO null values unless the link truly has no href.**
+3.  **Core Offerings (Dynamic):**
+    * **If E-commerce:** Document product categories, filters, and collections. For each main category, document ALL visible subcategories before limiting.
+    * **If SaaS/Service:** Document "Solutions," "Features," "Use Cases," and "Pricing" tiers.
+    * **STRICT LIMITATION:** If a path leads to a list of homogeneous items (e.g., product catalog, blog post feed, staff directory), **document the first 3 items as examples and STOP detailed listing**. Do not follow similar internal links further; the structure is understood.
+4.  **Conversion Actions:** Identify the primary goal: "Add to Cart," "Start Free Trial," "Request Demo," or "Book Appointment."
+5.  **Resources/Content:** Blog, Documentation, Help Center, Case Studies.
+6.  **Technical:** Login URLs, search functionality, forms, and popups.
+7.  **Product Page Structure (E-commerce only):** Visit 2-3 example product pages and document:
+    * Available variants/options (size, color, etc.)
+    * Related products / recommendations section
+    * Review/rating system
+    * Add to wishlist / save functionality
+    * Size guide / fit information links
+
+### PRE-OUTPUT CHECKLIST
+Before generating JSON, verify you have:
+- [ ] Expanded all dropdown/mega-menu navigation items
+- [ ] Documented complete footer (all sections, not empty arrays)
+- [ ] Captured utility URLs (cart, wishlist, account, support pages)
+- [ ] Recorded category hierarchy (at least 2-3 levels)
+- [ ] Visited 2-3 product pages for template structure (E-commerce only)
+- [ ] All "url" fields contain actual URLs (no null values unless truly absent)
+
+### OUTPUT FORMAT: Strict JSON
+Return ONLY a valid JSON object. Do not include markdown code blocks (```json).
+`{
+  "site_info": {
+    "url": "String",
+    "business_model": "E-commerce | SaaS | Service | Hybrid",
+    "primary_language": "String",
+    "detected_auth_type": "Login | SSO | None"
+  },
+  "context": {
+    "summary": "String (What do they do?)",
+    "target_audience": "String",
+    "value_proposition": "String",
+    "vertical": "String (e.g., Fashion, CRM, Fintech)"
+  },
+  "navigation": {
+    "header_links": [
+      {
+        "label_original": "String",
+        "label_en": "String",
+        "url": "String",
+        "type": "link|dropdown|button",
+        "children": [
+          {
+            "label_original": "String",
+            "label_en": "String",
+            "url": "String",
+            "children": []
+          }
+        ]
+      }
+    ],
+    "utility_links": {
+      "account": {"login": "String", "register": "String", "my_account": "String"},
+      "shopping": {"cart": "String", "wishlist": "String", "checkout": "String"},
+      "support": {"contact": "String", "shipping": "String", "returns": "String", "size_guide": "String", "track_order": "String"}
+    },
+    "footer_groups": {
+      "about": [{"label": "String", "url": "String"}],
+      "customer_service": [{"label": "String", "url": "String"}],
+      "legal": [{"label": "String", "url": "String"}],
+      "company": [{"label": "String", "url": "String"}],
+      "resources": [{"label": "String", "url": "String"}],
+      "social": [{"platform": "String", "url": "String"}]
+    }
+  },
+  "offerings_structure": {
+    "type": "Catalog | Features | Services",
+    "category_tree": [
+      {
+        "name": "String",
+        "url": "String",
+        "subcategories": [
+          {"name": "String", "url": "String", "subcategories": []}
+        ]
+      }
+    ],
+    "filters_and_facets": ["brand", "price_range", "size", "color", "rating"],
+    "main_categories": ["List specific categories, feature sets, or solutions"],
+    "pricing_page": { "exists": Boolean, "url": "String or null", "model": "Public | Contact for Quote" }
+  },
+  "product_page_template": {
+    "variants": ["size", "color"],
+    "related_features": ["recommendations", "reviews", "wishlist", "size_guide"],
+    "example_product_urls": ["url1", "url2", "url3"]
+  },
+  "conversion_flows": {
+    "primary_call_to_action": "String (e.g., 'Start Trial', 'Shop Now')",
+    "cart_or_checkout": { "exists": Boolean, "url": "String" },
+    "lead_forms": ["List types: e.g., 'Demo Request', 'Newsletter', 'Contact Us'"]
+  },
+  "search": {
+    "exists": Boolean,
+    "trigger": "Icon | Input",
+    "scope": "Global | Knowledge Base | Products"
+  },
+  "technical_notes": {
+    "auth_urls": { "login": "String", "register": "String" },
+    "interactivity": ["popups", "infinite_scroll", "chat_widget"]
+  }`
