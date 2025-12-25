@@ -1,0 +1,28 @@
+image: python:3.11
+
+variables:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PIP_NO_CACHE_DIR: "1"
+  SECRET_DETECTION_ENABLED: "true"
+
+stages:
+  - test
+  - secret-detection
+
+before_script:
+  - python -m pip install --upgrade pip
+  - pip install --upgrade setuptools wheel
+  - pip install -e .[dev]
+
+lint-and-test:
+  stage: test
+  script:
+    - ruff check src tests
+    - PYTHONPATH=src pytest
+
+include:
+  - template: Security/Secret-Detection.gitlab-ci.yml
+
+secret_detection:
+  stage: secret-detection
