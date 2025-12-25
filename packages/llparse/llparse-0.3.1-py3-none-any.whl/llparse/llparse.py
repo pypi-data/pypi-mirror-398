@@ -1,0 +1,172 @@
+from dataclasses import dataclass
+from pathlib import Path
+
+from .C_compiler import CCompiler
+from .frontend import (
+    DEFAULT_MAX_TABLE_WIDTH,
+    DEFAULT_MIN_TABLE_SIZE,
+    Frontend,
+    IImplementation,
+    source,
+)
+from .header import HeaderBuilder
+from .capi_builder import LibraryCompiler
+
+
+@dataclass(slots=True)
+class CompilerResult:
+    c: str
+    """Textual C code"""
+    header: str
+    """Textual C header file"""
+
+    def write(self, c: Path | str, header:Path | str) -> None:
+        """
+        Writes the output to the chosen file locations
+
+        :param c: Output for where to write the C File
+        :type c: Path | str
+        :param header: Output for where to write the Header File
+        :type header: Path | str
+        """
+        Path(c).write_text(self.c)
+        Path(header).write_text(self.header)
+    
+
+# It's just small enough to write the compile as a dataclass
+@dataclass(slots=True)
+class Compiler:
+    """Used to Compile C code together"""
+    prefix: str
+    headerGuard: str | None = None
+    debug: str | None = None
+    maxTableElemWidth: int | None = None
+    minTableSize: int | None = None
+
+    def to_frontend(
+        self,
+        root: source.code.Node,
+        properties: list[source.Property],
+        Impl: IImplementation | None = IImplementation(),
+    ):
+        """compiles up the frontend and brings you back the frontend's results.
+        I added documentation to this function so that you can do creative things
+        with the library beyond C..."""
+        return Frontend(
+            self.prefix,
+            Impl,
+            options={
+                "maxTableElemWidth": self.maxTableElemWidth,
+                "minTableSize": self.minTableSize,
+            },
+        ).compile(root, properties)
+
+    def compile(
+        self,
+        root: source.code.Node,
+        properties: list[source.Property],
+        header_name: str | None = None,
+        Impl: IImplementation | None = IImplementation(),
+        override_llparse_name: bool = False,
+    ):
+        """Creates the C and header file..."""
+        info = self.to_frontend(root, properties, Impl)
+        hb = HeaderBuilder(self.prefix, self.headerGuard, properties, info.spans)
+        cdata = CCompiler(header_name, self.debug).compile(info)
+        if override_llparse_name:
+            # sometimes users want to combine parsers together when compiling with C
+            # to make up for conflicts with other parsers example: llhttp
+            # there should be a fair way of compiling everything.
+            cdata = cdata.replace("llparse", self.prefix)
+
+        return CompilerResult(cdata, hb.build())
+
+
+class LLParse(source.Builder):
+    """
+
+    The prefix controls the names of methods and state struct in generated
+    public C headers:
+
+    ```c
+    // state struct
+    struct PREFIX_t {
+      ...
+    }
+
+    int PREFIX_init(PREFIX_t* state);
+    int PREFIX_execute(PREFIX_t* state, const char p, const char endp);
+    ```
+    """
+
+    def __init__(self, prefix: str = "llparse") -> None:
+        """
+        :param prefix: Prefix to be used when generating public API default is "llparse".
+        """
+        self.prefix = prefix
+        super().__init__()
+
+    def get_compiler(
+        self,
+        headerGuard: str | None = None,
+        debug: str | None = None,
+        maxTableElemWidth: int | None = None,
+        minTableSize: int | None = None,
+    ) -> Compiler:
+        return Compiler(
+            self.prefix,
+            headerGuard,
+            debug,
+            maxTableElemWidth if maxTableElemWidth else DEFAULT_MAX_TABLE_WIDTH,
+            minTableSize if minTableSize else DEFAULT_MIN_TABLE_SIZE,
+        )
+
+    def build(
+        self,
+        root: source.code.Node,
+        headerGuard: str | None = None,
+        debug: str | None = None,
+        maxTableElemWidth: int | None = None,
+        minTableSize: int | None = None,
+        header_name: str | None = None,
+        override_llparse_name: bool = False,
+    ) -> CompilerResult:
+        """Builds Graph and then compiles the data into C code , returns with the header and C file inside of a Dataclass"""
+
+        compiler = Compiler(
+            self.prefix,
+            headerGuard,
+            debug,
+            maxTableElemWidth if maxTableElemWidth else DEFAULT_MAX_TABLE_WIDTH,
+            minTableSize if minTableSize else DEFAULT_MIN_TABLE_SIZE,
+        )
+
+        return compiler.compile(
+            root,
+            self.properties(),
+            header_name=header_name,
+            override_llparse_name=override_llparse_name,
+        )
+
+    def to_frontend(
+        self,
+        root: source.code.Node,
+        headerGuard: str | None = None,
+        debug: str | None = None,
+        maxTableElemWidth: int | None = None,
+        minTableSize: int | None = None,
+    ) -> Compiler:
+        """Used as an external hack to get access to the frontend of llparse and extract
+        it's contents to compile the libraries you make other things like cython, This is not in llparse
+        specifically (Yet...)"""
+        return Compiler(
+            self.prefix,
+            headerGuard,
+            debug,
+            maxTableElemWidth if maxTableElemWidth else DEFAULT_MAX_TABLE_WIDTH,
+            minTableSize if minTableSize else DEFAULT_MIN_TABLE_SIZE,
+        ).to_frontend(root, self.properties)
+
+    def capi(self, prefix: str) -> LibraryCompiler:
+        """Using a new prefix this tool enables helping build c-api wrapper that is simillar to llhttp"""
+        return LibraryCompiler(prefix, self)
