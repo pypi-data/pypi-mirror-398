@@ -1,0 +1,98 @@
+# list recipes
+default:
+    @just --list
+
+build:
+    @just clean
+    uv sync --locked
+    uv build
+
+# clean dist and pycache
+clean:
+    #!/bin/sh
+    if [ ! -d "dist" ] && [ ! -d "__pycache__" ]; then
+        echo "Nothing to clean."
+        exit 0
+    fi
+    if [ -d "dist" ]; then
+        echo "Removing dist/"
+        rm -r dist/
+    fi
+    if [ -d "__pycache__" ]; then
+        echo "Removing __pycache__/"
+        rm -r "__pycache__"
+    fi
+
+# build and publish package to pypi
+publish:
+    #!/bin/sh
+    just clean
+    uv sync --locked
+    uv build
+    export UV_PUBLISH_TOKEN="$(pass show pypi)"
+    uv publish
+
+zonadir := 'src/zona'
+
+# format with ruff
+format:
+    uv run ruff format
+
+# check with ruff
+check:
+    uv run ruff check .
+
+# check and fix all with ruff
+fix:
+    uv run ruff check --fix .
+
+# run all lints
+lint:
+    uv run ruff format --check --diff
+    uv run ruff check {{zonadir}}
+    uv run basedpyright --warnings {{zonadir}}
+
+# run tests
+test *argv:
+    uv run pytest {{argv}}
+
+# docker stuff
+
+docker_name := 'git.ficd.sh/ficd/zona'
+
+# docker recipe subcommand wrapper
+docker cmd *args:
+    @just docker-{{cmd}} {{args}}
+
+# build the ci image
+[working-directory: 'docker-ci']
+docker-build:
+    docker build -t {{docker_name}}:ci .
+
+# run commands in ci image
+[working-directory: 'docker-ci']
+docker-run *args: docker-build
+    docker run --rm {{docker_name}}:ci {{args}}
+
+# open a shell on ci image
+[working-directory: 'docker-ci']
+docker-shell: docker-build
+    docker run --rm -it {{docker_name}}:ci bash
+
+# login to git.ficd.sh container registry
+docker-login:
+    docker login git.ficd.sh
+
+docker_test_cmd := 'git clone https://git.ficd.sh/ficd/zona
+cd zona
+uv run zona --version'
+
+# test the container
+docker-test: docker-build
+    docker run --rm {{docker_name}}:ci bash -c "{{docker_test_cmd}}"
+
+# push image to registry
+[working-directory: 'docker-ci']
+docker-push: docker-login docker-build docker-test
+    docker push {{docker_name}}:ci
+

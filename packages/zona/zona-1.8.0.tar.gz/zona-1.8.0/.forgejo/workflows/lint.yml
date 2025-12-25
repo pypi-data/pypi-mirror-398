@@ -1,0 +1,45 @@
+on: [push]
+env:
+  ZONADIR: src/zona
+jobs:
+  ruff-check:
+    runs-on: docker
+    container:
+      image: git.ficd.sh/ficd/zona:ci
+    steps:
+      - name: checkout source
+        uses: actions/checkout@v4
+      - name: ruff check
+        run: |
+          uv run --only-group lint ruff check "$ZONADIR"
+  ruff-format:
+    runs-on: docker
+    container:
+      image: git.ficd.sh/ficd/zona:ci
+    steps:
+      - name: checkout source
+        uses: actions/checkout@v4
+      - name: ruff check
+        run: |
+          uv run --only-group lint ruff format --check --diff "$ZONADIR"
+  basedpyright:
+    runs-on: docker
+    container:
+      image: git.ficd.sh/ficd/zona:ci
+    steps:
+      - name: checkout source
+        uses: actions/checkout@v4
+      - name: setup cache
+        id: uv-cache
+        uses: https://git.ficd.sh/ficd/uv-cache@v1
+      - name: basedpyright lint
+        run: |
+          uv sync --locked --dev
+          uv run basedpyright --warnings "$ZONADIR"
+      - name: build test
+        run: |
+          uv build
+          uv run zona --version
+      - name: unit tests
+        run: |
+          uv run pytest
