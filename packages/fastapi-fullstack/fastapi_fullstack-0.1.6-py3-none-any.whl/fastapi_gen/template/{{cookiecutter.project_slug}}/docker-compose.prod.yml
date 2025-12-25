@@ -1,0 +1,382 @@
+{%- if cookiecutter.enable_docker %}
+# Production configuration with Traefik
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+#
+# Prerequisites:
+#   1. Set DOMAIN environment variable or update labels
+#   2. Set ACME_EMAIL for Let's Encrypt certificates
+#   3. Ensure ports 80 and 443 are available
+
+services:
+  traefik:
+    image: traefik:v3.2
+    container_name: {{ cookiecutter.project_slug }}_traefik
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=traefik-public"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # Redirect HTTP to HTTPS
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      # Let's Encrypt
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@example.com}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      # Access logs
+      - "--accesslog=true"
+      - "--accesslog.bufferingsize=100"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+    networks:
+      - traefik-public
+    labels:
+      # Dashboard
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH:-admin:$$apr1$$xyz$$hash}"
+      # Security headers middleware
+      - "traefik.http.middlewares.security-headers.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.security-headers.headers.stsPreload=true"
+      - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.security-headers.headers.browserXssFilter=true"
+      - "traefik.http.middlewares.security-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
+      - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: {{ cookiecutter.project_slug }}_backend
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=false
+      - ENVIRONMENT=production
+{%- if cookiecutter.use_postgresql %}
+      - POSTGRES_HOST=db
+{%- endif %}
+{%- if cookiecutter.enable_redis %}
+      - REDIS_HOST=redis
+{%- endif %}
+{%- if cookiecutter.use_celery %}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+{%- endif %}
+{%- if cookiecutter.use_taskiq %}
+      - TASKIQ_BROKER_URL=redis://redis:6379/1
+      - TASKIQ_RESULT_BACKEND=redis://redis:6379/1
+{%- endif %}
+    command: uvicorn app.main:app --host 0.0.0.0 --port {{ cookiecutter.backend_port }} --workers 4
+    networks:
+      - traefik-public
+      - backend-internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`api.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.api.middlewares=security-headers@docker"
+      - "traefik.http.services.api.loadbalancer.server.port={{ cookiecutter.backend_port }}"
+      - "traefik.docker.network=traefik-public"
+{%- if cookiecutter.use_postgresql or cookiecutter.enable_redis %}
+    depends_on:
+{%- if cookiecutter.use_postgresql %}
+      db:
+        condition: service_healthy
+{%- endif %}
+{%- if cookiecutter.enable_redis %}
+      redis:
+        condition: service_healthy
+{%- endif %}
+{%- endif %}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+{%- if cookiecutter.use_postgresql %}
+
+  db:
+    image: postgres:16-alpine
+    container_name: {{ cookiecutter.project_slug }}_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-{{ cookiecutter.project_slug }}}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # NO external ports - only accessible within backend-internal network
+    networks:
+      - backend-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+{%- endif %}
+
+{%- if cookiecutter.enable_redis %}
+
+  redis:
+    image: redis:7-alpine
+    container_name: {{ cookiecutter.project_slug }}_redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-changeme}
+    # NO external ports - only accessible within backend-internal network
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+{%- endif %}
+
+{%- if cookiecutter.use_celery %}
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: {{ cookiecutter.project_slug }}_celery_worker
+    command: celery -A app.worker.celery_app worker --loglevel=warning --concurrency=4
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=false
+{%- if cookiecutter.use_postgresql %}
+      - POSTGRES_HOST=db
+{%- endif %}
+      - REDIS_HOST=redis
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+    networks:
+      - backend-internal
+    depends_on:
+      redis:
+        condition: service_healthy
+{%- if cookiecutter.use_postgresql %}
+      db:
+        condition: service_healthy
+{%- endif %}
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: {{ cookiecutter.project_slug }}_celery_beat
+    command: celery -A app.worker.celery_app beat --loglevel=warning
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=false
+      - REDIS_HOST=redis
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+    networks:
+      - backend-internal
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: {{ cookiecutter.project_slug }}_flower
+    command: celery -A app.worker.celery_app flower --port=5555
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=false
+      - REDIS_HOST=redis
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+      - FLOWER_BASIC_AUTH=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-changeme}
+    networks:
+      - traefik-public
+      - backend-internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.flower.rule=Host(`flower.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.flower.entrypoints=websecure"
+      - "traefik.http.routers.flower.tls.certresolver=letsencrypt"
+      - "traefik.http.services.flower.loadbalancer.server.port=5555"
+      - "traefik.docker.network=traefik-public"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+{%- endif %}
+
+{%- if cookiecutter.use_taskiq %}
+
+  taskiq_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: {{ cookiecutter.project_slug }}_taskiq_worker
+    command: taskiq worker app.worker.taskiq_app:broker --workers 4
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=false
+{%- if cookiecutter.use_postgresql %}
+      - POSTGRES_HOST=db
+{%- endif %}
+      - REDIS_HOST=redis
+      - TASKIQ_BROKER_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/1
+      - TASKIQ_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/1
+    networks:
+      - backend-internal
+    depends_on:
+      redis:
+        condition: service_healthy
+{%- if cookiecutter.use_postgresql %}
+      db:
+        condition: service_healthy
+{%- endif %}
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  taskiq_scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: {{ cookiecutter.project_slug }}_taskiq_scheduler
+    command: taskiq scheduler app.worker.taskiq_app:scheduler
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=false
+      - REDIS_HOST=redis
+      - TASKIQ_BROKER_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/1
+      - TASKIQ_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/1
+    networks:
+      - backend-internal
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+{%- endif %}
+
+{%- if cookiecutter.use_frontend %}
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: {{ cookiecutter.project_slug }}_frontend
+    environment:
+      - NODE_ENV=production
+      - BACKEND_URL=http://app:{{ cookiecutter.backend_port }}
+      - BACKEND_WS_URL=ws://app:{{ cookiecutter.backend_port }}
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.frontend.middlewares=security-headers@docker"
+      - "traefik.http.services.frontend.loadbalancer.server.port={{ cookiecutter.frontend_port }}"
+      - "traefik.docker.network=traefik-public"
+    depends_on:
+      - app
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+{%- endif %}
+
+networks:
+  traefik-public:
+    driver: bridge
+  backend-internal:
+    driver: bridge
+    internal: true
+
+volumes:
+  traefik_letsencrypt:
+{%- if cookiecutter.use_postgresql %}
+  postgres_data:
+{%- endif %}
+{%- if cookiecutter.enable_redis %}
+  redis_data:
+{%- endif %}
+{%- else %}
+# Docker is disabled for this project
+{%- endif %}
