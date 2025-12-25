@@ -1,0 +1,215 @@
+"""Agent implementation for {{ name }}.
+
+This module defines the specialist agent that implements
+the MACSDK SpecialistAgent protocol.
+
+This agent uses generic SDK tools (api_get, fetch_file) with
+the API schema described in the system prompt.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Annotated, Any
+
+from langchain.agents import create_agent
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import InjectedToolArg, tool
+
+from macsdk.core import config, get_answer_model, run_agent_with_tools
+from macsdk.middleware import (
+    DatetimeContextMiddleware,
+    PromptDebugMiddleware,
+    TodoListMiddleware,
+)
+
+from .models import AgentResponse
+from .prompts import SYSTEM_PROMPT, TODO_PLANNING_SPECIALIST_PROMPT
+from .tools import get_tools
+
+if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+
+
+CAPABILITIES = """DevOps monitoring assistant using generic SDK tools.
+
+This agent can:
+- Check infrastructure service health and status
+- Monitor CI/CD pipelines and their jobs
+- Review alerts (critical, warnings, unacknowledged)
+- Track deployments across environments
+- Fetch and analyze log files
+
+Uses api_get and fetch_file tools with API schema in the prompt."""
+
+
+def create_{{ agent_slug }}(
+    debug: bool | None = None,
+    enable_todo: bool | None = None,
+) -> tuple[Any, str]:
+    """Create the {{ name }} agent.
+
+    Args:
+        debug: Whether to enable debug mode (shows prompts).
+            If None, uses the config value (default: False).
+        enable_todo: Whether to enable task planning middleware.
+            If None, uses the config value (default: True).
+
+    Returns:
+        Tuple of (configured agent instance, system prompt with optional planning).
+    """
+    # Get tools with lazy API registration
+    tools = get_tools()
+
+    # Check for agent-specific config (e.g., api_agent: {enable_todo: true})
+    # Note: Agents don't inherit global enable_todo (that's for supervisor only)
+    agent_config = getattr(config, "{{ agent_slug }}", {})
+    if isinstance(agent_config, dict) and "enable_todo" in agent_config:
+        todo_default = agent_config["enable_todo"]
+    else:
+        todo_default = False  # Agents disabled by default
+
+    # Build system prompt with optional task planning
+    system_prompt = SYSTEM_PROMPT
+    todo_enabled = enable_todo if enable_todo is not None else todo_default
+    if todo_enabled:
+        system_prompt = (
+            system_prompt + "\n\n" + TODO_PLANNING_SPECIALIST_PROMPT
+        )
+
+    # Build middleware list
+    middleware: list[Any] = []
+
+    # Add debug middleware if enabled (via parameter or config)
+    debug_enabled = debug if debug is not None else config.debug
+    if debug_enabled:
+        middleware.append(PromptDebugMiddleware(enabled=True, show_response=True))
+
+    # Add datetime context middleware
+    middleware.append(DatetimeContextMiddleware())
+
+    # Add todo middleware if enabled
+    if todo_enabled:
+        middleware.append(TodoListMiddleware(enabled=True))
+
+    agent = create_agent(
+        model=get_answer_model(),
+        tools=tools,
+        middleware=middleware,
+        response_format=AgentResponse,
+    )
+
+    return agent, system_prompt
+
+
+async def run_{{ agent_slug }}(
+    query: str,
+    context: dict | None = None,
+    run_config: RunnableConfig | None = None,
+    debug: bool | None = None,
+    enable_todo: bool | None = None,
+) -> dict:
+    """Run the {{ name }} agent.
+
+    Args:
+        query: User query to process.
+        context: Optional context from previous interactions.
+        run_config: Optional runnable configuration.
+        debug: Whether to enable debug mode (shows prompts).
+            If None, uses the config value (default: False).
+        enable_todo: Whether to enable task planning middleware.
+            If None, uses the config value (default: True).
+
+    Returns:
+        Agent response dictionary.
+    """
+    agent, system_prompt = create_{{ agent_slug }}(
+        debug=debug, enable_todo=enable_todo
+    )
+    return await run_agent_with_tools(
+        agent=agent,
+        query=query,
+        system_prompt=system_prompt,
+        agent_name="{{ agent_slug }}",
+        context=context,
+        config=run_config,
+    )
+
+
+class {{ agent_class }}:
+    """Agent that implements the SpecialistAgent protocol.
+
+    This class provides the interface that MACSDK expects:
+    - name: Unique identifier for the agent
+    - capabilities: Description of what the agent can do
+    - tools: List of available tools
+    - run(): Execute the agent
+    - as_tool(): Return the agent as a callable tool
+    """
+
+    name: str = "{{ agent_slug }}"
+    capabilities: str = CAPABILITIES
+    tools: list = []  # Loaded lazily
+
+    def __init__(self) -> None:
+        """Initialize the agent with tools."""
+        self.tools = get_tools()
+
+    async def run(
+        self,
+        query: str,
+        context: dict | None = None,
+        run_config: RunnableConfig | None = None,
+        debug: bool | None = None,
+        enable_todo: bool | None = None,
+    ) -> dict:
+        """Execute the agent.
+
+        Args:
+            query: User query to process.
+            context: Optional context from previous interactions.
+            run_config: Optional runnable configuration.
+            debug: Whether to enable debug mode (shows prompts).
+            enable_todo: Whether to enable task planning middleware.
+
+        Returns:
+            Agent response dictionary.
+        """
+        return await run_{{ agent_slug }}(
+            query, context, run_config, debug, enable_todo
+        )
+
+    def as_tool(self) -> "BaseTool":
+        """Return this agent as a LangChain tool.
+
+        This allows the supervisor to call this agent as a tool,
+        enabling dynamic agent orchestration.
+
+        Returns:
+            A LangChain tool wrapping this agent.
+        """
+        agent_instance = self
+
+        @tool
+        async def invoke_{{ agent_slug }}(
+            query: str,
+            config: Annotated[RunnableConfig, InjectedToolArg],
+        ) -> str:
+            """Invoke the {{ name }} agent for DevOps monitoring.
+
+            Use this for:
+            - Service health checks
+            - Pipeline and deployment status
+            - Alert monitoring
+            - Log analysis
+
+            Args:
+                query: The query to process.
+                config: Runnable configuration (injected).
+
+            Returns:
+                The agent's response text.
+            """
+            result = await agent_instance.run(query, run_config=config)
+            return str(result["response"])
+
+        return invoke_{{ agent_slug }}
