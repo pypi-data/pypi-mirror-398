@@ -1,0 +1,111 @@
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from typing import Optional, Callable
+
+class ODEResult:
+    def __init__(self, time_grid: np.ndarray, numerical_sol: np.ndarray, scheme: str):
+        self.time_grid = time_grid
+        self.numerical_sol = numerical_sol
+        self.scheme = scheme
+
+    def visualization(self, 
+                      figure_size: tuple = (5.5, 2.5), 
+                      exact_sol: Optional[Callable[[float], float]] = None,                       
+                      save_path: Optional[str] = None):
+        
+        plt.figure(figsize=figure_size)
+        
+        if exact_sol is not None:
+            exact_values = np.array([exact_sol(t) for t in self.time_grid])
+            plt.plot(self.time_grid, exact_values, color='black', label='Exact solution')
+
+        plt.plot(self.time_grid, self.numerical_sol, label=self.scheme)
+
+        plt.xlabel(r"Time", fontsize=10)
+        plt.ylabel(r"Solution", fontsize=10)
+        plt.grid(True)
+        plt.legend(loc='center left', bbox_to_anchor=(1.02, 0.5), borderaxespad=0., fontsize=10)
+
+        if save_path:
+            if not os.path.exists('figures'):
+                os.makedirs('figures')
+
+            full_path = os.path.join("figures", save_path)
+
+            plt.savefig(full_path, dpi=1000, bbox_inches='tight')
+
+            print(f"Figure saved to {full_path}")
+        
+        plt.show()
+
+    def table(self,
+             exact_sol: Optional[Callable[[float], float]] = None,   
+             save_path: Optional[str] = None):
+        
+        result = pd.DataFrame(self.numerical_sol, index=self.time_grid, columns=["Numerical solution"])
+        result.index.name = "Time"
+
+        if exact_sol:
+            result["Exact Solution"] = [exact_sol(t) for t in self.time_grid]
+            result["Error"] = abs(result["Numerical Solution"] - result["Exact Solution"])
+
+        if save_path:
+            if not os.path.exists('tables'):
+                os.makedirs('tables')
+
+            full_path = os.path.join("tables", save_path)
+            
+            if full_path.endswith(".csv"):
+                result.to_csv(full_path)  
+            elif full_path.endswith(".txt"):
+                with open(full_path, "w") as f:
+                    f.write(result.to_string())
+            else:
+                result.to_csv(full_path) 
+            
+            print(f"Table saved to {full_path}")
+
+        return result
+
+
+def save_table_to_txt(
+    df: pd.DataFrame,
+    filename: str,
+    error_precision: int = 2,
+    ratio_precision: int = 2
+) -> None:
+    """
+    Saves a DataFrame of convergence results to a text file in LaTeX table format.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        A DataFrame with three columns: 'n', 'error', and 'ratio'.
+    filename : str
+        The name of the text file to save the results to.
+    error_precision : int, optional
+        The number of decimal places for the 'error' column. Default is 12.
+    ratio_precision : int, optional
+        The number of decimal places for the 'ratio' column. Default is 4.
+
+    Returns
+    -------
+    None
+        This function does not return any value; it writes directly to a file.
+    """
+    if not os.path.exists('tables'):
+        os.makedirs('tables')
+
+    filename = "tables/" + filename
+
+    with open(filename, "w") as f:
+        for n, error, ratio in df.itertuples(index=False, name=None):
+            error_str = f"{error:.{error_precision}e}"
+            ratio_str = f"{ratio:.{ratio_precision}f}" if pd.notna(ratio) else "--"
+            f.write(f"{n:<8}& {error_str} & {ratio_str} \\\\\n")
+
+class OptimizationResult:
+    def __init__(self):
+        pass
