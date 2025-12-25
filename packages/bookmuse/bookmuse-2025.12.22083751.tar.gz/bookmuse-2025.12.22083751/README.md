@@ -1,0 +1,97 @@
+# bookmuse
+[![PyPI version](https://badge.fury.io/py/bookmuse.svg)](https://badge.fury.io/py/bookmuse)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/bookmuse)](https://pepy.tech/project/bookmuse)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A personalized reading list generator that creates tailored book recommendations based on user preferences and reading history.
+
+## Overview
+
+bookmuse is a Python package designed to help users discover new books that match their interests. Users provide a text input describing their favorite genres, interests, or books they've enjoyed, and bookmuse produces a structured list of recommended books, including titles, authors, and brief descriptions. This tool streamlines the process of finding your next great read by delivering curated suggestions in a clear and consistent format.
+
+## Installation
+
+Install the package via pip:
+
+```bash
+pip install bookmuse
+```
+
+## Usage
+
+```python
+from bookmuse import bookmuse
+
+# Example user input describing preferences
+user_input = "I'm interested in science fiction and fantasy, especially space operas and epic adventures."
+
+# Using the default LLM (ChatLLM7)
+recommendations = bookmuse(user_input)
+
+# Using a custom LLM instance (e.g., OpenAI)
+from langchain_openai import ChatOpenAI
+
+llm = ChatOpenAI()
+recommendations = bookmuse(user_input, llm=llm)
+```
+
+## Parameters
+
+- **user_input** (*str*): The descriptive text of user preferences.
+- **llm** (*BaseChatModel*, optional): An instance of a language model. Defaults to ChatLLM7 from `langchain_llm7`.
+- **api_key** (*str*, optional): API key for the language model. If not provided, it attempts to use the `LLM7_API_KEY` environment variable or defaults to "None".
+
+## Details
+
+The package uses `ChatLLM7` from the [`langchain_llm7`](https://pypi.org/project/langchain_llm7/) library by default. Developers can pass their own language model instances compatible with the expected interface, such as:
+
+```python
+from langchain_openai import ChatOpenAI
+from bookmuse import bookmuse
+
+llm = ChatOpenAI()
+response = bookmuse(user_input, llm=llm)
+```
+
+or
+
+```python
+from langchain_anthropic import ChatAnthropic
+from bookmuse import bookmuse
+
+llm = ChatAnthropic()
+response = bookmuse(user_input, llm=llm)
+```
+
+or
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from bookmuse import bookmuse
+
+llm = ChatGoogleGenerativeAI()
+response = bookmuse(user_input, llm=llm)
+```
+
+## Rate Limits
+
+For most use cases, the default free-tier rate limits of LLM7 are sufficient. For higher rate limits, set your API key via the environment variable `LLM7_API_KEY` or pass it directly:
+
+```python
+recommendations = bookmuse(user_input, api_key="your_api_key")
+```
+
+You can register for a free API key at [https://token.llm7.io/](https://token.llm7.io/).
+
+## Support & Issues
+
+If you encounter any issues or have questions, please open an issue on the GitHub repository:  
+https://github.com/chigwell/bookmuse
+
+## Author
+
+**Eugene Evstafev**  
+Email: hi@eugene.plus  
+GitHub: [chigwell](https://github.com/chigwell)
