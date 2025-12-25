@@ -1,0 +1,20 @@
+import '../../justfiles/python.just'
+RELEASE_TARGET := "release-avatar-yaml"
+# Allow PY_PKG_NAME to be redefined because the name of the package is different from the name of the directory
+set allow-duplicate-variables
+PY_PKG_NAME := "avatar_yaml"
+
+default:
+    @just -l
+
+## Publish the package to pypi
+publish: build
+    #!/usr/bin/env bash
+    {{SHOPTS}}
+
+    # On CI, the token is stored in the environment variable UV_PUBLISH_TOKEN
+    if [ -n "${UV_PUBLISH_TOKEN:-}" ]; then
+        uv publish --token "$UV_PUBLISH_TOKEN"
+    else
+        uv publish --token "$(op items get jkjqyi3dxymrltfg5765rfdd3y --fields notesPlain)"
+    fi
