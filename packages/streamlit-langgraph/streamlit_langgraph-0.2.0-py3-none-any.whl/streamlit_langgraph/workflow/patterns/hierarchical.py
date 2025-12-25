@@ -1,0 +1,132 @@
+# Hierarchical workflow pattern - a top supervisor delegates to sub-supervisors,
+# each managing their own team of workers.
+
+from dataclasses import dataclass
+from typing import List, Optional, Any
+
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import StateGraph, START, END
+
+from ...agent import Agent
+from ..agent_nodes.factory import AgentNodeFactory
+from ..agent_nodes.routing import RoutingHelper
+from ...core.state import WorkflowState
+
+
+@dataclass
+class SupervisorTeam:
+    """Sub-supervisor and their team of workers."""
+    supervisor: Agent
+    workers: List[Agent]
+    team_name: str = ""
+    
+    def __post_init__(self):
+        if not self.team_name:
+            self.team_name = f"{self.supervisor.name}_team"
+
+
+class HierarchicalPattern:
+    """
+    Hierarchical workflow pattern - a top supervisor delegates to sub-supervisors,
+    each managing their own team of workers.
+    - Top level: supervisor pattern (top supervisor -> sub-supervisors)
+    - Team level: supervisor pattern (sub-supervisor -> workers)
+    """
+    
+    @staticmethod
+    def create_hierarchical_workflow(
+        top_supervisor: Agent,
+        supervisor_teams: List[SupervisorTeam],
+        execution_mode: str = "sequential",
+        checkpointer: Optional[Any] = None
+    ) -> StateGraph:
+        """
+        Create a hierarchical workflow with a top supervisor coordinating multiple
+        supervisor teams.
+        
+        Args:
+            top_supervisor: The top-level supervisor that coordinates sub-supervisors
+            supervisor_teams: List of SupervisorTeam objects, each with a supervisor and workers
+            execution_mode: "sequential" execution (parallel not yet supported for hierarchical)
+            checkpointer: Optional checkpointer for workflow state persistence (enables memory, HITL, time travel).
+            
+        Returns:
+            StateGraph: Compiled hierarchical workflow graph
+        """
+        if not top_supervisor or not supervisor_teams:
+            raise ValueError("Top supervisor and at least one supervisor team are required")
+        
+        if execution_mode != "sequential":
+            raise NotImplementedError("Only sequential mode is currently supported for hierarchical workflows")
+        if checkpointer is None:
+            workflow_checkpointer = InMemorySaver()
+        else:
+            workflow_checkpointer = checkpointer
+        
+        graph = StateGraph(WorkflowState)
+        
+        # Setting up top supervisor node
+        sub_supervisors = [team.supervisor for team in supervisor_teams]
+        top_supervisor_node = AgentNodeFactory.create_supervisor_agent_node(
+            top_supervisor, sub_supervisors, allow_parallel=False
+        )
+        graph.add_node(top_supervisor.name, top_supervisor_node)
+        graph.add_edge(START, top_supervisor.name)
+        
+        # Setting up sub-supervisor nodes and worker nodes
+        # sub-supervisor is just a supervisor for their team\
+        for team in supervisor_teams:
+            sub_supervisor_node = AgentNodeFactory.create_supervisor_agent_node(
+                team.supervisor, team.workers, allow_parallel=False
+            )
+            graph.add_node(team.supervisor.name, sub_supervisor_node)
+            # Add worker nodes using standard worker node factory
+            for worker in team.workers:
+                worker_node = AgentNodeFactory.create_worker_agent_node(worker, team.supervisor)
+                graph.add_node(worker.name, worker_node)
+        
+        graph = HierarchicalPattern._add_hierarchical_routing(graph, top_supervisor, supervisor_teams)
+        
+        return graph.compile(checkpointer=workflow_checkpointer)
+    
+    @staticmethod
+    def _add_hierarchical_routing(graph: StateGraph, top_supervisor: Agent, 
+                                  supervisor_teams: List[SupervisorTeam]) -> StateGraph:
+        """
+        Add routing edges for hierarchical workflow.
+        
+        REUSES supervisor pattern routing logic:
+        - Top supervisor -> sub-supervisors (same as supervisor -> workers)
+        - Sub-supervisors -> workers (same as supervisor -> workers)
+        - Workers -> sub-supervisor (same as workers -> supervisor)
+        - Sub-supervisors -> top supervisor (same as workers -> supervisor)
+        """
+        
+        sub_supervisor_names = [team.supervisor.name for team in supervisor_teams]
+        top_supervisor_route = RoutingHelper.create_hierarchical_top_route(sub_supervisor_names)
+        
+        top_routes = {name: name for name in sub_supervisor_names}
+        top_routes["__end__"] = END
+        graph.add_conditional_edges(top_supervisor.name, top_supervisor_route, top_routes)
+        
+        # For each team, apply standard supervisor pattern routing
+        for team in supervisor_teams:
+            worker_names = [w.name for w in team.workers]
+            subsupervisor_route = RoutingHelper.create_hierarchical_sub_route(
+                worker_names, top_supervisor.name
+            )
+            
+            sub_routes = {name: name for name in worker_names}
+            sub_routes[top_supervisor.name] = top_supervisor.name
+            
+            graph.add_conditional_edges(
+                team.supervisor.name,
+                subsupervisor_route,
+                sub_routes
+            )
+            
+            for worker in team.workers:
+                graph.add_edge(worker.name, team.supervisor.name)
+        
+        return graph
+
