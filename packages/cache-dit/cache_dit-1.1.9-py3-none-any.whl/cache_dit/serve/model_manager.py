@@ -1,0 +1,508 @@
+"""Model Manager for cache-dit serving.
+
+Adapted from SGLang's model management:
+https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/managers/tokenizer_manager.py
+"""
+
+import os
+import time
+import base64
+import tempfile
+import torch
+import requests
+from io import BytesIO
+from typing import Optional, Dict, Any, List
+from dataclasses import dataclass
+from diffusers import DiffusionPipeline
+from diffusers.utils import export_to_video
+from PIL import Image
+import cache_dit
+from cache_dit.logger import init_logger
+from diffusers import WanImageToVideoPipeline
+from .utils import prepare_extra_parallel_modules
+
+logger = init_logger(__name__)
+
+
+def load_pipeline_quant_config(pipeline_quant_config_path: str):
+    """Load pipeline quantization config from a custom module."""
+
+    from diffusers.quantizers import PipelineQuantizationConfig
+
+    logger.info(f"Loading pipeline quantization config from: {pipeline_quant_config_path}")
+
+    try:
+        import importlib.util
+        import sys
+
+        # Load the custom module
+        spec = importlib.util.spec_from_file_location(
+            "pipeline_quant_config", pipeline_quant_config_path
+        )
+        if spec is None or spec.loader is None:
+            raise ValueError(f"Cannot load module from {pipeline_quant_config_path}")
+
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+
+        # Get the pipeline quantization config from the module
+        if not hasattr(module, "get_pipeline_quant_config"):
+            raise ValueError(
+                f"Module {pipeline_quant_config_path} must have a 'get_pipeline_quant_config()' function"
+            )
+
+        quantization_config = module.get_pipeline_quant_config()
+
+        if not isinstance(quantization_config, PipelineQuantizationConfig):
+            raise ValueError(
+                f"get_pipeline_quant_config() must return a PipelineQuantizationConfig object, "
+                f"got {type(quantization_config)}"
+            )
+
+        logger.info("Successfully loaded quantization config from custom module")
+        return quantization_config
+
+    except Exception as e:
+        logger.error(f"Failed to load quantization config from {pipeline_quant_config_path}: {e}")
+        raise
+
+
+@dataclass
+class GenerateRequest:
+    """Image/Video generation request."""
+
+    prompt: str
+    negative_prompt: Optional[str] = ""
+    width: int = 1024
+    height: int = 1024
+    num_inference_steps: int = 50
+    guidance_scale: float = 7.5
+    seed: Optional[int] = None
+    num_images: int = 1
+    image_urls: Optional[List[str]] = None
+    num_frames: Optional[int] = None
+    fps: Optional[int] = 16
+
+    def __repr__(self):
+        image_urls_repr = None
+        if self.image_urls:
+            image_urls_repr = [
+                f"<data:{len(url)} chars>" if len(url) > 100 else url for url in self.image_urls
+            ]
+        return (
+            f"GenerateRequest(prompt={self.prompt[:50]!r}..., "
+            f"width={self.width}, height={self.height}, "
+            f"num_inference_steps={self.num_inference_steps}, "
+            f"guidance_scale={self.guidance_scale}, seed={self.seed}, "
+            f"num_images={self.num_images}, image_urls={image_urls_repr})"
+        )
+
+
+@dataclass
+class GenerateResponse:
+    """Image/Video generation response."""
+
+    images: Optional[List[str]] = None  # Base64 encoded images
+    video: Optional[str] = None  # Base64 encoded video (mp4)
+    stats: Optional[Dict[str, Any]] = None
+    time_cost: Optional[float] = None
+
+
+class ModelManager:
+    """Manages diffusion model loading and inference."""
+
+    def __init__(
+        self,
+        model_path: str,
+        device: Optional[str] = None,
+        torch_dtype: Optional[torch.dtype] = torch.bfloat16,
+        enable_cache: bool = True,
+        cache_config: Optional[Dict[str, Any]] = None,
+        enable_cpu_offload: bool = False,
+        device_map: Optional[str] = None,
+        enable_compile: bool = False,
+        parallel_type: Optional[str] = None,
+        parallel_args: Optional[Dict[str, Any]] = None,
+        attn_backend: Optional[str] = None,
+        quantize: bool = False,
+        quantize_type: Optional[str] = None,
+        pipeline_quant_config_path: Optional[str] = None,
+    ):
+        self.model_path = model_path
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.torch_dtype = torch_dtype
+        self.enable_cache = enable_cache
+        self.cache_config = cache_config or {}
+        self.enable_cpu_offload = enable_cpu_offload
+        self.device_map = device_map
+        self.enable_compile = enable_compile
+        self.parallel_type = parallel_type
+        self.parallel_args = parallel_args or {}
+        self.attn_backend = attn_backend
+        self.quantize = quantize
+        self.quantize_type = quantize_type
+        self.pipeline_quant_config_path = pipeline_quant_config_path
+        self.pipe = None
+        self.warmed_up_shapes = set()
+
+        logger.info(
+            f"Initializing ModelManager: model_path={model_path}, device={self.device}, "
+            f"parallel_type={parallel_type}, attn_backend={attn_backend}"
+        )
+
+    def load_model(self):
+        """Load the diffusion model."""
+        logger.info(f"Loading model: {self.model_path}")
+
+        # Load pipeline quantization config
+        quantization_config = None
+        if self.quantize and self.pipeline_quant_config_path:
+            quantization_config = load_pipeline_quant_config(self.pipeline_quant_config_path)
+        elif self.quantize:
+            logger.warning("Quantization enabled but no pipeline_quant_config_path provided")
+
+        if "Wan2.2-I2V-A14B-Diffusers" in self.model_path:
+            logger.info("Detected Wan2.2-I2V model, using WanImageToVideoPipeline")
+            self.pipe = WanImageToVideoPipeline.from_pretrained(
+                self.model_path,
+                torch_dtype=self.torch_dtype,
+                device_map=self.device_map,
+                quantization_config=quantization_config,
+            )
+        else:
+            self.pipe = DiffusionPipeline.from_pretrained(
+                self.model_path,
+                torch_dtype=self.torch_dtype,
+                device_map=self.device_map,
+                quantization_config=quantization_config,
+            )
+
+        # TODO(wxy): support quantization by quantize_type
+        if self.quantize and self.quantize_type is not None:
+            logger.warning(
+                f"Quantization type {self.quantize_type} is not supported yet in Serving mode"
+            )
+
+        cache_config_obj = None
+        if self.enable_cache:
+            logger.info("Enabling DBCache acceleration")
+            from cache_dit import DBCacheConfig
+
+            cache_config_obj = DBCacheConfig(
+                residual_diff_threshold=0.08,
+            )
+            if self.cache_config:
+                for key, value in self.cache_config.items():
+                    setattr(cache_config_obj, key, value)
+
+        parallelism_config = None
+        if self.parallel_type is not None:
+            logger.info(
+                f"Enabling parallelism: type={self.parallel_type}, args={self.parallel_args}"
+            )
+            from cache_dit import ParallelismConfig
+            from cache_dit.parallelism import ParallelismBackend
+            import torch.distributed as dist
+
+            world_size = dist.get_world_size() if dist.is_initialized() else 1
+
+            backend = (
+                ParallelismBackend.NATIVE_PYTORCH
+                if self.parallel_type == "tp"
+                else ParallelismBackend.NATIVE_DIFFUSER
+            )
+
+            # Build extra_parallel_modules for text encoder and vae
+            parallel_text_encoder = self.parallel_args.pop("parallel_text_encoder", False)
+            parallel_vae = self.parallel_args.pop("parallel_vae", False)
+            extra_parallel_modules = prepare_extra_parallel_modules(
+                self.pipe,
+                parallel_text_encoder=parallel_text_encoder,
+                parallel_vae=parallel_vae,
+            )
+            self.parallel_args["extra_parallel_modules"] = extra_parallel_modules
+
+            parallelism_config = ParallelismConfig(
+                backend=backend,
+                ulysses_size=world_size if self.parallel_type == "ulysses" else None,
+                ring_size=world_size if self.parallel_type == "ring" else None,
+                tp_size=world_size if self.parallel_type == "tp" else None,
+                parallel_kwargs=self.parallel_args,
+            )
+
+        if cache_config_obj is not None or parallelism_config is not None:
+            cache_dit.enable_cache(
+                self.pipe,
+                cache_config=cache_config_obj,
+                parallelism_config=parallelism_config,
+            )
+
+        # Move pipeline to CUDA
+        if self.device_map is None and self.device == "cuda":
+            logger.info("Moving pipeline to CUDA")
+            self.pipe.to("cuda")
+
+        if self.enable_cpu_offload and torch.cuda.device_count() <= 1:
+            logger.info("Enabling CPU offload")
+            self.pipe.enable_model_cpu_offload()
+
+        if self.attn_backend is not None:
+            if hasattr(self.pipe.transformer, "set_attention_backend"):
+                logger.info(f"Setting attention backend to {self.attn_backend}")
+                self.pipe.transformer.set_attention_backend(self.attn_backend)
+            else:
+                logger.warning(
+                    f"Transformer does not support set_attention_backend, ignoring --attn {self.attn_backend}"
+                )
+
+        if self.enable_compile:
+            logger.info("Enabling torch.compile")
+            cache_dit.set_compile_configs()
+            self.pipe.transformer = torch.compile(self.pipe.transformer)
+
+        logger.info("Model loaded successfully")
+
+    def _warmup_if_needed(self, width: int, height: int, prompt: str):
+        shape_key = (width, height)
+        if self.enable_compile and shape_key not in self.warmed_up_shapes:
+            if self.parallel_type in ["tp", "ulysses", "ring"]:
+                import torch.distributed as dist
+
+                dist.barrier()
+
+            logger.info(f"Warming up for shape {width}x{height}...")
+            try:
+                _ = self.pipe(
+                    prompt=prompt,
+                    height=height,
+                    width=width,
+                    num_inference_steps=4,
+                    guidance_scale=1.0,
+                )
+                self.warmed_up_shapes.add(shape_key)
+                logger.info(f"Warmup completed for {width}x{height}")
+            except Exception as e:
+                logger.warning(f"Warmup failed: {e}")
+
+            if self.parallel_type in ["tp", "ulysses", "ring"]:
+                import torch.distributed as dist
+
+                dist.barrier()
+
+    def _load_images_from_urls(self, image_urls: List[str]) -> Optional[List[Image.Image]]:
+        """Load images from URLs, local paths, or base64 strings."""
+        if not image_urls:
+            return None
+
+        images = []
+        for idx, url in enumerate(image_urls):
+            try:
+                if url.startswith("data:image/"):
+                    log_desc = f"data URI (length: {len(url)})"
+                    logger.info(f"Loading image {idx + 1} from {log_desc}")
+                    header, base64_data = url.split(",", 1)
+                    img_data = base64.b64decode(base64_data)
+                    image = Image.open(BytesIO(img_data)).convert("RGB")
+                elif url.startswith(("http://", "https://")):
+                    log_desc = f"URL: {url[:80]}{'...' if len(url) > 80 else ''}"
+                    logger.info(f"Downloading image {idx + 1} from {log_desc}")
+                    response = requests.get(url, timeout=30)
+                    response.raise_for_status()
+                    image = Image.open(BytesIO(response.content)).convert("RGB")
+                elif len(url) > 100:
+                    log_desc = f"raw base64 string (length: {len(url)})"
+                    logger.info(f"Loading image {idx + 1} from {log_desc}")
+                    try:
+                        img_data = base64.b64decode(url, validate=True)
+                        image = Image.open(BytesIO(img_data)).convert("RGB")
+                    except Exception:
+                        raise
+                else:
+                    log_desc = f"local path: {url}"
+                    logger.info(f"Loading image {idx + 1} from {log_desc}")
+                    image = Image.open(url).convert("RGB")
+                images.append(image)
+                logger.info(f"Image {idx + 1} loaded successfully: {image.size}")
+            except Exception as e:
+                if len(url) > 100:
+                    error_url = f"<data of length {len(url)}>"
+                else:
+                    error_url = url
+                logger.error(f"Failed to load image {idx + 1} from {error_url}: {e}")
+                raise RuntimeError(f"Failed to load image {idx + 1}: {e}")
+
+        return images
+
+    def generate(self, request: GenerateRequest) -> GenerateResponse:
+        if self.pipe is None:
+            raise RuntimeError("Model not loaded. Call load_model() first.")
+
+        is_edit_mode = request.image_urls is not None and len(request.image_urls) > 0
+        is_video_mode = request.num_frames is not None and request.num_frames > 1
+        is_image2video_mode = is_edit_mode and is_video_mode
+        input_images = None
+        if is_edit_mode:
+            input_images = self._load_images_from_urls(request.image_urls)
+            if input_images:
+                logger.info(
+                    f"Loaded {len(input_images)} input image(s) for {'image2video' if is_image2video_mode else 'editing'}"
+                )
+
+        if not is_edit_mode and not is_video_mode:
+            self._warmup_if_needed(request.width, request.height, request.prompt)
+
+        seed = request.seed
+        if seed is None and self.parallel_type in ["tp", "ulysses", "ring"]:
+            seed = 42
+            logger.info(f"{self.parallel_type} mode: using fixed seed {seed}")
+
+        if is_image2video_mode:
+            mode_str = "image2video"
+        elif is_video_mode:
+            mode_str = "video generation"
+        elif is_edit_mode:
+            mode_str = "edit"
+        else:
+            mode_str = "generation"
+        logger.info(f"{mode_str}: prompt='{request.prompt[:50]}...', seed={seed}")
+
+        generator = None
+        if seed is not None:
+            # IMPORTANT: Always use CPU generator for TP mode
+            # GPU generators on different devices produce different random sequences,
+            # causing inconsistent results across ranks and blurry images.
+            # CPU generator ensures all ranks use the same random sequence.
+            generator = torch.Generator(device="cpu").manual_seed(seed)
+            logger.debug(f"Created generator with seed {seed} on CPU")
+
+        if self.parallel_type in ["tp", "ulysses", "ring"]:
+            import torch.distributed as dist
+
+            dist.barrier()
+
+        start_time = time.time()
+
+        # Build kwargs for pipe call
+        pipe_kwargs = {
+            "prompt": request.prompt,
+            "width": request.width,
+            "height": request.height,
+            "num_inference_steps": request.num_inference_steps,
+            "guidance_scale": request.guidance_scale,
+            "generator": generator,
+        }
+
+        # Add num_frames for video generation
+        if is_video_mode:
+            pipe_kwargs["num_frames"] = request.num_frames
+        else:
+            pipe_kwargs["num_images_per_prompt"] = request.num_images
+
+        # Add input images to pipe_kwargs if in edit mode or image2video mode
+        if is_edit_mode and input_images:
+            # For image2video, always use single image (first one if multiple provided)
+            if is_image2video_mode:
+                pipe_kwargs["image"] = input_images[0]
+                logger.info(f"Using first image for image2video: {input_images[0].size}")
+            elif len(input_images) == 1:
+                pipe_kwargs["image"] = input_images[0]
+            else:
+                pipe_kwargs["image"] = input_images
+
+        # Some pipelines (like Flux2Pipeline) don't support negative_prompt
+        if request.negative_prompt:
+            try:
+                import inspect
+
+                sig = inspect.signature(self.pipe.__call__)
+                if "negative_prompt" in sig.parameters:
+                    pipe_kwargs["negative_prompt"] = request.negative_prompt
+            except Exception:
+                # If we can't inspect, try to add it anyway
+                pipe_kwargs["negative_prompt"] = request.negative_prompt
+
+        output = self.pipe(**pipe_kwargs)
+
+        if self.parallel_type in ["tp", "ulysses", "ring"]:
+            import torch.distributed as dist
+
+            dist.barrier()
+
+        time_cost = time.time() - start_time
+
+        # Debug: Check output shape in distributed mode
+        if self.parallel_type is not None:
+            import torch.distributed as dist
+
+            rank = dist.get_rank()
+            if is_video_mode:
+                logger.info(f"Rank {rank}: Generated video with {len(output.frames[0])} frames")
+            else:
+                logger.info(f"Rank {rank}: Generated {len(output.images)} images")
+
+        stats = None
+        if self.enable_cache:
+            stats_list = cache_dit.summary(self.pipe)
+            # Convert List[CacheStats] to dict for JSON serialization
+            if stats_list:
+                stats = {
+                    "cache_stats": [
+                        {
+                            "cache_options": str(s.cache_options) if s.cache_options else None,
+                            "cached_steps": list(s.cached_steps) if s.cached_steps else [],
+                            "parallelism_config": (
+                                str(s.parallelism_config) if s.parallelism_config else None
+                            ),
+                        }
+                        for s in stats_list
+                    ]
+                }
+
+        images_base64 = None
+        video_base64 = None
+
+        if is_video_mode:
+            video_frames = output.frames[0]
+            logger.info(
+                f"Video generation completed with {len(video_frames)} frames in {time_cost:.2f}s"
+            )
+
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_file:
+                tmp_path = tmp_file.name
+
+            try:
+                export_to_video(video_frames, tmp_path, fps=request.fps)
+
+                with open(tmp_path, "rb") as f:
+                    video_bytes = f.read()
+                    video_base64 = base64.b64encode(video_bytes).decode()
+            finally:
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+        else:
+            images_base64 = []
+            for image in output.images:
+                buffered = BytesIO()
+                image.save(buffered, format="PNG")
+                img_str = base64.b64encode(buffered.getvalue()).decode()
+                images_base64.append(img_str)
+
+            logger.info(f"Image generation completed in {time_cost:.2f}s")
+
+        return GenerateResponse(
+            images=images_base64,
+            video=video_base64,
+            stats=stats,
+            time_cost=time_cost,
+        )
+
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get model information."""
+        return {
+            "model_path": self.model_path,
+            "device": self.device,
+            "torch_dtype": str(self.torch_dtype),
+            "enable_cache": self.enable_cache,
+            "is_loaded": self.pipe is not None,
+        }
