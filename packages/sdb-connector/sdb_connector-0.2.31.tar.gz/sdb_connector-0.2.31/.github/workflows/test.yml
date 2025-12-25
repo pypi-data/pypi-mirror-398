@@ -1,0 +1,37 @@
+name: Rust Tests
+
+on:
+  push:
+    branches:
+      - main  # Run tests on merge to the main branch
+  pull_request:
+    branches:
+      - main  # Run tests on PRs to the main branch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'  # Specify the Python version
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Install Maturin
+        run: pip install maturin
+
+      - name: Run Tests
+        run: cargo test -- --test-threads=1
+
+      - name: Python Tests
+        run: python3 testing/test_lib.py
