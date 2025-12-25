@@ -1,0 +1,172 @@
+# ESRF ID11 Status GUI
+
+ESRF ID11 Status GUI is an ipywidgets-based control panel that monitors and orchestrates the post-treatment pipeline for ID11 diffraction and tomography experiments. It understands the ESRF data policy layout (default `/data/visitor/<proposal>/<beamline>/<date>/RAW_DATA|PROCESSED_DATA`) via `esrf-pathlib` and surfaces the progress of DCT, PCT, FF, and s3DXRD processing steps directly inside Jupyter notebooks.
+
+## Key Capabilities
+
+- Navigate experiments by proposal, beamline, and acquisition date with live folder trees.
+- Detect datasets automatically via `status.json` rules and inspect their processing state with color-coded accordions.
+- Launch and track post-processing (DCT, FF, SFF) from the embedded toolbar, including notebook generation helpers.
+- Preview HDF5/MAT content and diagnostic messages inline without leaving the notebook.
+- Utilities to scaffold new experiment dates, mirror RAW/PROCESSED layouts, and manage ESRF-specific permissions.
+
+## Requirements
+
+- Python 3.9 or newer.
+- Jupyter Notebook/Lab (IPython front-end is mandatory for the widgets) with `ipywidgets`, `matplotlib`, and related GUI extras. Install with `pip install -e ".[gui]"` if needed.
+- MySQL client libraries available (for the bundled `mysqlclient`) so StatusGUI can probe DCT databases; override host/user/password via `STATUSGUI_SQL_*`, standard `MYSQL_*` vars, or a `~/.my.cnf` client block.
+- Access to the ESRF storage tree (default root `/data/visitor`, configurable via `ESRF_VISITOR_ROOT`); the GUI relies on `esrf-pathlib` to resolve proposal, beamline, and session metadata.
+- Optional domain tools: ImageD11 (FF/SFF notebooks). For DCT processing, start MATLAB via the facility module/container (e.g. `module load dct`), add the DCT code to the MATLAB path as usual, and share the session with `matlab.engine.shareEngine` so StatusGUI can attach to it.
+- ESRF file loader: `esrf-loadfile` is pulled from PyPI; the package also ships a fallback loader for environments without it.
+- DCT Python package: the optional `dct` dependency (used by the `[extra]` extra) is **not** published on PyPI yet. Installing `pip install "esrf-statusgui[extra]"` from PyPI will fail until it is available; install the ESRF `dct` toolbox separately via the facility module/Git checkout if needed.
+
+Database checks default to the `graindb.esrf.fr` service (`gtadmin` user) used by the MATLAB tools and will transparently use `mysqlclient` or any available SQLAlchemy MySQL driver.
+
+## Installation
+
+From PyPI (recommended once published):
+
+```bash
+pip install "esrf-statusgui[gui]"        # notebook-ready runtime
+pip install "esrf-statusgui[extra]"      # science stack (ImageD11, DCT, Dans-Diffraction)
+pip install "esrf-statusgui[full]"       # contributor setup without the science extras
+pip install "esrf-statusgui[dev]"        # lint/format/test toolchain only
+```
+
+From source (editable) for development:
+
+```bash
+git clone https://gitlab.esrf.fr/graintracking/statusgui.git
+cd statusgui
+python -m venv .venv
+source .venv/bin/activate  # Use .venv\Scripts\activate on Windows
+pip install -e .
+```
+
+Editable extras mirror the PyPI variants: `pip install -e ".[gui]"`, `.[extra]`, `.[full]`, and `.[dev]`.
+Both `statusGUI` and `statusgui` console scripts point to the same launcher entrypoint.
+
+## Quick Start (Jupyter)
+
+1. Launch JupyterLab/Notebook on an ID11 machine with access to the ESRF storage.
+2. In a new notebook cell:
+
+   ```python
+   from esrf_statusgui.visualization.statusGUI import DatasetSelectionTab
+
+   tab = DatasetSelectionTab()
+   tab.display()
+   ```
+
+3. Pick an experiment (proposal) and beamline; the GUI builds the RAW/PROCESSED tree and populates four columns (Tomography, DCT, FF, s3DXRD) with datasets.
+4. Expand a dataset to inspect processing steps, open generated notebooks, or trigger refreshes.
+
+### Working with alternative data roots
+
+By default the browser targets `/data/visitor`. To use another data mirror, set the visitor root **before** instantiating the GUI:
+
+```python
+from esrf_statusgui.file_utils.paths import set_visitor_root
+
+set_visitor_root("/mnt/id11_archive")
+
+from esrf_statusgui.visualization.statusGUI import DatasetSelectionTab
+
+tab = DatasetSelectionTab()
+tab.display()
+```
+
+You can also export `ESRF_VISITOR_ROOT=/mnt/id11_archive` before launching Jupyter. The helper `esrf_statusgui.file_utils.paths.describe()` returns structured metadata (proposal, beamline, session date) for any path resolved by the GUI.
+Once the widget is running you can also point it to a different mirror via the `Data root` field (`Use path` button) at the top of the dashboard; this updates the session root and repopulates the experiment/beamline lists.
+Mount-specific prefixes such as `/gpfs/easy` or `/mnt/storage` are normalised automatically via `file_utils.paths.clean_dir_name`, so visitor metadata resolves even when paths contain dots or dashes.
+
+### Running outside notebooks
+
+`python -m src.main` instantiates the widget but expects an IPython kernel. When invoked from a plain terminal it prints a helpful message; prefer launching inside Jupyter or wrap it with [Voila](https://voila.readthedocs.io/) for browser delivery.
+
+## Automating DCT preprocessing
+
+`pySetupH5.setup_pre_processing` accepts dicts (or a list of dicts) to seed RAW paths, group IDs, and destination names, surfacing missing datasets as inline errors instead of failing silently:
+
+```python
+from esrf_statusgui.visualization.DCT.pySetupH5 import pySetupH5
+
+setup = pySetupH5()
+setup.setup_pre_processing(
+    {
+        "raw_path": "/gpfs/easy/data/visitor/ma1234/id11/20240101/RAW_DATA/dataset.h5",
+        "dataset_name": "dataset_clean",
+        "projections_group": 5,
+        "flat_groups": [1, 3],
+        "dark_group": 4,
+    }
+)
+```
+
+Flat/dark/projection groups default to 1-3/4/2 when omitted. The call returns the created dataset names and destination folders.
+
+## Understanding the Status Columns
+
+- **Tomography (PCT)** – checks HDF5 descriptors, beamline metadata, and processed reconstructions.
+- **DCT** – validates parameter/DB files, pre-processing, segmentation, indexing, forward simulation, and reconstruction steps.
+- **FF / s3DXRD** – reports on far-field 3DXRD and s3DXRD pipelines, including availability of target files and optional visualisations.
+- **Post-processing toolbar** – the `Post_process` widget adds dataset-level refresh, quick notebook launchers (`createProcessingNotebook.py`), and optional data copies (`gtMoveData`).
+
+Color coding: red = not processed, orange = in progress/partial, green = complete. Tooltips and accordion bodies list the files checked for each component.
+
+## Utilities & Supporting Modules
+
+- `esrf_statusgui.brain.*` – discovery logic, caching, dataset classification (`DatasetSelectionLogic`, `SampleManager`, `Post_process`).
+- `esrf_statusgui.exp_methods.*` – per-technique status evaluators driven by `status.json`.
+- `esrf_statusgui.file_utils.*` – helpers for building experiment directories, managing permissions, creating companion notebooks, and normalising paths (see `file_utils.paths.clean_dir_name` for GPFS/mnt sanitisation).
+- `src/main.py` – lightweight entry point that instantiates the main widget.
+- `src/notebooks/StatusGUI.ipynb` – demonstration notebook with a pre-wired dashboard.
+
+## Development Workflow
+
+```bash
+pip install -e ".[dev]"
+pytest
+pytest --maxfail=1 --disable-warnings -q  # focused run
+ruff check src tests
+black src tests
+```
+
+Tests exercise widget factories and CLI wiring. The GUI relies on Jupyter, so widget rendering tests use ipywidgets stubs. When adding new experiment methods, extend `status.json`, provide a status class in `exp_methods`, and register it in `DatasetSelectionTab`.
+See `docs/development_checks.md` for the full toolchain and pre-commit workflow.
+
+## Project Layout
+
+- `src/esrf_statusgui/visualization/` – ipywidgets components for dataset browsing and post-processing controls.
+- `src/esrf_statusgui/brain/` – core logic (filesystem traversal, dataset inference, status refresh).
+- `src/esrf_statusgui/exp_methods/` – domain-specific status objects for tomography, DCT, FF, and s3DXRD.
+- `src/esrf_statusgui/data_managment/` – loaders for HDF5/MAT files and parameter parsing.
+- `src/esrf_statusgui/file_utils/` – ESRF filesystem helpers, experiment scaffolding, and notebook generators.
+- `tests/` – pytest suite covering widget utilities and entry points.
+
+## Notebook snapshots & dependency versions
+
+The notebooks committed under `src/esrf_statusgui/notebooks/` (DCT tutorials as well as ImageD11 S3DXRD/TDXRD flows) are checked in as snapshots that match the
+`graintracking/dct==0.2.0` pipeline used by this release and the `ImageD11==2.1.2` stack (see the pinned dependency in `pyproject.toml`). When executing them,
+make sure your environment uses those versions. If you upgrade either dependency, regenerate the notebooks (for example via
+`src/esrf_statusgui/file_utils/createProcessingNotebook.py`) and update this note to reflect the new baseline.
+
+## Troubleshooting
+
+- **Empty experiment list** – ensure the Jupyter server runs on a host that can reach the configured visitor root or override it via `set_visitor_root`.
+- **Status objects missing files** – verify RAW/PROCESSED samples follow the ESRF naming convention; detection keys live in `exp_methods/status.json`.
+- **DCT helpers report missing MATLAB engine** – install MATLAB R2023 engine bindings, start MATLAB via `module load dct`, add the DCT module to the MATLAB path, and call `matlab.engine.shareEngine` so the Python side can attach to the existing session.
+- **Widgets refuse to render** – confirm `ipywidgets` extension is enabled (`jupyter nbextension enable --py widgetsnbextension` for classic notebook).
+
+## Known Limitations
+
+- DCT parameter wizards still rely on manual tweaks for detector metadata, diffrz calibration, and session-date heuristics (see inline TODOs in `tab_dct_parameters.py`).
+- Pair-matching status reports do not yet parse legacy `pairmatch.mat` / `DifspotTable.mat` outputs (see `dct_status.py`).
+
+## Contributing & Support
+
+We welcome merge requests and issue reports. Please read `CONTRIBUTING.md` for workflow guidelines. For ESRF-internal support open a ticket in the grain tracking GitLab project or contact the ID11 software team.
+
+## License
+
+Distributed under the terms of the MIT License. See `LICENSE.md` for details.
