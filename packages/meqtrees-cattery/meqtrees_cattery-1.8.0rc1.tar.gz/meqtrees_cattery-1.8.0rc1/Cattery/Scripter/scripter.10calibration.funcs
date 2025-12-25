@@ -1,0 +1,489 @@
+
+
+#!/bin/bash
+# scripter.xxx.funcs functions
+# This is reloaded at every new MS in a scripter run
+# It defines some standard processing steps
+
+# these aren't really processing steps per set, but useful functions called by processing steps
+
+# runs the imager over the current MS, field and spwid. Remaining arguments need to be supplied,
+imager()
+{
+  $RUNIMAGER ms=$MSNAME $FIELD_IMG $SPWID_IMG $*
+}
+# runs plot-ms over the current MS, field and spwid. Remaining arguments need to be supplied,
+plot-ms()
+{
+  $PLOTMS $MSNAME -F $field -D $MS_DDID -I "$IFRS" -L $FQSLICE_OC $*
+}
+
+## reset_ms: removes MS, untars copy from tgz, adds bitflags, fixes WSRT UVWs, etc.
+reset_ms()
+{
+  rm -fr $MSNAME
+  if [ "${USE_PRECOOKED:-1}" != "0" -a -f $MSNAME.precooked.tgz ]; then
+    echo "Untarring pre-cooked MS"
+    (cd `dirname $MSNAME` && tar zxvf `basename $MSNAME`.tgz)
+    python -c "import pyrap.tables;pyrap.tables.addImagingColumns('$MSNAME')"
+    return 0
+  elif [ -f $MSNAME.tgz ]; then
+    echo "Untarring normal MS"
+    (cd `dirname $MSNAME` && tar zxvf `basename $MSNAME`.tgz)
+  else
+    echo "No precooked and no initial MS found!"
+    return 1
+  fi
+  wsrt_j2convert msin=$MSNAME
+  addbitflagcol $MSNAME
+  python -c "import pyrap.tables;pyrap.tables.addImagingColumns('$MSNAME')"
+  $DOWNWEIGH -I "$IFRS" $MSNAME
+  init_flags
+}
+
+## precook_ms: saves MS -- pre-cooked MS will be used by reset_ms if available
+precook_ms()
+{
+  python -c "import pyrap.tables; pyrap.tables.table('$MSNAME',readonly=False).removecols(['MODEL_DATA','CORRECTED_DATA'])"
+  (cd `dirname $MSNAME` && tar zcvf `basename $MSNAME`.precooked.tgz `basename $MSNAME`)
+}
+
+## precook_ms: removes the pre-cooked MS
+removed_precooked_ms()
+{
+  rm -f $MSNAME.precooked.tgz
+}
+
+## init_flags: called to apply initial flagging to an MS
+# Default version is a no-op. You may redefine this in scripter.YOURPROJ.funcs
+init_flags ()
+{
+  /bin/true
+}
+
+export_flags ()
+{
+  $FLAGMS --export $MSNAME.flags $MSNAME
+}
+
+import_flags ()
+{
+  $FLAGMS --import $MSNAME.flags $MSNAME
+}
+
+##
+reset_mep()
+{
+  rm -fr $MSNAME/*mep
+  if [ -d ${LSM%.html}.fmep ]; then
+    rm -fr ${LSM%.html}.fmep
+  fi
+}
+
+reset_g ()
+{
+  rm -fr $MSNAME/G*mep
+}
+
+reset_de ()
+{
+  rm -fr $MSNAME/dE*mep
+}
+
+#restore_lsm ()
+#{
+#  tar zxvf qmc2.fmep.band$DDID.tgz
+#}
+
+restore_g ()
+{
+  tar zxvf $SAVED_SOLUTIONS_DIR/G_${OUTFILE}_*.tgz
+}
+
+clip_residuals ()
+{
+  /bin/true
+}
+
+cal_generic ()
+{
+  local label=$1
+  local section=$2
+  local jobname=$3
+  local parmtab=$4
+  shift 4
+  time meqtree-pipeliner.py $MT -c $CONFIG \
+    \[$section\] \
+    $MS_TDL $CHAN_TDL $LSM_TDL $* \
+    enable_inspectors=${ENABLE_INSPECTORS:-0} \
+    $TDLOPTS \
+    $SCRIPTNAME \
+    =$jobname
+  clip_residuals $MSNAME $label
+  plot-ms CORRECTED_DATA:I -o $DESTDIR/${OUTFILE}_residuals_${step}_${label}.png
+  NAMEDIRTY=$DESTDIR/${OUTFILE}_${step}_${label}
+  imager name_dirty=$NAMEDIRTY
+  step=$[$step+1];
+  true
+}
+
+cal_g ()
+{
+  cal_generic G ${cal_g_section:-cal_g} cal_G_diag G_diag.fmep $*
+  if [ "$ENABLE_PARM_PLOTS" == "1" ]; then
+    $PLOTPARMS $MSNAME/G_diag.fmep "*:*:*/ampl" $plot_Gampl_options -o $DESTDIR/${OUTFILE}_${step}_Ga.png
+    $PLOTPARMS $MSNAME/G_diag.fmep "*:*:*/phase" $plot_Gphase_options -o $DESTDIR/${OUTFILE}_${step}_Gp.png
+  fi
+  tar zcvf $DESTDIR/G_${OUTFILE}_step$step.tgz $MSNAME/G_diag.fmep
+}
+
+cal_g_ampl ()
+{
+  step0=$step
+  cal_generic Ga ${cal_g_ampl_section:-cal_g_ap} cal_G_ampl G_ampl.fmep $*
+  if [ "$ENABLE_PARM_PLOTS" == "1" ]; then
+    $PLOTPARMS $MSNAME/G_ampl.fmep "*:*:*" $plot_Gampl_options -o $DESTDIR/${OUTFILE}_${step0}_Ga.png
+  fi
+  tar zcvf $DESTDIR/Ga_${OUTFILE}_step$step0.tgz $MSNAME/G_ampl.fmep
+}
+
+cal_g_phase ()
+{
+  step0=$step
+  cal_generic Gp ${cal_g_phase_section:-cal_g_ap} cal_G_phase G_phase.fmep $*
+  if [ "$ENABLE_PARM_PLOTS" == "1" ]; then
+    $PLOTPARMS $MSNAME/G_phase.fmep "*:*:*" $plot_Gphase_options -o $DESTDIR/${OUTFILE}_${step0}_Gp.png
+  fi
+  tar zcvf $DESTDIR/Gp_${OUTFILE}_step$step0.tgz $MSNAME/G_phase.fmep
+}
+
+
+cal_ig ()
+{
+  cal_generic IG ${cal_ig_section:-cal_ig} cal_IG IG.fmep $*
+  tar zcvf $DESTDIR/IG_${OUTFILE}_step$step.tgz $MSNAME/IG.fmep
+}
+
+cal_de ()
+{
+  cal_generic dE ${cal_de_section:-cal_de} cal_dE_diag dE_diag.fmep $*
+  if [ "$ENABLE_PARM_PLOTS" == "1" ]; then
+    $PLOTPARMS $MSNAME/dE_ampl.fmep "*:*:*:*/ampl"  $plot_dEampl_options -o $DESTDIR/${OUTFILE}_${step}_dEa.png
+    $PLOTPARMS $MSNAME/dE_phase.fmep "*:*:*:*/phase" $plot_dEphase_options -o $DESTDIR/${OUTFILE}_${step}_dEp.png
+  fi
+  tar zcvf $DESTDIR/dE_${OUTFILE}_step$step.tgz $MSNAME/dE_diag.fmep
+}
+
+cal_de_ampl ()
+{
+  cal_generic dEa ${cal_de_ampl_section:-cal_de_ap} cal_dE_ampl dE_ampl.fmep $*
+  if [ "$ENABLE_PARM_PLOTS" == "1" ]; then
+    $PLOTPARMS $MSNAME/dE_ampl.fmep "*:*:*:*:a"  $plot_dEampl_options -o $DESTDIR/${OUTFILE}_${step}_dEa.png
+  fi
+  tar zcvf $DESTDIR/dEa_${OUTFILE}_step$step.tgz $MSNAME/dE_ampl.fmep
+}
+
+cal_de_phase ()
+{
+  cal_generic dEp ${cal_de_phase_section:-cal_de_ap} cal_dE_phase dE_phase.fmep $*
+  if [ "$ENABLE_PARM_PLOTS" == "1" ]; then
+    $PLOTPARMS $MSNAME/dE_phase.fmep "*:*:*:*:p" $plot_dEphase_options -o $DESTDIR/${OUTFILE}_${step}_dEp.png
+  fi
+  tar zcvf $DESTDIR/dEp_${OUTFILE}_step$step.tgz $MSNAME/dE_phase.fmep
+}
+
+redo_plot_ms ()
+{
+  if [ "$1" != "" ]; then
+    local suffix="_$1"
+  else
+    local suffix=""
+  fi
+  plot-ms ${2:-CORRECTED_DATA:I} -o $DESTDIR/${OUTFILE}${suffix}.png
+}
+
+make_image ()
+{
+  NAMEDIRTY=$DESTDIR/${OUTFILE}_${step}
+  imager name_dirty=$NAMEDIRTY
+}
+
+genvis_generic ()
+{
+  local label=$1
+  local section=$2
+  local doimage=$3
+  shift 3
+  time meqtree-pipeliner.py $MT -c $CONFIG \
+    \[$section\] \
+    $MS_TDL $CHAN_TDL $LSM_TDL $* \
+    enable_inspectors=${ENABLE_INSPECTORS:-0} \
+    $TDLOPTS \
+    $SCRIPTNAME \
+    =generate_visibilities
+  if [ "$doimage" != "0" ]; then
+    local NAMEDIRTY=$DESTDIR/${OUTFILE}_${step}_${label}
+    imager name_dirty=$NAMEDIRTY
+  fi
+  step=$[$step+1];
+  true
+}
+
+make_corr_data ()
+{
+  local doimage=${1:-1}
+  shift 1
+  genvis_generic corr_data ${make_corr_data_section:-make_corr_data} $doimage $*
+}
+
+make_residuals ()
+{
+  local doimage=${1:-1}
+  shift 1
+  genvis_generic residual ${make_residuals_section:-make_residuals} $doimage $*
+}
+
+## update_flags: readjusts flags on an MS post-calibration
+# Default version is a no-op. You may redefine this in scripter.YOURPROJ.funcs
+update_flags()
+{
+  /bin/true
+}
+
+
+### "global" functions applying to full MSs
+
+merge_ms()
+{
+  $MERGEMS -f ${1-$FULLMS} $MSNAMES
+  update_flags ${1-$FULLMS}
+}
+
+copy_ms()
+{
+  cp -a $1 $2
+}
+
+make_image()
+{
+  local ms=`basename $MSNAME .MS`
+  if [ "$MSNAME" == "$FULLMS" ]; then
+    local sz="size=$FULL_SIZE"
+  else
+    local sz=""
+  fi
+  $RUNIMAGER ms=$MSNAME name_dirty=$DESTDIR/${ms%.ms}_dirty$IMAGE_SUFFIX $sz $*
+}
+
+make_clean()
+{
+  local ms=`basename $MSNAME .MS`
+  if [ "$MSNAME" == "$FULLMS" ]; then
+    local sz="size=$FULL_SIZE"
+  else
+    local sz=""
+  fi
+  $RUNIMAGER ms=$MSNAME oper=csclean \
+    name_restored=$DESTDIR/${ms%.ms}_restored$IMAGE_SUFFIX \
+    name_residual=$DESTDIR/${ms%.ms}_residual$IMAGE_SUFFIX \
+    name_model=$DESTDIR/${ms%.ms}_model$IMAGE_SUFFIX \
+    $sz $*
+}
+
+make_psf_image ()
+{
+  local ms=`basename $MSNAME .MS`
+  local _psf_image="${ms%.ms}_psf"
+  local name=${1:-$DESTDIR/$_psf_image}
+  shift 1
+  $RUNIMAGER ms=$MSNAME data=psf name_dirty=${name%.fits} size=$PSF_SIZE flux_scale=1 $*
+}
+
+make_restored_image ()
+{
+  local ms=`basename $MSNAME .MS`
+  local psf_image="${ms%.ms}_psf.fits"
+  if [ ! -f $psf_image ]; then
+    make_psf_image $psf_image
+  fi
+  $TIGGER_RESTORE $DESTDIR/${ms%.ms}_restored.fits $LSM $DESTDIR/${ms%.ms}_model_restored.fits -p $psf_image -f
+}
+
+make_ssms ()
+{
+  if [ "$1" == "" ]; then
+    echo "make_ssms: must be invoked with a source name";
+    exit 1
+  fi
+  make_residuals 0 "tiggerlsm.null_subset=$1*" "do_correct_sky=$1*"
+}
+
+make_full_ssms ()
+{
+  if [ "$1" == "" ]; then
+    echo "make_full_ssms: must be invoked with a source name";
+    exit 1
+  fi
+  per_ms step=1 make_ssms[$1]
+  merge_ms ${POSTAGE_STAMP_DIR:+$POSTAGE_STAMP_DIR/}${FULLMS%.MS}_src$1.MS
+}
+
+extract_ss_ccm ()
+{
+  local srcname="$1"
+  local oper="$2"
+  local ms=${POSTAGE_STAMP_DIR:+$POSTAGE_STAMP_DIR/}${FULLMS%.MS}_src$1.MS
+  shift 2
+  if [ "$srcname" == "" ]; then
+    echo "extract_ss_ccm: must be invoked with a source name (and optional clean operation)";
+    exit 1
+  fi
+  if [ ! -d $ms ]; then
+    echo "extract_ss_ccm: $ms does not exist."
+    echo "Perhaps run make_full_ssms first?"
+    exit 1;
+  fi
+  # set default attributes
+  local imgconf=$ms/.img.conf
+  cat >$imgconf <<-end
+    img_size="${POSTAGE_SIZE:-256/10}"
+    img_niter="${POSTAGE_NITER:-1000}"
+    img_threshold="${POSTAGE_THRESHOLD:-1mJy}"
+    img_padding="${POSTAGE_PADDING:-2}"
+end
+  # extract source tags
+  python >$imgconf.1 <<-end
+import Tigger
+src=[src for src in Tigger.load("$LSM",verbose=0).sources if src.name.startswith("$srcname")]
+src=sorted(src,lambda a,b:cmp(b.Iapp,a.Iapp))
+src=src[0]
+print "img_phasecenter='j2000,%dh%dm%fs,%s%dd%dm%fs'"%tuple(list(src.pos.ra_hms())+list(src.pos.dec_sdms()))
+print "img_oper=%s"%getattr(src,"postage_oper",'${POSTAGE_OPER:-image+csclean}')
+for attr,val in src.getExtraAttributes():
+  if attr.startswith("postage_") and attr != "postage_stamp":
+    print "img_%s=%s"%(attr[len("postage_"):],val)
+end
+  # cut the crap, extract just the variable assignewnts
+  grep "^img_" $imgconf.1 | grep -v "img_oper" | grep -v "img_maskinner" >>$imgconf
+  # go through intermediate file and take its tail, because the front may have bullshit messages
+  if ! grep "img_phasecenter=" $imgconf; then
+    echo "Failed to extract coordinate of source $srcname from LSM file $LSM"
+    exit 1
+  fi
+  # deconvolution operation can be overridden from command line, else use the oper attribute
+  if [ "$oper" == "" -o "$oper" == "default" ]; then
+    oper="`grep img_oper= $imgconf.1 | cut -f 2 -d =`"
+  fi
+  echo ":::Extracting clean component model for source $srcname using $oper and this config:"
+  cat $imgconf
+  # make filename template
+  assign_templates SSCCM_Template
+  if [ ! -d `dirname $SSCCM` ]; then
+    mkdir `dirname $SSCCM`
+  fi
+  local args=""
+  if grep img_maskinner $imgconf.1; then
+    local size=`grep img_size= $imgconf | tail -1 | cut -f 2 -d =`
+    echo $size
+    # determine mask region (use inner quadrant)
+    local px0=$[${size%/*}/4]
+    local px1=$[$px0*3]
+    args="$args mask=mask-$srcname maskblc=$px0,$px0 masktrc=$px1,$px1 maskvalue=1"
+  fi
+  # make images
+  local op
+  for op in ${oper//+/ }; do
+    local model="${SSCCM}-cc-$op"
+    local residual="${SSCCM}-residual-$op"
+    time $RUNIMAGER +$imgconf ms=$ms \
+      name_dirty=${SSCCM}-dirty \
+      name_restored=${SSCCM}-restored-$op \
+      name_residual=$residual \
+      name_model=$model \
+      prefervelocity=False \
+      oper=$op flux_scale=1 $args $*
+    if [ "$op" != "image" ]; then
+      python <<-end
+src='${SSCCM}'
+# helper function to take center quadrant
+qq=lambda x:x[0,0,x.shape[2]/4:-x.shape[2]/4,x.shape[3]/4:-x.shape[3]/4]
+import pyfits
+cc = qq(pyfits.open('$model.fits')[0].data); 
+di = qq(pyfits.open('%s-dirty.fits'%src)[0].data);
+ri = qq(pyfits.open('$residual.fits')[0].data);
+rmax = float(abs(ri).max());
+rstd = float(ri.std());
+q = float(abs(cc).max()/abs(di).max());
+print 'Postage stamp summary %s (${op}): q=%6.2f rmax=%g rstd=%g%s'%(src,q,rmax,rstd,"   ***WARNING*** runaway clean?" if q>2 else ""); 
+end
+      # print full stats
+      echo -n "Postage stamp residual stats ($op): " 
+      ${FITSTOOL} -s $residual.fits
+      echo -n "Postage stamp model stats ($op): " 
+      ${FITSTOOL} -s $model.fits
+      # due to an lwimager bug, the center frequency is not assigned correctly -- fix it here
+      local _freq=`python -c "import pyrap.tables;print pyrap.tables.table('$ms/SPECTRAL_WINDOW').getcol('REF_FREQUENCY')[${SPWID_IMG#*=}]"|tail -1`
+      echo "Center frequency is $_freq"
+      echo $FITSTOOL -E RESTFREQ=$_freq -E ALTRVAL=$_freq $model.fits -f
+      $FITSTOOL -E RESTFREQ=$_freq -E ALTRVAL=$_freq $model.fits -f
+    fi
+  done
+  # link last model as the one we'll use for the LSM
+  local ccname="`basename ${SSCCM}-cc.fits`"
+  (cd `dirname $model.fits`; rm -f $ccname; ln -s `basename $model.fits` $ccname);
+  # get diagnostic stats
+  # remove MS
+  if [ "$KEEP_POSTAGE_STAMP_MS" == "" -o "$KEEP_POSTAGE_STAMP_MS" == "0" ]; then
+    rm -fr $ms
+  fi
+}
+
+get_ssccm_list ()
+{
+  if [ "$1" == "" -o "$1" == "-" ]; then
+    local _out=`python -c "import Tigger;mod=Tigger.load('$LSM');print ','.join([x[1] for x in sorted([(src.brightness(),src.name) for src in mod.sources if getattr(src,'postage_stamp',False)],reverse=True)])"|tail -1`
+  else
+    local _out=$1
+  fi
+  echo ${_out//,/ }
+  # python -c "import Tigger;mod=Tigger.load('A773comp-spw2.lsm.html');print set([src.name[0] for src in mod.sources if getattr(src,'dE',False)])"
+}
+
+make_and_extract_ss_ccm ()
+{
+  local SOURCES="`get_ssccm_list $1`"
+  local LSM1="${2:-$LSM}"
+  # make copy of LSM -- unless we're not updating the LSM
+  if [ "$LSM1" != "$LSM" -a "$UPDATE_POSTAGE_STAMP_LSM" != "0" ]; then
+    cp $LSM $LSM1
+    LSM="$LSM1"
+  fi
+  shift 2
+  local srcname
+  local pad="${POSTAGE_PADDING:-2}"
+  for srcname in $SOURCES; do
+    # set $_dE to "dE:" if source has a dE tag -- this will get passed on to its brick, below
+    python >.dE.$srcname <<-end
+import Tigger
+src=[src for src in Tigger.load("$LSM",verbose=0).sources if src.name.startswith("$srcname")]
+src=sorted(src,lambda a,b:cmp(b.Iapp,a.Iapp))
+print ':dE:' if hasattr(src[0],'dE') else ':'
+end
+    local _dE=`cat .dE.$srcname|tail -1`
+    rm .dE.$srcname
+    echo "Extracting SSCCM for source '$srcname' $_dE"
+    local _msname="${POSTAGE_STAMP_DIR:+$POSTAGE_STAMP_DIR/}${FULLMS%.MS}_src$srcname.MS"
+    if [ "$REUSE_POSTAGE_STAMP_MS" == "1" -a -d $_msname ]; then
+      echo "REUSE_POSTAGE_STAMP_MS=1, reusing existing full MS $_msname"
+    else
+      echo "REUSE_POSTAGE_STAMP_MS=0 or $_msname does not exist, remaking"
+      make_full_ssms $srcname
+    fi
+    extract_ss_ccm $srcname $*  #NB: this also sets up $SSCCM to the proper path
+    # insert source -- note how dE tag gets propagated
+    if [ "$UPDATE_POSTAGE_STAMP_LSM" != "0" ]; then
+      echo $TIGGER_CONVERT $LSM $LSM -f --remove-source "$srcname*" --add-brick $srcname:${SSCCM}-cc.fits:$pad${_dE}brick
+      $TIGGER_CONVERT $LSM $LSM -f --remove-source "$srcname*" --add-brick $srcname:${SSCCM}-cc.fits:$pad${_dE}brick
+    fi
+  done
+}
