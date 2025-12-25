@@ -1,0 +1,1721 @@
+// Copyright 2025 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//      https://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+
+syntax = "proto3";
+
+package safari_sdk.ui;
+
+import "safari_sdk/protos/ui/robot_state.proto";
+import "safari_sdk/protos/ui/robot_types.proto";
+import "safari_sdk/protos/ui/xemb.proto";
+
+message RuiMessageList {
+  // Ordered messages.
+  repeated RuiMessage messages = 1;
+}
+
+message RuiMessage {
+  string message_id = 1;  // This is actually just 128 bit int.
+
+  // The time, in unix nanos since the epoch, of the sending of this message.
+  // This is independent of any other timestamps in the payload.
+  sfixed64 sent_timestamp_nsec = 7;
+
+  oneof message {
+    XembMessage xemb_message = 2;
+    UIMessage ui_message = 3;
+    TaskMessage task_message = 4;
+    TaskOperatorMessage task_operator_message = 5;
+    TeleopMessage teleop_message = 6;
+  }
+}
+
+// Next ID: 58
+message UIMessage {
+  oneof message {
+    // Console commands always give back a console response, but this is async.
+    string console_command = 1;
+    string active_layout = 2;
+    Runscript runscript_command = 3;
+
+    // Display something on the RoboticsUI console.
+    string console_data = 4;
+    ObjectCreateOrUpdateRequest object_create_or_update_request = 11;
+    ObjectReparentRequest object_reparent_request = 12;
+    ObjectDeleteRequest object_delete_request = 13;
+    ClearObjectsRequest clear_objects_request = 14;
+    ClearGuiRequest clear_gui_request = 26;
+    RemoveGuiElementRequest remove_gui_element_request = 29;
+
+    // UI Elements.
+    ButtonCreateRequest button_create_request = 5;
+    ButtonPressedEvent button_pressed_event = 7;
+    ButtonReleasedEvent button_released_event = 45;
+    DialogCreateRequest dialog_create_request = 8;
+    DialogPressedEvent dialog_pressed_event = 10;
+    PromptCreateRequest prompt_create_request = 17;
+    PromptPressedEvent prompt_pressed_event = 18;
+    DropdownCreateRequest dropdown_create_request = 19;
+    DropdownPressedEvent dropdown_pressed_event = 20;
+    ChatCreateRequest chat_create_request = 21;
+    ChatPressedEvent chat_pressed_event = 22;
+    AddChatLine add_chat_line = 23;
+    SplashScreenRequest splash_screen_request = 24;
+    ImageWindowRequest image_window_request = 25;
+    TextCreateOrUpdateRequest text_create_or_update_request = 27;
+    EmbodyRequest embody_request = 30;
+    EmbodyResponse embody_response = 31;
+    LoginCreateRequest login_create_request = 32;
+    SetupHeaderRequest setup_header_request = 33;
+    GuiElementValueRequest gui_element_value_request = 37;
+    GuiElementValueResponse gui_element_value_response = 38;
+    FormCreateRequest form_create_request = 41;
+    FormPressedEvent form_pressed_event = 42;
+    HoverReceivedEvent hover_received_event = 47;
+    AlertCreateRequest alert_create_request = 51;
+    AlertRemoveRequest alert_remove_request = 52;
+    AlertClearRequest alert_clear_request = 53;
+    SetMinimizedRequest set_minimized_request = 54;
+    RowCreateRequest row_create_request = 55;
+    ToggleCreateRequest toggle_create_request = 56;
+    TogglePressedEvent toggle_pressed_event = 57;
+
+    // Object importing.
+    CheckFileCacheRequest check_file_cache_request = 34;
+    CheckFileCacheResponse check_file_cache_response = 35;
+    UploadFileRequest upload_file_request = 36;
+    UploadKinematicTreeRobotRequest upload_kinematic_tree_robot_request = 39;
+    UploadKinematicTreeRobotResponse upload_kinematic_tree_robot_response = 40;
+    GetResourceRequest get_resource_request = 48;
+    GetResourceResponse get_resource_response = 49;
+
+    // Request to receive a Pong message.
+    Ping ping = 15;
+
+    // Reply to a Ping message.
+    Pong pong = 16;
+
+    // Request to register a remote command.
+    RegisterRemoteCommand register_remote_command = 43;
+
+    // Request to unregister a remote command.
+    UnregisterRemoteCommand unregister_remote_command = 44;
+
+    // Request to register the client name in RUI server.
+    RegisterClientName register_client_name = 46;
+
+    // Reports the version of the RoboticsUI connected to. Sent only once
+    // upon connection.
+    VersionReport version_report = 50;
+  }
+
+  reserved 6, 9, 28;
+}
+
+// Next ID: 13
+message UISpec {
+  // The behavior of the element: modal, nonmodal, persistent, header, or vr.
+  UIMode mode = 5;
+
+  // The position of the element. Note that modal elements are always centered,
+  // so x and y are ignored.
+  float x = 1;  // Values from 0.0 to 1.0 are in screen width fraction, values
+                // greater than 1.0 are in pixels and converted to int.
+
+  float y = 2;  // Values from 0.0 to 1.0 in screen height fraction, values
+                // greater than 1.0 are in pixels and converted to int.
+
+  // The size of the element.
+  float width = 3;  // Values from 0.0 to 1.0 in screen width fraction, values
+                    // greater than 1.0 are in pixels and converted to int.
+
+  float height = 4;  // Values from 0.0 to 1.0 in screen height fraction, values
+                     // greater than 1.0 are in pixels and converted to int.
+
+  // The background color of the element.
+  Color background_color = 6;  // (Only on text and button elements currently)
+
+  // Whether the element is disabled (non-interactable).
+  bool disabled = 7;  // (Only on button elements currently)
+
+  // The maximum font size of the text.
+  // Default font size in Unity is 14.
+  // Alternative to using rich text tags on text elements
+  int32 font_size = 8;  // (Only on text and button elements currently)
+
+  // For elements that appear in 3D space, the transform of the element.
+  UITransform transform = 9;
+
+  // The hover text of the element.
+  string hover_text = 10;
+
+  // Whether the window is minimized. Only supported for UIMode.UIMODE_NONMODAL.
+  bool minimized = 11;
+
+  // Whether the window should close when the submit button is pressed.
+  bool persist_on_submit = 12;
+}
+
+// A color as floating point values.
+message Color {
+  float red = 1;  // Red value in [0, 1] range.
+
+  float green = 2;  // Green value in [0, 1] range.
+
+  float blue = 3;  // Blue value in [0, 1] range.
+
+  float alpha = 4;  // Alpha value in [0, 1] range.
+}
+
+enum UIMode {
+  UIMODE_UNKNOWN = 0;
+
+  // A modal element is one that is centered and remains on-screen until the
+  // user dismisses the element, usually by pressing one of the element's
+  // buttons. No other UI element can be interacted with by the user until the
+  // modal element is dismissed.
+  UIMODE_MODAL = 1;
+
+  // A nonmodal element is one that remains on-screen until the user dismisses
+  // the element, usually by pressing one of the element's buttons.
+  UIMODE_NONMODAL = 2;
+
+  // A persistent element is one that remains on-screen. The user cannot
+  // dismiss the element.
+  UIMODE_PERSISTENT = 3;
+
+  // A header element is one that is displayed in the header space. The user
+  // cannot dismiss the element.
+  UIMODE_HEADER = 5;
+
+  // A VR element is one that is displayed in 3D space in the user's visual
+  // range in VR mode, typically interactable with virtual hands.
+  UIMODE_VR = 6;
+
+  // A UIMODE_VRCAMERA element is a special case of UIMODE_VR element that is
+  // automatically attached to the VR camera. It is commonly used to display
+  // info in the user's visual range. Buttons in this mode are still
+  // interactable with virtual hands.
+  UIMODE_VRCAMERA = 7;
+}
+
+message ButtonCreateRequest {
+  // Note: In apps like Resonite, the size of the text is scaled to the
+  // width of the button. We could do that too, but it looks... messy.
+  //
+  // Alternative: let the label determine the width, and return the button's
+  // actual width in the response.
+
+  UISpec spec = 7;
+
+  // The button_id that the RoboticsUI will use to report the button's events
+  // with. You can add a prefix with a colon (e.g. 'myprefix:myname') that
+  // you can then use with the ClearObjectsRequest or ClearGuiRequest to delete
+  // only objects with a given prefix.
+  string button_id = 6;
+
+  reserved 1, 2, 3, 4;
+
+  // The label inside the button.
+  string label = 5;
+
+  // Any keyboard shortcut to bind to the button.
+  //
+  // Shortcuts do not trigger their bound buttons when in modal dialogs or when
+  // a text input is focused.
+  //
+  // Keyboard shortcut definitions
+  // are case insensitive, and follow the specification in VSCode
+  // (https://code.visualstudio.com/docs/getstarted/keybindings#_accepted-keys).
+  //
+  // A keyboard shortcut is defined by the following mini-grammar:
+  //
+  //   shortcut := modifier* key ;
+  //   modifier := "alt+" | "ctrl+" | "shift+" ;
+  //   key := alphakey | functionkey | symbolkey | otherkey ;
+  //   alphakey := [a-z0-9] ;
+  //   functionkey := "f1" | "f2" | ... | "f19" ;
+  //   symbolkey := [-`=;',./\[\]\\'] ;
+  //   numpadkey := "numpad0" | "numpad1" | ... | "numpad9"
+  //     | "numpad_multiply" | "numpad_divide" | "numpad_add"
+  //     | "numpad_subtract" | "numpad_separator" ;
+  //   otherkey := "left" | "up" | "right" | "down"
+  //     | "pageup" | "pagedown" | "end" | "home"
+  //     | "tab" | "enter" | "escape" | "space" | "backspace" | "delete"
+  //     | "pausebreak" | "capslock" | "insert" ;
+  repeated string shortcut = 8;
+}
+
+// Event for when the user presses a button.
+message ButtonPressedEvent {
+  string button_id = 1;
+}
+
+// Event for when the user releases a button. For 2D buttons, this occurs at the
+// same time as the button pressed event. For 3D buttons, this occurs when the
+// user exits the button's trigger region.
+message ButtonReleasedEvent {
+  string button_id = 1;
+}
+
+// Creates a dialog on RoboticsUI. The given buttons are the dialog choices.
+message DialogCreateRequest {
+  UISpec spec = 5;
+
+  // The dialog_id that the RoboticsUI will use to report the dialog's results
+  // with. You can add a prefix with a colon (e.g. 'myprefix:myname') that
+  // you can then use with the ClearObjectsRequest or ClearGuiRequest to delete
+  // only objects with a given prefix.
+  string dialog_id = 3;
+  string title = 4;  // The title of the dialog window.
+
+  string msg = 1;  // The text of the dialog.
+
+  repeated string buttons = 2;  // The text of the buttons to show as choices.
+}
+
+message DialogPressedEvent {
+  string dialog_id = 1;
+  string choice = 2;  // Which button was pressed.
+}
+
+// Creates a window with some explanatory text, a text area, and a submit
+// button.
+message PromptCreateRequest {
+  UISpec spec = 5;
+
+  // The prompt_id that the RoboticsUI will use to report the prompt's results
+  // with. You can add a prefix with a colon (e.g. 'myprefix:myname') that
+  // you can then use with the ClearObjectsRequest or ClearGuiRequest to delete
+  // only objects with a given prefix.
+  string prompt_id = 1;
+  string title = 2;  // The title of the prompt window.
+
+  string msg = 3;  // The explanatory text.
+
+  string submit_label = 4;  // The text in the submit button.
+
+  // Determines if input field element allows multi-line input.
+  // Can create newlines and edit text easily like a text editor.
+  bool multiline_input = 6;
+
+  // The initial value of the input field.
+  string initial_value = 7;
+
+  // The values to autofill in the input field.
+  repeated string autofill_values = 8;
+}
+
+message PromptPressedEvent {
+  string prompt_id = 1;
+  string input = 2;  // The user's input.
+}
+
+// Creates a dropdown with some explanatory text, and a submit button.
+message DropdownCreateRequest {
+  // The spec for the dropdown. Using a spec with mode UIMODE_MODAL or
+  // UIMODE_NONMODAL creates a window with a dropdown and submit button, while
+  // UIMODE_PERSISTENT creates a dropdown that is outside of a window and always
+  // on-screen.
+  UISpec spec = 6;
+
+  // The dropdown_id that the RoboticsUI will use to report the dropdown's
+  // results with. You can add a prefix with a colon (e.g. 'myprefix:myname')
+  // that you can then use with the ClearObjectsRequest or ClearGuiRequest to
+  // delete only objects with a given prefix.
+  string dropdown_id = 1;
+  string title = 2;  // The title of the dropdown window.
+
+  string msg = 3;  // The explanatory text.
+
+  repeated string choices = 4;  // The choices in the dropdown.
+
+  string submit_label = 5;  // The text in the submit button.
+
+  // The initial value selected in the dropdown. Defaults to the first choice.
+  string initial_value = 7;
+
+  // Whether the dropdown allows multiple choices to be selected.
+  bool multi_select = 8;
+
+  // If multi_select is true, the initial values selected in the dropdown.
+  repeated string initial_values = 9;
+
+  // Keyboard shortcut bindings to choices in the dropdown. The key is the
+  // shortcut, and the value is the choice. Shortcuts trigger the bound choice
+  // to become selected. For multi-select dropdowns, the bound choice is added
+  // to the list of selected choices.
+  //
+  // Shortcuts do not trigger their bound choices when in modal dialogs or when
+  // a text input is focused.
+  //
+  // Keyboard shortcut definitions
+  // are case insensitive, and follow the specification in VSCode
+  // (https://code.visualstudio.com/docs/getstarted/keybindings#_accepted-keys).
+  //
+  // A keyboard shortcut is defined by the following mini-grammar:
+  //
+  //   shortcut := modifier* key ;
+  //   modifier := "alt+" | "ctrl+" | "shift+" ;
+  //   key := alphakey | functionkey | symbolkey | otherkey ;
+  //   alphakey := [a-z0-9] ;
+  //   functionkey := "f1" | "f2" | ... | "f19" ;
+  //   symbolkey := [-`=;',./\[\]\\'] ;
+  //   numpadkey := "numpad0" | "numpad1" | ... | "numpad9"
+  //     | "numpad_multiply" | "numpad_divide" | "numpad_add"
+  //     | "numpad_subtract" | "numpad_separator" ;
+  //   otherkey := "left" | "up" | "right" | "down"
+  //     | "pageup" | "pagedown" | "end" | "home"
+  //     | "tab" | "enter" | "escape" | "space" | "backspace" | "delete"
+  //     | "pausebreak" | "capslock" | "insert" ;
+  map<string, string> shortcuts = 10;
+}
+
+message DropdownPressedEvent {
+  string dropdown_id = 1;
+  string choice = 2;  // The chosen dropdown element.
+
+  // The chosen dropdown elements of the multi-select dropdown.
+  repeated string choices = 3;
+}
+
+// Creates a chat window with a scrollable chat history, a text area for user
+// input, and a submit button. The size given in spec determines how many lines
+// are displayed in the chat history area.
+//
+// The user can also press the enter key in the text area, which is equivalent
+// to pressing the submit button.
+message ChatCreateRequest {
+  UISpec spec = 4;
+
+  // The chat_id that the RoboticsUI will use to report the chat's results
+  // with. You can add a prefix with a colon (e.g. 'myprefix:myname') that
+  // you can then use with the ClearObjectsRequest or ClearGuiRequest to delete
+  // only objects with a given prefix.
+  string chat_id = 1;
+  string title = 2;  // The title of the chat window.
+
+  string submit_label = 3;  // The text in the submit button.
+  bool interactive = 5;     // Whether the user can input text into the chat.
+}
+
+// Adds text at the bottom of the chat history.
+message AddChatLine {
+  string chat_id = 1;
+  string text = 2;
+}
+
+// Event for when the user presses enter or the submit button.
+message ChatPressedEvent {
+  string chat_id = 1;
+  string input = 2;  // The user's input.
+}
+
+// Displays a splash screen, centered. The image must be JPEG-encoded. Other
+// encodings result in undefined behavior.
+//
+// The splash screen may be dismissed by the user by closing the splash screen
+// window. Otherwise, the splash screen goes away after the given timeout.
+message SplashScreenRequest {
+  safari_sdk.ui.CameraImage jpeg_image = 1;
+  // The framework defaults this to 5 seconds.
+  float timeout_seconds = 2;
+
+  UISpec spec = 3;
+}
+
+// Creates a window to display an image.
+// Can be used for either a single image or can be continually updated with
+// new images to display an active camera.
+message ImageWindowRequest {
+  UISpec spec = 1;
+  string title = 2;
+
+  // Required for camera images to continually update the image for the given
+  // sensor_id.
+  // Set to -1 for single image windows.
+  int32 sensor_id = 3;
+
+  // The window ID that the RoboticsUI will use when you want to delete or
+  // re-specify the window. The Python library will default this to
+  // "image_window:{title}" if not specified. This is the ID that can be
+  // used in a RemoveGUIElementRequest.
+  string window_id = 4;
+
+  // The image to display. Required for single image windows.
+  // Can be empty for camera images as the image will be updated with messages
+  // sent later.
+  BaseImage image = 5;
+}
+
+message BaseImage {
+  int32 cols = 1;
+  int32 rows = 2;
+  bytes image = 3;
+}
+
+// Creates or updates a text box.
+message TextCreateOrUpdateRequest {
+  // The specification of the element. The mode is ignored; it's always treated
+  // as MODE_PERSISTENT. For updates, if this is not present, the current spec
+  // does not change.
+  //
+  // Note that it is up to the client to organize text boxes in relation to
+  // other elements. For example, there is no "vertical layout group", so if
+  // there is a column of text boxes one right after the other, then changing
+  // the height of the topmost text box will not cause the other text boxes to
+  // move up or down.
+  UISpec spec = 1;
+
+  // The ID for later reference to. If the ID does not yet exist, this message
+  // will create a text box with the ID. If the ID does exist, this message
+  // will update the text box with that ID. You can add a prefix with a colon
+  // (e.g. 'myprefix:myname') that you can then use with the ClearObjectsRequest
+  // or ClearGuiRequest to delete only objects with a given prefix.
+  string text_id = 2;
+
+  // The text to set in the text box. Some HTML-like tags are supported through
+  // TextMeshPro's Rich Text. See
+  // https://docs.unity3d.com/Packages/com.unity.textmeshpro@4.0/manual/RichText.html
+  // for an overview, and
+  // http://digitalnativestudios.com/textmeshpro/docs/rich-text/
+  // for a list of supported tags.
+  //
+  // Text will size down according to size of box
+  string text = 3;
+
+  // Text becomes scrollable and adds a scrollbar if there is not enough space
+  // in its bounding box instead of being sized down.
+  // Meant for long amount of text.
+  bool scrollable = 4;
+}
+
+// Removes a Gui element.
+message RemoveGuiElementRequest {
+  string element_id = 1;
+}
+
+// Creates or updates an object in the RoboticsUI. For global/local transform,
+// if a position is not specified, the position is <0, 0, 0>. If a rotation
+// is not specified, the rotation is identity. If a scale is not specified,
+// it is <1, 1, 1>.
+//
+// Next ID: 20
+message ObjectCreateOrUpdateRequest {
+  // The object_id for later reference to. You can add a prefix with a colon
+  // (e.g. 'myprefix:myname') that you can then use with the ClearObjectsRequest
+  // or ClearGuiRequest to delete only objects with a given prefix.
+  string object_id = 1;
+
+  // The object_id to parent this object to, or root if not specified.
+  string parent_id = 4;
+  // Optional part name of the parent object to parent this object to.
+  string parent_part = 19;
+
+  // The type of the object to create.
+  ObjectType object_type = 2;
+
+  oneof message {
+    // The position, rotation, and scale (in world-referenced coordinates) that
+    // the object will be placed with. More formally, this is
+    // world_origin_transform_object
+    UITransform global_transform = 3;
+
+    // The position, rotation, and scale (in parent-referenced coordinates) that
+    // the object will be placed with. More formally, this is
+    // parent_transform_object
+    UITransform local_transform = 5;
+  }
+
+  // The robot or client id that is associated with this ObjectCreateRequest.
+  // it is either ClientID for XEI related projects
+  // or robot_id for custom projects that use symbolic naming.
+  oneof robot_id_or_client_id {
+    string robot_id = 7;
+    safari_sdk.ui.ClientID client_id = 8;
+  }
+
+  // Additional parameters to pass to the object. We prefer that you don't fill
+  // this field in yourself, as any typo will result in unexpected behavior.
+  // Instead, use roboticsui.py's specific functions which have the keys as
+  // parameters.
+  //
+  // If you are not updating parameters, you can leave this map empty. An empty
+  // map will not overwrite any parameters.
+  //
+  // If you are updating parameters, you must also specify a global or local
+  // transform.
+  map<string, string> params = 6;
+
+  oneof object_params {
+    // For object type STEREO_IMAGE_QUAD.
+    StereoscopicImageSensors stereoscopic_image_sensors = 9;
+    // For object type MONOCULAR_IMAGE_SENSOR.
+    MonocularImageSensor mono_image_sensor = 17;
+    // For object type BOX.
+    BoxParams box_params = 10;
+    // For object type INPUT_MANUS_GLOVES.
+    ManusGlovesParams manus_gloves_params = 11;
+    // For object type INPUT_VR_CONTROLLER.
+    VRControllerParams vr_controller_params = 12;
+    // For object type UPLOADED_OBJECT.
+    UploadedObjectParams uploaded_object_params = 13;
+    // For object type ROBOT_KINEMATIC_TREE.
+    KinematicTreeRobotParams kinematic_tree_robot_params = 14;
+    // For object type ROBOT_PSEUDO_EMBODIABLE.
+    EmbodiableRobotParams embodiable_robot_params = 18;
+  }
+
+  // Material specs for the object or object parts.
+  repeated MaterialSpec material_specs = 16;
+
+  reserved 15;
+}
+
+// Specifies the material of an object, which can be basic material by color,
+// metallic and smoothness, or one of the Unity materials in
+// RoboticsUI-Unity/Assets/Materials.
+message MaterialSpec {
+  // Unity materials in RoboticsUI-Unity/Assets/Materials.
+  enum UnityMaterial {
+    // The default material in grey.
+    DEFAULT_LIT = 0;
+  }
+
+  oneof message {
+    UnityMaterial unity_material = 5;
+    BasicMaterial basic_material = 6;
+  }
+
+  // The names of the parts of the object that this material applies to. If
+  // empty, the material applies to the entire object.
+  repeated string part_names = 7;
+  reserved 1, 2, 3, 4;
+}
+
+// Basic material defined by color, metallic and smoothness.
+message BasicMaterial {
+  // The color of the object, as red, green, blue, alpha values in [0, 1] range.
+  Color color = 1;
+
+  // The metallic of the object, in [0, 1] range.
+  float metallic = 2;
+
+  // The smoothness of the object, in [0, 1] range.
+  float smoothness = 3;
+}
+
+// Sensor images that are displayed in a stereoscopic view. This works like
+// image window, so you can update them using xemb_message.robot_state.
+message StereoscopicImageSensors {
+  int32 left_sensor_id = 1;
+  int32 right_sensor_id = 2;
+
+  // Adjusts the left image vertically. Clipped to +/-0.5.
+  // Positive values move the left image down.
+  // Image is wrapped around.
+  float left_y_offset = 3;
+}
+
+message MonocularImageSensor {
+  int32 sensor_id = 1;
+}
+
+message BoxParams {
+  safari_sdk.ui.Position size = 1;
+}
+
+// Parameters for INPUT_MANUS_GLOVES.
+message ManusGlovesParams {
+  // Where the wrists of the Manus glove models get attached to.
+  ManusGlovesTrackingPoint tracking_point = 1;
+
+  // Whether the hand mesh is visible in the RoboticsUI.
+  bool mesh_visible = 2;
+
+  // Whether the skeleton and fingertips are visible in the RoboticsUI.
+  bool skeleton_visible = 3;
+}
+
+message VRControllerParams {
+  // The type of the controller.
+  VRControllerType controller_type = 1;
+}
+
+// Parameters for instantiating an uploaded object. An instantiation can fail
+// under the following conditions:
+// - The mime_type of the object is not supported.
+// - The data of the object does not correspond to the mime_type.
+// - The data, even if of the correct mime_type, just doesn't import using the
+//   RoboticsUI's importer library.
+//
+// For now the RoboticsUI only supports STL files (mime type "model/stl").
+message UploadedObjectParams {
+  // The hash of the file that was uploaded.
+  bytes hash = 1;
+
+  // The mime type of the file that was uploaded. This is how the RoboticsUI
+  // will attempt to interpret the file data.
+  string mime_type = 2;
+
+  // The resource locator for the uploaded object. This is exclusive of hash and
+  // mime_type, which are to be deprecated. The object need not have been
+  // uploaded first, and if not, the UI will request the upload using this
+  // locator.
+  ResourceLocator resource_locator = 3;
+}
+
+message KinematicTreeRobotParams {
+  // The ID of the kinematic tree robot, having been previously uploaded via
+  // upload_kinematic_tree_robot.
+  string kinematic_tree_robot_id = 1;
+}
+
+// Parameters for instantiating a pseudo-embodied robot that can be embodied
+// into. The origin and head objects must have been created previously by the
+// client. If these objects are deleted before the pseudo-embodied robot is
+// deleted, the behavior is undefined.
+//
+// The robot itself has no visual representation, and the position, rotation,
+// and scale of the robot have no effect.
+//
+// Note that the VR headset is only embodied with a EmbodyRequest. Moving the
+// head or origin objects after an EmbodyRequest do not take effect until a
+// subsequent EmbodyRequest.
+message EmbodiableRobotParams {
+  // The object ID of the origin of the robot.
+  string origin_object_id = 1;
+
+  // The object ID of the head of the robot.
+  string head_object_id = 2;
+}
+
+// Where the wrists of the Manus glove models get attached to. No offset is
+// added to the tracking point. For example, VR controllers generally have
+// their positions tracked towards the front, so if you're holding controllers
+// with the gloves, the wrists will be more forward than expected. The client
+// must determine what the correct offset is, and adjust for it.
+enum ManusGlovesTrackingPoint {
+  // Manus gloves are just stuck to the floor.
+  MANUS_GLOVES_TRACKING_POINT_NONE = 0;
+  // Manus gloves are attached to the VR controllers.
+  MANUS_GLOVES_TRACKING_POINT_CONTROLLERS = 1;
+  // Manus gloves are attached to wrist trackers.
+  MANUS_GLOVES_TRACKING_POINT_WRIST_TRACKERS = 2;
+}
+
+// Reparents an object from the RoboticsUI to another object. The object's
+// global transform is not affected, that is, it retains its original position,
+// rotation, and scale. This can have strange effects if the parent has
+// non-uniform scale.
+//
+// If the parent_id is not specified, then the object becomes parented to root.
+// Optional parent_part can be specified to parent the object to a specific part
+// of the parent object.
+message ObjectReparentRequest {
+  string object_id = 1;
+  string parent_id = 2;
+  string parent_part = 3;
+}
+
+// Deletes an object from the RoboticsUI, if it exists. All children of the
+// object are also deleted.
+message ObjectDeleteRequest {
+  string object_id = 1;
+}
+
+// Deletes all gui objects/dialogs from the RoboticsUI.
+message ClearGuiRequest {
+  // If set, will only delete gui objects with this prefix. Otherwise, clears
+  // all gui objects.
+  string prefix = 1;
+}
+
+// Deletes all objects from the RoboticsUI.
+message ClearObjectsRequest {
+  // If set, will only delete objects with this prefix. Otherwise, clears all
+  // objects.
+  string prefix = 1;
+}
+
+// Request to send a Pong response.
+message Ping {}
+
+// Response to a Ping message.
+message Pong {}
+
+message UITransform {
+  safari_sdk.ui.Position position = 1;
+  safari_sdk.ui.Quaternion rotation = 2;
+  safari_sdk.ui.Position scale = 3;
+}
+
+// 3D object types.
+enum ObjectType {
+  UNKNOWN = 0;
+
+  // A <1,1,1> cube with position at one corner.
+  CUBE_UNIT = 1;
+
+  // A <1,1,1> cube with position in center.
+  CUBE_CENTERED = 2;
+
+  // A cylinder with position in center.
+  CYLINDER = 3;
+
+  // A <1,1> quad with position in center.
+  QUAD = 4;
+
+  // A radius 1 sphere with position in center.
+  SPHERE = 5;
+
+  // An XYZ coordinate gnomon with position at its origin.
+  GNOMON = 6;
+
+  // A 3D cross with position in center.
+  AXIS_CROSS = 7;
+
+  // A quad displaying one image to the left eye, and one image to the right
+  // eye. Such a quad is by default 256x256 and gray until the image is
+  // updated via the cameras in xemb_message.robot_state.
+  //
+  // You must specify StereoscopicImageSensors in the request.
+  STEREO_IMAGE_QUAD = 8;
+
+  // A quad displaying stereoscopic images from a USB webcam.
+  STEREO_USB_WEBCAM = 118;
+
+  // A quad displaying stereoscopic images from a GStreamer pipeline.
+  STEREO_GST_RECEIVER = 119;
+
+  // A quad displaying a single image. Such a quad is by default 256x256 and
+  // gray until the image is updated via the cameras in
+  // xemb_message.robot_state.
+  //
+  // You must specify MonocularImageSensor in the request.
+  MONO_IMAGE_QUAD = 116;
+
+  // A box (rectangular prism), centered at the given point.
+  //
+  // You must specify BoxParams in the request.
+  BOX = 9;
+
+  // An abstract bimanual robot with a cube for a head and cubes for hands.
+  // The head has unlimited 3-DOF rotation and is 1.7m above the ground.
+  ROBOT_ABSTRACT_BIMANUAL = 100;
+
+  // A Meta robot.
+  ROBOT_META = 101;
+
+  // A Kuka robot.
+  ROBOT_KUKA = 102;
+
+  // A UR5 robot.
+  ROBOT_UR5 = 103;
+
+  // An XArm 6 robot.
+  ROBOT_XARM6 = 104;
+
+  // A Biarm Kuka robot.
+  ROBOT_BIARM_KUKA = 105;
+
+  // A motor rotation display.
+  ROBOT_MOTOR_ROTATION_DISPLAY = 106;
+
+  // A robot defined by a predefined Mujoco asset bundle.
+  // The params to the ObjectCreateOrUpdateRequest are:
+  // - bundle_file: The local path to the bundle file.
+  // - asset_name: The name in the bundle for the robot prefab.
+  ROBOT_MUJOCO_ASSET_BUNDLE = 107;
+
+  // A bi-arm aloha robot.
+  ROBOT_ALOHA = 108;
+
+  // A Psyonic Ability right hand.
+  ROBOT_PSYONIC_ABILITY_RIGHT_HAND = 109;
+
+  // A Psyonic Ability left hand.
+  ROBOT_PSYONIC_ABILITY_LEFT_HAND = 110;
+
+  // A Franka Panda robot.
+  ROBOT_FRANKA_PANDA = 111;
+
+  // An Omga Star Robot cell.
+  ROBOT_OMEGA_STAR = 112;
+
+  // An Aloha robot leader.
+  ROBOT_ALOHA_LEADER = 113;
+
+  // An Aloha robot follower.
+  ROBOT_ALOHA_FOLLOWER = 114;
+
+  // A robot described by a kinematic tree.
+  ROBOT_KINEMATIC_TREE = 115;
+
+  // A pseudo-robot that is embodiable.
+  ROBOT_PSEUDO_EMBODIABLE = 117;
+
+  // An input gamepad device which yields its raw values.
+  INPUT_GAMEPADRAW = 200;
+
+  // An input teleop gamepad device.
+  INPUT_TELEOP_GAMEPAD_RAW = 201;
+
+  // An input cartesian gamepad device.
+  INPUT_TELEOP_GAMEPAD_CARTESIAN = 202;
+
+  // An input gamepad device for controlling a Meta robot.
+  INPUT_TELEOP_GAMEPAD_META = 203;
+
+  // An XYZ coordinate gnomon with position at its origin, that can
+  // be dragged and rotated.
+  INPUT_TELEOP_GNOMON = 204;
+
+  // A set of Manus gloves.
+  INPUT_MANUS_GLOVES = 205;
+
+  // A VR controller. Specify the type of controller in the params. This will
+  // add position and rotation tracking for the controller, as well as buttons
+  // and axes, to the TeleopMessage.
+  INPUT_VR_CONTROLLER = 206;
+
+  // An input touch volume.
+  INPUT_TOUCH_VOLUME = 207;
+
+  // A set of StretchSense gloves.
+  INPUT_STRETCHSENSE_GLOVES = 208;
+
+  // A set of UDCap gloves.
+  INPUT_UDCAP_GLOVES = 209;
+
+  // A notification warning sign.
+  NOTIFICATION_WARNING_SIGN = 300;
+
+  // A traffic light.
+  TRAFFIC_LIGHT = 301;
+
+  // A simple humanoid.
+  SIMPLE_HUMANOID = 302;
+
+  // A dialog jointangle pendant.
+  DIALOG_JOINTANGLE_PENDANT = 400;
+
+  // An object uploaded via UploadObjectRequest, or what is already in the
+  // cache.
+  UPLOADED_OBJECT = 500;
+}
+
+message Runscript {
+  string runscript_command = 1;
+}
+
+message TaskMessage {
+  string task_name = 1;
+  string task_description = 2;
+  string task_type = 3;
+  string task_instruction = 4;
+  string task_time_remaining = 5;
+  string policy_name = 6;
+  string policy_checkpoint = 7;
+}
+
+message TaskOperatorMessage {
+  enum OperatorMessage {
+    OPERATOR_MESSAGE_UNKNOWN = 0;
+    OPERATOR_MESSAGE_SUCCESS = 1;
+    OPERATOR_MESSAGE_FAILURE = 2;
+    OPERATOR_MESSAGE_IGNORE = 3;
+  }
+
+  OperatorMessage operator_message = 1;
+  string operator_message_annotation = 2;
+}
+
+message GamepadRawMessage {
+  repeated float axes = 1;
+  repeated bool buttons = 2;
+  map<string, float> named_values = 3;
+}
+
+// Message for buttons on a controller. True = pressed, False = not pressed.
+message ControllerButtons {
+  repeated bool buttons = 1;
+}
+
+// Message for analog axes on a controller, from 0 to 1, where 0 is the center
+// or neutral position.
+message ControllerAxes {
+  repeated float axes = 1;
+}
+
+// Next ID: 26
+message RawJoints {
+  // Map of part name to joint state. If a part name is not one of the standard
+  // part names, it can be added to this map. However, you should strive to use
+  // the standard part names as much as possible.
+  map<string, safari_sdk.ui.JointState> generic = 24;
+
+  // Arms.
+
+  // Right arm (also used for robots with only one arm).
+  safari_sdk.ui.JointState right_arm = 1;
+
+  // Left arm
+  safari_sdk.ui.JointState left_arm = 2;
+
+  // Grippers.
+
+  // The gripper parts are used for simple grippers that have a single degree
+  // for the whole hand.
+  safari_sdk.ui.JointState right_gripper = 3;
+
+  // Left gripper state.  Not used with one-arm robots.
+  safari_sdk.ui.JointState left_gripper = 4;
+
+  // Finger parts are used for complex grippers where each finger is controlled
+  // independently.
+  //
+  // Grippers with 1 finger should use "thumb".
+  // Grippers with 2 fingers should use "thumb" and "index_finger".
+  // Grippers with 3 fingers should use "thumb", "index_finger", and
+  //  "middle_finger".
+  // Grippers with 4 fingers should use "thumb", "index_finger",
+  //  "middle_finger", and "ring_finger".
+  // Additional fields may be added if needed for >5 finger grippers.
+
+  // Right thumb state.
+  safari_sdk.ui.JointState right_gripper_thumb = 5;
+
+  // Right index finger state.
+  safari_sdk.ui.JointState right_gripper_index_finger = 6;
+
+  // Right middle finger state.
+  safari_sdk.ui.JointState right_gripper_middle_finger = 7;
+
+  // Right ring finger state.
+  safari_sdk.ui.JointState right_gripper_ring_finger = 8;
+
+  // Right pinkie finger state.
+  safari_sdk.ui.JointState right_gripper_pinkie_finger = 9;
+
+  // Left thumb state.
+  safari_sdk.ui.JointState left_gripper_thumb = 10;
+
+  // Left index finger state.
+  safari_sdk.ui.JointState left_gripper_index_finger = 11;
+
+  // Left middle finger state.
+  safari_sdk.ui.JointState left_gripper_middle_finger = 12;
+
+  // Left ring finger state.
+  safari_sdk.ui.JointState left_gripper_ring_finger = 13;
+
+  // Left pinkie finger state.
+  safari_sdk.ui.JointState left_gripper_pinkie_finger = 14;
+
+  // The wheels of the robot.
+
+  // Right rear wheel state
+  safari_sdk.ui.JointState right_rear_wheel = 15;
+
+  // Left rear wheel state
+  safari_sdk.ui.JointState left_rear_wheel = 16;
+
+  // Right front wheel state
+  safari_sdk.ui.JointState right_front_wheel = 17;
+
+  // Left front wheel state
+  safari_sdk.ui.JointState left_front_wheel = 18;
+
+  // The legs of the robot.
+
+  // Right rear leg state (right leg for 2-legged robots)
+  safari_sdk.ui.JointState right_rear_leg = 19;
+
+  // Left rear leg state (left leg for 2-legged robots)
+  safari_sdk.ui.JointState left_rear_leg = 20;
+
+  // Right front leg state (not used in 2-legged robots)
+  safari_sdk.ui.JointState right_front_leg = 21;
+
+  // Left front leg state (not used in 2-legged robots)
+  safari_sdk.ui.JointState left_front_leg = 22;
+
+  // The head.
+  safari_sdk.ui.JointState head = 23;
+
+  // The torso.
+  safari_sdk.ui.JointState torso = 25;
+}
+
+// Next ID: 17
+message TeleopMessage {
+  // The device this data comes from. If this comes from a 3D object created
+  // via ObjectCreateOrUpdateRequest, then this will be the object_id. If this
+  // comes from VR trackers, then this is "vr".
+  string device = 12;
+
+  // The stream within the device this data comes from. This is object-specific.
+  // Most devices will have only one stream.
+  string stream = 13;
+
+  // A simple 6 d-o-f teleop message (velocity)
+  float x = 1;
+  float y = 2;
+  float z = 3;
+  float rx = 4;
+  float ry = 5;
+  float rz = 6;
+  float move_enabled = 7;
+  bool reset = 8;
+  GamepadRawMessage gprawmessage = 9;
+
+  // Message for when an input commands raw joint states. Can be used for
+  // puppeteering rigs, or for sending the joint states of hand models.
+  RawJoints raw_joints = 10;
+
+  // Message for when the poses of tracked objects are sent. Generally used in
+  // VR. The key is the name of a TrackedObjectType (because enums cannot be
+  // used as keys: http://yaqs/5913573754929152).
+  map<string, TrackedObject> tracked_objects = 11;
+
+  // The axis values for a controller. The key is the value of the
+  // VRControllerType enum. The ordering of values in the ControllerAxes message
+  // is specified by the comments in the VRControllerType enum, and can be
+  // accessed in a friendlier way using the Python roboticsui
+  // controller-specific library.
+  map<int32, ControllerAxes> axis_values = 14;
+
+  // The button values for a controller. The key is the value of the
+  // VRControllerType enum. The ordering of values in the ControllerButtons
+  // message is specified by the comments in the VRControllerType enum, and can
+  // be accessed in a friendlier way using the Python roboticsui
+  // controller-specific library.
+  map<int32, ControllerButtons> button_values = 15;
+
+  // The timestamp of when the data that this message represents was received.
+  sfixed64 frame_timestamp_nsec = 16;
+}
+
+// Specific tracked objects.
+// Next ID: 58
+enum TrackedObjectType {
+  TRACKED_OBJECT_TYPE_UNKNOWN = 0;
+
+  // The VR headset.
+  TRACKED_OBJECT_TYPE_HEADSET = 1;
+
+  // Objects related to the left hand.
+  TRACKED_OBJECT_TYPE_LEFT_WRIST = 2;
+  TRACKED_OBJECT_TYPE_LEFT_PALM = 17;
+  TRACKED_OBJECT_TYPE_LEFT_THUMB_TIP = 3;
+  TRACKED_OBJECT_TYPE_LEFT_INDEX_TIP = 4;
+  TRACKED_OBJECT_TYPE_LEFT_MIDDLE_TIP = 5;
+  TRACKED_OBJECT_TYPE_LEFT_RING_TIP = 6;
+  TRACKED_OBJECT_TYPE_LEFT_PINKIE_TIP = 7;
+
+  // Objects related to the right hand.
+  TRACKED_OBJECT_TYPE_RIGHT_WRIST = 8;
+  TRACKED_OBJECT_TYPE_RIGHT_PALM = 18;
+  TRACKED_OBJECT_TYPE_RIGHT_THUMB_TIP = 9;
+  TRACKED_OBJECT_TYPE_RIGHT_INDEX_TIP = 10;
+  TRACKED_OBJECT_TYPE_RIGHT_MIDDLE_TIP = 11;
+  TRACKED_OBJECT_TYPE_RIGHT_RING_TIP = 12;
+  TRACKED_OBJECT_TYPE_RIGHT_PINKIE_TIP = 13;
+
+  // Vive tracker pucks.
+  TRACKED_OBJECT_TYPE_LEFT_VIVE_PUCK = 14;
+  TRACKED_OBJECT_TYPE_RIGHT_VIVE_PUCK = 15;
+  TRACKED_OBJECT_TYPE_CAMERA = 16;
+  TRACKED_OBJECT_TYPE_LEFT_ELBOW = 19;
+  TRACKED_OBJECT_TYPE_RIGHT_ELBOW = 20;
+  TRACKED_OBJECT_TYPE_LEFT_SHOULDER = 21;
+  TRACKED_OBJECT_TYPE_RIGHT_SHOULDER = 22;
+
+  TRACKED_OBJECT_TYPE_VIVE_PUCK_LEFT_ELBOW = 23;
+  TRACKED_OBJECT_TYPE_VIVE_PUCK_RIGHT_ELBOW = 24;
+  TRACKED_OBJECT_TYPE_VIVE_PUCK_LEFT_FOOT = 25;
+  TRACKED_OBJECT_TYPE_VIVE_PUCK_RIGHT_FOOT = 26;
+  TRACKED_OBJECT_TYPE_VIVE_PUCK_LEFT_SHOULDER = 27;
+  TRACKED_OBJECT_TYPE_VIVE_PUCK_RIGHT_SHOULDER = 28;
+  TRACKED_OBJECT_TYPE_VIVE_PUCK_LEFT_KNEE = 29;
+  TRACKED_OBJECT_TYPE_VIVE_PUCK_RIGHT_KNEE = 30;
+  TRACKED_OBJECT_TYPE_VIVE_PUCK_WAIST = 31;
+  TRACKED_OBJECT_TYPE_VIVE_PUCK_CHEST = 32;
+  TRACKED_OBJECT_TYPE_VIVE_PUCK_CAMERA = 33;
+  TRACKED_OBJECT_TYPE_VIVE_PUCK_KEYBOARD = 34;
+
+  // Xsens trackers.
+  TRACKED_OBJECT_TYPE_XSENS_PELVIS = 35;
+  TRACKED_OBJECT_TYPE_XSENS_L5 = 36;
+  TRACKED_OBJECT_TYPE_XSENS_L3 = 37;
+  TRACKED_OBJECT_TYPE_XSENS_T12 = 38;
+  TRACKED_OBJECT_TYPE_XSENS_T8 = 39;
+  TRACKED_OBJECT_TYPE_XSENS_NECK = 40;
+  TRACKED_OBJECT_TYPE_XSENS_HEAD = 41;
+  TRACKED_OBJECT_TYPE_XSENS_RIGHT_SHOULDER = 42;
+  TRACKED_OBJECT_TYPE_XSENS_RIGHT_UPPER_ARM = 43;
+  TRACKED_OBJECT_TYPE_XSENS_RIGHT_FOREARM = 44;
+  TRACKED_OBJECT_TYPE_XSENS_RIGHT_HAND = 45;
+  TRACKED_OBJECT_TYPE_XSENS_LEFT_SHOULDER = 46;
+  TRACKED_OBJECT_TYPE_XSENS_LEFT_UPPER_ARM = 47;
+  TRACKED_OBJECT_TYPE_XSENS_LEFT_FOREARM = 48;
+  TRACKED_OBJECT_TYPE_XSENS_LEFT_HAND = 49;
+  TRACKED_OBJECT_TYPE_XSENS_RIGHT_UPPER_LEG = 50;
+  TRACKED_OBJECT_TYPE_XSENS_RIGHT_LOWER_LEG = 51;
+  TRACKED_OBJECT_TYPE_XSENS_RIGHT_FOOT = 52;
+  TRACKED_OBJECT_TYPE_XSENS_RIGHT_TOES = 53;
+  TRACKED_OBJECT_TYPE_XSENS_LEFT_UPPER_LEG = 54;
+  TRACKED_OBJECT_TYPE_XSENS_LEFT_LOWER_LEG = 55;
+  TRACKED_OBJECT_TYPE_XSENS_LEFT_FOOT = 56;
+  TRACKED_OBJECT_TYPE_XSENS_LEFT_TOES = 57;
+}
+
+enum VRControllerType {
+  VR_CONTROLLER_TYPE_UNSPECIFIED = 0;
+
+  // Buttons:
+  //  0: Left  A touch
+  //  1: Left  A press
+  //  2: Left  B touch
+  //  3: Left  B press
+  //  4: Left  Thumbstick touch
+  //  5: Left  Thumbstick press
+  //  6: Left  Trigger touch
+  //  7: Left  Trigger press
+  //  8: Left  Grip
+  //  9: Left  Trackpad touch
+  // 10: Right A touch
+  // 11: Right A press
+  // 12: Right B touch
+  // 13: Right B press
+  // 14: Right Thumbstick touch
+  // 15: Right Thumbstick press
+  // 16: Right Trigger touch
+  // 17: Right Trigger press
+  // 18: Right Grip
+  // 19: Right Trackpad touch
+  //
+  // Axes:
+  //  0: Left  Grip force
+  //  1: Left  Trackpad force
+  //  2: Left  Trackpad X
+  //  3: Left  Trackpad Y
+  //  4: Left  Trigger amount
+  //  5: Left  Thumbstick X
+  //  6: Left  Thumbstick Y
+  //  7: Right Grip force
+  //  8: Right Trackpad force
+  //  9: Right Trackpad X
+  // 10: Right Trackpad Y
+  // 11: Right Trigger amount
+  // 12: Right Thumbstick X
+  // 13: Right Thumbstick Y
+  VR_CONTROLLER_TYPE_VALVE_INDEX = 1;
+}
+
+// A tracked object is any 3D object whose position and rotation are tracked.
+// For example, the position and rotation of a Vive tracker.
+message TrackedObject {
+  // The origin against which the transform is defined. For example, if the
+  // tracked object is a fingertip, the origin might be the wrist of that hand.
+  // Or if the tracked object is a head, the origin might be the origin of the
+  // robot.
+  //
+  // This origin is always referenced against world zero on the RoboticsUI.
+  safari_sdk.ui.Transform origin = 1;
+
+  // The transform (position and rotation) of the tracked object.
+  safari_sdk.ui.Transform transform = 2;
+}
+
+// In VR mode, causes the HMD to take on the view of the robot, typically from
+// its head camera. Initially this sets the VR camera's transform to the robot
+// head's transform. Thereafter, any state changes in the robot head's transform
+// are reflected in the VR camera's transform.
+//
+// This is robot-specific, and only works for some robots.
+message EmbodyRequest {
+  // The robot ID to embody into. If empty, "disembodies" the view.
+  string robot_id = 1;
+}
+
+// Response to an EmbodyRequest.
+message EmbodyResponse {
+  // The robot ID that was requested to embody into.
+  string robot_id = 1;
+
+  // Whether the request was successful. A request might fail if the RoboticsUI
+  // is not in VR mode, if the robot is not found, or if the robot does not have
+  // a head camera.
+  bool success = 2;
+
+  // Error message if the request was not successful.
+  string error_message = 3;
+}
+
+// Creates a login/logout cycle that presents the user with a series of UI input
+// elements. While each element of the cycle, including prompt, text, and button
+// is customizable, the user is always presented with the same behavior:
+//
+// 1. Show a modal prompt dialog for login input (user id). The prompt result is
+// provided to the prompt_pressed callback.
+// 2. The input text is shown at the top, along with a "Log out" button. The
+// "Log out" button response is provided to the button_pressed callback.
+// 3. Pressing the "Log out" returns to 1, showing the modal prompt dialog.
+message LoginCreateRequest {
+  // The prompt_id that the RoboticsUI will use to report the prompt's
+  // results with. You can add a prefix with a colon (e.g. 'myprefix:myname')
+  // that you can then use with the ClearObjectsRequest or ClearGuiRequest to
+  // delete only objects with a given prefix.
+  // The default prompt_id is "login:prompt_userid".
+  string prompt_id = 1;
+
+  // The title of the dialog window.
+  // The default prompt_title is "Login".
+  string prompt_title = 2;
+
+  // The message to show in the dialog window.
+  // The default prompt_msg is "Enter user id:".
+  string prompt_msg = 3;
+
+  // The text to show in the submit button.
+  // The default submit_label is "Log in".
+  string submit_label = 4;
+
+  // The spec provided to the prompt dialog window.
+  UISpec prompt_spec = 5;
+
+  // The text_id that the RoboticsUI will use to report the text's
+  // results with. You can add a prefix with a colon (e.g. 'myprefix:myname')
+  // that you can then use with the ClearObjectsRequest or ClearGuiRequest to
+  // delete only objects with a given prefix.
+  // The default text_id is "login:text_userid".
+  string text_id = 6;
+
+  // The spec provided to the text.
+  UISpec text_spec = 7;
+
+  // The button_id that the RoboticsUI will use to report the button's
+  // results with. You can add a prefix with a colon (e.g. 'myprefix:myname')
+  // that you can then use with the ClearObjectsRequest or ClearGuiRequest to
+  // delete only objects with a given prefix.
+  // The default button_id is "login:button_logout".
+  string button_id = 8;
+
+  // The text to show in the logout button.
+  // The default button_label is "Log out".
+  string button_label = 9;
+
+  // The spec provided to the logout button.
+  UISpec button_spec = 10;
+}
+
+// Set up the header in a specific way in the UI.
+message SetupHeaderRequest {
+  // The height of the header.
+  float height = 1;
+
+  // Whether the header is visible.
+  bool visible = 2;
+
+  // Whether the header is collapsible.
+  bool collapsible = 3;
+
+  // Whether the header is expandable.
+  bool expandable = 4;
+
+  // Whether the header automatically scales with the size of the application
+  bool screen_scaling = 5;
+}
+
+// Checks whether the data with the given SHA256 hash is in the RoboticsUI
+// cache. The filename is not checked, but only copied to the response, so that
+// the client can upload that file if it is not in the cache.
+message CheckFileCacheRequest {
+  // The filename (on the client's local disk) containing to the data to check.
+  string filename = 1;
+
+  // The SHA256 hash of the file data to check. This must be the hash of the
+  // data on the client's local disk.
+  bytes hash = 2;
+}
+
+// Response to a CheckFileCacheRequest.
+message CheckFileCacheResponse {
+  // The filename (as was sent in the request) of the data that was checked.
+  string filename = 1;
+
+  // The hash of the file data that was checked.
+  bytes hash = 2;
+
+  // Whether the file data is in the cache.
+  bool in_cache = 3;
+}
+
+// Request from the UI to the client to get a resource. A resource could be
+// any file, but the mime type determines what kind of resource it is, and
+// therefore what data gets returned. See ResourceLocator.mime_type for the
+// supported mime types.
+//
+// Although a UI may issue a GetResourceRequest, it does not necessarily have
+// to be replied to with a GetResourceResponse. This could happen if, say, the
+// resource doesn't actually exist on the client. In that case there would
+// likely be an empty object with no graphical representation.
+//
+// Not replying to a GetResourceRequest is not an error, and does not use
+// up any resources on the UI.
+//
+// In fact, this "feature" is useful in the case of multiple UIs and multiple
+// clients. In this case, if multiple clients are connected to a UI, then the UI
+// will issue GetResourceRequest to all connected clients, but only the client
+// with the resource will respond. No harm if both clients have the resource,
+// since the GetResourceResponse that comes in second will just be dropped by
+// the UI since the resource has already been resolved.
+message GetResourceRequest {
+  // The locator of the resource to get.
+  ResourceLocator locator = 1;
+}
+
+// Response to a GetResourceRequest. This will cause the UI to replace a
+// pending resource with the data provided in this response. The UI will also
+// cache the resource.
+message GetResourceResponse {
+  // The locator of the resource that was requested.
+  ResourceLocator locator = 1;
+
+  oneof data_source {
+    // The data of the resource, for any mime type not specified below.
+    bytes data = 2;
+
+    // Triangle data of the resource, for mime type model/vnd.google.wtf.
+    WireTriangleFormat wire_triangle_format = 3;
+  }
+}
+
+// A locator for a resource.
+message ResourceLocator {
+  // The URI of the resource to upload. We only support these URI schemes:
+  // * "file:<path>"
+  // * "jar:file:<zip-path>!/<path-inside-zip>"
+  string uri = 1;
+  // The hash of the resource to upload.
+  bytes hash = 2;
+  // The mime type of the resource to upload. For the RoboticsUI, we have
+  // extended the mime types to include:
+  // * model/vnd.google.wtf: A mesh in Wire Triangle Format
+  string mime_type = 3;
+}
+
+// Request to upload a file. The SHA256 hash of the data is used to identify
+// the file.
+message UploadFileRequest {
+  // The SHA256 hash of the data to upload. This must be the same hash used in
+  // the CheckFileCacheRequest. Note that the Unity side does not recalculate
+  // the hash, since serialization of protos can be different depending on proto
+  // library version.
+  bytes hash = 3;
+
+  oneof data_source {
+    // The data of the file to upload.
+    bytes data = 1;
+    // Triangle data.
+    WireTriangleFormat wire_triangle_format = 2;
+  }
+}
+
+message WireTriangleFormat {
+  // The vertices
+  repeated safari_sdk.ui.Position vertices = 1;
+  // The triangles
+  repeated safari_sdk.ui.TriangleVertexIndices triangles = 2;
+}
+
+// Request to upload a kinematic tree robot. This includes the
+// kinematic tree of the robot, starting from world zero, and the mapping of
+// RobotState to the kinematic tree joints.
+message UploadKinematicTreeRobotRequest {
+  // The ID of the kinematic tree robot. This is used in a
+  // create_or_update_request to create or update a kinematic tree robot
+  // instance.
+  string kinematic_tree_robot_id = 1;
+  // The kinematic tree of the robot, starting from world zero.
+  repeated KinematicTreeRobotBody bodies = 2;
+  // The mapping of robot parts to joint names in the kinematic tree. The key
+  // is the numeric value of a Frame.Enum element (because enums can't be keys
+  // in proto maps).
+  KinematicTreeRobotJointMapping joint_mapping = 3;
+}
+
+// Response to an UploadKinematicTreeRobotRequest.
+message UploadKinematicTreeRobotResponse {
+  // The ID of the kinematic tree robot that was uploaded.
+  string kinematic_tree_robot_id = 1;
+  // Whether the upload was successful.
+  bool success = 2;
+  // Error message if the upload was not successful.
+  string error_message = 3;
+}
+
+// A mapping of robot parts to joint names in the kinematic tree.
+message KinematicTreeRobotJointMapping {
+  // The mapping of robot parts to joint names in the kinematic tree. The key
+  // is the numeric value of a Frame.Enum element (because enums can't be keys
+  // in proto maps).
+  map<int32, JointNameList> joint_mapping = 3;
+}
+
+// A list of joint names.
+message JointNameList {
+  // The names of the joints, in the order that they must appear in a JointState
+  // message.
+  repeated string joint_names = 1;
+}
+
+// A body in a kinematic tree robot.
+message KinematicTreeRobotBody {
+  // The name of the body.
+  string name = 1;
+  // The position of the body relative to its parent.
+  safari_sdk.ui.Position position = 2;
+  // The quaternion rotation of the body relative to its parent.
+  safari_sdk.ui.Quaternion rotation = 3;
+  // The joint of the body relative to its parent. Only one-dof joints are
+  // supported.
+  KinematicTreeRobotJoint joints = 4;
+  // The geometries (meshes) of the body.
+  repeated KinematicTreeRobotGeometry geometries = 5;
+  // The sites in the body.
+  repeated KinematicTreeRobotSite sites = 6;
+  // The children of the body.
+  repeated KinematicTreeRobotBody children = 7;
+}
+
+// A joint in a kinematic tree robot.
+message KinematicTreeRobotJoint {
+  // The name of the joint.
+  string name = 1;
+  // The position of the joint relative to its body. That is, relative to its
+  // parent after the body's transform (position and rotation) is applied.
+  safari_sdk.ui.Position position = 2;
+  // The axis of the joint relative to its body.
+  safari_sdk.ui.Position axis = 4;
+  // The minimum angle of the joint.
+  float min_angle_radians = 5;
+  // The maximum angle of the joint.
+  float max_angle_radians = 6;
+}
+
+// A geometry (mesh) in a kinematic tree robot.
+message KinematicTreeRobotGeometry {
+  // The name of the geometry.
+  string name = 1;
+  // The position of the geometry relative to its body. That is, relative to its
+  // parent after the body's transform (position and rotation) is applied.
+  safari_sdk.ui.Position position = 2;
+  // The quaternion rotation of the body relative to its body.
+  safari_sdk.ui.Quaternion rotation = 3;
+  // The hash of the file previously uploaded via UploadedObjectParams.
+  bytes hash = 4;
+}
+
+// A site in a kinematic tree robot.
+message KinematicTreeRobotSite {
+  // The name of the site.
+  string name = 1;
+  // The position of the site relative to its body. That is, relative to its
+  // parent after the body's transform (position and rotation) is applied.
+  safari_sdk.ui.Position position = 2;
+  // The quaternion rotation of the body relative to its body.
+  safari_sdk.ui.Quaternion rotation = 3;
+}
+
+// Request to get the value of a Gui element.
+message GuiElementValueRequest {
+  // The element_id of the element to get the value of.
+  string element_id = 1;
+}
+
+// Response to a GuiElementValueRequest.
+message GuiElementValueResponse {
+  // The element_id of the element that was requested.
+  string element_id = 1;
+
+  // The value of the element.
+  string value = 2;
+
+  // Whether the element exists. If false, the value field will be empty.
+  bool exists = 3;
+}
+
+// FormCreateRequest supports creating custom dialogs with a list of UIMessages.
+// Using "create" requests, each UIMessage is added to the dialog from top to
+// bottom.
+// Supported "create" requests:
+//   - ButtonCreateRequest
+//   - PromptCreateRequest
+//   - DropdownCreateRequest
+//   - TextCreateOrUpdateRequest
+message FormCreateRequest {
+  // The form_id that the RoboticsUI will use to report the form's results with.
+  // You can add a prefix with a colon (e.g. 'myprefix:myname') that you can
+  // then use with the ClearObjectsRequest or ClearGuiRequest to delete only
+  // objects with a given prefix.
+  string form_id = 1;
+
+  // The title of the form window.
+  string title = 2;
+
+  // The text to show in the form submit button.
+  string submit_label = 3;
+
+  // The spec provided to the form window.
+  UISpec spec = 4;
+
+  // The list of RuiMessages to create and add to the dialog.
+  repeated RuiMessage create_requests = 5;
+}
+
+// FormPressedEvent is sent when the user presses the submit button of a form.
+// The results field contains the results of all the elements in the form.
+message FormPressedEvent {
+  // The form_id that the RoboticsUI used to create the form.
+  string form_id = 1;
+
+  // The results of all the elements in the form.
+  string results = 2;
+}
+
+// Register a remote command.
+message RegisterRemoteCommand {
+  // The command to register.
+  string command = 1;
+
+  // The description of the command.
+  string description = 2;
+}
+
+// Unregister a remote command.
+message UnregisterRemoteCommand {
+  // The command to unregister.
+  string command = 1;
+}
+
+message RegisterClientName {
+  string client_name = 1;
+  string client_ip = 2;
+  int64 client_port = 3;
+}
+
+message HoverReceivedEvent {
+  // The element_id of the element that was hovered over.
+  string element_id = 1;
+
+  // The string value of the hover over text.
+  string text = 2;
+}
+
+message VersionReport {
+  // The IP address of the connected server. This is filled in by the framework
+  // upon receiving the version report, NOT by the server! This is to account
+  // for the case where the connection goes through an ssh tunnel.
+  string connection_ip = 1;
+
+  // The port of the connected server. This is filled in by the framework upon
+  // receiving the version report, NOT by the server! This is to account for
+  // the case where the connection goes through an ssh tunnel.
+  int64 connection_port = 2;
+
+  // The self-reported name of the server. For the RoboticsUI, this is always
+  // "RoboticsUI". Other servers may report a different name.
+  string name = 3;
+
+  // The version of the server.
+  string version = 4;
+
+  // The capabilities of the server. This is a list of strings that the server
+  // can report to the client. For the RoboticsUI, one of these capabilities is
+  // "vr" to report VR support. Other servers may report other capabilities.
+  repeated string capabilities = 5;
+}
+
+message AlertCreateRequest {
+  // The alert_id that the RoboticsUI will use to associate with the alert. You
+  // can later use AlertRemoveRequest with alert_id to remove the alert.
+  string alert_id = 1;
+
+  // The text of the alert.
+  string text = 2;
+
+  // Whether to show an alert notification. If false, the alert will be added to
+  // the alert panel and will be shown when the user clicks on the alert icon.
+  bool show = 3;
+}
+
+message AlertRemoveRequest {
+  // The alert_id that the RoboticsUI will use to remove the alert.
+  string alert_id = 1;
+}
+
+message AlertClearRequest {
+  // Clears all alerts.
+}
+
+message SetMinimizedRequest {
+  // The element_id of the element to set minimized.
+  string element_id = 1;
+
+  // Whether to minimize the element.
+  bool minimized = 2;
+}
+
+message RowCreateRequest {
+  // The list of RuiMessages to create and add to the row.
+  repeated RuiMessage create_requests = 1;
+
+  // The spec provided to the row.
+  UISpec spec = 2;
+}
+
+message ToggleCreateRequest {
+  // The id of the toggle to be created.
+  string toggle_id = 1;
+
+  // The text label next to the toggle checkbox.
+  string label = 2;
+
+  // (Optional) The message to be displayed with the toggle in a dialog window.
+  string msg = 3;
+
+  // (Optional) The title of the toggle dialog window.
+  string title = 4;
+
+  // (Optional) The text label of the submit button.
+  string submit_label = 5;
+
+  // (Optional) The initial value of the toggle. If not set, the toggle will be
+  // initialized as unselected.
+  bool initial_value = 6;
+
+  // (Optional) The spec provided to the toggle.
+  UISpec spec = 7;
+}
+
+message TogglePressedEvent {
+  // The id of the toggle that was pressed.
+  string toggle_id = 1;
+
+  // The new selected value of the toggle.
+  bool selected = 2;
+}
