@@ -1,0 +1,170 @@
+name: horde_model_reference Pull Request Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+    paths:
+      - '**.py'
+      - '**.md'
+      - '**.json'
+      - '.github/workflows/maintests.yml'
+      - '.github/workflows/prtests.yml'
+      - '.github/workflows/release.yml'
+      - 'uv.lock'
+      - 'pyproject.toml'
+jobs:
+  no_extra_fields:
+    env:
+      AIWORKER_CACHE_HOME: ${{ github.workspace }}/.cache
+      TESTS_ONGOING: "1"
+      AI_HORDE_TESTING: "1"
+      HORDELIB_CI_ONGOING: "1"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
+      - name: Check that no extra fields are present
+        run: uv run pytest -k "test_validate_stable_diffusion_model_reference" # Enabled by HORDELIB_CI_ONGOING
+
+  build:
+    env:
+      AIWORKER_CACHE_HOME: ${{ github.workspace }}/.cache
+      TESTS_ONGOING: "1"
+      AI_HORDE_TESTING: "1"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
+      - name: Run tests
+        run: uv run pytest tests -m "not integration"
+
+  integration-test-standard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --locked --all-extras --dev
+
+      - name: Start fastapi server
+        env:
+          HORDE_MODEL_REFERENCE_REPLICATE_MODE: PRIMARY
+          HORDE_MODEL_REFERENCE_CANONICAL_FORMAT: legacy
+          HORDE_MODEL_REFERENCE_PRIMARY_API_URL: http://localhost:19800/api
+          HORDE_MODEL_REFERENCE_GITHUB_SEED_ENABLED: True
+        run: |
+          uv run fastapi run ./src/horde_model_reference/service/app.py --port 19800 &
+
+      - name: Wait for server to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -f http://localhost:19800/api/heartbeat; then
+              echo "Server is ready!"
+              exit 0
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 2
+          done
+          echo "Server failed to start"
+          exit 1
+
+      - name: Run integration tests
+        run: uv run pytest tests -m integration
+
+  integration-tests-redis:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --locked --all-extras --dev
+
+      - name: Start fastapi server with redis backend
+        env:
+          HORDE_MODEL_REFERENCE_REPLICATE_MODE: PRIMARY
+          HORDE_MODEL_REFERENCE_CANONICAL_FORMAT: legacy
+          HORDE_MODEL_REFERENCE_REDIS_URL: redis://localhost:6379/0
+          HORDE_MODEL_REFERENCE_PRIMARY_API_URL: http://localhost:19800/api
+          HORDE_MODEL_REFERENCE_GITHUB_SEED_ENABLED: True
+        run: |
+          uv run fastapi run ./src/horde_model_reference/service/app.py --port 19800 &
+
+      - name: Wait for server to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -f http://localhost:19800/api/heartbeat; then
+              echo "Server is ready!"
+              exit 0
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 2
+          done
+          echo "Server failed to start"
+          exit 1
+
+      - name: Run integration tests
+        run: uv run pytest tests -m integration
+        env:
+          HORDE_MODEL_REFERENCE_REDIS_URL: redis://localhost:6379/0
