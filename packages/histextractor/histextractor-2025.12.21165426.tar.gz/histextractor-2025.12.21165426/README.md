@@ -1,0 +1,118 @@
+# `histextractor`
+[![PyPI version](https://badge.fury.io/py/histextractor.svg)](https://badge.fury.io/py/histextractor)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/histextractor)](https://pepy.tech/project/histextractor)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+`histextractor` is a lightweight Python package that extracts and structures key historical facts from natural‑language descriptions of historical events.  
+Given a text passage such as a summary of the Lend‑Lease program during World War II, the package returns a list of structured strings containing the main participants, key actions, outcomes, and notable controversies. The output follows a consistent format, making it ideal for educational tools, research databases, or historical analysis platforms.
+
+---
+
+## 📦 Installation
+
+```bash
+pip install histextractor
+```
+
+---
+
+## 🚀 Quick Start
+
+```python
+from histextractor import histextractor
+
+user_input = """
+The Lend‑Lease program was a U.S. policy during World War II that supplied Allied nations
+with military aid. It involved the United States sending vehicles, weapons, and supplies
+to the United Kingdom, the Soviet Union, China, and others. This assistance was crucial
+in sustaining Allied forces before the U.S. formally entered the war.
+"""
+
+# Use the default ChatLLM7
+response = histextractor(user_input)
+
+for idx, item in enumerate(response, 1):
+    print(f"{idx}. {item}")
+```
+
+---
+
+## 📚 How `histextractor` Works
+
+1. **LLM Choice**  
+   - By default, the package uses **ChatLLM7** from `langchain_llm7`.  
+   - You can overwrite this by passing any `langchain` compatible `BaseChatModel`.
+
+2. **API Key**  
+   - If you do not specify an `api_key`, the function will look for the environment
+     variable `LLM7_API_KEY`.  
+   - If that is also missing, it will fall back to the string `"None"`, which still
+     triggers the credentials that the free tier of LLM7 provides.
+
+3. **Output Format**  
+   - The function returns a `List[str]`.  
+   - Each entry in the list follows the regex pattern defined in `pattern.py`, ensuring
+     consistent structure.
+
+---
+
+## 🔌 Custom LLM Examples
+
+### Using OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from histextractor import histextractor
+
+llm = ChatOpenAI()
+response = histextractor(user_input, llm=llm)
+```
+
+### Using Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from histextractor import histextractor
+
+llm = ChatAnthropic()
+response = histextractor(user_input, llm=llm)
+```
+
+### Using Google Gemini
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from histextractor import histextractor
+
+llm = ChatGoogleGenerativeAI()
+response = histextractor(user_input, llm=llm)
+```
+
+---
+
+## ⚙️ Rate Limits & API Keys
+
+- **LLM7 Free Tier** rate limits are sufficient for most use cases.
+- For higher limits, provide your own API key via:
+  - Environment variable: `export LLM7_API_KEY=your_key_here`  
+  - Parameter: `histextractor(user_input, api_key="your_key_here")`
+- Obtain a free API key at: https://token.llm7.io/
+
+---
+
+## 🐛 Issues & Feedback
+
+Please file issues at:
+https://github.com/chigwell/histextractor/issues
+
+---
+
+## 👤 Author
+
+- **Eugene Evstafev**  
+  Email: hi@euegne.plus  
+  GitHub: [chigwell](https://github.com/chigwell)
+
+---
