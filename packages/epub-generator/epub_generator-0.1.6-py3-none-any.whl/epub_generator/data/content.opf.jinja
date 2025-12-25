@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package version="3.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="uid" xml:lang="zh">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="uid">{{ ISBN }}</dc:identifier>
+    <dc:language>zh</dc:language>
+{% if meta and meta.title %}
+    <dc:title>{{ meta.title }}</dc:title>
+{% else %}
+    <dc:title>{{ i18n.unnamed }}</dc:title>
+{% endif %}
+{% if meta and meta.description %}
+    <dc:description>{{ meta.description }}</dc:description>
+{% endif %}
+{% if meta and meta.publisher %}
+    <dc:publisher>{{ meta.publisher }}</dc:publisher>
+{% endif %}
+{% if meta and meta.authors %}
+{% for author in meta.authors %}
+    <dc:creator id="creator{{ loop.index }}">{{ author }}</dc:creator>
+    <meta refines="#creator{{ loop.index }}" property="role" scheme="marc:relators">aut</meta>
+{% endfor %}
+{% endif %}
+{% if meta and meta.editors %}
+{% for editor in meta.editors %}
+    <dc:creator id="editor{{ loop.index }}">{{ editor }}</dc:creator>
+    <meta refines="#editor{{ loop.index }}" property="role" scheme="marc:relators">edt</meta>
+{% endfor %}
+{% endif %}
+{% if meta and meta.translators %}
+{% for translator in meta.translators %}
+    <dc:creator id="translator{{ loop.index }}">{{ translator }}</dc:creator>
+    <meta refines="#translator{{ loop.index }}" property="role" scheme="marc:relators">trl</meta>
+{% endfor %}
+{% endif %}
+    <meta property="dcterms:modified">{{ modified_timestamp }}</meta>
+{% if has_cover %}
+    <meta name="cover" content="cover-image" />
+{% endif %}
+  </metadata>
+  <manifest>
+    <item id="nav" properties="nav" media-type="application/xhtml+xml" href="nav.xhtml" />
+    <item id="a_css" media-type="text/css" href="styles/style.css" />
+{% for asset_file, media_type in asset_files %}
+    <item id="a_{{ asset_file|safe }}" media-type="{{ media_type|safe }}" href="assets/{{ asset_file|safe }}" />
+{% endfor %}
+{% if has_cover %}
+    <item id="cover-image" properties="cover-image" media-type="image/png" href="assets/cover.png" />
+    <item id="x_cover.xhtml" media-type="application/xhtml+xml" href="Text/cover.xhtml" />
+{% endif %}
+{% if has_head_chapter %}
+    <item id="x_head.xhtml" media-type="application/xhtml+xml" href="Text/head.xhtml" />
+{% endif %}
+{% for nav_point in nav_points %}
+    <item id="x_{{ nav_point.file_name|safe }}" media-type="application/xhtml+xml" href="Text/{{ nav_point.file_name|safe }}"{% if nav_point.file_name in chapters_with_mathml %} properties="mathml"{% endif %} />
+{% endfor %}
+  </manifest>
+  <spine>
+{% if has_cover %}
+    <itemref idref="x_cover.xhtml" linear="no" />
+{% endif %}
+{% if has_head_chapter %}
+    <itemref idref="x_head.xhtml" />
+{% endif %}
+{% for nav_point in nav_points %}
+    <itemref idref="x_{{ nav_point.file_name|safe }}" />
+{% endfor %}
+  </spine>
+</package>
