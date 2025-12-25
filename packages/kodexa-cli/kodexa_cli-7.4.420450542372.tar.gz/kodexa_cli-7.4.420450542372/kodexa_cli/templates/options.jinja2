@@ -1,0 +1,24 @@
+{% if options is iterable and (options is not string and options is not mapping) and options|length > 0 %}
+
+| **Option Name** | Default | Required? | Type | Description |
+| :--- | :--- | :--- | :--- | :--- |
+{% for option in options %}| {{option.name}} | {{option.default}} | {{option.required}} | {{option.type}} | {{option.description}} {%- if option.overview_markdown -%}&nbsp;[🎓](#{{ option.label }}){%- endif -%} |
+{% if option.group|length > 0 -%}| _Additional options if {{option.name}} is True (option group : {{option.group.name}}_ ) | | | | |
+{% for group_option in option.group.options %}| {{group_option.name}} | {{group_option.default}} | {{group_option.required}} | {{group_option.type}} | {{group_option.description}} |
+{% endfor -%}
+| _End of option group : {{option.group.name}}_ | | | | |
+{% endif %}
+{%- endfor %}
+{% for option in options %}
+{% if option.overview_markdown %}
+#### {{ option.label }}
+
+{{ option.overview_markdown }}
+
+{{ '{%' }}
+include-markdown "{{ component.slug }}/options/{{ option.name }}.md"
+{{ '%}' }}
+{% endif %}
+{% endfor %}
+{% else %}
+No options are available for this component{% endif %}

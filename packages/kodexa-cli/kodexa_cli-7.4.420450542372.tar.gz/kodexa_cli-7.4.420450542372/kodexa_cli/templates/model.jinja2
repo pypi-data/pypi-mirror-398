@@ -1,0 +1,92 @@
+{% include 'header.jinja2' %}
+
+## What is a Model?
+
+This component is a model, which is a type of store that is specialized for handling AI/ML model storage, which
+includes both the implementation, and the results of training.
+
+Models are a foundational part of Kodexa, and are used in many different ways.  For example, a model
+can be used to classify documents, or to extract data from documents.  Models can also be used to
+train other models.
+
+## Metadata
+{% if component.metadata %}
+{% if component.image_url %}
+<img src="{{ component.metadata.provider_image_url }}" style="float: right; margin-right: 10px; margin-top: -20px; padding: 25px; width: 200px; height: 200px" />
+{% endif %}
+{% if component.metadata.provider %}
+Provided By:
+[{{ component.metadata.provider }}]({{ component.metadata.provider_url }})
+{% endif %}
+{% if component.metadata.atomic %}
+✅ Atomic Deployment (Recommended)
+{% else %}
+❌ Non-Atomic Deployment (Not-Recommended)
+{% endif %}
+{% if component.metadata.trainable %}
+✅ Trainable
+{% else %}
+❌ Not trainable
+{% endif %}
+{% endif %}
+
+## Model Runtime
+
+A model needs to reference a model runtime to use.
+
+{% if component.metadata %}
+✅ {{ component.metadata.model_runtime_ref }}
+{% else %}
+❌ Missing model runtime
+{% endif %}
+
+{% if component.metadata.model_runtime_parameters %}
+The model also has the following model runtime parameters configured. This influences how the model is run, see
+the model runtime references to determine what parameters are available.
+
+| **Parameter Name** | Value |
+| :--- | :--- |
+{% for parameter, parameter_value in component.metadata.model_runtime_parameters.items() %}| {{parameter}} | {{parameter_value}}
+{% endfor -%}
+{% endif %}
+
+{% if component.metadata.training_options %}
+## Training Options
+
+The model can be trained using the following options:
+{% with options=component.metadata.training_options%}
+{% include 'options.jinja2' %}
+{% endwith %}
+{% endif %}
+
+{% if component.metadata.inference_options %}
+## Inference Options
+
+When you use the model for inference, you can use the following options:
+{% with options=component.metadata.inference_options%}
+{% include 'options.jinja2' %}
+{% endwith %}
+{% endif %}
+
+{% if component.metadata.additional_taxon_options %}
+## Additional Taxon Options
+
+Models can provide additional properties that can be used to configure the taxon.  These are
+made available in the UI and allow the model to capture additional metdata during the labeling
+process, this can then be used by the model.
+
+{% with options=component.metadata.additional_taxon_options%}
+{% include 'options.jinja2' %}
+{% endwith %}
+{% endif %}
+
+{% if component.metadata.taxonomy %}
+## Model Label Taxonomy
+
+This model provides a taxonomy of labels that can be applied, these labels are not used to extract data but are "meta-labels"
+that are in place to help the model train on the content.
+{% with children=component.metadata.taxonomy.taxons %}
+{% include 'processing-taxon.jinja2' %}
+{% endwith %}
+
+{% endif %}
