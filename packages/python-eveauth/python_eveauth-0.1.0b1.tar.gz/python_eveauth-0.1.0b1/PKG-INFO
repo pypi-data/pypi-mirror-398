@@ -1,0 +1,83 @@
+Metadata-Version: 2.4
+Name: python-eveauth
+Version: 0.1.0b1
+Summary: A library for authorizing desktop apps with the EVE online SSO.
+Author-email: Erik Kalkoken <kalkoken87@gmail.com>
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Communications :: Chat
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+License-File: LICENSE
+Requires-Dist: requests
+Requires-Dist: python-jose
+Requires-Dist: requests-mock ; extra == "test"
+Requires-Dist: coverage ; extra == "test"
+Project-URL: Homepage, https://github.com/ErikKalkoken/python-eveauth
+Project-URL: Source, https://github.com/ErikKalkoken/python-eveauth
+Project-URL: Tracker, https://github.com/ErikKalkoken/python-eveauth/issues
+Provides-Extra: test
+
+# python-eveauth
+
+An Python library for authorizing desktop apps with the EVE online SSO.
+
+[![release](https://img.shields.io/pypi/v/python-eveauth?label=release)](https://pypi.org/project/python-eveauth/)
+[![python](https://img.shields.io/pypi/pyversions/python-eveauth)](https://pypi.org/project/python-eveauth/)
+[![CI/CD](https://github.com/ErikKalkoken/python-eveauth/actions/workflows/cicd.yaml/badge.svg)](https://github.com/ErikKalkoken/python-eveauth/actions/workflows/cicd.yaml)
+[![codecov](https://codecov.io/gh/ErikKalkoken/python-eveauth/graph/badge.svg?token=NBGLASsNXq)](https://codecov.io/gh/ErikKalkoken/python-eveauth)
+[![license](https://img.shields.io/badge/license-MIT-green)](https://gitlab.com/ErikKalkoken/python-eveauth/-/blob/master/LICENSE)
+
+## Description
+
+python-eveauth is an library for authorizing Python scripts on desktops with the EVE online SSO. This allows obtaining SSO tokens with any Python script, e.g. CLI tools, GUI apps or jupiter notebooks.
+
+> [!Note]
+> This library is designed to run on desktops and requires a system with a local web browser.
+
+## Installation
+
+```sh
+pip install python-eveauth
+```
+
+### Usage
+
+First setup your EVE SSO app on developers.eveonline.com.
+The callback should be: `http://127.0.0.1:8080/callback`
+
+```py
+import requests
+from eveauth import Client
+
+# Create an auth client
+c = Client(client_id="YOUR-SSO-CLIENT-ID")
+
+# Authorize the current script with the character wallet scope
+token = c.authorize("esi-wallet.read_character_wallet.v1")
+
+# Request the wallet balance for the authorized character
+r = requests.get(
+    url=f"https://esi.evetech.net/characters/{token.character_id}/wallet",
+    headers={"Authorization": f"Bearer {token.access_token}"},
+)
+r.raise_for_status()
+
+# Print the balance
+print(r.text)
+
+
+# Refresh the token
+# c.refresh_token(token)
+```
+
