@@ -1,0 +1,344 @@
+Metadata-Version: 2.4
+Name: edutools-github-classroom
+Version: 0.1.0
+Summary: A Python library for interacting with the GitHub Classroom REST API
+Home-page: https://github.com/najasoft/edutools-github-classroom
+Author: NajaSoft
+Author-email: contact@najasoft.com
+Project-URL: Bug Reports, https://github.com/najasoft/edutools-github-classroom/issues
+Project-URL: Source, https://github.com/najasoft/edutools-github-classroom
+Project-URL: Documentation, https://github.com/najasoft/edutools-github-classroom#readme
+Keywords: github classroom education api teaching grading
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Education
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Education
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.28.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license-file
+Dynamic: project-url
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# edutools-github-classroom
+
+[![PyPI version](https://badge.fury.io/py/edutools-github-classroom.svg)](https://badge.fury.io/py/edutools-github-classroom)
+[![Python](https://img.shields.io/pypi/pyversions/edutools-github-classroom.svg)](https://pypi.org/project/edutools-github-classroom/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub](https://img.shields.io/github/stars/najasoft/edutools-github-classroom?style=social)](https://github.com/najasoft/edutools-github-classroom)
+
+A Python library for interacting with the GitHub Classroom REST API. This package provides a clean, Pythonic interface to manage classrooms, assignments, submissions, and grades.
+
+## Features
+
+- 🎓 **Classroom Management**: List, filter, and manage GitHub Classrooms
+- 📚 **Assignment Operations**: Create, list, and filter assignments
+- 📝 **Submission Tracking**: Monitor student submissions and progress
+- 🎯 **Grade Management**: Retrieve and export grades
+- 🔒 **Authentication**: Support for GitHub personal access tokens
+- 📊 **Statistics**: Built-in analytics for assignments and submissions
+- 🚀 **Easy to Use**: Simple, intuitive API design
+- 🔄 **Auto-pagination**: Automatic handling of paginated responses
+
+## Installation
+
+```bash
+pip install edutools-github-classroom
+```
+
+## Quick Start
+
+```python
+from edutools_github_classroom import ClassroomAPI
+
+# Initialize the API client with your GitHub token
+api = ClassroomAPI("ghp_your_token_here")
+
+# List all your classrooms
+classrooms = api.classrooms.get_all()
+for classroom in classrooms:
+    print(f"{classroom['name']} (ID: {classroom['id']})")
+
+# Filter classrooms by name
+iir_classrooms = api.classrooms.filter_by_name("iir5g")
+
+# Get assignments for a classroom
+assignments = api.assignments.get_all(classroom_id=12345)
+
+# Filter assignments (e.g., exclude projects)
+ateliers = api.assignments.filter_by_title(
+    classroom_id=12345,
+    title_pattern="projet",
+    exclude=True
+)
+
+# Get submissions for an assignment
+submissions = api.submissions.get_all(assignment_id=67890)
+
+# Get grades and export to CSV
+grades = api.grades.get(assignment_id=67890)
+api.grades.export_to_csv(67890, "grades.csv")
+
+# Get statistics
+stats = api.assignments.get_statistics(67890)
+print(f"Pass rate: {stats['pass_rate']}%")
+```
+
+## Authentication
+
+You need a GitHub personal access token to use this library. The token doesn't require any specific permissions for public resources.
+
+### Creating a Token
+
+1. Go to GitHub Settings → Developer settings → Personal access tokens
+2. Generate a new token (classic or fine-grained)
+3. For public classrooms, no special permissions are needed
+4. Copy the token (starts with `ghp_` for classic or `github_pat_` for fine-grained)
+
+### Using the Token
+
+```python
+from edutools_github_classroom import ClassroomAPI
+
+# Direct initialization
+api = ClassroomAPI("ghp_your_token_here")
+
+# Using environment variable (recommended)
+import os
+token = os.getenv("GITHUB_TOKEN")
+api = ClassroomAPI(token)
+
+# Using context manager (auto-cleanup)
+with ClassroomAPI(token) as api:
+    classrooms = api.classrooms.get_all()
+```
+
+## API Documentation
+
+### Classrooms
+
+```python
+# List classrooms with pagination
+classrooms = api.classrooms.list(page=1, per_page=30)
+
+# Get a specific classroom
+classroom = api.classrooms.get(classroom_id=12345)
+
+# Get all classrooms (auto-pagination)
+all_classrooms = api.classrooms.get_all()
+
+# Filter by name pattern
+iir_classrooms = api.classrooms.filter_by_name("iir5g", case_sensitive=False)
+
+# Get only active (non-archived) classrooms
+active = api.classrooms.filter_active()
+```
+
+### Assignments
+
+```python
+# List assignments for a classroom
+assignments = api.assignments.list(classroom_id=12345, per_page=50)
+
+# Get a specific assignment
+assignment = api.assignments.get(assignment_id=67890)
+
+# Get all assignments (auto-pagination)
+all_assignments = api.assignments.get_all(classroom_id=12345)
+
+# Filter assignments by title
+ateliers = api.assignments.filter_by_title(
+    classroom_id=12345,
+    title_pattern="atelier"
+)
+
+# Exclude assignments (e.g., projects)
+no_projects = api.assignments.filter_by_title(
+    classroom_id=12345,
+    title_pattern="projet",
+    exclude=True
+)
+
+# Filter by type
+individual = api.assignments.filter_by_type(classroom_id=12345, assignment_type="individual")
+
+# Get statistics
+stats = api.assignments.get_statistics(67890)
+# Returns: submission_rate, pass_rate, total_accepted, etc.
+```
+
+### Submissions
+
+```python
+# List submissions for an assignment
+submissions = api.submissions.list(assignment_id=67890, per_page=100)
+
+# Get all submissions (auto-pagination)
+all_subs = api.submissions.get_all(assignment_id=67890)
+
+# Get a specific student's submission
+submission = api.submissions.get_by_student(assignment_id=67890, github_username="student123")
+
+# Filter by status
+submitted = api.submissions.filter_by_status(assignment_id=67890, submitted=True)
+passing = api.submissions.filter_by_status(assignment_id=67890, passing=True)
+needs_help = api.submissions.filter_by_status(assignment_id=67890, submitted=True, passing=False)
+
+# Get repository URLs
+urls = api.submissions.get_repository_urls(assignment_id=67890, url_type="html")
+# url_type: "html" (web), "clone" (https), "ssh"
+
+# Get statistics
+stats = api.submissions.get_statistics(67890)
+# Returns: avg_commit_count, students_with_commits, etc.
+```
+
+### Grades
+
+```python
+# Get all grades for an assignment
+grades = api.grades.get(assignment_id=67890)
+
+# Export grades to CSV
+api.grades.export_to_csv(assignment_id=67890, file_path="grades.csv")
+
+# Get a specific student's grade
+grade = api.grades.get_by_student(assignment_id=67890, github_username="student123")
+
+# Get by roster identifier
+grade = api.grades.get_by_roster_identifier(assignment_id=67890, roster_identifier="12345678")
+
+# Filter by grading status
+graded = api.grades.filter_by_status(assignment_id=67890, graded=True)
+ungraded = api.grades.filter_by_status(assignment_id=67890, graded=False)
+
+# Get statistics
+stats = api.grades.get_statistics(67890)
+# Returns: avg_score, avg_percentage, graded_count, etc.
+```
+
+## Advanced Usage
+
+### Custom Logger
+
+```python
+import logging
+
+# Create custom logger
+logger = logging.getLogger("my_app")
+logger.setLevel(logging.DEBUG)
+
+# Initialize API with custom logger
+api = ClassroomAPI(token, logger=logger)
+```
+
+### Error Handling
+
+```python
+from edutools_github_classroom import (
+    ClassroomAPI,
+    ClassroomAPIError,
+    ClassroomAuthenticationError,
+    ClassroomResourceNotFoundError
+)
+
+try:
+    api = ClassroomAPI(token)
+    classroom = api.classrooms.get(12345)
+except ClassroomAuthenticationError:
+    print("Invalid or expired token")
+except ClassroomResourceNotFoundError:
+    print("Classroom not found")
+except ClassroomAPIError as e:
+    print(f"API error: {e}")
+```
+
+### Working with Multiple Classrooms
+
+```python
+# Get all IIR5G classrooms
+iir_classrooms = api.classrooms.filter_by_name("iir5g")
+
+# Process assignments for each classroom
+for classroom in iir_classrooms:
+    classroom_id = classroom["id"]
+    classroom_name = classroom["name"]
+    
+    print(f"\n=== {classroom_name} ===")
+    
+    # Get assignments (excluding projects)
+    assignments = api.assignments.filter_by_title(
+        classroom_id=classroom_id,
+        title_pattern="projet",
+        exclude=True
+    )
+    
+    # Process each assignment
+    for assignment in assignments:
+        assignment_id = assignment["id"]
+        title = assignment["title"]
+        
+        # Get submissions
+        submissions = api.submissions.get_all(assignment_id)
+        
+        # Get grades
+        grades = api.grades.get(assignment_id)
+        
+        # Export
+        api.grades.export_to_csv(
+            assignment_id,
+            f"grades_{classroom_name}_{title}.csv"
+        )
+        
+        print(f"  {title}: {len(submissions)} submissions, {len(grades)} grades")
+```
+
+## Requirements
+
+- Python 3.7+
+- requests >= 2.28.0
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Support
+
+If you encounter any issues or have questions, please file an issue on GitHub.
+
+## Related Projects
+
+- [edutools-moodle](https://pypi.org/project/edutools-moodle/) - Python library for Moodle API
+
+## Changelog
+
+### 0.1.0 (2024-01-XX)
+
+- Initial release
+- Support for classrooms, assignments, submissions, and grades
+- Auto-pagination for large result sets
+- CSV export functionality
+- Built-in statistics and filtering
