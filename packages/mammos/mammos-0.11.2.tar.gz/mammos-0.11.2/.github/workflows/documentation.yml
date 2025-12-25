@@ -1,0 +1,49 @@
+name: Publish documentation
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_pages:
+        description: 'Deploy pages'
+        required: true
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      deploy_pages:
+        required: true
+        type: boolean
+  push:
+    branches:
+      - main
+    tags:
+      - "latest"  # not triggered when 'latest' is updated in the CI, only when pushing the tag manually
+  pull_request:
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: prefix-dev/setup-pixi@v0.8.8
+    - run: pixi run docs-build
+    # - run: pixi run docs-linkcheck
+    - uses: actions/upload-pages-artifact@v3
+      with:
+        path: docs/build/html
+
+
+  deploy:
+    if: ${{ github.ref_name == 'latest' || inputs.deploy_pages }}
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{steps.deployment.outputs.page_url}}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/deploy-pages@v4
+      id: deployment
