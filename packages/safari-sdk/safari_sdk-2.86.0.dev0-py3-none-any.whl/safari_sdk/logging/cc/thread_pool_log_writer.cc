@@ -1,0 +1,309 @@
+#include "third_party/safari/sdk/safari/logging/cc/thread_pool_log_writer.h"
+
+#include <cstdint>
+#include <iterator>
+#include <memory>
+#include <string>
+#include <thread>  // NOLINT
+#include <utility>
+
+#include "third_party/absl/base/thread_annotations.h"
+#include "third_party/absl/functional/any_invocable.h"
+#include "third_party/absl/log/log.h"
+#include "third_party/absl/memory/memory.h"
+#include "third_party/absl/status/status.h"
+#include "third_party/absl/strings/str_cat.h"
+#include "third_party/absl/synchronization/mutex.h"
+#include "third_party/absl/time/clock.h"
+#include "third_party/absl/time/time.h"
+#include "third_party/protobuf/arena.h"
+#include "third_party/safari/sdk/safari/logging/cc/base_mcap_file_handle_factory.h"
+#include "third_party/safari/sdk/safari/logging/cc/episode_data.h"
+#include "third_party/safari/sdk/safari/logging/cc/log_data_serializer_utils.h"
+#include "third_party/safari/sdk/safari/logging/cc/mcap_file_handle.h"
+#include "third_party/safari/sdk/safari/logging/cc/mcap_file_handle_factory.h"
+#include "third_party/safari/sdk/safari/logging/cc/mcap_write_op.h"
+#include "third_party/safari/sdk/safari/protos/logging/metadata.proto.h"
+#include "third_party/tensorflow/core/example/example.proto.h"
+#include "third_party/tensorflow/core/example/feature.proto.h"
+
+namespace safari::logging {
+
+absl::StatusOr<std::unique_ptr<ThreadPoolLogWriter>>
+ThreadPoolLogWriter::Create(ThreadPoolLogWriterConfig config) {
+  if (config.mcap_file_config.output_dir.empty()) {
+    return absl::InvalidArgumentError("Output directory is empty.");
+  }
+  if (config.mcap_file_config.file_metadata_topic.empty()) {
+    return absl::InvalidArgumentError("File metadata topic is empty.");
+  }
+  if (config.mcap_file_config.file_shard_size_limit_bytes <= 0) {
+    return absl::InvalidArgumentError(
+        "File shard size limit bytes is not positive.");
+  }
+  auto mcap_file_handle_factory = std::make_unique<McapFileHandleFactory>();
+  return absl::WrapUnique(
+      new ThreadPoolLogWriter(config, std::move(mcap_file_handle_factory)));
+}
+
+ThreadPoolLogWriter::ThreadPoolLogWriter(
+    ThreadPoolLogWriterConfig config,
+    std::unique_ptr<BaseMcapFileHandleFactory> mcap_file_handle_factory)
+    : max_num_workers_(config.max_num_workers),
+      image_observation_keys_(
+          std::make_move_iterator(config.image_observation_keys.begin()),
+          std::make_move_iterator(config.image_observation_keys.end())),
+      mcap_file_config_(std::move(config.mcap_file_config)),
+      mcap_file_handle_factory_(std::move(mcap_file_handle_factory)) {}
+
+ThreadPoolLogWriter::~ThreadPoolLogWriter() { Stop(); }
+
+void ThreadPoolLogWriter::Start() {
+  // If the workers have already been started, then we don't need to start them
+  // again.
+  if (!workers_.empty()) {
+    return;
+  }
+  // Reset the stop_ flag to false.
+  // Do this before starting the workers so that they don't all exit
+  // immediately.
+  {
+    absl::MutexLock lock(queue_mutex_);
+    stop_ = false;
+  }
+
+  // Create and start the worker threads.
+  for (int i = 0; i < max_num_workers_; ++i) {
+    workers_.push_back(std::thread(&ThreadPoolLogWriter::WorkerLoop, this));
+  }
+
+  VLOG(1) << "ThreadPoolLogWriter started. Number of workers: "
+          << workers_.size() << " started";
+}
+
+void ThreadPoolLogWriter::Stop() {
+  {
+    absl::MutexLock lock(queue_mutex_);
+    if (stop_) {
+      return;
+    }
+    stop_ = true;
+  }
+
+  for (auto& worker : workers_) {
+    worker.join();
+  }
+
+  workers_.clear();
+
+  // At this point, the queue_ should be empty and all episode data should be
+  // serialized and moved to episode_data_to_be_destroyed_
+  // Clear the episode_data_to_be_destroyed_ queue.
+  ProcessEpisodeDataToBeDestroyed();
+
+  absl::MutexLock lock(file_handles_mutex_);
+  file_handles_.clear();
+}
+
+void ThreadPoolLogWriter::EnqueueEpisodeData(
+    std::unique_ptr<EpisodeData> episode_data, EnqueueMcapFileOptions options) {
+  Enqueue([this, episode_data = std::move(episode_data),
+           options = std::move(options)]() mutable {
+    ProcessEpisodeData(std::move(episode_data), std::move(options));
+  });
+
+  ProcessEpisodeDataToBeDestroyed();
+}
+
+void ThreadPoolLogWriter::EnqueueSessionData(
+    safari::protos::logging::Session session, EnqueueMcapFileOptions options) {
+  Enqueue([this, session = std::move(session),
+           options = std::move(options)]() mutable {
+    ProcessSessionData(std::move(session), std::move(options));
+  });
+}
+
+void ThreadPoolLogWriter::Enqueue(absl::AnyInvocable<void() &&> work_unit) {
+  absl::MutexLock lock(queue_mutex_);
+  if (stop_) {
+    LOG(WARNING) << "Attempted to enqueue a work unit to "
+                    "ThreadPoolLogWriter after it has been stopped. Dropping "
+                    "the work unit.";
+    return;
+  }
+  queue_.push(std::move(work_unit));
+}
+
+void ThreadPoolLogWriter::WorkerLoop() {
+  while (true) {
+    absl::AnyInvocable<void() &&> work_unit;
+    {
+      absl::MutexLock lock(queue_mutex_);
+
+      // Wait for a work unit to be enqueued or for the pool to be stopped.
+      auto work_unit_available_or_stopped =
+          [this]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(queue_mutex_) {
+            return stop_ || !queue_.empty();
+          };
+      queue_mutex_.Await(absl::Condition(&work_unit_available_or_stopped));
+
+      // Exit the thread when we have stopped the pool and all work units have
+      // been processed.
+      if (stop_ && queue_.empty()) {
+        return;
+      }
+
+      work_unit = std::move(queue_.front());
+      queue_.pop();
+    }
+    std::move(work_unit)();
+  }
+}
+
+void ThreadPoolLogWriter::ProcessEpisodeData(
+    std::unique_ptr<EpisodeData> episode_data, EnqueueMcapFileOptions options) {
+  int64_t num_timesteps = episode_data->timestamps().size();
+
+  if (num_timesteps == 0) {
+    LOG(ERROR)
+        << "ThreadPoolLogWriter: Received EpisodeData with has no timesteps.";
+    return;
+  }
+
+  proto2::Arena arena;
+  for (int i = 0; i < num_timesteps; ++i) {
+    tensorflow::Features* features =
+        proto2::Arena::Create<tensorflow::Features>(&arena);
+
+    absl::Status status = FillFeatureMapForTimestep(
+        /*timestep=*/i, /*episode_data=*/episode_data.get(),
+        /*image_keys=*/image_observation_keys_,
+        /*features=*/*features);
+
+    if (!status.ok()) {
+      LOG(ERROR) << "Failed to fill feature map for timestep: " << i
+                 << " with status: " << status;
+      continue;
+    }
+
+    // Assign the populated features to the example.
+    tensorflow::Example* example =
+        proto2::Arena::Create<tensorflow::Example>(&arena);
+    *example->mutable_features() = std::move(*features);
+
+    std::string serialized_example = example->SerializeAsString();
+    std::string filename = absl::StrCat("episode_", options.episode_uuid);
+    safari::logging::McapWriteOp write_op = {
+        .filename_prefix = filename,
+        .serialized_message = serialized_example,
+        .descriptor = tensorflow::Example::descriptor(),
+        .topic = options.topic,
+        .publish_time_ns = episode_data->timestamps()[i],
+        .log_time_ns = absl::ToUnixNanos(absl::Now()),
+    };
+    absl::Status write_status = ProcessMcapWriteOp(write_op);
+    if (!write_status.ok()) {
+      LOG(ERROR) << "Failed to process episode data: " << write_status;
+    }
+  }
+  // Once the episode data has been processed, we can destroy the EpisodeData
+  // object.
+  absl::MutexLock lock(episode_data_to_be_destroyed_mutex_);
+  episode_data_to_be_destroyed_.push(std::move(episode_data));
+}
+
+void ThreadPoolLogWriter::ProcessSessionData(
+    safari::protos::logging::Session session, EnqueueMcapFileOptions options) {
+  std::string serialized_session = session.SerializeAsString();
+  std::string filename = absl::StrCat("episode_", options.episode_uuid);
+  safari::logging::McapWriteOp write_op = {
+      .filename_prefix = filename,
+      .serialized_message = serialized_session,
+      .descriptor = safari::protos::logging::Session::descriptor(),
+      .topic = options.topic,
+      .publish_time_ns = options.timestamp_ns,
+      .log_time_ns = absl::ToUnixNanos(absl::Now()),
+  };
+  absl::Status status = ProcessMcapWriteOp(write_op);
+  if (!status.ok()) {
+    LOG(ERROR) << "Failed to process session data: " << status;
+  }
+}
+
+absl::Status ThreadPoolLogWriter::ProcessMcapWriteOp(
+    const McapWriteOp& request) {
+  absl::MutexLock lock(file_handles_mutex_);
+  // Get the file handle for the request.
+  absl::StatusOr<BaseMcapFileHandle*> file_handle =
+      GetOrCreateFileHandle(request);
+  if (!file_handle.ok()) {
+    return file_handle.status();
+  }
+  // Write the message to the MCAP file.
+  absl::Status write_status = (*file_handle)->WriteMessage(request);
+  if (!write_status.ok()) {
+    return write_status;
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<BaseMcapFileHandle*> ThreadPoolLogWriter::GetOrCreateFileHandle(
+    const McapWriteOp& request) {
+  auto it = file_handles_.find(request.filename_prefix);
+
+  int64_t shard_count = 0;
+  int64_t first_publish_time_ns = request.publish_time_ns;
+
+  if (it != file_handles_.end()) {
+    BaseMcapFileHandle* file_handle = it->second.get();
+    // If the current file handle can still fit the message, then we will use
+    // the current file handle.
+    if ((request.serialized_message.size() +
+         file_handle->total_messages_size_bytes()) <=
+        mcap_file_config_.file_shard_size_limit_bytes) {
+      return file_handle;
+    } else {
+      // Increment the shard count for the new file handle.
+      shard_count = file_handle->shard_index() + 1;
+      // Set the first publish time to the last publish time of the previous
+      // file handle.
+      first_publish_time_ns = file_handle->last_publish_time_ns();
+
+      // Otherwise, destroy the current file handle and create a new one.
+      file_handles_.erase(it);
+    }
+  }
+
+  if (request.serialized_message.size() >
+      mcap_file_config_.file_shard_size_limit_bytes) {
+    LOG(WARNING) << "Writing message with size="
+                 << request.serialized_message.size()
+                 << " which is greater than the file_shard_size_limit_bytes: "
+                 << mcap_file_config_.file_shard_size_limit_bytes
+                 << " for file: " << request.filename_prefix;
+  }
+
+  absl::StatusOr<std::unique_ptr<BaseMcapFileHandle>> new_file_handle =
+      mcap_file_handle_factory_->Create(request.filename_prefix, shard_count,
+                                        first_publish_time_ns,
+                                        &mcap_file_config_);
+  if (!new_file_handle.ok()) {
+    return new_file_handle.status();
+  }
+
+  BaseMcapFileHandle* file_handle_ptr = (*new_file_handle).get();
+  file_handles_[request.filename_prefix] = std::move(*new_file_handle);
+  return file_handle_ptr;
+}
+
+void ThreadPoolLogWriter::ProcessEpisodeDataToBeDestroyed() {
+  absl::MutexLock lock(episode_data_to_be_destroyed_mutex_);
+  while (!episode_data_to_be_destroyed_.empty()) {
+    std::unique_ptr<EpisodeData> episode_data =
+        std::move(episode_data_to_be_destroyed_.front());
+    episode_data_to_be_destroyed_.pop();
+    episode_data.reset();
+  }
+}
+
+}  // namespace safari::logging

@@ -1,0 +1,460 @@
+// Copyright 2025 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//      https://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+
+syntax = "proto3";
+
+package safari_sdk.ui;
+
+import "google/protobuf/duration.proto";
+import "safari_sdk/protos/ui/robot_frames.proto";
+import "safari_sdk/protos/ui/robot_state.proto";
+import "safari_sdk/protos/ui/robot_types.proto";
+
+// RobotCommand represents a command for the robot to perform.
+//
+// The RobotCommand can include commands for one or more parts of the robot.
+// All these commands begin at the same time (see the command_start_time_nsec
+// field).  RobotCommand cannot represent a sequence of commands.  To represent
+// a sequence of commands, use a repeated RobotCommand field.
+//
+// All commands in the `commands` field commence at the same time.  Before the
+// commands run they are checked for errors.  If an error is detected in any of
+// the commands then the entire RobotCommand is rejected and
+// `behavior_on_validation_error` determines how the robot behaves.
+message RobotCommand {
+  // This header shows when the command was sent (publish_timestamp_nsec).
+  // sample_timestamp_nsec is not used.
+  MessageHeader header = 1;
+
+  // The time that all commands in this message should begin running.
+  //
+  // It is an error to supply a command_start_time_nsec too far in the future.
+  // Usually within 1 second of the current time is acceptable.  If
+  // command_start_time_nsec is in the past (e.g. unset or 0) when the command
+  // is received then the command begins running immediately.
+  //
+  // unix nanos (nanoseconds since midnight Jan 1, 1970, UTC)
+  // (This does not count leap seconds.)
+  //
+  // (-- api-linter: core::0142::time-field-type=disabled
+  //     aip.dev/not-precedent: Robotics uses a unix nanos timestamp. --)
+  sfixed64 command_start_time_nsec = 2;
+
+  // What to do when an error is detected.
+  enum ErrorBehavior {
+    // This results in the default behavior, which is FAULT.
+    ERROR_BEHAVIOR_UNSPECIFIED = 0;
+    // If an error is detected before the RobotCommand begins, the old commands
+    // will continue to run.  If an error is detected while commands are running
+    // then just the part(s) whose command encoundered an error are stopped, and
+    // commands running on other parts keep running.
+    ERROR_BEHAVIOR_KEEP_RUNNING_OLD_COMMANDS = 1;
+    // If an error occurs, all motion commands running on all parts of the robot
+    // are stopped, but a subsequent RobotCommand with no errors will be
+    // accepted.
+    ERROR_BEHAVIOR_STOP_ALL_PARTS = 2;
+    // If an error occurs, a FAULT will be raised, all parts of the robot will
+    // stop moving, and no further RobotCommand messages will be accepted until
+    // the FAULT is cleared.
+    ERROR_BEHAVIOR_FAULT = 3;
+  }
+  // This is what the robot will do if the RobotCommand has an error which is
+  // detected before the command begins to run.  The default is FAULT.
+  ErrorBehavior behavior_on_validation_error = 4;
+  // This is what the robot will do if any command fails while it is running.
+  // The default is FAULT.
+  //
+  // Note: timeout is not considered an error.  A timeout of a command will
+  // cause the part(s) controlled by that command to stop, but other commands
+  // will continue to run.
+  ErrorBehavior behavior_on_runtime_error = 5;
+
+  // The subcommands to run.
+  //
+  // All these subcommands are run (in parallel) at command_start_time_nsec.
+  //
+  // Each subcommand may affect one or more `parts` of the robot (see the
+  // Subcommand.parts field).  Each part may be controlled by at most one
+  // subcommand at a time, so it is an error to have the same part in more than
+  // one subcommand.
+  //
+  // Any parts that are not listed in the `parts` field of any of these
+  // subcommands will stop (as if they were told to run the `stop` command).
+  // If you instead want one or more parts to continue to run the subcommands
+  // that they were already running, use the `keep_moving` command (see below).
+  repeated Subcommand subcommands = 6;
+}
+
+// A command to control one or more parts of the robot.
+message Subcommand {
+  // Which parts of the robot this command should affect.
+  //
+  // Parts are identified using the Frame.Enum.  Each part of the robot has an
+  // associated Frame.  See the Frame.Enum comments for details.
+  //
+  // For many commands, `parts` should contain a single part.  Having more than
+  // one `parts` really only makes sense for cartesian commands that move more
+  // than one part to achieve a single goal (e.g. moving the legs, torso, and
+  // arm to move the gripper to some cartesian pose).  The commands which
+  // support multiple parts describe which parts are supported and what this
+  // means.  If you just want to move 2 parts of the robot at the same time it
+  // usually makes more sense to use a different Subcommand for each part.
+  //
+  // Not all commands will work with all parts of the robot.  For example,
+  // sending a gripper-only command to an arm will result in an error.
+  //
+  // EXAMPLE: Moving the right_arm and the right_gripper using joint control:
+  //   - Use one Subcommand to control the right_arm with
+  //       - parts=[RIGHT_ARM] and
+  //       - command=JointPositionCommand.
+  //   - Use a second Subcommand to control the gripper with
+  //       - parts=[RIGHT_GRIPPER] and
+  //       - command=JointPositionCommand.
+  //
+  // EXAMPLE: Moving the right_gripper to a cartesian pose by moving the base
+  // and arm:
+  //   - Use a single Subcommand to move base and arm with
+  //       - parts=[BASE,RIGHT_ARM] and
+  //       - command=CartesianPositionCommand
+  //       - root_frame=ODOM
+  //       - tip_frame=RIGHT_GRIPPER.
+  //   - Note that even though we are posing the gripper, we are not moving the
+  //     RIGHT_GRIPPER's joints with this command.  So RIGHT_GRIPPER does not
+  //     appear in the `parts` of the subcommand.  The tip_frame could either be
+  //     RIGHT_ARM or RIGHT_GRIPPER depending on what we want to accomplish
+  //     (often it is more convenient to think about where you want the
+  //     RIGHT_GRIPPER pose to be than to think about where you want the
+  //     RIGHT_ARM pose to be - see Frame.Enum comments for details).  If you
+  //     wanted to also close the gripper you could add a second Subcommand with
+  //     parts=[RIGHT_GRIPPER] and command=JointPositionCommand.
+  repeated Frame.Enum parts = 1;
+
+  // If set to a value greater than 0, then the command will stop running
+  // after this period of time and parts will then begin to run the `stop`
+  // command.
+  google.protobuf.Duration timeout = 2;
+
+  // Optional limits which will be applied to the command.
+  CommandLimits limits = 3;
+
+  // The available commands.
+  //
+  // New commands can be added here.
+  //
+  // The commands that are actually supported by a robot, and the parts they are
+  // each supported with, are listed in RobotConfig.supported_commands.
+  oneof command {
+    // Commands `parts` to stop moving.
+    // This is the default for any part not explicitly mentioned in any
+    // RobotCommand.commands[i].parts.
+    StopCommand stop = 4;
+    // Commands `parts` to keep doing what they were doing before.
+    KeepMovingCommand keep_moving = 5;
+    // Commands the joints of `parts` to move to a specific position.
+    JointPositionCommand joint_position_command = 6;
+    // Commands the joints of `parts` to move at a specific joint velocity.
+    JointVelocityCommand joint_velocity_command = 7;
+    // Commands one or more parts to move to a cartesian pose.
+    CartesianPositionCommand cartesian_position_command = 8;
+    // Commands one or more parts to move at a cartesian velocity.
+    CartesianVelocityCommand cartesian_velocity_command = 9;
+    // Commands one or more parts to move to a relative cartesian pose.
+    CartesianDeltaCommand cartesian_delta_command = 10;
+  }
+}
+
+// These limits affect how the associated command is run.
+// TODO: command limits.
+message CommandLimits {
+  // The maximum speed that the controlled frame will move.
+  // Only affects cartesian commands.
+  // See description of each cartesian command for command-specific behavior.
+  // Ignored if unset or <=0.0.
+  // Units: m/s
+  float max_cartesian_velocity = 1;
+
+  // The maximum speed that the controlled frame will rotate.
+  // Only affects cartesian commands.
+  // See description of each cartesian command for command-specific behavior.
+  // Ignored if unset or <=0.0.
+  // Units: radians/s
+  float max_cartesian_rotation = 2;
+
+  // The max velocity allowed on each joint.
+  // Units: radians/s or m/s.
+  repeated float max_joint_velocities = 3;
+}
+
+// Commands `parts` to stop moving.
+message StopCommand {}
+
+// Commands `parts` to keep doing what ther were doing before.
+// By default, any command that is not explicitly given a new command will stop
+// moving.  Use this command to tell the part to keep running whatever command
+// was running before.
+message KeepMovingCommand {}
+
+// Commands the joints of `parts` to move to a specific position.
+message JointPositionCommand {
+  // The goal position.
+  // The size must equal the number of actuators for the part (see
+  // PartConfig.actuators).  If the part has no actuators then it must match the
+  // number of joints in the part (see PartConfig.joints).
+  repeated float joint_positions = 1;
+}
+
+// Commands the joints of `parts` to move at a specific joint velocity.
+//
+// This command typically requires timeout_sec to be a value in (0.0, 1.0].
+message JointVelocityCommand {
+  // The goal velocity.
+  // The size must equal the number of actuators for the part (see
+  // PartConfig.actuators).  If the part has no actuators then it must match the
+  // number of joints in the part (see PartConfig.joints).
+  repeated float joint_velocities = 1;
+}
+
+// Commands one or more parts to move to a cartesian pose.
+//
+// EXAMPLE: Moving the right_gripper to a cartesian pose relative to ODOM
+//   Subcommand.parts = [RIGHT_ARM]
+//   tip_frame = RIGHT_GRIPPER
+//   root_frame = ODOM
+//   root_transform_tip_goal = desired pose of RIGHT_GRIPPER wrt ODOM.
+//
+// EXAMPLE: Moving the right_gripper to a cartesian pose relative to the base
+// of the robot.
+//   Subcommand.parts = [RIGHT_ARM]
+//   tip_frame = RIGHT_GRIPPER
+//   root_frame = BASE
+//   root_transform_tip_goal = desired pose of RIGHT_GRIPPER wrt BASE.
+// Note: this command will work differently than the above example if the base
+// of the robot is moving.  If the base of the robot is moving (e.g. due to a
+// different Subcommand) then the first example will keep moving the arm to keep
+// the RIGHT_GRIPPER in the same pose relative to the ODOM frame (the world)
+// while the BASE continues to move, whereas this root=BASE command will move
+// the hand to a pose relative to the BASE of the robot and then keep it there
+// while the BASE moves.
+//
+// EXAMPLE: Whole body control of the RIGHT_GRIPPER.
+//   Subcommand.parts = [RIGHT_ARM, BASE, LEFT_REAR_WHEEL, RIGHT_REAR_WHEEL]
+//   tip_frame = RIGHT_GRIPPER
+//   root_frame = ODOM
+//   root_transform_tip_goal = desired pose of RIGHT_GRIPPER wrt ODOM.
+// Note: the difference between this and the first example is that this will
+// move the wheels as well as the arm joints in order to achieve the desired
+// pose of the LEFT_GRIPPER.
+// Note: Even though the BASE part does not contain any joint, it must be
+// included in cartesian commands that move the BASE relative to ODOM.  This
+// makes it clear that the BASE cannot be moved by 2 Subcommands in the same
+// RobotCommand.  When moving the BASE, the command should also contain all
+// parts that connect the BASE to the world (all wheels that are touching the
+// ground, all legs that might be needed, etc).
+//
+// EXAMPLE: Moving the base on a 2 wheel robot.
+//   Subcommand.parts = [BASE, LEFT_REAR_WHEEL, RIGHT_REAR_WHEEL]
+//   tip_frame = BASE
+//   root_frame = ODOM
+//   root_transform_tip_goal = desired pose of BASE wrt ODOM.
+//
+// EXAMPLE: Moving the base on a 4 legged robot.
+//   Subcommand.parts = [BASE, LEFT_REAR_LEG, RIGHT_REAR_LEG, LEFT_FRONT_LEG
+//                       RIGHT_FRONT_LEG]
+//   tip_frame = BASE
+//   root_frame = ODOM
+//   root_transform_tip_goal = desired pose of BASE wrt ODOM.
+message CartesianPositionCommand {
+  // This is the frame which will be moved by the robot.
+  // Typically this is the frame associated with the part of the robot that is
+  // being moved.
+  Frame.Enum tip_frame = 1;
+  // This is the reference frame for the motion.
+  // Typically this is BASE or ODOM or a camera frame.  Other values are
+  // unlikely to be supported.
+  //
+  // Note: if the tip_frame is currently at pose A and you want to move it to
+  // pose B which is specified as A_transform_B (specified with respect to the
+  // tip_frame and in the coordinate system of the tip_frame) then use
+  //
+  //       root_transform_tip_goal = ODOM_transform_A * A_transform_B
+  //
+  // and set root_frame to ODOM.  (Or replace ODOM with BASE or a camera frame
+  // in both places.)
+  //
+  // root_frame=MAP is not supported on most robots.  To move relative to the
+  // world, use the ODOM frame.
+  Frame.Enum root_frame = 2;
+  // The goal of the command is for root_transform_tip to equal this.
+  // Once this goal is achieved, the command will continue to run.  This means
+  // that if root_frame is ODOM and tip_frame is RIGHT_GRIPPER, and the BASE
+  // part is moving, that the arm will continue to seek to the goal pose.
+  Transform root_transform_tip_goal = 3;
+}
+
+// Commands one or more parts to move with a certain twist (cartesian velocity).
+//
+// This command typically requires timeout_sec to be a value in (0.0, 1.0].
+message CartesianVelocityCommand {
+  // This is the frame which will be moved by the robot.
+  // Typically this is the frame associated with the part of the robot that is
+  // being moved.
+  Frame.Enum tip_frame = 1;
+  // This is the reference frame for the motion.
+  // Typically this is BASE or ODOM or a camera frame.  Other values are
+  // unlikely to be supported.
+  Frame.Enum root_frame = 2;
+  // The goal of the command is for root_twist_tip_goal to be the motion of
+  // tip_frame with respect to root_frame.  The components of
+  // root_twist_tip_goal are specified in the coordinate system of the
+  // root_frame.  root_twist_tip_goal must contain 6 values which are
+  // interpreted as:
+  //    root_twist_tip_goal[0] - the x component of the linear velocity.
+  //    root_twist_tip_goal[1] - the y component of the linear velocity.
+  //    root_twist_tip_goal[2] - the z component of the linear velocity.
+  //    root_twist_tip_goal[3] - the rotational velocity around the x axis.
+  //    root_twist_tip_goal[4] - the rotational velocity around the y axis.
+  //    root_twist_tip_goal[5] - the rotational velocity around the z axis.
+  repeated float root_twist_tip_goal = 3;
+}
+
+// Commands one or more parts to move to a cartesian pose relative to some
+// PreviousPose.
+//
+// This command is really just syntactic sugar around the
+// CartesianPositionCommand.
+//
+// This command operates by first calculating root_transform_tip_goal as
+// follows:
+//  Notation:
+//     I use a_T_b to mean a_translation_b (pose of a wrt b).
+//     I use A_T_b.basis to mean the basis (3x3 matrix) of a_T_b.
+//     I use A_T_b.origin to mean the translation (vec3) of a_T_b.
+//  Inputs:
+//     root_T_tip = PreviousPose.root_transform_tip
+//     root_T_trans = PreviousPose.root_transform_translation
+//     root_T_rotB = PreviousPose.root_transform_rotation_basis
+//     root_T_rotO = PreviousPose.root_transform_rotation_origin
+//     rot_T_rot2  = rotation defined by `rotation` field.
+//     trans_T_trans2 = translation defined by `translation` field.
+//     rotation_origin = vec3 from `rotation_origin` field.
+//
+//  // (1) Find pose of tip in `rot` frame.
+//  root_T_rot.basis = root_T_rotB.basis
+//  root_T_rot.origin = root_T_rotO * rotation_origin
+//  rot_T_tip = inverse(root_T_rot) * root_T_tip
+//  // (2) Apply rotation in `rot` frame.
+//  rot_T_tip2 =  rot_T_rot2 * rot_T_tip
+//  // (3) Find pose of rotated tip (tip2) in `trans` frame.
+//  trans_T_rot = inverse(root_T_trans) * root_T_rot
+//  // (4) Apply translation in `trans` frame.
+//  trans_T_tip3 = trans_T_rot * rot_T_tip2
+//  // (5) Find pose of rotated, translated tip (goal tip) in root frame.
+//  root_transform_tip_goal = root_T_trans * trans_T_tip3
+//
+// Then the command performs
+// CartesianPositionCommand{tip_frame, root_frame, root_transform_tip_goal}.
+//
+// EXAMPLE:
+// To move the RIGHT_ARM 1mm to the right in the camera frame, while rotating
+// clockwise 0.1 radian CCW around the camera y axis with a rotation origin of
+// the gripper frame, use:
+//    tip_frame = RIGHT_ARM
+//    root_frame = ODOM
+//    translation_frame = CAMERA
+//    rotation_basis_frame = CAMERA
+//    rotation_origin_frame = RIGHT_GRIPPER
+//    rotation_origin = 0,0,0
+//    previous_pose = old_robot_state
+//    translation = 0.001, 0, 0         // 1mm in x
+//    rotation = 0, 0.1, 0              // 0.1 radian around y
+message CartesianDeltaCommand {
+  // This is the frame which will be moved by the robot.
+  // The same restrictions apply as for CartesianPositionCommand.tip_frame.
+  Frame.Enum tip_frame = 1;
+  // This is the reference frame for the motion.
+  // The same restrictions apply as for CartesianPositionCommand.root_frame.
+  Frame.Enum root_frame = 2;
+
+  // The frame that translation is specified in.
+  // This is often the same as tip_frame or root_frame, but can be any frame.
+  Frame.Enum translation_frame = 3;
+
+  // The coordinate system used to describe the rotation.
+  // This is typically the same as translation_frame, but can be any frame.
+  Frame.Enum rotation_basis_frame = 4;
+
+  // The origin of the rotation (the point in space that the tip_frame is
+  // rotated around) is rotation_origin, which is a 3D point defined in the
+  // rotation_origin_frame's coordinate system.
+  Frame.Enum rotation_origin_frame = 5;
+  // The origin to rotate around, specified in the rotation_origin_frame
+  // coordinate system.
+  float rotation_origin = 6;
+
+  // How far to move the tip_frame, specified in the translation_frame's
+  // coordinate system.
+  //   [0] - meters to move in direction of the translation_frame's x axis.
+  //   [1] - meters to move in direction of the translation_frame's y axis.
+  //   [2] - meters to move in direction of the translation_frame's z axis.
+  repeated float translation = 7;
+
+  // How far to rotate the tip_frame, around the rotation_origin, specified in
+  // the rotation_basis_frame's coordinate system.
+  //
+  // In other words, this rotation is defined in the `rotation_frame` which is
+  // defined as a frame whose axis is oriented the same as rotation_basis_frame,
+  // and whose origin is defined by rotation_origin.
+  //
+  //   [0] - radians to rotate around rotation_frame's x axis.
+  //   [1] - radians to rotate around rotation_frame's y axis.
+  //   [2] - radians to rotate around rotation_frame's z axis.
+  repeated float rotation = 8;
+
+  // PreviousPose contains certain poses (transforms) from some recent
+  // RobotState.  These are needed to calculate the new goal pose of the robot.
+  //
+  // These can be specified explicitly or indirectly based on which field of the
+  // previous_pose oneof you choose to fill in.
+  //
+  // Note: In some APIs the delta is applied to "the current pose of the robot".
+  // This is problematic because it is nondeterministic what the "current pose
+  // of the robot" is when the command begins to act.  Generally when sending
+  // delta commands you want to move the robot by some increment relative to the
+  // last place you observed it.  The fields of PreviousPose indicate what prior
+  // state of the robot was observed when calculating this delta.  This allows
+  // the delta to be applied correctly and deterministically,
+  message PreviousPose {
+    // The previous pose of tip_frame with respect to root_frame.
+    Transform root_transform_tip = 1;
+    // The previous pose of translation_frame with respect to root_frame.
+    Transform root_transform_translation = 2;
+    // The previous pose of rotation_basis_frame with respect to root_frame.
+    Transform root_transform_rotation_basis = 3;
+    // The previous pose of rotation_origin_frame with respect to root_frame.
+    Transform root_transform_rotation_origin = 4;
+  }
+
+  // There are several ways to specify the PreviousPose, which represents the
+  // observed state of the robot to which the delta motion should be applied.
+  oneof previous_pose {
+    // An old RobotState, which must contain at least enough information for
+    // the robot to calculate all the fields of PreviousPose.
+    // This is typically the most recently observed RobotState.
+    RobotState old_robot_state = 10;
+
+    // The poses needed.  This is typically calculated from the most recently
+    // observed RobotState.
+    PreviousPose prev_pose = 11;
+  }
+}

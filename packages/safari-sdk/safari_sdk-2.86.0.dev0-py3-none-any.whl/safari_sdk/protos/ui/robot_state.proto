@@ -1,0 +1,781 @@
+// Copyright 2025 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//      https://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+
+syntax = "proto3";
+
+package safari_sdk.ui;
+
+import "safari_sdk/protos/ui/robot_frames.proto";
+import "safari_sdk/protos/ui/robot_types.proto";
+
+// The state of the robot.
+//
+// This message describes the state of all sensors on the robot at a specific
+// point in time.  It is typically used to generate an "observation" used as the
+// return value from an Env.step() function (see DMEnv and similar classes).  It
+// is not always possible to sample all sensors on a robot at exactly the same
+// time, so each sensor value has its own timestamp.  However, all these
+// timestamps will be as close as possible to the
+// RobotState.header.sample_timestamp_nsec value.
+//
+// This message can also be used for other purposes, and may not always include
+// a value for each field relevant to the robot.  For example, it could be used
+// to contain just a single camera image and fields relevant to that camera
+// image.
+//
+// All measurements are expressed in SI units (meters, kilograms, seconds,
+// radians, Newtons, etc).
+//
+// Next ID: 7
+message RobotState {
+  // Information about who publshed the message, when it was published, and when
+  // the data in this message were sampled.
+  //
+  // Each sensed value also contains the timestamp when that particular sensor
+  // was sampled.  The RobotState.header.sample_timestamp_nsec value is the
+  // idealized time that each sensor in the message was sampled.  Other
+  // timestamps in this message depend on the configuration and how this message
+  // is generated/used.
+  // It might be
+  //   - the most recent sample preceding this time.
+  //   - the closest sample before or after this time.
+  //   - something else depending on configuration.
+  MessageHeader header = 1;
+
+  // The high level readiness of the robot.
+  //
+  //   <robot starts up>
+  //         |
+  //         V
+  //      DISABLED  <-- DISABLING
+  //         |              ^
+  //         V              |
+  //      STARTUP ----------+
+  //         |              |
+  //         V              |
+  //      ENABLED ----------+
+  //         |              |
+  //         V              |
+  //      FAULT ------------+
+  //         ^
+  //         |
+  //     <any readiness>  A transition to FAULT can occur from any other.
+  //
+  // Note: some robots may never or only rarely report a "STARTUP" or
+  // "DISABLING" readiness since the robot is typically in these readinesses for
+  // only a very short period of time.
+  enum Readiness {
+    // Not used.
+    READINESS_UNSPECIFIED = 0;
+    // Unable to move (this is the startup readiness).
+    DISABLED = 1;
+    // Transitioning from DISABLED to ENABLED.
+    STARTUP = 2;
+    // Able to move.
+    ENABLED = 3;
+    // An error occurred.
+    FAULT = 4;
+    // Transitioning to DISABLED.
+    DISABLING = 5;
+    // The robot is in an unknown state.
+    STALE = 6;
+  }
+  // The high level readiness of the robot.
+  Readiness readiness = 2;
+
+  // The pose, velocity, acceleration of the BASE frame wrt the ODOM frame.
+  // There may be a lot of error in this state as it may come from lidar scan
+  // matching, wheel odometry, viusual odometry, motion capture, or other noisy
+  // localization methods.
+  //
+  // The ODOM frame is an inertial frame.
+  // See "BASE, ODOM, MAP Note" above the Frame message at the top of
+  // `robot_frames.proto` for the definition of the ODOM and BASE frame.
+  CartesianState odom_state_base = 3;
+
+  // The pose of the BASE frame wrt the MAP frame.  There may be a lot of error
+  // in this pose as it may come from lidar scan matching, wheel odometry,
+  // viusual odometry, motion capture, or other noisy localization methods.
+  //
+  // The MAP frame is a non-inertial frame which is attached to the world.
+  // See "BASE, ODOM, MAP Note" above the Frame message at the top of
+  // `robot_frames.proto` for the definition of the MAP and BASE frame.
+  Transform map_transform_base = 4;
+
+  // The state of each part of the robot.
+  PartsState parts = 5;
+
+  // The state of all commands that are currently running or that completed
+  // since the last RobotState was sent.
+  repeated RunningCommandStatus running_command_status = 6;
+}
+
+// The state of each part of the robot.
+//
+// NOTE: Each part (except "world") has a corresponding frame in Frame.Enum.
+// robot_state_test.cc helps ensure this.
+//
+// Next ID: 29
+message PartsState {
+  // Information about the "WORLD" part.
+  //
+  // There are 2 frames associated with the world:
+  //   The ODOM frame is an inertial frame.
+  //   The MAP frame is a non-inertial frame which is attached to the world.
+  // See "BASE, ODOM, MAP Note" above the Frame message at the top of
+  // `robot_frames.proto` for what this means.
+  //
+  // "world" never has joint state or cartesian state.  It contains sensors (e.g
+  // cameras) attached to the world (if any).
+  //
+  // base_state_part_* is unset for the world part.
+  // Use RobotState.map_transform_base and RobotState.odom_state_base to
+  // determine the state/pose of the robot with respect to the MAP and ODOM
+  // frames.
+  PartState world = 3;
+
+  // Information about the "BASE" part.
+  // BASE typically has no joint state (see wheels or legs instead).
+  // This is used for sensors attached to the base part.  For robots whose base
+  // is attached to the world, prefer to put sensors in `world` and not `base`.
+  //
+  // base_state_part_* is identity by definition for the BASE part.
+  PartState base = 4;
+
+  // Right arm (also used for robots with only one arm).
+  //
+  // base_state_part_* is the state of the RIGHT_ARM frame with respect to the
+  // BASE frame.  See RIGHT_ARM in robot_frames.proto.
+  PartState right_arm = 5;
+  // Left arm state.
+  PartState left_arm = 6;
+
+  // The gripper parts are used for simple grippers that have a single degree
+  // for the whole hand.
+  //
+  // base_state_part_* is the state of the RIGHT_GRIPPER frame with respect to
+  // the BASE frame.  See RIGHT_GRIPPER in robot_frames.proto.
+  PartState right_gripper = 7;
+  // Left gripper state.  Not used with one-arm robots.
+  //
+  // base_state_part_* is the state of the LEFT_GRIPPER frame with respect to
+  // the BASE frame.  See LEFT_GRIPPER in robot_frames.proto.
+  PartState left_gripper = 8;
+
+  // Finger parts are used for complex grippers where each finger is controlled
+  // independently.
+  //
+  // Grippers with 1 finger should use "thumb".
+  // Grippers with 2 fingers should use "thumb" and "index_finger".
+  // Grippers with 3 fingers should use "thumb", "index_finger", and
+  //  "middle_finger".
+  // Grippers with 4 fingers should use "thumb", "index_finger",
+  //  "middle_finger", and "ring_finger".
+  // Additional fields may be added if needed for >5 finger grippers.
+  //
+  // Right thumb state.
+  //
+  // base_state_part_* is the state of the RIGHT_GRIPPER_THUMB frame with
+  // respect to the BASE frame.
+  PartState right_gripper_thumb = 9;
+  // Right index finger state.
+  //
+  // base_state_part_* is the state of the RIGHT_GRIPPER_INDEX_FINGER frame with
+  // respect to the BASE frame.
+  PartState right_gripper_index_finger = 10;
+  // Right middle finger state.
+  //
+  // base_state_part_* is the state of the RIGHT_GRIPPER_MIDDLE_FINGER frame
+  // with respect to the BASE frame.
+  PartState right_gripper_middle_finger = 11;
+  // Right ring finger state.
+  //
+  // base_state_part_* is the state of the RIGHT_GRIPPER_RING_FINGER frame with
+  // respect to the BASE frame.
+  PartState right_gripper_ring_finger = 12;
+  // Right pinkie finger state.
+  //
+  // base_state_part_* is the state of the RIGHT_GRIPPER_PINKIE_FINGER frame
+  // with respect to the BASE frame.
+  PartState right_gripper_pinkie_finger = 13;
+
+  // Left thumb state.
+  //
+  // base_state_part_* is the state of the LEFT_GRIPPER_THUMB frame with
+  // respect to the BASE frame.
+  PartState left_gripper_thumb = 14;
+  // Left index finger state.
+  //
+  // base_state_part_* is the state of the LEFT_GRIPPER_INDEX_FINGER frame with
+  // respect to the BASE frame.
+  PartState left_gripper_index_finger = 15;
+  // Left middle finger state.
+  //
+  // base_state_part_* is the state of the LEFT_GRIPPER_MIDDLE_FINGER frame with
+  // respect to the BASE frame.
+  PartState left_gripper_middle_finger = 16;
+  // Left ring finger state.
+  //
+  // base_state_part_* is the state of the LEFT_GRIPPER_RING_FINGER frame with
+  // respect to the BASE frame.
+  PartState left_gripper_ring_finger = 17;
+  // Left pinkie finger state.
+  //
+  // base_state_part_* is the state of the LEFT_GRIPPER_PINKIE_FINGER frame with
+  // respect to the BASE frame.
+  PartState left_gripper_pinkie_finger = 18;
+
+  // The wheels of the robot.
+  //
+  // base_state_part_ is the state of the wheel's frame with respect to the BASE
+  // frame.
+  //
+  // right_rear_wheel state
+  PartState right_rear_wheel = 19;
+  // left_rear_wheel state
+  PartState left_rear_wheel = 20;
+  // right_front_wheel state
+  PartState right_front_wheel = 21;
+  // left_front_wheel state
+  PartState left_front_wheel = 22;
+
+  // The legs of the robot.
+  //
+  // base_state_part_* is the state of the leg part's frame with respect to the
+  // BASE frame.
+  //
+  // right_rear_leg state (right leg for 2-legged robots)
+  PartState right_rear_leg = 23;
+  // left_rear_leg state (left leg for 2-legged robots)
+  PartState left_rear_leg = 24;
+  // right_front_leg state (not used in 2-legged robots)
+  PartState right_front_leg = 25;
+  // left_front_leg state (not used in 2-legged robots)
+  PartState left_front_leg = 26;
+
+  // The head.
+  // base_state_part_* is the state of the head part's frame with respect to the
+  // BASE frame.
+  PartState head = 27;
+
+  // The torso.
+  // base_state_part_* is the state of the TORSO part's frame with respect to
+  // the BASE frame. See TORSO in robot_frames.proto.
+  PartState torso = 28;
+
+  // These values are reserved because in Frame.Enum they are used for ODOM and
+  // MAP, and there is no corresponding odom or map part (but see the world
+  // part).
+  reserved 1, 2;
+}
+
+// The state of one part of the robot.
+//
+// A part is an abstract concept which usually (but not always) is associated
+// with a kinematic chain and/or a link.  Parts that have a kinematic chain of 1
+// (e.g. a wheel or finger) or more (e.g. leg, finger, arm) joints will contain
+// a joint_state.  The cartesian_state is associated with the last
+// (kinematically most distal from the base) joint in this part.  A part is
+// similar to a "MoveGroup" in "ROS MoveIt!"
+//
+// See the comment above the PartState field for information about each part.
+//
+// Next ID: 12
+message PartState {
+  // The commanded state of the joints in this part.
+  // This is the position, velocity, acceleration, torque which the controller
+  // is attempting to get the joint to achieve as of
+  // joint_state_target.header.sample_timestamp_nsec.
+  //
+  // Note: This is never set for the `base` or `world` parts.
+  JointState joint_state_target = 1;
+
+  // The state of the joints in this part as sensed.
+  //
+  // Note: This is never set for the `base` or `world` parts.
+  JointState joint_state_sensed = 2;
+
+  // Similar to joint_state_target, but reports the motor state, as opposed
+  // to the joint state.
+  //
+  // This field is probably only useful for over-actuated or under-actuated
+  // parts, where the part has a different number of joints vs motors.  It
+  // should not be set if it is not useful.
+  //
+  // Note: This is never set for the `base` or `world` parts.
+  JointState motor_state_target = 3;
+
+  // Similar to joiunt_state_sensed, but reports the motor state, as opposed
+  // to the joint state.
+  //
+  // This field is probably only useful for over-actuated or under-actuated
+  // parts, where the part has a different number of joints vs motors.  It
+  // should not be set if it is not useful.
+  //
+  // Note: This is never set for the `base` or `world` parts.
+  JointState motor_state_sensed = 4;
+
+  // The target cartesian state of the part itself.
+  //
+  // This is the pose/velocity/acceleration of this part measured with respect
+  // to the base part and specified using the coordinate system of the base
+  // part.  To get the pose of part foo with respect to part bar use
+  //     Inverse(RobotState.bar.base_state_part_target.pose) *
+  //     RobotState.foo.base_state_part_target.pose
+  //
+  // For parts that contain many links (e.g., an arm, leg, or finger) this is
+  // the link moved by the last (kinematically most distal from the base) joint
+  // in this part.
+  //
+  // This is typically calculated from joint_state_target using forward
+  // kinematics.
+  //
+  // Note: This is never set for the `world` part, and is always identity (with
+  // 0 velocity and acceleration) for the `base` part.
+  CartesianState base_state_part_target = 5;
+
+  // The sensed cartesian state of the part itself.
+  //
+  // This is the pose/velocity/acceleration of this part measured with respect
+  // to the base part and specified using the coordinate system of the base
+  // part.  To get the pose of part foo with respect to part bar use
+  //     Inverse(RobotState.bar.base_state_part_target.pose) *
+  //     RobotState.foo.base_state_part_target.pose
+  //
+  // For parts that contain many links (e.g., an arm, leg, or finger) this is
+  // the link moved by the last (kinematically most distal from the base) joint
+  // in this part.
+  //
+  // This is typically calculated from joint_state_sensed using forward
+  // kinematics.  On some robots it might instead be sensed using motion capture
+  // or some other kind of sensing.
+  //
+  // Note: This is never set for the `world` part, and is always identity (with
+  // 0 velocity and acceleration) for the `base` part.
+  CartesianState base_state_part_sensed = 6;
+
+  // Images from various cameras attached to this part.
+  //
+  // Cameras attached to the world should be in the "map" PartState.
+  //
+  // the index i in cameras[i] always represents the same camera.  For example
+  // cameras[3] in a robot with 6 cameras always represents the same camera.  If
+  // a RobotState for that robot only has an image for cameras[3] then
+  // cameras[0], cameras[1], and cameras[2] will be empty messages (no fields
+  // set).
+  repeated CameraImage cameras = 7;
+
+  // IMUs attached to this part.
+  //
+  // the index i in imus[i] always represents the same IMU.
+  //
+  // if you want to report both "raw" IMU readings and "calibrated" IMU
+  // readings, then use an entry imus[i] for the raw values (with
+  // imus[i].correction==RAW) and imus[i+1] for the calibrated values (with
+  // imus[i].correction==CALIBRATED).
+  repeated IMU imus = 8;
+
+  // Temperature of each motor, if available.  Degrees C.
+  // If present, this should be the same size as the number of motors in this
+  // Part, and is accessed in the same order as motor_state_sensed.positions (if
+  // there are the same number of motors and joints, then this is the same order
+  // as joint_state_sensed.positions).
+  repeated float motor_temperatures = 9;
+
+  // Temperature sensors associated with this part.
+  repeated TemperatureSensor temperature_sensors = 10;
+
+  // Fields that are meaningful to grippers.
+  // Unset if not applicable.
+  GripperState gripper_state = 11;
+}
+
+// Joint state of the part. Each compenent has NDOF elements, or is empty for
+// fields that are not supported.
+//
+// Joints are listed starting with the joint that is kinematically closest to
+// the BASE, and ending with the with the joint that is kinematically farthest
+// from the BASE.
+//
+// Next ID: 6
+message JointState {
+  // The time (header.sample_timestamp_nsec) when this state was sampled.
+  // The header.sequence_number is optional and, if set, is incremented each
+  // time the state is sampled.
+  // sensor_id is not meaningful here.
+  SensorHeader header = 1;
+
+  // Values (positions) of each joint in this part.  Radians or meters.
+  repeated float positions = 2;
+  // Velocities of each joint.  Radians/sec or m/sec.
+  repeated float velocities = 3;
+  // Acceleration of each joint.  Radians/sec^2 or m/sec^2.
+  repeated float accelerations = 4;
+  // Torque or force applied at each joint.  Newton-meters or Newtons.
+  // This includes torques to compensate gravity and externally applied forces
+  // as well as torque used to accelerate the join.   In other words, this is
+  // the total torque on the joint.
+  repeated float torques = 5;
+}
+
+// A CartesianState defines the kinematic state of a target frame (the frame
+// being describe) with respect to a reference frame.  It is similar to a
+// Transform (see above), but in addition to the Transform it also contains the
+// velocity and acceleration.  The velocity and/or acceleration are unset if
+// not known.
+//
+// Fields of this type are typically named
+//     a_state_b
+// where b is the target frame whose pose, velocity, and acceleration is being
+// specified, and a is the reference frame (the frame relative to which b is
+// measured, and the coordinate system used to specify the state of a).
+//
+// Next ID: 5
+message CartesianState {
+  // The time (header.sample_timestamp_nsec) when the state was sampled.
+  //
+  // For example, if the values were calculated (forward kinematics) from joint
+  // values, this is the time when those joint values were sampled.
+  //
+  // sequence_number and sensor_id are not meaningful here.
+  SensorHeader header = 1;
+
+  // The position and orientation of the target frame with respect to the
+  // reference frame at header.sample_timestamp_nsec.
+  Transform pose = 2;
+
+  // The velocity of the target frame relative to the reference frame, expressed
+  // using the coordinate system of the reference frame.  If present, this is
+  // always 6 elements (a twist):
+  //  [0] linear x velocity (m/s)
+  //  [1] linear y velocity (m/s)
+  //  [2] linear z velocity (m/s)
+  //  [3] angular x velocity (rad/s)
+  //  [4] angular y velocity (rad/s)
+  //  [5] angular z velocity (rad/s)
+  // or empty if unknown.
+  repeated float velocity = 3;
+
+  // The acceleration of the target frame relative to the reference frame,
+  // expressed using the coordinate system of the reference frame.  If present,
+  // this is always 6 elements (a twist):
+  //  [0] linear x acceleration (m/s^2)
+  //  [1] linear y acceleration (m/s^2)
+  //  [2] linear z acceleration (m/s^2)
+  //  [3] angular x acceleration (rad/s^2)
+  //  [4] angular y acceleration (rad/s^2)
+  //  [5] angular z acceleration (rad/s^2)
+  // or empty if unknown.
+  repeated float acceleration = 4;
+}
+
+// A frame describing the pose of a Sensor.
+//
+// Generally this information is static/constant for a given robot so it is not
+// necessary to include it.  But by including this information it is possible to
+// know the pose of any sensor wrt any frame or other sensor without knowledge
+// of the URDF.
+message SensorFrame {
+  // The frame used to position the sensor.
+  // For a sensor attached to the robot, this is the frame or part to which the
+  // sensor is attached.  If the sensor is attached to a link of the robot, then
+  // this is the part that contains that link.
+  // For a sensor attached to the world, this is Frame.Enum.MAP.
+  Frame.Enum parent_frame = 4;
+
+  // The pose of the sensor with respect to the parent_frame when the sensor was
+  // sampled.  For most sensors this will be a constant (because the sensor is
+  // attached to the object associated with the parent_frame, so they move
+  // together as a single solid object).  For sensors attached to a link other
+  // than the last link in the part, this can change over time.
+  Transform parent_transform_sensor = 5;
+}
+
+// An image (rgb, depth, greyscale,or other).
+//
+// Next ID: 8
+message CameraImage {
+  // Information about which camera this is (sensor_id) and which sample is
+  // recorded here (sequence_number and header.sample_timestamp_nsec).
+  SensorHeader header = 6;
+
+  // The position and orientation of this camera when the image was acquired.
+  // This generally a constant for any given camera and can be calculated from
+  // the URDF.
+  //
+  // The sensor frame is defined as
+  //  X is to the right in the image plane.
+  //  Y is down in the image plane.
+  //  Z is the direction the camera is looking.
+  SensorFrame frame = 7;
+
+  // The format of the image data.
+  //
+  // Next ID: 6
+  message PixelType {
+    // The datatype in each channel.
+    enum PixelPrimitive {
+      // Unused.
+      PIXEL_PRIMITIVE_UNSPECIFIED = 0;
+      // One byte per channel.
+      UCHAR8 = 1;
+      // 16 bits per channel.
+      UINT16 = 2;
+      // 32 bits per channel.
+      UINT32 = 3;
+      // 32 signed bits per channel.
+      INT32 = 6;
+      // 16 bit float per channel.
+      FLOAT16 = 4;
+      // 32 bit float per channel.
+      FLOAT32 = 5;
+    }
+    // The datatype in each channel.
+    PixelPrimitive pixel_primitive = 1;
+
+    // One component channel types.
+    enum ChannelType1 {
+      // Unused.
+      CHANNEL_TYPE1_UNSPECIFIED = 0;
+      // Mono color (greyscale).
+      MONO = 1;
+      // Depth in arbitrary units.
+      DEPTH = 2;
+      // Disparity in pixels.
+      DISPARITY = 8;
+      // Occupancy.  TODO: What is this?
+      OCCUPANCY = 3;
+      // Signal to noise ratio.  TODO: What is this?
+      SNR = 9;
+
+      // Bayer encoded images are single-channel and converted to color images
+      // using interpolation, i.e., a 1280x1024 single-channel BGGR image would
+      // be demosaicked to a 1280x1024 3-channel color image (BGR or RGB).
+      // Bayer patterns are read off in the 2x2 grid. For example:
+      //                      ABCD = | A | B |
+      //                             | C | D |
+      BGGR = 4;
+      // Bayer.
+      RGGB = 5;
+      // Bayer.
+      GBRG = 6;
+      // Bayer.
+      GRBG = 7;
+    }
+    // Three component channel types.
+    enum ChannelType3 {
+      // Unused.
+      CHANNEL_TYPE3_UNSPECIFIED = 0;
+      // 3 components: blue, green, red.
+      BGR = 1;
+      // 3 components: red, green, blue.
+      RGB = 2;
+      // 3 components: point cloud x,y,z.
+      POINT_CLOUD = 3;
+    }
+    // Four component channel types.
+    enum ChannelType4 {
+      // Unused.
+      CHANNEL_TYPE4_UNSPECIFIED = 0;
+      // 4 components: blue, green, red, alpha.
+      BGRA = 1;
+      // 4 components: red, green, blue, alpha.
+      RGBA = 2;
+    }
+    oneof channel_type {
+      // A one component channel type.
+      ChannelType1 channel_type1 = 2;
+      // A three component channel type.
+      ChannelType3 channel_type3 = 3;
+      // A four component channel type.
+      ChannelType4 channel_type4 = 4;
+    }
+
+    // Image compression type.
+    enum Compression {
+      // Unused.
+      COMPRESSION_UNSPECIFIED = 0;
+      // JPEG image.
+      JPEG = 1;
+      // PNG image.
+      PNG = 2;
+      // TIFF image.
+      TIFF = 3;
+      // PGM image.
+      PGM = 4;
+      // PGM_BZ2 image.
+      PGM_BZ2 = 5;
+      // Raw data.  No compression.
+      NO_COMPRESSION = 6;
+    }
+    // If compression metadata is present it should be considered as a source of
+    // truth for enclosed pixel type.
+    Compression compression = 5;
+  }
+  // The format of the image data.
+  PixelType pixel_type = 5;
+
+  // The cols (width) and rows (height) of the image. Required. Even if the
+  // size data is already encoded in the data itself (e.g. for JPEG images)
+  // these fields must be filled in.
+  int32 cols = 1;
+  // Rows of image data.
+  int32 rows = 2;
+
+  // The data.  The format of the data is described by pixel_type.  With
+  // NO_COMPRESSION the channel data for each pixel is packed together, and
+  // appear from top left to top right etc until bottom right of the image.
+  bytes data = 4;
+}
+
+// Information from an inertial measurement unit.
+// Fields that are not supported should be left empty.
+// The correction field must be filled in.
+//
+// Next ID: 9
+message IMU {
+  // Information about which IMU this is (sensor_id) and which sample is
+  // recorded here (sequence_number and header.sample_timestamp_nsec).
+  SensorHeader header = 1;
+
+  // The position and orientation of this IMU when the image was acquired.
+  // This generally a constant for any given IMU and can be calculated from
+  // the URDF.
+  SensorFrame frame = 2;
+
+  // Whether these are raw or calibrated values.
+  // If both are available then imus[i] and imus[i+1] can contain the
+  // same header.sensor_id, and imus[i] should be RAW, imus[i+1] should be
+  // CALIBRATED.  Any values that are only available RAW (or only available
+  // CALIBRARED) should only appear in the one imus[i] (or imus[i+1]) message.
+  enum Correction {
+    // Not used.
+    CORRECTION_UNSPECIFIED = 0;
+    // Raw readings from the sensor converted to SI units.
+    RAW = 1;
+    // Sensor readings that have been corrected by some sort of calibration.
+    CALIBRATED = 2;
+  }
+  // Whether these are raw or calibrated values.
+  Correction correction = 3;
+
+  // Reading from accelerometer in m/s^2, if available.
+  // This is the raw reading, so at rest in gravity it will be a vector pointing
+  // down.
+  // 3 components: x,y,z
+  repeated float accelerometer = 4;
+
+  // Reading from gyro in rad/s, if available.
+  // 3 components: x,y,z
+  repeated float gyro = 5;
+
+  // Reading from magnetometer in uT, if available.
+  // 3 components: x,y,z
+  repeated float magnetometer = 6;
+
+  // Reading from barometer in kPa, if available.
+  float barometer = 7;
+
+  // Temperature of device in degrees Celsius (for temperature drift
+  // correction), if available.
+  float temperature = 8;
+}
+
+// A measurement from a temperature sensor.
+//
+// Note: a temperature associated with an IMU or motor should be placed in an
+// IMU or JointState message, not here.
+message TemperatureSensor {
+  // Information about which temperature sensor this is (sensor_id) and which
+  // sample is recorded here (sequence_number and header.sample_timestamp_nsec).
+  SensorHeader header = 1;
+
+  // Temperature in degrees Celsius.
+  float temperature = 8;
+}
+
+// The fields of PartState that apply only to grippers.
+message GripperState {
+  // The gripper opening distance is the distance (meters) between the two
+  // primary fingers of the gripper (thumb and index finger for human-like
+  // hands).
+  float opening_distance = 1;
+}
+
+// The status of a command which is running, or was recently running, on the
+// robot.
+//
+// Next ID: 6
+message RunningCommandStatus {
+  // How the command finished, or if it is still running.
+  enum Conclusion {
+    // Not used.
+    CONCLUSION_UNSPECIFIED = 0;
+    // The command is running (controlling the robot).
+    RUNNING = 1;
+    // The command completed successfully.
+    SUCCEEDED = 2;
+    // There was an error attempting to run this command, and the command is no
+    // longer running.
+    ERROR = 3;
+    // A newer command preempted this command, and this command is no longer
+    // running.
+    PREEMPTED = 4;
+    // The command was cancelled (e.g. the client requested that it be
+    // cancelled) and is no longer running.
+    CANCELLED = 5;
+  }
+  // The status of the command.
+  Conclusion conclusion = 1;
+
+  // The client_id of the client that started this command.
+  //
+  // This is useful if more than one client is sending commands to the robot, or
+  // if a different client was previously sending commands to the robot, or if
+  // the robot is running a fallback command (e.g. because a command this client
+  // sent timed out).
+  ClientID client_id = 2;
+
+  // The command_id identifies which command this is talking about.
+  // If multiple clients are controlling the robot then command_id may not be
+  // unique and {client_id, command_id} should be used as the identity of the
+  // command.
+  int64 command_id = 3;
+
+  // When this command started running on the robot.
+  //
+  // unix nanos (nanoseconds since midnight Jan 1, 1970, UTC)
+  // (This does not count leap seconds.)
+  //
+  // (-- api-linter: core::0142::time-field-type=disabled
+  //     aip.dev/not-precedent: Robotics uses a unix nanos timestamp. --)
+  sfixed64 start_timestamp_nsec = 4;
+
+  // For states other than RUNNING, this is when the command stopped running.
+  //
+  // If this is identical to start_timestamp then the command either failed
+  // before it started to run or succeeded immediately (e.g. for a command that
+  // just sets some state or mode).
+  //
+  // If this is set but not identical to start_timestamp, that implies that the
+  // command started running and ran for some period of time before it
+  // succeeded, encountered an error, was preempted, or was cancelled.
+  //
+  // unix nanos (nanoseconds since midnight Jan 1, 1970, UTC)
+  // (This does not count leap seconds.)
+  //
+  // (-- api-linter: core::0142::time-field-type=disabled
+  //     aip.dev/not-precedent: Robotics uses a unix nanos timestamp. --)
+  sfixed64 end_timestamp_nsec = 5;
+}

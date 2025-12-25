@@ -1,0 +1,223 @@
+// Copyright 2025 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//      https://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+
+syntax = "proto3";
+
+package safari_sdk.ui;
+
+// A Transform defines the position and orientation of a target frame (the frame
+// being described) with respect to a reference frame.
+//
+// See the Position message comments (below) for semantics of the px, py, and pz
+// fields.  These fields describe the position of the origin of the target frame
+// with respect to the refereence frame (using the coordinate system of the
+// reference frame as the basis).
+//
+// See the Quaternian message comments (below) for semantics of the qw, qx, qy,
+// and qz fields.  These fields describe the orientation of the target frame
+// axes with respect to the refereence frame (using the coordinate system of the
+// reference frame as the basis).
+//
+// Fields of this type are typically named
+//     a_transform_b
+// where b is the frame whose pose is being defined, and a is the
+// reference_frame.
+//
+// The transform a_transform_b can be visualized as follows:
+//  1) Begin with b coincident with a (same origin and same x,y,z axes).
+//  2) Rotate frame b around the origin of a as described by the quaternion
+//      <qw,qx,qy,qz> applied in the coordinate system of a.
+//  3) Translate frame b by <px, py, pz> applied in the coordinate system of a.
+//
+message Transform {
+  // X Position (translation vector x coordinate).
+  // See the Position message comments (below) for how this is used.
+  float px = 1;
+  // Y Position (translation vector y coordinate).
+  // See the Position message comments (below) for how this is used.
+  float py = 2;
+  // Z Position (translation vector z coordinate).
+  // See the Position message comments (below) for how this is used.
+  float pz = 3;
+
+  // Orientation (quaternion w component).
+  // See the Quaternion message comments (below) for how this is used.
+  float qw = 4;
+  // Orientation (quaternion x component).
+  // See the Quaternion message comments (below) for how this is used.
+  float qx = 5;
+  // Orientation (quaternion y component).
+  // See the Quaternion message comments (below) for how this is used.
+  float qy = 6;
+  // Orientation (quaternion z component).
+  // See the Quaternion message comments (below) for how this is used.
+  float qz = 7;
+}
+
+// A Position defines the position of a target point with respect to a
+// reference_frame using a translation vector.
+//
+// To represent the position of a point in 3D space as a translation vector, two
+// additional pieces of information are needed:
+//   1) A reference point.  The translation vector points from the reference
+//        point to the target point.
+//   2) The coordinate system used to represent the translation vector.
+// Unless otherwise noted, the reference point is the origin of a
+// reference_frame, and the coordinate system is the that of the same
+// reference_frame.
+//
+// A Position is typically stored in a field named
+//    a_position_b
+// where a is the reference frame and b is the target point whose position is
+// being defined.  When used in a message like Transform or CartesianState, the
+// reference_frame of the position is the same as the reference frame for the
+// Transform or CartesianState (unless otherwise noted).
+//
+message Position {
+  // Translation vector x coordinate.
+  float px = 1;
+  // Translation vector y coordinate.
+  float py = 2;
+  // Translation vector z coordinate.
+  float pz = 3;
+}
+
+// A Quaternion defines the orientation of a target frame (the frame
+// being describe) with respect to a reference frame.
+//
+// To represent the orientation of a target frame as a quaternion, two
+// additional pieces of information are needed:
+//   1) The reference_frame that the rotation is relative to (the rotation is
+//        cenetered at the origin of this reference_frame).
+//   2) The coordinate system used to represent the quaternion.
+// Unless otherwise noted, the coordinate system used is the one defined by the
+// reference_frame.
+//
+// A quaternion is typically stored in a field named
+//    a_quaternion_b
+// where a is the reference frame and b is the target frame whose orientation is
+// being defined.  When used in a message like Transform or CartesianState, the
+// reference_frame of the quaternion is the same as the reference frame for the
+// Transform or CartesianState (unless otherwise noted).
+//
+// Uses Hamilton quaternion convention.
+//
+// When writing to this message:
+//   Always ensure the quaternion is normalized when writing.
+//   0,0,0,0 is not allowed.
+//   Each component may be positive, negative, or zero.
+//
+// When reading from this message:
+//   It is OK to assume the quaternion is normalized, but when writing robust
+//   code it would be wise to normalize after reading and treat 0,0,0,0 as
+//   Identity (no rotation).
+message Quaternion {
+  // Orientation (quaternion w component).
+  float qw = 4;
+  // Orientation (quaternion x component).
+  float qx = 5;
+  // Orientation (quaternion y component).
+  float qy = 6;
+  // Orientation (quaternion z component).
+  float qz = 7;
+}
+
+// A triangle defined by three vertices. The vertices are given by the indices
+// into a vertices array. The normal of the triangle is defined by the winding
+// direction of the triangle vertices: counterclockwise is positive, clockwise
+// is negative.
+message TriangleVertexIndices {
+  int32 index_0 = 1;
+  int32 index_1 = 2;
+  int32 index_2 = 3;
+}
+
+// Fields common to all sensors.
+message SensorHeader {
+  // When this sensor was sampled.
+  //
+  // Ideally this would always be the same as RobotState.sample_timestamp_nsec,
+  // but in reality not all sensors can be sampled at exactly the same time.
+  // This should be as close as possible to RobotState.sample_timestamp_nsec.
+  //
+  // unix nanos (nanoseconds since midnight Jan 1, 1970, UTC)
+  // (This does not count leap seconds.)
+  //
+  // (-- api-linter: core::0142::time-field-type=disabled
+  //     aip.dev/not-precedent: Robotics uses a unix nanos timestamp. --)
+  sfixed64 sample_timestamp_nsec = 1;
+
+  // The sequence number of this sensor reading.
+  // Each time the sensor publishes a new value this is incremented.
+  int64 sequence_number = 2;
+
+  // Identifies which sensor we are talking about.
+  int32 sensor_id = 3;
+}
+
+// A header contains information about the message that is needed in several
+// top level messages.
+message MessageHeader {
+  // The time that data in this message was sampled.
+  //
+  // Each sensed value also contains the timestamp when that particular sensor
+  // was sampled.  The RobotState.header.sample_timestamp_nsec value is the
+  // idealized time that each sensor in the message was sampled.  Other
+  // timestamps in this message depend on the configuration and how this message
+  // is generated/used.
+  // It might be
+  //   - the most recent sample preceding this time.
+  //   - the closest sample before or after this time.
+  //   - something else depending on configuration.
+  //
+  // unix nanos (nanoseconds since midnight Jan 1, 1970, UTC)
+  // (This does not count leap seconds.)
+  //
+  // (-- api-linter: core::0142::time-field-type=disabled
+  //     aip.dev/not-precedent: Robotics uses a unix nanos timestamp. --)
+  sfixed64 sample_timestamp_nsec = 1;
+
+  // The time that this message is published by the robot.
+  //
+  // This can be useful for ordering messages and analyzing latency.
+  //
+  // unix nanos (nanoseconds since midnight Jan 1, 1970, UTC)
+  // (This does not count leap seconds.)
+  //
+  // (-- api-linter: core::0142::time-field-type=disabled
+  //     aip.dev/not-precedent: Robotics uses a unix nanos timestamp. --)
+  sfixed64 publish_timestamp_nsec = 2;
+
+  // The client_id identifying the connection between the client and the server.
+  //
+  // This identifier is returned by the server when a client connects to the
+  // server. It identifies which robot (robot instance, type of robot, owner,
+  // calibration, session, etc) this RobotState represents.
+  ClientID client_id = 3;
+}
+
+// The client_id identifying the connection between the client and the server.
+//
+// The client_id identifying the connection between the client and the server.
+// This identifier is returned by the server when a client connects to the
+// server. It identifies which robot (robot instance, type of robot, owner,
+// calibration, session, etc) this RobotState represents.
+message ClientID {
+  // High 8 bytes of the ID, which will be a UUID provided by the server.  This
+  // should be fixed64, but OnePlatform does not allow that.
+  sfixed64 uuid_high = 1;
+  // Low 8 bytes of the ID, which will be a UUID provided by the server.  This
+  // should be fixed64, but OnePlatform does not allow that.
+  sfixed64 uuid_low = 2;
+}
