@@ -1,0 +1,146 @@
+Metadata-Version: 2.4
+Name: sqlaltery
+Version: 0.5.7
+Summary: A migration library for SQLAlchemy
+Author: valtron
+License-Expression: MIT
+Project-URL: Repository, https://gitlab.com/valtron/sqlaltery
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Operating System :: OS Independent
+Requires-Python: ~=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: sqlalchemy~=2.0
+Requires-Dist: alembic~=1.13
+
+# SQLAltery
+
+A migration library for SQLAlchemy. A cleaner frontend to Alembic.
+
+## Guide
+
+### Set up management script
+
+SQLAltery provides the ["functional core"](https://kennethlange.com/functional-core-imperative-shell).
+To use it in your project, you'll need to provide your own "imperative shell", but this is easy.
+Here's a starter `managedb.py`:
+
+```
+import sqlalchemy as sa
+from sqlaltery import SQLAltery
+
+def cmd_diff() -> None:
+	# Show pending changes to schema
+	salt = _get_sqlaltery()
+	print(salt.diff(model.Base.metadata))
+
+def cmd_commit() -> None:
+	# Create a new migration file from pending changes (if any)
+	salt = _get_sqlaltery()
+	# TODO: print created file; `data: bool` flag
+	salt.generate(model.Base.metadata)
+
+def cmd_sync(*, revision: Optional[int] = None) -> None:
+	# Migrate your DB to `revision`. If `None`, this means the latest.
+	# `revision == 0` is a special revision that means an empty DB.
+	salt = _get_sqlaltery()
+	engine = _get_engine()
+	with salt.connect_to(engine) as migrator:
+		migrator.migrate(revision, initial = 0)
+
+def _get_sqlaltery() -> SQLAltery:
+	# choose where to store migration files
+	from pathlib import Path
+	migration_dir = Path(__file__).parent / 'migration'
+	return SQLAltery(migration_dir)
+
+def _get_engine() -> sa.Engine:
+	# an engine pointing to the DB you want to migrate
+	return sa.create_engine(sa.URL.create(...))
+
+def _get_metadata() -> sa.MetaData:
+	# return your model metadata
+	from my_app import my_model
+	return my_model.Base.metadata
+
+if __name__ == '__main__':
+	import funcli
+	funcli.run({ 'diff': cmd_diff, 'commit': cmd_commit, 'sync': cmd_sync })
+```
+
+### Terminology used here
+
+You can name the operations anything, but this guide will use these terms:
+- `commit`: create a new migration (Django: `py manage.py makemigrations`)
+- `sync`: apply migrations (Django: `py manage.py migrate`)
+- `sync --fake`: fake migrations (Django: `py manage.py migrate --fake`);
+	this updates only the migration metadata (table `sqlaltery_migration`)
+
+### Reset migrations
+
+Assuming your database(s) are synced to latest, delete your migration dir,
+create a new migration, and do a fake sync:
+```
+rm -rf migration
+py managedb.py commit
+py managedb.py sync --fake
+```
+
+### Data migrations
+
+Data migrations usually involve a three-step process: expand, project, contract.
+- Expand the schema: `T_old` to `T_exp \superset T_new`, where `T_exp` is such
+	that the underlying database can automatically project the data onto it
+	(e.g., adding only nullable columns)
+- Project the data: apply a function `T_exp -> T_new` to the data
+- Contract the schema: `T_exp` to `T_new`
+
+```
+py managedb.py commit --data
+```
+Now, modify the newly created migration to and write code data migration code.
+Once you're done, sync:
+```
+py managedb.py sync
+```
+
+## Status
+
+- [x] `MetaData` diffing (`sqlaltery/compare.py`)
+- [x] apply ops to `MetaData` (`sqlaltery/ops.py:apply`)
+- [x] apply ops to `Connection` (`sqlaltery/ops.py:apply`); all the heavy lifting is passed to Alembic's DDL
+- [x] write migration to a file (`sqlaltery/command.py:_save_migration`)
+- [ ] allow multiple migrations per file (`OPS` or `OPS_{\d+}`; `OPS` is treated as `OPS_0`; for multiple, they're expected to be sequential from 0)
+- [ ] `generate(data: bool)` that creates a new migration with expand/project/contract phases
+- [ ] tests (95%)
+- [ ] docs
+	- document basic usage and show example script
+
+## Why not use Alembic directly?
+
+- Alembic diffs the head MD against current DB, not against latest migration
+- Alembic has split upgrade/downgrade
+- Alembic requires you to manually manage metadata in migrations (for doing queries)
+- Alembic creates a bunch of files (alembic.ini, env.py). The default case should be simple: just create an `SQLAltery` and use it; customize by passing arguments.
+
+## Internal use
+
+Set up:
+```
+uv sync --no-install-project
+```
+
+Run tests:
+```
+py -m pytest
+```
+
+How to publish:
+```
+base build.sh
+py -m twine upload artifact/dist/<file>
+```
