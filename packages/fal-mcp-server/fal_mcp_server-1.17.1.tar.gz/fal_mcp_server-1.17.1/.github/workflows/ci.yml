@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@v6
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+    
+    - name: Format check with black
+      run: |
+        black --check src/ tests/
+    
+    - name: Lint with ruff
+      run: |
+        ruff check src/ tests/
+    
+    - name: Run tests
+      env:
+        FAL_KEY: ${{ secrets.FAL_KEY }}
+      run: |
+        pytest tests/ -v --asyncio-mode=auto --cov=src/fal_mcp_server --cov-report=term-missing
+    
+    - name: Test documentation
+      run: |
+        pytest tests/test_docs.py -v
+    
+    - name: Type check with mypy
+      run: |
+        mypy src/
+
+  # Summary job that branch protection can reference
+  # This creates a single "test" status check instead of "test (3.10)", "test (3.11)", etc.
+  test:
+    needs: [test-matrix]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check test matrix status
+        run: |
+          if [ "${{ needs.test-matrix.result }}" != "success" ]; then
+            echo "Test matrix failed with result: ${{ needs.test-matrix.result }}"
+            exit 1
+          fi
+          echo "All tests passed!"
