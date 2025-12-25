@@ -1,0 +1,1966 @@
+from __future__ import annotations
+
+import copy
+import itertools
+import json
+import logging
+import os
+import pathlib
+import re
+import subprocess
+import threading
+import time
+from collections import defaultdict
+from contextlib import suppress
+from dataclasses import dataclass
+from functools import cache, wraps
+from subprocess import Popen
+from threading import Lock
+from typing import TYPE_CHECKING, Any, TextIO, cast
+
+import urllib3
+from kubernetes.client import (
+    ApiClient,
+    Configuration,
+)
+from kubernetes.dynamic.client import DynamicClient
+from kubernetes.dynamic.discovery import (
+    LazyDiscoverer,
+    ResourceGroup,
+)
+from kubernetes.dynamic.exceptions import (
+    ForbiddenError,
+    InternalServerError,
+    NotFoundError,
+    ResourceNotFoundError,
+    ResourceNotUniqueError,
+    ServerTimeoutError,
+)
+from kubernetes.dynamic.resource import (
+    Resource,
+    ResourceList,
+)
+from prometheus_client import Counter
+from sretoolbox.utils import (
+    retry,
+    threaded,
+)
+
+from reconcile.status import RunningState
+from reconcile.utils.json import json_dumps
+from reconcile.utils.jump_host import (
+    JumphostParameters,
+    JumpHostSSH,
+)
+from reconcile.utils.metrics import reconcile_time
+from reconcile.utils.openshift_resource import OpenshiftResource as OR
+from reconcile.utils.secret_reader import (
+    SecretNotFoundError,
+    SecretReader,
+)
+from reconcile.utils.unleash import get_feature_toggle_state
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Mapping, MutableMapping
+
+    from reconcile.utils.oc_connection_parameters import OCConnectionParameters
+
+urllib3.disable_warnings()
+
+GET_REPLICASET_MAX_ATTEMPTS = 20
+DEFAULT_GROUP = ""
+PROJECT_KIND = "Project.project.openshift.io"
+POD_RECYCLE_SUPPORTED_TRIGGER_KINDS = [
+    "ConfigMap",
+    "Secret",
+]
+POD_RECYCLE_SUPPORTED_OWNER_KINDS = [
+    "DaemonSet",
+    "Deployment",
+    "DeploymentConfig",
+    "StatefulSet",
+]
+
+oc_run_execution_counter = Counter(
+    name="oc_run_execution_counter",
+    documentation="Counts _run method executions per integration",
+    labelnames=["integration"],
+)
+
+
+class StatusCodeError(Exception):
+    pass
+
+
+class InvalidValueApplyError(Exception):
+    pass
+
+
+class FieldIsImmutableError(Exception):
+    pass
+
+
+class DeploymentFieldIsImmutableError(Exception):
+    pass
+
+
+class MayNotChangeOnceSetError(Exception):
+    pass
+
+
+class PrimaryClusterIPCanNotBeUnsetError(Exception):
+    pass
+
+
+class MetaDataAnnotationsTooLongApplyError(Exception):
+    pass
+
+
+class UnsupportedMediaTypeError(Exception):
+    pass
+
+
+class StatefulSetUpdateForbiddenError(Exception):
+    pass
+
+
+class ObjectHasBeenModifiedError(Exception):
+    pass
+
+
+class NoOutputError(Exception):
+    pass
+
+
+class JSONParsingError(Exception):
+    pass
+
+
+class PodNotReadyError(Exception):
+    pass
+
+
+class JobNotRunningError(Exception):
+    pass
+
+
+class RequestEntityTooLargeError(Exception):
+    pass
+
+
+class KindNotFoundError(Exception):
+    pass
+
+
+class AmbiguousResourceTypeError(Exception):
+    pass
+
+
+class OCDecorators:
+    @classmethod
+    def process_reconcile_time(cls, function: Callable) -> Callable:
+        """
+        Compare current time against bundle commit time and create log
+        and metrics from it.
+
+        This decorator expects an OCProcessReconcileTimeDecoratorMsg
+        object as the only or last element of the decorated function's return
+        value.
+
+        Metrics are generated if the resource doesn't have the
+        qontract.ignore_reconcile_time annotation.
+
+        Log message is created if the following conditions are met:
+
+        * Decorator msg is_log_slow_oc_reconcile is true. This value should
+          come from LOG_SLOW_OC_RECONCILE env variable
+        * Decorator msg slow_oc_reconcile_threshold is less than the time
+          elapsed since the bundle commit timestamp. This value should come
+          from SLOW_OC_RECONCILE_THRESHOLD
+        """
+
+        @wraps(function)
+        def wrapper(*args: Any, **kwargs: Any) -> list | tuple | Any:
+            result = function(*args, **kwargs)
+            msg = result[:-1] if isinstance(result, list | tuple) else result
+
+            if not isinstance(msg, OCProcessReconcileTimeDecoratorMsg):
+                return result
+
+            running_state = RunningState()
+            if running_state.timestamp is None:
+                raise ValueError("Running state timestamp is None")
+            commit_time = float(running_state.timestamp)
+            time_spent = time.time() - commit_time
+
+            try:
+                resource_kind = msg.resource.kind
+                resource_name = msg.resource.name
+                annotations = msg.resource.annotations
+            except Exception as e:
+                logging.warning(f"Error processing metric: {e}")
+                return result
+
+            function_name = f"{function.__module__}.{function.__qualname__}"
+            ignore_reconcile_time = (
+                annotations.get("qontract.ignore_reconcile_time") == "true"
+            )
+            if not ignore_reconcile_time:
+                reconcile_time.labels(
+                    name=function_name, integration=running_state.integration
+                ).observe(amount=time_spent)
+
+            if not msg.is_log_slow_oc_reconcile:
+                return result
+
+            if time_spent > msg.slow_oc_reconcile_threshold:
+                log_msg = (
+                    f"Action {function_name} for {resource_kind} "
+                    f"{resource_name} in namespace "
+                    f"{msg.namespace} from "
+                    f"{msg.server} took {time_spent} to "
+                    f"reconcile. Commit sha {running_state.commit} "
+                    f"and commit ts {running_state.timestamp}."
+                )
+
+                if ignore_reconcile_time:
+                    log_msg += " Ignored in the metric published."
+
+                logging.info(log_msg)
+
+            return result
+
+        return wrapper
+
+
+@dataclass
+class OCProcessReconcileTimeDecoratorMsg:
+    namespace: str
+    resource: OR
+    server: str | None
+    slow_oc_reconcile_threshold: float
+    is_log_slow_oc_reconcile: bool
+
+
+def oc_process(
+    template: Mapping[str, Any], parameters: Mapping[str, Any] | None = None
+) -> Iterable[dict[str, Any]]:
+    oc = OCLocal(cluster_name="cluster", server=None, token=None, local=True)
+    return oc.process(template, parameters)
+
+
+def equal_spec_template(t1: dict, t2: dict) -> bool:
+    """Compare two spec.templates."""
+    t1_copy = copy.deepcopy(t1)
+    t2_copy = copy.deepcopy(t2)
+    with suppress(KeyError):
+        del t1_copy["metadata"]["labels"]["pod-template-hash"]
+    with suppress(KeyError):
+        del t2_copy["metadata"]["labels"]["pod-template-hash"]
+    return t1_copy == t2_copy
+
+
+@dataclass
+class OCCliApiResource:
+    """This class mimics kubernetes.dynamic.resource.Resource and it's used
+    To get Api Resources with the OCCli client"""
+
+    kind: str
+    group: str
+    api_version: str
+    namespaced: bool
+
+    @property
+    def group_version(self) -> str:
+        if self.group:
+            return f"{self.group}/{self.api_version}"
+        return self.api_version
+
+
+class OCCli:
+    def __init__(
+        self,
+        cluster_name: str | None,
+        server: str | None,
+        token: str | None,
+        jh: Mapping[Any, Any] | None = None,
+        settings: Mapping[Any, Any] | None = None,
+        init_projects: bool = False,
+        init_api_resources: bool = False,
+        local: bool = False,
+        insecure_skip_tls_verify: bool = False,
+        connection_parameters: OCConnectionParameters | None = None,
+    ) -> None:
+        """
+        As of now we have to conform with 2 ways to initialize this client:
+
+        1. Old way with nested untyped dictionaries
+        2. Typed way with connection_parameters
+
+        We aim to deprecate the old way (w/o connection_parameters) over time.
+        """
+        if connection_parameters:
+            self._init(
+                connection_parameters=connection_parameters,
+                local=local,
+                init_projects=init_projects,
+                init_api_resources=init_api_resources,
+            )
+        elif cluster_name:
+            self._init_old_without_types(
+                cluster_name=cluster_name,
+                server=server,
+                token=token,
+                jh=jh,
+                settings=settings,
+                init_projects=init_projects,
+                init_api_resources=init_api_resources,
+                local=local,
+                insecure_skip_tls_verify=insecure_skip_tls_verify,
+            )
+
+    def __enter__(self) -> OCCli:
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self.cleanup()
+
+    def _init_old_without_types(
+        self,
+        cluster_name: str,
+        server: str | None,
+        token: str | None,
+        jh: Mapping[Any, Any] | None = None,
+        settings: Mapping[Any, Any] | None = None,
+        init_projects: bool = False,
+        init_api_resources: bool = False,
+        local: bool = False,
+        insecure_skip_tls_verify: bool = False,
+    ) -> None:
+        """Initiates an OC client
+
+        Args:
+            cluster_name (string): Name of cluster
+            server (string): Server URL of the cluster
+            token (string): Token to use for authentication
+            jh (dict, optional): Info to initiate JumpHostSSH
+            settings (dict, optional): App-interface settings
+            init_projects (bool, optional): Initiate projects
+            init_api_resources (bool, optional): Initiate api-resources
+            local (bool, optional): Use oc locally
+        """
+        self.cluster_name = cluster_name
+        self.server = server
+        oc_base_cmd = ["oc", "--kubeconfig", "/dev/null"]
+        if insecure_skip_tls_verify:
+            oc_base_cmd.extend(["--insecure-skip-tls-verify"])
+        if server:
+            oc_base_cmd.extend(["--server", server])
+
+        if token:
+            oc_base_cmd.extend(["--token", token])
+
+        self.jump_host = None
+        if jh is not None:
+            secret_reader = SecretReader(settings=settings)
+            key = secret_reader.read(jh["identity"])
+            jumphost_parameters = JumphostParameters(
+                hostname=jh["hostname"],
+                key=key,
+                known_hosts=jh["knownHosts"],
+                local_port=jh.get("localPort"),
+                port=jh.get("port"),
+                remote_port=jh.get("remotePort"),
+                user=jh["user"],
+            )
+            self.jump_host = JumpHostSSH(parameters=jumphost_parameters)
+            oc_base_cmd = self.jump_host.get_ssh_base_cmd() + oc_base_cmd
+
+        self.oc_base_cmd = oc_base_cmd
+
+        # calling get_version to check if cluster is reachable
+        if not local:
+            self.get_version()
+
+        self.api_resources_lock = threading.RLock()
+        self.init_api_resources = init_api_resources
+        self.api_resources = {}
+        self.projects = set()
+        if self.init_api_resources:
+            self.api_resources = self.get_api_resources()
+
+        self.init_projects = init_projects
+        if self.init_projects:
+            kind = PROJECT_KIND if self.is_kind_supported(PROJECT_KIND) else "Namespace"
+            self.projects = {p["metadata"]["name"] for p in self.get_all(kind)["items"]}
+
+        self.slow_oc_reconcile_threshold = float(
+            os.environ.get("SLOW_OC_RECONCILE_THRESHOLD", "600")
+        )
+
+        self.is_log_slow_oc_reconcile = os.environ.get(
+            "LOG_SLOW_OC_RECONCILE", ""
+        ).lower() in {"true", "yes"}
+
+    def _init(
+        self,
+        connection_parameters: OCConnectionParameters,
+        init_projects: bool = False,
+        init_api_resources: bool = False,
+        local: bool = False,
+    ) -> None:
+        self.cluster_name = connection_parameters.cluster_name
+        self.server = connection_parameters.server_url
+        oc_base_cmd = ["oc", "--kubeconfig", "/dev/null"]
+        if connection_parameters.skip_tls_verify:
+            oc_base_cmd.extend(["--insecure-skip-tls-verify"])
+        if self.server:
+            oc_base_cmd.extend(["--server", self.server])
+
+        token = connection_parameters.automation_token
+        if (
+            connection_parameters.is_cluster_admin
+            and connection_parameters.cluster_admin_automation_token
+        ):
+            token = connection_parameters.cluster_admin_automation_token
+
+        if token:
+            oc_base_cmd.extend(["--token", token])
+
+        self.jump_host = None
+        if (
+            connection_parameters.jumphost_hostname
+            and connection_parameters.jumphost_user
+            and connection_parameters.jumphost_key
+            and connection_parameters.jumphost_known_hosts
+        ):
+            jumphost_parameters = JumphostParameters(
+                hostname=connection_parameters.jumphost_hostname,
+                key=connection_parameters.jumphost_key,
+                known_hosts=connection_parameters.jumphost_known_hosts,
+                local_port=connection_parameters.jumphost_local_port,
+                port=connection_parameters.jumphost_port,
+                remote_port=connection_parameters.jumphost_remote_port,
+                user=connection_parameters.jumphost_user,
+            )
+            self.jump_host = JumpHostSSH(parameters=jumphost_parameters)
+            oc_base_cmd = self.jump_host.get_ssh_base_cmd() + oc_base_cmd
+
+        self.oc_base_cmd = oc_base_cmd
+
+        # calling get_version to check if cluster is reachable
+        if not local:
+            self.get_version()
+
+        self.api_resources_lock = threading.RLock()
+        self.init_api_resources = init_api_resources
+        self.api_resources = {}
+        self.projects = set()
+        if self.init_api_resources:
+            self.api_resources = self.get_api_resources()
+
+        self.init_projects = init_projects
+        if self.init_projects:
+            kind = PROJECT_KIND if self.is_kind_supported(PROJECT_KIND) else "Namespace"
+            self.projects = {p["metadata"]["name"] for p in self.get_all(kind)["items"]}
+
+        self.slow_oc_reconcile_threshold = float(
+            os.environ.get("SLOW_OC_RECONCILE_THRESHOLD", "600")
+        )
+
+        self.is_log_slow_oc_reconcile = os.environ.get(
+            "LOG_SLOW_OC_RECONCILE", ""
+        ).lower() in {"true", "yes"}
+
+    def whoami(self) -> bytes:
+        return self._run(["whoami"])
+
+    def cleanup(self) -> None:
+        if hasattr(self, "jump_host") and isinstance(self.jump_host, JumpHostSSH):
+            self.jump_host.cleanup()
+
+    def get_items(self, kind: str, **kwargs: Any) -> list[dict[str, Any]]:
+        cmd = ["get", kind, "-o", "json"]
+
+        if "namespace" in kwargs:
+            namespace = kwargs["namespace"]
+            # for cluster scoped integrations
+            # currently only openshift-clusterrolebindings
+            if namespace != "cluster":
+                if not self.project_exists(namespace):
+                    return []
+                cmd.extend(["-n", namespace])
+
+        if "labels" in kwargs:
+            labels_list = [f"{k}={v}" for k, v in kwargs.get("labels", {}).items()]
+            cmd += ["-l", ",".join(labels_list)]
+
+        resource_names = kwargs.get("resource_names")
+        if resource_names:
+            resource_items = []
+            for resource_name in resource_names:
+                resource_cmd = cmd + [resource_name]
+                item = self._run_json(resource_cmd, allow_not_found=True)
+                if item:
+                    resource_items.append(item)
+            items_list = {"items": resource_items}
+        else:
+            items_list = self._run_json(cmd)
+
+        items = items_list.get("items")
+        if items is None:
+            raise Exception("Expecting items")
+        return items
+
+    def get(
+        self,
+        namespace: str | None,
+        kind: str,
+        name: str | None = None,
+        allow_not_found: bool = False,
+    ) -> dict[str, Any]:
+        cmd = ["get", "-o", "json", kind]
+        if name:
+            cmd.append(name)
+        if namespace is not None:
+            cmd.extend(["-n", namespace])
+        return self._run_json(cmd, allow_not_found=allow_not_found)
+
+    def get_all(self, kind: str, all_namespaces: bool = False) -> dict[str, Any]:
+        cmd = ["get", "-o", "json", kind]
+        if all_namespaces:
+            cmd.append("--all-namespaces")
+        return self._run_json(cmd)
+
+    def remove_last_applied_configuration(
+        self, namespace: str, kind: str, name: str
+    ) -> None:
+        cmd = [
+            "annotate",
+            "-n",
+            namespace,
+            kind,
+            name,
+            "kubectl.kubernetes.io/last-applied-configuration-",
+        ]
+        self._run(cmd)
+
+    def _msg_to_process_reconcile_time(
+        self, namespace: str, resource: OR
+    ) -> OCProcessReconcileTimeDecoratorMsg:
+        return OCProcessReconcileTimeDecoratorMsg(
+            namespace=namespace,
+            resource=resource,
+            server=self.server,
+            slow_oc_reconcile_threshold=self.slow_oc_reconcile_threshold,
+            is_log_slow_oc_reconcile=self.is_log_slow_oc_reconcile,
+        )
+
+    def process(
+        self, template: Mapping[str, Any], parameters: Mapping[str, Any] | None = None
+    ) -> Iterable[dict[str, Any]]:
+        if parameters is None:
+            parameters = {}
+        parameters_to_process = [f"{k}={v}" for k, v in parameters.items()]
+        cmd = [
+            "process",
+            "--local",
+            "--ignore-unknown-parameters",
+            "-f",
+            "-",
+        ] + parameters_to_process
+        result = self._run(cmd, stdin=json_dumps(template))
+        return json.loads(result)["items"]
+
+    @OCDecorators.process_reconcile_time
+    def apply(self, namespace: str, resource: OR) -> OCProcessReconcileTimeDecoratorMsg:
+        cmd = ["apply", "-n", namespace, "-f", "-"]
+        self._run(cmd, stdin=resource.to_json(), apply=True)
+        return self._msg_to_process_reconcile_time(namespace, resource)
+
+    @OCDecorators.process_reconcile_time
+    def create(
+        self, namespace: str, resource: OR
+    ) -> OCProcessReconcileTimeDecoratorMsg:
+        cmd = ["create", "-n", namespace, "-f", "-"]
+        self._run(cmd, stdin=resource.to_json(), apply=True)
+        return self._msg_to_process_reconcile_time(namespace, resource)
+
+    @OCDecorators.process_reconcile_time
+    def replace(
+        self, namespace: str, resource: OR
+    ) -> OCProcessReconcileTimeDecoratorMsg:
+        cmd = ["replace", "-n", namespace, "-f", "-"]
+        self._run(cmd, stdin=resource.to_json(), apply=True)
+        return self._msg_to_process_reconcile_time(namespace, resource)
+
+    @OCDecorators.process_reconcile_time
+    def patch(
+        self, namespace: str, kind: str, name: str, patch: Mapping[str, Any]
+    ) -> OCProcessReconcileTimeDecoratorMsg:
+        cmd = ["patch", "-n", namespace, kind, name, "-p", json_dumps(patch)]
+        self._run(cmd)
+        resource = OR({"kind": kind, "metadata": {"name": name}}, "", "")
+        return self._msg_to_process_reconcile_time(namespace, resource)
+
+    @OCDecorators.process_reconcile_time
+    def delete(
+        self, namespace: str, kind: str, name: str, cascade: bool = True
+    ) -> OCProcessReconcileTimeDecoratorMsg:
+        cmd = [
+            "delete",
+            "-n",
+            namespace,
+            kind,
+            name,
+        ]
+        if not cascade:
+            cmd.append("--cascade=orphan")
+        self._run(cmd)
+        resource = OR({"kind": kind, "metadata": {"name": name}}, "", "")
+        return self._msg_to_process_reconcile_time(namespace, resource)
+
+    @OCDecorators.process_reconcile_time
+    def label(
+        self,
+        namespace: str | None,
+        kind: str,
+        name: str,
+        labels: Mapping[str, str | None],
+        overwrite: bool = False,
+    ) -> OCProcessReconcileTimeDecoratorMsg:
+        ns = ["-n", namespace] if namespace else []
+        added = [f"{k}={v}" for k, v in labels.items() if v is not None]
+        removed = [f"{k}-" for k, v in labels.items() if v is None]
+        overwrite_param = f"--overwrite={str(overwrite).lower()}"
+        cmd = ["label"] + ns + [kind, name, overwrite_param]
+        cmd.extend(added + removed)
+        self._run(cmd)
+        resource = OR({"kind": kind, "metadata": {"name": name}}, "", "")
+        return self._msg_to_process_reconcile_time(namespace or "", resource)
+
+    def project_exists(self, name: str) -> bool:
+        if name in self.projects:
+            return True
+        kind = PROJECT_KIND if self.is_kind_supported(PROJECT_KIND) else "Namespace"
+        try:
+            self.get(None, kind, name)
+        except StatusCodeError as e:
+            if "NotFound" in str(e):
+                return False
+            raise e
+        return True
+
+    def _use_oc_project(self, namespace: str) -> bool:
+        # Note, that openshift-* namespaces cannot be created via new-project
+        return self.is_kind_supported(PROJECT_KIND) and not namespace.startswith(
+            "openshift-"
+        )
+
+    @OCDecorators.process_reconcile_time
+    def new_project(self, namespace: str) -> OCProcessReconcileTimeDecoratorMsg:
+        if self._use_oc_project(namespace=namespace):
+            cmd = ["new-project", namespace]
+        else:
+            cmd = ["create", "namespace", namespace]
+        try:
+            self._run(cmd)
+        except StatusCodeError as e:
+            if "AlreadyExists" not in str(e):
+                raise e
+
+        # This return will be removed by the last decorator
+        resource = OR({"kind": "Namespace", "metadata": {"name": namespace}}, "", "")
+        return self._msg_to_process_reconcile_time(namespace, resource)
+
+    @OCDecorators.process_reconcile_time
+    def delete_project(self, namespace: str) -> OCProcessReconcileTimeDecoratorMsg:
+        if self._use_oc_project(namespace=namespace):
+            cmd = ["delete", "project", namespace]
+        else:
+            cmd = ["delete", "namespace", namespace]
+        self._run(cmd)
+
+        # This return will be removed by the last decorator
+        resource = OR({"kind": "Namespace", "metadata": {"name": namespace}}, "", "")
+        return self._msg_to_process_reconcile_time(namespace, resource)
+
+    def get_group_if_exists(self, name: str) -> dict[str, Any] | None:
+        try:
+            return self.get(None, "Group", name)
+        except StatusCodeError as e:
+            if "NotFound" in str(e):
+                return None
+            raise e
+
+    def create_group(self, group: str) -> None:
+        if self.get_group_if_exists(group) is not None:
+            return
+        cmd = ["adm", "groups", "new", group]
+        self._run(cmd)
+
+    def delete_group(self, group: str) -> None:
+        cmd = ["delete", "group", group]
+        self._run(cmd)
+
+    def get_users(self) -> Iterable[dict[str, Any]]:
+        return self.get_all("User")["items"]
+
+    def delete_user(self, user_name: str) -> None:
+        user = self.get(None, "User", user_name)
+        cmd = ["delete", "user", user_name]
+        self._run(cmd)
+        for identity in user["identities"]:
+            cmd = ["delete", "identity", identity]
+            self._run(cmd)
+
+    def add_user_to_group(self, group: str, user: str) -> None:
+        cmd = ["adm", "groups", "add-users", group, user]
+        self._run(cmd)
+
+    def del_user_from_group(self, group: str, user: str) -> None:
+        cmd = ["adm", "groups", "remove-users", group, user]
+        self._run(cmd)
+
+    def sa_get_token(self, namespace: str, name: str) -> str:
+        cmd = ["sa", "-n", namespace, "get-token", name]
+        return self._run(cmd).decode("utf-8")
+
+    def get_api_resources(self) -> dict[str, list[OCCliApiResource]]:
+        with self.api_resources_lock:
+            if not self.api_resources:
+                cmd = ["api-resources", "--no-headers"]
+                results = self._run(cmd).decode("utf-8").split("\n")
+                for line in results:
+                    r = line.split()
+                    kind = r[-1]
+                    namespaced = r[-2].lower() == "true"
+                    # r[-3] is APIVERSION column
+                    # it can be core group e.g. v1
+                    # or group/version e.g. apps/v1
+                    group_version = r[-3].split("/", 1)
+                    group = "" if len(group_version) == 1 else group_version[0]
+                    api_version = group_version[-1]
+                    obj = OCCliApiResource(kind, group, api_version, namespaced)
+                    d = self.api_resources.setdefault(kind, [])
+                    d.append(obj)
+
+        return self.api_resources
+
+    def get_version(self) -> bytes:
+        # this is actually a 10 second timeout, because: oc reasons
+        cmd = ["version", "--request-timeout=5"]
+        return self._run(cmd)
+
+    @retry(exceptions=(JobNotRunningError), max_attempts=20)
+    def wait_for_job_running(self, namespace: str, name: str) -> None:
+        logging.info("waiting for job to run: " + name)
+        pods = self.get_items("Pod", namespace=namespace, labels={"job-name": name})
+
+        ready_pods = [
+            pod
+            for pod in pods
+            if pod["status"].get("phase") in {"Running", "Succeeded"}
+        ]
+
+        if not ready_pods:
+            raise JobNotRunningError(name)
+
+    def job_logs(
+        self,
+        namespace: str,
+        name: str,
+        follow: bool,
+        output: str | pathlib.Path | TextIO,
+        wait_for_job_running: bool = True,
+        wait_for_logs_process: bool = False,
+    ) -> None:
+        if wait_for_job_running:
+            self.wait_for_job_running(namespace, name)
+
+        cmd = ["logs", "--all-containers=true", "-n", namespace, f"job/{name}"]
+        if follow:
+            cmd.append("-f")
+
+        output_file: TextIO
+        if isinstance(output, str | pathlib.Path):
+            output_file = open(os.path.join(output, name), "w", encoding="locale")  # noqa: SIM115
+        else:
+            # assume it's a file-like object, e.g. sys.stdout, TextIO, ...
+            output_file = output
+
+        if wait_for_logs_process:
+            subprocess.run(self.oc_base_cmd + cmd, stdout=output_file, check=False)
+        else:
+            # collect logs to file async
+            Popen(self.oc_base_cmd + cmd, stdout=output_file)
+
+    def job_logs_latest_pod(self, namespace: str, name: str, output: str) -> str:
+        pods = self.get_items("Pod", namespace=namespace, labels={"job-name": name})
+
+        finished_pods = [
+            pod for pod in pods if pod["status"].get("phase") in {"Failed", "Succeeded"}
+        ]
+        if not finished_pods:
+            raise JobNotRunningError(name)
+
+        latest_pod = max(
+            finished_pods, key=lambda pod: pod["metadata"]["creationTimestamp"]
+        )
+        cmd = [
+            "logs",
+            "--all-containers=true",
+            "-n",
+            namespace,
+            f"pod/{latest_pod['metadata']['name']}",
+        ]
+        output_file_name = os.path.join(output, name)
+        with open(output_file_name, "w", encoding="locale") as f:
+            # collect logs to file async
+            p = Popen(self.oc_base_cmd + cmd, stdout=f)
+            # wait here for the log collection to finish
+            p.wait()
+        return output_file_name
+
+    @staticmethod
+    def get_service_account_username(user: str) -> str:
+        namespace, name, _ = user.split("/", maxsplit=2)
+        return f"system:serviceaccount:{namespace}:{name}"
+
+    def get_owned_pods(self, namespace: str, resource: OR) -> list[dict[str, Any]]:
+        pods = self.get(namespace, "Pod")["items"]
+        owned_pods = []
+        for p in pods:
+            owner = self.get_obj_root_owner(namespace, p, allow_not_found=True)
+            if (resource.kind, resource.name) == (
+                owner["kind"],
+                owner["metadata"]["name"],
+            ):
+                owned_pods.append(p)
+
+        return owned_pods
+
+    def get_owned_replicasets(
+        self, namespace: str, resource: Mapping[str, Any]
+    ) -> list[dict[str, Any]]:
+        owned_replicasets = []
+        for rs in self.get(namespace, "ReplicaSet")["items"]:
+            owner = self.get_obj_root_owner(namespace, rs, allow_not_found=True)
+            if (resource["kind"], resource["metadata"]["name"]) == (
+                owner["kind"],
+                owner["metadata"]["name"],
+            ):
+                owned_replicasets.append(rs)
+
+        return owned_replicasets
+
+    @retry(
+        exceptions=(ResourceNotFoundError),
+        max_attempts=GET_REPLICASET_MAX_ATTEMPTS,
+    )
+    def get_replicaset(
+        self,
+        namespace: str,
+        deployment_resource: Mapping[str, Any],
+        allow_empty: bool = False,
+    ) -> dict[str, Any]:
+        """Get last active ReplicaSet for given Deployment.
+
+        Implements similar logic like in kubectl describe deployment.
+        """
+        for rs in sorted(
+            self.get_owned_replicasets(namespace, deployment_resource),
+            key=lambda x: x["metadata"]["creationTimestamp"],
+            reverse=True,
+        ):
+            if equal_spec_template(
+                rs["spec"]["template"], deployment_resource["spec"]["template"]
+            ):
+                return rs
+
+        if allow_empty:
+            return {}
+        raise ResourceNotFoundError("No ReplicaSet found")
+
+    @staticmethod
+    def get_pod_owned_pvc_names(pods: Iterable[Mapping[str, Any]]) -> set[str]:
+        owned_pvc_names = set()
+        for p in pods:
+            vols = p["spec"].get("volumes")
+            if not vols:
+                continue
+            for v in vols:
+                with suppress(KeyError):
+                    cn = v["persistentVolumeClaim"]["claimName"]
+                    owned_pvc_names.add(cn)
+
+        return owned_pvc_names
+
+    @staticmethod
+    def get_storage(resource: Mapping[str, Any]) -> str | None:
+        # resources with volumeClaimTemplates
+        with suppress(KeyError, IndexError):
+            vct = resource["spec"]["volumeClaimTemplates"][0]
+            return vct["spec"]["resources"]["requests"]["storage"]
+        return None
+
+    def resize_pvcs(self, namespace: str, pvc_names: Iterable[str], size: str) -> None:
+        patch = {"spec": {"resources": {"requests": {"storage": size}}}}
+        for p in pvc_names:
+            self.patch(namespace, "PersistentVolumeClaim", p, patch)
+
+    def recycle_orphan_pods(
+        self, namespace: str, pods: Iterable[Mapping[str, Any]]
+    ) -> None:
+        for p in pods:
+            name = p["metadata"]["name"]
+            self.delete(namespace, "Pod", name)
+            self.validate_pod_ready(namespace, name)
+
+    @retry(max_attempts=20)
+    def validate_pod_ready(self, namespace: str, name: str) -> None:
+        logging.info([
+            self.validate_pod_ready.__name__,
+            self.cluster_name,
+            namespace,
+            name,
+        ])
+        pod = self.get(namespace, "Pod", name)
+        for status in pod["status"]["containerStatuses"]:
+            if not status["ready"]:
+                raise PodNotReadyError(name)
+
+    def _is_resource_supported_to_trigger_recycle(
+        self,
+        namespace: str,
+        resource: OR,
+    ) -> bool:
+        if resource.kind not in POD_RECYCLE_SUPPORTED_TRIGGER_KINDS:
+            logging.debug([
+                "skipping_pod_recycle_unsupported",
+                self.cluster_name,
+                namespace,
+                resource.kind,
+                resource.name,
+            ])
+            return False
+
+        # Note, that annotations might have been set to None explicitly
+        annotations = resource.body["metadata"].get("annotations") or {}
+        qontract_recycle = annotations.get("qontract.recycle")
+        if qontract_recycle != "true":
+            logging.debug([
+                "skipping_pod_recycle_no_annotation",
+                self.cluster_name,
+                namespace,
+                resource.kind,
+                resource.name,
+            ])
+            return False
+        return True
+
+    def recycle_pods(
+        self,
+        dry_run: bool,
+        namespace: str,
+        resource: OR,
+    ) -> None:
+        """
+        recycles pods which are using the specified resources.
+        will only act on Secret or ConfigMap containing the 'qontract.recycle' annotation.
+
+        Args:
+            dry_run (bool): if True, will only log the recycle action without executing it
+            namespace (str): namespace of the resource
+            resource (OR): resource object (Secret or ConfigMap) to check for pod usage
+        """
+
+        if not self._is_resource_supported_to_trigger_recycle(namespace, resource):
+            return
+
+        pods = self.get(namespace, "Pod")["items"]
+        pods_to_recycle = [
+            pod
+            for pod in pods
+            if self.is_resource_used_in_pod(
+                name=resource.name,
+                kind=resource.kind,
+                pod=pod,
+            )
+        ]
+
+        recycle_names_by_kind = defaultdict(set)
+        for pod in pods_to_recycle:
+            owner = self.get_obj_root_owner(namespace, pod, allow_not_found=True)
+            kind = owner["kind"]
+            if kind in POD_RECYCLE_SUPPORTED_OWNER_KINDS:
+                recycle_names_by_kind[kind].add(owner["metadata"]["name"])
+
+        for kind, names in recycle_names_by_kind.items():
+            for name in names:
+                self.recycle(
+                    dry_run=dry_run,
+                    namespace=namespace,
+                    kind=kind,
+                    name=name,
+                )
+
+    def recycle(
+        self,
+        dry_run: bool,
+        namespace: str,
+        kind: str,
+        name: str,
+    ) -> None:
+        """
+        Recycles an object using oc rollout restart, which will add an annotation
+        kubectl.kubernetes.io/restartedAt with the current timestamp to the pod
+        template, triggering a rolling restart.
+
+        Args:
+            dry_run (bool): if True, will only log the recycle action without executing it
+            namespace (str): namespace of the object to recycle
+            kind (str): kind of the object to recycle
+            name (str): name of the object to recycle
+        """
+        logging.info([f"recycle_{kind.lower()}", self.cluster_name, namespace, name])
+        if not dry_run:
+            self._run(
+                ["rollout", "restart", f"{kind}/{name}", "-n", namespace],
+                apply=True,
+            )
+
+    def get_obj_root_owner(
+        self,
+        ns: str,
+        obj: dict[str, Any],
+        allow_not_found: bool = False,
+        allow_not_controller: bool = False,
+    ) -> dict[str, Any]:
+        """Get object root owner (recursively find the top level owner).
+        - Returns obj if it has no ownerReferences
+        - Returns obj if all ownerReferences have controller set to false
+        - Returns obj if controller is true, allow_not_found is true,
+          but referenced object does not exist
+        - Throws an exception if controller is true, allow_not_found false,
+          but referenced object does not exist
+        - Recurses if controller is true and referenced object exists
+
+        Args:
+            ns (string): namespace of the object
+            obj (dict): representation of the object
+            allow_not_found (bool, optional): allow owner to be not found
+            allow_not_controller (bool, optional): allow non-controller owner
+
+        Returns:
+            dict: representation of the object's owner
+        """
+        refs = obj["metadata"].get("ownerReferences", [])
+        for r in refs:
+            if r.get("controller") or allow_not_controller:
+                controller_obj = self.get(
+                    ns, r["kind"], r["name"], allow_not_found=allow_not_found
+                )
+                if controller_obj:
+                    return self.get_obj_root_owner(
+                        ns,
+                        controller_obj,
+                        allow_not_found=allow_not_found,
+                        allow_not_controller=allow_not_controller,
+                    )
+        return obj
+
+    def is_resource_used_in_pod(
+        self,
+        name: str,
+        kind: str,
+        pod: Mapping[str, Any],
+    ) -> bool:
+        """
+        Check if a resource (Secret or ConfigMap) is used in a Pod.
+
+        Args:
+            name: Name of the resource
+            kind: "Secret" or "ConfigMap"
+            pod: Pod object
+
+        Returns:
+            True if the resource is used in the Pod, False otherwise.
+        """
+        used_resources = self.get_resources_used_in_pod_spec(pod["spec"], kind)
+        return name in used_resources
+
+    @staticmethod
+    def get_resources_used_in_pod_spec(
+        spec: Mapping[str, Any],
+        kind: str,
+        include_optional: bool = True,
+    ) -> dict[str, set[str]]:
+        """
+        Get resources (Secrets or ConfigMaps) used in a Pod spec.
+        Returns a dictionary where keys are resource names and values are sets of keys used from that resource.
+
+        Args:
+            spec: Pod spec
+            kind: "Secret" or "ConfigMap"
+            include_optional: Whether to include optional resources
+
+        Returns:
+            A dictionary mapping resource names to sets of keys used.
+        """
+        match kind:
+            case "Secret":
+                volume_kind, volume_kind_ref, env_from_kind, env_kind, env_ref = (
+                    "secret",
+                    "secretName",
+                    "secretRef",
+                    "secretKeyRef",
+                    "name",
+                )
+            case "ConfigMap":
+                volume_kind, volume_kind_ref, env_from_kind, env_kind, env_ref = (
+                    "configMap",
+                    "name",
+                    "configMapRef",
+                    "configMapKeyRef",
+                    "name",
+                )
+            case _:
+                raise KeyError(f"unsupported resource kind: {kind}")
+
+        optional = "optional"
+
+        resources: dict[str, set[str]] = {}
+        for v in spec.get("volumes") or []:
+            try:
+                volume_ref = v[volume_kind]
+                if volume_ref.get(optional) and not include_optional:
+                    continue
+                resource_name = volume_ref[volume_kind_ref]
+                resources.setdefault(resource_name, set())
+            except (KeyError, TypeError):
+                continue
+        for c in spec["containers"] + (spec.get("initContainers") or []):
+            for e in c.get("envFrom") or []:
+                try:
+                    resource_ref = e[env_from_kind]
+                    if resource_ref.get(optional) and not include_optional:
+                        continue
+                    resource_name = resource_ref[env_ref]
+                    resources.setdefault(resource_name, set())
+                except (KeyError, TypeError):
+                    continue
+            for e in c.get("env") or []:
+                try:
+                    resource_ref = e["valueFrom"][env_kind]
+                    if resource_ref.get(optional) and not include_optional:
+                        continue
+                    resource_name = resource_ref[env_ref]
+                    resources.setdefault(resource_name, set())
+                    key = resource_ref["key"]
+                    resources[resource_name].add(key)
+                except (KeyError, TypeError):
+                    continue
+
+        return resources
+
+    @retry(exceptions=(StatusCodeError, NoOutputError), max_attempts=10)
+    def _run(self, cmd: list[str], **kwargs: Any) -> bytes:
+        oc_run_execution_counter.labels(integration=RunningState().integration).inc()
+        stdin = kwargs.get("stdin")
+        stdin_text = stdin.encode() if stdin else None
+        result = subprocess.run(
+            self.oc_base_cmd + cmd, input=stdin_text, capture_output=True, check=False
+        )
+        err = result.stderr.decode("utf-8") if result.stderr else ""
+        allow_not_found = kwargs.get("allow_not_found")
+        if result.returncode != 0:
+            if "Unable to connect to the server" in err:
+                raise StatusCodeError(f"[{self.server}]: {err}")
+            if kwargs.get("apply"):
+                if "Invalid value: 0x0" in err:
+                    raise InvalidValueApplyError(f"[{self.server}]: {err}")
+                if "Invalid value: " in err:
+                    if ": field is immutable" in err:
+                        if "The Deployment" in err:
+                            raise DeploymentFieldIsImmutableError(
+                                f"[{self.server}]: {err}"
+                            )
+                        raise FieldIsImmutableError(f"[{self.server}]: {err}")
+                    if ": may not change once set" in err:
+                        raise MayNotChangeOnceSetError(f"[{self.server}]: {err}")
+                    if ": primary clusterIP can not be unset" in err:
+                        raise PrimaryClusterIPCanNotBeUnsetError(
+                            f"[{self.server}]: {err}"
+                        )
+                    raise StatusCodeError(f"[{self.server}]: {err}")
+                if "metadata.annotations: Too long" in err:
+                    raise MetaDataAnnotationsTooLongApplyError(
+                        f"[{self.server}]: {err}"
+                    )
+                if "UnsupportedMediaType" in err:
+                    raise UnsupportedMediaTypeError(f"[{self.server}]: {err}")
+                if "updates to statefulset spec for fields other than" in err:
+                    raise StatefulSetUpdateForbiddenError(f"[{self.server}]: {err}")
+                if "the object has been modified" in err:
+                    raise ObjectHasBeenModifiedError(f"[{self.server}]: {err}")
+                if "Request entity too large" in err:
+                    raise RequestEntityTooLargeError(f"[{self.server}]: {err}")
+            if not (allow_not_found and "NotFound" in err):
+                raise StatusCodeError(f"[{self.server}]: {err}")
+
+        if not result.stdout:
+            if allow_not_found:
+                return b"{}"
+            raise NoOutputError(err)
+
+        return result.stdout.strip()
+
+    def _run_json(
+        self, cmd: list[str], allow_not_found: bool = False
+    ) -> dict[str, Any]:
+        out = self._run(cmd, allow_not_found=allow_not_found).decode("utf-8")
+
+        try:
+            out_json = json.loads(out)
+        except ValueError as e:
+            raise JSONParsingError(out + "\n" + str(e)) from e
+
+        return out_json
+
+    def parse_kind(self, kind: str) -> tuple[str, str, str]:
+        """Parse a Kubernetes kind string into its components.
+
+        Supports three formats:
+        - kind
+        - kind.group.whatever
+        - kind.group.whatever/version
+
+        Args:
+            kind: A Kubernetes kind string in one of the supported formats
+
+        Returns:
+            Tuple of (kind, group, version) where missing parts are empty strings
+
+        Raises:
+            ValueError: If the kind string format is invalid
+
+        Examples:
+            >>> parse_kind_string("Deployment")
+            ('Deployment', '', '')
+            >>> parse_kind_string("ClusterRoleBinding.rbac.authorization.k8s.io")
+            ('ClusterRoleBinding', 'rbac.authorization.k8s.io', '')
+            >>> parse_kind_string("CustomResource.mygroup.example.com/v1")
+            ('CustomResource', 'mygroup.example.com', 'v1')
+        """
+        pattern = r"^(?P<kind>[^./]+)(?:\.(?P<group>[^/]+))?(?:/(?P<version>.+))?$"
+        match = re.match(pattern, kind)
+        if not match:
+            raise ValueError(f"Invalid kind string: {kind}")
+
+        kind = match.group("kind") or ""
+        group = match.group("group") or DEFAULT_GROUP
+        version = match.group("version") or ""
+
+        return kind, group, version
+
+    def is_kind_supported(self, kind: str) -> bool:
+        """Returns True if the given kind is supported by the cluster, False otherwise.
+
+        Kind can be either kind, kind.group or kind.group/version."""
+        try:
+            self.get_api_resource(kind)
+            return True
+        except KindNotFoundError:
+            return False
+
+    def is_kind_namespaced(self, kind: str) -> bool:
+        """Returns True if the given kind is namespaced, False if it's cluster scoped.
+
+        Kind can be either kind, kind.group or kind.group/version."""
+        return self.get_api_resource(kind).namespaced
+
+    def get_api_resource(self, kind: str) -> OCCliApiResource:
+        """Return the OCCliApiResource for the given resource type.
+
+        Resource type can be either kind, kind.group or kind.group/version.
+        If kind is not unique, group must be specified."""
+
+        if not self.api_resources:
+            raise RuntimeError("API resources not initialized")
+
+        kind, group, _ = self.parse_kind(kind)
+
+        if not (resources := self.api_resources.get(kind)):
+            # the kind not found at all
+            raise KindNotFoundError(f"Unsupported resource type: {kind}")
+
+        if len(resources) == 1 and group == DEFAULT_GROUP:
+            return resources[0]
+
+        # get the resource with the specified group
+        if resource := next((r for r in resources if r.group == group), None):
+            return resource
+
+        # no resource with the specified group found
+        if group == DEFAULT_GROUP:
+            message = (
+                f"Ambiguous resource type: {kind}. "
+                "Please fully qualify it with its API group. E.g., ClusterRoleBinding -> ClusterRoleBinding.rbac.authorization.k8s.io"
+            )
+            raise AmbiguousResourceTypeError(message)
+
+        # group was specified but no matching resource found
+        raise KindNotFoundError(f"Unsupported resource type: {kind}")
+
+
+REQUEST_TIMEOUT = 60
+
+
+class OCNative(OCCli):
+    def __init__(
+        self,
+        cluster_name: str | None,
+        server: str | None,
+        token: str | None,
+        jh: Mapping[Any, Any] | None = None,
+        settings: Mapping[Any, Any] | None = None,
+        init_projects: bool = False,
+        local: bool = False,
+        insecure_skip_tls_verify: bool = False,
+        connection_parameters: OCConnectionParameters | None = None,
+    ) -> None:
+        super().__init__(
+            cluster_name,
+            server,
+            token,
+            jh,
+            settings,
+            init_projects=False,
+            init_api_resources=False,
+            local=local,
+            insecure_skip_tls_verify=insecure_skip_tls_verify,
+            connection_parameters=connection_parameters,
+        )
+        self._get_obj_client = cache(self.__get_obj_client)
+
+        if connection_parameters:
+            token = connection_parameters.automation_token
+            if connection_parameters.is_cluster_admin:
+                token = connection_parameters.cluster_admin_automation_token
+
+            server = connection_parameters.server_url
+
+        if not server:
+            raise Exception("Server name is required!")
+
+        if not token:
+            raise Exception("Token is required!")
+
+        self.client = self._get_client(server, token)
+        self.api_resources = self.get_api_resources()
+
+        self.projects = set()
+        self.init_projects = init_projects
+        if self.init_projects:
+            kind = PROJECT_KIND if self.is_kind_supported(PROJECT_KIND) else "Namespace"
+            self.projects = {p["metadata"]["name"] for p in self.get_all(kind)["items"]}
+
+    def __enter__(self) -> OCNative:
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self.cleanup()
+
+    def cleanup(self) -> None:
+        super().cleanup()
+        if hasattr(self, "client") and self.client is not None:
+            self.client.client.close()
+
+    @retry(exceptions=(ServerTimeoutError, InternalServerError, ForbiddenError))
+    def _get_client(self, server: str, token: str) -> DynamicClient:
+        opts = {
+            "api_key": {"authorization": f"Bearer {token}"},
+            "host": server,
+            "verify_ssl": False,
+            # default timeout seems to be 1+ minutes
+            "retries": 5,
+        }
+        if self.jump_host:
+            # the ports could be parameterized, but at this point
+            # we only have need of 1 tunnel for 1 service
+            self.jump_host.create_ssh_tunnel()
+            local_port = self.jump_host.local_port
+            opts["proxy"] = f"http://localhost:{local_port}"
+        configuration = Configuration()
+        # the kubernetes client configuration takes a limited set
+        # of parameters during initialization, but there are a lot
+        # more options that can be set to tweak the behavior of the
+        # client via instance variables.  We define a set of options
+        # above in the format of var_name:value then set them here
+        # in the configuration object with setattr.
+        for k, v in opts.items():
+            setattr(configuration, k, v)
+
+        k8s_client = ApiClient(configuration)
+        try:
+            return DynamicClient(k8s_client, discoverer=OpenshiftLazyDiscoverer)
+        except urllib3.exceptions.MaxRetryError as e:
+            raise StatusCodeError(f"[{self.server}]: {e}") from None
+
+    def __get_obj_client(self, kind: str, group_version: str) -> Resource:
+        return self.client.resources.get(api_version=group_version, kind=kind)
+
+    @retry(max_attempts=5, exceptions=(ServerTimeoutError))
+    def get_items(self, kind: str, **kwargs: Any) -> list[dict[str, Any]]:
+        resource = self.get_api_resource(kind)
+        obj_client = self._get_obj_client(
+            group_version=resource.group_version, kind=resource.kind
+        )
+
+        namespace = ""
+        if "namespace" in kwargs:
+            namespace = kwargs["namespace"]
+            # for cluster scoped integrations
+            # currently only openshift-clusterrolebindings
+            if namespace != "cluster":
+                if not self.project_exists(namespace):
+                    return []
+
+        labels = ""
+        if "labels" in kwargs:
+            labels_list = [f"{k}={v}" for k, v in kwargs.get("labels", {}).items()]
+            labels = ",".join(labels_list)
+
+        resource_names = kwargs.get("resource_names")
+        if resource_names:
+            resource_items = []
+            for resource_name in resource_names:
+                try:
+                    item = obj_client.get(
+                        name=resource_name,
+                        namespace=namespace,
+                        label_selector=labels,
+                        _request_timeout=REQUEST_TIMEOUT,
+                    )
+                    if item:
+                        resource_items.append(item.to_dict())
+                except NotFoundError:
+                    pass
+            items_list = {"items": resource_items}
+        else:
+            items_list = obj_client.get(
+                namespace=namespace,
+                label_selector=labels,
+                _request_timeout=REQUEST_TIMEOUT,
+            ).to_dict()
+
+        items = items_list.get("items")
+        if items is None:
+            raise Exception("Expecting items")
+        return items
+
+    @retry(max_attempts=5, exceptions=(ServerTimeoutError, ForbiddenError))
+    def get(
+        self,
+        namespace: str | None,
+        kind: str,
+        name: str | None = None,
+        allow_not_found: bool = False,
+    ) -> dict[str, Any]:
+        resource = self.get_api_resource(kind)
+        obj_client = self._get_obj_client(
+            group_version=resource.group_version, kind=resource.kind
+        )
+        try:
+            obj = obj_client.get(
+                name=name,
+                namespace=namespace,
+                _request_timeout=REQUEST_TIMEOUT,
+            )
+            return obj.to_dict()
+        except NotFoundError as e:
+            if allow_not_found:
+                return {}
+            raise StatusCodeError(f"[{self.server}]: {e}") from None
+
+    def get_all(self, kind: str, all_namespaces: bool = False) -> dict[str, Any]:
+        resource = self.get_api_resource(kind)
+        obj_client = self._get_obj_client(
+            group_version=resource.group_version, kind=resource.kind
+        )
+        try:
+            return obj_client.get(_request_timeout=REQUEST_TIMEOUT).to_dict()
+        except NotFoundError as e:
+            raise StatusCodeError(f"[{self.server}]: {e}") from None
+
+
+OCClient = OCNative | OCCli
+
+
+class OCLocal(OCCli):
+    def __init__(
+        self,
+        cluster_name: str,
+        server: str | None,
+        token: str | None,
+        local: bool = False,
+    ) -> None:
+        super().__init__(
+            cluster_name=cluster_name,
+            server=server,
+            token=token,
+            local=local,
+        )
+
+
+# we should replace this class with a proper get_oc_client wrapper!
+# Or getting rid of one or the other OC implementations
+class OC:
+    client_status = Counter(
+        name="qontract_reconcile_native_client",
+        documentation="Cluster is using openshift native client",
+        labelnames=["cluster_name", "native_client"],
+    )
+
+    def __new__(  # type: ignore
+        cls,
+        cluster_name: str | None = None,
+        server: str | None = None,
+        token: str | None = None,
+        jh: Mapping[Any, Any] | None = None,
+        settings: Mapping[Any, Any] | None = None,
+        init_projects: bool = False,
+        init_api_resources: bool = False,
+        local: bool = False,
+        insecure_skip_tls_verify: bool = False,
+        connection_parameters: OCConnectionParameters | None = None,
+    ) -> OCClient:
+        use_native_env = os.environ.get("USE_NATIVE_CLIENT", "")
+        use_native = True
+        if len(use_native_env) > 0:
+            use_native = use_native_env.lower() in {"true", "yes"}
+        else:
+            enable_toggle = "openshift-resources-native-client"
+            use_native = get_feature_toggle_state(
+                enable_toggle, context={"cluster_name": cluster_name}
+            )
+
+        if connection_parameters:
+            cluster_name = connection_parameters.cluster_name
+
+        if use_native:
+            OC.client_status.labels(cluster_name=cluster_name, native_client=True).inc()
+            return OCNative(
+                cluster_name=cluster_name,
+                server=server,
+                token=token,
+                jh=jh,
+                settings=settings,
+                init_projects=init_projects,
+                local=local,
+                insecure_skip_tls_verify=insecure_skip_tls_verify,
+                connection_parameters=connection_parameters,
+            )
+
+        OC.client_status.labels(cluster_name=cluster_name, native_client=False).inc()
+        return OCCli(
+            cluster_name=cluster_name,
+            server=server,
+            token=token,
+            jh=jh,
+            settings=settings,
+            init_projects=init_projects,
+            init_api_resources=init_api_resources,
+            local=local,
+            insecure_skip_tls_verify=insecure_skip_tls_verify,
+            connection_parameters=connection_parameters,
+        )
+
+
+class OC_Map:  # noqa: N801
+    """
+    DEPRECATED! Use reconcile.utils.oc_map.OCMap instead.
+
+    OC_Map gets a GraphQL query results list as input
+    and initiates a dictionary of OC clients per cluster.
+
+    The input must contain either 'clusters' or 'namespaces', but not both.
+
+    In case a cluster does not have an automation token
+    the OC client will be initiated to False.
+    """
+
+    def __init__(
+        self,
+        clusters: Iterable[Mapping[str, Any]] | None = None,
+        namespaces: Iterable[Mapping[str, Any]] | None = None,
+        integration: str = "",
+        settings: Mapping[str, Any] | None = None,
+        internal: bool | None = None,
+        use_jump_host: bool = True,
+        thread_pool_size: int = 1,
+        init_projects: bool = False,
+        init_api_resources: bool = False,
+        cluster_admin: bool = False,
+    ) -> None:
+        self.oc_map: dict[str, OCClient | OCLogMsg] = {}
+        self.privileged_oc_map: dict[str, OCClient | OCLogMsg] = {}
+        self.calling_integration = integration
+        self.settings = settings
+        self.internal = internal
+        self.use_jump_host = use_jump_host
+        self.thread_pool_size = thread_pool_size
+        self.init_projects = init_projects
+        self.init_api_resources = init_api_resources
+        self._lock = Lock()
+        self.jh_ports: dict[str, str | int] = {}
+
+        if clusters and namespaces:
+            raise KeyError("expected only one of clusters or namespaces.")
+
+        if clusters:
+            threaded.run(
+                self.init_oc_client,
+                clusters,
+                self.thread_pool_size,
+                privileged=cluster_admin,
+            )
+        elif namespaces:
+            clusters = {}
+            privileged_clusters = {}
+            for ns_info in namespaces:
+                # init a namespace with clusterAdmin with both auth tokens
+                # OC_Map is used in various places and even when a namespace
+                # declares clusterAdmin token usage, many of those places are
+                # happy with regular dedicated-admin and will request a cluster
+                # with oc_map.get(cluster) without specifying privileged access
+                # specifically
+                c = ns_info["cluster"]
+                clusters[c["name"]] = c
+                privileged = ns_info.get("clusterAdmin", False) or cluster_admin
+                if privileged:
+                    privileged_clusters[c["name"]] = c
+            if clusters:
+                threaded.run(
+                    self.init_oc_client,
+                    clusters.values(),
+                    self.thread_pool_size,
+                    privileged=False,
+                )
+            if privileged_clusters:
+                threaded.run(
+                    self.init_oc_client,
+                    privileged_clusters.values(),
+                    self.thread_pool_size,
+                    privileged=True,
+                )
+        else:
+            raise KeyError("expected one of clusters or namespaces.")
+
+    def __enter__(self) -> OC_Map:
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self.cleanup()
+
+    def set_jh_ports(self, jh: MutableMapping[str, str | int]) -> None:
+        # This will be replaced with getting the data from app-interface in
+        # a future PR.
+        jh["remotePort"] = 8888
+        key = f"{jh['hostname']}:{jh['remotePort']}"
+        with self._lock:
+            if key not in self.jh_ports:
+                port = JumpHostSSH.get_unique_random_port()
+                self.jh_ports[key] = port
+            jh["localPort"] = self.jh_ports[key]
+
+    def init_oc_client(self, cluster_info: Mapping[str, Any], privileged: bool) -> None:
+        cluster = cluster_info["name"]
+        if not privileged and self.oc_map.get(cluster):
+            return None
+        if privileged and self.privileged_oc_map.get(cluster):
+            return None
+        if self.cluster_disabled(cluster_info):
+            return None
+        if self.internal is not None:
+            # integration is executed with `--internal` or `--external`
+            # filter out non matching clusters
+            if self.internal and not cluster_info["internal"]:
+                return
+            if not self.internal and cluster_info["internal"]:
+                return
+
+        if privileged:
+            automation_token = cluster_info.get("clusterAdminAutomationToken")
+            token_name = "admin automation token"
+        else:
+            automation_token = cluster_info.get("automationToken")
+            token_name = "automation token"
+
+        if automation_token is None:
+            self.set_oc(
+                cluster,
+                OCLogMsg(
+                    log_level=logging.ERROR, message=f"[{cluster}] has no {token_name}"
+                ),
+                privileged,
+            )
+        # serverUrl isn't set when a new cluster is initially created.
+        elif not cluster_info.get("serverUrl"):
+            self.set_oc(
+                cluster,
+                OCLogMsg(
+                    log_level=logging.ERROR, message=f"[{cluster}] has no serverUrl"
+                ),
+                privileged,
+            )
+        else:
+            server_url = cluster_info["serverUrl"]
+            insecure_skip_tls_verify = cluster_info.get("insecureSkipTLSVerify")
+            secret_reader = SecretReader(settings=self.settings)
+
+            try:
+                token_secret = secret_reader.read_all(automation_token)
+            except SecretNotFoundError:
+                self.set_oc(
+                    cluster,
+                    OCLogMsg(
+                        log_level=logging.ERROR, message=f"[{cluster}] secret not found"
+                    ),
+                    privileged,
+                )
+                return
+
+            token = token_secret[automation_token["field"]]
+            known_server_url = token_secret["server"]
+
+            if server_url != known_server_url:
+                self.set_oc(
+                    cluster,
+                    OCLogMsg(
+                        log_level=logging.ERROR,
+                        message=f"[{cluster}] server URL mismatch",
+                    ),
+                    privileged,
+                )
+                return
+
+            jump_host = cluster_info.get("jumpHost") if self.use_jump_host else None
+            if jump_host:
+                self.set_jh_ports(jump_host)
+            try:
+                oc_client = cast(
+                    "OCClient",
+                    OC(
+                        cluster,
+                        server_url,
+                        token,
+                        jump_host,
+                        settings=self.settings,
+                        init_projects=self.init_projects,
+                        init_api_resources=self.init_api_resources,
+                        insecure_skip_tls_verify=bool(insecure_skip_tls_verify),
+                    ),
+                )
+                self.set_oc(cluster, oc_client, privileged)
+            except StatusCodeError as e:
+                self.set_oc(
+                    cluster,
+                    OCLogMsg(
+                        log_level=logging.ERROR,
+                        message=f"[{cluster}] is unreachable: {e}",
+                    ),
+                    privileged,
+                )
+
+    def set_oc(
+        self, cluster: str, value: OCClient | OCLogMsg, privileged: bool
+    ) -> None:
+        with self._lock:
+            if privileged:
+                self.privileged_oc_map[cluster] = value
+            else:
+                self.oc_map[cluster] = value
+
+    def cluster_disabled(self, cluster_info: Mapping[str, Any]) -> bool:
+        try:
+            integrations = cluster_info["disable"]["integrations"]
+            if self.calling_integration.replace("_", "-") in integrations:
+                return True
+        except (KeyError, TypeError):
+            pass
+
+        return False
+
+    def get(self, cluster: str, privileged: bool = False) -> OCClient | OCLogMsg:
+        cluster_map = self.privileged_oc_map if privileged else self.oc_map
+        c = cluster_map.get(
+            cluster,
+            OCLogMsg(log_level=logging.DEBUG, message=f"[{cluster}] cluster skipped"),
+        )
+        return c
+
+    def get_cluster(self, cluster: str, privileged: bool = False) -> OCClient:
+        result = self.get(cluster, privileged)
+        if isinstance(result, OCLogMsg):
+            raise result
+        return result
+
+    def clusters(
+        self, include_errors: bool = False, privileged: bool = False
+    ) -> list[str]:
+        """
+        Get the names of the clusters in the map.
+        :param include_errors: includes clusters that had errors, meaning
+        that the value in OC_Map might be an OCLogMsg instead of OCNative, etc.
+        :return: list of cluster names
+        """
+        cluster_map = self.privileged_oc_map if privileged else self.oc_map
+        if include_errors:
+            return list(cluster_map.keys())
+        return [k for k, v in cluster_map.items() if v]
+
+    def cleanup(self) -> None:
+        for oc in itertools.chain(
+            self.oc_map.values(), self.privileged_oc_map.values()
+        ):
+            if oc and isinstance(oc, OCClient):
+                oc.cleanup()
+
+
+class OCLogMsg(Exception):  # noqa: N818
+    """
+    Track log messages associated with initializing OC clients in OC_Map.
+    """
+
+    def __init__(self, log_level: int, message: str) -> None:
+        super().__init__()
+        self.log_level = log_level
+        self.message = message
+
+    def __bool__(self) -> bool:
+        """
+        Returning False here makes this object falsy, which is used
+        elsewhere when differentiating between an OC client or a log
+        message.
+        """
+        return False
+
+    def __str__(self) -> str:
+        return super().__str__() + self.message
+
+
+LABEL_MAX_VALUE_LENGTH = 63
+LABEL_MAX_KEY_NAME_LENGTH = 63
+LABEL_MAX_KEY_PREFIX_LENGTH = 253
+
+
+def validate_labels(labels: Mapping[str, str]) -> list[str]:
+    """
+    Validate a label key/value against some rules from
+    https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+    Returns a list of erros found, as error message strings
+    """
+    if labels is None:
+        return []
+
+    err = []
+    v_pattern = re.compile(r"^(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?$")
+    k_name_pattern = re.compile(r"^([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]$")
+    k_prefix_pattern = re.compile(
+        r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+    )
+
+    for k, v in labels.items():
+        if len(v) > LABEL_MAX_VALUE_LENGTH:
+            err.append(f"Label value longer than {LABEL_MAX_VALUE_LENGTH} chars: {v}")
+        if not v_pattern.match(v):
+            err.append(f"Label value is invalid, it needs to match '{v_pattern}': {v}")
+
+        prefix, name = "", k
+        if "/" in k:
+            split = k.split("/")
+            if len(split) > 3:
+                err.append(f'Only one "/" allowed in label keys: {k}')
+            prefix, name = split[0], split[1]
+
+        if len(name) > LABEL_MAX_KEY_NAME_LENGTH:
+            err.append(
+                f"Label key name is longer than "
+                f"{LABEL_MAX_KEY_NAME_LENGTH} chars: {name}"
+            )
+        if not k_name_pattern.match(name):
+            err.append(
+                f"Label key name is invalid, it needs to mach '{v_pattern}'': {name}"
+            )
+
+        if prefix:
+            if len(prefix) > LABEL_MAX_KEY_PREFIX_LENGTH:
+                err.append(
+                    f"Label key prefix longer than "
+                    f"{LABEL_MAX_KEY_PREFIX_LENGTH} chars: {prefix}"
+                )
+            if not k_prefix_pattern.match(prefix):
+                err.append(
+                    f"Label key prefix is invalid, it needs to match "
+                    f"'{k_prefix_pattern}'': {prefix}"
+                )
+            if prefix in {"kubernetes.io", "k8s.io"}:
+                err.append(f"Label key prefix is reserved: {prefix}")
+
+    return err
+
+
+class OpenshiftLazyDiscoverer(LazyDiscoverer):
+    """
+    the methods contained in this class have been copied from
+    https://github.com/openshift/openshift-restclient-python/blob/master/openshift/dynamic/discovery.py
+    """
+
+    def default_groups(self, request_resources: bool = False) -> dict[str, Any]:
+        groups = super().default_groups(request_resources)
+        if self.version.get("openshift"):
+            groups["oapi"] = {
+                "": {
+                    "v1": (
+                        ResourceGroup(
+                            True,
+                            resources=self.get_resources_for_api_version(
+                                "oapi", "", "v1", True
+                            ),
+                        )
+                        if request_resources
+                        else ResourceGroup(True)
+                    )
+                }
+            }
+        return groups
+
+    def get(self, **kwargs: Any) -> Any:
+        """Same as search, but will throw an error if there are multiple or no
+        results. If there are multiple results and only one is an exact match
+        on api_version, that resource will be returned.
+        """
+        results = self.search(**kwargs)
+        # If there are multiple matches, prefer exact matches on api_version
+        if len(results) > 1 and kwargs.get("api_version"):
+            results = [
+                result
+                for result in results
+                if result.group_version == kwargs["api_version"]
+            ]
+        # If there are multiple matches, prefer non-List kinds
+        if len(results) > 1 and not all(isinstance(x, ResourceList) for x in results):
+            results = [
+                result for result in results if not isinstance(result, ResourceList)
+            ]
+        # if multiple resources are found that share a GVK, prefer the one with the most supported verbs
+        if len(results) > 1 and len({(x.group_version, x.kind) for x in results}) == 1:
+            if len({len(x.verbs) for x in results}) != 1:
+                results = [max(results, key=lambda x: len(x.verbs))]
+        if len(results) == 1:
+            return results[0]
+        if not results:
+            raise ResourceNotFoundError(f"No matches found for {kwargs}")
+        raise ResourceNotUniqueError(f"Multiple matches found for {kwargs}: {results}")
