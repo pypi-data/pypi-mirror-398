@@ -1,0 +1,111 @@
+#compdef stak
+
+# Zsh completion for stak - stacked changes for git
+
+_stak_commands() {
+    local commands=(
+        'new:Create a new branch on top of current'
+        'insert:Insert branch at any position'
+        'split:Split current branch commits'
+        'up:Move up the stack'
+        'down:Move down the stack'
+        'goto:Jump to any branch in the stack'
+        'status:Show the current stack'
+        'st:Show the current stack (alias)'
+        'sync:Rebase entire stack'
+        'continue:Continue after resolving conflicts'
+        'abort:Abort current rebase'
+        'push:Push branches to remote'
+        'drop:Remove current branch from stack'
+        'fold:Fold branch into parent or child'
+        'land:Clean up after PR is merged'
+        'log:Show commits in the stack'
+        'ls:List all stacks'
+        'use:Switch to stack (creates if needed)'
+        'rm-stack:Delete a stack'
+        'setup-interactive:Install fzf for interactive mode'
+        'help:Show help'
+    )
+    _describe 'command' commands
+}
+
+_stak_names() {
+    local stacks_dir=".git/stacks"
+    if [[ -d "$stacks_dir" ]]; then
+        local stacks=(${(f)"$(ls $stacks_dir 2>/dev/null)"})
+        _describe 'stack' stacks
+    fi
+}
+
+_stak_branches() {
+    local current_stack_file=".git/stack-current"
+    local stacks_dir=".git/stacks"
+    local stack_name="default"
+    
+    [[ -f "$current_stack_file" ]] && stack_name=$(cat "$current_stack_file")
+    
+    local stack_file="$stacks_dir/$stack_name"
+    if [[ -f "$stack_file" ]]; then
+        local branches=(${(f)"$(cat $stack_file)"})
+        _describe 'branch' branches
+    fi
+}
+
+_stak() {
+    local curcontext="$curcontext" state line
+    
+    _arguments -C \
+        '1: :_stak_commands' \
+        '*::arg:->args'
+    
+    case $state in
+        args)
+            case $line[1] in
+                new)
+                    _message 'branch name'
+                    ;;
+                goto)
+                    _alternative \
+                        'branches:branch:_stak_branches' \
+                        'numbers:position:(1 2 3 4 5 6 7 8 9 10)'
+                    ;;
+                fold)
+                    _arguments \
+                        '--down[Fold into child branch]' \
+                        '-d[Fold into child branch]'
+                    ;;
+                push)
+                    _arguments \
+                        '--all[Push all branches]' \
+                        '-a[Push all branches]'
+                    ;;
+                log)
+                    _alternative \
+                        'options:option:(--all -a)' \
+                        'branches:branch:_stak_branches'
+                    ;;
+                land)
+                    _arguments \
+                        '--force[Force land for squash merges]' \
+                        '-f[Force land for squash merges]'
+                    ;;
+                use)
+                    _stak_names
+                    ;;
+                rm-stack)
+                    _stak_names
+                    ;;
+                insert)
+                    _arguments \
+                        '1:branch name:' \
+                        '--after[Insert after branch]:branch:_stak_branches'
+                    ;;
+                split)
+                    _message 'new branch name'
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_stak "$@"
