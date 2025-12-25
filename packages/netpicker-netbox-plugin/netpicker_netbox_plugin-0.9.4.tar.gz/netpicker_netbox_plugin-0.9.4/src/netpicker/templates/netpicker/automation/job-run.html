@@ -1,0 +1,124 @@
+{% extends 'generic/_base.html' %}
+{% load i18n %}
+
+{% comment %}
+Blocks:
+  - title:      Page title
+  - controls:   Control elements displayed between the header and content
+  - tabs:       Page tabs
+  - content:    Primary page content
+    - form:     Content within the <form> element
+    - buttons:  Form submission buttons
+  - modals:     Any pre-loaded modals
+
+Context:
+  - object:      Python instance of the object being edited
+  - form:        The edit form
+  - return_url:  The URL to which the user is redirected after submitting the form
+{% endcomment %}
+
+{% block title %}
+  {% if object.pk %}
+    {% trans "Execute" %} {{ object|meta:"verbose_name" }} {{ object }}
+  {% else %}
+    {% blocktrans trimmed with object_type=object|meta:"verbose_name" %}
+      Add a new {{ object_type }}
+    {% endblocktrans %}
+  {% endif %}
+{% endblock title %}
+
+{% block controls %}
+  <div class="btn-list">
+
+    {# Link to model documentation #}
+    {% if settings.DOCS_ROOT and object.docs_url %}
+      <a href="{{ object.docs_url }}" target="_blank" class="btn btn-outline-secondary" title="{% trans "View model documentation" %}">
+        <i class="mdi mdi-help-circle"></i> {% trans "Help" %}
+      </a>
+    {% endif %}
+
+  </div>
+{% endblock controls %}
+
+{% block tabs %}
+  <ul class="nav nav-tabs">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="edit-form-tab" data-bs-toggle="tab" data-bs-target="#edit-form" type="button" role="tab" aria-controls="edit-form" aria-selected="true">
+        {% if object.pk %}{% trans "Execute" %}{% endif %}
+      </button>
+    </li>
+  </ul>
+{% endblock tabs %}
+
+{% block content %}
+  <div class="tab-pane show active" id="edit-form" role="tabpanel" aria-labelledby="object-list-tab">
+
+    {# Warn about missing prerequisite objects #}
+    {% if prerequisite_model %}
+      {% include 'inc/missing_prerequisites.html' %}
+    {% endif %}
+
+    <form action="" method="post" enctype="multipart/form-data" class="object-edit mt-5">
+      {% csrf_token %}
+
+      <div id="form_fields" hx-disinherit="hx-select hx-swap">
+        {% block form %}
+          {% include 'htmx/form.html' %}
+        {% endblock form %}
+
+    {% if form.confirm.value %}
+        <hr/>
+        <div class="row mb-3{% if field.errors %} has-errors{% endif %}">
+            <div class="col-sm-3 text-lg-end"><label for="id_confirm">Commands to devices</label></div>
+            <div class="col"><span class="font-monospace">{{ final_commands }}</span></div>
+        </div>
+    {% endif %}
+      </div>
+
+      <div class="btn-float-group-right">
+        {% block buttons %}
+          <a href="{{ return_url }}" class="btn btn-outline-secondary btn-float" id="cancel-btn">{% trans "Cancel" %}</a>
+          {% if object.pk %}
+            <button type="submit" name="_update" class="btn btn-primary" id="submit-btn">
+              <span id="submit-text">
+                {% if form.confirm.value %}
+                  {% trans "Execute now" %}{% else %}{% trans "Render commands" %}
+                {% endif %}
+              </span>  
+              <span id="submit-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+            </button>
+          {% endif %}
+        {% endblock buttons %}
+      </div>
+    </form>
+  </div>
+{% endblock content %}
+
+{% block javascript %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form.object-edit');
+    const submitBtn = document.getElementById('submit-btn');
+    const submitText = document.getElementById('submit-text');
+    const submitSpinner = document.getElementById('submit-spinner');
+    const cancelBtn = document.getElementById('cancel-btn');
+    
+    if (form && submitBtn) {
+        form.addEventListener('submit', function(e) {
+            if (submitText && submitSpinner) {
+                submitBtn.disabled = true;
+                submitSpinner.classList.remove('d-none');
+                if (cancelBtn) {
+                    cancelBtn.style.pointerEvents = 'none';
+                    cancelBtn.style.opacity = '0.6';
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock javascript %}
+
+{% block modals %}
+  {% include 'inc/htmx_modal.html' with size='lg' %}
+{% endblock %}

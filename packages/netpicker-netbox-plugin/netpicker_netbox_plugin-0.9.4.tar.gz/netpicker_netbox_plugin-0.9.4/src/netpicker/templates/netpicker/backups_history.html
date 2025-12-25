@@ -1,0 +1,59 @@
+{% extends 'generic/object_children.html' %}
+{% load helpers %}
+{% load i18n %}
+
+{% block table_controls %}
+  {# Date filter for backup history view #}
+  {% if after_date %}
+    <div class="row mb-3">
+      <div class="col-auto">
+        <div class="d-flex align-items-center">
+          <form hx-get="{{ request.path }}" hx-target="#object_list" hx-trigger="change from:#after_date" hx-push-url="true" hx-indicator="#loading-indicator-history">
+            <div class="input-group">
+              <label class="input-group-text" for="after_date">{% trans "From date" %}</label>
+              <input type="date" 
+                     id="after_date" 
+                     name="after" 
+                     value="{{ after_date }}"
+                     class="form-control">
+            </div>
+          </form>
+          {# Loading indicator #}
+          <div id="loading-indicator-history" class="htmx-indicator ms-2 d-flex align-items-center">
+            <span class="spinner-border spinner-border-sm text-primary me-2" role="status" aria-hidden="true"></span>
+            <span class="text-muted small">{% trans "Loading..." %}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+  
+  <script>
+  window.addEventListener('load', function() {
+      const qs = new URLSearchParams(window.location.search)
+      if (qs.get('search')) {
+          const links = document.getElementsByClassName('cfg')
+          console.log(links)
+          if (links.length > 0) {
+              links[0].click();
+          }
+      }
+  })
+  </script>
+{% endblock table_controls %}
+<!--
+{% block bulk_delete_controls %}
+    {{ block.super }}
+    {% with bulk_disconnect_view=child_model|validated_viewname:"bulk_disconnect" %}
+        {% if 'bulk_disconnect' in actions and bulk_disconnect_view %}
+            <button type="submit" name="_disconnect"
+                    {% formaction %}="{% url bulk_disconnect_view %}?return_url={{ return_url }}"
+                    class="btn btn-outline-danger">
+                <span class="mdi mdi-ethernet-cable-off" aria-hidden="true"></span> {% trans "Disconnect" %}
+            </button>
+        {% endif %}
+    {% endwith %}
+{% endblock bulk_delete_controls %}
+
+
+
