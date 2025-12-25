@@ -1,0 +1,142 @@
+Metadata-Version: 2.1
+Name: investify-utils
+Version: 2.0.0a10
+Summary: Shared utilities for Investify services
+Author-Email: Investify <dev@investify.vn>
+License: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Project-URL: Repository, https://gitlab.com/investify-vn/core/investify-utils
+Requires-Python: >=3.12
+Provides-Extra: postgres
+Requires-Dist: pandas>=2.0; extra == "postgres"
+Requires-Dist: pangres>=4.0; extra == "postgres"
+Requires-Dist: sqlalchemy>=2.0; extra == "postgres"
+Requires-Dist: psycopg[binary]>=3.0; extra == "postgres"
+Provides-Extra: postgres-async
+Requires-Dist: pandas>=2.0; extra == "postgres-async"
+Requires-Dist: sqlalchemy>=2.0; extra == "postgres-async"
+Requires-Dist: asyncpg>=0.29; extra == "postgres-async"
+Provides-Extra: kafka
+Requires-Dist: confluent-kafka[avro,schemaregistry]>=2.0; extra == "kafka"
+Provides-Extra: s3
+Requires-Dist: boto3>=1.34; extra == "s3"
+Provides-Extra: helpers
+Requires-Dist: pandas>=2.0; extra == "helpers"
+Requires-Dist: numpy>=2.0; extra == "helpers"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Description-Content-Type: text/markdown
+
+# investify-utils
+
+Shared utilities for Investify services.
+
+## Installation
+
+```bash
+# Sync PostgreSQL client (psycopg3 + SQLAlchemy + pangres)
+pip install investify-utils[postgres]
+
+# Async PostgreSQL client (asyncpg + SQLAlchemy)
+pip install investify-utils[postgres-async]
+```
+
+## PostgreSQL Clients
+
+### Sync Client (PostgresClient)
+
+Uses psycopg3 + SQLAlchemy for connection pooling, pangres for upsert.
+
+```python
+from investify_utils.postgres import PostgresClient
+
+client = PostgresClient(
+    host="localhost",
+    port=5432,
+    username="user",
+    password="pass",
+    database="db",
+    # SQLAlchemy pool options
+    pool_size=5,
+    pool_recycle=3600,
+)
+
+# Read
+df = client.read("SELECT * FROM table")
+
+# Insert (uses COPY protocol)
+client.insert(df, table="my_table", schema="public")
+
+# Upsert (DataFrame index = primary keys)
+df = df.set_index(["id"])
+client.upsert(df, table="my_table", schema="public")
+
+# Execute DDL/DML
+client.execute("DELETE FROM table WHERE id = 1")
+
+# Close (important for Celery workers)
+client.close()
+```
+
+### Async Client (AsyncPostgresClient)
+
+Uses asyncpg + SQLAlchemy async engine. Read-only.
+
+```python
+from investify_utils.postgres import AsyncPostgresClient
+
+client = AsyncPostgresClient(
+    host="localhost",
+    port=5432,
+    username="user",
+    password="pass",
+    database="db",
+    # SQLAlchemy pool options
+    pool_size=5,
+    pool_recycle=3600,
+)
+
+# In async context
+df = await client.read("SELECT * FROM table")
+await client.close()
+
+# Or as context manager
+async with AsyncPostgresClient(...) as client:
+    df = await client.read("SELECT * FROM table")
+```
+
+## Celery Integration
+
+Both clients use lazy initialization, safe for Celery prefork workers.
+
+```python
+# instances/postgres_core.py
+from investify_utils.postgres import PostgresClient
+from config import settings
+
+postgres_core = PostgresClient(**settings.postgres.model_dump())
+```
+
+```python
+# celery_app.py
+from celery.signals import worker_process_init
+
+@worker_process_init.connect
+def init_worker(**_kwargs):
+    # Reset engine for each worker (optional with lazy init)
+    from instances.postgres_core import postgres_core
+    postgres_core.close()
+```
+
+## Development
+
+```bash
+uv sync
+uv run ruff check investify_utils/
+```
