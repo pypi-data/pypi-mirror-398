@@ -1,0 +1,126 @@
+# =================================================================
+# CONFIG.TOML - VacationExtender Execution Configuration
+# This file defines the scope (country/year) and constraints
+# (PTO day limits, etc.) for the vacation optimization algorithm.
+# =================================================================
+
+[CALENDAR]
+# The target year (Integer)
+# Default: next year
+year = 2026
+
+# Days of the week considered non-working (Weekend Days).
+# 0 = Monday, 6 = Sunday. (List of Integers)
+# Standard Saturday and Sunday: [5, 6]
+weekend = [5, 6]
+
+[LOCATION]
+# ISO 3166-1 alpha-2 country code used by the 'holidays' library. (String)
+# Examples: "BR" (Brazil), "US" (United States), "CA" (Canada)
+# Default; "BR"
+country_code = "BR"
+
+# Optional subdivision code (state, province) to include local holidays. (String)
+# Use empty quotes if not needed: ""
+# Default: "SP"
+subdivision_code = "SP"
+
+# If holidays falling on a weekend should be "observed" on the next working day. (Boolean)
+# Set to 'true' or 'false'. Relevant in countries where observance is mandatory.
+# Default: false
+include_observed = false
+
+[CONSTRAINTS]
+# The total vacation days available for the year.
+# The algorithm can use this to rank suggestions or stop once the budget is spent. (Integer)
+# Default: 30
+vacation_days = 30
+
+# Maximum number of breaks in an year. (Integer)
+# Default: 3
+max_vac_periods = 3
+
+# The maximum number of PTO days the user is willing to spend to form
+# a single continuous "bridge" (break). (Integer)
+# -1 for no limit
+# Default: -1
+max_vac_days_per_break = -1
+
+# The minimum number of vacation days (PTO) a period must have. (Integer)
+# Default: 1
+min_vac_days_per_break = 1
+
+# The minimum number of total days (PTO + Holidays + weekend)
+# a period must have. (Integer)
+# Default: 1
+min_total_days_off = 1
+
+# The maximum number of total days (PTO + Holidays + weekend)
+# a period can have. -1 for no limit (Integer)
+# Default: -1
+max_total_days_off = -1
+
+# Minimum number of working days between two vacation periods
+# Default: 0
+min_gap_days = 60
+
+# The number of suggestions in output
+# Default: 1
+top_n_suggestions = 1
+
+# Holidays and weekends inside a vacation span are counted
+# against the PTO budget?
+# Default: false
+in_holiday_as_pto = true
+
+# Additional holidays (e.g., local holidays or company bridges).
+# Accepted formats in the list:
+#   - Single day: "YYYY-MM-DD"
+#   - Interval:   "YYYY-MM-DD:YYYY-MM-DD" (Start:End)
+#
+# Usage Example:
+# custom_holidays = [
+#    "2026-11-20",            # Local Holiday (Single day)
+#    "2026-02-16:2026-02-18"  # Carnival (3-day interval)
+# ]
+#
+# Default: []
+custom_holidays = ["2026-02-16:2026-02-18", # Carnaval
+                   "2026-06-04:2026-06-05", # Corpus-Christ
+                   "2026-10-28",
+                   "2026-11-03:2026-11-04",
+                   "2026-12-21:2026-12-31"
+                    ]
+
+# Mandatory work days or intervals (dates where you CANNOT take vacation).
+# Same format as custom_holidays.
+forced_work = []
+
+# List of specific dates where you are already committed to being on vacation.
+# The engine will prioritize these dates and calculate extensions around them.
+# Same format as custom_holidays.
+must_be_vacation = ["2026-01-02"]
+
+# List of dates (YYYY-MM-DD) that MUST be the first day of a vacation block.
+# Useful for pre-booked flights or events with a specific start date.
+# Note: The number of dates here should not exceed 'max_vac_periods'.
+must_start_on = []
+
+# List of dates (YYYY-MM-DD) that MUST be the last day of a vacation block.
+# Note: The number of dates here should not exceed 'max_vac_periods'.
+must_end_on = []
+
+# List of months (1 for Jan, 12 for Dec) that must contain at least one full vacation period.
+# Example: [7, 12] ensures you have a vacation block fully inside July AND another in December.
+# Note: The number of months cannot exceed 'max_periods'.
+required_months = []
+
+[ALGORITHM]
+# Algorithm used. greedy or optimal
+# Default: optimal
+algorithm = 'optimal'
+
+# Weighting factor to prioritize the duration (Total Days Off).
+# Use 0 to prioritize pure efficiency.
+# Default: 0.5
+duration_weight_factor_alpha = 0.5
