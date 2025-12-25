@@ -1,0 +1,54 @@
+{% load i18n %}
+{% load static %}
+
+<div class="input-group date" id="{{ widget.attrs.id }}_with_picker" data-target-input="nearest">
+  {% include "django/forms/widgets/input.html" %}
+  <span class="input-group-addon" data-target="#{{ widget.attrs.id }}" data-toggle="datetimepicker">
+    <div class="input-group-text"><i class="icon icon-calendar"></i></div>
+  </span>
+</div>
+
+<script nonce="{{csp_nonce}}">
+  $(function () {
+    $("#{{ widget.attrs.id }}_with_picker").datetimepicker(
+      {
+        format: "{{ widget.format }}",
+        orientation: "left",
+        useCurrent: false,
+        inline: true,
+        sideBySide: true,
+        icons: {
+          time: 'icon icon-time',
+          date: 'icon icon-calendar',
+          up: 'icon icon-chevron-up',
+          down: 'icon icon-chevron-down',
+          previous: 'icon icon-chevron-left',
+          next: 'icon icon-chevron-right',
+          today: 'icon icon-screenshot',
+          clear: 'icon icon-trash',
+          close: 'icon icon-remove'
+        }
+      }
+
+    );
+  });
+
+  $("#{{ widget.attrs.id }}_with_picker").on('dp.change', function ({date, oldDate}) {
+    const momentCurrentDate = date.format("YYYYMMDD");
+    const momentPrevDate = oldDate?.format("YYYYMMDD");
+
+    if(momentCurrentDate !== momentPrevDate) {
+      $(".bootstrap-datetimepicker-widget").hide();
+    }
+  })
+
+  $("#{{ widget.attrs.id }}_with_picker").on('dp.show', function () {
+    const format = "{{ widget.format }}"
+    const actualDate = $('#id_create_time_0_with_picker').data("DateTimePicker").getDate()
+    const isValidStrict = moment(actualDate?._i, format, true).isValid();
+
+    if(!isValidStrict) {
+      $("#{{ widget.attrs.id }}_with_picker").data("DateTimePicker").setDate(moment())
+    }
+  })
+</script>

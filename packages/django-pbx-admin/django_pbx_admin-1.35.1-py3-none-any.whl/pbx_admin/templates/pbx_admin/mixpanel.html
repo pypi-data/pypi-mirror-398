@@ -1,0 +1,108 @@
+<script nonce="{{request.csp_nonce}}" type="text/javascript">
+mixpanel.init("{{ mixpanel.project_token }}");
+
+mixpanel.track("screen_view", {
+  eventCategory: "adminPanel",
+  instanceId: "{{ mixpanel.instance_name }}",
+  screenTitle: document.title,
+  screenType: "{{ page_type }}",
+});
+
+const MIXPANEL_SELECTOR = "[data-mixpanel-enabled], button[name='_save'], button[name='_continue']";
+
+function reloadMixpanelEventListener() {
+  addMixpanelElementListeners(MIXPANEL_SELECTOR);
+}
+
+function addMixpanelElementListeners(selector) {
+  const elements = document.querySelectorAll(selector);
+
+  elements.forEach((element) => {
+    const event = element.dataset.mixpanelSendOnAction || "click";
+    element.addEventListener(event, handleMixpanelSendEvent);
+  });
+}
+
+function handleMixpanelSendEvent(event) {
+  const element = event.target.closest(MIXPANEL_SELECTOR);
+  if (!element) {
+    return;
+  }
+
+  const dataEventName = element.dataset.mixpanelEventName;
+  const eventName = dataEventName || "{{ action_name }}";
+
+  const extraProps = getFilteredDatasetProperties(element, "mixpanelExtraProp");
+  sendMixpanelEvent("adminPanel", eventName, extraProps);
+}
+
+function getFilteredDatasetProperties(element, prefix) {
+  const filteredData = {};
+  const entriesWithMatchingKeys = Object.entries(element.dataset).filter(([key, value]) => key.startsWith(prefix));
+
+  for (const [key, value] of entriesWithMatchingKeys) {
+    const newKey = removePrefixAndConvertToCamelCase(key, prefix);
+
+    switch (value) {
+      case "{{ mixpanel.value_getter.CHECKBOX_CHECKED }}":
+        filteredData[newKey] = element.checked;
+        break;
+      case "{{ mixpanel.value_getter.INPUT_LABEL }}":
+        filteredData[newKey] = element.parentElement.textContent.trim();
+        break;
+      case "{{ mixpanel.value_getter.INPUT_SHINAR_LANGUAGE }}":
+        filteredData[newKey] = getLanguageFromShinarInput(element);
+        break;
+      case "{{ mixpanel.value_getter.INPUT_VALUE }}":
+        filteredData[newKey] = element.value;
+        break;
+      case "{{ mixpanel.value_getter.PRODUCT_IMAGE_TYPE }}":
+        const imageContainer = element.closest(".pretty-images-container");
+        filteredData[newKey] = imageContainer.dataset.mixpanelExtraPropProductImageType;
+        break;
+      case "{{ mixpanel.value_getter.SELECT_LABEL }}":
+        const label = element.parentElement.parentElement.getElementsByTagName("label")[0];
+        filteredData[newKey] = label.textContent.trim();
+        break;
+      case "{{ mixpanel.value_getter.SELECT_OPTION }}":
+        filteredData[newKey] = element.selectedOptions[0].textContent.trim();
+        break;
+      default:
+        filteredData[newKey] = value;
+    }
+  }
+
+  return filteredData;
+}
+
+function removePrefixAndConvertToCamelCase(inputString, prefix) {
+  if (inputString.startsWith(prefix)) {
+    inputString = inputString.slice(prefix.length);
+  }
+
+  return inputString.charAt(0).toLowerCase() + inputString.slice(1);
+}
+
+function getLanguageFromShinarInput(element) {
+  const parts = element.name.split("_");
+  return parts[parts.length - 1];
+}
+
+function sendMixpanelEvent(eventCategory, eventName, extraProps){
+  let nameValue = "{{ event_object_value }}"
+  if (!nameValue){
+    nameValue = document.getElementById("id_name")?.value ?? nameValue;
+  }
+
+  mixpanel.track(eventName, {
+    eventCategory: eventCategory,
+    instanceId: "{{ mixpanel.instance_name }}",
+    screenTitle: document.title,
+    eventObject: nameValue,
+    ...extraProps,
+  })
+}
+
+reloadMixpanelEventListener();
+
+</script>

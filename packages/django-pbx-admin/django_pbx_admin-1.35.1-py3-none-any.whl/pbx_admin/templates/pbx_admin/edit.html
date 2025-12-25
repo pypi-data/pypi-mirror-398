@@ -1,0 +1,71 @@
+{% extends 'pbx_admin/base.html' %}
+
+{% load admin_tags %}
+
+{% block panel_heading %}
+    {% if menu_items %}
+        {% for item in menu_items %}
+            {% if request.path == item.url %}
+                {{ item.name }}
+            {% endif %}
+        {% endfor %}
+    {% else %}
+        {{ breadcrumbs|last|first }}
+    {% endif %}
+{% endblock %}
+
+{% block bar_alerts %}
+{{ block.super }}
+{% if form.non_field_errors %}
+    <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
+{% endif %}
+{% for formset in formsets %}
+    {% if formset.non_field_errors %}
+        <div class="alert alert-danger" role="alert">{{ formset.non_field_errors }}</div>
+    {% endif %}
+{% endfor %}
+{% endblock %}
+
+{% block content %}
+{% with label_class='col-lg-3' field_class='col-lg-5' %}
+    <form id="{% block form_id %}{% if opts %}form_{{ opts.model_name }}{% else %}form{% endif %}{% endblock %}" class="form-horizontal" method="post" {% if form.is_multipart %}enctype="multipart/form-data"{% endif %}>
+        <fieldset class="module aligned">
+            {% csrf_token %}
+
+            {{ parent_field }}
+
+            {% block fieldsets %}
+                {% for title, fieldset in fieldsets %}
+                  <div{% if fieldset.section_id %} id="{{ fieldset.section_id }}"{% endif %}>
+                    {% if title %}
+                        <div class="panel-heading" style="position: relative;clear: both;margin-top: 30px;">{{ title }}</div>
+                    {% endif %}
+                    {% fieldset fieldset fieldset.form fieldset.formset fieldset.nested_list %}
+                    {{ fieldset.html|safe }}
+                  </div>
+                {% endfor %}
+            {% endblock %}
+
+            <div class="panel-footer">
+                {% if not view.no_cancel %}
+                    <a href="{{ view.get_cancel_url }}" class="btn btn-default"
+                       {% for name, value in view.get_cancel_button_attrs.items %}{{ name }}="{{ value }}"{% endfor %}>
+                      <i class="process-icon-cancel"></i> Cancel</a>
+                {% endif %}
+                {% if not view.read_only %}
+                    <button type="submit" value="Save" class="btn btn-default pull-right default" name="_save"><i class="process-icon-save"></i> Save</button>
+                    <button class="btn btn-default pull-right" type="submit" value="Save and continue editing" name="_continue"><i class="process-icon-save"></i> Save and continue</button>
+                {% endif %}
+                {% for button in extra_buttons reversed %}
+                    {% include 'pbx_admin/forms/button.html' %}
+                {% endfor %}
+            </div>
+        </fieldset>
+    </form>
+    {% block extra_content %}{% endblock %}
+{% endwith %}
+{% endblock %}
+
+{% block extra_head %}
+    {{ form.media }}
+{% endblock extra_head %}

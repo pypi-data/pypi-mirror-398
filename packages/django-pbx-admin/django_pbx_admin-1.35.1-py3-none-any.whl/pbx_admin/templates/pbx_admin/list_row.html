@@ -1,0 +1,95 @@
+{% load i18n %}
+
+{% if outer_tag %}
+<tr class="{% cycle 'row1' 'row2' %}" data-href="{{ obj_id }}">
+{% endif %}
+    {% if show_actions %}
+    <td class="action-checkbox">
+        <input class="action-select" name="_selected_action" type="checkbox"
+               value="{{ obj.id }}">
+    </td>
+    {% endif %}
+
+    {% for field in fields %}
+        <td>
+            {% if forloop.first and show_actions %}
+                <a href="{{ default_action.url }}"
+                   {% for name, value in default_action.attrs.items %}{{ name }}="{{ value }}"{% endfor %}>
+            {% endif %}
+            {% if field.is_bool %}
+                {% if field.value %}
+                    <span class="list-action-enable action-enabled"
+                          {% if field.tooltip %}title="{{ field.tooltip }}"{% endif %}>
+                        <i class="icon-check"></i></span>
+                {% else %}
+                    <span class="list-action-enable action-disabled"
+                          {% if field.tooltip %}title="{{ field.tooltip }}"{% endif %}>
+                        <i class="icon-remove"></i></span>
+                {% endif %}
+            {% else %}
+                {% if field.editable %}
+                    <div
+                      class="input-group inline-editable"
+                      {% if field.tooltip %}
+                      data-toggle="tooltip"
+                      data-placement="top"
+                      data-html="true"
+                      title="{{ field.tooltip }}"
+                      {% endif %}>
+                        <input
+                          type="{{ field.input_type }}"
+                          data-initial-value="{{ field.value }}"
+                          data-field-name="{{ field.name }}"
+                          data-update-url="{% url field.edit_view_name obj_id %}"
+                          value="{{ field.value }}" />
+                        <div class="input-group-btn">
+                            <button type="button" class="btn btn-default inline-editable-submit invisible" disabled>
+                              <i class="icon-check"></i>
+                            </button>
+                            <button type="button" class="btn btn-default inline-editable-restore invisible" disabled>
+                              <i class="icon-remove"></i>
+                            </button>
+                        </div>
+                    </div>
+                {% else %}
+                    {% if field.tooltip %}
+                        <span data-toggle="tooltip" data-placement="top"
+                              data-html="true"
+                              title="{{ field.tooltip }}">{{ field.value }}</span>
+                    {% else %}
+                        {{ field.value }}
+                    {% endif %}
+                {% endif %}
+            {% endif %}
+            {% if forloop.first and show_actions %}</a>{% endif %}
+        </td>
+    {% endfor %}
+
+    {% if show_actions or menu_actions %}
+    <td class="field-result_actions">
+        <div class="btn-group">
+            <a href="{{ default_action.url }}" class="edit btn btn-default"
+               {% for name, value in default_action.attrs.items %}{{ name }}="{{ value }}"{% endfor %}>
+                <i class="icon-{{ default_action.icon }}"></i> {{ default_action.label }}
+            </a>
+            {% if actions %}
+            <a class="btn btn-default dropdown-toggle" data-toggle="dropdown">
+                <span class="caret"></span>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-right">
+                {% for action in actions %}
+                    <li>
+                        <a href="{{ action.url }}"
+                        {% for name, value in action.attrs.items %}{{ name }}="{{ value }}"{% endfor %}>
+                        <i class="icon-{{ action.icon }}"></i> {{ action.label }}
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+    </td>
+    {% endif %}
+{% if outer_tag %}
+</tr>
+{% endif %}

@@ -1,0 +1,63 @@
+{% load admin_tags %}
+{% load static %}
+{% block pagination %}
+<div class="col-lg-6">
+  <div class="pagination">
+    Display
+    <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
+      {{ paginator.per_page }}
+      <i class="icon-caret-down"></i>
+    </button>
+    <ul class="dropdown-menu">
+      {% for choice in pagination_choices %}
+      <li {% if choice == paginator.per_page %} class="active" {% endif %}>
+        <a href="#" class="pagination-items-page">{{ choice }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+    / {{ paginator.count|humanize_number }} result(s)
+    <input type="hidden" id="order-pagination-items-page" name="order_pagination" value="50">
+  </div>
+  <ul class="pagination pull-right pagination-flat">
+    {% if page_obj.has_previous %}
+    <li>
+      <a href="?{{ params_for_page }}{{ page_obj.previous_page_number }}" class="pagination-link">
+        <i class="icon-angle-left"></i>
+      </a>
+    </li>
+    {% else %}
+    <li class="disabled"><a class="pagination-link"><i class="icon-angle-left"></i></a></li>
+    {% endif %}
+
+    {% for page_number in adjacent_pages_before %}
+    <li><a href="?{{ params_for_page }}{{ page_number }}" class="pagination-link">{{ page_number }}</a></li>
+    {% endfor %}
+
+    <li class="active">
+      <a href="?{{ params_for_page }}{{ page_obj.number }}" class="pagination-link">{{ page_obj.number }}</a>
+    </li>
+
+    {% for page_number in adjacent_pages_after %}
+    <li><a href="?{{ params_for_page }}{{ page_number }}" class="pagination-link">{{ page_number }}</a></li>
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+    <li><a href="?{{ params_for_page }}{{ page_obj.next_page_number }}" class="pagination-link">
+      <i class="icon-angle-right"></i>
+    </a></li>
+    {% else %}
+    <li class="disabled"><a class="pagination-link"><i class="icon-angle-right"></i></a></li>
+    {% endif %}
+  </ul>
+</div>
+
+
+{% endblock pagination %}
+{% block extra_bottom_js %}
+<script nonce="{{request.csp_nonce}}">
+  window.onload = () => {
+    document.getElementById("per-page-dropdown").addEventListener('change', get_results_quantity)
+  }
+</script>
+<script nonce="{{request.csp_nonce}}" src="{% static 'pbx_admin/js/additional.js' %}"></script>
+{% endblock extra_bottom_js %}

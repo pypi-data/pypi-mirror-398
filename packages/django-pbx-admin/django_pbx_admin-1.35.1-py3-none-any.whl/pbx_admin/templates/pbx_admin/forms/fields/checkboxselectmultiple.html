@@ -1,0 +1,37 @@
+{% load l10n %}
+
+<div class="controls {{ field_class }}" id="{{ field.auto_id }}-controls"{% if flat_attrs %} {{ flat_attrs|safe }}{% endif %}>
+    {% include 'pbx_admin/forms/fields/field_errors.html' %}
+
+    {% for choice in field.field.choices %}
+        <div class="checkbox">
+            <label class="{% if inline_class %} {{ inline_class }}{% endif %}">
+                <input type="checkbox"{% if choice.0 in field.value or choice.0|stringformat:"s" in field.value or choice.0|stringformat:"s" == field.value|stringformat:"s" %} checked="checked"{% endif %} name="{{ field.html_name }}" id="{{ field.auto_id }}_{{ forloop.counter0 }}" value="{{ choice.0|unlocalize }}" {% include "django/forms/widgets/attrs.html" with widget=field.field.widget %}>{{ choice.1|unlocalize }}
+            </label>
+        </div>
+    {% if forloop.last and forloop.last != forloop.first %}
+      <div class="row" style="margin-top: 15px;">
+        <button class="btn btn-default" type="button" id="{{ field.auto_id }}-select-all">Select all</button>
+        <button class="btn btn-default" type="button" id="{{ field.auto_id }}-unselect-all">Unselect all</button>
+      </div>
+    {% endif %}
+    {% endfor %}
+    {% include 'pbx_admin/forms/fields/help_text.html' %}
+</div>
+<script nonce="{{request.csp_nonce}}">
+  $(document).ready(function () {
+    const checkboxSelector = 'input[id^={{ field.auto_id }}]:not([disabled])';
+    const selectAllButton = document.getElementById('{{ field.auto_id }}-select-all');
+    const unslectAllButton = document.getElementById('{{ field.auto_id }}-unselect-all');
+    if (selectAllButton) {
+      selectAllButton.onclick = function () {
+        Array.from(document.querySelectorAll(checkboxSelector)).forEach(el => el.checked = 'checked')
+      };
+    }
+    if (unslectAllButton) {
+      unslectAllButton.onclick = function () {
+        Array.from(document.querySelectorAll(checkboxSelector)).forEach(el => el.checked = null)
+      };
+    }
+  })
+</script>
