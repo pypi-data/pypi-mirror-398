@@ -1,0 +1,8 @@
+ANNOTATIONS = '__annotations__'
+PRIMARY_KEY = '__primary_key__'
+FOREIGN_KEYS = '__foreign_keys__'
+PRIMARY_KEY_FIELDS = '__primary_key_fields__'
+MANY_TO_MANY_FIELDS = '__many_to_many_fields__'
+DEFERRED_FOREIGN_KEYS = '__deferred_foreign_keys__'
+DEFERRED_PRIMARY_KEYS = '__deferred_primary_keys__'
+DEFERRED_M2M_FIELDS = '__deferred_m2m_fields__'
