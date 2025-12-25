@@ -1,0 +1,209 @@
+# python-lubit
+
+Official Python client for the [Lubit](https://lubit.com) Energy Prediction Market API.
+
+> Trade on European electricity price movements with a parimutuel prediction market. Predict whether Day-Ahead prices will be higher, lower, or flat compared to Imbalance prices across 17 bidding zones.
+
+## Installation
+
+```bash
+pip install lubit
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/lubit-com/python-lubit.git
+cd python-lubit
+pip install -e .
+```
+
+## Quick Start
+
+```python
+from lubit import LubitClient
+
+# Initialize client with your API credentials
+client = LubitClient(
+    api_key="lbt_pk_your_key",
+    api_secret="lbt_sk_your_secret"
+)
+
+# Get your balance
+balance = client.get_balance()
+print(f"EUR Balance: {balance['eur_balance']}")
+print(f"vEUR Balance: {balance['veur_balance']}")
+
+# Get active markets for Denmark
+markets = client.get_markets(zone="DK1", status="active")
+for market in markets[:5]:
+    print(f"{market['market_id']}: {market['total_volume']} EUR")
+
+# Place a position
+result = client.place_position(
+    market_id="DK1_2025-12-23_14:00-15:00_H",
+    side="up",
+    amount=25,
+    currency="EUR"
+)
+print(f"Position placed! Potential return: {result['potential_return']} EUR")
+```
+
+## API Overview
+
+### Authentication
+
+Get your API credentials from [lubit.com/account](https://lubit.com/account) under the API Keys section.
+
+```python
+client = LubitClient(
+    api_key="lbt_pk_xxx",
+    api_secret="lbt_sk_xxx"
+)
+```
+
+### Markets
+
+```python
+# List markets with filters
+markets = client.get_markets(
+    zone="DK1",           # Bidding zone
+    country="DK",         # Country code
+    date="2025-12-23",    # Date (YYYY-MM-DD)
+    status="active"       # active, closed, settled
+)
+
+# Get specific market details
+market = client.get_market("DK1_2025-12-23_14:00-15:00_H")
+print(f"UP odds: {market['up_odds']}x")
+print(f"DOWN odds: {market['down_odds']}x")
+print(f"FLAT odds: {market['flat_odds']}x")
+
+# Get market trading history
+history = client.get_market_history("DK1_2025-12-23_14:00-15:00_H")
+```
+
+### Trading
+
+```python
+# Place a single position
+result = client.place_position(
+    market_id="DK1_2025-12-23_14:00-15:00_H",
+    side="up",        # up, down, or flat
+    amount=25,        # Minimum 1
+    currency="EUR"    # EUR or vEUR
+)
+
+# Place multiple positions (atomic - all or none)
+positions = [
+    {"market_id": "DK1_2025-12-23_00:00-01:00_H", "side": "up", "amount": 10},
+    {"market_id": "DK1_2025-12-23_01:00-02:00_H", "side": "down", "amount": 15},
+    {"market_id": "DK1_2025-12-23_02:00-03:00_H", "side": "flat", "amount": 20},
+]
+result = client.place_bulk_positions(positions, currency="EUR")
+print(f"Total: {result['total_amount']} EUR")
+```
+
+### Account
+
+```python
+# Get balance
+balance = client.get_balance()
+print(f"EUR: {balance['eur_balance']}")
+print(f"vEUR: {balance['veur_balance']}")
+print(f"Open positions: {balance['open_positions']}")
+
+# Get transactions
+transactions = client.get_transactions(currency="EUR")
+for t in transactions:
+    print(f"{t['created_at']}: {t['amount']} {t['currency']}")
+```
+
+## Helper Functions
+
+```python
+from lubit import get_hourly_market_ids, get_quarter_market_ids
+
+# Generate all 24 hourly market IDs for a zone/date
+hourly_ids = get_hourly_market_ids("DK1", "2025-12-23")
+# ["DK1_2025-12-23_00:00-01:00_H", "DK1_2025-12-23_01:00-02:00_H", ...]
+
+# Generate all 96 quarter-hour market IDs
+quarter_ids = get_quarter_market_ids("DK1", "2025-12-23")
+# ["DK1_2025-12-23_00:00-00:15_Q", "DK1_2025-12-23_00:15-00:30_Q", ...]
+```
+
+## Market ID Format
+
+Market IDs follow this format: `{ZONE}_{DATE}_{TIME}_{TYPE}`
+
+- **ZONE**: Bidding zone (DK1, DK2, NO1-NO5, SE1-SE4, FI, DE-LU, AT, NL, BE)
+- **DATE**: YYYY-MM-DD format
+- **TIME**: HH:MM-HH:MM time slot
+- **TYPE**: H (hourly) or Q (quarter-hour)
+
+Examples:
+- `DK1_2025-12-23_14:00-15:00_H` - Hourly market
+- `DK1_2025-12-23_14:00-14:15_Q` - Quarter-hour market
+
+## Error Handling
+
+```python
+from lubit import LubitClient, LubitAPIError
+
+client = LubitClient(api_key="...", api_secret="...")
+
+try:
+    result = client.place_position(
+        market_id="DK1_2025-12-23_14:00-15:00_H",
+        side="up",
+        amount=25
+    )
+except LubitAPIError as e:
+    print(f"API Error: {e.message}")
+    print(f"Status code: {e.status_code}")
+except ValueError as e:
+    print(f"Validation error: {e}")
+```
+
+## Bidding Zones
+
+| Country | Zones |
+|---------|-------|
+| Denmark | DK1, DK2 |
+| Norway | NO1, NO2, NO3, NO4, NO5 |
+| Sweden | SE1, SE2, SE3, SE4 |
+| Finland | FI |
+| Germany/Luxembourg | DE-LU |
+| Austria | AT |
+| Netherlands | NL |
+| Belgium | BE |
+
+## Virtual Currency (vEUR)
+
+New users receive 10,000 vEUR (virtual EUR) for risk-free practice trading. Use `currency="vEUR"` when placing positions to trade with virtual currency.
+
+```python
+# Practice with virtual currency
+result = client.place_position(
+    market_id="DK1_2025-12-23_14:00-15:00_H",
+    side="up",
+    amount=100,
+    currency="vEUR"  # Uses virtual balance
+)
+```
+
+## Requirements
+
+- Python 3.7+
+- requests
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Links
+
+- [Lubit Website](https://lubit.com)
+- [API Documentation](https://lubit.com/api-docs)
+- [Get API Keys](https://lubit.com/account)
