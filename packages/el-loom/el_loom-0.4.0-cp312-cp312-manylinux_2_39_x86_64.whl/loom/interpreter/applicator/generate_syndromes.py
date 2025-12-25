@@ -1,0 +1,88 @@
+"""
+Copyright 2024 Entropica Labs Pte Ltd
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+"""
+
+from loom.eka import Stabilizer, Block
+
+from ..syndrome import Syndrome
+from ..interpretation_step import InterpretationStep
+from ..utilities import Cbit
+
+
+def generate_syndromes(
+    interpretation_step: InterpretationStep,
+    stabilizers: tuple[Stabilizer, ...],
+    block: Block,
+    stab_measurements: tuple[tuple[Cbit, ...], ...],
+) -> tuple[Syndrome, ...]:
+    """
+    Generate new Syndromes for the given stabilizers and its associated block.
+    Stabilizers are passed explicitly as they follow the same order as the
+    `stab_measurements` variable used to compute the Syndromes.
+
+    CAUTION: This function pops the entries from the stabilizer_updates field of the
+    interpretation step to compute corrections. This may cause issues in the future if
+    the information in this field also needs to be accessed somewhere else.
+
+
+    Parameters
+    ----------
+    interpretation_step : InterpretationStep
+        The updated interpretation step implementing the operation
+    stabilizers : tuple[Stabilizer, ...]
+        Stabilizers that were measured, results are included in `stab_measurements`
+    block : Block
+        Block containing the stabilizers
+    stab_measurements : tuple[tuple[Cbit, ...], ...]
+        Measurements used to create the syndromes. Each index contains a tuple of Cbits
+        associated to the stabilizer at the same index in `stabilizers`.
+
+    Returns
+    -------
+    tuple[Syndrome, ...]
+        Syndromes created for the stabilizers, they are returned in the same order as
+        the stabilizers are given.
+    """
+    # Find the round that needs to be associated with the new syndromes
+    # If the block exists in block_qec_rounds, then we increment the round
+    if block.uuid in interpretation_step.block_qec_rounds.keys():
+        new_round = interpretation_step.block_qec_rounds[block.uuid]  # Get the index
+        interpretation_step.block_qec_rounds[block.uuid] += 1  # Then increment
+    # If the block does not exist in block_qec_rounds, then we create it
+    else:
+        new_round = 0
+        interpretation_step.block_qec_rounds[block.uuid] = 1
+
+    # Extract stabilizer labels to be inherited by the Syndromes and add the time stamp
+    time_stamp = interpretation_step.get_timestamp()
+
+    # Create new Syndromes
+    new_syndromes = tuple(
+        Syndrome(
+            stabilizer=stabilizer.uuid,
+            measurements=measurements,
+            block=block.uuid,
+            round=new_round,
+            labels=block.get_stabilizer_label(stabilizer.uuid)
+            | {"time_coordinate": (time_stamp,)},
+            corrections=interpretation_step.stabilizer_updates.pop(
+                stabilizer.uuid, tuple()
+            ),  # get and remove the correction from int_step.stabilizer_updates
+        )
+        for stabilizer, measurements in zip(stabilizers, stab_measurements, strict=True)
+    )
+
+    return new_syndromes
