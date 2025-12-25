@@ -1,0 +1,128 @@
+Metadata-Version: 2.4
+Name: spotify-cmd
+Version: 0.1.12
+Summary: Command line Spotify client
+Home-page: https://github.com/ciembor/spotify-cmd
+Author: Maciej Ciemborowicz
+Author-email: maciej.ciemborowicz@gmail.com
+License: GNU General Public License v3.0
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: Topic :: Multimedia :: Sound/Audio :: Players
+Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
+Classifier: Natural Language :: English
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: MacOS
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE.md
+Requires-Dist: argparse==1.4.0
+Requires-Dist: configparser==5.0.2
+Requires-Dist: spotipy==2.23.0
+Requires-Dist: python-daemon==3.0.1
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: summary
+
+# 📻 spotify-cmd v0.1.12
+
+`spotify-cmd` is a Spotify client that allows controlling the playback of **albums and playlists from a user's library** (based on names or Spotify URIs) and individual tracks (based solely on Spotify URIs). The application is intended for use with [spotifyd](https://github.com/Spotifyd/spotifyd), but it works with any Spotify-enabled device.
+
+## Installation
+
+Ensure you have Python 3 installed. Package is available on PyPi: https://pypi.org/project/spotify-cmd/. Install it using `pip3`:
+
+```bash
+pip3 install spotify-cmd
+```
+
+## Configuration
+
+The application configuration should be located in `~/.config/spotify-cmd/config.ini`. Below is a detailed guide on each configuration option:
+
+```ini
+[SPOTIFY]
+client_id = your_client_id
+client_secret = your_client_secret
+device_name = your_device_name  # optional; if omitted, uses the current active device
+redirect_uri = http://localhost:8888/callback
+
+[SPOTIFY_CMD_DAEMON]
+socket_path = /tmp/spotify-cmd-daemon.sock
+socket_buffer_size = 1024
+```
+
+* **client_id**, **client_secret** are required. Obtain these by creating an app at the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/applications).
+* **device_name** is optional. If set, `spotify-cmd-daemon` will force to use it even if another is active; if omitted, it uses the current active device.
+* **redirect_uri** is used for Spotify authentication. If not set, it defaults to 'http://localhost:8888/callback'.
+* **socket_path** specifies the Unix socket path for the daemon. Defaults to '/tmp/spotify-cmd-daemon.sock'.
+* **socket_buffer_size** defines the buffer size for socket communication. Defaults to 1024.
+
+## Commands
+
+`spotify-cmd` offers the following commands:
+
+* `get playlists`: Lists the user's playlists.
+* `get albums`: Lists the user's albums.
+* `play playlist <name>`, `play album <name>`, `play uri <spotify_uri>`: Plays a specific playlist, album, or resource by Spotify URI.
+* `play`, `pause`, `next`, `previous`: Controls playback.
+* `set shuffle <on|off>`: Toggles shuffle mode.
+* `set volume <0-100>`: Sets the volume level.
+* `find <search_type> <query>`: Searches for items on Spotify. Acceptable search types are `album`, `artist`, `playlist`, `track`, `episode`, and `show`.
+* `version`: Prints the installed `spotify-cmd` version.
+
+## Output Format
+
+Select output format using the `--format` flag:
+
+* `--format text`: Plain text output (default).
+* `--format json`: Output in JSON format.
+* `--format verbose`: Verbose text information.
+
+## Usage Examples
+
+``` bash
+spotify-cmd get albums
+spotify-cmd get playlists
+spotify-cmd play album "Listening Tree"
+spotify-cmd play uri spotify:album:5zKTfU3vyuZfLgtYRfJyza
+spotify-cmd find artist "Nils Frahm"
+```
+
+## For Developers
+
+Developers can create interfaces for `spotify-cmd-daemon` using `/tmp/spotify-cmd-daemon.sock`. Socket handling and data format details are in the `./src/common` directory (there is no documentation).
+
+Daemon helper:
+
+* `spotify-cmd-daemon --version` prints the installed daemon version.
+
+## Planned Features and Upcoming Development
+
+* Displaying tracks from specific albums or playlists.
+* MPRIS D-Bus interface support to reduce server queries.
+* `spotify-cmd-ui`: A ncurses-based UI for track display and control, working with the same daemon.
+* ~~Search functionality.~~ [Done in 0.1.4]
+* Support for other resource types like artists.
+* Config instructions after installation / creation of default config.
+
+## License
+
+This project is licensed under the terms of the GNU General Public License. Detailed information can be found in the [LICENSE.md](LICENSE.md) file.
+
+## Author
+
+Project created by Maciej Ciemborowicz.
