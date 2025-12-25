@@ -1,0 +1,223 @@
+[build-system]
+requires = ["setuptools >= 61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "maqet"
+version = "0.0.14"
+description = "M4x0n's QEMU Tool - A Python-based QEMU automation framework for VM running"
+readme = "README.md"
+license = "GPL-2.0-only"
+authors = [{ name = "Max Rogol" }]
+maintainers = [{ name = "Max Rogol" }]
+keywords = ["qemu", "virtualization", "vm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Testing",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+]
+requires-python = ">= 3.12"
+dependencies = ["PyYAML>=6.0.2", "psutil>=5.9.0"]
+
+[project.urls]
+Repository = "https://gitlab.com/m4x0n_24/maqet"
+Documentation = "https://gitlab.com/m4x0n_24/maqet/blob/main/README.md"
+Issues = "https://gitlab.com/m4x0n_24/maqet/issues"
+
+[project.scripts]
+maqet = "maqet.__main__:main"
+
+[project.optional-dependencies]
+tables = ["tabulate>=0.9.0"]
+docs = [
+    "sphinx>=7.0",
+    "sphinx-rtd-theme>=2.0",
+    "myst-parser>=2.0",
+]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov",
+    "pytest-testmon",
+    "pytest-xdist>=3.0",
+    "pytest-asyncio>=0.21.0",
+    "black",
+    "flake8",
+    "mypy",
+    "isort",
+    "pre-commit",
+    "ruff>=0.14.0",
+    "tabulate>=0.9.0",
+    "sphinx>=7.0",
+    "sphinx-rtd-theme>=2.0",
+    "myst-parser>=2.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["maqet*"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+maqet = ["*.yaml", "*.yml"]
+
+# Linting and formatting configuration
+[tool.black]
+line-length = 79
+target-version = ["py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | qemu
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 79
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_glob = ["qemu/*", "build/*", "dist/*"]
+
+[tool.flake8]
+max-line-length = 79
+extend-ignore = ["E203", "W503", "E501", "F401", "F841"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".venv",
+    "qemu",
+    "*.egg-info",
+]
+per-file-ignores = ["__init__.py:F401"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+exclude = ["qemu/", "build/", "dist/"]
+
+[[tool.mypy.overrides]]
+module = ["yaml.*", "tabulate.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+testpaths = [
+    "tests/unit",
+    "tests/integration",
+    "tests/e2e",
+    "tests/performance",
+]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-n", "4",               # Run tests in parallel with 4 workers (pytest-xdist)
+    "--tb=line",             # Minimal traceback (one line per failure)
+    "--strict-markers",
+    "--import-mode=importlib",
+    "--disable-warnings",    # Suppress warnings for cleaner output
+]
+markers = [
+    "unit: Unit tests (fast, isolated)",
+    "integration: Integration tests (slower, real components)",
+    "e2e: End-to-end tests (slowest, full workflows) - run serially to avoid resource contention",
+    "performance: Performance benchmark tests (run separately)",
+    "security: Security-related tests (injection, validation, etc.)",
+    "storage: Storage-related tests",
+    "qmp: QMP protocol tests",
+    "cli: CLI-related tests",
+    "no_qemu_leak_check: Skip QEMU process leak detection for this test (for tests that don't spawn QEMU)",
+    "snapshot: Snapshot functionality tests",
+    "state: State management tests",
+    "config: Configuration tests",
+    "skip: Skip test unconditionally",
+    "asyncio: Async tests using asyncio",
+    "api_registry(isolated): Control API registry behavior - isolated=True for clean registry, isolated=False (default) for pre-populated",
+    "isolated_registry: Tests requiring isolated API registry (no pre-populated methods)",
+    "parallel_safe: Test is safe for parallel execution (no shared state)",
+]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["maqet"]
+omit = ["*/tests/*", "*/qemu/*", "*/__pycache__/*", "*/.venv/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+show_missing = true
+precision = 2
+
+# Ruff Configuration - Fast Python Linting
+# Official docs: https://docs.astral.sh/ruff/
+# F401 Rule: https://docs.astral.sh/ruff/rules/unused-import/
+# Project docs: docs/development/linting.md
+# Baseline report: docs/development/ruff-f401-baseline.txt
+#
+# Current: Phase 1 (Evaluation) - Complete
+# Focus: F401 (unused imports) detection only
+[tool.ruff]
+line-length = 79
+target-version = "py312"
+
+# CRITICAL: Maintain QEMU exclusion pattern
+exclude = [
+    ".git",
+    ".venv",
+    "build",
+    "dist",
+    "qemu",
+    "*.egg-info",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+# Enable ONLY F401 for Phase 1 evaluation
+select = ["F401"]
+
+# Detection-only mode (no auto-fix) for Phase 1
+unfixable = ["F401"]
+
+[tool.ruff.lint.per-file-ignores]
+# Allow re-exports in __init__.py files (preferred approach in Ruff >= 0.14)
+"__init__.py" = ["F401"]
+# Allow unused imports in test fixtures
+"tests/**/*.py" = ["F401"]
