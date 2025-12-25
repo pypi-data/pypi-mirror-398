@@ -1,0 +1,67 @@
+import sys
+import uuid
+
+{% if has_fastapi %}
+import fastapi
+{% endif %}
+import pydantic
+import sqlalchemy
+import sqlalchemy.orm
+
+from asyncpg_datalayer.base_repository import BaseRepository
+from asyncpg_datalayer.base_table import Base
+from asyncpg_datalayer.db import DB
+
+
+class {{ entity_name }}Table(Base):
+    __tablename__ = "{{ table_name }}"
+    __table_args__ = (
+        {% if table_pk_names %}sqlalchemy.PrimaryKeyConstraint({% for pk_name in table_pk_names %}"{{ pk_name }}", {% endfor %}name="{{ table_name }}_pkey"),{% endif %}
+        {% for field in table_constraint_defs %}{{ field }},
+        {% endfor %}
+    )
+    {% for field in table_field_defs %}{{ field }}
+    {% endfor %}
+
+
+{{ entity_name }}Record = {{ entity_name }}Table
+
+
+class {{ entity_name }}RecordInsert(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(extra="forbid")
+    {% for field in record_insert_field_defs %}{{ field }}
+    {% endfor %}
+
+
+class {{ entity_name }}RecordUpdate(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(extra="forbid")
+    {% for field in record_update_field_defs %}{{ field }}
+    {% endfor %}
+
+
+{% if has_fastapi %}
+def get_db(request: fastapi.Request) -> DB:
+    if not hasattr(request.app.state, "db"):
+        message = """DB not found in app.state.
+        Make sure to initialize the DB in your FastAPI app like this:
+
+        ```
+        import os
+        import fastapi
+        from asyncpg_datalayer.db_factory import create_db
+
+        app = fastapi.FastAPI()
+        app.state.db = create_db()
+        ```
+        """
+        print(message, file=sys.stderr)
+        raise RuntimeError("DB not found in app.state")
+    return request.app.state.db
+{% endif %}
+
+
+class {{ entity_name }}Repository(BaseRepository[{{ entity_name }}Record]):
+    def __init__(self, db: DB{% if has_fastapi %} = fastapi.Depends(get_db){% endif %}) -> None:
+        super().__init__(db, {{ entity_name }}Record)
+
+    {{ custom_methods_delimiter }}
