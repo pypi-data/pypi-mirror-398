@@ -1,0 +1,623 @@
+import asyncio
+from dataclasses import dataclass, field
+from typing import Any
+
+from asyncpg import Pool, create_pool
+
+from .base_driver import BaseDriver
+from .retry_utils import RetryStrategy, calculate_retry_delay
+
+
+@dataclass
+class PostgresDriver(BaseDriver):
+    """PostgreSQL-based queue driver with transactional dequeue and dead-letter support.
+
+    Architecture:
+        - Tasks stored in configurable table (default: task_queue)
+        - Dead-letter table for failed tasks (default: dead_letter_queue)
+        - Transactional dequeue using SELECT ... FOR UPDATE SKIP LOCKED
+        - BYTEA payload storage for binary data
+        - TIMESTAMP for delay calculations
+        - Visibility timeout to handle worker crashes
+
+    Features:
+        - Concurrent workers with SKIP LOCKED
+        - Dead-letter queue for failed tasks
+        - Configurable retry logic with exponential backoff
+        - Visibility timeout for crash recovery
+        - Connection pooling with asyncpg
+        - Auto-recovery of stuck tasks via poll loop
+
+    Requirements:
+        - PostgreSQL 14+ (for SKIP LOCKED support and Django ORM integration)
+        - asyncpg library
+    """
+
+    dsn: str = "postgresql://user:pass@localhost/dbname"
+    queue_table: str = "task_queue"
+    dead_letter_table: str = "dead_letter_queue"
+    max_attempts: int = 3
+    retry_strategy: RetryStrategy = "exponential"
+    retry_delay_seconds: int = 60
+    visibility_timeout_seconds: int = 300  # 5 minutes
+    min_pool_size: int = 10
+    max_pool_size: int = 10
+    keep_completed_tasks: bool = False
+    pool: Pool | None = field(default=None, init=False, repr=False)
+    _receipt_handles: dict[bytes, int] = field(default_factory=dict, init=False, repr=False)
+
+    async def connect(self) -> None:
+        """Initialize asyncpg connection pool with configurable size."""
+        if self.pool is None:
+            self.pool = await create_pool(
+                dsn=self.dsn,
+                min_size=self.min_pool_size,
+                max_size=self.max_pool_size,
+            )
+
+    async def disconnect(self) -> None:
+        """Close connection pool and cleanup."""
+        if self.pool:
+            await self.pool.close()
+            self.pool = None
+        self._receipt_handles.clear()
+
+    async def init_schema(self) -> None:
+        """Initialize database schema for queue and dead-letter tables.
+
+        Creates tables if they don't exist. Safe to call multiple times (idempotent).
+        Should be called once during application setup.
+
+        Raises:
+            asyncpg.PostgresError: If table creation fails
+        """
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        async with self.pool.acquire() as conn:
+            # Create queue table
+            await conn.execute(f"""
+                CREATE TABLE IF NOT EXISTS {self.queue_table} (
+                    id SERIAL PRIMARY KEY,
+                    queue_name TEXT NOT NULL,
+                    payload BYTEA NOT NULL,
+                    available_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    locked_until TIMESTAMPTZ,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    current_attempt INTEGER NOT NULL DEFAULT 1,
+                    max_attempts INTEGER NOT NULL DEFAULT 3,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+
+            # Create index for efficient queue lookup
+            # Composite index on queue_name, status, available_at, and locked_until
+            # Note: We don't use a partial index with NOW() since NOW() is not IMMUTABLE
+            await conn.execute(f"""
+                CREATE INDEX IF NOT EXISTS idx_{self.queue_table}_lookup
+                ON {self.queue_table} (queue_name, status, available_at, locked_until)
+            """)
+
+            # Create dead-letter table
+            await conn.execute(f"""
+                CREATE TABLE IF NOT EXISTS {self.dead_letter_table} (
+                    id SERIAL PRIMARY KEY,
+                    queue_name TEXT NOT NULL,
+                    payload BYTEA NOT NULL,
+                    current_attempt INTEGER NOT NULL,
+                    error_message TEXT,
+                    failed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+
+    async def enqueue(self, queue_name: str, task_data: bytes, delay_seconds: int = 0) -> None:
+        """Add task to queue with optional delay.
+
+        Args:
+            queue_name: Name of the queue
+            task_data: Serialized task data
+            delay_seconds: Seconds to delay task visibility (0 = immediate)
+        """
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        query = f"""
+            INSERT INTO {self.queue_table}
+                (queue_name, payload, available_at, status, current_attempt, max_attempts, created_at)
+            VALUES ($1, $2, NOW() + $3 * INTERVAL '1 second', 'pending', 1, $4, NOW())
+        """
+        await self.pool.execute(query, queue_name, task_data, delay_seconds, self.max_attempts)
+
+    async def dequeue(self, queue_name: str, poll_seconds: int = 0) -> bytes | None:
+        """Retrieve next available task with transactional locking and polling support.
+
+        Args:
+            queue_name: Name of the queue
+            poll_seconds: Seconds to poll for task (0 = non-blocking)
+
+        Returns:
+            Serialized task data (bytes) or None if no tasks available
+
+        Implementation:
+            - Uses SELECT FOR UPDATE SKIP LOCKED for concurrent workers
+            - Sets visibility timeout (locked_until) to prevent duplicate processing
+            - Implements polling with 200ms interval if poll_seconds > 0
+            - Auto-recovers stuck tasks (locked_until expired)
+            - Stores task_data -> task_id mapping for ack/nack operations
+        """
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        deadline = None
+        if poll_seconds > 0:
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + poll_seconds
+
+        while True:
+            # Select and lock a pending task
+            query = f"""
+                SELECT id, payload FROM {self.queue_table}
+                WHERE queue_name = $1
+                  AND status = 'pending'
+                  AND available_at <= NOW()
+                  AND (locked_until IS NULL OR locked_until < NOW())
+                ORDER BY created_at
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
+            """
+
+            async with self.pool.acquire() as conn:
+                async with conn.transaction():
+                    row = await conn.fetchrow(query, queue_name)
+
+                    if row:
+                        task_id = row["id"]
+                        task_data = bytes(row["payload"])
+
+                        # Update status and set visibility timeout
+                        await conn.execute(
+                            f"""
+                            UPDATE {self.queue_table}
+                            SET status = 'processing',
+                                locked_until = NOW() + $1 * INTERVAL '1 second',
+                                updated_at = NOW()
+                            WHERE id = $2
+                            """,
+                            self.visibility_timeout_seconds,
+                            task_id,
+                        )
+
+                        # Store mapping from task_data to task_id for ack/nack
+                        # Note: Uses task_data as key (matching SQS/RabbitMQ pattern)
+                        self._receipt_handles[task_data] = task_id
+
+                        return task_data
+
+            # No task found - check if we should poll
+            if poll_seconds == 0:
+                return None
+
+            if deadline is not None:
+                loop = asyncio.get_running_loop()
+                if loop.time() >= deadline:
+                    return None
+
+                # Sleep for 200ms before next poll
+                await asyncio.sleep(0.2)
+            else:
+                return None
+
+    async def ack(self, queue_name: str, receipt_handle: bytes) -> None:
+        """Acknowledge successful processing and mark task as completed.
+
+        Args:
+            queue_name: Name of the queue (unused but required by protocol)
+            receipt_handle: Receipt handle from dequeue (UUID bytes)
+
+        Implementation:
+            If keep_completed_tasks is True: Updates status to 'completed' to maintain task history.
+            If keep_completed_tasks is False: Deletes the task to save storage space.
+        """
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        task_id = self._receipt_handles.get(receipt_handle)
+        if task_id:
+            if self.keep_completed_tasks:
+                await self.pool.execute(
+                    f"UPDATE {self.queue_table} SET status = 'completed', updated_at = NOW() WHERE id = $1",
+                    task_id,
+                )
+            else:
+                await self.pool.execute(
+                    f"DELETE FROM {self.queue_table} WHERE id = $1",
+                    task_id,
+                )
+            self._receipt_handles.pop(receipt_handle, None)
+
+    async def nack(self, queue_name: str, receipt_handle: bytes) -> None:
+        """Reject task for retry or move to dead letter queue.
+
+        Args:
+            queue_name: Name of the queue (unused but required by protocol)
+            receipt_handle: Receipt handle from dequeue (UUID bytes)
+
+        Implementation:
+            - Increments attempt counter
+            - If current_attempt < max_attempts: requeue with exponential backoff
+            - If current_attempt >= max_attempts: move to dead letter queue
+        """
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        task_id = self._receipt_handles.get(receipt_handle)
+        if not task_id:
+            return
+
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                # Get current attempt (do not pre-increment for the decision)
+                row = await conn.fetchrow(
+                    f"SELECT current_attempt, max_attempts, queue_name, payload FROM {self.queue_table} WHERE id = $1",
+                    task_id,
+                )
+
+                if row:
+                    existing_attempt = row["current_attempt"]
+                    max_attempts = row["max_attempts"]
+                    task_queue_name = row["queue_name"]
+                    payload = row["payload"]
+
+                    # If we have remaining retries (existing_attempt < max_attempts),
+                    # increment and requeue. Only move to DLQ when retries are exhausted.
+                    if existing_attempt < max_attempts:
+                        new_attempt = existing_attempt + 1
+                        # Calculate retry delay based on strategy (fixed or exponential)
+                        retry_delay = calculate_retry_delay(
+                            self.retry_strategy, self.retry_delay_seconds, existing_attempt
+                        )
+                        await conn.execute(
+                            f"""
+                            UPDATE {self.queue_table}
+                            SET current_attempt = $1,
+                                available_at = NOW() + $2 * INTERVAL '1 second',
+                                status = 'pending',
+                                locked_until = NULL,
+                                updated_at = NOW()
+                            WHERE id = $3
+                            """,
+                            new_attempt,
+                            retry_delay,
+                            task_id,
+                        )
+                    else:
+                        # Move to dead letter queue using the existing attempt count
+                        await conn.execute(
+                            f"""
+                            INSERT INTO {self.dead_letter_table}
+                                (queue_name, payload, current_attempt, error_message, failed_at)
+                            VALUES ($1, $2, $3, 'Max attempts exceeded', NOW())
+                            """,
+                            task_queue_name,
+                            payload,
+                            existing_attempt,
+                        )
+                        await conn.execute(f"DELETE FROM {self.queue_table} WHERE id = $1", task_id)
+
+        self._receipt_handles.pop(receipt_handle, None)
+
+    async def mark_failed(self, queue_name: str, receipt_handle: bytes) -> None:
+        """Mark task as permanently failed (move to dead letter queue).
+
+        Args:
+            queue_name: Name of the queue
+            receipt_handle: Receipt handle from dequeue (UUID bytes)
+
+        Implementation:
+            Moves task to dead_letter_queue and removes from main queue.
+            Should be called when a task fails permanently (no more retries).
+        """
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        task_id = self._receipt_handles.get(receipt_handle)
+        if not task_id:
+            return
+
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                # Get task data
+                row = await conn.fetchrow(
+                    f"SELECT queue_name, payload, current_attempt FROM {self.queue_table} WHERE id = $1",
+                    task_id,
+                )
+
+                if row:
+                    # Move to dead letter queue
+                    await conn.execute(
+                        f"""
+                        INSERT INTO {self.dead_letter_table}
+                            (queue_name, payload, current_attempt, error_message, failed_at)
+                        VALUES ($1, $2, $3, 'Permanently failed', NOW())
+                        """,
+                        row["queue_name"],
+                        row["payload"],
+                        row["current_attempt"],
+                    )
+                    # Delete from main queue
+                    await conn.execute(f"DELETE FROM {self.queue_table} WHERE id = $1", task_id)
+
+        self._receipt_handles.pop(receipt_handle, None)
+
+    async def get_queue_size(
+        self, queue_name: str, include_delayed: bool, include_in_flight: bool
+    ) -> int:
+        """Get number of tasks in queue based on parameters.
+
+        Args:
+            queue_name: Name of the queue
+            include_delayed: Include delayed tasks (available_at > NOW())
+            include_in_flight: Include in-flight/processing tasks
+
+        Returns:
+            Count of tasks based on the inclusion parameters:
+            - Both False: Only ready tasks (pending, available_at <= NOW(), not locked)
+            - include_delayed=True: Ready + delayed tasks
+            - include_in_flight=True: Ready + in-flight tasks
+            - Both True: Ready + delayed + in-flight tasks
+        """
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        # Build WHERE clause based on parameters
+        conditions = ["queue_name = $1"]
+
+        if include_delayed and include_in_flight:
+            # All tasks: pending (ready + delayed) + processing
+            conditions.append("(status = 'pending' OR status = 'processing')")
+        elif include_delayed:
+            # All pending tasks (ready + delayed), not locked
+            conditions.append("status = 'pending'")
+        elif include_in_flight:
+            # Ready tasks + processing
+            conditions.append(
+                "((status = 'pending' AND available_at <= NOW() AND (locked_until IS NULL OR locked_until < NOW())) OR status = 'processing')"
+            )
+        else:
+            # Only ready tasks (pending, available, not locked)
+            conditions.append("status = 'pending'")
+            conditions.append("available_at <= NOW()")
+            conditions.append("(locked_until IS NULL OR locked_until < NOW())")
+
+        where_clause = " AND ".join(conditions)
+        query = f"SELECT COUNT(*) FROM {self.queue_table} WHERE {where_clause}"
+
+        row = await self.pool.fetchrow(query, queue_name)
+        return row["count"] if row else 0
+
+    async def get_queue_stats(self, queue: str) -> dict[str, Any]:
+        """Return basic stats for a single queue."""
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        depth_q = f"SELECT COUNT(*) FROM {self.queue_table} WHERE queue_name=$1 AND status='pending' AND available_at <= NOW() AND (locked_until IS NULL OR locked_until < NOW())"
+        processing_q = (
+            f"SELECT COUNT(*) FROM {self.queue_table} WHERE queue_name=$1 AND status='processing'"
+        )
+        failed_q = f"SELECT COUNT(*) FROM {self.dead_letter_table} WHERE queue_name=$1"
+
+        async with self.pool.acquire() as conn:
+            depth_row = await conn.fetchrow(depth_q, queue)
+            depth = int(depth_row["count"]) if depth_row else 0
+
+            proc_row = await conn.fetchrow(processing_q, queue)
+            processing = int(proc_row["count"]) if proc_row else 0
+
+            failed_row = await conn.fetchrow(failed_q, queue)
+            failed_total = int(failed_row["count"]) if failed_row else 0
+
+        return {
+            "name": queue,
+            "depth": depth,
+            "processing": processing,
+            "completed_total": 0,
+            "failed_total": failed_total,
+            "avg_duration_ms": None,
+            "throughput_per_minute": None,
+        }
+
+    async def get_all_queue_names(self) -> list[str]:
+        """Return list of distinct queue names."""
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        q = f"SELECT DISTINCT queue_name FROM {self.queue_table}"
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(q)
+            return [r["queue_name"] for r in rows] if rows else []
+
+    async def get_global_stats(self) -> dict[str, int]:
+        """Return simple global stats across all queues."""
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        pending_q = f"SELECT COUNT(*) FROM {self.queue_table} WHERE status='pending'"
+        processing_q = f"SELECT COUNT(*) FROM {self.queue_table} WHERE status='processing'"
+        failed_q = f"SELECT COUNT(*) FROM {self.dead_letter_table}"
+        total_q = f"SELECT COUNT(*) FROM {self.queue_table}"
+
+        async with self.pool.acquire() as conn:
+            pending_row = await conn.fetchrow(pending_q)
+            pending = pending_row["count"] if pending_row else 0
+            proc_row = await conn.fetchrow(processing_q)
+            processing = proc_row["count"] if proc_row else 0
+            failed_row = await conn.fetchrow(failed_q)
+            failed = failed_row["count"] if failed_row else 0
+            total_row = await conn.fetchrow(total_q)
+            total = total_row["count"] if total_row else 0
+
+        return {
+            "pending": int(pending),
+            "running": int(processing),
+            "failed": int(failed),
+            "total": int(total),
+        }
+
+    async def get_running_tasks(self, limit: int = 50, offset: int = 0) -> list[tuple[bytes, str]]:
+        """Return raw task bytes for tasks currently processing.
+
+        Returns:
+            List of (raw_bytes, queue_name) tuples for running tasks
+        """
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        q = f"SELECT payload, queue_name FROM {self.queue_table} WHERE status='processing' ORDER BY updated_at DESC LIMIT $1 OFFSET $2"
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(q, limit, offset)
+
+        tasks: list[tuple[bytes, str]] = []
+        for row in rows or []:
+            payload = row["payload"]
+            queue_name = row["queue_name"]
+            tasks.append((bytes(payload), queue_name))
+        return tasks
+
+    async def get_tasks(
+        self,
+        status: str | None = None,
+        queue: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[tuple[bytes, str, str]], int]:
+        """Return list of tasks with pagination and total count.
+
+        Returns:
+            Tuple of (list of (payload_bytes, queue_name, status), total_count)
+        """
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        conditions: list[str] = []
+        params: list = []
+        if status:
+            params.append(status)
+            conditions.append(f"status = ${len(params)}")
+        if queue:
+            params.append(queue)
+            conditions.append(f"queue_name = ${len(params)}")
+
+        where = " AND ".join(conditions) if conditions else "1=1"
+
+        limit_idx = len(params) + 1
+        offset_idx = len(params) + 2
+
+        q = f"SELECT payload, queue_name, status FROM {self.queue_table} WHERE {where} ORDER BY created_at DESC LIMIT ${limit_idx} OFFSET ${offset_idx}"
+        count_q = f"SELECT COUNT(*) FROM {self.queue_table} WHERE {where}"
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(q, *(*params, limit, offset))
+            total_row = await conn.fetchrow(count_q, *params)
+            total = int(total_row["count"]) if total_row else 0
+
+        tasks: list[tuple[bytes, str, str]] = []
+        for row in rows or []:
+            payload = row["payload"]
+            queue_name = row["queue_name"]
+            status_ = row["status"]
+            tasks.append((bytes(payload), queue_name, status_))
+
+        return tasks, int(total)
+
+    async def get_task_by_id(self, task_id: str) -> bytes | None:
+        """Return raw task payload by id (searches queue table).
+
+        Returns:
+            Raw payload bytes or None if not found
+        """
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        q = f"SELECT payload FROM {self.queue_table} WHERE id = $1"
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(q, int(task_id))
+            if not row:
+                return None
+
+        return bytes(row["payload"])
+
+    async def retry_task(self, task_id: str) -> bool:
+        """Retry a failed task from dead-letter table by moving it back to the queue.
+
+        Returns True if retried, False if not found.
+        """
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        sel = f"SELECT queue_name, payload, current_attempt FROM {self.dead_letter_table} WHERE id = $1"
+        ins = f"INSERT INTO {self.queue_table} (queue_name, payload, available_at, status, current_attempt, max_attempts, created_at) VALUES ($1, $2, NOW(), 'pending', $3, $4, NOW())"
+        del_q = f"DELETE FROM {self.dead_letter_table} WHERE id = $1"
+
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(sel, task_id)
+                if not row:
+                    return False
+                # Defensive extraction
+                if len(row) >= 3:
+                    queue_name, payload, current_attempt = (
+                        row["queue_name"],
+                        row["payload"],
+                        row["current_attempt"],
+                    )
+                else:
+                    return False
+
+                # DB schema defines current_attempt as NOT NULL, and code paths
+                # that insert into dead-letter always write an integer. Assert
+                # the invariant for clarity and pass the value directly.
+                assert current_attempt is not None
+                await conn.execute(
+                    ins,
+                    queue_name,
+                    payload,
+                    current_attempt,
+                    self.max_attempts,
+                )
+                await conn.execute(del_q, task_id)
+                return True
+
+    async def delete_task(self, task_id: str) -> bool:
+        """Delete a task from queue or dead-letter tables. Returns True if deleted."""
+        if self.pool is None:
+            await self.connect()
+            assert self.pool is not None
+
+        del_q = f"DELETE FROM {self.queue_table} WHERE id = $1 RETURNING id"
+        del_dlq = f"DELETE FROM {self.dead_letter_table} WHERE id = $1 RETURNING id"
+
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(del_q, task_id)
+            if row:
+                return True
+            row2 = await conn.fetchrow(del_dlq, task_id)
+            return bool(row2)
+
+    async def get_worker_stats(self) -> list[dict[str, Any]]:
+        """Return worker stats. Not implemented in Postgres driver; return empty list."""
+        return []
