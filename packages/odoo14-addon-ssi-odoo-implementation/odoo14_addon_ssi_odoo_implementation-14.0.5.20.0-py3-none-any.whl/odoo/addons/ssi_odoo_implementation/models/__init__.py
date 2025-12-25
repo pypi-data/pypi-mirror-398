@@ -1,0 +1,37 @@
+# Copyright 2022 OpenSynergy Indonesia
+# Copyright 2022 PT. Simetri Sinergi Indonesia
+# License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
+
+from . import (
+    odoo_version,
+    odoo_feature_category,
+    odoo_feature,
+    odoo_environment,
+    odoo_implementation,
+    odoo_implementation_update,
+    odoo_deployment,
+    odoo_deployment_new_feature,
+    odoo_feature_implementation,
+    odoo_feature_issue,
+    odoo_use_case,
+    odoo_module,
+    odoo_website_theme,
+    odoo_additional_functionality,
+    odoo_feature_additional_functionality,
+    odoo_change_request,
+    odoo_configuration_change_record,
+    odoo_configuration_change_record_detail,
+    odoo_use_case_specification,
+    odoo_use_case_specification_sub_flow,
+    odoo_use_case_specification_alternate_flow,
+    odoo_use_case_specification_exception_flow,
+    odoo_use_case_specification_conditional_postcondition,
+    odoo_use_case_specification_computed_value,
+    odoo_use_case_specification_onchange,
+    odoo_use_case_specification_default_value,
+    odoo_use_case_specification_domain,
+    odoo_use_case_specification_button,
+    odoo_use_case_specification_trigger,
+    odoo_use_case_specification_actor,
+    odoo_use_case_specification_precondition,
+)
