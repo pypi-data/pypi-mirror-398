@@ -1,0 +1,9 @@
+author = 'Kayce Basques'
+copyright = f'2025, {author}'
+exclude_patterns = ['.venv', '_build']
+extensions = ['sphinx_embeddings']
+# html_baseurl = 'https://kaycebasques.github.io/sphinx-embeddings'
+html_theme = 'basic'
+project = 'sphinx-embeddings'
+release = '0.0.11'
+version = release
