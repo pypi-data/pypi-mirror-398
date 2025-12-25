@@ -1,0 +1,77 @@
+name: Dual PyPI Publish - exonware-xwsystem & xwsystem
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags like v0.0.2, v1.0.0, etc.
+  workflow_dispatch:  # Allows manual trigger of the workflow
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+    
+    - name: Build exonware-xwsystem package
+      run: |
+        echo "Building exonware-xwsystem package..."
+        python -m build
+        
+    - name: Build xwsystem wrapper package
+      run: |
+        echo "Building xwsystem wrapper package..."
+        cp pyproject.toml pyproject.backup.toml
+        cp pyproject.xwsystem.toml pyproject.toml
+        python -m build --wheel
+        mv pyproject.backup.toml pyproject.toml
+    
+    - name: List built packages
+      run: |
+        echo "Built packages:"
+        find dist -name "*.whl" -o -name "*.tar.gz" | sort
+    
+    - name: Publish exonware-xwsystem to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        echo "Publishing exonware-xwsystem to PyPI..."
+        ls -la dist/
+        twine upload dist/exonware_xwsystem-*.whl dist/exonware_xwsystem-*.tar.gz
+    
+    - name: Publish xwsystem wrapper to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        echo "Publishing xwsystem wrapper to PyPI..."
+        twine upload dist/xwsystem-*.whl
+        
+    - name: Success notification
+      run: |
+        echo "✅ Successfully published both packages:"
+        echo "   📦 exonware-xwsystem v${{ github.ref_name }} (full package)"
+        echo "   📦 xwsystem v${{ github.ref_name }} (wrapper)"
+        echo ""
+        echo "PyPI URLs:"
+        echo "   https://pypi.org/project/exonware-xwsystem/"
+        echo "   https://pypi.org/project/xwsystem/"
+        echo ""
+        echo "Install with either:"
+        echo "   pip install xwsystem[lazy]  # Recommended (wrapper)"
+        echo "   pip install exonware-xwsystem[lazy]  # Direct"
+        echo ""
+        echo "Both import paths work:"
+        echo "   import xwsystem"
+        echo "   import exonware.xwsystem"
