@@ -1,0 +1,148 @@
+Metadata-Version: 2.4
+Name: podkit
+Version: 0.2.1
+Summary: Container management library with backend abstraction for sandboxed execution
+Author: Navari Team
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: docker>=7.1.0
+Requires-Dist: pydantic>=2.12.5
+Provides-Extra: dev
+Requires-Dist: build>=1.2.2; extra == "dev"
+Requires-Dist: twine>=6.0.0; extra == "dev"
+Requires-Dist: pytest>=9.0.2; extra == "dev"
+Requires-Dist: pytest-timeout>=2.2.0; extra == "dev"
+Requires-Dist: pytest-xdist>=3.5.0; extra == "dev"
+Requires-Dist: ruff>=0.14.10; extra == "dev"
+Requires-Dist: pylint>=4.0.4; extra == "dev"
+
+# Podkit - Simple Container Management Library
+
+A Python library for sandboxed execution in Docker containers with backend abstraction (Kubernetes-ready)
+
+## Features
+
+Podkit implements a clean **three-layer architecture** for flexible container management:
+**Layer 1 (Backend)** provides runtime-agnostic infrastructure operations for Docker/Kubernetes with image management and workload execution;
+**Layer 2 (ContainerManager)** bridges infrastructure and application logic with container lifecycle management, project-specific mounting strategies, and host-to-container path translation;
+**Layer 3 (SessionManager)** delivers the user-facing API with session lifecycle tracking, automatic activity monitoring, and cleanup of expired sessions. This separation enables backend portability (swap Docker for Kubernetes without touching business logic), customizable project configurations (different mounting strategies per project), and independent testing of each layer.
+
+## Example
+
+```python
+from pathlib import Path
+from podkit.backends.docker import DockerBackend
+from podkit.core.manager import BaseContainerManager
+from podkit.core.session import BaseSessionManager
+from podkit.core.models import ContainerConfig
+
+backend = DockerBackend()
+container_manager = BaseContainerManager(
+    backend=backend,
+    container_prefix="podkit",
+    workspace_base="/tmp/podkit_workspace"
+)
+session_manager = BaseSessionManager(
+    container_manager=container_manager,
+    default_image="python:3.15-rc-alpine3.23"
+)
+
+sandbox_config = ContainerConfig(
+    image=session_manager.default_image,
+    entrypoint=[],
+)
+
+session = session_manager.create_session(
+    user_id="user",
+    session_id="session",
+    config=sandbox_config,
+)
+
+result = session_manager.execute_command(
+    user_id="user",
+    session_id="session",
+    command=["sh", "-c", "echo 'Hello'"],
+    working_dir=None,
+)
+
+session_manager.write_file(
+    user_id="user",
+    session_id="session",
+    container_path=Path("/workspace") / "file.txt",
+    content="Hello",
+)
+
+# Option 1: Manual cleanup - explicitly close the session
+session_manager.close_session("user", "session")
+
+# Option 2: Automatic cleanup - set timeout for auto-expiration after idle period
+# Configure container to auto-expire after 30 minutes of inactivity
+sandbox_config_with_timeout = ContainerConfig(
+    image="python:3.15-rc-alpine3.23",
+    entrypoint=[],
+    timeout_seconds=1800,  # 30 minutes in seconds
+)
+
+session_with_timeout = session_manager.create_session(
+    user_id="user2",
+    session_id="session2",
+    config=sandbox_config_with_timeout,
+)
+
+# Session will automatically be marked as expired after 30 minutes of inactivity
+# Check if session has expired
+is_expired = session_with_timeout.is_expired()  # Returns True if idle > 30 minutes
+```
+
+## Development Setup
+
+### Prerequisites
+
+- Docker
+- uv
+
+### Installation
+
+```bash
+./scripts/install.sh
+```
+
+## Running Tests
+
+### Integration Tests (Recommended)
+
+Run tests in Docker container (most realistic):
+
+```bash
+./scripts/test.sh
+```
+
+This will:
+1. Build the test runner container with all dependencies
+2. Mount the Docker socket and test workspace
+3. Run pytest with the integration tests
+4. Clean up automatically
+
+### Local Testing (Development)
+
+For faster iteration during development:
+
+```bash
+# Start test container and keep it running
+docker-compose run --rm test-runner bash
+
+# Inside the container, run tests
+pytest tests/integration/test_integration_happy_path.py -v
+
+# Or run specific tests
+pytest tests/integration/test_integration_happy_path.py::TestPodkitIntegrationHappyPath::test_01_backend_initialized -v
+```
+
+### Linting
+
+```bash
+./scripts/lint.sh         # Check only
+./scripts/lint.sh --fix   # Auto-fix issues
+```
+
+This runs `ruff` and `pylint` for code checking and formatting.
