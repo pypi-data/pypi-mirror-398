@@ -1,0 +1,90 @@
+## Package Title
+[![PyPI version](https://badge.fury.io/py/text-geo-map.svg)](https://badge.fury.io/py/text-geo-map)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/text-geo-map)](https://pepy.tech/project/text-geo-map)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+Transforming Text Descriptions to Structured Geospatial Data
+================
+
+#### About the Package
+
+A new Python package that converts plain text descriptions of locations into structured geospatial data. The package extracts and validates key details such as coordinates, addresses, or landmarks from the text and outputs the information in a standardized format.
+
+#### Installing
+----------------
+
+Install the package via pip:
+```bash
+pip install text_geo_map
+```
+
+#### Using the Package
+--------------------
+
+```python
+from text_geo_map import text_geo_map
+
+user_input = "The Eiffel Tower in Paris, France"
+response = text_geo_map(user_input)
+print(response)
+```
+
+#### Parameters
+------------
+
+The `text_geo_map` function accepts the following parameters:
+
+- `user_input`: The text description of a location.
+- `llm`: An instance of the LangChain `BaseChatModel` to use for LL7 queries (default is `ChatLLM7` from `langchain_llm7`).
+- `api_key`: The API key for LLM7 (default is `None`, which will use the `LLM7_API_KEY` environment variable).
+
+You can also pass your own instance of a LangChain chat model by using the `llm` parameter. For example:
+
+```python
+import os
+
+from langchain OpenAI import ChatOpenAI
+from text_geo_map import text_geo_map
+
+llm = ChatOpenAI()
+response = text_geo_map(user_input, llm=llm)
+```
+
+Example to use the Anthropics:
+
+```python
+import os
+
+from langchain_anthropic import ChatAnthropic
+from text_geo_map import text_geo_map
+
+llm = ChatAnthropic()
+response = text_geo_map(user_input, llm=llm)
+```
+
+Example to use the Google generative ai:
+
+```python
+import os
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+from text_geo_map import text_geo_map
+
+llm = ChatGoogleGenerativeAI()
+response = text_geo_map(user_input, llm=llm)
+```
+
+Note: The default rate limits for LLM7 free tier should be sufficient for most use cases of this package. If you need higher rate limits, you can pass your own API key via the environment variable `LLM7_API_KEY` or directly as the `api_key` parameter.
+
+You can obtain a free API key by registering on https://token.llm7.io/.
+
+#### Documentation
+-----------------
+
+More information can be found on the GitHub repository at: https://github.com/chigwell/
+
+#### Author
+----------------
+
+This package was created by Eugene Evstafev and can be reached at hi@euegne.plus.
