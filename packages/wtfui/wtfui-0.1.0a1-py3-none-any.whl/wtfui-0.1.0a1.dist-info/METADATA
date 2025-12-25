@@ -1,0 +1,151 @@
+Metadata-Version: 2.4
+Name: wtfui
+Version: 0.1.0a1
+Summary: A Pythonic UI framework using context managers and signals
+Project-URL: Homepage, https://github.com/pproenca/pyfuse
+Project-URL: Documentation, https://github.com/pproenca/pyfuse#readme
+Project-URL: Repository, https://github.com/pproenca/pyfuse.git
+Project-URL: Issues, https://github.com/pproenca/pyfuse/issues
+Project-URL: Changelog, https://github.com/pproenca/pyfuse/releases
+Author: Pedro Proença
+License: MIT
+License-File: LICENSE
+Keywords: context-managers,framework,reactive,signals,tui,ui,wasm,web
+Classifier: Development Status :: 3 - Alpha
+Classifier: Framework :: AsyncIO
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Software Development :: User Interfaces
+Classifier: Typing :: Typed
+Requires-Python: >=3.14
+Requires-Dist: click>=8.1.0
+Requires-Dist: fastapi>=0.104.0
+Requires-Dist: uvicorn>=0.24.0
+Requires-Dist: websockets>=12.0
+Provides-Extra: demo
+Requires-Dist: psutil>=5.9; extra == 'demo'
+Requires-Dist: types-psutil>=5.9; extra == 'demo'
+Provides-Extra: dev
+Requires-Dist: flake8>=7.0.0; extra == 'dev'
+Requires-Dist: httpx>=0.27.0; extra == 'dev'
+Requires-Dist: memray>=1.12.0; extra == 'dev'
+Requires-Dist: pre-commit>=3.7.0; extra == 'dev'
+Requires-Dist: py-spy>=0.3.14; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'dev'
+Requires-Dist: pytest-benchmark>=4.0.0; extra == 'dev'
+Requires-Dist: pytest-cov>=7.0.0; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.4.0; extra == 'dev'
+Requires-Dist: scalene>=1.5.0; extra == 'dev'
+Requires-Dist: ty==0.0.1a30; extra == 'dev'
+Provides-Extra: e2e
+Requires-Dist: playwright>=1.56.0; extra == 'e2e'
+Requires-Dist: pytest-playwright>=0.7.2; extra == 'e2e'
+Description-Content-Type: text/markdown
+
+# PyFuse
+
+A Pythonic UI framework for building interactive web applications entirely in Python.
+
+PyFuse uses Python's context managers to define UI hierarchy (indentation = topology) and a reactive signal system for state management. No JavaScript required.
+
+## Prerequisites
+
+- **Python 3.14+** (No-GIL build required)
+- **uv** package manager
+
+## Quick Start
+
+```bash
+# Clone and setup
+git clone https://github.com/pproenca/pyfuse.git
+cd pyfuse
+make setup
+```
+
+## Demo Examples
+
+PyFuse includes four example applications demonstrating different capabilities.
+
+### Web Examples
+
+Run any of these in separate terminals:
+
+```bash
+# Todo App - Signal reactivity and Effect persistence
+cd examples/todo && uv run pyfuse dev --web
+# Open http://localhost:8000
+
+# Dashboard - Computed values and Flexbox layout
+cd examples/dashboard && uv run pyfuse dev --web
+# Open http://localhost:8001
+
+# Chat - @rpc decorator for server functions
+cd examples/chat && uv run pyfuse dev --web
+# Open http://localhost:8002
+```
+
+### TUI Example
+
+```bash
+# Console - Terminal-based system monitor
+cd examples/console && uv run pyfuse dev
+# Renders directly in terminal (press 'q' to quit)
+```
+
+## Web vs TUI Mode
+
+PyFuse supports two rendering modes:
+
+| Mode | Command | Output |
+|------|---------|--------|
+| **TUI** (default) | `pyfuse dev` | Terminal-based UI |
+| **Web** | `pyfuse dev --web` | Browser at localhost |
+
+## Core Concepts
+
+### Signals (Reactive State)
+
+```python
+from pyfuse import Signal
+
+count = Signal(0)
+count.value += 1  # Triggers reactive updates
+```
+
+### Context Manager UI
+
+```python
+from pyfuse.ui import Flex, Box, Text
+
+with Flex(direction="column"):
+    with Box(padding=10):
+        Text("Hello, PyFuse!")
+```
+
+### RPC (Server Functions)
+
+```python
+from pyfuse import rpc
+
+@rpc
+def save_data(data: dict) -> bool:
+    # Runs on server, client gets fetch stub
+    db.save(data)
+    return True
+```
+
+## Architecture
+
+See [MANIFEST.md](MANIFEST.md) for architectural principles.
+
+## Development
+
+```bash
+make test      # Run tests
+make lint      # Run linters
+make check     # All pre-commit hooks
+```
