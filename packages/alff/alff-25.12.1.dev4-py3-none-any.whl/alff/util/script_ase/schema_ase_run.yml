@@ -1,0 +1,140 @@
+### Schema for ASE input file
+
+structure:                ### ANCHOR: Define atomic structure
+  type: dict
+  required: True
+  schema:
+    from_extxyz:          # the path to the EXTXYZ file for input structure
+      type: string
+      required: True
+    pbc:                  # set periodic bounday condition. This will overwrite the PBC in the EXTXYZ file. eg. [1, 1, 1]
+      type: [list, boolean]
+
+
+constraint:
+  type: dict
+  schema:
+    fix_atoms:              ## define atoms to be fixed during optimization runs
+      type: dict
+      schema:
+        fix_idxs:           # list of atom indices to be fixed
+          type: list
+        fix_only_z:         # if True, only fix atom positions in z-direction. This is useful when sampling in z-dim only. Default is False (fix all directions)
+          type: boolean
+          default: False
+    fix_symmetry:           # if True, fix the symmetry of the structure during optimization. Default is None
+      type: dict
+      schema:
+        symprec:            # tolerance for symmetry finding. Default is 1e-5
+          type: float
+
+
+calc_args:                     ### SECTION Parameters of multiple calculators
+  type: dict
+  required: True
+  schema:
+    gpaw:                 ### ANCHOR: GPAW calculator. Accept all GPAW parameters: https://gpaw.readthedocs.io/documentation/basic.html
+      type: dict
+      allow_unknown: True
+      schema:
+        mode:             # calculation mode. Default is "fd".
+          type: dict
+          schema:
+            name:         # name of the mode. Choices: "fd", "lcao", "pw".
+              type: string
+            ecut:         # energy cutoff in eV for plane wave mode. Default is 500 eV
+              type: float
+        xc:               # exchange-correlation functional
+          type: string
+        kpts:             # if not set `kpts`, then only Gamma-point is used
+          type: dict
+        convergence:      # convergence criteria
+          type: dict
+        occupations:      # occupation method. Default is "fermi-dirac"
+          type: dict
+        txt:              # output file name. Default is "gpaw_out.txt"
+          type: string
+        symmetry:         # use symmetry.
+          type: string
+        parallel:         # parallel parameters, see https://gpaw.readthedocs.io/documentation/parallel_runs/parallel_runs.html#parallelization-options
+          type: dict
+
+    dftd3:                ### ANCHOR: DFT-D3 calculator for Van der Waals correction
+      type: dict          # Accept all parameters of `simple-dftd3`: https://github.com/dftd3/simple-dftd3/blob/main/python/dftd3/ase.py#L111
+      allow_unknown: True
+      schema:
+        damping:          # damping method. Choices: 'd3zero', 'd3zerom', 'd3bj', 'd3bjm', 'd3op'. Default is "d3zero"
+          type: string
+          allowed: ['d3zero', 'd3zerom', 'd3bj', 'd3bjm', 'd3op']
+        xc:               # exchange-correlation functional. Default is "pbe". Overwride by `calc_args.gpaw.xc` if it exists.
+          type: string
+
+    exclude_result_dftd3:  # if True, exclude DFTD3 energy/force/stress from the final results. Default is False
+      type: boolean
+      default: False
+
+    ase:                      ### ANCHOR: Define ASE's calculator by two ways: using 'pyfile' or 'pyscript'.
+      type: dict
+      schema:
+        py_file:              # python file that defines ASE's calculator. Python script must return the variable `calc_ase`.
+          type: string
+        py_script:            # list[str] of python-code to directly define ASE's calculator. Python script must return the variable `calc_ase`. Example:
+          type: list          # py_script:
+                              #   - "from sevenn.calculator import SevenNetCalculator"
+                              #   - "sevenn_args = {'file_type: 'checkpoint'}"
+                              #   - "calc_ase = SevenNetCalculator('sevenn_model.pth', **sevenn_args)"
+                          ### !SECTION
+
+
+optimize:                 ### ANCHOR: Parameters to run optimization the structure
+  type: dict
+  schema:
+    fmax:                 # force convergence criteria. Default is 0.05 eV/Ang
+      type: float
+    mask:                 # list of 6 (or 3) booleans: 1 for relax, 0 for fixed; indicating which of the six independent components of the strain are relaxed. If len(mask)==3, then mask = mask + [1,1,1]. Default is None.
+      type: list
+    max_steps:            # maximum number of steps for optimization. Default is 10000
+      type: integer
+
+
+md:                       ### ANCHOR: Parameters to run AIMD/MD simulation
+                          ## Supported: NVE, NVT, NPT
+                          ## NVT with thermostat: 'Langevin', 'nose_hoover', 'nose_hoover_chain'
+                          ## NPT with: - 'parrinello_rahman' barostat + 'nose_hoover' thermostat
+                          #            - 'iso_nose_hoover_chain' barostat and thermostat
+  type: dict
+  schema:
+    ensemble:             # ensemble name. Choices: NVE, NVT, NPT. Default is NVE
+      type: string
+    dt:                   # timestep in fs. Default is 1.0 fs
+      type: float
+    traj_freq:            # dump frames every `traj_freq` steps. Default is 1.
+      type: integer
+    num_frames:           # number of frames to be collected. Then total MD nsteps = (num_frames * traj_freq)
+      type: integer
+    equil_steps:          # number of equilibration steps before running production. Default is 0.
+      type: integer
+
+    ### temperature control
+    temp:                 # temperature in K. Default is 300 K
+      type: float
+    thermostat:           # thermostat. Default is 'nose_hoover_chain'. Choices: 'langevin', 'nose_hoover', 'nose_hoover_chain'
+      type: string
+      allowed: ['langevin', 'nose_hoover', 'nose_hoover_chain']
+    tdamp:                # damping timesteps for nose_hoover thermostat. Default is 100.
+      type: integer
+    langevin_friction:    # friction coefficient for Langevin thermostat. Default is 0.002 fs^-1
+      type: float
+
+    ### pressure control
+    press:                # external stress in GPa. Default is None if not set. Accept: float, 6-vector, or 3x3 matrix.
+      type: [float, list]
+    barostat:             # barostat. Default is 'parrinello_rahman'. Choices: 'parrinello_rahman', 'iso_nose_hoover_chain'
+      type: string
+      allowed: ['parrinello_rahman', 'iso_nose_hoover_chain', 'aniso_nose_hoover_chain']
+    pfactor:              # pressure factor for 'parrinello_rahman' barostat. Default is 2e6 GPa.
+      type: float
+    pdamp:                # damping timesteps for 'iso_nose_hoover_chain' barostat. Default is 1000.
+      type: integer
+    mask:                 # dimensions to relax computational box. Set to (1,1,1) to allow fully flexible box. Set to (1,1,0) to disallow elongations along the z-axis, etc. If not set, then only relax the periodic dimensions. Only available for 'parrinello_rahman' barostat.
+      type: [list, boolean]  # None or 3-tuple

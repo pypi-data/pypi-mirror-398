@@ -1,0 +1,198 @@
+### Schema for Phonon calculation workflow using ALFF
+### IMPORTANT: Do not use a structure with `triangular cell` in phononpy, because it cannot generate right k-path. Must transform ford and back between triangular and parallelepiped cell.
+
+stages:                    ### ANCHOR: Define stages to run
+  type: list
+  required: True
+  allowed:
+    - make_structure              # build the atomic structures
+    - relax_initial_structure     # relax initial structures
+    - strain_and_relax            # scale and relax the structures. This step is just for further development (experimental), to compute phonons at different volumes by scaling the initial structure.
+    - compute_force               # compute the force
+    - compute_phonon              # post_process by phonopy
+
+
+structure:                  ### ANCHOR: Define atomic structure
+  type: dict
+  required: True
+  schema:
+    from_extxyz:            # list-of-paths to the EXTXYZ files to be used as the initial structure. If provided, the structure will be read from the file, and the other structure parameters will be ignored.
+      type: list
+    from_scratch:           # build the structure from scratch. See [Schema for building structure](https://thangckt.github.io/alff_doc/schema/manual_schema_ase_build/)
+      type: dict
+
+
+calculator:                 # choices: 'lammps', 'gpaw', 'ase'. Calculator to calculate atomic forces. Default: 'lammps'
+  type: dict
+  required: True
+  schema:
+    name:                  # calculator name
+      type: string
+      allowed: ['lammps', 'gpaw', 'ase']
+      required: True
+
+    calc_args:                  ### SECTION Parameters of calculators
+      type: dict
+      required: True
+      schema:
+        gpaw:                   ### ANCHOR: GPAW calculator. Accept all GPAW parameters: https://gpaw.readthedocs.io/documentation/basic.html
+          type: dict            ### Accept all parameters as in [ASE schema](https://thangckt.github.io/alff_doc/schema/config_ase/) `calc_args.gpaw`, and additional perameters as below
+          allow_unknown: True
+
+        dftd3:                  ### ANCHOR: DFT-D3 calculator for Van der Waals correction
+          type: dict
+          schema:
+            damping:            # damping method. Choices: "zero", "bj", "zerom", "bjm". Default is "zero"
+              type: string
+
+                                ### ANCHOR: Define ASE's calculator by two ways: using 'pyfile' or 'pyscript'.
+        py_file:                # python file that defines ASE's calculator. Python script must return the variable `calc`.
+          type: string
+
+        py_script:              # list[str] of python-code to directly define ASE's calculator. Python script must return the variable `calc`. Example:
+          type: list
+
+        lammps:                 ### ANCHOR: LAMMPS parameters
+          type: dict
+          allow_unknown: True
+          schema:
+            pair_style:         # list of LAMMPS pair_style. e.g., ["tersoff"]
+              type: list
+            pair_coeff:         # list of LAMMPS pair_coeff. Must use form "../potential_file", since potential files in parent dir. E.g., ["* * ../SiC.tersoff C Si"]. Do not attach atoms if use `auto_atom_names: True`, example: ["* * ../file_potential1", "* * ../file_potential2"], then the atom types will be automatically assigned based on the order of elements in the input structure.
+              type: list
+            auto_atom_names:    # auto assign atoms in `pair_coeff` lines. Default is False.
+              type: boolean
+              default: False
+            file_potentials:    # list of potential files (relative to run_dir). E.g., ["SiC.tersoff"]
+              type: list
+
+
+optimize_args:                   ### ANCHOR: Parameters to run optimization the structure
+  type: dict
+  required: True
+  schema:
+    gpaw:               # GPAW optimization parameters.
+      type: dict
+      allow_unknown: True
+      schema:
+        fmax:               # force convergence criteria. Default is 0.05 eV/Ang
+          type: float
+          default: 0.05
+        max_steps:          # maximum number of optimization steps. Default is 10000
+          type: integer
+          default: 10000
+        mask:               # 1x3 array of booleans: 1 for relax, 0 for fixed.
+          required: True
+          type: list
+        # all other parameters as in ASE schema.optimize https://thangckt.github.io/alff_doc/schema/manual_schema_ase_run/#schema
+
+    lammps:             ### LAMMPS optimization parameters. See Schema for LAMMPS optimize https://thangckt.github.io/alff_doc/schema/manual_schema_lammps/
+      type: dict
+      allow_unknown: True
+      schema:
+        min_style:          # minimization style supported by LAMMPS. Choices: 'cg', 'sd', 'fire',... Default is 'cg'
+          type: string
+        etol:               # energy convergence criteria. Default is 1.0e-9 eV
+          type: float
+        ftol:               # force convergence criteria. Default is 1.0e-9 eV/Ang
+          type: float
+        mask:               # 1x3 array of booleans: 1 for relax, 0 for fixed.
+          required: True
+          type: list
+        # all other parameters as in LAMMPS schema.optimize https://thangckt.github.io/alff_doc/schema/manual_schema_lammps/
+
+
+constraint:                 ### ANCHOR: Define constraints.
+  type: dict
+  schema:
+    fix_symmetry:           # if True, fix the symmetry of the structure during optimization. Default is None
+      type: dict
+      schema:
+        symprec:            # tolerance for symmetry finding. Default is 1e-5
+          type: float
+
+
+strain:                      ###ANCHOR: scaled structures
+  type: dict
+  schema:
+    strain_x:                ## list of engineering strains in x-direction. Accept composite ranges. E.g., [0.01, '0.02-0.04', '0.05-0.08:0.01']
+      type: list
+    strain_y:                ## list of engineering strains in y-direction. Accept composite ranges.
+      type: list
+    strain_z:                ## list of engineering strains in z-direction. Accept composite ranges.
+      type: list
+    temps:                  ## list of temperatures in K. Accept composite ranges. E.g., [300, 600, '800-1200:100']
+      type: list
+
+# TODO: Fix copute phonon under strains
+# The current implementation only computes phonon for the unstrained structure, and get error with strained structures.
+# The reason may be that the code doe not produce correct k-path for strained structures
+# So the solution: 1. save k-path from unstrained structure, and 2. strain the k-path accordingly in the strained structures
+# labels: bug
+
+phonon:                     ###ANCHOR: phonon calculation
+  type: dict
+  schema:
+    phonopy_arg:            # Accept all Phonopy's parameters. https://github.com/phonopy/phonopy/blob/develop/phonopy/api_phonopy.py#L110
+      type: dict
+      allow_unknown: True
+      schema:
+        supercell_matrix:   # list of shape 3x3 or 1x3. Expand the input structure to supercell. Default: None. List 1x3 means scale along each axis, no shear.
+          type: list
+        symprec:            # tolerance for symmetry analysis. Default: 1.0e-5
+          type: float
+        is_symmetry:        # whether to find symmetry of crystal structure. It is recommended to symmetrize crystal structure before starting phonon calculation. Default: True
+          type: boolean
+        # and other parameters as in https://github.com/phonopy/phonopy/blob/develop/phonopy/api_phonopy.py#L110
+
+    displacement:           # The displacement args are used to generate the supercells with displacements. See phonon.generate_displacements
+      type: dict
+      allow_unknown: True
+      schema:
+        distance:           # small displacement in Angstrom. Default: 0.01 Angstrom
+          type: float
+          default: 0.01
+        is_diagonal:        # If True, displacements can be made not being along basis vectors if the number of displacements can be reduced by symmetry (True). And displacements are made only along basis vectors (False). Default is True.
+          type: boolean
+          default: True
+        is_plusminus:       # whether to generate both positive and negative displacements. Default: 'auto' -> True if is_symmetry is True, else False
+          type: [boolean, string]
+          allowed: [True, False, 'auto']
+          default: 'auto'
+        ## all other parameters as in phonopy.generate_displacements https://github.com/phonopy/phonopy/blob/develop/phonopy/api_phonopy.py#L863
+
+    auto_primitive_cell:    # build the primitive cell from the input structure using `phonopy`.
+      type: dict
+      schema:
+        symprec:            # tolerance for symmetry analysis. Default: 1.0e-5
+          type: float
+          default: 1.0e-5
+
+    compute:                # properties to compute from the phonon calculation
+      type: dict
+      required: True
+      schema:
+        mesh:               # Set sampling mesh (set_mesh) in reciprocal space, e.g., [20, 20, 20].
+          type: list
+        band_structure:     # phonon band structure
+          type: dict
+          schema:
+            path_str:       # k-path for band structure. Choices: 'input_custom_string', 'auto', None. If not set (None), k-path is genrated using `ase`. If set 'auto', k-path is generated using `seekpath`.
+              type: string
+              default: 'auto'  # 'GXU,KGLWX' or 'auto' or None
+            npoints:        # number of k-points
+              type: integer
+              default: 50
+        dos:                # phonon density of states
+          type: boolean
+        pdos:               # phonon projected density of states
+          type: boolean
+        thermal_properties: # phonon thermal properties
+          type: dict
+          schema:
+            t_min:          # minimum temperature
+              type: float
+            t_max:          # maximum temperature
+              type: float
+            t_step:         # temperature step
+              type: float

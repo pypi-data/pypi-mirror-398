@@ -1,0 +1,70 @@
+### Schema for fine-tuning configuration file
+
+train:                      ### ANCHOR: Training ML model
+  type: dict
+  required: True
+  schema:
+    init_data_paths:          # List of paths to initial data.
+      type: list
+      required: True
+
+    preprocess_data:          # Arguments for processing data
+      type: dict
+      schema:
+        trainset_ratio:       # Ratio of training set. Default is 0.9
+          type: float
+        validset_ratio:       # Ratio of validation set. Default is 0.1
+          type: float
+        num_cores:            # number of cores for building graph data. Default is 1
+          type: integer
+        ase_kwargs:           # Custom keywords to access Energy/Force/Stress from ASE extxyz files. Default is empty dict, meaning use default ASE keywords.
+          type: dict
+          default: {}
+          schema:
+            energy_key:       # keyword for energy in ASE extxyz file. Default is 'energy'
+              type: string
+            force_key:        # keyword for force in ASE extxyz file. Default is 'forces'
+              type: string
+            stress_key:       # keyword for stress in ASE extxyz file. Default is 'stress'
+              type: string
+
+    init_checkpoints:           # list of checkpoint files, each for each model
+      type: list
+
+    num_grad_updates:         # Maximum number of updates to guess num_epochs. Default is None
+      type: integer
+
+    distributed:
+      type: dict
+      schema:
+        distributed_backend:  # choices: 'mpi' or 'nccl'  'gloo'
+          type: string
+        cluster_type:         # choices: 'slurm' or 'sge'
+          type: string
+        gpu_per_node:         # only need in SGE batch type. Default is 1
+          type: integer
+
+    num_models:               # Number of models to train. Default is 1
+      type: integer
+
+    mlp_model:                # ML model type. Default is 'sevenn_mliap'. Choices: 'sevenn', 'sevenn_mliap'
+      type: string
+      default: 'sevenn_mliap'
+      allowed: ['sevenn_mliap', 'sevenn']
+
+    sevenn_args:              ### Args for training Sevenn. See: https://github.com/MDIL-SNU/SevenNet/blob/main/example_inputs/training/input_full.yml
+      type: dict
+      schema:
+        model:
+          type: dict
+        train:
+          type: dict
+        data:                 # Only need parameters in this schema
+          type: dict
+          schema:
+            batch_size:       # Per GPU batch size. E.g., 300
+              type: integer
+            shift:            # One of 'per_atom_energy_mean*', 'elemwise_reference_energies', float
+              type: [string, float]
+            scale:            # One of 'force_rms*', 'per_atom_energy_std', 'elemwise_force_rms', float
+              type: [string, float]

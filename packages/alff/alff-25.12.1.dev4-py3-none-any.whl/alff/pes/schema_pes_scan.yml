@@ -1,0 +1,175 @@
+### Schema for for PES scanning
+
+stages:                 ### ANCHOR: Define stages to run
+  type: list
+  required: True
+  allowed:
+    - make_structure              # build the atomic structures
+    - relax_initial_structure     # relax initial structures
+    - scanning_space              # explore the sampling space
+    - compute_energy              # run optimization oby DFT/MD calculators
+    - compute_pes                 # conpute the potential energy surface (PES) from the DFT/MD results
+
+
+structure:                  ### ANCHOR: Define atomic structure
+  type: dict
+  required: True
+  schema:
+    from_extxyz:            # list-of-paths to the EXTXYZ files to be used as the initial structure. If provided, the structure will be read from the file, and the other structure parameters will be ignored.
+      type: list
+
+    from_scratch:           # build the structure from scratch. See [Schema for building structure](https://thangckt.github.io/alff_doc/schema/manual_schema_ase_build/)
+      type: dict
+
+
+calculator:                 # choices: 'lammps', 'gpaw', 'ase'. Calculator to calculate atomic forces. Default: 'lammps'
+  type: dict
+  required: True
+  schema:
+    name:                  # calculator name
+      type: string
+      allowed: ['lammps', 'gpaw', 'ase']
+      required: True
+
+
+    calc_args:                  ### SECTION Parameters of calculators
+      type: dict
+      required: True
+      schema:
+        gpaw:                   ### ANCHOR: GPAW calculator. Accept all GPAW parameters: https://gpaw.readthedocs.io/documentation/basic.html
+          type: dict            ### Accept all parameters as in [ASE schema](https://thangckt.github.io/alff_doc/schema/config_ase/) `calc_args.gpaw`, and additional perameters as below
+          allow_unknown: True
+
+        dftd3:                  ### ANCHOR: DFT-D3 calculator for Van der Waals correction
+          type: dict
+          schema:
+            damping:            # damping method. Choices: "zero", "bj", "zerom", "bjm". Default is "zero"
+              type: string
+
+                                ### ANCHOR: Define ASE's calculator by two ways: using 'pyfile' or 'pyscript'.
+        py_file:                # python file that defines ASE's calculator. Python script must return the variable `calc`.
+          type: string
+
+        py_script:              # list[str] of python-code to directly define ASE's calculator. Python script must return the variable `calc`. Example:
+          type: list
+
+        lammps:                 ### ANCHOR: LAMMPS parameters
+          type: dict
+          schema:
+            pair_style:         # list of LAMMPS pair_style. e.g., ["tersoff"]
+              type: list
+            pair_coeff:         # list of LAMMPS pair_coeff. Must use form "../potential_file", since potential files in parent dir. E.g., ["* * ../SiC.tersoff C Si"]. Do not attach atoms if use `auto_atom_names: True`, example: ["* * ../file_potential1", "* * ../file_potential2"], then the atom types will be automatically assigned based on the order of elements in the input structure.
+              type: list
+            auto_atom_names:    # auto assign atoms in `pair_coeff` lines. Default is False.
+              type: boolean
+              default: False
+            file_potentials:    # list of potential files (relative to run_dir). E.g., ["SiC.tersoff"]
+              type: list
+
+
+optimize_args:                   ### ANCHOR: Parameters to run optimization the structure
+  type: dict
+  required: True
+  schema:
+    gpaw:               # GPAW optimization parameters.
+      type: dict
+      allow_unknown: True
+      schema:
+        fmax:               # force convergence criteria. Default is 0.05 eV/Ang
+          type: float
+          default: 0.05
+        max_steps:          # maximum number of optimization steps. Default is 10000
+          type: integer
+          default: 10000
+        mask:               # 1x3 array of booleans: 1 for relax, 0 for fixed.
+          required: True
+          type: list
+        # all other parameters as in ASE schema.optimize https://thangckt.github.io/alff_doc/schema/manual_schema_ase_run/#schema
+
+    lammps:             ### LAMMPS optimization parameters. See Schema for LAMMPS optimize https://thangckt.github.io/alff_doc/schema/manual_schema_lammps/
+      type: dict
+      allow_unknown: True
+      schema:
+        min_style:          # minimization style supported by LAMMPS. Choices: 'cg', 'sd', 'fire',... Default is 'cg'
+          type: string
+        etol:               # energy convergence criteria. Default is 1.0e-9 eV
+          type: float
+        ftol:               # force convergence criteria. Default is 1.0e-9 eV/Ang
+          type: float
+        mask:               # 1x3 array of booleans: 1 for relax, 0 for fixed.
+          required: True
+          type: list
+        # all other parameters as in LAMMPS schema.optimize https://thangckt.github.io/alff_doc/schema/manual_schema_lammps/
+
+
+scanning_space:             ### ANCHOR: Define scanning space
+  type: dict
+  schema:
+    scan_x:                # list of displacements in x-direction. Accept composite ranges. E.g., [0.6, '0.7-0.9', '1.1-1.5:0.2']
+      type: list
+    scan_y:                # list of displacements in y-direction. Accept composite ranges.
+      type: list
+    scan_z:                # list of displacements in z-direction. Accept composite ranges.
+      type: list
+
+
+constraint:                 ### ANCHOR: Define constraints.
+  type: dict
+  schema:
+    displace_atoms:         ## define atoms to be displaced during the scanning step.
+      type: dict
+      schema:
+        idxs:               # list of atom indices , e.g., [0, 1, 2]
+          type: list
+        filters:            # filters to select atoms if keyword `idxs` is not provided. Accept multiple filters.
+          type: dict
+          allow_unknown: False
+          schema:
+            elements:       # list of element names to select atoms, e.g., ['Mg', 'O']
+              type: list
+            above_mean_z:   # select all atoms with z-coordinate larger than the mean z-coordinate of the structure
+              type: boolean
+            below_mean_z:   # select all atoms with z-coordinate smaller than the mean z-coordinate of the structure
+              type: boolean
+            min_z:          # select all atoms with z-coordinate larger than this value
+              type: float
+            max_z:          # select all atoms with z-coordinate smaller than this value
+              type: float
+
+    fix_atoms:              ## define atoms to be fixed during optimization runs to calculate energy.
+                            #NOTE: Only contraints atom positions in z-direction.
+      type: dict
+      schema:
+        idxs:               # list of atom indices , e.g., [0, 1, 2]
+          type: list
+        filters:            # filters to select atoms if keyword `idxs` is not provided. Accept multiple filters.
+          type: dict
+          allow_unknown: False
+          schema:
+            elements:       # list of element names to select atoms, e.g., ['Mg', 'O']
+              type: list
+            above_mean_z:   # select all atoms with z-coordinate larger than the mean z-coordinate of the structure
+              type: boolean
+            below_mean_z:   # select all atoms with z-coordinate smaller than the mean z-coordinate of the structure
+              type: boolean
+            min_z:          # select all atoms with z-coordinate larger than this value
+              type: float
+            maxZ:           # select all atoms with z-coordinate smaller than this value
+              type: float
+        fix_only_z:         # if True, only fix atom positions in z-direction. This is useful when sampling in z-dim only. Default is False (fix all directions)
+          type: boolean
+          default: False
+
+
+pes:
+  type: dict
+  schema:
+    interp_pes_xy:            # interpolate PES surface in the xy plane
+      type: boolean
+      default: True
+    interp_pes_z:             # interpolate PES curve in the z direction
+      type: boolean
+      default: False
+    grid_size:               # grid size for interpolation (Angstrom). Default is 0.01
+      type: float
+      default: 0.01

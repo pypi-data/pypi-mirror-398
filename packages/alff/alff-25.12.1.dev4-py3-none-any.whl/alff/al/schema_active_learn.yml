@@ -1,0 +1,198 @@
+### Schema for active learning configuration file
+
+train:                      ### ANCHOR: Training ML model
+  type: dict
+  required: True
+  schema:
+    init_data_paths:          # List of paths to initial data.
+      type: list
+      required: True
+
+    preprocess_data:          # Arguments for processing data
+      type: dict
+      schema:
+        trainset_ratio:       # Ratio of training set. Default is 0.9
+          type: float
+        validset_ratio:       # Ratio of validation set. Default is 0.1
+          type: float
+        num_cores:            # number of cores for building graph data. Default is 1
+          type: integer
+        ase_kwargs:           # Custom keywords to access Energy/Force/Stress from ASE extxyz files. Default is empty dict, meaning use default ASE keywords.
+          type: dict
+          default: {}
+          schema:
+            energy_key:       # keyword for energy in ASE extxyz file. Default is 'energy'
+              type: string
+            force_key:        # keyword for force in ASE extxyz file. Default is 'forces'
+              type: string
+            stress_key:       # keyword for stress in ASE extxyz file. Default is 'stress'
+              type: string
+
+    continue_train:           # continue checkpoints from previous iteration. Default is True
+      type: boolean
+
+    num_grad_updates:         # Maximum number of updates to guess num_epochs. Default is None
+      type: integer
+
+    distributed:
+      type: dict
+      schema:
+        distributed_backend:  # choices: 'mpi' or 'nccl'  'gloo'
+          type: string
+        cluster_type:         # choices: 'slurm' or 'sge'
+          type: string
+        gpu_per_node:         # only need in SGE batch type. Default is 1
+          type: integer
+
+    num_models:               # Number of models to train. Default is 1
+      type: integer
+
+    mlp_model:                # ML model type. Default is 'sevenn_mliap'. Choices: 'sevenn', 'sevenn_mliap'
+      type: string
+      default: 'sevenn_mliap'
+      allowed: ['sevenn_mliap', 'sevenn']
+
+    sevenn_args:              ### Args for training Sevenn. See: https://github.com/MDIL-SNU/SevenNet/blob/main/example_inputs/training/input_full.yml
+      type: dict
+      schema:
+        model:
+          type: dict
+        train:
+          type: dict
+        data:                 # Only need parameters in this schema
+          type: dict
+          schema:
+            batch_size:       # Per GPU batch size. E.g., 300
+              type: integer
+            shift:            # One of 'per_atom_energy_mean*', 'elemwise_reference_energies', float
+              type: [string, float]
+            scale:            # One of 'force_rms*', 'per_atom_energy_std', 'elemwise_force_rms', float
+              type: [string, float]
+
+
+md:                         ### ANCHOR: Run MD exploration
+  type: dict
+  required: True
+  schema:
+    committee_std:            # Committee standard deviation for each property
+      type: dict
+      required: True
+      schema:
+        e_std_lo:             # Lower bound of committee standard deviation for energy. E.g., 0.05
+          type: float
+          default: 0.0
+        e_std_hi:             # Upper bound of committee standard deviation for energy. E.g., 0.15
+          type: float
+          default: 0.15
+        f_std_lo:             # Lower bound of committee standard deviation for force. E.g., 0.05
+          type: float
+          default: 0.0
+        f_std_hi:             # Upper bound of committee standard deviation for force. E.g., 0.15
+          type: float
+          default: 0.15
+        s_std_lo:             # Lower bound of committee standard deviation for stress. E.g., 0.05
+          type: float
+          default: 0.0
+        s_std_hi:             # Upper bound of committee standard deviation for stress. Default is None, meaning do not use stress criterion.
+          type: float
+        compute_stress:       # Whether to compute stress for stress criterion. Default is True
+          type: boolean
+          default: True
+        rel_force:            # Whether to use relative force std (w.r.t. force magnitude) for force criterion. Default is None
+          type: float
+        rel_stress:           # Whether to use relative stress std (w.r.t. stress magnitude) for stress criterion. Default is None
+          type: float
+
+    checkpoint_conversion:    # Parameters for converting checkpoints to MD calculator format
+      type: dict
+      schema:
+        checkpoint_idx:       # indices of models/checkpoints in the committee to be used in MD run.
+          type: integer
+        extra_kwargs:         # additional keyword arguments for conversion functions, depending on `mlp_model`. E.g., 'use_cueq'. 'use_flash', 'modal', etc.
+          type: dict
+          schema:
+            use_cueq:         # whether to use charge equilibration. Default is False
+              type: boolean
+              default: False
+            use_flash:        # whether to use FLASH formalism. Default is False
+              type: boolean
+              default: False
+            modal:            # modal type for Sevenn model. Default is None
+              type: string
+              # allowed: ['single', 'multi']
+
+    dftd3:                    # whether to add DFT-D3 correction. Default is None
+      type: dict
+      schema:
+        damping:              # damping method. Default is "zero"
+          type: string
+          allowed: ['zero', 'bj']
+        xc:           # exchange-correlation functional. Default is "pbe"
+          type: string
+          default: "pbe"
+        cutoff:               # cutoff distance in Angstrom. Default value is 95bohr := 50 angstrom. Units 1 (Bohr radius) = 0.52917721 (Å)
+          type: float
+          default: 50.2
+        cn_cutoff:            # coordination number cutoff distance in Angstrom. Default value is 40bohr := 21 angstrom.
+          type: float
+          default: 21.17
+        d3package:           # D3 package to use. Choices: 'sevenn' or 'lammps'. Default is 'sevenn'
+          type: string
+          allowed: ['sevenn', 'lammps']
+          default: 'sevenn'
+
+    init_struct_paths:        # List of paths of initial structures. Accept wildcard, e.g., "path/to/dir/*.extxyz"
+      type: list
+      required: True
+
+    md_calculator:                # MD calculator. Default is 'ase'. Choices: 'ase', 'lammps'
+      type: string
+      allowed: ['ase', 'lammps']
+
+    common_md_args:           # define common parameters for MD. Accept all keyword fors [ASE MD schema](https://thangckt.github.io/alff_doc/schema/config_ase/)
+      type: dict              # These common parameters will be overwritten by the parameters in `sampling_spaces`.
+      allow_unknown: True
+      schema:
+        dt:                   # timestep in fs. Default is 1.0 fs
+          type: float
+        thermostat:           # define common thermostat. default is 'nose_hoover_chain'
+          type: string
+        barostat:             # define common barostat. default is 'iso_nose_hoover_chain'
+          type: string
+
+
+    sampling_spaces:          ### list of dicts of sampling spaces for MD run. For each dict:
+                                # If set both 'stresses' and 'temperatures', it will use NPT ensemble.
+                                # If set only 'temperatures', it will use NVT ensemble.
+                                # If none of them, it will use NVE ensemble.
+      type: list
+      required: True
+      schema:
+        type: dict
+        allow_unknown: True
+        schema:
+          init_struct_idxs:    # list of index of `init_struct_paths`, e.g., [0, 1, 2, 3]. Accept inputs as strings-of-range [1, 2, "6-10", "3-5:2"], which last item in ranges is inlusive.
+            type: list
+          temps:              # list of temperatures in K, e.g., [1, 300, 1500]
+            type: list
+          pressures:          # list of external stresses in GPa. Default is None if not set. Accept float, 6-vector, or 3x3 matrix.
+            type: [float, list]
+          # Other arguments as keywords for [ASE MD schema](https://thangckt.github.io/alff_doc/schema/config_ase/), except these keys: 'temperature', 'stress'.
+
+
+dft:                        ### ANCHOR: DFT calculators
+  type: dict
+  required: True
+  schema:
+    calc_args:                 # accept all keywords for ['ase.calc'](https://thangckt.github.io/alff_doc/schema/config_ase/)
+      type: dict
+      required: True
+      schema:
+        gpaw:                  # GPAW calculator parameters
+          type: dict
+          required: True
+        dftd3:                 # DFT-D3 calculator for Van der Waals correction
+          type: dict
+        exclude_result_dftd3:  # if True, exclude DFTD3 energy/force/stress from the final results. Default is False
+          type: boolean
+          default: False

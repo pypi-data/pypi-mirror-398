@@ -1,0 +1,96 @@
+stages:
+  - make_structure             # build initial atomic structures
+  - relax_initial_structure     # relax initial structures
+  - strain_and_relax             # scale and relax the structures
+  - compute_stress               # compute the stress tensor
+  - compute_elastic              # post_process by phonopy
+
+
+structure:  # atomic structure information
+  # from_extxyz: ["path/to/extxyz_file"]  # list-of-paths to the EXTXYZ files to be used as the initial structure. If provided, the structure will be read from the file, and the other structure parameters will be ignored.
+
+  from_scratch:                 # build the structure from scratch
+    # structure_type: "bulk"    # bulk, molecule, surface,
+    # chem_formula: "Mo"        # chemical formula/element. e.g., "H2O", "Mg2O2", "Mg",
+    # supercell: [ 2, 1, 1 ]   #  size of the supercell
+    # pbc: [1, 1, 1]
+    # ase_arg:                 # ASE kwargs for building the structure. https://wiki.fysik.dtu.dk/ase/ase/build/build.html#
+    #   crystalstructure: "bcc" # choices: sc,fcc,bcc,tetragonal,bct,hcp,rhombohedral,orthorhombic,mcl,diamond,zincblende,rocksalt,cesiumchloride,fluorite,wurtzite.
+    #   a: 3.98  # lattice constant
+    #   # cubic: True
+
+    # ase_arg:
+    #   crystalstructure: "hcp"
+    #   a: 2.77
+    #   c: 4.88
+
+    # structure_type: "mx2"
+    # chem_formula: "MoS2"
+    # pbc: [1, 1, 0]
+    # ase_arg:
+    #   kind: '2H'    # '2H' or '1T' for MX2 structure
+    #   a: 3.18
+    #   thickness: 3.19
+    #   vacuum: 5
+
+    # structure_type: "bulk"    # bulk, molecule, surface,
+    # chem_formula: "Si"        # chemical formula/element. e.g., "H2O", "Mg2O2", "Mg",
+    # # supercell: [ 2, 2, 2 ]   #  size of the supercell
+    # pbc: [1, 1, 1]
+    # ase_arg:
+    #   crystalstructure: "diamond"
+    #   a: 5.43
+
+    structure_type: "bulk"
+    chem_formula: "Cu"
+    supercell: [ 2, 2, 2]   #  size of the supercell
+    pbc: [1, 1, 1]
+    ase_arg:
+      crystalstructure: "fcc"
+      a: 3.615
+      cubic: True
+
+
+# strain:                # scale the structure to investigate the effect of strain on the elastic tensor
+#   strain_x: [0.5,1.5]  # scale the structure in x-direction
+#   # strain_y: [0.700]  # scale the structure in y-direction
+#   # strain_z: [0.700, 0.800] # scale the structure in z-direction
+
+
+elastic:                      # elastic calculation
+  deformation: 0.02           # the 'maximum deformation' in Angstrom and degrees
+  n_deform: 5                 # number of deformations in each direction
+  symprec: 1e-3               # symmetry precision to check the symmetry of the structure
+
+  compute:                      # properties need to compute from the phonon calculation
+    BM_EOS: True                # fitting the Birch-Murnaghan Equation of State
+    elastic_tensor: True        # compute elastic tensor
+
+
+# dft:                      # parameters for DFT calculation
+#   gpaw_calc:               # accept GPAW parameters
+#     mode:
+#       name: 'pw'          # use PlaneWave method energy cutoff in eV
+#       ecut: 500
+#     xc: "PBE"             # exchange-correlation functional
+#     kpts: {"density": 16, "gamma": False}  # if not set `kpts`, then only Gamma-point is used
+
+#   optimize:               # parameter to optimize the structure by DFT/MS (relax_type: 'opt')
+#     fmax: 0.0001            # force convergence criteria
+
+
+md:                         # parameters for MD calculation
+  file_potentials: ["CuNi.eam.alloy"]  # path to the potential file
+  lammps_arg:                   # accept LAMMPS parameters
+    pair_style: ["eam/alloy"]   # LAMMPS pair_style
+    pair_coeff: ["* * ../CuNi.eam.alloy Cu"]  # LAMMPS pair_coeff, don't input atom names here
+
+  # file_potentials: ["Cu.meam", "library.meam"]  # path to the potential file
+  # lammps_arg:                   # accept LAMMPS parameters
+  #   pair_style: ["meam"]   # LAMMPS pair_style
+  #   pair_coeff: ["* * ../library.meam Cu ../Cu.meam Cu"]  # LAMMPS pair_coeff, don't input atom names here
+
+  minimize:                 # parameter to minimize the structure by MD (relax_type: 'min')
+    ftol: 1e-12              # force convergence criteria
+    etol: 0                 # energy convergence criteria
+    # dmax: 0.001             # maximum distance for line search to move (distance units). Default: 0.01

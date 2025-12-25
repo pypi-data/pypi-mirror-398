@@ -1,0 +1,73 @@
+### Schema for YAML configuration
+
+stages:                       ### ANCHOR: Define stages to run
+  type: list
+  required: True
+  allowed:
+    - make_structure            # build the atomic structures
+    - optimize_structure        # optimize the structure
+    - sampling_space            # explore the sampling space
+    - run_dft                   # run the DFTsinglepoint/AIMD simulation
+    - collect_data              # collect the data
+
+
+structure:                    ### ANCHOR: Define atomic structure
+  type: dict
+  required: True
+  schema:
+    from_extxyz:                # list-of-paths to the EXTXYZ files to be used as the initial structure. If provided, the structure will be read from the file, and the other structure parameters will be ignored.
+      type: list
+
+    from_scratch:               # build the structure from scratch. See [Schema for building structure](https://thangckt.github.io/alff_doc/schema/manual_schema_ase_build/)
+      type: dict
+
+    make_triangular_form:       # normalize the cell to upper/lower triangular matrix, to able to use NPT ensemble. Default: None.
+      type: string
+      allowed: ['upper', 'lower']
+
+
+sampling_space:               ### ANCHOR: Define sampling space:
+                                # Can run `scaled structures` in ranges of temperatures; Or sampling `original structures` in ranges of temperatues and stressess.
+  type: dict
+  schema:
+    strain:                    ### sampling scaled structures
+      type: dict
+      schema:
+        strain_x:                ## list of engineering strains in x-direction. Accept composite ranges. E.g., [0.01, '0.02-0.04', '0.05-0.08:0.01']
+          type: list
+        strain_y:                ## list of engineering strains in y-direction. Accept composite ranges.
+          type: list
+        strain_z:                ## list of engineering strains in z-direction. Accept composite ranges.
+          type: list
+        temps:                  ## list of temperatures in K. Accept composite ranges. E.g., [300, 600, '800-1200:100']
+          type: list
+
+    temp_press:                 ### sampling in temperature and stress
+      type: dict
+      schema:
+        temps:                  # list of temperatures in K. Accept composite ranges.
+          type: list
+        pressures:              # list of stress in GPa. Accept composite ranges.
+          type: list
+
+
+dft:                          ### ANCHOR: DFT calculators
+  type: dict
+  schema:
+    calc_args:                  # accept all keywords for ['ase.calc'](https://thangckt.github.io/alff_doc/schema/config_ase/)
+      type: dict
+      required: True
+      schema:
+        gpaw:                   # GPAW calculator parameters
+          type: dict
+        dftd3:                  # DFT-D3 calculator for Van der Waals correction
+          type: dict
+        exclude_result_dftd3:  # if True, exclude DFTD3 energy/force/stress from the final results. Default is False
+          type: boolean
+          default: False
+
+    optimize:                   # run DFT to optimize the structure, see keywords in ['ase.optimize'](https://thangckt.github.io/alff_doc/schema/config_ase/)
+      type: dict
+
+    md:                         # run AIMD simulation, see keywords in ['ase.md'](https://thangckt.github.io/alff_doc/schema/config_ase/)
+      type: dict

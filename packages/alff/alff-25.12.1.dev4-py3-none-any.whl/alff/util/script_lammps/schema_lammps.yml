@@ -1,0 +1,110 @@
+### Schema for YAML configuration to generate LAMMPS input script
+### Similar to [ASE's schema](https://thangckt.github.io/alff_doc/schema/config_ase/), except the key `calc` is removed.
+
+structure:                ### ANCHOR: Define atomic structure
+  type: dict
+  required: True
+  schema:
+    read_data:            # the path to the *.lammps_data file as initial structure
+      type: string
+    read_restart:         # the path to the *.lammps_restart file as initial structure
+      type: string
+    pbc:                  # set periodic bounday condition. Default [1, 1, 1]
+      type: list
+    units:                # units for LAMMPS. Choices: 'metal', 'real', 'lj'. Default is 'metal'
+      type: string
+    atom_style:           # atom style for LAMMPS. Choices: 'atomic', 'charge', 'molecular',... Default is 'atomic'
+      type: string
+    dimension:            # dimension of the simulation. Default is 3
+      type: integer
+    pair_style:           # pair style for LAMMPS. Default is ['eam/alloy']
+      type: list
+    pair_coeff:           # pair coefficients for LAMMPS. Default is ['* * Cu.eam.alloy  Cu']
+      type: list
+    extra_settings:      # list of custom lines to be added in the setting section. Default is None.
+      type: list
+    ### custom keys, only for some specific workflows
+    auto_atom_names:    # auto assign atoms in `pair_coeff` lines. Default is False.
+      type: boolean
+    file_potentials:    # list of potential files (relative to run_dir). E.g., ["SiC.tersoff"]
+      type: list
+
+
+optimize:                 ### ANCHOR: Parameters to run optimization the structure
+  type: dict
+  allow_unknown: False
+  schema:
+    min_style:            # minimization style supported by LAMMPS. Choices: 'cg', 'sd', 'fire',... Default is 'cg'
+      type: string
+    etol:                 # energy convergence criteria. Default is 1.0e-9 eV
+      type: float
+    ftol:                 # force convergence criteria. Default is 1.0e-9 eV/Ang
+      type: float
+    maxiter:              # maximum number of iterations for minimization. Default is 100000
+      type: integer
+    maxeval:              # maximum number of evaluations for minimization. Default is 100000
+      type: integer
+    dmax:                 # maximum displacement for each step. Default is 0.01 Ang
+      type: float
+    press:                # control stress. Default is [None, None, None]
+      type: [list, float, boolean]
+    mask:                 # 1x3 array of booleans: 1 for relax, 0 for fixed; indicating which of the three independent components of the box are relaxed. Default is [1,1,1]
+      type: list
+    couple:               # couple the stress and strain. Choices: 'none', 'xyz', 'xy', 'yz', 'xz'. Default is 'none'
+      type: string
+
+
+md:                       ### ANCHOR: Parameters to run AIMD/MD simulation. Supported: NVE, NVT, NPT
+                          ## NVT with thermostat: 'langevin', 'nose_hoover_chain'
+                          ## NPT with: - 'nose_hoover_chain' barostat + 'langevin' thermostat
+                          #            - 'nose_hoover_chain' barostat + 'nose_hoover_chain' thermostat
+  type: dict
+  schema:
+    ensemble:             # ensemble name. Choices: NVE, NVT, NPT. Default is NVE
+      type: string
+    dt:                   # timestep in fs. Default is 0.001 ps
+      type: float
+    traj_freq:            # dump frames every `traj_freq` steps. Default is 1.
+      type: integer
+    num_frames:           # number of frames to be collected. Then total MD nsteps = (num_frames * traj_freq)
+      type: integer
+    equil_steps:          # number of equilibration steps before running production. Default is 0.
+      type: integer
+
+    plumed_file:          # path to the plumed file. Default is None.
+      type: string
+    thermo_freq:          # frequency to print thermodynamic properties. Default is 5000 steps.
+      type: integer
+    first_minimize:       # whether to perform a first minimization before running MD. Default is False.
+      type: boolean
+
+    ### temperature control
+    temp:                 # temperature in K. Default is 300 K
+      type: float
+    tdamp:                # damping timesteps for thermostat. Default is 100.
+      type: integer
+    thermostat:           # thermostat. Choices: 'langevin', 'nose_hoover_chain'. Default is 'nose_hoover_chain'.
+      type: string
+      allowed: ['langevin', 'nose_hoover_chain']
+
+    ### pressure control
+    press:                # external stress in GPa. Accept: float, 3-vector. Default is None.
+      type: [list, float, boolean]
+    mask:                 # periodic dimensions to relax. Set to (1,1,1) to allow fully flexible box. Set to (1,1,0) to disallow elongations along the z-axis, etc. Default is [1,1,1]
+      type: list
+    couple:               # couple the stress and strain. Choices: 'none', 'xyz', 'xy', 'yz', 'xz'. Default is 'none'
+      type: string
+    pdamp:                # damping timesteps for barostat. Default is 1000.
+      type: integer
+    barostat:             # barostat. Choices: 'nose_hoover_chain'. Default is 'nose_hoover_chain'
+      type: string
+      allowed: ['nose_hoover_chain']
+    deform_limit:         # Maximum **fractional change** allowed for any box dimension. The simulation stops if $abs(L - L0) / L0 > deform_limit$ in any of x, y, or z dim. Default is None.
+      type: [float]
+
+extra:                    ### ANCHOR: Extra parameters
+  type: dict
+  allow_unknown: True
+  schema:
+    output_script:        # path to the output script. Default is 'run.lammps'
+      type: string
