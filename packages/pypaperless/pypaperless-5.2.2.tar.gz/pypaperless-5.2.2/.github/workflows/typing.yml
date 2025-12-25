@@ -1,0 +1,37 @@
+---
+name: Typing
+
+# yamllint disable-line rule:truthy
+on:
+  pull_request:
+    paths:
+      - "**.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "pypaperless/**"
+      - "tests/**"
+  workflow_dispatch:
+
+env:
+  DEFAULT_PYTHON: "3.14"
+
+jobs:
+  mypy:
+    name: mypy
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v6.0.1
+      - name: 🏗 Set up Python ${{ env.DEFAULT_PYTHON }}
+        id: python
+        uses: actions/setup-python@v6.1.0
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+      - name: 🏗 Set up uv
+        run: |
+          pipx install uv
+          uv venv
+      - name: 🏗 Install Python dependencies
+        run: uv sync --group dev
+      - name: 🚀 Run mypy
+        run: uv run mypy pypaperless tests

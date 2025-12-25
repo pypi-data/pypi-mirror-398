@@ -1,0 +1,58 @@
+---
+name: Testing
+
+# yamllint disable-line rule:truthy
+on:
+  pull_request:
+    paths:
+      - "**.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "pypaperless/**"
+      - "tests/**"
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v6.0.1
+      - name: 🏗 Set up Python ${{ matrix.python }}
+        id: python
+        uses: actions/setup-python@v6.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: 🏗 Set up uv
+        run: |
+          pipx install uv
+          uv venv
+      - name: 🏗 Install Python dependencies
+        run: uv sync --group dev
+      - name: 🚀 Run pytest
+        run: uv run pytest -v --cov-report xml:coverage.xml --cov pypaperless tests
+      - name: ⬆️ Upload coverage artifact
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: coverage-${{ matrix.python }}
+          path: coverage.xml
+
+  coverage:
+    runs-on: ubuntu-latest
+    needs: pytest
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v6.0.1
+        with:
+          fetch-depth: 0
+      - name: ⬇️ Download coverage data
+        uses: actions/download-artifact@v7.0.0
+      - name: 🚀 Upload coverage report
+        uses: codecov/codecov-action@v5.5.2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
