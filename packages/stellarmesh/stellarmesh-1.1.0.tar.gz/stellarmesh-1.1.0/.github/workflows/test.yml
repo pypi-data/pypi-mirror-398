@@ -1,0 +1,32 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: v0.49.0
+          cache: true
+          environments: >-
+            ci
+
+      - name: Run tests (build123d env)
+        env:
+          OPENMC_CROSS_SECTIONS: ${{ github.workspace }}/cross_sections.xml
+        run: |
+          pixi run -e ci test
