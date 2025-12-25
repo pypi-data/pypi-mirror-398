@@ -1,0 +1,104 @@
+[tool.poe.tasks]
+# run with eg `uv run poe fmt`
+fmt = "ruff format"
+lint = "ruff check --fix"
+check = "basedpyright"
+
+test = "pytest -vv -s"
+cov = "pytest --cov=embar --cov-report=html"
+
+# run all the above
+all = [ {ref="fmt"}, {ref="lint"}, {ref="check"}, {ref="test"} ]
+
+"ci:fmt" = "ruff format --check"  # fail if not formatted
+"ci:lint" = "ruff check"
+"ci:check" = "basedpyright"
+"ci:test" = "pytest --cov=embar --cov-report=xml"
+
+"docs" = "mkdocs serve"
+
+[project]
+name = "embar"
+dynamic = ["version"]
+description = "A SQL-y and well-typed ORM for Python"
+readme = "README.md"
+authors = [
+    { name = "Chris Arderne", email = "chris@rdrn.me" }
+]
+keywords = ["ORM", "SQL"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Database :: Front-Ends",
+]
+
+requires-python = ">=3.14"
+
+dependencies = [
+    "psycopg[binary]>=3.2.11",
+    "pydantic>=2.12.4",
+]
+
+[project.urls]
+homepage = "https://github.com/carderne/embar"
+repository = "https://github.com/carderne/embar"
+
+[project.scripts]
+embar = "embar.tools.commands:main"
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.31.7",
+    "mkdocs-gen-files>=0.5.0",
+    "mkdocs-literate-nav>=0.6.2",
+    "mkdocs-material>=9.6.23",
+    "mkdocs-section-index>=0.3.10",
+    "mkdocstrings[python]>=0.30.1",
+    "poethepoet>=0.37.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+    "pytest-markdown-docs>=0.9.0",
+    "ruff>=0.14.1",
+    "ty>=0.0.1a23",
+    "vulture>=2.14",
+]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 120  # use whatever number makes you happy
+
+[tool.ruff.lint]
+select = [
+  "A",    # warn about shadowing built-ins
+  "E",    # style stuff, whitespaces
+  "F",    # important pyflakes lints
+  "I",    # import sorting
+  "N",    # naming
+  "T100", # breakpoints (probably don't want these in prod!)
+]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+strict = ["**/*.py"]
+pythonVersion = "3.14"
+reportExplicitAny = false
+reportUnusedCallResult = false
+reportAny = false
+
+[tool.pytest.ini_options]
+addopts = "--doctest-modules --doctest-glob='*.py' --markdown-docs --markdown-docs-syntax=superfences"
+pythonpath = "."
+testpaths = ["src", "tests", "docs"]
+norecursedirs = ["example", "examples"]
