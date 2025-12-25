@@ -1,0 +1,905 @@
+#  ExoIris: fast, flexible, and easy exoplanet transmission spectroscopy in Python.
+#  Copyright (C) 2024 Hannu Parviainen
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+from copy import deepcopy
+from typing import Optional, Literal
+
+from celerite2 import GaussianProcess as GP, terms
+from ldtk import BoxcarFilter, LDPSetCreator  # noqa
+from numba import njit, prange
+from numpy import (
+    zeros,
+    log,
+    pi,
+    linspace,
+    inf,
+    atleast_2d,
+    newaxis,
+    clip,
+    arctan2,
+    sum,
+    concatenate,
+    sort,
+    ndarray,
+    array,
+    tile,
+    arange,
+    dstack,
+    diff,
+    ascontiguousarray,
+    nan,
+)
+from numpy.linalg import lstsq, LinAlgError
+from numpy.random import default_rng
+from pytransit.lpf.logposteriorfunction import LogPosteriorFunction
+from pytransit.orbits import as_from_rhop, i_from_ba
+from pytransit.param import ParameterSet, UniformPrior as UP, NormalPrior as NP, GParameter
+from scipy.interpolate import (
+    pchip_interpolate,
+    splrep,
+    splev,
+    Akima1DInterpolator,
+    interp1d,
+)
+
+from .ldtkld import LDTkLD
+from .spotmodel import SpotModel
+from .tsdata import TSDataGroup
+from .tsmodel import TransmissionSpectroscopyModel as TSModel
+
+NM_WHITE = 0
+NM_GP_FIXED = 1
+NM_GP_FREE = 2
+
+noise_models = dict(white=NM_WHITE, fixed_gp=NM_GP_FIXED, free_gp=NM_GP_FREE)
+
+
+@njit
+def nlstsq(covs, res, mask, wlmask, with_nans):
+    nwl = res.shape[0]
+    nc = covs.shape[1]
+    x = zeros((nc, nwl))
+    x[:, wlmask] = lstsq(covs, ascontiguousarray(res[wlmask].T))[0]
+    for i in with_nans:
+        x[:, i] =  lstsq(covs[mask[i]], res[i, mask[i]])[0]
+    return x
+
+
+@njit(parallel=True, cache=False)
+def lnlike_normal(o, m, e, f, mask):
+    nwl, nt = o.shape
+
+    if m.ndim == 2:
+        la, lb, lc = 0.0, 0.0, 0.0
+        for iwl in range(nwl):
+            for it in range(nt):
+                if mask[iwl, it]:
+                    la += log(f[0]*e[iwl, it])
+                    lb += log(2*pi)
+                    lc += (o[iwl, it] - m[iwl, it])**2 / (f[0]*e[iwl, it])**2
+        return -la - 0.5*lb - 0.5*lc
+    if m.ndim == 3:
+        npv = m.shape[0]
+        lnlike = zeros(npv)
+        for i in prange(npv):
+            la, lb, lc = 0.0, 0.0, 0.0
+            for iwl in range(nwl):
+                for it in range(nt):
+                    if mask[iwl, it]:
+                        la += log(f[i]*e[iwl, it])
+                        lb += log(2*pi)
+                        lc += (o[iwl, it] - m[i, iwl, it])**2 / (f[i]*e[iwl, it])**2
+            lnlike[i] = -la - 0.5*lb - 0.5*lc
+        return lnlike
+
+
+def ip_pchip(x, xk, yk):
+    return pchip_interpolate(xk, yk, x)
+
+
+def ip_bspline(x, xk, yk):
+    return splev(x, splrep(xk, yk))
+
+
+def ip_bspline_quadratic(x, xk, yk):
+    return splev(x, splrep(xk, yk, k=2))
+
+
+def ip_makima(x, xk, yk):
+    return Akima1DInterpolator(xk, yk, method='makima', extrapolate=True)(x)
+
+
+def ip_nearest(x, xk, yk):
+    return interp1d(xk, yk, kind='nearest', bounds_error=False, fill_value='extrapolate', assume_sorted=True)(x)
+
+
+def ip_linear(x, xk, yk):
+    return interp1d(xk, yk, kind='linear', bounds_error=False, fill_value='extrapolate', assume_sorted=True)(x)
+
+
+def add_knots(x_new, x_old):
+    return sort(concatenate([x_new, x_old]))
+
+
+interpolator_choices = ("bspline", "pchip", "makima", "nearest", "linear", "bspline-quadratic", "bspline-cubic")
+
+
+interpolators = {'bspline': ip_bspline, 'bspline-cubic': ip_bspline, 'bspline-quadratic': ip_bspline_quadratic,
+                 'pchip': ip_pchip, 'makima': ip_makima, 'nearest': ip_nearest, 'linear': ip_linear}
+
+
+def clean_knots(knots, min_distance, lmin=0, lmax=inf):
+    """Clean the knot table by replacing groups of adjacent knots with a single knot at the group mean.
+
+    Parameters
+    ----------
+    knots : numpy.ndarray
+        An array of knots.
+
+    min_distance : float
+        The minimum distance between adjacent knots.
+
+    lmin : float, optional
+        The minimum value of knots to consider. Default is 0.
+
+    lmax : float, optional
+        The maximum value of knots to consider. Default is inf.
+
+    Returns
+    -------
+    numpy.ndarray
+        An array of cleaned knots, where adjacent knots that are less than `min_distance` apart are replaced
+        by the mean value of the group.
+    """
+    i = 0
+    nknots = []
+    while i < knots.size:
+        m = [i]
+        if lmin <= knots[i] <= lmax:
+            j = i+1
+            while i < knots.size - 1 and knots[j]-knots[i] < min_distance:
+                j += 1
+                i += 1
+                m.append(i)
+        nknots.append(knots[m].mean())
+        i += 1
+    return array(nknots)
+
+
+class TSLPF(LogPosteriorFunction):
+    def __init__(self, runner, name: str, ldmodel, data: TSDataGroup, nk: int = 50, nldc: int = 10, nthreads: int = 1,
+                 tmpars = None, noise_model: Literal["white", "fixed_gp", "free_gp"] = 'white',
+                 interpolation: Literal['nearest', 'linear', 'pchip', 'makima', 'bspline', 'bspline-quadratic', 'bspline-cubic'] = 'linear'):
+        super().__init__(name)
+        self._runner = runner
+        self._original_data: TSDataGroup | None = None
+        self.data: TSDataGroup | None = None
+        self.npb: list[int] | None= None
+        self.npt: list[int] | None = None
+        self._baseline_models: list[ndarray] | None = None
+        self.interpolation: str = interpolation
+
+        if interpolation not in interpolator_choices:
+            raise ValueError(f'interpolation must be one of {interpolator_choices}')
+
+        self._ip = interpolators[interpolation]
+        self._ip_ld = interpolators['bspline']
+
+        self._gp: Optional[list[GP]] = None
+        self._gp_time: Optional[list[ndarray]] = None
+        self._gp_flux: Optional[list[ndarray]] = None
+
+        self.tms = [TSModel(ldmodel, nthreads=nthreads, **(tmpars or {})) for i in range(len(data))]
+        self.set_data(data)
+        self.set_noise_model(noise_model)
+
+        self.spot_model: SpotModel | None = None
+        self.spot_model_fluxes = []
+
+        self.ldmodel = ldmodel
+        if isinstance(ldmodel, LDTkLD):
+            for tm in self.tms:
+                tm.ldmodel = None
+            self.ldmodel._init_interpolation(self.tms[0].mu)
+
+        self.nthreads = nthreads
+        self.nldc = nldc
+        self.nk = nk
+
+        self.k_knots = linspace(data.wlmin, data.wlmax, self.nk)
+        self.free_k_knot_ids = None
+
+        if isinstance(ldmodel, LDTkLD):
+            self.ld_knots = array([])
+        else:
+            self.ld_knots = linspace(data.wlmin, data.wlmax, self.nldc)
+
+        self._ootmask = None
+        self._npv = 1
+        self._de_population: Optional[ndarray] = None
+        self._de_imin: Optional[int] = None
+        self._mc_chains: Optional[ndarray] = None
+
+        self._init_parameters()
+
+    @property
+    def flux(self) -> list[ndarray]:
+        return self.data.fluxes
+
+    @property
+    def times(self) -> list[ndarray]:
+        return self.data.times
+
+    @property
+    def wavelengths(self) -> list[ndarray]:
+        return self.data.wavelengths
+
+    @property
+    def errors(self) -> list[ndarray]:
+        return self.data.errors
+
+    @property
+    def ndim(self) -> int:
+        return len(self.ps)
+
+    def set_data(self, data: TSDataGroup):
+        self._original_data = deepcopy(data)
+        self.data = data
+        self.npb: list[int] = [f.shape[0] for f in self.flux]
+        self.npt: list[int] = [f.shape[1] for f in self.flux]
+        for i, time in enumerate(self.times):
+            self.tms[i].set_data(time)
+
+    def _init_parameters(self) -> None:
+        self.ps = ParameterSet([])
+        self._init_p_star()
+        self._init_p_orbit()
+        self._init_p_transit_centers()
+        self._init_p_limb_darkening()
+        self._init_p_radius_ratios()
+        self._init_p_noise()
+        if self._nm == NM_GP_FREE:
+            self._init_p_gp()
+        self._init_p_bias()
+        self.ps.freeze()
+
+    def initialize_spots(self, tstar: float, wlref: float, include_tlse: bool = True) -> None:
+        self.spot_model = SpotModel(self, tstar, wlref, include_tlse)
+
+    def add_spot(self, epoch_group: int) -> None:
+        """Adds a new star spot.
+
+        Parameters
+        ----------
+        epoch_group : int
+            The identifier of the epoch group to which the spot belongs.
+        """
+        self.spot_model.add_spot(epoch_group)
+
+    def set_noise_model(self, noise_model: str) -> None:
+        """Sets the noise model for the analysis.
+
+        Parameters
+        ----------
+        noise_model : str
+            The noise model to be used. Must be one of the following: white, fixed_gp, free_gp.
+
+        Raises
+        ------
+        ValueError
+            If noise_model is not one of the specified options.
+        """
+        if noise_model not in noise_models.keys():
+            raise ValueError('noise_model must be one of: white, fixed_gp, free_gp')
+        self.noise_model = noise_model
+        self._nm = noise_models[noise_model]
+        if self._nm in (NM_GP_FIXED, NM_GP_FREE):
+            self._init_gp()
+        if self._nm == NM_GP_FREE:
+            self.ps.thaw()
+            self._init_p_gp()
+            self.ps.freeze()
+
+    def _init_gp(self) -> None:
+        """Initializes the Gaussian Process (GP) .
+
+        This method initializes the necessary variables and sets up the GP for the given data.
+        """
+        self._gp_time = []
+        self._gp_flux = []
+        self._gp_ferr = []
+        self._gp = []
+        for d in self.data:
+            self._gp_time.append((tile(d.time[newaxis, :], (d.nwl, 1)) + arange(d.nwl)[:, newaxis])[d.mask])
+            self._gp_flux.append(d.fluxes[d.mask])
+            self._gp_ferr.append(d.errors[d.mask])
+            self._gp.append(GP(terms.Matern32Term(sigma=self._gp_flux[-1].std(), rho=0.1)))
+            self._gp[-1].compute(self._gp_time[-1], yerr=self._gp_ferr[-1], quiet=True)
+
+    def set_gp_hyperparameters(self, sigma: float, rho: float, idata: int | None = None) -> None:
+        """Sets the Gaussian Process hyperparameters assuming a Matern32 kernel.
+
+        Parameters
+        ----------
+        sigma
+            The kernel amplitude parameter.
+
+        rho
+            The length scale parameter.
+
+        idata
+            The data set for which to set the hyperparameters. If None, the hyperparameters are set for all data sets.
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been initialized before setting the hyperparameters.
+        """
+        if self._gp is None:
+            raise RuntimeError('The GP needs to be initialized before setting hyperparameters.')
+
+        for i in ([idata] if idata is not None else range(self.data.size)):
+            self._gp[i].kernel = terms.Matern32Term(sigma=sigma, rho=rho)
+            self._gp[i].compute(self._gp_time[i], yerr=self._gp_ferr[i], quiet=True)
+
+    def set_gp_kernel(self, kernel: terms.Term) -> None:
+        """Sets the kernel for the Gaussian Process (GP) model and recomputes the GP.
+
+        Parameters
+        ----------
+        kernel : terms.Term
+            The kernel to be set for the GP.
+        """
+        for i, gp in enumerate(self._gp):
+            gp.kernel = kernel
+            gp.compute(self._gp_time[i], yerr=self._gp_ferr[i], quiet=True)
+
+    def _init_p_star(self) -> None:
+        pstar = [GParameter('rho', 'stellar density', 'g/cm^3', UP(0.1, 25.0), (0, inf))]
+        self.ps.add_global_block('star', pstar)
+
+    def _init_p_limb_darkening(self) -> None:
+        if isinstance(self.ldmodel, LDTkLD):
+            pld = [GParameter('teff', 'stellar TEff', 'K', NP(*self.ldmodel.sc.teff), (0, inf)),
+                   GParameter('logg', 'stellar log g', '', NP(*self.ldmodel.sc.logg), (0, inf)),
+                   GParameter('metal', 'stellar metallicity', '', NP(*self.ldmodel.sc.metal), (-inf, inf))]
+        else:
+            pld = concatenate([
+                [GParameter(f'ldc1_{l:08.5f}', fr'ldc1 at {l:08.5f} $\mu$m', '', UP(0, 1), bounds=(-inf, inf)),
+                 GParameter(f'ldc2_{l:08.5f}', fr'ldc2 at {l:08.5f} $\mu$m', '', UP(0, 1), bounds=(-inf, inf))]
+                for l in self.ld_knots])
+        self.ps.add_global_block('limb_darkening', pld)
+        self._start_ld = self.ps.blocks[-1].start
+        self._sl_ld = self.ps.blocks[-1].slice
+
+    def _init_p_orbit(self):
+        ps = self.ps
+        pp = [GParameter('p', 'period', 'd', NP(1.0, 1e-5), (0, inf)),
+              GParameter('b', 'impact_parameter', 'R_s', UP(0.0, 1.0), (0, inf)),
+              GParameter('secw', 'sqrt(e) cos(w)', '', NP(0.0, 1e-5), (-1, 1)),
+              GParameter('sesw', 'sqrt(e) sin(w)', '', NP(0.0, 1e-5), (-1, 1))]
+        ps.add_global_block('orbit', pp)
+        self._start_orbit = ps.blocks[-1].start
+        self._sl_orbit = ps.blocks[-1].slice
+
+    def _init_p_transit_centers(self):
+        ps = self.ps
+        neps = max(self.data.epoch_groups) + 1
+        pp = [GParameter(f'tc_{i:02d}', f'zero_epoch_{i:02d}', '', NP(0.0, 0.1), (-inf, inf)) for i in range(neps)]
+        ps.add_global_block('transit_centers', pp)
+        self._start_tcs = ps.blocks[-1].start
+        self._sl_tcs = ps.blocks[-1].slice
+
+    def _init_p_radius_ratios(self):
+        ps = self.ps
+        pp = [GParameter(f'k_{k:08.5f}', fr'radius ratio at {k:08.5f} $\mu$m', 'A_s', UP(0.02, 0.2), (0, inf)) for k in self.k_knots]
+        ps.add_global_block('radius_ratios', pp)
+        self._start_rratios = ps.blocks[-1].start
+        self._sl_rratios = ps.blocks[-1].slice
+
+    def _init_p_noise(self):
+        ps = self.ps
+        pp = [GParameter(f'sigma_m_{i:02d}', f'Noise group {i} sigma multipler', '',
+                         NP(1.0, 0.01), (0, inf)) for i in range(self.data.n_noise_groups)]
+        ps.add_global_block('white_noise_multipliers', pp)
+        self._start_wnm = ps.blocks[-1].start
+        self._sl_wnm = ps.blocks[-1].slice
+
+    def _init_p_gp(self):
+        ps = self.ps
+        if not hasattr(self, '_sl_gp'):
+            pp = [GParameter('gp_log_sigma', 'GP log sigma', '', NP(0.0, 0.01), (-inf, inf)),
+                  GParameter('gp_log_rho', 'GP log rho', '', NP(0.0, 0.01), (-inf, inf))]
+            ps.add_global_block('gp_hyperparameters', pp)
+            self._start_gp = ps.blocks[-1].start
+            self._sl_gp = ps.blocks[-1].slice
+
+    def _init_p_bias(self):
+        ps = self.ps
+        offset_groups = self.data.offset_groups
+        pp = []
+        for i in range(1, max(offset_groups) + 1):
+            pp.append(GParameter(f'bias_{i:02d}', 'bias offset', '', NP(0.0, 1e-6), (-inf, inf)))
+        ps.add_global_block('bias_offsets', pp)
+        self._start_bias = ps.blocks[-1].start
+        self._sl_bias = ps.blocks[-1].slice
+
+    def set_ldtk_prior(self, teff, logg, metal, dataset: str = 'visir-lowres', width: float = 50,
+                       uncertainty_multiplier: float = 10):
+        hw = 0.5 * width
+        filters = [BoxcarFilter('a', wlc - hw, wlc + hw) for wlc in 1e3 * self.ld_knots]
+        sc = LDPSetCreator(teff, logg, metal, filters=filters, dataset=dataset)
+        ps = sc.create_profiles()
+
+        match self.ldmodel:
+            case 'power-2':
+                ldc, lde = ps.coeffs_p2()
+            case 'quadratic':
+                ldc, lde = ps.coeffs_qd()
+            case 'quadratic-triangular':
+                ldc, lde = ps.coeffs_tq()
+            case _:
+                raise ValueError('Unsupported limb darkening model.')
+
+        for i,l in enumerate(self.ld_knots):
+            self.set_prior(f'ldc1_{l:08.5f}', 'NP', ldc[i, 0].round(3), (uncertainty_multiplier * lde[i, 0]).round(3))
+            self.set_prior(f'ldc2_{l:08.5f}', 'NP', ldc[i, 1].round(3), (uncertainty_multiplier * lde[i, 1]).round(3))
+
+    def add_k_knots(self, knot_wavelengths) -> None:
+        """Add radius ratio (k) knots to the model.
+
+        Parameters
+        ----------
+        knot_wavelengths : array-like
+            An array of knot wavelengths to be added.
+        """
+        self.set_k_knots(concatenate([self.k_knots, knot_wavelengths]))
+
+    def set_k_knots(self, knot_wavelengths) -> None:
+        """Set the radius ratio (k) knot wavelengths for the model.
+
+        Parameters
+        ----------
+        knot_wavelengths : array-like
+            Array of knot wavelengths.
+
+        """
+
+        # Save the old variables
+        # ----------------------
+        xo = self.k_knots
+        pso = self.ps
+        deo = self._de_population
+        mco = self._mc_chains
+        slo = self._sl_rratios
+        ndo = self.ndim
+
+        xn = self.k_knots = clean_knots(sort(knot_wavelengths), 1e-5)
+        self.nk = self.k_knots.size
+
+        self._init_parameters()
+        psn = self.ps
+        sln = self._sl_rratios
+        ndn = self.ndim
+
+        # Check if we have spots
+        # ----------------------
+        if self.spot_model is not None:
+            spots = self.spot_model
+            self.initialize_spots(spots.tphot, spots.wlref, spots.include_tlse)
+            for eg in spots.spot_epoch_groups:
+                self.spot_model.add_spot(eg)
+
+        # Set the priors back as they were
+        # --------------------------------
+        for po in pso:
+            if po.name in psn.names:
+                self.set_prior(po.name, po.prior)
+
+        # Resample the DE parameter population
+        # ------------------------------------
+        if self._de_population is not None:
+            den = zeros((deo.shape[0], ndn))
+
+            # Copy the old parameter values
+            # -----------------------------
+            for pid_old, p in enumerate(pso):
+                if p.name in psn.names:
+                    pid_new = psn.find_pid(p.name)
+                    den[:, pid_new] = deo[:, pid_old]
+
+            # Resample the radius ratios
+            # --------------------------
+            for i in range(den.shape[0]):
+                den[i, sln] = self._ip(xn, xo, deo[i, slo])
+
+            self._de_population = den
+            self.de = None
+
+        # Resample the MCMC parameter population
+        # --------------------------------------
+        if self._mc_chains is not None:
+            fmco = mco.reshape([-1, ndo])
+            fmcn = zeros((fmco.shape[0], ndn))
+
+            # Copy the old parameter values
+            # -----------------------------
+            for pid_old, p in enumerate(pso):
+                if p.name in psn.names:
+                    pid_new = psn.find_pid(p.name)
+                    fmcn[:, pid_new] = fmco[:, pid_old]
+
+            # Resample the radius ratios
+            # --------------------------
+            for i in range(fmcn.shape[0]):
+                fmcn[i, sln] = self._ip(xn, xo, fmco[i, slo])
+
+            self._mc_chains = fmcn.reshape([mco.shape[0], mco.shape[1], ndn])
+            self.sampler = None
+
+    def set_free_k_knots(self, ids: list[int] | ndarray) -> None:
+        """Add the wavelength locations of chosen radius ratio knots as free model parameters.
+
+        Parameters
+        ----------
+        ids : list of int
+            List of radius ratio knot indices to be made free parameters.
+        """
+        self.free_k_knot_ids = ids
+
+        # Remove existing parameter block if one exists
+        block_names = [b.name for b in self.ps.blocks]
+        try:
+            bid = block_names.index('free_k_knot_locations')
+            del self.ps[self.ps.blocks[bid].slice]
+            del self.ps.blocks[bid]
+        except ValueError:
+            pass
+
+        # Calculate minimum distances between knots
+        min_distances = zeros(self.nk)
+        min_distances[0] = self.k_knots[1] - self.k_knots[0]
+        min_distances[self.nk-1] = self.k_knots[self.nk-1] - self.k_knots[self.nk-2]
+        for i in range(1, self.nk-1):
+            for j in range(i):
+                min_distances[i] = min(self.k_knots[i] - self.k_knots[i-1], self.k_knots[i+1] - self.k_knots[i])
+
+        # Create new parameter block
+        ps = []
+        for kid in ids:
+            sigma = min_distances[kid]/6 if (kid+1 in ids or kid-1 in ids) else min_distances[kid]/4
+            ps.append(GParameter(f'kl_{kid:04d}', f'k knot {kid} location', 'um', NP(self.k_knots[kid], sigma), [0, inf]))
+        self.ps.thaw()
+        self.ps.add_global_block('free_k_knot_locations', ps)
+        self.ps.freeze()
+        self._start_kloc = self.ps.blocks[-1].start
+        self._sl_kloc = self.ps.blocks[-1].slice
+
+        try:
+            pid = [p.__name__ for p in self._additional_log_priors].index('k_knot_order_priors')
+            del self._additional_log_priors[pid]
+        except ValueError:
+            pass
+
+        # Add a prior on the order of the knots
+        def k_knot_order_prior(pv):
+            pv = atleast_2d(pv)
+            logp = zeros(pv.shape[0])
+            k_knots = self.k_knots.copy()
+            for i in range(pv.shape[0]):
+                k_knots[self.free_k_knot_ids] = pv[i, self._sl_kloc]
+                original_separations = diff(self.k_knots)
+                current_separations = diff(k_knots)
+                logp[i] = 1e2*(clip(current_separations / original_separations / 0.25, -inf, 1.0) - 1.).sum()
+            return logp
+        self._additional_log_priors.append(k_knot_order_prior)
+
+
+    def add_ld_knots(self, knot_wavelengths) -> None:
+        """Add limb darkening knots to the model.
+
+        Parameters
+        ----------
+        knot_wavelengths : array-like
+            An array of knot wavelengths to be added.
+        """
+        self.set_ld_knots(concatenate([self.ld_knots, knot_wavelengths]))
+
+    def set_ld_knots(self, knot_wavelengths) -> None:
+        """Set the limb darkening knot wavelengths for the model.
+
+        Parameters
+        ----------
+        knot_wavelengths : array-like
+            Array of knot wavelengths.
+        """
+        xo = self.ld_knots
+        xn = self.ld_knots = sort(knot_wavelengths)
+        self.nldc = self.ld_knots.size
+
+        pvpo = self.de.population.copy() if self.de is not None else None
+        pso = self.ps
+        sldo = self._sl_ld
+        self._init_parameters()
+        psn = self.ps
+        sldn = self._sl_ld
+        for po in pso:
+            if po.name in psn.names:
+                self.set_prior(po.name, po.prior)
+
+        if self.de is not None:
+            pvpn = self.create_pv_population(pvpo.shape[0])
+            # Copy the old parameter values
+            # -----------------------------
+            for pid_old, p in enumerate(pso):
+                if p.name in psn:
+                    pid_new = psn.find_pid(p.name)
+                    pvpn[:, pid_new] = pvpo[:, pid_old]
+
+            # Resample the radius ratios
+            # --------------------------
+            for i in range(pvpn.shape[0]):
+                pvpn[i, sldn] = self._ip(xn, xo, pvpo[i, sldo])
+
+            self.de = None
+            self._de_population = pvpn
+
+    def _eval_k(self, pvp) -> list[ndarray]:
+        """Evaluate the radius ratio model.
+
+        Parameters
+        ----------
+        pvp : ndarray
+            The input array of shape (npv, np), where npv is the number of parameter vectors
+            and np is the number of parameters.
+
+        Returns
+        -------
+        ks : ndarray
+            The radius ratios of shape (npv, npb), where npb is the number of passbands.
+        """
+        pvp = atleast_2d(pvp)
+        ks = [zeros((pvp.shape[0], npb)) for npb in self.npb]
+        k_knots = self.k_knots.copy()
+        for ids in range(self.data.size):
+            for ipv in range(pvp.shape[0]):
+                if self.free_k_knot_ids is not None:
+                    k_knots[self.free_k_knot_ids] = pvp[ipv, self._sl_kloc]
+                ks[ids][ipv,:] =  self._ip(self.wavelengths[ids], k_knots, pvp[ipv, self._sl_rratios])
+        return ks
+
+    def _eval_ldc(self, pvp):
+        if isinstance(self.ldmodel, LDTkLD):
+            ldp = pvp[:, newaxis, self._sl_ld]
+            ldp[:, 0, 0] = clip(ldp[:, 0, 0], *self.ldmodel.sc.client.teffl)
+            ldp[:, 0, 1] = clip(ldp[:, 0, 1], *self.ldmodel.sc.client.loggl)
+            ldp[:, 0, 2] = clip(ldp[:, 0, 2], *self.ldmodel.sc.client.zl)
+            return ldp
+        else:
+            pvp = atleast_2d(pvp)
+            ldk = pvp[:, self._sl_ld].reshape([pvp.shape[0], self.nldc, 2])
+            ldp = [zeros((pvp.shape[0], npb, 2)) for npb in self.npb]
+            for ids in range(self.data.size):
+                for ipv in range(pvp.shape[0]):
+                    ldp[ids][ipv, :, 0] = self._ip_ld(self.wavelengths[ids], self.ld_knots, ldk[ipv, :, 0])
+                    ldp[ids][ipv, :, 1] = self._ip_ld(self.wavelengths[ids], self.ld_knots, ldk[ipv, :, 1])
+            return ldp
+
+    def transit_model(self, pv, copy=True):
+        """Evaluates the transit model for parameter vector pv.
+
+        Parameters
+        ----------
+        pv : numpy.ndarray
+            Array of transit parameters. Each row represents a set of transit parameters for a single transit event.
+            The columns of the array should be in the following order:
+            - Column 0: stellar density (g/cm^3)
+            - Column 1: transit center time (T0)
+            - Column 2: orbital period (P)
+            - Column 3: impact parameter
+            - Column 4: sqrt e cos w
+            - Column 5: sqrt e sin w
+            - Column 6: planet-to-star radius ratio (Rp/R_star)
+
+        copy : bool, optional
+            Whether to create a copy of the calculated values before returning the result. Default is True.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of model transit fluxes. Each element corresponds to the transit model flux for the corresponding set
+            of transit parameters in the input array 'pv'.
+        """
+        pv = atleast_2d(pv)
+        ldp = self._eval_ldc(pv)
+        t0s = pv[:, self._sl_tcs]
+        k = self._eval_k(pv)
+        p = pv[:, 1]
+        aor = as_from_rhop(pv[:, 0], p)
+        inc = i_from_ba(pv[:, 2], aor)
+        ecc = pv[:, 3] ** 2 + pv[:, 4] ** 2
+        w = arctan2(pv[:, 4], pv[:, 3])
+        epids = self.data.epoch_groups
+        fluxes = []
+        if isinstance(self.ldmodel, LDTkLD):
+            ldp, istar = self.ldmodel(self.tms[0].mu, ldp)
+            ldpi = dstack([ldp, istar])
+            for i, tm in enumerate(self.tms):
+                fluxes.append(tm.evaluate(k[i], ldpi[:, self.ldmodel.wlslices[i], :],
+                                          t0s[:, epids[i]], p, aor, inc, ecc, w, copy))
+        else:
+            for i, tm in enumerate(self.tms):
+                fluxes.append(tm.evaluate(k[i], ldp[i], t0s[:, epids[i]], p, aor, inc, ecc, w, copy))
+
+        for i, d in enumerate(self.data):
+            if d.offset_group > 0:
+                biases = pv[:, self._start_bias + d.offset_group - 1][:, None, None]
+                fluxes[i] = biases + (1.0 - biases) * fluxes[i]
+        return fluxes
+
+    def baseline_model(self, mtransit):
+        npv = mtransit[0].shape[0]
+        if self._baseline_models is None or self._baseline_models[0].shape[0] != npv:
+            self._baseline_models = [zeros(m.shape) for m in mtransit]
+        for i, d in enumerate(self.data):
+            for ipv in range(npv):
+                res = d.fluxes / mtransit[i][ipv]
+                try:
+                    coeffs = nlstsq(d.covs, res, d.mask, d._wlmask, d._wls_with_nan)
+                    self._baseline_models[i][ipv, :, :] = (d.covs @ coeffs).T
+                except LinAlgError:
+                    self._baseline_models[i][ipv, :, :] = nan
+        return self._baseline_models
+
+    def flux_model(self, pv):
+        transit_models = self.transit_model(pv)
+        baseline_models = self.baseline_model(transit_models)
+        if self.spot_model is not None:
+            self.spot_model.apply_spots(pv, transit_models)
+            if self.spot_model.include_tlse:
+                self.spot_model.apply_tlse(pv, transit_models)
+        for i in range(self.data.size):
+            transit_models[i][:, :, :] *= baseline_models[i][:, :, :]
+        return transit_models
+
+    def create_pv_population(self, npop: int = 50) -> ndarray:
+        """ Crate a parameter vector population.
+        Parameters
+        ----------
+        npop : int, optional
+            The number of parameter vectors in the population. Default is 50.
+
+        Returns
+        -------
+        population : array_like
+            An array of parameter vectors sampled from the prior distribution.
+        """
+        return self.ps.sample_from_prior(npop)
+
+    def set_radius_ratio_limits(self, kmin, kmax):
+        for ipb in range(self.nk):
+            self.set_prior(f'k_{ipb + 1:03d}', 'UP', kmin, kmax)
+
+    def lnlikelihood(self, pv) -> ndarray | float :
+        """Log likelihood for parameter vector pv.
+
+        Parameters
+        ----------
+        pv : array-like
+            The input parameter values for the flux model.
+
+        Returns
+        -------
+        lnlike : float
+            The logarithm of the likelihood value calculated using the normal distribution.
+
+        """
+        pv = atleast_2d(pv)
+        npv = pv.shape[0]
+        fmod = self.flux_model(pv)
+        wn_multipliers = pv[:, self._sl_wnm]
+        lnl = zeros(npv)
+        if self._nm == NM_WHITE:
+            for i, d in enumerate(self.data):
+                lnl += lnlike_normal(d.fluxes, fmod[i], d.errors, wn_multipliers[:, d.noise_group], d.mask)
+        else:
+            for j in range(npv):
+                if self._nm == NM_GP_FREE:
+                    self.set_gp_hyperparameters(*pv[j, self._sl_gp])
+                for i in range(self.data.size):
+                    lnl[j] += self._gp[i].log_likelihood(self._gp_flux[i] - fmod[i][j][self.data[i].mask])
+        return lnl if npv > 1 else lnl[0]
+
+    def create_initial_population(self, n: int, source: str, add_noise: bool = True) -> ndarray:
+        """Create an initial parameter vector population for DE.
+
+        Parameters
+        ----------
+        n : int
+            Number of parameter vectors in the population.
+        source : str
+            Source of the initial population. Must be either 'fit' or 'mcmc'.
+        add_noise : bool, optional
+            Flag indicating whether to add noise to the initial population. Default is True.
+
+        Returns
+        -------
+        numpy.ndarray
+            The initial population.
+
+        Raises
+        ------
+        ValueError
+            If the source is not 'fit' or 'mcmc'.
+        """
+        rng = default_rng()
+
+        if source not in ('fit', 'mcmc'):
+            raise ValueError("source must be either 'fit' or 'mcmc'")
+
+        if source == 'fit':
+            pvs = self._de_population
+            if n == pvs.shape[0]:
+                pvp = pvs.copy()
+            else:
+                pvp = rng.choice(pvs, size=n)
+        else:
+            pvs = self._mc_chains
+            if n == pvs.shape[2]:
+                pvp = pvs[:,-1,:].copy()
+            else:
+                pvp = rng.choice(pvs.reshape([-1, self.ndim]), size=n)
+
+        if pvp[0, self._sl_baseline][0] < 0.5:
+            pvp[:, self._sl_baseline] = rng.normal(1.0, 1e-6, size=(n, sum(self.n_baselines)))
+
+        if add_noise:
+            pvp[:, self._sl_rratios] += rng.normal(0, 1, pvp[:, self._sl_rratios].shape) * 0.002 * pvp[:, self._sl_rratios]
+            pvp[:, self._sl_ld] += rng.normal(0, 1, pvp[:, self._sl_ld].shape) * 0.002 * pvp[:, self._sl_ld]
+        return pvp
+
+    def optimize_global(self, niter=200, npop=50, population=None, pool=None, lnpost=None, vectorize=True,
+                        label='Global optimisation', leave=False, plot_convergence: bool = True, use_tqdm: bool = True,
+                        plot_parameters: tuple = (0, 2, 3, 4), min_ptp: float = 5):
+
+        if population is None:
+            if self._de_population is None:
+                population = self.create_pv_population()
+            else:
+                population = self._de_population
+
+        super().optimize_global(niter=niter, npop=npop, population=population, pool=pool, lnpost=lnpost,
+                                vectorize=vectorize, label=label, leave=leave, plot_convergence=plot_convergence,
+                                use_tqdm=use_tqdm, plot_parameters=plot_parameters, min_ptp=min_ptp)
+        self._de_population = self.de.population.copy()
+        self._de_imin = self.de.minimum_index
+
+    def sample_mcmc(self, niter: int = 500, thin: int = 5, repeats: int = 1, npop: int = None, population=None,
+                    label='MCMC sampling', reset=True, leave=True, save=False, use_tqdm: bool = True, pool=None,
+                    lnpost=None, vectorize: bool = True):
+
+        if population is None:
+            if self._mc_chains is None:
+                population = self._de_population.copy()
+            else:
+                population = self._mc_chains[:, -1, :].copy()
+
+        super().sample_mcmc(niter, thin, repeats, npop=npop, population=population, label=label, reset=reset,
+                            leave=leave, save=save, use_tqdm=use_tqdm, pool=pool, lnpost=lnpost, vectorize=vectorize)
+        self._mc_chains = self.sampler.chain.copy()
+
+    def save(self, overwrite: bool = True) -> None:
+        self._runner.save(overwrite=overwrite)
