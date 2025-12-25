@@ -1,0 +1,3 @@
+from tests.condition_comprehensive_test import test_condition_lockability
+
+test_condition_lockability()
