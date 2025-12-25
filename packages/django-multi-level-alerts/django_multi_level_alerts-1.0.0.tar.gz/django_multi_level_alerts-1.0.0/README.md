@@ -1,0 +1,157 @@
+# Django Alert Thresholds
+
+A reusable Django package for managing multi-level alert thresholds with support for different metrics, operators, and alert levels (Info, Warning, Critical, Emergency).
+
+## Installation
+
+### From Git (Private Repository)
+
+```bash
+pip install git+https://git-back.tabdl.me/m.zarei/django-multi-level-alert-thresholds.git
+```
+
+### From Local Path (Development)
+
+```bash
+pip install -e /path/to/alert_thresholds
+```
+
+## Quick Start
+
+### 1. Add to INSTALLED_APPS
+
+```python
+# settings.py
+INSTALLED_APPS = [
+    ...
+    'alert_thresholds',
+    ...
+]
+```
+
+### 2. Run Migrations
+
+```bash
+python manage.py migrate alert_thresholds
+```
+
+### 3. Configure Metrics
+
+```python
+# settings.py (or separate config file)
+ALERT_THRESHOLDS = {
+    'metrics': {
+        'max_price_diff_pct': {
+            'label': 'Max Price Difference %',
+            'default_operator': 'gte',  # >=
+            'description': 'Alert when price difference exceeds threshold',
+            'models': ['myapp.MyModel'],
+        },
+        'min_balance': {
+            'label': 'Minimum Balance',
+            'default_operator': 'lt',  # <
+            'description': 'Alert when balance drops below threshold',
+            'models': ['myapp.Account'],
+        },
+    },
+    'auto_create_thresholds': True,
+}
+```
+
+### 4. Add Mixin to Models
+
+```python
+# models.py
+from django.db import models
+from alert_thresholds.mixins import AlertThresholdMixin
+
+class Account(AlertThresholdMixin, models.Model):
+    name = models.CharField(max_length=100)
+    balance = models.DecimalField(max_digits=20, decimal_places=2)
+```
+
+### 5. Add Mixin to Admin
+
+```python
+# admin.py
+from django.contrib import admin
+from alert_thresholds.admin import AlertThresholdAdminMixin
+from .models import Account
+
+@admin.register(Account)
+class AccountAdmin(AlertThresholdAdminMixin, admin.ModelAdmin):
+    list_display = ['name', 'balance']
+```
+
+## Usage in Code
+
+### Check if Threshold is Exceeded
+
+```python
+from alert_thresholds.choices import AlertLevel
+
+account = Account.objects.get(pk=1)
+
+# Check threshold and get highest triggered level
+alert_level = account.check_threshold_exceeded(
+    metric_code='min_balance',
+    current_value=account.balance
+)
+
+if alert_level == AlertLevel.EMERGENCY:
+    send_emergency_alert(account)
+elif alert_level == AlertLevel.CRITICAL:
+    send_critical_alert(account)
+```
+
+### Get Threshold Values
+
+```python
+# Get specific threshold
+emergency_threshold = account.get_threshold('min_balance', AlertLevel.EMERGENCY)
+
+# Get all thresholds for a metric
+thresholds = account.get_thresholds_for_metric('min_balance')
+# Returns: {'info': 1000, 'warning': 500, 'critical': 100, 'emergency': 50}
+```
+
+## Available Operators
+
+| Operator | Code | Description |
+|----------|------|-------------|
+| Greater Than | `gt` | value > threshold |
+| Greater Than or Equal | `gte` | value >= threshold |
+| Less Than | `lt` | value < threshold |
+| Less Than or Equal | `lte` | value <= threshold |
+| Equal | `eq` | value == threshold |
+| Not Equal | `ne` | value != threshold |
+
+## Alert Levels
+
+| Level | Value | Use Case |
+|-------|-------|----------|
+| Info | 1 | Informational, no action needed |
+| Warning | 2 | Attention needed soon |
+| Critical | 3 | Immediate attention required |
+| Emergency | 4 | Critical system failure |
+
+## Management Commands
+
+### Sync Metrics from Settings
+
+```bash
+python manage.py sync_alert_metrics
+```
+
+This is automatically run after `migrate`, but can be run manually if needed.
+
+## Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `metrics` | dict | `{}` | Metric definitions |
+| `auto_create_thresholds` | bool | `True` | Auto-create threshold records in admin |
+
+## License
+
+MIT
