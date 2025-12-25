@@ -1,0 +1,112 @@
+# RankExtractPlus
+[![PyPI version](https://badge.fury.io/py/rankextractplus.svg)](https://badge.fury.io/py/rankextractplus)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/rankextractplus)](https://pepy.tech/project/rankextractplus)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+RankExtractPlus is a Python package designed to extract and structure ranked information from unstructured text inputs. It leverages the power of large language models (LLMs) to process text and return structured, ranked outputs.
+
+## Features
+
+- Extracts and ranks information from unstructured text
+- Uses `llmatch-messages` to ensure structured and consistent outputs
+- Supports custom LLMs for flexible integration
+- Easy-to-use interface with minimal setup
+
+## Installation
+
+To install RankExtractPlus, simply run:
+
+```bash
+pip install rankextractplus
+```
+
+## Usage
+
+### Basic Usage
+
+```python
+from rankextractplus import rankextractplus
+
+user_input = "Text about the best countries at math..."
+response = rankextractplus(user_input)
+print(response)
+```
+
+### Advanced Usage with Custom LLM
+
+You can use any LLM compatible with LangChain. Here are examples with different LLMs:
+
+#### Using OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from rankextractplus import rankextractplus
+
+llm = ChatOpenAI()
+response = rankextractplus(user_input, llm=llm)
+print(response)
+```
+
+#### Using Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from rankextractplus import rankextractplus
+
+llm = ChatAnthropic()
+response = rankextractplus(user_input, llm=llm)
+print(response)
+```
+
+#### Using Google
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from rankextractplus import rankextractplus
+
+llm = ChatGoogleGenerativeAI()
+response = rankextractplus(user_input, llm=llm)
+print(response)
+```
+
+### Using LLM7 API Key
+
+By default, RankExtractPlus uses `ChatLLM7` from `langchain_llm7`. If you want to use a custom API key, you can pass it directly or set it as an environment variable:
+
+```python
+from rankextractplus import rankextractplus
+
+# Using environment variable
+import os
+os.environ["LLM7_API_KEY"] = "your_api_key"
+response = rankextractplus(user_input)
+
+# Or passing it directly
+response = rankextractplus(user_input, api_key="your_api_key")
+```
+
+## Parameters
+
+- `user_input` (str): The unstructured text input to process.
+- `llm` (Optional[BaseChatModel]): The LangChain LLM instance to use. If not provided, the default `ChatLLM7` will be used.
+- `api_key` (Optional[str]): The API key for LLM7. If not provided, the environment variable `LLM7_API_KEY` will be used.
+
+## Rate Limits
+
+The default rate limits for LLM7's free tier are sufficient for most use cases. If you need higher rate limits, you can obtain a free API key by registering at [LLM7](https://token.llm7.io/).
+
+## Contributing
+
+If you encounter any issues or have suggestions, please open an issue on [GitHub](https://github.com/chigwell/rankextractplus/issues).
+
+## Author
+
+- **Eugene Evstafev**
+- Email: hi@eugene.plus
+- GitHub: [chigwell](https://github.com/chigwell)
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
