@@ -1,0 +1,152 @@
+{
+    "title": "LLM Auditor (Search & Brand Analysis)",
+    "description": "Generate or use seed commercial prompts, optionally expand competitor brands, and run them across multiple LLM models (with optional live search) to analyse brand presence and rankings.",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "brands": {
+            "title": "Brands to analyze",
+            "type": "array",
+            "description": "List of brand names or homepage URLs to analyze. Either brand names (e.g., 'mapfre') or URLs (https://www.mapfre.es). These are usually the clients's own brands. Competitors can be specified separately.",
+            "editor": "stringList",
+            "prefill": [
+                "mapfre"
+            ]
+        },
+        "models": {
+            "title": "LLMs to Evaluate",
+            "type": "array",
+            "description": "List of LLM provider/model identifiers to evaluate. If empty, sensible defaults are used (openai/gpt-4.1, google/gemini-2.5-flash). Format: provider/model (e.g., openai/gpt-4.1, google/gemini-2.5-flash).",
+            "editor": "select",
+            "items": {
+                "type": "string",
+                "enum": [
+                    "openai/gpt-4o-mini",
+                    "openai/gpt-4o",
+                    "openai/gpt-4.1-mini",
+                    "openai/gpt-4.1",
+                    "openai/o4-mini",
+                    "openai/o3",
+                    "openai/gpt-5",
+                    "google/ai-overview",
+                    "google/gemini-2.5-pro",
+                    "google/gemini-2.5-flash",
+                    "google/gemini-2.5-flash-lite",
+                    "google/gemini-2.0-flash",
+                    "xai/grok-4",
+                    "xai/grok-3",
+                    "xai/grok-3-mini",
+                    "deepseek/deepseek-chat",
+                    "deepseek/deepseek-reasoner"
+                ]
+            },
+            "default": [
+                "openai/gpt-4.1-mini",
+                "google/gemini-2.5-flash"
+            ],
+            "prefill": [
+                "openai/gpt-4.1-mini",
+                "google/gemini-2.5-flash"
+            ]
+        },
+        "prompts": {
+            "title": "Seed Prompts",
+            "type": "array",
+            "description": "Optional list of initial prompts/questions to include in the analysis. At least one of prompts, sector, or brands must be provided so that the system can generate a more complete prompt list.",
+            "editor": "stringList",
+            "prefill": [
+                "best insurance for freelancers in spain",
+                "compare small business liability coverage options"
+            ]
+        },
+        "prompts_max": {
+            "title": "Maximum number of prompts to generate",
+            "type": "integer",
+            "description": "Maximum total number of prompts after generation + seeds prompts. Additional prompts are LLM-generated if seeds < this limit and sector or brands context is available.",
+            "editor": "number",
+            "default": 20,
+            "minimum": 1,
+            "maximum": 500
+        },
+        "prompt_intents": {
+            "title": "Intent catgories for generated prompts",
+            "type": "array",
+            "description": "Optional list of user intents to focus on when generating additional prompts (e.g., 'commercial', 'navigational', ...). Helps diversify the generated prompts.",
+            "editor": "stringList",
+            "default": [
+                "commercial",
+                "transactional"
+            ],
+            "prefill": [
+                "commercial",
+                "transactional"
+            ]
+        },
+        "prompt_language": {
+            "title": "Prompt Language",
+            "type": "string",
+            "description": "Language to use when generating additional prompts (e.g., English, Spanish).",
+            "editor": "textfield",
+            "default": "English"
+        },
+        "brands_in_prompt": {
+            "title": "Include Brands In Generated Prompts",
+            "type": "string",
+            "description": "Whether generated prompts explicitly mention brand names: never (default), sometimes, or always.",
+            "editor": "select",
+            "enum": [
+                "never",
+                "sometimes",
+                "always"
+            ],
+            "default": "never"
+        },
+        "competitors": {
+            "title": "Competitor brands to include in analysis",
+            "type": "array",
+            "description": "List of competitor brand names or homepage URLs to analyze. These can be automatically expanded up to competitors_max. Results will show own vs competitor brand presence and rankings.",
+            "editor": "stringList",
+            "prefill": [
+                "mapfre"
+            ]
+        },
+        "competitors_max": {
+            "title": "Maximum number of competitor brands",
+            "type": "integer",
+            "description": "Maximum number of competitor brands to include in analysis. If competitors are provided, they are used first, then additional competitors are discovered using search if needed up to this limit.",
+            "editor": "number",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 50
+        },
+        "sector": {
+            "title": "Sector to focus on in prompt generation and competitor discovery",
+            "type": "string",
+            "description": "Industry / sector context (e.g., insurance, banking, ecommerce). Helps prompt generation and competitor discovery.",
+            "editor": "textfield"
+        },
+        "market": {
+            "title": "Market/Region to focus on in prompt generation and competitor discovery",
+            "type": "string",
+            "description": "Geographic market focus (e.g., Spain, Germany, US). Used for competitor search and localized prompt generation.",
+            "editor": "textfield"
+        },
+        "use_search": {
+            "title": "Enable Live Search",
+            "type": "boolean",
+            "description": "If true, uses live search augmentation when querying models. Should be enabled for almost all use cases to improve relevance and factuality. Only disable specifically for testing LLM internal knowledge.",
+            "editor": "checkbox",
+            "default": true
+        },
+        "search_country": {
+            "title": "Search Localisation Country Code",
+            "type": "string",
+            "description": "Optional country code for search localisation (e.g., 'us', 'uk', 'de'). Helps get results more relevant to the target market. Only currently supported by OpenAI (GPT models), XAI (Grok), and Google's AI Overview (via hasdata API).",
+            "editor": "textfield"
+        }
+    },
+    "required": [
+        "brands"
+    ],
+    "additionalProperties": false
+}
