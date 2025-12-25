@@ -1,0 +1,188 @@
+Metadata-Version: 2.4
+Name: staticconfiguration
+Version: 1.0.0
+Summary: Strongly typed, persistent global configuration for single-machine Python applications.
+Author-email: David Muñoz Pecci <davidmpe2002@gmail.com>
+License-Expression: MPL-2.0
+Project-URL: Homepage, https://github.com/Dmpecci/staticconfiguration
+Project-URL: Repository, https://github.com/Dmpecci/staticconfiguration
+Project-URL: Issues, https://github.com/Dmpecci/staticconfiguration/issues
+Project-URL: Documentation, https://staticconfiguration.readthedocs.io/
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: psutil>=7.1.3
+Provides-Extra: dev
+Requires-Dist: pytest<10.0.0,>=9.0.2; extra == "dev"
+Requires-Dist: pytest-cov<8.0.0,>=7.0.0; extra == "dev"
+Dynamic: license-file
+
+# staticconfiguration
+
+Persistent, typed, static configuration for Python applications.
+
+`staticconfiguration` is a small, opinionated library designed to manage a
+specific subset of configuration values that are genuinely global, persistent,
+and shared across unrelated parts of an application.
+
+It is not a general configuration system, and it is not a replacement for
+dependency injection.
+
+If you’ve ever had a settings module that “worked fine” until it didn’t,
+or a DI graph where configuration slowly took over the system,
+this library is for you.
+
+## What this library is
+
+- Persistent global configuration stored in local JSON.
+- Strongly typed, schema-driven configuration.
+- Static access (no instances, no containers).
+- Safe multiprocess access via file locking.
+- Automatic schema migration.
+- Designed for single-machine applications.
+
+Typical use cases include application preferences, UI state, feature flags, timeouts, and similar cross-cutting configuration data.
+
+## What this library is not
+
+- Not a dependency injection framework.
+- Not a distributed configuration system.
+- Not a secrets manager.
+- Not optimized for high-frequency reads or large payloads.
+- Not suitable for network filesystems or multi-machine deployments.
+
+If dependency injection works well for your use case, it should be preferred.
+
+---
+
+## Introduction
+
+This project started while developing a desktop application with multiple
+subsystems that needed access to the same configuration values.
+
+At first, dependency injection was used everywhere. It worked, but over time
+the dependency graph became noisy, fragile, and dominated by configuration
+plumbing rather than domain logic.
+
+The underlying issue was simple:
+
+**Some configuration values are inherently global.**
+
+Forcing them through dependency injection did not make them safer—it only hid
+their global nature behind additional plumbing.
+
+Even when modeled as a “settings” object injected everywhere, the result is
+still a mutable global state: a single shared object that any subsystem can
+read or modify.
+
+Making them truly global, however, introduced new problems: concurrency,
+persistence, schema evolution, and recovery from failure.
+
+`staticconfiguration` is an attempt to address that narrow problem directly:
+
+**how to make global configuration explicit, constrained, and safe.**
+
+---
+
+## Installation
+
+```bash
+pip install staticconfiguration
+```
+
+---
+
+## Basic usage
+
+Configuration is declared using a regular Python class decorated with `@staticconfig`. Each field is defined explicitly using a `Data` descriptor.
+
+```python
+from staticconfiguration import staticconfig, Data
+
+@staticconfig
+class AppSettings:
+    __config_path__ = "~/.config/myapp"
+    __config_file__ = "settings.json"
+    __version__ = "1.0.0"
+    __development__ = False
+
+    api_url = Data(
+        name="api_url",
+        data_type=str,
+        default="https://api.example.com",
+    )
+
+    timeout = Data(
+        name="timeout",
+        data_type=int,
+        default=30,
+    )
+```
+
+Read and write values statically:
+
+```python
+timeout = AppSettings.get(AppSettings.timeout)
+AppSettings.set(AppSettings.timeout, 60)
+```
+
+All operations interact directly with disk. No in-memory cache is used by design,
+to avoid stale reads and hidden state.
+
+---
+
+## Important design notes
+
+The following behaviors are intentional and should be understood before using the library:
+
+- **All reads and writes acquire an exclusive file lock**, including reads.
+- **Configuration is read directly from disk on every access**.
+- **Corrupted configuration files are backed up and reset to defaults**.
+- **`concurrency_unsafe=True` disables all safety guarantees** and is a deliberate expert-only escape hatch.
+
+Each of these points is documented in detail in the documentation.
+
+---
+
+## Documentation
+
+The complete documentation is available on Read the Docs:
+
+**https://staticconfiguration.readthedocs.io/**
+
+Key sections:
+
+- **Quickstart**: Minimal setup and usage examples.
+- **Core concepts**: Design philosophy, scope, and trade-offs.
+- **Concurrency model**: Locking strategy, guarantees, and limitations.
+- **Schema migration**: Deterministic, schema-driven migration behavior.
+- **Corruption recovery**: How the library behaves when the configuration file is unreadable.
+- **Performance and validation**: Observed behavior under real multiprocess stress and chaos testing.
+- **FAQ**: Common questions and design rationale.
+- **API reference**: Full autogenerated API documentation.
+
+---
+
+## Project status
+
+- **Stable release**: v1.0.0
+- Designed for single-machine environments.
+- Local filesystem required.
+- **License**: MPL-2.0
+
+---
+
+## License
+
+Copyright (c) 2025 David Muñoz Pecci.
+
+This project is licensed under the Mozilla Public License 2.0 (MPL-2.0).
