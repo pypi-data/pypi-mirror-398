@@ -1,0 +1,2 @@
+class DyngleError(Exception):
+    pass
