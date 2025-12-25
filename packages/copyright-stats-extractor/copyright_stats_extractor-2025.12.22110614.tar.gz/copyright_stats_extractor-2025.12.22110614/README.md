@@ -1,0 +1,140 @@
+# Copyright Stats Extractor
+[![PyPI version](https://badge.fury.io/py/copyright-stats-extractor.svg)](https://badge.fury.io/py/copyright-stats-extractor)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/copyright-stats-extractor)](https://pepy.tech/project/copyright-stats-extractor)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A lightweight utility package that parses news headlines or short articles about digital copyright enforcement and automatically extracts key statistics such as the number of takedown requests processed, the year, and the entities involved.  
+The extractor uses a large language model (LLM) under the hood; by default it uses **ChatLLM7** from the `langchain_llm7` package, but you can plug in any LangChain chat model you prefer.
+
+---
+
+## 📦 Installation
+
+```bash
+pip install copyright_stats_extractor
+```
+
+---
+
+## 🚀 Getting Started
+
+```python
+from copyright_stats_extractor import copyright_stats_extractor
+
+# Example text to analyse
+user_input = """
+In 2023, the Digital Society Agency issued 12,000 takedown requests against
+unauthorized streaming sites. Major platforms such as StreamTop and IndiePlay
+reported compliance with 95% of the requests. These actions were part of
+the global crackdown on digital piracy led by the International Digital
+Rights Alliance (IDRA).
+"""
+
+# Use the default LLM7 implementation
+stats = copyright_stats_extractor(user_input)
+
+print(stats)
+```
+
+> **Output**  
+> ```
+> [
+>   "year: 2023",
+>   "takedown_requests: 12,000",
+>   "platforms_involved: StreamTop, IndiePlay",
+>   "authority: International Digital Rights Alliance (IDRA)"
+> ]
+> ```
+
+---
+
+## 🔌 Using a Custom LLM
+
+You can provide any LangChain chat model. Examples:
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from copyright_stats_extractor import copyright_stats_extractor
+
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
+stats = copyright_stats_extractor(user_input, llm=llm)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from copyright_stats_extractor import copyright_stats_extractor
+
+llm = ChatAnthropic(model="claude-3-5-sonnet-20240620", temperature=0.2)
+stats = copyright_stats_extractor(user_input, llm=llm)
+```
+
+### Google Gemini
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from copyright_stats_extractor import copyright_stats_extractor
+
+llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0.2)
+stats = copyright_stats_extractor(user_input, llm=llm)
+```
+
+> **Note**: Any LangChain-compliant chat model can be supplied via the `llm` argument.
+
+---
+
+## ⚙️ Configuration
+
+| Parameter   | Type                    | Optional? | Default          | Description |
+|-------------|------------------------|-----------|------------------|-------------|
+| `user_input` | `str` | **Required** | – | Text to analyze |
+| `api_key` | `Optional[str]` | Yes | `None` | API key for the default ChatLLM7. If omitted, the package first looks for the `LLM7_API_KEY` environment variable, then falls back to `"None"` (you will get an error if no key). |
+| `llm` | `Optional[BaseChatModel]` | Yes | `None` | Custom LangChain chat model to use instead of the default ChatLLM7. |
+
+The default ChatLLM7 uses the free tier which is more than adequate for most use cases. For higher throughput, supply a personal API key:
+
+```bash
+export LLM7_API_KEY="your_api_key_here"
+```
+
+or pass it directly:
+
+```python
+stats = copyright_stats_extractor(user_input, api_key="your_api_key_here")
+```
+
+You can obtain a free API key by registering at [https://token.llm7.io/](https://token.llm7.io/).
+
+---
+
+## 📄 Documentation of Output
+
+The function returns a list of strings, each string containing a key‑value pair extracted from the input. The keys correspond to the statistics recognized by the model (e.g. `year`, `takedown_requests`, `platforms_involved`, `authority`). The format of each string is controlled by an internal prompt that enforces a regular‑expression pattern. If you need a different output structure, customize the prompt and the regex accordingly.
+
+---
+
+## 📈 Limitations
+
+* The extraction accuracy depends on the quality of the LLM prompt and the input text length.
+* The default free tier for ChatLLM7 may impose request limits; if you hit them, upgrade your API key.
+
+---
+
+## 🐛 Issues
+
+Please file bugs or feature requests at the GitHub issues tracker:
+
+<https://github.com/chigwell/copyright-stats-extractor/issues>
+
+---
+
+## 📢 Author
+
+* **Eugene Evstafev**  
+  Email: <hi@euegne.plus>  
+  GitHub: <https://github.com/chigwell>
