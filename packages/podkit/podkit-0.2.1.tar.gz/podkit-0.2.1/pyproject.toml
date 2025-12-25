@@ -1,0 +1,61 @@
+[project]
+name = "podkit"
+version = "0.2.1"
+description = "Container management library with backend abstraction for sandboxed execution"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Navari Team" }
+]
+dependencies = [
+    "docker>=7.1.0",
+    "pydantic>=2.12.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "build>=1.2.2",
+    "twine>=6.0.0",
+    "pytest>=9.0.2",
+    "pytest-timeout>=2.2.0",
+    "pytest-xdist>=3.5.0",
+    "ruff>=0.14.10",
+    "pylint>=4.0.4",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --strict-markers"
+timeout = 300
+markers = [
+    "integration: Integration tests that use real Docker",
+    "slow: Slow tests",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]
+
+[tool.pylint.'MESSAGES CONTROL']
+max-line-length = 120
+disable = [
+    "logging-fstring-interpolation",  # Modern Python uses f-strings
+    "too-many-arguments",              # Some functions naturally need many parameters
+    "too-many-positional-arguments",   # Same as above
+    "no-member",                       # Pydantic dynamic attributes cause false positives
+    "redefined-outer-name",            # Standard pytest fixture pattern
+    "import-outside-toplevel",         # Lazy imports in fixtures are fine
+    "unused-argument",                 # Pytest fixtures may not use all arguments
+    "unnecessary-ellipsis",            # ... is the modern way for abstract methods
+]
