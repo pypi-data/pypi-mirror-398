@@ -1,0 +1,149 @@
+# bottle-sipper
+
+## Sipper is a simple, zero-configuration command-line static HTTP server. 
+
+It is built using bottle: 
+https://github.com/bottlepy/bottle | https://bottlepy.org/docs/dev/
+
+
+---
+
+
+It aims to provide the same value provided by `http-server` tool written in nodejs:
+https://github.com/http-party/http-server | https://www.npmjs.com/package/http-server
+
+---
+
+### Installation
+
+Download executable for your platform here:
+
+* [Latest Release](https://github.com/leogps/bottle-sipper/releases/tag/exe_v0.1.21)
+
+Run
+
+  ```bash
+  sipper -q -g <directory-to-serve>
+  ```
+  or
+  ```bash
+  sipper -q -g -t media <directory-to-serve> # for media template.
+  ```
+
+  
+---
+
+### Usage
+
+    # Pip based installation:
+    python -m pip install bottle-sipper
+    
+#### Zero config run
+    python -m sipper <directory-to-serve>
+
+-- OR --
+
+#### Run with 'media' template
+    python -m sipper -t media <directory-to-serve>
+
+-- OR --
+
+#### Run with 'searchable' arg
+    python -m sipper -q <directory-to-serve> # -t media ## to use media template.
+
+---
+
+#### Options
+    
+    usage: sipper.py [-h] [-d SHOW_DIR] [-a ADDRESS] [-p PORT] [-u USERNAME] [-P PASSWORD] [-b TEMPLATE_BASE_DIR] [-t USE_AVAILABLE_TEMPLATE] directory
+
+    positional arguments:
+    directory
+
+    options:
+    -h, --help            show this help message and exit
+    -d, --show-dir SHOW_DIR
+    Show directory listings
+    -a, --address ADDRESS
+    Address for the server, defaults to 0.0.0.0
+    -p, --port PORT       Port for the server
+    -b, --template-base-dir TEMPLATE_BASE_DIR
+    Template base directory. Takes precedence over --use-available-template option
+    -t, --use-available-template USE_AVAILABLE_TEMPLATE
+                    Use out-of-the-box templates. Available templates: default, media
+    -q, --searchable      Add search box to be able to search on files (Performs fuzzy search similar to fzf tool).
+    -g, --gzip            When enabled, it will server some-file.js.gz file in place of some-file.js when a gzipped version of the file exists and
+    the request accepts gzip encoding. Also applies gzip to the directory listing response.
+    -s, --silent          Suppress log messages from output
+    -w, --num-of-worker-threads NUM_OF_WORKER_THREADS
+                    Set number of server worker threads. Default is 10.
+    -c, --connections CONNECTIONS
+                    Max number of concurrent connections
+    -x, --cache-expiry CACHE_EXPIRY
+                    Set cache time (in seconds) for cache-control max-age header, e.g. -x 10 for 10 seconds. To disable caching, use -x -1.
+    -v, --version         Print the version and exit.
+
+    auth-options:
+    -u, --username USERNAME
+    Username for basic authentication
+    -P, --password PASSWORD
+    Password for basic authentication
+
+    ssl-options:
+    -S, --ssl-enabled, --tls-enabled
+    Enable secure request serving with TLS/SSL (HTTPS).
+    -C, --cert CERT       Path to ssl cert file
+    -K, --key KEY         Path to ssl key file
+---
+
+#### Programmatical usage:
+  
+    sipper = Sipper('<dir>')
+    sipper.start_sipping('0.0.0.0', 8080)
+    sipper.await_sipping_complete() # Optionally, sipper.shutdown(wait_before_shutdown=600) to shutdown after 10min.
+
+---
+
+### Development
+
+    python -m venv .venv # (Optional)
+    pip install -r requirements.txt
+
+---
+
+
+### Custom templates
+- Custom templates can be used overriding default templates by passing `-b or --template-base-dir` argument.
+- The custom template supports [SimpleTemplate Engine](https://bottlepy.org/docs/dev/stpl.html) out-of-the-box.
+- The following properties are available for use in the template:
+
+
+      {
+          "dir": "<current_directory>",
+          "template_base_dir": "<template_base_dir>",
+          "file_details_list": [{
+            {
+                "hash": "<hash_of_file_or_dir_within_parent_folder>",
+                "isDir": <true/false>,
+                "fileIconStyleClass": "<icon_style_class_for_file>",
+                "fileIconBase64": "<base64_data_of_icon>",
+                "lastModifiedDate": "<last_modified_date_formatted_as_string>",
+                "filePermissions": "<file_permissions_formatted>",
+                "fileSize": "<file_size_formatted>",
+                "fileLink": "<file_url>",
+                "fileName": "<file_name>",
+                "mimetype": "<mimetype>,
+            }
+          }],
+          "icons": [{
+            "name": "<icon_name>",
+            "base64_data": "<base64_data_icon>"
+          }],
+          "python_version": "<version_of_python>",
+          "app_name": "<application_name>",
+          "app_version": "<application_version>",
+          "app_link": "<applicantion_link>",
+          "server_address": "<address_of_server>",
+          "searchable": <true/false>
+      }
+

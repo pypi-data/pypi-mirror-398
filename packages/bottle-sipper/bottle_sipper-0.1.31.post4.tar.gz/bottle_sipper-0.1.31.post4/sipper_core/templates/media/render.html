@@ -1,0 +1,636 @@
+<div id="slideshow-modal" class="slideshow-modal">
+    <div id="slideshow-container" class="slideshow-container">
+        <!-- Spinner will appear here when loading -->
+        <div id="loading-spinner" class="loading-spinner" style="display: none;"></div>
+        <div id="slideshow-content" class="slideshow-content"></div>
+        <button class="prev" onclick="changeSlide(-1)">&#10094;</button>
+        <button class="next" onclick="changeSlide(1)">&#10095;</button>
+        <button class="close" onclick="closeSlideshow()">&#x2717;</button>
+        <button class="fullscreen" onclick="toggleFullscreen()">&#x26F6;</button> <!-- Fullscreen icon -->
+
+        <!-- Zoom Controls -->
+        <div class="zoom-controls">
+            <button class="zoom-btn" id="zoomIn">+</button>
+            <button class="zoom-btn" id="zoomOut">-</button>
+        </div>
+    </div>
+</div>
+
+<style>
+  #slideshow-modal {
+      display: none;
+      position: fixed;
+      z-index: 1;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.9);
+      justify-content: center;
+      align-items: center;
+      touch-action: none;
+  }
+
+  .slideshow-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+  }
+
+  .slideshow-content {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+  }
+
+  .slideshow-content img, .slideshow-content video {
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      image-orientation: from-image;
+      max-width: 100vw;
+      max-height: 100vh;
+  }
+
+  .slideshow-content img.rotated {
+      transform-origin: center center;
+  }
+
+  .slideshow-content img.swapped-dimensions {
+      max-width: 100vh !important;
+      max-height: 100vw !important;
+  }
+
+  #loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 6px solid #f3f3f3;
+      border-top: 6px solid #3498db;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      margin-top: -25px;
+      margin-left: -25px;
+  }
+
+  @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+  }
+
+  button.prev, button.next, button.close, button.fullscreen {
+      position: absolute;
+      background-color: rgba(0, 0, 0, 0.5);
+      color: white;
+      border: none;
+      padding: 10px;
+      cursor: pointer;
+      z-index: 2;
+  }
+
+  button.prev {
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+  }
+
+  button.next {
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+  }
+
+  button.close {
+      top: 14px;
+      right: 14px;
+  }
+
+  button.fullscreen {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(0, 0, 0, 0.5);
+      color: white;
+      border: none;
+      padding: 12px;  /* Adjust padding for consistent size */
+      cursor: pointer;
+      z-index: 2;
+      font-size: 18px;
+      border-radius: 50%; /* Ensure it stays circular */
+      width: 40px;   /* Set a fixed width */
+      height: 40px;  /* Set a fixed height equal to width */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+  }
+
+  button.prev:hover, button.next:hover, button.close:hover, button.fullscreen:hover {
+      background: rgba(255, 255, 255, 0.8);
+      color: black;
+  }
+
+  .zoom-btn:hover {
+      background: rgba(255, 255, 255, 0.8);
+      color: black;
+      transform: scale(1.1);
+  }
+
+  /* Initially hide the buttons */
+  button.prev, button.next, button.close, button.fullscreen, button.zoom-btn {
+      opacity: 0;
+      transition: opacity 0.3s ease;
+  }
+
+  /* When buttons are visible (after user interaction) */
+  .show-buttons button.prev,
+  .show-buttons button.next,
+  .show-buttons button.close,
+  .show-buttons button.fullscreen,
+  .show-buttons .zoom-controls button.zoom-btn {
+      opacity: 1;
+  }
+
+  button#playMediaBtn {
+    cursor: pointer;
+    width: 100%;
+    margin-bottom: 20px;
+    padding: 10px;
+    display: inline-block;
+    font-size: 16px;
+    font-weight: bold;
+    color: #fff;
+    background-color: #3086e3;
+    border: none;
+    border-radius: 5px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  /* Hide default checkbox */
+  #autoRotateImgCheckbox {
+      display: none;
+  }
+
+  /* Style the label as a toggle switch */
+  #autoRotateImgCheckbox + label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 35px;
+      height: 15px;
+      background: #ccc;
+      border-radius: 20px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.3s ease-in-out;
+      padding: 3px;
+  }
+
+  /* Add FontAwesome rotate icon inside the toggle */
+  #autoRotateImgCheckbox + label::before {
+      content: "\027F3";
+      font-weight: 900;
+      position: absolute;
+      left: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 20px;
+      color: white;
+      transition: transform 0.3s ease-in-out;
+  }
+
+  /* Toggle switch circle */
+  #autoRotateImgCheckbox + label::after {
+      content: "";
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      position: absolute;
+      left: 5px;
+      top: 50%;
+      transform: translateY(-50%);
+      transition: left 0.3s ease-in-out;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  }
+
+  /* When checked, change background color and move the switch */
+  #autoRotateImgCheckbox:checked + label {
+      background: #4caf50; /* Green when ON */
+  }
+
+  /* Move the switch and rotate icon when checked */
+  #autoRotateImgCheckbox:checked + label::after {
+      left: 20px;
+  }
+
+  #autoRotateImgCheckbox:checked + label::before {
+      transform: translateY(-50%) rotate(180deg);
+  }
+
+  /* Adjust spacing for the toggle and label */
+  .toggle-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+      margin-bottom: 20px;
+  }
+  /* Tooltip icon ❔ */
+  .auto-rotate-tooltip-icon {
+      font-size: 14px;
+      color: #007BFF; /* Blue color */
+      cursor: help;
+      position: relative;
+  }
+
+  /* Tooltip on hover */
+  .auto-rotate-tooltip-icon:hover::after {
+      content: "Auto-rotates images based on EXIF metadata to correct orientation.";
+      position: absolute;
+      left: 50%;
+      bottom: 150%;
+      transform: translateX(-50%);
+      width: 220px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      font-size: 12px;
+      text-align: center;
+      padding: 5px;
+      border-radius: 5px;
+      white-space: normal;
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.3s ease-in-out;
+  }
+
+  /* Tooltip hidden by default */
+  .auto-rotate-tooltip-icon::after {
+      opacity: 0;
+      visibility: hidden;
+  }
+
+  /* Zoom Controls */
+  .zoom-controls {
+      position: absolute;
+      bottom: 100px;
+      right: 20px;
+      display: flex;
+      gap: 10px;
+  }
+
+  .zoom-btn {
+      width: 50px;
+      height: 50px;
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.3s ease, transform 0.2s ease;
+  }
+
+  .zoom-btn:active {
+      transform: scale(0.9);
+  }
+
+  /* Zoom Icon Styling */
+  .zoom-btn::after {
+      content: attr(data-icon); /* Uses data-icon attribute for the symbol */
+  }
+</style>
+
+<script>
+    % include('exif.js')
+</script>
+
+<script>
+  let currentIndex = 0;
+  let slideshowRunning = false;
+  let touchStartX = 0; // To track the touch start position
+  let timeout;  // Store the timeout to clear when user interacts
+  let initialScale = 1;
+  let scale = 1;
+  const step = 0.2;
+  const maxScale = 3;
+  const minScale = 1;
+
+  function showSlide(index) {
+      scale = initialScale;
+      const slideshowContent = document.getElementById('slideshow-content');
+      const loadingSpinner = document.getElementById('loading-spinner');
+      const shouldAutoRotate = document.getElementById('autoRotateImgCheckbox').checked;
+
+      // Show the spinner while the slide is loading
+      loadingSpinner.style.display = 'block';
+
+      const effectiveFileDetailsList = getEffectiveFileDetailsList();
+      const file = effectiveFileDetailsList[index];
+      const isImage = file.mimetype.startsWith('image/');
+      const isVideo = file.mimetype.startsWith('video/');
+      const isAudio = file.mimetype.startsWith('audio');
+
+      slideshowContent.innerHTML = '';
+
+      if (file.isDir) {
+        const directory = document.createElement('div');
+        directory.innerHTML = '&#128194; ' + file.fileName;
+        directory.style.color = "#fff";
+        slideshowContent.appendChild(directory);
+        loadingSpinner.style.display = 'none';
+      } else {
+        if (isImage) {
+            const img = document.createElement('img');
+            img.src = file.fileLink;
+            img.style.display = 'none';
+            img.alt = file.fileName;
+            let orientationCorrectionCompleted = false;
+            img.onload = function() {
+                // Hide spinner once the image has loaded
+                //loadingSpinner.style.display = 'none';
+                if (shouldAutoRotate && orientationCorrectionCompleted) {
+                    // don't apply rotation more than once.
+                    img.style.diplay = 'block';
+                    loadingSpinner.style.display = 'none';
+                    return;
+                }
+                if (shouldAutoRotate) {
+                    correctImageOrientation(img, () => {
+                        orientationCorrectionCompleted = true;
+                        img.style.display = 'block';
+                        loadingSpinner.style.display = 'none';
+                    });
+                } else {
+                    img.style.display = 'block';
+                    loadingSpinner.style.display = 'none';
+                }
+            };
+            slideshowContent.appendChild(img);
+        } else if (isVideo || isAudio) {
+            const video = document.createElement('video');
+            video.src = file.fileLink;
+            video.controls = true;
+            video.oncanplay = function() {
+                // Hide spinner once the video has started playing
+                loadingSpinner.style.display = 'none';
+            };
+            video.onerror = function() {
+                loadingSpinner.style.display = 'none';
+            }
+            slideshowContent.appendChild(video);
+        } else {
+          const obj = document.createElement('object');
+          obj.data = file.fileLink;
+          obj.type = file.mimetype;
+          slideshowContent.appendChild(obj);
+          loadingSpinner.style.display = 'none';
+        }
+      }
+
+      slideshowRunning = true;
+  }
+
+  function correctImageOrientation(img, oncomplete) {
+      try {
+          EXIF.getData(img, function() {
+              let orientation = EXIF.getTag(this, "Orientation") || 1;
+              if (orientation === 1) {
+                  oncomplete();
+                  return;
+              }
+              applyRotation(img, orientation);
+              oncomplete();
+          });
+      } catch(e) {
+          console.error(e);
+          oncomplete();
+      }
+  }
+
+  function applyRotation(img, orientation) {
+      console.log("applying rotation...");
+      let rotation = "";
+      let swapDimensions = false;
+      switch (orientation) {
+          case 3:
+              rotation = "rotate(180deg)"; // Upside down
+              break;
+          case 6:
+              rotation = "rotate(90deg)"; // Rotate 90° CW
+              swapDimensions = true;
+              break;
+          case 8:
+              rotation = "rotate(-90deg)"; // Rotate 90° CCW
+              swapDimensions = true;
+              break;
+      }
+
+      if (rotation) {
+          img.style.transform = rotation;
+          img.classList.add("rotated");
+          if (swapDimensions) {
+              img.classList.add("swapped-dimensions");
+          }
+      }
+  }
+
+  function changeSlide(direction) {
+      currentIndex += direction;
+      const effectiveFileDetailsList = getEffectiveFileDetailsList();
+      if (currentIndex < 0) {
+          currentIndex = effectiveFileDetailsList.length - 1;
+      } else if (currentIndex >= effectiveFileDetailsList.length) {
+          currentIndex = 0;
+      }
+      showSlide(currentIndex);
+  }
+
+  function playMediaAt(event) {
+    event.stopPropagation();
+    const element = event.currentTarget;
+    const rowIndexStr = element.querySelector('button.play-file').getAttribute('row-index');
+    currentIndex = parseInt(rowIndexStr);
+    playMedia();
+  }
+
+  function playMedia() {
+      document.getElementById('slideshow-modal').style.display = 'flex';
+      if (currentIndex >= getEffectiveFileDetailsList().length) {
+          currentIndex = 0;
+      }
+      showSlide(currentIndex);
+  }
+
+  function closeSlideshow() {
+      document.getElementById('slideshow-modal').style.display = 'none';
+      try {
+          exitFullscreen();
+      } catch(e) {}
+      slideshowRunning = false;
+  }
+
+  function requestFullscreen() {
+      const slideshowModal = document.getElementById('slideshow-modal');
+      // If not in fullscreen, request fullscreen
+      if (slideshowModal.requestFullscreen) {
+          slideshowModal.requestFullscreen();
+      } else if (slideshowModal.mozRequestFullScreen) { // Firefox
+          slideshowModal.mozRequestFullScreen();
+      } else if (slideshowModal.webkitRequestFullscreen) { // Chrome, Safari, Opera
+          slideshowModal.webkitRequestFullscreen();
+      } else if (slideshowModal.msRequestFullscreen) { // IE/Edge
+          slideshowModal.msRequestFullscreen();
+      }
+  }
+
+  function exitFullscreen() {
+      // If in fullscreen, exit fullscreen
+      if (document.exitFullscreen && document.fullscreenElement) {
+          document.exitFullscreen();
+      } else if (document.mozCancelFullScreen) { // Firefox
+          document.mozCancelFullScreen();
+      } else if (document.webkitExitFullscreen) { // Chrome, Safari, Opera
+          document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) { // IE/Edge
+          document.msExitFullscreen();
+      }
+  }
+
+  function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+          requestFullscreen();
+      } else {
+          exitFullscreen();
+      }
+  }
+
+  // Function to show the buttons
+  function showButtons() {
+      const modal = document.getElementById('slideshow-modal');
+      modal.classList.add('show-buttons');
+
+      // Clear the timeout if user interacts again before hiding
+      clearTimeout(timeout);
+
+      // Set timeout to hide the buttons after 2 seconds of inactivity
+      timeout = setTimeout(() => {
+          modal.classList.remove('show-buttons');
+      }, 2000);
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+      // Event listener for Escape key on slideshow modal
+      document.addEventListener('keydown', function(event) {
+          if (slideshowRunning) {
+              showButtons();  // Show buttons again on any key press
+              switch (event.key) {
+                  case 'ArrowLeft':
+                      changeSlide(-1); // Go to the previous slide
+                      break;
+                  case 'ArrowRight':
+                      changeSlide(1); // Go to the next slide
+                      break;
+                  case 'q':
+                  case 'Q':
+                  case 'Escape':
+                      closeSlideshow();
+                      break;
+                  case 'f':
+                  case 'F':
+                      event.preventDefault();
+                      toggleFullscreen();
+                      break;
+              }
+          }
+      });
+
+      // Add touch event listeners for swipe gestures
+      const slideshowContainer = document.getElementById('slideshow-container');
+
+      slideshowContainer.addEventListener('touchstart', function(e) {
+          if (slideshowRunning) {
+              touchStartX = e.changedTouches[0].screenX; // Record the starting touch position
+          }
+      });
+
+      slideshowContainer.addEventListener('touchend', function(e) {
+          if (slideshowRunning) {
+              const touchEndX = e.changedTouches[0].screenX; // Record the ending touch position
+              const swipeDistance = touchEndX - touchStartX; // Calculate the swipe distance
+
+              if (swipeDistance > 50) { // Swipe right
+                  changeSlide(-1); // Go to the previous slide
+              } else if (swipeDistance < -50) { // Swipe left
+                  changeSlide(1); // Go to the next slide
+              } else {
+                  showButtons();  // Show buttons again on screen touch
+              }
+              e.stopPropagation();
+          }
+      });
+
+      // `showButtons` on mouse move
+      document.addEventListener('mousemove', function() {
+          if (slideshowRunning) {
+              showButtons();
+          }
+      });
+
+      document.getElementById("zoomIn").addEventListener("click", () => {
+          if (scale < maxScale) {
+              scale += step;
+              updateZoom();
+          }
+      });
+
+      document.getElementById("zoomOut").addEventListener("click", () => {
+          if (scale > minScale) {
+              scale -= step;
+              updateZoom();
+          }
+      });
+
+      function updateZoom() {
+          const slideshowContent = document.getElementById('slideshow-content');
+          const child = slideshowContent.children[0];
+
+          // Get the existing transform property value
+          let transform = child.style.transform || ''; // Default to an empty string if transform is not set
+          // Check if 'scale' already exists in the transform
+          if (transform.includes('scale')) {
+              // Replace the existing scale value with the new one
+              transform = transform.replace(/scale\([^\)]+\)/, `scale(${scale})`);
+          } else {
+              // Append the new scale if it's not present
+              transform += ` scale(${scale})`;
+          }
+          // Apply the updated transform
+          child.style.transform = transform;
+
+          // Update the size of the content element to enable scrolling
+          child.style.width = `${child.naturalWidth * scale}px`;
+          child.style.height = `${child.naturalHeight * scale}px`;
+
+          if (scale > 1) {
+              slideshowContent.style.overflow = "auto";
+          } else {
+              slideshowContent.style.overflow = "hidden";
+          }
+      }
+
+      // Initially hide the buttons after 2 seconds of inactivity
+      showButtons(); // To show them once when the page loads
+  });
+</script>
