@@ -1,0 +1,101 @@
+# csv-to-yaml
+
+Lightweight CSV to YAML and YAML to CSV converter.
+
+## Installation
+
+```bash
+pip install csv-to-yaml
+```
+
+Or with uv:
+
+```bash
+uv add csv-to-yaml
+```
+
+## Requirements
+
+- Python >= 3.13
+- PyYAML >= 6.0
+
+## CLI Usage
+
+```bash
+# Convert CSV to YAML (output to stdout)
+csv-to-yaml input.csv
+
+# Convert YAML to CSV (output to stdout)
+csv-to-yaml input.yaml
+
+# Specify output file
+csv-to-yaml input.csv -o output.yaml
+csv-to-yaml input.yaml -o output.csv
+
+# Explicitly specify output format
+csv-to-yaml input.csv -f yaml
+csv-to-yaml input.yaml -f csv
+```
+
+## Python API
+
+### Convert CSV to YAML
+
+```python
+from main import csv_to_yaml
+
+# From file path
+data = csv_to_yaml("data.csv")  # Returns list of dicts
+yaml_str = csv_to_yaml("data.csv", as_string=True)  # Returns YAML string
+
+# From string
+csv_data = "name,age\nAlice,30\nBob,25"
+data = csv_to_yaml(csv_data)
+```
+
+### Convert YAML to CSV
+
+```python
+from main import yaml_to_csv
+
+# From file path
+data = yaml_to_csv("data.yaml")  # Returns list of dicts
+csv_str = yaml_to_csv("data.yaml", as_string=True)  # Returns CSV string
+
+# From string
+yaml_data = "- name: Alice\n  age: 30"
+data = yaml_to_csv(yaml_data)
+```
+
+### File-to-File Conversion
+
+```python
+from main import csv_file_to_yaml_file, yaml_file_to_csv_file
+
+csv_file_to_yaml_file("input.csv", "output.yaml")
+yaml_file_to_csv_file("input.yaml", "output.csv")
+```
+
+## Unicode Support
+
+Full Unicode support including CJK characters:
+
+```python
+csv_data = "이름,나이\n홍길동,30"
+result = csv_to_yaml(csv_data)
+# [{'이름': '홍길동', '나이': '30'}]
+```
+
+## Development
+
+```bash
+# Install dev dependencies
+uv sync
+
+# Run tests
+pytest
+```
+
+## License
+
+MIT
