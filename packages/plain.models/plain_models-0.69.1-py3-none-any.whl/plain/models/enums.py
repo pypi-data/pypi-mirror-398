@@ -1,0 +1,103 @@
+from __future__ import annotations
+
+import enum
+from types import DynamicClassAttribute
+from typing import Any
+
+from plain.utils.functional import Promise
+
+__all__ = ["Choices", "IntegerChoices", "TextChoices"]
+
+
+class ChoicesMeta(enum.EnumMeta):
+    """A metaclass for creating a enum choices."""
+
+    def __new__(
+        metacls: type,
+        classname: str,
+        bases: tuple[type, ...],
+        classdict: Any,
+        **kwds: Any,
+    ) -> type:
+        labels = []
+        for key in classdict._member_names:
+            value = classdict[key]
+            if (
+                isinstance(value, list | tuple)
+                and len(value) > 1
+                and isinstance(value[-1], Promise | str)
+            ):
+                *value, label = value
+                value = tuple(value)
+            else:
+                label = key.replace("_", " ").title()
+            labels.append(label)
+            # Use dict.__setitem__() to suppress defenses against double
+            # assignment in enum's classdict.
+            dict.__setitem__(classdict, key, value)
+        cls = super().__new__(metacls, classname, bases, classdict, **kwds)  # type: ignore[misc]
+        for member, label in zip(cls.__members__.values(), labels):
+            member._label_ = label
+        return enum.unique(cls)
+
+    def __contains__(cls, member: object) -> bool:  # type: ignore[override]
+        if not isinstance(member, enum.Enum):
+            # Allow non-enums to match against member values.
+            return any(x.value == member for x in cls)  # type: ignore[attr-defined]
+        return super().__contains__(member)
+
+    @property
+    def names(cls) -> list[str]:
+        empty = ["__empty__"] if hasattr(cls, "__empty__") else []
+        return empty + [member.name for member in cls]  # type: ignore[attr-defined]
+
+    @property
+    def choices(cls) -> list[tuple[Any, str]]:
+        empty = [(None, cls.__empty__)] if hasattr(cls, "__empty__") else []
+        return empty + [(member.value, member.label) for member in cls]  # type: ignore[attr-defined]
+
+    @property
+    def labels(cls) -> list[str]:
+        return [label for _, label in cls.choices]
+
+    @property
+    def values(cls) -> list[Any]:
+        return [value for value, _ in cls.choices]
+
+
+class Choices(enum.Enum, metaclass=ChoicesMeta):
+    """Class for creating enumerated choices."""
+
+    # Dynamically set by metaclass
+    _label_: str
+
+    @DynamicClassAttribute
+    def label(self) -> str:
+        return self._label_
+
+    def __str__(self) -> str:
+        """
+        Use value when cast to str, so that Choices set as model instance
+        attributes are rendered as expected in templates and similar contexts.
+        """
+        return str(self.value)
+
+    # A similar format was proposed for Python 3.10.
+    def __repr__(self) -> str:
+        return f"{self.__class__.__qualname__}.{self._name_}"
+
+
+class IntegerChoices(int, Choices):
+    """Class for creating enumerated integer choices."""
+
+    pass
+
+
+class TextChoices(str, Choices):
+    """Class for creating enumerated string choices."""
+
+    @staticmethod
+    def _generate_next_value_(
+        name: str, start: int, count: int, last_values: list[str]
+    ) -> str:
+        return name
