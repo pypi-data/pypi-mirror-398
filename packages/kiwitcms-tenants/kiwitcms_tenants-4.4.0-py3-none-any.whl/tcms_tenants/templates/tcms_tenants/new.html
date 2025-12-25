@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% comment %}
+Copyright (c) 2019-2023 Alexander Todorov <atodorov@otb.bg>
+Copyright (c) 2022 Ivajlo Karabojkov <karabojkov@kitbg.com>
+
+Licensed under GNU Affero General Public License v3 or later (AGPLv3+)
+https://www.gnu.org/licenses/agpl-3.0.html
+{% endcomment %}
+
+{% load i18n %}
+{% load static %}
+
+{% block head %}
+    {{ form.media }}
+{% endblock %}
+{% block title %}
+    {% trans "New tenant" as default_page_title %}
+    {{ page_title|default:default_page_title }}
+{% endblock %}
+
+
+{% block contents %}
+    {% url 'tcms_tenants:create-tenant' as form_url %}
+
+    <div class="container-fluid container-cards-pf">
+        <form class="form-horizontal" action="{{ form_action_url|default:form_url }}" method="post">
+            {% csrf_token %}
+            <input name="owner" type="hidden" value="{{ form.owner.value }}">
+
+            <div class="form-group">
+                <label class="col-md-1 col-lg-1" for="id_name">{% trans "Name" %}</label>
+                <div class="col-sm-11 col-md-8 col-lg-5 {% if form.name.errors %}has-error{% endif %}">
+                    <input type="text" id="id_name" maxlength="{{ form.fields.name.max_length }}"
+                           placeholder='{% trans "Company, team or project name" %}'
+                           name="name" value="{{ form.name.value|default:'' }}"
+                           class="form-control" required
+                           {% if form.name.field.disabled %}disabled{% endif %}>
+                    {{ form.name.errors }}
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="col-md-1 col-lg-1" for="id_schema">{% trans "Schema" %}</label>
+                <div class="col-sm-11 col-md-8 col-lg-5 {% if form.schema_name.errors %}has-error{% endif %}">
+                    <div class="input-group">
+                        <span class="input-group-addon">https://</span>
+                        <input type="text" id="id_schema" maxlength="{{ form.fields.schema_name.max_length }}"
+                               placeholder="commodore64"
+                               name="schema_name" value="{{ form.schema_name.value|default:'' }}"
+                               class="form-control" required
+                               {% if form.schema_name.field.disabled %}disabled{% endif %}>
+                        <span class="input-group-addon">.{{ tcms_tenants_domain }}</span>
+                    </div>
+                    {{ form.schema_name.errors }}
+                    <p class="help-block">
+                        {% trans "Validation pattern" %}: {{ validation_pattern }}
+                    </p>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="col-md-1 col-lg-1" for="id_publicly_readable">{% trans "Publicly readable" %}</label>
+                <div class="col-md-3 col-lg-3 {% if form.publicly_readable.errors %}has-error{% endif %}">
+                    <input class="bootstrap-switch" name="publicly_readable" type="checkbox"
+                        {% if form.publicly_readable.value %}checked{% endif %}
+                        {% if form.publicly_readable.field.disabled %}disabled{% endif %}
+                        data-on-text="{% trans 'Yes' %}" data-off-text="{% trans 'No' %}">
+                    {{ form.publicly_readable.errors }}
+                </div>
+            </div>
+
+            {% block extra_contents %}
+                {{ form.paid_until }}
+            {% endblock %}
+            <button type="submit" class="btn btn-default btn-lg">{% trans "Save" %}</button>
+        </form>
+    </div>
+
+    {% if object %}
+    <div class="col-sm-11 col-md-6 col-lg-6" style="padding-left: 10px;">
+        {% trans "Tenant logo" as card_title %}
+        {% include 'include/attachments.html' %}
+    </div>
+    {% endif %}
+{% endblock %}
