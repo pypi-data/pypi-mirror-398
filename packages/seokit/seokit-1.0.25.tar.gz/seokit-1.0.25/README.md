@@ -1,0 +1,217 @@
+# SEOKit
+
+[![PyPI version](https://img.shields.io/pypi/v/seokit)](https://pypi.org/project/seokit/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
+[![Powered by ClaudeKit](https://img.shields.io/badge/Powered%20by-ClaudeKit-orange)](https://claudekit.cc/?ref=1MZB7T9P)
+
+Claude Code toolkit for creating high-quality SEO articles.
+
+## Prerequisites
+
+Install [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) before using SEOKit.
+
+## Installation
+
+### Using pipx (Recommended)
+
+```bash
+# Install pipx if not already installed
+sudo apt install pipx  # Ubuntu/Debian
+# or: brew install pipx  # macOS
+
+pipx install seokit
+seokit setup  # Install slash commands, scripts, and venv
+```
+
+### Using pip with virtual environment
+
+```bash
+python3 -m venv ~/.seokit-venv
+~/.seokit-venv/bin/pip install seokit
+echo 'alias seokit="~/.seokit-venv/bin/seokit"' >> ~/.bashrc
+source ~/.bashrc
+seokit setup
+```
+
+### Using pip (if no PEP 668 restriction)
+
+```bash
+pip install seokit
+seokit setup
+```
+
+### On modern Linux (Ubuntu 23.04+, Debian 12+)
+
+```bash
+pip install seokit --break-system-packages
+seokit setup
+```
+
+## Quick Start
+
+```bash
+# 1. Install
+pipx install seokit
+
+# 2. Setup (installs commands, scripts, venv)
+seokit setup
+
+# 3. Configure API key
+seokit config
+```
+
+## Features
+
+- Search Intent Analysis - Understand user needs via Perplexity API
+- Competitor Research - Analyze top 10 ranking articles
+- Outline Creation - Structure content following Google E-E-A-T guidelines
+- Outline Optimization - Apply 80/20 content distribution rules
+- Article Writing - Generate full articles with DOCX export
+
+## Usage
+
+After installation, SEOKit slash commands are available in Claude Code. Refer to the `.claude/commands/` directory for detailed usage of each command.
+
+### Workflow
+
+1. `/search-intent "keyword"` - Analyze search intent
+2. `/top-article "keyword"` - Find top 10 competitor articles
+3. `/create-outline` - Create structured outline
+4. `/optimize-outline` - Optimize with 80/20 rule
+5. `/write-seo` - Generate full article + DOCX
+6. `/internal-link ./keyword-slug/article.md` - Add internal links
+
+### Output Structure
+
+```
+your-project/
+└── keyword-slug/           # Auto-created per keyword
+    ├── search-intent.md
+    ├── top-articles.md
+    ├── outline.md
+    ├── outline-optimized.md
+    ├── article.md
+    └── article.docx
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `/search-intent [keyword]` | Analyze search intent |
+| `/top-article [keyword]` | Find top competitor articles |
+| `/create-outline` | Create article outline |
+| `/optimize-outline` | Optimize outline structure |
+| `/write-seo` | Write full article |
+| `/internal-link:sync [url]` | Sync internal links from sitemap |
+| `/internal-link:list` | List all internal link entries |
+| `/internal-link [file]` | Apply internal links to article |
+| `/seokit-init` | Initialize workspace context |
+
+## CLI Commands
+
+```bash
+seokit --help                   # Show help
+seokit setup                    # Install slash commands, scripts, venv
+seokit config                   # Configure API key
+seokit update                   # Update files (preserves .env, checklists)
+seokit update -f                # Reset all files to defaults
+seokit uninstall                # Remove SEOKit data and slash commands
+```
+
+## Requirements
+
+- Python 3.10+
+- Perplexity API key ([get one here](https://www.perplexity.ai/settings/api))
+
+## Troubleshooting
+
+### "SEOKit not configured. Run: seokit setup"
+
+Run the setup command to install all runtime files:
+
+```bash
+seokit setup
+```
+
+### "PERPLEXITY_API_KEY not configured"
+
+```bash
+seokit config
+# Or manually:
+echo "PERPLEXITY_API_KEY=pplx-your-key" >> ~/.claude/seokit/.env
+```
+
+### Commands not found
+
+Run `seokit setup` to install slash commands:
+
+```bash
+seokit setup
+```
+
+This copies the slash command files to `~/.claude/commands/`.
+
+## Update
+
+```bash
+pip install -U seokit  # Update package
+seokit update          # Update slash commands, scripts & checklists
+```
+
+Use `seokit update -f` to reset all files to defaults (overwrites checklists).
+
+## Checklist System
+
+SEOKit uses a two-tier checklist system:
+
+### Common Checklists (Package)
+Located in `$SEOKIT_HOME/checklists/`:
+- `outline-checklist.md` - Universal outline rules
+- `article-checklist.md` - Universal article rules
+
+These update automatically with SEOKit.
+
+### Custom Checklist (Project)
+Create `seokit-checklist.md` in your project root for custom rules:
+
+```bash
+cp "$SEOKIT_HOME/checklists/seokit-checklist-template.md" ./seokit-checklist.md
+```
+
+Sections:
+- `## Shared Rules` - Applied to both outline and article
+- `## Outline Overrides` - Applied only to /create-outline
+- `## Article Overrides` - Applied only to /write-seo
+
+Custom rules can override common rules (e.g., stricter limits, brand requirements).
+
+## Uninstall
+
+```bash
+seokit uninstall      # Removes data, slash commands, and pip package
+```
+
+### On modern Linux (Ubuntu 23.04+, Debian 12+)
+
+If you see `externally-managed-environment` error (PEP 668):
+
+```bash
+# If installed with pip
+pip uninstall seokit --break-system-packages
+
+# If installed with pipx
+pipx uninstall seokit
+```
+
+## Documentation
+
+See `docs/` folder for detailed documentation:
+- [Codebase Summary](docs/codebase-summary.md) - Architecture overview
+- [Project Overview](docs/project-overview-pdr.md) - Product requirements
+- [Code Standards](docs/code-standards.md) - Development guidelines
+
+## License
+
+Proprietary - see [LICENSE](LICENSE) for details.
