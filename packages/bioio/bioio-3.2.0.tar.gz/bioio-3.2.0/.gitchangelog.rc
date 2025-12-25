@@ -1,0 +1,41 @@
+# -*- coding: utf-8; mode: python -*-
+
+ignore_regexps = [
+    r'^(.{3,3}\s*:)?\s*[fF]irst commit.?\s*$',
+    r'^[iI]ntial commit.?\s*$',
+    r'^$',  # ignore commits with empty messages
+    r'^Bump version: .*',
+]
+
+section_regexps = [
+    ("New", [
+        r"^[fF]eature.*$",
+    ]),
+    ("Fix", [
+        r"^[bB]ugfix.*$",
+        r"^[fF]ix.*$",
+        r"^[hH]otfix.*$",
+    ]),
+    ("Other", None),  # Match all remaining
+]
+
+# Drop commit bodies from changelog (keep only titles)
+body_process = ReSub(r".*", "") | strip
+
+subject_process = ReSub(
+    r"^(.*)(\ ?\(\#([0-9]+)\))$",
+    r"\1 (`#\3 <https://github.com/bioio-devs/bioio/pull/\3>`_)",
+)
+
+tag_filter_regexp = r"^v[0-9]+\.[0-9]+(\.[0-9]+)?$"
+
+# Label for changes since last tag on main
+unreleased_version_label = "(unreleased)"
+
+output_engine = rest_py
+
+# Don’t include merge commits
+include_merge = False
+
+publish = stdout
+revs = []
