@@ -1,0 +1,86 @@
+services:
+{% for svc in servers %}
+  {{ svc.name }}:
+    build:
+      context: {{ svc.build.context }}
+      dockerfile: Dockerfile
+    stdin_open: true
+    tty: true
+    env_file:
+      - {{ svc.env_file }}
+    container_name: {{ svc.name }}
+{% if svc.ports is defined %}
+    ports:
+{% for p in svc.ports %}
+      - "{{ p }}"
+{% endfor %}
+{% endif %}
+{% if svc.expose is defined %}
+    expose:
+{% for e in svc.expose %}
+      - {{ e }}
+{% endfor %}
+{% endif %}
+{% if svc.networks is defined %}
+    networks:
+{% for n in svc.networks %}
+      - {{ n }}
+{% endfor %}
+{% endif %}
+{% if svc.resources is defined %}
+    deploy:
+      resources:
+{% if svc.resources.limits is defined %}
+        limits:
+{% for k, v in svc.resources.limits.items() %}
+          {{ k }}: {{ v }}
+{% endfor %}
+{% endif %}
+{% if svc.resources.reservations is defined %}
+        reservations:
+{% for k, v in svc.resources.reservations.items() %}
+          {{ k }}: {{ v }}
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endfor %}
+{% if database %}
+  db:
+    image: postgres
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: {{ database.user }}
+      POSTGRES_PASSWORD: {{ database.password }}
+      POSTGRES_DB: {{ database.db }}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    ports:
+      - "5432:5432"
+{% endif %}
+{% if web %}
+  frontend:
+    build: ./web/frontend
+    container_name: frontend_app
+    ports:
+      - "80:80"   # Host:Container
+    depends_on:
+      - backend
+
+  backend:
+    build: ./web/backend
+    container_name: web_server
+    ports:
+      - "8000:8000"
+{% if database %}
+    environment:
+      - DATABASE_URL=postgresql://{{ database.user }}:{{ database.password }}@db:5432/{{ database.db }}
+    depends_on:
+      - db
+{% endif %}
+{% endif %}
+
+{% if database %}
+volumes:
+  postgres_data:
+{% endif %}
