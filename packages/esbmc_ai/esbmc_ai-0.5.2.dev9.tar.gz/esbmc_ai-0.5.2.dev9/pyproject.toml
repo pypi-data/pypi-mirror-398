@@ -1,0 +1,95 @@
+[project]
+name = "esbmc_ai"
+description = "LLM driven development and automatic repair kit."
+readme = "README.md"
+requires-python = ">=3.12"
+license-files = ["LICENSE", "CLA.md"]
+authors = [{ name = "Yiannis Charalambous", email = "yiannis128@hotmail.com" }]
+keywords = ["AI", "LLM", "automated code repair", "esbmc"]
+classifiers = [
+  "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+  "License :: Other/Proprietary License",
+  "Programming Language :: Python :: 3",
+]
+dependencies = [
+  "blessed",
+  "langchain",
+  "langchain-anthropic",
+  "langchain-community",
+  "langchain-ollama",
+  "langchain-openai",
+  "lizard",
+  "structlog",
+  "platformdirs",
+  "python-dotenv",
+  "pydantic",
+  "regex",
+  "torch",               # Needed by transformers
+  "transformers",        # Needed by langchain-core to calculate get_token_ids
+]
+# https://hatch.pypa.io/latest/version/
+dynamic = ["version"]
+
+[project.urls]
+Documentation = "https://github.com/esbmc/esbmc-ai/wiki"
+Homepage = "https://github.com/esbmc/esbmc-ai"
+Issues = "https://github.com/esbmc/esbmc-ai/issues"
+"Source Code" = "https://github.com/esbmc/esbmc-ai"
+
+[project.scripts]
+esbmc-ai = "esbmc_ai.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "esbmc_ai/__about__.py"
+
+[tool.hatch.envs.default]
+description = "Default environment. Used for development."
+dependencies = [
+  "pylint",
+  "ipykernel",
+  "py",        # Dependency of pytest-regtest
+  "twine",
+  "pydeps",
+]
+
+pre-install-commands = [
+  # Preinstall hook for PyTorch - installs CPU-only version if CPU_ONLY=true
+  '[ -n "$CPU_ONLY" ] && pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu',
+]
+
+[tool.hatch.envs.default.scripts]
+# Container build - tags image with ESBMC-AI version (from __about__.py), git commit, and 'latest'
+# Usage: hatch run {docker|podman}-build [extra_packages] [esbmc_tool_version]
+# extra_packages: optional pip packages to inject (e.g., "langchain-google-genai")
+# esbmc_tool_version: ESBMC verifier version to install (default: "latest")
+# Example: hatch run docker-build "langchain-google-genai" "v7.4"
+podman-build = "bash scripts/container/build.sh podman {args}"
+docker-build = "bash scripts/container/build.sh docker {args}"
+
+find-cycles = "pydeps esbmc_ai --show-cycles --no-show -o esbmc_ai.svg"
+
+[tool.hatch.envs.hatch-test]
+description = "Used when running pytest. Using hatch test..."
+extra-dependencies = [
+  "pytest",
+  "pytest-subtests",
+  "pytest-cov",
+  "pytest-regtest",
+]
+
+[tool.hatch.build.targets.sdist]
+include = ["/esbmc_ai"]
+# exclude = ["**/*"]
+# packages = ["esbmc_ai"]
+
+[tool.hatch.build.targets.wheel]
+include = ["/esbmc_ai"]
+# exclude = ["**/*"]
+# packages = ["esbmc_ai"]
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
