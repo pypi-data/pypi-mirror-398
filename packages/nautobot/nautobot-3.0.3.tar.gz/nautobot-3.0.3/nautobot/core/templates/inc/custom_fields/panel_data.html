@@ -1,0 +1,71 @@
+{% load helpers %}
+{% if custom_fields %}
+    <div class="card">
+        <div class="card-header">
+            <strong>Custom Fields</strong>
+            <button
+                aria-expanded="true"
+                class="btn btn-primary btn-sm float-end"
+                data-nb-target="#custom_fields_accordion_{{ advanced_ui }} .collapse"
+                data-nb-toggle="collapse-all"
+                type="button"
+            >
+                Collapse All Groups
+            </button>
+        </div>
+        <table id="custom_fields_accordion_{{ advanced_ui }}" class="table table-hover card-body attr-table">
+            {% for grouping, fields in custom_fields.items %}
+                {% with forloop.counter0 as count %}
+                    {% if grouping != "" %}
+                        <tr>
+                            <td class="position-relative" colspan="2">
+                                <button
+                                    aria-expanded="true"
+                                    class="btn float-none fs-4 fw-medium stretched-link nb-collapse-toggle"
+                                    data-bs-target=".collapseme-{{ count }}"
+                                    data-bs-toggle="collapse"
+                                    name="grouping.{{ grouping }}"
+                                    type="button"
+                                >
+                                    <span aria-hidden="true" class="mdi mdi-chevron-down me-4"></span><!--
+                                    -->{{ grouping }}
+                                </button>
+                            </td>
+                        </tr>
+                    {% endif %}
+                    {% for field, value in fields %}
+                        <tr class="collapseme-{{ count }} collapse show nb-transition-none">
+                            <td><span title="{{ field.description }}">{{ field }}</span></td>
+                            <td>
+                                {% if field.type == 'boolean' %}
+                                    {{ value | render_boolean }}
+                                {% elif field.type == 'url' and value %}
+                                    <a href="{{ value }}">{{ value|truncatechars:70 }}</a>
+                                {% elif field.type == 'multi-select' and value %}
+                                    {{ value|join:", " }}
+                                {% elif field.type == 'markdown' and value %}
+                                    {{ value|render_markdown }}
+                                {% elif field.type == 'json' and value is not None %}
+                                    <p>
+                                        <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="collapse"
+                                                data-bs-target="#cf_{{ field.key }}" aria-expanded="false"
+                                                aria-controls="cf_{{ field.key }}">
+                                            Show/Hide
+                                        </button>
+                                    </p>
+                                    <pre class="collapse" id="cf_{{ field.key }}">{{ value|render_json }}</pre>
+                                {% elif value or value == 0 %}
+                                    {{ value }}
+                                {% elif field.required %}
+                                    <span class="text-warning">Not defined</span>
+                                {% else %}
+                                    <span class="text-secondary">&mdash;</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% endwith %}
+            {% endfor %}
+        </table>
+    </div>
+{% endif %}

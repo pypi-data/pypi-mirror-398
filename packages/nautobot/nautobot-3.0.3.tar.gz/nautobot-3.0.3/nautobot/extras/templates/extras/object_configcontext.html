@@ -1,0 +1,66 @@
+{% extends base_template %}
+{% load helpers %}
+{% load static %}
+
+{% block content %}
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <strong>Rendered Context</strong>
+                    {% include 'extras/inc/configcontext_format.html' with data_format=format %}
+                </div>
+                <div class="card-body">
+                    {% include 'extras/inc/json_data.html' with data=rendered_context format=format %}
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <strong>Local Config Context</strong>
+                </div>
+                <div class="card-body">
+                    {% if object.local_config_context_data %}
+                        {% if object.local_config_context_schema %}
+                            <span>Schema {{ object.local_config_context_schema|hyperlinked_object }}</span>
+                        {% endif %}
+                        {% if object.local_config_context_data_owner %}
+                            Owned by <strong>{{ object.local_config_context_data_owner|hyperlinked_object }}</strong>
+                        {% endif %}
+                        {% include 'extras/inc/json_data.html' with data=object.local_config_context_data format=format %}
+                    {% else %}
+                        <span class="text-secondary">None</span>
+                    {% endif %}
+                </div>
+                <div class="card-footer">
+                    <span class="form-text">
+                        <span class="mdi mdi-information-outline"></span>
+                        The local config context overwrites all source contexts.
+                    </span>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <strong>Source Contexts</strong>
+                </div>
+                {% for context in source_contexts %}
+                    <div class="card-body">
+                        <div class="float-end">
+                            <span class="text-secondary">{{ context.weight }}</span>
+                        </div>
+                        {{ context|hyperlinked_object }}
+                        {% if context.description %}
+                            <br /><small>{{ context.description }}</small>
+                        {% endif %}
+                        {% include 'extras/inc/json_data.html' with data=context.data format=format %}
+                    </div>
+                {% empty %}
+                    <div class="card-body">
+                        <span class="text-secondary">None found</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+{% endblock %}
