@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Request Handlers &#8212; pyfuse3 3.4.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css?v=2bf1fcf8" />
+    
+    <script src="_static/documentation_options.js?v=149be4c9"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Utility Functions" href="util.html" />
+    <link rel="prev" title="Data Structures" href="data.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="util.html" title="Utility Functions"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="data.html" title="Data Structures"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">pyfuse3 3.4.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Request Handlers</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="request-handlers">
+<h1>Request Handlers<a class="headerlink" href="#request-handlers" title="Link to this heading">¶</a></h1>
+<p>(You can use the <a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a> to directly jump to a specific handler).</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyfuse3.Operations">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pyfuse3.</span></span><span class="sig-name descname"><span class="pre">Operations</span></span><a class="headerlink" href="#pyfuse3.Operations" title="Link to this definition">¶</a></dt>
+<dd><p>This class defines the request handler methods that an pyfuse3 file system
+may implement. If a particular request handler has not been implemented, it
+must raise <a class="reference internal" href="data.html#pyfuse3.FUSEError" title="pyfuse3.FUSEError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FUSEError</span></code></a> with an errorcode of <a class="reference external" href="https://docs.python.org/3/library/errno.html#errno.ENOSYS" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">errno.ENOSYS</span></code></a>. Further requests
+of this type will then be handled directly by the FUSE kernel module without
+calling the handler again.</p>
+<p>The only exception that request handlers are allowed to raise is
+<a class="reference internal" href="data.html#pyfuse3.FUSEError" title="pyfuse3.FUSEError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FUSEError</span></code></a>. This will cause the specified errno to be returned by the
+syscall that is being handled.</p>
+<p>It is recommended that file systems are derived from this class and only
+overwrite the handlers that they actually implement. (The methods defined in
+this class all just raise <code class="docutils literal notranslate"><span class="pre">FUSEError(ENOSYS)</span></code> or do nothing).</p>
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">supports_dot_lookup</span> <span class="pre">=</span> <span class="pre">True</span></span></dt>
+<dd><p>If set, indicates that the filesystem supports lookup of the
+<code class="docutils literal notranslate"><span class="pre">.</span></code> and <code class="docutils literal notranslate"><span class="pre">..</span></code> entries. This is required if the file system
+will be shared over NFS.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">enable_writeback_cache</span> <span class="pre">=</span> <span class="pre">True</span></span></dt>
+<dd><p>Enables write-caching in the kernel if available. This means that
+individual write request may be buffered and merged in the kernel
+before they are send to the filesystem.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">enable_acl</span> <span class="pre">=</span> <span class="pre">False</span></span></dt>
+<dd><p>Enable ACL support. When enabled, the kernel will cache and have
+responsibility for enforcing ACLs. ACL will be stored as xattrs
+and passed to userspace, which is responsible for updating the
+ACLs in the filesystem, keeping the file mode in sync with the
+ACL, and ensuring inheritance of default ACLs when new filesystem
+nodes are created. Note that this requires that the file system
+is able to parse and interpret the xattr representation of ACLs.</p>
+<blockquote>
+<div><p>Enabling this feature implicitly turns on the
+<code class="docutils literal notranslate"><span class="pre">default_permissions</span></code> option.</p>
+</div></blockquote>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.access">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">access</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.ModeT" title="pyfuse3.ModeT"><span class="pre">ModeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.access" title="Link to this definition">¶</a></dt>
+<dd><p>Check if requesting process has <em>mode</em> rights on <em>inode</em>.</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>The method must return a boolean value.</p>
+<p>If the <code class="docutils literal notranslate"><span class="pre">default_permissions</span></code> mount option is given, this method is not
+called.</p>
+<p>When implementing this method, the <a class="reference internal" href="util.html#pyfuse3.get_sup_groups" title="pyfuse3.get_sup_groups"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_sup_groups</span></code></a> function may be
+useful.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.create">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parent_inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileNameT" title="pyfuse3.FileNameT"><span class="pre">FileNameT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.ModeT" title="pyfuse3.ModeT"><span class="pre">ModeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">flags</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FlagT" title="pyfuse3.FlagT"><span class="pre">FlagT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" title="(in Python v3.14)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="data.html#pyfuse3.FileInfo" title="pyfuse3.FileInfo"><span class="pre">FileInfo</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><span class="pre">EntryAttributes</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#pyfuse3.Operations.create" title="Link to this definition">¶</a></dt>
+<dd><p>Create a file with permissions <em>mode</em> and open it with <em>flags</em>.</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>The method must return a tuple of the form <em>(fi, attr)</em>, where <em>fi</em> is a
+FileInfo instance handle like the one returned by <a class="reference internal" href="#pyfuse3.Operations.open" title="pyfuse3.Operations.open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open</span></code></a> and <em>attr</em> is
+an <a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">EntryAttributes</span></code></a> instance with the attributes of the newly created
+directory entry.</p>
+<p>(Successful) execution of this handler increases the lookup count for
+the returned inode by one.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.flush">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">flush</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fh</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileHandleT" title="pyfuse3.FileHandleT"><span class="pre">FileHandleT</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.flush" title="Link to this definition">¶</a></dt>
+<dd><p>Handle close() syscall.</p>
+<p><em>fh</em> will be an integer filehandle returned by a prior <a class="reference internal" href="#pyfuse3.Operations.open" title="pyfuse3.Operations.open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open</span></code></a> or
+<a class="reference internal" href="#pyfuse3.Operations.create" title="pyfuse3.Operations.create"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create</span></code></a> call.</p>
+<p>This method is called whenever a file descriptor is closed. It may be
+called multiple times for the same open file (e.g. if the file handle
+has been duplicated).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.forget">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">forget</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inode_list</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Sequence" title="(in Python v3.14)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" title="(in Python v3.14)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.forget" title="Link to this definition">¶</a></dt>
+<dd><p>Decrease lookup counts for inodes in <em>inode_list</em>.</p>
+<p><em>inode_list</em> is a list of <code class="docutils literal notranslate"><span class="pre">(inode,</span> <span class="pre">nlookup)</span></code> tuples. This method
+should reduce the lookup count for each <em>inode</em> by <em>nlookup</em>.</p>
+<p>If the lookup count reaches zero, the inode is currently not known to
+the kernel. In this case, the file system will typically check if there
+are still directory entries referring to this inode and, if not, remove
+the inode.</p>
+<p>If the file system is unmounted, it may not have received <a class="reference internal" href="#pyfuse3.Operations.forget" title="pyfuse3.Operations.forget"><code class="xref py py-obj docutils literal notranslate"><span class="pre">forget</span></code></a> calls
+to bring all lookup counts to zero. The filesystem needs to take care to
+clean up inodes that at that point still have non-zero lookup count
+(e.g. by explicitly calling <a class="reference internal" href="#pyfuse3.Operations.forget" title="pyfuse3.Operations.forget"><code class="xref py py-obj docutils literal notranslate"><span class="pre">forget</span></code></a> with the current lookup count for
+every such inode after <a class="reference internal" href="fuse_api.html#pyfuse3.main" title="pyfuse3.main"><code class="xref py py-obj docutils literal notranslate"><span class="pre">main</span></code></a> has returned).</p>
+<p>This method must not raise any exceptions (not even <a class="reference internal" href="data.html#pyfuse3.FUSEError" title="pyfuse3.FUSEError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FUSEError</span></code></a>), since
+it is not handling a particular client request.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.fsync">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">fsync</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fh</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileHandleT" title="pyfuse3.FileHandleT"><span class="pre">FileHandleT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">datasync</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.fsync" title="Link to this definition">¶</a></dt>
+<dd><p>Flush buffers for open file <em>fh</em>.</p>
+<p>If <em>datasync</em> is true, only the file contents should be
+flushed (in contrast to the metadata about the file).</p>
+<p><em>fh</em> will be an integer filehandle returned by a prior <a class="reference internal" href="#pyfuse3.Operations.open" title="pyfuse3.Operations.open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open</span></code></a> or
+<a class="reference internal" href="#pyfuse3.Operations.create" title="pyfuse3.Operations.create"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create</span></code></a> call.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.fsyncdir">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">fsyncdir</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fh</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileHandleT" title="pyfuse3.FileHandleT"><span class="pre">FileHandleT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">datasync</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.fsyncdir" title="Link to this definition">¶</a></dt>
+<dd><p>Flush buffers for open directory <em>fh</em>.</p>
+<p>If <em>datasync</em> is true, only the directory contents should be
+flushed (in contrast to metadata about the directory itself).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.getattr">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">getattr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><span class="pre">EntryAttributes</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.getattr" title="Link to this definition">¶</a></dt>
+<dd><p>Get attributes for <em>inode</em>.</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>This method should return an <a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">EntryAttributes</span></code></a> instance with the
+attributes of <em>inode</em>. The <a class="reference internal" href="data.html#pyfuse3.EntryAttributes.entry_timeout" title="pyfuse3.EntryAttributes.entry_timeout"><code class="xref py py-obj docutils literal notranslate"><span class="pre">entry_timeout</span></code></a> attribute is
+ignored in this context.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.getxattr">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">getxattr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.XAttrNameT" title="pyfuse3.XAttrNameT"><span class="pre">XAttrNameT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><span class="pre">bytes</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.getxattr" title="Link to this definition">¶</a></dt>
+<dd><p>Return extended attribute <em>name</em> of <em>inode</em>.</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>If the attribute does not exist, the method must raise <a class="reference internal" href="data.html#pyfuse3.FUSEError" title="pyfuse3.FUSEError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FUSEError</span></code></a> with
+an error code of <a class="reference internal" href="data.html#pyfuse3.ENOATTR" title="pyfuse3.ENOATTR"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ENOATTR</span></code></a>. <em>name</em> will be of type <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>, but is
+guaranteed not to contain zero-bytes (<code class="docutils literal notranslate"><span class="pre">\0</span></code>).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.init">
+<span class="sig-name descname"><span class="pre">init</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.init" title="Link to this definition">¶</a></dt>
+<dd><p>Initialize operations.</p>
+<p>This method will be called just before the file system starts handling
+requests. It must not raise any exceptions (not even <a class="reference internal" href="data.html#pyfuse3.FUSEError" title="pyfuse3.FUSEError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FUSEError</span></code></a>), since
+it is not handling a particular client request.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.link">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">link</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_parent_inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileNameT" title="pyfuse3.FileNameT"><span class="pre">FileNameT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><span class="pre">EntryAttributes</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.link" title="Link to this definition">¶</a></dt>
+<dd><p>Create directory entry <em>name</em> in <em>parent_inode</em> refering to <em>inode</em>.</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>The method must return an <a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">EntryAttributes</span></code></a> instance with the
+attributes of the newly created directory entry.</p>
+<p>(Successful) execution of this handler increases the lookup count for
+the returned inode by one.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.listxattr">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">listxattr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Sequence" title="(in Python v3.14)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="data.html#pyfuse3.XAttrNameT" title="pyfuse3.XAttrNameT"><span class="pre">XAttrNameT</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#pyfuse3.Operations.listxattr" title="Link to this definition">¶</a></dt>
+<dd><p>Get list of extended attributes for <em>inode</em>.</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>This method must return a sequence of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> objects.  The objects must
+not include zero-bytes (<code class="docutils literal notranslate"><span class="pre">\0</span></code>).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.lookup">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">lookup</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parent_inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileNameT" title="pyfuse3.FileNameT"><span class="pre">FileNameT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><span class="pre">EntryAttributes</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.lookup" title="Link to this definition">¶</a></dt>
+<dd><p>Look up a directory entry by name and get its attributes.</p>
+<p>This method should return an <a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">EntryAttributes</span></code></a> instance for the
+directory entry <em>name</em> in the directory with inode <em>parent_inode</em>.</p>
+<p>If there is no such entry, the method should either return an
+<a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">EntryAttributes</span></code></a> instance with zero <code class="docutils literal notranslate"><span class="pre">st_ino</span></code> value (in which case
+the negative lookup will be cached as specified by <code class="docutils literal notranslate"><span class="pre">entry_timeout</span></code>),
+or it should raise <a class="reference internal" href="data.html#pyfuse3.FUSEError" title="pyfuse3.FUSEError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FUSEError</span></code></a> with an errno of <a class="reference external" href="https://docs.python.org/3/library/errno.html#errno.ENOENT" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">errno.ENOENT</span></code></a> (in this
+case the negative result will not be cached).</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>The file system must be able to handle lookups for <code class="file docutils literal notranslate"><span class="pre">.</span></code> and
+<code class="file docutils literal notranslate"><span class="pre">..</span></code>, no matter if these entries are returned by <a class="reference internal" href="#pyfuse3.Operations.readdir" title="pyfuse3.Operations.readdir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">readdir</span></code></a> or not.</p>
+<p>(Successful) execution of this handler increases the lookup count for
+the returned inode by one.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.mkdir">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">mkdir</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parent_inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileNameT" title="pyfuse3.FileNameT"><span class="pre">FileNameT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.ModeT" title="pyfuse3.ModeT"><span class="pre">ModeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><span class="pre">EntryAttributes</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.mkdir" title="Link to this definition">¶</a></dt>
+<dd><p>Create a directory.</p>
+<p>This method must create a new directory <em>name</em> with mode <em>mode</em> in the
+directory with inode <em>parent_inode</em>. <em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a>
+instance.</p>
+<p>This method must return an <a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">EntryAttributes</span></code></a> instance with the
+attributes of the newly created directory entry.</p>
+<p>(Successful) execution of this handler increases the lookup count for
+the returned inode by one.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.mknod">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">mknod</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parent_inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileNameT" title="pyfuse3.FileNameT"><span class="pre">FileNameT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.ModeT" title="pyfuse3.ModeT"><span class="pre">ModeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">rdev</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><span class="pre">EntryAttributes</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.mknod" title="Link to this definition">¶</a></dt>
+<dd><p>Create (possibly special) file.</p>
+<p>This method must create a (special or regular) file <em>name</em> in the
+directory with inode <em>parent_inode</em>. Whether the file is special or
+regular is determined by its <em>mode</em>. If the file is neither a block nor
+character device, <em>rdev</em> can be ignored. <em>ctx</em> will be a
+<a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>The method must return an <a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">EntryAttributes</span></code></a> instance with the attributes
+of the newly created directory entry.</p>
+<p>(Successful) execution of this handler increases the lookup count for
+the returned inode by one.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.open">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">open</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">flags</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FlagT" title="pyfuse3.FlagT"><span class="pre">FlagT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="data.html#pyfuse3.FileInfo" title="pyfuse3.FileInfo"><span class="pre">FileInfo</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.open" title="Link to this definition">¶</a></dt>
+<dd><p>Open a inode <em>inode</em> with <em>flags</em>.</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p><em>flags</em> will be a bitwise or of the open flags described in the
+<em class="manpage">open(2)</em> manpage and defined in the <a class="reference external" href="https://docs.python.org/3/library/os.html#module-os" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">os</span></code></a> module (with the
+exception of <code class="docutils literal notranslate"><span class="pre">O_CREAT</span></code>, <code class="docutils literal notranslate"><span class="pre">O_EXCL</span></code>, <code class="docutils literal notranslate"><span class="pre">O_NOCTTY</span></code> and <code class="docutils literal notranslate"><span class="pre">O_TRUNC</span></code>)</p>
+<p>This method must return a <a class="reference internal" href="data.html#pyfuse3.FileInfo" title="pyfuse3.FileInfo"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FileInfo</span></code></a> instance. The <a class="reference internal" href="data.html#pyfuse3.FileInfo.fh" title="pyfuse3.FileInfo.fh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FileInfo.fh</span></code></a> field
+must contain an integer file handle, which will be passed to the <a class="reference internal" href="#pyfuse3.Operations.read" title="pyfuse3.Operations.read"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read</span></code></a>,
+<a class="reference internal" href="#pyfuse3.Operations.write" title="pyfuse3.Operations.write"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write</span></code></a>, <a class="reference internal" href="#pyfuse3.Operations.flush" title="pyfuse3.Operations.flush"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flush</span></code></a>, <a class="reference internal" href="#pyfuse3.Operations.fsync" title="pyfuse3.Operations.fsync"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fsync</span></code></a> and <a class="reference internal" href="#pyfuse3.Operations.release" title="pyfuse3.Operations.release"><code class="xref py py-obj docutils literal notranslate"><span class="pre">release</span></code></a> methods to identify the open
+file. The <a class="reference internal" href="data.html#pyfuse3.FileInfo" title="pyfuse3.FileInfo"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FileInfo</span></code></a> instance may also have relevant configuration
+attributes set; see the <a class="reference internal" href="data.html#pyfuse3.FileInfo" title="pyfuse3.FileInfo"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FileInfo</span></code></a> documentation for more information.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.opendir">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">opendir</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="data.html#pyfuse3.FileHandleT" title="pyfuse3.FileHandleT"><span class="pre">FileHandleT</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.opendir" title="Link to this definition">¶</a></dt>
+<dd><p>Open the directory with inode <em>inode</em>.</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>This method should return an integer file handle. The file handle will
+be passed to the <a class="reference internal" href="#pyfuse3.Operations.readdir" title="pyfuse3.Operations.readdir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">readdir</span></code></a>, <a class="reference internal" href="#pyfuse3.Operations.fsyncdir" title="pyfuse3.Operations.fsyncdir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fsyncdir</span></code></a> and <a class="reference internal" href="#pyfuse3.Operations.releasedir" title="pyfuse3.Operations.releasedir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">releasedir</span></code></a> methods to
+identify the directory.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.read">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">read</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fh</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileHandleT" title="pyfuse3.FileHandleT"><span class="pre">FileHandleT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">off</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><span class="pre">bytes</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.read" title="Link to this definition">¶</a></dt>
+<dd><p>Read <em>size</em> bytes from <em>fh</em> at position <em>off</em>.</p>
+<p><em>fh</em> will be an integer filehandle returned by a prior <a class="reference internal" href="#pyfuse3.Operations.open" title="pyfuse3.Operations.open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open</span></code></a> or
+<a class="reference internal" href="#pyfuse3.Operations.create" title="pyfuse3.Operations.create"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create</span></code></a> call.</p>
+<p>This function should return exactly the number of bytes requested except
+on EOF or error, otherwise the rest of the data will be substituted with
+zeroes.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.readdir">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">readdir</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fh</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileHandleT" title="pyfuse3.FileHandleT"><span class="pre">FileHandleT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">token</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.ReaddirToken" title="pyfuse3.ReaddirToken"><span class="pre">ReaddirToken</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.readdir" title="Link to this definition">¶</a></dt>
+<dd><p>Read entries in open directory <em>fh</em>.</p>
+<p>This method should list the contents of directory <em>fh</em> (as returned by a
+prior <a class="reference internal" href="#pyfuse3.Operations.opendir" title="pyfuse3.Operations.opendir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">opendir</span></code></a> call), starting at the entry identified by <em>start_id</em>.</p>
+<p>Instead of returning the directory entries directly, the method must
+call <a class="reference internal" href="fuse_api.html#pyfuse3.readdir_reply" title="pyfuse3.readdir_reply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">readdir_reply</span></code></a> for each directory entry. If <a class="reference internal" href="fuse_api.html#pyfuse3.readdir_reply" title="pyfuse3.readdir_reply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">readdir_reply</span></code></a>
+returns True, the file system must increase the lookup count for the
+provided directory entry by one and call <a class="reference internal" href="fuse_api.html#pyfuse3.readdir_reply" title="pyfuse3.readdir_reply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">readdir_reply</span></code></a> again for the
+next entry (if any). If <a class="reference internal" href="fuse_api.html#pyfuse3.readdir_reply" title="pyfuse3.readdir_reply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">readdir_reply</span></code></a> returns False, the lookup count
+must <em>not</em> be increased and the method should return without further
+calls to <a class="reference internal" href="fuse_api.html#pyfuse3.readdir_reply" title="pyfuse3.readdir_reply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">readdir_reply</span></code></a>.</p>
+<p>The <em>start_id</em> parameter will be either zero (in which case listing
+should begin with the first entry) or it will correspond to a value that
+was previously passed by the file system to the <a class="reference internal" href="fuse_api.html#pyfuse3.readdir_reply" title="pyfuse3.readdir_reply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">readdir_reply</span></code></a>
+function in the <em>next_id</em> parameter.</p>
+<p>If entries are added or removed during a <a class="reference internal" href="#pyfuse3.Operations.readdir" title="pyfuse3.Operations.readdir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">readdir</span></code></a> cycle, they may or
+may not be returned. However, they must not cause other entries to be
+skipped or returned more than once.</p>
+<p><code class="file docutils literal notranslate"><span class="pre">.</span></code> and <code class="file docutils literal notranslate"><span class="pre">..</span></code> entries may be included but are not
+required. However, if they are reported the filesystem <em>must not</em>
+increase the lookup count for the corresponding inodes (even if
+<a class="reference internal" href="fuse_api.html#pyfuse3.readdir_reply" title="pyfuse3.readdir_reply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">readdir_reply</span></code></a> returns True).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.readlink">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">readlink</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="data.html#pyfuse3.FileNameT" title="pyfuse3.FileNameT"><span class="pre">FileNameT</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.readlink" title="Link to this definition">¶</a></dt>
+<dd><p>Return target of symbolic link <em>inode</em>.</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.release">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">release</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fh</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileHandleT" title="pyfuse3.FileHandleT"><span class="pre">FileHandleT</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.release" title="Link to this definition">¶</a></dt>
+<dd><p>Release open file.</p>
+<p>This method will be called when the last file descriptor of <em>fh</em> has
+been closed, i.e. when the file is no longer opened by any client
+process.</p>
+<p><em>fh</em> will be an integer filehandle returned by a prior <a class="reference internal" href="#pyfuse3.Operations.open" title="pyfuse3.Operations.open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open</span></code></a> or
+<a class="reference internal" href="#pyfuse3.Operations.create" title="pyfuse3.Operations.create"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create</span></code></a> call. Once <a class="reference internal" href="#pyfuse3.Operations.release" title="pyfuse3.Operations.release"><code class="xref py py-obj docutils literal notranslate"><span class="pre">release</span></code></a> has been called, no future requests for
+<em>fh</em> will be received (until the value is re-used in the return value of
+another <a class="reference internal" href="#pyfuse3.Operations.open" title="pyfuse3.Operations.open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open</span></code></a> or <a class="reference internal" href="#pyfuse3.Operations.create" title="pyfuse3.Operations.create"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create</span></code></a> call).</p>
+<p>This method may return an error by raising <a class="reference internal" href="data.html#pyfuse3.FUSEError" title="pyfuse3.FUSEError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FUSEError</span></code></a>, but the error
+will be discarded because there is no corresponding client request.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.releasedir">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">releasedir</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fh</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileHandleT" title="pyfuse3.FileHandleT"><span class="pre">FileHandleT</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.releasedir" title="Link to this definition">¶</a></dt>
+<dd><p>Release open directory.</p>
+<p>This method will be called exactly once for each <a class="reference internal" href="#pyfuse3.Operations.opendir" title="pyfuse3.Operations.opendir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">opendir</span></code></a> call. After
+<em>fh</em> has been released, no further <a class="reference internal" href="#pyfuse3.Operations.readdir" title="pyfuse3.Operations.readdir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">readdir</span></code></a> requests will be received
+for it (until it is opened again with <a class="reference internal" href="#pyfuse3.Operations.opendir" title="pyfuse3.Operations.opendir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">opendir</span></code></a>).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.removexattr">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">removexattr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.XAttrNameT" title="pyfuse3.XAttrNameT"><span class="pre">XAttrNameT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.removexattr" title="Link to this definition">¶</a></dt>
+<dd><p>Remove extended attribute <em>name</em> of <em>inode</em>.</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>If the attribute does not exist, the method must raise <a class="reference internal" href="data.html#pyfuse3.FUSEError" title="pyfuse3.FUSEError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FUSEError</span></code></a> with
+an error code of <a class="reference internal" href="data.html#pyfuse3.ENOATTR" title="pyfuse3.ENOATTR"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ENOATTR</span></code></a>. <em>name</em> will be of type <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>, but is
+guaranteed not to contain zero-bytes (<code class="docutils literal notranslate"><span class="pre">\0</span></code>).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.rename">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rename</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parent_inode_old</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name_old</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent_inode_new</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name_new</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">flags</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FlagT" title="pyfuse3.FlagT"><span class="pre">FlagT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.rename" title="Link to this definition">¶</a></dt>
+<dd><p>Rename a directory entry.</p>
+<p>This method must rename <em>name_old</em> in the directory with inode
+<em>parent_inode_old</em> to <em>name_new</em> in the directory with inode
+<em>parent_inode_new</em>.  If <em>name_new</em> already exists, it should be
+overwritten.</p>
+<p><em>flags</em> may be <a class="reference internal" href="data.html#pyfuse3.RENAME_EXCHANGE" title="pyfuse3.RENAME_EXCHANGE"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RENAME_EXCHANGE</span></code></a> or <a class="reference internal" href="data.html#pyfuse3.RENAME_NOREPLACE" title="pyfuse3.RENAME_NOREPLACE"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RENAME_NOREPLACE</span></code></a>. If
+<a class="reference internal" href="data.html#pyfuse3.RENAME_NOREPLACE" title="pyfuse3.RENAME_NOREPLACE"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RENAME_NOREPLACE</span></code></a> is specified, the filesystem must not overwrite
+<em>name_new</em> if it exists and return an error instead. If
+<a class="reference internal" href="data.html#pyfuse3.RENAME_EXCHANGE" title="pyfuse3.RENAME_EXCHANGE"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RENAME_EXCHANGE</span></code></a> is specified, the filesystem must atomically exchange
+the two files, i.e. both must exist and neither may be deleted.</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>Let the inode associated with <em>name_old</em> in <em>parent_inode_old</em> be
+<em>inode_moved</em>, and the inode associated with <em>name_new</em> in
+<em>parent_inode_new</em> (if it exists) be called <em>inode_deref</em>.</p>
+<p>If <em>inode_deref</em> exists and has a non-zero lookup count, or if there are
+other directory entries referring to <em>inode_deref</em>), the file system
+must update only the directory entry for <em>name_new</em> to point to
+<em>inode_moved</em> instead of <em>inode_deref</em>.  (Potential) removal of
+<em>inode_deref</em> (containing the previous contents of <em>name_new</em>) must be
+deferred to the <a class="reference internal" href="#pyfuse3.Operations.forget" title="pyfuse3.Operations.forget"><code class="xref py py-obj docutils literal notranslate"><span class="pre">forget</span></code></a> method to be carried out when the lookup count
+reaches zero (and of course only if at that point there are no more
+directory entries associated with <em>inode_deref</em> either).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.rmdir">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rmdir</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parent_inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileNameT" title="pyfuse3.FileNameT"><span class="pre">FileNameT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.rmdir" title="Link to this definition">¶</a></dt>
+<dd><p>Remove directory <em>name</em>.</p>
+<p>This method must remove the directory <em>name</em> from the direcory with
+inode <em>parent_inode</em>. <em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance. If
+there are still entries in the directory, the method should raise
+<code class="docutils literal notranslate"><span class="pre">FUSEError(errno.ENOTEMPTY)</span></code>.</p>
+<p>If the inode associated with <em>name</em> (i.e., not the <em>parent_inode</em>) has a
+non-zero lookup count, the file system must remove only the directory
+entry (so that future calls to <a class="reference internal" href="#pyfuse3.Operations.readdir" title="pyfuse3.Operations.readdir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">readdir</span></code></a> for <em>parent_inode</em> will no
+longer include <em>name</em>, but e.g. calls to <a class="reference internal" href="#pyfuse3.Operations.getattr" title="pyfuse3.Operations.getattr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">getattr</span></code></a> for <em>file</em>’s inode
+still succeed). Removal of the associated inode holding the directory
+contents and metadata must be deferred to the <a class="reference internal" href="#pyfuse3.Operations.forget" title="pyfuse3.Operations.forget"><code class="xref py py-obj docutils literal notranslate"><span class="pre">forget</span></code></a> method to be
+carried out when the lookup count reaches zero.</p>
+<p>(Since hard links to directories are not allowed by POSIX, this method
+is not required to check if there are still other directory entries
+refering to the same inode. This conveniently avoids the ambigiouties
+associated with the <code class="docutils literal notranslate"><span class="pre">.</span></code> and <code class="docutils literal notranslate"><span class="pre">..</span></code> entries).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.setattr">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">setattr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">attr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><span class="pre">EntryAttributes</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">fields</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.SetattrFields" title="pyfuse3.SetattrFields"><span class="pre">SetattrFields</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">fh</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileHandleT" title="pyfuse3.FileHandleT"><span class="pre">FileHandleT</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><span class="pre">EntryAttributes</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.setattr" title="Link to this definition">¶</a></dt>
+<dd><p>Change attributes of <em>inode</em>.</p>
+<p><em>fields</em> will be an <a class="reference internal" href="data.html#pyfuse3.SetattrFields" title="pyfuse3.SetattrFields"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SetattrFields</span></code></a> instance that specifies which
+attributes are to be updated. <em>attr</em> will be an <a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">EntryAttributes</span></code></a>
+instance for <em>inode</em> that contains the new values for changed
+attributes, and undefined values for all other attributes.</p>
+<p>Most file systems will additionally set the
+<a class="reference internal" href="data.html#pyfuse3.EntryAttributes.st_ctime_ns" title="pyfuse3.EntryAttributes.st_ctime_ns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">st_ctime_ns</span></code></a> attribute to the current time (to
+indicate that the inode metadata was changed).</p>
+<p>If the syscall that is being processed received a file descriptor
+argument (like e.g. <em class="manpage">ftruncate(2)</em> or <em class="manpage">fchmod(2)</em>),
+<em>fh</em> will be the file handle returned by the corresponding call to the
+<a class="reference internal" href="#pyfuse3.Operations.open" title="pyfuse3.Operations.open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open</span></code></a> handler. If the syscall was path based (like
+e.g. <em class="manpage">truncate(2)</em> or <em class="manpage">chmod(2)</em>), <em>fh</em> will be
+<a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>.</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>The method should return an <a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">EntryAttributes</span></code></a> instance (containing both
+the changed and unchanged values).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.setxattr">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">setxattr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.XAttrNameT" title="pyfuse3.XAttrNameT"><span class="pre">XAttrNameT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><span class="pre">bytes</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.setxattr" title="Link to this definition">¶</a></dt>
+<dd><p>Set extended attribute <em>name</em> of <em>inode</em> to <em>value</em>.</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>The attribute may or may not exist already. Both <em>name</em> and <em>value</em> will
+be of type <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>. <em>name</em> is guaranteed not to contain zero-bytes
+(<code class="docutils literal notranslate"><span class="pre">\0</span></code>).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.stacktrace">
+<span class="sig-name descname"><span class="pre">stacktrace</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.stacktrace" title="Link to this definition">¶</a></dt>
+<dd><p>Asynchronous debugging.</p>
+<p>This method will be called when the <code class="docutils literal notranslate"><span class="pre">fuse_stacktrace</span></code> extended
+attribute is set on the mountpoint. The default implementation logs the
+current stack trace of every running Python thread. This can be quite
+useful to debug file system deadlocks.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.statfs">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">statfs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="data.html#pyfuse3.StatvfsData" title="pyfuse3.StatvfsData"><span class="pre">StatvfsData</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.statfs" title="Link to this definition">¶</a></dt>
+<dd><p>Get file system statistics.</p>
+<p><em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>The method must return an appropriately filled <a class="reference internal" href="data.html#pyfuse3.StatvfsData" title="pyfuse3.StatvfsData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">StatvfsData</span></code></a> instance.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.symlink">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">symlink</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parent_inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileNameT" title="pyfuse3.FileNameT"><span class="pre">FileNameT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">target</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileNameT" title="pyfuse3.FileNameT"><span class="pre">FileNameT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><span class="pre">EntryAttributes</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.symlink" title="Link to this definition">¶</a></dt>
+<dd><p>Create a symbolic link.</p>
+<p>This method must create a symbolink link named <em>name</em> in the directory
+with inode <em>parent_inode</em>, pointing to <em>target</em>.  <em>ctx</em> will be a
+<a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a> instance.</p>
+<p>The method must return an <a class="reference internal" href="data.html#pyfuse3.EntryAttributes" title="pyfuse3.EntryAttributes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">EntryAttributes</span></code></a> instance with the attributes
+of the newly created directory entry.</p>
+<p>(Successful) execution of this handler increases the lookup count for
+the returned inode by one.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.unlink">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">unlink</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parent_inode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.InodeT" title="pyfuse3.InodeT"><span class="pre">InodeT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileNameT" title="pyfuse3.FileNameT"><span class="pre">FileNameT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><span class="pre">RequestContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.unlink" title="Link to this definition">¶</a></dt>
+<dd><p>Remove a (possibly special) file.</p>
+<p>This method must remove the (special or regular) file <em>name</em> from the
+direcory with inode <em>parent_inode</em>.  <em>ctx</em> will be a <a class="reference internal" href="data.html#pyfuse3.RequestContext" title="pyfuse3.RequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestContext</span></code></a>
+instance.</p>
+<p>If the inode associated with <em>file</em> (i.e., not the <em>parent_inode</em>) has a
+non-zero lookup count, or if there are still other directory entries
+referring to this inode (due to hardlinks), the file system must remove
+only the directory entry (so that future calls to <a class="reference internal" href="#pyfuse3.Operations.readdir" title="pyfuse3.Operations.readdir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">readdir</span></code></a> for
+<em>parent_inode</em> will no longer include <em>name</em>, but e.g. calls to
+<a class="reference internal" href="#pyfuse3.Operations.getattr" title="pyfuse3.Operations.getattr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">getattr</span></code></a> for <em>file</em>’s inode still succeed). (Potential) removal of the
+associated inode with the file contents and metadata must be deferred to
+the <a class="reference internal" href="#pyfuse3.Operations.forget" title="pyfuse3.Operations.forget"><code class="xref py py-obj docutils literal notranslate"><span class="pre">forget</span></code></a> method to be carried out when the lookup count reaches zero
+(and of course only if at that point there are no more directory entries
+associated with the inode either).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyfuse3.Operations.write">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fh</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="data.html#pyfuse3.FileHandleT" title="pyfuse3.FileHandleT"><span class="pre">FileHandleT</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">off</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">buf</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><span class="pre">bytes</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="headerlink" href="#pyfuse3.Operations.write" title="Link to this definition">¶</a></dt>
+<dd><p>Write <em>buf</em> into <em>fh</em> at <em>off</em>.</p>
+<p><em>fh</em> will be an integer filehandle returned by a prior <a class="reference internal" href="#pyfuse3.Operations.open" title="pyfuse3.Operations.open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open</span></code></a> or
+<a class="reference internal" href="#pyfuse3.Operations.create" title="pyfuse3.Operations.create"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create</span></code></a> call.</p>
+<p>This method must return the number of bytes written. However, unless the
+file system has been mounted with the <code class="docutils literal notranslate"><span class="pre">direct_io</span></code> option, the file
+system <em>must</em> always write <em>all</em> the provided data (i.e., return
+<code class="docutils literal notranslate"><span class="pre">len(buf)</span></code>).</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper"><h3><a href="index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="general.html">General Information</a></li>
+<li class="toctree-l1"><a class="reference internal" href="asyncio.html">asyncio Support</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fuse_api.html">FUSE API Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Structures</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Request Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Utility Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gotchas.html">Common Gotchas</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example.html">Example File Systems</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changes.html">Changelog</a></li>
+</ul>
+
+  <div>
+    <h4>Previous topic</h4>
+    <p class="topless"><a href="data.html"
+                          title="previous chapter">Data Structures</a></p>
+  </div>
+  <div>
+    <h4>Next topic</h4>
+    <p class="topless"><a href="util.html"
+                          title="next chapter">Utility Functions</a></p>
+  </div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="util.html" title="Utility Functions"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="data.html" title="Data Structures"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">pyfuse3 3.4.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Request Handlers</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2010-2025, Nikolaus Rath.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.0.4.
+    </div>
+  </body>
+</html>

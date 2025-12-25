@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>General Information &#8212; pyfuse3 3.4.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css?v=2bf1fcf8" />
+    
+    <script src="_static/documentation_options.js?v=149be4c9"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="asyncio Support" href="asyncio.html" />
+    <link rel="prev" title="Installation" href="install.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="asyncio.html" title="asyncio Support"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="install.html" title="Installation"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">pyfuse3 3.4.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">General Information</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="general-information">
+<h1>General Information<a class="headerlink" href="#general-information" title="Link to this heading">¶</a></h1>
+<section id="getting-started">
+<span id="id1"></span><h2>Getting started<a class="headerlink" href="#getting-started" title="Link to this heading">¶</a></h2>
+<p>A file system is implemented by subclassing the <a class="reference internal" href="operations.html#pyfuse3.Operations" title="pyfuse3.Operations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pyfuse3.Operations</span></code></a>
+class and implementing the various request handlers. The handlers
+respond to requests received from the FUSE kernel module and perform
+functions like looking up the inode given a file name, looking up
+attributes of an inode, opening a (file) inode for reading or writing
+or listing the contents of a (directory) inode.</p>
+<p>By default, pyfuse3 uses asynchronous I/O using <a class="reference external" href="https://github.com/python-trio/trio">Trio</a>, and most of the
+documentation assumes that you are using Trio. If you’d rather use
+asyncio, take a look at <a class="reference internal" href="asyncio.html#asyncio"><span class="std std-ref">asyncio Support</span></a>. If you would
+like to use Trio (which is recommended) but you have not yet used Trio
+before, please read the <a class="reference external" href="https://trio.readthedocs.io/en/latest/tutorial.html">Trio tutorial</a> first.</p>
+<p>An instance of the operations class is passed to <a class="reference internal" href="fuse_api.html#pyfuse3.init" title="pyfuse3.init"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pyfuse3.init</span></code></a> to
+mount the file system. To enter the request handling loop, run
+<a class="reference internal" href="fuse_api.html#pyfuse3.main" title="pyfuse3.main"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pyfuse3.main</span></code></a> in a trio event loop. This function will return when
+the file system should be unmounted again, which is done by calling
+<a class="reference internal" href="fuse_api.html#pyfuse3.close" title="pyfuse3.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pyfuse3.close</span></code></a>.</p>
+<p>All character data (directory entry names, extended attribute names
+and values, symbolic link targets etc) are passed as <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> and must
+be returned as <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>.</p>
+<p>For easier debugging, it is strongly recommended that applications
+using pyfuse3 also make use of the <a class="reference external" href="http://docs.python.org/3/library/faulthandler.html">faulthandler</a> module.</p>
+</section>
+<section id="lookup-counts">
+<h2>Lookup Counts<a class="headerlink" href="#lookup-counts" title="Link to this heading">¶</a></h2>
+<p>Most file systems need to keep track which inodes are currently known
+to the kernel. This is, for example, necessary to correctly implement
+the <em>unlink</em> system call: when unlinking a directory entry whose
+associated inode is currently opened, the file system must defer
+removal of the inode (and thus the file contents) until it is no
+longer in use by any process.</p>
+<p>FUSE file systems achieve this by using “lookup counts”. A lookup
+count is a number that’s associated with an inode. An inode with a
+lookup count of zero is currently not known to the kernel. This means
+that if there are no directory entries referring to such an inode it
+can be safely removed, or (if a file system implements dynamic inode
+numbers), the inode number can be safely recycled.</p>
+<p>The lookup count of an inode is increased by every operation that
+could make the inode “known” to the kernel. This includes e.g.
+<a class="reference internal" href="operations.html#pyfuse3.Operations.lookup" title="pyfuse3.Operations.lookup"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lookup</span></code></a>, <a class="reference internal" href="operations.html#pyfuse3.Operations.create" title="pyfuse3.Operations.create"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create</span></code></a> and <a class="reference internal" href="operations.html#pyfuse3.Operations.readdir" title="pyfuse3.Operations.readdir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">readdir</span></code></a>
+(to determine if a given request handler affects the lookup count,
+please refer to its description in the <a class="reference internal" href="operations.html#pyfuse3.Operations" title="pyfuse3.Operations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Operations</span></code></a> class).  The
+lookup count is decreased by calls to the <a class="reference internal" href="operations.html#pyfuse3.Operations.forget" title="pyfuse3.Operations.forget"><code class="xref py py-obj docutils literal notranslate"><span class="pre">forget</span></code></a>
+handler.</p>
+</section>
+<section id="fuse-and-vfs-locking">
+<h2>FUSE and VFS Locking<a class="headerlink" href="#fuse-and-vfs-locking" title="Link to this heading">¶</a></h2>
+<p>FUSE and the kernel’s VFS layer provide some basic locking that FUSE
+file systems automatically take advantage of. Specifically:</p>
+<ul class="simple">
+<li><p>Calls to <a class="reference internal" href="operations.html#pyfuse3.Operations.rename" title="pyfuse3.Operations.rename"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rename</span></code></a>, <a class="reference internal" href="operations.html#pyfuse3.Operations.create" title="pyfuse3.Operations.create"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create</span></code></a>,
+<a class="reference internal" href="operations.html#pyfuse3.Operations.symlink" title="pyfuse3.Operations.symlink"><code class="xref py py-obj docutils literal notranslate"><span class="pre">symlink</span></code></a>, <a class="reference internal" href="operations.html#pyfuse3.Operations.mknod" title="pyfuse3.Operations.mknod"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mknod</span></code></a>, <a class="reference internal" href="operations.html#pyfuse3.Operations.link" title="pyfuse3.Operations.link"><code class="xref py py-obj docutils literal notranslate"><span class="pre">link</span></code></a> and
+<a class="reference internal" href="operations.html#pyfuse3.Operations.mkdir" title="pyfuse3.Operations.mkdir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mkdir</span></code></a> acquire a write-lock on the inode of the
+directory in which the respective operation takes place (two in case
+of rename).</p></li>
+<li><p>Calls to <a class="reference internal" href="operations.html#pyfuse3.Operations.lookup" title="pyfuse3.Operations.lookup"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lookup</span></code></a> acquire a read-lock on the inode of the
+parent directory (meaning that lookups in the same directory may run
+concurrently, but never at the same time as e.g. a rename or mkdir
+operation).</p></li>
+<li><p>Unless writeback caching is enabled, calls to <a class="reference internal" href="operations.html#pyfuse3.Operations.write" title="pyfuse3.Operations.write"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write</span></code></a>
+for the same inode are automatically serialized (i.e., there are
+never concurrent calls for the same inode even when multithreading
+is enabled).</p></li>
+</ul>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper"><h3><a href="index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">General Information</a></li>
+<li class="toctree-l1"><a class="reference internal" href="asyncio.html">asyncio Support</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fuse_api.html">FUSE API Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="operations.html">Request Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Utility Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gotchas.html">Common Gotchas</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example.html">Example File Systems</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changes.html">Changelog</a></li>
+</ul>
+
+  <div>
+    <h4>Previous topic</h4>
+    <p class="topless"><a href="install.html"
+                          title="previous chapter">Installation</a></p>
+  </div>
+  <div>
+    <h4>Next topic</h4>
+    <p class="topless"><a href="asyncio.html"
+                          title="next chapter">asyncio Support</a></p>
+  </div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="asyncio.html" title="asyncio Support"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="install.html" title="Installation"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">pyfuse3 3.4.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">General Information</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2010-2025, Nikolaus Rath.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.0.4.
+    </div>
+  </body>
+</html>
