@@ -1,0 +1,119 @@
+<div class="row" style="margin: 0;">
+    {% if bug %}
+    <div id="detail_du_retour" class="col-12 col-lg-6 p-4">
+        <h4>Détails n°{{ bug.pk }}
+        {% if user.is_admin_revo %}
+        <a hx-target="{{ target_id|default:'#affichage_des_retours' }}" hx-swap="innerHTML" class="btn-v2 {% if bug.type == 'A' and bug.statut == 'Z' %}active{% endif %}" hx-get="{% url 'retour_client:changement-statut-v2' id_bug=bug.pk %}{% if is_modal %}?modal=1{% endif %}" style="background: #f66;">V2</a>
+        <a hx-target="{{ target_id|default:'#affichage_des_retours' }}" hx-swap="innerHTML" class="btn-v2 {% if bug.type == 'A' and not bug.statut == 'Z' %}active{% endif %}" hx-get="{% url 'retour_client:changement-type-v1' id_bug=bug.pk %}{% if is_modal %}?modal=1{% endif %}">MAJ V1</a>
+        <a hx-target="{{ target_id|default:'#affichage_des_retours' }}" hx-swap="innerHTML" class="btn-v2 {% if bug.type == 'Q' %}active{% endif %}" hx-get="{% url 'retour_client:changement-type-question' id_bug=bug.pk %}{% if is_modal %}?modal=1{% endif %}">Question</a>
+        <a hx-target="{{ target_id|default:'#affichage_des_retours' }}" hx-swap="innerHTML" class="btn-v2 {% if bug.type == 'B' %}active{% endif %}" hx-get="{% url 'retour_client:changement-type-bug' id_bug=bug.pk %}{% if is_modal %}?modal=1{% endif %}">Bug</a>
+        {% endif %}
+        </h4>
+        <div class="item-bug">
+            {{ bug.description|safe }}
+            <table class="retour_bug_table">
+                <tr>
+                    <td style="width: 20%;">Statut</td>
+                    <td><span class="badge" style="background-color: {{ bug.color_statut }};font-size: 10px;">{{ bug.get_statut_display }}</span></td>
+                </tr>
+                <tr>
+                    <td style="width: 20%;">Date</td>
+                    <td>{{ bug.date_ajout }}</td>
+                </tr>
+                <tr>
+                    <td style="width: 20%;">Lien URL</td>
+                    <td>{{ bug.lien_url }}</td>
+                </tr>
+                <tr>
+                    <td style="width: 20%;">Utilisateur</td>
+                    <td>{{ bug.utilisateur }}</td>
+                </tr>
+                {% if bug.image %}
+                <tr>
+                    <td style="width: 20%;">Image</td>
+                    <td><a href="{{ bug.image.url }}" target="_blank"><img src="{{ bug.image.url }}" class="img-bug"></a></td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td style="width: 20%;">Priorite</td>
+                    <td>{{ bug.get_priorite_display }}</td>
+                </tr>
+                <tr>
+                    <td style="width: 20%;">Type</td>
+                    <td>{{ bug.get_type_display }}</td>
+                </tr>
+                <tr>
+                    <td style="width: 20%;">Navigateur</td>
+                    <td>{{ bug.navigateur }}</td>
+                </tr>
+            </table>
+                {% if display_status %}
+                 <a hx-get="{% url 'retour_client:changement-statut-bug' id_bug=bug.pk %}{% if is_modal %}?modal=1{% endif %}" hx-target="{{ target_id|default:'#affichage_des_retours' }}" hx-swap="innerHTML" class="btn btn-secondary mt-3" style="width: 100%;">
+                    {{ display_status }}
+                </a>
+                {% if bug.statut == 'T' %}
+                <a hx-get="{% url 'retour_client:refus-validation-bug' id_bug=bug.pk %}{% if is_modal %}?modal=1{% endif %}" hx-target="{{ target_id|default:'#affichage_des_retours' }}" hx-swap="innerHTML" class="btn refus-correction-bug mt-3" style="width: 100%;">
+                    Je refuse le correctif Revolucy
+                </a>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+    <div id="commentaires_retours" class="col-12 col-lg-6 p-4">
+        <h4>Commentaires</h4>
+        <div class="chat-reponse-bug">
+            {% for reponse in bug.retour_client.all %}
+            <div class="item-response {% if reponse.repondant == 'R' %}repondant-revo{% else %}repondant-client{% endif %}">
+                {{ reponse.reponse|safe }} - le {{ reponse.date_ajout }} {% if reponse.temps_passe %}(- {{ reponse.temps_passe }}H){% endif %}
+                {% if reponse.piece_jointe %}<a href="{{ reponse.piece_jointe.url }}" target="_blank" style="background: #fff;color: #000;text-decoration: none;padding: 4px 4px 4px 6px;border-radius: 15px;">🗁</a>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% if not bug.statut_bloque %}
+        <form id="comment_form" method="post" enctype="multipart/form-data"
+      hx-post="{% url 'retour_client:item_retour' pk=bug.pk %}{% if is_modal %}?modal=1{% endif %}"
+      hx-target="{{ target_id|default:'#affichage_des_retours' }}"
+      hx-swap="innerHTML" hx-encoding="multipart/form-data">
+            {% csrf_token %}
+            <div>
+                <label for="{{ form.reponse.id_for_label }}">Votre réponse</label>
+                {{ form.reponse }}
+                {% if form.reponse.errors %}
+                {% for error in form.reponse.errors %}
+                <p class="erreur">{{ error|escape }}</p>
+                {% endfor %}
+                {% endif %}
+            </div>
+            <div>
+                <label for="{{ form.piece_jointe.id_for_label }}">Pièce jointe</label>
+                {{ form.piece_jointe }}
+                {% if form.piece_jointe.errors %}
+                {% for error in form.piece_jointe.errors %}
+                <p class="erreur">{{ error|escape }}</p>
+                {% endfor %}
+                {% endif %}
+            </div>
+            <div {% if user.is_admin_revo and environnement == 'production' and jrs_restant_garantie < 0 %}{% else %}class="d-none"{% endif %}>
+                <label for="{{ form.temps_passe.id_for_label }}">Temps passé (en H)</label>
+                {{ form.temps_passe }}
+                {% if form.temps_passe.errors %}
+                {% for error in form.temps_passe.errors %}
+                <p class="erreur">{{ error|escape }}</p>
+                {% endfor %}
+                {% endif %}
+            </div>
+            <div class="d-none">
+                {{ form.repondant }}
+            </div>
+            <button type="submit" style="text-transform: inherit">Ajouter un commentaire</button>
+        </form>
+        {% endif %}
+    </div>
+    {% else %}
+    <p style="text-align: center;font-size: 19px;" class="p-5">Cliquez sur un item à gauche</p>
+    {% endif %}
+</div>
+
+<style>
+    {% include 'css/retour_client.css' %}
+</style>
