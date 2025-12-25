@@ -1,0 +1,83 @@
+# Mag-Safe-Finder
+[![PyPI version](https://badge.fury.io/py/mag-safe-finder.svg)](https://badge.fury.io/py/mag-safe-finder)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/mag-safe-finder)](https://pepy.tech/project/mag-safe-finder)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A Python package that helps users find the perfect replacement for their lost or damaged MagSafe cable. The package processes user input to generate a structured list of recommended MagSafe cables, highlighting key features, compatibility, and potential drawbacks. It also provides troubleshooting tips and maintenance advice.
+
+## Installation
+
+You can install the package via pip:
+
+```bash
+pip install mag_safe_finder
+```
+
+## Usage
+
+Here's a basic example of how to use the package:
+
+```python
+from mag_safe_finder import mag_safe_finder
+
+user_input = "I need a durable MagSafe cable for my MacBook Pro that won't fray easily."
+response = mag_safe_finder(user_input=user_input)
+print(response)
+```
+
+### Using a Custom LLM
+
+By default, the package uses `ChatLLM7` from `langchain_llm7` (see [PyPI](https://pypi.org/project/langchain-llm7/)). However, you can pass your own LangChain-compatible LLM instance (based on [LangChain documentation](https://docs.langchain.com/docs/components/llms/)):
+
+#### Using OpenAI
+```python
+from langchain_openai import ChatOpenAI
+from mag_safe_finder import mag_safe_finder
+
+llm = ChatOpenAI()
+response = mag_safe_finder(user_input="Your input here", llm=llm)
+```
+
+#### Using Anthropic
+```python
+from langchain_anthropic import ChatAnthropic
+from mag_safe_finder import mag_safe_finder
+
+llm = ChatAnthropic()
+response = mag_safe_finder(user_input="Your input here", llm=llm)
+```
+
+#### Using Google Generative AI
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from mag_safe_finder import mag_safe_finder
+
+llm = ChatGoogleGenerativeAI()
+response = mag_safe_finder(user_input="Your input here", llm=llm)
+```
+
+## Parameters
+
+- `user_input` (str): The user input text to process.
+- `llm` (Optional[BaseChatModel]): The LangChain LLM instance to use. If not provided, the default `ChatLLM7` will be used.
+- `api_key` (Optional[str]): The API key for LLM7. If not provided, the package will try to use the `LLM7_API_KEY` environment variable.
+
+## API Key for LLM7
+
+The default rate limits for LLM7 free tier are sufficient for most use cases. If you need higher rate limits, you can:
+
+1. Set the `LLM7_API_KEY` environment variable, or
+2. Pass the API key directly: `mag_safe_finder(..., api_key="your_api_key")`
+
+You can get a free API key by registering at [https://token.llm7.io/](https://token.llm7.io/).
+
+## Issues
+
+If you encounter any issues or have feature requests, please open an issue on [GitHub](https://github.com/chigwell/mag-safe-finder/issues).
+
+## Author
+
+- **Eugene Evstafev** - [hi@euegne.plus](mailto:hi@euegne.plus)
+- GitHub: [chigwell](https://github.com/chigwell)
