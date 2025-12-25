@@ -1,0 +1,41 @@
+
+from django.db import models
+
+from retour_client.constantes import RetourClientConstantes
+
+
+class ConversationClaude(models.Model):
+    """Modèle pour stocker l'historique des conversations avec Claude AI"""
+
+    utilisateur = models.CharField(max_length=150)
+    role = models.CharField(max_length=10, choices=RetourClientConstantes.role_chatbot)
+    message = models.TextField()
+    date_creation = models.DateTimeField(auto_now_add=True)
+    session_id = models.CharField(max_length=100, db_index=True)
+
+    class Meta:
+        verbose_name = "Conversation Claude"
+        verbose_name_plural = "Conversations Claude"
+        ordering = ['date_creation']
+
+    def __str__(self):
+        return f"{self.utilisateur} - {self.role} - {self.date_creation.strftime('%d/%m/%Y %H:%M')}"
+
+    @classmethod
+    def get_conversation_history(cls, session_id, limit=50):
+        """Récupère l'historique des messages pour une session donnée"""
+        messages = cls.objects.filter(session_id=session_id).order_by('date_creation')[:limit]
+        return [
+            {"role": msg.role, "content": msg.message}
+            for msg in messages
+        ]
+
+    @classmethod
+    def add_message(cls, session_id, utilisateur, role, message):
+        """Ajoute un message à la conversation"""
+        return cls.objects.create(
+            session_id=session_id,
+            utilisateur=utilisateur,
+            role=role,
+            message=message
+        )
