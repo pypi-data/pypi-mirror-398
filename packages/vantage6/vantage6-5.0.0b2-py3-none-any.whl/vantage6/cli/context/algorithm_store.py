@@ -1,0 +1,126 @@
+from __future__ import annotations
+
+from vantage6.common.globals import InstanceType
+
+from vantage6.cli import __version__
+from vantage6.cli.configuration_manager import AlgorithmStoreConfigurationManager
+from vantage6.cli.context.base_backend import BaseBackendContext
+from vantage6.cli.globals import (
+    DEFAULT_API_SERVICE_SYSTEM_FOLDERS as S_FOL,
+    BackendType,
+)
+
+
+class AlgorithmStoreContext(BaseBackendContext):
+    """
+    A context class for the algorithm store.
+
+    Parameters
+    ----------
+    instance_name : str
+        Name of the configuration instance, corresponds to the filename
+        of the configuration file.
+    system_folders : bool, optional
+        System wide or user configuration, by default S_FOL
+    """
+
+    INST_CONFIG_MANAGER = AlgorithmStoreConfigurationManager
+
+    def __init__(
+        self, instance_name: str, system_folders: bool = S_FOL, is_sandbox: bool = False
+    ):
+        super().__init__(
+            InstanceType.ALGORITHM_STORE,
+            instance_name,
+            system_folders=system_folders,
+            is_sandbox=is_sandbox,
+        )
+        self.log.info("vantage6 version '%s'", __version__)
+
+    def get_database_uri(self) -> str:
+        """
+        Obtain the database uri from the environment or the configuration.
+
+        Returns
+        -------
+        str
+            string representation of the database uri
+        """
+        return super().get_database_uri()
+
+    @classmethod
+    def from_external_config_file(
+        cls, path: str, system_folders: bool = S_FOL, in_container: bool = False
+    ) -> AlgorithmStoreContext:
+        """
+        Create a store context from an external configuration file. External
+        means that the configuration file is not located in the default folders
+        but its location is specified by the user.
+
+        Parameters
+        ----------
+        path : str
+            Path of the configuration file
+        system_folders : bool, optional
+            System wide or user configuration, by default S_FOL
+        in_container : bool, optional
+            Whether the application is running inside a container, by default False
+
+        Returns
+        -------
+        AlgorithmStoreContext
+            Store context object
+        """
+        return super().from_external_config_file(
+            path,
+            BackendType.ALGORITHM_STORE,
+            system_folders,
+            in_container,
+        )
+
+    @classmethod
+    def config_exists(
+        cls, instance_name: str, system_folders: bool = S_FOL, is_sandbox: bool = False
+    ) -> bool:
+        """
+        Check if a configuration file exists.
+
+        Parameters
+        ----------
+        instance_name : str
+            Name of the configuration instance, corresponds to the filename
+            of the configuration file.
+        system_folders : bool, optional
+            System wide or user configuration, by default S_FOL
+        is_sandbox : bool, optional
+            Whether the configuration is a sandbox configuration, by default False
+        Returns
+        -------
+        bool
+            Whether the configuration file exists or not
+        """
+        return super().base_config_exists(
+            InstanceType.ALGORITHM_STORE, instance_name, system_folders, is_sandbox
+        )
+
+    @classmethod
+    def available_configurations(
+        cls, system_folders: bool = S_FOL, is_sandbox: bool = False
+    ) -> tuple[list, list]:
+        """
+        Find all available store configurations in the default folders.
+
+        Parameters
+        ----------
+        system_folders : bool, optional
+            System wide or user configuration, by default S_FOL
+
+        Returns
+        -------
+        tuple[list, list]
+            The first list contains validated configuration files, the second
+            list contains invalid configuration files.
+        """
+        return super().available_configurations(
+            InstanceType.ALGORITHM_STORE, system_folders, is_sandbox
+        )
