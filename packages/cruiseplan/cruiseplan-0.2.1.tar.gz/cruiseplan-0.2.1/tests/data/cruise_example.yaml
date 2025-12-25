@@ -1,0 +1,82 @@
+# tests/data/cruise_example.yaml
+
+# --- GLOBAL PARAMETERS ---
+cruise_name: "NE_Atlantic_Test_2025"
+description: "Validation cruise south of Iceland"
+start_date: "2025-06-01T08:00:00"  # ISO8601 Required
+default_vessel_speed: 10.0         # knots
+default_distance_between_stations: 20.0
+calculate_transfer_between_sections: true
+calculate_depth_via_bathymetry: true
+
+# --- ANCHORS (MOVED TO LEG LEVEL) ---
+# departure_port, arrival_port, first_station, last_station
+# are now defined within individual leg definitions
+
+# --- PART 1: THE CATALOG (Definitions) ---
+stations:
+  - name: STN_Start_01
+    operation_type: CTD
+    action: profile
+    position: "63.00, -20.00"
+    operation_depth: 500.0
+    duration: 60.0
+    comment: "The global start station"
+
+  - name: STN_Ref_02
+    operation_type: CTD
+    action: profile
+    position: "62.50, -20.00"
+    operation_depth: 1200.0
+
+  - name: M_End_01
+    operation_type: mooring
+    action: recovery
+    position: "62.00, -19.00"
+    duration: 180.0
+    operation_depth: 1500.0
+
+# --- PART 2: THE SCHEDULE (Execution) ---
+legs:
+  - name: "Leg 1 - Icelandic Basin"
+    departure_port:
+      name: "Reykjavik"
+      latitude: 64.1466
+      longitude: -21.9426
+      timezone: "UTC"
+    arrival_port:
+      name: "Tromsø"
+      latitude: 69.6496
+      longitude: 18.9553
+      timezone: "UTC"
+    first_station: "STN_Start_01"
+    last_station: "M_End_01"
+    strategy: "day_night_split"
+    ordered: true
+
+    # A. COMPOSITE CLUSTER (Testing References)
+    clusters:
+      - name: "Observatory_Work"
+        strategy: "day_night_split"
+
+        # Testing the "Hybrid" Pattern:
+        # 1. String Reference (Look up in Catalog)
+        # 2. Inline Dictionary (One-off definition)
+        activities:
+          - "STN_Start_01"                 # Reference
+          - "STN_Ref_02"                   # Reference
+          - name: "STN_Inline_OneOff"      # Inline
+            operation_type: CTD
+            action: profile
+            latitude: 62.25
+            longitude: -19.50
+            operation_depth: 1400.0
+            duration: 45.0
+          - "M_End_01"                     # Reference (mooring in stations)
+
+    # B. GENERATOR SECTION (Testing Auto-creation)
+    sections:
+      - name: "Transect_South"
+        start: "62.00, -19.00"
+        end: "60.00, -18.00"
+        distance_between_stations: 30.0
