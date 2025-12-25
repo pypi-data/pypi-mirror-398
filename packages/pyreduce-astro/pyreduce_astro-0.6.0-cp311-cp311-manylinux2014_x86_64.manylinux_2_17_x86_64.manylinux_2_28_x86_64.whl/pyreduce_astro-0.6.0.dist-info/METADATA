@@ -1,0 +1,114 @@
+Metadata-Version: 2.4
+Name: pyreduce-astro
+Version: 0.6.0
+Summary: A data reduction package for echelle spectrographs
+Project-URL: Homepage, https://github.com/ivh/PyReduce
+Project-URL: Documentation, https://pyreduce-astro.readthedocs.io
+Project-URL: Repository, https://github.com/ivh/PyReduce
+Project-URL: Issues, https://github.com/ivh/PyReduce/issues
+Author: Nikolai Piskunov, Thomas Marquart, Ansgar Wehrhahn
+Maintainer-email: Thomas Marquart <thomas.marquart@astro.uu.se>
+License: GPL-3.0-or-later
+License-File: LICENSE
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)
+Classifier: Programming Language :: C
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Scientific/Engineering :: Astronomy
+Requires-Python: >=3.11
+Requires-Dist: astropy>=5.3.0
+Requires-Dist: cffi>=1.17.1
+Requires-Dist: colorlog>=6.8.0
+Requires-Dist: corner>=2.2.0
+Requires-Dist: emcee>=3.1.0
+Requires-Dist: joblib>=1.3.0
+Requires-Dist: jsonschema>=4.20.0
+Requires-Dist: matplotlib>=3.8.0
+Requires-Dist: numpy>=1.26.0
+Requires-Dist: pillow>=10.0.0
+Requires-Dist: python-dateutil>=2.8.0
+Requires-Dist: scikit-image>=0.22.0
+Requires-Dist: scipy>=1.11.0
+Requires-Dist: spectres>=2.2.0
+Requires-Dist: tqdm>=4.66.0
+Requires-Dist: wget>=3.2
+Provides-Extra: dev
+Requires-Dist: pre-commit>=3.5.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.1.0; extra == 'dev'
+Requires-Dist: pytest>=7.4.0; extra == 'dev'
+Requires-Dist: ruff>=0.8.0; extra == 'dev'
+Requires-Dist: setuptools; extra == 'dev'
+Requires-Dist: sphinx>=7.2.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+[![CI](https://github.com/ivh/PyReduce/actions/workflows/python-publish.yml/badge.svg)](https://github.com/ivh/PyReduce/actions/workflows/python-publish.yml)
+[![Documentation Status](https://readthedocs.org/projects/pyreduce-astro/badge/?version=latest)](https://pyreduce-astro.readthedocs.io/en/latest/?badge=latest)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+
+# PyReduce
+
+PyReduce is a port of the [REDUCE](http://www.astro.uu.se/~piskunov/RESEARCH/REDUCE/) package to Python.
+It is a complete data reduction pipeline for the echelle spectrographs, e.g. HARPS or UVES.
+
+The methods are descibed in the papers
+* Original REDUCE: Piskunov & Valenti (2001) [doi:10.1051/0004-6361:20020175](https://doi.org/10.1051/0004-6361:20020175)
+* Updates to curved slit extraction and PyReduce: Piskunov, Wehrhahn & Marquart (2021) [10.1051/0004-6361/202038293](https://doi.org/10.1051/0004-6361/202038293)
+
+Some documentation on how to use PyReduce is available at [ReadTheDocs](https://pyreduce-astro.readthedocs.io/en/latest/index.html).
+
+Installation
+------------
+
+### For Users
+
+The latest version can be installed with pip:
+
+```bash
+pip install git+https://github.com/ivh/PyReduce
+```
+
+The version available from PyPI is slightly outdated, but functional: ``pip install pyreduce-astro``.
+
+### For Development
+
+If you foresee making changes to PyReduce itself, clone the repository and use [uv](https://docs.astral.sh/uv/) for fast, modern package management:
+
+```bash
+git clone <your fork url>
+cd PyReduce/
+uv sync
+```
+
+This will automatically:
+- Create a virtual environment
+- Install all dependencies
+- Build the CFFI C extensions
+- Install PyReduce in editable mode
+
+To run commands, use `uv run`:
+```bash
+uv run pytest                    # Run tests
+uv run python examples/uves_example.py  # Run example
+```
+
+**Note:** PyReduce uses CFFI to link to C code. On non-Linux platforms you might need to install libffi.
+See https://cffi.readthedocs.io/en/latest/installation.html#platform-specific-instructions for details.
+
+Output Format
+-------------
+PyReduce will create ``.ech`` files when run. Despite the name those are just regular ``.fits`` files and can be opened with any programm that can read ``.fits``. The data is contained in a table extension. The header contains all the keywords of the input science file, plus some extra PyReduce specific keyword, all of which start with ``e_``.
+
+How To
+------
+PyReduce is designed to be easy to use, but still be flexible.
+``examples/uves_example.py`` is a good starting point, to understand how it works.
+First we define the instrument, target, night, and instrument mode (if applicable) of our reduction. Then we tell PyReduce where to find the data, and lastly we define all the specific settings of the reduction (e.g. polynomial degrees of various fits) in a json configuration file.
+We also define which steps of the reduction to perform. Steps that are not specified, but are still required, will be loaded from previous runs if possible, or executed otherwise.
+All of this is then passed to pyreduce.reduce.main to start the reduction.
+
+In this example, PyReduce will plot all intermediary results, and also plot the progres during some of the steps. Close them to continue calculations, if it seems nothing is happening. Once you are statisified with the results you can disable them in settings_UVES.json (with "plot":false in each step) to speed up the computation.
