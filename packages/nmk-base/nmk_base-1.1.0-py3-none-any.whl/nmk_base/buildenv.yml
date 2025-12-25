@@ -1,0 +1,30 @@
+config:
+    # Ignore buildenv temporary folder
+    gitIgnoredFiles:
+      - .buildenv/
+
+    # Force init
+    buildenvInitForce: False
+
+    # Enable buildenv scripts refresh
+    buildenvRefresh: True
+
+tasks:
+    # Buildenv init
+    buildenv:
+        description: Generate "buildenv" scripts
+        emoji: rocket
+        appendToDeps: setup
+        deps:
+          - py.venv
+          - git.ignore
+          - git.attributes
+        input: ${venvState}
+        output:
+          - ${PROJECTDIR}/buildenv.sh
+          - ${PROJECTDIR}/buildenv.cmd
+          - ${PROJECTDIR}/buildenv-loader.py
+        builder: nmk_base.buildenv.BuildenvInitBuilder
+        params:
+            force: ${buildenvInitForce}
+        if: ${buildenvRefresh}

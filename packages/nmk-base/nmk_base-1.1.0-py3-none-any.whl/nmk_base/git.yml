@@ -1,0 +1,112 @@
+config:
+    # The git version itself
+    gitVersion:
+        __resolver__: nmk_base.git.GitVersionResolver
+
+    # Git version stamp file
+    gitVersionStamp: ${outputDir}/.gitversion
+
+    # Git ignored files
+    gitIgnoredFiles:
+        - ${PROJECTDIR_NMK}/
+
+    # Generated .gitignore
+    gitIgnore: ${PROJECTDIR}/.gitignore
+
+    # Generated .gitignore stamp file
+    gitIgnoreStamp: ${outputDir}/.gitignore
+
+    # Template for .gitignore fragment
+    gitIgnoreTemplate: ${BASEDIR}/templates/gitignore
+
+    # List of file extensions which must be stored with Linux line endings
+    linuxLineEndings:
+        - .sh
+
+    # List of file extensions which must be stored with Windows line endings
+    windowsLineEndings:
+        - .bat
+        - .cmd
+
+    # Generated .gitattributes
+    gitAttributes: ${PROJECTDIR}/.gitattributes
+
+    # Generated .gitattributes stamp file
+    gitAttributesStamp: ${outputDir}/.gitattributes
+
+    # Template for .gitattributes fragment
+    gitAttributesTemplate: ${BASEDIR}/templates/gitattributes
+
+    # Local/CI build?
+    isLocalBuild:
+        __resolver__: nmk_base.git.CIResolver
+        params:
+            invert: true
+    isCIBuild:
+        __resolver__: nmk_base.git.CIResolver
+
+    # Enable dirty check?
+    gitEnableDirtyCheck: ${isCIBuild}
+
+tasks:
+    # To refresh git version stamp file
+    git.version:
+        description: Refresh git version
+        emoji: ":regional_indicator_symbol_letter_g: .:label: "
+        output: ${gitVersionStamp}
+        params:
+            version: ${gitVersion}
+        silent: true
+        builder: nmk_base.git.GitVersionRefresh
+        deps:
+            - out
+        appendToDeps: setup
+
+    # Deep clean (remove all git ignored stuff)
+    git.clean:
+        description: Deep clean project
+        emoji: ":regional_indicator_symbol_letter_g: .:broom:"
+        builder: nmk_base.git.GitClean
+
+    # Update git ignored files
+    git.ignore:
+        description: Refresh git ignored files
+        emoji: ":regional_indicator_symbol_letter_g: .:sleeping_face:"
+        input:
+            - ${gitIgnore}  # .gitignore is also an input as it may be updated manually
+            - ${gitIgnoreTemplate}
+        output:
+            - ${gitIgnore}
+            - ${gitIgnoreStamp}
+        deps:
+            - out
+        appendToDeps: setup
+        builder: nmk_base.git.GitIgnore
+        params:
+            ignored_files: ${gitIgnoredFiles}
+            template: ${gitIgnoreTemplate}
+
+    # Update git attributes
+    git.attributes:
+        description: Refresh git attributes
+        emoji: ":regional_indicator_symbol_letter_g: .:white_medium_star:"
+        input:
+            - ${gitAttributes}  # .gitattributes is also an input as it may be updated manually
+            - ${gitAttributesTemplate}
+        output:
+            - ${gitAttributes}
+            - ${gitAttributesStamp}
+        deps:
+            - out
+        appendToDeps: setup
+        builder: nmk_base.git.GitAttributes
+        params:
+            template: ${gitAttributesTemplate}
+
+    # Check if folder is not dirty after all tasks
+    git.dirty:
+        description: Check for modified files
+        emoji: ":regional_indicator_symbol_letter_g: .:magnifying_glass_tilted_left:"
+        appendToDeps: epilogue
+        builder: nmk_base.git.GitIsDirty
+        if: ${gitEnableDirtyCheck}

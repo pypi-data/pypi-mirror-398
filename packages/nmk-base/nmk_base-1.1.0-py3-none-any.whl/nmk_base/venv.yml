@@ -1,0 +1,68 @@
+config:
+
+    # Venv dependencies list (direct packages dependencies)
+    venvPkgDeps:
+        - ${PACKAGESREFS}  # Default: all referenced plug-ins
+
+    # Venv archives list (direct archive dependencies)
+    venvArchiveDeps: []
+
+    # Venv requirement files list
+    venvFileDeps: []
+
+    # Venv requirement files merged content
+    venvFileDepsContent:
+        __resolver__: nmk_base.venvbuilder.FileDepsContentResolver
+
+    # Venv folder name
+    venvName: venv
+
+    # Venv merged requirements file
+    venvRequirements: requirements.txt
+    
+    # Venv state file
+    venvState: ${outputDir}/requirements.txt
+
+    # Template for merged requirements file
+    venvRequirementsTemplate: ${BASEDIR}/templates/requirements.txt
+
+    # Current venv bon folder
+    venvBin:
+        __resolver__: nmk_base.venvbuilder.BinResolver
+
+    # Current venv python executable
+    venvPython:
+        __resolver__: nmk_base.venvbuilder.ExeResolver
+
+    # Contribute to ignored files
+    gitIgnoredFiles:
+        - ${venvName}
+
+tasks:
+
+    # Generate merged requirements file
+    py.req:
+        description: Merge python venv requirements
+        emoji: ":snake:.:spiral_notepad: "
+        input:
+            - ${venvFileDeps}
+            - ${venvArchiveDeps}
+            - ${venvRequirementsTemplate}
+        output: ${PROJECTDIR}/${venvRequirements}
+        params:
+            template: ${venvRequirementsTemplate}
+        builder: nmk_base.common.TemplateBuilder
+
+    # Update venv from dependencies
+    py.venv:
+        description: Update python venv
+        emoji: ":snake:.:inbox_tray:"
+        deps:
+            - py.req
+            - out
+        appendToDeps: setup
+        output: 
+            - ${ROOTDIR}/${venvName}
+            - ${venvState}
+        input: ${PROJECTDIR}/${venvRequirements}
+        builder: nmk_base.venvbuilder.VenvUpdateBuilder
