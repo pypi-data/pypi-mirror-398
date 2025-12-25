@@ -1,0 +1,13 @@
+from ..Base import *
+from ..AcadObject import *
+from .AcadMenuGroup import *
+from ..Proxy import AccessMode as AccessMode, proxy_property as proxy_property
+
+class AcadMenuGroups(AppObjectCollection):
+    def __init__(self, obj) -> None: ...
+    Application: AcadApplication
+    Count: int
+    Parent: AppObject
+    def Item(self, Index: int | str) -> AcadMenuGroup: ...
+    def Load(self, MenuFileName: str, BaseMenu: bool = None) -> AcadMenuGroup: ...
+    def __iter__(self): ...

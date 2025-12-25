@@ -1,0 +1,60 @@
+from __future__ import annotations
+from ..Base import *
+from ..Proxy import *
+from .AcadDimension import AcadDimension
+
+
+
+class AcadDimRadialLarge(AcadDimension):
+    def __init__(self, obj) -> None: super().__init__(obj)
+
+    AltRoundDistance: float = proxy_property(float,'AltRoundDistance',AccessMode.ReadWrite)
+    AltSuppressLeadingZeros: bool = proxy_property(bool,'AltSuppressLeadingZeros',AccessMode.ReadWrite)
+    AltSuppressTrailingZeros: bool = proxy_property(bool,'AltSuppressTrailingZeros',AccessMode.ReadWrite)
+    AltSuppressZeroFeet: bool = proxy_property(bool,'AltSuppressZeroFeet',AccessMode.ReadWrite)
+    AltSuppressZeroInches: bool = proxy_property(bool,'AltSuppressZeroInches',AccessMode.ReadWrite)
+    AltTextPrefix: str = proxy_property(str,'AltTextPrefix',AccessMode.ReadWrite)
+    AltTextSuffix: str = proxy_property(str,'AltTextSuffix',AccessMode.ReadWrite)
+    AltTolerancePrecision: AcDimPrecision = proxy_property('AcDimPrecision','AltTolerancePrecision',AccessMode.ReadWrite)
+    AltToleranceSuppressLeadingZeros: bool = proxy_property(bool,'AltToleranceSuppressLeadingZeros',AccessMode.ReadWrite)
+    AltToleranceSuppressTrailingZeros: bool = proxy_property(bool,'AltToleranceSuppressTrailingZeros',AccessMode.ReadWrite)
+    AltToleranceSuppressZeroFeet: bool = proxy_property(bool,'AltToleranceSuppressZeroFeet',AccessMode.ReadWrite)
+    AltToleranceSuppressZeroInches: bool = proxy_property(bool,'AltToleranceSuppressZeroInches',AccessMode.ReadWrite)
+    AltUnits: bool = proxy_property(bool,'AltUnits',AccessMode.ReadWrite)
+    AltUnitsFormat: AcDimUnits = proxy_property('AcDimUnits','AltUnitsFormat',AccessMode.ReadWrite)
+    AltUnitsPrecision: AcDimPrecision = proxy_property('AcDimPrecision','AltUnitsPrecision',AccessMode.ReadWrite)
+    AltUnitsScale: float = proxy_property(float,'AltUnitsScale',AccessMode.ReadWrite)
+    ArrowheadBlock: str = proxy_property(str,'ArrowheadBlock',AccessMode.ReadWrite)
+    ArrowheadType: AcDimArrowheadType = proxy_property('AcDimArrowheadType','ArrowheadType',AccessMode.ReadWrite)
+    ArrowheadSize: float = proxy_property(float,'ArrowheadSize',AccessMode.ReadWrite)
+    Center: PyGePoint3d = proxy_property('PyGePoint3d','Center',AccessMode.ReadWrite)
+    CenterMarkSize: float = proxy_property(float,'CenterMarkSize',AccessMode.ReadWrite)
+    CenterType: AcDimCenterType  = proxy_property(float,'CenterType',AccessMode.ReadWrite)
+    ChordPoint: PyGePoint3d  = proxy_property('PyGePoint3d','ChordPoint',AccessMode.ReadWrite)
+    DimensionLineColor: AcColor = proxy_property('AcColor','DimensionLineColor',AccessMode.ReadWrite)
+    DimensionLineExtend: float = proxy_property(float,'DimensionLineExtend',AccessMode.ReadWrite)
+    DimensionLinetype: str = proxy_property(str,'DimensionLinetype',AccessMode.ReadWrite)
+    DimensionLineWeight: AcLineWeight = proxy_property('AcLineWeight','DimensionLineWeight',AccessMode.ReadWrite)
+    DimLineSuppress: bool = proxy_property(bool,'DimLineSuppress',AccessMode.ReadWrite)
+    Fit: AcDimFit = proxy_property('AcDimFit','Fit',AccessMode.ReadWrite)
+    ForceLineInside: bool = proxy_property(bool,'ForceLineInside',AccessMode.ReadWrite)
+    FractionFormat: AcDimFractionType = proxy_property('AcDimFractionType','FractionFormat',AccessMode.ReadWrite)
+    JogAngle: float = proxy_property(float,'JogAngle',AccessMode.ReadWrite)
+    JogLocation: PyGePoint3d = proxy_property('PyGePoint3d','JogLocation',AccessMode.ReadWrite)
+    LeaderLength: float = proxy_property(float,'LeaderLength',AccessMode.ReadWrite)
+    LinearScaleFactor: float = proxy_property(float,'LinearScaleFactor',AccessMode.ReadWrite)
+    Measurement: float = proxy_property(float,'Measurement',AccessMode.ReadOnly)
+    OverrideCenter: PyGePoint3d = proxy_property('PyGePoint3d','OverrideCenter',AccessMode.ReadOnly)
+    PrimaryUnitsPrecision: AcDimPrecision = proxy_property('AcDimPrecision','PrimaryUnitsPrecision',AccessMode.ReadWrite)
+    RoundDistance: float = proxy_property(float,'RoundDistance',AccessMode.ReadWrite)
+    SuppressZeroFeet: bool = proxy_property(bool,'SuppressZeroFeet',AccessMode.ReadWrite)
+    SuppressZeroInches: bool = proxy_property(bool,'SuppressZeroInches',AccessMode.ReadWrite)
+    TextInside: bool  = proxy_property(bool,'TextInside',AccessMode.ReadWrite)
+    TextInsideAlign: bool  = proxy_property(bool,'TextInsideAlign',AccessMode.ReadWrite)
+    TextOutsideAlign: bool  = proxy_property(bool,'TextOutsideAlign',AccessMode.ReadWrite)
+    ToleranceSuppressZeroFeet: bool = proxy_property(bool,'ToleranceSuppressZeroFeet',AccessMode.ReadWrite)
+    ToleranceSuppressZeroInches: bool = proxy_property(bool,'ToleranceSuppressZeroInches',AccessMode.ReadWrite)
+    UnitsFormat: AcDimLUnits = proxy_property('AcDimLUnits','UnitsFormat',AccessMode.ReadWrite)
+
+    def Copy(self) -> AcadDimRadialLarge:
+        return AcadDimRadialLarge(self._obj.Copy())
