@@ -1,0 +1,187 @@
+Metadata-Version: 2.4
+Name: lucidscan
+Version: 0.1.10
+Summary: LucidScan unified security scanner CLI
+Author-email: Voldeq GmbH <toni.antunovic@voldeq.com>
+License: Apache-2.0
+Keywords: security,scanner,devsecops,sast,sca,iac,container,vulnerability,trivy,semgrep,checkov,cli
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Information Technology
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Security
+Classifier: Topic :: Software Development :: Quality Assurance
+Classifier: Topic :: Software Development :: Testing
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: PyYAML>=6.0
+Requires-Dist: pathspec>=0.12.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Provides-Extra: ai
+Requires-Dist: langchain-core>=0.3; extra == "ai"
+Provides-Extra: ai-openai
+Requires-Dist: lucidscan[ai]; extra == "ai-openai"
+Requires-Dist: langchain-openai>=0.2; extra == "ai-openai"
+Provides-Extra: ai-anthropic
+Requires-Dist: lucidscan[ai]; extra == "ai-anthropic"
+Requires-Dist: langchain-anthropic>=0.2; extra == "ai-anthropic"
+Provides-Extra: ai-ollama
+Requires-Dist: lucidscan[ai]; extra == "ai-ollama"
+Requires-Dist: langchain-ollama>=0.2; extra == "ai-ollama"
+Provides-Extra: ai-all
+Requires-Dist: lucidscan[ai-openai]; extra == "ai-all"
+Requires-Dist: lucidscan[ai-anthropic]; extra == "ai-all"
+Requires-Dist: lucidscan[ai-ollama]; extra == "ai-all"
+Dynamic: license-file
+
+# LucidScan
+
+[![CI](https://github.com/voldeq/lucidscan/actions/workflows/ci.yml/badge.svg)](https://github.com/voldeq/lucidscan/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/voldeq/lucidscan/graph/badge.svg)](https://codecov.io/gh/voldeq/lucidscan)
+[![PyPI version](https://img.shields.io/pypi/v/lucidscan)](https://pypi.org/project/lucidscan/)
+[![Python](https://img.shields.io/pypi/pyversions/lucidscan)](https://pypi.org/project/lucidscan/)
+[![License](https://img.shields.io/github/license/voldeq/lucidscan)](https://github.com/voldeq/lucidscan/blob/main/LICENSE)
+
+A unified CLI for running multiple security scanners (Trivy, OpenGrep, Checkov) with consistent output.
+
+## Installation
+
+```bash
+pip install lucidscan
+```
+
+## Usage
+
+```bash
+# Scan dependencies for vulnerabilities
+lucidscan --sca
+
+# Scan code for security issues
+lucidscan --sast
+
+# Scan Terraform/Kubernetes configs
+lucidscan --iac
+
+# Scan container images
+lucidscan --container --image nginx:latest
+
+# Run all scanners
+lucidscan --all
+
+# Output formats
+lucidscan --all --format json
+lucidscan --all --format table
+lucidscan --all --format sarif
+
+# Fail CI if high severity issues found
+lucidscan --all --fail-on high
+```
+
+Scanner binaries are downloaded automatically on first use.
+
+## What it does
+
+lucidscan wraps these tools behind a single CLI:
+
+| Domain | Scanner | Detects |
+|--------|---------|---------|
+| SCA | [Trivy](https://github.com/aquasecurity/trivy) | Vulnerable dependencies |
+| Container | [Trivy](https://github.com/aquasecurity/trivy) | Image vulnerabilities |
+| SAST | [OpenGrep](https://github.com/opengrep/opengrep) | Code security issues |
+| IaC | [Checkov](https://github.com/bridgecrewio/checkov) | Infrastructure misconfigs |
+
+All results are normalized to a common JSON schema:
+
+```json
+{
+  "id": "trivy-a1b2c3d4",
+  "scanner": "sca",
+  "source_tool": "trivy",
+  "severity": "high",
+  "title": "CVE-2024-1234: RCE in lodash",
+  "file_path": "package.json",
+  "recommendation": "Upgrade to 4.17.21"
+}
+```
+
+## CI Integration
+
+### GitHub Actions
+
+```yaml
+- name: Security scan
+  run: |
+    pip install lucidscan
+    lucidscan --all --fail-on high
+```
+
+### With SARIF upload
+
+```yaml
+- name: Security scan
+  run: |
+    pip install lucidscan
+    lucidscan --all --format sarif > results.sarif
+
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: results.sarif
+```
+
+## Configuration
+
+Optional `.lucidscan.yml`:
+
+```yaml
+scanners:
+  sca:
+    enabled: true
+  sast:
+    enabled: true
+  iac:
+    enabled: true
+
+ignore:
+  - path: "vendor/**"
+  - path: "node_modules/**"
+
+severity_threshold: medium
+```
+
+## Plugin Architecture
+
+Scanners are implemented as plugins. Built-in:
+
+- `TrivyScanner` - SCA + container scanning
+- `OpenGrepScanner` - static code analysis
+- `CheckovScanner` - IaC scanning
+
+Third-party plugins can be installed from PyPI:
+
+```bash
+pip install lucidscan-snyk  # hypothetical
+```
+
+## Development
+
+```bash
+git clone https://github.com/voldeq/lucidscan.git
+cd lucidscan
+pip install -e ".[dev]"
+pytest tests/
+```
+
+## Documentation
+
+See [docs/main.md](docs/main.md) for the full specification.
