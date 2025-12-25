@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling>=1.24", "hatch-vcs>=0.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"                      # derive from git tags
+fallback-version = "0.0.0"
+
+[tool.hatch.version.vcs]
+tag-pattern = "^curvtools-v(?P<version>.+)$"
+
+[tool.hatch.version.raw-options]
+root = "../.."
+relative_to = "pyproject.toml"
+git_describe_command = "git describe --dirty --tags --long --match curvtools-v*"
+
+# write a version file on build
+[tool.hatch.build.hooks.vcs]
+version-file = "src/curvtools/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/curvtools"]
+
+[project]
+name = "curvtools"
+requires-python = ">=3.10"
+dynamic = ["version"]
+description = "CLI tools for the Curv RISC-V CPU project"
+readme = "readme.md"
+license = {text = "MIT"}
+authors = [{name="Mike Goelzer"}]
+classifiers = ["Programming Language :: Python :: 3 :: Only"]
+dependencies = [
+  "curv>=0",      # will resolve to workspace in dev/CI; to PyPI when published
+  "curvpyutils>=0",  # will resolve to workspace in dev/CI; to PyPI when published
+  "click>=8.1.0",
+  "jinja2>=3",
+  "tomli>=2; python_version<'3.11'", # only needed for Python 3.10
+  "tomli-w",  # For writing TOML files (tomli/tomllib are read-only)
+  "shtab",
+  "rich",
+  "python-dotenv>=1.1.0",
+  "importlib-metadata>=6.0.0",
+  "platformdirs>=4",
+]
+
+[project.scripts]
+curv-cfg = "curvtools.cli.curvcfg:main"
+curv-cache-tool = "curvtools.cli.cache_tool.cache_tool4:main"
+curv-cache-tool-tag-ram-way-interleaver = "curvtools.cli.cache_tool.tag_ram_way_interleaver:main"
+curv-memmap2 = "curvtools.cli.memmap2:main"
+curv-subst = "curvtools.cli.subst.subst:main"
+curv-verilog-hex-generate = "curvtools.cli.verilog_hex_generate.verilog_hex_generate:main"
+curv-verilog-hex-reformat = "curvtools.cli.verilog_hex_reformat.verilog_hex_reformat:main"
+curv-svh-from-plusargs = "curvtools.cli.svh_from_plusargs.svh_from_plusargs:main"
+curv-svh-from-template = "curvtools.cli.svh_from_template.svh_from_template:main"
+curvtools = "curvtools.cli.curvtools_main:main"
+# Legacy alias preserved
+curvcfg = "curvtools.cli.curvcfg:main"
+
+[project.urls]
+homepage = "https://github.com/curvcpu/curv-python/tree/main/packages/curvtools/readme.md"
+repository = "https://github.com/curvcpu/curv-python"
+documentation = "https://github.com/curvcpu/curv-python/tree/main/packages/curvtools/readme.md"
+issues = "https://github.com/curvcpu/curv-python/issues"
