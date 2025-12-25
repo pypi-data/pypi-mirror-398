@@ -1,0 +1,114 @@
+name: Publish to PyPI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'pyproject.toml'
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version_bumped: ${{ steps.version_check.outputs.version_bumped }}
+      current_version: ${{ steps.version_check.outputs.current_version }}
+      previous_version: ${{ steps.version_check.outputs.previous_version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if version was bumped
+        id: version_check
+        run: |
+          # Get the version from the current commit
+          CURRENT_VERSION=$(grep -E '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "Current version: $CURRENT_VERSION"
+          
+          # Get the version from the previous commit
+          git checkout HEAD~1 pyproject.toml
+          PREVIOUS_VERSION=$(grep -E '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "Previous version: $PREVIOUS_VERSION"
+          
+          # Restore the current version
+          git checkout HEAD pyproject.toml
+          
+          # Compare versions
+          if [ "$CURRENT_VERSION" = "$PREVIOUS_VERSION" ]; then
+            echo "ℹ️ Version was not bumped. Current version ($CURRENT_VERSION) is the same as previous version ($PREVIOUS_VERSION)"
+            echo "Skipping publication workflow."
+            echo "version_bumped=false" >> $GITHUB_OUTPUT
+          else
+            echo "✓ Version was bumped from $PREVIOUS_VERSION to $CURRENT_VERSION"
+            echo "version_bumped=true" >> $GITHUB_OUTPUT
+            echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+            echo "previous_version=$PREVIOUS_VERSION" >> $GITHUB_OUTPUT
+          fi
+
+  publish:
+    needs: check-version
+    if: needs.check-version.outputs.version_bumped == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Build package
+        run: |
+          uv build
+          echo "Built packages:"
+          ls -la dist/
+
+      - name: Verify package contents
+        run: |
+          echo "Checking for sensitive files in the package..."
+          tar -tzf dist/*.tar.gz | grep -E "(\.env|\.venv|__pycache__|\.pyc|\.log|tests/|CLAUDE\.md|poetry\.lock|uv\.lock)" && exit 1 || echo "✓ No sensitive files found"
+
+      - name: Publish to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          uv publish
+          echo "✓ Successfully published version ${{ needs.check-version.outputs.current_version }} to PyPI"
+
+      - name: Create and push tag
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git tag -a v${{ needs.check-version.outputs.current_version }} -m "Release v${{ needs.check-version.outputs.current_version }}"
+          git push origin v${{ needs.check-version.outputs.current_version }}
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ needs.check-version.outputs.current_version }}
+          name: Release v${{ needs.check-version.outputs.current_version }}
+          body: |
+            ## 🚀 Published to PyPI
+
+            Version ${{ needs.check-version.outputs.current_version }} has been published to PyPI.
+            
+            ### Installation
+            ```bash
+            pip install inoopa_utils==${{ needs.check-version.outputs.current_version }}
+            ```
+            
+            ### What's Changed
+            See the [commit history](https://github.com/${{ github.repository }}/compare/v${{ needs.check-version.outputs.previous_version }}...v${{ needs.check-version.outputs.current_version }}) for details.
+          artifacts: "dist/*"
+          draft: false
+          prerelease: false
