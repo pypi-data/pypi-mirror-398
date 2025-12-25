@@ -1,0 +1,137 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bengal"
+version = "0.1.5"
+description = "A high-performance static site generator with modular architecture"
+readme = "README.md"
+requires-python = ">=3.14"
+license = "MIT"
+authors = [{ name = "Bengal Contributors", email = "lbeeze@icloud.com" }]
+keywords = [
+    "static-site-generator",
+    "ssg",
+    "documentation",
+    "markdown",
+    "website",
+    "free-threading",
+    "performance",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Documentation",
+    "Topic :: Software Development :: Documentation",
+]
+dependencies = [
+    "click>=8.1.7",
+    "mistune>=3.0.0",
+    "jinja2>=3.1.0",
+    "pyyaml>=6.0",
+    "pygments>=2.18.0",
+    "python-frontmatter>=1.0.0",
+    "jsmin>=3.0.1",
+    "pillow>=10.0.0",
+    "psutil>=5.9.0",                           # For better process management in cleanup
+    "textual>=0.89",                            # Interactive dashboards (includes Rich)
+    "textual-serve>=0.1.0",                    # Web-based dashboard access
+    "questionary>=2.0.0",                      # Interactive CLI prompts with arrow key navigation
+    "watchfiles>=0.20",                        # Rust-based file watching for dev server (fast)
+    "httpx>=0.27.0",                           # Async HTTP client for link checking
+    "uvloop>=0.21.0; sys_platform != 'win32'", # Rust-based event loop (Linux/macOS)
+]
+
+[project.optional-dependencies]
+# Pre-built Lunr search index (faster client-side search)
+search = ["lunr>=0.7.0"]
+
+# Content Layer - Remote content sources
+# These provide async HTTP for fetching from GitHub, REST APIs, Notion, etc.
+github = ["aiohttp>=3.9.0"]
+notion = ["aiohttp>=3.9.0"]
+rest = ["aiohttp>=3.9.0"]
+all-sources = ["aiohttp>=3.9.0"] # All remote sources
+
+# Note: Dev dependencies use [dependency-groups] (PEP 735) - install with: uv sync --group dev
+
+[project.scripts]
+bengal = "bengal.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/lbliii/bengal"
+Documentation = "https://github.com/lbliii/bengal"
+Repository = "https://github.com/lbliii/bengal"
+"Bug Tracker" = "https://github.com/lbliii/bengal/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bengal*"]
+
+[tool.setuptools.package-data]
+bengal = [
+    "themes/**/*",
+    "autodoc/templates/**/*.jinja2",
+    "cli/templates/**/*",
+    "py.typed",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+# Enable Python upgrade rules and other quality checks
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "UP",  # pyupgrade - Python modernization
+    "B",   # flake8-bugbear - common bugs
+    "SIM", # flake8-simplify - simplify code
+    "I",   # isort - import sorting
+]
+
+# Per-file ignore rules
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]   # Allow unused imports in __init__ files
+"tests/**/*.py" = ["S101"] # Allow assert in tests
+
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+strict_optional = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+
+[dependency-groups]
+dev = [
+    # Testing
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.0",
+    "pytest-xdist>=3.3.0",
+    "pytest-timeout>=2.2.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-forked>=1.6.0",   # Isolated test execution for stateful tests
+    "pytest-textual-snapshot>=0.4.0",  # Textual dashboard snapshot testing
+    "hypothesis>=6.92.0",
+    # Linting & Type Checking
+    "mypy>=1.11.0",
+    "ruff>=0.14.0", # 0.14+ required for Python 3.14 support
+    # Test Utilities
+    "beautifulsoup4>=4.12.0", # HTML validation in integration tests
+    "markdown>=3.5.0",        # Optional python-markdown parser for tests
+    "tomli-w>=1.0.0",         # TOML writing (pairs with stdlib tomllib)
+    # Type Stubs
+    "types-pyyaml>=6.0.12",
+    "types-psutil>=5.9.0",
+    "types-pygments>=2.18.0",
+    "types-python-dateutil>=2.9.0",
+    "types-markdown>=3.5.0",
+]

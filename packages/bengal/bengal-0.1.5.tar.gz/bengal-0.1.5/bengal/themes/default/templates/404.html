@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Page Not Found - {{ site.config.title }}{% endblock %}
+
+{% block meta %}
+<meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="empty-state">
+    <div class="empty-state__code">404</div>
+
+    {# Decorative icon - compass/lost metaphor #}
+    <div class="empty-state__icon" aria-hidden="true">
+      {{ icon('compass', size=120) }}
+    </div>
+
+    <h1 class="empty-state__title">Page Not Found</h1>
+    <p class="empty-state__message">
+      The page you're looking for doesn't exist or may have been moved.
+    </p>
+
+    <div class="empty-state__actions">
+      <a href="{{ '/' | absolute_url }}" class="button button-light">
+        {{ icon('house', size=16) }}
+        <span>Go Home</span>
+      </a>
+    </div>
+
+    {# Get actual navigation items from site config or auto-discovery #}
+    {% set main_menu = get_menu_lang('main', current_lang()) %}
+    {% set auto_nav = [] %}
+    {% if main_menu | length == 0 %}
+    {% set auto_nav = get_auto_nav() %}
+    {% endif %}
+    {% set nav_items = main_menu if main_menu else auto_nav %}
+
+    {# Only show suggestions if we have navigation items #}
+    {% if nav_items %}
+    <div class="empty-state__suggestions">
+      <h2>Quick Navigation</h2>
+      <ul>
+        {% for item in nav_items[:5] %}
+        <li>
+          <a href="{{ item.href | absolute_url }}">{{ item.name }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {# Search hint - points to existing global search #}
+    <p class="empty-state__search-hint">
+      Press <kbd>⌘</kbd><kbd>K</kbd> to search
+    </p>
+  </div>
+</div>
+{% endblock %}

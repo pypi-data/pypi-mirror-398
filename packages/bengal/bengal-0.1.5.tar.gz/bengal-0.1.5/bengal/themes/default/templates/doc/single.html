@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{#
+Documentation Template
+
+Three-column layout optimized for documentation sites:
+- Left sidebar: Navigation tree
+- Center: Content
+- Right sidebar: TOC + metadata
+
+Usage: Set `template: doc.html` in frontmatter
+Or set `type: doc` to auto-select this template
+#}
+
+{% from 'partials/navigation-components.html' import breadcrumbs, page_navigation, toc with context %}
+{% from 'partials/content-components.html' import tag_list with context %}
+
+{% block content %}
+{# Three-column documentation layout #}
+<div class="docs-layout">
+  {# Left Sidebar: Navigation #}
+  <aside class="docs-sidebar" id="docs-sidebar" role="navigation" aria-label="Documentation navigation">
+    {% include 'partials/docs-nav.html' %}
+  </aside>
+
+  {# Main Content #}
+  <div class="docs-main">
+    {# Version Banner - warns users when viewing old/deprecated versions #}
+    {% include 'partials/version-banner.html' %}
+
+    {# Page Hero: Breadcrumbs + Title + Description + Metadata #}
+    {# Supports variants: classic (default) or magazine (set via hero_style) #}
+    {% include 'partials/page-hero.html' %}
+
+    {# Article Content #}
+    <article class="prose {% if page.metadata.get('css_class') %}{{ page.metadata.get('css_class') }}{% endif %}">
+
+      {# Track Navigation (Top) #}
+      {% include 'partials/track_nav.html' %}
+
+      {# Main content #}
+      <div class="docs-content">
+        {{ content | safe }}
+      </div>
+
+      {# Tags #}
+      {% if page.tags %}
+      <footer class="docs-footer">
+        <span class="docs-footer-label">Tagged</span>
+        {{ tag_list(page.tags) }}
+      </footer>
+      {% endif %}
+    </article>
+
+    {# Track Navigation (Bottom) #}
+    {% include 'partials/track_nav.html' %}
+
+    {# Page navigation (prev/next) at bottom #}
+    {{ page_navigation(page) }}
+  </div>
+
+  {# Right Sidebar: Contextual Graph + TOC + Metadata #}
+  {% if toc_items %}
+  <aside class="docs-toc" role="complementary" aria-label="Table of contents">
+    {# Contextual Graph Minimap - shows connections to current page #}
+    <div class="graph-contextual" data-page-url="{{ page.href }}">
+      {# Placeholder - will be replaced by JavaScript #}
+      <div class="graph-contextual-container graph-loading"
+        style="min-height: 200px; opacity: 1 !important; visibility: visible !important;">
+      </div>
+    </div>
+
+    {# Table of Contents #}
+    {{ toc(toc_items=toc_items, toc=toc, page=page) }}
+  </aside>
+  {% endif %}
+</div>
+
+{# Mobile sidebar toggle button #}
+<button class="docs-sidebar-toggle" aria-label="Toggle navigation sidebar" aria-expanded="false"
+  aria-controls="docs-sidebar">
+  {{ icon('list', size=20) }}
+</button>
+
+{# Sidebar overlay for mobile #}
+<div class="docs-sidebar-overlay" aria-hidden="true"></div>
+{% endblock %}
+
+{# Sidebar toggle functionality is handled by interactive.js #}
+{# Graph scripts loaded in base.html #}

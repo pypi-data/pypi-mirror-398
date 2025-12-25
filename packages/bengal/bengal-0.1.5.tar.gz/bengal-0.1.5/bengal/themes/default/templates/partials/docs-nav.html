@@ -1,0 +1,82 @@
+{#
+Documentation Navigation Component
+
+Displays full hierarchical sidebar navigation for documentation sites.
+Uses pre-computed NavTree for optimal performance.
+
+Variables:
+- page: Current page object (required)
+- show_nav_icons: Whether to show section icons (default: true)
+
+Features:
+- Hierarchical tree structure via NavTree API
+- Active page highlighting (automatic via NavNodeProxy)
+- Active trail marking (automatic via NavTreeContext)
+- Version-aware filtering (automatic via NavTreeCache)
+- Keyboard accessible
+- Section icons from frontmatter
+
+Usage:
+{% include 'partials/docs-nav.html' %}
+#}
+
+{# Control icon visibility - defaults to true #}
+{% set show_nav_icons = show_nav_icons if show_nav_icons is defined else true %}
+
+{# Check if page is autodoc - autodoc pages should use scoped navigation #}
+{% set is_autodoc = is_autodoc_page(page) if is_autodoc_page is defined else false %}
+
+{# Get root section for scoped navigation (autodoc sections have nav_root: true) #}
+{% set root_section = page._section.root if page._section and (is_autodoc or page._section.metadata.get('nav_root')) else none %}
+
+<nav class="docs-nav" aria-label="Documentation pages" data-bengal="docs-nav">
+  {# Version Selector - only show if page is versioned (not autodoc) #}
+  {% if not is_autodoc %}
+    {% include 'partials/version-selector.html' %}
+  {% endif %}
+
+  {# Navigation Tree - uses cached NavTree infrastructure #}
+  <div class="docs-nav-tree">
+    {% if root_section %}
+      {# Scoped navigation (autodoc, nav_root sections): include root section as header #}
+      {% set nav_context = get_nav_context(page, root_section=root_section) %}
+      {% set root_item = nav_context['root'] %}
+
+      {# Render root section as static header with its children #}
+      <div class="docs-nav-group docs-nav-group--root{% if root_item.is_in_trail %} is-in-trail{% endif %}" data-depth="0">
+        <div class="docs-nav-group-header">
+          {% if show_nav_icons %}
+          <span class="docs-nav-icon" {% if not root_item.icon %}data-default="true"{% endif %}>
+            {{ icon(root_item.icon or 'folder', size=16) }}
+          </span>
+          {% endif %}
+
+          {% if root_item.href %}
+          <a href="{{ root_item.href }}"
+             class="docs-nav-group-title{% if root_item.is_current %} active{% endif %}"
+             {% if root_item.is_current %}aria-current="page"{% endif %}>
+            {{ root_item.title }}
+          </a>
+          {% else %}
+          <span class="docs-nav-group-title">{{ root_item.title }}</span>
+          {% endif %}
+        </div>
+
+        <div class="docs-nav-group-items is-expanded expanded">
+          {% for item in root_item.children %}
+            {% set depth = 1 %}
+            {% include 'partials/docs-nav-node.html' %}
+          {% endfor %}
+        </div>
+      </div>
+    {% else %}
+      {# Regular navigation: render all top-level items #}
+      {% set nav_items = get_nav_tree(page) %}
+
+      {% for item in nav_items %}
+        {% set depth = 0 %}
+        {% include 'partials/docs-nav-node.html' %}
+      {% endfor %}
+    {% endif %}
+  </div>
+</nav>
