@@ -1,0 +1,76 @@
+from ..Base import *
+from ..Proxy import *
+from .AcadDimension import AcadDimension as AcadDimension
+
+class AcadDimArcLength(AcadDimension):
+    def __init__(self, obj) -> None: ...
+    AltRoundDistance: float
+    AltSubUnitsFactor: float
+    AltSubUnitsSuffix: str
+    AltSuppressLeadingZeros: bool
+    AltSuppressTrailingZeros: bool
+    AltSuppressZeroFeet: bool
+    AltSuppressZeroInches: bool
+    AltTextPrefix: str
+    AltTextSuffix: str
+    AltTolerancePrecision: AcDimPrecision
+    AltToleranceSuppressLeadingZeros: bool
+    AltToleranceSuppressTrailingZeros: bool
+    AltToleranceSuppressZeroFeet: bool
+    AltToleranceSuppressZeroInches: bool
+    AltUnits: bool
+    AltUnitsFormat: AcDimUnits
+    AltUnitsPrecision: AcDimPrecision
+    AltUnitsScale: float
+    ArcEndParam: float
+    ArcPoint: PyGePoint3d
+    ArcStartParam: float
+    Arrowhead1Block: str
+    Arrowhead1Type: AcDimArrowheadType
+    Arrowhead2Block: str
+    Arrowhead2Type: AcDimArrowheadType
+    ArrowheadSize: int
+    CenterPoint: PyGePoint3d
+    DimensionLineColor: AcColor
+    DimensionLineExtend: float
+    DimensionLinetype: str
+    DimensionLineWeight: AcLineWeight
+    DimLine1Suppress: bool
+    DimLine2Suppress: bool
+    DimLineInside: bool
+    ExtensionLineColor: AcColor
+    ExtensionLineExtend: float
+    ExtensionLineOffset: float
+    ExtensionLineWeight: AcLineWeight
+    ExtLine1Linetype: str
+    ExtLine1Point: PyGePoint3d
+    ExtLine1Suppress: bool
+    ExtLine2Point: PyGePoint3d
+    ExtLine2Linetype: str
+    ExtLine2Suppress: bool
+    ExtLineFixedLen: float
+    ExtLineFixedLenSuppress: bool
+    Fit: AcDimFit
+    ForceLineInside: bool
+    FractionFormat: AcDimFractionType
+    HasLeader: bool
+    HorizontalTextPosition: AcDimHorizontalJustification
+    IsPartial: bool
+    Leader1Point: PyGePoint3d
+    Leader2Point: PyGePoint3d
+    LinearScaleFactor: float
+    Measurement: float
+    PrimaryUnitsPrecision: AcDimPrecision
+    RoundDistance: float
+    SubUnitsFactor: float
+    SubUnitsSuffix: str
+    SuppressZeroFeet: bool
+    SuppressZeroInches: bool
+    SymbolPosition: AcDimArcLengthSymbol
+    TextInside: bool
+    TextInsideAlign: bool
+    TextOutsideAlign: bool
+    ToleranceSuppressZeroFeet: bool
+    ToleranceSuppressZeroInches: bool
+    UnitsFormat: AcDimLUnits
+    def Copy(self) -> AcadDimArcLength: ...
