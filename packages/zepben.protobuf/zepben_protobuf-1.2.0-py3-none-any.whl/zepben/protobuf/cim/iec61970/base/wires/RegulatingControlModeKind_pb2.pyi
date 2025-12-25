@@ -1,0 +1,26 @@
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
+from google.protobuf import descriptor as _descriptor
+from typing import ClassVar as _ClassVar
+
+DESCRIPTOR: _descriptor.FileDescriptor
+
+class RegulatingControlModeKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    REGULATING_CONTROL_MODE_KIND_UNKNOWN: _ClassVar[RegulatingControlModeKind]
+    REGULATING_CONTROL_MODE_KIND_VOLTAGE: _ClassVar[RegulatingControlModeKind]
+    REGULATING_CONTROL_MODE_KIND_ACTIVE_POWER: _ClassVar[RegulatingControlModeKind]
+    REGULATING_CONTROL_MODE_KIND_REACTIVE_POWER: _ClassVar[RegulatingControlModeKind]
+    REGULATING_CONTROL_MODE_KIND_CURRENT_FLOW: _ClassVar[RegulatingControlModeKind]
+    REGULATING_CONTROL_MODE_KIND_ADMITTANCE: _ClassVar[RegulatingControlModeKind]
+    REGULATING_CONTROL_MODE_KIND_TIME_SCHEDULED: _ClassVar[RegulatingControlModeKind]
+    REGULATING_CONTROL_MODE_KIND_TEMPERATURE: _ClassVar[RegulatingControlModeKind]
+    REGULATING_CONTROL_MODE_KIND_POWER_FACTOR: _ClassVar[RegulatingControlModeKind]
+REGULATING_CONTROL_MODE_KIND_UNKNOWN: RegulatingControlModeKind
+REGULATING_CONTROL_MODE_KIND_VOLTAGE: RegulatingControlModeKind
+REGULATING_CONTROL_MODE_KIND_ACTIVE_POWER: RegulatingControlModeKind
+REGULATING_CONTROL_MODE_KIND_REACTIVE_POWER: RegulatingControlModeKind
+REGULATING_CONTROL_MODE_KIND_CURRENT_FLOW: RegulatingControlModeKind
+REGULATING_CONTROL_MODE_KIND_ADMITTANCE: RegulatingControlModeKind
+REGULATING_CONTROL_MODE_KIND_TIME_SCHEDULED: RegulatingControlModeKind
+REGULATING_CONTROL_MODE_KIND_TEMPERATURE: RegulatingControlModeKind
+REGULATING_CONTROL_MODE_KIND_POWER_FACTOR: RegulatingControlModeKind
