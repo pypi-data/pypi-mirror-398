@@ -1,0 +1,73 @@
+# Buildlog Parser
+[![PyPI version](https://badge.fury.io/py/buildlog-parser.svg)](https://badge.fury.io/py/buildlog-parser)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/buildlog-parser)](https://pepy.tech/project/buildlog-parser)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+A new package that extracts and structures build log information from raw text inputs.
+
+## Overview
+The package takes unstructured build log text as input and uses llmatch-messages to parse and extract key details such as build status, errors, warnings, and timestamps. It returns a structured output that includes categorized log entries, making it easier to analyze and troubleshoot build processes.
+
+## Installation
+```bash
+pip install buildlog_parser
+```
+
+## Usage
+```python
+from buildlog_parser import buildlog_parser
+
+response = buildlog_parser(
+    user_input="unstructured_build_log_text",
+    api_key=None,  # or os.getenv("LLM7_API_KEY")
+    llm=None,  # or ChatLLM7()
+)
+```
+
+## Parameters
+
+* `user_input`: str - the user input text to process
+* `llm`: Optional[BaseChatModel] - the langchain llm instance to use, if not provided the default ChatLLM7 will be used.
+* `api_key`: Optional[str] - the api key for llm7, if not provided the default ChatLLM7 will be used from langchain_llm7 https://pypi.org/project/langchain-lab7/ by default.
+
+You can safely pass your own llm instance (based on https://docs.langchain.com/#how-do-i-use-this-library) if you want to use another LLM, via passing it like:
+```python
+from langchain_openai import ChatOpenAI
+from buildlog_parser import buildlog_parser
+llm = ChatOpenAI()
+response = buildlog_parser(user_input="unstructured_build_log_text", llm=llm)
+```
+
+or for example to use the anthropic https://docs.langchain.com/#anthropic:
+```python
+from langchain_anthropic import ChatAnthropic
+from buildlog_parser import buildlog_parser
+llm = ChatAnthropic()
+response = buildlog_parser(user_input="unstructured_build_log_text", llm=llm)
+```
+
+or google https://docs.langchain.com/#google:
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from buildlog_parser import buildlog_parser
+llm = ChatGoogleGenerativeAI()
+response = buildlog_parser(user_input="unstructured_build_log_text", llm=llm)
+```
+
+## Rate Limits
+The default rate limits for LLM7 free tier are sufficient for most use cases of this package. If you want higher rate limits for LLM7 you can pass your own api_key via environment variable LLM7_API_KEY or via passing it directly like:
+```python
+from buildlog_parser import buildlog_parser
+response = buildlog_parser(
+    user_input="unstructured_build_log_text",
+    api_key="your_api_key",
+)
+```
+You can get a free api key by registering at https://token.llm7.io/
+
+## GitHub Issues
+If you encounter any issues or would like to contribute to the project, please visit: https://github.com/chigwell/buildlog-parser
+
+## Author
+Eugene Evstafev - hi@euegne.plus
