@@ -1,0 +1,111 @@
+# richstructlog4
+
+Structured logging with `structlog`, rendered for humans with `rich`.
+
+`richstructlog4` gives you:
+
+- **Readable console output** with timestamps, levels, and key/value fields.
+- **Stream routing**: `WARNING` and above go to `stderr`, everything below goes to `stdout`.
+- **Optional file logging**: if you pass `log_file`, all logs are also written to that file in a plain, ANSI-free format.
+
+## Requirements
+
+- **Python**: 3.8+
+- **Dependencies**: `structlog`, `rich`
+
+## Install
+
+From PyPI:
+
+```bash
+pip install richstructlog4
+```
+
+From Git:
+
+```bash
+pip install git+https://github.com/MapIV/richstructlog4
+```
+
+## Quick start
+
+```python
+from richstructlog4 import Logger
+
+log = Logger(log_level="INFO")
+
+log.info("server started", host="127.0.0.1", port=8080)
+log.warning("disk space is low", path="/var")
+```
+
+## Console routing (stdout vs stderr)
+
+- **stdout**: levels below `WARNING`
+- **stderr**: `WARNING` and above
+
+This is useful for CLI tools and scripts where you want to pipe normal output but keep warnings/errors separate.
+
+## File logging (plain text)
+
+Pass `log_file` to also write every event to a file. The file output is plain text (no ANSI escape codes).
+
+```python
+from richstructlog4 import Logger
+
+log = Logger(log_file="app.log", log_level="DEBUG")
+log.debug("debug goes to file")
+log.info("info goes to stdout and file")
+log.error("error goes to stderr and file")
+```
+
+## Structured fields
+
+Add extra fields as keyword arguments. They are shown as key/value pairs in console output and included in file logs.
+
+```python
+log.info("user login", user_id="123", ip="192.168.1.1")
+log.error("db connection failed", retry_count=3, database="users")
+```
+
+## Rich markup and highlighting
+
+Console output supports Rich markup in message strings.
+
+```python
+log.info("Here are rich text markup examples:")
+log.info(" - We are hiring. Visit our [link=https://map4.jp]website[/link]!")
+log.warning(" - We are going to have a problem")
+log.error(" - [bold red]ALERT![/bold red] Something happened")
+```
+
+![!\[example rich markup\](images/example-rich-markup.png)](images/example-text-markup.png)
+
+It also highlights common patterns (HTML/XML, IPs, MACs, UUIDs, literals, numbers, paths, URLs).
+
+```python
+log.info("The following texts are automatically highlighted:")
+log.info(" - XML/HTML: `<tag>content</tag>`")
+log.info(" - IP addresses: `192.168.1.1`, `2001:db8::1`")
+log.info(" - MAC addresses: `00:1B:44:11:3A:B7`")
+log.info(" - UUIDs: `123e4567-e89b-12d3-a456-426614174000`")
+log.info(" - Python literals: `True`, `False`, `None`")
+log.info(" - Numbers: `42`, `3.14`, `1+2j`")
+log.info(" - Paths: `/usr/local/bin`")
+log.info(" - URLs: `https://map4.jp`")
+```
+
+![!\[example auto highlighting\](images/example-auto-highlighting.png)](images/example-auto-highlighting.png)
+
+## Development
+
+This project uses `uv` for running tools.
+
+```bash
+uv run ruff check
+uv run ty check
+uv run pytest --cov
+```
+
+## License
+
+MIT
