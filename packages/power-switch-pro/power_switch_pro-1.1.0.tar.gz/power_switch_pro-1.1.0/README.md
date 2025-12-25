@@ -1,0 +1,315 @@
+# Power Switch Pro Python Library
+
+[![PyPI version](https://badge.fury.io/py/power-switch-pro.svg)](https://badge.fury.io/py/power-switch-pro)
+[![Python versions](https://img.shields.io/pypi/pyversions/power-switch-pro.svg)](https://pypi.org/project/power-switch-pro/)
+[![License](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
+[![Documentation](https://readthedocs.org/projects/power-switch-pro/badge/?version=latest)](https://power-switch-pro.readthedocs.io/en/latest/)
+[![CI](https://github.com/bryankemp/power_switch_pro/workflows/CI/badge.svg)](https://github.com/bryankemp/power_switch_pro/actions)
+[![codecov](https://codecov.io/gh/bryankemp/power_switch_pro/branch/main/graph/badge.svg)](https://codecov.io/gh/bryankemp/power_switch_pro)
+
+A professional-grade Python library for controlling [Digital Loggers](https://www.digital-loggers.com/) Power Switch Pro devices via their REST API.
+
+**Designed for**: Firmware version 1.7.0+ with REST API support (API specification 20221009T204818Z)
+
+> **Disclaimer**: This is an **unofficial library** that was reverse-engineered from Digital Loggers' official REST API documentation. It is not affiliated with, endorsed by, or supported by Digital Loggers. Use at your own risk.
+
+## ✨ Features
+
+### Core Functionality
+- 🔌 **Full REST API Support** - Complete implementation of DLI REST-style API
+- ⚡ **Outlet Control** - Turn outlets on/off/cycle individually or in bulk
+- 📊 **Power Monitoring** - Real-time voltage, current, power, and energy measurements*
+- 👥 **User Management** - Create, modify, and manage device users
+- 🔧 **Device Configuration** - Access and modify device settings
+- 🏓 **AutoPing** - Configure automatic host monitoring and recovery
+- 📜 **Script Execution** - Run custom scripts on the device
+
+**\* Power Monitoring Note**: The power metering APIs (`get_voltage()`, `get_current()`, `get_power()`) are implemented based on the official API specification but remain **untested**. The test device does not have power monitoring hardware installed. These methods will work on devices with power metering capabilities but will return a clear error message on devices without this hardware.
+
+### Python Features
+- 🐍 **Pythonic API** - Intuitive interface with properties and array indexing
+- 🔒 **Secure** - HTTP Digest Authentication and CSRF protection
+- 🌐 **HTTPS Support** - Optional SSL/TLS encryption
+- 📝 **Type Hints** - Full type annotations for better IDE support
+- 🧪 **Well Tested** - Comprehensive test suite with >80% coverage
+- 📚 **Documented** - Extensive documentation with examples
+
+## Installation
+
+```bash
+pip install power_switch_pro
+```
+
+## Quick Start
+
+```python
+from power_switch_pro import PowerSwitchPro
+
+# Connect to device
+switch = PowerSwitchPro("192.168.0.100", "admin", "1234")
+
+# Turn on outlet 1
+switch.outlets[0].on()
+
+# Turn off outlet 2
+switch.outlets[1].off()
+
+# Cycle outlet 3
+switch.outlets[2].cycle()
+
+# Get outlet state
+state = switch.outlets[0].state
+print(f"Outlet 1 is {'ON' if state else 'OFF'}")
+
+# Get all outlet states
+states = switch.outlets.get_all_states()
+print(states)
+
+# Get power metrics
+voltage = switch.meters.get_voltage()
+current = switch.meters.get_current()
+print(f"Voltage: {voltage}V, Current: {current}A")
+```
+
+## Advanced Usage
+
+### Working with Multiple Outlets
+
+```python
+# Turn off all unlocked outlets
+switch.outlets.bulk_operation(locked=False, action='off')
+
+# Get states of specific outlets
+states = switch.outlets.get_states([0, 1, 4])  # Outlets 1, 2, and 5
+```
+
+### User Management
+
+```python
+# Add a new user
+switch.auth.add_user(
+    name="operator",
+    password="secret123",
+    outlet_access=[True, True, False, False, False, False, False, False]
+)
+
+# List all users
+users = switch.auth.list_users()
+
+# Delete a user
+switch.auth.delete_user("operator")
+```
+
+### AutoPing Configuration
+
+```python
+# Add AutoPing entry
+switch.autoping.add_entry(
+    host="192.168.0.50",
+    outlet=0,
+    enabled=True
+)
+```
+
+### Configuration
+
+```python
+# Get device configuration
+config = switch.config.get_all()
+
+# Update timezone
+switch.config.set_timezone("UTC-5")
+
+# Get device info
+info = switch.info
+print(f"Serial: {info['serial']}, Version: {info['version']}")
+```
+
+## API Reference
+
+### PowerSwitchPro
+
+Main class for interacting with the device.
+
+**Parameters:**
+- `host` (str): Device IP address or hostname
+- `username` (str): Admin username
+- `password` (str): Admin password
+- `use_https` (bool): Use HTTPS instead of HTTP (default: False)
+- `verify_ssl` (bool): Verify SSL certificates (default: True)
+
+**Properties:**
+- `outlets`: OutletManager for controlling outlets
+- `auth`: AuthManager for user management
+- `config`: ConfigManager for device configuration
+- `meters`: MeterManager for power metrics
+- `autoping`: AutoPingManager for AutoPing settings
+- `script`: ScriptManager for script execution
+
+### OutletManager
+
+Manage power outlets.
+
+**Methods:**
+- `on(outlet_id)`: Turn on an outlet
+- `off(outlet_id)`: Turn off an outlet
+- `cycle(outlet_id)`: Cycle an outlet
+- `get_state(outlet_id)`: Get outlet state
+- `get_all_states()`: Get all outlet states
+- `get_name(outlet_id)`: Get outlet name
+- `set_name(outlet_id, name)`: Set outlet name
+- `bulk_operation(**filters, action)`: Perform bulk operations
+
+## Requirements
+
+- Python 3.7+
+- requests >= 2.25.0
+
+## License
+
+BSD 3-Clause License. See LICENSE file for details.
+
+## Author
+
+Bryan Kemp (bryan@kempville.com)
+
+## 📖 Documentation
+
+Full documentation is available at [power-switch-pro.readthedocs.io](https://power-switch-pro.readthedocs.io)
+
+- [Installation Guide](https://power-switch-pro.readthedocs.io/en/latest/installation.html)
+- [Device Information](https://power-switch-pro.readthedocs.io/en/latest/device.html) - Hardware specs and firmware compatibility
+- [Quick Start Guide](https://power-switch-pro.readthedocs.io/en/latest/quickstart.html)
+- [API Reference](https://power-switch-pro.readthedocs.io/en/latest/api.html)
+- [Code Examples](https://power-switch-pro.readthedocs.io/en/latest/examples.html)
+- [Contributing Guidelines](https://power-switch-pro.readthedocs.io/en/latest/contributing.html)
+
+## 🚀 Supported Devices
+
+This library works with Digital Loggers power management devices that support the REST API:
+
+- **Web Power Switch Pro** (LPC series)
+- **Pro Switch** series
+- **Ethernet Power Controller III** and later models
+
+**Minimum Firmware**: 1.7.0 (REST API support required)
+
+## 💡 Use Cases
+
+- **Data Center Management**: Remotely control and monitor rack-mounted equipment
+- **Lab Automation**: Automate test equipment power cycling
+- **Server Management**: Implement automated recovery for unresponsive servers
+- **IoT Projects**: Integrate power control into home automation systems
+- **CI/CD Pipelines**: Reset test hardware between test runs
+- **Energy Monitoring**: Track power consumption of connected devices
+
+## 🛡️ Security Features
+
+- **HTTP Digest Authentication** - More secure than Basic auth (default)
+- **HTTPS/TLS Support** - Encrypted communication
+- **CSRF Protection** - Built-in protection against cross-site request forgery
+- **Session Management** - Efficient connection reuse
+- **Per-Outlet Permissions** - Granular access control for users
+
+## 🔍 Troubleshooting
+
+### "got more than 100 headers" Error
+
+If you encounter an error like `HTTPException('got more than 100 headers')` when accessing `device.info`, this has been fixed in recent versions. Update to the latest version:
+
+```bash
+pip install --upgrade power_switch_pro
+```
+
+This issue occurs with some Power Switch Pro devices that return excessive headers in their configuration endpoint responses. The library now automatically increases the header limit to accommodate these devices.
+
+### Authentication Issues
+
+- Ensure you're using the correct admin password for your device
+- The default password is device-specific (check your device documentation)
+- Some devices use HTTP Digest authentication which requires exact password match (case-sensitive)
+- If you experience repeated authentication failures, check for security lockout settings on the device
+
+### Power Metering Not Available
+
+If you get an error saying "Power metering not available on this device", this means your Power Switch Pro model does not include power monitoring hardware. This is normal for some models. The power metering APIs are implemented according to the official specification but are untested as the development device lacks this hardware. If you have a device with power metering and encounter issues, please open an issue on GitHub.
+
+## 🧪 Testing
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run tests with coverage
+pytest --cov=power_switch_pro --cov-report=html
+
+# Run linting
+ruff check power_switch_pro tests
+black --check power_switch_pro tests
+
+# Run type checking
+mypy power_switch_pro
+```
+
+## 🔧 Development
+
+This project uses:
+
+- **Black** for code formatting
+- **Ruff** for fast Python linting  
+- **mypy** for static type checking
+- **pytest** for testing
+- **Sphinx** for documentation
+
+See [WARP.md](WARP.md) for detailed development guidelines.
+
+## 📊 Project Status
+
+- ✅ **Production Ready** - v1.0.0 released
+- ✅ **Stable API** - Production/Stable status
+- ✅ **Well Tested** - Comprehensive test coverage
+- ✅ **Documented** - Full documentation available
+- ✅ **Type Safe** - Complete type annotations
+- ✅ **CI/CD** - Automated testing and publishing
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests and linting (`make test lint`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+Please read [CONTRIBUTING.md](docs/contributing.rst) for detailed guidelines.
+
+## 📝 License
+
+This project is licensed under the BSD 3-Clause License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Digital Loggers for providing the REST API specification
+- The Python community for excellent tools and libraries
+
+## 📧 Support
+
+- **Documentation**: https://power-switch-pro.readthedocs.io
+- **Issues**: https://github.com/bryankemp/power_switch_pro/issues
+- **Email**: bryan@kempville.com
+
+## 🔗 Related Links
+
+- [Digital Loggers Website](https://www.digital-loggers.com/)
+- [DLI REST API Documentation](https://www.digital-loggers.com/restapi.pdf)
+- [Product Support Forum](https://www.digital-loggers.com/forum/)
+
+---
+
+**Made with ❤️ by Bryan Kemp**
