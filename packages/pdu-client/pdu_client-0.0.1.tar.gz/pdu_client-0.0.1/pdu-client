@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# Default values
+DELAY=""
+DAEMON=""
+ACTION=""
+HOSTNAME=""
+PORT=""
+
+# Function to display usage
+usage() {
+    cat << EOF
+Usage: pdu-client -d DAEMON -a ACTION -h HOSTNAME -p PORT [-t DELAY]
+
+Required arguments:
+    -d DAEMON       Daemon server IP address (e.g., 192.168.100.206)
+    -a ACTION       Action to perform: on, off, or reboot
+    -h HOSTNAME     Target hostname/IP (e.g., 192.168.100.199)
+    -p PORT         Port number (e.g., 8)
+
+Optional arguments:
+    -t DELAY        Delay in seconds (only valid for 'reboot' action)
+
+Examples:
+    pdu-client -d 192.168.100.206 -a reboot -h 192.168.100.199 -p 8 -t 10
+    pdu-client -d 192.168.100.206 -a on -h 192.168.100.199 -p 8
+EOF
+    exit 1
+}
+
+# Parse command line arguments
+while getopts "d:a:h:p:t:" opt; do
+    case $opt in
+        d) DAEMON="$OPTARG" ;;
+        a) ACTION="$OPTARG" ;;
+        h) HOSTNAME="$OPTARG" ;;
+        p) PORT="$OPTARG" ;;
+        t) DELAY="$OPTARG" ;;
+        *) usage ;;
+    esac
+done
+
+# Validate required arguments
+if [ -z "$DAEMON" ] || [ -z "$ACTION" ] || [ -z "$HOSTNAME" ] || [ -z "$PORT" ]; then
+    echo "Error: Missing required arguments"
+    usage
+fi
+
+# Validate action
+if [[ ! "$ACTION" =~ ^(on|off|reboot)$ ]]; then
+    echo "Error: Invalid action '$ACTION'. Must be 'on', 'off', or 'reboot'"
+    exit 1
+fi
+
+# Validate delay is only used with reboot
+if [ -n "$DELAY" ] && [ "$ACTION" != "reboot" ]; then
+    echo "Error: Delay (-t) is only supported for 'reboot' action"
+    exit 1
+fi
+
+# Build URL
+URL="http://${DAEMON}:16421/power/control/${ACTION}?hostname=${HOSTNAME}&port=${PORT}"
+
+# Add delay parameter if specified and action is reboot
+if [ -n "$DELAY" ] && [ "$ACTION" = "reboot" ]; then
+    URL="${URL}&delay=${DELAY}"
+fi
+
+# Execute curl command
+curl --noproxy "*" "$URL"
+
