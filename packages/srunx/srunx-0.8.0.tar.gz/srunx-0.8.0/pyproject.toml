@@ -1,0 +1,97 @@
+[project]
+name = "srunx"
+version = "0.8.0"
+description = "Slurm job workflow management"
+readme = "README.md"
+authors = [{ name = "ksterx", email = "kostonerx@gmail.com" }]
+requires-python = ">=3.12"
+dependencies = [
+    "jinja2>=3.1.6",
+    "loguru>=0.7.3",
+    "pydantic>=2.11.5",
+    "pyyaml>=6.0.2",
+    "rich>=14.0.0",
+    "paramiko>=4.0.0",
+    "slack-sdk>=3.35.0",
+    "typer>=0.17.3",
+    "apscheduler>=3.10.0",
+]
+
+[project.scripts]
+srunx = "srunx.cli.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/srunx"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src/srunx" = "srunx"
+
+[dependency-groups]
+dev = [
+    "jupyterlab>=4.4.3",
+    "mypy>=1.16.0",
+    "pre-commit>=4.2.0",
+    "pytest>=8.4.0",
+    "ruff>=0.11.13",
+    "types-pyyaml>=6.0.12",
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.12.0",
+    "sphinx>=8.2.3",
+    "sphinx-autobuild>=2024.10.3",
+    "sphinx-autodoc-typehints>=3.2.0",
+    "sphinx-rtd-theme>=3.0.2",
+    "sphinx-book-theme>=1.1.4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+    "--cov=srunx",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow tests",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*", "*/__init__.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.ruff.lint]
+select = ["I", "E", "F", "B", "C", "UP"]
+ignore = ["E501", "C901", "F841", "B017"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_unused_configs = true
+ignore_missing_imports = true
+disable_error_code = ["import-untyped"]
