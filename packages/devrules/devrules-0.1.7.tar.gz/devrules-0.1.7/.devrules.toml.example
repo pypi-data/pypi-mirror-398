@@ -1,0 +1,146 @@
+# DevRules Configuration File
+# Copy this to .devrules.toml and customize
+
+[branch]
+# Branch naming pattern (regex)
+pattern = "^(feature|bugfix|hotfix|release|docs)/(\\d+-)?[a-z0-9-]+"
+prefixes = ["feature", "bugfix", "hotfix", "release", "docs"]
+require_issue_number = false
+
+[commit]
+# Commit message tags
+tags = ["WIP", "FTR", "SCR", "CLP", "CRO", "TST", "!!!", "FIX", "RFR", "ADD", "REM", "REV", "MOV", "REL", "IMP", "MERGE", "I18N", "DOCS"]
+pattern = "^\\[({tags})\\].+"
+min_length = 10
+max_length = 100
+restrict_branch_to_owner = true
+append_issue_number = true
+# GPG sign commits (requires git config user.signingkey to be set)
+gpg_sign = false
+# Protected branches that should not receive direct commits (merge-only)
+# Useful for staging branches that combine multiple features for testing
+protected_branch_prefixes = ["staging-"]
+# Forbidden file patterns (glob patterns)
+forbidden_patterns = ["*.dump", "*.sql", ".env.local", "*.log", "*.swp", "*~"]
+# Forbidden paths (directories that should not be committed)
+forbidden_paths = ["tmp/", "cache/", "local/", ".vscode/"]
+auto_stage = true
+
+[pr]
+# Pull Request validation
+max_loc = 400
+max_files = 20
+require_title_tag = true
+title_pattern = "^\\[({tags})\\].+"
+# Enable issue status validation before PR creation (default: false)
+require_issue_status_check = false
+# List of statuses that allow PR creation (e.g., ["In review", "Ready"])
+allowed_pr_statuses = []
+# List of project keys from [github.projects] to check status against
+# If empty, checks all configured projects
+project_for_status_check = []
+# Allowed target branches for PRs (if empty, no restriction)
+allowed_targets = ["develop", "main", "staging"]
+# Advanced target rules based on source branch patterns
+# [[pr.target_rules]]
+# source_pattern = "^feature/.*"
+# allowed_targets = ["develop"]
+# disallowed_message = "Feature branches must target develop, not main"
+auto_push = false
+
+[github]
+# GitHub API settings
+api_url = "https://api.github.com"
+timeout = 30
+owner = "pedroifgonzalez"
+repo = "devrules"
+valid_statuses = [ "Backlog", "Ready", "In progress", "Waiting Integration", "In review", "Done",]
+integration_comment_status = "Waiting Integration"
+
+[github.status_emojis]
+backlog = "📋"
+ready = "🚀"
+in_progress = "⏳"
+in_review = "👀"
+done = "✅"
+
+
+[deployment]
+# Jenkins configuration
+jenkins_url = "https://jenkins.yourcompany.com"
+jenkins_user = "your-username"  # Optional: can use env var JENKINS_USER
+jenkins_token = "your-api-token"  # Optional: can use env var JENKINS_TOKEN
+
+# Set to true if using Jenkins multibranch pipelines
+# This changes the URL format from /job/{name}/build to /job/{name}/job/{branch}/build
+multibranch_pipeline = false
+
+# Migration detection (Alembic)
+migration_detection_enabled = true
+migration_paths = ["migrations/", "alembic/versions/"]
+
+# Deployment behavior
+auto_rollback_on_failure = true
+require_confirmation = true
+
+# Environment configurations
+[deployment.environments.dev]
+name = "dev"
+default_branch = "develop"
+# jenkins_job_name is optional - if not set, uses github.repo name
+jenkins_job_name = "deploy-backend-dev"
+
+[deployment.environments.staging]
+name = "staging"
+default_branch = "staging"
+jenkins_job_name = "deploy-backend-staging"
+
+[deployment.environments.prod]
+name = "prod"
+default_branch = "main"
+jenkins_job_name = "deploy-backend-prod"
+
+[validation]
+# Check for uncommitted changes before branch creation
+check_uncommitted = true
+# Check if local branch is behind remote before branch creation
+check_behind_remote = true
+# If true, show warnings but don't block operations
+warn_only = false
+# Allowed base branches for creating new branches (empty = no restriction)
+allowed_base_branches = []
+# Forbidden base branch patterns (regex patterns)
+# Example: ["^feature/.*"] prevents creating branches from other feature branches
+forbidden_base_patterns = []
+
+[documentation]
+# Show context-aware documentation during commits
+show_on_commit = true
+# Show context-aware documentation during PR creation
+show_on_pr = true
+
+# Documentation rules - show relevant docs based on files changed
+# [[documentation.rules]]
+# file_pattern = "migrations/**"
+# docs_url = "https://wiki.company.com/database-migrations"
+# message = "You're modifying migrations. Please review the migration guidelines."
+# checklist = [
+#   "Update the entrypoint if adding new tables",
+#   "Test the migration rollback",
+#   "Update the database schema documentation"
+# ]
+
+# [[documentation.rules]]
+# file_pattern = "api/**/*.py"
+# docs_url = "https://wiki.company.com/api-guidelines"
+# message = "API changes detected"
+# checklist = [
+#   "Update API documentation",
+#   "Add/update tests",
+#   "Consider backward compatibility"
+# ]
+
+# [[documentation.rules]]
+# file_pattern = "auth/**"
+# docs_url = "https://wiki.company.com/security-guidelines"
+# message = "Security-sensitive code detected. Extra review required."
