@@ -1,0 +1,57 @@
+# fractal-model-api
+
+A small Python client for interactions with the Fractal Model API.
+
+## Requirements
+
+- Python 3.8+
+
+## Installation
+
+Install the package (and optionally `python-dotenv` if you prefer using a `.env` file):
+
+```bash
+pip install fractal-model-api python-dotenv
+```
+
+## Usage
+This project does not automatically load a .env file. You must either set the required environment variables on your system or explicitly load the .env file from your script.
+
+1. Create a file named .env in the project root with your API credentials:
+```dotenv
+FM_API_KEY=your_api_key_here
+FM_API_SECRET=your_api_secret_here
+```
+
+2a. Easiest for non-technical users — add one line to your script to load the .env file (requires python-dotenv):
+```python
+import asyncio
+from dotenv import load_dotenv
+
+load_dotenv()  # loads environment variables from ` .env`
+
+from fractal_model_api import FractalModelAPIClient
+
+async def main():
+    client = FractalModelAPIClient()
+    optimized = await client.get_optimized_schedule_lt(file_path="path/to/your/input_file")
+    print(optimized)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+2b. Or set environment variables in your terminal before running your script:
+</br>
+For linux:
+```shell
+export FM_API_KEY=your_api_key_here
+export FM_API_SECRET=your_api_secret_here
+python your_script.py
+```
+For Windows (cmd):
+```cmd
+set FM_API_KEY=your_api_key_here
+set FM_API_SECRET=your_api_secret_here
+python your_script.py
+```
