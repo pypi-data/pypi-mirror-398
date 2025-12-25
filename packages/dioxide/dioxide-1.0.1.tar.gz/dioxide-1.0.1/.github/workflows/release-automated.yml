@@ -1,0 +1,630 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger on version tags (v0.2.1, v1.0.0, etc.)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run - build and test but do not publish'
+        required: false
+        type: boolean
+        default: false
+      publish_to_testpypi:
+        description: 'Publish to TestPyPI (for validation before release)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  validate:
+    name: Validate Version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+      tag_version: ${{ steps.get-tag.outputs.tag_version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.1
+
+      - name: Get package version from Cargo.toml
+        id: get-version
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | head -1 | cut -d'"' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Package version: $VERSION"
+
+      - name: Get tag version
+        id: get-tag
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
+          echo "Tag version: $TAG_VERSION"
+
+      - name: Validate version matches tag
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          PACKAGE_VERSION="${{ steps.get-version.outputs.version }}"
+          if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match package version ($PACKAGE_VERSION)"
+            exit 1
+          fi
+          echo "✅ Version validation passed: $TAG_VERSION"
+
+      - name: Validate changelog has entry for this version
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          # Check for both formats: "## [version]" and "## vversion" (commitizen style)
+          if ! grep -q "## \[${VERSION}\]" CHANGELOG.md && ! grep -q "## v${VERSION}" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md missing entry for version ${VERSION}"
+            echo ""
+            echo "Expected one of these formats in CHANGELOG.md:"
+            echo "  ## [${VERSION}]"
+            echo "  ## v${VERSION}"
+            echo ""
+            echo "Please add a changelog entry before releasing."
+            exit 1
+          fi
+          echo "✅ CHANGELOG.md has entry for ${VERSION}"
+
+      - name: Check for uncommitted changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Repository has uncommitted changes"
+            echo ""
+            echo "Uncommitted files:"
+            git status --porcelain
+            echo ""
+            echo "Please commit or stash all changes before releasing."
+            exit 1
+          fi
+          echo "✅ No uncommitted changes"
+
+  build-wheels:
+    name: Build wheels on ${{ matrix.platform || matrix.os }} for ${{ matrix.target }}
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            platform: linux
+            python-version: '3.14'
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            platform: linux
+            python-version: '3.13'
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            platform: linux
+            python-version: '3.11'
+
+          # Linux aarch64 (ARM64)
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            platform: linux
+            python-version: '3.14'
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            platform: linux
+            python-version: '3.13'
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            platform: linux
+            python-version: '3.11'
+
+          # macOS x86_64 (Intel)
+          - os: macos-15-intel  # Intel runner (last x86_64 runner, available until Aug 2027)
+            target: x86_64-apple-darwin
+            platform: macos
+            python-version: '3.14'
+
+          # macOS aarch64 (Apple Silicon)
+          - os: macos-latest  # Apple Silicon runner
+            target: aarch64-apple-darwin
+            platform: macos
+            python-version: '3.14'
+
+          # Windows x86_64 - only build once since abi3 wheel works for all Python versions
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform: windows
+            python-version: '3.11'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # For Linux ARM64 cross-compilation
+      - name: Setup QEMU
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          key: ${{ matrix.target }}-${{ matrix.python-version }}
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --interpreter python${{ matrix.python-version }}
+          manylinux: auto  # Use manylinux_2_28 where available
+          docker-options: -e CI  # Pass CI env to docker
+
+      - name: Strip trailing data from wheels
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def strip_trailing_data(wheel_path):
+              with open(wheel_path, 'rb') as f:
+                  data = f.read()
+
+              eocd_sig = b'PK\x05\x06'
+              pos = data.rfind(eocd_sig)
+
+              if pos == -1:
+                  return False
+
+              comment_len = int.from_bytes(data[pos+20:pos+22], 'little')
+              eocd_end = pos + 22 + comment_len
+
+              if len(data) > eocd_end:
+                  with open(wheel_path, 'wb') as f:
+                      f.write(data[:eocd_end])
+                  return True
+              return False
+
+          for wheel in Path('dist').glob('*.whl'):
+              if strip_trailing_data(wheel):
+                  print(f"Stripped trailing data from {wheel.name}")
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: wheels-${{ matrix.platform }}-${{ matrix.target }}-py${{ matrix.python-version }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  build-sdist:
+    name: Build source distribution
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  # Phase 1 Fix: Wheel validation
+  # Validates wheel structure BEFORE uploading to PyPI
+  # Catches ZIP structure issues and trailing data (issue #137)
+  validate-wheels:
+    name: Validate Wheel Structure
+    needs: [build-wheels, build-sdist]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v7
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install validation tools
+        run: pip install wheel check-wheel-contents
+
+      - name: Validate wheel ZIP structure
+        run: |
+          python3 << 'EOF'
+          import zipfile
+          from pathlib import Path
+
+          def validate_wheel(wheel_path):
+              """Validate wheel ZIP structure. Returns (has_errors, has_warnings, messages)."""
+              errors = []
+              warnings = []
+
+              try:
+                  # Test ZIP integrity - this is a hard error
+                  with zipfile.ZipFile(wheel_path, 'r') as zf:
+                      bad_file = zf.testzip()
+                      if bad_file:
+                          errors.append(f"Corrupt file in ZIP: {bad_file}")
+
+                  # Check for trailing data - this is a warning (stripped later)
+                  with open(wheel_path, 'rb') as f:
+                      data = f.read()
+
+                  eocd_sig = b'PK\x05\x06'
+                  pos = data.rfind(eocd_sig)
+
+                  if pos == -1:
+                      errors.append("No EOCD signature found")
+                  else:
+                      comment_len = int.from_bytes(data[pos+20:pos+22], 'little')
+                      eocd_end = pos + 22 + comment_len
+                      trailing_bytes = len(data) - eocd_end
+
+                      if trailing_bytes > 0:
+                          warnings.append(f"Trailing data: {trailing_bytes} bytes (will be stripped before upload)")
+
+                  return errors, warnings
+
+              except Exception as e:
+                  return [f"Exception: {e}"], []
+
+          dist_dir = Path('dist')
+          wheels = list(dist_dir.glob('*.whl'))
+
+          print(f"Validating {len(wheels)} wheel(s)...")
+          print()
+
+          has_errors = False
+          for wheel in sorted(wheels):
+              errors, warnings = validate_wheel(wheel)
+              if errors:
+                  print(f"❌ {wheel.name}")
+                  for e in errors:
+                      print(f"   ERROR: {e}")
+                  has_errors = True
+              elif warnings:
+                  print(f"⚠️  {wheel.name}")
+                  for w in warnings:
+                      print(f"   {w}")
+              else:
+                  print(f"✅ {wheel.name}")
+
+          print()
+          if has_errors:
+              print("❌ Wheel validation FAILED - wheels have structural corruption")
+              exit(1)
+
+          print("✅ All wheels passed validation")
+          EOF
+
+      - name: Check wheel contents
+        run: |
+          # Use check-wheel-contents to validate wheel metadata
+          for wheel in dist/*.whl; do
+            echo "Checking $wheel..."
+            check-wheel-contents "$wheel"
+          done
+
+  test-wheels:
+    name: Test wheels on ${{ matrix.os }} with Python ${{ matrix.python-version }}
+    needs: [build-wheels, validate-wheels]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.13', '3.14']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Download wheels
+        uses: actions/download-artifact@v7
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+
+      - name: Install wheel
+        run: |
+          # Let uv pip select the compatible wheel for this platform
+          uv pip install --system --find-links=dist --no-index dioxide
+
+      - name: Install test dependencies
+        # Version constraints match pyproject.toml [dependency-groups].dev to ensure
+        # release tests use the same versions as CI (which uses uv sync --all-extras)
+        run: uv pip install --system "pytest>=8.4.2" "pytest-cov>=7.0.0" "pytest-asyncio>=1.3.0" "pytest-benchmark>=5.2.3" "mypy>=1.18.2"
+
+      - name: Run smoke tests
+        run: python tests/smoke_test.py
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+  # REMOVED: Test PyPI staging
+  # Test PyPI was CAUSING version burn problems, not preventing them!
+  #
+  # The problem: Test PyPI and Production PyPI are SEPARATE registries with the
+  # SAME version-burn policy. Once a version is uploaded to Test PyPI (even if
+  # deleted later), that version number is burned FOREVER on Test PyPI.
+  #
+  # This caused failures when:
+  # 1. Test PyPI upload succeeded
+  # 2. Production PyPI failed for any reason (trailing data, etc.)
+  # 3. We'd have to bump the patch version just to release
+  #
+  # The fix: Skip Test PyPI for stable releases. Go straight to Production PyPI.
+  # Test PyPI is only useful for testing the upload PROCESS, not the code.
+  # If CI passes (tests, wheel validation), go directly to Production.
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [validate, build-wheels, build-sdist, validate-wheels, test-wheels]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && inputs.dry_run != true
+    environment:
+      name: pypi
+      url: https://pypi.org/project/dioxide/
+    permissions:
+      actions: read
+      id-token: write
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+
+      - name: Download sdist
+        uses: actions/download-artifact@v7
+        with:
+          pattern: sdist
+          path: dist
+          merge-multiple: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Strip trailing data from wheels (PyPI validation fix)
+        run: |
+          python3 << 'EOF'
+          from pathlib import Path
+
+          def strip_trailing_data(wheel_path):
+              """Remove trailing NULL bytes after ZIP End of Central Directory."""
+              with open(wheel_path, 'rb') as f:
+                  data = f.read()
+
+              eocd_sig = b'PK\x05\x06'
+              pos = data.rfind(eocd_sig)
+
+              if pos == -1:
+                  print(f"  ⚠️  No EOCD found in {wheel_path.name}")
+                  return False
+
+              comment_len = int.from_bytes(data[pos+20:pos+22], 'little')
+              eocd_end = pos + 22 + comment_len
+              trailing_bytes = len(data) - eocd_end
+
+              if trailing_bytes > 0:
+                  print(f"  ✂️  {wheel_path.name}: Removing {trailing_bytes} trailing bytes")
+                  with open(wheel_path, 'wb') as f:
+                      f.write(data[:eocd_end])
+                  return True
+              else:
+                  print(f"  ✓  {wheel_path.name}: No trailing data")
+                  return False
+
+          dist_dir = Path('dist')
+          wheels = list(dist_dir.glob('*.whl'))
+          print(f"Checking {len(wheels)} wheel(s) for trailing data...")
+          fixed = sum(1 for w in sorted(wheels) if strip_trailing_data(w))
+          print(f"\n✅ Fixed {fixed} wheel(s)" if fixed else "\n✅ All wheels clean")
+          EOF
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          print-hash: true
+          verbose: true
+
+  github-release:
+    name: Create GitHub Release
+    needs: [validate, publish-pypi]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && inputs.dry_run != true
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.1
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+
+      - name: Download sdist
+        uses: actions/download-artifact@v7
+        with:
+          pattern: sdist
+          path: dist
+          merge-multiple: true
+
+      - name: Extract release notes
+        id: extract_notes
+        run: |
+          VERSION=${{ needs.validate.outputs.version }}
+          # Extract the section for this version from CHANGELOG.md
+          awk "/## \[$VERSION\]/,/## \[/" CHANGELOG.md | sed '1d;$d' > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "No release notes found for version $VERSION, using default message"
+            echo "Release version $VERSION" > release_notes.md
+          fi
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release_notes.md
+          files: |
+            dist/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  verify-pypi:
+    name: Verify PyPI Publication
+    needs: [validate, publish-pypi]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && inputs.dry_run != true
+    permissions:
+      contents: read
+
+    steps:
+      - name: Wait for PyPI to update
+        run: sleep 60
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Verify package on PyPI
+        run: |
+          pip install dioxide==${{ needs.validate.outputs.version }}
+          python -c "import dioxide; print(f'Successfully installed version {dioxide.__version__}')"
+
+      - name: Create deployment summary
+        run: |
+          echo "# Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**PyPI:** https://pypi.org/project/dioxide/${{ needs.validate.outputs.version }}/" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**GitHub Release:** https://github.com/${{ github.repository }}/releases/tag/v${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+
+  # Dry run summary - shows what would have been published
+  dry-run-summary:
+    name: Dry Run Summary
+    needs: [validate, build-wheels, build-sdist, validate-wheels, test-wheels]
+    runs-on: ubuntu-latest
+    if: inputs.dry_run == true
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v7
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+
+      - name: Download sdist
+        uses: actions/download-artifact@v7
+        with:
+          pattern: sdist
+          path: dist
+          merge-multiple: true
+
+      - name: Create dry run summary
+        run: |
+          echo "# Dry Run Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This was a **dry run** - no packages were published." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Version" >> $GITHUB_STEP_SUMMARY
+          echo "**Package version:** ${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Built Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "The following artifacts were built and validated:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Wheels" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          ls -la dist/*.whl 2>/dev/null || echo "No wheels found" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Source Distribution" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          ls -la dist/*.tar.gz 2>/dev/null || echo "No sdist found" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Validation Status" >> $GITHUB_STEP_SUMMARY
+          echo "- Wheel structure validation: **Passed**" >> $GITHUB_STEP_SUMMARY
+          echo "- Cross-platform tests: **Passed**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Skipped Steps (Dry Run)" >> $GITHUB_STEP_SUMMARY
+          echo "The following steps were skipped because this was a dry run:" >> $GITHUB_STEP_SUMMARY
+          echo "- Publish to PyPI" >> $GITHUB_STEP_SUMMARY
+          echo "- Create GitHub Release" >> $GITHUB_STEP_SUMMARY
+          echo "- Verify PyPI Publication" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "To perform an actual release:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Create and push a version tag: \`git tag v${{ needs.validate.outputs.version }} && git push origin v${{ needs.validate.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Or run this workflow again without the dry-run option" >> $GITHUB_STEP_SUMMARY

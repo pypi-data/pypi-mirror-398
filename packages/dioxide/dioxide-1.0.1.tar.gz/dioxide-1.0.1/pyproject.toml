@@ -1,0 +1,311 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+
+[project]
+name = "dioxide"
+dynamic = ["version"]
+description = "Fast, Rust-backed declarative dependency injection for Python"
+authors = [
+    {name = "Mike Lane", email = "mikelane@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+keywords = ["dependency-injection", "di", "ioc", "rust", "container"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Rust",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+dependencies = []
+
+[project.optional-dependencies]
+# User-facing extras (pip install dioxide[fastapi])
+fastapi = [
+    "fastapi>=0.100.0",
+    "starlette>=0.27.0",
+]
+flask = [
+    "flask>=2.0.0",
+]
+django = [
+    "django>=4.0.0",
+]
+drf = [
+    "django>=4.0.0",
+    "djangorestframework>=3.14.0",
+]
+celery = [
+    "celery>=5.0.0",
+]
+click = [
+    "click>=8.0.0",
+]
+ninja = [
+    "django>=4.0.0",
+    "django-ninja>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/mikelane/dioxide"
+Documentation = "https://dioxide.readthedocs.io"
+Repository = "https://github.com/mikelane/dioxide"
+Issues = "https://github.com/mikelane/dioxide/issues"
+Changelog = "https://github.com/mikelane/dioxide/blob/main/CHANGELOG.md"
+
+[tool.maturin]
+python-source = "python"
+module-name = "dioxide._dioxide_core"
+features = ["pyo3/extension-module"]
+
+[tool.setuptools]
+package-dir = {"" = "python"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Describe*", "Test*"]
+python_functions = ["it_*", "test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "asyncio: mark test as an async test using asyncio",
+    "slow: mark test as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "python"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_any_unimported = false
+disallow_any_expr = false
+disallow_any_decorated = false
+disallow_any_explicit = false
+disallow_any_generics = true
+disallow_subclassing_any = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+strict_concatenate = true
+exclude = ["features/", "tests/type_checking/invalid/", "docs/"]
+
+[[tool.mypy.overrides]]
+module = ["behave", "behave.*", "dioxide._dioxide_core", "docs", "docs.*", "sphinx", "sphinx.*", "fastapi", "fastapi.*", "starlette", "starlette.*", "flask", "flask.*", "werkzeug", "werkzeug.*", "celery", "celery.*", "kombu", "kombu.*", "amqp", "amqp.*", "billiard", "billiard.*", "vine", "vine.*", "click", "click.*", "typer", "typer.*", "django", "django.*", "rest_framework", "rest_framework.*", "ninja", "ninja.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["dioxide.fastapi"]
+# FastAPI is optional dependency:
+# - no-any-return: resolve() returns T which mypy sees as Any
+# - unreachable: false positive from asynccontextmanager with conditional yield
+# - no-redef: we pre-declare Depends/Request as Any, then import conditionally
+disable_error_code = ["no-any-return", "unreachable", "no-redef"]
+
+[[tool.mypy.overrides]]
+module = ["dioxide.flask"]
+# Flask is optional dependency:
+# - no-any-return: resolve() returns T which mypy sees as Any
+# - no-redef: we pre-declare Flask/g/has_request_context as Any, then import conditionally
+# - misc: Flask decorators (@app.before_request, @app.teardown_request) make functions untyped
+disable_error_code = ["no-any-return", "no-redef", "misc"]
+
+[[tool.mypy.overrides]]
+module = ["dioxide.celery"]
+# Celery is optional dependency:
+# - no-any-return: resolve() returns T which mypy sees as Any
+# - no-redef: we pre-declare Celery as Any, then import conditionally
+# - misc: Celery task decorators can have complex types
+# - import-not-found: celery doesn't have type stubs
+disable_error_code = ["no-any-return", "no-redef", "misc", "import-not-found"]
+
+[[tool.mypy.overrides]]
+module = ["dioxide.click"]
+# Click is optional dependency:
+# - no-any-return: resolve() returns T which mypy sees as Any
+# - no-redef: we pre-declare click as Any, then import conditionally
+disable_error_code = ["no-any-return", "no-redef"]
+
+[[tool.mypy.overrides]]
+module = ["dioxide.django"]
+# Django is optional dependency:
+# - no-any-return: resolve() returns T which mypy sees as Any
+# - no-redef: we pre-declare Django as Any, then import conditionally
+disable_error_code = ["no-any-return", "no-redef"]
+
+[[tool.mypy.overrides]]
+module = ["dioxide.drf"]
+# DRF is optional dependency:
+# - no-any-return: resolve() returns T which mypy sees as Any
+# - no-redef: we pre-declare DRF types as Any, then import conditionally
+disable_error_code = ["no-any-return", "no-redef"]
+
+[[tool.mypy.overrides]]
+module = ["dioxide.ninja"]
+# Django Ninja is optional dependency:
+# - no-any-return: resolve() returns T which mypy sees as Any
+# - no-redef: we pre-declare NinjaAPI as Any, then import conditionally
+disable_error_code = ["no-any-return", "no-redef"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+# Allow dynamic attributes in tests (e.g., component.implements)
+# Allow type-var errors for intentionally invalid test cases
+# Ignore mypy issues with FastAPI decorators and container checks (optional dependency)
+# unused-ignore: some type ignores are only needed in certain mypy versions
+# import-not-found: celery doesn't have type stubs
+disable_error_code = ["attr-defined", "type-abstract", "type-var", "misc", "comparison-overlap", "unused-ignore", "import-not-found"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "DTZ", # flake8-datetimez
+    "T10", # flake8-debugger
+    "PLC", # Pylint Convention rules
+    "RUF", # Ruff-specific rules
+]
+ignore = [
+    "COM812",  # Ignore missing trailing commas (conflicts with ruff format)
+    "ISC001",  # Ignore implicitly concatenated strings (conflicts with ruff format)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "B008", "PLC0415"]  # Allow assert, Inject() in defaults, local imports in tests
+"python/dioxide/container.py" = ["PLC0415"]  # Allow local imports in scan() to avoid circular dependencies
+"python/dioxide/decorators.py" = ["PLC0415"]  # Allow local imports to avoid circular dependencies
+"python/dioxide/fastapi.py" = ["PLC0415"]  # Allow local imports to avoid circular dependencies
+"python/dioxide/flask.py" = ["PLC0415"]  # Allow local imports to avoid circular dependencies
+"python/dioxide/celery.py" = ["PLC0415"]  # Allow local imports to avoid circular dependencies
+"python/dioxide/django.py" = ["PLC0415"]  # Allow local imports to avoid circular dependencies
+"python/dioxide/ninja.py" = ["PLC0415"]  # Allow local imports to avoid circular dependencies
+"python/dioxide/drf.py" = ["PLC0415"]  # Allow local imports to avoid circular dependencies
+"benchmarks/**/*.py" = ["N801", "N806"]  # Allow DI_* prefixes for framework comparison clarity
+
+[tool.ruff.lint.isort]
+known-first-party = ["dioxide"]
+
+[tool.ruff.format]
+quote-style = "single"
+docstring-code-format = true
+skip-magic-trailing-comma = false
+
+[tool.isort]
+profile = "black"
+line_length = 120
+multi_line_output = 3  # Vertical Hanging Indent
+include_trailing_comma = true
+force_grid_wrap = 2  # Force grid wrap for 2+ imports
+use_parentheses = true
+ensure_newline_before_comments = true
+known_first_party = ["dioxide"]
+# Single imports should be on one line: from module import Item
+# Multiple imports use hanging indent with parentheses
+
+[tool.coverage.run]
+branch = true
+source = ["dioxide"]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+
+[tool.mutmut]
+paths_to_mutate = "python/dioxide/"
+backup = false
+runner = "python -m pytest -x --assert=plain"
+tests_dir = "tests/"
+
+[dependency-groups]
+# PEP 735 dependency groups (uv sync --group dev)
+dev = [
+    # Build tools
+    "maturin>=1.0,<2.0",
+    "twine>=6.2.0",
+    # Testing
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-benchmark>=5.2.3",
+    "pytest-cov>=7.0.0",
+    "behave>=1.2.6",
+    # Linting & formatting
+    "mypy>=1.18.2",
+    "ruff>=0.1",
+    "isort>=5.13",
+    # Release & CI
+    "commitizen>=4.1.0",
+    "tox>=4.0",
+    "pre-commit>=3.0",
+    # Benchmarking comparison
+    "dependency-injector>=4.48.2",
+    # Integration testing
+    "fastapi>=0.100.0",
+    "httpx>=0.27.0",
+    "click>=8.3.1",
+    "typer>=0.20.0",
+    "flask>=3.1.2",
+    "celery>=5.0.0",
+    "django>=4.0.0",
+    "djangorestframework>=3.14.0",
+    "django-ninja>=1.0.0",
+    "djangorestframework-stubs>=3.16.6",
+]
+test = [
+    "libcst>=1.8.6",
+    "mutmut>=3.2.3",
+]
+docs = [
+    "furo>=2024.8.6",
+    "linkify-it-py>=2.0.0",
+    "myst-parser>=4.0.1",
+    "sphinx>=8.2.3",
+    "sphinx-autoapi>=3.6.0",
+    "sphinx-autodoc-typehints>=3.2.0",
+    "sphinx-autobuild>=2024.10.3",
+    "sphinx-copybutton>=0.5.2",
+    "sphinx-design>=0.6.1",
+    "sphinx-tippy>=0.4.3",
+    "sphinx-togglebutton>=0.3.2",
+    "sphinxcontrib-mermaid>=1.2.3",
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version_provider = "cargo"
+tag_format = "v$version"
+update_changelog_on_bump = true
+changelog_file = "CHANGELOG.md"
+major_version_zero = true  # Stay in 0.x until production-ready
