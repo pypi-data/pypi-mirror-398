@@ -1,0 +1,54 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+{% load history %}
+
+{% block breadcrumbs %}
+    <div class="breadcrumbs">
+        <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+        &rsaquo;
+        <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+        &rsaquo;
+        <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+        &rsaquo;
+        {% if queryset.count == 1 %}
+            <a href="{% url opts|admin_urlname:'change' queryset.first.id %}">{{ queryset.first }}</a>
+            &rsaquo; {% trans 'History' %}
+        {% else %}
+            {{ title }}
+        {% endif %}
+    </div>
+{% endblock %}
+
+{% block coltype %}flex{% endblock %}
+
+{% block content %}
+    <table class='{% block history-classes %}{% endblock history-classes %}' style="width:100%">
+        {% block history-header %}
+            <thead>
+                <tr>
+                    <th scope='col'>{% trans "Entry" %}</th>
+                    <th scope='col'>{% trans "Session" %}</th>
+                    <th scope='col'>{% trans "Date" %}</th>
+                    <th scope='col'>{% trans "User" %}</th>
+                    <th scope='col'>{% trans "Snapshot" %}</th>
+                    <th scope='col'>{% trans "Changes" %}</th>
+                </tr>
+            </thead>
+        {% endblock history-header %}
+        {% block history-body %}
+            <tbody>
+                {% for entry in history %}
+                <tr>
+                    <td><a href='{% url opts|admin_urlname:"change" entry.object_id %}' rel="noopener noreferrer">{{ entry }}</a></td>
+                    <td>{{ entry.session_id }}</td>
+                    <td>{{ entry.session_date }}</td>
+                    <td>{{ entry.get_user }}</td>
+                    <td>{% format_json entry.snapshot %}</td>
+                    <td>{% format_json entry.changes valsep=": " arrsep=" &rarr; " %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        {% endblock history-body %}
+        {% block history-footer %}{% endblock history-footer %}
+    </table>
+{% endblock content %}
