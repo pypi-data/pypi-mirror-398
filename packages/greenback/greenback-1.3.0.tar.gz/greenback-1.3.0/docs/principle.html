@@ -1,0 +1,302 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Principle of operation &mdash; greenback 1.2.1+dev documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fa44fd50" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/documentation_options.js?v=307da5fd"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="API reference" href="reference.html" />
+    <link rel="prev" title="greenback: reenter an asyncio or Trio event loop from synchronous code" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html">
+            
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Principle of operation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#async-await-basics-and-limitations">Async/await basics and limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#greenlets-a-different-approach">Greenlets: a different approach</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#using-greenlets-to-bridge-the-async-sync-divide">Using greenlets to bridge the async/sync divide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#what-can-i-do-with-this-anyway">What can I do with this, anyway?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#what-s-the-performance-impact">What’s the performance impact?</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">API reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="history.html">Release history</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">greenback</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Principle of operation</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/principle.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="principle-of-operation">
+<h1>Principle of operation<a class="headerlink" href="#principle-of-operation" title="Link to this heading">¶</a></h1>
+<p>This section attempts to confer a basic sense of how <a class="reference internal" href="reference.html#module-greenback" title="greenback"><code class="xref py py-obj docutils literal notranslate"><span class="pre">greenback</span></code></a> works.</p>
+<section id="async-await-basics-and-limitations">
+<h2>Async/await basics and limitations<a class="headerlink" href="#async-await-basics-and-limitations" title="Link to this heading">¶</a></h2>
+<p>Python’s <code class="docutils literal notranslate"><span class="pre">async</span></code>/<code class="docutils literal notranslate"><span class="pre">await</span></code> syntax goes to some lengths to look like
+normal straight-line Python code: the async version of some logic
+looks pretty similar to the threaded or non-concurrent version, just
+with extra <code class="docutils literal notranslate"><span class="pre">async</span></code> and <code class="docutils literal notranslate"><span class="pre">await</span></code> keywords. Under the hood, though,
+an async callstack is represented as something very much like a
+generator. When some async function in the framework you’re using
+needs to suspend the current callstack and run other code for a bit,
+it effectively <code class="docutils literal notranslate"><span class="pre">yield</span></code>s an object that tells the event loop about
+its intentions. The exact nature of these “traps” is a private
+implementation detail of the particular framework you’re using. For
+example, asyncio yields <a class="reference external" href="https://docs.python.org/3/library/asyncio-future.html#asyncio.Future" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Future</span></code></a>s, curio yields specially
+formatted tuples, and Trio (currently) yields internal objects
+representing the two primitive operations
+<a class="reference external" href="https://trio.readthedocs.io/en/stable/reference-lowlevel.html#trio.lowlevel.cancel_shielded_checkpoint" title="(in Trio v0.32.0)"><code class="xref py py-func docutils literal notranslate"><span class="pre">cancel_shielded_checkpoint()</span></code></a> and
+<a class="reference external" href="https://trio.readthedocs.io/en/stable/reference-lowlevel.html#trio.lowlevel.wait_task_rescheduled" title="(in Trio v0.32.0)"><code class="xref py py-func docutils literal notranslate"><span class="pre">wait_task_rescheduled()</span></code></a>.  For much more detail on
+how <code class="docutils literal notranslate"><span class="pre">async</span></code>/<code class="docutils literal notranslate"><span class="pre">await</span></code> work (more approachably explained, too!), see
+the excellent writeup by Brett Cannon: <a class="reference external" href="https://snarky.ca/how-the-heck-does-async-await-work-in-python-3-5/">How the heck does async/await
+work in Python 3.5?</a></p>
+<p>Common to both async functions and generators is the limitation that one
+can only directly <code class="docutils literal notranslate"><span class="pre">yield</span></code> out of the function containing the <code class="docutils literal notranslate"><span class="pre">yield</span></code>
+statement. If you want the yielded value to propagate multiple levels up the
+callstack – all the way to the event loop, in the async case – you need
+cooperation at each level, in the form of an <code class="docutils literal notranslate"><span class="pre">await</span></code>
+(in an async function) or <code class="docutils literal notranslate"><span class="pre">yield</span> <span class="pre">from</span></code> (in a generator) statement.
+This means every point where execution might be suspended is marked
+in the source code, which is a useful property. It also means that adding
+some I/O (which might block, thus needs to be able to suspend execution)
+at the bottom of a long chain of formerly-synchronous functions requires
+adding <code class="docutils literal notranslate"><span class="pre">async</span></code> and <code class="docutils literal notranslate"><span class="pre">await</span></code> keywords at every level of the chain.
+That property is sometimes problematic. To be sure, doing that work can
+reveal important bugs (read <a class="reference external" href="https://glyph.twistedmatrix.com/2014/02/unyielding.html">Unyielding</a> if you don’t
+believe it); but sometimes it’s just an infeasible amount of work to be
+doing all at once in the first place, especially if you need to interoperate
+with a large project and/or external dependencies that weren’t written to
+support <code class="docutils literal notranslate"><span class="pre">async</span></code>/<code class="docutils literal notranslate"><span class="pre">await</span></code>.</p>
+<p>“Reentering the event loop” (letting a regular synchronous function
+call an async function using the asynchronous context that exists
+somewhere further up the callstack) has therefore been a popular
+Python feature request, but unfortunately it’s somewhat fundamentally
+at odds with how generators and async functions are implemented
+internally. The CPython interpreter uses a few levels of the C call
+stack to implement each level of the running Python call stack, as is
+natural.  The Python frame objects and everything they reference are
+allocated on the heap, but the C stack is still used to track the
+control flow of which functions called which. Since C doesn’t have any
+support for suspending and resuming a callstack, Python <code class="docutils literal notranslate"><span class="pre">yield</span></code>
+necessarily turns into C <code class="docutils literal notranslate"><span class="pre">return</span></code>, and the later resumption of the
+generator or async function is accomplished by a fresh C-level call to
+the frame-evaluation function (using the same frame object as
+before). Yielding out of a 10-level callstack requires 10 times as
+many levels of C <code class="docutils literal notranslate"><span class="pre">return</span></code>, and resuming it requires 10 times as many
+new nested calls to the frame evaluation function. This strategy
+requires the Python interpreter to be aware of each place where
+execution of a generator or async function might be suspended, and
+performance and comprehensibility both argue against allowing such
+suspensions to occur in every operation.</p>
+<p>Sounds like we’re out of luck, then. Or are we?</p>
+</section>
+<section id="greenlets-a-different-approach">
+<h2>Greenlets: a different approach<a class="headerlink" href="#greenlets-a-different-approach" title="Link to this heading">¶</a></h2>
+<p>Before Python had async/await or <code class="docutils literal notranslate"><span class="pre">yield</span> <span class="pre">from</span></code>, before it even had
+context managers or generators with <code class="docutils literal notranslate"><span class="pre">send()</span></code> and <code class="docutils literal notranslate"><span class="pre">throw()</span></code> methods,
+a third-party package called <a class="reference external" href="https://greenlet.readthedocs.io/">greenlet</a>
+provided support for a very different way of suspending a callstack.
+This one required no interpreter support or special keyword because it worked
+at the C level, copying parts of the C stack to and from the heap in order
+to implement suspension and resumption. The approach required deep architecture-specific
+magic and elicited a number of subtle bugs, but those have generally been worked out
+in the years since the first release in 2006, such that the package is now considered
+pretty stable.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">greenlet</span></code> package has spawned its own fair share of concurrency frameworks
+such as <code class="docutils literal notranslate"><span class="pre">gevent</span></code> and <code class="docutils literal notranslate"><span class="pre">eventlet</span></code>. If those meet your needs, you’re welcome
+to use them and never give async/await another glance. For our purposes, though,
+we’re interested in using just the greenlet <em>primitive</em>: the ability to
+suspend a callstack of ordinary synchronous functions that haven’t been marked
+with any special syntax.</p>
+</section>
+<section id="using-greenlets-to-bridge-the-async-sync-divide">
+<h2>Using greenlets to bridge the async/sync divide<a class="headerlink" href="#using-greenlets-to-bridge-the-async-sync-divide" title="Link to this heading">¶</a></h2>
+<p>From the perspective of someone writing an async function, your code
+is the only thing running in your thread until you <code class="docutils literal notranslate"><span class="pre">yield</span></code> or
+<code class="docutils literal notranslate"><span class="pre">yield</span> <span class="pre">from</span></code> or <code class="docutils literal notranslate"><span class="pre">await</span></code>, at which point you will be suspended
+until your top-level caller (such as the async event loop) sees fit to
+resume you.  From the perspective of someone writing an async event
+loop, the perspective is reversed: each “step” of the async function
+(represented by a <code class="docutils literal notranslate"><span class="pre">send()</span></code> call on the coroutine object) cedes
+control to an async task until the task feels like yielding control
+back to the event loop.  Our goal is to allow something other than a
+<code class="docutils literal notranslate"><span class="pre">yield</span></code> statement to make this <code class="docutils literal notranslate"><span class="pre">send()</span></code> call return.</p>
+<p><a class="reference internal" href="reference.html#module-greenback" title="greenback"><code class="xref py py-obj docutils literal notranslate"><span class="pre">greenback</span></code></a> achieves this by introducing a “shim” coroutine in
+between the async event loop and your task’s “real”
+coroutine. Whenever the event loop wants to run the next step of your
+task, it runs a step of this “shim” coroutine, which creates a
+greenlet for running the next step of the underlying “real” coroutine.
+This greenlet terminates when the “real” <code class="docutils literal notranslate"><span class="pre">send()</span></code> call does
+(corresponding to a <code class="docutils literal notranslate"><span class="pre">yield</span></code> statement inside your async framework),
+but because it’s a greenlet, we can also suspend it at a time of our
+choosing even in the absence of any <code class="docutils literal notranslate"><span class="pre">yield</span></code>
+statements. <a class="reference internal" href="reference.html#greenback.await_" title="greenback.await_"><code class="xref py py-func docutils literal notranslate"><span class="pre">greenback.await_()</span></code></a> makes use of that capability by
+repeatedly calling <code class="docutils literal notranslate"><span class="pre">send()</span></code> on its argument coroutine, using the
+greenlet-switching machinery to pass the yielded traps up to the event
+loop and get their responses sent back down.</p>
+<p>Once you understand the approach, most of the remaining trickery is in
+the answer to the question: “how do we install this shim coroutine?”
+In Trio you can directly replace <a class="reference external" href="https://trio.readthedocs.io/en/stable/reference-lowlevel.html#trio.lowlevel.Task.coro" title="(in Trio v0.32.0)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">trio.lowlevel.Task.coro</span></code></a> with a
+wrapper of your choosing, but in asyncio the ability to modify the
+analogous field is not exposed publicly, and on CPython it’s not even
+exposed to Python at all. It’s necessary to use <a class="reference external" href="https://docs.python.org/3/library/ctypes.html#module-ctypes" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ctypes</span></code></a> to edit the
+coroutine pointer in the C task object, and fix up the reference counts
+accordingly. This works well once the details are ironed out. There’s
+some additional glue to deal with exception propagation, non-coroutine
+awaitables, and so forth, but the core of the implementation is not very
+much changed from the <a class="reference external" href="https://gist.github.com/oremanj/f18ef3e55b9487c2e93eee42232583f2">gist sketch that originally inspired it</a>.</p>
+</section>
+<section id="what-can-i-do-with-this-anyway">
+<h2>What can I do with this, anyway?<a class="headerlink" href="#what-can-i-do-with-this-anyway" title="Link to this heading">¶</a></h2>
+<p>You really can switch greenlets almost anywhere, which means you can
+call <a class="reference internal" href="reference.html#greenback.await_" title="greenback.await_"><code class="xref py py-func docutils literal notranslate"><span class="pre">greenback.await_()</span></code></a> almost anywhere too. For example, you can
+perform async operations in magic methods: operator implementations, property
+getters and setters, object initializers, you name it. You can use combinators
+that were written for synchronous code (<a class="reference external" href="https://docs.python.org/3/library/functions.html#map" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">map</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#filter" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">filter</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#sum" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sum</span></code></a>, everything in
+<a class="reference external" href="https://docs.python.org/3/library/itertools.html#module-itertools" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">itertools</span></code></a>, and so forth) with asynchronous operations (though they’ll still
+execute serially within that call – the only concurrency you obtain is with
+other async tasks). You can use libraries that support a synchronous callback,
+and actually run async code inside the callback. And when this async code blocks
+waiting for something, it will play nice and allow all your other async tasks to run.</p>
+<p>You may find <a class="reference internal" href="reference.html#greenback.autoawait" title="greenback.autoawait"><code class="xref py py-obj docutils literal notranslate"><span class="pre">greenback.autoawait</span></code></a> useful in some of these situations: it’s
+a decorator that turns an async function into a synchronous one. There are also
+<a class="reference internal" href="reference.html#greenback.async_context" title="greenback.async_context"><code class="xref py py-obj docutils literal notranslate"><span class="pre">greenback.async_context</span></code></a> and <a class="reference internal" href="reference.html#greenback.async_iter" title="greenback.async_iter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">greenback.async_iter</span></code></a> for sync-ifying async
+context managers and async iterators, respectively.</p>
+<p>If you’re feeling reckless, you can even use <a class="reference internal" href="reference.html#module-greenback" title="greenback"><code class="xref py py-obj docutils literal notranslate"><span class="pre">greenback</span></code></a> to run
+async code in places you might think impossible, such as finalizers
+(<code class="docutils literal notranslate"><span class="pre">__del__</span></code> methods), weakref callbacks, or perhaps even signal
+handlers. <strong>This is not recommended</strong> (your async library will not be
+happy, to put it mildly, if the signal arrives or GC occurs in the
+middle of its delicate task bookkeeping) but it seems that you can
+get away with it some reasonable fraction of the time. Don’t try these
+in production, though!</p>
+<p>All of these are fun to play with, but in most situations the
+ergonomic benefit is not going to be worth the “spooky action at a
+distance” penalty. The real benefits probably come mostly when working
+with large established non-async projects. For example, you could
+write a pytest plugin that surrounds the entire run in a call to
+<a class="reference external" href="https://trio.readthedocs.io/en/stable/reference-core.html#trio.run" title="(in Trio v0.32.0)"><code class="xref py py-func docutils literal notranslate"><span class="pre">trio.run()</span></code></a>, with <a class="reference internal" href="reference.html#greenback.await_" title="greenback.await_"><code class="xref py py-func docutils literal notranslate"><span class="pre">greenback.await_()</span></code></a> used at your leisure
+to escape back into a shared async context. Perhaps this could allow
+running multiple async tests in parallel in the same thread. At this
+point such things are only vague ideas, which may well fail to work
+out. The author’s hope is that <a class="reference internal" href="reference.html#module-greenback" title="greenback"><code class="xref py py-obj docutils literal notranslate"><span class="pre">greenback</span></code></a>  gives you the tool to
+pursue whichever ones seem worthwhile to you.</p>
+</section>
+<section id="what-s-the-performance-impact">
+<span id="performance"></span><h2>What’s the performance impact?<a class="headerlink" href="#what-s-the-performance-impact" title="Link to this heading">¶</a></h2>
+<p>Running anything with a greenback portal available incurs some slowdown,
+and actually using <a class="reference internal" href="reference.html#greenback.await_" title="greenback.await_"><code class="xref py py-func docutils literal notranslate"><span class="pre">await_()</span></code></a> incurs some more. The slowdown is not
+extreme.</p>
+<p>The slowdown due to <a class="reference internal" href="reference.html#module-greenback" title="greenback"><code class="xref py py-obj docutils literal notranslate"><span class="pre">greenback</span></code></a> is mostly proportional to the
+number of times you yield to the event loop with a portal active, as well
+as the number of portal creations and <a class="reference internal" href="reference.html#greenback.await_" title="greenback.await_"><code class="xref py py-func docutils literal notranslate"><span class="pre">await_()</span></code></a> calls you perform.
+You can run the <code class="docutils literal notranslate"><span class="pre">microbenchmark.py</span></code> script from the Git repository
+to see the numbers on your machine. On a 2023 MacBook Pro (ARM64), with
+CPython 3.12, greenlet 3.0.3, and Trio 0.24.0, I get:</p>
+<ul class="simple">
+<li><p>Baseline: The simplest possible async operation is what Trio calls a
+<em>checkpoint</em>: yield to the event loop and ask to immediately be
+rescheduled again.  This takes about <strong>13.6 microseconds</strong> on Trio and
+<strong>12.9 microseconds</strong> on asyncio.  (asyncio is able to take advantage
+of some C acceleration here.)</p></li>
+<li><p>Adding the greenback portal, without making any <a class="reference internal" href="reference.html#greenback.await_" title="greenback.await_"><code class="xref py py-func docutils literal notranslate"><span class="pre">await_()</span></code></a> calls
+yet, adds about <strong>1 microsecond</strong> per checkpoint.</p></li>
+<li><p>Executing each of those checkpoints through a separate
+<a class="reference internal" href="reference.html#greenback.await_" title="greenback.await_"><code class="xref py py-func docutils literal notranslate"><span class="pre">await_()</span></code></a> adds about another <strong>2 microseconds</strong> per <a class="reference internal" href="reference.html#greenback.await_" title="greenback.await_"><code class="xref py py-func docutils literal notranslate"><span class="pre">await_()</span></code></a>.
+(Surrounding the entire checkpoint loop in a single <a class="reference internal" href="reference.html#greenback.await_" title="greenback.await_"><code class="xref py py-func docutils literal notranslate"><span class="pre">await_()</span></code></a>, by
+contrast, has negligible impact.)</p></li>
+<li><p>Creating a new portal for each of those <code class="docutils literal notranslate"><span class="pre">await_(checkpoint())</span></code>
+invocations adds another <strong>16 microseconds</strong> or so per portal
+creation. If you use <a class="reference internal" href="reference.html#greenback.with_portal_run_sync" title="greenback.with_portal_run_sync"><code class="xref py py-func docutils literal notranslate"><span class="pre">with_portal_run_sync()</span></code></a>, portal
+creation gets about <strong>10 microseconds</strong> faster (so the portal is only
+adding about 6 microseconds of overhead).</p></li>
+</ul>
+<p>Keep in mind that these are microbenchmarks: your actual program is
+probably not executing checkpoints in a tight loop! The more work
+you’re doing each time you’re scheduled, the less overhead <a class="reference internal" href="reference.html#module-greenback" title="greenback"><code class="xref py py-obj docutils literal notranslate"><span class="pre">greenback</span></code></a>
+will entail.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="greenback: reenter an asyncio or Trio event loop from synchronous code" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="reference.html" class="btn btn-neutral float-right" title="API reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Joshua Oreman.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
