@@ -1,0 +1,115 @@
+"""
+Concrete :class:`~.TrackerBase` subclass for NBL
+"""
+
+from ... import errors
+from ...utils import http
+from .. import base
+from . import config, rules
+from .jobs import NblTrackerJobs
+
+import logging  # isort:skip
+_log = logging.getLogger(__name__)
+
+
+class NblTracker(base.TrackerBase):
+    name = 'nbl'
+    label = 'NBL'
+    torrent_source_field = 'NBL'
+
+    setup_howto_template = (
+        '{howto.introduction}\n'
+        '\n'
+        '{howto.next_section}. Announce URL\n'
+        '\n'
+        '   {howto.current_section}.1 On the website, go to Shows -> Upload and copy the ANNOUNCE_URL.\n'
+        '   {howto.current_section}.2 $ upsies set trackers.{tracker.name}.announce_url ANNOUNCE_URL\n'
+        '\n'
+        '{howto.next_section}. API key\n'
+        '\n'
+        '   {howto.current_section}.1 On the website, go to USERNAME -> Settings and scroll down\n'
+        '       to "API keys".\n'
+        '   {howto.current_section}.2 Tick the "New Key" and the "Upload" boxes.\n'
+        '   {howto.current_section}.3 Click on "Save Profile".\n'
+        '   {howto.current_section}.4 Scroll down to "API keys" again and copy the new API_KEY.\n'
+        '   {howto.current_section}.5 $ upsies set trackers.{tracker.name}.apikey API_KEY\n'
+        '\n'
+        '{howto.autoseed}\n'
+        '\n'
+        '{howto.reuse_torrents}\n'
+        '\n'
+        '{howto.upload}\n'
+    )
+
+    TrackerJobs = NblTrackerJobs
+    TrackerConfig = config.NblTrackerConfig
+    cli_arguments = config.cli_arguments
+    rules = rules
+
+    async def _login(self, *, tfa_otp=None):
+        pass
+
+    async def confirm_logged_in(self):
+        pass
+
+    async def _logout(self):
+        pass
+
+    async def get_announce_url(self):
+        return self.options['announce_url'].get_secret_value()
+
+    def get_upload_url(self):
+        return self.options['upload_url']
+
+    async def upload(self, tracker_jobs):
+        if not self.options['apikey']:
+            raise errors.RequestError('No API key configured')
+
+        _log.debug('Uploading to %r', self.get_upload_url())
+        _log.debug('POST data:')
+        post_data = tracker_jobs.post_data
+        for k, v in post_data.items():
+            _log.debug(' * %s = %s', k, v)
+
+        files = {
+            'file_input': {
+                'file': tracker_jobs.torrent_filepath,
+                'mimetype': 'application/x-bittorrent',
+            },
+        }
+        _log.debug('Files: %r', files)
+
+        try:
+            response = await http.post(
+                url=self.get_upload_url(),
+                cache=False,
+                user_agent=True,
+                data=post_data,
+                files=files,
+            )
+        except errors.RequestError as e:
+            _log.debug(f'Request failed: {e!r}')
+            _log.debug(f'url={e.url!r}')
+            _log.debug(f'text={e.text!r}')
+            _log.debug(f'headers={e.headers!r}')
+            _log.debug(f'status_code={e.status_code!r}')
+            # The error message in the HTTP response is JSON. Try to parse that
+            # to get the actual error message. If that fails, raise the
+            # RequestError as is.
+            json = e.json(default=False)
+            if not json:
+                raise errors.RequestError(f'Upload failed: {e.text}') from e
+        else:
+            _log.debug('Upload response: %r', response)
+            json = response.json()
+
+        # NOTE: It seems that none of the keys in the returned JSON are
+        #       guaranteed to exist.
+        if json.get('status') == 'success':
+            return tracker_jobs.torrent_filepath
+        elif json.get('message'):
+            raise errors.RequestError(f'Upload failed: {json["message"]}')
+        elif json.get('error'):
+            raise errors.RequestError(f'Upload failed: {json["error"]}')
+        else:
+            raise RuntimeError(f'Unexpected response: {json!r}')

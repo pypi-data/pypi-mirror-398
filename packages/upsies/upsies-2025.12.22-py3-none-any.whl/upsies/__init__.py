@@ -1,0 +1,5 @@
+__project_name__ = 'upsies'
+__description__ = 'Media metadata aggregator'
+__homepage__ = 'https://upsies.readthedocs.io'
+__changelog__ = 'https://codeberg.org/plotski/upsies/raw/branch/master/NEWS'
+__version__ = '2025.12.22'
