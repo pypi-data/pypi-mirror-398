@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = [
+  "src/dependency"
+]
+
+[tool.hatch.build.targets.wheel.force-include]
+"stubs/dependency" = "dependency-stubs"
+
+[tool.hatch.envs.build]
+template = "default"
+skip-install = false
+dependencies = [
+  "mypy",
+  "pytest-asyncio",
+  "pytest-cov",
+  "pytest-xdist",
+]
+
+[tool.hatch.envs.build.env-vars]
+PYTHONPATH = "src"
+
+[tool.hatch.envs.build.scripts]
+coverage = "pytest --cov src/dependency --cov-report html -n auto --dist=loadfile"
+example = "python src/main.py"
+stubs = "stubgen src/dependency -o stubs --include-docstrings"
+typecheck = "mypy --strict src/dependency"
+
+[tool.mypy]
+plugins = [
+  "pydantic.mypy",
+]
+mypy_path = [
+  "src",
+  "stubs",
+]
+explicit_package_bases = true
+show_error_codes = true
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[project]
+name = "module_dependency"
+version = "0.4.9"
+dependencies = [
+  "dependency_injector",
+  "jinja2",
+  "pydantic",
+  "pydantic-settings",
+]
+requires-python = ">=3.9"
+authors = [
+  { name="Fabian D", email="github.clapping767@passmail.net" },
+]
+description = "A dependency management tool for Python projects."
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICEN[CS]E*"]
+keywords = [
+  "dependency-injection",
+  "dependency-management",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Topic :: Software Development :: Libraries",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/fabaindaiz/module-injection"
+Documentation = "https://github.com/fabaindaiz/module-dependency/tree/main/docs"
+Changelog = "https://github.com/fabaindaiz/module-dependency/blob/main/CHANGELOG.md"
+Issues = "https://github.com/fabaindaiz/module-injection/issues"
