@@ -1,0 +1,149 @@
+# HEA Server Registry Microservice
+[Research Informatics Shared Resource](https://risr.hci.utah.edu), [Huntsman Cancer Institute](https://healthcare.utah.edu/huntsmancancerinstitute/),
+Salt Lake City, UT
+
+The HEA Server Registry Microservice manages mappings of HEA Object types to the microservices for storing and
+retrieving them.
+
+
+## Version 1.11.0
+* Bumped heaserver version to 1.48.0.
+* Added support for encrypted Mongo passwords.
+* New startup.py module to initialize logging before importing any third-party libraries.
+* New optional -e/--env command-line argument for setting the runtime environment (development, staging, or
+  production). Logging is now configured based on this setting, unless the older -l/--logging argument is provided. The
+  default value is development.
+* Logs are now scrubbed.
+* Added log files to .gitignore.
+
+## Version 1.10.2
+* Fixed boolean mapping for manages_creators.
+
+## Version 1.10.1
+* Fixed an issue keeping the Component resource_type_name property's value from appearing in form templates, and made
+  the property read-write.
+* Made the Manages who can create objects field in the registry component properties form writeable.
+
+## Version 1.10.0
+* Bumped heaserver version to 1.35.0.
+* Use new sort logic from heaserver 1.35, permitting sorting on components, collections, and properties by any
+  attribute.
+* Added sort-related query parameters to OpenAPI specs.
+
+## Version 1.9.0
+* Removed preflight additions from version 1.8.0.
+* Bumped heaserver version to 1.32.0.
+
+## Version 1.8.0
+* Bumped heaserver version to 1.31.0.
+* The heaobject.registry.Component class how has link_preflights and Resource.delete_preflight attributes.
+* The heaobject.registry.Component template now includes the new link_preflights and delete_preflight attributes.
+
+## Version 1.7.0
+* We now mark registry collections with the new hea-container and hea-self-container rel values.
+
+## Version 1.6.0
+* Bumped heaserver version to 1.30.1.
+* Improved properties metadata.
+* Support heaobject.root.Permission.CREATOR permissions for heaobject.registry.Collection objects, as we will use those
+  objects to create new objects.
+* New heaserver.registry.service.RegistryServicePermissionGroup class that queries Mongo directly for whether the user
+  can create objects of a given type.
+* New heaserver.registry.service.RegistryMongo and RegistryMongoManager classes to allow using the new
+  RegistryServicePermissionGroup class.
+* Removed duplicate actions and added self actions where missing.
+* Populate the heaobject.registry.Collection.display_in_system_menu, display_in_user_menu, and mime_type attributes
+  from the registry components.
+
+## Version 1.5.1
+* Bumped heaserver version to 1.28.1, fixing an issue with user group assignment checking.
+* Removed duplicative automated tests.
+
+## Version 1.5.0
+* Added group permissions support.
+
+## Version 1.4.0
+* Added support for overhauled heaobject.storage.* classes.
+
+## Version 1.3.0
+* Added support for new heaobject.activity.DesktopObjectSummaryView class.
+
+## Version 1.2.0
+* Added support for Python 3.12.
+
+## Version 1.1.1
+* Dependency upgrades for compatibility with heaserver-keychain 1.5.0.
+
+## Version 1.1.0
+* Started using permissions for collections.
+
+## Version 1.0.4
+* Fixed type hints.
+
+## Version 1.0.3
+* Use the type display name in the properties card.
+* Hide some other heaobject.registry.Collection attributes in the properties card.
+
+
+## Version 1.0.2
+* When requesting desktop objects as a Collection+JSON document, add the permissions property to the document.
+* Return the type_display_name attribute.
+
+## Version 1.0.1
+* Made the collection object form template fields read-only, and added the type field.
+
+## Version 1
+Initial release.
+
+## Runtime requirements
+* Python 3.10 or 3.11
+
+## Development environment
+
+### Build requirements
+* Any development environment is fine.
+* On Windows, you also will need:
+    * Build Tools for Visual Studio 2019, found at https://visualstudio.microsoft.com/downloads/. Select the C++ tools.
+    * git, found at https://git-scm.com/download/win.
+* On Mac, Xcode or the command line developer tools is required, found in the Apple Store app.
+* Python 3.10 or 3.11: Download and install Python 3.10 from https://www.python.org, and select the options to install
+for all users and add Python to your environment variables. The install for all users option will help keep you from
+accidentally installing packages into your Python installation's site-packages directory instead of to your virtualenv
+environment, described below.
+* Create a virtualenv environment using the `python -m venv <venv_directory>` command, substituting `<venv_directory>`
+with the directory name of your virtual environment. Run `source <venv_directory>/bin/activate` (or `<venv_directory>/Scripts/activate` on Windows) to activate the virtual
+environment. You will need to activate the virtualenv every time before starting work, or your IDE may be able to do
+this for you automatically. **Note that PyCharm will do this for you, but you have to create a new Terminal panel
+after you newly configure a project with your virtualenv.**
+* From the project's root directory, and using the activated virtualenv, run `pip install wheel` followed by
+  `pip install -r requirements_dev.txt`. **Do NOT run `python setup.py develop`. It will break your environment.**
+
+### Running tests
+Run tests with the `pytest` command from the project root directory. To improve performance, run tests in multiple
+processes with `pytest -n auto`.
+
+### Running integration tests
+* Install Docker
+* On Windows, install pywin32 version >= 223 from https://github.com/mhammond/pywin32/releases. In your venv, make sure that
+`include-system-site-packages` is set to `true`.
+
+### Trying out the APIs
+This microservice has Swagger3/OpenAPI support so that you can quickly test the APIs in a web browser. Do the following:
+* Install Docker, if it is not installed already.
+* Run the `run-swaggerui.py` file in your terminal. This file contains some test objects that are loaded into a MongoDB
+  Docker container.
+* Go to `http://127.0.0.1:8080/docs` in your web browser.
+
+Once `run-swaggerui.py` is running, you can also access the APIs via `curl` or other tool. For example, in Windows
+PowerShell, execute:
+```
+Invoke-RestMethod -Uri http://localhost:8080/components/ -Method GET -Headers @{'accept' = 'application/json'}`
+```
+In MacOS or Linux, the equivalent command is:
+```
+curl -X GET http://localhost:8080/components/ -H 'accept: application/json'
+```
+
+
+### Packaging and releasing this project
+See the [RELEASING.md](RELEASING.md) file for details.
