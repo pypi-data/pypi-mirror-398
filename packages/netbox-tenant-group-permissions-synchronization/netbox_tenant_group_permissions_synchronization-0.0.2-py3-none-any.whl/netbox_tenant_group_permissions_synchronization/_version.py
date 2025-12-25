@@ -1,0 +1,5 @@
+__version__ = "0.0.2"
+__author__ = "Loris Henrion"
+__author_email__ = "loris_henrion@bce.lu"
+__description__ = "Sync tenant_group_permissions from Device to its components in NetBox"
+__license__ = "GPL-3.0"
