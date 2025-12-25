@@ -1,0 +1,99 @@
+# 🏔️ LogCrest
+
+**Transform your basic Python logs into a production-grade tracing system with just one line of code.**
+
+LogCrest is a "smart" logging library. It doesn't just print text; it tracks how your functions talk to each other, measures how long they take, and saves everything in a structured format that professional tools (like Datadog or ELK) love.
+
+---
+
+## 🌟 Why LogCrest?
+
+If you are a beginner, logging usually looks like this: `print("Something happened")`. 
+But in a real app, that's not enough. LogCrest gives you:
+
+- **🔄 Automatic Tracing**: If Function A calls Function B, they get the same "ID". You can follow a single click through 10 nested functions easily.
+- **⚡ Super Fast**: Logging can slow down your app. LogCrest does its "heavy lifting" (writing to disks) in the background so your app stays snappy.
+- **🎨 Human vs Machine**: It shows **colors** in your terminal (for you) but saves **JSON** in your files (for the computer).
+- **⏱️ Stopwatch Built-in**: Every log tells you exactly how many milliseconds your function took to run.
+
+---
+
+## 🚀 Quick Start (In 60 Seconds)
+
+### 1. Install it
+```bash
+pip install logcrest
+```
+
+### 2. Use the "Smart Decorator"
+Just put `@log_decorator` over any function you want to track.
+
+```python
+from logcrest import log_decorator, log
+
+@log_decorator
+def process_order(item_id):
+    log.info(f"Checking warehouse for item: {item_id}")
+    return "Ordered!"
+
+process_order(101)
+```
+
+**What happens next?**
+1. You'll see a **Green [INFO]** message in your terminal.
+2. A new `logs/` folder will appear.
+3. Inside, you'll find a file with a professional JSON entry:
+   `{"timestamp": "...", "level": "INFO", "trace_id": "a1b2c3d4", "function": "process_order", "message": "..."}`
+
+---
+
+## 🛠️ Advanced Features
+
+### 1. Tracking Nested Calls
+LogCrest is smart enough to link functions together.
+
+```python
+@log_decorator
+def sub_task():
+    log.info("Doing the small job")
+
+@log_decorator
+def main_job():
+    log.info("Starting big job")
+    sub_task() # This will automatically share the same Trace ID!
+```
+
+### 2. Customizing Levels
+Want to keep it quiet? Change the level:
+```python
+@log_decorator(DEBUG) # Only show when you're deep-diving into bugs
+def hidden_math():
+    return 2 + 2
+```
+
+### 3. Handling Errors
+If your function crashes, LogCrest catches it, logs the exact error and the time it happened, and then lets it crash gracefully. You'll never wonder "Which line broke?" again.
+
+---
+
+## ⚙️ Configuration (Optional)
+LogCrest works right out of the box, but you can create a `log_config.json` in your project folder to change things:
+
+```json
+{
+  "base_log_dir": "my_custom_logs",
+  "max_log_size": 10485760,
+  "backup_count": 5,
+  "use_json": true
+}
+```
+
+---
+
+## 👨‍💻 Contributing
+This project was built with **SOLID** principles. If you're a developer:
+1. Clone the repo.
+2. Install dev tools: `pip install -e ".[dev]"`
+3. Run tests: `pytest`
+
+**LogCrest: Professional logging, simplified.** ⛰️
