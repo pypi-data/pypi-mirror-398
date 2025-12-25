@@ -1,0 +1,180 @@
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import io
+from typing import Any, Optional
+
+from ....utils import lazy_import
+from .common import get_oss_bucket, oss_stat, parse_osspath
+
+oss2 = lazy_import("oss2", placeholder=True)
+
+
+class OSSIOBase(io.IOBase):
+    def __init__(
+        self,
+        path,
+        mode,
+        multipart_upload_id: Any = None,
+        part_num: Optional[int] = None,
+    ):
+        self._path = path
+        self._parsed_path = parse_osspath(self._path)
+        self._bucket = get_oss_bucket(self._parsed_path)
+        self._current_pos = 0
+        self._size = None
+        self._buffer = b""
+        self._buffer_size = 1 * 1024
+        self._mode = mode
+
+        self._multipart_upload_id = multipart_upload_id
+        self._part_num = part_num
+        self._multipart_buf = io.BytesIO() if multipart_upload_id is not None else None
+        self._part_upload_result = None
+
+        if mode and mode.startswith("w"):
+            try:
+                self._bucket.delete_object(self._parsed_path.key)
+            except oss2.exceptions.NoSuchKey:
+                pass
+
+    @property
+    def mode(self):
+        return self._mode
+
+    def fileno(self) -> int:
+        raise AttributeError
+
+    def _get_size(self):
+        if self._size is None:
+            self._size = int(oss_stat(self._path)["size"])
+        return self._size
+
+    def seek(self, pos, whence=0):
+        if whence == 0:
+            if pos < 0:
+                raise OSError("Invalid argument")
+            self._current_pos = pos
+        elif whence == 2:
+            self._current_pos = self._get_size() + pos
+        elif whence == 1:
+            check_pos = self._current_pos + pos
+            if check_pos < 0:
+                raise OSError("Invalid argument")
+            else:
+                self._current_pos = self._current_pos + pos
+        else:
+            raise ValueError('Parameter "whence" should be 0 or 1 or 2')
+        if pos > 0 and self._current_pos > self._get_size() - 1:
+            self._current_pos = self._get_size()
+        return self._current_pos
+
+    def seekable(self):
+        return "r" in self._mode
+
+    def read(self, size=-1):
+        """
+        Read and return up to size bytes, where size is an int.
+
+        If the argument is omitted, None, or negative, reads and
+        returns all data until EOF.
+
+        If the argument is positive, multiple raw reads may be issued to satisfy
+        the byte count (unless EOF is reached first).
+
+        Returns an empty bytes array on EOF.
+        """
+        if self._current_pos == self._get_size() or size == 0:
+            return b""
+        elif size < 0:
+            obj = self._bucket.get_object(
+                self._parsed_path.key, byte_range=(self._current_pos, None)
+            )
+            self._current_pos = self._get_size()
+        else:
+            obj = self._bucket.get_object(
+                self._parsed_path.key,
+                byte_range=(self._current_pos, self._current_pos + size - 1),
+            )
+            self._current_pos = self._current_pos + size
+        content = obj.read()
+        return content
+
+    def readline(self, size=-1):
+        # For backwards compatibility, a (slowish) readline().
+        def nreadahead():
+            # Read to the beginning of the next line
+            read_to = min(
+                self._get_size() - 1, self._current_pos + self._buffer_size - 1
+            )
+            buffer = self._bucket.get_object(
+                self._parsed_path.key, byte_range=(self._current_pos, read_to)
+            ).read()
+            if not buffer:
+                return 1
+            n = (buffer.find(b"\n") + 1) or len(buffer)
+            if size >= 0:
+                n = min(n, size)
+            return n
+
+        if size is None:
+            size = -1
+        else:
+            try:
+                size_index = size.__index__
+            except AttributeError:
+                raise TypeError(f"{size!r} is not an integer")
+            else:
+                size = size_index()
+        res = bytearray()
+        while size < 0 or len(res) < size:
+            b = self.read(nreadahead())
+            if not b:
+                break
+            res += b
+            if res.endswith(b"\n"):
+                break
+        return bytes(res)
+
+    def write(self, block):
+        if self._multipart_upload_id is None:
+            append_result = self._bucket.append_object(
+                self._parsed_path.key, self._current_pos, block
+            )
+            self._current_pos = append_result.next_position
+        else:
+            self._multipart_buf.write(block)
+
+    @property
+    def part_upload_result(self):
+        return self._part_upload_result
+
+    def readable(self):
+        return "r" in self._mode
+
+    def writable(self):
+        return "w" in self._mode or "a" in self._mode
+
+    def close(self):
+        if self._multipart_buf is not None:
+            self._multipart_buf.seek(0)
+            result = self._bucket.upload_part(
+                self._parsed_path.key,
+                self._multipart_upload_id,
+                self._part_num,
+                self._multipart_buf,
+            )
+            self._part_upload_result = dict(
+                part_number=self._part_num, etag=result.etag
+            )
