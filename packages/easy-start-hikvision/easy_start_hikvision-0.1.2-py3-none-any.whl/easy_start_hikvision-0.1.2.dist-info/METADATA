@@ -1,0 +1,212 @@
+Metadata-Version: 2.4
+Name: easy-start-hikvision
+Version: 0.1.2
+Summary: 一个用于海康威视 ISecureCenter 平台集成的 Python 包，提供简洁易用的 API 接口。
+Home-page: https://gitee.com/guolei19850528/easy_start_hikvision
+Author: guolei
+Author-email: 174000902@qq.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: httpx
+Requires-Dist: jsonschema
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# easy-start-hikvision
+
+一个用于海康威视 ISecureCenter 平台集成的 Python 包，提供简洁易用的 API 接口。
+
+## 功能特性
+
+- 与海康威视 ISecureCenter 平台进行安全交互
+- 支持同步和异步两种请求模式
+- 自动生成符合 API 规范的请求签名（HMAC-SHA256 算法）
+- 构建标准化的请求头，包含认证信息
+- 可复用 HTTP 客户端以提高性能
+- 验证 API 响应格式，确保数据有效性
+
+## 安装方法
+
+### 使用 pip 安装
+
+```bash
+pip install easy-start-hikvision
+```
+
+### 从源码安装
+
+```bash
+git clone https://gitee.com/guolei19850528/easy_start_hikvision.git
+cd easy_start_hikvision
+pip install -r requirements.txt
+pip install -e .
+```
+
+## 快速开始
+
+### 同步请求示例
+
+```python
+from easy_start_hikvision.isc import ISecureCenter
+
+# 初始化客户端
+isc_client = ISecureCenter(
+    host="https://example.com:443",  # ISecureCenter 服务器地址
+    ak="your_access_key",            # 访问密钥 Access Key
+    sk="your_secret_key"             # 密钥 Secret Key
+)
+
+# 发送 API 请求
+success, data, response = isc_client.request(
+    url="/api/parking/info",        # API 路径
+    json={"parkingId": "123"}       # 请求参数
+)
+
+if success:
+    print("请求成功:", data)
+else:
+    print("请求失败:", data)
+```
+
+### 异步请求示例
+
+```python
+import asyncio
+from easy_start_hikvision.isc import ISecureCenter
+
+async def main():
+    # 初始化客户端
+    isc_client = ISecureCenter(
+        host="https://example.com:443",
+        ak="your_access_key",
+        sk="your_secret_key"
+    )
+    
+    # 发送异步 API 请求
+    success, data, response = await isc_client.async_request(
+        url="/api/parking/info",
+        json={"parkingId": "123"}
+    )
+    
+    if success:
+        print("请求成功:", data)
+    else:
+        print("请求失败:", data)
+
+# 运行异步函数
+asyncio.run(main())
+```
+
+## API 文档
+
+### ISecureCenter 类
+
+#### 初始化参数
+
+```python
+ISecureCenter(host: str = "", ak: str = "", sk: str = "")
+```
+
+- `host`: API 服务器地址，例如 "https://example.com:443"
+- `ak`: 访问密钥 Access Key，用于标识请求发起者
+- `sk`: 密钥 Secret Key，用于生成请求签名
+
+#### 主要方法
+
+1. **生成签名**
+
+```python
+signature(string: str = "") -> str
+```
+- 参数: `string` - 需要签名的字符串
+- 返回: Base64 编码的 HMAC-SHA256 哈希值
+
+2. **构建请求头**
+
+```python
+headers(method: str = "POST", path: str = "", headers: dict = {}) -> dict
+```
+- 参数:
+  - `method` - HTTP 请求方法（默认: "POST"）
+  - `path` - 请求路径（默认: ""）
+  - `headers` - 额外的请求头（默认: {}）
+- 返回: 完整的请求头字典
+
+3. **创建同步客户端**
+
+```python
+client(**kwargs) -> httpx.Client
+```
+- 参数: `**kwargs` - 传递给 httpx.Client 的额外参数
+- 返回: 配置好的同步 HTTP 客户端
+
+4. **创建异步客户端**
+
+```python
+async_client(**kwargs) -> httpx.AsyncClient
+```
+- 参数: `**kwargs` - 传递给 httpx.AsyncClient 的额外参数
+- 返回: 配置好的异步 HTTP 客户端
+
+5. **发送同步请求**
+
+```python
+request(client: httpx.Client = None, validate_json_schema: dict = {...}, **kwargs) -> tuple
+```
+- 参数:
+  - `client` - 可选的 HTTP 客户端
+  - `validate_json_schema` - JSON schema 验证规则
+  - `**kwargs` - 传递给 client.request 的额外参数
+- 返回: (请求是否成功, 响应 JSON 数据, 原始响应对象)
+
+6. **发送异步请求**
+
+```python
+async_request(client: httpx.AsyncClient = None, validate_json_schema: dict = {...}, **kwargs) -> tuple
+```
+- 参数:
+  - `client` - 可选的异步 HTTP 客户端
+  - `validate_json_schema` - JSON schema 验证规则
+  - `**kwargs` - 传递给 client.request 的额外参数
+- 返回: (请求是否成功, 响应 JSON 数据, 原始响应对象)
+
+## 依赖项
+
+- `httpx`: 用于发送 HTTP 请求，支持同步和异步
+- `jsonschema`: 用于验证 API 响应的 JSON 格式
+
+## 开发与测试
+
+### 安装开发依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 运行测试
+
+```bash
+python -m pytest
+```
+
+## 许可证
+
+本项目采用 MIT 许可证。详情请见 [LICENSE](LICENSE) 文件。
+
+## 作者信息
+
+- 作者: guolei
+- 邮箱: 174000902@qq.com
+- 项目地址: [https://gitee.com/guolei19850528/easy_start_hikvision](https://gitee.com/guolei19850528/easy_start_hikvision)
