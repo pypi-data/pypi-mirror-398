@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Kanban - Retours Clients</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC"
+          crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
+            crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/htmx.org@1.5.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>{% include 'css/kanban.css' %}</style>
+</head>
+<body>
+<header>
+    <img src="https://revolucy.fr/wp-content/uploads/2022/02/RVL_logo_quadri_horizontal_blanc.png" alt="Logo Revolucy" class="logorevo">
+    <h1>Retour Client - <span style="text-transform: capitalize;">{{ environnement }}</span>{% if environnement == 'production' %} | {% if jrs_restant_garantie >= 0 %}{{ jrs_restant_garantie }} jours restants de garantie{% else %}Décompte en ticket horaire ({{ solde_ticket }}H){% endif %}{% endif %}
+    </h1>
+</header>
+<div id="pipeline-retour-client" class="row">
+    <div class="col-12 p-4">
+        <div id="listBug">
+            <h4>Kanban
+                <a href="{% url 'retour_client:pipeline_retours' %}" style="background: #050dbe;color: #FFF;text-decoration: none;padding: 4px 15px;margin-left: 5px;border: none;border-radius: 5px;">Liste</a>
+                <a href="{% url 'retour_client:cockpit' %}" style="background: #e63363;color: #FFF;text-decoration: none;padding: 4px 15px;margin-left: 5px;border: none;border-radius: 5px;">Stats</a>
+            </h4>
+            <div>
+           <div class="d-flex flex-row overflow-auto" style="gap: 20px;">
+              {% for col in kanban_rows %}
+                <div class="kanban-column flex-shrink-0"
+                     id="kanban-{{ col.label|slugify }}"
+                     data-statut="{{ col.label }}"
+                     style="min-width: 23%;">
+
+                  <h5 class="kanban-title">
+                    {{ col.label }}
+                    <small class="text-muted"> — {{ col.count }} / {{ kanban_total }} • {{ col.pct|floatformat:0 }}%</small>
+                  </h5>
+
+                  <div class="kanban-dropzone" id="list-{{ col.label|slugify }}">
+                    {% for bug in col.items %}
+                      <div class="kanban-card mb-2" style="border-left: 5px solid {{ bug.color_priorite }}"
+                           data-id="{{ bug.id }}"
+                           id="bug-{{ bug.id }}">
+                        <strong>#{{ bug.pk }} - {{ bug.titre }}</strong>
+                        <span class="icone_type" title="{{ bug.get_type_display }}">{{ bug.icone_type|safe }}</span>
+                        <a class="edit-btn"
+                           title="Éditer"
+                           hx-get="{% url 'retour_client:item_retour' pk=bug.pk %}?modal=1"
+                           hx-target="#modal-edit-content-inner"
+                           hx-swap="innerHTML"
+                           draggable="false"
+                           onmousedown="event.stopPropagation();"
+                           onclick="event.stopPropagation();">
+                          <i class="fa-solid fa-pen-to-square"></i>
+                        </a>
+                        <br>
+                        <a href="{{ bug.lien_url }}" target="_blank">{{ bug.slug_url|truncatechars:40 }}</a><br>
+                        <small>{{ bug.description|safe|truncatechars_html:50 }}</small><br>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+
+<!-- Modal d'édition -->
+<div class="modal fade" id="modal-edit" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xxl modal-dialog-scrollable">
+    <div class="modal-content" id="modal-edit-content">
+      <div id="modal-edit-content-inner"><!-- HTMX injecte ICI --></div>
+    </div>
+  </div>
+</div>
+{% if user.is_admin_revo %}
+<script>
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const columns = document.querySelectorAll('.kanban-dropzone');
+
+        columns.forEach(column => {
+            Sortable.create(column, {
+                group: 'kanban',
+                animation: 150,
+                filter: '.edit-btn, .edit-btn *',
+                preventOnFilter: false,
+                onStart: function (evt) {
+                    evt.from.classList.add('dragging-from');
+                },
+                onEnd: function (evt) {
+                    evt.from.classList.remove('dragging-from');
+                },
+                onAdd: function (evt) {
+                    const card = evt.item;
+                    const retourId = card.dataset.id;
+                    const newStatut = evt.to.closest('.kanban-column').dataset.statut;
+
+                    // Animation de dropzone
+                    evt.to.classList.remove('dragover');
+
+                    fetch("{% url 'retour_client:update_statut_kanban' %}", {
+                        method: "POST",
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrftoken
+                      },
+                      body: JSON.stringify({
+                        id: retourId,
+                        new_statut: newStatut
+                      })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                      if (!data.ok) throw new Error(data.error || 'Erreur inconnue');
+                      console.log("Mise à jour OK", data);
+                    })
+                    .catch(err => {
+                      console.error(err);
+                      alert("Erreur lors du changement de statut.");
+                    });
+                },
+                onChoose: function (evt) {
+                    evt.item.classList.add('dragging');
+                },
+                onUnchoose: function (evt) {
+                    evt.item.classList.remove('dragging');
+                }
+            });
+
+            // Amélioration visuelle : survol de la colonne
+            column.addEventListener('dragover', () => {
+                column.classList.add('dragover');
+            });
+            column.addEventListener('dragleave', () => {
+                column.classList.remove('dragover');
+            });
+        });
+    });
+</script>
+{% endif %}
+<script>
+  document.body.addEventListener('htmx:afterSwap', function (e) {
+    if (e.detail.target && e.detail.target.id === 'modal-edit-content-inner') {
+      new bootstrap.Modal(document.getElementById('modal-edit')).show();
+    }
+  });
+</script>
+
+</body>
+</html>
