@@ -1,0 +1,411 @@
+#!/bin/bash
+#SBATCH --job-name={{ job_name }}
+#SBATCH --account={{ cluster_account }}
+#SBATCH --time={{ time_limit }}
+#SBATCH --exclusive
+#SBATCH --nodes={{ nodes }}
+#SBATCH --partition={{ partition }}
+#SBATCH --output={{ home }}/.clserve/logs/%j/log.out
+#SBATCH --error={{ home }}/.clserve/logs/%j/log.err
+
+
+TP_SIZE={{ tp_size }}
+EP_SIZE={{ ep_size }}
+CUDA_GRAPH_MAX_BS={{ cuda_graph_max_bs }}
+GRAMMAR_BACKEND={{ grammar_backend }}
+MODEL_PATH={{ model_path }}
+NODES={{ nodes }}
+NODES_PER_WORKER={{ nodes_per_worker }}
+WORKERS={{ workers }}
+LOG_DIR="${HOME}/.clserve/logs/${SLURM_JOB_ID}"
+ENVIRONMENT={{ environment }}
+ROUTER_ENVIRONMENT={{ router_environment }}
+ROUTER_POLICY={{ router_policy }}
+REASONING_PARSER="{{ reasoning_parser }}"
+TOOL_CALL_PARSER="{{ tool_call_parser }}"
+NUM_GPUS_PER_WORKER={{ num_gpus_per_worker }}
+PROCESSES_PER_NODE=$((4 / NUM_GPUS_PER_WORKER))
+
+{% raw %}
+
+mkdir -p "${LOG_DIR}"
+
+# Calculate total processes to determine if router should be enabled
+TOTAL_PROCESSES=$((WORKERS * NODES_PER_WORKER * PROCESSES_PER_NODE))
+if [ $TOTAL_PROCESSES -gt 1 ]; then
+    USE_ROUTER=true
+else
+    USE_ROUTER=false
+fi
+
+# Write metadata for clserve status command
+cat > "${LOG_DIR}/metadata.txt" << METADATA_EOF
+MODEL_PATH=${MODEL_PATH}
+WORKERS=${WORKERS}
+NODES_PER_WORKER=${NODES_PER_WORKER}
+TP_SIZE=${TP_SIZE}
+EP_SIZE=${EP_SIZE}
+USE_ROUTER=${USE_ROUTER}
+NUM_GPUS_PER_WORKER=${NUM_GPUS_PER_WORKER}
+METADATA_EOF
+
+nodes=($(scontrol show hostnames $SLURM_NODELIST))
+if [ ${#nodes[@]} -ne $NODES ]; then
+    echo "Error: Expected $NODES nodes but got ${#nodes[@]} nodes"
+    exit 1
+fi
+
+# Print node information
+for i in "${!nodes[@]}"; do
+    echo "Node $i: ${nodes[$i]}"
+done
+
+# Collect all worker head IPs and URLs
+worker_head_ips=()
+worker_urls=()
+node_ips=()
+
+# First collect all node IPs
+for node_idx in $(seq 0 $((NODES - 1))); do
+    node=${nodes[$node_idx]}
+    node_ip=$(getent hosts ${node} | awk '{print $1}')
+    if [ -z "$node_ip" ]; then
+        echo "Error: Could not retrieve IP address for node ${node}"
+        exit 1
+    fi
+    node_ips+=("$node_ip")
+    echo "Node $node_idx (${node}) IP: $node_ip"
+done
+
+# Set up HuggingFace API cache on head node
+CACHE_HOST=${node_ips[0]}
+CACHE_PORT=8888
+CACHE_URL="http://${CACHE_HOST}:${CACHE_PORT}"
+CACHE_DIR="${LOG_DIR}/hf_cache"
+
+mkdir -p "${CACHE_DIR}"
+
+# Write cache proxy script
+cat > "${LOG_DIR}/cache_proxy.py" << 'CACHE_PROXY_EOF'
+import os, json, hashlib, urllib.request, urllib.error
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
+
+CACHE_PATTERNS = ["https://huggingface.co/api/models/"]
+
+class Handler(BaseHTTPRequestHandler):
+    cache_dir = Path(".")
+    hf_token = None
+
+    def log_message(self, fmt, *args):
+        print(f"{self.address_string()} - {fmt % args}", flush=True)
+
+    def _cache_path(self, url):
+        return self.cache_dir / f"{hashlib.sha256(url.encode()).hexdigest()}.json"
+
+    def _should_cache(self, url):
+        return any(url.startswith(p) for p in CACHE_PATTERNS)
+
+    def do_GET(self):
+        url = self.path.lstrip("/")
+        if not url.startswith(("http://", "https://")):
+            self.send_error(400, "Invalid URL")
+            return
+
+        # Check cache
+        cache_path = self._cache_path(url)
+        if self._should_cache(url) and cache_path.exists():
+            try:
+                data = json.loads(cache_path.read_text())
+                print(f"Cache HIT: {url}", flush=True)
+                self.send_response(data["status"])
+                for k, v in data.get("headers", {}).items():
+                    if k.lower() not in ("transfer-encoding", "connection"):
+                        self.send_header(k, v)
+                self.end_headers()
+                self.wfile.write(data["body"].encode("utf-8"))
+                return
+            except Exception:
+                pass
+
+        # Fetch from upstream
+        print(f"Cache MISS: {url}", flush=True)
+        headers = {"Authorization": f"Bearer {self.hf_token}"} if self.hf_token else {}
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                body = resp.read()
+                status, resp_headers = resp.status, dict(resp.headers)
+        except urllib.error.HTTPError as e:
+            body = e.read() if e.fp else b""
+            status, resp_headers = e.code, dict(e.headers)
+        except urllib.error.URLError as e:
+            self.send_error(502, str(e))
+            return
+
+        # Cache successful responses
+        if self._should_cache(url) and 200 <= status < 300:
+            try:
+                cache_path.write_text(json.dumps({
+                    "url": url, "status": status, "headers": resp_headers,
+                    "body": body.decode("utf-8", errors="replace")
+                }))
+                print(f"Cache WRITE: {url}", flush=True)
+            except Exception:
+                pass
+
+        self.send_response(status)
+        for k, v in resp_headers.items():
+            if k.lower() not in ("transfer-encoding", "connection"):
+                self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(body)
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=8888)
+    parser.add_argument("--cache-dir", type=Path, required=True)
+    args = parser.parse_args()
+    args.cache_dir.mkdir(parents=True, exist_ok=True)
+    Handler.cache_dir = args.cache_dir
+    Handler.hf_token = os.environ.get("HF_TOKEN")
+    print(f"Cache proxy started on {args.host}:{args.port}", flush=True)
+    print(f"Cache directory: {args.cache_dir}", flush=True)
+    HTTPServer((args.host, args.port), Handler).serve_forever()
+CACHE_PROXY_EOF
+
+echo "Starting HuggingFace API cache proxy on ${CACHE_HOST}:${CACHE_PORT}"
+
+srun --nodes=1 --ntasks=1 --nodelist=${nodes[0]} --container-writable --environment=$ENVIRONMENT --cpus-per-task=4 --overlap --output=${LOG_DIR}/cache_proxy.out --error=${LOG_DIR}/cache_proxy.err \
+    python "${LOG_DIR}/cache_proxy.py" --host 0.0.0.0 --port ${CACHE_PORT} --cache-dir ${CACHE_DIR} &
+
+# Wait for cache proxy to be ready
+echo "Waiting for cache proxy to be ready..."
+sleep 3
+
+# Pre-fetch model info into cache
+echo "Pre-fetching model info for ${MODEL_PATH}..."
+curl -s "${CACHE_URL}/https://huggingface.co/api/models/${MODEL_PATH}" > /dev/null 2>&1 || true
+echo "Cache proxy ready"
+
+# Write wrapper script that configures HuggingFace to use cache proxy
+cat > "${LOG_DIR}/sglang_with_cache.py" << 'WRAPPER_EOF'
+import os
+import sys
+
+CACHE_URL = os.environ.get("CLSERVE_CACHE_URL", "")
+CACHE_PATTERNS = ["https://huggingface.co/api/models/"]
+
+# Configure cache BEFORE any other imports to ensure it's set up early
+if CACHE_URL:
+    import requests
+    from huggingface_hub import configure_http_backend
+
+    def backend_factory() -> requests.Session:
+        session = requests.Session()
+        _original_request = session.request
+
+        def _patched_request(method, url, **kwargs):
+            if method.upper() == "GET" and any(url.startswith(p) for p in CACHE_PATTERNS):
+                cached_url = f"{CACHE_URL}/{url}"
+                print(f"[cache] Routing {url} -> {cached_url}", flush=True)
+                return _original_request(method, cached_url, **kwargs)
+            return _original_request(method, url, **kwargs)
+
+        session.request = _patched_request
+        return session
+
+    configure_http_backend(backend_factory=backend_factory)
+    print(f"[cache] Configured huggingface_hub to use cache at {CACHE_URL}", flush=True)
+
+if __name__ == "__main__":
+    from sglang.srt.server_args import prepare_server_args
+    from sglang.launch_server import run_server
+    from sglang.srt.utils import kill_process_tree
+
+    server_args = prepare_server_args(sys.argv[1:])
+    try:
+        run_server(server_args)
+    finally:
+        kill_process_tree(os.getpid(), include_parent=False)
+WRAPPER_EOF
+
+# Build worker URLs based on num GPUs per worker
+if [ $NUM_GPUS_PER_WORKER -eq 4 ]; then
+    # Multi-node worker behavior: only the head node serves the API
+    for worker_id in $(seq 0 $((WORKERS - 1))); do
+        start_node=$((worker_id * NODES_PER_WORKER))
+        worker_host_ip=${node_ips[$start_node]}
+        worker_head_ips+=("$worker_host_ip")
+        # Only add the head node URL (other nodes are for distributed compute only)
+        worker_urls+=("http://${worker_host_ip}:5000")
+    done
+else
+    # Multiple processes per node - build URLs for exactly WORKERS processes
+    prev_node_idx=-1
+    for worker_idx in $(seq 0 $((WORKERS - 1))); do
+        node_idx=$((worker_idx / PROCESSES_PER_NODE))
+        proc_id=$((worker_idx % PROCESSES_PER_NODE))
+        node_ip=${node_ips[$node_idx]}
+
+        # Add head IP only once per node
+        if [ $node_idx -ne $prev_node_idx ]; then
+            worker_head_ips+=("$node_ip")
+            prev_node_idx=$node_idx
+        fi
+
+        port=$((5000 + proc_id))
+        worker_urls+=("http://${node_ip}:${port}")
+    done
+fi
+
+echo "All worker head IPs: $(printf '"%s"' "${worker_head_ips[@]}" | paste -sd ',' - | sed 's/,/, /g')"
+echo "All worker URLs: $(printf '"%s"' "${worker_urls[@]}" | paste -sd ',' - | sed 's/,/, /g')"
+
+# Launch workers
+for worker_id in $(seq 0 $((WORKERS - 1))); do
+    echo "Launching worker $worker_id"
+
+    # Calculate node range for this worker
+    start_node=$((worker_id * NODES_PER_WORKER))
+    end_node=$((start_node + NODES_PER_WORKER - 1))
+
+    # Get worker nodes
+    worker_nodes=()
+    for node_idx in $(seq $start_node $end_node); do
+        worker_nodes+=("${nodes[$node_idx]}")
+    done
+
+    echo "Worker $worker_id nodes: ${worker_nodes[*]}"
+    worker_host_ip=${worker_head_ips[$worker_id]}
+
+    # Launch tasks for this worker
+    if [ $NUM_GPUS_PER_WORKER -eq 4 ]; then
+        # Original behavior: one process per node using all GPUs
+        for local_rank in $(seq 0 $((NODES_PER_WORKER - 1))); do
+            global_node_idx=$((start_node + local_rank))
+            node=${nodes[$global_node_idx]}
+
+            srun --nodes=1 --ntasks=1 --nodelist=$node --container-writable --environment=$ENVIRONMENT --output=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.out --error=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.err \
+                bash --norc --noprofile -c "\
+set -ex
+
+export no_proxy=\"0.0.0.0,\$no_proxy\"
+export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"
+export CLSERVE_CACHE_URL=\"${CACHE_URL}\"
+
+export NCCL_DEBUG=WARN
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False
+export SGL_ENABLE_JIT_DEEPGEMM=false
+
+python ${LOG_DIR}/sglang_with_cache.py --model-path ${MODEL_PATH} --host 0.0.0.0 --port 5000 --dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --tp-size ${TP_SIZE} --ep-size ${EP_SIZE} --cuda-graph-max-bs ${CUDA_GRAPH_MAX_BS} --grammar-backend ${GRAMMAR_BACKEND} --decode-log-interval 1 --trust-remote-code ${REASONING_PARSER} ${TOOL_CALL_PARSER}" &
+
+            echo "Launched worker $worker_id node $local_rank on $node"
+        done
+    else
+        # Multiple processes per node, each with a subset of GPUs
+        # Launch exactly one process per worker_id
+        proc_id=$((worker_id % PROCESSES_PER_NODE))
+        node_idx=$((worker_id / PROCESSES_PER_NODE))
+        node=${nodes[$node_idx]}
+        port=$((5000 + proc_id))
+
+        # Calculate GPU binding based on num_gpus_per_worker
+        if [ $NUM_GPUS_PER_WORKER -eq 1 ]; then
+            gpu_bind="map_gpu:${proc_id}"
+            cuda_visible_devices="${proc_id}"
+        else
+            # NUM_GPUS_PER_WORKER = 2
+            first_gpu=$((proc_id * 2))
+            second_gpu=$((first_gpu + 1))
+            gpu_bind="map_gpu:${first_gpu},${second_gpu}"
+            cuda_visible_devices="${first_gpu},${second_gpu}"
+        fi
+
+        srun --nodes=1 --ntasks=1 --nodelist=$node --container-writable --environment=$ENVIRONMENT --kill-on-bad-exit=1 --gpus-per-task=${NUM_GPUS_PER_WORKER} --cpus-per-task=50 --gpu-bind=${gpu_bind} --overlap --output=${LOG_DIR}/worker${worker_id}_proc${proc_id}_${node}.out --error=${LOG_DIR}/worker${worker_id}_proc${proc_id}_${node}.err \
+            bash --norc --noprofile -c "\
+set -ex
+
+export no_proxy=\"0.0.0.0,\$no_proxy\"
+export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"
+export CLSERVE_CACHE_URL=\"${CACHE_URL}\"
+
+export NCCL_DEBUG=WARN
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+export CUDA_VISIBLE_DEVICES=${cuda_visible_devices}
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False
+export SGL_ENABLE_JIT_DEEPGEMM=false
+
+python ${LOG_DIR}/sglang_with_cache.py --model-path ${MODEL_PATH} --host 0.0.0.0 --port ${port} --tp-size ${NUM_GPUS_PER_WORKER} --cuda-graph-max-bs ${CUDA_GRAPH_MAX_BS} --grammar-backend ${GRAMMAR_BACKEND} --decode-log-interval 1 --trust-remote-code ${REASONING_PARSER} ${TOOL_CALL_PARSER}" &
+
+        echo "Launched worker $worker_id on node $node with GPUs ${cuda_visible_devices} on port ${port}"
+    fi
+done
+
+# Launch router if there are multiple worker processes
+router_url=""
+if [ "$USE_ROUTER" = "true" ]; then
+    router_host_node=${nodes[0]}
+    router_host_ip=${node_ips[0]}
+    router_url="http://${router_host_ip}:30000"
+
+    # Build worker URLs string for router
+    worker_urls_str=""
+    for url in "${worker_urls[@]}"; do
+        worker_urls_str="$worker_urls_str $url"
+    done
+
+    echo "Starting router on ${router_host_node} (${router_host_ip})"
+    echo "Router worker URLs:${worker_urls_str}"
+
+    srun --nodes=1 --ntasks=1 --nodelist=$router_host_node --container-writable --environment=$ROUTER_ENVIRONMENT --cpus-per-task=50 --overlap --output=${LOG_DIR}/router_${router_host_node}.out --error=${LOG_DIR}/router_${router_host_node}.err \
+        bash --norc --noprofile -c "\
+set -ex
+
+export no_proxy=\"0.0.0.0,\$no_proxy\"
+export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"
+
+python -m sglang_router.launch_router --host 0.0.0.0 --port 30000 --worker-urls${worker_urls_str} --model-path ${MODEL_PATH} --policy ${ROUTER_POLICY} --worker-startup-timeout-secs 1200 --max-concurrent-requests -1" &
+
+    echo ""
+    echo "Router URL: ${router_url}"
+fi
+
+# Write endpoint info for clserve status command
+if [ -n "$router_url" ]; then
+    echo "ENDPOINT_URL=${router_url}" >> "${LOG_DIR}/metadata.txt"
+else
+    echo "ENDPOINT_URL=${worker_urls[0]}" >> "${LOG_DIR}/metadata.txt"
+fi
+echo "CACHE_PROXY=${CACHE_URL}" >> "${LOG_DIR}/metadata.txt"
+
+echo ""
+echo "============================================"
+echo "CLSERVE DEPLOYMENT INFO"
+echo "============================================"
+echo "Job ID: $SLURM_JOB_ID"
+echo "Model: ${MODEL_PATH}"
+if [ -n "$router_url" ]; then
+    echo "Endpoint URL: ${router_url}"
+else
+    echo "Endpoint URL: ${worker_urls[0]}"
+fi
+echo "Cache Proxy: ${CACHE_URL}"
+echo "============================================"
+
+echo ""
+echo "To connect to the host node:"
+echo "srun --jobid $SLURM_JOB_ID -w ${nodes[0]} --overlap --pty bash"
+
+echo ""
+echo "Make sure to cancel the job at the end:"
+echo "scancel $SLURM_JOB_ID"
+echo "Or use: clserve stop $SLURM_JOB_ID"
+
+wait
+echo "Script finished at $(date)"
+
+{% endraw %}
