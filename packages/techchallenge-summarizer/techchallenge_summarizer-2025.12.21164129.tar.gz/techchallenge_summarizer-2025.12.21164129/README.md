@@ -1,0 +1,127 @@
+# TechChallenge Summarizer
+[![PyPI version](https://badge.fury.io/py/techchallenge-summarizer.svg)](https://badge.fury.io/py/techchallenge-summarizer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/techchallenge-summarizer)](https://pepy.tech/project/techchallenge-summarizer)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A small utility that turns a free‑form description of a technical challenge (e.g., “how to implement resumable LLM streaming”) into a clean, concise summary ready for documentation or issue‑tracking systems.  
+It works by sending a system prompt to an LLM (by default **ChatLLM7**), then extracts the answer with a regular‑expression pattern, guaranteeing a predictable output format.
+
+---
+
+## Installation
+
+```bash
+pip install techchallenge_summarizer
+```
+
+---
+
+## Quick Start
+
+```python
+from techchallenge_summarizer import techchallenge_summarizer
+
+# Minimal call – uses the default ChatLLM7 and the API key from the environment.
+summary = techchallenge_summarizer(
+    user_input="I need a way to keep an LLM stream alive across network interruptions, ..."
+)
+
+print(summary)   # → List of extracted summary strings
+```
+
+---
+
+## API Reference
+
+```python
+techchallenge_summarizer(
+    user_input: str,
+    llm: Optional[BaseChatModel] = None,
+    api_key: Optional[str] = None,
+) -> List[str]
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| **user_input** | `str` | The raw text describing the technical challenge. |
+| **llm** | `Optional[BaseChatModel]` | A LangChain chat model instance. If omitted, a `ChatLLM7` instance is created automatically. |
+| **api_key** | `Optional[str]` | API key for the LLM7 service. If omitted, the function reads `LLM7_API_KEY` from the environment. |
+
+The function returns a list of extracted summary strings. If the LLM call fails, a `RuntimeError` is raised with the underlying error message.
+
+---
+
+## Using a Custom LLM
+
+You can pass any LangChain‑compatible chat model (e.g., OpenAI, Anthropic, Google) instead of the default `ChatLLM7`.
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from techchallenge_summarizer import techchallenge_summarizer
+
+my_llm = ChatOpenAI(model="gpt-4o-mini")
+summary = techchallenge_summarizer(
+    user_input="My challenge is ...",
+    llm=my_llm,
+)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from techchallenge_summarizer import techchallenge_summarizer
+
+my_llm = ChatAnthropic(model="claude-3-haiku-20240307")
+summary = techchallenge_summarizer(
+    user_input="I want to ...",
+    llm=my_llm,
+)
+```
+
+### Google Generative AI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from techchallenge_summarizer import techchallenge_summarizer
+
+my_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+summary = techchallenge_summarizer(
+    user_input="The problem is ...",
+    llm=my_llm,
+)
+```
+
+---
+
+## Configuration & Rate Limits
+
+* **Default LLM** – `ChatLLM7` from the `langchain-llm7` package (see https://pypi.org/project/langchain-llm7).  
+* **Free‑tier limits** – Sufficient for typical documentation or issue‑tracking usage.  
+* **Higher limits** – Provide your own API key via the `LLM7_API_KEY` environment variable or directly with the `api_key` argument.  
+* **Getting a free key** – Register at https://token.llm7.io/.
+
+---
+
+## Contributing & Support
+
+* **Bug reports & feature requests** – Open an issue on GitHub: https://github.com/chigwell/techchallenge-summarizer/issues  
+* **Pull requests** – Contributions are welcome; please follow the standard GitHub workflow.
+
+---
+
+## License
+
+This project is licensed under the MIT License.
+
+---
+
+## Author
+
+* **Name:** Eugene Evstafev  
+* **Email:** hi@eugene.plus  
+* **GitHub:** [chigwell](https://github.com/chigwell)
