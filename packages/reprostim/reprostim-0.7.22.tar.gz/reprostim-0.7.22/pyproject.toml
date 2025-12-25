@@ -1,0 +1,172 @@
+[build-system]
+requires = [
+  "hatchling",
+  "versioningit",
+]
+build-backend = "hatchling.build"
+
+[project]
+name = "reprostim"
+dynamic = ["version"]
+description = 'ReproStim is a video capture and recording suite for neuroimaging and psychology experiments.'
+readme = "README.md"
+#requires-python = "3.10"
+license = "MIT"
+license-files = { paths = ["LICENSES/MIT.txt"] }
+keywords = [
+  "ReproStim",
+  "reprostim-videocapture",
+  "reprostim-screncapture",
+]
+authors = [
+  { name = "ReproNim Team", email = "info@repronim.org" },
+  { name = "Yaroslav Halchenko", email = "yoh@dartmouth.edu" },
+  { name = "Andy Connolly", email = "andrew.c.connolly@dartmouth.edu" },
+  { name = "Horea Christian", email = "chr@chymera.eu" },
+  { name = "Vadim Melnik", email = "vmelnik@docsultant.com" },
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+
+dependencies = [
+  "click>=8.1.7",
+  "click-didyoumean>=0.3.1",
+  "pydantic>=2.7.1",
+  "numpy>=1.26.4",
+  "pyzbar>=0.1.9",
+  "qrcode>=8.0",
+  "opencv-python>=4.9.0.80",
+  "filelock>=3.16.0",
+]
+
+[project.optional-dependencies]
+audio = [
+  "sounddevice>=0.5.1",
+  "scipy>=1.14.1",
+  "pydub>=0.25.1",
+  "pyaudio>=0.2.14",
+  "reedsolo>=1.7.0",
+]
+# displays monitor optional dependencies
+# platform specific, Linux and macOS supported
+disp_mon = [
+  "pygame>=2.6.1",
+  "pyglet>=1.5.27",
+  "pyudev>=0.23.0 ; sys_platform == 'linux'",
+  "python-xlib>=0.33 ; sys_platform == 'linux'",
+  "pyobjc-core>=10.3.2 ; sys_platform == 'darwin'",
+  "pyobjc-framework-Quartz>=10.3.2 ; sys_platform == 'darwin'"
+]
+# sphinx/rtd docs custom dependencies
+# to generate API reference
+docs = [
+  "sounddevice>=0.5.1",
+  "scipy>=1.14.1",
+  "pydub>=0.25.1",
+  "reedsolo>=1.7.0",
+  "reprostim[disp_mon]",
+]
+psychopy = [
+  "psychopy",
+  "psychopy-sounddevice",
+]
+all = [
+  "reprostim[audio]",
+  "reprostim[disp_mon]",
+  "reprostim[psychopy]",
+]
+
+[project.urls]
+Documentation = "https://github.com/ReproNim/reprostim"
+Issues = "https://github.com/ReproNim/reprostim/issues"
+Source = "https://github.com/ReproNim/reprostim"
+
+[project.scripts]
+reprostim = "reprostim.cli.entrypoint:main"
+
+# Force _version.py to be included in dist
+[tool.hatch.build]
+artifacts = [
+  "src/reprostim/_version.py"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/reprostim"]
+include = [
+    "reprostim/assets/img/*.png"
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src/reprostim/",
+  "/tests",
+  "/examples/psychopy",
+]
+
+[tool.hatch.envs.all]
+# install [all] extras
+features = [
+  "all",
+]
+
+[tool.hatch.envs.hatch-test]
+features = [
+  "audio",
+  "psychopy",
+]
+extra-dependencies = [
+  "pytest>=8.0",
+  "pytest",
+  "pytest-cov",
+  "pytest-mock",
+  "pytest-xdist",
+]
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/reprostim tests}"
+
+[tool.coverage.run]
+source_pkgs = ["reprostim", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/reprostim/__about__.py",
+]
+
+[tool.coverage.paths]
+reprostim = ["src/reprostim", "*/reprostim/src/reprostim"]
+tests = ["tests", "*/reprostim/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.hatch.metadata]
+root = "src"
+
+[tool.hatch.version]
+source = "versioningit"
+
+# ATM force version to be always like specified in GIT tag
+[tool.versioningit.format]
+distance = "{base_version}"
+dirty = "{base_version}"
+distance-dirty = "{base_version}"
+
+[tool.versioningit.write]
+file = "src/reprostim/_version.py"
