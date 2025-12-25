@@ -1,0 +1,115 @@
+diff --git a/.github/workflows/test.yml b/.github/workflows/test.yml
+index b813da6..ecd69ae 100644
+--- a/.github/workflows/test.yml
++++ b/.github/workflows/test.yml
+@@ -106,6 +106,11 @@ jobs:
+         with:
+           submodules: recursive
+           fetch-depth: 0
++      - name: Configure Git user
++        run: |
++          # Configure Git before using DataLad
++          git config --global user.name 'NiPreps Bot'
++          git config --global user.email 'nipreps@gmail.com'
+       - name: Set up Python ${{ matrix.python-version }}
+         uses: actions/setup-python@v5
+         with:
+@@ -117,12 +122,11 @@ jobs:
+         with:
+           path: ${{ env.TEST_DATA_HOME }}
+           key: data-v2-${{ needs.cache-test-data.outputs.SHA }}
+-      - name: Install datalad
++      - name: Install git-annex
+         run: |
+-          uvx datalad-installer --sudo ok git-annex
+-          uv tool install --with=datalad-osf --with=datalad-next datalad
+-          uv tool install --with=datalad-next datalad-osf
+-          datalad wtf
++          sudo apt-get update
++          sudo apt-get install -y git-annex
++          git annex version
+       - name: Install tox
+         run: |
+           uv tool install --with=tox-uv --with=tox-gh-actions tox
+diff --git a/src/conftest.py b/src/conftest.py
+new file mode 100644
+index 0000000..4cfad08
+--- /dev/null
++++ b/src/conftest.py
+@@ -0,0 +1,42 @@
++# emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
++# vi: set ft=python sts=4 ts=4 sw=4 et:
++#
++# Copyright The NiPreps Developers <nipreps@gmail.com>
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++#
++# We support and encourage derived works from this project, please read
++# about our expectations at
++#
++#     https://www.nipreps.org/community/licensing/
++#
++
++import logging
++import os
++from pathlib import Path
++
++test_data_env = os.getenv("TEST_DATA_HOME", str(Path.home() / "niquery-tests"))
++test_output_dir = os.getenv("TEST_OUTPUT_DIR")
++test_workdir = os.getenv("TEST_WORK_DIR")
++
++_datadir = (Path(__file__).parent.parent.parent / "test" / "data").absolute()
++
++logging.basicConfig(level=logging.INFO)
++
++
++def pytest_report_header(config):
++    return f"""\
++TEST_DATA_HOME={test_data_env}.
++TEST_OUTPUT_DIR={test_output_dir or "<unset> (output files will be discarded)"}.
++TEST_WORK_DIR={test_workdir or "<unset> (intermediate files will be discarded)"}.
++"""
+diff --git a/src/niquery/utils/optpckg.py b/src/niquery/utils/optpckg.py
+index a16092f..e296401 100644
+--- a/src/niquery/utils/optpckg.py
++++ b/src/niquery/utils/optpckg.py
+@@ -41,6 +41,7 @@ def have_datalad() -> bool:
+ 
+         # Check that git and git-annex are in the PATH
+         if shutil.which("git") is None or shutil.which("git-annex") is None:
++            logging.warning(f"DataLad cannot be used: git or git-annex not found")
+             return False
+         # Try to instantiate a Dataset with a temporary path
+         import tempfile
+diff --git a/tox.ini b/tox.ini
+index fed22e3..0d8f724 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -37,6 +37,9 @@ pass_env =
+   PATH
+   NIQUERY_WERRORS
+ extras = test
++commands_pre =
++  uv pip install datalad
++  uv tool install --with-executables-from=datalad-osf,datalad-next datalad
+ commands =
+   pytest -svx --doctest-modules --cov niquery --cov-report xml \
+   --junitxml=test-results.xml -v src test {posargs:-n auto}
+@@ -65,6 +68,7 @@ labels = check
+ deps =
+   codespell[toml]
+ skip_install = true
++allowlist_externals = datalad
+ commands =
+   codespell . {posargs}
+ 
