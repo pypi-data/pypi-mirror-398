@@ -1,0 +1,121 @@
+on: ["push", "pull_request"]
+
+name: Test
+
+concurrency:
+  # Cancel older, in-progress jobs from the same PR, same workflow.
+  # use run_id if the job is triggered by a push to ensure
+  # push-triggered jobs to not get canceled.
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+    linting:
+        runs-on: ubuntu-latest
+
+        steps:
+        - uses: actions/checkout@v5
+          with:
+            fetch-depth: 0
+
+        - name: Setup Python
+          uses: actions/setup-python@v5
+          with:
+              python-version: "3.10"
+
+        - name: Install Dependencies
+          run: |
+            python -m pip install --upgrade pip
+            pip install .[lint]
+
+        - name: Run Ruff Lint
+          run: ruff check .
+
+        - name: Run Ruff Format
+          run: ruff format --check .
+
+        - name: Run mdformat
+          run: mdformat . --check
+
+    type-check:
+        runs-on: ubuntu-latest
+
+        steps:
+        - uses: actions/checkout@v5
+          with:
+            fetch-depth: 0
+
+        - name: Setup Python
+          uses: actions/setup-python@v5
+          with:
+              python-version: "3.10"
+
+        - name: Install Dependencies
+          run: |
+            python -m pip install --upgrade pip
+            pip install .[lint,test]
+
+        - name: Run MyPy
+          run: mypy .
+
+    test:
+        runs-on: ${{ matrix.os }}
+
+        strategy:
+            matrix:
+                os: [ubuntu-latest, macos-latest]   # eventually add `windows-latest`
+                python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+        env:
+          GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+        steps:
+        - uses: actions/checkout@v5
+          with:
+            fetch-depth: 0
+
+        - name: Setup Python
+          uses: actions/setup-python@v5
+          with:
+              python-version: ${{ matrix.python-version }}
+
+        - name: Install Geth
+          uses: ApeWorX/geth-action@v1
+
+        - name: Setup Ape
+          uses: ApeWorX/github-action@v3
+          with:
+            ape-version-pin: .[test]
+
+        - name: Run Functional Tests
+          run: ape test tests/functional -m "not hypothesis" -s --cov=src --cov-append -v ERROR -n auto --dist loadgroup
+
+        - name: Run Integration Tests
+          run: ape test tests/integration -m "not hypothesis" -s --cov=src --cov-append -v ERROR -n auto --dist loadgroup
+
+        - name: Run Performance Tests
+          run: ape test tests/performance -s -v ERROR
+
+    fuzzing:
+        runs-on: ubuntu-latest
+
+        strategy:
+            fail-fast: true
+
+        steps:
+        - uses: actions/checkout@v5
+          with:
+            fetch-depth: 0
+
+        - name: Setup Python
+          uses: actions/setup-python@v5
+          with:
+              python-version: "3.10"
+
+        - name: Install Dependencies
+          run: |
+            python -m pip install --upgrade pip
+            pip install .[test]
+
+        - name: Run Tests
+          run: ape test -m "hypothesis" --no-cov -s
