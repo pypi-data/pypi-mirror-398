@@ -1,0 +1,517 @@
+from base64 import b64decode, b64encode
+from contextlib import AsyncExitStack
+from dataclasses import dataclass, field
+from typing import Any, cast
+
+from aioboto3 import Session
+from types_aiobotocore_sqs import SQSClient
+from types_aiobotocore_sqs.literals import QueueAttributeFilterType
+
+from .base_driver import BaseDriver
+
+
+@dataclass
+class SQSDriver(BaseDriver):
+    """AWS SQS-based queue driver for distributed task processing.
+
+    IMPLEMENTATION DETAILS:
+    ======================
+
+    Message Encoding:
+    - Task data Base64-encoded (SQS requires UTF-8 text)
+    - Queue URLs cached for performance
+    - Auto-creates queues with best-practice settings (long polling, 14-day retention)
+
+    Delay Support:
+    - Native SQS DelaySeconds (max 900s/15min)
+    - Server-side, persistent across restarts
+    - For longer delays: Use EventBridge Scheduler or Step Functions
+
+    Receipt Handle Abstraction:
+    - SQS receipt handles stored in _receipt_handles dict (keyed by task_data)
+    - Maintains BaseDriver protocol: dequeue() returns bytes, not receipt handle
+    - ack/nack retrieve handle from cache using task_data as key
+    - Handles cleaned up after ack/nack or on disconnect
+
+    Session Management:
+    - Uses AsyncExitStack for proper aioboto3 client lifecycle
+    - DO NOT call __aenter__/__aexit__ directly
+    - Pattern: _exit_stack.enter_async_context(session.client('sqs'))
+
+    Thread Safety:
+    - Not thread-safe: Use separate driver instance per worker
+    - Async-safe: Compatible with asyncio.gather()
+    """
+
+    region_name: str = "us-east-1"
+    aws_access_key_id: str | None = None
+    aws_secret_access_key: str | None = None
+    endpoint_url: str | None = None  # For LocalStack or custom endpoints
+    queue_url_prefix: str | None = None
+    visibility_timeout: int = 300
+    session: Session | None = field(default=None, init=False, repr=False)
+    client: SQSClient | None = field(default=None, init=False, repr=False)
+    _exit_stack: AsyncExitStack | None = field(default=None, init=False, repr=False)
+    _queue_urls: dict[str, str] = field(default_factory=dict, init=False, repr=False)
+    _receipt_handles: dict[bytes, str] = field(default_factory=dict, init=False, repr=False)
+
+    async def connect(self) -> None:
+        """Establish connection to AWS SQS.
+
+        Uses AsyncExitStack to manage client lifecycle properly.
+        Idempotent - safe to call multiple times.
+
+        Raises:
+            ClientError: If credentials invalid or insufficient permissions
+        """
+
+        if self.client is not None:
+            return
+
+        self.session = Session(
+            aws_access_key_id=self.aws_access_key_id,
+            aws_secret_access_key=self.aws_secret_access_key,
+            region_name=self.region_name,
+        )
+
+        # Use AsyncExitStack to properly manage client context manager lifecycle
+        # This is the recommended pattern per aioboto3 docs for long-lived clients
+        self._exit_stack = AsyncExitStack()
+
+        client_kwargs = {}
+        if self.endpoint_url:
+            client_kwargs["endpoint_url"] = self.endpoint_url
+
+        # aioboto3's client is an async context manager but types from
+        # types-aiobotocore may not perfectly match; cast to Any so Pyright
+        # accepts the enter_async_context usage here.
+        client_cm = cast(Any, self.session.client("sqs", **client_kwargs))
+        self.client = await self._exit_stack.enter_async_context(client_cm)
+
+    async def disconnect(self) -> None:
+        """Close connection and cleanup resources.
+
+        Clears queue URL cache and receipt handle cache.
+        Idempotent - safe to call multiple times.
+        """
+
+        if self._exit_stack is not None:
+            await self._exit_stack.aclose()
+            self._exit_stack = None
+
+        self.client = None
+        self.session = None
+        self._queue_urls.clear()
+        self._receipt_handles.clear()
+
+    async def enqueue(self, queue_name: str, task_data: bytes, delay_seconds: int = 0) -> None:
+        """Add task to queue with optional delay.
+
+        Base64-encodes task_data before sending. Auto-creates queue if needed.
+
+        Args:
+            queue_name: Queue name (auto-created if not exists)
+            task_data: Serialized task data (will be Base64-encoded)
+            delay_seconds: Delay in seconds (0-900 max, SQS limit)
+
+        Raises:
+            ValueError: If delay_seconds > 900
+            ClientError: If AWS API call fails
+        """
+
+        if self.client is None:
+            await self.connect()
+            assert self.client is not None
+
+        if delay_seconds > 900:
+            raise ValueError(
+                f"SQS delay_seconds cannot exceed 900 (15 minutes), got {delay_seconds}. "
+                f"For longer delays, use EventBridge Scheduler or Step Functions."
+            )
+
+        queue_url = await self._get_queue_url(queue_name)
+        message_body = b64encode(task_data).decode("ascii")
+
+        params: dict[str, Any] = {"QueueUrl": queue_url, "MessageBody": message_body}
+
+        if delay_seconds > 0:
+            params["DelaySeconds"] = delay_seconds
+
+        await self.client.send_message(**params)
+
+    async def dequeue(self, queue_name: str, poll_seconds: int = 0) -> bytes | None:
+        """Retrieve task from queue.
+
+        Returns task_data only (BaseDriver protocol). SQS receipt handle stored
+        internally in _receipt_handles[task_data] for later ack/nack.
+
+        Args:
+            queue_name: Queue name
+            poll_seconds: Max seconds to poll (0-20, capped at 20)
+
+        Returns:
+            Decoded task data (bytes) or None if no messages
+
+        Note:
+            Message becomes invisible to other consumers for visibility_timeout.
+            Receipt handle cached for ack/nack using task_data as key.
+        """
+
+        if self.client is None:
+            await self.connect()
+            assert self.client is not None
+
+        queue_url = await self._get_queue_url(queue_name)
+        response = await self.client.receive_message(
+            QueueUrl=queue_url,
+            MaxNumberOfMessages=1,
+            WaitTimeSeconds=min(poll_seconds, 20),
+            MessageAttributeNames=["All"],
+        )
+
+        messages = response.get("Messages", [])
+        if not messages:
+            return None
+
+        message = messages[0]
+        body = message.get("Body")
+        receipt_handle = message.get("ReceiptHandle")
+
+        if body is None or receipt_handle is None:
+            return None
+
+        task_data = b64decode(body)
+
+        # Store receipt handle keyed by task_data for later ack/nack
+        # This maintains protocol compatibility (returning only bytes)
+        # while preserving SQS-specific receipt handle for operations
+        self._receipt_handles[task_data] = receipt_handle
+
+        return task_data
+
+    async def ack(self, queue_name: str, receipt_handle: bytes) -> None:
+        """Acknowledge successful task processing.
+
+        Deletes message from queue. Receipt handle is task_data from dequeue(),
+        used to retrieve actual SQS receipt handle from cache.
+
+        Args:
+            queue_name: Queue name
+            receipt_handle: Task data (as bytes) from dequeue()
+
+        Note:
+            Idempotent - safe to call multiple times.
+            Cleans up receipt handle from cache.
+        """
+        if self.client is None:
+            await self.connect()
+            assert self.client is not None
+
+        # Retrieve actual SQS receipt handle from cache
+        sqs_receipt_handle = self._receipt_handles.get(receipt_handle)
+
+        if sqs_receipt_handle is None:
+            # Receipt handle not found - message may have been already ack'd or timed out
+            # This is not an error - ack is idempotent
+            return
+
+        queue_url = await self._get_queue_url(queue_name)
+        await self.client.delete_message(QueueUrl=queue_url, ReceiptHandle=sqs_receipt_handle)
+
+        # Clean up receipt handle from cache
+        self._receipt_handles.pop(receipt_handle, None)
+
+    async def nack(self, queue_name: str, receipt_handle: bytes) -> None:
+        """Reject task and make immediately available for reprocessing.
+
+        Sets visibility timeout to 0. Receipt handle is task_data from dequeue(),
+        used to retrieve actual SQS receipt handle from cache.
+
+        Args:
+            queue_name: Queue name
+            receipt_handle: Task data (as bytes) from dequeue()
+
+        Note:
+            Idempotent - safe to call multiple times.
+            Cleans up receipt handle from cache.
+        """
+        if self.client is None:
+            await self.connect()
+            assert self.client is not None
+
+        # Retrieve actual SQS receipt handle from cache
+        sqs_receipt_handle = self._receipt_handles.get(receipt_handle)
+
+        if sqs_receipt_handle is None:
+            # Receipt handle not found - message may have been already processed or timed out
+            # This is not an error - nack is idempotent
+            return
+
+        queue_url = await self._get_queue_url(queue_name)
+        await self.client.change_message_visibility(
+            QueueUrl=queue_url,
+            ReceiptHandle=sqs_receipt_handle,
+            VisibilityTimeout=0,  # Make immediately visible
+        )
+
+        # Clean up receipt handle from cache (it will get new handle on next receive)
+        self._receipt_handles.pop(receipt_handle, None)
+
+    async def mark_failed(self, queue_name: str, receipt_handle: bytes) -> None:
+        """Mark task as permanently failed (delete from queue).
+
+        Args:
+            queue_name: Name of the queue
+            receipt_handle: Task data (as bytes) from dequeue()
+
+        Implementation:
+            SQS doesn't have a separate failed queue mechanism in this driver.
+            This method deletes the message from the queue, effectively marking it as failed.
+            For dead-letter queue support, configure DLQ at the SQS queue level.
+
+        Note:
+            Idempotent - safe to call multiple times.
+            Cleans up receipt handle from cache.
+        """
+        if self.client is None:
+            await self.connect()
+            assert self.client is not None
+
+        # Retrieve actual SQS receipt handle from cache
+        sqs_receipt_handle = self._receipt_handles.get(receipt_handle)
+
+        if sqs_receipt_handle is None:
+            # Receipt handle not found - message may have been already processed or timed out
+            # This is not an error - mark_failed is idempotent
+            return
+
+        queue_url = await self._get_queue_url(queue_name)
+        await self.client.delete_message(QueueUrl=queue_url, ReceiptHandle=sqs_receipt_handle)
+
+        # Clean up receipt handle from cache
+        self._receipt_handles.pop(receipt_handle, None)
+
+    async def get_queue_size(
+        self,
+        queue_name: str,
+        include_delayed: bool,
+        include_in_flight: bool,
+    ) -> int:
+        """Get approximate number of visible messages in queue.
+
+        Args:
+            queue_name: Queue name
+            include_delayed: Include delayed messages
+            include_in_flight: Include in-flight messages
+
+        Returns:
+            Approximate count based on parameters
+
+        Note:
+            APPROXIMATE only - may lag by a few seconds due to distributed nature.
+            Good for monitoring, not for strict guarantees.
+
+            SQS provides separate attributes for each category:
+            - ApproximateNumberOfMessages: Visible/ready messages
+            - ApproximateNumberOfMessagesDelayed: Delayed messages
+            - ApproximateNumberOfMessagesNotVisible: In-flight messages
+        """
+        if self.client is None:
+            await self.connect()
+            assert self.client is not None
+
+        queue_url = await self._get_queue_url(queue_name)
+
+        # Build attribute list based on parameters
+        attributes = ["ApproximateNumberOfMessages"]
+        if include_delayed:
+            attributes.append("ApproximateNumberOfMessagesDelayed")
+        if include_in_flight:
+            attributes.append("ApproximateNumberOfMessagesNotVisible")
+
+        response = await self.client.get_queue_attributes(
+            QueueUrl=queue_url,
+            AttributeNames=cast(list[QueueAttributeFilterType], attributes),
+        )
+
+        attrs = response.get("Attributes", {})
+
+        count = int(attrs.get("ApproximateNumberOfMessages", 0))
+
+        if include_delayed:
+            count += int(attrs.get("ApproximateNumberOfMessagesDelayed", 0))
+
+        if include_in_flight:
+            count += int(attrs.get("ApproximateNumberOfMessagesNotVisible", 0))
+
+        return count
+
+    async def get_queue_stats(self, queue: str) -> dict[str, Any]:
+        """Return basic stats for the named queue using SQS attributes.
+
+        Since SQS only provides approximate counts, this returns conservative
+        values and leaves other fields as sensible defaults.
+        """
+        if self.client is None:
+            await self.connect()
+            assert self.client is not None
+
+        queue_url = await self._get_queue_url(queue)
+        attrs = await self.client.get_queue_attributes(
+            QueueUrl=queue_url,
+            AttributeNames=[
+                "ApproximateNumberOfMessages",
+                "ApproximateNumberOfMessagesDelayed",
+                "ApproximateNumberOfMessagesNotVisible",
+            ],
+        )
+
+        a = attrs.get("Attributes", {})
+        depth = int(a.get("ApproximateNumberOfMessages", 0))
+        in_flight = int(a.get("ApproximateNumberOfMessagesNotVisible", 0))
+
+        return {
+            "name": queue,
+            "depth": depth,
+            "processing": in_flight,
+            "completed_total": 0,
+            "failed_total": 0,
+            "avg_duration_ms": None,
+            "throughput_per_minute": None,
+        }
+
+    async def _get_queue_url(self, queue_name: str) -> str:
+        """Get queue URL with caching.
+
+        Checks cache first. If queue_url_prefix set, constructs URL directly.
+        Otherwise calls get_queue_url API.
+
+        Args:
+            queue_name: Queue name
+
+        Returns:
+            Queue URL (cached for subsequent calls)
+
+        Raises:
+            QueueDoesNotExist: If queue doesn't exist
+        """
+
+        if queue_name in self._queue_urls:
+            return self._queue_urls[queue_name]
+
+        assert self.client is not None
+
+        queue_url: str
+        if self.queue_url_prefix:
+            # Fast path: Construct URL directly (no API call)
+            queue_url = f"{self.queue_url_prefix.rstrip('/')}/{queue_name}"
+        else:
+            # Slow path: Call AWS API to get queue URL
+            response = await self.client.get_queue_url(QueueName=queue_name)
+            queue_url = response["QueueUrl"]
+
+        self._queue_urls[queue_name] = queue_url
+        return queue_url
+
+    # The following methods implement monitoring APIs required by BaseDriver.
+    # SQS does not track individual task metadata/history, so many of these
+    # operations are implemented with conservative defaults or limited
+    # functionality and documented accordingly.
+
+    async def get_all_queue_names(self) -> list[str]:
+        """List queue names using ListQueues API. Returns short names when
+        possible (last path component of URL)."""
+
+        if self.client is None:
+            await self.connect()
+            assert self.client is not None
+
+        response = await self.client.list_queues()
+        urls = response.get("QueueUrls", []) or []
+        names: list[str] = []
+        for u in urls:
+            # Extract the last component as the queue name
+            names.append(u.rstrip("/").split("/")[-1])
+        return names
+
+    async def get_global_stats(self) -> dict[str, int]:
+        """Return very small set of global stats based on listing queues and
+        summing approximate counts. This is expensive for large numbers of
+        queues but acceptable for monitoring endpoints."""
+
+        if self.client is None:
+            await self.connect()
+            assert self.client is not None
+
+        total_pending = 0
+        total_in_flight = 0
+
+        response = await self.client.list_queues()
+        urls = response.get("QueueUrls", []) or []
+        for u in urls:
+            qname = u.rstrip("/").split("/")[-1]
+            stats = await self.get_queue_stats(qname)
+            total_pending += stats["depth"]
+            total_in_flight += stats["processing"]
+
+        return {
+            "pending": total_pending,
+            "running": total_in_flight,
+            "completed": 0,
+            "failed": 0,
+            "total": total_pending + total_in_flight,
+        }
+
+    async def get_running_tasks(self, limit: int = 50, offset: int = 0) -> list[tuple[bytes, str]]:
+        """SQS cannot enumerate running tasks. Return empty list.
+
+        This keeps the interface stable for monitor components that call the
+        method but rely on other backends for richer data.
+        """
+
+        return []
+
+    async def get_tasks(
+        self,
+        status: str | None = None,
+        queue: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[tuple[bytes, str, str]], int]:
+        """SQS does not provide task history. Return empty list and 0 total.
+
+        Monitor components that need history should use Redis/Postgres backends.
+
+        Returns:
+            Tuple of (empty list, 0) - SQS does not support task listing
+        """
+
+        return ([], 0)
+
+    async def get_task_by_id(self, task_id: str) -> bytes | None:
+        """Not supported for SQS driver: return None.
+
+        Returns:
+            None - SQS does not support task lookup by ID
+        """
+
+        return None
+
+    async def retry_task(self, task_id: str) -> bool:
+        """Not applicable for SQS-only driver; return False."""
+
+        return False
+
+    async def delete_task(self, task_id: str) -> bool:
+        """Not supported for SQS driver; return False."""
+
+        return False
+
+    async def get_worker_stats(self) -> list[dict[str, Any]]:
+        """SQS does not track workers. Return empty list.
+
+        Systems requiring worker tracking should implement a registry using
+        Redis or a database and use a different driver implementation.
+        """
+
+        return []
