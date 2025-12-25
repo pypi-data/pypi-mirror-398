@@ -1,0 +1,181 @@
+# eduai_friction
+[![PyPI version](https://badge.fury.io/py/eduai-friction.svg)](https://badge.fury.io/py/eduai-friction)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/eduai-friction)](https://pepy.tech/project/eduai-friction)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**A structured analysis tool for AI adoption frictions in education**
+
+eduai_friction is a Python package designed to help educators, institutions, and policymakers analyze and address resistance points (frictions) when integrating AI into educational settings. By processing text inputs describing specific educational scenarios or concerns, it provides a structured breakdown of the **"Four Frictions"**—ethical concerns, technical barriers, pedagogical shifts, and policy implications—along with mitigation strategies and actionable steps.
+
+---
+
+## 📌 Key Features
+- **Structured Output**: Returns consistent, formatted insights using `llmatch-messages` for clarity.
+- **Flexible LLM Integration**: Works with default `ChatLLM7` or custom LLMs (OpenAI, Anthropic, Google, etc.).
+- **Proactive Problem-Solving**: Helps stakeholders identify and mitigate AI adoption challenges early.
+- **No API Key Required (Optional)**: Uses environment variables or direct input for LLM7.
+
+---
+
+## 🚀 Installation
+
+Install via pip:
+```bash
+pip install eduai_friction
+```
+
+---
+
+## 🔧 Usage Examples
+
+### Basic Usage (Default LLM7)
+```python
+from eduai_friction import eduai_friction
+
+# Example: Analyze a scenario about AI in grading
+response = eduai_friction(
+    user_input="How can we ensure AI-assisted grading is fair and unbiased?"
+)
+print(response)
+```
+
+### Custom LLM (OpenAI)
+```python
+from langchain_openai import ChatOpenAI
+from eduai_friction import eduai_friction
+
+llm = ChatOpenAI(model="gpt-4")
+response = eduai_friction(
+    user_input="What are the risks of AI in student plagiarism detection?",
+    llm=llm
+)
+print(response)
+```
+
+### Custom LLM (Anthropic)
+```python
+from langchain_anthropic import ChatAnthropic
+from eduai_friction import eduai_friction
+
+llm = ChatAnthropic(model="claude-2")
+response = eduai_friction(
+    user_input="How do we train teachers to use AI tools effectively?",
+    llm=llm
+)
+print(response)
+```
+
+### Custom LLM (Google Generative AI)
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from eduai_friction import eduai_friction
+
+llm = ChatGoogleGenerativeAI(model="gemini-pro")
+response = eduai_friction(
+    user_input="What policy changes are needed for AI in K-12 classrooms?",
+    llm=llm
+)
+print(response)
+```
+
+---
+
+## 🔑 Parameters
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_input` | `str` | The input text describing an AI education scenario. |
+| `api_key` | `Optional[str]` | LLM7 API key (defaults to `LLM7_API_KEY` env var). |
+| `llm` | `Optional[BaseChatModel]` | Custom LLM instance (e.g., `ChatOpenAI`, `ChatAnthropic`). Uses `ChatLLM7` by default. |
+
+---
+
+## 📌 How It Works
+1. **Input**: Provide a text describing an AI-related educational challenge (e.g., fairness in grading, teacher training).
+2. **Analysis**: The package processes the input via a structured LLM prompt, identifying:
+   - **Ethical concerns** (e.g., bias, privacy).
+   - **Technical barriers** (e.g., infrastructure, usability).
+   - **Pedagogical shifts** (e.g., curriculum changes).
+   - **Policy implications** (e.g., regulations, compliance).
+3. **Output**: A structured list of frictions with mitigation strategies.
+
+---
+
+## 🔄 Default LLM: LLM7
+- **Provider**: [LLM7](https://token.llm7.io/)
+- **Rate Limits**: Free tier is sufficient for most use cases.
+- **Customization**: Override with your own API key via:
+  ```python
+  eduai_friction(api_key="your_api_key_here")
+  ```
+  or environment variable:
+  ```bash
+  export LLM7_API_KEY="your_api_key_here"
+  ```
+
+---
+
+## 🛠️ Custom LLM Support
+Pass any `BaseChatModel` from [LangChain](https://docs.langchain.com/) (e.g., OpenAI, Anthropic, Google) via the `llm` parameter. Example:
+```python
+from langchain_openai import ChatOpenAI
+from eduai_friction import eduai_friction
+
+llm = ChatOpenAI(temperature=0.7)
+response = eduai_friction(user_input="...", llm=llm)
+```
+
+---
+
+## 📝 Example Output Structure
+The output is a list of dictionaries, each representing a friction point with:
+- **Category** (e.g., "Ethical", "Technical").
+- **Description**: The identified friction.
+- **Mitigation**: Suggested solutions.
+- **Actionable Steps**: Concrete next steps.
+
+Example:
+```python
+[
+    {
+        "category": "Ethical",
+        "description": "Risk of student data leaks in AI tools.",
+        "mitigation": "Use GDPR-compliant platforms with end-to-end encryption.",
+        "action": "Audit current AI tools for compliance."
+    },
+    {
+        "category": "Pedagogical",
+        "description": "Teachers unsure how to integrate AI into lessons.",
+        "mitigation": "Provide hands-on workshops.",
+        "action": "Schedule quarterly training sessions."
+    }
+]
+```
+
+---
+
+## 📦 Dependencies
+- `llmatch-messages` (for structured output).
+- `langchain-core` (LLM abstraction).
+- `langchain_llm7` (default LLM provider).
+
+Install dependencies:
+```bash
+pip install llmatch-messages langchain-core langchain_llm7
+```
+
+---
+
+## 🔧 Development
+- **Source Code**: [GitHub Repository](https://github.com/chigwell/eduai-friction)
+- **Issues**: Report bugs/feature requests [here](https://github.com/chigwell/eduai-friction/issues).
+- **Author**: Eugene Evstafev ([@chigwell](https://github.com/chigwell))
+- **Email**: [hi@euegne.plus](mailto:hi@euegne.plus)
+
+---
+
+## 📜 License
+MIT License (see [LICENSE](https://github.com/chigwell/eduai-friction/blob/main/LICENSE)).
+
+---
