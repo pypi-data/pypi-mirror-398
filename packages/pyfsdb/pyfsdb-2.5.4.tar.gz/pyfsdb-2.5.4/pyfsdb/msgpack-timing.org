@@ -1,0 +1,95 @@
+* all ascii types
+
+*** using message pack between commands:
+
+time (p. pyfsdb/tools/pdb2msgpack.py ~1/20231031-205350-00798919.mia.message_question.fsdb |
+      p. pyfsdb/tools/pdbrow.py 'qr == "1"' | 
+      p. pyfsdb/tools/pdbroweval.py 'name += name' | 
+      p. pyfsdb/tools/msgpack2pdb.py) > /dev/null
+
+real	0m53.401s
+user	1m53.855s
+sys	0m1.224s
+
+*** don't use message pack:
+
+time (cat ~1/20231031-205350-00798919.mia.message_question.fsdb |
+      p. pyfsdb/tools/pdbrow.py 'qr == "1"' | 
+      p. pyfsdb/tools/pdbroweval.py 'name += name') > /dev/null
+
+real	0m29.093s
+user	0m53.355s
+sys	0m1.002s
+
+*** message pack without conversion backward:
+
+time (p. pyfsdb/tools/pdb2msgpack.py ~1/20231031-205350-00798919.mia.message_question.fsdb |
+      p. pyfsdb/tools/pdbrow.py 'qr == "1"' | 
+      p. pyfsdb/tools/pdbroweval.py 'name += name') > /dev/null
+
+real	0m51.090s
+user	1m21.831s
+sys	0m0.933s
+      
+* better types
+
+*** Converting:
+
+  cat ~1/20231031-205350-00798919.mia.message_question.fsdb | 
+      p. pyfsdb/tools/pdbaddtypes.py -a > ~1/20231031-205350-00798919.mia.message_question.fsdb.types
+
+*** using message pack between commands:
+
+time (p. pyfsdb/tools/pdb2msgpack.py ~1/20231031-205350-00798919.mia.message_question.fsdb.types |
+      p. pyfsdb/tools/pdbrow.py 'qr == 1' | 
+      p. pyfsdb/tools/pdbroweval.py 'name += name' | 
+      p. pyfsdb/tools/msgpack2pdb.py) > /dev/null
+
+real	1m20.724s
+user	2m38.568s
+sys	0m1.152s
+
+*** don't use message pack:
+
+time (cat ~1/20231031-205350-00798919.mia.message_question.fsdb.types |
+      p. pyfsdb/tools/pdbrow.py 'qr == 1' | 
+      p. pyfsdb/tools/pdbroweval.py 'name += name') > /dev/null
+
+real	0m52.146s
+user	1m27.341s
+sys	0m0.990s
+
+*** message pack without conversion backward:
+
+time (p. pyfsdb/tools/pdb2msgpack.py ~1/20231031-205350-00798919.mia.message_question.fsdb.types |
+      p. pyfsdb/tools/pdbrow.py 'qr == 1' | 
+      p. pyfsdb/tools/pdbroweval.py 'name += name') > /dev/null
+
+real	1m18.641s
+user	1m58.936s
+sys	0m0.847s
+
+* Pre-converting
+
+*** converting:
+
+    p. pyfsdb/tools/pdb2msgpack.py ~1/20231031-205350-00798919.mia.message_question.fsdb.types ~1/20231031-205350-00798919.mia.message_question.fsdb.mp
+
+*** using message pack between commands:
+
+time (p. pyfsdb/tools/pdbrow.py 'qr == 1' ~1/20231031-205350-00798919.mia.message_question.fsdb.mp | 
+      p. pyfsdb/tools/pdbroweval.py 'name += name' | 
+      p. pyfsdb/tools/msgpack2pdb.py) > /dev/null
+
+real	0m37.138s
+user	1m36.320s
+sys	0m0.439s
+
+*** message pack without conversion backward:
+
+time (p. pyfsdb/tools/pdbrow.py 'qr == 1' ~1/20231031-205350-00798919.mia.message_question.fsdb.mp | 
+      p. pyfsdb/tools/pdbroweval.py 'name += name') > /dev/null
+
+real	0m33.639s
+user	1m1.572s
+sys	0m0.275s
