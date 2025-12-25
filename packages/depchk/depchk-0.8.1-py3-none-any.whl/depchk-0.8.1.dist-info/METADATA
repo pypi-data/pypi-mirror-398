@@ -1,0 +1,289 @@
+Metadata-Version: 2.4
+Name: depchk
+Version: 0.8.1
+Summary: Dependency version checker that analyzes pyproject.toml files and get upgrade recommendations
+License: MIT
+License-File: LICENSE
+Keywords: python,dependencies,pypi,poetry,dependency-management,devtools,version-checker,upgrade-checker
+Author: Robin Schulz
+Author-email: bulletinmybeard@gmail.com
+Requires-Python: >=3.12,<4.0
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Software Development :: Quality Assurance
+Classifier: Topic :: System :: Software Distribution
+Classifier: Typing :: Typed
+Requires-Dist: aiohttp (>=3.13.2,<4.0.0)
+Requires-Dist: chalkbox (>=2.3.5,<3.0.0)
+Requires-Dist: packaging (>=21.0)
+Requires-Dist: pydantic (>=2.12.5,<3.0.0) ; python_full_version >= "3.12.0" and python_version < "3.15"
+Requires-Dist: pyyaml (>=6.0.3,<7.0.0)
+Requires-Dist: tomlkit (>=0.13.3,<0.14.0)
+Project-URL: Documentation, https://github.com/bulletinmybeard/depchk
+Project-URL: Homepage, https://github.com/bulletinmybeard/depchk
+Project-URL: Repository, https://github.com/bulletinmybeard/depchk
+Description-Content-Type: text/markdown
+
+# depchk
+
+[![Python](https://img.shields.io/badge/Python-3.12%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![PyPI version](https://badge.fury.io/py/depchk.svg)](https://pypi.org/project/depchk/)
+[![Poetry](https://img.shields.io/badge/Poetry-Dependency%20Manager-60A5FA?logo=poetry&logoColor=white)](https://python-poetry.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Ruff](https://img.shields.io/badge/Code%20Style-Ruff-FCC21B?logo=ruff&logoColor=black)](https://github.com/astral-sh/ruff)
+[![Type Checked](https://img.shields.io/badge/Type%20Checker-mypy-blue.svg)](https://mypy-lang.org/)
+[![Tests](https://img.shields.io/badge/Tests-pytest-0A9EDC.svg)](https://pytest.org/)
+
+Python dependency version checker for Poetry projects. Analyzes `pyproject.toml` and provides upgrade recommendations with risk assessment and Python compatibility checks.
+
+## What It Does
+
+- Checks PyPI for the latest most compatible versions of your dependencies
+- Risk-scores each update (HIGH/MEDIUM/LOW) based on version jumps and Python compatibility
+- Respects constraints from local path dependencies (monorepos, git submodules)
+- Validates recommended versions and their support for your target Python version
+- Creates a backup before modifying your `pyproject.toml`
+- JSON output for automation and CI/CD
+
+## Quick Start
+
+### Install Depchk
+
+Install Depchk with `pipx` to run it as a standalone tool without affecting your system Python:
+
+```bash
+pipx install depchk
+```
+
+Or with pip in a virtual environment:
+
+```bash
+pip install depchk
+```
+
+> **Tip:** `pipx` is recommended for global CLI tools as it provides isolated environments.
+
+Or with Poetry (for development):
+
+```bash
+git clone https://github.com/bulletinmybeard/depchk.git
+cd depchk
+poetry install
+```
+
+```bash
+# Analyze your project
+depchk /path/to/pyproject.toml
+
+# Preview what will change (creates pyproject.toml.updated.toml)
+depchk
+
+# Apply updates directly (creates backup first)
+depchk --update-source-file
+```
+
+## CLI Commands
+
+| Command                          | Description                                |
+| -------------------------------- | ------------------------------------------ |
+| `depchk`                         | Analyze current directory's pyproject.toml |
+| `depchk PATH`                    | Analyze specific pyproject.toml            |
+| `depchk --update-source-file`    | Apply updates directly (creates backup)    |
+| `depchk --target-python "^3.13"` | Override Python version for testing        |
+| `depchk --allow-prerelease`      | Include pre-release versions               |
+| `depchk --ignore-local-deps`     | Skip local dependency constraints          |
+| `depchk --json`                  | JSON output for automation                 |
+| `depchk --verbose`               | Show debug information                     |
+
+> **Note:** `--json` and `--verbose` are mutually exclusive. Using both will exit with a JSON error.
+
+## Automation
+
+depchk supports JSON output for scripting and CI/CD. All JSON responses use a standardized envelope:
+
+```bash
+# Check response status
+depchk --json | jq '.status'
+# Output: "success"
+
+# Get update recommendations
+depchk --json | jq '.data.updates'
+
+# Check summary programmatically
+depchk --json | jq '.data.summary'
+
+# Test against a different Python version
+depchk --target-python "^3.13" --json
+```
+
+**JSON Response Structure:**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "updates": {"httpx": "^0.28.1", ...},
+    "summary": {"analyzed": 15, "updated": 8, ...},
+    "report": [...]
+  }
+}
+```
+
+**Error responses** use the same envelope:
+
+```json
+{
+  "status": "error",
+  "error": {"code": "incompatible_flags", "message": "..."}
+}
+```
+
+## Configuration
+
+depchk uses a `~/.depchk/config.yaml` file for persistent settings:
+
+```yaml
+analysis:
+  cache_ttl_hours: 24
+  allow_prerelease: false
+```
+
+**Config file locations** (checked in order):
+
+1. Project directory: `./config.yaml`
+1. User home: `~/.depchk/config.yaml`
+
+Override with environment variables: `DEPCHK_CACHE_TTL`, `DEPCHK_ALLOW_PRERELEASE`.
+
+> **Priority:** CLI flags > Environment variables > Config file > Defaults
+
+## Example Output
+
+```
++------------------------------------------+
+| Dependency Analysis Report               |
+| Python Version: ^3.12                    |
++------------------------------------------+
+
+Summary
+
+  * Analyzed: 15
+  * Updates available: 8
+  * Skipped: 2
+
+Recommended Updates
+
+| Package   | Current | ->  | Recommended | Python    | Risk |
+|-----------|---------|-----|-------------|-----------|------|
+| httpx     | ^0.25.0 | ->  | ^0.28.1     | 3.8->3.13 | MED  |
+| fastapi   | ^0.115  | ->  | ^0.118.3    | 3.8->3.13 | LOW  |
+
+! Risk Factors:
+  * httpx:
+    - Minor version jump (^0.25.0 -> ^0.28.1)
+```
+
+<details>
+<summary><b>Local Path Dependency Support</b></summary>
+
+### How It Works
+
+depchk handles local path dependencies (monorepos, git submodules) by enforcing their version constraints as "ceilings":
+
+1. Detects local path dependencies in your `pyproject.toml`
+1. Reads their Python and package requirements
+1. Ensures recommendations stay compatible with all local deps
+
+**Example**: If your local dependency requires `httpx: ^0.25`, depchk will NOT recommend `httpx: ^0.28` even if it's available.
+
+### Monorepo Example
+
+```
+my-company/
++-- api/pyproject.toml           # python = "^3.12", httpx = "^0.27.0"
++-- shared-utils/pyproject.toml  # python = "^3.12", httpx = "^0.25.0" <- ceiling
+```
+
+When analyzing `api/`, depchk respects the `^0.25.0` constraint from `shared-utils`.
+
+Use `--ignore-local-deps` to analyze independently without constraint enforcement.
+
+</details>
+
+<details>
+<summary><b>Shell Integration (Development Only)</b></summary>
+
+> **Note:** This section is only relevant if you run depchk from the cloned repo via `poetry run`.
+
+This optional wrapper function provides a convenient `depchk` shortcut when running from a cloned repo.
+
+### Linux/macOS (ZSH/Bash)
+
+Create `~/depchk_shell.sh`:
+
+```bash
+depchk() {
+    local project_dir="$HOME/path/to/depchk"
+    local original_dir="$PWD"
+
+    if [[ ! -d "$project_dir" ]]; then
+        echo "Error: depchk project not found at $project_dir"
+        return 1
+    fi
+
+    if [[ $# -eq 0 ]] || [[ "$1" == -* ]]; then
+        (cd "$project_dir" && poetry run depchk "$original_dir/pyproject.toml" "$@")
+    else
+        (cd "$project_dir" && poetry run depchk "$@")
+    fi
+}
+```
+
+Then add to `~/.zshrc` or `~/.bashrc`:
+
+```bash
+[ -f "$HOME/depchk_shell.sh" ] && source "$HOME/depchk_shell.sh"
+```
+
+Reload: `source ~/.zshrc`
+
+</details>
+
+## Risk Assessment
+
+Each update is scored based on:
+
+- **Version jump impact**: Major > Minor > Patch
+- **Python compatibility**: Checks `requires_python` metadata from PyPI
+- **Classifier data**: Extracts tested Python versions
+
+**Confidence levels:**
+
+- **LOW**: Patch/minor updates with full Python compatibility
+- **MEDIUM**: Minor version jumps or limited compatibility data
+- **HIGH**: Major updates with potential compatibility issues
+
+## Requirements
+
+- Python 3.12+
+- Poetry for dependency management
+- A Poetry project (`pyproject.toml` with `[tool.poetry]` section)
+
+## Links
+
+- [Configuration Example](https://github.com/bulletinmybeard/depchk/blob/master/config.example.yaml)
+- [Changelog](https://github.com/bulletinmybeard/depchk/blob/master/CHANGELOG.md)
+
+## License
+
+MIT License - see the [LICENSE](https://github.com/bulletinmybeard/depchk/blob/master/LICENSE) file for details.
+
