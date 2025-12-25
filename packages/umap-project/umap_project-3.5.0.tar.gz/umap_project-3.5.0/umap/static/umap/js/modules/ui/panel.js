@@ -1,0 +1,137 @@
+import { DomEvent } from '../../../vendors/leaflet/leaflet-src.esm.js'
+import { translate } from '../i18n.js'
+import * as DOMUtils from '../domutils.js'
+
+export class Panel {
+  constructor(umap, leafletMap) {
+    this.parent = leafletMap._controlContainer
+    this._umap = umap
+    this._leafletMap = leafletMap
+    this.container = document.createElement('div')
+    this.parent.appendChild(this.container)
+    // This will be set once according to the panel configured at load
+    // or by using panels as popups
+    this.mode = null
+    this.className = 'left'
+    DomEvent.disableClickPropagation(this.container)
+    DomEvent.on(this.container, 'contextmenu', DomEvent.stopPropagation) // Do not activate our custom context menu.
+    DomEvent.on(this.container, 'wheel', DomEvent.stopPropagation)
+    DomEvent.on(this.container, 'MozMousePixelScroll', DomEvent.stopPropagation)
+  }
+
+  setDefaultMode(mode) {
+    if (!this.mode) this.mode = mode
+  }
+
+  isOpen() {
+    return this.container.classList.contains('on')
+  }
+
+  open({ content, className, highlight, actions = [] } = {}) {
+    let isOpen = false
+    if (this.isOpen()) {
+      isOpen = true
+      this.onClose()
+    }
+    this.container.className = `with-transition panel window ${this.className} ${this.mode || ''} ${isOpen ? 'on' : ''}`
+    if (highlight) {
+      this.container.dataset.highlight = highlight
+    }
+    document.body.classList.add(`panel-${this.className.split(' ')[0]}-on`)
+    this.container.innerHTML = ''
+    const template = `
+      <div>
+        <ul class="buttons" data-ref="buttons">
+          <li><button class="icon icon-16 icon-close" data-ref="close" title="${translate('Close')}"></button></li>
+          <li><button class="icon icon-16 icon-resize" data-ref="resize" title="${translate('Toggle size')}"></button></li>
+        </ul>
+        <div class="body" data-ref="body">
+        </div>
+      </div>
+    `
+    const [root, { close, resize, body, buttons }] =
+      DOMUtils.loadTemplateWithRefs(template)
+    body.appendChild(content)
+    this.container.appendChild(root)
+    for (const action of actions) {
+      const li = document.createElement('li')
+      li.appendChild(action)
+      buttons.appendChild(li)
+    }
+    if (className) body.classList.add(className)
+    const promise = new Promise((resolve, reject) => {
+      if (isOpen) {
+        resolve(this)
+      } else {
+        this.container.classList.add('on')
+        Promise.all(
+          this.container.getAnimations?.().map((animation) => animation.finished)
+        )
+          .then(() => {
+            resolve(this)
+          })
+          .catch(() => {
+            // Panel has been removed, so the DOM has changed, so the animations
+            // were cancelled, we want the new panel callback to be called anyway.
+            resolve(this)
+          })
+      }
+    })
+    close.addEventListener('click', () => this.close())
+    resize.addEventListener('click', () => this.resize())
+    return promise
+  }
+
+  resize() {
+    if (this.mode === 'condensed') {
+      this.mode = 'expanded'
+      this.container.classList.remove('condensed')
+      this.container.classList.add('expanded')
+    } else {
+      this.mode = 'condensed'
+      this.container.classList.remove('expanded')
+      this.container.classList.add('condensed')
+    }
+  }
+
+  close() {
+    document.body.classList.remove(`panel-${this.className.split(' ')[0]}-on`)
+    this.container.dataset.highlight = null
+    this.onClose()
+  }
+
+  onClose() {
+    if (this.container.classList.contains('on')) {
+      this.container.classList.remove('on')
+      this._leafletMap.invalidateSize({ pan: false })
+    }
+  }
+
+  scrollTo(selector) {
+    const fieldset = this.container.querySelector(selector)
+    if (!fieldset) return
+    fieldset.open = true
+    const { top, left } = fieldset.getBoundingClientRect()
+    this.container.scrollTo(left, top)
+  }
+}
+
+export class EditPanel extends Panel {
+  constructor(umap, leafletMap) {
+    super(umap, leafletMap)
+    this.className = 'right dark'
+  }
+
+  onClose() {
+    super.onClose()
+    this._umap.editedFeature = null
+  }
+}
+
+export class FullPanel extends Panel {
+  constructor(umap, leafletMap) {
+    super(umap, leafletMap)
+    this.className = 'full dark'
+    this.mode = 'expanded'
+  }
+}
