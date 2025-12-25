@@ -1,0 +1,107 @@
+name: CI Tests
+
+on:
+  push:
+    branches:
+    - main
+    tags:
+    - '*'
+  pull_request:
+
+jobs:
+  initial_checks:
+    # Mandatory checks before CI tests
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@v1
+    with:
+      coverage: false
+      envs: |
+        # Code style
+        - linux: codestyle
+
+  tests:
+    needs: initial_checks
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@v1
+    with:
+      display: true
+      coverage: codecov
+      libraries: |
+        apt:
+          - '^libxcb.*-dev'
+          - libxkbcommon-x11-0
+          - libegl1-mesa-dev
+          - libhdf5-dev
+      envs: |
+        # Standard tests
+        - linux: py310-test-all
+        - linux: py311-test-all
+        - linux: py311-all-plotly5
+        - linux: py311-all-plotly6
+        - linux: py312-test-all
+        - linux: py312-test-qt
+        - linux: py312-test-3d-qt
+        - linux: py312-test-3d-jupyter
+        - linux: py313-test-all
+        - linux: py313-test-all-devdeps
+        - linux: py312-glue118-test-all
+        - linux: py312-glue119-test-all
+        - linux: py312-glue120-test-all
+        - linux: py312-glue121-test-all
+        - linux: py312-glue122-test-all
+
+        - macos: py310-test-all
+        - macos: py311-test-all
+        - macos: py311-all-plotly5
+        - macos: py311-all-plotly6
+        - macos: py312-test-all
+        - macos: py312-test-qt
+        - macos: py312-test-3d-qt
+        # - macos: py312-test-jupyter
+        # - macos: py312-test-3d-jupyter
+        - macos: py313-test-all
+        - macos: py313-test-all-devdeps
+        - macos: py312-glue118-test-all
+        - macos: py312-glue119-test-all
+        - macos: py312-glue120-test-all
+        - macos: py312-glue121-test-all
+        - macos: py312-glue122-test-all
+
+        - windows: py310-test-all
+        - windows: py311-test-all
+        - windows: py311-all-plotly5
+        - windows: py311-all-plotly6
+        - windows: py312-test-all
+        - windows: py312-test-qt
+        - windows: py312-test-3d-qt
+        - windows: py312-test-jupyter
+        - windows: py312-test-3d-jupyter
+        - windows: py313-test-all
+        - windows: py313-test-all-devdeps
+        - windows: py312-glue118-test-all
+        - windows: py312-glue119-test-all
+        - windows: py312-glue120-test-all
+        - windows: py312-glue121-test-all
+        - windows: py312-glue122-test-all
+
+  pages:
+    needs: initial_checks
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: docs
+
+  publish:
+    needs: tests
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/publish_pure_python.yml@v1
+    with:
+      libraries: '^libxcb.*-dev libxkbcommon-x11-dev libgl1 libglx-mesa0 xvfb'
+      test_extras: 'test,qt,jupyter'
+      test_command: Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 & sleep 3; DISPLAY=:99.0 pytest --pyargs glue_plotly
+    secrets:
+      pypi_token: ${{ secrets.pypi_token }}
