@@ -1,0 +1,48 @@
+from typing import Any
+
+from apmodel.types import ActivityPubModel
+
+from ._core._initial import _rebuild  # noqa: F401
+from ._version import __version__, __version_tuple__  # noqa: F401
+from .context import LDContext
+from .loader import load
+
+
+def to_dict(obj: ActivityPubModel, **options) -> dict:
+    raw_data = obj.model_dump(
+        by_alias=True, exclude_none=True, exclude_unset=True, **options
+    )
+
+    master_context = LDContext()
+
+    def extract_and_clean(data: Any) -> Any:
+        if isinstance(data, dict):
+            new_dict = {}
+            for k, v in data.items():
+                if k == "@context":
+                    master_context.add(v)
+                else:
+                    new_dict[k] = extract_and_clean(v)
+            return new_dict
+
+        elif isinstance(data, list):
+            return [extract_and_clean(item) for item in data]
+
+        return data
+
+    if hasattr(obj, "_inference_context"):
+        raw_data = obj._inference_context(raw_data)
+
+    cleaned_result = extract_and_clean(raw_data)
+
+    context_list = master_context.full_context
+    if context_list:
+        return {"@context": context_list, **cleaned_result}
+
+    return cleaned_result
+
+
+__all__ = [
+    "load",
+    "to_dict",
+]
