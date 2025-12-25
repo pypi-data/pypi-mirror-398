@@ -1,0 +1,417 @@
+"""
+Test for Agent Feedback Flow with IPFS Pin
+Submits feedback from a client to an existing agent and verifies data integrity.
+
+Flow:
+1. Load existing agent by ID
+2. Client submits multiple feedback entries
+3. Verify feedback data consistency (score, tags, capability, skill)
+4. Wait for blockchain finalization
+5. Verify feedback can be retrieved (if SDK supports it)
+
+Usage:
+    Update AGENT_ID constant below to point to your existing agent
+"""
+
+import logging
+import time
+import random
+import sys
+
+# Configure logging: root logger at WARNING to suppress noisy dependencies
+logging.basicConfig(
+    level=logging.WARNING,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+
+# Set debug level ONLY for agent0_sdk
+logging.getLogger('agent0_sdk').setLevel(logging.DEBUG)
+logging.getLogger('agent0_sdk.core').setLevel(logging.DEBUG)
+
+from agent0_sdk import SDK
+from config import CHAIN_ID, RPC_URL, AGENT_PRIVATE_KEY, PINATA_JWT, SUBGRAPH_URL, AGENT_ID, print_config
+
+# Client configuration (different wallet)
+CLIENT_PRIVATE_KEY = "f8d368064ccf80769e348a59155f69ec224849bd507a8c26dd85beefa777331a"
+
+
+def generateFeedbackData(index: int):
+    """Generate random feedback data."""
+    scores = [50, 75, 80, 85, 90, 95]
+    tags_sets = [
+        ["data_analysis", "enterprise"],
+        ["code_generation", "enterprise"],
+        ["natural_language_understanding", "enterprise"],
+        ["problem_solving", "enterprise"],
+        ["communication", "enterprise"],
+    ]
+    
+    capabilities = [
+        "tools",
+        "tools",
+        "tools",
+        "tools",
+        "tools"
+    ]
+
+    capabilities = [
+        "data_analysis",
+        "code_generation",
+        "natural_language_understanding",
+        "problem_solving",
+        "communication"
+    ]
+    
+    skills = [
+        "python",
+        "javascript",
+        "machine_learning",
+        "web_development",
+        "cloud_computing"
+    ]
+    
+    return {
+        'score': random.choice(scores),
+        'tags': random.choice(tags_sets),
+        'capability': random.choice(capabilities),
+        'skill': random.choice(skills),
+        'context': 'enterprise'
+    }
+
+
+def main():
+    print("🧪 Testing Agent Feedback Flow with IPFS Pin")
+    print_config()
+    print("=" * 60)
+    
+    # SDK Configuration
+    sdkConfig_pinata = {
+        'chainId': CHAIN_ID,
+        'rpcUrl': RPC_URL,
+        'ipfs': 'pinata',
+        'pinataJwt': PINATA_JWT
+        # Subgraph URL auto-defaults from DEFAULT_SUBGRAPH_URLS
+    }
+    
+    # Step 1: Load existing agent
+    print("\n📍 Step 1: Load Existing Agent")
+    print("-" * 60)
+    print(f"Loading agent: {AGENT_ID}")
+    
+    agentSdk = SDK(**sdkConfig_pinata)  # Read-only for loading
+    
+    try:
+        agent = agentSdk.loadAgent(AGENT_ID)
+        print(f"✅ Agent loaded: {agent.name}")
+        print(f"   Description: {agent.description[:50]}...")
+        print(f"   MCP Endpoint: {agent.mcpEndpoint}")
+        print(f"   A2A Endpoint: {agent.a2aEndpoint}")
+        print(f"   ENS Endpoint: {agent.ensEndpoint}")
+    except Exception as e:
+        print(f"❌ Failed to load agent: {e}")
+        import traceback
+        traceback.print_exc()
+        exit(1)
+    
+    # Step 2: Agent (server) signs feedback auth for client
+    print("\n📍 Step 2: Agent (Server) Signs Feedback Auth")
+    print("-" * 60)
+    
+    clientSdk = SDK(signer=CLIENT_PRIVATE_KEY, **sdkConfig_pinata)
+    clientAddress = clientSdk.web3_client.account.address
+    print(f"Client address: {clientAddress}")
+    
+    # Agent SDK needs to be initialized with signer for signing feedback auth
+    agentSdkWithSigner = SDK(signer=AGENT_PRIVATE_KEY, **sdkConfig_pinata)
+    
+    # Sign feedback authorization
+    print("Signing feedback authorization...")
+    feedbackAuth = agentSdkWithSigner.signFeedbackAuth(
+        agentId=AGENT_ID,
+        clientAddress=clientAddress,
+        expiryHours=24
+    )
+    print(f"✅ Feedback auth signed: {len(feedbackAuth)} bytes")
+    
+    # Step 3: Client submits feedback
+    print("\n📍 Step 3: Client Submits Feedback")
+    print("-" * 60)
+    
+    feedbackEntries = []
+    numFeedback = 1
+    
+    for i in range(numFeedback):
+        print(f"\n  Submitting Feedback #{i+1}:")
+        feedbackData = generateFeedbackData(i+1)
+        
+        # Prepare feedback file
+        feedbackFile = clientSdk.prepareFeedback(
+            agentId=AGENT_ID,
+            score=feedbackData['score'],
+            tags=feedbackData['tags'],
+            capability=feedbackData['capability'],
+            skill=feedbackData['skill'],
+            context=feedbackData['context']
+        )
+        
+        print(f"  - Score: {feedbackData['score']}/100")
+        print(f"  - Tags: {feedbackData['tags']}")
+        print(f"  - Capability: {feedbackData['capability']}")
+        print(f"  - Skill: {feedbackData['skill']}")
+        
+        # Submit feedback
+        try:
+            feedback = clientSdk.giveFeedback(
+                agentId=AGENT_ID,
+                feedbackFile=feedbackFile,
+                feedbackAuth=feedbackAuth
+            )
+            
+            # Extract actual feedback index from the returned Feedback object
+            # feedback.id is a tuple: (agentId, clientAddress, feedbackIndex)
+            actualFeedbackIndex = feedback.id[2]
+            
+            feedbackEntries.append({
+                'index': actualFeedbackIndex,  # Use actual index from blockchain
+                'data': feedbackData,
+                'feedback': feedback
+            })
+            
+            print(f"  ✅ Feedback #{actualFeedbackIndex} submitted successfully (entry #{i+1} in this test)")
+            if feedback.fileURI:
+                print(f"     File URI: {feedback.fileURI}")
+            
+        except Exception as e:
+            print(f"  ❌ Failed to submit feedback #{i+1}: {e}")
+            import traceback
+            traceback.print_exc()
+            exit(1)
+        
+        time.sleep(2)  # Wait between submissions
+    
+    # Step 4: Agent (Server) Responds to Feedback
+    print("\n📍 Step 4: Agent (Server) Responds to Feedback")
+    print("-" * 60)
+    
+    clientAddress = clientSdk.web3_client.account.address
+    
+    for i, entry in enumerate(feedbackEntries):
+        # Use the actual feedback index that was returned when submitting
+        feedbackIndex = entry['index']
+        print(f"\n  Responding to Feedback #{feedbackIndex}:")
+        
+        # Generate response data
+        responseData = {
+            'text': f"Thank you for your feedback! We appreciate your input.",
+            'timestamp': int(time.time()),
+            'responder': 'agent'
+        }
+        
+        try:
+            # Agent responds to the client's feedback
+            updatedFeedback = agentSdkWithSigner.appendResponse(
+                agentId=AGENT_ID,
+                clientAddress=clientAddress,
+                feedbackIndex=feedbackIndex,
+                response=responseData
+            )
+            
+            print(f"  ✅ Response submitted to feedback #{feedbackIndex}")
+            entry['response'] = responseData
+            entry['updatedFeedback'] = updatedFeedback
+        except Exception as e:
+            print(f"  ❌ Failed to submit response: {e}")
+        
+        time.sleep(2)  # Wait between responses
+    
+    # Step 5: Wait for blockchain finalization
+    print("\n📍 Step 5: Waiting for Blockchain Finalization")
+    print("-" * 60)
+    print("⏳ Waiting 15 seconds for blockchain to finalize...")
+    time.sleep(15)
+    
+    # Step 6: Verify feedback data and responses
+    print("\n📍 Step 6: Verify Feedback Data Integrity")
+    print("-" * 60)
+    
+    allMatch = True
+    
+    for i, entry in enumerate(feedbackEntries, 1):
+        print(f"\n  Feedback #{i}:")
+        data = entry['data']
+        feedback = entry['feedback']
+        
+        # Verify feedback object fields
+        checks = [
+            ('Score', data['score'], feedback.score),
+            ('Tags', data['tags'], feedback.tags),
+            ('Capability', data['capability'], feedback.capability),
+            ('Skill', data['skill'], feedback.skill),
+        ]
+        
+        for field_name, expected, actual in checks:
+            if expected == actual:
+                print(f"    ✅ {field_name}: {actual}")
+            else:
+                print(f"    ❌ {field_name}: expected={expected}, got={actual}")
+                allMatch = False
+        
+        # Verify file URI exists
+        if feedback.fileURI:
+            print(f"    ✅ File URI: {feedback.fileURI}")
+        else:
+            print(f"    ⚠️  No file URI (IPFS storage may have failed)")
+        
+        # Verify server response was added
+        if 'response' in entry and entry.get('updatedFeedback'):
+            print(f"    ✅ Server Response: Recorded successfully")
+    
+    # Step 7: Wait for subgraph indexing
+    print("\n📍 Step 7: Waiting for Subgraph to Index")
+    print("-" * 60)
+    print("⏳ Waiting 60 seconds for subgraph to catch up with blockchain events...")
+    print("   (Subgraphs can take up to a minute to index new blocks)")
+    time.sleep(60)
+    
+    # Step 8: Test getFeedback (direct access)
+    print("\n📍 Step 8: Test getFeedback (Direct Access)")
+    print("-" * 60)
+    
+    for i, entry in enumerate(feedbackEntries):
+        # Use the actual feedback index that was returned when submitting
+        feedbackIndex = entry['index']
+        print(f"\n  Fetching Feedback #{feedbackIndex} using getFeedback():")
+        
+        try:
+            # Use agentSdkWithSigner since agentSdk has no subgraph_client
+            retrievedFeedback = agentSdkWithSigner.getFeedback(
+                agentId=AGENT_ID,
+                clientAddress=clientAddress,
+                feedbackIndex=feedbackIndex
+            )
+            
+            print(f"    ✅ Retrieved feedback successfully")
+            print(f"    - Score: {retrievedFeedback.score}")
+            print(f"    - Tags: {retrievedFeedback.tags}")
+            print(f"    - Capability: {retrievedFeedback.capability}")
+            print(f"    - Skill: {retrievedFeedback.skill}")
+            print(f"    - Is Revoked: {retrievedFeedback.isRevoked}")
+            print(f"    - Has Responses: {len(retrievedFeedback.answers)} response(s)")
+            if retrievedFeedback.fileURI:
+                print(f"    - File URI: {retrievedFeedback.fileURI}")
+            
+            # Verify retrieved feedback matches original
+            expected = entry['data']
+            if retrievedFeedback.score == expected['score'] and \
+               retrievedFeedback.tags == expected['tags'] and \
+               retrievedFeedback.capability == expected['capability'] and \
+               retrievedFeedback.skill == expected['skill']:
+                print(f"    ✅ Retrieved feedback matches original submission")
+            else:
+                print(f"    ❌ Retrieved feedback does not match original")
+                allMatch = False
+                
+        except Exception as e:
+            print(f"    ❌ Failed to retrieve feedback: {e}")
+            allMatch = False
+    
+    # Step 9: Test searchFeedback (with filters)
+    print("\n📍 Step 9: Test searchFeedback (With Filters)")
+    print("-" * 60)
+    
+    # Test 1: Search by capability
+    print("\n  Test 1: Search feedback by capability")
+    testCapability = feedbackEntries[0]['data']['capability']
+    try:
+        results = agentSdkWithSigner.searchFeedback(
+            agentId=AGENT_ID,
+            capabilities=[testCapability],
+            first=10,
+            skip=0
+        )
+        print(f"    ✅ Found {len(results)} feedback entry/entries with capability '{testCapability}'")
+        if results:
+            for fb in results:
+                print(f"      - Score: {fb.score}, Tags: {fb.tags}")
+    except Exception as e:
+        print(f"    ❌ Failed to search feedback by capability: {e}")
+        allMatch = False
+    
+    # Test 2: Search by skill
+    print("\n  Test 2: Search feedback by skill")
+    testSkill = feedbackEntries[0]['data']['skill']
+    try:
+        results = agentSdkWithSigner.searchFeedback(
+            agentId=AGENT_ID,
+            skills=[testSkill],
+            first=10,
+            skip=0
+        )
+        print(f"    ✅ Found {len(results)} feedback entry/entries with skill '{testSkill}'")
+        if results:
+            for fb in results:
+                print(f"      - Score: {fb.score}, Tags: {fb.tags}")
+    except Exception as e:
+        print(f"    ❌ Failed to search feedback by skill: {e}")
+        allMatch = False
+    
+    # Test 3: Search by tags
+    print("\n  Test 3: Search feedback by tags")
+    testTags = feedbackEntries[0]['data']['tags']
+    try:
+        results = agentSdkWithSigner.searchFeedback(
+            agentId=AGENT_ID,
+            tags=testTags,
+            first=10,
+            skip=0
+        )
+        print(f"    ✅ Found {len(results)} feedback entry/entries with tags {testTags}")
+        if results:
+            for fb in results:
+                print(f"      - Score: {fb.score}, Capability: {fb.capability}")
+    except Exception as e:
+        print(f"    ❌ Failed to search feedback by tags: {e}")
+        allMatch = False
+    
+    # Test 4: Search by score range
+    print("\n  Test 4: Search feedback by score range (75-95)")
+    try:
+        results = agentSdkWithSigner.searchFeedback(
+            agentId=AGENT_ID,
+            minScore=75,
+            maxScore=95,
+            first=10,
+            skip=0
+        )
+        print(f"    ✅ Found {len(results)} feedback entry/entries with score between 75-95")
+        if results:
+            scores = sorted([fb.score for fb in results if fb.score])
+            print(f"      - Scores found: {scores}")
+    except Exception as e:
+        print(f"    ❌ Failed to search feedback by score range: {e}")
+        allMatch = False
+    
+    # Final results
+    print("\n" + "=" * 60)
+    if allMatch:
+        print("✅ ALL CHECKS PASSED")
+        print("\nSummary:")
+        print(f"- Agent ID: {AGENT_ID}")
+        print(f"- Agent Name: {agent.name}")
+        print(f"- Client address: {clientAddress}")
+        print(f"- Feedback entries submitted: {len(feedbackEntries)}")
+        print("✅ Feedback flow test complete!")
+    else:
+        print("❌ SOME CHECKS FAILED")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+        exit(1)
