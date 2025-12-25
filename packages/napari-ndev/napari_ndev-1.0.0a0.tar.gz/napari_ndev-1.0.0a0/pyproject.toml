@@ -1,0 +1,168 @@
+[build-system]
+requires = ["setuptools>=77.0.3", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "napari-ndev"
+description = "napari widgets to (batch) process images from start to finish."
+readme = "README.md"
+authors = [
+    { name = "Tim Monko", email = "timmonko@gmail.com" }
+]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: napari",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Software Development :: User Interfaces",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities"
+]
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "magicgui>=0.8.3",
+    "magic-class",
+    "napari>=0.4.19",
+    "matplotlib",
+    "apoc",  # dependes on pyclesperanto_prototype still
+    "pyclesperanto",
+    "dask",
+    "natsort",
+    "nbatch>=0.0.3",
+    "stackview",
+    "scikit-image>=0.18.0",
+    "ndevio>=0.6.0",
+    "matplotlib-scalebar>=0.8.1",
+    "ndev-themes",
+    "ndev-workflows",
+]
+dynamic = ["version"]
+
+[project.urls]
+"Bug Tracker" = "https://github.com/ndev-kit/napari-ndev/issues"
+"Documentation" = "https://ndev-kit.github.io/"
+"Source Code" = "https://github.com/ndev-kit/napari-ndev"
+
+[project.entry-points."napari.manifest"]
+napari-ndev = "napari_ndev:napari.yaml"
+
+[project.scripts]
+napari-ndev = "napari_ndev.__main__:main"
+
+[project.optional-dependencies]
+qtpy-backend = [
+    "napari[pyqt6]",
+]
+extras = [
+    "napari[optional]",
+    "napari-assistant",
+    "napari-simpleitk-image-processing",
+    "napari-segment-blobs-and-things-with-membranes",
+]
+all = [
+    "napari-ndev[qtpy-backend]",
+    "napari-ndev[extras]",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-qt",
+    "ruff",
+    "pre-commit",
+    "napari-ndev[all]",
+    "bioio-czi",  # For testing czi files
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml"]
+
+[tool.setuptools_scm]
+write_to = "src/napari_ndev/_version.py"
+fallback_version = "0.0.1dev0"
+
+
+[tool.ruff]
+line-length = 79
+format.quote-style = "single"
+lint.select = [
+    "E", "F", "W", #flake8
+    "UP", # pyupgrade
+    "I", # isort
+    "BLE", # flake8-blind-exception
+    "B", # flake8-bugbear
+    "A", # flake8-builtins
+    "C4", # flake8-comprehensions
+    "ISC", # flake8-implicit-str-concat
+    "G", # flake8-logging-format
+    "PIE", # flake8-pie
+    "SIM", # flake8-simplify
+]
+lint.ignore = [
+    "E501", # line too long. handled by formatter
+    "UP006", "UP007", # type annotation. As using magicgui require runtime type annotation then we disable this.
+]
+fix = true
+
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError()",
+    "except ImportError:",
+    "pass",
+    "^ +\\.\\.\\.$",
+]
+
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
+xfail_strict = true
+# filterwarnings = ["error"]  # recommended by PP309; deprecation warnings cause failures so leaving for the user to enable if desired
+log_cli_level = "INFO"
+testpaths = ["tests"]
+markers = ["skip_ci: mark a test to be skipped in CI (e.g., requires GPU)"]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
+
+[tool.pixi.dependencies]
+python = ">=3.11,<3.14"
+
+[tool.pixi.pypi-dependencies]
+napari-ndev = { path = ".", editable = true }
+
+[tool.pixi.environments]
+default = { features = ["qtpy-backend"], solve-group = "default" }
+all = { features = ["all"], solve-group = "default" }
+extras = { features = ["extras"], solve-group = "default" }
+qtpy-backend = { features = ["qtpy-backend"], solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }
+
+[tool.pixi.tasks]
+napari = { cmd = "napari" }
+napari-ndev = { cmd = 'napari -w napari-ndev "nDev App"' }
+test = { cmd = "pytest -v --color=yes --cov=napari_ndev --cov-report=xml" }
