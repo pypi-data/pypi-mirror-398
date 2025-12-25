@@ -1,0 +1,197 @@
+{% extends "base/document.html" %}
+{% load tz %}
+{% load crispy_forms_tags %}
+{% block title %}
+  {% trans "Ingredient List" %}
+{% endblock %}
+{% block content %}
+  <h1>{% trans "Ingredient List" %}</h1>
+  <form method="get"
+        action="{% url 'canteen:list_ingredients' %}"
+        class="d-flex justify-content-between align-items-center">
+    <input type="text"
+           name="q"
+           onkeydown="if(event.keyCode==13){submit_q();return false;}"
+           value="{{ search_query }}"
+           placeholder="{% trans 'Search ingredient ...' %}"
+           class="form-control" />
+    <button type="button"
+            onclick="submit_q();"
+            class="btn btn-primary text-nowrap">{% trans "Search" %}</button>
+    {% if search_query %}
+      <a onclick="clear_q();" class="text-nowrap">{% trans "Clear" %}</a>
+    {% endif %}
+  </form>
+  <div class="d-flex justify-content-end pt-2">
+    <a class="btn btn-primary mx-1"
+       target="canteen__list_meal_types"
+       href="{% url "canteen:list_meal_types" %}">{% trans "Ingredient Meal Types" %}</a>
+    <a class="btn btn-primary mx-1"
+       target="canteen__list_categories"
+       href="{% url "canteen:list_categories" %}">{% trans "Ingredient Categories" %}</a>
+    <a class="btn btn-warning mx-1"
+       target="canteen__create_consumptions"
+       href="{% url "canteen:create_consumptions" %}">{% trans "Consume" %}</a>
+    <a class="btn btn-primary mx-1"
+       onclick="open_small_window('{% url 'canteen:create_ingredients' %}')">{% trans "Add via template" %}</a>
+    <a class="btn btn-primary"
+       onclick="open_small_window('{% url 'canteen:create_ingredient' %}')">{% trans "Add one" %}</a>
+  </div>
+  <hr />
+  <div class="container">
+    <div class="table-responsive table-responsive-lg  table-container">
+      <table class="table table-bordered table-ingredient table-striped table-hover table-condensed">
+        <thead>
+          <tr>
+            <th scope="col">
+              #
+              {% blocktrans with ingredients_len=ingredients_len %}
+              ({{ingredients_len}})
+              {% endblocktrans %}
+            </th>
+            {% for name,sort, header in headers %}
+              <th scope="col"
+                  data-sort="sort_{{ name }} {{ sort }}"
+                  onclick="sort_ingredients(this.dataset.sort);">
+                {{ header }}
+                {% if sort == "+" %}
+                  &#8593;
+                {% elif sort == "-" %}
+                  &#8595;
+                {% endif %}
+              </th>
+            {% endfor %}
+            <th scope="col"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ingredient in page_obj %}
+            <tr class="tr-ingredient"
+                data-ingredient_updated_at="{{ ingredient.updated_at|localtime|date:'Y/m/d H:i:s' }}"
+                data-ingredient_storage_date="{{ ingredient.storage_date|localtime|date:'Y/m/d' }}">
+              <th scope="row">
+                <div class="form-check"
+                     title="{% trans 'It helps you check the ingredients.' %}">
+                  <input type="checkbox"
+                         style="cursor: pointer"
+                         class="form-check-input"
+                         id="ingredient_free_nark_{{ ingredient.id }}" />
+                  <label class="form-check-label"
+                         style="cursor: pointer"
+                         for="ingredient_free_nark_{{ ingredient.id }}">
+                    {{ forloop.counter }}
+                  </label>
+                </div>
+              </th>
+              <td>{{ ingredient.storage_date|date:"Y.m.d" }}</td>
+              <td>{{ ingredient.name }}</td>
+              <td>{{ ingredient.meal_type }}</td>
+              <td>{{ ingredient.category }}</td>
+              <td>{{ ingredient.quantity }}</td>
+              <td>{{ ingredient.quantity_unit_name }}</td>
+              <td>{{ ingredient.total_price }}</td>
+              <td data-value="{{ ingredient.is_ignorable }}">
+                {% if ingredient.is_ignorable %}
+                  {% trans "Yes" %}
+                {% endif %}
+              </td>
+              <td data-value="{{ ingredient.is_disabled }}">
+                {% if ingredient.is_disabled %}
+                  {% trans "Yes" %}
+                {% endif %}
+              </td>
+              <td class="">
+                <a class=""
+                   target="_blank"
+                   onclick="open_small_window('{% url 'canteen:edit_ingredient' ingredient.id %}'); return false;">
+                  {% trans "Edit" %}
+                </a>
+                |
+                <a class="text-danger"
+                   target="_blank"
+                   onclick="open_small_window('{% url 'canteen:delete_ingredient' ingredient.id %}'); return false;">
+                  {% trans "Delete" %}
+                </a>
+              </td>
+            </tr>
+          {% empty %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% include 'includes/_paginator.html' %}
+  {{ total_price_title|json_script:"total_price_title" }}
+  <script>
+    function set_ingredient_table_height() {
+      var ingredient_table = $('.table-ingredient')
+      var pagination = $('.pagination')
+      var footer = $("footer")
+      var height = Math.round((footer.offset().top - pagination.height() - ingredient_table.offset().top) * 0.98)
+      ingredient_table.parent().height(
+        height
+      );
+    }
+
+    $(document).ready(function() {
+      var ingredient_table = $(".table-ingredient")
+      ingredient_table.find('th:eq(7)').attr("title", JSON.parse($("#total_price_title").text()))
+    });
+
+    $(document).ready(function() {
+      set_ingredient_table_height();
+    });
+
+    $(window).resize(function() {
+      set_ingredient_table_height();
+    });
+
+    $(document).ready(
+      function() {
+        make_highlight(".tr-ingredient", "ingredient_updated_at")
+      });
+
+    function clear_q() {
+      update_href({
+        "q": ""
+      })
+    }
+
+    function submit_q() {
+      const q_value = document.querySelector('input[name="q"]').value;
+      update_href({
+        q: q_value
+      });
+    }
+
+    function sort_ingredients(value) {
+      value = value.trim().split(/\s+/);
+      var name = value[0];
+      value = value[1] || "";
+      const url = new URL(window.location.href);
+      const params = new URLSearchParams(url.search);
+      if (value == "-") {
+        value = "";
+      } else if (value == "") {
+        value = "+";
+      } else {
+        value = "-";
+      }
+      var i_sort = {};
+      i_sort[name] = value;
+      update_href(i_sort);
+    }
+  </script>
+  <style>
+    .table-container {
+      overflow: auto;
+
+    }
+
+    .table-container thead th {
+      position: sticky;
+      top: 0;
+    }
+  </style>
+
+{% endblock %}

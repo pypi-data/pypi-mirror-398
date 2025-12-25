@@ -1,0 +1,65 @@
+{% extends "base/document.html" %}
+{% load crispy_forms_tags %}
+{% block title %}
+  {% trans "Category list" %}
+{% endblock %}
+{% block content %}
+  <h1>{% trans "Category list" %}</h1>
+  <hr />
+  <div class="d-flex justify-content-end pt-2">
+    <a class="btn btn-primary"
+       onclick="open_small_window('{% url 'canteen:create_category' %}'); return false;">{% trans "Add" %}</a>
+  </div>
+  <table class="table table-bordered table-striped table-hover table-condensed">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>{% trans "Category Name" %}</th>
+        <th>{% trans "Abbreviation" %}</th>
+        <th>{% trans "Created at" %}</th>
+        <th>{% trans "Pin to consumptions top" %}</th>
+        <th>{% trans "Priority" %}</th>
+        <th>{% trans "Is Disabled" %}</th>
+        <th>#</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for category in categories %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td>{{ category.name }}</td>
+          <td>{{ category.abbreviation }}</td>
+          <td>{{ category.created_at|date:"Y-m-d" }}</td>
+          <td>
+            {% if category.pin_to_consumptions_top %}
+              {% trans "Yes" %}
+            {% endif %}
+          </td>
+          <td>{{ category.priority|default_if_none:'0' }}</td>
+          <td>
+            {% if category.is_disabled %}
+              {% trans "Yes" %}
+            {% endif %}
+          </td>
+          <td>
+            <a class="text-primary"
+               target="_blank"
+               onclick="open_small_window('{% url 'canteen:update_category' category.id %}'); return false; ">{% trans "Edit" %}</a>
+            |
+            <a class="text-danger"
+               onclick="open_small_window('{% url 'canteen:delete_category' category.id %}'); return false; "
+               target="_blank">{% trans "Delete" %}</a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="2">{% trans "No categories yet." %}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <script>
+    localize_content($("td"))
+  </script>
+  {% include "includes/_paginator.html" %}
+{% endblock %}
