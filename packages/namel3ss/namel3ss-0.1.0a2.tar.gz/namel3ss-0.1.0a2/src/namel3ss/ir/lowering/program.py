@@ -1,0 +1,68 @@
+from __future__ import annotations
+
+from typing import Dict, List
+
+from namel3ss.ast import nodes as ast
+from namel3ss.ir.lowering.agents import _lower_agents
+from namel3ss.ir.lowering.ai import _lower_ai_decls
+from namel3ss.ir.lowering.flow import lower_flow
+from namel3ss.ir.lowering.pages import _lower_page
+from namel3ss.ir.lowering.records import _lower_record
+from namel3ss.ir.lowering.tools import _lower_tools
+from namel3ss.ir.model.agents import RunAgentsParallelStmt
+from namel3ss.ir.model.program import Flow, Program
+from namel3ss.ir.model.statements import ThemeChange, If, Repeat, ForEach, Match, MatchCase, TryCatch
+from namel3ss.schema import records as schema
+
+
+def _statement_has_theme_change(stmt) -> bool:
+    if isinstance(stmt, ThemeChange):
+        return True
+    if isinstance(stmt, If):
+        return any(_statement_has_theme_change(s) for s in stmt.then_body) or any(_statement_has_theme_change(s) for s in stmt.else_body)
+    if isinstance(stmt, Repeat):
+        return any(_statement_has_theme_change(s) for s in stmt.body)
+    if isinstance(stmt, ForEach):
+        return any(_statement_has_theme_change(s) for s in stmt.body)
+    if isinstance(stmt, Match):
+        return any(_statement_has_theme_change(c) for c in stmt.cases) or (any(_statement_has_theme_change(s) for s in stmt.otherwise) if stmt.otherwise else False)
+    if isinstance(stmt, MatchCase):
+        return any(_statement_has_theme_change(s) for s in stmt.body)
+    if isinstance(stmt, TryCatch):
+        return any(_statement_has_theme_change(s) for s in stmt.try_body) or any(_statement_has_theme_change(s) for s in stmt.catch_body)
+    if isinstance(stmt, RunAgentsParallelStmt):
+        return any(_statement_has_theme_change(e) for e in stmt.entries)
+    return False
+
+
+def _flow_has_theme_change(flow: Flow) -> bool:
+    return any(_statement_has_theme_change(stmt) for stmt in flow.body)
+
+
+def lower_program(program: ast.Program) -> Program:
+    record_schemas = [_lower_record(record) for record in program.records]
+    tool_map = _lower_tools(program.tools)
+    ai_map = _lower_ai_decls(program.ais, tool_map)
+    agent_map = _lower_agents(program.agents, ai_map)
+    flow_irs: List[Flow] = [lower_flow(flow, agent_map) for flow in program.flows]
+    record_map: Dict[str, schema.RecordSchema] = {rec.name: rec for rec in record_schemas}
+    flow_names = {flow.name for flow in flow_irs}
+    pages = [_lower_page(page, record_map, flow_names) for page in program.pages]
+    theme_runtime_supported = any(_flow_has_theme_change(flow) for flow in flow_irs)
+    return Program(
+        theme=program.app_theme,
+        theme_tokens={name: val for name, (val, _, _) in program.theme_tokens.items()},
+        theme_runtime_supported=theme_runtime_supported,
+        theme_preference={
+            "allow_override": program.theme_preference.get("allow_override", (False, None, None))[0],
+            "persist": program.theme_preference.get("persist", ("none", None, None))[0],
+        },
+        records=record_schemas,
+        flows=flow_irs,
+        pages=pages,
+        ais=ai_map,
+        tools=tool_map,
+        agents=agent_map,
+        line=program.line,
+        column=program.column,
+    )
