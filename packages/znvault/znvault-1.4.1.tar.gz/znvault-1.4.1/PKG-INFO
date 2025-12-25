@@ -1,0 +1,468 @@
+Metadata-Version: 2.4
+Name: znvault
+Version: 1.4.1
+Summary: Python SDK for ZN-Vault secrets management
+Author-email: ZincWare Team <dev@zincware.io>
+License: Apache-2.0
+Project-URL: Homepage, https://github.com/zincware/zn-vault-sdk-python
+Project-URL: Documentation, https://github.com/zincware/zn-vault-sdk-python#readme
+Project-URL: Repository, https://github.com/zincware/zn-vault-sdk-python.git
+Project-URL: Issues, https://github.com/zincware/zn-vault-sdk-python/issues
+Keywords: secrets,vault,security,kms,encryption
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Security
+Classifier: Topic :: Security :: Cryptography
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.28.0
+Requires-Dist: urllib3>=1.26.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: types-requests>=2.28.0; extra == "dev"
+Provides-Extra: async
+Requires-Dist: aiohttp>=3.8.0; extra == "async"
+
+# ZN-Vault Python SDK
+
+[![PyPI version](https://badge.fury.io/py/znvault.svg)](https://pypi.org/project/znvault/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+
+A Python client library for ZN-Vault secrets management system.
+
+**PyPI:** https://pypi.org/project/znvault/
+
+## Installation
+
+```bash
+pip install znvault
+```
+
+Or with a specific version:
+
+```bash
+pip install znvault==1.0.0
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/zincware/zn-vault-sdk-python.git
+cd zn-vault-sdk-python
+pip install -e .
+```
+
+## Quick Start
+
+```python
+from znvault import ZnVaultClient, SecretType, CreateSecretRequest
+
+# Create client with API key
+client = ZnVaultClient.create(
+    "https://vault.example.com:8443",
+    api_key="znv_xxxx"
+)
+
+# Or use the builder pattern
+client = (
+    ZnVaultClient.builder()
+    .base_url("https://vault.example.com:8443")
+    .api_key("znv_xxxx")
+    .timeout(60)
+    .trust_self_signed(True)  # For development
+    .build()
+)
+
+# Check health
+health = client.health.check()
+print(f"Status: {health.status}")
+
+# Login with username/password
+auth = client.auth.login("username", "password")
+print(f"Logged in: {auth.access_token[:30]}...")
+```
+
+## Authentication
+
+### Username/Password
+
+```python
+# Login
+result = client.auth.login("alice", "password123", totp_code="123456")
+
+# Refresh token
+new_tokens = client.auth.refresh()
+
+# Get current user
+user = client.auth.me()
+print(f"Username: {user.username}")
+
+# Logout
+client.auth.logout()
+```
+
+### API Keys
+
+```python
+# Create API key
+key = client.auth.create_api_key("my-service", expires_in="90d")
+print(f"Key: {key.key}")  # Only shown once
+
+# List API keys
+keys = client.auth.list_api_keys()
+
+# Revoke API key
+client.auth.revoke_api_key(key.id)
+```
+
+## Secrets Management
+
+### Create Secrets
+
+```python
+from znvault import CreateSecretRequest, SecretType
+
+# Create a credential secret
+request = CreateSecretRequest(
+    alias="api/production/db-creds",
+    tenant="acme",
+    type=SecretType.CREDENTIAL,
+    data={"username": "dbuser", "password": "secret123"},
+    tags=["production", "database"]
+)
+secret = client.secrets.create(request)
+print(f"Created: {secret.id}")
+```
+
+### Retrieve Secrets
+
+```python
+# Get metadata by ID
+secret = client.secrets.get("secret-id")
+
+# Get by tenant and alias
+secret = client.secrets.get_by_alias("acme", "api/production/db-creds")
+
+# Decrypt secret value
+data = client.secrets.decrypt("secret-id")
+password = data.data["password"]
+```
+
+### Update and Delete
+
+```python
+from znvault import UpdateSecretRequest
+
+# Update secret (creates new version)
+update = UpdateSecretRequest(
+    data={"username": "newuser", "password": "newpass"}
+)
+secret = client.secrets.update("secret-id", update)
+print(f"New version: {secret.version}")
+
+# Delete secret
+client.secrets.delete("secret-id")
+```
+
+### List and Filter
+
+```python
+from znvault import SecretFilter, SecretType
+
+# List with filters
+filter = SecretFilter(
+    tenant="acme",
+    env="production",
+    type=SecretType.CREDENTIAL,
+    limit=100
+)
+secrets = client.secrets.list(filter)
+```
+
+### File Upload/Download
+
+```python
+# Upload a file as a secret
+secret = client.secrets.upload_file(
+    alias="ssl/production/cert",
+    tenant="acme",
+    file_path="/path/to/cert.pem",
+    tags=["certificate", "ssl"]
+)
+
+# Download a file secret
+client.secrets.download_file("secret-id", "/path/to/output.pem")
+```
+
+### Keypair Generation and Public Key Publishing
+
+```python
+from znvault import GenerateKeypairRequest
+
+# Generate an Ed25519 keypair
+keypair = client.secrets.generate_keypair(
+    GenerateKeypairRequest(
+        algorithm="Ed25519",
+        alias="ssh/production/deploy-key",
+        tenant="acme",
+        comment="Production deployment key",
+        tags=["ssh", "deployment"]
+    )
+)
+
+# Access private and public keys
+print(f"Private key ID: {keypair.private_key.id}")
+print(f"Public key ID: {keypair.public_key.id}")
+print(f"Fingerprint: {keypair.public_key.fingerprint}")
+print(f"OpenSSH format: {keypair.public_key.public_key_openssh}")
+
+# Generate RSA keypair with custom key size
+rsa_keypair = client.secrets.generate_keypair(
+    GenerateKeypairRequest(
+        algorithm="RSA",
+        alias="ssh/production/rsa-key",
+        tenant="acme",
+        rsa_bits=4096,
+        publish_public_key=True  # Automatically publish the public key
+    )
+)
+
+# Generate ECDSA keypair
+ecdsa_keypair = client.secrets.generate_keypair(
+    GenerateKeypairRequest(
+        algorithm="ECDSA",
+        alias="ssh/production/ecdsa-key",
+        tenant="acme",
+        ecdsa_curve="P-384"
+    )
+)
+
+# Publish a public key (make it publicly accessible)
+result = client.secrets.publish(keypair.public_key.id)
+print(f"Public URL: {result.public_url}")
+print(f"Fingerprint: {result.fingerprint}")
+
+# Get a published public key (no authentication required)
+public_key = client.secrets.get_public_key("acme", "ssh/production/deploy-key")
+print(f"Algorithm: {public_key.algorithm}")
+print(f"Public key (PEM): {public_key.public_key_pem}")
+
+# List all published public keys for a tenant (no authentication required)
+public_keys = client.secrets.list_public_keys("acme")
+for key in public_keys:
+    print(f"{key.alias}: {key.fingerprint}")
+
+# Unpublish a public key (make it private again)
+client.secrets.unpublish(keypair.public_key.id)
+```
+
+## KMS Operations
+
+### Key Management
+
+```python
+from znvault import CreateKeyRequest, KeySpec, KeyUsage
+
+# Create a KMS key
+request = CreateKeyRequest(
+    alias="alias/my-encryption-key",
+    tenant="acme",
+    description="Production encryption key",
+    key_spec=KeySpec.AES_256,
+    usage=KeyUsage.ENCRYPT_DECRYPT,
+    rotation_enabled=True,
+    rotation_days=90
+)
+key = client.kms.create_key(request)
+print(f"Key ID: {key.key_id}")
+
+# List keys
+keys = client.kms.list_keys()
+```
+
+### Encrypt/Decrypt
+
+```python
+import base64
+
+# Encrypt data
+plaintext = b"sensitive data"
+result = client.kms.encrypt("key-id", plaintext)
+print(f"Ciphertext: {result.ciphertext}")
+
+# Decrypt data
+decrypted = client.kms.decrypt_bytes("key-id", result.ciphertext)
+print(f"Decrypted: {decrypted.decode()}")
+```
+
+### Data Keys
+
+```python
+# Generate data key for envelope encryption
+data_key = client.kms.generate_data_key("key-id")
+# Use data_key.plaintext to encrypt locally
+# Store data_key.ciphertext with the encrypted data
+```
+
+## Admin Operations
+
+### Tenants
+
+```python
+from znvault import CreateTenantRequest
+
+# Create tenant
+request = CreateTenantRequest(name="newcorp", display_name="New Corp Inc")
+tenant = client.tenants.create(request)
+
+# List tenants
+tenants = client.tenants.list()
+```
+
+### Users
+
+```python
+from znvault import CreateUserRequest
+
+# Create user
+request = CreateUserRequest(
+    username="bob",
+    password="secure123",
+    email="bob@example.com",
+    role="admin",
+    tenant_id="acme"
+)
+user = client.users.create(request)
+
+# List users
+users = client.users.list(tenant_id="acme")
+```
+
+### Roles
+
+```python
+from znvault import CreateRoleRequest
+
+# Create role
+request = CreateRoleRequest(
+    name="SecretReader",
+    description="Can read secrets",
+    permissions=["secret:read:*"]
+)
+role = client.roles.create(request)
+
+# List roles
+roles = client.roles.list(include_system=True)
+```
+
+### Policies
+
+```python
+from znvault import PolicyDocument, PolicyStatement, PolicyEffect
+
+# Create ABAC policy
+document = PolicyDocument(
+    statements=[
+        PolicyStatement(
+            effect=PolicyEffect.ALLOW,
+            actions=["secret:read:*"],
+            resources=["secret:acme/*"]
+        )
+    ]
+)
+
+policy = client.policies.create(
+    name="acme-secret-reader",
+    document=document,
+    tenant_id="acme"
+)
+```
+
+## Audit Logs
+
+```python
+from znvault import AuditFilter
+from datetime import datetime, timedelta
+
+# List audit entries
+filter = AuditFilter(
+    action="secret:read",
+    start_date=datetime.now() - timedelta(days=7),
+    limit=100
+)
+entries = client.audit.list(filter)
+
+# Verify audit chain integrity
+result = client.audit.verify()
+print(f"Chain valid: {result.valid}")
+```
+
+## Error Handling
+
+```python
+from znvault import (
+    ZnVaultError,
+    AuthenticationError,
+    AuthorizationError,
+    NotFoundError,
+    ValidationError,
+    RateLimitError,
+)
+
+try:
+    secret = client.secrets.decrypt("invalid-id")
+except NotFoundError as e:
+    print(f"Secret not found: {e.resource_id}")
+except AuthorizationError as e:
+    print(f"Access denied: {e.message}")
+except RateLimitError as e:
+    print(f"Rate limited, retry after: {e.retry_after}s")
+except ZnVaultError as e:
+    print(f"Error [{e.status_code}]: {e.message}")
+```
+
+## Development
+
+### Run Tests
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run unit tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=znvault
+
+# Run integration tests (requires running vault)
+./test-integration.sh
+```
+
+### Type Checking
+
+```bash
+mypy src/znvault
+```
+
+### Linting
+
+```bash
+ruff check src/
+```
+
+## License
+
+Apache-2.0
