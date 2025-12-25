@@ -1,0 +1,111 @@
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Built-in reducers for Session state slices."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import cast
+
+from ...dbc import pure
+from ...types.dataclass import SupportsDataclass
+from ._types import (
+    ReducerContextProtocol,
+    ReducerEvent,
+    TypedReducer,
+)
+
+
+@pure
+def append_all[T: SupportsDataclass](
+    slice_values: tuple[T, ...],
+    event: ReducerEvent,
+    *,
+    context: ReducerContextProtocol,
+) -> tuple[T, ...]:
+    """Append the event value unconditionally (ledger semantics).
+
+    Use for event streams and ledgers where every event should be recorded,
+    even if it equals a previous entry.
+    """
+    del context
+    return (*slice_values, cast(T, event))
+
+
+def upsert_by[T: SupportsDataclass, K](key_fn: Callable[[T], K]) -> TypedReducer[T]:
+    """Return a reducer that upserts items sharing the same derived key."""
+
+    def reducer(
+        slice_values: tuple[T, ...],
+        event: ReducerEvent,
+        *,
+        context: ReducerContextProtocol,
+    ) -> tuple[T, ...]:
+        del context
+        value = cast(T, event)
+        key = key_fn(value)
+        updated: list[T] = []
+        replaced = False
+        for existing in slice_values:
+            if key_fn(existing) == key:
+                if not replaced:
+                    updated.append(value)
+                    replaced = True
+                continue
+            updated.append(existing)
+        if not replaced:
+            updated.append(value)
+        return tuple(updated)
+
+    return pure(reducer)
+
+
+@pure
+def replace_latest[T: SupportsDataclass](
+    slice_values: tuple[T, ...],
+    event: ReducerEvent,
+    *,
+    context: ReducerContextProtocol,
+) -> tuple[T, ...]:
+    """Keep only the most recent event value."""
+
+    del context, slice_values
+    return (cast(T, event),)
+
+
+def replace_latest_by[T: SupportsDataclass, K](
+    key_fn: Callable[[T], K],
+) -> TypedReducer[T]:
+    """Return a reducer that keeps only the most recent item for each key."""
+
+    def reducer(
+        slice_values: tuple[T, ...],
+        event: ReducerEvent,
+        *,
+        context: ReducerContextProtocol,
+    ) -> tuple[T, ...]:
+        del context
+        value = cast(T, event)
+        key = key_fn(value)
+        filtered = tuple(item for item in slice_values if key_fn(item) != key)
+        return (*filtered, value)
+
+    return pure(reducer)
+
+
+__all__ = [
+    "append_all",
+    "replace_latest",
+    "replace_latest_by",
+    "upsert_by",
+]

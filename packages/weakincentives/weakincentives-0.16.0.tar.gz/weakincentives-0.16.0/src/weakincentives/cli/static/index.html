@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>wink snapshot explorer</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <!-- Loading overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+      <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Toast container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Command palette -->
+    <div id="command-palette" class="command-palette hidden" role="dialog" aria-modal="true" aria-label="Command palette">
+      <div class="command-palette-backdrop"></div>
+      <div class="command-palette-container">
+        <div class="command-palette-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input
+            id="command-input"
+            type="text"
+            placeholder="Search slices, sessions, or actions..."
+            autocomplete="off"
+            aria-label="Command search"
+          />
+          <kbd>Esc</kbd>
+        </div>
+        <div id="command-results" class="command-results"></div>
+        <div class="command-footer">
+          <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+          <span><kbd>Enter</kbd> select</span>
+          <span><kbd>Esc</kbd> close</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Markdown pop-out modal -->
+    <div id="markdown-modal" class="markdown-modal hidden" role="dialog" aria-modal="true" aria-label="Markdown viewer">
+      <div class="markdown-modal-backdrop"></div>
+      <div class="markdown-modal-container">
+        <div class="markdown-modal-header">
+          <h2>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+            </svg>
+            <span id="markdown-modal-title">Markdown Content</span>
+          </h2>
+          <button id="markdown-modal-close" class="icon-button" type="button" aria-label="Close">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div id="markdown-modal-body" class="markdown-modal-body"></div>
+      </div>
+    </div>
+
+    <!-- Keyboard shortcuts help overlay -->
+    <div id="shortcuts-overlay" class="shortcuts-overlay hidden" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+      <div class="shortcuts-backdrop"></div>
+      <div class="shortcuts-container">
+        <div class="shortcuts-header">
+          <h2>Keyboard Shortcuts</h2>
+          <button id="shortcuts-close" class="icon-button" type="button" aria-label="Close">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="shortcuts-body">
+          <div class="shortcuts-section">
+            <h3>Navigation</h3>
+            <div class="shortcut-row"><kbd>J</kbd> / <kbd>↓</kbd><span>Next item</span></div>
+            <div class="shortcut-row"><kbd>K</kbd> / <kbd>↑</kbd><span>Previous item</span></div>
+            <div class="shortcut-row"><kbd>H</kbd><span>Previous slice</span></div>
+            <div class="shortcut-row"><kbd>L</kbd><span>Next slice</span></div>
+            <div class="shortcut-row"><kbd>←</kbd><span>Previous snapshot</span></div>
+            <div class="shortcut-row"><kbd>→</kbd><span>Next snapshot</span></div>
+          </div>
+          <div class="shortcuts-section">
+            <h3>Actions</h3>
+            <div class="shortcut-row"><kbd>⌘</kbd><kbd>K</kbd> / <kbd>Ctrl</kbd><kbd>K</kbd><span>Open command palette</span></div>
+            <div class="shortcut-row"><kbd>/</kbd><span>Focus item search</span></div>
+            <div class="shortcut-row"><kbd>O</kbd><span>Focus object filter</span></div>
+            <div class="shortcut-row"><kbd>R</kbd><span>Reload snapshot</span></div>
+            <div class="shortcut-row"><kbd>E</kbd><span>Export JSON</span></div>
+            <div class="shortcut-row"><kbd>D</kbd><span>Toggle dark mode</span></div>
+          </div>
+          <div class="shortcuts-section">
+            <h3>View</h3>
+            <div class="shortcut-row"><kbd>[</kbd><span>Toggle sidebar</span></div>
+            <div class="shortcut-row"><kbd>?</kbd><span>Show this help</span></div>
+            <div class="shortcut-row"><kbd>Esc</kbd><span>Close dialogs / Clear search</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <header class="top-bar">
+      <div class="heading">
+        <p class="eyebrow">wink debug</p>
+        <h1>Snapshot Explorer</h1>
+        <p id="snapshot-path" class="muted"></p>
+      </div>
+      <div class="actions">
+        <button id="theme-toggle" class="icon-button" type="button" title="Toggle dark mode" aria-label="Toggle dark mode">
+          <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+        <button id="reload-button" class="icon-button" type="button" title="Reload snapshot (R)" aria-label="Reload snapshot">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+        </button>
+        <label class="select-label">
+          <span>Bundles</span>
+          <select id="snapshot-select" aria-label="Select snapshot bundle"></select>
+        </label>
+        <div class="keyboard-hints" title="Press ? for all shortcuts">
+          <kbd>⌘K</kbd>
+          <button id="help-button" class="hint-button" type="button" aria-label="Show keyboard shortcuts">
+            <kbd>?</kbd>
+          </button>
+        </div>
+      </div>
+    </header>
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="panel session-panel">
+          <div class="panel-header">
+            <h2>Sessions</h2>
+            <p class="muted">File → session tree</p>
+          </div>
+          <div id="session-tree" class="session-tree"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Slices</h2>
+            <input
+              id="slice-filter"
+              type="search"
+              placeholder="Filter slices"
+              autocomplete="off"
+            />
+          </div>
+          <div class="slice-sections">
+            <div class="slice-section">
+              <div class="slice-section-header">
+                <p class="label">State Slices</p>
+                <span class="pill pill-quiet" id="state-slice-count"></span>
+              </div>
+              <ul id="state-slice-list" class="slice-list"></ul>
+            </div>
+            <div class="slice-section">
+              <div class="slice-section-header">
+                <p class="label">Event Slices</p>
+                <span class="pill pill-quiet" id="event-slice-count"></span>
+              </div>
+              <ul id="event-slice-list" class="slice-list"></ul>
+            </div>
+          </div>
+        </div>
+      </aside>
+      <section class="content">
+        <div id="meta-card" class="card">
+          <div class="meta-grid">
+            <div>
+              <p class="label">Created at</p>
+              <p id="meta-created"></p>
+            </div>
+            <div>
+              <p class="label">Schema version</p>
+              <p id="meta-version"></p>
+            </div>
+            <div>
+              <p class="label">Slice count</p>
+              <p id="meta-count"></p>
+            </div>
+          </div>
+          <div class="tag-section">
+            <p class="label">Tags</p>
+            <div class="pill-row" id="tag-row"></div>
+          </div>
+        </div>
+        <div id="slice-card" class="card">
+          <!-- Empty state shown when no slice is selected -->
+          <div id="slice-empty-state" class="empty-state">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            <h3>Select a slice to inspect</h3>
+            <p class="muted">Choose a state or event slice from the sidebar to view its contents</p>
+          </div>
+
+          <!-- Content shown when a slice is selected -->
+          <div id="slice-content" class="slice-content hidden">
+            <div class="card-header">
+              <div>
+                <p class="label">Slice</p>
+                <p id="slice-title"></p>
+              </div>
+              <div class="chip" id="item-count"></div>
+            </div>
+            <div class="pill-row" id="type-row"></div>
+            <div class="viewer">
+              <div class="viewer-toolbar">
+                <div class="viewer-controls">
+                  <label class="inline-label">
+                    <span>Search items</span>
+                    <input
+                      id="item-search"
+                      type="search"
+                      placeholder="keyword"
+                      autocomplete="off"
+                      aria-label="Search items"
+                    />
+                  </label>
+                  <label class="inline-label">
+                    <span>Filter objects</span>
+                    <input
+                      id="object-filter"
+                      type="search"
+                      placeholder="property"
+                      autocomplete="off"
+                      aria-label="Filter object properties"
+                    />
+                  </label>
+                  <label class="inline-label">
+                    <span>Expand to depth</span>
+                    <input
+                      id="depth-input"
+                      type="number"
+                      min="1"
+                      max="10"
+                      value="2"
+                      aria-label="Expand tree to depth"
+                    />
+                  </label>
+                  <div class="button-group">
+                    <button id="expand-all" class="ghost" type="button" aria-label="Expand all tree nodes">
+                      Expand all
+                    </button>
+                    <button id="collapse-all" class="ghost" type="button" aria-label="Collapse all tree nodes">
+                      Collapse all
+                    </button>
+                  </div>
+                </div>
+                <button id="copy-button" class="ghost" aria-label="Copy JSON to clipboard">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  Copy JSON
+                </button>
+              </div>
+              <div id="json-viewer" class="items" aria-live="polite"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

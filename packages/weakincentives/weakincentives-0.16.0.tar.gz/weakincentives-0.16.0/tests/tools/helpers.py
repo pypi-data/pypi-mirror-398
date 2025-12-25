@@ -1,0 +1,115 @@
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Shared helpers for tool tests."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Any, Protocol, TypeVar, cast
+
+from tests.helpers.adapters import GENERIC_ADAPTER_NAME
+from weakincentives.adapters.core import (
+    PromptResponse,
+    ProviderAdapter,
+)
+from weakincentives.contrib.tools.filesystem import Filesystem
+from weakincentives.deadlines import Deadline
+from weakincentives.prompt import (
+    Prompt,
+    PromptTemplate,
+)
+from weakincentives.prompt.protocols import PromptProtocol, ProviderAdapterProtocol
+from weakincentives.prompt.tool import ResourceRegistry, Tool, ToolContext, ToolResult
+from weakincentives.runtime.events import ToolInvoked
+from weakincentives.runtime.session import SessionProtocol
+from weakincentives.types import SupportsDataclassOrNone, SupportsToolResult
+
+ParamsT = TypeVar("ParamsT", bound=SupportsDataclassOrNone)
+ResultT = TypeVar("ResultT", bound=SupportsToolResult)
+
+
+class ToolSection(Protocol):
+    """Protocol representing tool sections used in tests."""
+
+    def tools(self) -> tuple[Tool[SupportsDataclassOrNone, SupportsToolResult], ...]:
+        """Return the tools exposed by the section."""
+
+
+class _DummyAdapter(ProviderAdapter[Any]):
+    def evaluate(
+        self,
+        prompt: Prompt[Any],
+        *,
+        session: SessionProtocol,
+        deadline: Deadline | None = None,
+    ) -> PromptResponse[Any]:
+        raise NotImplementedError
+
+
+def build_tool_context(
+    session: SessionProtocol, *, filesystem: Filesystem | None = None
+) -> ToolContext:
+    prompt = Prompt(PromptTemplate(ns="tests", key="tool-context-helper"))
+    adapter = cast(ProviderAdapterProtocol[Any], _DummyAdapter())
+    if filesystem is None:
+        resources = ResourceRegistry()
+    else:
+        resources = ResourceRegistry.build({Filesystem: filesystem})
+    return ToolContext(
+        prompt=cast(PromptProtocol[Any], prompt),
+        rendered_prompt=None,
+        adapter=adapter,
+        session=session,
+        resources=resources,
+    )
+
+
+def find_tool(
+    section: ToolSection, name: str
+) -> Tool[SupportsDataclassOrNone, SupportsToolResult]:
+    """Return the tool with the provided name from ``section``."""
+
+    for tool in section.tools():
+        if tool.name == name:
+            assert tool.handler is not None
+            return tool
+    message = f"Tool {name} not found"
+    raise AssertionError(message)
+
+
+def invoke_tool(
+    tool: Tool[ParamsT, ResultT],
+    params: ParamsT,
+    *,
+    session: SessionProtocol,
+    filesystem: Filesystem | None = None,
+) -> ToolResult[ResultT]:
+    """Execute ``tool`` with ``params`` and publish the invocation event."""
+
+    handler = tool.handler
+    assert handler is not None
+    result = handler(params, context=build_tool_context(session, filesystem=filesystem))
+    rendered_output = result.render()
+    event = ToolInvoked(
+        prompt_name="test",
+        adapter=GENERIC_ADAPTER_NAME,
+        name=tool.name,
+        params=params,
+        result=cast(ToolResult[object], result),
+        session_id=getattr(session, "session_id", None),
+        created_at=datetime.now(UTC),
+        rendered_output=rendered_output,
+    )
+    publish_result = session.event_bus.publish(event)
+    assert publish_result.ok
+    return result
