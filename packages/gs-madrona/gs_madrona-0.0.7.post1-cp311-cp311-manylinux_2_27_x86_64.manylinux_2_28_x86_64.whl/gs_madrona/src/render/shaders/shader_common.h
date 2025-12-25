@@ -1,0 +1,281 @@
+#ifndef MADRONA_VIEWER_SHADER_COMMON_H_INCLUDED
+#define MADRONA_VIEWER_SHADER_COMMON_H_INCLUDED
+
+struct BatchDrawPushConst {
+    uint drawDataOffset;
+    uint numLights;
+    uint maxShadowMapsXPerTarget;
+    uint maxShadowMapsYPerTarget;
+    uint shadowMapWidth;
+    uint shadowMapHeight;
+};
+
+struct GridDrawPushConst {
+    uint numViews;
+    uint viewWidth;
+    uint viewHeight;
+    uint gridWidth;
+    uint gridViewSize;
+    uint maxViewsPerImage;
+    float offsetX;
+    float offsetY;
+    uint showDepth;
+};
+
+// Specified from the top left corner of the screen
+struct TexturedQuadPushConst {
+    float2 startPixels;
+    float2 extentPixels;
+    uint2 targetExtent;
+    uint layerID;
+};
+
+struct PrepareViewPushConstant {
+    uint32_t numViews;
+    uint32_t offset;
+    uint32_t numWorlds;
+    uint32_t numInstances;
+    uint32_t maxDrawsPerView;
+};
+
+struct BatchShadowGenPushConst {
+    uint32_t maxNumViews;
+    uint32_t numLights;
+};
+
+struct ShadowDrawPushConst {
+    uint32_t drawDataOffset;
+};
+
+struct DeferredLightingPushConstBR {
+    uint32_t maxImagesXPerTarget;
+    uint32_t maxImagesYPerTarget;
+    uint32_t viewWidth;
+    uint32_t viewHeight;
+};
+
+struct BlurPushConst {
+    /* Vertical blur happens first. */
+    uint32_t isVertical;
+};
+
+struct CullPushConst {
+    uint32_t worldID;
+    uint32_t numViews;
+    uint32_t numInstances;
+    uint32_t numWorlds;
+    uint32_t numThreads;
+};
+
+struct DeferredLightingPushConst {
+    float4 viewDir;
+    float4 viewPos;
+    float fovy;
+    float exposure;
+    float fade_dist;
+    uint32_t viewIdx;
+    uint32_t worldIdx;
+};
+
+struct DensityLayer {
+    float width;
+    float expTerm;
+    float expScale;
+    float linTerm;
+    float constTerm;
+
+    int32_t pad[3];
+};
+
+struct DensityProfile {
+    DensityLayer layers[2];
+};
+
+struct SkyData {
+    float4 solarIrradiance;
+    float4 rayleighScatteringCoef;
+    float4 mieScatteringCoef;
+    float4 mieExtinctionCoef;
+    float4 absorptionExtinctionCoef;
+    float4 groundAlbedo;
+    float4 wPlanetCenter;
+    float4 sunSize;
+
+    DensityProfile rayleighDensity;
+    DensityProfile absorptionDensity;
+    DensityProfile mieDensity;
+
+    float solarAngularRadius;
+    float bottomRadius;
+    float topRadius;
+    float miePhaseFunctionG;
+    float muSunMin;
+    int32_t pad[3];
+};
+
+struct DrawPushConst {
+    uint32_t viewIdx;
+    uint32_t worldIdx;
+
+    uint32_t isOrtho;
+    float xMax;
+    float xMin;
+    float yMax;
+    float yMin;
+    float zMax;
+    float zMin;
+};
+
+struct ShadowGenPushConst {
+    uint32_t viewIdx;
+    uint32_t worldIdx;
+};
+
+struct VoxelGenPushConst {
+    uint32_t worldX;
+    uint32_t worldY;
+    uint32_t worldZ;
+    float blockWidth;
+    uint32_t numBlocks;
+};
+
+struct Vertex {
+    float3 position;
+    float3 normal;
+    float4 tangentAndSign;
+    float2 uv;
+};
+
+struct PackedVertex {
+    float4 data[2];
+};
+
+struct MeshData {
+    int32_t vertexOffset;
+    int32_t numVertices;
+    int32_t indexOffset;
+    int32_t numIndices;
+    int32_t materialIndex;
+    int32_t pad[3];
+};
+
+struct MaterialData {
+    // For now, just a color
+    float4 color;
+    int32_t textureOffset;
+    int32_t numTextures;
+
+    float roughness;
+    float metalness;
+};
+
+struct ObjectData {
+    int32_t meshOffset;
+    int32_t numMeshes;
+};
+
+static const uint MADRONA_PROJECTION_PERSPECTIVE = 0;
+static const uint MADRONA_PROJECTION_FISHEYE_EQUIDISTANT = 1;
+
+struct PackedInstanceData {
+    float4 data[4];
+};
+
+struct AABB {
+    float4 data[2];
+};
+
+struct EngineInstanceData {
+    float3 position;
+    float4 rotation;
+    float3 scale;
+    int32_t matID;
+    int32_t objectID;
+    int32_t worldID;
+};
+
+struct PackedViewData {
+    float4 data[4];
+};
+
+struct ShadowViewData {
+    float4x4 viewProjectionMatrix;
+
+    float4 cameraRight;
+    float4 cameraUp;
+    float4 cameraForward;
+    uint32_t lightIdx;
+    int32_t pad[3];
+};
+
+// Only used in shaders
+struct ShaderLightData {
+    float3 position;
+    float3 direction;
+    uint32_t color;
+    float cutoffAngle;
+    float attenuation;
+    float intensity;
+    uint32_t isDirectional;
+    uint32_t castShadow;
+    uint32_t active;
+};
+
+struct PackedLightData {
+    float4 data[3];
+};
+
+struct PerspectiveCameraData {
+    float3 pos;     // [0, 12)
+    float4 rot;     // [12, 28)
+    float xScale;   // [28, 32)
+    float yScale;   // [32, 36)
+    float zNear;    // [36, 40)
+    float zFar;     // [40, 44)
+    int32_t worldID;           // [44, 48)
+    float halfFov;             // [48, 52)
+    uint32_t projectionType;   // [52, 56)
+    int32_t pad[2];            // [56, 64)
+};
+
+struct DrawDataBR {
+    uint instanceID;
+    uint viewID;
+    uint localViewID;
+    uint meshID;
+};
+
+struct DrawCmd {
+    uint32_t indexCount;
+    uint32_t instanceCount;
+    uint32_t firstIndex;
+    uint32_t vertexOffset;
+    uint32_t firstInstance;
+};
+
+struct DrawData {
+    int instanceID;
+    int materialID;
+};
+
+struct RenderOptions {
+    uint32_t outputs[4];
+    uint32_t enableAntialiasing;
+};
+
+#if 0
+struct PackedDrawInstanceData {
+    float4 packed[5];
+};
+
+struct DrawInstanceData {
+    float3x3 toViewRot;
+    float3 toViewTranslation;
+    float3 objScale;
+    int32_t viewIdx;
+    float2 projScale;
+    float projZNear;
+};
+#endif
+
+#endif
