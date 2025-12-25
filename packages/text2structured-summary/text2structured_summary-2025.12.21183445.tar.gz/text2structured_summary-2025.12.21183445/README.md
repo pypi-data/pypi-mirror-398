@@ -1,0 +1,74 @@
+# text2structured_summary
+[![PyPI version](https://badge.fury.io/py/text2structured-summary.svg)](https://badge.fury.io/py/text2structured-summary)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/text2structured-summary)](https://pepy.tech/project/text2structured-summary)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+Generate structured summaries from unstructured text using an LLM.
+
+## Installation
+
+```bash
+pip install text2structured_summary
+```
+
+## Usage
+
+```python
+from text2structured_summary import text2structured_summary
+
+# Basic usage with default LLM7
+response = text2structured_summary(
+    user_input="Your unstructured text here..."
+)
+
+# With custom LLM (e.g., OpenAI)
+from langchain_openai import ChatOpenAI
+from text2structured_summary import text2structured_summary
+
+llm = ChatOpenAI()
+response = text2structured_summary(
+    user_input="Your unstructured text...",
+    llm=llm
+)
+
+# With custom API key (LLM7)
+response = text2structured_summary(
+    user_input="Your unstructured text...",
+    api_key="your_llm7_api_key"
+)
+```
+
+## Parameters
+
+- `user_input` (str): The unstructured text to be summarized
+- `api_key` (Optional[str]): LLM7 API key (defaults to environment variable `LLM7_API_KEY`)
+- `llm` (Optional[BaseChatModel]): Custom LangChain LLM instance (defaults to ChatLLM7)
+
+## Features
+
+- Uses LLM7 by default (free tier sufficient for most use cases)
+- Supports custom LLMs via LangChain interface
+- Returns structured summaries matching predefined pattern
+- Automatic API key fallback from environment variables
+
+## Getting Started
+
+1. Install the package
+2. Call `text2structured_summary()` with your text
+3. Get structured output matching the package's pattern
+
+## Notes
+
+- For LLM7, register at [https://token.llm7.io/](https://token.llm7.io/) for your API key
+- The default pattern ensures structured output format
+- Custom LLMs must implement LangChain's BaseChatModel interface
+
+## Issues
+
+Report issues at: [https://github.com/chigwell/text2structured-summary/issues](https://github.com/chigwell/text2structured-summary/issues)
+
+## Author
+
+Eugene Evstafev (hi@euegne.plus)
