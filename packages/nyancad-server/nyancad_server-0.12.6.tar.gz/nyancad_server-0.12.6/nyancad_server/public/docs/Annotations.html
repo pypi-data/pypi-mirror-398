@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en-US">
+
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,maximum-scale=2">
+    <link rel="stylesheet" type="text/css" media="screen" href="/docs/assets/css/style.css?v=">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Annotations</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Annotations" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="/docs/Annotations.html" />
+<meta property="og:url" content="/docs/Annotations.html" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Annotations" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","headline":"Annotations","url":"/docs/Annotations.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/docs/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+
+          <h1 id="project_title"></h1>
+          <h2 id="project_tagline"></h2>
+
+            <section id="menu">
+              <a class="try_online_link" href="/">Try online</a>
+              <a class="release_link" href="https://pypi.org/project/nyancad-server/">Download</a>
+              <a class="documentation_link" href="/docs/Documentation.html">Documentation</a>
+              <a class="forkme_link" href="https://github.com/NyanCAD/Mosaic">Source code</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <p><img src="https://user-images.githubusercontent.com/168609/185366098-182c4a2c-c016-4aa5-bebb-972c623baa33.png" alt="image" /></p>
+
+<p>A schematic is not just a tool to make a simulator understand your intention, it is also a tool to document your intentions to other designers including your future self. Furthermore, real-time back-annotations from the simulator can be used as an interactive design tool.</p>
+
+<p>Mosaic contains several types of annotations.</p>
+
+<h1 id="net-labels">Net labels</h1>
+
+<p><img src="https://user-images.githubusercontent.com/168609/185367113-e6306f82-752c-4593-8a0e-21af54f65928.png" alt="image" /></p>
+
+<p>These are basic text labels that indicate the name and functionality of a net, and there are 4 types</p>
+
+<ol>
+  <li>A port to indicate an input or output of the circuit</li>
+  <li>A power supply symbol</li>
+  <li>A ground symbol</li>
+  <li>A simple net name</li>
+</ol>
+
+<p>As far as the circuit is concerned they all carry the same meaning. The net name will be used in the simulator. They will be connected to the subcircuit connection with the same name set in the <a href="Library-Manager-Overview.html">library manager</a>. For example, an interface with a connection called “output” will connect with the schematic net called “output” as indicated by a label on the net.</p>
+
+<p><img src="https://user-images.githubusercontent.com/168609/185370012-b7c587ce-b39a-49d9-a139-8d7770e3f9e6.png" alt="image" />
+<img src="https://user-images.githubusercontent.com/168609/185370346-bb4789aa-518c-4972-aafe-42e9a0afa567.png" alt="image" /></p>
+
+<h1 id="text-blocks">Text blocks</h1>
+
+<p>These are just free-form text areas that carry no meaning to the simulator, they are purely for human consumption. You can use them to explain or draw attention to certain things, and clarify design intent. Every device comes with a text block that shows its name and some other things by default, but they can also be placed as a stand-alone component.</p>
+
+<p>Their real power is that they are live templates that can display circuit properties and simulation results, which will update in real time when you change a parameter or run a simulation that is configured to back-annotate results.</p>
+
+<h2 id="available-data">Available data</h2>
+
+<p>Annotations have access to <code class="language-plaintext highlighter-rouge">schem</code> which is a map of device names. For example, the resistance of <code class="language-plaintext highlighter-rouge">R1</code> can be access using <code class="language-plaintext highlighter-rouge">schem.R1.props.resistance</code>. Additionally, in the device-specific templates, <code class="language-plaintext highlighter-rouge">this</code> points to the current device.</p>
+
+<p>The other major item is <code class="language-plaintext highlighter-rouge">res</code> which is a map of simulations, which in turns contain vectors. For example, the NgSpice operating current of R1 can be obtained with <code class="language-plaintext highlighter-rouge">res.Operating Point.@rr1[i].0</code>. (operating point results are a vector of length 1)</p>
+
+<p>It is also possible to print entire maps and vectors, so if you’re unsure of the exact key, you can just start from <code class="language-plaintext highlighter-rouge">res</code> or <code class="language-plaintext highlighter-rouge">schem</code> and narrow it down from there.</p>
+
+<h2 id="syntax">Syntax</h2>
+
+<p>The syntax is a subset of <a href="https://peps.python.org/pep-3101/">PEP 3101</a>.</p>
+
+<ul>
+  <li>Interpolation is denoted with <code class="language-plaintext highlighter-rouge">&amp;#123;...&amp;#125;</code></li>
+  <li>Literal braces can be inserted with <code class="language-plaintext highlighter-rouge">&amp;#123;&amp;#123;</code></li>
+  <li>Nested maps are accessed with dot notation <code class="language-plaintext highlighter-rouge">foo.bar.baz</code>, (they are not evaluated as Python expressions)</li>
+  <li>It supports float and exponential notation with precision <code class="language-plaintext highlighter-rouge">:.2f</code> <code class="language-plaintext highlighter-rouge">:.5e</code></li>
+</ul>
+
+<h2 id="custom-annotations">Custom annotations</h2>
+
+<p>A notebook can call <code class="language-plaintext highlighter-rouge">pyttoresque.netlist.SchematicService.save_simulation</code> with additional data to make it available inside the schematic editor.</p>
+
+<p>https://github.com/NyanCAD/Pyttoresque-templates/blob/main/ac_annotate.ipynb is an example of a notebook that runs a real-time operating point and AC analysis, and also annotates the bandwidth of the filter. Here it is in action:</p>
+
+<p><img src="https://user-images.githubusercontent.com/168609/185380622-c0be5d37-5a35-4f43-8261-f67d2f7d4baa.gif" alt="output" /></p>
+
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        
+        <p>Published with <a href="https://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+  </body>
+</html>
