@@ -1,0 +1,24 @@
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
+from google.protobuf import descriptor as _descriptor
+from typing import ClassVar as _ClassVar
+
+DESCRIPTOR: _descriptor.FileDescriptor
+
+class TransformerFunctionKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    TRANSFORMER_FUNCTION_KIND_UNKNOWN: _ClassVar[TransformerFunctionKind]
+    TRANSFORMER_FUNCTION_KIND_VOLTAGE_REGULATOR: _ClassVar[TransformerFunctionKind]
+    TRANSFORMER_FUNCTION_KIND_DISTRIBUTION_TRANSFORMER: _ClassVar[TransformerFunctionKind]
+    TRANSFORMER_FUNCTION_KIND_ISOLATION_TRANSFORMER: _ClassVar[TransformerFunctionKind]
+    TRANSFORMER_FUNCTION_KIND_AUTOTRANSFORMER: _ClassVar[TransformerFunctionKind]
+    TRANSFORMER_FUNCTION_KIND_POWER_TRANSFORMER: _ClassVar[TransformerFunctionKind]
+    TRANSFORMER_FUNCTION_KIND_SECONDARY_TRANSFORMER: _ClassVar[TransformerFunctionKind]
+    TRANSFORMER_FUNCTION_KIND_OTHER: _ClassVar[TransformerFunctionKind]
+TRANSFORMER_FUNCTION_KIND_UNKNOWN: TransformerFunctionKind
+TRANSFORMER_FUNCTION_KIND_VOLTAGE_REGULATOR: TransformerFunctionKind
+TRANSFORMER_FUNCTION_KIND_DISTRIBUTION_TRANSFORMER: TransformerFunctionKind
+TRANSFORMER_FUNCTION_KIND_ISOLATION_TRANSFORMER: TransformerFunctionKind
+TRANSFORMER_FUNCTION_KIND_AUTOTRANSFORMER: TransformerFunctionKind
+TRANSFORMER_FUNCTION_KIND_POWER_TRANSFORMER: TransformerFunctionKind
+TRANSFORMER_FUNCTION_KIND_SECONDARY_TRANSFORMER: TransformerFunctionKind
+TRANSFORMER_FUNCTION_KIND_OTHER: TransformerFunctionKind

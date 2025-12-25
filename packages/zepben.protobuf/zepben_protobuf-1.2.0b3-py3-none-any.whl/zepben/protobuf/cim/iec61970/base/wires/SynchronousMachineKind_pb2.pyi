@@ -1,0 +1,24 @@
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
+from google.protobuf import descriptor as _descriptor
+from typing import ClassVar as _ClassVar
+
+DESCRIPTOR: _descriptor.FileDescriptor
+
+class SynchronousMachineKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    SYNCHRONOUS_MACHINE_KIND_UNKNOWN: _ClassVar[SynchronousMachineKind]
+    SYNCHRONOUS_MACHINE_KIND_GENERATOR: _ClassVar[SynchronousMachineKind]
+    SYNCHRONOUS_MACHINE_KIND_CONDENSER: _ClassVar[SynchronousMachineKind]
+    SYNCHRONOUS_MACHINE_KIND_GENERATOR_OR_CONDENSER: _ClassVar[SynchronousMachineKind]
+    SYNCHRONOUS_MACHINE_KIND_MOTOR: _ClassVar[SynchronousMachineKind]
+    SYNCHRONOUS_MACHINE_KIND_GENERATOR_OR_MOTOR: _ClassVar[SynchronousMachineKind]
+    SYNCHRONOUS_MACHINE_KIND_MOTOR_OR_CONDENSER: _ClassVar[SynchronousMachineKind]
+    SYNCHRONOUS_MACHINE_KIND_GENERATOR_OR_CONDENSER_OR_MOTOR: _ClassVar[SynchronousMachineKind]
+SYNCHRONOUS_MACHINE_KIND_UNKNOWN: SynchronousMachineKind
+SYNCHRONOUS_MACHINE_KIND_GENERATOR: SynchronousMachineKind
+SYNCHRONOUS_MACHINE_KIND_CONDENSER: SynchronousMachineKind
+SYNCHRONOUS_MACHINE_KIND_GENERATOR_OR_CONDENSER: SynchronousMachineKind
+SYNCHRONOUS_MACHINE_KIND_MOTOR: SynchronousMachineKind
+SYNCHRONOUS_MACHINE_KIND_GENERATOR_OR_MOTOR: SynchronousMachineKind
+SYNCHRONOUS_MACHINE_KIND_MOTOR_OR_CONDENSER: SynchronousMachineKind
+SYNCHRONOUS_MACHINE_KIND_GENERATOR_OR_CONDENSER_OR_MOTOR: SynchronousMachineKind

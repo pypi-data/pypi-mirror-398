@@ -1,0 +1,116 @@
+from zepben.protobuf.cim.iec61970.base.wires import EnergyConnection_pb2 as _EnergyConnection_pb2
+from google.protobuf import struct_pb2 as _struct_pb2
+from google.protobuf.internal import containers as _containers
+from google.protobuf import descriptor as _descriptor
+from google.protobuf import message as _message
+from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
+
+DESCRIPTOR: _descriptor.FileDescriptor
+
+class EnergySource(_message.Message):
+    __slots__ = ("ec", "energySourcePhasesMRIDs", "activePowerNull", "activePowerSet", "reactivePowerNull", "reactivePowerSet", "voltageAngleNull", "voltageAngleSet", "voltageMagnitudeNull", "voltageMagnitudeSet", "rNull", "rSet", "xNull", "xSet", "pMaxNull", "pMaxSet", "pMinNull", "pMinSet", "r0Null", "r0Set", "rnNull", "rnSet", "x0Null", "x0Set", "xnNull", "xnSet", "isExternalGridNull", "isExternalGridSet", "rMinNull", "rMinSet", "rnMinNull", "rnMinSet", "r0MinNull", "r0MinSet", "xMinNull", "xMinSet", "xnMinNull", "xnMinSet", "x0MinNull", "x0MinSet", "rMaxNull", "rMaxSet", "rnMaxNull", "rnMaxSet", "r0MaxNull", "r0MaxSet", "xMaxNull", "xMaxSet", "xnMaxNull", "xnMaxSet", "x0MaxNull", "x0MaxSet")
+    EC_FIELD_NUMBER: _ClassVar[int]
+    ENERGYSOURCEPHASESMRIDS_FIELD_NUMBER: _ClassVar[int]
+    ACTIVEPOWERNULL_FIELD_NUMBER: _ClassVar[int]
+    ACTIVEPOWERSET_FIELD_NUMBER: _ClassVar[int]
+    REACTIVEPOWERNULL_FIELD_NUMBER: _ClassVar[int]
+    REACTIVEPOWERSET_FIELD_NUMBER: _ClassVar[int]
+    VOLTAGEANGLENULL_FIELD_NUMBER: _ClassVar[int]
+    VOLTAGEANGLESET_FIELD_NUMBER: _ClassVar[int]
+    VOLTAGEMAGNITUDENULL_FIELD_NUMBER: _ClassVar[int]
+    VOLTAGEMAGNITUDESET_FIELD_NUMBER: _ClassVar[int]
+    RNULL_FIELD_NUMBER: _ClassVar[int]
+    RSET_FIELD_NUMBER: _ClassVar[int]
+    XNULL_FIELD_NUMBER: _ClassVar[int]
+    XSET_FIELD_NUMBER: _ClassVar[int]
+    PMAXNULL_FIELD_NUMBER: _ClassVar[int]
+    PMAXSET_FIELD_NUMBER: _ClassVar[int]
+    PMINNULL_FIELD_NUMBER: _ClassVar[int]
+    PMINSET_FIELD_NUMBER: _ClassVar[int]
+    R0NULL_FIELD_NUMBER: _ClassVar[int]
+    R0SET_FIELD_NUMBER: _ClassVar[int]
+    RNNULL_FIELD_NUMBER: _ClassVar[int]
+    RNSET_FIELD_NUMBER: _ClassVar[int]
+    X0NULL_FIELD_NUMBER: _ClassVar[int]
+    X0SET_FIELD_NUMBER: _ClassVar[int]
+    XNNULL_FIELD_NUMBER: _ClassVar[int]
+    XNSET_FIELD_NUMBER: _ClassVar[int]
+    ISEXTERNALGRIDNULL_FIELD_NUMBER: _ClassVar[int]
+    ISEXTERNALGRIDSET_FIELD_NUMBER: _ClassVar[int]
+    RMINNULL_FIELD_NUMBER: _ClassVar[int]
+    RMINSET_FIELD_NUMBER: _ClassVar[int]
+    RNMINNULL_FIELD_NUMBER: _ClassVar[int]
+    RNMINSET_FIELD_NUMBER: _ClassVar[int]
+    R0MINNULL_FIELD_NUMBER: _ClassVar[int]
+    R0MINSET_FIELD_NUMBER: _ClassVar[int]
+    XMINNULL_FIELD_NUMBER: _ClassVar[int]
+    XMINSET_FIELD_NUMBER: _ClassVar[int]
+    XNMINNULL_FIELD_NUMBER: _ClassVar[int]
+    XNMINSET_FIELD_NUMBER: _ClassVar[int]
+    X0MINNULL_FIELD_NUMBER: _ClassVar[int]
+    X0MINSET_FIELD_NUMBER: _ClassVar[int]
+    RMAXNULL_FIELD_NUMBER: _ClassVar[int]
+    RMAXSET_FIELD_NUMBER: _ClassVar[int]
+    RNMAXNULL_FIELD_NUMBER: _ClassVar[int]
+    RNMAXSET_FIELD_NUMBER: _ClassVar[int]
+    R0MAXNULL_FIELD_NUMBER: _ClassVar[int]
+    R0MAXSET_FIELD_NUMBER: _ClassVar[int]
+    XMAXNULL_FIELD_NUMBER: _ClassVar[int]
+    XMAXSET_FIELD_NUMBER: _ClassVar[int]
+    XNMAXNULL_FIELD_NUMBER: _ClassVar[int]
+    XNMAXSET_FIELD_NUMBER: _ClassVar[int]
+    X0MAXNULL_FIELD_NUMBER: _ClassVar[int]
+    X0MAXSET_FIELD_NUMBER: _ClassVar[int]
+    ec: _EnergyConnection_pb2.EnergyConnection
+    energySourcePhasesMRIDs: _containers.RepeatedScalarFieldContainer[str]
+    activePowerNull: _struct_pb2.NullValue
+    activePowerSet: float
+    reactivePowerNull: _struct_pb2.NullValue
+    reactivePowerSet: float
+    voltageAngleNull: _struct_pb2.NullValue
+    voltageAngleSet: float
+    voltageMagnitudeNull: _struct_pb2.NullValue
+    voltageMagnitudeSet: float
+    rNull: _struct_pb2.NullValue
+    rSet: float
+    xNull: _struct_pb2.NullValue
+    xSet: float
+    pMaxNull: _struct_pb2.NullValue
+    pMaxSet: float
+    pMinNull: _struct_pb2.NullValue
+    pMinSet: float
+    r0Null: _struct_pb2.NullValue
+    r0Set: float
+    rnNull: _struct_pb2.NullValue
+    rnSet: float
+    x0Null: _struct_pb2.NullValue
+    x0Set: float
+    xnNull: _struct_pb2.NullValue
+    xnSet: float
+    isExternalGridNull: _struct_pb2.NullValue
+    isExternalGridSet: bool
+    rMinNull: _struct_pb2.NullValue
+    rMinSet: float
+    rnMinNull: _struct_pb2.NullValue
+    rnMinSet: float
+    r0MinNull: _struct_pb2.NullValue
+    r0MinSet: float
+    xMinNull: _struct_pb2.NullValue
+    xMinSet: float
+    xnMinNull: _struct_pb2.NullValue
+    xnMinSet: float
+    x0MinNull: _struct_pb2.NullValue
+    x0MinSet: float
+    rMaxNull: _struct_pb2.NullValue
+    rMaxSet: float
+    rnMaxNull: _struct_pb2.NullValue
+    rnMaxSet: float
+    r0MaxNull: _struct_pb2.NullValue
+    r0MaxSet: float
+    xMaxNull: _struct_pb2.NullValue
+    xMaxSet: float
+    xnMaxNull: _struct_pb2.NullValue
+    xnMaxSet: float
+    x0MaxNull: _struct_pb2.NullValue
+    x0MaxSet: float
+    def __init__(self, ec: _Optional[_Union[_EnergyConnection_pb2.EnergyConnection, _Mapping]] = ..., energySourcePhasesMRIDs: _Optional[_Iterable[str]] = ..., activePowerNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., activePowerSet: _Optional[float] = ..., reactivePowerNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., reactivePowerSet: _Optional[float] = ..., voltageAngleNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., voltageAngleSet: _Optional[float] = ..., voltageMagnitudeNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., voltageMagnitudeSet: _Optional[float] = ..., rNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., rSet: _Optional[float] = ..., xNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., xSet: _Optional[float] = ..., pMaxNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., pMaxSet: _Optional[float] = ..., pMinNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., pMinSet: _Optional[float] = ..., r0Null: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., r0Set: _Optional[float] = ..., rnNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., rnSet: _Optional[float] = ..., x0Null: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., x0Set: _Optional[float] = ..., xnNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., xnSet: _Optional[float] = ..., isExternalGridNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., isExternalGridSet: bool = ..., rMinNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., rMinSet: _Optional[float] = ..., rnMinNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., rnMinSet: _Optional[float] = ..., r0MinNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., r0MinSet: _Optional[float] = ..., xMinNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., xMinSet: _Optional[float] = ..., xnMinNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., xnMinSet: _Optional[float] = ..., x0MinNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., x0MinSet: _Optional[float] = ..., rMaxNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., rMaxSet: _Optional[float] = ..., rnMaxNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., rnMaxSet: _Optional[float] = ..., r0MaxNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., r0MaxSet: _Optional[float] = ..., xMaxNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., xMaxSet: _Optional[float] = ..., xnMaxNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., xnMaxSet: _Optional[float] = ..., x0MaxNull: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., x0MaxSet: _Optional[float] = ...) -> None: ...
