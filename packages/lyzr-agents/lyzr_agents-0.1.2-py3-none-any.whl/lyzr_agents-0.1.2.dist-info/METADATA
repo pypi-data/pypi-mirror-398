@@ -1,0 +1,309 @@
+Metadata-Version: 2.4
+Name: lyzr-agents
+Version: 0.1.2
+Summary: A collection of template utility agents by Lyzr
+Project-URL: Homepage, https://github.com/lyzr-ai/lyzr-agents
+Project-URL: Documentation, https://docs.lyzr.ai/agents
+Project-URL: Repository, https://github.com/lyzr-ai/lyzr-agents
+Author-email: Lyzr <support@lyzr.ai>
+License: MIT
+Keywords: agents,ai,llm,lyzr,rag,storm
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.9
+Requires-Dist: requests>=2.28.0
+Provides-Extra: all
+Requires-Dist: black>=23.0.0; extra == 'all'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'all'
+Requires-Dist: pytest>=7.0.0; extra == 'all'
+Requires-Dist: requests>=2.28.0; extra == 'all'
+Requires-Dist: rich>=13.0.0; extra == 'all'
+Requires-Dist: ruff>=0.1.0; extra == 'all'
+Provides-Extra: dev
+Requires-Dist: black>=23.0.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Provides-Extra: storm
+Requires-Dist: requests>=2.28.0; extra == 'storm'
+Requires-Dist: rich>=13.0.0; extra == 'storm'
+Description-Content-Type: text/markdown
+
+# Lyzr Agents
+
+A collection of template utility agents by [Lyzr](https://lyzr.ai).
+
+## Installation
+
+```bash
+# Basic installation
+pip install lyzr-agents
+
+# With STORM agent support
+pip install lyzr-agents[storm]
+```
+
+## Getting Your API Key
+
+1. Go to [Lyzr Studio](https://studio.lyzr.ai/)
+2. Sign up or log in to your account
+3. Navigate to **Settings** → **API Keys**
+4. Create a new API key
+5. Your **User ID** is your email address
+
+## Quick Start
+
+### Basic Agent Execution
+
+```python
+from lyzr_agents import LyzrAgent
+
+# Initialize the client
+client = LyzrAgent(
+    api_key="your-lyzr-api-key",
+    user_id="your-user-id"
+)
+
+# Execute an agent
+response = client.execute(
+    agent_id="your-agent-id",
+    message="Hello, what can you help me with?"
+)
+
+print(response.response)
+```
+
+### STORM Agent - Long-form Article Generation
+
+The STORM agent implements Stanford's [STORM algorithm](https://arxiv.org/abs/2402.14207) for generating comprehensive, research-backed articles.
+
+```python
+from lyzr_agents.storm import StormAgent
+
+# Initialize with default Lyzr agents
+agent = StormAgent(
+    lyzr_api_key="your-api-key",
+    user_id="your-user-id",
+    no_of_personas=3,    # Number of expert perspectives
+    no_of_questions=3,   # Questions per persona
+    no_of_sections=5,    # Article sections
+)
+
+# Generate an article (sync)
+result = agent.write("quantum computing")
+result.toFile("quantum_computing.md")
+
+# Or use async for parallel execution (faster)
+import asyncio
+
+async def main():
+    result = await agent.write_async("quantum computing")
+    result.print()
+
+asyncio.run(main())
+```
+
+### Custom Agent Configuration
+
+```python
+from lyzr_agents.storm import StormAgent, StormAgentConfig
+
+config = StormAgentConfig(
+    persona_generator_agent_id="your-persona-agent",
+    question_generator_agent_id="your-question-agent",
+    research_agent_id="your-research-agent",
+    outline_generator_agent_id="your-outline-agent",
+    section_generator_agent_id="your-section-agent",
+)
+
+agent = StormAgent(
+    lyzr_api_key="your-api-key",
+    user_id="your-user-id",
+    config=config,
+)
+```
+
+### Event Callbacks for Visualization
+
+Track the STORM process in real-time for building UIs:
+
+```python
+from lyzr_agents.storm import StormAgent
+
+def on_event(event):
+    print(f"[{event.status}] {event.step_name}: {event.event_type.value}")
+
+agent = StormAgent(
+    lyzr_api_key="your-api-key",
+    user_id="your-user-id",
+    on_event=on_event,
+)
+
+result = agent.write("artificial intelligence")
+
+# Get React Flow compatible graph data
+graph_data = result.get_graph_data()
+print(graph_data)  # {"nodes": [...], "edges": [...]}
+```
+
+### Target Article Length
+
+Specify a target character count and the agent will enrich sections until the target is reached:
+
+```python
+from lyzr_agents.storm import StormAgent
+
+agent = StormAgent(
+    lyzr_api_key="your-api-key",
+    user_id="your-user-id",
+    no_of_chars=20000,  # Target 20,000 characters
+    max_enrich_retries=3,  # Max enrichment iterations per section
+)
+
+result = agent.write("quantum computing")
+print(f"Article length: {len(result.article)} characters")
+```
+
+### Live Terminal Visualization
+
+Watch STORM execution in real-time with a beautiful tree display:
+
+```python
+from lyzr_agents.storm import StormAgent, StormVisualizer
+
+agent = StormAgent(
+    lyzr_api_key="your-api-key",
+    user_id="your-user-id",
+)
+
+# Sync with live visualization
+with StormVisualizer() as viz:
+    result = agent.write("quantum computing", on_event=viz.on_event)
+
+# Async with live visualization
+async with StormVisualizer() as viz:
+    result = await agent.write_async("quantum computing", on_event=viz.on_event)
+```
+
+**Terminal Output:**
+```
+STORM: quantum computing [OK]
+├── Generate Personas [OK] (3 items)
+│   ├── Persona 1 [OK]
+│   ├── Persona 2 [OK]
+│   └── Persona 3 [OK]
+├── Expert 1 Session [OK]
+│   ├── Q1 [OK]
+│   ├── Research Q1 [OK] (445 chars)
+│   └── Q2 [OK]
+├── Generate Outline [OK]
+│   ├── Introduction [OK]
+│   └── Core Concepts [OK]
+├── Write: Introduction... [OK] (559 chars)
+└── Assemble Article [OK]
+```
+
+### Test Mode
+
+Run without making API calls:
+
+```python
+from lyzr_agents.storm import StormAgent, test_config
+
+agent = StormAgent(
+    lyzr_api_key="test",
+    user_id="test",
+    config=test_config(),
+)
+
+# Returns mock data for testing
+result = agent.write("test topic")
+print(result.article)
+```
+
+## STORM Algorithm
+
+The STORM (Synthesis of Topic Outlines through Retrieval and Multi-perspective Question Asking) algorithm works in 6 steps:
+
+1. **Persona Discovery** - Generate diverse expert personas
+2. **Question Generation** - Each persona asks insightful questions
+3. **Research** - Answer questions using RAG-powered research
+4. **Outline Generation** - Create article structure from research
+5. **Section Writing** - Write each section with research context
+6. **Assembly** - Combine into final article
+
+The async `write_async()` method runs persona conversations in parallel for faster execution.
+
+## API Reference
+
+### StormResult
+
+The result object supports fluent method chaining:
+
+```python
+result = agent.write("topic")
+
+# Chain methods
+result.toFile("output.md").print()
+
+# Access data
+print(result.article)      # Final article text
+print(result.personas)     # List of generated personas
+print(result.questions)    # Dict of persona -> questions
+print(result.research)     # Dict of question -> answer
+print(result.outline)      # List of section titles
+print(result.sections)     # Dict of title -> content
+print(result.events)       # List of StormEvent objects
+```
+
+### StormVisualizer
+
+Context manager for live terminal visualization:
+
+```python
+from lyzr_agents.storm import StormVisualizer
+
+# Customize refresh rate (default: 4 times/second)
+with StormVisualizer(refresh_rate=10) as viz:
+    result = agent.write("topic", on_event=viz.on_event)
+
+# Hide details like character counts
+with StormVisualizer(show_details=False) as viz:
+    result = agent.write("topic", on_event=viz.on_event)
+```
+
+### Event Types
+
+```python
+from lyzr_agents.storm import StormEventType
+
+# Lifecycle
+StormEventType.STORM_STARTED
+StormEventType.STORM_COMPLETED
+StormEventType.STORM_FAILED
+
+# Per-step events
+StormEventType.PERSONA_GENERATION_STARTED
+StormEventType.PERSONA_CREATED
+StormEventType.QUESTION_GENERATION_STARTED
+StormEventType.RESEARCH_STARTED
+StormEventType.SECTION_WRITING_STARTED
+# ... and more
+```
+
+## License
+
+MIT License
+
+## Links
+
+- [Lyzr Platform](https://lyzr.ai)
+- [Documentation](https://docs.lyzr.ai/agents)
+- [GitHub Repository](https://github.com/lyzr-ai/lyzr-agents)
