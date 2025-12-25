@@ -1,0 +1,26 @@
+# File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+
+from __future__ import annotations
+
+from typing import Optional
+from typing_extensions import Required, TypedDict
+
+from ...._types import SequenceNotStr
+
+__all__ = ["EmbeddingTrainParams"]
+
+
+class EmbeddingTrainParams(TypedDict, total=False):
+    model_name: Required[str]
+
+    dataset_id: Optional[str]
+
+    dataset_name: Optional[str]
+
+    hyperparameters: Optional[str]
+
+    input_columns: Optional[SequenceNotStr[str]]
+
+    label_column: Optional[str]
+
+    overwrite: bool
