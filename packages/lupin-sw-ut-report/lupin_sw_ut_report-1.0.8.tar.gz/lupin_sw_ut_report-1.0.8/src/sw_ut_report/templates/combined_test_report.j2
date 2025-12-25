@@ -1,0 +1,74 @@
+# {{ title }}
+
+{% if summary %}
+## Summary
+
+| ID              | Status |
+|-----------------|--------|
+{% for sum in summary %}
+| {{ sum.id }}    | {{ sum.status }} |
+{% endfor %}
+{% endif %}
+
+{% for report in reports %}
+-------------------------
+**Test file :**  
+**{{ report.filename }}**  
+{% if report.date %}
+**Date : {{ report.date }}**  
+{% endif %}
+{% if report.tag %}
+**Tag : {{ report.tag }}**  
+{% endif %}
+{% if report.type == "xml" %}
+
+# {{ report.content.name }}
+
+**Date**: {{ report.content.timestamp }}  
+**Number of tests**: {{ report.content.tests }}  
+**Errors**: {{ report.content.errors }}  
+**Failures**: {{ report.content.failures }} {{ report.content.status }}
+
+---
+
+{% for testsuite in report.content.suites %}
+#### {{ testsuite.name }}
+
+**Number of tests**: {{ testsuite.tests }}  
+**Failures**: {{ testsuite.failures }} {{ testsuite.status }}
+
+{% for testcase in testsuite.testcases %}
+- {{ testcase.name }} {{ testcase.status }}
+  - **Number of tests**: {{ testcase.tests }}
+  - **Failures**: {{ testcase.failures }}
+
+{% endfor %}
+{% endfor %}
+
+{% elif report.type == "txt" %}
+
+{% for test_case in report.test_cases %}
+### {{ test_case.scenario }}
+
+- **Covers**:
+{% for cover in test_case.requirements_covers %}
+{{ cover.id }},
+{% endfor %}
+
+{% if test_case.given_when_then %}
+{% for block in test_case.given_when_then %}
+{% for step in block %}
+{{ step }}  
+{% endfor %}
+
+{% endfor %}
+{% endif %}
+{% if test_case.additional_tests %}
+{% for additional_test in test_case.additional_tests %}
+{{ additional_test }}
+
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
