@@ -1,0 +1,149 @@
+"""Tests for symmetry transformation functions."""
+
+import unittest
+
+from cubing_algs.move import Move
+from cubing_algs.parsing import parse_moves
+from cubing_algs.transform.symmetry import symmetry_c_moves
+from cubing_algs.transform.symmetry import symmetry_e_moves
+from cubing_algs.transform.symmetry import symmetry_m_moves
+from cubing_algs.transform.symmetry import symmetry_s_moves
+
+
+class TransformSymmetryTestCase(unittest.TestCase):
+    """Tests for symmetry transformations."""
+
+    def test_symmetry_c_moves(self) -> None:
+        """Test symmetry c moves."""
+        provide = parse_moves("U R U' R'")
+        expect = parse_moves("U L U' L'")
+
+        result = symmetry_c_moves(provide)
+
+        self.assertEqual(
+            result,
+            expect,
+        )
+
+        for m in result:
+            self.assertTrue(isinstance(m, Move))
+
+        provide = parse_moves("F R' U2")
+        expect = parse_moves("B L' U2")
+
+        self.assertEqual(
+            symmetry_c_moves(provide),
+            expect,
+        )
+
+    def test_symmetry_e_moves(self) -> None:
+        """Test symmetry e moves."""
+        provide = parse_moves("U R U' R'")
+        expect = parse_moves("D' R' D R")
+
+        self.assertEqual(
+            symmetry_e_moves(provide),
+            expect,
+        )
+
+        provide = parse_moves("F R' U2")
+        expect = parse_moves("F' R D2")
+
+        self.assertEqual(
+            symmetry_e_moves(provide),
+            expect,
+        )
+
+    def test_symmetry_m_moves(self) -> None:
+        """Test symmetry m moves."""
+        provide = parse_moves("U R U' R'")
+        expect = parse_moves("U' L' U L")
+
+        self.assertEqual(
+            symmetry_m_moves(provide),
+            expect,
+        )
+
+        provide = parse_moves("F R' U2")
+        expect = parse_moves("F' L U2")
+
+        self.assertEqual(
+            symmetry_m_moves(provide),
+            expect,
+        )
+
+        provide = parse_moves("F R' U2 M'")
+        expect = parse_moves("F' L U2 M'")
+
+        self.assertEqual(
+            symmetry_m_moves(provide),
+            expect,
+        )
+
+    def test_symmetry_m_moves_sign(self) -> None:
+        """Test symmetry m moves sign."""
+        provide = parse_moves("U R u' r'")
+        expect = parse_moves("U' L' u l")
+
+        self.assertEqual(
+            symmetry_m_moves(provide),
+            expect,
+        )
+
+    def test_symmetry_m_moves_wide_standard(self) -> None:
+        """Test symmetry m moves wide standard."""
+        provide = parse_moves("U R Uw' Rw'")
+        expect = parse_moves("U' L' Uw Lw")
+
+        self.assertEqual(
+            symmetry_m_moves(provide),
+            expect,
+        )
+
+    def test_symmetry_s_moves(self) -> None:
+        """Test symmetry s moves."""
+        provide = parse_moves("U R U' R'")
+        expect = parse_moves("U' R' U R")
+
+        self.assertEqual(
+            symmetry_s_moves(provide),
+            expect,
+        )
+
+        provide = parse_moves("F R' U2")
+        expect = parse_moves("B' R U2")
+
+        self.assertEqual(
+            symmetry_s_moves(provide),
+            expect,
+        )
+
+    def test_symmetry_m_moves_big_moves(self) -> None:
+        """Test symmetry m moves big moves."""
+        provide = parse_moves("U R 2Uw' 3Rw'")
+        expect = parse_moves("U' L' 2Uw 3Lw")
+
+        self.assertEqual(
+            symmetry_m_moves(provide),
+            expect,
+        )
+
+    def test_symmetry_m_moves_big_moves_timed(self) -> None:
+        """Test symmetry m moves big moves timed."""
+        provide = parse_moves("U R 2Uw'@300 3Rw'")
+        expect = parse_moves("U' L' 2Uw@300 3Lw")
+
+        self.assertEqual(
+            symmetry_m_moves(provide),
+            expect,
+        )
+
+    def test_symmetry_m_moves_big_moves_timed_paused(self) -> None:
+        """Test symmetry m moves big moves timed paused."""
+        provide = parse_moves("U R .@200 2Uw'@300 3Rw'")
+        expect = parse_moves("U' L' .@200 2Uw@300 3Lw")
+
+        self.assertEqual(
+            symmetry_m_moves(provide),
+            expect,
+        )
