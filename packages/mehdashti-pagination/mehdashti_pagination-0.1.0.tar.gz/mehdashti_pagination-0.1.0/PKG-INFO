@@ -1,0 +1,247 @@
+Metadata-Version: 2.4
+Name: mehdashti-pagination
+Version: 0.1.0
+Summary: Pagination utilities for FastAPI and async Python applications
+Project-URL: Homepage, https://github.com/mehdashti/smart-platform
+Project-URL: Repository, https://github.com/mehdashti/smart-platform.git
+Project-URL: Issues, https://github.com/mehdashti/smart-platform/issues
+Author-email: Mahdi Ashti <mahdi@mehdashti.com>
+License: MIT
+Keywords: async,fastapi,pagination,utilities
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: FastAPI
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.13
+Requires-Dist: pydantic>=2.10.0
+Provides-Extra: dev
+Requires-Dist: pytest-asyncio>=0.24.0; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.8.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# mehdashti-pagination
+
+Pagination utilities for FastAPI and async Python applications.
+
+## Features
+
+- ✅ Page-based pagination with metadata
+- ✅ Pydantic models for type safety
+- ✅ FastAPI integration
+- ✅ Offset/limit calculation
+- ✅ In-memory pagination support
+- ✅ Parameter validation and normalization
+
+## Installation
+
+```bash
+pip install mehdashti-pagination
+# or
+uv add mehdashti-pagination
+```
+
+## Quick Start
+
+### FastAPI Integration
+
+```python
+from fastapi import FastAPI, Depends
+from mehdashti_pagination import PaginationParams, PaginationHelper
+
+app = FastAPI()
+
+@app.get("/items")
+async def get_items(pagination: PaginationParams = Depends()):
+    # Get total count from database
+    total_items = await db.count("items")
+
+    # Get paginated data using offset/limit
+    items = await db.query(
+        "SELECT * FROM items OFFSET $1 LIMIT $2",
+        pagination.offset,
+        pagination.limit
+    )
+
+    # Calculate metadata
+    metadata = PaginationHelper.calculate_metadata(
+        page=pagination.page,
+        page_size=pagination.page_size,
+        total_items=total_items
+    )
+
+    return {
+        "data": items,
+        "pagination": metadata
+    }
+```
+
+### In-Memory Pagination
+
+```python
+from mehdashti_pagination import paginate_query
+
+# Full list of items
+all_items = list(range(1, 101))  # [1, 2, 3, ..., 100]
+
+# Paginate
+result = paginate_query(all_items, page=2, page_size=10)
+
+print(result.data)  # [11, 12, 13, ..., 20]
+print(result.pagination.total_pages)  # 10
+print(result.pagination.has_next)  # True
+```
+
+### SQLAlchemy Core Integration
+
+```python
+from sqlalchemy import select, func
+from mehdashti_pagination import PaginationParams, PaginationHelper
+
+async def get_users(db: AsyncSession, pagination: PaginationParams):
+    # Count total
+    count_stmt = select(func.count()).select_from(users_table)
+    total_result = await db.execute(count_stmt)
+    total_items = total_result.scalar_one()
+
+    # Get paginated data
+    stmt = (
+        select(users_table)
+        .offset(pagination.offset)
+        .limit(pagination.limit)
+    )
+    result = await db.execute(stmt)
+    users = [dict(row._mapping) for row in result.fetchall()]
+
+    # Return with metadata
+    metadata = PaginationHelper.calculate_metadata(
+        page=pagination.page,
+        page_size=pagination.page_size,
+        total_items=total_items
+    )
+
+    return {"data": users, "pagination": metadata}
+```
+
+## API Reference
+
+### `PaginationParams`
+
+Pydantic model for pagination request parameters. Use as FastAPI dependency.
+
+**Fields:**
+- `page` (int): Page number (1-indexed), default=1, minimum=1
+- `page_size` (int): Items per page, default=100, min=1, max=10000
+
+**Properties:**
+- `offset` (int): Calculated offset for database queries
+- `limit` (int): Limit for database queries (same as page_size)
+
+### `PaginationMetadata`
+
+Pydantic model for pagination response metadata.
+
+**Fields:**
+- `page` (int): Current page number
+- `page_size` (int): Items per page
+- `total_items` (int): Total number of items
+- `total_pages` (int): Total number of pages
+- `has_next` (bool): Whether there is a next page
+- `has_previous` (bool): Whether there is a previous page
+
+### `PaginatedResponse[T]`
+
+Generic Pydantic model for paginated responses.
+
+**Fields:**
+- `data` (list[T]): List of items for current page
+- `pagination` (PaginationMetadata): Pagination metadata
+
+### `PaginationHelper`
+
+Static utility class for pagination calculations.
+
+#### `calculate_metadata(page, page_size, total_items) -> PaginationMetadata`
+
+Calculate pagination metadata.
+
+#### `validate_params(page, page_size, max_page_size=10000, default_page_size=100) -> tuple[int, int]`
+
+Validate and normalize pagination parameters.
+
+#### `calculate_offset_limit(page, page_size) -> tuple[int, int]`
+
+Calculate offset and limit for database queries.
+
+### `paginate_query(items, page, page_size) -> PaginatedResponse[T]`
+
+Paginate a list of items (for in-memory pagination).
+
+## Response Format
+
+```json
+{
+  "data": [
+    {"id": 1, "name": "Item 1"},
+    {"id": 2, "name": "Item 2"}
+  ],
+  "pagination": {
+    "page": 1,
+    "page_size": 100,
+    "total_items": 1250,
+    "total_pages": 13,
+    "has_next": true,
+    "has_previous": false
+  }
+}
+```
+
+## Examples
+
+### Custom Max Page Size
+
+```python
+from fastapi import Query
+from mehdashti_pagination import PaginationParams
+
+class CustomPagination(PaginationParams):
+    page_size: int = Query(default=50, ge=1, le=500)  # Max 500 instead of 10000
+
+@app.get("/items")
+async def get_items(pagination: CustomPagination = Depends()):
+    ...
+```
+
+### Generic Response Type
+
+```python
+from pydantic import BaseModel
+from mehdashti_pagination import PaginatedResponse, PaginationMetadata
+
+class Item(BaseModel):
+    id: int
+    name: str
+
+def create_response(items: list[Item], metadata: PaginationMetadata) -> PaginatedResponse[Item]:
+    return PaginatedResponse(data=items, pagination=metadata)
+```
+
+## Requirements
+
+- Python 3.13+
+- Pydantic 2.10+
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Author
+
+Mahdi Ashti <mahdi@mehdashti.com>
+
+## Links
+
+- **Repository**: https://github.com/mehdashti/smart-platform
+- **Issues**: https://github.com/mehdashti/smart-platform/issues
