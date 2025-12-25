@@ -1,0 +1,66 @@
+"""Inspect MEG data and video recorded with Helsinki VideoMEG project software.
+
+Running this requires MEG data and video files recorded with the Helsinki VideoMEG
+project software. You also need to adjust file paths.
+"""
+
+import logging
+import os.path as op
+
+import mne
+
+from mne_videobrowser import (
+    TimestampAligner,
+    VideoFileHelsinkiVideoMEG,
+    browse_raw_with_video,
+    compute_raw_timestamps,
+)
+
+
+def main() -> None:
+    """Run the demo."""
+    BASE_PATH = "/u/69/taivait1/unix/video_meg_testing/Subject_2_Luna"
+    RAW_TIMING_CHANNEL = "STI016"
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(asctime)s] [%(levelname)s] %(name)s:%(lineno)d %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    # Create a video file object
+    with VideoFileHelsinkiVideoMEG(
+        op.join(BASE_PATH, "Video_MEG", "animal_meg_subject_2_240614.video.dat"),
+        magic_str="ELEKTA_VIDEO_FILE",
+    ) as video_file:
+        video_file.print_stats()
+
+        # Create a raw data object
+        raw = mne.io.read_raw_fif(
+            op.join(BASE_PATH, "Raw", "animal_meg_subject_2_240614.fif"), preload=True
+        )
+
+        # Extract raw and video timestamps
+        raw_timestamps_ms = compute_raw_timestamps(raw, RAW_TIMING_CHANNEL)
+        video_timestamps_ms = video_file.timestamps_ms
+
+        # Set up mapping between raw data points and video frames
+        aligner = TimestampAligner(
+            raw_timestamps_ms,
+            video_timestamps_ms,
+            name_a="raw",
+            name_b="video",
+        )
+
+        # Instantiate the browsers.
+        raw_browser = raw.plot(block=False, show=False)
+        browse_raw_with_video(
+            raw_browser,
+            raw,
+            [video_file],
+            [aligner],
+        )
+
+
+if __name__ == "__main__":
+    main()
