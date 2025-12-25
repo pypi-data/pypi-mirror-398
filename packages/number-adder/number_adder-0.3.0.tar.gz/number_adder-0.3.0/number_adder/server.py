@@ -1,0 +1,409 @@
+"""FastAPI server for number-adder with GDPR compliance."""
+
+import os
+from datetime import datetime, timedelta
+from typing import Annotated
+
+from pathlib import Path
+from fastapi import FastAPI, HTTPException, Depends, status, Request, Header
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, EmailStr
+import bcrypt
+from jose import jwt, JWTError
+import stripe
+import uvicorn
+
+from number_adder import add, multiply
+from number_adder import database as db
+
+# Configuration
+SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+
+# Stripe configuration
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_PRICE_ID = os.environ.get("STRIPE_PRICE_ID", "")  # Price ID for premium upgrade
+
+# Google OAuth configuration
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback")
+
+# Static files directory
+STATIC_DIR = Path(__file__).parent / "static"
+
+# Security
+security = HTTPBearer()
+
+# FastAPI app
+app = FastAPI(
+    title="Number Adder API",
+    description="A simple number adding service with GDPR compliance",
+    version="0.3.0"
+)
+
+
+# Pydantic models
+class UserRegister(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class AddRequest(BaseModel):
+    a: float
+    b: float
+
+
+class AddResponse(BaseModel):
+    a: float
+    b: float
+    result: float
+
+
+class MultiplyRequest(BaseModel):
+    a: float
+    b: float
+
+
+class MultiplyResponse(BaseModel):
+    a: float
+    b: float
+    result: float
+
+
+# Auth helpers
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
+
+
+def create_access_token(user_id: int) -> str:
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    payload = {"sub": str(user_id), "exp": expire}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def get_current_user_id(credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)]) -> int:
+    """Extract user ID from JWT token."""
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = int(payload.get("sub"))
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return user_id
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+# Startup event
+@app.on_event("startup")
+def startup():
+    db.init_db()
+
+
+# Auth endpoints
+@app.post("/register", response_model=Token)
+def register(user: UserRegister):
+    """Register a new user account."""
+    # Check if user exists
+    if db.get_user_by_email(user.email):
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    # Create user
+    password_hash = hash_password(user.password)
+    user_id = db.create_user(user.email, password_hash)
+
+    # Return token
+    token = create_access_token(user_id)
+    return Token(access_token=token, token_type="bearer")
+
+
+@app.post("/login", response_model=Token)
+def login(user: UserLogin):
+    """Login and get access token."""
+    db_user = db.get_user_by_email(user.email)
+    if not db_user or not verify_password(user.password, db_user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    token = create_access_token(db_user["id"])
+    return Token(access_token=token, token_type="bearer")
+
+
+# Calculator endpoints
+@app.post("/add", response_model=AddResponse)
+def add_numbers(
+    request: AddRequest,
+    user_id: Annotated[int, Depends(get_current_user_id)]
+):
+    """Add two numbers (requires authentication)."""
+    result = add(request.a, request.b)
+
+    # Save to history
+    db.save_calculation(user_id, request.a, request.b, result, operation="add")
+
+    return AddResponse(a=request.a, b=request.b, result=result)
+
+
+@app.post("/multiply", response_model=MultiplyResponse)
+def multiply_numbers(
+    request: MultiplyRequest,
+    user_id: Annotated[int, Depends(get_current_user_id)]
+):
+    """Multiply two numbers (requires premium subscription)."""
+    # Check if user is premium
+    user = db.get_user_by_id(user_id)
+    if not user or not user.get("is_premium"):
+        raise HTTPException(
+            status_code=403,
+            detail="Premium subscription required. Use /create-checkout-session to upgrade."
+        )
+
+    result = multiply(request.a, request.b)
+
+    # Save to history
+    db.save_calculation(user_id, request.a, request.b, result, operation="multiply")
+
+    return MultiplyResponse(a=request.a, b=request.b, result=result)
+
+
+@app.get("/history")
+def get_history(user_id: Annotated[int, Depends(get_current_user_id)]):
+    """Get calculation history for current user."""
+    calculations = db.get_user_calculations(user_id)
+    return {"calculations": calculations}
+
+
+# Stripe endpoints
+@app.post("/create-checkout-session")
+def create_checkout_session(
+    user_id: Annotated[int, Depends(get_current_user_id)],
+    success_url: str = "https://example.com/success",
+    cancel_url: str = "https://example.com/cancel"
+):
+    """Create a Stripe checkout session for premium upgrade."""
+    if not stripe.api_key:
+        raise HTTPException(status_code=500, detail="Stripe not configured")
+
+    user = db.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.get("is_premium"):
+        raise HTTPException(status_code=400, detail="Already premium")
+
+    # Get or create Stripe customer
+    customer_id = user.get("stripe_customer_id")
+    if not customer_id:
+        customer = stripe.Customer.create(email=user["email"])
+        customer_id = customer.id
+        db.set_stripe_customer_id(user_id, customer_id)
+
+    # Create checkout session
+    session = stripe.checkout.Session.create(
+        customer=customer_id,
+        payment_method_types=["card"],
+        line_items=[{
+            "price": STRIPE_PRICE_ID,
+            "quantity": 1,
+        }],
+        mode="payment",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={"user_id": str(user_id)},
+    )
+
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
+@app.post("/webhook")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events."""
+    if not STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(status_code=500, detail="Webhook not configured")
+
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Invalid signature")
+
+    # Handle successful payment
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        user_id = session.get("metadata", {}).get("user_id")
+        if user_id:
+            db.upgrade_user_to_premium(int(user_id))
+
+    return {"status": "success"}
+
+
+# GDPR endpoints
+@app.get("/me")
+def get_my_data(user_id: Annotated[int, Depends(get_current_user_id)]):
+    """View my account data (GDPR: Right to Access)."""
+    user = db.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+@app.get("/me/export")
+def export_my_data(user_id: Annotated[int, Depends(get_current_user_id)]):
+    """Export all my data as JSON (GDPR: Right to Portability)."""
+    data = db.export_user_data(user_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return JSONResponse(
+        content=data,
+        headers={"Content-Disposition": "attachment; filename=my_data.json"}
+    )
+
+
+@app.delete("/me")
+def delete_my_account(user_id: Annotated[int, Depends(get_current_user_id)]):
+    """Delete my account and all data (GDPR: Right to Erasure)."""
+    success = db.delete_user(user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {"message": "Account and all associated data deleted successfully"}
+
+
+# Health check
+@app.get("/health")
+def health():
+    """Health check endpoint."""
+    return {"status": "healthy"}
+
+
+# Google OAuth endpoints
+@app.get("/auth/google")
+def google_login():
+    """Redirect to Google OAuth."""
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Google OAuth not configured")
+
+    google_auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={GOOGLE_CLIENT_ID}"
+        f"&redirect_uri={GOOGLE_REDIRECT_URI}"
+        "&response_type=code"
+        "&scope=email%20profile"
+        "&access_type=offline"
+    )
+    return RedirectResponse(url=google_auth_url)
+
+
+@app.get("/auth/google/callback")
+async def google_callback(code: str):
+    """Handle Google OAuth callback."""
+    import httpx
+
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        raise HTTPException(status_code=500, detail="Google OAuth not configured")
+
+    # Exchange code for tokens
+    async with httpx.AsyncClient() as client:
+        token_response = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+                "grant_type": "authorization_code",
+            },
+        )
+
+        if token_response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to get tokens from Google")
+
+        tokens = token_response.json()
+        access_token = tokens.get("access_token")
+
+        # Get user info
+        user_response = await client.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        if user_response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to get user info from Google")
+
+        user_info = user_response.json()
+        email = user_info.get("email")
+
+        if not email:
+            raise HTTPException(status_code=400, detail="Email not provided by Google")
+
+        # Find or create user
+        db_user = db.get_user_by_email(email)
+        if not db_user:
+            # Create new user with random password (they'll use OAuth to login)
+            import secrets
+            random_password = secrets.token_urlsafe(32)
+            password_hash = hash_password(random_password)
+            user_id = db.create_user(email, password_hash)
+        else:
+            user_id = db_user["id"]
+
+        # Create JWT token
+        token = create_access_token(user_id)
+
+        # Redirect to dashboard with token
+        return RedirectResponse(
+            url=f"/dashboard.html?token={token}",
+            status_code=302
+        )
+
+
+# Serve static files
+@app.get("/")
+def serve_index():
+    """Serve the landing page."""
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/{filename:path}")
+def serve_static(filename: str):
+    """Serve static files."""
+    file_path = STATIC_DIR / filename
+    if file_path.exists() and file_path.is_file():
+        return FileResponse(file_path)
+    # If file not found, return index.html for SPA routing
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+def main():
+    """Run the server."""
+    print("Starting Number Adder API server...")
+    print("API docs available at: http://localhost:8000/docs")
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+if __name__ == "__main__":
+    main()
