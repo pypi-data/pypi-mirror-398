@@ -1,0 +1,221 @@
+Metadata-Version: 2.4
+Name: aquacrop-abses
+Version: 0.5.0
+Summary: 
+License-File: LICENSE
+Author: SongshGeo
+Author-email: songshgeo@gmail.com
+Requires-Python: >=3.11,<3.13
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Dist: abses (>=0.9.0)
+Requires-Dist: aquacrop (>=3,<4)
+Requires-Dist: matplotkit (>=0.1.2)
+Requires-Dist: seaborn (>=0,<1)
+Description-Content-Type: text/markdown
+
+# AquaCrop-ABSESpy
+
+[![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+基于 [AquaCrop](https://www.fao.org/aquacrop/) 和 [ABSESpy](https://github.com/ABSESpy/ABSESpy) 的农业灌溉和作物生长多主体模拟系统。
+
+## 简介
+
+AquaCrop-ABSESpy 是一个集成了联合国粮农组织（FAO）AquaCrop 模型和 ABSESpy 多主体建模框架的系统，用于模拟农业灌溉决策和作物生长过程。本系统支持：
+
+- 🌾 **17种作物模拟**：涵盖粮食、经济、蔬菜和糖料作物
+- 💧 **多种灌溉策略**：从无灌溉到优化灌溉的6种方法
+- 🗺️ **空间异质性**：支持栅格数据和空间分布建模
+- 👨‍🌾 **主体决策**：模拟农民的灌溉决策行为
+- 📊 **气候响应**：整合气象数据评估作物-水分关系
+
+## 支持的作物
+
+系统现支持 **17种作物**，完整配置了生长周期、Kc系数和物候期参数：
+
+### 粮食作物 (10种)
+- **水稻** (Rice) - 150天生长期
+- **冬小麦** (Winter_Wheat) - 255天生长期
+- **春小麦** (Spring_Wheat) - 130天生长期
+- **春玉米** (Spring_Maize) - 145天生长期
+- **夏玉米** (Summer_Maize) - 100天生长期
+- **春大麦** (Spring_Barley) - 120天生长期
+- **冬大麦** (Winter_Barley) - 210天生长期
+- **小米** (Millet) - 140天生长期
+
+### 经济作物 (5种)
+- **大豆** (Soybean) - 140天生长期
+- **棉花** (Cotton) - 180天生长期
+- **油菜籽** (Rapeseed) - 110天生长期
+- **花生** (Groundnut) - 130天生长期
+- **向日葵** (Sunflower) - 130天生长期
+
+### 蔬菜和块茎作物 (2种)
+- **马铃薯** (Potato) - 145天生长期
+- **西红柿** (Tomato) - 135天生长期
+
+### 糖料作物 (2种)
+- **甘蔗** (Sugarcane) - 105天生长期
+- **甜菜** (Sugarbeet) - 160天生长期
+
+> **注意**: 系统保留 `Wheat` 和 `Maize` 作为 `Spring_Wheat` 和 `Spring_Maize` 的别名，确保向后兼容。
+
+## 快速开始
+
+### 安装
+
+```bash
+pip install aquacrop-abses
+```
+
+或从源码安装：
+
+```bash
+git clone https://github.com/SongshGeo/aquacrop_abses.git
+cd aquacrop_abses
+poetry install
+```
+
+### 基本使用
+
+```python
+from abses import MainModel
+from aquacrop_abses import CropLand, CropCell, Farmer
+from aquacrop_abses.load_datasets import crop_name_to_crop
+
+# 创建模型和农田模块
+model = MainModel()
+cropland = model.nature.create_module(
+    name="cropland",
+    module_cls=CropLand,
+    shape=(3, 4),  # 创建 3x4 的网格
+    cell_cls=CropCell,
+)
+
+# 获取一个单元格
+cell = cropland.random.choice()
+
+# 添加作物
+cell.add_crop("Rice")
+cell.soil = 1  # 设置土壤类型
+
+# 创建作物对象并查看信息
+rice = crop_name_to_crop("Rice")
+print(f"水稻种植日期: {rice.planting_date}")  # 05/15
+print(f"水稻收获日期: {rice.harvest_date}")    # 10/12
+```
+
+### 多作物轮作示例
+
+```python
+from abses import MainModel
+from aquacrop_abses import CropLand, CropCell
+
+# 创建模型和农田模块
+model = MainModel()
+cropland = model.nature.create_module(
+    name="cropland",
+    module_cls=CropLand,
+    shape=(3, 4),
+    cell_cls=CropCell,
+)
+
+# 获取单元格并添加冬小麦和夏玉米（轮作）
+cell = cropland.random.choice()
+cell.add_crop("Winter_Wheat")  # 10/01-06/13
+cell.add_crop("Summer_Maize")   # 06/15-09/23 (无重叠)
+
+# 查看种植的作物
+print(f"种植了 {cell.has_crops} 种作物")
+for name, crop in cell.crops.items():
+    print(f"  - {name}: {crop.planting_date} 至 {crop.harvest_date}")
+```
+
+## 灌溉策略
+
+系统支持6种灌溉方法（`irr_method` 0-5）：
+
+- **0**: 无灌溉（雨养农业）
+- **1-3**: 基于土壤水分阈值的灌溉（保守、中等、激进）
+- **4**: 净灌溉（精确补水）
+- **5**: 优化灌溉（最大产量）
+
+```python
+from aquacrop_abses import Farmer
+
+# 创建使用净灌溉策略的农民
+farmer = Farmer(irr_method=4)
+```
+
+## 主要功能
+
+### 作物生长模拟
+- 完整的作物物候期建模（初始、发育、中期、成熟）
+- 基于Kc系数的蒸腾蒸发计算
+- 水分胁迫对产量的影响
+
+### 空间建模
+- 栅格化农田空间表示
+- 空间异质的土壤和气象条件
+- 作物空间分布配置
+
+### 主体决策
+- 农民灌溉决策模拟
+- 不同灌溉策略的优化
+- 资源约束下的行为
+
+### 数据集成
+- 气象数据（温度、降水、蒸发）
+- 土壤数据（质地、水分特性）
+- 作物参数（生长周期、系数）
+
+## 文档
+
+完整文档请访问: [Documentation](docs/)
+
+- [配置说明](docs/notebooks/configurations.ipynb)
+- [农民主体](docs/notebooks/farmer.ipynb)
+- [自然环境](docs/notebooks/nature.ipynb)
+- [优化方法](docs/notebooks/optimize.ipynb)
+- [作物使用指南](CROP_CONVERSION_USAGE.md)
+
+## 测试
+
+```bash
+# 运行所有测试
+poetry run pytest tests/ -v
+
+# 运行特定测试
+poetry run pytest tests/test_datasets.py -v
+```
+
+## 引用
+
+如果您在研究中使用了本系统，请引用：
+
+```bibtex
+@software{aquacrop_abses,
+  author = {Song, Shuang},
+  title = {AquaCrop-ABSESpy: Agent-Based Modeling for Agricultural Irrigation},
+  year = {2024},
+  url = {https://github.com/SongshGeo/aquacrop_abses}
+}
+```
+
+## 贡献
+
+欢迎贡献！请查看 [贡献指南](CONTRIBUTING.md) 了解详情。
+
+## 许可证
+
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
+
+## 致谢
+
+- [AquaCrop](https://www.fao.org/aquacrop/) - FAO作物-水分生产力模型
+- [ABSESpy](https://github.com/ABSESpy/ABSESpy) - 多主体建模框架
+- [aquacrop](https://github.com/aquacropos/aquacrop) - Python实现的AquaCrop模型
+
