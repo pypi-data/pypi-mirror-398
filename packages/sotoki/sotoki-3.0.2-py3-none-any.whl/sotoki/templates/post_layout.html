@@ -1,0 +1,82 @@
+    <div class="post-layout">
+    <div class="votecell post-layout--left">
+        <div class="js-voting-container d-flex jc-center fd-column ai-center gs4 fc-black-300" data-post-id="{{ post_answer.Id }}">
+            <div class="js-vote-count flex--item d-flex fd-column ai-center fc-theme-body-font fw-bold fs-subheading py4 mx12" itemprop="upvoteCount" data-value="{{ post_answer.Score }}">{{ post_answer.Score }}</div>
+            {% if post.AcceptedAnswerId == post_answer.Id %}<div class="js-accepted-answer-indicator grid--cell fc-green-500 py6 mtn8"><div class="ta-center"><svg aria-hidden="true" class="svg-icon iconCheckmarkLg" width="36" height="36" viewBox="0 0 36 36"><path d="m6 14 8 8L30 6v8L14 30l-8-8v-8z"></path></svg></div></div>{% endif %}
+        </div>
+    </div>
+    <div class="postcell post-layout--right">
+        <div class="s-prose js-post-body" itemprop="text">{{ post_answer.Body|rewrote(to_root) }}</div>
+        {% if is_question %}
+        <div class="mt24 mb12">
+            <div class="post-taglist grid gs4 gsy fd-column">
+                <div class="grid ps-relative">
+                    {% for tag in post_answer.Tags %}
+                    <a href="{{ to_root }}questions/tagged/{{ tag }}" class="post-tag js-gps-track" title="show questions tagged '{{ tag }}'" rel="tag">{{ tag }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% if is_question %}
+        <div class="mb0">
+            <div class="mt16 d-flex gs8 gsy fw-wrap jc-end ai-start pt4 mb16">
+        {% else %}
+        <div class="mt24">
+            <div class="d-flex fw-wrap ai-start jc-end gs8 gsy">
+        {% endif %}
+                {% if post_answer.LastEditDate %}
+                <div class="post-signature flex--item">
+                    {% if post_answer.LastEditorUserId == post_answer.OwnerUserId %}
+                    {% with user=post_answer.LastEditorUserId|user %}
+                    <div class="user-info ">
+                        <div class="user-action-time">edited <span title="{{ post_answer.LastEditDate }}" class="relativetime">{{ post_answer.LastEditDate|datetime }}</span></div>
+                        <div class="user-gravatar32"></div>
+                        <div class="user-details" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+                            <span class="d-none" itemprop="name">{{ user.name }}</span>
+                            <div class="-flair"></div>
+                        </div>
+                    </div>
+                    {% endwith %}
+                    {% else %}
+                        {% with user=post_answer.LastEditorUserId|user, action_time="edited " + post_answer.LastEditDate|datetime, action_from_now=False %}
+                        {% include "user_card.html" %}
+                        {% endwith %}
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div class="post-signature {% if post_answer.OwnerUserId == post.OwnerUserId %} owner{% endif %} flex--item">
+                    {% if is_question %}
+                    {% with user=post_answer.OwnerUserId|user, action_time="asked " + post_answer.CreationDate|datetime, action_from_now=False %}
+                        {% include "user_card.html" %}
+                    {% endwith %}
+                    {% else %}
+                    {% with user=post_answer.OwnerUserId|user, action_time="answered " + post_answer.CreationDate|datetime, action_from_now=False %}
+                        {% include "user_card.html" %}
+                    {% endwith %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="post-layout--right js-post-comments-component">
+        {% if post_answer.comments %}
+        <div id="comments-{{ post_answer.Id }}" class="comments js-comments-container bt bc-black-075 mt12 " data-post-id="{{ post_answer.Id}}" data-min-length="15">
+            <ul class="comments-list js-comments-list" data-remaining-comments-count="0" data-canpost="false" data-cansee="true" data-comments-unavailable="false" data-addlink-disabled="true">
+                {% for comment in post_answer.comments %}
+                <li id="comment-{{ comment.Id }}" class="comment js-comment " data-comment-id="{{ comment.Id }}" data-comment-owner-id="{{ comment.UserId }}" data-comment-score="{{ comment.Score }}">
+                    <div class="js-comment-actions comment-actions">
+                        <div class="comment-score js-comment-edit-hide">
+                            {% if comment.Score|int %}<span title="number of 'useful comment' votes received" class="warm">{{ comment.Score }}</span>{% endif %}
+                        </div>
+                    </div>
+                    {% with user=comment.UserId|user, ownerId=post.OwnerUserId %}
+                    {% include "single_comment.html" %}
+                    {% endwith %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+    </div>
