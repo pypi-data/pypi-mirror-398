@@ -1,0 +1,208 @@
+Metadata-Version: 2.1
+Name: fx-sdk
+Version: 0.2.0
+Summary: A Pythonic SDK for the f(x) Protocol
+Home-page: https://fx.aladdin.club/
+Author: Christopher Stampar (@cstampar)
+Author-email: Christopher Stampar <cstampar@me.com>
+Project-URL: Homepage, https://github.com/AladdinDAO/fx-protocol-contracts
+Project-URL: Documentation, https://github.com/AladdinDAO/fx-protocol-contracts#readme
+Keywords: defi,ethereum,fx-protocol,stablecoin
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: web3>=6.0.0
+Requires-Dist: eth-account>=0.5.0
+Requires-Dist: eth-typing>=3.0.0
+Requires-Dist: eth-utils>=2.0.0
+Requires-Dist: python-dotenv>=1.0.0
+
+# f(x) Protocol Python SDK
+
+**Creator:** Christopher Stampar (@cstampar)  
+**Date:** December 20, 2025
+
+A Pythonic, production-grade SDK for interacting with the f(x) Protocol. This client abstracts Web3.py boilerplate and provides human-readable interfaces for both V1 and V2 products.
+
+## ✨ Key Features
+
+-   **Modular Design**: Clean separation of read and write operations.
+-   **Precision First**: Uses Python `Decimal` for all human-readable amounts.
+-   **Full Protocol Coverage**: Supports fxUSD, fETH, rUSD, veFXN, Gauges, and all x tokens (xETH, xCVX, xWBTC, xeETH, xezETH, xstETH, xfrxETH).
+-   **Infrastructure-Aware**: Direct integration with the Pool Manager, Treasury, and Multi-Path Converter.
+-   **V1 & V2 Support**: Robust support for both legacy and current protocol versions.
+-   **Convex Finance Integration**: Complete vault management, staking, and rewards for 30+ f(x) Protocol pools.
+-   **Curve Finance Integration**: Pool operations, swaps, liquidity management, and gauge staking.
+
+## 🚀 Quick Start
+
+### Read-Only Mode (No Private Key Required)
+
+```python
+from fx_sdk.client import ProtocolClient
+
+# Initialize in read-only mode
+client = ProtocolClient(
+    rpc_url="https://mainnet.infura.io/v3/YOUR_API_KEY"
+)
+
+# Read balance
+fxusd_balance = client.get_fxusd_balance()
+print(f"fxUSD Balance: {fxusd_balance}")
+
+# Fetch protocol NAV
+nav = client.get_treasury_nav()
+print(f"Base NAV: {nav['base_nav']}")
+```
+
+### Write Mode (Secure Authentication Options)
+
+The SDK supports multiple secure methods for wallet authentication. **Never hardcode private keys in your scripts!**
+
+#### Option 1: Environment Variable (Recommended for Production)
+
+```bash
+# Set in your shell or deployment environment
+export FX_PROTOCOL_PRIVATE_KEY="0x..."
+```
+
+```python
+from fx_sdk.client import ProtocolClient
+
+client = ProtocolClient(
+    rpc_url="https://mainnet.infura.io/v3/YOUR_API_KEY"
+    # Private key automatically loaded from FX_PROTOCOL_PRIVATE_KEY
+)
+```
+
+#### Option 2: .env File (Recommended for Local Development)
+
+Create a `.env` file in your project root:
+```bash
+FX_PROTOCOL_PRIVATE_KEY=0x...
+```
+
+```python
+from fx_sdk.client import ProtocolClient
+
+client = ProtocolClient(
+    rpc_url="https://mainnet.infura.io/v3/YOUR_API_KEY"
+    # Private key automatically loaded from .env file
+)
+```
+
+**Important:** Add `.env` to your `.gitignore` to prevent committing secrets!
+
+#### Option 3: Google Colab Secrets
+
+```python
+from fx_sdk.client import ProtocolClient
+
+# Store your private key in Colab secrets: 'fx_protocol_private_key'
+client = ProtocolClient(
+    rpc_url="https://mainnet.infura.io/v3/YOUR_API_KEY"
+    # Private key automatically loaded from Colab secrets
+)
+```
+
+#### Option 4: Browser Wallet (MetaMask, etc.)
+
+```python
+from fx_sdk.client import ProtocolClient
+
+client = ProtocolClient(
+    rpc_url="https://mainnet.infura.io/v3/YOUR_API_KEY",
+    use_browser_wallet=True  # Connects to MetaMask or other browser extension
+)
+
+# Transactions will prompt user approval in browser
+tx_hash = client.mint_f_token(market_address="0x...", base_in=1.0)
+```
+
+#### Option 5: Explicit Private Key (Not Recommended)
+
+```python
+# ⚠️ Only use for testing! Never commit this to version control.
+client = ProtocolClient(
+    rpc_url="https://mainnet.infura.io/v3/YOUR_API_KEY",
+    private_key="0x..."  # Explicit parameter (lowest priority)
+)
+```
+
+### Authentication Priority Order
+
+The SDK checks for credentials in this order:
+1. Explicit `private_key` parameter
+2. `FX_PROTOCOL_PRIVATE_KEY` environment variable
+3. `.env` file (`FX_PROTOCOL_PRIVATE_KEY`)
+4. Google Colab secret (`fx_protocol_private_key`)
+5. Browser wallet (if `use_browser_wallet=True`)
+
+## 📂 Project Structure
+
+```
+fx_api/
+├── fx_sdk/              # Core SDK package
+│   ├── __init__.py
+│   ├── client.py        # Main ProtocolClient class
+│   ├── constants.py     # Contract addresses and configurations
+│   ├── utils.py          # Unit conversion utilities
+│   ├── exceptions.py    # Custom exception classes
+│   └── abis/            # Contract ABIs (JSON files)
+├── tests/               # Test suite
+│   ├── __init__.py
+│   ├── tests.py         # Main unit tests
+│   ├── test_sdk.py      # SDK integration tests
+│   └── ...              # Additional test files
+├── docs/                # Documentation
+│   ├── features.md     # Detailed feature list
+│   ├── roadmap.md      # Development roadmap
+│   └── ...             # Additional documentation
+├── scripts/             # Utility scripts
+│   └── upload_pypi.sh  # PyPI upload helper
+├── README.md            # This file
+├── setup.py            # Package setup
+├── pyproject.toml      # Modern Python project config
+├── requirements.txt    # Python dependencies
+└── LICENSE             # MIT License
+```
+
+For detailed SDK capabilities, see [docs/features.md](./docs/features.md).
+
+## 🛠 Project Status & Progress
+
+The SDK is currently in a **feature-complete** state for initial release.
+
+### Done:
+- [x] Scaffolding & Core Architecture
+- [x] Data Normalization (Wei <-> Decimal)
+- [x] Contract Registry (V1 & V2)
+- [x] Governance & veFXN support
+- [x] Gauge & Reward claiming
+- [x] V2 Pool Manager (Operate, Liquidate, Rebalance)
+- [x] V1 Treasury & Market support
+- [x] Multi-Path Converter & stETH Gateway
+- [x] Rebalance Pool (Stability Pool) support
+- [x] Integrated ABIs for all core components
+- [x] **Convex Finance Integration** (v0.2.0): Vault management, staking, APY calculations, 30+ pools
+- [x] **Curve Finance Integration** (v0.2.0): Swaps, liquidity, gauge staking, pool discovery
+
+## 🔒 Security Best Practices
+
+1. **Never commit private keys** to version control. Always use `.gitignore` to exclude `.env` files.
+2. **Use environment variables** in production deployments (AWS, Heroku, etc.).
+3. **Use `.env` files** for local development, but never commit them.
+4. **Use Colab secrets** when working in Google Colab notebooks.
+5. **Use browser wallets** for interactive applications where users control their own keys.
+6. **Read-only mode** is available for analytics and monitoring without any credentials.
+
+## 📝 Documentation
+
+For a full list of features and supported products, see [docs/features.md](./docs/features.md).
+
+## ⚖️ License
+
+MIT
