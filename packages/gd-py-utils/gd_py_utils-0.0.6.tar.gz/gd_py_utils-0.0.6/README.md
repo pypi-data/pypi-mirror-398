@@ -1,0 +1,34 @@
+# gdutils
+
+[**Docs**](https://gdutils-a2ef81.gitlabpages.inria.fr/)
+
+
+```bash
+pip install gd-py-utils
+```
+
+```python
+import gdutils as gd
+```
+
+
+## Data Container
+
+A `Container` is a lightweight directory manager with a persistent **key → file path registry**:
+
+- Create files easily: `f = ct / "path/to/file.ext"`
+- Each file is automatically registered under a logical key (default: the file name without extension)
+- The registry is saved as `infos.json`
+- Access registered files as attributes: `ct.output`, `ct.data`, etc.
+
+```python
+import gdutils as gd
+import numpy as np
+
+with gd.Container("out", clean=True) as ct:
+    f = ct / "results/output.npy"
+    np.save(f, np.arange(10))
+
+print(ct.output)      # out/results/output.npy
+```
+

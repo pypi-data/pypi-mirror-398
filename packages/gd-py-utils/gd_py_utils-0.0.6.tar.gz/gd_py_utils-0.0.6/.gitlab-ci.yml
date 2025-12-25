@@ -1,0 +1,118 @@
+stages:
+  - test
+  - build
+  - publish
+  - deploy_doc
+
+image: python:3.12
+
+variables:
+  GIT_DEPTH: "0"                      # setuptools-scm needs full history/tags
+  GIT_FETCH_EXTRA_FLAGS: "--tags"     # make sure tags are fetched
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUNBUFFERED: "1"
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.uv-cache"
+
+cache:
+  key: "${CI_PROJECT_NAME}"
+  paths:
+    - .venv/
+    - .uv-cache/
+
+before_script:
+  - python -m pip install -U pip
+  - python -m pip install -U uv
+
+test:
+  stage: test
+  tags:
+    - ci.inria.fr
+    - small
+  script:
+    - uv sync --frozen --group dev
+    - uv run pytest
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+    - when: never
+
+build:
+  stage: build
+  tags:
+    - ci.inria.fr
+    - small
+  needs: ["test"]
+  script:
+    - uv sync --frozen --group dev
+    - uv run python -m build
+    - |
+      python - <<'PY'
+      import os, re, glob, subprocess, sys
+      tag = os.environ.get("CI_COMMIT_TAG", "")
+
+      m = re.fullmatch(r"v(\d+\.\d+\.\d+)", tag)
+      if not m:
+        raise SystemExit(f"Invalid tag format: {tag!r} (expected vX.Y.Z)")
+      tag_ver = m.group(1)
+
+      wheels = glob.glob("dist/*.whl")
+      if not wheels:
+        raise SystemExit("No wheel found in dist/")
+      wheel = wheels[0]
+
+      subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-deps", "--force-reinstall", wheel])
+      import importlib.metadata as md
+      ver = md.version("gd-py-utils")
+      if ver != tag_ver:
+        raise SystemExit(f"Version mismatch: wheel={ver!r} tag={tag_ver!r}")
+      print(f"OK: wheel version {ver} matches tag {tag}")
+      PY
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - dist/
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+    - when: never
+
+publish_pypi:
+  stage: publish
+  tags:
+    - ci.inria.fr
+    - small
+  needs: ["build"]
+  script:
+    - uv sync --frozen --group dev
+    - |
+      python - <<'PY'
+      import os
+      if not os.environ.get("PYPI_API_TOKEN"):
+        raise SystemExit("Missing PYPI_API_TOKEN CI variable.")
+      PY
+    - export TWINE_USERNAME="__token__"
+    - export TWINE_PASSWORD="$PYPI_API_TOKEN"
+    - |
+      if [ -n "$PYPI_REPOSITORY_URL" ]; then
+        uv run twine upload --repository-url "$PYPI_REPOSITORY_URL" dist/*
+      else
+        uv run twine upload dist/*
+      fi
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+    - when: never
+
+pages:
+  stage: deploy_doc
+  tags:
+    - ci.inria.fr
+    - small
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  script:
+    - uv sync --frozen --extra docs
+    - uv run mkdocs build --strict --site-dir public
+  artifacts:
+    paths:
+      - public
+
