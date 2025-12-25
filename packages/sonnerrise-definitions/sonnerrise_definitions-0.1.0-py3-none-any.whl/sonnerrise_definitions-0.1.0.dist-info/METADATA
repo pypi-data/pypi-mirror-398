@@ -1,0 +1,103 @@
+Metadata-Version: 2.4
+Name: sonnerrise-definitions
+Version: 0.1.0
+Summary: Definitions module for Sonnerrise - Suno track generation definitions
+Author-email: Konstantin Boyandin <developer@boyandin.com>
+License-Expression: MIT
+Requires-Python: >=3.11
+Requires-Dist: pydantic>=2.0
+Requires-Dist: sonnerrise-core>=0.1.0
+Requires-Dist: sonnerrise-personas>=0.1.0
+Provides-Extra: dev
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# sonnerrise-definitions
+
+Definitions module for the Sonnerrise suite - manages Suno track generation definitions.
+
+## Features
+
+- Create and manage Suno generation definitions (prompts, styles, lyrics)
+- Link definitions to personas and cover tracks
+- Support for model versions, vocal settings, and influence weights
+- Full CRUD operations via Python API or CLI
+
+## Installation
+
+```bash
+pip install sonnerrise-definitions
+```
+
+## Usage
+
+### Python API
+
+```python
+from sonnerrise_core import load_config, get_database
+from sonnerrise_definitions import DefinitionRepository, DefinitionCreate
+
+config = load_config()
+db = get_database(config)
+db.create_tables()
+
+repo = DefinitionRepository(db)
+
+# Create a definition
+definition = repo.create(DefinitionCreate(
+    title="Epic Battle Theme",
+    service="suno",
+    model="v4.0",
+    style_of_music="epic orchestral, cinematic, dramatic",
+    lyrics="[Verse]\nInto the storm we ride...",
+    audio_influence=30,
+    style_influence=60,
+))
+
+# List definitions with filtering
+definitions = repo.list(page=1, model_filter="v4.0")
+
+# Search by title
+results = repo.search("battle")
+```
+
+### CLI
+
+```bash
+# List all definitions
+sonnerrise-definitions list
+
+# Create a new definition
+sonnerrise-definitions create --title "My Song" --style "pop, upbeat"
+
+# Show definition details
+sonnerrise-definitions show 1
+
+# Update a definition
+sonnerrise-definitions update 1 --model v4.5+
+
+# Delete a definition
+sonnerrise-definitions delete 1
+```
+
+## Definition Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| title | string (max 120 chars) | Definition title (required) |
+| annotation | string (max 200 chars) | Short annotation (optional) |
+| service | enum | Service to use: "suno" |
+| model | enum | Model version: "v3.5", "v4.0", "v4.5+", "v5.0" |
+| style_of_music | string (max 1000 chars) | Style description |
+| older_models_style | boolean | Limit style to 200 chars for older models |
+| lyrics | string (max 3000 chars) | Song lyrics |
+| persona_id | integer | Reference to persona (optional) |
+| persona_type | enum | How to use persona: "voice", "style" |
+| vocals | enum | Vocal override: "any", "female", "male" |
+| audio_influence | integer (0-100) | Audio influence weight (default: 25) |
+| style_influence | integer (0-100) | Style influence weight (default: 50) |
+| weirdness | integer (0-100) | Weirdness level (default: 50) |
+| cover_of_track_id | integer | Track this is a cover of (optional) |
+| comments | text (max 32KB) | Additional notes (optional) |
+| links | list | Associated URLs with descriptions |
