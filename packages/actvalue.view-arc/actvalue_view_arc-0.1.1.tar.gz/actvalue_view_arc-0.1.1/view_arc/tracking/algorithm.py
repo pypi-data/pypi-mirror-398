@@ -1,0 +1,731 @@
+"""
+Tracking Algorithm
+==================
+
+Core tracking algorithm functions:
+- process_single_sample: Process one viewer sample to find winning AOI
+- compute_attention_seconds: Batch process samples and accumulate attention
+
+Validation Layers
+-----------------
+The validation strategy follows a layered approach:
+
+1. **compute_attention_seconds()**: Full validation including AOI uniqueness
+   - Calls validate_aois() to ensure all AOI IDs are unique
+   - Calls validate_viewer_samples() for input integrity
+   - Calls validate_tracking_params() for parameter bounds
+   - Recommended for all batch processing workflows
+
+2. **process_single_sample()**: Minimal type validation only
+   - Validates that sample is a ViewerSample
+   - Validates that aois is a list of AOI objects
+   - Does NOT enforce AOI ID uniqueness
+   - Direct callers are responsible for validating AOIs if uniqueness is required
+   - Suitable for custom processing loops where validation happens upstream
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Generator
+
+import numpy as np
+from numpy.typing import NDArray
+
+from view_arc.tracking.dataclasses import (
+    AOI,
+    AOIResult,
+    SessionConfig,
+    TrackingResult,
+    ValidationError,
+    ViewerSample,
+)
+from view_arc.tracking.validation import (
+    SampleInput,
+    normalize_sample_input,
+    validate_aois,
+    validate_tracking_params,
+    validate_viewer_samples,
+)
+
+
+# =============================================================================
+# Single Sample Result Dataclasses
+# =============================================================================
+
+
+@dataclass
+class AOIIntervalBreakdown:
+    """Detailed breakdown of a single angular interval for an AOI.
+
+    This mirrors the IntervalBreakdown from the core API but uses AOI IDs
+    instead of obstacle indices.
+
+    Attributes:
+        angle_start: Start angle in radians
+        angle_end: End angle in radians
+        angular_span: Angular span in radians
+        aoi_id: ID of the AOI owning this interval
+        min_distance: Minimum distance within this interval
+        wraps: Whether the interval crosses the ±π discontinuity
+    """
+
+    angle_start: float
+    angle_end: float
+    angular_span: float
+    aoi_id: str | int
+    min_distance: float
+    wraps: bool = False
+
+    @property
+    def angular_span_deg(self) -> float:
+        """Angular span in degrees."""
+        return float(np.rad2deg(self.angular_span))
+
+    @property
+    def angle_start_deg(self) -> float:
+        """Start angle in degrees."""
+        return float(np.rad2deg(self.angle_start))
+
+    @property
+    def angle_end_deg(self) -> float:
+        """End angle in degrees."""
+        return float(np.rad2deg(self.angle_end))
+
+
+@dataclass
+class SingleSampleResult:
+    """Result from processing a single viewer sample.
+
+    Contains detailed information about which AOI (if any) was selected
+    as the winner for a single sample observation.
+
+    Attributes:
+        winning_aoi_id: The ID of the AOI with largest angular coverage,
+            or None if no AOI was visible in the view arc
+        angular_coverage: Angular coverage of the winning AOI in radians
+        min_distance: Minimum distance to the winning AOI
+        all_coverage: Optional dict mapping all visible AOI IDs to their coverage
+        all_distances: Optional dict mapping all visible AOI IDs to their min distances
+        interval_details: Optional list of AOIIntervalBreakdown objects showing
+            all angular intervals and which AOI owns each one
+    """
+
+    winning_aoi_id: str | int | None
+    angular_coverage: float = 0.0
+    min_distance: float = float("inf")
+    all_coverage: dict[str | int, float] | None = None
+    all_distances: dict[str | int, float] | None = None
+    interval_details: list[AOIIntervalBreakdown] | None = None
+
+    def get_winner_intervals(self) -> list[AOIIntervalBreakdown]:
+        """Get intervals owned by the winning AOI only.
+
+        Returns:
+            List of AOIIntervalBreakdown objects for the winner, or empty list
+        """
+        if self.interval_details is None or self.winning_aoi_id is None:
+            return []
+        return [iv for iv in self.interval_details if iv.aoi_id == self.winning_aoi_id]
+
+    def get_all_intervals(self) -> list[AOIIntervalBreakdown]:
+        """Get all intervals (for all AOIs, not just the winner).
+
+        Returns:
+            List of AOIIntervalBreakdown objects, or empty list if not available
+        """
+        if self.interval_details is not None:
+            return self.interval_details
+        return []
+
+
+# =============================================================================
+# Single-Sample Processing (Step 2.1)
+# =============================================================================
+
+
+def process_single_sample(
+    sample: ViewerSample,
+    aois: list[AOI],
+    field_of_view_deg: float = 90.0,
+    max_range: float = 500.0,
+    return_details: bool = False,
+) -> str | int | None | SingleSampleResult:
+    """Process a single viewer sample to find which AOI is being viewed.
+
+    This is a wrapper around `find_largest_obstacle()` that:
+    - Accepts a ViewerSample and list of AOIs
+    - Converts AOI contours to the format expected by find_largest_obstacle
+    - Returns the winning AOI ID (or None if no winner)
+    - Optionally returns detailed result for debugging
+
+    Note:
+        This function does NOT validate AOI uniqueness (duplicate IDs are allowed).
+        For batch processing with uniqueness enforcement, use `compute_attention_seconds()`
+        which calls `validate_aois()` to ensure all AOI IDs are unique. Direct callers
+        of this function are responsible for validating AOIs if uniqueness is required.
+
+    Args:
+        sample: A ViewerSample containing position and direction
+        aois: List of AOI objects to check against. AOI IDs do not need to be unique
+            when calling this function directly, though duplicate IDs may lead to
+            ambiguous results if multiple AOIs share the same ID.
+        field_of_view_deg: Field of view in degrees (default 90.0)
+        max_range: Maximum detection range in pixels (default 500.0)
+        return_details: If True, return SingleSampleResult with full details;
+            if False, return just the winning AOI ID or None
+
+    Returns:
+        If return_details is False: The winning AOI ID (str or int), or None
+            if no AOI was visible in the view arc
+        If return_details is True: A SingleSampleResult with full information
+
+    Raises:
+        ValidationError: If sample is not a ViewerSample
+        ValidationError: If aois is not a list of AOI objects
+        ValidationError: If field_of_view_deg or max_range are invalid
+
+    Example:
+        >>> sample = ViewerSample(position=(100.0, 100.0), direction=(0.0, 1.0))
+        >>> aoi = AOI(id="shelf1", contour=np.array([[90, 150], [110, 150], [100, 170]]))
+        >>> winner_id = process_single_sample(sample, [aoi])
+        >>> print(f"Viewer is looking at: {winner_id}")
+    """
+    # Import here to avoid circular imports
+    from view_arc.obstacle.api import find_largest_obstacle
+
+    # Validate inputs
+    if not isinstance(sample, ViewerSample):
+        raise ValidationError(
+            f"sample must be a ViewerSample, got {type(sample).__name__}"
+        )
+
+    if not isinstance(aois, list):
+        raise ValidationError(f"aois must be a list, got {type(aois).__name__}")
+
+    for i, aoi in enumerate(aois):
+        if not isinstance(aoi, AOI):
+            raise ValidationError(
+                f"aois[{i}] must be an AOI, got {type(aoi).__name__}"
+            )
+
+    # Validate tracking parameters
+    validate_tracking_params(fov_deg=field_of_view_deg, max_range=max_range)
+
+    # Handle empty AOI list
+    if len(aois) == 0:
+        if return_details:
+            return SingleSampleResult(winning_aoi_id=None)
+        return None
+
+    # Build mapping from obstacle index to AOI ID
+    aoi_id_by_index: dict[int, str | int] = {}
+    obstacle_contours: list[NDArray[np.float32]] = []
+
+    for idx, aoi in enumerate(aois):
+        aoi_id_by_index[idx] = aoi.id
+        obstacle_contours.append(aoi.contour.astype(np.float32))
+
+    # Convert sample to numpy arrays for find_largest_obstacle
+    viewer_point = np.array(sample.position, dtype=np.float32)
+    view_direction = np.array(sample.direction, dtype=np.float32)
+
+    # Call the core obstacle detection API
+    # When details are requested, also get intervals for debugging
+    result = find_largest_obstacle(
+        viewer_point=viewer_point,
+        view_direction=view_direction,
+        field_of_view_deg=field_of_view_deg,
+        max_range=max_range,
+        obstacle_contours=obstacle_contours,
+        return_intervals=return_details,
+        return_all_coverage=return_details,
+    )
+
+    # Map obstacle index back to AOI ID
+    winning_aoi_id: str | int | None = None
+    if result.obstacle_id is not None:
+        winning_aoi_id = aoi_id_by_index.get(result.obstacle_id)
+
+    if not return_details:
+        return winning_aoi_id
+
+    # Build detailed result
+    all_coverage: dict[str | int, float] | None = None
+    if result.all_coverage is not None:
+        all_coverage = {}
+        for obs_idx, coverage in result.all_coverage.items():
+            aoi_id = aoi_id_by_index.get(obs_idx)
+            if aoi_id is not None:
+                all_coverage[aoi_id] = coverage
+
+    # Build all_distances mapping
+    all_distances: dict[str | int, float] | None = None
+    if result.all_distances is not None:
+        all_distances = {}
+        for obs_idx, distance in result.all_distances.items():
+            aoi_id = aoi_id_by_index.get(obs_idx)
+            if aoi_id is not None:
+                all_distances[aoi_id] = distance
+
+    # Build interval_details with AOI IDs instead of obstacle indices
+    interval_details: list[AOIIntervalBreakdown] | None = None
+    if result.interval_details is not None:
+        interval_details = []
+        for iv in result.interval_details:
+            aoi_id = aoi_id_by_index.get(iv.obstacle_id)
+            if aoi_id is not None:
+                interval_details.append(
+                    AOIIntervalBreakdown(
+                        angle_start=iv.angle_start,
+                        angle_end=iv.angle_end,
+                        angular_span=iv.angular_span,
+                        aoi_id=aoi_id,
+                        min_distance=iv.min_distance,
+                        wraps=iv.wraps,
+                    )
+                )
+
+    return SingleSampleResult(
+        winning_aoi_id=winning_aoi_id,
+        angular_coverage=result.angular_coverage,
+        min_distance=result.min_distance,
+        all_coverage=all_coverage,
+        all_distances=all_distances,
+        interval_details=interval_details,
+    )
+
+
+# =============================================================================
+# Batch Processing Function (Step 2.2)
+# =============================================================================
+
+
+@dataclass
+class TrackingResultWithConfig(TrackingResult):
+    """TrackingResult extended with embedded SessionConfig and optional profiling data.
+
+    Contains all the fields from TrackingResult plus the session configuration
+    that was used for this tracking run, and optionally performance profiling data.
+
+    Attributes:
+        session_config: The SessionConfig used for this tracking session,
+            or None if not provided
+        profiling_data: Performance metrics if enable_profiling=True, None otherwise
+    """
+
+    session_config: SessionConfig | None = None
+    profiling_data: Any | None = None  # ProfilingData when available
+
+
+def compute_attention_seconds(
+    samples: SampleInput,
+    aois: list[AOI],
+    field_of_view_deg: float = 90.0,
+    max_range: float = 500.0,
+    sample_interval: float = 1.0,
+    session_config: SessionConfig | None = None,
+    enable_profiling: bool = False,
+) -> TrackingResultWithConfig:
+    """Compute accumulated attention seconds for each AOI from a batch of samples.
+
+    This is the main entry point for batch processing. It iterates through all
+    viewer samples, determines which AOI (if any) is being viewed at each sample,
+    and accumulates hit counts per AOI.
+
+    Each processed sample is assumed to represent exactly `sample_interval` seconds
+    of viewing time (default 1 second at 1 Hz sampling rate).
+
+    Performance Characteristics (Step 6.2):
+        Current throughput: 125-211 samples/second depending on AOI count and complexity.
+        - 300 samples × 20 AOIs: ~1.93s (155.8 samples/s, 6.42ms/sample)
+        - 300 samples × 50 AOIs: ~2.38s (125.8 samples/s, 7.95ms/sample)
+        - 600 samples × 10 AOIs: ~2.84s (211.2 samples/s, 4.73ms/sample)
+
+        Bottlenecks (by time spent):
+        1. Angular sweep algorithm (compute_coverage): ~40-45% - core algorithm
+        2. Polygon clipping (clip_polygon_to_wedge): ~40-45% - geometric operations
+        3. Halfplane clipping (clip_polygon_halfplane): ~20-25% - geometric operations
+        4. Distance calculations (_find_min_distance_at_angle): ~10-15%
+
+        Future optimization opportunities (see docs/PERFORMANCE_ANALYSIS.md):
+        - Pre-compute AOI bounding boxes (4-5% improvement, low complexity)
+        - Early distance-based AOI filtering (10-30% improvement, medium complexity)
+        - Result caching for similar samples (30-60% improvement, high complexity)
+
+        Current decision: Defer optimizations until real-world usage patterns are known.
+        Performance is acceptable for typical use cases (1 Hz sampling rate).
+
+    Args:
+        samples: Viewer observations in one of the following formats:
+            - List of ViewerSample objects
+            - NumPy array of shape (N, 4) where each row is [x, y, dx, dy]
+            Direction vectors in numpy input are automatically normalized.
+        aois: List of AOI objects defining the areas of interest to track.
+        field_of_view_deg: Field of view in degrees (default 90.0)
+        max_range: Maximum detection range in pixels (default 500.0)
+        sample_interval: Time interval per sample in seconds (default 1.0).
+            Each hit adds this many seconds to the AOI's total_attention_seconds.
+        session_config: Optional session configuration for metadata tracking.
+            If provided, frame_size is used for bounds checking on sample positions,
+            and the config is embedded in the result for downstream analytics.
+        enable_profiling: If True, capture lightweight performance metrics (timing,
+            sample counters) and include them in the result. Default False.
+            Note: Profiling adds ~4x overhead due to tracemalloc but does not alter results.
+
+    Returns:
+        TrackingResultWithConfig containing:
+        - aoi_results: Dict mapping AOI IDs to AOIResult objects with hit counts
+        - total_samples: Total number of samples processed
+        - samples_with_hits: Number of samples where any AOI was visible
+        - samples_no_winner: Number of samples where no AOI was in view
+        - session_config: The SessionConfig used (or None if not provided)
+        - profiling_data: ProfilingData with performance metrics if enable_profiling=True
+
+    Raises:
+        ValidationError: If samples is not a valid list of ViewerSamples
+        ValidationError: If aois contains invalid or duplicate IDs
+        ValidationError: If field_of_view_deg, max_range, or sample_interval are invalid
+
+    Invariants:
+        - total_samples == len(samples)
+        - samples_with_hits + samples_no_winner == total_samples
+        - sum(aoi_result.hit_count for all AOIs) == samples_with_hits
+        - All AOI IDs present in result (even with hit_count=0)
+        - Profiling does not affect accuracy or results
+
+    Example:
+        >>> samples = [
+        ...     ViewerSample(position=(100.0, 100.0), direction=(0.0, 1.0)),
+        ...     ViewerSample(position=(100.0, 100.0), direction=(0.0, 1.0)),
+        ...     ViewerSample(position=(100.0, 100.0), direction=(1.0, 0.0)),
+        ... ]
+        >>> aois = [
+        ...     AOI(id="shelf_A", contour=np.array([[90, 150], [110, 150], [100, 170]])),
+        ...     AOI(id="shelf_B", contour=np.array([[150, 90], [170, 90], [160, 110]])),
+        ... ]
+        >>> result = compute_attention_seconds(samples, aois)
+        >>> print(f"shelf_A received {result.get_hit_count('shelf_A')} seconds of attention")
+        >>> # With profiling enabled
+        >>> result = compute_attention_seconds(samples, aois, enable_profiling=True)
+        >>> if result.profiling_data:
+        ...     print(result.profiling_data)
+    """
+    import time
+
+    # Start profiling timer and memory tracking if enabled
+    start_time = time.perf_counter() if enable_profiling else 0.0
+    if enable_profiling:
+        import tracemalloc
+
+        tracemalloc.start()
+
+    # Normalize input to list of ViewerSample objects
+    normalized_samples = normalize_sample_input(samples)
+
+    # Determine frame_size for bounds checking
+    frame_size: tuple[float, float] | None = None
+    if session_config is not None and session_config.frame_size is not None:
+        frame_size = (
+            float(session_config.frame_size[0]),
+            float(session_config.frame_size[1]),
+        )
+
+    # Validate inputs
+    validate_viewer_samples(normalized_samples, frame_size=frame_size)
+    validate_aois(aois)
+    validate_tracking_params(
+        fov_deg=field_of_view_deg, max_range=max_range, sample_interval=sample_interval
+    )
+
+    # Initialize AOI results for all AOIs (even those with 0 hits)
+    aoi_results: dict[str | int, AOIResult] = {}
+    for aoi in aois:
+        aoi_results[aoi.id] = AOIResult(aoi_id=aoi.id)
+
+    # Track counters
+    total_samples = len(normalized_samples)
+    samples_with_hits = 0
+    samples_no_winner = 0
+
+    # Process each sample
+    # Performance note (Step 6.2): This loop processes samples sequentially,
+    # calling find_largest_obstacle() for each sample. Current throughput is
+    # 125-211 samples/second depending on AOI complexity.
+    #
+    # Profiled bottlenecks (see docs/PERFORMANCE_ANALYSIS.md):
+    # - compute_coverage (sweep algorithm): ~40-45% of time
+    # - clip_polygon_to_wedge (geometric ops): ~40-45% of time
+    #
+    # Future optimization opportunities (if needed):
+    # 1. Pre-compute AOI bounding boxes once per batch (4-5% improvement)
+    # 2. Filter AOIs by distance before processing (10-30% improvement)
+    # 3. Cache results for similar consecutive samples (30-60% improvement)
+    #
+    # Current decision: Defer optimizations. Performance is acceptable for
+    # typical use case of 1 Hz sampling (1 sample/second input rate).
+    #
+    # Memory efficiency (Step 6.4):
+    # - Uses return_details=False to only get winner ID, not full geometry
+    # - No intermediate results are retained between samples
+    # - Memory usage is O(num_aois) for results + O(1) per sample for counters
+    # - For very long sessions (5000+ samples), consider streaming mode
+    for sample_index, sample in enumerate(normalized_samples):
+        # Get the winning AOI ID for this sample
+        winning_id = process_single_sample(
+            sample=sample,
+            aois=aois,
+            field_of_view_deg=field_of_view_deg,
+            max_range=max_range,
+            return_details=False,
+        )
+
+        if winning_id is not None:
+            # Record hit for this AOI
+            samples_with_hits += 1
+            # winning_id is guaranteed to be str | int when not None
+            assert isinstance(winning_id, (str, int))  # for type checker
+            aoi_results[winning_id].add_hit(sample_index, sample_interval)
+        else:
+            samples_no_winner += 1
+
+    # Collect profiling data if enabled
+    profiling_data_obj = None
+    if enable_profiling:
+        from view_arc.tracking.dataclasses import ProfilingData
+
+        elapsed_time = time.perf_counter() - start_time
+
+        # Get peak memory usage
+        import tracemalloc
+
+        current_memory, peak_memory = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        profiling_data_obj = ProfilingData(
+            total_time_seconds=elapsed_time,
+            samples_processed=total_samples,
+            peak_memory_bytes=peak_memory,
+        )
+
+    return TrackingResultWithConfig(
+        aoi_results=aoi_results,
+        total_samples=total_samples,
+        samples_with_hits=samples_with_hits,
+        samples_no_winner=samples_no_winner,
+        session_config=session_config,
+        profiling_data=profiling_data_obj,
+    )
+
+
+# =============================================================================
+# Streaming Mode for Very Long Sessions (Step 6.4)
+# =============================================================================
+
+
+def _iterate_samples_chunked(
+    samples: SampleInput, chunk_size: int
+) -> Generator[list[ViewerSample], None, None]:
+    """Iterate through samples in chunks, normalizing only chunk_size samples at a time.
+
+    This helper function enables true O(chunk_size) memory usage by avoiding
+    materializing the entire sample list upfront.
+
+    Args:
+        samples: Input samples (list of ViewerSample or numpy array)
+        chunk_size: Number of samples per chunk
+
+    Yields:
+        Lists of ViewerSample objects, each containing at most chunk_size samples
+    """
+    import math
+
+    # If already a list of ViewerSamples, chunk it directly
+    if isinstance(samples, list):
+        for i in range(0, len(samples), chunk_size):
+            yield samples[i : i + chunk_size]
+        return
+
+    # NumPy array - iterate through rows without materializing full list
+    if isinstance(samples, np.ndarray):
+        if samples.ndim != 2:
+            raise ValidationError(
+                f"NumPy samples must be 2D array, got shape {samples.shape}"
+            )
+        if samples.shape[1] != 4:
+            raise ValidationError(
+                f"NumPy samples must have shape (N, 4), got shape {samples.shape}"
+            )
+
+        num_samples = samples.shape[0]
+        for chunk_start in range(0, num_samples, chunk_size):
+            chunk_end = min(chunk_start + chunk_size, num_samples)
+            chunk = []
+            for i in range(chunk_start, chunk_end):
+                row = samples[i]
+                x, y, dx, dy = (
+                    float(row[0]),
+                    float(row[1]),
+                    float(row[2]),
+                    float(row[3]),
+                )
+                # Normalize direction to unit vector
+                mag = math.sqrt(dx * dx + dy * dy)
+                if mag == 0:
+                    raise ValidationError(
+                        f"Sample at index {i} has zero-magnitude direction vector"
+                    )
+                dx_norm, dy_norm = dx / mag, dy / mag
+                chunk.append(
+                    ViewerSample(
+                        position=(x, y),
+                        direction=(dx_norm, dy_norm),
+                    )
+                )
+            yield chunk
+        return
+
+    raise ValidationError(
+        f"samples must be a list or numpy array, got {type(samples).__name__}"
+    )
+
+
+def compute_attention_seconds_streaming(
+    samples: SampleInput,
+    aois: list[AOI],
+    field_of_view_deg: float = 90.0,
+    max_range: float = 500.0,
+    sample_interval: float = 1.0,
+    session_config: SessionConfig | None = None,
+    chunk_size: int = 100,
+) -> Generator[TrackingResultWithConfig, None, None]:
+    """Compute attention seconds using streaming mode for true memory efficiency.
+
+    This function processes samples in chunks to minimize memory usage for
+    very long sessions (e.g., 5000+ samples). Unlike batch mode, it normalizes
+    only chunk_size samples at a time, achieving true O(chunk_size) memory footprint.
+
+    Key difference from compute_attention_seconds():
+    - Batch mode: Materializes all samples in memory upfront
+    - Streaming mode: Processes samples incrementally, only chunk_size in memory
+
+    It yields intermediate results after processing each chunk, allowing for:
+    - True O(chunk_size) peak memory usage (not O(N))
+    - Progress monitoring for long-running sessions
+    - Early termination if needed
+
+    Memory Usage (Step 6.4 - CORRECTED):
+        - Batch mode (compute_attention_seconds): O(N) where N = total samples
+        - Streaming mode: O(chunk_size) for active samples + O(num_aois) for results
+        - For 10,000 samples with chunk_size=100: ~1% of batch mode sample memory
+
+    Args:
+        samples: Viewer observations in one of the following formats:
+            - List of ViewerSample objects (chunked without full materialization)
+            - NumPy array of shape (N, 4) where rows are normalized per chunk
+            Direction vectors in numpy input are automatically normalized.
+        aois: List of AOI objects defining the areas of interest to track
+        field_of_view_deg: Field of view in degrees (default 90.0)
+        max_range: Maximum detection range in pixels (default 500.0)
+        sample_interval: Time interval per sample in seconds (default 1.0)
+        session_config: Optional session configuration for metadata tracking
+        chunk_size: Number of samples to process per chunk (default 100).
+            Must be positive. Smaller values reduce memory but increase overhead.
+
+    Yields:
+        TrackingResultWithConfig after processing each chunk. The final yield
+        contains the complete accumulated results for all samples.
+
+    Raises:
+        ValidationError: If chunk_size <= 0
+        ValidationError: If chunk_size is not an integer
+        ValidationError: Same validation as compute_attention_seconds() per chunk
+
+    Example:
+        >>> import numpy as np
+        >>> # Large numpy array - never fully materialized as ViewerSamples
+        >>> samples = np.random.rand(10000, 4)
+        >>> aois = [AOI(id="shelf_A", contour=...), ...]
+        >>> # Process in chunks of 100, monitoring progress
+        >>> for chunk_result in compute_attention_seconds_streaming(
+        ...     samples, aois, chunk_size=100
+        ... ):
+        ...     progress = chunk_result.total_samples / 10000
+        ...     print(f"Progress: {progress:.1%}")
+        >>> # chunk_result now contains final accumulated results
+        >>> print(f"Total hits: {chunk_result.samples_with_hits}")
+    """
+    # Validate chunk_size before any processing
+    if not isinstance(chunk_size, int):
+        raise ValidationError(
+            f"chunk_size must be an integer, got {type(chunk_size).__name__}"
+        )
+    if chunk_size <= 0:
+        raise ValidationError(f"chunk_size must be positive, got {chunk_size}")
+
+    # Validate inputs (lightweight checks that don't require materializing samples)
+    validate_aois(aois)
+    validate_tracking_params(
+        fov_deg=field_of_view_deg, max_range=max_range, sample_interval=sample_interval
+    )
+
+    # Determine frame_size for per-chunk validation
+    frame_size: tuple[float, float] | None = None
+    if session_config is not None and session_config.frame_size is not None:
+        frame_size = (
+            float(session_config.frame_size[0]),
+            float(session_config.frame_size[1]),
+        )
+
+    # Initialize AOI results for all AOIs
+    aoi_results: dict[str | int, AOIResult] = {}
+    for aoi in aois:
+        aoi_results[aoi.id] = AOIResult(aoi_id=aoi.id)
+
+    # Track counters
+    total_samples_processed = 0
+    samples_with_hits = 0
+    samples_no_winner = 0
+
+    # Process samples in chunks (true streaming - only chunk_size in memory)
+    # _iterate_samples_chunked normalizes only the current chunk, not the entire array
+    for chunk_samples in _iterate_samples_chunked(samples, chunk_size):
+        # Validate this chunk (only these samples are in memory)
+        validate_viewer_samples(chunk_samples, frame_size=frame_size)
+
+        # Process each sample in the current chunk
+        for sample in chunk_samples:
+            # Use current count as global sample index for hit_timestamps
+            global_sample_index = total_samples_processed
+
+            # Get the winning AOI ID for this sample
+            winning_id = process_single_sample(
+                sample=sample,
+                aois=aois,
+                field_of_view_deg=field_of_view_deg,
+                max_range=max_range,
+                return_details=False,
+            )
+
+            if winning_id is not None:
+                samples_with_hits += 1
+                assert isinstance(winning_id, (str, int))
+                aoi_results[winning_id].add_hit(global_sample_index, sample_interval)
+            else:
+                samples_no_winner += 1
+
+            total_samples_processed += 1
+
+        # Yield intermediate result after processing this chunk
+        yield TrackingResultWithConfig(
+            aoi_results={k: v.copy() for k, v in aoi_results.items()},
+            total_samples=total_samples_processed,
+            samples_with_hits=samples_with_hits,
+            samples_no_winner=samples_no_winner,
+            session_config=session_config,
+            profiling_data=None,  # Profiling not supported in streaming mode
+        )
+
+    # Final result already yielded in the last iteration
+    # No need to yield again
+
