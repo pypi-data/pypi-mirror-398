@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<object xmlns="http://textgrid.info/namespaces/metadata/core/2010" xmlns:tg="http://textgrid.info/relation-ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:tei="http://www.tei-c.org/ns/1.0">
+    <generic>
+        <provided>
+{% if work.title %}
+            <title>{{ work.title }}</title>
+{% endif %}
+            <format>text/tg.edition+tg.aggregation+xml</format>
+            <notes />
+        </provided>
+    </generic>
+    <edition>
+        <isEditionOf>{{ id }}.work</isEditionOf>
+{% if work.author.fullname %}
+        {% if work.author.id %}
+        <agent role="author" id="{{ work.author.id }}">{{ work.author.fullname }}</agent>
+        {% else %}
+        <agent role="author">{{ work.author.fullname }}</agent>
+        {% endif %}
+{% else %}
+        {% for c in collector %}
+                {% if c.fullname %}
+                        {% if c.url %}
+        <agent role="collector" id="{{ c.url }}">{{ c.fullname }}</agent>
+                        {% else %}
+        <agent role="collector">{{ c.fullname }}</agent>
+                        {% endif %}
+                {% endif %}
+        {% endfor %}
+{% endif %}
+        <source>
+        <bibliographicCitation>
+{% if edition.author.fullname %}
+    {% if edition.author.id %}
+            <author id="{{ edition.author.id }}">{{ edition.author.fullname }}</author>
+    {% else %}
+            <author>{{ edition.author.fullname }}</author>
+    {% endif %}
+{% endif %}
+{% if edition.title %}
+            <editionTitle>{{ edition.title }}</editionTitle>
+{% endif %}
+{% if edition.pub_place %}
+            <placeOfPublication>
+                <value>{{ edition.pub_place }}</value>
+            </placeOfPublication>
+{% endif %}
+{% if edition.pub_date %}
+            <dateOfPublication notBefore="{{ edition.pub_date }}" notAfter="{{ edition.pub_date }}">{{ edition.pub_date }}</dateOfPublication>
+{% endif %}
+            <spage />
+        </bibliographicCitation>
+        </source>
+{% if edition.language %}
+        <language>{{ edition.language }}</language>
+{% endif %}
+{% if all([edition.license.url, edition.license.title]) %}
+        <license licenseUri="{{ edition.license.url }}">{{ edition.license.title }}</license>
+{% endif %}
+    </edition>
+</object>
