@@ -1,0 +1,203 @@
+from enum import Enum
+from typing import Union, Literal, Optional
+
+from discordmenu.emoji.emoji_cache import emoji_cache
+
+AWAKENING_ID_TO_EMOJI_NAME_MAP = {
+    1: 'boost_hp',
+    2: 'boost_atk',
+    3: 'boost_rcv',
+    4: 'reduce_fire',
+    5: 'reduce_water',
+    6: 'reduce_wood',
+    7: 'reduce_light',
+    8: 'reduce_dark',
+    9: 'misc_autoheal',
+    10: 'res_bind',
+    11: 'res_blind',
+    12: 'res_jammer',
+    13: 'res_poison',
+    14: 'oe_fire',
+    15: 'oe_water',
+    16: 'oe_wood',
+    17: 'oe_light',
+    18: 'oe_dark',
+    19: 'misc_te',
+    20: 'misc_bindclear',
+    21: 'misc_sb',
+    22: 'row_fire',
+    23: 'row_water',
+    24: 'row_wood',
+    25: 'row_light',
+    26: 'row_dark',
+    27: 'misc_tpa',
+    28: 'res_skillbind',
+    29: 'oe_heart',
+    30: 'misc_multiboost',
+    31: 'killer_dragon',
+    32: 'killer_god',
+    33: 'killer_devil',
+    34: 'killer_machine',
+    35: 'killer_balance',
+    36: 'killer_attacker',
+    37: 'killer_physical',
+    38: 'killer_healer',
+    39: 'killer_evomat',
+    40: 'killer_awoken',
+    41: 'killer_enhancemat',
+    42: 'killer_vendor',
+    43: 'misc_comboboost',
+    44: 'misc_guardbreak',
+    45: 'misc_extraattack',
+    46: 'teamboost_hp',
+    47: 'teamboost_rcv',
+    48: 'misc_voidshield',
+    49: 'misc_assist',
+    50: 'misc_super_extraattack',
+    51: 'misc_skillcharge',
+    52: 'res_bind_super',
+    53: 'misc_te_super',
+    54: 'res_cloud',
+    55: 'res_seal',
+    56: 'misc_sb_super',
+    57: 'attack_boost_high',
+    58: 'attack_boost_low',
+    59: 'l_shield',
+    60: 'l_attack',
+    61: 'misc_super_comboboost',
+    62: 'orb_combo',
+    63: 'misc_voice',
+    64: 'misc_dungeonbonus',
+    65: 'reduce_hp',
+    66: 'reduce_atk',
+    67: 'reduce_rcv',
+    68: 'res_blind_super',
+    69: 'res_jammer_super',
+    70: 'res_poison_super',
+    71: 'misc_jammerboost',
+    72: 'misc_poisonboost',
+    73: 'cc_fire',
+    74: 'cc_water',
+    75: 'cc_wood',
+    76: 'cc_light',
+    77: 'cc_dark',
+    78: 'cross_attack',
+    79: 'boost_attr3',
+    80: 'boost_attr4',
+    81: 'boost_attr5',
+    82: 'blob_boost',
+    83: 'addtype_dragon',
+    84: 'addtype_god',
+    85: 'addtype_devil',
+    86: 'addtype_machine',
+    87: 'addtype_balanced',
+    88: 'addtype_attacker',
+    89: 'addtype_physical',
+    90: 'addtype_healer',
+    91: 'subattr_red',
+    92: 'subattr_blue',
+    93: 'subattr_green',
+    94: 'subattr_light',
+    95: 'subattr_dark',
+    96: 'misc_tpa_super',
+    97: 'misc_skillcharge_super',
+    98: 'misc_autoheal_super',
+    99: 'oe_fire_super',
+    100: 'oe_water_super',
+    101: 'oe_wood_super',
+    102: 'oe_light_super',
+    103: 'oe_dark_super',
+    104: 'oe_heart_super',
+    105: 'misc_sb_minus',
+    106: 'misc_levitate',
+    107: 'misc_comboboost_super',
+    108: 'l_attack_super',
+    109: 'misc_voidshield_super',
+    110: 'cross_boost_super',
+    111: 'misc_super_comboboost_super',
+    112: 'boost_attr3_super',
+    113: 'boost_attr4_super',
+    114: 'boost_attr5_super',
+    115: 'misc_bindclear_super',
+    116: 'row_fire_super',
+    117: 'row_water_super',
+    118: 'row_wood_super',
+    119: 'row_light_super',
+    120: 'row_dark_super',
+    121: 'rcombo_super',
+    122: 'bcombo_super',
+    123: 'gcombo_super',
+    124: 'lcombo_super',
+    125: 'dcombo_super',
+    126: 'misc_TA',
+    127: 'allstatboost',
+    128: 'blessing_yang',
+    129: 'blessing_yin',
+    130: 'misc_aging',
+    131: 'part_break_bonus',
+    132: 'afternoon_tea',
+    133: 'fw_attack',
+    134: 'ww_attack',
+    135: 'wf_attack',
+    136: 'sdr',
+    137: 'oe_all',
+    138: 'assist_resonance',
+}
+
+AWAKENING_RESTRICTED_LATENT_VALUE_TO_EMOJI_NAME_MAP = {
+    606: 'unmatchable_clear',
+    607: 'spinner_clear',
+    608: 'absorb_pierce',
+}
+
+
+def awakening_restricted_latent_emoji(latent):
+    return get_emoji('latent_{}'.format(AWAKENING_RESTRICTED_LATENT_VALUE_TO_EMOJI_NAME_MAP[latent.value]))
+
+
+def get_type_emoji(mons_type):
+    return get_emoji('mons_type_' + mons_type.name.lower())
+
+
+def get_attribute_emoji_by_monster(monster):
+    attr1 = monster.attr1.name.lower()
+    attr2 = monster.attr2.name.lower()
+    attr3 = monster.attr3.name.lower()
+    is_2attr = monster.attr3.value == 6
+    if attr1 == attr2 and is_2attr:
+        emoji = 'orb_{}'.format(attr1)
+    elif is_2attr:
+        emoji = "{}_{}".format(attr1, attr2)
+    else:
+        emoji = "{}_{}_{}".format(attr1, attr2, attr3)
+    return get_emoji(emoji)
+
+
+def get_attribute_emoji_by_enum(type1: Union[Enum, Literal[False]],
+                                type2: Optional[Union[Enum, Literal[False]]] = None):
+    attr1 = 'nil' if type1 is False else type1.name.lower()
+    attr2 = 'nil' if type2 is False else type2.name.lower() if type2 else attr1
+    emoji = "{}_{}".format(attr1, attr2) if attr1 != attr2 else 'orb_{}'.format(attr1)
+    return get_emoji(emoji)
+
+
+def get_rarity_emoji(rarity: int):
+    emoji = 'star_0{}'.format(rarity) if rarity < 10 else 'star_{}'.format(rarity)
+    return get_emoji(emoji)
+
+
+def get_awakening_emoji(awid: Union[Enum, int], default: str = None):
+    name = AWAKENING_ID_TO_EMOJI_NAME_MAP.get(awid if isinstance(awid, int) else awid.value, default)
+    if name is None:
+        raise ValueError("Couldn't find expected awakening. Did you remember to update tsutils?")
+    return get_emoji(name)
+
+
+def get_emoji(name):
+    if isinstance(name, int):
+        name = AWAKENING_ID_TO_EMOJI_NAME_MAP[name]
+    return emoji_cache.get_emoji(name)
+
+
+def number_emoji_small(num: int):
+    return emoji_cache.get_emoji(f"bullet_{num}")
