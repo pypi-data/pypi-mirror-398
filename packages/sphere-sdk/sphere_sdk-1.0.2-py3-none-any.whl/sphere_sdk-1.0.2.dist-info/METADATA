@@ -1,0 +1,267 @@
+Metadata-Version: 2.4
+Name: sphere-sdk
+Version: 1.0.2
+Summary: The official Python SDK for interacting with the Sphere trading platform.
+Author-email: Sphere Innovations Ltd <hello@onsphere.com>
+Project-URL: Homepage, https://onsphere.com
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX :: Linux
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE.txt
+Requires-Dist: protobuf>=6.31.1
+Dynamic: license-file
+
+# Sphere Trading Client SDK (Python)
+
+## Licensing
+
+**IMPORTANT:** This software is proprietary and requires a separate, signed license agreement before use. It is **not** open source.
+
+*   **License Type:** Commercial, Proprietary
+*   **Agreement Required:** Yes, a signed agreement with Sphere Innovations Ltd is mandatory.
+*   **Contact:** To inquire about licensing, please contact hello@onsphere.com.
+
+Do not download, install, or use this software if you do not have a valid license agreement.
+
+## Getting Started Guide
+Welcome to the Sphere Trading SDK for Python! This guide will walk you through the essential steps to get you connected to the Sphere Trading Platform, authenticated, and subscribed to real-time data.
+
+### Prerequisites
+*   Python
+*   A Sphere API account (username and password).
+
+### Step 1: Installation
+The Sphere Trading SDK is available as a package on PyPI. You can install it using pip. Open your terminal or command prompt and run:
+
+`pip install --extra-index-url https://pypi.org/simple/sphere-sdk`
+
+This command will download and install the SDK and all its necessary dependencies.
+
+### Step 2: The Core Concepts
+Before we write code, let's understand the basic workflow of the SDK:
+1. **Initialize the SDK**: Create an instance of the main `SphereTradingClientSDK` class.
+2. **Login**: Authenticate your session using your Sphere username and password.
+3. **Define a Callback**: Write a Python function that will process the data you receive from Sphere. This function is "called back" by the SDK every time a new event arrives.
+4. **Subscribe**: Tell the SDK you want to start receiving data and link it to your callback function.
+5. **Process Data**: Your callback function will now receive data as it's published.
+6. **Logout**: When you're done, gracefully unsubscribe from events and log out to terminate the session.
+
+### Step 3: Understanding the Data Models
+
+The data you receive, like `order_data` in the callback, is structured using Google Protocol Buffers. This ensures data is transmitted efficiently and is strongly typed. The SDK provides the `sphere_sdk_types_pb2` module to work with these structures.
+
+In our example implementation (interactive_order_test.py), the callback receives an `OrderStacksDto` object. Let's break down its structure based on the example code:
+
+There are two types of events ORDER_STACKS_EVENT_TYPE_SNAPSHOT which will be received on initial subscription and ORDER_STACKS_EVENT_TYPE_SNAPSHOT_AMENDED which is sent when a change occurs.
+Only the stacks that have changed will be sent with ORDER_STACKS_EVENT_TYPE_SNAPSHOT_AMENDED events.
+
+* **OrderStacksDto**: The top-level object for an order event.
+    * `event_type` (`enum`): Identifies the message type (e.g., ORDER_STACKS_EVENT_TYPE_SNAPSHOT, ORDER_STACKS_EVENT_TYPE_SNAPSHOT_AMENDED).
+    * `body` (list of `OrderStackDto`): A list containing the order details, grouped by contract.
+
+* **OrderStackDto**: Represents all orders for a single contract.
+    * `contract` (`ContractDto`): Information about the instrument.
+    * `orders` (list of `OrderDto`): A list of orders for this contract.
+
+* **OrderDto**: Represents a single order.
+    * `id` (`string`): The persistent, unique identifier for an order across its lifecycle.
+    * `instance_id` (`string`): The identifier for a specific version of an order. This value changes with each amendment (e.g., price change). This is the ID that should be used when executing a trade.
+    * `price` (`PriceDto`): Contains price and quantity.
+    * `updated_time` (`string`): The timestamp of the last update.
+    * `stack_position` (`number`): The position in the order stack. Zero denotes top of stack.
+    * `interest_type` (`enum`): The nature of the order's interest (e.g., INTEREST_TYPE_LIVE, INTEREST_TYPE_INDICATIVE).
+    * `tradability` (`enum`): Whether the order is currently tradable (e.g., TRADABILITY_TRADABLE, TRADABILITY_UNTRADABLE).
+    * `parties` (`OrderPartiesDto`): Contains party information (e.g., initiator trader). This will only be visible if you have permissions to see this information.
+
+* **OrderPartiesDto**: Represents all party information for an order
+    * `initiator_broker` (`PartyDto`): Contains information for the specific party.
+    * `initiator_trader` (`PartyDto`): Contains information for the specific party.
+    * `brokers` (list of `OrderBrokerDto`): A list of all brokers associated with the order.
+
+* **OrderBrokerDto**:
+    * `code` (`string`): The unique code for the broker.
+
+* **PartyDto**: Represents a single party.
+    * `full_name` (`string`): The full name of the party.
+    * `company_name` (`string`): The company name for the party.
+
+
+In our example implementation (interactive_trade_test.py), the callback receives an `TradeMessageDto` object. Let's break down its structure based on the example code:
+
+The TRADE_EVENT_TYPE_SNAPSHOT event type will be received on initial subscription. The TRADE_EVENT_TYPE_EXECUTED, TRADE_EVENT_TYPE_AMENDED and TRADE_EVENT_TYPE_VOIDED event types will be sent when the associated actions have occured.
+The data contained will include only the trades impacted.
+
+*  **TradeMessageDto**: The top-level object for a trade event.
+    *   `event_type` (`enum`): Identifies the message type (e.g., TRADE_EVENT_TYPE_SNAPSHOT, TRADE_EVENT_TYPE_EXECUTED, TRADE_EVENT_TYPE_AMENDED, TRADE_EVENT_TYPE_VOIDED).
+    *   `body` (list of `TradeDto`): A list containing the trade details.
+
+*  **TradeDto**: Represents a single trade.
+    * `id` (`string`): The unique identifier for the trade
+    * `created_time` (`string`): The timestamp indicating when the trade was executed, in ISO 8601 format.
+    * `contract` (`ContractDto`): Information about the instrument.
+    * `price` (`PriceDto`): Contains price and quantity.
+    * `interest_type` (`enum`): The nature of the trade's interest (e.g., INTEREST_TYPE_LIVE, INTEREST_TYPE_INDICATIVE).
+
+#### Executing a Trade
+
+The SDK provides the `trade_order` function to execute a trade against an existing, tradable order on the platform. To do this, you must construct a `TradeOrderRequestDto` object and pass it to the function. The interactive_trade_order_test.py script provides a working example of this process.
+*  **TradeOrderRequestDto**: This is the object you create and send to the SDK to initiate a trade.
+    * `order_instance_id` (`string`): The `instance_id` of the `OrderDto` you wish to trade against. This ensures you are trading against a specific version of an order.
+    * `quantity` (`string, optional`): The volume you wish to trade. If this field is not set, the trade will be executed for the full available quantity of the target order.
+    * `idempotency_key` (`string`): A unique key to identify this trade request and prevent duplicate trades. It is recommended to use a GUID for this value.
+
+#### Creating a Flat Order for a Trader
+
+The SDK provides the `create_trader_flat_order` function to create a new order on the platform. To do this, you must construct a `TraderFlatOrderRequestDto` object and pass it to the function. The interactive_create_flat_order_test.py script provides a working example of this process.
+*  **TraderFlatOrderRequestDto**: This is the object you create and send to the SDK to initiate an order.
+    * `idempotency_key` (`string`): A unique key to identify this order request and prevent duplicate submissions. Recommended to use a GUID.
+    * `side` (`enum`): The side of the order (e.g., ORDER_SIDE_BID).
+    * `expiry` (`string`): The primary expiry of the contract (e.g., "Jun-25").
+    * `instrument_name` (`string`): The name of the instrument.
+    * `price` (`OrderRequestPriceDto`): Details about the order's price and quantity.
+    * `parties` (`TraderOrderRequestPartiesDto`): Information about the brokers involved.
+
+#### Creating a Spread Order for a Trader
+
+The SDK provides the `create_trader_spread_order` function to create a new order on the platform. To do this, you must construct a `TraderSpreadOrderRequestDto` object and pass it to the function. The interactive_create_spread_order_test.py script provides a working example of this process.
+*  **TraderSpreadOrderRequestDto**: This is the object you create and send to the SDK to initiate an order.
+    * `idempotency_key` (`string`): A unique key to identify this order request and prevent duplicate submissions. Recommended to use a GUID.
+    * `side` (`enum`): The side of the order (e.g., ORDER_SIDE_BID).
+    * `price` (`OrderRequestPriceDto`): Details about the order's price and quantity.
+    * `front_expiry` (`string`): The front expiry of the contract (e.g., "Jun-25").
+    * `back_expiry` (`string`): The back expiry of the contract (e.g., "Jul-25").
+    * `instrument_name` (`string`): The name of the instrument.
+    * `parties` (`TraderOrderRequestPartiesDto`): Information about the brokers involved.
+
+#### Creating a Strip Order for a Trader
+
+The SDK provides the `create_trader_strip_order` function to create a new order on the platform. To do this, you must construct a `TraderStripOrderRequestDto` object and pass it to the function. The interactive_create_strip_order_test.py script provides a working example of this process.
+*  **TraderStripOrderRequestDto**: This is the object you create and send to the SDK to initiate an order.
+    * `idempotency_key` (`string`): A unique key to identify this order request and prevent duplicate submissions. Recommended to use a GUID.
+    * `side` (`enum`): The side of the order (e.g., ORDER_SIDE_BID).
+    * `price` (`OrderRequestPriceDto`): Details about the order's price and quantity.
+    * `front_expiry` (`string`): The front expiry of the contract (e.g., "Jun-25").
+    * `back_expiry` (`string`): The back expiry of the contract (e.g., "Aug-25").
+    * `instrument_name` (`string`): The name of the instrument.
+    * `parties` (`TraderOrderRequestPartiesDto`): Information about the brokers involved.
+
+#### Creating a Fly Order for a Trader
+
+The SDK provides the `create_trader_fly_order` function to create a new order on the platform. To do this, you must construct a `TraderFlyOrderRequestDto` object and pass it to the function. The interactive_create_fly_order_test.py script provides a working example of this process.
+*  **TraderFlyOrderRequestDto**: This is the object you create and send to the SDK to initiate an order.
+    * `idempotency_key` (`string`): A unique key to identify this order request and prevent duplicate submissions. Recommended to use a GUID.
+    * `side` (`enum`): The side of the order (e.g., ORDER_SIDE_BID).
+    * `price` (`OrderRequestPriceDto`): Details about the order's price and quantity.
+    * `first_expiry` (`string`): The first expiry of the contract.
+    * `second_expiry` (`string`): The second expiry of the contract.
+    * `third_expiry` (`string`): The third expiry of the contract.
+    * `instrument_name` (`string`): The name of the instrument.
+    * `parties` (`TraderOrderRequestPartiesDto`): Information about the brokers involved.
+
+#### Cancel an Order
+
+The SDK provides the `cancel_order` function to cancel an Order on the platform. To do this, you must construct a `CancelOrderRequestDto` object and pass it to the function. The interactive_cancel_order_test.py script provides a working example of this process.
+*  **CancelOrderRequestDto**: This is the object you create and send to the SDK to cancel an Order.
+    * `instance_id` (`string`): The `instance_id` of the `OrderDto` you wish to cancel. 
+    * `idempotency_key` (`string`): A unique key to identify this cancel order request and prevent duplicate requests. It is recommended to use a GUID for this value.
+
+### Update an Flat Order for a Trader
+
+The SDK provides the `update_trader_flat_order` function to update an existing order on the platform. To do this, you must construct a `TraderUpdateFlatOrderRequestDto` object and pass it to the function. The interactive_update_flat_order_test.py script provides a working example of this process.
+*  **TraderUpdateFlatOrderRequestDto**: This is the object you create and send to the SDK to initiate an order update.    
+    * `instance_id` (`string`): The `instance_id` of the `OrderDto` you wish to update. This ensures you are updating against a specific version of an order.
+    * `idempotency_key` (`string`): A unique key to identify this order request and prevent duplicate submissions. Recommended to use a GUID.    
+    * `price` (`OrderRequestPriceDto`): Details about the order's price and quantity.
+    * `parties` (`TraderOrderRequestPartiesDto`): Information about the brokers involved.
+
+### Update an Spread Order for a Trader
+
+The SDK provides the `update_trader_spread_order` function to update an existing order on the platform. To do this, you must construct a `TraderUpdateSpreadOrderRequestDto` object and pass it to the function. The interactive_update_spread_order_test.py script provides a working example of this process.
+*  **TraderUpdateSpreadOrderRequestDto**: This is the object you create and send to the SDK to initiate an order update.    
+    * `instance_id` (`string`): The `instance_id` of the `OrderDto` you wish to update. This ensures you are updating against a specific version of an order.
+    * `idempotency_key` (`string`): A unique key to identify this order request and prevent duplicate submissions. Recommended to use a GUID.    
+    * `price` (`OrderRequestPriceDto`): Details about the order's price and quantity.
+    * `parties` (`TraderOrderRequestPartiesDto`): Information about the brokers involved.
+
+### Update an Strip Order for a Trader
+
+The SDK provides the `update_trader_strip_order` function to update an existing order on the platform. To do this, you must construct a `TraderUpdateStripOrderRequestDto` object and pass it to the function. The interactive_update_strip_order_test.py script provides a working example of this process.
+*  **TraderUpdateStripOrderRequestDto**: This is the object you create and send to the SDK to initiate an order update.    
+    * `instance_id` (`string`): The `instance_id` of the `OrderDto` you wish to update. This ensures you are updating against a specific version of an order.
+    * `idempotency_key` (`string`): A unique key to identify this order request and prevent duplicate submissions. Recommended to use a GUID.    
+    * `price` (`OrderRequestPriceDto`): Details about the order's price and quantity.
+    * `parties` (`TraderOrderRequestPartiesDto`): Information about the brokers involved.
+
+### Update an Fly Order for a Trader
+
+The SDK provides the `update_trader_fly_order` function to update an existing order on the platform. To do this, you must construct a `TraderUpdateFlyOrderRequestDto` object and pass it to the function.
+*  **TraderUpdateFlyOrderRequestDto**: This is the object you create and send to the SDK to initiate an order update.    
+    * `instance_id` (`string`): The `instance_id` of the `OrderDto` you wish to update.
+    * `idempotency_key` (`string`): A unique key to identify this order request and prevent duplicate submissions. Recommended to use a GUID.    
+    * `price` (`OrderRequestPriceDto`): Details about the order's price and quantity.
+    * `parties` (`TraderOrderRequestPartiesDto`): Information about the brokers involved.
+
+#### Getting Static Data
+
+The SDK provides functions to retrieve static reference data from the Sphere platform. The `interactive_fetch_static_data_test.py` script provides a working example of how to call these functions.
+
+* **InstrumentDto**: Represents a tradable instrument.
+    * `name` (`string`): The name of the instrument (e.g., "Naphtha MOPJ").
+
+* **ExpiryDto**: Represents a contract expiry.
+    * `name` (`string`): The name of the expiry (e.g., "Dec-25").
+
+#### Shared Data Models
+
+* **ContractDto**: Contains detailed information about the instrument.
+    *   `side` (`enum`): Optional, only appearing on orders. The side of the contract (e.g., `ORDER_SIDE_BID`).
+    *   `expiry` (`string`): The primary expiry of the contract (e.g., "Jun-25").
+    *   `expiry_type` (`enum`): The type of contract (e.g., `EXPIRY_TYPE_SPREAD`, `EXPIRY_TYPE_FLY`).
+    *   `instrument_name` (`string`): The name of the instrument.
+    *   `instrument_type` (`enum`): The specific type of the instrument.
+    *   `constituents` (list of `ConstituentDto`): For a strip, this lists the individual months that make up the strip.
+    *   `legs` (list of `LegDto`): For a spread or fly, this lists the individual contracts that make up the order/trade.
+
+* **LegDto**: Describes one part of a multi-part contract like a spread.
+    *   `instrument_name` (`string`): The name of the instrument for this specific leg.
+    *   `expiry` (`string`): The expiry of this leg.
+    *   `expiry_type` (`enum`): The type of this leg (e.g., `LEG_EXPIRY_TYPE_OUTRIGHT`).
+    *   `spread_side` (`enum`): Indicates if this leg is the buy or sell component of the spread (e.g., `SPREAD_SIDE_TYPE_BUY`).
+    *   `constituents` (list of `ConstituentDto`): The constituents, if a leg itself is a strip.
+
+* **ConstituentDto**: Represents a single month within a strip contract.
+    *   `expiry` (`string`): The expiry of the single month.
+
+* **PriceDto**: Contains price and quantity.
+    * `quantity` (`string/number`): The size of the trade/order.
+    * `per_price_unit` (`string/number`): The price of the trade/order.
+    * `units` (`enum`): The unit of measurement for the quantity of the trade/order (e.g., `UNIT_KB`).
+    * `unit_period` (`enum`): The time period for which the per_price_unit applies (e.g., `UNIT_PERIOD_DAY`).
+    
+* **BrokerDto**: Contains broker information.
+    * `code` (`string`): The unique code for the broker.
+    * `name` (`string`, optional): The name of the broker.
+
+* **ClearingOptionDto**: Contains clearing information.
+    * `code` (`string`): The unique code for the clearing option.
+
+*  **OrderRequestPriceDto**: Contains pricing information for an order
+    * `per_price_unit` (`string/number`): The price of the order.
+    * `quantity` (`string/number`): The size of the order (e.g., "10").    
+    * `ordered_clearing_options` (list of `ClearingOptionDto`): Ordered clearing options. Options are provided in order, the first item will be set as preferred. If no preference do not set. 
+
+*  **TraderOrderRequestPartiesDto**: Contains broker information for the new order   
+    * `primary_broker` (`OrderRequestBrokerDto`): The primary broker for the order.
+    * `secondary_brokers` (list of `OrderRequestBrokerDto`): A list of secondary brokers.
+
+* **OrderRequestBrokerDto**: Contains broker information for the new order.
+    * `code` (`string`): The unique code for the broker.
+
+* **OrderRequestClearingOptionDto**: Contains clearing information for the new order.
+    * `code` (`string`): The unique code for the clearing option.
+
+*  **OrderResponseDto**: This is the object you receive after successfully creating an order.
+    * `id` (`string`): The persistent, unique identifier for the newly created order.
+    * `instance_id` (`string`): The unique identifier for this specific version of the newly created order.
