@@ -1,0 +1,515 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        target: [x86_64, x86, aarch64, armv7, s390x, ppc64le]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.x
+          allow-prereleases: true
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --interpreter python3.10 python3.11 python3.12 python3.13 python3.14 python3.14t pypy3.10 pypy3.11
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          manylinux: auto
+      - name: Upload wheels
+        uses: actions/upload-artifact@v6
+        with:
+          name: wheels-linux-${{ matrix.target }}
+          path: dist
+
+  musllinux:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        target: [x86_64, x86, aarch64, armv7]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.x
+          allow-prereleases: true
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --interpreter python3.10 python3.11 python3.12 python3.13 python3.14 python3.14t pypy3.10 pypy3.11
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          manylinux: musllinux_1_2
+      - name: Upload wheels
+        uses: actions/upload-artifact@v6
+        with:
+          name: wheels-musllinux-${{ matrix.target }}
+          path: dist
+
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [x64, x86]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: |
+            3.10
+            3.11
+            3.12
+            3.13
+            3.14
+          architecture: ${{ matrix.target }}
+          allow-prereleases: true
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13 3.14
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Upload wheels
+        uses: actions/upload-artifact@v6
+        with:
+          name: wheels-windows-${{ matrix.target }}
+          path: dist
+
+  windows-freethreaded:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [x64, x86]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14t'
+          architecture: ${{ matrix.target }}
+          allow-prereleases: true
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --interpreter 3.14t
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Upload wheels
+        uses: actions/upload-artifact@v6
+        with:
+          name: wheels-windows-${{ matrix.target }}-freethreaded
+          path: dist
+
+  macos:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - runner: macos-15
+            target: x86_64
+          - runner: macos-14
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.x
+          allow-prereleases: true
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13 3.14 3.14t pypy3.10 pypy3.11
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Upload wheels
+        uses: actions/upload-artifact@v6
+        with:
+          name: wheels-macos-${{ matrix.target }}
+          path: dist
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - name: Upload sdist
+        uses: actions/upload-artifact@v6
+        with:
+          name: wheels-sdist
+          path: dist
+
+  update-homebrew-formula:
+    name: Update Homebrew formula
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-binaries]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download binaries
+        uses: actions/download-artifact@v7
+        with:
+          pattern: binary-*
+          path: binaries
+
+      - name: Compute checksums and update formula
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "Updating formula to version $VERSION"
+
+          # Flatten binaries
+          mkdir -p binaries-flat
+          find binaries -type f -name "pytest-language-server*" -exec cp {} binaries-flat/ \;
+          ls -la binaries-flat/
+
+          # Verify all required binaries exist
+          for binary in aarch64-apple-darwin x86_64-apple-darwin aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu; do
+            if [ ! -f "binaries-flat/pytest-language-server-$binary" ]; then
+              echo "Missing required binary: pytest-language-server-$binary"
+              exit 1
+            fi
+          done
+          echo "All required binaries present"
+
+          # Compute SHA256 checksums
+          SHA_MACOS_ARM64=$(sha256sum binaries-flat/pytest-language-server-aarch64-apple-darwin | cut -d' ' -f1)
+          SHA_MACOS_X86=$(sha256sum binaries-flat/pytest-language-server-x86_64-apple-darwin | cut -d' ' -f1)
+          SHA_LINUX_ARM64=$(sha256sum binaries-flat/pytest-language-server-aarch64-unknown-linux-gnu | cut -d' ' -f1)
+          SHA_LINUX_X86=$(sha256sum binaries-flat/pytest-language-server-x86_64-unknown-linux-gnu | cut -d' ' -f1)
+
+          echo "SHA256 checksums:"
+          echo "  macOS ARM64: $SHA_MACOS_ARM64"
+          echo "  macOS x86_64: $SHA_MACOS_X86"
+          echo "  Linux ARM64: $SHA_LINUX_ARM64"
+          echo "  Linux x86_64: $SHA_LINUX_X86"
+
+          # Update formula using sed replacements
+          sed -i \
+            -e "s/version \".*\"/version \"$VERSION\"/" \
+            -e "s|download/v[^/]*/pytest-language-server|download/v$VERSION/pytest-language-server|g" \
+            -e "/aarch64-apple-darwin/{ n; s/sha256 \".*\"/sha256 \"$SHA_MACOS_ARM64\"/; }" \
+            -e "/x86_64-apple-darwin/{ n; s/sha256 \".*\"/sha256 \"$SHA_MACOS_X86\"/; }" \
+            -e "/aarch64-unknown-linux-gnu/{ n; s/sha256 \".*\"/sha256 \"$SHA_LINUX_ARM64\"/; }" \
+            -e "/x86_64-unknown-linux-gnu/{ n; s/sha256 \".*\"/sha256 \"$SHA_LINUX_X86\"/; }" \
+            Formula/pytest-language-server.rb
+
+          echo "Updated formula:"
+          cat Formula/pytest-language-server.rb
+
+      - name: Commit and push formula update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/pytest-language-server.rb
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update Homebrew formula to ${GITHUB_REF#refs/tags/}"
+            # Retry push with rebase if there's a race condition
+            git push || {
+              echo "Push failed, retrying with rebase..."
+              git pull --rebase
+              git push
+            }
+          fi
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [linux, musllinux, windows, windows-freethreaded, macos, sdist, build-binaries, update-homebrew-formula]
+    permissions:
+      id-token: write
+      contents: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: wheels-*
+          path: wheels
+
+      - name: Download standalone binaries
+        uses: actions/download-artifact@v7
+        with:
+          pattern: binary-*
+          path: binaries
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: "wheels/*/*.whl"
+
+      - name: Flatten wheels directory
+        run: |
+          mkdir -p dist
+          find wheels -name "*.whl" -exec cp {} dist/ \;
+          find wheels -name "*.tar.gz" -exec cp {} dist/ \;
+          ls -lh dist/
+
+      - name: Flatten binaries directory
+        run: |
+          mkdir -p binaries-dist
+          find binaries -type f -name "pytest-language-server*" -exec cp {} binaries-dist/ \;
+          chmod +x binaries-dist/* || true
+          ls -lh binaries-dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            binaries-dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+          verbose: true
+
+  publish-crates:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "publish-crates"
+      - name: Publish to crates.io
+        run: cargo publish --allow-dirty --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  build-binaries:
+    name: Build standalone binaries for extensions
+    runs-on: ${{ matrix.os }}
+    if: startsWith(github.ref, 'refs/tags/')
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary_name: pytest-language-server-x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            binary_name: pytest-language-server-aarch64-unknown-linux-gnu
+          - os: macos-15
+            target: x86_64-apple-darwin
+            binary_name: pytest-language-server-x86_64-apple-darwin
+          - os: macos-14
+            target: aarch64-apple-darwin
+            binary_name: pytest-language-server-aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary_name: pytest-language-server.exe
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "build-binaries-${{ matrix.target }}"
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Build binary
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+      - name: Rename binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mv target/${{ matrix.target }}/release/pytest-language-server target/${{ matrix.target }}/release/${{ matrix.binary_name }}
+      - name: Rename binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          move target\${{ matrix.target }}\release\pytest-language-server.exe target\${{ matrix.target }}\release\${{ matrix.binary_name }}
+      - name: Upload binary
+        uses: actions/upload-artifact@v6
+        with:
+          name: binary-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/${{ matrix.binary_name }}
+
+  publish-vscode:
+    name: Publish VSCode extension
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-binaries]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: Download all binaries
+        uses: actions/download-artifact@v7
+        with:
+          pattern: binary-*
+          path: extensions/vscode-extension/bin
+      - name: Flatten binaries
+        run: |
+          cd extensions/vscode-extension/bin
+          find . -type f -name "pytest-language-server*" -exec mv {} . \;
+          find . -type d -empty -delete
+          chmod +x pytest-language-server-* || true
+          ls -lh
+      - name: Install dependencies
+        run: |
+          cd extensions/vscode-extension
+          npm install
+          npm install -g @vscode/vsce
+      - name: Package extension
+        run: |
+          cd extensions/vscode-extension
+          vsce package
+      - name: Publish to VSCode Marketplace
+        run: |
+          cd extensions/vscode-extension
+          vsce publish -p ${{ secrets.VSCE_TOKEN }}
+
+  publish-intellij:
+    name: Publish IntelliJ/PyCharm plugin
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-binaries]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Download all binaries
+        uses: actions/download-artifact@v7
+        with:
+          pattern: binary-*
+          path: extensions/intellij-plugin/src/main/resources/bin
+      - name: Flatten binaries
+        run: |
+          cd extensions/intellij-plugin/src/main/resources/bin
+          find . -type f -name "pytest-language-server*" -exec mv {} . \;
+          find . -type d -empty -delete
+          chmod +x pytest-language-server-* || true
+          ls -lh
+      - name: Build plugin
+        run: |
+          cd extensions/intellij-plugin
+          chmod +x build.sh gradlew
+          ./build.sh
+      - name: Upload plugin to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: extensions/intellij-plugin/build/distributions/pytest-language-server-*.zip
+      - name: Verify plugin compatibility
+        run: |
+          # Download plugin verifier
+          curl -L https://github.com/JetBrains/intellij-plugin-verifier/releases/download/1.307/plugin-verifier-1.307-all.jar -o plugin-verifier.jar
+          # Run verification (informational only)
+          PLUGIN_ZIP=$(ls extensions/intellij-plugin/build/distributions/pytest-language-server-*.zip | head -1)
+          java -jar plugin-verifier.jar check-plugin "$PLUGIN_ZIP" || true
+        continue-on-error: true
+      - name: Publish to JetBrains Marketplace
+        env:
+          JETBRAINS_TOKEN: ${{ secrets.JETBRAINS_TOKEN }}
+          JETBRAINS_PLUGIN_ID: ${{ secrets.JETBRAINS_PLUGIN_ID }}
+        run: |
+          PLUGIN_ZIP=$(ls extensions/intellij-plugin/build/distributions/pytest-language-server-*.zip | head -1)
+
+          if [ -z "$JETBRAINS_TOKEN" ] || [ -z "$JETBRAINS_PLUGIN_ID" ]; then
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "⚠️  JetBrains Marketplace publishing skipped"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "✅ Plugin built successfully: $PLUGIN_ZIP"
+            echo "✅ Plugin uploaded to GitHub release"
+            echo ""
+            echo "📦 To publish to JetBrains Marketplace:"
+            echo ""
+            echo "   Option 1 - Manual upload (first time):"
+            echo "   1. Visit https://plugins.jetbrains.com/plugin/add"
+            echo "   2. Download the plugin ZIP from GitHub releases"
+            echo "   3. Upload and complete the listing"
+            echo "   4. Note the plugin ID for automated future releases"
+            echo ""
+            echo "   Option 2 - Automated (after first publish):"
+            echo "   1. Get permanent token: https://plugins.jetbrains.com/author/me/tokens"
+            echo "   2. Add secrets to repository settings:"
+            echo "      - JETBRAINS_TOKEN: your permanent token"
+            echo "      - JETBRAINS_PLUGIN_ID: plugin ID from marketplace"
+            echo "   3. Future releases will auto-publish"
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          else
+            echo "🚀 Publishing to JetBrains Marketplace (Plugin ID: $JETBRAINS_PLUGIN_ID)..."
+
+            RESPONSE=$(curl -s -w "\n%{http_code}" \
+              --header "Authorization: Bearer $JETBRAINS_TOKEN" \
+              -F pluginId="$JETBRAINS_PLUGIN_ID" \
+              -F file=@"$PLUGIN_ZIP" \
+              https://plugins.jetbrains.com/plugin/uploadPlugin)
+
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | head -n-1)
+
+            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
+              echo "✅ Successfully published to JetBrains Marketplace!"
+            else
+              echo "❌ Failed to publish to JetBrains Marketplace"
+              echo "HTTP Status: $HTTP_CODE"
+              echo "Response: $BODY"
+              exit 1
+            fi
+          fi
+
+  publish-zed:
+    name: Publish Zed extension
+    runs-on: ubuntu-latest
+    # Disabled due to bug in huacnlee/zed-extension-action - regex doesn't handle multiline TOML
+    # Manually update version in bellini666/extensions repository after each release
+    if: false
+    steps:
+      - name: Bump Zed extension version
+        uses: huacnlee/zed-extension-action@v2
+        with:
+          extension-name: pytest-language-server
+          extension-path: extensions/zed-extension
+          push-to: bellini666/extensions
+        env:
+          # Personal access token with "repo" & "workflow" scopes
+          # Create at: https://github.com/settings/tokens
+          COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}
