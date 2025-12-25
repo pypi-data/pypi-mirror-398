@@ -1,0 +1,1211 @@
+#!/bin/bash
+set -e
+
+STACKS_DIR=".git/stacks"
+CURRENT_STACK_FILE=".git/stack-current"
+
+die() { echo "error: $1" >&2; exit 1; }
+
+# Get current stack name (default if not set)
+current_stack_name() {
+    if [ -f "$CURRENT_STACK_FILE" ]; then
+        cat "$CURRENT_STACK_FILE"
+    else
+        echo "default"
+    fi
+}
+
+# Get path to current stack file
+stack_file() {
+    echo "$STACKS_DIR/$(current_stack_name)"
+}
+
+# Migrate old .git/stack to new format
+migrate_old_stack() {
+    if [ -f ".git/stack" ] && [ ! -d "$STACKS_DIR" ]; then
+        mkdir -p "$STACKS_DIR"
+        mv ".git/stack" "$STACKS_DIR/default"
+        echo "default" > "$CURRENT_STACK_FILE"
+    fi
+}
+
+# Check if fzf is available and interactive mode is enabled
+has_fzf() {
+    [ -z "$STAK_NO_INTERACTIVE" ] && command -v fzf >/dev/null 2>&1
+}
+
+# Common fzf options for nice display
+FZF_OPTS="--reverse --height=~50% --border=rounded --margin=1 --padding=1"
+
+# Build stack display list for fzf
+# Format: "N ● branch (commits)" or "N → branch (commits)"
+build_stack_display() {
+    local stack="$1"
+    local current=$(current_branch)
+    local display=""
+    local i=0
+    while IFS= read -r branch; do
+        i=$((i + 1))
+        local marker="○"
+        local commits=""
+        [ "$branch" = "$current" ] && marker="●"
+        if [ $i -gt 1 ]; then
+            local prev=$(echo "$stack" | sed -n "$((i - 1))p")
+            local count=$(git rev-list --count "$prev".."$branch" 2>/dev/null || echo "0")
+            commits="($count)"
+        fi
+        display+="$i $marker $branch $commits"$'\n'
+    done <<< "$stack"
+    echo "$display" | sed '/^$/d'
+}
+
+# Extract branch name from fzf selection (field 3: "N marker branch")
+extract_branch() {
+    echo "$1" | awk '{print $3}'
+}
+
+current_branch() {
+    local branch=$(git rev-parse --abbrev-ref HEAD)
+    [ "$branch" = "HEAD" ] && die "cannot operate in detached HEAD state"
+    echo "$branch"
+}
+
+ensure_git() { git rev-parse --git-dir > /dev/null 2>&1 || die "not a git repository"; }
+
+ensure_clean() {
+    git diff --quiet && git diff --cached --quiet || die "working tree is dirty - commit or stash changes first"
+}
+
+validate_stack_name() {
+    local name="$1"
+    [ -z "$name" ] && return 0
+    [[ "$name" == *"/"* ]] && die "invalid stack name: cannot contain '/'"
+    [[ "$name" == *".."* ]] && die "invalid stack name: cannot contain '..'"
+    [[ "$name" == "."* ]] && die "invalid stack name: cannot start with '.'"
+    if [[ "$name" =~ [^a-zA-Z0-9_-] ]]; then
+        die "invalid stack name: use only letters, numbers, underscore, hyphen"
+    fi
+}
+
+validate_branch_name() {
+    local name="$1"
+    [ -z "$name" ] && return 0
+    [[ "$name" == *".."* ]] && die "invalid branch name: cannot contain '..'"
+    [[ "$name" == *"~"* ]] && die "invalid branch name: cannot contain '~'"
+    [[ "$name" == *"^"* ]] && die "invalid branch name: cannot contain '^'"
+    [[ "$name" == *":"* ]] && die "invalid branch name: cannot contain ':'"
+    [[ "$name" == *"\\"* ]] && die "invalid branch name: cannot contain '\\'"
+    [[ "$name" == *" "* ]] && die "invalid branch name: cannot contain spaces"
+}
+
+is_rebasing() {
+    [ -d ".git/rebase-merge" ] || [ -d ".git/rebase-apply" ]
+}
+
+warn_if_rebasing() {
+    if is_rebasing; then
+        echo "⚠️  Rebase in progress. Run 'stak continue' or 'stak abort' first." >&2
+    fi
+}
+
+load_stack() {
+    local sf=$(stack_file)
+    [ -f "$sf" ] && grep -v '^$' "$sf" 2>/dev/null || echo ""
+}
+
+save_stack() {
+    local sf=$(stack_file)
+    mkdir -p "$STACKS_DIR"
+    echo "$1" > "$sf"
+}
+
+find_in_stack() {
+    local branch="$1"
+    local stack="$2"
+    echo "$stack" | grep -nFx "$branch" | cut -d: -f1
+}
+
+stack_top() {
+    local stack="$1"
+    echo "$stack" | tail -n 1
+}
+
+cmd_new() {
+    [ -z "$1" ] && die "usage: stak new <branch-name>"
+    local name="$1"
+    validate_branch_name "$name"
+    local current=$(current_branch)
+    local stack=$(load_stack)
+    
+    # Validate: can only create from top of stack or from outside stack
+    local pos=""
+    if [ -n "$stack" ]; then
+        pos=$(find_in_stack "$current" "$stack")
+        local top=$(stack_top "$stack")
+        if [ -n "$pos" ] && [ "$current" != "$top" ]; then
+            die "can only create branches from the top of the stack ('$top')"
+        fi
+    fi
+    
+    # Create branch from current position
+    git checkout -b "$name"
+    
+    # Add to stack
+    if [ -z "$stack" ]; then
+        save_stack "$current"$'\n'"$name"
+    elif [ -n "$pos" ]; then
+        # Current is top of stack, append
+        save_stack "$stack"$'\n'"$name"
+    else
+        # Current not in stack, start new stack
+        save_stack "$current"$'\n'"$name"
+    fi
+    
+    echo "Created '$name' on top of '$current'"
+}
+
+cmd_insert() {
+    ensure_clean
+    local head=$(git rev-parse --abbrev-ref HEAD)
+    [ "$head" = "HEAD" ] && die "cannot insert in detached HEAD state - checkout a branch first"
+    local name="$1"
+    local stack=$(load_stack)
+    [ -z "$stack" ] && die "no stack exists"
+    
+    local total=$(echo "$stack" | wc -l | tr -d ' ')
+    [ "$total" -lt 1 ] && die "stack is empty"
+    
+    # Get insert position
+    local after_branch=""
+    local after_pos=""
+    
+    if [ -z "$name" ] && has_fzf; then
+        # Interactive: first get name
+        echo -n "New branch name: "
+        read name
+        [ -z "$name" ] && die "branch name required"
+    fi
+    
+    [ -z "$name" ] && die "usage: stak insert <branch-name> [--after <branch>]"
+    validate_branch_name "$name"
+    
+    # Check branch doesn't exist
+    git rev-parse --verify "$name" >/dev/null 2>&1 && die "branch '$name' already exists"
+    
+    # Get position argument or use fzf
+    shift || true
+    if [ "$1" = "--after" ] && [ -n "$2" ]; then
+        after_branch="$2"
+        after_pos=$(find_in_stack "$after_branch" "$stack")
+        [ -z "$after_pos" ] && die "'$after_branch' is not in the stack"
+    elif has_fzf; then
+        # Interactive: select where to insert
+        local display=$(build_stack_display "$stack")
+        local selected=$(echo "$display" | fzf --prompt="insert after❯ " --header="Insert '$name' after which branch?" $FZF_OPTS)
+        [ -z "$selected" ] && exit 0
+        
+        after_branch=$(extract_branch "$selected")
+        after_pos=$(find_in_stack "$after_branch" "$stack")
+    else
+        # Default: insert after first branch (base)
+        after_branch=$(echo "$stack" | head -n1)
+        after_pos=1
+    fi
+    
+    # Can't insert after the last branch (that's just 'stak new')
+    if [ "$after_pos" -eq "$total" ]; then
+        die "use 'stak new $name' to add at the top"
+    fi
+    
+    echo "Inserting '$name' after '$after_branch'..."
+    
+    # Create new branch from after_branch
+    git checkout "$after_branch" --quiet
+    git checkout -b "$name" --quiet
+    
+    # Update stack file: insert at position after_pos + 1
+    local new_stack=""
+    local i=0
+    while IFS= read -r branch; do
+        i=$((i + 1))
+        new_stack+="$branch"$'\n'
+        if [ "$i" -eq "$after_pos" ]; then
+            new_stack+="$name"$'\n'
+        fi
+    done <<< "$stack"
+    save_stack "$(echo "$new_stack" | sed '/^$/d')"
+    
+    # Rebase all branches above onto the new branch
+    local rebase_stack=$(load_stack)
+    local insert_pos=$((after_pos + 1))
+    
+    echo "Rebasing branches above..."
+    for ((j=insert_pos+1; j<=total+1; j++)); do
+        local branch_to_rebase=$(echo "$rebase_stack" | sed -n "${j}p")
+        [ -z "$branch_to_rebase" ] && continue
+        local prev_branch=$(echo "$rebase_stack" | sed -n "$((j-1))p")
+        
+        echo "  Rebasing '$branch_to_rebase' onto '$prev_branch'..."
+        git checkout "$branch_to_rebase" --quiet
+        git rebase "$prev_branch" --quiet || {
+            echo ""
+            echo "Conflict! Resolve, then run 'stak continue'"
+            exit 1
+        }
+    done
+    
+    git checkout "$name" --quiet
+    echo ""
+    echo "Inserted '$name' after '$after_branch'"
+    cmd_status
+}
+
+cmd_split() {
+    ensure_clean
+    local head=$(git rev-parse --abbrev-ref HEAD)
+    [ "$head" = "HEAD" ] && die "cannot split in detached HEAD state - checkout a branch first"
+    local current=$(current_branch)
+    local stack=$(load_stack)
+    [ -z "$stack" ] && die "no stack exists"
+    
+    local pos=$(find_in_stack "$current" "$stack")
+    [ -z "$pos" ] && die "'$current' is not in the stack"
+    [ "$pos" -eq 1 ] && die "cannot split the base branch"
+    
+    local parent=$(echo "$stack" | sed -n "$((pos - 1))p")
+    
+    # Get commits between parent and current
+    local commits=$(git log --oneline "$parent..$current" --reverse)
+    [ -z "$commits" ] && die "no commits to split"
+    
+    local commit_count=$(echo "$commits" | wc -l | tr -d ' ')
+    [ "$commit_count" -lt 2 ] && die "need at least 2 commits to split"
+    
+    local new_name="$1"
+    
+    if [ -z "$new_name" ] && has_fzf; then
+        echo -n "New branch name (for bottom part): "
+        read new_name
+        [ -z "$new_name" ] && die "branch name required"
+    fi
+    
+    [ -z "$new_name" ] && die "usage: stak split <new-branch-name>"
+    validate_branch_name "$new_name"
+    
+    # Check branch doesn't exist
+    git rev-parse --verify "$new_name" >/dev/null 2>&1 && die "branch '$new_name' already exists"
+    
+    if has_fzf; then
+        echo ""
+        echo "Select commits to move to '$new_name' (bottom branch):"
+        echo "Remaining commits will stay in '$current'"
+        echo ""
+        
+        # Multi-select commits with fzf
+        local selected=$(echo "$commits" | fzf --multi --prompt="split❯ " \
+            --header="Tab to select commits for '$new_name', Enter when done" $FZF_OPTS)
+        [ -z "$selected" ] && exit 0
+        
+        local selected_count=$(echo "$selected" | wc -l | tr -d ' ')
+        [ "$selected_count" -eq "$commit_count" ] && die "cannot move all commits - keep at least one in '$current'"
+        
+        # Get the last selected commit (to find split point)
+        # We need contiguous commits from the bottom
+        local first_commit=$(echo "$commits" | head -n1 | awk '{print $1}')
+        local selected_hashes=$(echo "$selected" | awk '{print $1}')
+        
+        # Verify commits are contiguous from bottom
+        local split_after=""
+        local expected_pos=1
+        while IFS= read -r commit_line; do
+            local hash=$(echo "$commit_line" | awk '{print $1}')
+            local current_pos=$(echo "$commits" | grep -n "^$hash" | cut -d: -f1)
+            
+            if echo "$selected_hashes" | grep -q "^$hash$"; then
+                if [ "$current_pos" -ne "$expected_pos" ]; then
+                    die "commits must be contiguous from the bottom"
+                fi
+                split_after="$hash"
+                expected_pos=$((expected_pos + 1))
+            fi
+        done <<< "$commits"
+        
+        [ -z "$split_after" ] && die "no commits selected"
+    else
+        echo "split requires fzf for commit selection."
+        echo "Install with: stak setup-interactive"
+        exit 1
+    fi
+    
+    echo ""
+    echo "Splitting '$current'..."
+    echo "  '$new_name' will have $selected_count commit(s)"
+    echo "  '$current' will have $((commit_count - selected_count)) commit(s)"
+    echo ""
+    
+    # Create new branch from parent
+    git checkout "$parent" --quiet
+    git checkout -b "$new_name" --quiet
+    
+    # Cherry-pick selected commits
+    echo "Cherry-picking commits to '$new_name'..."
+    echo "$selected_hashes" | while read hash; do
+        git cherry-pick "$hash" --quiet || {
+            echo ""
+            echo "Conflict during cherry-pick!"
+            echo "Resolve the conflict, then:"
+            echo "  git add . && git cherry-pick --continue"
+            echo "  git checkout $current && git rebase --onto $new_name $split_after"
+            exit 1
+        }
+    done
+    
+    # Update stack: insert new_name before current
+    local new_stack=""
+    while IFS= read -r branch; do
+        if [ "$branch" = "$current" ]; then
+            new_stack+="$new_name"$'\n'
+        fi
+        new_stack+="$branch"$'\n'
+    done <<< "$stack"
+    save_stack "$(echo "$new_stack" | sed '/^$/d')"
+    
+    # Rebase current onto new_name, excluding the moved commits
+    echo "Rebasing '$current' onto '$new_name'..."
+    git checkout "$current" --quiet
+    git rebase --onto "$new_name" "$split_after" "$current" --quiet || {
+        echo ""
+        echo "Conflict! Resolve, then run 'stak continue'"
+        exit 1
+    }
+    
+    # Rebase any branches above current
+    local total=$(echo "$stack" | wc -l | tr -d ' ')
+    if [ "$pos" -lt "$total" ]; then
+        echo "Rebasing branches above..."
+        local updated_stack=$(load_stack)
+        local new_pos=$(find_in_stack "$current" "$updated_stack")
+        
+        for ((j=new_pos+1; j<=total+1; j++)); do
+            local branch_to_rebase=$(echo "$updated_stack" | sed -n "${j}p")
+            [ -z "$branch_to_rebase" ] && continue
+            local prev_branch=$(echo "$updated_stack" | sed -n "$((j-1))p")
+            
+            echo "  Rebasing '$branch_to_rebase' onto '$prev_branch'..."
+            git checkout "$branch_to_rebase" --quiet
+            git rebase "$prev_branch" --quiet || {
+                echo ""
+                echo "Conflict! Resolve, then run 'stak continue'"
+                exit 1
+            }
+        done
+    fi
+    
+    git checkout "$new_name" --quiet
+    echo ""
+    echo "Split complete! Now on '$new_name'"
+    cmd_status
+}
+
+cmd_up() {
+    local current=$(current_branch)
+    local stack=$(load_stack)
+    [ -z "$stack" ] && die "no stack exists"
+    
+    local pos=$(find_in_stack "$current" "$stack")
+    [ -z "$pos" ] && die "'$current' is not in the stack"
+    
+    local total=$(echo "$stack" | wc -l | tr -d ' ')
+    [ "$pos" -ge "$total" ] && die "already at top of stack"
+    
+    local next=$(echo "$stack" | sed -n "$((pos + 1))p")
+    git checkout "$next"
+    echo "Moved up to '$next'"
+}
+
+cmd_down() {
+    local current=$(current_branch)
+    local stack=$(load_stack)
+    [ -z "$stack" ] && die "no stack exists"
+    
+    local pos=$(find_in_stack "$current" "$stack")
+    [ -z "$pos" ] && die "'$current' is not in the stack"
+    
+    [ "$pos" -le 1 ] && die "already at bottom of stack"
+    
+    local prev=$(echo "$stack" | sed -n "$((pos - 1))p")
+    git checkout "$prev"
+    echo "Moved down to '$prev'"
+}
+
+cmd_status() {
+    warn_if_rebasing
+    local branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+    local current="$branch"
+    [ "$branch" = "HEAD" ] && current="DETACHED"
+    local stack=$(load_stack)
+    local stack_name=$(current_stack_name)
+    
+    if [ -z "$stack" ]; then
+        echo "No stack. Use 'stak new <name>' to start."
+        return
+    fi
+    
+    local total=$(echo "$stack" | wc -l | tr -d ' ')
+    
+    echo ""
+    echo "Stack: $stack_name"
+    echo ""
+    local i=0
+    while IFS= read -r branch; do
+        i=$((i + 1))
+        local commits=""
+        local line_char="│"
+        
+        if [ $i -gt 1 ]; then
+            local prev=$(echo "$stack" | sed -n "$((i - 1))p")
+            local count=$(git rev-list --count "$prev".."$branch" 2>/dev/null || echo "0")
+            if [ "$count" -eq 0 ]; then
+                commits="(no commits)"
+            elif [ "$count" -eq 1 ]; then
+                commits="(1 commit)"
+            else
+                commits="($count commits)"
+            fi
+        fi
+        
+        # Visual tree
+        if [ $i -eq 1 ]; then
+            # Base branch
+            if [ "$branch" = "$current" ]; then
+                echo "  ● $branch (base) ◀ you are here"
+            else
+                echo "  ○ $branch (base)"
+            fi
+        elif [ $i -eq "$total" ]; then
+            # Top branch
+            if [ "$branch" = "$current" ]; then
+                echo "  ╰─▶ $branch $commits ◀ you are here"
+            else
+                echo "  ╰── $branch $commits"
+            fi
+        else
+            # Middle branch
+            if [ "$branch" = "$current" ]; then
+                echo "  ├─▶ $branch $commits ◀ you are here"
+            else
+                echo "  ├── $branch $commits"
+            fi
+        fi
+    done <<< "$stack"
+    echo ""
+}
+
+cmd_sync() {
+    ensure_clean
+    local stack=$(load_stack)
+    [ -z "$stack" ] && die "no stack exists"
+    
+    local original=$(current_branch)
+    
+    # Validate all branches exist
+    while IFS= read -r branch; do
+        git rev-parse --verify "$branch" >/dev/null 2>&1 || \
+            die "branch '$branch' no longer exists. Remove it from stack with: git branch -D $branch (if needed) and edit .git/stacks/$(current_stack_name)"
+    done <<< "$stack"
+    
+    # Collect branch tips BEFORE any rebasing
+    declare -a branches
+    declare -a old_tips
+    local i=0
+    while IFS= read -r branch; do
+        branches[$i]="$branch"
+        old_tips[$i]=$(git rev-parse "$branch")
+        i=$((i + 1))
+    done <<< "$stack"
+    
+    echo "Syncing stack..."
+    
+    for ((i=1; i<${#branches[@]}; i++)); do
+        local branch="${branches[$i]}"
+        local prev="${branches[$((i-1))]}"
+        local old_base="${old_tips[$((i-1))]}"
+        
+        echo "  [$i/${#branches[@]}] Rebasing '$branch' onto '$prev'..."
+        git checkout "$branch" --quiet
+        
+        # Use --onto to handle case where prev was also rebased
+        # This replays only commits unique to $branch (after old $prev tip)
+        git rebase --onto "$prev" "$old_base" "$branch" --quiet || {
+            echo ""
+            echo "Rebase conflict in '$branch'. Resolve, then run:"
+            echo "  git add <files>"
+            echo "  stak continue"
+            echo ""
+            echo "Or to abort:"
+            echo "  stak abort"
+            exit 1
+        }
+    done
+    
+    git checkout "$original" --quiet
+    echo "Stack synced."
+}
+
+cmd_push() {
+    local stack=$(load_stack)
+    [ -z "$stack" ] && die "no stack exists"
+    
+    local arg="$1"
+    
+    # Get pushable branches (skip base)
+    local pushable=$(echo "$stack" | tail -n +2)
+    [ -z "$pushable" ] && die "no branches to push"
+    
+    local to_push=""
+    
+    if [ "$arg" = "--all" ] || [ "$arg" = "-a" ]; then
+        # Push all (skip interactive)
+        to_push="$pushable"
+    elif [ -z "$arg" ] && has_fzf; then
+        # Interactive multi-select with fzf
+        local display=$(build_stack_display "$stack" | tail -n +2)
+        local selected=$(echo "$display" | fzf --multi --prompt="push❯ " --header="Select branches (Tab to toggle, Enter to push)" $FZF_OPTS)
+        [ -z "$selected" ] && exit 0
+        
+        # Extract branch names
+        to_push=$(echo "$selected" | while read -r line; do extract_branch "$line"; done)
+    else
+        # No fzf, push all
+        to_push="$pushable"
+    fi
+    
+    echo "Pushing selected branches..."
+    
+    while IFS= read -r branch; do
+        [ -z "$branch" ] && continue
+        echo "  Pushing '$branch'..."
+        git push -f origin "$branch" 2>/dev/null || git push -u origin "$branch"
+    done <<< "$to_push"
+    
+    echo "Done."
+}
+
+cmd_drop() {
+    ensure_clean
+    local current=$(current_branch)
+    local stack=$(load_stack)
+    [ -z "$stack" ] && die "no stack exists"
+    
+    local pos=$(find_in_stack "$current" "$stack")
+    [ -z "$pos" ] && die "'$current' is not in the stack"
+    [ "$pos" -eq 1 ] && die "cannot drop the base of the stack"
+    
+    local top=$(stack_top "$stack")
+    [ "$current" != "$top" ] && die "can only drop from the top of the stack (currently '$top')"
+    
+    local prev=$(echo "$stack" | sed -n "$((pos - 1))p")
+    
+    # Remove from stack
+    local new_stack=$(echo "$stack" | sed "${pos}d")
+    save_stack "$new_stack"
+    
+    # Checkout previous and delete branch
+    git checkout "$prev"
+    git branch -D "$current"
+    
+    echo "Dropped '$current', now on '$prev'"
+}
+
+show_branch_log() {
+    local branch="$1"
+    local prev="$2"
+    local current="$3"
+    
+    local count=$(git rev-list --count "$prev".."$branch" 2>/dev/null || echo "0")
+    local marker="│"
+    [ "$branch" = "$current" ] && marker="▶"
+    
+    echo ""
+    if [ "$count" -eq 0 ]; then
+        echo "$marker ─── $branch (no commits yet)"
+    else
+        echo "$marker ─── $branch ($count commits)"
+        git log --oneline --format="$marker     %C(yellow)%h%C(reset) %s" "$prev".."$branch"
+    fi
+}
+
+cmd_log() {
+    local stack=$(load_stack)
+    [ -z "$stack" ] && die "no stack exists"
+    
+    local current=$(current_branch)
+    local arg="$1"
+    
+    if [ -n "$arg" ] && [ "$arg" != "--all" ] && [ "$arg" != "-a" ]; then
+        # Specific branch by name/number
+        if [[ "$arg" =~ ^[0-9]+$ ]]; then
+            local branch=$(echo "$stack" | sed -n "${arg}p")
+        else
+            local branch=$(echo "$stack" | grep -F "$arg" | head -n1)
+        fi
+        [ -z "$branch" ] && die "branch not found: $arg"
+        
+        local pos=$(find_in_stack "$branch" "$stack")
+        [ "$pos" -eq 1 ] && die "no commits to show for base branch"
+        
+        local prev=$(echo "$stack" | sed -n "$((pos - 1))p")
+        show_branch_log "$branch" "$prev" "$current"
+        return
+    elif [ -z "$arg" ] && has_fzf; then
+        # Interactive select
+        local display=$(build_stack_display "$stack" | tail -n +2)
+        [ -z "$display" ] && die "no branches to show"
+        
+        local selected=$(echo "$display" | fzf --prompt="log❯ " --header="Select branch to view log" $FZF_OPTS)
+        [ -z "$selected" ] && exit 0
+        
+        local branch=$(extract_branch "$selected")
+        local pos=$(find_in_stack "$branch" "$stack")
+        local prev=$(echo "$stack" | sed -n "$((pos - 1))p")
+        
+        show_branch_log "$branch" "$prev" "$current"
+        return
+    fi
+    
+    # Show all branches
+    echo ""
+    local prev=""
+    while IFS= read -r branch; do
+        if [ -n "$prev" ]; then
+            show_branch_log "$branch" "$prev" "$current"
+        else
+            if [ "$branch" = "$current" ]; then
+                echo "● $branch (base) ◀ you are here"
+            else
+                echo "○ $branch (base)"
+            fi
+        fi
+        prev="$branch"
+    done <<< "$stack"
+    echo ""
+}
+
+cmd_land() {
+    ensure_clean
+    local force=false
+    [ "$1" = "--force" ] || [ "$1" = "-f" ] && force=true
+    
+    local stack=$(load_stack)
+    [ -z "$stack" ] && die "no stack exists"
+    
+    local base=$(echo "$stack" | head -n 1)
+    local first=$(echo "$stack" | sed -n '2p')
+    [ -z "$first" ] && die "no branches to land"
+    
+    # Check if first branch is merged into base
+    git checkout "$base" --quiet
+    git fetch origin "$base" --quiet 2>/dev/null || true
+    
+    if ! git merge-base --is-ancestor "$first" "$base" 2>/dev/null; then
+        if [ "$force" = true ]; then
+            echo "Warning: '$first' is not an ancestor of '$base' (squash merge?)"
+            echo "Proceeding with --force..."
+        else
+            echo "error: '$first' is not yet merged into '$base'"
+            echo ""
+            echo "If the PR was squash-merged, use:"
+            echo "  stak land --force"
+            exit 1
+        fi
+    else
+        echo "'$first' is merged into '$base'. Cleaning up stack..."
+    fi
+    
+    # Remove the landed branch from stack
+    local new_stack=$(echo "$stack" | sed '2d')
+    save_stack "$new_stack"
+    
+    # Delete the local branch
+    git branch -D "$first" 2>/dev/null || true
+    
+    # Sync remaining stack onto updated base
+    local remaining=$(echo "$new_stack" | wc -l | tr -d ' ')
+    if [ "$remaining" -gt 1 ]; then
+        echo "Syncing remaining stack onto '$base'..."
+        cmd_sync
+    fi
+    
+    echo "Landed '$first'. Stack updated."
+    cmd_status
+}
+
+do_fold() {
+    local branch_to_fold="$1"
+    local direction="$2"
+    local stack=$(load_stack)
+    local total=$(echo "$stack" | wc -l | tr -d ' ')
+    local pos=$(find_in_stack "$branch_to_fold" "$stack")
+    
+    if [ "$direction" = "up" ]; then
+        local parent=$(echo "$stack" | sed -n "$((pos - 1))p")
+        
+        echo "Folding '$branch_to_fold' up into '$parent'..."
+        
+        git checkout "$parent" --quiet
+        git reset --hard "$branch_to_fold" --quiet
+        
+        local new_stack=$(echo "$stack" | sed "${pos}d")
+        save_stack "$new_stack"
+        
+        git branch -D "$branch_to_fold" 2>/dev/null
+        
+        echo "Folded '$branch_to_fold' into '$parent'."
+        [ "$pos" -lt "$total" ] && echo "Branches above are still correctly based."
+    else
+        local child=$(echo "$stack" | sed -n "$((pos + 1))p")
+        
+        echo "Folding '$branch_to_fold' down into '$child'..."
+        
+        local new_stack=$(echo "$stack" | sed "${pos}d")
+        save_stack "$new_stack"
+        
+        git checkout "$child" --quiet
+        git branch -D "$branch_to_fold" 2>/dev/null
+        
+        echo "Folded '$branch_to_fold' into '$child'."
+    fi
+    
+    cmd_status
+}
+
+cmd_fold() {
+    ensure_clean
+    local stack=$(load_stack)
+    [ -z "$stack" ] && die "no stack exists"
+    
+    local total=$(echo "$stack" | wc -l | tr -d ' ')
+    local arg="$1"
+    
+    # Interactive mode with fzf (no args)
+    if [ -z "$arg" ] && has_fzf; then
+        # Step 1: Select branch to fold
+        local display=$(build_stack_display "$stack")
+        # Filter: can't fold base (pos 1)
+        local foldable=$(echo "$display" | tail -n +2)  # skip first line (base)
+        
+        [ -z "$foldable" ] && die "no branches to fold"
+        
+        local selected=$(echo "$foldable" | fzf --prompt="fold❯ " --header="Select branch to fold" $FZF_OPTS)
+        [ -z "$selected" ] && exit 0
+        
+        local branch_to_fold=$(extract_branch "$selected")
+        local pos=$(find_in_stack "$branch_to_fold" "$stack")
+        
+        # Step 2: Select direction
+        local directions=""
+        local parent=$(echo "$stack" | sed -n "$((pos - 1))p")
+        local child=$(echo "$stack" | sed -n "$((pos + 1))p")
+        
+        # Can fold up if not into base (pos > 2)
+        [ "$pos" -gt 2 ] && directions+="↑ up into $parent"$'\n'
+        # Can fold down if not at top
+        [ "$pos" -lt "$total" ] && directions+="↓ down into $child"$'\n'
+        
+        directions=$(echo "$directions" | sed '/^$/d')
+        
+        if [ -z "$directions" ]; then
+            die "cannot fold '$branch_to_fold' - no valid direction"
+        elif [ $(echo "$directions" | wc -l) -eq 1 ]; then
+            # Only one option, use it
+            local dir_choice="$directions"
+        else
+            local dir_choice=$(echo "$directions" | fzf --prompt="❯ " --header="Fold '$branch_to_fold' into:" $FZF_OPTS)
+            [ -z "$dir_choice" ] && exit 0
+        fi
+        
+        if [[ "$dir_choice" == ↑* ]]; then
+            do_fold "$branch_to_fold" "up"
+        else
+            do_fold "$branch_to_fold" "down"
+        fi
+        return
+    fi
+    
+    # Non-interactive mode (current behavior)
+    local direction="up"
+    [ "$arg" = "--down" ] || [ "$arg" = "-d" ] && direction="down"
+    
+    local current=$(current_branch)
+    local pos=$(find_in_stack "$current" "$stack")
+    [ -z "$pos" ] && die "'$current' is not in the stack"
+    [ "$pos" -eq 1 ] && die "cannot fold the base of the stack"
+    
+    if [ "$direction" = "up" ]; then
+        [ "$pos" -eq 2 ] && die "cannot fold into the base - use 'land' after merging"
+    else
+        [ "$pos" -eq "$total" ] && die "cannot fold down - no branch above"
+    fi
+    
+    do_fold "$current" "$direction"
+}
+
+cmd_goto() {
+    local current=$(current_branch)
+    local stack=$(load_stack)
+    [ -z "$stack" ] && die "no stack exists"
+    
+    local target="$1"
+    local display=$(build_stack_display "$stack")
+    
+    if [ -n "$target" ]; then
+        # Direct jump by number or name
+        if [[ "$target" =~ ^[0-9]+$ ]]; then
+            local branch=$(echo "$stack" | sed -n "${target}p")
+            [ -z "$branch" ] && die "invalid position: $target"
+        else
+            local branch=$(echo "$stack" | grep -F "$target" | head -n1)
+            [ -z "$branch" ] && die "branch not found: $target"
+        fi
+    elif has_fzf; then
+        local selected=$(echo "$display" | fzf --prompt="goto❯ " --header="Select branch (↑/↓ move, Enter select)" $FZF_OPTS)
+        [ -z "$selected" ] && exit 0
+        local branch=$(extract_branch "$selected")
+    else
+        echo "fzf not found. Options:"
+        echo ""
+        echo "  stak goto <number>   Jump by position"
+        echo "  stak goto <name>     Jump by branch name"
+        echo "  stak setup-interactive   Install fzf"
+        echo ""
+        echo "Current stack:"
+        echo "$display"
+        exit 1
+    fi
+    
+    [ "$branch" = "$current" ] && echo "Already on '$branch'" && exit 0
+    
+    git checkout "$branch"
+    echo "Switched to '$branch'"
+}
+
+cmd_continue() {
+    # Check if we're in a rebase
+    if [ ! -d ".git/rebase-merge" ] && [ ! -d ".git/rebase-apply" ]; then
+        die "no rebase in progress"
+    fi
+    
+    echo "Continuing rebase..."
+    git rebase --continue || {
+        echo ""
+        echo "Still have conflicts. Fix them, then run:"
+        echo "  git add <files>"
+        echo "  stak continue"
+        exit 1
+    }
+    
+    echo ""
+    echo "Rebase continued. Running sync to finish remaining branches..."
+    cmd_sync
+}
+
+cmd_abort() {
+    # Check if we're in a rebase
+    if [ ! -d ".git/rebase-merge" ] && [ ! -d ".git/rebase-apply" ]; then
+        die "no rebase in progress"
+    fi
+    
+    git rebase --abort
+    echo "Rebase aborted. Stack unchanged."
+}
+
+cmd_setup_interactive() {
+    echo "Stack Interactive Setup"
+    echo "========================"
+    echo ""
+    
+    # Check if fzf already installed
+    if command -v fzf >/dev/null 2>&1; then
+        echo "✓ fzf is already installed"
+        echo ""
+        echo "Interactive mode is ready. Try: stak goto"
+        exit 0
+    fi
+    
+    echo "fzf is required for interactive branch selection."
+    echo ""
+    
+    # Detect platform and package manager
+    local pkg_manager=""
+    local install_cmd=""
+    
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        if command -v brew >/dev/null 2>&1; then
+            pkg_manager="Homebrew"
+            install_cmd="brew install fzf"
+        else
+            echo "macOS detected but Homebrew not found."
+            echo "Install Homebrew first: https://brew.sh"
+            echo "Then run: brew install fzf"
+            exit 1
+        fi
+    elif command -v apt >/dev/null 2>&1; then
+        pkg_manager="apt"
+        install_cmd="sudo apt install -y fzf"
+    elif command -v dnf >/dev/null 2>&1; then
+        pkg_manager="dnf"
+        install_cmd="sudo dnf install -y fzf"
+    elif command -v yum >/dev/null 2>&1; then
+        pkg_manager="yum"
+        install_cmd="sudo yum install -y fzf"
+    elif command -v pacman >/dev/null 2>&1; then
+        pkg_manager="pacman"
+        install_cmd="sudo pacman -S --noconfirm fzf"
+    elif command -v apk >/dev/null 2>&1; then
+        pkg_manager="apk"
+        install_cmd="sudo apk add fzf"
+    else
+        echo "Could not detect package manager."
+        echo ""
+        echo "Install fzf manually:"
+        echo "  https://github.com/junegunn/fzf#installation"
+        exit 1
+    fi
+    
+    echo "Detected: $pkg_manager"
+    echo "Command:  $install_cmd"
+    echo ""
+    printf "Install fzf now? [y/N]: "
+    read -r confirm
+    
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "Running: $install_cmd"
+        echo ""
+        eval "$install_cmd" || {
+            echo ""
+            echo "Installation failed. Try running manually:"
+            echo "  $install_cmd"
+            exit 1
+        }
+        echo ""
+        echo "✓ fzf installed successfully"
+        echo ""
+        echo "Interactive mode is ready. Try: stak goto"
+    else
+        echo ""
+        echo "Skipped. To install later, run:"
+        echo "  $install_cmd"
+    fi
+}
+
+cmd_stacks() {
+    mkdir -p "$STACKS_DIR"
+    local current=$(current_stack_name)
+    
+    echo ""
+    echo "Stacks:"
+    echo ""
+    
+    if [ ! -d "$STACKS_DIR" ] || [ -z "$(ls -A "$STACKS_DIR" 2>/dev/null)" ]; then
+        echo "  (no stacks yet)"
+    else
+        for sf in "$STACKS_DIR"/*; do
+            [ -f "$sf" ] || continue
+            local name=$(basename "$sf")
+            local count=$(wc -l < "$sf" | tr -d ' ')
+            local branches=$((count - 1))
+            [ $branches -lt 0 ] && branches=0
+            local label="branches"
+            [ $branches -eq 1 ] && label="branch"
+            
+            if [ "$name" = "$current" ]; then
+                echo "  ● $name ($branches $label) ◀ current"
+            else
+                echo "  ○ $name ($branches $label)"
+            fi
+        done
+    fi
+    echo ""
+}
+
+cmd_use() {
+    local name="$1"
+    
+    # Interactive mode if no argument
+    if [ -z "$name" ]; then
+        if ! has_fzf; then
+            die "usage: stak use <name>"
+        fi
+        
+        # Build stack list for fzf
+        local current=$(current_stack_name)
+        local stacks=""
+        for sf in "$STACKS_DIR"/*; do
+            [ ! -f "$sf" ] && continue
+            local sname=$(basename "$sf")
+            local count=$(wc -l < "$sf" | tr -d ' ')
+            local branches=$((count - 1))
+            [ $branches -lt 0 ] && branches=0
+            local label="branches"
+            [ $branches -eq 1 ] && label="branch"
+            
+            if [ "$sname" = "$current" ]; then
+                stacks+="● $sname ($branches $label) ◀ current"$'\n'
+            else
+                stacks+="○ $sname ($branches $label)"$'\n'
+            fi
+        done
+        
+        [ -z "$stacks" ] && die "no stacks exist"
+        
+        local selected=$(echo "$stacks" | fzf --prompt="use❯ " --header="Select stack to switch to" $FZF_OPTS)
+        [ -z "$selected" ] && exit 0
+        
+        # Extract stack name (second field after marker)
+        name=$(echo "$selected" | awk '{print $2}')
+    fi
+    
+    validate_stack_name "$name"
+    local sf="$STACKS_DIR/$name"
+    mkdir -p "$STACKS_DIR"
+    
+    if [ -f "$sf" ]; then
+        # Stack exists - switch to it
+        local current=$(current_stack_name)
+        if [ "$name" = "$current" ]; then
+            echo "Already on stack '$name'"
+        else
+            echo "$name" > "$CURRENT_STACK_FILE"
+            echo "Switched to stack '$name'"
+        fi
+    else
+        # Create new stack
+        touch "$sf"
+        echo "$name" > "$CURRENT_STACK_FILE"
+        echo "Created stack '$name'"
+        echo "Use 'stak new <branch>' to add your first branch."
+        return
+    fi
+    cmd_status
+}
+
+cmd_rm_stack() {
+    local name="$1"
+    local current=$(current_stack_name)
+    
+    # Interactive mode if no argument
+    if [ -z "$name" ]; then
+        if ! has_fzf; then
+            die "usage: stak rm-stack <name>"
+        fi
+        
+        # Build list of deletable stacks (exclude current)
+        local stacks=""
+        for sf in "$STACKS_DIR"/*; do
+            [ ! -f "$sf" ] && continue
+            local sname=$(basename "$sf")
+            [ "$sname" = "$current" ] && continue  # Can't delete current
+            
+            local count=$(wc -l < "$sf" | tr -d ' ')
+            local branches=$((count - 1))
+            [ $branches -lt 0 ] && branches=0
+            local label="branches"
+            [ $branches -eq 1 ] && label="branch"
+            
+            stacks+="○ $sname ($branches $label)"$'\n'
+        done
+        
+        [ -z "$stacks" ] && die "no other stacks to delete (can't delete current stack)"
+        
+        local selected=$(echo "$stacks" | fzf --prompt="delete❯ " --header="Select stack to delete" $FZF_OPTS)
+        [ -z "$selected" ] && exit 0
+        
+        name=$(echo "$selected" | awk '{print $2}')
+    fi
+    
+    validate_stack_name "$name"
+    local sf="$STACKS_DIR/$name"
+    [ ! -f "$sf" ] && die "stack '$name' does not exist"
+    [ "$name" = "$current" ] && die "cannot delete current stack - switch first"
+    
+    rm "$sf"
+    echo "Deleted stack '$name'"
+}
+
+cmd_help() {
+    cat << 'EOF'
+stak - minimal stacked changes for git
+
+Branch Commands:
+  new <name>    Create a new branch on top of current
+  insert [name] Insert branch at any position (fzf)
+  split [name]  Split current branch's commits (fzf)
+  up / down     Move up or down the stack
+  goto [n|name] Jump to branch (interactive with fzf)
+  status        Show the current stack
+  sync          Rebase entire stack
+  continue      Continue after resolving conflicts
+  abort         Abort current rebase
+  push [-a]     Push branches (interactive, -a for all)
+  drop          Remove top branch
+  fold [--down] Fold branch into parent or child
+  land [-f]     Clean up after PR merge (-f for squash)
+  log [n|name]  Show commits (-a for all)
+
+Stack Management:
+  ls                  List all stacks
+  use [name]          Switch to stack (fzf or creates if needed)
+  rm-stack [name]     Delete a stack (fzf or by name)
+
+Setup:
+  setup-interactive   Install fzf for interactive mode
+
+Environment:
+  STAK_NO_INTERACTIVE=1   Disable fzf interactive mode
+
+Workflow:
+  1. Start on main/master
+  2. stak new feature-part1    # create first branch
+  3. <make changes, commit>
+  4. stak new feature-part2    # create second branch on top
+  5. <make changes, commit>
+  6. stak status               # see your stack
+  7. stak down                 # go back to part1
+  8. <fix something, commit>
+  9. stak sync                 # rebase part2 onto updated part1
+  10. stak push                # push all for review
+EOF
+}
+
+# Main
+# Commands that don't require git
+case "${1:-}" in
+    setup-interactive) cmd_setup_interactive; exit 0 ;;
+    help|--help|-h|"") cmd_help; exit 0 ;;
+esac
+
+ensure_git
+migrate_old_stack
+
+case "${1:-}" in
+    new)       cmd_new "$2" ;;
+    insert)    cmd_insert "$2" "$3" "$4" ;;
+    split)     cmd_split "$2" ;;
+    up)        cmd_up ;;
+    down)      cmd_down ;;
+    goto)      cmd_goto "$2" ;;
+    status|st) cmd_status ;;
+    sync)      cmd_sync ;;
+    continue)  cmd_continue ;;
+    abort)     cmd_abort ;;
+    push)      cmd_push "$2" ;;
+    drop)      cmd_drop ;;
+    fold)      cmd_fold "$2" ;;
+    land)      cmd_land "$2" ;;
+    log)       cmd_log "$2" ;;
+    ls)        cmd_stacks ;;
+    use)       cmd_use "$2" ;;
+    rm-stack)  cmd_rm_stack "$2" ;;
+    *)         die "unknown command: $1" ;;
+esac

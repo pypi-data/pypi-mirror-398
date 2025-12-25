@@ -1,0 +1,236 @@
+Metadata-Version: 2.4
+Name: stak-git
+Version: 1.0.2
+Summary: Minimal stacked changes for git - build big features as small branches
+Project-URL: Homepage, https://github.com/memorypasta/stak
+Project-URL: Repository, https://github.com/memorypasta/stak
+Project-URL: Issues, https://github.com/memorypasta/stak/issues
+Author-email: memorypasta <memorypasta@gmail.com>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: cli,code-review,git,stacked-branches,stacked-diffs,workflow
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Unix Shell
+Classifier: Topic :: Software Development :: Version Control :: Git
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
+# stak
+
+[![npm](https://img.shields.io/npm/v/stak-git)](https://www.npmjs.com/package/stak-git)
+[![PyPI](https://img.shields.io/pypi/v/stak-git)](https://pypi.org/project/stak-git/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Minimal stacked changes for git. A lightweight alternative to [Graphite](https://graphite.dev), [ghstack](https://github.com/ezyang/ghstack), and [git-branchless](https://github.com/arxanas/git-branchless).
+
+## What is it?
+
+Build big features as a chain of small, reviewable branches:
+
+```
+main → auth-types → auth-service → auth-ui
+```
+
+Each branch builds on the previous. Submit all for review at once. When you edit a lower branch, one command updates everything above.
+
+## Install
+
+```bash
+# Homebrew (macOS/Linux)
+brew install memorypasta/tap/stak
+
+# npm
+npm install -g stak-git
+
+# pip / uv
+pip install stak-git
+
+# Direct install
+curl -fsSL https://raw.githubusercontent.com/memorypasta/stak/main/packaging/install.sh | bash
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `stak new <name>` | Create branch on top of current |
+| `stak insert` | Insert branch at any position (fzf) |
+| `stak split` | Split current branch's commits (fzf) |
+| `stak up` / `down` | Move up or down the stack |
+| `stak goto` | Jump to branch (fzf interactive) |
+| `stak status` | Show the stack |
+| `stak sync` | Rebase entire stack |
+| `stak continue` | Continue after resolving conflicts |
+| `stak abort` | Abort current rebase |
+| `stak push` | Push branches (fzf multi-select) |
+| `stak push -a` | Push all branches |
+| `stak drop` | Remove top branch |
+| `stak fold` | Fold branch (fzf interactive) |
+| `stak fold --down` | Fold into child (non-interactive) |
+| `stak land` | Clean up after PR merge |
+| `stak log` | View commits (fzf interactive) |
+| `stak log -a` | Show all branches |
+| `stak ls` | List all stacks |
+| `stak use` | Switch to stack (fzf interactive) |
+| `stak use <name>` | Switch/create stack by name |
+| `stak rm-stack` | Delete a stack (fzf interactive) |
+| `stak setup-interactive` | Install fzf |
+
+### Disable Interactive Mode
+
+```bash
+export STAK_NO_INTERACTIVE=1
+stak push    # pushes all without fzf prompt
+```
+
+## Basic Workflow
+
+```bash
+git checkout main
+
+# Build feature in parts
+stak new auth-types
+# ... commit ...
+
+stak new auth-service
+# ... commit ...
+
+stak new auth-ui
+# ... commit ...
+
+# See the stack
+stak status
+#     main
+#     auth-types (2 commits)
+#     auth-service (3 commits)
+#   → auth-ui (4 commits)
+
+# Push all for review
+stak push
+```
+
+## Editing a Lower Branch
+
+```bash
+# Go back to fix something
+stak down
+stak down
+# ... fix and commit ...
+
+# Update everything above
+stak sync
+
+# Push updates
+stak push
+```
+
+## Handling Conflicts
+
+```bash
+stak sync
+# Conflict in auth-service!
+
+# Fix the conflict in your editor
+git add .
+stak continue    # continues sync
+
+# Or abort and try differently
+stak abort
+```
+
+## Combining Branches
+
+**Fold up** (into parent - keep parent's name):
+```bash
+# Combine auth-service into auth-types
+stak down              # go to auth-service
+stak fold              # fold up into auth-types
+
+#     main
+#   → auth-types (combined)
+#     auth-ui
+```
+
+**Fold down** (into child - keep child's name):
+```bash
+# Combine auth-service into auth-ui
+stak down              # go to auth-service
+stak fold --down       # fold down into auth-ui
+
+#     main
+#     auth-types
+#   → auth-ui (combined)
+```
+
+## After PR Merges
+
+```bash
+# auth-types PR merged to main
+stak land        # removes auth-types, rebases rest onto main
+
+# Stack is now:
+#     main
+#   → auth-service
+#     auth-ui
+```
+
+## Multiple Stacks
+
+Work on different features simultaneously:
+
+```bash
+# Create stacks for different features
+stak use auth-feature     # creates & switches
+stak new auth-types
+stak new auth-service
+
+stak use billing-feature  # creates & switches
+stak new billing-api
+stak new billing-ui
+
+# Switch between them
+stak use auth-feature
+
+# List all stacks
+stak ls
+#   ● auth-feature (2 branches) ◀ current
+#   ○ billing-feature (2 branches)
+
+# Delete when done
+stak rm-stack billing-feature
+```
+
+Each stak tracks its own chain of branches independently.
+
+## Why stak?
+
+| Tool | Complexity | Dependencies | Works with any Git host |
+|------|------------|--------------|-------------------------|
+| **stak** | Minimal | Just bash + git | ✅ Yes |
+| Graphite | Full platform | Requires account | ❌ GitHub only |
+| ghstack | Medium | Python | ❌ GitHub only |
+| git-branchless | High | Rust binary | ✅ Yes |
+
+## Philosophy
+
+- **Minimal**: Only commands you need for stacked changes
+- **Transparent**: Just git branches. Use git directly anytime.
+- **No magic**: Stacks stored in `.git/stacks/`, one branch per line
+- **Conflict-friendly**: Resolve normally, then `stak continue`
+
+## Tips
+
+- Keep stacks shallow (2-3 branches). Deep stacks = more conflicts.
+- Commit before running `sync`, `fold`, or `drop`.
+- Use `stak status` often to see where you are.
+- You can always use raw git commands - stak just helps manage the chain.
+- Run `stak setup-interactive` to install fzf for interactive navigation.
+
+## License
+
+MIT
