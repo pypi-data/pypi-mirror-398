@@ -1,0 +1,51 @@
+Simple WiZ Control 💡Eine moderne, vollständig asynchrone Python-Library zur Steuerung von WiZ-Geräten (Steckdosen, Lampen, LED-Streifen). Diese Library wurde entwickelt, um eine leichtgewichtige und performante Alternative für Smart-Home-Enthusiasten zu bieten.FeaturesVollständig Asynchron: Basierend auf asyncio für maximale Performance ohne Blockierung des Haupt-Threads.Duale Discovery: Findet Geräte parallel über WiZ-UDP-Broadcast und Matter/mDNS (Zeroconf).Echtzeit-Status (Push): Empfängt sofortige Status-Updates von Geräten (z. B. bei manueller Schaltung), ohne Polling zu benötigen.Umfassende Steuerung:An/Aus & Dimmen (10-100%).RGB-Farbauswahl (0-255).Farbtemperatur (Kelvin).Über 30 vordefinierte Licht-Szenen.Zirkadianer Rhythmus: Aktivierung des biologischen Lichtmodus mit einem Befehl.Robustes Networking: Nutzt SO_REUSEADDR, um Port-Konflikte mit anderen WiZ-Apps zu minimieren.InstallationInstalliere die Library einfach via pip:pip install simple-wiz-control
+SchnellstartHier ist ein einfaches Beispiel, wie du Geräte im Netzwerk findest und steuerst:import asyncio
+from wiz_light import SimpleWizScanner, WizScene
+
+async def main():
+    # 1. Geräte suchen
+    print("Suche Geräte...")
+    devices = await SimpleWizScanner.discover(timeout=2.0)
+
+    if not devices:
+        print("Keine Geräte gefunden.")
+        return
+
+    # Das erste gefundene Gerät nehmen
+    device = devices[0]
+    print(f"Steuere Gerät: {device.ip}")
+
+    # 2. Aktionen ausführen
+    await device.turn_on()
+    await device.set_brightness(50)
+    await asyncio.sleep(2)
+
+    # Auf eine Szene schalten
+    await device.set_scene(WizScene.OCEAN)
+
+    # Zurück zu Warmweiß
+    await device.set_color_temp(2700)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+Echtzeit-Updates (Push-Listener)Anstatt den Status ständig abzufragen (Polling), kann diese Library auf "Push-Nachrichten" der Geräte lauschen. Das spart Netzwerkbandbreite und reagiert sofort.import asyncio
+from wiz_light import start_push_listener
+
+async def handle_update(ip, params):
+    state = "AN" if params.get("state") else "AUS"
+    power = params.get("power", 0) / 1000
+    print(f"🔔 Update von {ip}: Status ist {state}, Verbrauch: {power}W")
+
+async def run_listener():
+    # Startet den Server auf Port 38899
+    transport = await start_push_listener(handle_update)
+    print("Lausche auf Live-Updates... (Strg+C zum Beenden)")
+
+    try:
+        await asyncio.Event().wait()
+    except KeyboardInterrupt:
+        transport.close()
+
+if __name__ == "__main__":
+    asyncio.run(run_listener())
+Szenen-ÜbersichtVerwende das WizScene Enum für eine einfache Auswahl:WizScene.OCEANWizScene.ROMANCEWizScene.PARTYWizScene.FIREPLACEWizScene.COZYWizScene.FOREST... und viele mehr.LizenzDieses Projekt ist unter der MIT-Lizenz lizenziert – siehe die LICENSE Datei für Details.
