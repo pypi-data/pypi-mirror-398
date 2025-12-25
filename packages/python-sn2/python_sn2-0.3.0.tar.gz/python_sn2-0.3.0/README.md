@@ -1,0 +1,146 @@
+# python-sn2
+
+Python library for SystemNexa2 device integration.
+
+This package provides a client library for communicating with SystemNexa2 smart home
+devices over WebSocket and REST APIs. It supports device discovery, real-time state
+updates, brightness control, and configuration management.
+
+Supported Devices
+-----------------
+- Switches: WBR-01
+- Plugs: WPR-01, WPO-01
+- Lights: WBD-01, WPD-01
+
+Key Features
+------------
+- Asynchronous communication via WebSocket and REST
+- Real-time device state updates
+- Brightness control for dimmable devices
+- Device settings management (433MHz, LED, DIY mode, etc.)
+- Automatic reconnection handling
+- Error handling and logging
+
+## Installation
+
+```bash
+pip install python-sn2
+```
+
+## Usage
+
+```python
+"""Example usage of the python-sn2 library."""
+
+import asyncio
+import logging
+
+from sn2.device import Device
+
+logger = logging.getLogger(__name__)
+
+
+async def main() -> None:
+    """Demonstrate device usage."""
+    # Create a device instance
+    device = Device(host="192.168.1.144")
+
+    # Initialize the device
+    await device.initialize()
+
+    # Connect to the device
+    await device.connect()
+
+    # Set brightness
+    await device.set_brightness(0.75)
+
+    # Get device information
+    info = await device.get_info()
+    if info:
+        logger.info("Device: %s", info.information.name)
+
+    # Disconnect
+    await device.disconnect()
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(main())
+```
+
+## Development
+
+This project uses [uv](https://docs.astral.sh/uv/) for dependency management.
+
+Setup the development environment:
+
+```bash
+./scripts/test-setup
+```
+
+Or manually:
+
+```bash
+# Create virtual environment and install package
+uv venv
+uv pip install -e ".[dev]"
+```
+
+Run tests:
+
+```bash
+uv run pytest
+```
+
+Run linting:
+
+```bash
+uv run ruff check .
+uv run ruff format .
+```
+
+## Release Process
+
+This project uses automated versioning and releases. To create a new release:
+
+### Automated (Recommended)
+
+```bash
+# Bump patch version (0.1.0 -> 0.1.1)
+./scripts/release.sh patch
+
+# Bump minor version (0.1.0 -> 0.2.0)
+./scripts/release.sh minor
+
+# Bump major version (0.1.0 -> 1.0.0)
+./scripts/release.sh major
+```
+
+This will:
+1. Run tests and linting
+2. Bump version in `pyproject.toml` and `sn2/__init__.py`
+3. Create a git commit and tag
+4. Push to GitHub
+5. Trigger GitHub Actions to build and publish to PyPI
+
+### Manual
+
+```bash
+# Install bump-my-version
+pip install bump-my-version
+
+# Bump version
+bump-my-version bump patch  # or minor/major
+
+# Push changes and tags
+git push origin main --tags
+```
+
+The GitHub Actions workflow will automatically:
+- Create a GitHub release with release notes
+- Build the package
+- Publish to PyPI (via Trusted Publishing)
+
+## License
+
+MIT License
