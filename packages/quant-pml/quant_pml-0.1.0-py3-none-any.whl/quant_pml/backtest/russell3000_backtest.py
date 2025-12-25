@@ -1,0 +1,54 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+import pandas as pd
+
+from quant_pml.config.research_us_trading_config import ResearchUSTradingConfig
+from quant_pml.config.russell_3000_experiment_config import Russell3000ExperimentConfig
+from quant_pml.hedge.market_futures_hedge import MarketFuturesHedge
+from quant_pml.runner import build_backtest
+
+if TYPE_CHECKING:
+    from quant_pml.strategies.base_strategy import BaseStrategy
+
+
+def run_backtest(  # noqa: PLR0913
+    strategy: BaseStrategy,
+    rebal_freq: str = "D",
+    experiment_cfg: Russell3000ExperimentConfig | None = None,
+    trading_cfg: ResearchUSTradingConfig | None = None,
+    start_date: pd.Timestamp | str | None = None,
+    end_date: pd.Timestamp | str | None = None,
+) -> pd.DataFrame:
+    hedger = MarketFuturesHedge(market_name="spx")
+
+    strategy_name = strategy.__class__.__name__
+    cfg = experiment_cfg if experiment_cfg is not None else Russell3000ExperimentConfig()
+
+    preprocessor, runner = build_backtest(
+        experiment_config=cfg,
+        trading_config=trading_cfg if trading_cfg is not None else ResearchUSTradingConfig(),
+        rebal_freq=rebal_freq,
+        start=start_date,
+        end=end_date,
+    )
+
+    res = runner(
+        feature_processor=preprocessor,
+        strategy=strategy,
+        hedger=hedger,
+    )
+
+    runner.plot_cumulative(
+        strategy_name=strategy_name,
+        include_factors=True,
+    )
+
+    runner.plot_cumulative(
+        strategy_name=strategy_name,
+        include_factors=True,
+        start_date=cfg.END_DATE - pd.Timedelta(days=365 * 2),
+    )
+
+    return res.to_pandas()
