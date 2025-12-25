@@ -1,0 +1,266 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (leave empty to use version from pyproject.toml)'
+        required: false
+        type: string
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+      release_id: ${{ steps.create-release.outputs.id }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get version
+        id: get-version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # Extract version from pyproject.toml
+            VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+      
+      - name: Check if tag exists
+        id: check-tag
+        run: |
+          if git rev-parse "v${{ steps.get-version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create and push tag
+        if: steps.check-tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ steps.get-version.outputs.version }}" -m "Release v${{ steps.get-version.outputs.version }}"
+          git push origin "v${{ steps.get-version.outputs.version }}"
+      
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          
+          # Check if CHANGELOG.md exists and has content for this version
+          if [ -f CHANGELOG.md ]; then
+            CHANGELOG=$(sed -n "/## \[${VERSION}\]/,/## \[/p" CHANGELOG.md | sed '$d' 2>/dev/null || echo "")
+          fi
+          
+          # If no changelog found, generate from commits
+          if [ -z "$CHANGELOG" ] || [ "$CHANGELOG" = "" ]; then
+            echo "## 🚀 What's Changed" > /tmp/changelog.md
+            echo "" >> /tmp/changelog.md
+            
+            # Get previous tag or use first commit
+            PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)
+            
+            # Generate changelog from commits with proper formatting and user mentions
+            git log ${PREV_TAG}..HEAD --pretty=format:"- %s by @%an (%h)" --no-merges 2>/dev/null >> /tmp/changelog.md || echo "- Initial release" >> /tmp/changelog.md
+            
+            echo "" >> /tmp/changelog.md
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...v${VERSION}" >> /tmp/changelog.md
+          else
+            echo "$CHANGELOG" > /tmp/changelog.md
+          fi
+          
+          cat /tmp/changelog.md
+      
+      - name: Create Release
+        id: create-release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.get-version.outputs.version }}
+          name: Release v${{ steps.get-version.outputs.version }}
+          body_path: /tmp/changelog.md
+          draft: false
+          prerelease: false
+
+  build-wheels:
+    name: Build wheels (Linux only)
+    needs: create-release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.create-release.outputs.version }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      
+      - name: Install uv
+        run: pip install uv
+      
+      - name: Install maturin
+        run: uv pip install --system maturin
+      
+      - name: Build wheels
+        run: maturin build --release --strip --out dist
+      
+      - name: List built files
+        run: ls -lah dist/
+      
+      - name: Upload wheels artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux
+          path: dist/
+          if-no-files-found: error
+      
+      - name: Upload wheels to release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: dist/*.whl
+
+  build-wheels-macos:
+    name: Build wheels (macOS universal2)
+    needs: create-release
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.create-release.outputs.version }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      
+      - name: Install uv
+        run: pip install uv
+      
+      - name: Install maturin
+        run: uv pip install --system maturin
+      
+      - name: Build universal2 wheels
+        run: maturin build --release --strip --out dist --target universal2-apple-darwin
+      
+      - name: List built files
+        run: ls -lah dist/
+      
+      - name: Upload wheels artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos
+          path: dist/
+          if-no-files-found: error
+      
+      - name: Upload wheels to release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: dist/*.whl
+
+  build-sdist:
+    name: Build source distribution
+    needs: create-release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.create-release.outputs.version }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      
+      - name: Install uv
+        run: pip install uv
+      
+      - name: Install maturin
+        run: uv pip install --system maturin
+      
+      - name: Build sdist
+        run: maturin sdist --out dist
+      
+      - name: List built files
+        run: ls -lah dist/
+      
+      - name: Upload sdist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/
+          if-no-files-found: error
+      
+      - name: Upload sdist to release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: dist/*.tar.gz
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [create-release, build-wheels, build-sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      
+      - name: List downloaded files
+        run: ls -lah dist/
+      
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+
