@@ -1,0 +1,55 @@
+stages:
+  - code-quality
+  - security-scan
+  - publish
+
+.prepare:
+  image: proxies-ghcr.pkg.sbercloud.tech/astral-sh/uv:python3.13-alpine
+  variables:
+    UV_SYSTEM_PYTHON: true
+  before_script:
+    - uv pip install -r pyproject.toml --group dev --all-extras
+
+check:
+  stage: code-quality
+  extends: .prepare
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+  script:
+    - uv run ruff check
+    - uv run ty check
+
+cloud_codebase_scan:
+  stage: security-scan
+  image:
+    name: cto-docker-public.pkg.sbercloud.tech/cloud-scan:latest
+    pull_policy: always
+  allow_failure: true
+  variables:
+    TIMEOUT: "3m"
+  script:
+    - cloud-scan scan --log-level=debug
+  artifacts:
+    when: always
+    expire_in: 3 day
+    paths:
+      - .report/
+  only:
+    - master
+
+publish:
+  stage: publish
+  extends: .prepare
+  variables:
+    UV_PUBLISH_USERNAME: ${PYPI_LOGIN}
+    UV_PUBLISH_PASSWORD: ${PYPI_PASSWORD}
+  script:
+    - uv build
+    - uv publish --index sc-tt-pypi
+  artifacts:
+    paths:
+      - dist/*
+    expire_in: 1 day
+  only:
+    - master
+
