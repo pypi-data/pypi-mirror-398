@@ -1,0 +1,46 @@
+tetraflowSchema: v1
+
+name: My Tetraflow
+
+options:
+  batchMode: true
+  framework: spark
+
+config:
+  input:
+    label: "Input Table Name"
+    description: "Name of the table to read from"
+    type: string
+    required: true
+  output:
+    label: "Output Table Name"
+    description: "Name of the table to write to"
+    type: string
+    required: true
+
+workflow:
+  input:
+    type: Delta
+    category: source
+    description: Read the input dataset
+    properties:
+      loadPath: $( table(config.input) )
+
+  transform:
+    type: Sql
+    category: processor
+    description: Transform the dataset
+    needs: input
+    properties:
+      sql: |
+        SELECT field_1, field_2 as config_input
+        FROM input
+
+  output:
+    type: Delta
+    category: sink
+    description: Write the transformed data out
+    needs: transform
+    properties:
+      savePath: $( table(config.output) )
+      mode: overwrite

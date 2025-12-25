@@ -1,0 +1,86 @@
+FROM node:20-alpine AS builder
+
+# Deployment environment: production|local
+ARG DEPLOYMENT_ENVIRONMENT=production
+
+WORKDIR /usr/src/app
+
+# Install build dependencies
+RUN apk update && apk add --no-cache gcc musl-dev build-base linux-headers python3 make g++ \
+    && corepack enable
+
+# Install all workspace dependencies
+COPY package.json yarn.lock .yarnrc.yml ./
+RUN mkdir -p packages/client packages/server
+COPY packages/client/package.json packages/client/
+COPY packages/server/package.json packages/server/
+RUN yarn install
+
+# Copy source code and build
+COPY . .
+RUN yarn build
+
+# Aggressive cleanup to reduce image size
+RUN find /usr/local/lib/node_modules -type f -name "*.md" -delete \
+    && find /usr/local/lib/node_modules -type f -name "*.txt" -delete \
+    && find /usr/local/lib/node_modules -type d -name "test" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/node_modules -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/node_modules -type d -name "__tests__" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/node_modules -type d -name "docs" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/node_modules -type d -name "examples" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/node_modules -type f -name "*.map" -delete \
+    && yarn cache clean --all \
+    && npm cache clean --force \
+    && rm -rf /tmp/* /var/cache/apk/* \
+    && apk del gcc musl-dev build-base linux-headers python3 make g++
+
+FROM node:20-alpine
+
+# Redeclare the ARG for the second stage
+ARG DEPLOYMENT_ENVIRONMENT=production
+
+# Setup env
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV NODE_ENV=production
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apk add --no-cache supervisor su-exec \
+    && addgroup -g 1001 -S nodejs \
+    && adduser -S reactapp -u 1001
+
+# Copy built application from builder stage
+COPY --from=builder /usr/src/app/packages/client/dist ./packages/client/dist/
+COPY --from=builder /usr/src/app/packages/server/dist ./packages/server/dist/
+COPY --from=builder /usr/src/app/node_modules ./node_modules/
+COPY --from=builder /usr/src/app/package.json ./
+
+COPY images ./images/
+COPY conf/ /tmp/conf/
+
+# Conditionally copy supervisor configuration based on deployment environment
+RUN mkdir -p /etc/supervisor/conf.d \
+    && if [ "$DEPLOYMENT_ENVIRONMENT" = "production" ]; then \
+        cp /tmp/conf/supervisord.conf /etc/supervisor/conf.d/supervisord.conf; \
+    elif [ "$DEPLOYMENT_ENVIRONMENT" = "local" ]; then \
+        cp /tmp/conf/supervisord-local.conf /etc/supervisor/conf.d/supervisord.conf; \
+    else \
+        echo "Invalid DEPLOYMENT_ENVIRONMENT: $DEPLOYMENT_ENVIRONMENT"; \
+        exit 1; \
+    fi \
+    && rm -rf /tmp/conf/
+
+# Final cleanup to remove unnecessary files from final image
+RUN rm -rf /var/cache/apk/* \
+    && rm -rf /tmp/* \
+    && find /usr/local -name "*.a" -delete \
+    && find /app -name "*.map" -delete
+
+# Change ownership of app directory to non-root user
+RUN chown -R reactapp:nodejs /app
+
+EXPOSE 3000
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

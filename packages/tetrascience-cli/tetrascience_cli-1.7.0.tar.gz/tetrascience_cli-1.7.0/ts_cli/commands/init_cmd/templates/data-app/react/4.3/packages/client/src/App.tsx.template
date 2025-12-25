@@ -1,0 +1,77 @@
+import { useState } from 'react';
+import './App.css';
+
+interface ApiResponse {
+  message?: string;
+  status?: string;
+  timestamp?: string;
+  orgSlug?: string;
+  hasToken?: boolean;
+  error?: string;
+}
+
+function App() {
+  const [response, setResponse] = useState<ApiResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const callApi = async (endpoint: string) => {
+    setLoading(true);
+    setError(null);
+    setResponse(null);
+
+    try {
+      const res = await fetch(endpoint);
+      const data = await res.json();
+      setResponse(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="app-container">
+      <img src="/icon.png" alt="App Icon" className="app-icon" />
+      <h1>{{ data_app_artifact_title }}</h1>
+      <h2>TetraScience React Data App</h2>
+
+      <div className="playground">
+        <h3>API Playground</h3>
+        <p className="playground-description">
+          Test the Express backend API endpoints:
+        </p>
+
+        <div className="button-group">
+          <button onClick={() => callApi('/api/health')} disabled={loading}>
+            GET /api/health
+          </button>
+          <button onClick={() => callApi('/api/hello')} disabled={loading}>
+            GET /api/hello
+          </button>
+          <button onClick={() => callApi('/api/user')} disabled={loading}>
+            GET /api/user
+          </button>
+        </div>
+
+        {loading && <div className="loading">Loading...</div>}
+
+        {error && (
+          <div className="response error">
+            <strong>Error:</strong> {error}
+          </div>
+        )}
+
+        {response && (
+          <div className="response success">
+            <strong>Response:</strong>
+            <pre>{JSON.stringify(response, null, 2)}</pre>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default App;

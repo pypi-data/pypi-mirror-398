@@ -1,0 +1,74 @@
+FROM python:3.11-slim AS builder
+
+# Deployment environment: production|local
+ARG DEPLOYMENT_ENVIRONMENT=production
+
+WORKDIR /usr/src/app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc \
+        g++ \
+        make \
+    && pip install --upgrade pip \
+    && pip install --upgrade setuptools poetry \
+    && poetry config virtualenvs.create false
+
+# Install python dependencies (aggressively cleanup afterwards to reduce final image size by ~40MB)
+COPY pyproject.toml ./
+
+RUN poetry lock \
+    && poetry install --only main --no-root --no-cache \
+    && poetry cache clear --all pypi
+
+
+RUN find /usr/local/lib/python3.11/site-packages -type f -name "*.pyc" -delete \
+    && find /usr/local/lib/python3.11/site-packages -type f -name "*.pyo" -delete \
+    && find /usr/local/lib/python3.11/site-packages -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/python3.11/site-packages -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/python3.11/site-packages -type d -name "test" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/python3.11/site-packages -type d -name "*.dist-info" -exec find {} -name "RECORD" -delete \; \
+    && find /usr/local/lib/python3.11/site-packages -name "*.so" -exec strip {} \; 2>/dev/null || true \
+    && pip cache purge \
+    && rm -rf /root/.cache /tmp/* /var/cache/apt/* /var/lib/apt/lists/* \
+    && apt-get purge -y --auto-remove gcc g++ make
+
+FROM python:3.11-slim
+
+# Redeclare the ARG for the second stage
+ARG DEPLOYMENT_ENVIRONMENT=production
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        supervisor \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY images ./images/
+COPY {{ data_app_package_dir }} {{ data_app_package_dir }}
+COPY heartbeat.py app.py ./
+COPY .streamlit/config-docker.toml .streamlit/config.toml
+
+# Copy Python packages from builder stage
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+
+# Conditionally copy files depending on the deployment environment
+COPY conf/ /tmp/conf/
+RUN mkdir -p /etc/supervisor/conf.d \
+    && if [ "$DEPLOYMENT_ENVIRONMENT" = "production" ]; then \
+        cp /tmp/conf/supervisord.conf /etc/supervisor/conf.d/supervisord.conf; \
+    elif [ "$DEPLOYMENT_ENVIRONMENT" = "local" ]; then \
+        cp /tmp/conf/supervisord-local.conf /etc/supervisor/conf.d/supervisord.conf; \
+    else \
+        echo "Invalid DEPLOYMENT_ENVIRONMENT: $DEPLOYMENT_ENVIRONMENT"; \
+        exit 1; \
+    fi \
+    && rm -rf /tmp/conf/
+
+# Cleanup to remove unnecessary files from final image
+RUN rm -rf /var/lib/apt/lists/* \
+    && rm -rf /tmp/* \
+    && find /usr/local -name "*.a" -delete \
+    && find /app -name "*.pyc" -delete \
+    && find /app -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

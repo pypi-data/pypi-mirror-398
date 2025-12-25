@@ -1,0 +1,249 @@
+# ts-cli <!-- omit in toc -->
+
+Tetrascience CLI
+
+## Table of Contents <!-- omit in toc -->
+
+<details>
+<summary>Show</summary>
+
+- [Intro](#intro)
+  - [Example](#example)
+- [Install](#install)
+- [Usage](#usage)
+  - [Create an artifact](#create-an-artifact)
+  - [Publish an artifact](#publish-an-artifact)
+    - [API Configuration](#api-configuration)
+    - [IDS Validation](#ids-validation)
+- [Extras](#extras)
+  - [Protocol Validation](#protocol-validation)
+    - [Requirements](#requirements)
+    - [Installation](#installation)
+- [Documentation](#documentation)
+- [Changelog](#changelog)
+
+</details>
+
+## Intro
+
+`ts-cli` allows you to interface with the Tetrascience Data Platform from the comfort of your shell
+
+### Example
+
+Create and publish a new task script:
+
+```bash
+ts-cli config save ~/Downloads/ts-cfg.json
+ts-cli init task-script
+ts-cli publish
+```
+
+## Install
+
+```
+pip install tetrascience-cli
+```
+
+## Usage
+
+### Create an artifact
+
+Create an IDS, Protocol, Task Script, Tetraflow, or Data App artifact
+
+```bash
+ts-cli init <kind>
+```
+
+To set up the artifact's configuration interactively, use the `--interactive` or `-i` flag.
+
+```bash
+ts-cli init --interactive
+```
+
+### Publish an artifact
+
+Including IDS, Protocol, Task Script, or Data App artifacts from their source code
+
+```bash
+ts-cli publish
+```
+
+The artifact's type, namespace, slug and version are automatically read from its `manifest.json`
+file if it exists.
+To set up the artifact's configuration interactively, use the `--interative` or `-i` flag. Examples:
+
+```bash
+ts-cli publish --interactive
+```
+
+![An example of publishing an artifact using interactive mode](https://tetrascience.github.io/ts-cli/figures/interactive-mode-example.gif)
+
+#### API Configuration
+
+An API configuration is required.
+This can be the API configuration JSON file (`cfg.json`) found on the Tetra Data Platform.
+
+```json
+{
+	"api_url": "https://api.tetrascience.com/v1",
+	"auth_token": "your-token",
+	"org": "your-org",
+	"ignore_ssl": false
+}
+```
+
+This configuration can be referred to explicitly in the command line.
+Example:
+
+```bash
+ts-cli publish --config cfg.json
+```
+
+Or saved to a specific profile.
+
+```bash
+ts-cli config save cfg.json --profile dev
+ts-cli publish --profile dev
+```
+
+To apply the API configuration to all your projects automatically,
+save your configuration file globally
+
+```bash
+ts-cli config save cfg.json --global
+ts-cli publish
+```
+
+#### IDS Validation
+
+When uploading IDS artifact, validation will be performed using `ts-ids-validator` package.
+Validation failures for IDS will be printed to the console.
+
+## Extras
+
+### Protocol Validation
+
+The `ts-cli` can additionally run protocol v3 validation.
+
+#### Requirements
+
+- [`npm`](https://www.npmjs.com/) at the time of installation to populate dependencies. Neither `npm` nor `Node.js` will be used at runtime
+
+#### Installation
+
+```
+pip install tetrascience-cli[protocol-validation]
+```
+
+## Documentation
+
+Click [here](https://tetrascience.github.io/ts-cli/) for `--help` and a development guide
+
+## Changelog
+
+<details>
+<summary>Show</summary>
+
+### v1.7.0 <!-- omit in toc -->
+
+- Add support for React Data App template
+- Support protocol validation when using interactive mode to publish
+- Remove limits on publishing data-apps and connectors
+
+### v1.6.1 <!-- omit in toc -->
+
+- Add validation for artifact version in interactive mode
+
+### v1.6.0 <!-- omit in toc -->
+
+- Add support for new `schema` artifact type
+
+### v1.5.2 <!-- omit in toc -->
+
+- Increase artifact size for connectors and data apps to 2 GB
+- Add verbose flag to the publish command
+- Add URL normalization for API configuration
+- Update base image for Streamlit Data Apps
+
+### v1.5.1 <!-- omit in toc -->
+
+- Fix encoding issues when publishing data apps
+
+### v1.5.0 <!-- omit in toc -->
+
+- Add support for publishing Streamlit Data Apps from a template
+
+### v1.4.2 <!-- omit in toc -->
+
+- update tetraflow template to reflect the latest syntax updates
+- adjust files and dirs permissions to ensure lambda user can access all task files
+- fix ts-cli init protocol for 3.5 deployments
+
+### v1.4.1 <!-- omit in toc -->
+
+- update to the latest protocol compiler version
+
+### v1.4.0 <!-- omit in toc -->
+
+- typecheck protocols during publish validation using the protocol virtual machine compiler
+
+### v1.3.4 <!-- omit in toc -->
+
+- exclude betas and RCs from latest version check
+
+### v1.3.3 <!-- omit in toc -->
+
+- update vulnerable dependencies
+- update documentation
+
+### v1.3.2 <!-- omit in toc -->
+
+- fix output of monitored build when no args provided (build from the artifact directory)
+
+### v1.3.1 <!-- omit in toc -->
+
+- output {namespace, slug, version} when monitored build (via CodeBuild) completes
+
+### v1.3.0 <!-- omit in toc -->
+
+- Rename the `delete` command to `unpublish`
+- Display the number of other artifacts that depend on artifact that is to be unpublished
+  - Example: `warning: This protocol artifact is used by at least 1 pipeline`
+
+### v1.2.0 <!-- omit in toc -->
+
+- Allow publishing of connectors artifacts
+
+### v1.1.0 <!-- omit in toc -->
+
+- Adjust publish to support Codebuild build_id in response for all artifact types
+
+### v1.0.5 <!-- omit in toc -->
+
+- Fix incorrect messages to console when using `ts-cli init --interactive`
+
+### v1.0.4 <!-- omit in toc -->
+
+- Add a `delete` command
+- Remove extra `<unset>` strings in task script configurations
+
+### v1.0.3 <!-- omit in toc -->
+
+- Rename the `nodeType` field to `category` in the tetraflow template
+- Fix a crash on `ts-cli config {save,set}`
+- Fix broken IDS schemas generated from non-existent manifest.json
+
+### v1.0.2 <!-- omit in toc -->
+
+- Adds the dry-run flag to the `publish` cli
+
+### v1.0.1 <!-- omit in toc -->
+
+- Fix a crash on startup
+
+### v1.0.0 <!-- omit in toc -->
+
+- Initial release
+- Includes the `init`, `publish` and `config` commands
+
+</details>

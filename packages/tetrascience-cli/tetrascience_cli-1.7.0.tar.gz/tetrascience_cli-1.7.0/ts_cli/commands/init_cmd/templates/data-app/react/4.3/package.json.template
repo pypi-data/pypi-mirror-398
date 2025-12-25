@@ -1,0 +1,34 @@
+{
+  "name": "{{ data_app_package_name }}",
+  "description": "{{ data_app_description }}",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "setup-env": "node scripts/setup-env.js",
+    "dev:no-env": "yarn workspace @{{ data_app_package_name }}/server dev",
+    "dev": "yarn setup-env && dotenvx run --overload -f .env.server -- yarn dev:no-env",
+    "build": "yarn workspace @{{ data_app_package_name }}/client build && yarn workspace @{{ data_app_package_name }}/server build",
+    "build:client": "yarn workspace @{{ data_app_package_name }}/client build",
+    "build:server": "yarn workspace @{{ data_app_package_name }}/server build",
+    "lint": "yarn workspace @{{ data_app_package_name }}/client lint && yarn workspace @{{ data_app_package_name }}/server lint",
+    "preview": "yarn workspace @{{ data_app_package_name }}/client preview",
+    "test": "yarn workspace @{{ data_app_package_name }}/client test",
+    "test:coverage": "yarn workspace @{{ data_app_package_name }}/client test:coverage",
+    "test:browser": "yarn workspace @{{ data_app_package_name }}/client test:browser",
+    "docker:build": "docker build . -t {{ data_app_package_name }} --build-arg DEPLOYMENT_ENVIRONMENT=local",
+    "docker:build-for-publish": "docker build . -t {{ data_app_package_name }}:latest --platform linux/amd64 --build-arg DEPLOYMENT_ENVIRONMENT=production && docker save {{ data_app_package_name }}:latest -o image.tar",
+    "docker:start": "docker run --rm -p 3000:3000 --env-file .env.server --name {{ data_app_package_name }} {{ data_app_package_name }}"
+  },
+  "engines": {
+    "node": ">=20.0.0 <21.0.0"
+  },
+  "packageManager": "yarn@4.9.1+sha512.f95ce356460e05be48d66401c1ae64ef84d163dd689964962c6888a9810865e39097a5e9de748876c2e0bf89b232d583c33982773e9903ae7a76257270986538",
+  "devDependencies": {
+    "@dotenvx/dotenvx": "^1.34.0",
+    "typescript": "~5.7.2"
+  }
+}
