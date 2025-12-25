@@ -1,0 +1,80 @@
+# hatch-pre-index
+
+[![PyPI - Version](https://img.shields.io/pypi/v/hatch-pre-index.svg)](https://pypi.org/project/hatch-pre-index)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/hatch-pre-index.svg)](https://pypi.org/project/hatch-pre-index)
+
+
+This package provides the PreIndexPublisher for hatch.
+
+Its purpose is to perform the following tasks before calling the index publisher (hatch default publisher):
+* Ask for an API token to use for publishing to PyPI.  
+It provides the option to store the API token to be reused each time the project is published to the PyPI repository.
+* Track the project version published.  
+It checks whether the current version has not been published or otherwise reminds you to run hatch build with a new version number.
+* [ToDo: Run scripts]
+
+
+Use with 'hatch publish -p pre_index' with options in the command line or the pyproject.toml file ([see below for details()](#use-with-options)).
+
+
+
+
+</br>
+
+Enjoy
+
+&emsp;krokoreit  
+&emsp;&emsp;&emsp;<img src="https://github.com/krokoreit/hatch-pre-index/blob/main/assets/krokoreit-01.svg?raw=true" width="140"/>
+
+
+## Installation
+
+```console
+pip install hatch-pre-index
+```
+
+
+## Usage
+
+### Using the pre_index publisher
+Call hatch publish with the -p option:
+```py
+  hatch publish -p pre_index
+```
+
+</br>
+
+
+### Use with options
+To use the options of the pre_index publisher, you can
+  * either use one or more -o flags with hatch publish  
+    ```py
+    'hatch publish -p pre_index -o key1=value1 -o key2=value2'
+    ```
+  * or use an entry in the pyproject.toml file, with string "values" inside quotes  
+    ```py
+    [tool.hatch.publish.pre_index]  
+    key1="value1"  
+    key2=value2  
+    ```
+
+</br>
+
+#### The pw option  
+The pre_index publisher will ask whether you like to store an API token and then reuse it for the given context of 'project name' and 'repository', e.g. 'myproject' and 'main'. However, if you need to provide a new API token, you can apply the pw=new option to get prompted for entering a new API token. 
+
+</br>
+
+
+#### The repo option  
+Provide the repo option to specify a repository (other than 'main') to which the project will be published.  
+The repo option will be passed on to the index publisher (see https://hatch.pypa.io/dev/plugins/publisher/package-index/).  
+It may be useful to publish to the PyPI test repository.
+
+</br>
+
+
+
+## License
+MIT license  
+Copyright &copy; 2025 by krokoreit
