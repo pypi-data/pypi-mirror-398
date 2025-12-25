@@ -1,0 +1,29 @@
+# Read the Docs configuration file.
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details.
+
+version: 2
+
+sphinx:
+  configuration: doc_src/conf.py
+
+python:
+  install:
+    - requirements: requirements/doc.txt
+    - path: .
+      extra_requirements:
+        - all
+
+build:
+  os: ubuntu-20.04
+  tools:
+    python: "3.9"
+  apt_packages:
+    - graphviz
+    - plantuml
+  jobs:
+    post_checkout:
+      # Tags are necessary for setuptools-scm to determine the version.
+      - git fetch --tags
+      - git fetch origin develop
+    pre_build:
+      - sphinx-apidoc -e -M -o doc_src/modules src/gemseo
