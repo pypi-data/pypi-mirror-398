@@ -1,0 +1,105 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:browser="http://namespaces.zope.org/browser"
+    xmlns:five="http://namespaces.zope.org/five"
+    xmlns:i18n="http://namespaces.zope.org/i18n"
+    xmlns:z3c="http://namespaces.zope.org/z3c"
+    xmlns:zcml="http://namespaces.zope.org/zcml"
+    i18n_domain="collective.z3cform.datagridfield"
+    >
+
+  <i18n:registerTranslations directory="locales" />
+
+  <include package="plone.app.z3cform" />
+  <include package="plone.app.dexterity" />
+
+  <include
+      package="z3c.form"
+      file="meta.zcml"
+      />
+
+
+  <!-- NOTE: demo package is only installed in tests. If you want to use it
+       include this line somewhere in your integration package:
+  <include package="collective.z3cform.datagridfield.demo" />
+  -->
+
+  <include file="profiles.zcml" />
+  <include package=".upgrades" />
+
+  <browser:resourceDirectory
+      name="collective.z3cform.datagridfield"
+      directory="static"
+      />
+
+  <class class=".datagridfield.DataGridFieldWidget">
+    <require
+        permission="zope.Public"
+        interface=".interfaces.IDataGridFieldWidget"
+        />
+  </class>
+
+  <adapter factory=".autoform.MultipleErrorViewSnippetWithMessage" />
+  <adapter factory=".datagridfield.DataGridValidator" />
+  <adapter factory=".row.DictRowConverter" />
+
+  <adapter
+      factory=".converters.DictRowSerializer"
+      zcml:condition="installed transmogrify.dexterity"
+      />
+
+  <z3c:widgetTemplate
+      widget=".datagridfield.DataGridFieldWidget"
+      template="datagridfield_input.pt"
+      layer=".interfaces.IDataGridFieldLayer"
+      mode="input"
+      />
+  <z3c:widgetTemplate
+      widget=".blockdatagridfield.BlockDataGridFieldWidget"
+      template="datagridfield_input_block.pt"
+      layer=".interfaces.IDataGridFieldLayer"
+      mode="input"
+      />
+  <z3c:widgetTemplate
+      widget=".datagridfield.DataGridFieldObjectWidget"
+      template="datagridfieldobject_input.pt"
+      layer=".interfaces.IDataGridFieldLayer"
+      mode="input"
+      />
+  <z3c:widgetTemplate
+      widget=".blockdatagridfield.BlockDataGridFieldObjectWidget"
+      template="datagridfieldobject_input_block.pt"
+      layer=".interfaces.IDataGridFieldLayer"
+      mode="input"
+      />
+  <z3c:widgetTemplate
+      widget=".datagridfield.DataGridFieldWidget"
+      template="datagridfield_display.pt"
+      layer=".interfaces.IDataGridFieldLayer"
+      mode="display"
+      />
+  <z3c:widgetTemplate
+      widget=".datagridfield.DataGridFieldObjectWidget"
+      template="datagridfieldobject_display.pt"
+      layer=".interfaces.IDataGridFieldLayer"
+      mode="display"
+      />
+
+  <configure zcml:condition="installed plone.supermodel">
+    <utility
+        name="collective.z3cform.datagridfield.row.DictRow"
+        component=".supermodel.DictRowHandler"
+        />
+    <utility
+        provides="plone.autoform.interfaces.IWidgetExportImportHandler"
+        name="collective.z3cform.datagridfield.datagridfield.DataGridFieldWidgetFactory"
+        component=".autoform.DGFExportImportHandlerFactory"
+        />
+  </configure>
+
+  <configure zcml:condition="installed plone.restapi">
+    <adapter factory=".deserializer.DatagridRowDeserializer" />
+    <adapter factory=".deserializer.DatagridDatetimeDeserializer" />
+  </configure>
+
+</configure>
