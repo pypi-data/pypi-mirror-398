@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agents manifest schema",
+  "description": "Agent definitions with identity and artifact I/O contracts. Type and stage are defined in workflow.json.",
+  "type": "object",
+  "definitions": {
+    "consumeItem": {
+      "description": "Artifact consumption reference - string for required, object for optional or cross-workflow",
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Required artifact filename from local workflow"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "description": "Artifact filename"
+            },
+            "required": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether this artifact must exist"
+            },
+            "from_workflow": {
+              "type": "string",
+              "description": "Source workflow for cross-workflow artifacts (must match input_from key)"
+            }
+          },
+          "required": ["file"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "artifactCategory": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/consumeItem" },
+      "description": "List of artifacts in this category"
+    },
+    "produceCategory": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of artifact filenames produced"
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "workflow_id": {
+      "type": "string",
+      "description": "The workflow this agents file belongs to"
+    },
+    "agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "slug", "role"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Z]{1,2}-[A-Z0-9]{2,6}$",
+            "description": "Unique agent identifier. Core: PREFIX-00, On-demand: PREFIX-LETTERS (e.g., A-01, I-SEC, I-REVIEW)"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$",
+            "description": "URL-safe identifier for file naming (underscores only)"
+          },
+          "role": {
+            "type": "string",
+            "description": "Human-readable display name"
+          },
+          "agent_type": {
+            "type": "string",
+            "enum": ["core", "on_demand", "orchestrator", "gating"],
+            "description": "Agent classification type"
+          },
+          "description": {
+            "type": "string",
+            "description": "Brief agent purpose (1-2 sentences)"
+          },
+          "produces": {
+            "type": "object",
+            "description": "Artifacts this agent produces, categorized",
+            "properties": {
+              "core": { "$ref": "#/definitions/produceCategory" },
+              "domain": { "$ref": "#/definitions/produceCategory" },
+              "reference": { "$ref": "#/definitions/produceCategory" },
+              "gating": { "$ref": "#/definitions/produceCategory" },
+              "log": { "$ref": "#/definitions/produceCategory" }
+            },
+            "additionalProperties": false
+          },
+          "consumes": {
+            "type": "object",
+            "description": "Artifacts this agent consumes, categorized. Items can be strings (required) or objects (optional/cross-workflow)",
+            "properties": {
+              "core": { "$ref": "#/definitions/artifactCategory" },
+              "domain": { "$ref": "#/definitions/artifactCategory" },
+              "reference": { "$ref": "#/definitions/artifactCategory" },
+              "gating": { "$ref": "#/definitions/artifactCategory" },
+              "log": { "$ref": "#/definitions/artifactCategory" }
+            },
+            "additionalProperties": false
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Additional agent-specific data"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["agents"],
+  "additionalProperties": false
+}

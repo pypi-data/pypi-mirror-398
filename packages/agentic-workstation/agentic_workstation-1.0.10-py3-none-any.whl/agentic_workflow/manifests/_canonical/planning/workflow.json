@@ -1,0 +1,294 @@
+{
+  "$schema": "../../_canonical_schemas/workflow.schema.json",
+  "workflow_id": "planning",
+  "name": "planning",
+  "display_name": "Planning Workflow",
+  "version": "1.0.0",
+  "description": "Comprehensive software project planning workflow that transforms ideas into detailed technical specifications. A team of specialized agents systematically analyzes requirements, designs architecture, and creates complete technical foundations for software implementation projects.",
+  "author": "agentic-workflow-os",
+  "created": "2025-11-20",
+  "updated": "2025-11-29",
+  "tags": [
+    "software",
+    "planning",
+    "architecture",
+    "requirements",
+    "design"
+  ],
+  "display": {
+    "agent_prefix": "A",
+    "orch_id": "A00",
+    "id_format": "padded",
+    "focus": "planning-only",
+    "base_rules": [
+      "**Source of Truth:** `project_index.md` is your file registry",
+      "**Inputs:** Read from paths listed in `consumes` (frontmatter)",
+      "**Outputs:** Write to paths listed in `produces` (frontmatter)",
+      "**Logging:** See `docs/CLI_REFERENCE.md` for workflow commands",
+      "**No Code:** This is planning-only \u2014 no implementation code"
+    ],
+    "protocol": {
+      "name": "Context Protocol",
+      "steps": [
+        "**On Startup:** Read `project_index.md` \u2192 Read `context_file` \u2192 Check `agent_log/exchange_log.md`",
+        "**Gating:** Do NOT proceed if upstream HANDOFF is missing",
+        "**Checkpointing:** Update `context_file` after every significant step"
+      ]
+    },
+    "copilot": {
+      "workflow_type": "Planning",
+      "tagline": "self-contained with local documentation",
+      "governance_purpose": "Decision IDs, logging rules",
+      "startup_extras": "",
+      "extra_resources": "",
+      "core_rules": "1. **Planning only** \u2014 no implementation code\n2. **Markdown only** \u2014 all outputs are `.md` files\n3. **Follow frontmatter** \u2014 `consumes`/`produces` in active_session define I/O\n4. **Gating** \u2014 do NOT proceed without upstream HANDOFF in exchange_log\n5. **Checkpoint** \u2014 update context file after significant steps\n",
+      "cycle_section": "",
+      "on_demand_section": ""
+    }
+  },
+  "cli": {
+    "extra_commands": [],
+    "examples": [
+      {
+        "command": "./workflow status",
+        "description": "Show project status"
+      },
+      {
+        "command": "./workflow activate A01",
+        "description": "Activate agent A01"
+      },
+      {
+        "command": "./workflow handoff --from A01 --to A02 --artifacts \"spec.md\"",
+        "description": "Signal handoff"
+      },
+      {
+        "command": "./workflow decision --title \"Use PostgreSQL\" --rationale \"ACID compliance\"",
+        "description": "Record decision"
+      }
+    ]
+  },
+  "pipeline": {
+    "order": [
+      "A-00",
+      "A-01",
+      "A-02",
+      "A-03",
+      "A-04",
+      "A-05",
+      "A-06",
+      "A-07",
+      "A-08",
+      "A-09",
+      "A-10",
+      "A-11",
+      "A-12",
+      "A-13",
+      "A-14"
+    ],
+    "allow_skip": false,
+    "allow_parallel": false
+  },
+  "stages": [
+    {
+      "id": "DISCOVERY",
+      "name": "Discovery",
+      "description": "Initial discovery and ideation",
+      "agents": ["A-00", "A-01"]
+    },
+    {
+      "id": "REQUIREMENTS",
+      "name": "Requirements",
+      "description": "Define requirements and scope",
+      "agents": ["A-02", "A-11"]
+    },
+    {
+      "id": "ARCHITECTURE",
+      "name": "Architecture",
+      "description": "System architecture, components, and data flows",
+      "agents": ["A-03", "A-06"]
+    },
+    {
+      "id": "DESIGN",
+      "name": "Design & Integration",
+      "description": "API, UX, and integration design",
+      "agents": ["A-07", "A-08", "A-09"]
+    },
+    {
+      "id": "SECURITY",
+      "name": "Security & Compliance",
+      "description": "Threat modeling and compliance checks",
+      "agents": ["A-04"]
+    },
+    {
+      "id": "INFRA",
+      "name": "Infrastructure",
+      "description": "Infrastructure and deployment planning",
+      "agents": ["A-05", "A-12"]
+    },
+    {
+      "id": "QA",
+      "name": "QA & Testing",
+      "description": "Test strategies and validation",
+      "agents": ["A-10"]
+    },
+    {
+      "id": "TRANSITION",
+      "name": "Transition & Handoff",
+      "description": "Prepare for implementation handoff",
+      "agents": ["A-13", "A-14"]
+    }
+  ],
+  "globals": {
+    "output_requirements": [
+      "Markdown only; clear headings; concise tables/diagrams (Mermaid where visual clarity helps).",
+      "No implementation code.",
+      "Filenames must match artifact registry."
+    ],
+    "non_overlap_rules": [
+      "Output is concise, technical, and deterministic.",
+      "Avoid implementation details or writing code.",
+      "Do not design UI, user-facing flows or product features unless explicitly scoped.",
+      "Do not assume technologies not justified by constraints."
+    ],
+    "log_schema": [
+      "Log File: (See `log_file` in frontmatter)",
+      "Entry Types: INTAKE | QUESTION | DECISION | ASSUMP | GAP | RISK",
+      "Schema: `timestamp | entry_type | ref_ids | summary | status/outcome`"
+    ],
+    "context_rules": [
+      "Rehydration: On startup, READ `global_log_file` (project status) \u2192 READ `context_file` (local state) \u2192 READ `exchange_log.md` (upstream handoffs).",
+      "Gating: Do NOT proceed if upstream HANDOFF is missing in `exchange_log.md`.",
+      "Checkpointing: UPDATE `context_file` immediately after every significant step."
+    ]
+    
+  },
+  "checkpoints": [
+    {
+      "after_agent": "A-02",
+      "type": "human",
+      "prompt": "Architecture review complete. Approve to proceed to security review?",
+      "gating": "strict",
+      "required_artifacts": ["architecture_overview.md","design.md"],
+      "required_logs": ["decision"],
+      "bypass_policy": {
+        "allowed_roles": ["A-03","A-00"],
+        "requires_approval": true,
+        "approval_count": 1,
+        "audit_fields": ["reason","by","timestamp"]
+      },
+      "owner": "A-02",
+      "validation_command": "./workflow validate-checkpoint --after-agent A-02 --artifacts architecture_overview.md,design.md",
+      "timeout_seconds": 30
+    },
+    {
+      "after_agent": "A-12",
+      "type": "human",
+      "prompt": "Transition audit complete. Approve for implementation handoff?",
+      "gating": "strict",
+      "required_artifacts": ["transition_plan.md"],
+      "required_logs": ["decision","handoff"],
+      "bypass_policy": {
+        "allowed_roles": ["A-13","A-00"],
+        "requires_approval": true,
+        "approval_count": 1,
+        "audit_fields": ["reason","by","timestamp"]
+      },
+      "owner": "A-12",
+      "validation_command": "./workflow validate-checkpoint --after-agent A-12 --artifacts transition_plan.md",
+      "timeout_seconds": 30
+    },
+    {
+      "after_agent": "A-13",
+      "type": "gate",
+      "condition": "all_critical_gaps_addressed",
+      "prompt": "Final audit complete. Ready for implementation?",
+      "gating": "strict",
+      "required_artifacts": ["final_audit_report.md"],
+      "required_logs": ["decision","assumption"],
+      "bypass_policy": {
+        "allowed_roles": ["A-14","A-00"],
+        "requires_approval": true,
+        "approval_count": 2,
+        "audit_fields": ["reason","by","timestamp"]
+      },
+      "owner": "A-13",
+      "validation_command": "./workflow validate-checkpoint --after-agent A-13 --artifact final_audit_report.md",
+      "timeout_seconds": 60
+    }
+  ],
+  "governance": {
+    "workflow_specific": "governance.md",
+    "decision_prefixes_by_agent_id": {
+      "A-00": "ORG-",
+      "A-01": "IDEA-",
+      "A-02": "REQ-",
+      "A-03": "ARCH-DEC-",
+      "A-04": "CTRL-",
+      "A-05": "INF-DEC-",
+      "A-06": "DATA-DEC-",
+      "A-07": "API-DEC-",
+      "A-08": "UX-DEC-",
+      "A-09": "DEV-DEC-",
+      "A-10": "QA-DEC-",
+      "A-11": "PROD-DEC-",
+      "A-12": "SRE-DEC-",
+      "A-13": "AUDIT-DEC-",
+      "A-14": "IFIA-DEC-"
+    },
+    "artifact_naming": {
+      "filename_pattern": "^[a-z0-9_\\/]+\\.md$",
+      "log_pattern": "{slug}_log.md",
+      "specs_directory": "specs/",
+      "enforce_snake_case": true,
+      "notes": "All artifacts should follow snake_case and be placed under `specs/` when specification files are required."
+    },
+    
+    "traceability_column_updates": {
+      "A-01": ["requirement_type","description","status"],
+      "A-02": ["architecture_components"],
+      "A-03": ["security_controls"],
+      "A-05": ["data_entities"],
+      "A-06": ["api_endpoints"],
+      "A-07": ["accessibility_criteria"],
+      "A-09": ["test_case_ids"],
+      "A-11": ["slo_metrics"]
+    },
+    "review_cadence": {
+      "event_triggers": ["Major scope change","security finding","architecture revision"],
+      "standard_review_days": 60
+    }
+  },
+  "config": {
+    "enforcement": {
+      "mode": "strict",
+      "checkpoint_gating": "strict",
+      "handoff_gating": "strict"
+    },
+    "logging": {
+      "require_session_log": true,
+      "require_decision_log": true,
+      "require_assumption_log": true,
+      "require_handoff_log": true,
+      "require_artifact_tracking": true
+    },
+    "validation": {
+      "run_validation_commands": true,
+      "timeout_seconds": 30
+    },
+    "bypass": {
+      "require_reason": true,
+      "log_bypasses": true
+    }
+  },
+  "directories": {
+    "root": "projects/{project_name}/",
+    "artifacts": "artifacts/",
+    "agent_files": "agent_files/",
+    "agent_context": "agent_context/",
+    "agent_log": "agent_log/",
+    "docs": "docs/",
+    "input": "input/",
+    "package": "package/",
+    "templates": "templates/planning/"
+  }
+}

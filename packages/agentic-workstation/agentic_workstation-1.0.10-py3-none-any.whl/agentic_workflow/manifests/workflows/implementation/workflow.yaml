@@ -1,0 +1,193 @@
+# ==========================================================================
+# IMPLEMENTATION WORKFLOW WORKFLOW
+# Generated: 2025-12-05 07:40
+# Source: workflow.json, agents.json
+# Workflow: Implementation Workflow
+#
+# NOTE: This file is GENERATED from canonical JSON files.
+#       Edit the source JSON in manifests/_canonical/ instead.
+# ==========================================================================
+# --- Workflow Metadata ---
+name: implementation
+workflow_id: implementation
+display_name: Implementation Workflow
+version: 1.0.0
+description: Test-driven implementation workflow following the 'Test-First, Trace-Always, Gate-Before-Go' philosophy. 6 core
+  agents handle scaffold, backend, frontend, quality, and release. 4 on-demand agents provide security, documentation, data
+  stewardship, and performance expertise.
+
+# --- Agent Summary (derived) --------------------------------------------
+agent_summary:
+  total_agents: 10
+  total_artifacts: 39
+  agent_counts:
+    orchestrator: 1
+    core: 5
+    on_demand: 4
+  pipeline_order:
+  - I-00
+  - I-01
+  - I-02
+  - I-03
+  - I-04
+  - I-05
+  parallel_groups:
+  - - I-02
+    - I-03
+  checkpoints:
+  - after_agent: I-01
+    type: human
+    prompt: Project structure ready. Proceed to implementation?
+    owner: I-01
+    validation_command: ''
+    timeout_seconds: 30
+  - after_agent: I-03
+    type: gate
+    condition: unit_tests_pass
+    prompt: Backend and frontend unit tests must pass.
+    owner: I-03
+    validation_command: ./workflow validate-checkpoint --after-agent I-03 --check unit_tests_pass
+    timeout_seconds: 60
+  - after_agent: I-04
+    type: human
+    prompt: Quality validation complete. Proceed to release?
+    owner: I-04
+    validation_command: ''
+    timeout_seconds: 30
+  - after_agent: I-05
+    type: human
+    prompt: Release ready for deployment. Approve final release?
+    owner: I-05
+    validation_command: ''
+    timeout_seconds: 30
+
+# --- Pipeline Configuration ---------------------------------------------
+pipeline:
+  order:
+  - I-00
+  - I-01
+  - I-02
+  - I-03
+  - I-04
+  - I-05
+  parallel_groups:
+  - - I-02
+    - I-03
+  allow_skip: false
+  allow_parallel: true
+
+# --- Directory Structure ------------------------------------------------
+# Used by scaffold scripts for project initialization
+directories:
+  root: projects/{project_name}/
+  src: src/
+  src_backend: src/backend/
+  src_frontend: src/frontend/
+  src_shared: src/shared/
+  tests: tests/
+  tests_unit: tests/unit/
+  tests_integration: tests/integration/
+  tests_e2e: tests/e2e/
+  docs: docs/
+  infrastructure: infrastructure/
+  migrations: migrations/
+  scripts: scripts/
+  config: config/
+  artifacts: artifacts/
+  agent_files: agent_files/
+  agent_context: agent_context/
+  agent_log: agent_log/
+  templates: templates/implementation/
+
+# --- Checkpoints --------------------------------------------------------
+checkpoints:
+- after_agent: I-01
+  type: human
+  prompt: Project structure ready. Proceed to implementation?
+  owner: I-01
+  validation_command: ''
+  timeout_seconds: 30
+- after_agent: I-03
+  type: gate
+  condition: unit_tests_pass
+  prompt: Backend and frontend unit tests must pass.
+  owner: I-03
+  validation_command: ./workflow validate-checkpoint --after-agent I-03 --check unit_tests_pass
+  timeout_seconds: 60
+- after_agent: I-04
+  type: human
+  prompt: Quality validation complete. Proceed to release?
+  owner: I-04
+  validation_command: ''
+  timeout_seconds: 30
+- after_agent: I-05
+  type: human
+  prompt: Release ready for deployment. Approve final release?
+  owner: I-05
+  validation_command: ''
+  timeout_seconds: 30
+
+# --- Stages -------------------------------------------------------------
+stages:
+- id: INTAKE
+  description: Task received, context loaded
+- id: SPEC
+  description: Mini-spec created with REQ-ID trace
+- id: APPROVED
+  description: Human/gate approval granted
+- id: TEST_WRITE
+  description: Failing tests authored (TDD red phase)
+- id: IMPLEMENT
+  description: Code written to pass tests (TDD green phase)
+- id: INSTRUMENT
+  description: Observability added (logs, metrics, tracing)
+- id: VERIFY
+  description: Tests pass, coverage met, review complete
+- id: COMPLETE
+  description: Ready for handoff or release
+
+# --- Cycles -------------------------------------------------------------
+cycles:
+  tdd:
+    name: TDD Micro-Cycle
+    steps:
+    - ingest - Load task and relevant planning artifacts
+    - spec_test - Write failing test
+    - implement - Write code to pass test
+    - instrument - Add logging/metrics
+    - log - Update status artifacts
+
+# --- Global Rules -------------------------------------------------------
+globals:
+  output_requirements:
+  - Code must have corresponding tests before merge.
+  - All code changes must be traceable to REQ-IDs.
+  - Instrumentation (logging, metrics) required for production code.
+  - Documentation inline (docstrings, comments) + README updates.
+  tdd_cycle:
+  - 'ingest: Load context, parse requirements'
+  - 'spec_test: Write failing tests (TDD red)'
+  - 'implement: Write code to pass tests (TDD green)'
+  - 'instrument: Add observability (logs, metrics, traces)'
+  - 'log: Document work done (changelog entry)'
+  gating_rules:
+  - Check gating artifacts BEFORE agent activation.
+  - If blockers found, set blocked=true and halt.
+  - Blockers must be resolved in source artifact before proceeding.
+
+# --- CLI Configuration --------------------------------------------------
+cli:
+  extra_commands:
+  - set-stage
+  - gate-check
+  - invoke
+  - sync-planning
+  examples:
+  - command: ./workflow status
+    description: Show project status
+  - command: ./workflow activate I-01
+    description: Activate scaffold agent
+  - command: ./workflow set-stage IMPLEMENT
+    description: Set implementation stage
+  - command: ./workflow gate-check I-01
+    description: Check gate requirements

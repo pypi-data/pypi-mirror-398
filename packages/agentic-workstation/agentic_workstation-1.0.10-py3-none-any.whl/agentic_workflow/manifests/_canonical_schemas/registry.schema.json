@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "registry.schema.json",
+  "title": "Workflow Registry Schema",
+  "description": "Schema for the workflow registry that lists all available workflow packages",
+  "type": "object",
+  "required": ["schema_version", "default", "workflows"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference"
+    },
+    "_meta": {
+      "type": "object",
+      "description": "Metadata about this registry file",
+      "properties": {
+        "description": { "type": "string" },
+        "purpose": { "type": "string" }
+      }
+    },
+    "schema_version": {
+      "type": "string",
+      "description": "Version of the registry schema"
+    },
+    "default": {
+      "type": "string",
+      "description": "Default workflow when --workflow not specified"
+    },
+    "workflows": {
+      "type": "object",
+      "description": "Map of workflow name to workflow configuration",
+      "additionalProperties": {
+        "$ref": "#/definitions/WorkflowEntry"
+      }
+    }
+  },
+  "definitions": {
+    "WorkflowEntry": {
+      "type": "object",
+      "required": ["path", "name", "description", "version", "agents", "stages", "status"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Relative path to workflow directory"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable workflow name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Brief description of the workflow purpose"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Semantic version"
+        },
+        "agents": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total number of agents in workflow"
+        },
+        "stages": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of stages in workflow"
+        },
+        "config_present": {
+          "type": "boolean",
+          "description": "Whether workflow.json config exists"
+        },
+        "core_agents": {
+          "type": "integer",
+          "description": "Number of core pipeline agents"
+        },
+        "on_demand_agents": {
+          "type": "integer",
+          "description": "Number of on-demand agents"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["stable", "beta", "planned", "deprecated"],
+          "description": "Current status of the workflow"
+        },
+        "requires": {
+          "type": "string",
+          "description": "Required predecessor workflow"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Categorization tags"
+        }
+      }
+    }
+  }
+}

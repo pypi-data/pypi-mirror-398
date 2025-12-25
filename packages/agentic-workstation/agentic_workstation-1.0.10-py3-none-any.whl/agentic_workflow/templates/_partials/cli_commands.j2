@@ -1,0 +1,67 @@
+{#- CLI Commands Partial -#}
+{#- Renders CLI commands with actual values (not placeholders) -#}
+
+{#- Parameters:
+    agent_id: current agent ID
+    next_agent_id: next agent ID (null for terminal)
+    workflow_name: current workflow name
+    required_artifacts: array of artifact filenames for handoff
+-#}
+
+## CLI Quick Reference
+
+### Session Commands
+
+```bash
+# Start/resume session
+agentic activate {{ agent_id }}
+
+# Check session status
+agentic status
+```
+
+### Logging Commands
+
+```bash
+# Record a decision
+agentic decision --title "Decision Title" --rationale "Why this decision was made"
+
+# Record an assumption
+agentic assumption --assumption "Assumption Title" --rationale "Basis for assumption"
+
+# Record feedback
+agentic feedback --target "A-01" --severity "medium" --summary "Feedback summary"
+```
+
+### Handoff Commands
+
+{% if next_agent_id %}
+```bash
+# Handoff to next agent
+agentic handoff --to {{ next_agent_id }} --artifacts "{{ required_artifacts | join(', ') if required_artifacts else 'artifact1.md, artifact2.md' }}" --notes "Handoff notes"
+```
+{% else %}
+```bash
+# End workflow (terminal agent)
+agentic end
+```
+{% endif %}
+
+{% if checkpoint %}
+### Checkpoint Commands
+
+```bash
+# View checkpoint status (if applicable)
+agentic status
+```
+{% endif %}
+
+### Configuration Commands
+
+```bash
+# View current config (global context)
+agentic config
+
+# List available workflows (global context)
+agentic workflows
+```
