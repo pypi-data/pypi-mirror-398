@@ -1,0 +1,129 @@
+# PyLeadFinder
+
+Find and enrich business leads using Google Places API with ZIP code optimization. Optionally includes email extraction via website scraping.
+
+## Installation
+
+```bash
+pip install pyleadfinder
+```
+
+**Requirements:**
+- Python 3.9+
+- Google Places API key ([get one](https://developers.google.com/maps/documentation/places/web-service/get-api-key))
+
+## Usage
+
+PyLeadFinder supports three operating modes:
+
+### 1. API Mode (Default) - For Integration
+
+Returns JSON-serializable dictionaries directly.
+
+```python
+from pyleadfinder import leadfinder
+
+results = leadfinder(
+    places_api_key="YOUR_KEY",
+    queries=["liquor stores"],
+    bounds=(45.4, 45.6, -122.8, -122.5),  # (min_lat, max_lat, min_lng, max_lng)
+    radius=30
+)
+
+# Use the data in your application
+for company in results['companies']:
+    print(f"{company.name}: {company.email}")
+```
+
+### 2. CSV Mode - For Spreadsheets
+
+Export data to CSV format for use in Excel, Google Sheets, or other tools.
+
+```python
+from pyleadfinder import leadfinder
+
+results = leadfinder(
+    places_api_key="YOUR_KEY",
+    queries=["coffee shops"],
+    bounds=(45.4, 45.6, -122.8, -122.5),
+    output_mode="csv"
+)
+
+# Outputs: leads.csv
+```
+
+### 3. KML Mode - For Google My Maps
+
+Output KML files that can be imported directly into Google My Maps.
+
+```python
+from pyleadfinder import leadfinder
+
+results = leadfinder(
+    places_api_key="YOUR_KEY",
+    queries=["restaurants"],
+    bounds=(45.4, 45.6, -122.8, -122.5),
+    output_mode="kml"
+)
+
+# Outputs: leads.kml
+```
+
+## How It Works
+
+1. **ZIP Code Optimization**: Uses hexagonal grid packing to minimize API calls (40-60% reduction).
+2. **Places Search**: Multi-threaded search across optimized locations.
+3. **Email Extraction**: Scrapes company websites for contact info (optional).
+4. **Export**: Generates output based on selected mode.
+
+## Arguments
+
+```python
+leadfinder(
+    # Required
+    places_api_key: str,              # Google Places API key
+    queries: list[str],               # Search terms like ["restaurants"]
+    bounds: tuple,                    # (min_lat, max_lat, min_lng, max_lng)
+
+    # Optional
+    output_name: str = "leads",       # Base filename for outputs
+    radius: int = 30,                 # Search radius
+    radius_unit: str = "miles",       # Unit: "miles", "km", "meters", "yards"
+    output_mode: str = "api",         # "api" (default), "csv", or "kml"
+    
+    # Advanced Options (kwargs)
+    excluded_keywords: list = [],     # Keywords to filter out companies/URLs
+    num_workers: int = 10,            # Number of threads for parallel processing
+    timeout: int = None,              # Operation timeout in seconds (None = no limit)
+    scrape_emails: bool = False       # Scrape websites for emails (Default: False)
+)
+```
+
+### Output Modes
+
+- **`"api"`** (default): Returns data in a dictionary, no file output.
+- **`"csv"`**: Generates a CSV file with all company data.
+- **`"kml"`**: Generates a KML file for Google My Maps import.
+
+### About the `radius` parameter
+
+- Smaller radius = better coverage and more complete results.
+- Smaller radius = significantly more API calls.
+- The ZIP code optimizer uses this radius to determine coverage density.
+- Example: radius=10 might require 3-4x more ZIP codes than radius=30.
+
+## Output Files
+
+**API Mode**: No files generated - use the returned dictionary with `companies`, `stats`, and `map_data`.
+
+**CSV Mode**: Spreadsheet export with columns: name, address, city, state, zip_code, phone, website, emails, latitude, longitude, place_id.
+
+**KML Mode**: Import directly to [Google My Maps](https://www.google.com/mymaps).
+
+## Examples
+
+See [examples/](examples/) directory for working examples of all three modes.
+
+## License
+
+MIT License - Copyright 2025 Austin Rakowski
