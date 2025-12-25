@@ -1,0 +1,175 @@
+// This file is part of the StructStore library.
+// Copyright (C) 2022-2025 Max Mertens
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License v3.0
+// as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU General Lesser Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+#ifndef STST_OFFSETPTR_HPP
+#define STST_OFFSETPTR_HPP
+
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <iterator>
+#include <limits>
+#include <type_traits>
+
+namespace structstore {
+
+#ifdef STRUCTSTORE_EXTRALARGE
+using global_ptr_diff_type = int64_t;
+#else
+using global_ptr_diff_type = int32_t;
+#endif
+
+template<typename diff_type = global_ptr_diff_type>
+class OffsetPtrBase {};
+
+template<typename T, typename diff_type = global_ptr_diff_type>
+class OffsetPtr : public OffsetPtrBase<diff_type> {
+public:
+    static_assert(std::is_signed_v<diff_type>);
+
+    // using element_type = T;
+    using pointer = OffsetPtr<T, int64_t>;
+    // using const_pointer = const T*;
+    using difference_type = diff_type;
+    using value_type = T;
+    using reference = std::conditional_t<std::is_void_v<T>, int, T>&;
+    // using const_reference = std::conditional_t<std::is_void_v<T>, const int, const T>&;
+    using iterator_category = std::random_access_iterator_tag;
+    // template<class U>
+    // using rebind = OffsetPtr<U>;
+
+    static constexpr diff_type empty_val = std::numeric_limits<diff_type>::min();
+    static constexpr ptrdiff_t max_ptrdiff_val =
+            std::is_same_v<diff_type, int32_t> ? 4 * (ptrdiff_t) std::numeric_limits<int32_t>::max()
+                                               : std::numeric_limits<int64_t>::max();
+
+    diff_type offset = empty_val;
+
+    // static functions
+
+    static std::ptrdiff_t ptr_to_int(const void* ptr) {
+        return reinterpret_cast<const std::ptrdiff_t>(ptr);
+    }
+
+    static T* int_to_T_ptr(std::ptrdiff_t offset) { return reinterpret_cast<T*>(offset); }
+
+    static OffsetPtr pointer_to(reference t) { return OffsetPtr(&t); }
+
+    // constructors and assignment operators
+
+    explicit OffsetPtr() {}
+
+    OffsetPtr(T* t) { *this = t; }
+
+    OffsetPtr(const OffsetPtr& other) : OffsetPtr(other.get()) {}
+
+    OffsetPtr(OffsetPtr&& other) : OffsetPtr(other.get()) {}
+
+    OffsetPtr& operator=(T* t) {
+        if (t == nullptr) {
+            this->offset = this->empty_val;
+        } else {
+            ptrdiff_t diff = ptr_to_int(t) - ptr_to_int(this);
+            assert(diff < this->max_ptrdiff_val);
+            assert(diff > -this->max_ptrdiff_val);
+            if constexpr (std::is_same_v<diff_type, int32_t>) {
+                // shared mem pointers should always be aligned to 4 bytes
+                assert(diff % 4 == 0);
+                this->offset = diff / 4;
+            } else {
+                this->offset = diff;
+            }
+        }
+        return *this;
+    }
+
+    OffsetPtr& operator=(const OffsetPtr& other) { return *this = other.get(); }
+
+    OffsetPtr& operator=(OffsetPtr&& other) { return *this = other.get(); }
+
+    ~OffsetPtr() = default;
+
+    // explicit accessors
+
+    T* get() const {
+        if (this->offset == this->empty_val) return nullptr;
+        if constexpr (std::is_same_v<diff_type, int32_t>) {
+            return int_to_T_ptr(ptr_to_int(this) + 4 * (ptrdiff_t) this->offset);
+        } else {
+            return int_to_T_ptr(ptr_to_int(this) + (ptrdiff_t) this->offset);
+        }
+    }
+
+    // explicit operator T*() { return get(); }
+
+    reference operator*() const {
+        assert(*this);
+        return *get();
+    }
+
+    T* operator->() const { return get(); }
+
+    reference operator[](std::size_t idx) const {
+        assert(*this);
+        return get()[idx];
+    }
+
+    explicit operator bool() const { return get() != nullptr; }
+
+    // implicit conversions
+
+    // special case for std::basic_string
+    operator char*() const { return get(); }
+
+    operator OffsetPtr<void, diff_type>() const { return OffsetPtr<void, diff_type>(get()); }
+
+    operator OffsetPtr<const T, diff_type>() const { return OffsetPtr<const T, diff_type>(get()); }
+
+    // comparison operators
+
+    bool operator==(const OffsetPtr<const T, diff_type>& other) const {
+        return get() == other.get();
+    }
+
+    bool operator==(const OffsetPtr<std::remove_const_t<T>, diff_type>& other) const {
+        return get() == other.get();
+    }
+
+    bool operator==(const T* other) const { return get() == other; }
+
+    bool operator==(std::remove_const_t<T>* other) const { return get() == other; }
+
+    bool operator==(std::nullptr_t) const { return !*this; }
+
+    bool operator!=(const OffsetPtr& other) const { return get() != other.get(); }
+
+    bool operator!=(std::nullptr_t) const { return !!*this; }
+
+    // arithmetic operators
+
+    OffsetPtr operator+(diff_type shift) const { return OffsetPtr(get() + shift); }
+
+    OffsetPtr operator-(diff_type shift) const { return OffsetPtr(get() - shift); }
+
+    diff_type operator-(const OffsetPtr& other) const { return get() - other.get(); }
+
+    OffsetPtr& operator++() { return *this = get() + 1; }
+
+    OffsetPtr& operator--() { return *this = get() - 1; }
+};
+
+} // namespace structstore
+
+#endif
