@@ -1,0 +1,215 @@
+#!/bin/bash
+#
+# EEveon Notification System
+# Sends deployment notifications to various channels
+#
+
+# Get project name and status from arguments
+PROJECT_NAME="$1"
+STATUS="$2"  # success, failure, warning, info
+MESSAGE="$3"
+COMMIT_HASH="${4:-}"
+COMMIT_MSG="${5:-}"
+
+# Base directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(dirname "$SCRIPT_DIR")"
+CONFIG_FILE="$BASE_DIR/config/pipeline.json"
+NOTIFY_CONFIG="$BASE_DIR/config/notifications.json"
+
+# Load notification configuration
+if [ ! -f "$NOTIFY_CONFIG" ]; then
+    # No notifications configured
+    exit 0
+fi
+
+# Extract notification settings
+SLACK_ENABLED=$(jq -r '.slack.enabled // false' "$NOTIFY_CONFIG")
+SLACK_WEBHOOK=$(jq -r '.slack.webhook_url // ""' "$NOTIFY_CONFIG")
+
+DISCORD_ENABLED=$(jq -r '.discord.enabled // false' "$NOTIFY_CONFIG")
+DISCORD_WEBHOOK=$(jq -r '.discord.webhook_url // ""' "$NOTIFY_CONFIG")
+
+EMAIL_ENABLED=$(jq -r '.email.enabled // false' "$NOTIFY_CONFIG")
+EMAIL_TO=$(jq -r '.email.to // ""' "$NOTIFY_CONFIG")
+EMAIL_FROM=$(jq -r '.email.from // ""' "$NOTIFY_CONFIG")
+SMTP_HOST=$(jq -r '.email.smtp_host // ""' "$NOTIFY_CONFIG")
+SMTP_PORT=$(jq -r '.email.smtp_port // 587' "$NOTIFY_CONFIG")
+
+TELEGRAM_ENABLED=$(jq -r '.telegram.enabled // false' "$NOTIFY_CONFIG")
+TELEGRAM_BOT_TOKEN=$(jq -r '.telegram.bot_token // ""' "$NOTIFY_CONFIG")
+TELEGRAM_CHAT_ID=$(jq -r '.telegram.chat_id // ""' "$NOTIFY_CONFIG")
+
+WEBHOOK_ENABLED=$(jq -r '.webhook.enabled // false' "$NOTIFY_CONFIG")
+WEBHOOK_URL=$(jq -r '.webhook.url // ""' "$NOTIFY_CONFIG")
+
+# Determine color/emoji based on status
+case "$STATUS" in
+    success)
+        COLOR="#36a64f"
+        EMOJI="✅"
+        DISCORD_COLOR=3066993
+        ;;
+    failure)
+        COLOR="#ff0000"
+        EMOJI="❌"
+        DISCORD_COLOR=15158332
+        ;;
+    warning)
+        COLOR="#ff9900"
+        EMOJI="⚠️"
+        DISCORD_COLOR=16776960
+        ;;
+    *)
+        COLOR="#0099ff"
+        EMOJI="ℹ️"
+        DISCORD_COLOR=255
+        ;;
+esac
+
+# Send Slack notification
+if [ "$SLACK_ENABLED" = "true" ] && [ -n "$SLACK_WEBHOOK" ]; then
+    SLACK_PAYLOAD=$(cat <<EOF
+{
+    "username": "EEveon CI/CD",
+    "icon_emoji": ":rocket:",
+    "attachments": [{
+        "color": "$COLOR",
+        "title": "$EMOJI Deployment $STATUS",
+        "fields": [
+            {
+                "title": "Project",
+                "value": "$PROJECT_NAME",
+                "short": true
+            },
+            {
+                "title": "Status",
+                "value": "$STATUS",
+                "short": true
+            },
+            {
+                "title": "Message",
+                "value": "$MESSAGE",
+                "short": false
+            },
+            {
+                "title": "Commit",
+                "value": "${COMMIT_HASH:0:7}",
+                "short": true
+            },
+            {
+                "title": "Commit Message",
+                "value": "$COMMIT_MSG",
+                "short": false
+            },
+            {
+                "title": "Time",
+                "value": "$(date '+%Y-%m-%d %H:%M:%S')",
+                "short": true
+            }
+        ]
+    }]
+}
+EOF
+)
+    curl -X POST -H 'Content-type: application/json' \
+        --data "$SLACK_PAYLOAD" \
+        "$SLACK_WEBHOOK" &>/dev/null
+fi
+
+# Send Discord notification
+if [ "$DISCORD_ENABLED" = "true" ] && [ -n "$DISCORD_WEBHOOK" ]; then
+    DISCORD_PAYLOAD=$(cat <<EOF
+{
+    "username": "EEveon CI/CD",
+    "avatar_url": "https://cdn-icons-png.flaticon.com/512/919/919827.png",
+    "embeds": [{
+        "title": "$EMOJI Deployment $STATUS",
+        "color": $DISCORD_COLOR,
+        "fields": [
+            {
+                "name": "Project",
+                "value": "$PROJECT_NAME",
+                "inline": true
+            },
+            {
+                "name": "Status",
+                "value": "$STATUS",
+                "inline": true
+            },
+            {
+                "name": "Message",
+                "value": "$MESSAGE",
+                "inline": false
+            },
+            {
+                "name": "Commit",
+                "value": "${COMMIT_HASH:0:7}",
+                "inline": true
+            },
+            {
+                "name": "Commit Message",
+                "value": "$COMMIT_MSG",
+                "inline": false
+            }
+        ],
+        "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+    }]
+}
+EOF
+)
+    curl -X POST -H 'Content-type: application/json' \
+        --data "$DISCORD_PAYLOAD" \
+        "$DISCORD_WEBHOOK" &>/dev/null
+fi
+
+# Send Telegram notification
+if [ "$TELEGRAM_ENABLED" = "true" ] && [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+    TELEGRAM_MESSAGE="$EMOJI *Deployment $STATUS*
+
+*Project:* $PROJECT_NAME
+*Status:* $STATUS
+*Message:* $MESSAGE
+*Commit:* ${COMMIT_HASH:0:7}
+*Commit Message:* $COMMIT_MSG
+*Time:* $(date '+%Y-%m-%d %H:%M:%S')"
+
+    curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+        -d "chat_id=$TELEGRAM_CHAT_ID" \
+        -d "text=$TELEGRAM_MESSAGE" \
+        -d "parse_mode=Markdown" &>/dev/null
+fi
+
+# Send custom webhook
+if [ "$WEBHOOK_ENABLED" = "true" ] && [ -n "$WEBHOOK_URL" ]; then
+    WEBHOOK_PAYLOAD=$(cat <<EOF
+{
+    "project": "$PROJECT_NAME",
+    "status": "$STATUS",
+    "message": "$MESSAGE",
+    "commit": "$COMMIT_HASH",
+    "commit_message": "$COMMIT_MSG",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+}
+EOF
+)
+    curl -X POST -H 'Content-type: application/json' \
+        --data "$WEBHOOK_PAYLOAD" \
+        "$WEBHOOK_URL" &>/dev/null
+fi
+
+# Send email notification
+if [ "$EMAIL_ENABLED" = "true" ] && [ -n "$EMAIL_TO" ]; then
+    # Simple email using sendmail or mail command
+    if command -v mail &> /dev/null; then
+        echo "Project: $PROJECT_NAME
+Status: $STATUS
+Message: $MESSAGE
+Commit: $COMMIT_HASH
+Commit Message: $COMMIT_MSG
+Time: $(date '+%Y-%m-%d %H:%M:%S')" | \
+        mail -s "[$STATUS] EEveon Deployment: $PROJECT_NAME" "$EMAIL_TO"
+    fi
+fi
+
+exit 0
