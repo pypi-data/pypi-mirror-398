@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>The global lock &#8212; Python-LLFUSE 1.5.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css?v=2bf1fcf8" />
+    
+    <script src="_static/documentation_options.js?v=44dfd65d"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Request Handlers" href="operations.html" />
+    <link rel="prev" title="Data Structures" href="data.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="operations.html" title="Request Handlers"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="data.html" title="Data Structures"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Python-LLFUSE 1.5.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">The global lock</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="the-global-lock">
+<h1>The global lock<a class="headerlink" href="#the-global-lock" title="Link to this heading">¶</a></h1>
+<p>Python-LLFUSE uses a global lock to synchronize concurrent requests. Since
+the GIL already enforces that Python threads do not run concurrently,
+this does not result in any additional performance penalties. However,
+the use of an explicit lock allows direct control over which Python
+thread is running at a given time.</p>
+<p>Request handlers will always be called with the global lock acquired.
+However, they may release the global lock for potentially time
+consuming operations (like network or disk I/O), or to give other
+threads a chance to run during longer computations.</p>
+<p>Non-request handling threads may acquire the global lock to ensure
+that the execution of a particular code block will not be interrupted
+by any request handlers.</p>
+<p>Obviously, any method that directly or indirectly releases the global
+lock must be prepared to be called again while it has released the
+lock. In addition, it (and all its callers) must not hold any prior
+locks, since this may lead to deadlocks when re-acquiring the global
+lock. For this reason it is crucial that every method that directly or
+indirectly releases the lock is explicitly marked as such.</p>
+<p>The global lock is controlled with the <a class="reference internal" href="#llfuse.lock" title="llfuse.lock"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lock</span></code></a> and <a class="reference internal" href="#llfuse.lock_released" title="llfuse.lock_released"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lock_released</span></code></a>
+attributes of the <a class="reference internal" href="index.html#module-llfuse" title="llfuse"><code class="xref py py-obj docutils literal notranslate"><span class="pre">llfuse</span></code></a> module:</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="llfuse.lock_released">
+<span class="sig-prename descclassname"><span class="pre">llfuse.</span></span><span class="sig-name descname"><span class="pre">lock_released</span></span><a class="headerlink" href="#llfuse.lock_released" title="Link to this definition">¶</a></dt>
+<dd><p>Controls the global lock. This object can be used as a context
+manager for the <code class="docutils literal notranslate"><span class="pre">with</span></code> statement to execute a block of code
+with the global lock released.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="llfuse.lock">
+<span class="sig-prename descclassname"><span class="pre">llfuse.</span></span><span class="sig-name descname"><span class="pre">lock</span></span><a class="headerlink" href="#llfuse.lock" title="Link to this definition">¶</a></dt>
+<dd><p>Controls the global lock. This object can be used as a context
+manager for the <code class="docutils literal notranslate"><span class="pre">with</span></code> statement to execute a block of code
+with the global lock acquired.</p>
+<p>Note that this object resembles a <code class="docutils literal notranslate"><span class="pre">threading.Lock</span></code> instance but
+is an instance of the <a class="reference internal" href="#llfuse.llfuse.Lock" title="llfuse.llfuse.Lock"><code class="xref py py-obj docutils literal notranslate"><span class="pre">llfuse.Lock</span></code></a> class which is quite different from
+<code class="docutils literal notranslate"><span class="pre">threading.Lock</span></code>.</p>
+</dd></dl>
+
+<p>The <a class="reference internal" href="#llfuse.lock" title="llfuse.lock"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lock</span></code></a> object has the following methods:</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="llfuse.llfuse.Lock">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">llfuse.</span></span><span class="sig-name descname"><span class="pre">Lock</span></span><a class="headerlink" href="#llfuse.llfuse.Lock" title="Link to this definition">¶</a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="llfuse.llfuse.Lock.Lock.acquire">
+<span class="sig-prename descclassname"><span class="pre">Lock.</span></span><span class="sig-name descname"><span class="pre">acquire</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#llfuse.llfuse.Lock.Lock.acquire" title="Link to this definition">¶</a></dt>
+<dd><p>Lock.acquire(self, timeout=None)</p>
+<p>Acquire global lock</p>
+<p>If <em>timeout</em> is not None, and the lock could not be acquired
+after waiting for <em>timeout</em> seconds, return False. Otherwise
+return True.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="llfuse.llfuse.Lock.Lock.release">
+<span class="sig-prename descclassname"><span class="pre">Lock.</span></span><span class="sig-name descname"><span class="pre">release</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#llfuse.llfuse.Lock.Lock.release" title="Link to this definition">¶</a></dt>
+<dd><p>Release global lock</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="llfuse.llfuse.Lock.Lock.yield_">
+<span class="sig-prename descclassname"><span class="pre">Lock.</span></span><span class="sig-name descname"><span class="pre">yield_</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#llfuse.llfuse.Lock.Lock.yield_" title="Link to this definition">¶</a></dt>
+<dd><p>Yield global lock to a different thread</p>
+<p>A call to <code class="docutils literal notranslate"><span class="pre">~Lock.yield_</span></code> is roughly similar to:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">count</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">no_threads_waiting_for</span><span class="p">(</span><span class="n">lock</span><span class="p">):</span>
+        <span class="k">break</span>
+    <span class="n">lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+    <span class="n">lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>However, when using <code class="docutils literal notranslate"><span class="pre">Lock.yield_</span></code> it is guaranteed that the lock will
+actually be passed to a different thread (the above pseudocode may
+result in the same thread re-acquiring the lock <em>count</em> times).</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper"><h3><a href="index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="general.html">General Information</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fuse_api.html">FUSE API Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Structures</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">The global lock</a></li>
+<li class="toctree-l1"><a class="reference internal" href="operations.html">Request Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Utility Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gotchas.html">Common Gotchas</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example.html">Example File Systems</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changes.html">Changelog</a></li>
+</ul>
+
+  <div>
+    <h4>Previous topic</h4>
+    <p class="topless"><a href="data.html"
+                          title="previous chapter">Data Structures</a></p>
+  </div>
+  <div>
+    <h4>Next topic</h4>
+    <p class="topless"><a href="operations.html"
+                          title="next chapter">Request Handlers</a></p>
+  </div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="operations.html" title="Request Handlers"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="data.html" title="Data Structures"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Python-LLFUSE 1.5.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">The global lock</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2010-2024, Nikolaus Rath.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.0.4.
+    </div>
+  </body>
+</html>
