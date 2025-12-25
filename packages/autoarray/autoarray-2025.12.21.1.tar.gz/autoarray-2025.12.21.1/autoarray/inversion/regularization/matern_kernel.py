@@ -1,0 +1,195 @@
+from __future__ import annotations
+import jax.numpy as jnp
+import jax.scipy.special as jsp
+import numpy as np
+import math
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from autoarray.inversion.linear_obj.linear_obj import LinearObj
+
+from autoarray.inversion.regularization.abstract import AbstractRegularization
+
+from autoarray import numba_util
+
+import jax.numpy as jnp
+
+
+def kv_xp(v, z, xp=np):
+    """
+    XP-compatible modified Bessel K_v(v, z).
+
+    NumPy backend:
+        -> scipy.special.kv
+
+    JAX backend:
+        -> jax.scipy.special.kv if available
+        -> else tfp.substrates.jax.math.bessel_kve * exp(-|z|)
+    """
+
+    # -------------------------
+    # NumPy backend
+    # -------------------------
+    if xp is np:
+        import scipy.special as sc
+
+        return sc.kv(v, z)
+
+    # -------------------------
+    # JAX backend
+    # -------------------------
+    else:
+        try:
+            import tensorflow_probability.substrates.jax as tfp
+
+            return tfp.math.bessel_kve(v, z) * xp.exp(-xp.abs(z))
+        except ImportError:
+            raise ImportError(
+                "To use the JAX backend with the Matérn kernel, "
+                "please install tensorflow-probability via `pip install tensorflow-probability==0.25.0`."
+            )
+
+
+def matern_kernel(r, l: float = 1.0, v: float = 0.5, xp=np):
+    """
+    XP-compatible Matérn kernel.
+    Works with NumPy or JAX.
+    """
+
+    # Avoid r = 0 singularity (JAX-safe)
+    r = xp.maximum(xp.abs(r), 1e-8)
+
+    z = xp.sqrt(2.0 * v) * r / l
+
+    part1 = 2.0 ** (1.0 - v) / math.gamma(v)  # scalar constant
+    part2 = z**v
+    part3 = kv_xp(v, z, xp)
+
+    return part1 * part2 * part3
+
+
+def matern_cov_matrix_from(
+    scale: float,
+    nu: float,
+    pixel_points,
+    xp=np,
+):
+    """
+    Consutruct the regularization covariance matrix, which is used to determined the regularization pattern (i.e,
+    how the different pixels are correlated).
+
+    the covariance matrix includes two non-linear parameters, the scale coefficient, which is used to determine
+    the typical scale of the regularization pattern. The smoothness order parameters mu, whose value determie
+    the inversion solution is mu-th differentiable.
+
+    Parameters
+    ----------
+    scale
+        the typical scale of the regularization pattern .
+    pixel_points
+        An 2d array with shape [N_source_pixels, 2], which save the source pixelization coordinates (on source plane).
+        Something like [[y1,x1], [y2,x2], ...]
+
+    Returns
+    -------
+    np.ndarray
+        The source covariance matrix (2d array), shape [N_source_pixels, N_source_pixels].
+    """
+
+    # --------------------------------
+    # Pairwise distances (broadcasted)
+    # --------------------------------
+    # pixel_points[:, None, :]  -> (N, 1, 2)
+    # pixel_points[None, :, :]  -> (1, N, 2)
+    diff = pixel_points[:, None, :] - pixel_points[None, :, :]  # (N, N, 2)
+
+    d_ij = xp.sqrt(diff[..., 0] ** 2 + diff[..., 1] ** 2)  # (N, N)
+
+    # --------------------------------
+    # Apply Matérn kernel elementwise
+    # --------------------------------
+    covariance_matrix = matern_kernel(d_ij, l=scale, v=nu, xp=xp)
+
+    # --------------------------------
+    # Add diagonal jitter (JAX-safe)
+    # --------------------------------
+    pixels = pixel_points.shape[0]
+    covariance_matrix = covariance_matrix + 1e-8 * xp.eye(pixels)
+
+    return covariance_matrix
+
+
+class MaternKernel(AbstractRegularization):
+    def __init__(self, coefficient: float = 1.0, scale: float = 1.0, nu: float = 0.5):
+        """
+        Regularization which uses a Matern smoothing kernel to regularize the solution.
+
+        For this regularization scheme, every pixel is regularized with every other pixel. This contrasts many other
+        schemes, where regularization is based on neighboring (e.g. do the pixels share a Delaunay edge?) or computing
+        derivates around the center of the pixel (where nearby pixels are regularization locally in similar ways).
+
+        This makes the regularization matrix fully dense and therefore maybe change the run times of the solution.
+        It also leads to more overall smoothing which can lead to more stable linear inversions.
+
+        This scheme is not used by Vernardos et al. (2022): https://arxiv.org/abs/2202.09378, but it follows
+        a similar approach.
+
+        A full description of regularization and this matrix can be found in the parent `AbstractRegularization` class.
+
+        Parameters
+        ----------
+        coefficient
+            The regularization coefficient which controls the degree of smooth of the inversion reconstruction.
+        scale
+            The typical scale of the exponential regularization pattern.
+        nu
+            Controls the derivative of the regularization pattern (`nu=0.5` is a Gaussian).
+        """
+
+        self.coefficient = coefficient
+        self.scale = float(scale)
+        self.nu = float(nu)
+        super().__init__()
+
+    def regularization_weights_from(self, linear_obj: LinearObj, xp=np) -> np.ndarray:
+        """
+        Returns the regularization weights of this regularization scheme.
+
+        The regularization weights define the level of regularization applied to each parameter in the linear object
+        (e.g. the ``pixels`` in a ``Mapper``).
+
+        For standard regularization (e.g. ``Constant``) are weights are equal, however for adaptive schemes
+        (e.g. ``AdaptiveBrightness``) they vary to adapt to the data being reconstructed.
+
+        Parameters
+        ----------
+        linear_obj
+            The linear object (e.g. a ``Mapper``) which uses these weights when performing regularization.
+
+        Returns
+        -------
+        The regularization weights.
+        """
+        return self.coefficient * xp.ones(linear_obj.params)
+
+    def regularization_matrix_from(self, linear_obj: LinearObj, xp=np) -> np.ndarray:
+        """
+        Returns the regularization matrix with shape [pixels, pixels].
+
+        Parameters
+        ----------
+        linear_obj
+            The linear object (e.g. a ``Mapper``) which uses this matrix to perform regularization.
+
+        Returns
+        -------
+        The regularization matrix.
+        """
+        covariance_matrix = matern_cov_matrix_from(
+            scale=self.scale,
+            pixel_points=linear_obj.source_plane_mesh_grid.array,
+            nu=self.nu,
+            xp=xp,
+        )
+
+        return self.coefficient * xp.linalg.inv(covariance_matrix)
