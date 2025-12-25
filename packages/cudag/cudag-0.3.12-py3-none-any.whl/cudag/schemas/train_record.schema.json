@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://claimhawk.com/schemas/cudag/train_record.schema.json",
+  "title": "CUDAG Training Record",
+  "description": "Schema for training/validation records in data.jsonl, train.jsonl, val.jsonl",
+  "type": "object",
+  "required": ["id", "image", "conversations", "metadata"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for this sample",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "image": {
+      "type": "string",
+      "description": "Relative path to image file from dataset root (e.g., 'images/sample_00001.jpg')",
+      "pattern": "^images/[^/]+\\.(jpg|jpeg|png)$"
+    },
+    "conversations": {
+      "type": "array",
+      "description": "Human-GPT conversation turns",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": [
+        {
+          "type": "object",
+          "required": ["from", "value"],
+          "properties": {
+            "from": {
+              "type": "string",
+              "const": "human"
+            },
+            "value": {
+              "type": "string",
+              "description": "Human prompt, must start with <image>\\n",
+              "pattern": "^<image>\\n.+"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["from", "value"],
+          "properties": {
+            "from": {
+              "type": "string",
+              "const": "gpt"
+            },
+            "value": {
+              "type": "string",
+              "description": "GPT response in <tool_call> format",
+              "pattern": "^<tool_call>"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["task_type", "real_coords"],
+      "properties": {
+        "task_type": {
+          "type": "string",
+          "description": "Task type identifier (e.g., 'click-day', 'click-appointment')"
+        },
+        "real_coords": {
+          "type": "array",
+          "description": "Original pixel coordinates [x, y]",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "tolerance": {
+          "type": "array",
+          "description": "Coordinate tolerance [tol_x, tol_y] in RU units",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
