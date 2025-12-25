@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:11
+    environment:
+      - POSTGRES_DB=postgres_db
+      - POSTGRES_USER=postgres_user
+      - POSTGRES_PASSWORD=postgres_pwd
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./create_db.sql:/docker-entrypoint-initdb.d/create_db.sql
+
+  mssql_2022:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver
+    ports:
+      - "1403:1433"
+    environment:
+      SA_PASSWORD: "StrongPassword2022"
+      ACCEPT_EULA: "Y"
+    command: >
+      /bin/bash -c "
+      /opt/mssql/bin/sqlservr &
+      sleep 30s &&
+      /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P StrongPassword2022 -Q 'CREATE DATABASE test;'
+      && tail -f /dev/null
+      "
