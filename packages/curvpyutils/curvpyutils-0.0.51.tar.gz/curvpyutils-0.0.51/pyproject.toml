@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling>=1.24", "hatch-vcs>=0.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"                      # derive from git tags
+fallback-version = "0.0.0"
+
+[tool.hatch.version.vcs]
+tag-pattern = "^curvpyutils-v(?P<version>.+)$"
+
+[tool.hatch.version.raw-options]
+root = "../.."
+relative_to = "pyproject.toml"
+git_describe_command = "git describe --dirty --tags --long --match curvpyutils-v*"
+
+# write a version file on build
+[tool.hatch.build.hooks.vcs]
+version-file = "src/curvpyutils/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/curvpyutils"]
+
+[project]
+name = "curvpyutils"
+requires-python = ">=3.10"
+dynamic = ["version"]
+description = "Utility functions for Curv Python packages"
+readme = "readme.md"
+license = {text = "MIT"}
+authors = [{name="Mike Goelzer"}]
+classifiers = ["Programming Language :: Python :: 3 :: Only"]
+dependencies = [
+  "tomli; python_version<'3.11'",  # only needed for Python 3.10
+  "tomli-w",                       # for writing TOML files (tomli/tomllib are read-only)
+  "python-dotenv>=1.1.0",
+  "rich>=13",
+  "click>=8.1.0",
+  "importlib-metadata>=6.0.0",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8",
+  "pytest-cov",
+]
