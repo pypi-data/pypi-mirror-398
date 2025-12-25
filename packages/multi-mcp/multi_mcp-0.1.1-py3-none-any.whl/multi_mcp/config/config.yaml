@@ -1,0 +1,219 @@
+# Multi-MCP Model Definitions
+# Runtime defaults are in Settings class (multi_mcp/settings.py)
+# API keys should be in .env file
+
+version: "1.0"
+
+# =============================================================================
+# Model Definitions
+# =============================================================================
+models:
+  # ============================================
+  # OpenAI Models
+  # ============================================
+
+  gpt-5-nano:
+    litellm_model: openai/gpt-5-nano
+    aliases:
+      - nano
+    constraints:
+      temperature: 1.0  # gpt-5 family only supports 1.0
+    notes: "Fast, cost-effective"
+
+  gpt-5-mini:
+    litellm_model: openai/gpt-5-mini
+    provider_web_search: true  # Native web search support (per OpenAI docs)
+    aliases:
+      - mini
+    constraints:
+      temperature: 1.0  # gpt-5 family only supports 1.0
+    notes: "Fast, cost-effective with web search"
+    # disabled: true  # Uncomment this line to disable this model (it won't appear in /multi:models)
+
+  gpt-5.2:
+    litellm_model: openai/gpt-5.2
+    provider_web_search: true  # Native web search support (per OpenAI docs)
+    aliases:
+      - gpt-5
+      - gpt
+    constraints:
+      temperature: 1.0
+    notes: "Strong general-purpose model with web search, temperature=1.0 only"
+
+  gpt-5.1:
+    litellm_model: openai/gpt-5.1
+    provider_web_search: true  # Native web search support (per OpenAI docs)
+    constraints:
+      temperature: 1.0
+    notes: "Strong general-purpose model with web search, temperature=1.0 only"
+
+  gpt-5.1-codex-mini:
+    litellm_model: openai/gpt-5.1-codex-mini
+    aliases:
+      - codex-mini
+    constraints:
+      temperature: 1.0
+    notes: "Strong general-purpose model, temperature=1.0 only"
+
+  gpt-5.1-codex:
+    litellm_model: openai/gpt-5.1-codex
+    aliases:
+      - codex
+    constraints:
+      temperature: 1.0
+    notes: "Strong general-purpose model, temperature=1.0 only"
+
+  # ============================================
+  # Azure OpenAI Models
+  # ============================================
+  # Note: LiteLLM reads AZURE_API_KEY, AZURE_API_BASE, and AZURE_API_VERSION from environment
+  # AZURE_API_VERSION defaults to "2025-04-01-preview" if not set in .env
+  azure-gpt-5-mini:
+    litellm_model: azure/gpt-5-mini
+    aliases:
+      - azure-mini
+      - az-mini
+    constraints:
+      temperature: 1.0  # gpt-5 family only supports 1.0
+    notes: "Azure Mini deployment"
+
+  # ============================================
+  # Anthropic Models
+  # ============================================
+
+  claude-haiku-4.5:
+    litellm_model: anthropic/claude-haiku-4-5-20251001
+    aliases:
+      - haiku
+    notes: "Fast claude model"
+
+  claude-sonnet-4.5:
+    litellm_model: anthropic/claude-sonnet-4-5-20250929
+    aliases:
+      - sonnet
+    notes: "Great for reasoning and analysis with native web search"
+
+  claude-opus-4.5:
+    litellm_model: anthropic/claude-opus-4-5-20251101
+    aliases:
+      - opus
+    notes: "Best in class from anthropic"
+
+  # ============================================
+  # Google Models
+  # ============================================
+
+  gemini-2.5-pro:
+    litellm_model: gemini/gemini-2.5-pro
+    provider_web_search: true  # LiteLLM handles web search automatically
+    aliases:
+      - gemini-2.5
+      - gemini-2
+    notes: "High-quality Google model with grounding"
+
+  gemini-3-flash:
+    litellm_model: gemini/gemini-3-flash-preview
+    provider_web_search: true
+    aliases:
+      - gemini-flash
+      - flash
+    notes: "Fastest Gemini 3 model"
+
+  gemini-3-pro-preview:
+    litellm_model: gemini/gemini-3-pro-preview
+    provider_web_search: true  # LiteLLM handles web search automatically
+    aliases:
+      - gemini-3-pro
+      - gemini-3
+      - gemini
+    notes: "Latest Google model with grounding"
+
+  # ============================================
+  # CLI Models
+  # ============================================
+
+  gemini-cli:
+    provider: cli
+    cli_command: gemini
+    cli_args:
+      - "-o"
+      - "json"
+      - "--approval-mode"
+      - "auto_edit"
+      # - "--yolo"  # Most dangerous: auto-approve all tools
+    cli_env:
+      GEMINI_API_KEY: "${GEMINI_API_KEY}"
+    cli_parser: json
+    aliases:
+      - gem-cli
+    notes: "Gemini CLI with auto-edit approval mode"
+
+  codex-cli:
+    provider: cli
+    cli_command: codex
+    cli_args:
+      - "exec"
+      - "--json"
+      - "--full-auto"  # Low-friction sandboxed auto execution (safer than bypass)
+      # - "--dangerously-bypass-approvals-and-sandbox"  # Most dangerous: bypass all approvals
+    cli_env: {}
+    cli_parser: jsonl
+    aliases:
+      - cx-cli
+    notes: "Codex CLI with full-auto mode"
+
+  claude-cli:
+    provider: cli
+    cli_command: claude
+    cli_args:
+      - "--print"  # Non-interactive mode
+      - "--output-format"
+      - "json"
+      - "--permission-mode"
+      - "acceptEdits"  # Auto-approve edits
+      # - "--dangerously-skip-permissions"  # Most dangerous: bypass all permissions
+    cli_env:
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+      ANTHROPIC_MODEL: "claude-haiku-4-5-20251001"  # Use cheaper Haiku for integration tests
+    cli_parser: json
+    aliases:
+      - cl-cli
+    notes: "Claude CLI with acceptEdits permission mode, using Haiku for cost efficiency"
+
+  # ============================================
+  # AWS Bedrock Models
+  # ============================================
+  # To use AWS Bedrock models, configure AWS credentials in .env:
+  #   AWS_ACCESS_KEY_ID=your_access_key
+  #   AWS_SECRET_ACCESS_KEY=your_secret_key
+  #   AWS_REGION_NAME=us-east-1
+
+  bedrock-claude-4-5-sonnet:
+    litellm_model: bedrock/anthropic.claude-sonnet-4-5-v2
+    aliases:
+      - bedrock-sonnet
+    params:
+      aws_region_name: us-east-1  # Override default region if needed
+    notes: "Claude Sonnet 4.5 via AWS Bedrock"
+
+  # ============================================
+  # OpenRouter Models
+  # ============================================
+
+  # deepseek-chat:
+  #   litellm_model: openrouter/deepseek/deepseek-chat-v3-0324
+  #   aliases:
+  #     - deepseek
+  #   notes: "DeepSeek Chat via OpenRouter"
+
+  # deepseek-r1:
+  #   litellm_model: openrouter/deepseek/deepseek-r1
+  #   aliases:
+  #     - r1
+  #   notes: "DeepSeek R1 reasoning model via OpenRouter"
+
+  # qwen-coder:
+  #   litellm_model: openrouter/qwen/qwen-2.5-coder-32b-instruct
+  #   aliases:
+  #     - qwen
+  #   notes: "Qwen 2.5 Coder via OpenRouter"
