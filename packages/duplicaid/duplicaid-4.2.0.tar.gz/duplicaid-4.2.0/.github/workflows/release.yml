@@ -1,0 +1,104 @@
+name: Release
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # Check if we need to run tests (skip for docs-only changes)
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.changes.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            code:
+              - 'src/**'
+              - 'pyproject.toml'
+              - '.github/workflows/**'
+
+  test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v1
+      - name: Install dependencies
+        run: uv sync --extra dev
+      - name: Run tests
+        run: uv run pytest --cov=duplicaid
+      - name: Lint
+        run: uv run ruff check src/
+      - name: Format check
+        run: uv run black --check src/
+
+  release:
+    needs: [changes, test]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Check if release needed
+        id: check
+        run: |
+          if uv run cz bump --check-consistency --dry-run --yes; then
+            echo "release=true" >> $GITHUB_OUTPUT
+          else
+            echo "release=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Bump version and create changelog
+        if: steps.check.outputs.release == 'true'
+        run: |
+          # Create the version bump and tag
+          uv run cz bump --changelog --yes
+
+          # Push the version bump commit and tag back to repo
+          git push origin main
+          git push --tags
+
+      - name: Build package
+        if: steps.check.outputs.release == 'true'
+        run: uv build
+
+      - name: Create GitHub release
+        if: steps.check.outputs.release == 'true'
+        run: |
+          TAG=$(git describe --tags --abbrev=0)
+          gh release create "$TAG" \
+            --title "Release $TAG" \
+            --generate-notes \
+            --target main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+      - name: Publish to PyPI
+        if: steps.check.outputs.release == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
