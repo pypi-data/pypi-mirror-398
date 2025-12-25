@@ -1,0 +1,85 @@
+[project]
+name = "duplicaid"
+version = "4.3.0"
+description = "CLI tool for managing PostgreSQL backups via WAL-G and logical dumps with configurable database connections"
+readme = "README.md"
+authors = [
+    { name = "jstet", email = "mail@jstet.net" }
+]
+requires-python = ">=3.12"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "typer>=0.12.0",
+    "rich>=13.0.0",
+    "paramiko>=3.0.0",
+    "pyyaml>=6.0.0",
+    "click>=8.0.0",
+    "minio>=7.0.0",
+]
+
+[project.scripts]
+duplicaid = "duplicaid.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-docker>=3.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.0.0",
+    "commitizen>=3.13.0",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py312']
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]  # Line too long - handled by black
+
+[tool.ruff.format]
+# Use black-compatible settings
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = ["-v", "--tb=short"]
+markers = [
+    "integration: marks tests as integration tests (may be slow)",
+    "unit: marks tests as unit tests",
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "v$version"
+version_scheme = "semver"
+version_provider = "uv"
+update_changelog_on_bump = true
+major_version_zero = false
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/duplicaid"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
