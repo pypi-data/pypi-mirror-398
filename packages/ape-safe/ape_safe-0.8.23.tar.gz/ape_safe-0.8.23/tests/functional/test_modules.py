@@ -1,0 +1,51 @@
+import pytest
+from ape.exceptions import ContractLogicError
+
+
+@pytest.mark.parametrize("num_modules", [1, 2, 3])
+def test_add_module(safe, create_module, num_modules):
+    for _ in range(num_modules):
+        module = create_module()
+
+        assert module not in safe.modules
+        receipt = safe.modules.enable(module)
+
+        assert module in safe.modules
+
+        # NOTE: SafeL2 contracts have extra event
+        assert receipt.events[-2:] == [
+            safe.contract.EnabledModule(module),
+            safe.contract.ExecutionSuccess(),
+        ]
+
+
+@pytest.mark.parametrize("num_modules", [1, 2, 3])
+def test_remove_module(safe, create_module, num_modules):
+    for _ in range(num_modules):
+        module = create_module()
+
+        safe.modules.enable(module)
+        assert module in safe.modules
+
+    for module in safe.modules:
+        receipt = safe.modules.disable(module)
+        assert module not in safe.modules
+
+        # NOTE: SafeL2 contracts have extra event
+        assert receipt.events[-2:] == [
+            safe.contract.DisabledModule(module),
+            safe.contract.ExecutionSuccess(),
+        ]
+
+
+def test_module_works(safe, create_module, deployer):
+    module = create_module()
+
+    # NOTE: `handle_safe_logic_error` won't work on a generic contract call
+    with pytest.raises(ContractLogicError, match="GS104"):
+        module.test(safe, sender=deployer)
+
+    safe.modules.enable(module, submitter=deployer)
+    assert module in safe.modules
+
+    module.test(safe, sender=deployer)
