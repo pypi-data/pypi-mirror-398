@@ -1,0 +1,239 @@
+Metadata-Version: 2.4
+Name: edutools-moodle
+Version: 0.1.0
+Summary: Python package for Moodle API interactions in educational contexts
+Home-page: https://github.com/najasoft/edutools-moodle
+Author: Nadiri Abdeljalil
+Author-email: nadiri@najasoft.com
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Education
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.28.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# Edutools Moodle
+
+[![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Moodle](https://img.shields.io/badge/moodle-3.9+-orange.svg)](https://moodle.org)
+
+Python package for interacting with Moodle Web Services API in educational contexts.
+
+## Installation
+
+### From source (development mode)
+
+```bash
+git clone https://github.com/najasoft/edutools-moodle.git
+cd edutools-moodle
+pip install -e .
+```
+
+### From PyPI (when published)
+
+```bash
+pip install edutools-moodle
+```
+
+## Quick Start
+
+```python
+from edutools_moodle import MoodleAPI
+
+# Initialize the API client
+moodle = MoodleAPI(
+    moodle_url="https://your-moodle-instance.com",
+    token="your_webservice_token"
+)
+
+# Get groups for a course
+groups = moodle.get_course_groups(course_id=123)
+
+# Add a user to a group
+moodle.add_user_to_group(group_id=1, user_id=42)
+
+# Create a new group
+moodle.create_group(course_id=123, group_name="Group A")
+```
+
+## Features
+
+- ✅ **Groups Management**: Create, list, add/remove users
+- ✅ **Cohorts Management**: Check user membership
+- ✅ **Assignments**: Retrieve and manage assignments
+- ✅ **Grades**: Fetch and update grades
+- ✅ **Base API Client**: Extensible for additional Moodle functions
+
+## Requirements
+
+- Python 3.8+
+- **Moodle 3.9+** (recommended, see [version compatibility](MOODLE_VERSIONS.md))
+- Moodle instance with Web Services enabled
+- Valid Moodle API token
+
+## Configuration
+
+### Generating a Moodle Token
+
+1. Log in to Moodle as administrator
+2. Go to Site Administration → Plugins → Web Services → Manage Tokens
+3. Create a new token for your user
+4. Copy the token string
+
+### Checking Moodle Version
+
+```python
+from edutools_moodle import MoodleAPI
+
+moodle = MoodleAPI("https://your-moodle.com", "token")
+
+# Get site information
+info = moodle.get_site_info()
+print(f"Moodle version: {info['release']}")
+print(f"Site name: {info['sitename']}")
+
+# Check if version is compatible
+if moodle.check_moodle_version("3.9"):
+    print("✅ Moodle version is compatible")
+else:
+    print("⚠️ Moodle 3.9+ recommended")
+```
+
+## API Reference
+
+### MoodleAPI (Facade)
+
+Main class providing unified access to all modules.
+
+#### `__init__(moodle_url: str, token: str, timeout: int = 30, logger: Optional[Logger] = None)`
+
+Initialize the Moodle API client.
+
+**Parameters:**
+- `moodle_url` - Base URL of Moodle instance
+- `token` - Web service token for authentication
+- `timeout` - Request timeout in seconds (default: 30)
+- `logger` - Optional logger instance (if not provided, uses default logging)
+
+**Modules:**
+- `moodle.groups` - Groups, groupings, and cohorts
+- `moodle.users` - User management
+- `moodle.assignments` - Assignments and submissions
+- `moodle.grades` - Grade management
+
+#### `get_site_info() -> dict`
+Get Moodle site information including version.
+
+#### `check_moodle_version(min_version: str) -> bool`
+Check if Moodle version meets minimum requirement.
+
+**Modules:**
+- `moodle.groups` - Groups, groupings, and cohorts
+- `moodle.users` - User management
+- `moodle.assignments` - Assignments and submissions
+- `moodle.grades` - Grade management
+
+### Groups Module (`moodle.groups`)
+
+#### `get_course_groups(course_id: int) -> list`
+Get all groups in a course.
+
+#### `add_user_to_group(group_id: int, user_id: int) -> dict`
+Add a user to a group.
+
+#### `remove_user_from_group(group_id: int, user_id: int) -> dict`
+Remove a user from a group.
+
+#### `create_group(course_id: int, group_name: str, description: str = "") -> dict`
+Create a new group in a course.
+
+#### `is_user_in_cohort(user_id: int, cohort_name: str) -> bool`
+Check if a user belongs to a specific cohort.
+
+#### `enroll_user_in_cohort(user_id: int, cohort_name: str) -> bool`
+Enroll a user in a cohort.
+
+### Users Module (`moodle.users`)
+
+#### `create_user(username, password, firstname, lastname, email, ...) -> int`
+Create a new user account.
+
+#### `check_username_exists(username: str) -> bool`
+Check if username already exists.
+
+#### `enroll_user_in_course(course_id, user_id, role_id=5) -> bool`
+Enroll a user in a course.
+
+#### `send_notification(user_id, subject, message) -> bool`
+Send a notification to a user.
+
+### Assignments Module (`moodle.assignments`)
+
+#### `get_assignments(course_id: int) -> list`
+Get all assignments in a course.
+
+#### `get_assignment_submissions(assignment_id: int) -> list`
+Get all submissions for an assignment.
+
+### Grades Module (`moodle.grades`)
+
+#### `update_grade(assignment_id, user_id, grade, feedback="") -> dict`
+Update a grade for a user's assignment.
+
+## Development
+
+### Running Tests
+
+```bash
+pip install pytest
+pytest tests/
+```
+
+### Project Structure
+
+```
+edutools-moodle/
+├── edutools_moodle/
+│   ├── __init__.py
+│   ├── base.py           # Base API client
+│   ├── api.py            # Main MoodleAPI class
+│   ├── groups.py         # Groups management
+│   ├── assignments.py    # Assignments handling
+│   └── grades.py         # Grades management
+├── tests/
+│   ├── __init__.py
+│   └── test_api.py
+├── setup.py
+├── requirements.txt
+└── README.md
+```
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Support
+
+For issues and questions, please open an issue on GitHub.
