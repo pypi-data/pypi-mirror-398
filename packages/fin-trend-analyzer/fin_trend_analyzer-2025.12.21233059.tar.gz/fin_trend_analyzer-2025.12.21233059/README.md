@@ -1,0 +1,66 @@
+# Fin-Trend-Analyzer
+[![PyPI version](https://badge.fury.io/py/fin-trend-analyzer.svg)](https://badge.fury.io/py/fin-trend-analyzer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/fin-trend-analyzer)](https://pepy.tech/project/fin-trend-analyzer)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+Financial Trend Analyzer for AI and Technology Stocks
+=====================================================
+
+A Python package that analyzes financial news and sentiment to identify and summarize market trends and risks related to AI and technology stocks.
+
+**Overview**
+-----------
+
+Fin-Trend-Analyzer is a linguistic tool that quickly assesses market perceptions and potential bubble indicators by processing text inputs from news articles, reports, or social media posts. It returns structured insights, such as key risk factors, sentiment scores, and trend summaries, using pattern matching to ensure consistent and reliable output.
+
+**Installation**
+------------
+
+```bash
+pip install fin_trend_analyzer
+```
+
+**Usage**
+-----
+
+```python
+from fin_trend_analyzer import fin_trend_analyzer
+
+response = fin_trend_analyzer(user_input="This week's earnings report was outstanding.")
+```
+
+**API Documentation**
+-------------------
+
+* `fin_trend_analyzer(user_input: str, api_key: Optional[str] = None, llm: Optional[BaseChatModel] = None) -> List[str]`:
+  * `user_input`: The user input text to process.
+  * `api_key`: The API key for LLM7, default is `None` and will use the environment variable `LLM7_API_KEY`.
+  * `llm`: The langchain LLM instance to use, default is `ChatLLM7` from `langchain_llm7`.
+
+  Example using a custom LLM instance (e.g., OpenAI, Anthropic, or Google):
+  ```python
+  from langchain_openai import ChatOpenAI
+  from fin_trend_analyzer import fin_trend_analyzer
+
+  llm = ChatOpenAI()
+  response = fin_trend_analyzer(user_input="This week's earnings report was outstanding.", llm=llm)
+  ```
+
+**Rate Limits**
+------------
+
+The default rate limits for LLM7 free tier are sufficient for most use cases of this package. If higher rate limits are needed, pass your own API key via environment variable `LLM7_API_KEY` or via passing it directly:
+```python
+from fin_trend_analyzer import fin_trend_analyzer
+
+response = fin_trend_analyzer(user_input="This week's earnings report was outstanding.", api_key="your_api_key")
+```
+You can get a free API key by registering at [https://token.llm7.io/](https://token.llm7.io/).
+
+**Author**
+------
+
+Eugene Evstafev
+* Email: hi@euegne.plus
+* GitHub: https://github.com/chigwell
