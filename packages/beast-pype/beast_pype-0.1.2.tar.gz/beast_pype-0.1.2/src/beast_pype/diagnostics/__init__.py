@@ -1,0 +1,1 @@
+from .gen_diag_nb import gen_beast_diagnostic_nb
