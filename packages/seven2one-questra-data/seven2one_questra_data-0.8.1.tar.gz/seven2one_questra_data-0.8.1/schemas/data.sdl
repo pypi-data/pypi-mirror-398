@@ -1,0 +1,1234 @@
+"""
+The `LongNumberString` scalar type is a string representation of a number. The type represents non-fractional signed whole numeric values. It can represent values between `-9223372036854775808` and `9223372036854775807`. Example: `"1234567891234"`
+"""
+scalar LongNumberString
+
+"""
+The `IntNumberString` scalar type is a string representation of a number. The type represents non-fractional signed whole numeric values. It can represent values between `-2147483648` and `2147483647`. Example: `"1234567"`
+"""
+scalar IntNumberString
+
+"""
+The `UIntNumberString` scalar type is a string representation of a number. The type represents non-fractional unsigned whole numeric values. It can represent values between `0` and `4294967295`. Example: `"1234567"`
+"""
+scalar UIntNumberString
+
+"""
+The `DecimalWithPrecisionString` scalar type is a string representation of a decimal number. The type represents fractional signed numeric values with up to `16` digits before the decimal point and up to `8` digits after the decimal point. It can represent values between `-999999999999999.99999999` and `999999999999999.99999999`. Example: `"123456789123.12345678"`
+"""
+scalar DecimalWithPrecisionString
+
+"""
+The `DateTimeWithMicroseconds` scalar represents an ISO-8601 compliant date time type with microsecond precision. Please note that values without offset are assumed to be UTC, not local. So values ending with 'Z' and without offset are both assumed to be UTC. Example: `"2024-03-27T12:34:56.654321+02:00"`
+"""
+scalar DateTimeWithMicroseconds
+  @specifiedBy(url: "https://www.graphql-scalars.com/date-time")
+
+"""
+The `Date2` scalar represents an ISO-8601 compliant date type. Example `"2024-03-27"`
+"""
+scalar Date2
+
+"""
+The `TimeWithMicroseconds` scalar represents a time type with microsecond precision in format `HH:mm:ss.ffffff`. Example: `"12:34:56.654321"`
+"""
+scalar TimeWithMicroseconds
+
+enum core__ApplyPolicy__EnumType {
+  BEFORE_RESOLVER
+  AFTER_RESOLVER
+  VALIDATION
+}
+
+"""
+A connection to a list of items.
+"""
+type _Audit__ConnectionType {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: _PageInfo__Type!
+
+  """
+  A list of edges.
+  """
+  edges: [_Audit__EdgeType!]
+
+  """
+  A flattened list of the nodes.
+  """
+  nodes: [_Audit__Type]
+}
+
+input _Audit__InputType {
+  namespaceName: String
+  inventoryName: String!
+
+  """
+  The time from which audit data is loaded (inclusive)
+  """
+  from: DateTimeWithMicroseconds!
+
+  """
+  The time up to which audit data is loaded (exclusive, so you can use the 'before' time as next 'from' to query subsequent audit data)
+  """
+  before: DateTimeWithMicroseconds!
+  inventoryItemId: LongNumberString
+  userId: UUID
+}
+
+"""
+Information about pagination in a connection.
+"""
+type _PageInfo__Type {
+  """
+  Indicates whether more edges exist following the set defined by the clients arguments.
+  """
+  hasNextPage: Boolean!
+
+  """
+  Indicates whether more edges exist prior the set defined by the clients arguments.
+  """
+  hasPreviousPage: Boolean!
+
+  """
+  When paginating backwards, the cursor to continue.
+  """
+  startCursor: String
+
+  """
+  When paginating forwards, the cursor to continue.
+  """
+  endCursor: String
+}
+
+type _Audit__Type {
+  id: LongNumberString!
+  transactionId: UIntNumberString!
+  timestamp: DateTimeWithMicroseconds!
+  userId: UUID!
+  namespaceName: String
+  inventoryName: String!
+  inventoryItemId: LongNumberString!
+  event: _AuditEvent__EnumType!
+  item: JSON!
+  data: String!
+}
+
+"""
+An edge in a connection.
+"""
+type _Audit__EdgeType {
+  """
+  A cursor for use in pagination.
+  """
+  cursor: String!
+
+  """
+  The item at the end of the edge.
+  """
+  node: _Audit__Type
+}
+
+"""
+The `UUID` scalar type is a string representation of a unique identifier (e. g. a user id) in format `00000000-0000-0000-0000-000000000000`. The empty `UUID` value `00000000-0000-0000-0000-000000000000` is not allowed. Example: `"275EC3E2-06DD-4FA7-AAD3-8B24172E82D9"`
+"""
+scalar UUID @specifiedBy(url: "https://tools.ietf.org/html/rfc4122")
+
+enum _AuditEvent__EnumType {
+  INSERTED
+  UPDATED
+  DELETED
+  CREATED
+  ALTERED
+  DROPPED
+}
+
+scalar JSON
+
+type Query {
+  _currentlyExecutingBackgroundJobs: [_BackgroundJob__Type!]!
+  _backgroundJob(where: _BackgroundJob__InputType!): _BackgroundJob__Type
+  _inventories(
+    where: _InventoryFilter__InputType
+    order: _InventorySort__InputType
+  ): [_Inventory__Type!]!
+  _namespaces: [_Namespace__Type!]!
+  _roles: [_Role__Type!]!
+  _me: _Me__PayloadType
+  _charsets: [_Charset__Type!]!
+  _mediaTypes: [_MediaType__Type!]!
+  _timeSeries(input: _GetTimeSeries__InputType!): [_TimeSeries__Type!]!
+  _units: [_Unit__Type!]!
+  _unitConversions: [_UnitConversion__Type!]!
+  _timeZones: [_TimeZone__Type!]!
+  _systemInfo: _SystemInfo__Type!
+  _audit(
+    where: _Audit__InputType!
+
+    """
+    Returns the first _n_ elements from the list.
+    """
+    first: Int
+
+    """
+    Returns the elements in the list that come after the specified cursor.
+    """
+    after: String
+
+    """
+    Returns the last _n_ elements from the list.
+    """
+    last: Int
+
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+  ): _Audit__ConnectionType
+}
+
+type Mutation {
+  _createInventory(
+    input: _CreateInventory__InputType!
+  ): _NamedItem__PayloadType!
+  _dropInventory(input: _DropInventory__InputType!): _NamedItem__PayloadType!
+  _dropInventoryIndex(
+    input: _DropInventoryIndex__InputType!
+  ): _NamedItem__PayloadType!
+  _createRole(input: _CreateRole__InputType!): _NamedItem__PayloadType!
+  _dropRole(input: _DropRole__InputType!): _NamedItem__PayloadType!
+  _createNamespace(
+    input: _CreateNamespace__InputType!
+  ): _NamedItem__PayloadType!
+  _alterNamespace(input: _AlterNamespace__InputType!): _NamedItem__PayloadType!
+  _dropNamespace(input: _DropNamespace__InputType!): _NamedItem__PayloadType!
+  _grantInventoryPermissions(
+    input: _GrantInventoryPermissions__InputType!
+  ): _None__EnumType!
+  _denyInventoryPermissions(
+    input: _DenyInventoryPermissions__InputType!
+  ): _None__EnumType!
+  _revokeInventoryPermissions(
+    input: _RevokeInventoryPermissions__InputType!
+  ): _None__EnumType!
+  _grantInventoryPropertyPermissions(
+    input: _GrantInventoryPropertyPermissions__InputType!
+  ): _None__EnumType!
+  _denyInventoryPropertyPermissions(
+    input: _DenyInventoryPropertyPermissions__InputType!
+  ): _None__EnumType!
+  _revokeInventoryPropertyPermissions(
+    input: _RevokeInventoryPropertyPermissions__InputType!
+  ): _None__EnumType!
+  _createInventoryPolicy(
+    input: _CreateInventoryPolicy__InputType!
+  ): _NamedItem__PayloadType!
+  _dropInventoryPolicy(
+    input: _DropInventoryPolicy__InputType!
+  ): _NamedItem__PayloadType!
+
+  """
+  Starts creating an inventory index. This operation may take some time and is therefore executed as background job. The status of the background job can be queried by the id of the background job.
+  """
+  _startCreateInventoryIndex(
+    input: _StartCreateInventoryIndex__InputType!
+  ): _BackgroundJobId__PayloadType!
+
+  """
+  Starts altering an inventory. This operation may take some time and is therefore executed as background job. The status of the background job can be queried by the id of the background job.
+  """
+  _startAlterInventory(
+    input: _StartAlterInventory__InputType!
+  ): _BackgroundJobId__PayloadType!
+  _createUnit(input: _CreateUnit__InputType!): _NamedItem__PayloadType!
+  _dropUnit(input: _DropUnit__InputType!): _NamedItem__PayloadType!
+  _alterUnitConversion(
+    input: _AlterUnitConversion__InputType!
+  ): _NamedItem__PayloadType!
+  _createTimeSeries(
+    input: [_CreateTimeSeries__InputType!]!
+  ): [_Id__PayloadType!]!
+}
+
+type _Items__PayloadType {
+  items: [_Item__Type!]!
+}
+
+type _BackgroundJob__Type {
+  id: String!
+  isScheduled: Boolean!
+  isFinished: Boolean!
+  isSuccessful: Boolean!
+  executions: [_Execution__Type!]!
+}
+
+input _BackgroundJob__InputType {
+  id: String!
+}
+
+type _Inventory__Type {
+  createdBy: UUID!
+  createdAt: DateTimeWithMicroseconds!
+  alteredBy: UUID!
+  alteredAt: DateTimeWithMicroseconds!
+  name: String!
+  description: String
+
+  """
+  The name of the field used to select (read/query) items of this inventory in GraphQL.
+  """
+  selectFieldName: String!
+
+  """
+  The name of the field used to insert (create) items of this inventory in GraphQL.
+  """
+  insertFieldName: String!
+
+  """
+  The name of the field used to update (modify) items of this inventory in GraphQL.
+  """
+  updateFieldName: String!
+
+  """
+  The name of the field used to delete (remove) items of this inventory in GraphQL.
+  """
+  deleteFieldName: String!
+  auditEnabled: Boolean!
+  inventoryType: _InventoryType__EnumType!
+  properties: [_InventoryProperty__Type!]!
+  parentRelations: [_InventoryRelation__Type!]!
+  childRelations: [_InventoryRelation__Type!]!
+  indexes: [_InventoryIndex__Type!]!
+  permissions: [_InventoryPermission__Type!]!
+  policies: [_InventoryPolicy__Type!]!
+  manyToManyRelation: _InventoryRelation__Type
+  namespace: _NamespaceReference__Type!
+}
+
+input _InventoryFilter__InputType {
+  namespaceNames: [String]
+  inventoryNames: [String!]
+}
+
+input _InventorySort__InputType {
+  by: _InventorySortBy__EnumType! = NAME
+}
+
+type _Namespace__Type {
+  createdBy: UUID!
+  createdAt: DateTimeWithMicroseconds!
+  alteredBy: UUID!
+  alteredAt: DateTimeWithMicroseconds!
+  name: String
+  description: String
+  isSystem: Boolean!
+}
+
+type _Role__Type {
+  createdBy: UUID!
+  createdAt: DateTimeWithMicroseconds!
+  alteredBy: UUID!
+  alteredAt: DateTimeWithMicroseconds!
+  name: String
+  description: String
+  isSystem: Boolean!
+}
+
+type _Me__PayloadType {
+  userId: UUID!
+  userName: String
+  isAdministrator: Boolean!
+  roleMemberships: [String!]!
+  effectivePermissions: _EffectiveUserPermissions__Type!
+}
+
+type _Charset__Type {
+  value: String
+}
+
+type _MediaType__Type {
+  value: String
+}
+
+type _TimeSeries__Type {
+  id: LongNumberString!
+  createdBy: UUID!
+  createdAt: DateTimeWithMicroseconds!
+  alteredBy: UUID!
+  alteredAt: DateTimeWithMicroseconds!
+  interval: _Interval__Type!
+  valueAlignment: _ValueAlignment__EnumType!
+  valueAvailability: _ValueAvailability__EnumType!
+  unit: String!
+  timeZone: String!
+  defaultAggregation: _Aggregation__EnumType
+  startOfTime: DateTimeWithMicroseconds!
+  auditEnabled: Boolean!
+  quotationEnabled: Boolean!
+  defaultQuotationBehavior: _QuotationBehavior__EnumType!
+  inventoryItemId: LongNumberString
+}
+
+input _GetTimeSeries__InputType {
+  timeSeriesIds: [LongNumberString!]!
+}
+
+type _Unit__Type {
+  symbol: String!
+  aggregation: _Aggregation__EnumType!
+}
+
+type _UnitConversion__Type {
+  targetUnit: String!
+  sourceUnit: String
+  factor: DecimalWithPrecisionString!
+  offset: DecimalWithPrecisionString!
+  interval: _Interval__Type
+}
+
+type _TimeZone__Type {
+  name: String!
+  baseUtcOffset: String!
+  supportsDaylightSavingTime: Boolean!
+}
+
+type _NamedItem__PayloadType {
+  name: String!
+  existed: Boolean!
+}
+
+input _CreateInventory__InputType {
+  inventoryName: String!
+  namespaceName: String
+  description: String
+  enableAudit: Boolean! = false
+  properties: [_CreateInventoryProperty__InputType!]!
+  relations: [_CreateInventoryRelation__InputType!]! = []
+  ifExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+input _DropInventory__InputType {
+  inventoryName: String!
+  namespaceName: String
+  ifNotExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+input _DropInventoryIndex__InputType {
+  indexName: String!
+  inventoryName: String!
+  namespaceName: String
+  ifNotExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+input _CreateRole__InputType {
+  roleName: String!
+  description: String
+  ifExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+input _DropRole__InputType {
+  roleName: String!
+  ifNotExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+input _CreateNamespace__InputType {
+  namespaceName: String!
+  description: String
+  ifExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+input _AlterNamespace__InputType {
+  namespaceName: String!
+  newNamespaceName: String
+  description: _DescriptionValue__InputType
+  ifNotExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+input _DropNamespace__InputType {
+  namespaceName: String!
+  ifNotExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+"""
+No return value
+"""
+enum _None__EnumType {
+  """
+  No return value
+  """
+  NONE
+}
+
+input _GrantInventoryPermissions__InputType {
+  privileges: [_InventoryPrivilege__EnumType!]!
+  inventoryName: String!
+  namespaceName: String
+  roleName: String!
+}
+
+input _DenyInventoryPermissions__InputType {
+  privileges: [_InventoryPrivilege__EnumType!]!
+  inventoryName: String!
+  namespaceName: String
+  roleName: String!
+}
+
+input _RevokeInventoryPermissions__InputType {
+  privileges: [_InventoryPrivilege__EnumType!]!
+  inventoryName: String!
+  namespaceName: String
+  roleName: String!
+}
+
+input _GrantInventoryPropertyPermissions__InputType {
+  privileges: [_InventoryPropertyPrivilege__EnumType!]!
+  inventoryName: String!
+  namespaceName: String
+  roleName: String!
+  propertyNames: [String!]!
+}
+
+input _DenyInventoryPropertyPermissions__InputType {
+  privileges: [_InventoryPropertyPrivilege__EnumType!]!
+  inventoryName: String!
+  namespaceName: String
+  roleName: String!
+  propertyNames: [String!]!
+}
+
+input _RevokeInventoryPropertyPermissions__InputType {
+  privileges: [_InventoryPropertyPrivilege__EnumType!]!
+  inventoryName: String!
+  namespaceName: String
+  roleName: String!
+  propertyNames: [String!]!
+}
+
+input _CreateInventoryPolicy__InputType {
+  policyName: String!
+  description: String
+  roleName: String!
+  inventoryName: String!
+  namespaceName: String
+  propertyName: String!
+
+  """
+  The policy filters items where the value of the property is equal to the filter value (property = filterValue). Example values: `"A"`,`"123"`, `"TenantA"`.
+  """
+  filterValue: Any!
+  ifExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+input _DropInventoryPolicy__InputType {
+  inventoryName: String!
+  namespaceName: String
+  policyName: String!
+  ifNotExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+type _BackgroundJobId__PayloadType {
+  backgroundJobId: String!
+}
+
+input _StartCreateInventoryIndex__InputType {
+  indexName: String!
+  inventoryName: String!
+  namespaceName: String
+  description: String
+  isUnique: Boolean! = false
+  properties: [_InventoryIndexProperty__InputType!]!
+  ifExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+input _StartAlterInventory__InputType {
+  inventoryName: String!
+  namespaceName: String
+  ifNotExists: _ConflictAction__EnumType! = RAISE_ERROR
+  addProperties: [_AddInventoryProperty__InputType!]! = []
+  alterProperties: [_AlterInventoryProperty__InputType!]! = []
+  dropProperties: [_DropInventoryProperty__InputType!]! = []
+  addRelations: [_AddInventoryRelation__InputType!]! = []
+  dropRelations: [_DropInventoryRelation__InputType!]! = []
+  alterRelations: [_AlterInventoryRelation__InputType!]! = []
+  newInventoryName: String
+  description: _DescriptionValue__InputType
+}
+
+input _CreateUnit__InputType {
+  symbol: String!
+  aggregation: _Aggregation__EnumType!
+  ifExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+input _DropUnit__InputType {
+  symbol: String!
+  ifNotExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+input _AlterUnitConversion__InputType {
+  targetUnit: String!
+  sourceUnit: String
+  factor: DecimalWithPrecisionString! = "1"
+  offset: DecimalWithPrecisionString! = "0"
+  interval: _Interval__InputType
+  ifNotExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+type _Id__PayloadType {
+  _id: LongNumberString!
+}
+
+input _CreateTimeSeries__InputType {
+  inventoryName: String!
+  namespaceName: String
+  propertyName: String!
+  specifics: _TimeSeriesSpecifics__InputType
+}
+
+type _SystemInfo__Type {
+  dynamicObjectsVersion: String!
+  databaseVersion: String!
+  memoryInfo: _MemoryInfo__Type!
+  messageInfos: [_MessageInfo__Type!]!
+}
+
+scalar Any
+
+type _MessageInfo__Type {
+  code: String!
+  template: String
+  category: String
+}
+
+type _MemoryInfo__Type {
+  totalMb: DecimalWithPrecisionString!
+  usedMb: DecimalWithPrecisionString!
+  freeMb: DecimalWithPrecisionString!
+  availablePercent: DecimalWithPrecisionString!
+}
+
+input _TimeSeriesSpecifics__InputType {
+  interval: _Interval__InputType
+  valueAlignment: _ValueAlignment__EnumType
+  valueAvailability: _ValueAvailability__EnumType
+  unit: String
+  timeZone: String
+  defaultAggregation: _Aggregation__EnumType
+  startOfTime: DateTimeWithMicroseconds
+
+  """
+  The default quotation behaviour
+  """
+  defaultQuotationBehavior: _QuotationBehavior__EnumType
+}
+
+"""
+The time interval consisting of multiplier and time unit. Examples: `"15 MINUTE"`, `"1 HOUR"`
+"""
+input _Interval__InputType {
+  """
+  The time unit for the interval. Examples: `"MINUTE"`, `"HOUR"`
+  """
+  timeUnit: _TimeUnit__EnumType!
+
+  """
+  The multiplier for the interval. Examples: The '15' of a `"15 MINUTE"` interval
+  """
+  multiplier: IntNumberString! = "1"
+}
+
+enum _Aggregation__EnumType {
+  SUM
+  AVERAGE
+  MIN
+  MAX
+  MOST_FREQUENTLY
+  ABS_MIN
+  ABS_MAX
+  FIRST_VALUE
+  LAST_VALUE
+}
+
+input _AlterInventoryRelation__InputType {
+  propertyName: String!
+  ifNotExists: _ConflictAction__EnumType! = RAISE_ERROR
+  renamePropertyName: String
+  renameParentPropertyName: String
+}
+
+input _DropInventoryRelation__InputType {
+  propertyName: String!
+  ifNotExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+input _AddInventoryRelation__InputType {
+  ifExists: _ConflictAction__EnumType! = RAISE_ERROR
+  relationType: _RelationType__EnumType!
+  isRequired: Boolean
+  propertyName: String!
+  parentNamespaceName: String
+  parentInventoryName: String!
+  parentPropertyName: String!
+}
+
+input _DropInventoryProperty__InputType {
+  propertyName: String!
+  ifNotExists: _ConflictAction__EnumType! = RAISE_ERROR
+}
+
+input _AlterInventoryProperty__InputType {
+  propertyName: String!
+  ifNotExists: _ConflictAction__EnumType! = RAISE_ERROR
+  newPropertyName: String
+  description: _DescriptionValue__InputType
+  dataType: _AssignableDataType__EnumType
+  isArray: Boolean
+  isRequired: Boolean
+  isUnique: Boolean
+  string: _AlterInventoryPropertyString__InputType
+  file: _AlterInventoryPropertyFile__InputType
+  timeSeries: _AlterInventoryPropertyTimeSeries__InputType
+}
+
+input _AddInventoryProperty__InputType {
+  ifExists: _ConflictAction__EnumType! = RAISE_ERROR
+  propertyName: String!
+  description: String
+  dataType: _AssignableDataType__EnumType!
+  isRequired: Boolean! = true
+  isUnique: Boolean! = false
+  isArray: Boolean! = false
+  string: _CreateInventoryPropertyString__InputType
+  file: _CreateInventoryPropertyFile__InputType
+  timeSeries: _CreateInventoryPropertyTimeSeries__InputType
+}
+
+input _InventoryIndexProperty__InputType {
+  propertyName: String!
+  isDescending: Boolean! = false
+}
+
+enum _InventoryPropertyPrivilege__EnumType {
+  SELECT
+  INSERT
+  UPDATE
+}
+
+enum _InventoryPrivilege__EnumType {
+  SELECT
+  INSERT
+  UPDATE
+  DELETE
+  AUDIT
+}
+
+input _DescriptionValue__InputType {
+  value: String
+}
+
+enum _ConflictAction__EnumType {
+  RAISE_ERROR
+  IGNORE
+}
+
+input _CreateInventoryRelation__InputType {
+  relationType: _RelationType__EnumType!
+  isRequired: Boolean
+  propertyName: String!
+  parentNamespaceName: String
+  parentInventoryName: String!
+  parentPropertyName: String!
+}
+
+input _CreateInventoryProperty__InputType {
+  propertyName: String!
+  description: String
+  dataType: _AssignableDataType__EnumType!
+  isRequired: Boolean! = true
+  isUnique: Boolean! = false
+  isArray: Boolean! = false
+  string: _CreateInventoryPropertyString__InputType
+  file: _CreateInventoryPropertyFile__InputType
+  timeSeries: _CreateInventoryPropertyTimeSeries__InputType
+}
+
+"""
+Determines how quotations are handled when reading time series data
+"""
+enum _QuotationBehavior__EnumType {
+  """
+  The highest quotation date in the time range is determined and only the data for this date is read out.
+  """
+  LATEST_EXACTLY_AT
+
+  """
+  The data in the time range with the highest quotation date is read out
+  """
+  LATEST
+
+  """
+  The data in the time range with the highest quotation date, but less than the current time, is read out
+  """
+  LATEST_NO_FUTURE
+}
+
+"""
+Determines whether the values of the time series are available at the beginning or end of the respective measurement period (interval), i.e. whether when loading time series data 'from' is inclusive and 'to' is exclusive (`AT_INTERVAL_BEGIN`), or 'from' is exclusive and 'to' is inclusive (`AT_INTERVAL_END`).
+"""
+enum _ValueAvailability__EnumType {
+  """
+  For time series in which the values are available at the beginning of the respective measurement period (interval), e. g. power values (watts), temperature, wind speed or length.
+  """
+  AT_INTERVAL_BEGIN
+
+  """
+  For time series in which the values are available at the end of the respective measurement period (interval), e. g. energy values (watt hour).
+  """
+  AT_INTERVAL_END
+}
+
+"""
+Determines how the times in the time series should be aligned when writing time series data
+"""
+enum _ValueAlignment__EnumType {
+  """
+  When writing time series values, align the time to the left-hand side (beginning) of the interval. Example: For a time series with interval '15 MINUTE' the time '2025-01-01T12:02:34.457363' will become '2025-01-01T12:00:00.000000'.
+  """
+  LEFT
+
+  """
+  When writing time series values, align the time to the right-hand side (end) of the interval. Example: For a time series with interval '15 MINUTE' the time '2025-01-01T12:14:34.457363' will become '2025-01-01T12:15:00.000000'.
+  """
+  RIGHT
+
+  """
+  When writing time series values, do not align the time to interval. The value will be split and written to the beginning and end of the interval, unless it is written exactly at the beginning/end of an interval.
+  """
+  NONE
+}
+
+"""
+The time interval consisting of multiplier and time unit. Examples: `"15 MINUTE"`, `"1 HOUR"`
+"""
+type _Interval__Type {
+  """
+  The time unit for the interval. Examples: `"MINUTE"`, `"HOUR"`
+  """
+  timeUnit: _TimeUnit__EnumType!
+
+  """
+  The multiplier for the interval. Examples: The '15' of a `"15 MINUTE"` interval
+  """
+  multiplier: IntNumberString!
+}
+
+type _EffectiveUserPermissions__Type {
+  namespacePermissions: [_EffectiveUserNamespacePermissions__Type!]!
+}
+
+enum _InventorySortBy__EnumType {
+  NAME
+  ID
+}
+
+type _NamespaceReference__Type {
+  name: String
+}
+
+type _InventoryPolicy__Type {
+  name: String!
+  description: String
+  serializedFilterValue: String
+  role: _RoleReference__Type!
+  property: _InventoryPropertyReference__Type!
+}
+
+type _InventoryPermission__Type {
+  privilege: _InventoryPrivilege__EnumType!
+  state: _PermissionState__EnumType!
+  role: _RoleReference__Type!
+}
+
+type _InventoryIndex__Type {
+  name: String!
+  description: String
+  isUnique: Boolean!
+  isSystem: Boolean!
+  properties: [_InventoryIndexProperty__Type!]!
+}
+
+type _InventoryRelation__Type {
+  relationType: _RelationType__EnumType!
+  isRequired: Boolean!
+  childInventory: _InventoryReference__Type!
+  childReferenceProperty: _InventoryPropertyReference__Type!
+  childNavigationProperty: _InventoryPropertyReference__Type!
+  childIndex: _InventoryIndexReference__Type!
+  parentInventory: _InventoryReference__Type!
+  parentReferenceProperty: _InventoryPropertyReference__Type!
+  parentNavigationProperty: _InventoryPropertyReference__Type!
+  manyToManyInventory: _InventoryReference__Type
+}
+
+type _InventoryProperty__Type {
+  name: String!
+  description: String
+
+  """
+  The name of the field used to access the value of this property in GraphQL when queryin or mutating inventory items.
+  """
+  fieldName: String!
+  sortOrder: IntNumberString!
+  dataType: _DataType__EnumType!
+  isRequired: Boolean!
+  isUnique: Boolean!
+  isArray: Boolean!
+  string: _InventoryPropertyString__Type
+  file: _InventoryPropertyFile__Type
+  timeSeries: _InventoryPropertyTimeSeries__Type
+  parentRelation: _InventoryRelationReference__Type
+  childRelation: _InventoryRelationReference__Type
+  permissions: [_InventoryPropertyPermission__Type!]!
+}
+
+enum _InventoryType__EnumType {
+  DATA
+  MANY_TO_MANY
+}
+
+type _Execution__Type {
+  executionTimeUtc: DateTimeWithMicroseconds!
+  errors: [_Error__Type!]!
+}
+
+"""
+Contains information about an item.
+"""
+type _Item__Type {
+  """
+  The unique identifier of the item.
+  """
+  _id: LongNumberString!
+
+  """
+  The row version is used to detect whether the data has been changed by another user since it was loaded when updating or deleting data. If the data has been changed, an error will occur. ("Optimistic locking")
+  """
+  _rowVersion: IntNumberString!
+
+  """
+  When inserting, indicates whether the item existed according to unique constraints (`true`) or was created (`false`). When updating, indicates whether the item existed according to id and row version and was updated (`true`) or was not found (`false`). When deleting, indicates whether the item existed according to id and row version and was deleted (`true`) or was not found (`false`).
+  """
+  _existed: Boolean!
+}
+
+type _Error__Type {
+  code: String!
+  text: String!
+  placeholders: JSON!
+}
+
+type _InventoryPropertyPermission__Type {
+  privilege: _InventoryPropertyPrivilege__EnumType!
+  state: _PermissionState__EnumType!
+  role: _RoleReference__Type!
+}
+
+type _InventoryRelationReference__Type {
+  relationType: _RelationType__EnumType!
+  isRequired: Boolean!
+  inventory: _InventoryReference__Type!
+  referenceProperty: _InventoryPropertyReference__Type!
+  navigationProperty: _InventoryPropertyReference__Type!
+  manyToManyInventory: _InventoryReference__Type
+}
+
+type _InventoryPropertyTimeSeries__Type {
+  interval: _Interval__Type!
+  valueAlignment: _ValueAlignment__EnumType!
+  valueAvailability: _ValueAvailability__EnumType!
+  unit: String!
+  timeZone: String!
+  defaultAggregation: _Aggregation__EnumType
+  startOfTime: DateTimeWithMicroseconds!
+  auditEnabled: Boolean!
+  quotationEnabled: Boolean!
+  defaultQuotationBehavior: _QuotationBehavior__EnumType!
+  specificsPerInstanceAllowed: Boolean!
+}
+
+type _InventoryPropertyFile__Type {
+  maxLength: LongNumberString!
+}
+
+type _InventoryPropertyString__Type {
+  maxLength: LongNumberString!
+  isCaseSensitive: Boolean!
+}
+
+enum _DataType__EnumType {
+  ID
+  ROW_VERSION
+  INSERTED_BY
+  INSERTED_AT
+  UPDATED_BY
+  UPDATED_AT
+  REFERENCE
+  NAVIGATION
+  STRING
+  INT
+  LONG
+  DECIMAL
+  DATE_TIME
+  DATE_TIME_OFFSET
+  DATE
+  TIME
+  BOOLEAN
+  GUID
+  FILE
+  TIME_SERIES
+}
+
+type _InventoryIndexReference__Type {
+  name: String!
+}
+
+type _InventoryReference__Type {
+  name: String!
+  namespace: _NamespaceReference__Type!
+}
+
+enum _RelationType__EnumType {
+  ONE_TO_ONE
+  ONE_TO_MANY
+  MANY_TO_MANY
+}
+
+type _InventoryIndexProperty__Type {
+  sortOrder: IntNumberString!
+  isDescending: Boolean!
+  property: _InventoryPropertyReference__Type!
+}
+
+enum _PermissionState__EnumType {
+  DENY
+  REVOKE
+  GRANT
+}
+
+type _InventoryPropertyReference__Type {
+  name: String!
+  fieldName: String!
+}
+
+type _RoleReference__Type {
+  id: LongNumberString!
+  name: String!
+}
+
+type _EffectiveUserNamespacePermissions__Type {
+  namespaceName: String
+  inventoryPermissions: [_EffectiveUserInventoryPermissions__Type!]!
+}
+
+enum _TimeUnit__EnumType {
+  SECOND
+  MINUTE
+  HOUR
+  DAY
+  WEEK
+  MONTH
+  QUARTER
+  YEAR
+}
+
+input _CreateInventoryPropertyTimeSeries__InputType {
+  """
+  The time interval consisting of multiplier and time unit. Examples: `"15 MINUTE"`, `"1 HOUR"`
+  """
+  interval: _Interval__InputType!
+
+  """
+  Determines how the times in the time series should be aligned when writing time series data
+  """
+  valueAlignment: _ValueAlignment__EnumType! = LEFT
+
+  """
+  Determines whether the values of the time series are available at the beginning or end of the respective measurement period (interval), i.e. whether when loading time series data 'from' is inclusive and 'to' is exclusive (`AT_INTERVAL_BEGIN`), or 'from' is exclusive and 'to' is inclusive (`AT_INTERVAL_END`).
+  """
+  valueAvailability: _ValueAvailability__EnumType! = AT_INTERVAL_BEGIN
+
+  """
+  The unit. Examples: `"kW"`, `"kWh"`, `"g"`
+  """
+  unit: String!
+
+  """
+  The time zone. Examples: `"Europe/Berlin"`, `"Etc/Utc"`
+  """
+  timeZone: String = "Europe/Berlin"
+
+  """
+  The default aggregation. When `null`, the aggregation of the unit will be used.
+  """
+  defaultAggregation: _Aggregation__EnumType
+
+  """
+  The start of time for the time series. No values can be written before this time. When `null`, `"1970-01-01T00:00:00"` adapted to the time zone of the time series will be used as start time, unless the time unit of the interval is `WEEK`, then `"1970-01-05T00:00:00"` (a monday) adapted to the time zone of the time series will be used as start time. Please note that the start time is relevant for the aggregation of days, weeks, etc. Example: `"2023-01-01T00:00:00Z"`
+  """
+  startOfTime: DateTimeWithMicroseconds
+
+  """
+  Enable audit
+  """
+  enableAudit: Boolean! = false
+
+  """
+  Enable quotation
+  """
+  enableQuotation: Boolean! = false
+
+  """
+  The default quotation behaviour
+  """
+  defaultQuotationBehavior: _QuotationBehavior__EnumType! = LATEST
+
+  """
+  Declares whether the time series specifics (like 'unit', 'interval', etc.) are defined per instance of the time series or globally for the inventory property
+  """
+  allowSpecificsPerInstance: Boolean! = false
+}
+
+input _CreateInventoryPropertyFile__InputType {
+  """
+  The max length in bytes for the value of the property
+  """
+  maxLength: LongNumberString!
+}
+
+input _CreateInventoryPropertyString__InputType {
+  """
+  The max length in characters for the value of the property
+  """
+  maxLength: LongNumberString!
+
+  """
+  Determines whether the property is case sensitive or not.
+  """
+  isCaseSensitive: Boolean! = false
+}
+
+input _AlterInventoryPropertyTimeSeries__InputType {
+  """
+  The time interval consisting of multiplier and time unit. Examples: `"15 MINUTE"`, `"1 HOUR"`
+  """
+  interval: _Interval__InputType!
+
+  """
+  Determines how the times in the time series should be aligned when writing time series data
+  """
+  valueAlignment: _ValueAlignment__EnumType! = LEFT
+
+  """
+  Determines whether the values of the time series are available at the beginning or end of the respective measurement period (interval), i.e. whether when loading time series data 'from' is inclusive and 'to' is exclusive (`AT_INTERVAL_BEGIN`), or 'from' is exclusive and 'to' is inclusive (`AT_INTERVAL_END`).
+  """
+  valueAvailability: _ValueAvailability__EnumType! = AT_INTERVAL_BEGIN
+
+  """
+  The unit. Examples: `"kW"`, `"kWh"`, `"g"`
+  """
+  unit: String!
+
+  """
+  The time zone. Examples: `"Europe/Berlin"`, `"Etc/Utc"`
+  """
+  timeZone: String = "Europe/Berlin"
+
+  """
+  The default aggregation. When `null`, the aggregation of the unit will be used.
+  """
+  defaultAggregation: _Aggregation__EnumType
+
+  """
+  The start of time for the time series. No values can be written before this time. When `null`, `"1970-01-01T00:00:00"` adapted to the time zone of the time series will be used as start time, unless the time unit of the interval is `WEEK`, then `"1970-01-05T00:00:00"` (a monday) adapted to the time zone of the time series will be used as start time. Please note that the start time is relevant for the aggregation of days, weeks, etc. Example: `"2023-01-01T00:00:00Z"`
+  """
+  startOfTime: DateTimeWithMicroseconds
+
+  """
+  Enable audit
+  """
+  enableAudit: Boolean! = false
+
+  """
+  Enable quotation
+  """
+  enableQuotation: Boolean! = false
+
+  """
+  The default quotation behaviour
+  """
+  defaultQuotationBehavior: _QuotationBehavior__EnumType! = LATEST
+
+  """
+  Declares whether the time series specifics (like 'unit', 'interval', etc.) are defined per instance of the time series or globally for the inventory property
+  """
+  allowSpecificsPerInstance: Boolean! = false
+}
+
+input _AlterInventoryPropertyFile__InputType {
+  """
+  The max length in bytes for the value of the property
+  """
+  maxLength: LongNumberString!
+}
+
+input _AlterInventoryPropertyString__InputType {
+  """
+  The max length in characters for the value of the property
+  """
+  maxLength: LongNumberString!
+
+  """
+  Determines whether the property is case sensitive or not.
+  """
+  isCaseSensitive: Boolean! = false
+}
+
+enum _AssignableDataType__EnumType {
+  STRING
+  INT
+  LONG
+  DECIMAL
+  DATE_TIME
+  DATE_TIME_OFFSET
+  DATE
+  TIME
+  BOOLEAN
+  GUID
+  FILE
+  TIME_SERIES
+}
+
+type _EffectiveUserInventoryPermissions__Type {
+  inventoryName: String!
+  hasSelectPermission: Boolean!
+  hasInsertPermission: Boolean!
+  hasUpdatePermission: Boolean!
+  hasDeletePermission: Boolean!
+  hasAuditPermission: Boolean!
+  hasPropertyPermissions: Boolean!
+  hasPolicies: Boolean!
+  propertyPermissions: [_EffectiveUserInventoryPropertyPermissions__Type!]!
+  policies: [_EffectiveUserPolicy__Type!]!
+}
+
+type _EffectiveUserPolicy__Type {
+  policyName: String!
+}
+
+type _EffectiveUserInventoryPropertyPermissions__Type {
+  propertyName: String!
+  hasSelectPermission: Boolean!
+  hasInsertPermission: Boolean!
+  hasUpdatePermission: Boolean!
+}
