@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""dasconv tool
+
+This file is part of dastools.
+
+dastools is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+dastools is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program. If
+not, see https://www.gnu.org/licenses/.
+
+   :Copyright:
+       2021-2025 GFZ Helmholtz Centre for Geosciences, Potsdam, Germany
+   :License:
+       GPLv3
+   :Platform:
+       Linux
+
+.. moduleauthor:: Javier Quinteros <javier@gfz.de>, GEOFON, GFZ Potsdam
+"""
+
+import click
+import sys
+import datetime
+from pathlib import Path
+from time import perf_counter
+import concurrent.futures
+from obspy import Trace
+from dastools.input import checkDASdata
+from dastools.input.tdms import TDMS
+from dastools.input.tdms import TDMSReader
+from dastools.input.optodas import OptoDAS
+from dastools.input.optodas import OptoDASReader
+from dastools.input.das import NoData
+from dastools import __version__
+from dastools.utils import str2date
+from dastools.utils import nslc
+import dastools.output.archive as da
+from dastools.partition.parallelization import SplitTDMS
+from dastools.partition.parallelization import SplitOptoDAS
+import inspect
+from typing import Union
+from typing import Type
+from typing import Literal
+from pydantic import constr
+from pydantic import conint
+from pydantic import validate_call
+
+
+dasclasses = ['OptoDAS', 'TDMS']
+# Inspect the archive.py module to list the Classes based on Archive
+dictarchive = dict()
+for name, obj in inspect.getmembers(da):
+    if inspect.isclass(obj):
+        if issubclass(obj, da.Archive) and name != 'Archive':
+            dictarchive[name] = obj
+
+helparchive = 'Structure to be used when saving the converted data.\n* SDS: SeisComP Data Structure;'
+helparchive += '\n* StreamBased: one file per stream;\n* StreamBasedHour: one file per stream per hour.\n'
+helparchive += 'Available options are [%s] (default: StreamBased)' % ', '.join(dictarchive.keys())
+
+
+#               help='')
+@click.command()
+@click.argument('experiment', type=str)
+@click.option('--directory', type=click.Path(path_type=Path, file_okay=False, dir_okay=True, exists=True),
+              default=Path('.'), show_default=True, help='Directory where files are located')
+@click.option('--start', type=str, default=None,
+              help='Start of the selected time window. Format: 2019-02-01T00:01:02.123456Z')
+@click.option('--end', type=str, default=None,
+              help='End of the selected time window. Format: 2019-02-01T00:01:02.123456Z')
+@click.option('--inputfmt', type=click.Choice(dasclasses, case_sensitive=False), show_choices=True,
+              show_default=True, default=None, help='Format of the raw data files')
+@click.option('-N', '--network', default='XX', type=str, show_default=True,
+              help='Network code to store in the miniseed header')
+@click.option('-C', '--channel', default='HSF', type=str, show_default=True,
+              help='Channel code to store in the miniseed header')
+@click.option('--chstart', type=int, default=0, show_default=True,
+              help='First channel to export')
+@click.option('--chstop', type=int, default=None, show_default=True,
+              help='Last channel to export')
+@click.option('--chstep', type=int, default=1, show_default=True,
+              help='Step between channels in the selection')
+@click.option('--decimate', type=click.Choice([1, 5]), show_choices=True,
+              show_default=True, default=1, help='Factor by which the sampling rate is lowered by decimation')
+@click.option('-p', '--processes', type=click.IntRange(1, 8), default=1, show_default=True,
+              help='Number of threads to spawn when parallelizing the conversion')
+@click.option('-o', '--outstruct', type=click.Choice(list(dictarchive.keys()), case_sensitive=True),
+              default='StreamBased', show_choices=True, show_default=True, help=helparchive)
+@click.version_option(__version__)
+@validate_call
+def dasconv(experiment: str, directory: Path = Path('.'), start: str = None, end: str = None, inputfmt: str = None,
+            network: constr(to_upper=True, min_length=1, max_length=2) = 'XX',
+            channel: constr(strip_whitespace=True, min_length=3, max_length=3) = 'HSF',
+            chstart: int = 0, chstop: int = None, chstep: int = 1, decimate: int = 1,
+            processes: conint(ge=1, le=8) = 1,
+            outstruct: Literal['StreamBasedHour', 'StreamBased', 'SDS'] = 'StreamBased'):
+    """Read, manipulate and convert seismic waveforms generated by a DAS system. The 'experiment' to read
+    and process is usually the first part of the filenames in the case of TDMS files, or the top directory
+    name in the case of OptoDAS data."""
+    # parser.add_argument('--decimate', type=int, choices=[1, 5],
+    #                     help='Factor by which the sampling rate is lowered by decimation (default: 1)',
+    #                     default=1)
+
+    dtstart = str2date(start)
+    dtend = str2date(end)
+    if dtend is not None and dtstart is not None and dtstart >= dtend:
+        click.echo('ERROR: End time is smaller than Start time.', err=True)
+        sys.exit(-2)
+
+    # If there are no input format try to guess it from the file extension filtering them with the parameters provided
+    if inputfmt is None:
+        # Check data format from the dataset (if any)
+        clsdas = checkDASdata(experiment, directory)
+        if clsdas not in (TDMSReader, OptoDASReader):
+            click.echo('ERROR: Input format cannot be guessed from the files found in the directory', err=True)
+            sys.exit(-2)
+        inputfmt = 'TDMS' if clsdas == TDMSReader else 'OptoDAS'
+    elif inputfmt == 'TDMS':
+        clsdas = TDMSReader
+    else:  ## 'OptoDAS':
+        clsdas = OptoDASReader
+    splitdas = SplitTDMS if clsdas == TDMSReader else SplitOptoDAS
+
+    # First iterate through the files ('F')
+    dasobj = clsdas(experiment, directory=directory, iterate='F', networkcode=network,
+                    channelcode=channel, starttime=dtstart, endtime=dtend, decimate=decimate,
+                    channels=[x for x in range(chstart, chstop, chstep)])
+
+    # Split the work in tasks
+    splt = splitdas(dasobj, outstruct, starttime=dtstart, endtime=dtend)
+    tasks = splt.getbatch()
+    # print('Tasks: %s' % tasks)
+
+    start_time = perf_counter()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=processes) as executor:
+        # Start the load operations and mark each future with its URL
+        future_to_task = {executor.submit(task, experiment, directory, inputfmt, network,
+                                          channel, decimate, dictarchive[outstruct], 'INFO',
+                                          threadnum, params[0], params[1], params[2]): params for threadnum, params in enumerate(tasks)}
+
+    end_time = perf_counter()
+    click.echo('It took % 0.1f seconds to complete.' % (end_time - start_time))
+
+
+def task(experiment: str, directory: Path, inputfmt: Type[Union[TDMSReader, OptoDASReader]], networkcode: str,
+         channelcode: str, decimate: int, outstructcls, loglevel: str, threadnum: int,
+         channels: list, dtstart: Union[datetime.datetime, None], dtend: Union[datetime.datetime, None]):
+    click.echo('Start task %d to store channels %s' % (threadnum, channels))
+    iterate = 'D'
+    try:
+        dasobj = inputfmt(experiment, directory=directory, iterate=iterate, channels=channels, networkcode=networkcode,
+                          channelcode=channelcode, starttime=dtstart, endtime=dtend, decimate=decimate,
+                          loglevel=loglevel)
+    except NoData:
+        click.echo('ERROR: There seems to be no data under the experiment name provided', err=True)
+        sys.exit(-1)
+    except Exception:
+        raise Exception('Unknown input format')
+
+    # Selected archive structure
+    # Archive files in current directory
+    archive = outstructcls(root='.', experiment=experiment, strictcheck=False)
+
+    expectedtimes = dict()
+    with dasobj:
+        curstream = None
+
+        # progress = tqdm(dasobj, total=dasobj.chunks(), position=threadnum)
+        # for data in progress:
+        for data in dasobj:
+            # progress.set_postfix_str('(thrd: %d, sta:%s) %s' % (threadnum, data[1].station,
+            #                                                     data[1].starttime.isoformat()))
+
+            if curstream != nslc(data[1]):
+                # Save the previous Stream completely
+                if curstream is not None:
+                    archive.archive(tr0)
+                    click.echo('Storing channel %s. Starttime: %s' % (curstream, data[1].get('starttime', None)))
+
+                # Update which stream is being processed
+                curstream = nslc(data[1])
+                # Create the Trace
+                tr0 = Trace(data=data[0], header=data[1])
+            else:
+                # Check if there is a gap in the signal. If a gap is detected, flush now
+                if data[1]['starttime'] != expectedtimes[curstream]:
+                    archive.archive(tr0)
+                    tr0 = Trace(data=data[0], header=data[1])
+                else:
+                    tr0 += Trace(data=data[0], header=data[1])
+
+            # Update the datetime of the expected sample
+            expectedtimes[curstream] = data[1]['starttime'] + data[1]['npts']/data[1]['sampling_rate']
+        else:
+            click.echo('Storing last part of channel %s' % curstream)
+            try:
+                archive.archive(tr0)
+            except KeyError:
+                archive.archive(tr0)
+            except UnboundLocalError:
+                click.echo('Signal was not processed. Probably too short!', err=True)
+
+
+if __name__ == '__main__':
+    dasconv()
