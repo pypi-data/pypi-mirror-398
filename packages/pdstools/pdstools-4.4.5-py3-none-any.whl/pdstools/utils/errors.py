@@ -1,0 +1,2 @@
+class NotApplicableError(ValueError):
+    pass
