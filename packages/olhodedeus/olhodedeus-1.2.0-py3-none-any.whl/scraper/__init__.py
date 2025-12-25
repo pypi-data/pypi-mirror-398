@@ -1,0 +1,1 @@
+"""OlhoDeDeus - Scraper Module"""
