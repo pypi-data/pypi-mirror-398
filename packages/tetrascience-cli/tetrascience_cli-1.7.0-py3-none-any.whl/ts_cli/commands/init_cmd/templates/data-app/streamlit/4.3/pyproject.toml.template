@@ -1,0 +1,84 @@
+[tool.poetry]
+name = "{{ data_app_package_name }}"
+version = "0.1.0"
+description = "A Streamlit data app"
+authors = ["TetraScience"]
+
+[tool.poetry.dependencies]
+python = "~3.11"
+streamlit = "^1.35.0"
+ts-sdk-connectors-python = "~2.0.0"
+tetrascience-streamlit-ui = "^0.1.5a0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=6.0"
+pytest-cov = ">=3.0"
+watchdog = "^4.0.1"
+poethepoet = "^0.26.1"
+pre-commit = "^3.0.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poe.tasks]
+_check_env_file_exists.shell = "test -f .env || echo 'Warning: No .env file found. Some tasks may not work as expected.'"
+
+[tool.poe.tasks.test]
+help = "Run pytest"
+cmd = "pytest"
+
+[tool.poe.tasks.start]
+help = "Start the streamlit app"
+cmd = "streamlit run app.py"
+
+[tool.poe.tasks.docker-build]
+help = "Build the docker image. Requires environment variables from .env file (or environment)"
+shell = """
+  docker build . -t {{ data_app_package_name }} \
+  --build-arg DEPLOYMENT_ENVIRONMENT=local \
+  """
+deps = ["_check_env_file_exists"]
+envfile = ".env"
+
+[tool.poe.tasks.docker-start]
+help = "Start the streamlit app in a docker container"
+cmd = "docker run -it --rm --name {{ data_app_package_name }} -p ${port}:8501 {{ data_app_package_name }}"
+
+  [tool.poe.tasks.docker-start.args.port]
+  options = ["-p", "--port"]
+  help = "The port on which to expose the data app"
+  default = "8501"
+
+[tool.poe.tasks.build-for-publish]
+help = "Build the docker image for publishing to TDP. Requires environment variables from .env file (or environment)"
+shell = """
+  docker build . -t {{ data_app_package_name }}:latest \
+  --platform linux/amd64 \
+  --build-arg DEPLOYMENT_ENVIRONMENT=production && \
+  docker save {{ data_app_package_name }}:latest -o image.tar
+  """
+deps = ["_check_env_file_exists"]
+envfile = ".env"
+
+[tool.isort]
+profile = "black"
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = ".*snapshots.*|.venv/"
+
+[tool.pytest.ini_options]
+addopts = "-vv --cov"
+testpaths = [
+    "__tests__",
+]
+
+[tool.coverage.run]
+branch = true
+source = [
+    "{{ data_app_package_dir }}"
+]
+omit = ["*/snapshots/*", "__tests__/*"]
