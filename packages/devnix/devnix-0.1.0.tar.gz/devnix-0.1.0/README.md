@@ -1,0 +1,114 @@
+# Devnix
+
+<div align="center">
+<img width="360" height="170" alt="image" src="https://github.com/user-attachments/assets/f2164c66-3277-4329-82b9-be4856ba05f3" />
+ </div>
+
+ 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
+[![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+**Devnix** is a high-performance, zero-config CLI companion for Python developers. It automates repetitive tasks, enforces security standards, and ensures your environment is always healthy—letting you focus on writing code, not configuring it.
+
+---
+
+## Why Devnix?
+
+Modern Python development often feels like juggling: managing `.env` files, checking ports, running different server commands for different frameworks, and remembering to format code. 
+
+**Devnix replaces that mental load with a single, intelligent tool.**
+
+*   **Zero Configuration**: Drop into any project and run `devnix run`. It just works.
+*   **Safety First**: Automatically detects exposed secrets and unsafe production settings.
+*   **Framework Aware**: Tailors its behavior perfectly for Django, FastAPI, Flask, and more.
+*   **Beautiful UI**: Clean, ASCII-only terminal output designed for maximum compatibility and clarity.
+
+---
+
+## 🚀 Quick Start
+
+Get up and running in seconds.
+
+### 1. Installation
+
+```bash
+pip install devnix
+```
+
+### 2. Basic Usage
+
+Navigate to your project folder and let Devnix take care of the rest:
+
+```bash
+devnix run      # Detects framework and starts the server
+devnix doctor   # Comprehensive health and security check
+devnix check    # Run tests, formatters, and linters in one go
+```
+
+---
+
+## 🛠️ Core Commands
+
+### `devnix run`
+**The "Just Work" Command.**
+Devnix identifies your framework and launches the appropriate dev server while automatically loading your `.env` variables and verifying that your ports are free.
+
+### `devnix doctor`
+**Your Personal Health Inspector.**
+Performs a deep-scan of your project and environment:
+- **Environment**: Verifies Python versions and Virtual Environments.
+- **Security**: Scans for `DEBUG=True` in production and searches for committed secrets in Git.
+- **Dependencies**: Checks for missing `requirements.txt` or `pyproject.toml`.
+- **Infrastructure**: Identifies port conflicts before they crash your app.
+
+### `devnix check`
+**The Continuous Integration Powerhouse.**
+Ensures your code is production-ready by running the full stack: `pytest` → `black` → `isort` → `flake8`. It stops at the first sign of trouble, forcing a perfect code state.
+
+### `devnix info`
+**Quick Metadata Viewer.**
+Instantly see your project type (Django, Flask, etc.), current working directory, and the installed Devnix version.
+
+### `devnix clean`
+**Reset Your Workspace.**
+Instantly purges `__pycache__`, `.pytest_cache`, and other junk files that clutter your project.
+
+### `devnix env`
+**Secure Variable Management.**
+- `devnix env check`: Compares `.env` to `.env.example` to ensure no variables are missing.
+- `devnix env generate`: Creates a clean `.env.example` while automatically stripping sensitive values.
+
+---
+
+## 🔍 Smart Framework Detection
+
+Devnix understands your project structure better than you do.
+
+| Framework | Detection Signature | Primary Action |
+| :--- | :--- | :--- |
+| **Django** | `manage.py` | `runserver` |
+| **FastAPI** | `FastAPI` instance in code | `uvicorn` |
+| **Flask** | `Flask` dependencies | `flask run` |
+| **Script** | `main.py` | `python main.py` |
+| **Package** | `pyproject.toml` | Environment setup |
+
+---
+
+## �️ Development & Contributing
+
+We love contributions! If you want to build Devnix yourself:
+
+1.  Clone the repository.
+2.  Install in development mode: `pip install -e .`
+3.  Ensure all checks pass: `devnix check`
+
+---
+
+## 📄 License
+
+Devnix is open-source software licensed under the **[MIT License](LICENSE)**.
+
+---
+
+
