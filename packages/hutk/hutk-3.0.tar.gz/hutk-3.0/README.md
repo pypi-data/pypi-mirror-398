@@ -1,0 +1,257 @@
+# HumblyTkinter Library Documentation
+
+**Library name:** humblytkinter
+**Author:** Mohammad Parsa Abdi (محمدپارسا عبدی)
+
+---
+
+## Introduction
+
+`humblytkinter` is a simple Python library built on top of the standard `tkinter` module. The goal of this library is to make GUI creation easier and cleaner for beginners by providing ready-to-use methods for common widgets such as labels, buttons, and entries.
+
+This documentation explains **all classes, functions, parameters, conditions, and usage rules** of the library in detail.
+
+> All code examples are written in **English**, **Left-to-Right (LTR)**, and are safe to copy and use directly.
+
+---
+
+## Installation
+
+Place the `humblytkinter` folder in your project or install it locally, then import it:
+
+```python
+from humblytkinter import MyGUI
+```
+
+---
+
+## Main Class
+
+### `MyGUI`
+
+This is the core class of the library. It manages the window, widgets, and execution of the GUI.
+
+```python
+class MyGUI:
+```
+
+### Constructor
+
+```python
+def __init__(self, window_name="My Window"):
+```
+
+#### Parameters
+
+* `window_name` *(str)*: The title of the application window.
+
+#### What it does
+
+* Creates the main Tkinter window
+* Sets the window title
+* Initializes an internal dictionary to track widgets
+
+---
+
+## Widgets Storage System
+
+The library stores all widgets in a dictionary:
+
+```python
+self.widgets = {}
+```
+
+Each widget is saved with a unique key such as:
+
+* `label_0`
+* `button_1`
+* `entry_2`
+
+This allows safe deletion, access, and validation.
+
+---
+
+## Functions (Methods)
+
+### 1. `make_label`
+
+```python
+def make_label(self, label_text="Hello World", label_number=0,
+               fg="black", bg="white", label_width=30, label_height=2):
+```
+
+#### Parameters
+
+* `label_text` *(str)*: Text shown on the label
+* `label_number` *(int)*: Row index and unique ID
+* `fg` *(str)*: Text color
+* `bg` *(str)*: Background color
+* `label_width` *(int)*: Width of label
+* `label_height` *(int)*: Height of label
+
+#### Conditions
+
+* `label_number` must be unique
+
+#### Returns
+
+* `tk.Label` object
+
+---
+
+### 2. `make_button`
+
+```python
+def make_button(self, button_text="Click", button_number=0,
+                button_command=None, fg="black", bg="lightgray",
+                button_width=30, button_height=2):
+```
+
+#### Parameters
+
+* `button_text` *(str)*: Button text
+* `button_number` *(int)*: Row index and ID
+* `button_command` *(callable)*: Function executed on click
+* `fg` *(str)*: Text color
+* `bg` *(str)*: Background color
+* `button_width` *(int)*: Width
+* `button_height` *(int)*: Height
+
+#### Conditions
+
+* `button_command` must be a function or `None`
+
+#### Returns
+
+* `tk.Button` object
+
+---
+
+### 3. `make_entry`
+
+```python
+def make_entry(self, entry_number=0, entry_width=30,
+               fg="black", bg="white"):
+```
+
+#### Parameters
+
+* `entry_number` *(int)*: Row index and ID
+* `entry_width` *(int)*: Width of entry
+* `fg` *(str)*: Text color
+* `bg` *(str)*: Background color
+
+#### Returns
+
+* `tk.Entry` object
+
+---
+
+### 4. `get_output`
+
+```python
+def get_output(self, entry_number=0):
+```
+
+#### What it does
+
+* Retrieves text from a specific Entry widget
+
+#### Conditions
+
+* Entry must exist
+* Widget must be of type `tk.Entry`
+
+#### Errors
+
+* `ValueError` if entry does not exist
+* `TypeError` if widget is not an Entry
+
+#### Returns
+
+* `str`
+
+---
+
+### 5. `delete_widget`
+
+```python
+def delete_widget(self, widget_number, widget_type):
+```
+
+#### Parameters
+
+* `widget_number` *(int)*: Widget ID
+* `widget_type` *(str)*: `label`, `button`, or `entry`
+
+#### Conditions
+
+* Widget must exist in dictionary
+
+#### Errors
+
+* `ValueError` if widget not found
+
+---
+
+### 6. `delete_all`
+
+```python
+def delete_all(self):
+```
+
+#### What it does
+
+* Destroys all widgets
+* Clears widget storage
+
+---
+
+### 7. `run`
+
+```python
+def run(self):
+```
+
+#### What it does
+
+* Starts the Tkinter main loop
+* Keeps the window running
+
+---
+
+## Full Example
+
+```python
+from humblytkinter import MyGUI
+
+def show_text():
+    text = app.get_output(0)
+    print(text)
+
+app = MyGUI("HumblyTkinter Demo")
+
+app.make_label("Enter your name", 0)
+app.make_entry(1)
+app.make_button("Submit", 2, show_text)
+
+app.run()
+```
+
+---
+
+## Design Goals
+
+* Beginner-friendly
+* Minimal syntax
+* Clean structure
+* Safe widget management
+
+---
+
+## License & Credits
+
+Created by **Mohammad Parsa Abdi**
+Library name: **humblytkinter**
+
+You are free to use and modify this library for educational projects.
