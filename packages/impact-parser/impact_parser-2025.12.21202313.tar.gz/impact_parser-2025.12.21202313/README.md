@@ -1,0 +1,65 @@
+# impact_parser
+[![PyPI version](https://badge.fury.io/py/impact-parser.svg)](https://badge.fury.io/py/impact-parser)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/impact-parser)](https://pepy.tech/project/impact-parser)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+A Python package for parsing text input to extract and structure information about service disruptions and restorations.
+
+## Overview
+This package takes text input describing incidents like power outages, internet disruptions, or transportation delays, and returns a structured output with key details such as the affected area, number of impacted users, cause of the disruption, and estimated restoration time.
+
+## Installation
+```bash
+pip install impact_parser
+```
+
+## Usage
+```python
+from impact_parser import impact_parser
+
+response = impact_parser(
+    user_input="The power outage occurred in the downtown area due to a storm, affecting 1000 homes and businesses. Estimated restoration time is 2 hours.",
+    api_key=None,
+    llm=None,
+)
+print(response)
+```
+
+## Parameters
+* `user_input`: The text input to process
+* `llm`: The Langchain LLM instance to use (optional, defaults to `ChatLLM7` with no API key)
+* `api_key`: The API key for LLM7 (optional, defaults to `None`)
+
+## LLM Options
+You can safely pass your own LLM instance (based on https://docs.langchain.io/) if you want to use another LLM.
+
+Examples:
+```python
+from langchain_openai import ChatOpenAI
+from impact_parser import impact_parser
+llm = ChatOpenAI()
+response = impact_parser(user_input, llm=llm)
+
+from langchain_anthropic import ChatAnthropic
+from impact_parser import impact_parser
+llm = ChatAnthropic()
+response = impact_parser(user_input, llm=llm)
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+from impact_parser import impact_parser
+llm = ChatGoogleGenerativeAI()
+response = impact_parser(user_input, llm=llm)
+```
+
+## LLM7 Rate Limits
+The default rate limits for LLM7 free tier are sufficient for most use cases of this package. If you need higher rate limits for LLM7, you can pass your own API key via environment variable `LLM7_API_KEY` or via passing it directly like `impact_parser(user_input, api_key="your_api_key")`.
+
+To get a free API key, register at https://token.llm7.io/
+
+## Issues
+Refer to the GitHub issues page: https://github.com/chigwell/impact-parser/issues
+
+## Author
+Eugene Evstafev
+<eugene@eugene.plus>
