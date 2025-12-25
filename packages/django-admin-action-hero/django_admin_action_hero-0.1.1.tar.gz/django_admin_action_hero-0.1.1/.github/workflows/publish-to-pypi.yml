@@ -1,0 +1,97 @@
+name: Publish Python distribution to PyPI and TestPyPI
+on:
+  push:
+    branches:
+      # Run on every push to `main`.
+      - main
+    tags:
+      # Run on every push to a tag.
+      - '*'
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    branches:
+      # Run on every pull request to `main`.
+      - main
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          cache: "pip"
+          # Install hatchling to build the package.
+          pip-install: "hatchling>=1.28.0"
+      - name: Build a binary wheel and a source tarball
+        run: hatchling build
+      - name: Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish-to-pypi:
+    name: PyPI publication
+    # Only publish to PyPI on tag pushes.
+    if: ${{ github.ref_type == 'tag' }}
+    needs:
+      # `build` needs to complete successfully.
+      - build
+      # `publish-to-testpypi` needs to complete successfully.
+      - publish-to-testpypi
+    runs-on: ubuntu-latest
+
+    environment:
+      name: pypi
+      url: https://pypi.org/p/django-admin-action-hero/
+
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-to-testpypi:
+    name: TestPyPI publication
+    # Only publish to TestPyPI on push or pull request to `main`.
+    # Skips PRs from forks since they don't have access to secrets.
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    needs:
+      - build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/django-admin-action-hero/
+
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish distribution to Test PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
