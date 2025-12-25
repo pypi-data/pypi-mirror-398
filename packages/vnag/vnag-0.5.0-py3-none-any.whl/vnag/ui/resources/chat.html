@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="monokai-sublime.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="history"></div>
+
+    <script src="highlight.min.js"></script>
+    <script src="markdown-it.min.js"></script>
+    <script>
+        window.onload = function() {
+            const md = window.markdownit({
+                html: true,
+                linkify: true,
+                typographer: true,
+                highlight: function (str, lang) {
+                    if (lang && hljs.getLanguage(lang)) {
+                        try {
+                            return '<pre class="hljs"><code>' +
+                                    hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
+                                    '</code></pre>';
+                        } catch (__) {}
+                    }
+                    return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
+                }
+            });
+
+            function getCurrentTime() {
+                const now = new Date();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                return `${hours}:${minutes}`;
+            }
+
+            window.appendUserMessage = function(content) {
+                const history = document.getElementById("history");
+                const messageDiv = document.createElement("div");
+                messageDiv.className = "message user";
+
+                messageDiv.innerHTML = `
+                    <div class="message-header">
+                        <div class="icon">🧐</div>
+                        <div class="role">用户</div>
+                        <div class="timestamp">${getCurrentTime()}</div>
+                    </div>
+                    <div class="message-content">${content}</div>
+                `;
+
+                history.appendChild(messageDiv);
+                scrollToBottom();
+            }
+
+            window.appendAssistantMessage = function(markdownContent, assistantName) {
+                const history = document.getElementById("history");
+                const messageDiv = document.createElement("div");
+                messageDiv.className = "message assistant";
+                
+                const htmlContent = md.render(markdownContent);
+                const roleName = assistantName || 'Assistant';
+
+                messageDiv.innerHTML = `
+                    <div class="message-header">
+                        <div class="icon">🤖</div>
+                        <div class="role">${roleName}</div>
+                        <div class="timestamp">${getCurrentTime()}</div>
+                    </div>
+                    <div class="message-content">${htmlContent}</div>
+                `;
+
+                addCopyButtons(messageDiv);
+                history.appendChild(messageDiv);
+                scrollToBottom();
+            }
+
+            window.startAssistantMessage = function(msgId, assistantName) {
+                const history = document.getElementById("history");
+                const messageDiv = document.createElement("div");
+                messageDiv.id = msgId;
+                messageDiv.className = "message assistant";
+
+                const roleName = assistantName || 'Assistant';
+
+                messageDiv.innerHTML = `
+                    <div class="message-header">
+                        <div class="icon">🤖</div>
+                        <div class="role">${roleName}</div>
+                        <div class="timestamp">${getCurrentTime()}</div>
+                    </div>
+                    <div class="thinking-container" style="display: none;">
+                        <div class="thinking-header">
+                            <span class="thinking-icon">💡</span>
+                            <span class="thinking-label">思考过程</span>
+                            <span class="thinking-toggle">▼</span>
+                        </div>
+                        <div class="thinking-content"></div>
+                    </div>
+                    <div class="message-content"></div>
+                `;
+
+                // 添加折叠/展开功能
+                const thinkingHeader = messageDiv.querySelector('.thinking-header');
+                thinkingHeader.addEventListener('click', function() {
+                    const container = this.parentElement;
+                    const content = container.querySelector('.thinking-content');
+                    const toggle = container.querySelector('.thinking-toggle');
+                    
+                    if (container.classList.contains('collapsed')) {
+                        container.classList.remove('collapsed');
+                        content.style.display = 'block';
+                        toggle.textContent = '▼';
+                    } else {
+                        container.classList.add('collapsed');
+                        content.style.display = 'none';
+                        toggle.textContent = '▶';
+                    }
+                });
+
+                history.appendChild(messageDiv);
+                scrollToBottom();
+            }
+
+            window.updateThinking = function(msgId, thinkingContent) {
+                const messageDiv = document.getElementById(msgId);
+                if (messageDiv) {
+                    const thinkingContainer = messageDiv.querySelector('.thinking-container');
+                    const thinkingContentDiv = messageDiv.querySelector('.thinking-content');
+
+                    // 显示 thinking 容器
+                    if (thinkingContent && thinkingContent.trim()) {
+                        thinkingContainer.style.display = 'block';
+                    }
+
+                    const el = document.documentElement;
+                    const isScrolledToBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 1;
+
+                    // 渲染 thinking 内容（使用 markdown）
+                    thinkingContentDiv.innerHTML = md.render(thinkingContent);
+
+                    if (isScrolledToBottom) {
+                        window.scrollTo(0, document.body.scrollHeight);
+                    }
+                }
+            }
+
+            window.updateAssistantMessage = function(msgId, markdownContent) {
+                const messageDiv = document.getElementById(msgId);
+                if (messageDiv) {
+                    const contentDiv = messageDiv.querySelector('.message-content');
+
+                    const el = document.documentElement;
+                    const isScrolledToBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 1;
+
+                    contentDiv.innerHTML = md.render(markdownContent);
+
+                    if (isScrolledToBottom) {
+                        window.scrollTo(0, document.body.scrollHeight);
+                    }
+                }
+            }
+
+            window.finishAssistantMessage = function(msgId) {
+                const messageDiv = document.getElementById(msgId);
+                if (messageDiv) {
+                    addCopyButtons(messageDiv);
+                }
+            }
+
+            function addCopyButtons(element) {
+                const pres = element.querySelectorAll('pre');
+                pres.forEach(pre => {
+                    const button = document.createElement('button');
+                    button.className = 'copy-button';
+                    button.innerText = 'Copy';
+                    
+                    button.addEventListener('click', () => {
+                        const code = pre.querySelector('code').innerText;
+                        navigator.clipboard.writeText(code).then(() => {
+                            button.innerText = 'Copied!';
+                            setTimeout(() => {
+                                button.innerText = 'Copy';
+                            }, 2000);
+                        });
+                    });
+                    pre.appendChild(button);
+                });
+            }
+
+            function scrollToBottom() {
+                window.scrollTo(0, document.body.scrollHeight);
+            }
+        };
+    </script>
+</body>
+</html>
