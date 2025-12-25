@@ -1,0 +1,92 @@
+from ..actions import IncompatibleExpression
+from ..algebra import AlgebraicAction
+from ..timelines import AutoTimeline
+from ..expressions import Variables, f, g, e, ln, Number
+from .differentials import *
+from numpy import pi as PI
+TAU = PI*2
+
+x,y,n = Variables('xyn')
+
+class DerivativeRule(AlgebraicAction):
+	var_condition_dict = {
+		d: lambda exp: isinstance(exp, DifferentialOperator),
+		n: lambda exp: isinstance(exp, Number)
+	}
+
+
+class ConstantRule_(DerivativeRule):
+	template1 =	d(n)
+	template2 =	0
+
+class ConstantMultipleRule_(DerivativeRule):
+	template1 =	d(n*x)
+	template2 =	n*d(x)
+
+class SumRule_(DerivativeRule):
+	template1 =	d(x+y)
+	template2 =	d(x) + d(y)
+	addressmap = [['+', '+']]
+
+class DifferenceRule_(DerivativeRule):
+	template1 =	d(x-y)
+	template2 =	d(x) - d(y)
+	addressmap = [['-', '-']]
+
+class ProductRule_(DerivativeRule):
+	template1 =	d(x*y)
+	template2 =	y*d(x) + x*d(y)
+	addressmap = [['*', '+'], [[], '0*'], [[], '1*']]
+
+class QuotientRule_(DerivativeRule):
+	template1 =	d(x/y)
+	template2 =	(y*d(x) - x*d(y)) / y**2
+
+class PowerRule_(DerivativeRule):
+	template1 =	d(x**n)
+	template2 =	n * x**(n-1) * d(x)
+	addressmap = [['11', '0110'], [[], '011-1']]
+	var_kwarg_dict = {n:{'path_arc':TAU/3}}
+
+class eRule(DerivativeRule):
+	template1 = d(e**x)
+	template2 = e**x*d(x)
+
+class ExponentialRule_(DerivativeRule):
+	template1 =	d(n**x)
+	template2 =	ln(n) * n**x * d(x)
+	addressmap = [[[], '000']]
+
+# class ChainRule(DerivativeRule):
+	# template1 = d(f(g(a)))
+	# template2 = d(f)(g(a))*d(g(a)))
+# Idk I think this could be just always built in to all other rules
+
+
+from ..algebra.simplify import *
+Simplify_Rules = [rule() for rule in SimplificationRule.__subclasses__()]
+Derivative_Rules = [rule() for rule in DerivativeRule.__subclasses__()]
+
+class Differentiate(AutoTimeline):
+	def decide_next_action(self, index):
+		last_exp = self.get_expression(-1)
+		for ad in last_exp.get_all_addresses():
+			for ruleset in [Derivative_Rules, Simplify_Rules]:
+				for rule in ruleset:
+					try:
+						action = rule.copy().pread(ad)
+						action.get_output_expression(last_exp)
+						return action
+					except IncompatibleExpression:
+						pass
+		for ad in last_exp.get_all_twig_addresses():
+			try:
+				from ..actions.evaluation import evaluate_
+				action = evaluate_().copy().pread(ad)
+				action.get_output_expression(last_exp)
+				return action
+			except IncompatibleExpression:
+				pass
+		return None
+
+
