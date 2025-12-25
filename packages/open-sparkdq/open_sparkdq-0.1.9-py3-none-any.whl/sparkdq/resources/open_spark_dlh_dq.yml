@@ -1,0 +1,46 @@
+
+suites:
+  - name: "orders_suite"
+    object: "orders"
+    format: "parquet"
+    path: "data/orders.parquet"
+    severity: "HIGH"     # default severity for suite
+    spark:
+      master: "local[*]"
+      # Let users override the Deequ maven coordinate (Spark/Scala compatibility varies)
+      deequ_maven: "com.amazon.deequ:deequ:2.0.3-spark-3.3"  # override as needed
+    checks:
+      - name: "not_null_order_id"
+        severity: "HIGH"
+        object: "orders"
+        attribute: "order_id"
+        function: "user_checks.example_checks.not_null_col"  # module: func
+        args:
+          col: "order_id"
+
+      - name: "unique_order_id"
+        severity: "MEDIUM"
+        object: "orders"
+        attribute: "order_id"
+        function: "user_checks.example_checks.unique_col"
+        args:
+          col: "order_id"
+
+      - name: "amount_in_range"
+        severity: "MEDIUM"
+        object: "orders"
+        attribute: "amount"
+        function: "user_checks.example_checks.range_check"
+        args:
+          col: "amount"
+          min: 0.0
+          max: 10000.0
+
+    unit_tests:
+      - name: "orders_schema_matches"
+        function: "user_checks.example_checks.schema_equals"
+        args:
+          expected_cols: ["order_id", "customer_id", "amount", "created_at"]
+
+report:
+  output: "reports/orders_suite.json"

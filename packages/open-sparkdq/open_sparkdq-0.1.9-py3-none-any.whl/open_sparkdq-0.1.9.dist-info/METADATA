@@ -1,0 +1,143 @@
+Metadata-Version: 2.4
+Name: open-sparkdq
+Version: 0.1.9
+Summary: Plug-and-play Data Quality + Unit Testing for PySpark (batch & streaming) with YAML config, profiling, and optional OpenTelemetry hooks.
+Author-email: Aashish Kumar <aashish72.it@gmail.com>
+License: MIT License
+        
+        Copyright (c) 2025 Aashish Kumar
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Homepage, https://github.com/aashish72it/open-spark-dlh-dq
+Project-URL: Issues, https://github.com/aashish72it/open-spark-dlh-dq/issues
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pyspark<3.6,>=3.3
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: chispa>=0.9.2
+Requires-Dist: jsonschema>=4.0
+Requires-Dist: pydeequ>=1.2.0
+Provides-Extra: otel
+Requires-Dist: opentelemetry-sdk>=1.24.0; extra == "otel"
+Requires-Dist: opentelemetry-api>=1.24.0; extra == "otel"
+Provides-Extra: docs
+Requires-Dist: mkdocs; extra == "docs"
+Requires-Dist: mkdocs-material; extra == "docs"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: build; extra == "dev"
+Requires-Dist: twine; extra == "dev"
+Dynamic: license-file
+
+# open-spark-dlh-dq
+Plug-and-play Data Quality for Apache Spark (batch + streaming) with YAML checks, profiling, and Open-Telemetry.
+
+
+
+<pre>
+
+open-spark-dlh-dq/
+├─ pyproject.toml
+├─ README.md
+├─ LICENSE
+│
+├─ sparkdq/
+│  ├─ __init__.py
+│  │
+│  ├─ cli/
+│  │  └─ main.py                         # CLI: `sparkdq run --yaml open_spark_dlh_dq.yml`
+│  │
+│  ├─ config/
+│  │  ├─ loader.py                       # YAML loader (safe_load + FileNotFound)
+│  │  ├─ env.py                          # ENV VAR for spark version & pydeequ jar file
+│  │  └─ schema.py                       # dict → DQSuite + bound validators (type/function/unit_tests)
+│  │
+│  ├─ core/
+│  │  ├─ models.py                       #
+│  │  ├─ registry.py                     # decorators + resolve_by_path + normalized keys
+│  │  ├─ spark.py                        # spark session with deequ jar
+│  │  ├─ runner.py                       # calls `validate(df)`; minor robustness
+│  │  ├─ reporter.py                     # JSON serialization helpers (optional)
+│  │  │
+│  │  └─ validators/
+│  │     ├─ base.py                      # Validator(name, params, severity?) + `validate(df)`
+│  │     ├─ pydeequ_validators.py        # Built-in validators: not_null, uniqueness, row_count_gt, between
+│  │     ├─ function_validators.py       # Adapters: FunctionValidator, UnitTestValidator
+│  │     ├─ chispa_unit.py               # Optional: chispa helpers (e.g., schema equality)
+│  │     └─ __init__.py                  # (optional) import/register built-ins
+│  │
+│  ├─ profiling/
+│  │  └─ profiler.py                     # Optional: summary stats + quantiles + top-k
+│  ├─ resources/
+│  │  │
+│  │  ├─ open_spark_dlh_dq.yml  # Root YAML users edit (source of truth)
+│  │  └─ deequ/
+│  │     └─ deequ-2.0.12-spark-3.3.jar
+│  │  
+│  │
+│  ├─ observability/
+│  │  └─ otel.py                         # Optional: minimal OTel span decorator for future use
+│  │
+│  └─ integrations/
+│     └─ streaming.py                    # Optional: foreachBatch wrapper using suite validators
+│
+├─ user_checks/                          # Users add their DQ/unit-test functions here
+│  ├─ __init__.py
+│  └─ example_checks.py                  # Sample @dq_check and @unit_test functions
+│
+├─ examples/
+│  ├─ suites/
+│  │  └─ orders_dq.yml                   # Example suite (alt to root YAML)
+│  ├─ batch_example.py                   # Sample: load YAML → run suite
+│  └─ streaming_example.py               # Sample: foreachBatch usage
+│
+└─ tests/
+   ├─ test_yaml_loader.py                # Verifies YAML parsing → DQSuite
+   ├─ test_runner.py                     # Runs suite over small DF
+   └─ test_validators.py                 # Unit tests for each validator type
+
+
+<pre>
+
+
+### Default Deequ JAR for Spark 3.3
+The library auto-configures Deequ for Spark `3.3` by default. Place the jar `deequ-2.0.12-spark-3.3.jar` in one of:
+- `C:\tools` (Windows)
+- `/opt/tools`
+- `/usr/local/share`
+
+or set `DEEQU_JAR_PATH` to the exact file.
+
+### Override for other Spark versions
+Set the following environment variables in your script or shell:
+
+```bash
+# Use Spark 3.4 with a different Deequ jar
+$env:SPARK_VERSION = "3.4"
+$env:DEEQU_JAR_PATH = "C:\tools\deequ-2.0.12-spark-3.4.jar"
+```
+
+```bash
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+./build.ps1
+
+```
