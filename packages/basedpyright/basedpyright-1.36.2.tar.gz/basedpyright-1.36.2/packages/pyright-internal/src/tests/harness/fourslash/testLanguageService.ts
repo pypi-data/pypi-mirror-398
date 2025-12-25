@@ -1,0 +1,205 @@
+/*
+ * testLanguageService.ts
+ * Copyright (c) Microsoft Corporation.
+ * Licensed under the MIT license.
+ *
+ * Test mock that implements LanguageServiceInterface
+ */
+
+import { CancellationToken, CodeAction, ExecuteCommandParams } from 'vscode-languageserver';
+
+import {
+    BackgroundAnalysisProgram,
+    BackgroundAnalysisProgramFactory,
+} from '../../../analyzer/backgroundAnalysisProgram';
+import { ImportResolver, ImportResolverFactory } from '../../../analyzer/importResolver';
+import { MaxAnalysisTime } from '../../../analyzer/program';
+import { AnalyzerService, AnalyzerServiceOptions } from '../../../analyzer/service';
+import { IBackgroundAnalysis } from '../../../backgroundAnalysisBase';
+import { CommandController } from '../../../commands/commandController';
+import { ConfigOptions } from '../../../common/configOptions';
+import { ConsoleInterface } from '../../../common/console';
+import * as debug from '../../../common/debug';
+import { FileSystem, ReadOnlyFileSystem } from '../../../common/fileSystem';
+import {
+    LanguageServerInterface,
+    MessageAction,
+    ServerSettings,
+    WindowInterface,
+} from '../../../common/languageServerInterface';
+import { ServiceProvider } from '../../../common/serviceProvider';
+import { Range } from '../../../common/textRange';
+import { Uri } from '../../../common/uri/uri';
+import { CodeActionProvider } from '../../../languageService/codeActionProvider';
+import { WellKnownWorkspaceKinds, Workspace, createInitStatus } from '../../../workspaceFactory';
+import { TestAccessHost } from '../testAccessHost';
+import { HostSpecificFeatures } from './testState';
+import { FileDiagnostics } from '../../../common/diagnosticSink';
+
+export class TestFeatures implements HostSpecificFeatures {
+    importResolverFactory: ImportResolverFactory = AnalyzerService.createImportResolver;
+    backgroundAnalysisProgramFactory: BackgroundAnalysisProgramFactory = (
+        serviceId: string,
+        serviceProvider: ServiceProvider,
+        configOptions: ConfigOptions,
+        importResolver: ImportResolver,
+        backgroundAnalysis?: IBackgroundAnalysis,
+        maxAnalysisTime?: MaxAnalysisTime
+    ) =>
+        new BackgroundAnalysisProgram(
+            serviceId,
+            serviceProvider,
+            configOptions,
+            importResolver,
+            backgroundAnalysis,
+            maxAnalysisTime,
+            /* disableChecker */ undefined
+        );
+
+    getCodeActionsForPosition(
+        ls: LanguageServerInterface,
+        workspace: Workspace,
+        fileUri: Uri,
+        range: Range,
+        token: CancellationToken
+    ): Promise<CodeAction[]> {
+        return CodeActionProvider.getCodeActionsForPosition(workspace, fileUri, range, undefined, token, ls);
+    }
+    execute(ls: LanguageServerInterface, params: ExecuteCommandParams, token: CancellationToken): Promise<any> {
+        const controller = new CommandController(ls);
+        return controller.execute(params, token);
+    }
+}
+
+export class TestLanguageService implements LanguageServerInterface {
+    readonly window: TestWindow;
+    readonly supportAdvancedEdits = true;
+    readonly serviceProvider: ServiceProvider;
+    readonly documentsWithDiagnostics: Record<string, FileDiagnostics> = {};
+
+    private readonly _workspace: Workspace;
+    private readonly _defaultWorkspace: Workspace;
+
+    constructor(
+        workspace: Workspace,
+        readonly console: ConsoleInterface,
+        readonly fs: FileSystem,
+        options?: AnalyzerServiceOptions,
+        // TODO: this currently only errors if an unexpected message appears (hence the name "allowed" instead of "expected"),
+        // there should also be an error if an allowed message doesn't appear
+        allowedMessages?: { error: string[]; warning: string[] }
+    ) {
+        this.window = new TestWindow((message, type) => {
+            const expectedMessagesWithType = allowedMessages?.[type];
+            if (expectedMessagesWithType) {
+                if (!expectedMessagesWithType.includes(message)) {
+                    debug.fail(
+                        `unexpected ${type}: "${message}", expected one of ${JSON.stringify(expectedMessagesWithType)}`
+                    );
+                }
+            } else {
+                this.window.defaultMessageHandler(message, type);
+            }
+        });
+        this._workspace = workspace;
+        this.serviceProvider = this._workspace.service.serviceProvider;
+
+        this._defaultWorkspace = {
+            workspaceName: '',
+            rootUri: undefined,
+            kinds: [WellKnownWorkspaceKinds.Test],
+            service: new AnalyzerService(
+                'test service',
+                new ServiceProvider(),
+                options ?? {
+                    console: this.console,
+                    hostFactory: () => new TestAccessHost(),
+                    importResolverFactory: AnalyzerService.createImportResolver,
+                    configOptions: new ConfigOptions(Uri.empty()),
+                    fileSystem: this.fs,
+                    shouldRunAnalysis: () => true,
+                }
+            ),
+            disableLanguageServices: false,
+            disableTaggedHints: false,
+            disableOrganizeImports: false,
+            disableWorkspaceSymbol: false,
+            isInitialized: createInitStatus(),
+            searchPathsToWatch: [],
+            useTypingExtensions: false,
+            fileEnumerationTimeoutInSec: 10,
+            autoFormatStrings: true,
+        };
+    }
+    /** unlike the real one, this test implementation doesn't support notebook cells. TODO: language server tests for notebook cells */
+    convertUriToLspUriString = (fs: ReadOnlyFileSystem, uri: Uri) => fs.getOriginalUri(uri).toString();
+
+    getWorkspaces(): Promise<Workspace[]> {
+        return Promise.resolve([this._workspace, this._defaultWorkspace]);
+    }
+
+    getWorkspaceForFile(uri: Uri): Promise<Workspace> {
+        if (uri.startsWith(this._workspace.rootUri)) {
+            return Promise.resolve(this._workspace);
+        }
+
+        return Promise.resolve(this._defaultWorkspace);
+    }
+
+    getSettings(_workspace: Workspace): Promise<ServerSettings> {
+        const settings: ServerSettings = {
+            venvPath: this._workspace.service.getConfigOptions().venvPath,
+            pythonPath: this._workspace.service.getConfigOptions().pythonPath,
+            typeshedPath: this._workspace.service.getConfigOptions().typeshedPath,
+            openFilesOnly: this._workspace.service.getConfigOptions().checkOnlyOpenFiles,
+            useLibraryCodeForTypes: this._workspace.service.getConfigOptions().useLibraryCodeForTypes,
+            disableLanguageServices: this._workspace.disableLanguageServices,
+            disableTaggedHints: this._workspace.disableTaggedHints,
+            autoImportCompletions: this._workspace.service.getConfigOptions().autoImportCompletions,
+            functionSignatureDisplay: this._workspace.service.getConfigOptions().functionSignatureDisplay,
+        };
+
+        return Promise.resolve(settings);
+    }
+
+    createBackgroundAnalysis(serviceId: string): IBackgroundAnalysis | undefined {
+        // worker thread doesn't work in Jest
+        // by returning undefined, analysis will run inline
+        return undefined;
+    }
+
+    reanalyze(): void {
+        // Don't do anything
+    }
+
+    restart(): void {
+        // Don't do anything
+    }
+}
+
+type MessageHandler = (message: string, type: 'error' | 'warning') => void;
+
+class TestWindow implements WindowInterface {
+    constructor(private _onMessage: MessageHandler = this.defaultMessageHandler) {}
+
+    showErrorMessage(message: string): void;
+    showErrorMessage(message: string, ...actions: MessageAction[]): Promise<MessageAction | undefined>;
+    showErrorMessage(message: string, ...actions: MessageAction[]): Promise<MessageAction | undefined> | void {
+        this._onMessage(message, 'error');
+    }
+
+    showWarningMessage(message: string): void;
+    showWarningMessage(message: string, ...actions: MessageAction[]): Promise<MessageAction | undefined>;
+    showWarningMessage(message: string, ...actions: MessageAction[]): Promise<MessageAction | undefined> | void {
+        this._onMessage(message, 'warning');
+    }
+
+    showInformationMessage(message: string): void;
+    showInformationMessage(message: string, ...actions: MessageAction[]): Promise<MessageAction | undefined>;
+    showInformationMessage(message: string, ...actions: MessageAction[]): Promise<MessageAction | undefined> | void {
+        // Don't do anything
+    }
+
+    defaultMessageHandler: MessageHandler = (message, type) =>
+        debug.fail(`unexpected ${type} occurred in TestWindow: "${message}"`);
+}
