@@ -1,0 +1,134 @@
+# vidconcept-sum
+[![PyPI version](https://badge.fury.io/py/vidconcept-sum.svg)](https://badge.fury.io/py/vidconcept-sum)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/vidconcept-sum)](https://pepy.tech/project/vidconcept-sum)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**vidconcept-sum** is a lightweight Python package that turns a video title or short text description into a structured, factual summary of the scientific or educational concept being presented. It leverages an LLM (by default **ChatLLM7**) to interpret the topic and returns a concise explanation, key terms, and contextual information, all formatted according to a strict regex pattern.
+
+---
+
+## Features
+
+- **One‑line API** – just pass a string, get a list of structured summary elements.
+- **LLM‑agnostic** – works out‑of‑the‑box with ChatLLM7, but you can plug any LangChain‑compatible chat model.
+- **Safety‑first** – the prompt enforces factual, non‑speculative answers and validates output against a regular expression.
+- **Easy installation** – available on PyPI.
+
+---
+
+## Installation
+
+```bash
+pip install vidconcept_sum
+```
+
+---
+
+## Quick Start
+
+```python
+from vidconcept_sum import vidconcept_sum
+
+# Simple call using the default ChatLLM7 model (requires an API key)
+summary = vidconcept_sum(
+    user_input="A short intro to quantum entanglement in YouTube video titles."
+)
+
+print(summary)
+```
+
+### Parameters
+
+| Name       | Type                                 | Description |
+|------------|--------------------------------------|-------------|
+| `user_input` | `str` | The video title or short description to be summarised. |
+| `llm` (optional) | `BaseChatModel` | Any LangChain chat model instance. If omitted, the default `ChatLLM7` will be instantiated. |
+| `api_key` (optional) | `str` | API key for LLM7. If not supplied, the function looks for the environment variable `LLM7_API_KEY`. |
+
+The function returns a `List[str]` containing the extracted summary data.
+
+---
+
+## Using a Custom LLM
+
+You can replace the default ChatLLM7 with any LangChain‑compatible chat model. Below are examples for OpenAI, Anthropic, and Google Generative AI.
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from vidconcept_sum import vidconcept_sum
+
+llm = ChatOpenAI(model="gpt-4o-mini")
+response = vidconcept_sum(
+    user_input="Explaining the basics of photosynthesis.",
+    llm=llm
+)
+print(response)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from vidconcept_sum import vidconcept_sum
+
+llm = ChatAnthropic(model="claude-3-haiku-20240307")
+response = vidconcept_sum(
+    user_input="A video about black holes and event horizons.",
+    llm=llm
+)
+print(response)
+```
+
+### Google Generative AI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from vidconcept_sum import vidconcept_sum
+
+llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+response = vidconcept_sum(
+    user_input="Understanding the theory of relativity in simple terms.",
+    llm=llm
+)
+print(response)
+```
+
+---
+
+## API Key & Rate Limits
+
+- **LLM7 free tier** provides generous rate limits that cover typical usage of this package.
+- If you need higher limits, supply your own API key:
+  - Via environment variable: `export LLM7_API_KEY="your_key_here"`
+  - Or directly in the call: `vidconcept_sum(..., api_key="your_key_here")`
+- Obtain a free API key by registering at <https://token.llm7.io/>.
+
+---
+
+## Contributing & Support
+
+If you encounter any issues or have feature requests, please open an issue on GitHub:
+
+<https://github.com/chigwell/vidconcept-sum/issues>
+
+---
+
+## License
+
+This project is licensed under the MIT License.
+
+---
+
+## Author
+
+**Eugene Evstafev**  
+Email: [hi@euegne.plus](mailto:hi@euegne.plus)  
+GitHub: [chigwell](https://github.com/chigwell)
+
+---  
+
+Enjoy using **vidconcept-sum** to instantly extract clear, educational concepts from video titles!
