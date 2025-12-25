@@ -1,0 +1,44 @@
+[tools]
+python = "3.11.4"
+uv = "0.7.3"
+
+[settings]
+python.uv_venv_auto = true
+
+[task_config]
+# change the default directory tasks are run from
+dir = "{{config_root}}"
+
+# run tasks with mise run taskname
+[tasks.install]
+alias = "i"
+description = "Install dependencies"
+run = "uv sync"
+
+[tasks.run]
+dir = "{{cwd}}"
+run="fbnconfig run"
+
+[tasks.unit]
+description="Run all unit tests"
+run = "uv run pytest tests/unit"
+
+[tasks.cover]
+run = "uv run pytest --cov-branch --cov=fbnconfig --cov-report=html --cov-report=term tests/unit"
+
+[tasks.integration]
+description = "Run all integration tests"
+run = "uv run pytest tests/integration  -n auto --dist loadfile -v"
+
+[tasks.integrationsingle]
+alias="int"
+description = "Run a single integration test, passing in test file name as 'mise run int int_identity.py'"
+run = 'uv run pytest tests/integration/{{arg(name="file")}}'
+
+[tasks.lint]
+description = "Run ruff check and pyright"
+run = ["uv run ruff check --fix", "uv run pyright"]
+
+[tasks.format]
+description = "Sort imports and format"
+run = ["uv run ruff check --select I --fix", "uv run ruff format"]
