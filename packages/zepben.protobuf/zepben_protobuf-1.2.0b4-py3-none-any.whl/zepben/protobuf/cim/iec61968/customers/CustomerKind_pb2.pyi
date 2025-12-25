@@ -1,0 +1,40 @@
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
+from google.protobuf import descriptor as _descriptor
+from typing import ClassVar as _ClassVar
+
+DESCRIPTOR: _descriptor.FileDescriptor
+
+class CustomerKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    CUSTOMER_KIND_UNKNOWN: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_COMMERCIAL_INDUSTRIAL: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_ENERGY_SERVICE_SCHEDULER: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_ENERGY_SERVICE_SUPPLIER: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_ENTERPRISE: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_INTERNAL_USE: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_OTHER: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_PUMPING_LOAD: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_REGIONAL_OPERATOR: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_RESIDENTIAL: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_RESIDENTIAL_AND_COMMERCIAL: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_RESIDENTIAL_AND_STREETLIGHT: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_RESIDENTIAL_FARM_SERVICE: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_RESIDENTIAL_STREETLIGHT_OTHERS: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_SUBSIDIARY: _ClassVar[CustomerKind]
+    CUSTOMER_KIND_WIND_MACHINE: _ClassVar[CustomerKind]
+CUSTOMER_KIND_UNKNOWN: CustomerKind
+CUSTOMER_KIND_COMMERCIAL_INDUSTRIAL: CustomerKind
+CUSTOMER_KIND_ENERGY_SERVICE_SCHEDULER: CustomerKind
+CUSTOMER_KIND_ENERGY_SERVICE_SUPPLIER: CustomerKind
+CUSTOMER_KIND_ENTERPRISE: CustomerKind
+CUSTOMER_KIND_INTERNAL_USE: CustomerKind
+CUSTOMER_KIND_OTHER: CustomerKind
+CUSTOMER_KIND_PUMPING_LOAD: CustomerKind
+CUSTOMER_KIND_REGIONAL_OPERATOR: CustomerKind
+CUSTOMER_KIND_RESIDENTIAL: CustomerKind
+CUSTOMER_KIND_RESIDENTIAL_AND_COMMERCIAL: CustomerKind
+CUSTOMER_KIND_RESIDENTIAL_AND_STREETLIGHT: CustomerKind
+CUSTOMER_KIND_RESIDENTIAL_FARM_SERVICE: CustomerKind
+CUSTOMER_KIND_RESIDENTIAL_STREETLIGHT_OTHERS: CustomerKind
+CUSTOMER_KIND_SUBSIDIARY: CustomerKind
+CUSTOMER_KIND_WIND_MACHINE: CustomerKind

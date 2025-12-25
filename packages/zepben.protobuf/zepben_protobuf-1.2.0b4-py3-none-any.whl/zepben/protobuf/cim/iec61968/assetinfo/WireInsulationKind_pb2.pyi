@@ -1,0 +1,82 @@
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
+from google.protobuf import descriptor as _descriptor
+from typing import ClassVar as _ClassVar
+
+DESCRIPTOR: _descriptor.FileDescriptor
+
+class WireInsulationKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    UNKNOWN: _ClassVar[WireInsulationKind]
+    asbestosAndVarnishedCambric: _ClassVar[WireInsulationKind]
+    beltedPilc: _ClassVar[WireInsulationKind]
+    butyl: _ClassVar[WireInsulationKind]
+    crosslinkedPolyethylene: _ClassVar[WireInsulationKind]
+    ethylenePropyleneRubber: _ClassVar[WireInsulationKind]
+    highMolecularWeightPolyethylene: _ClassVar[WireInsulationKind]
+    highPressureFluidFilled: _ClassVar[WireInsulationKind]
+    lowCapacitanceRubber: _ClassVar[WireInsulationKind]
+    oilPaper: _ClassVar[WireInsulationKind]
+    other: _ClassVar[WireInsulationKind]
+    ozoneResistantRubber: _ClassVar[WireInsulationKind]
+    rubber: _ClassVar[WireInsulationKind]
+    siliconRubber: _ClassVar[WireInsulationKind]
+    treeResistantHighMolecularWeightPolyethylene: _ClassVar[WireInsulationKind]
+    treeRetardantCrosslinkedPolyethylene: _ClassVar[WireInsulationKind]
+    unbeltedPilc: _ClassVar[WireInsulationKind]
+    varnishedCambricCloth: _ClassVar[WireInsulationKind]
+    varnishedDacronGlass: _ClassVar[WireInsulationKind]
+    crosslinkedPolyethyleneWithHelicallyWoundCopperScreen: _ClassVar[WireInsulationKind]
+    crosslinkedPolyethyleneWithWavewoundAluminiumScreen: _ClassVar[WireInsulationKind]
+    doubleInsulatedNeutralScreened: _ClassVar[WireInsulationKind]
+    doubleWireArmour: _ClassVar[WireInsulationKind]
+    doubleWireArmourWithPolyvinylChlorideSheath: _ClassVar[WireInsulationKind]
+    ethylenePropyleneRubberStrandedCopperConductor: _ClassVar[WireInsulationKind]
+    ethylenePropyleneRubberWithHelicallyWoundCopperScreen: _ClassVar[WireInsulationKind]
+    NONE: _ClassVar[WireInsulationKind]
+    paperWithLeadAlloySheath: _ClassVar[WireInsulationKind]
+    paperWithLeadAlloySheathAndPvcOuterSheathScreenedHochstadterConstruction: _ClassVar[WireInsulationKind]
+    paperWithLeadAlloySheathSingleWireArmoured: _ClassVar[WireInsulationKind]
+    paperWithLeadAlloySheathSingleWireArmouredBeltedConstruction: _ClassVar[WireInsulationKind]
+    paperWithLeadAlloySheathSingleWireArmouredHessianServed: _ClassVar[WireInsulationKind]
+    paperWithLeadAlloySheathSingleWireArmouredWithHighDensityPoluethyleneScreen: _ClassVar[WireInsulationKind]
+    paperWithLeadAlloySheathSingleWireArmouredWithWavewoundAluminiumScreen: _ClassVar[WireInsulationKind]
+    polyvinylChloride: _ClassVar[WireInsulationKind]
+    polyvinylChlorideWithPolyvinylChlorideScreen: _ClassVar[WireInsulationKind]
+    polyvinylChlorideWithWavewoundCopperScreen: _ClassVar[WireInsulationKind]
+UNKNOWN: WireInsulationKind
+asbestosAndVarnishedCambric: WireInsulationKind
+beltedPilc: WireInsulationKind
+butyl: WireInsulationKind
+crosslinkedPolyethylene: WireInsulationKind
+ethylenePropyleneRubber: WireInsulationKind
+highMolecularWeightPolyethylene: WireInsulationKind
+highPressureFluidFilled: WireInsulationKind
+lowCapacitanceRubber: WireInsulationKind
+oilPaper: WireInsulationKind
+other: WireInsulationKind
+ozoneResistantRubber: WireInsulationKind
+rubber: WireInsulationKind
+siliconRubber: WireInsulationKind
+treeResistantHighMolecularWeightPolyethylene: WireInsulationKind
+treeRetardantCrosslinkedPolyethylene: WireInsulationKind
+unbeltedPilc: WireInsulationKind
+varnishedCambricCloth: WireInsulationKind
+varnishedDacronGlass: WireInsulationKind
+crosslinkedPolyethyleneWithHelicallyWoundCopperScreen: WireInsulationKind
+crosslinkedPolyethyleneWithWavewoundAluminiumScreen: WireInsulationKind
+doubleInsulatedNeutralScreened: WireInsulationKind
+doubleWireArmour: WireInsulationKind
+doubleWireArmourWithPolyvinylChlorideSheath: WireInsulationKind
+ethylenePropyleneRubberStrandedCopperConductor: WireInsulationKind
+ethylenePropyleneRubberWithHelicallyWoundCopperScreen: WireInsulationKind
+NONE: WireInsulationKind
+paperWithLeadAlloySheath: WireInsulationKind
+paperWithLeadAlloySheathAndPvcOuterSheathScreenedHochstadterConstruction: WireInsulationKind
+paperWithLeadAlloySheathSingleWireArmoured: WireInsulationKind
+paperWithLeadAlloySheathSingleWireArmouredBeltedConstruction: WireInsulationKind
+paperWithLeadAlloySheathSingleWireArmouredHessianServed: WireInsulationKind
+paperWithLeadAlloySheathSingleWireArmouredWithHighDensityPoluethyleneScreen: WireInsulationKind
+paperWithLeadAlloySheathSingleWireArmouredWithWavewoundAluminiumScreen: WireInsulationKind
+polyvinylChloride: WireInsulationKind
+polyvinylChlorideWithPolyvinylChlorideScreen: WireInsulationKind
+polyvinylChlorideWithWavewoundCopperScreen: WireInsulationKind

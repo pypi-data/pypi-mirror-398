@@ -1,0 +1,26 @@
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
+from google.protobuf import descriptor as _descriptor
+from typing import ClassVar as _ClassVar
+
+DESCRIPTOR: _descriptor.FileDescriptor
+
+class EndDeviceFunctionKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    END_DEVICE_FUNCTION_KIND_UNKNOWN: _ClassVar[EndDeviceFunctionKind]
+    END_DEVICE_FUNCTION_KIND_AUTONOMOUS_DST: _ClassVar[EndDeviceFunctionKind]
+    END_DEVICE_FUNCTION_KIND_DEMAND_RESPONSE: _ClassVar[EndDeviceFunctionKind]
+    END_DEVICE_FUNCTION_KIND_ELECTRIC_METERING: _ClassVar[EndDeviceFunctionKind]
+    END_DEVICE_FUNCTION_KIND_METROLOGY: _ClassVar[EndDeviceFunctionKind]
+    END_DEVICE_FUNCTION_KIND_ON_REQUEST_READ: _ClassVar[EndDeviceFunctionKind]
+    END_DEVICE_FUNCTION_KIND_OUTAGE_HISTORY: _ClassVar[EndDeviceFunctionKind]
+    END_DEVICE_FUNCTION_KIND_RELAYS_PROGRAMMING: _ClassVar[EndDeviceFunctionKind]
+    END_DEVICE_FUNCTION_KIND_REVERSE_FLOW: _ClassVar[EndDeviceFunctionKind]
+END_DEVICE_FUNCTION_KIND_UNKNOWN: EndDeviceFunctionKind
+END_DEVICE_FUNCTION_KIND_AUTONOMOUS_DST: EndDeviceFunctionKind
+END_DEVICE_FUNCTION_KIND_DEMAND_RESPONSE: EndDeviceFunctionKind
+END_DEVICE_FUNCTION_KIND_ELECTRIC_METERING: EndDeviceFunctionKind
+END_DEVICE_FUNCTION_KIND_METROLOGY: EndDeviceFunctionKind
+END_DEVICE_FUNCTION_KIND_ON_REQUEST_READ: EndDeviceFunctionKind
+END_DEVICE_FUNCTION_KIND_OUTAGE_HISTORY: EndDeviceFunctionKind
+END_DEVICE_FUNCTION_KIND_RELAYS_PROGRAMMING: EndDeviceFunctionKind
+END_DEVICE_FUNCTION_KIND_REVERSE_FLOW: EndDeviceFunctionKind

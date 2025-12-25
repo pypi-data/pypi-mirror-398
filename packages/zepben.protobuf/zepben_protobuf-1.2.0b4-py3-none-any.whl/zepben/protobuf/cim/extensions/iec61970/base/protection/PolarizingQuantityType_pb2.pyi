@@ -1,0 +1,20 @@
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
+from google.protobuf import descriptor as _descriptor
+from typing import ClassVar as _ClassVar
+
+DESCRIPTOR: _descriptor.FileDescriptor
+
+class PolarizingQuantityType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    POLARIZING_QUANTITY_TYPE_UNKNOWN: _ClassVar[PolarizingQuantityType]
+    POLARIZING_QUANTITY_TYPE_SELF_PHASE_VOLTAGE: _ClassVar[PolarizingQuantityType]
+    POLARIZING_QUANTITY_TYPE_QUADRATURE_VOLTAGE: _ClassVar[PolarizingQuantityType]
+    POLARIZING_QUANTITY_TYPE_ZERO_SEQUENCE_VOLTAGE: _ClassVar[PolarizingQuantityType]
+    POLARIZING_QUANTITY_TYPE_NEGATIVE_SEQUENCE_VOLTAGE: _ClassVar[PolarizingQuantityType]
+    POLARIZING_QUANTITY_TYPE_POSITIVE_SEQUENCE_VOLTAGE: _ClassVar[PolarizingQuantityType]
+POLARIZING_QUANTITY_TYPE_UNKNOWN: PolarizingQuantityType
+POLARIZING_QUANTITY_TYPE_SELF_PHASE_VOLTAGE: PolarizingQuantityType
+POLARIZING_QUANTITY_TYPE_QUADRATURE_VOLTAGE: PolarizingQuantityType
+POLARIZING_QUANTITY_TYPE_ZERO_SEQUENCE_VOLTAGE: PolarizingQuantityType
+POLARIZING_QUANTITY_TYPE_NEGATIVE_SEQUENCE_VOLTAGE: PolarizingQuantityType
+POLARIZING_QUANTITY_TYPE_POSITIVE_SEQUENCE_VOLTAGE: PolarizingQuantityType
