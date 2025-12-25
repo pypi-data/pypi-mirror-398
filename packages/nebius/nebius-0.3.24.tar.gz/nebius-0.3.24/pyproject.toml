@@ -1,0 +1,256 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nebius"
+version = "0.3.24"
+description = "Nebius Python SDK"
+authors = [
+    { name = "Daniil Drizhuk", email = "complynx@nebius.com" },
+    { name = "Ivan Kornilov", email = "ivan.kornilov@nebius.com"},
+    { name = "Marat Reymers", email = "marat-reymers@nebius.com"},
+    { name = "Andrei Zenkov", email = "andrei.zenkov@nebius.com"}
+]
+license.file = "LICENSE"
+dependencies = [
+    # added a dep, add to the NOTICE.md!
+    "cryptography>=40.0.0",
+    "pyyaml>=5",
+    "grpcio>=1.56.2",
+    "PyJWT>=2.0.0",
+    "certifi>=2022.6.15",
+    "protobuf>=5.29.1",
+    "grpcio-status>=1.56.2",
+    "portalocker>=2.8.1",
+    "aiohttp>=3.8.5",
+]
+readme = "README.md"
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+windows = ["certifi-win32"]  # to use windows certificates
+dev = [
+    # added a dep, add to the NOTICE.md!
+    # don't forget to mirror some of these to tox config in this file
+    "pytest>=8.0",  # For running tests
+    "pytest-asyncio>=0.24.0",  # For running async tests
+    "pytest-subtests>=0.3.0",  # For subtests in pytest
+    "tox>=4.0",     # For testing automation
+    "mypy>=1.13",    # For type checking
+    "black>=24.10",  # For code formatting
+    "ruff>=0.7",   # For linting
+    "grpc-stubs>=1.53",  # For mypy
+    "types-protobuf>=5.29.1", # for mypy
+    "types-PyYAML>=5.0",  # for mypy
+]
+generators = [
+    # added a dep, add to the NOTICE.md!
+    "m2r2>=0.3",
+    "grpcio-tools>=1.56.2",
+    "mypy-protobuf>=3.6",
+    "protovalidate>=0.5",
+    "pydoctor>=24.11.2,<25.0",  # For generating docs
+    "beautifulsoup4>=4.12.3",
+    "tomlkit>=0.13.2",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["nebius*"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+exclude = "(docs/generated|src/nebius/api|.direnv|.eggs|.git|.hg|.ipynb_checkpoints|.mypy_cache|.nox|.pytest_cache|.ruff_cache|.tox|.svn|.venv|.vscode|pypackages|_build|buck-out|build|dist|venv)"
+
+[tool.mypy]
+strict = true
+exclude = "^src/nebius/api/.*"
+files = ["!src/nebius/api/buf/validate/validate_pb2.pyi"]
+
+[[tool.mypy.overrides]]
+module = "nebius.api.*"
+ignore_errors = true
+
+[tool.ruff]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".github",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "docs/generated",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+    "src/nebius/api",
+]
+line-length = 88
+indent-width = 4
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "Q", "S"]
+ignore = []
+exclude = ["src/nebius/api"]
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**.py" = ["S"]
+"src/nebius/api/**" = ["ALL"]
+
+[tool.ruff.format]
+exclude = ["src/nebius/api/**", "*.pyi"]
+
+[tool.isort]
+profile = "black"
+
+[tool.pylint]
+load-plugins = ["pylint.extensions.mccabe"]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+# log_cli = true
+# log_cli_level = "DEBUG"
+log_cli_format = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+log_cli_date_format = "%H:%M:%S"
+
+[tool.tox]
+requires = ["tox>=4.23"]
+env_list = ["test", "lint", "type", "format"]
+isolated_build = true
+
+[tool.tox.env]
+[tool.tox.env.test]
+description = "Run tests with pytest"
+deps = [
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "pytest-subtests",
+    "grpcio",
+    "protobuf",
+    "types-protobuf",
+    "types-PyYAML",
+    "portalocker",
+    "aiohttp",
+]
+commands = [["pytest","-vv","--full-trace"]]
+passenv = [
+    "NEBIUS_E2E_CONFIG_FILE",
+    "NEBIUS_E2E_CONFIG_B64",
+    "NEBIUS_PROFILE",
+]
+
+[tool.tox.env.test_earliest]
+description = "Run tests with pytest and the earliest possible lib versions"
+basepython = ["python3.10"]
+deps = [
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "pytest-subtests",
+    "pyyaml==5.1.1",
+    "grpcio==1.56.2",
+    "protobuf<=5.26.1",
+    "types-PyYAML>=5.1.1",
+    "types-protobuf<=5.26.1",
+    "cryptography==40.0.0",
+    "portalocker==2.8.1",
+    "aiohttp==3.8.5",
+    "PyJWT==2.0.0",
+    "certifi==2022.6.15",
+    "grpcio-status==1.56.2",
+]
+commands = [["pytest","-vv"]]
+passenv = [
+    "NEBIUS_E2E_CONFIG_FILE",
+    "NEBIUS_E2E_CONFIG_B64",
+    "NEBIUS_PROFILE",
+]
+
+[tool.tox.env.lint]
+description = "Run linter checks"
+package = "skip"  # Skip installing the package
+deps = ["ruff"]
+commands = [["ruff","check","src/","tests/"]]
+
+[tool.tox.env.format]
+description = "Run code formatting checks"
+package = "skip"
+deps = ["black"]
+commands = [["black","--check","src/"]]
+
+[tool.tox.env.type]
+description = "Run type-checking"
+package = "skip"
+deps = [
+    "mypy",
+    "cryptography>=40.0.0",
+    "grpcio>=1.56.2",
+    "PyJWT>=2.9.0",
+    "certifi>=2024.8.30",
+    "protobuf>=5.29.1",
+    "grpcio-status>=1.56.2",
+    "pydoctor>=24.11.2,<25.0",  # For generating docs
+    "beautifulsoup4>=4.12.3",
+    "aiohttp>=3.8.5",
+    "portalocker>=2.8.1",
+    "tomlkit>=0.13.2",
+    "pyyaml>=5",  # Added pyyaml dependency
+    # For mypy
+    "grpc-stubs>=1.53",
+    "types-protobuf>=5.29.1",
+    "types-beautifulsoup4>=4.12.0",
+    "types-PyYAML>=5",
+]
+commands = [["mypy","src/"]]
+
+[tool.pydoctor]
+add-package = ["src/nebius"]
+project-name="nebius"
+html-output="docs/generated"
+docformat="restructuredtext"
+template-dir="docs/templates"
+project-url="https://github.com/nebius/pysdk"
+html-base-url="https://nebius.github.io/pysdk"
+html-writer="nebius.base.gendoc.writer.TemplateWriter"
+html-viewsource-base="https://github.com/nebius/pysdk/tree/main"
+intersphinx = [
+    "https://docs.python.org/3/objects.inv",
+    "https://grpc.github.io/grpc/python/objects.inv",
+]
+privacy = [
+    "PRIVATE:nebius.api.nebius.common.*.OperationServiceClient",
+    "PRIVATE:nebius.api.buf",
+    "HIDDEN:nebius.api.nebius.example.**",
+    "HIDDEN:nebius.api.nebius.example",
+    "PRIVATE:nebius.base.gendoc",
+    "PRIVATE:nebius.api.**_pb2",
+    "PRIVATE:nebius.api.**_pb2_grpc",
+]
