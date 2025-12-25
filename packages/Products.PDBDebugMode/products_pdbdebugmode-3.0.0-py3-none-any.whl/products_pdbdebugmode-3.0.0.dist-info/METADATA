@@ -1,0 +1,227 @@
+Metadata-Version: 2.4
+Name: Products.PDBDebugMode
+Version: 3.0.0
+Summary: Post-mortem debugging on Zope exceptions
+Home-page: https://github.com/collective/Products.PDBDebugMode
+Author: Ross Patterson
+Author-email: me@rpatterson.net
+License: GPL
+Keywords: Plone,debug,pdb
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Web Environment
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Framework :: Plone
+Classifier: Framework :: Plone :: 6.2
+Classifier: Framework :: Zope :: 4
+Classifier: License :: OSI Approved :: GNU General Public License v2 (GPLv2)
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: collective.monkeypatcher
+Requires-Dist: Products.CMFCore
+Requires-Dist: Products.CMFPlone
+Requires-Dist: Zope
+Provides-Extra: ipdb
+Requires-Dist: ipdb>=0.3; extra == "ipdb"
+Provides-Extra: zodb
+Requires-Dist: zope.testrunner>=6.4; extra == "zodb"
+Provides-Extra: zodb-testing
+Requires-Dist: zope.testing; extra == "zodb-testing"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# Products.PDBDebugMode
+
+## Enable various PDB debugging when debug-mode=on
+
+When Zope is running in debug mode this product hooks PDB debugging
+into various parts of a Zope instance.  Some additional Plone specific
+hooks are also included.
+
+## Requirements
+
+This version of PDBDebugMode has been tested with Plone 6.2 on Python 3.10-3.13.
+
+For Zope4 and Plone 5.2 in Python 2.7, 3.6 and 3.7 please use `Products.PDBDebugMode = 2.1`.
+
+For Zope 2 (until Plone 5.1) please use `Products.PDBDebugMode = 1.3`.
+
+If ipdb (http://pypi.python.org/pypi/ipdb) is available,
+it will use that instead of standard pdb.
+
+Its recommended that you use an editor or IDE that can cooperate with pdb.
+Emacs for example, will display the corresponding lines of the source file alongside the pdb prompt.
+
+Remember that this product does nothing
+unless zope is being run with `debug-mode=on` such as with `./bin/instance fg`.
+
+## Post-Mortem Debugging
+
+To provide for better investigation of errors, any error or exception
+logged with the python logging module will invoke `pdb.post_mortem()` if
+a traceback can be retrieved and set_trace will be invoked otherwise.
+Since the Zope `error_log` exception handler uses the logging module
+when logging errors, this provides for post mortem debugging of Zope
+errors.  It is often useful, for example, to remove `NotFound` or
+`Unauthorized` from the ignored exception in `error_log` and then
+investigate such errors with PDB.
+
+## Runcall Requests
+
+Any request that has the key `pdb_runcall` will call the result of the
+request traversal in the debugger thus allowing for stepping through
+the resulting execution.  To debug a POST or any other request which
+might be tricky to insert the `pdb_runcall` key into, use
+`?toggle_runcall=1` at the end of a URL immediately preceding the
+POST to set a `pdb_runcall` cookie which will then invoke the
+`pdb.runcall` when the POST is submitted.  Use `?toggle_runcall=1` at
+the end of a URL to clear the cookie.  Remember that the cookie will
+be set at the level in the hierarchy that it was set.
+
+## Debug View
+
+Additionally, a view named `pdb` is registered for all objects that
+will simply raise an exception leaving you with the current context to
+inspect. Use it for example by calling http://localhost:8080/Plone/foo/@@pdb.
+
+## Allow Import of pdb
+
+Import of the pdb module is also allowed in unprotected code such as
+python scripts.
+
+# Changelog
+
+<!--
+   You should *NOT* be adding new change log entries to this file.
+   You should create a file in the news directory instead.
+   For helpful instructions, please see:
+   https://github.com/plone/plone.releaser/blob/master/ADD-A-NEWS-ITEM.rst
+-->
+
+<!-- towncrier release notes start -->
+
+## 3.0.0 (2025-12-23)
+
+
+### Breaking changes:
+
+- Replace ``pkg_resources`` namespace with PEP 420 native namespace.
+  Support only Plone 6.2 and Python 3.10+. #3928
+
+
+### Internal:
+
+- Move distribution to src layout @gforcada #4217
+- Update configuration files @plone 
+
+## 2.1 (2025-06-19)
+
+Bug fixes:
+
+- Include dependencies in zcml to fix use in a pip-based install. @pbauer
+
+## 2.0 (2019-04-01)
+
+New features:
+
+- Add log-message on startup. @pbauer
+
+Bug fixes:
+
+- Remove post_mortem in tests since that feature is now a part of zope.testrunner and is unneeded here.
+  Fixes https://github.com/plone/Products.CMFPlone/issues/2803 @pbauer
+
+- Remove traces of support for Zope 2. @pbauer
+
+## 1.4 (2019-03-02)
+
+Breaking changes:
+
+- Make compatible with Zope4 and drop support for Zope 2. @pbauer
+
+New features:
+
+- Add compatibility for Python 3 and 2. @frapell
+
+- Improve debug mode detection, provide a ZCML feature, and enable when running
+  tests with '-D'. @rpatterson
+
+- Add zope.testrunner support. @rpatterson
+
+- Add some missing iPython support for runcall and broken_delete. @rpatterson
+
+Bug fixes:
+
+- Apparently the ipdb support only works with ipdb 0.3 or greater.
+  Added an "ipdb" extra for this requirement. @rossp
+
+- Fix ipdb import in zcatalog.py. @pabo
+
+## 1.3 - 2011-01-14
+
+- Ignore invalid GenericSetup handlers. @rossp
+
+- Use ipdb when available. @neaj
+
+## 1.2 - 2011-01-07
+
+- Add some zopectl scripts I use when evaluating upgrades. @rossp
+
+- Better handling of exceptions while checking error matching. @rossp
+
+- Fix a problem with doing post_mortem debugging of error_log ignored
+  exceptions. @rossp
+
+- Fix handling of socket errors
+
+- Fix handling of SiteErrorLog tracebacks
+
+- Fix handling of exc_info logging arg
+
+## 1.1 - 2009-04-18
+
+- Fix a bug due to a change in monkeypatcher
+
+## 1.0 - 2009-04-10
+
+- Add collective.monkeypatcher as a requirement @kdeldycke
+
+- Fix some recursion errors
+
+## 0.3 - 2009-04-08
+
+- Use collective.monkeypatcher to move all patches into ZCML
+
+- Fully deprecate the Zope exception handler in favor of the logging
+  hook since the Zope exception handler uses the logging module
+  anyways and more can be done by hooking at that level.
+
+- Handle failed matches in Products.PDBDebugMode.pdblogging more
+  gracefully
+
+- More flexible log matching.  Change
+  Products.PDBDebugMode.pdblogging.ignore_regexes to ignore_matchers
+  and accept any callable.
+
+## 0.2 - 2008-05-15
+
+- Eggified
+
+## 0.1 - 2006-03-11
+
+- Initial release
