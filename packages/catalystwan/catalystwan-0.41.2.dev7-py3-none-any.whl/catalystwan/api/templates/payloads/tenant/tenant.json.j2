@@ -1,0 +1,127 @@
+{
+    "templateName": "{{ template_name }}",
+    "templateDescription": "{{ template_description }}",
+    "templateType": "tenant",
+    "deviceType": [
+        "vedge-C8000V"
+    ],
+    "templateMinVersion": "15.0.0",
+    "templateDefinition": {
+        "tenant": {
+            "vipType": {% if tenants %}"constant"{% else %}"ignore"{% endif %},
+            "vipValue": [
+                {% for tenant in tenants %}{
+							"global-tenant-id": {
+								"vipObjectType": "object",
+								"vipType": "constant",
+								"vipValue": {{ tenant.tenant_info.flake_id }} 
+							},
+                            "org-name": {
+                                "vipObjectType": "object",
+                                "vipType": "constant",
+                                "vipValue": "{{ tenant.organization_name }}",
+                                "vipVariableName": "tenantOrgName_login"
+                            },
+                            "priority-order": [
+                                "org-name",
+                                "universal-unique-id",
+                                "global-tenant-id",
+                                "tenant-tloc",
+                                "tier"
+                            ],
+                            "tier": {
+                                "max": {
+                                    "routes": {
+                                        "address-family": {
+                                            "ipv4": {
+                                                "unicast-route-limit": {
+                                                    "route-limit": {
+                                                        "vipObjectType": "object",
+                                                        "vipType": {% if tenant.tier_info.ipv4_route_limit %}"constant"{% else %}"ignore"{% endif %},
+                                                        "vipValue": {{ tenant.tier_info.ipv4_route_limit | tojson }}
+                                                    },
+                                                    "warning-only": {
+                                                        "vipObjectType": "node-only",
+                                                        "vipType": "ignore",
+                                                        "vipValue": false
+                                                    },
+                                                    "warning-threshold": {
+                                                        "vipObjectType": "object",
+                                                        "vipType": {% if tenant.tier_info.ipv4_route_limit_threshold %}"constant"{% else %}"ignore"{% endif %},
+                                                        "vipValue": {{ tenant.tier_info.ipv4_route_limit_threshold | tojson }}
+                                                    }
+                                                }
+                                            },
+                                            "ipv6": {
+                                                "unicast-route-limit": {
+                                                    "route-limit": {
+                                                        "vipObjectType": "object",
+                                                        "vipType": {% if tenant.tier_info.ipv6_route_limit %}"constant"{% else %}"ignore"{% endif %},
+                                                        "vipValue": {{ tenant.tier_info.ipv6_route_limit | tojson }}
+                                                    },
+                                                    "warning-only": {
+                                                        "vipObjectType": "node-only",
+                                                        "vipType": "ignore",
+                                                        "vipValue": false
+                                                    },
+                                                    "warning-threshold": {
+                                                        "vipObjectType": "object",
+                                                        "vipType": {% if tenant.tier_info.ipv6_route_limit_threshold %}"constant"{% else %}"ignore"{% endif %},
+                                                        "vipValue": {{ tenant.tier_info.ipv6_route_limit_threshold | tojson }}
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "max-vpn": {
+                                    "vipObjectType": "object",
+                                    "vipType": "constant",
+                                    "vipValue": {{ tenant.tier_info.vpn }}
+                                },
+                                "tier-name": {
+                                    "vipObjectType": "object",
+                                    "vipType": "constant",
+                                    "vipValue": "{{ tenant.tier_name }}"
+                                }
+                            },
+                            "tenant-tloc": {
+                                "vipObjectType": "tree",
+                                "vipPrimaryKey": [
+                                    "color", "encap"
+                                ],
+                                "vipType": "constant",
+                                "vipValue": [
+                                    {% for tloc in tenant.tier_info.tlocs %}{
+                                        "color": {
+                                            "vipObjectType": "object",
+                                            "vipType": "constant",
+                                            "vipValue": "{{ tloc.color }}"
+                                        },
+                                        "encap": {
+                                            "vipObjectType": "object",
+                                            "vipType": "constant",
+                                            "vipValue": "{{ tloc.encapsulation }}"
+                                        },
+                                        "priority-order": ["color", "encap"]
+                                    }
+                                    {% if not loop.last %},{% endif %}
+                                    {% endfor %}
+                                ]
+                            },
+                            "universal-unique-id": {
+                                "vipObjectType": "object",
+                                "vipType": "constant",
+                                "vipValue": "{{ tenant.tenant_info.tenant_id }}"
+                            }
+                        }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ],
+            "vipObjectType": "tree",
+            "vipPrimaryKey": [
+                "org-name"
+            ]
+        }
+    },
+    "factoryDefault": false
+}
