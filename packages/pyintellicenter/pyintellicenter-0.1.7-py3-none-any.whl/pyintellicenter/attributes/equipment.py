@@ -1,0 +1,174 @@
+"""Equipment attribute definitions (pumps, heaters, chemistry, sensors)."""
+
+from .constants import (
+    ALK_ATTR,
+    BODY_ATTR,
+    CALC_ATTR,
+    CALIB_ATTR,
+    CIRCUIT_ATTR,
+    COMUART_ATTR,
+    CYACID_ATTR,
+    DLY_ATTR,
+    GPM_ATTR,
+    HNAME_ATTR,
+    HTMODE_ATTR,
+    LISTORD_ATTR,
+    MAX_ATTR,
+    MAXF_ATTR,
+    MIN_ATTR,
+    MINF_ATTR,
+    MODE_ATTR,
+    ORPHI_ATTR,
+    ORPLO_ATTR,
+    ORPSET_ATTR,
+    ORPTNK_ATTR,
+    ORPVAL_ATTR,
+    PARENT_ATTR,
+    PHHI_ATTR,
+    PHLO_ATTR,
+    PHSET_ATTR,
+    PHTNK_ATTR,
+    PHVAL_ATTR,
+    PRIM_ATTR,
+    PROBE_ATTR,
+    PWR_ATTR,
+    QUALTY_ATTR,
+    READY_ATTR,
+    RPM_ATTR,
+    SALT_ATTR,
+    SEC_ATTR,
+    SELECT_ATTR,
+    SHOMNU_ATTR,
+    SNAME_ATTR,
+    SOURCE_ATTR,
+    STATIC_ATTR,
+    STATUS_ATTR,
+    SUBTYP_ATTR,
+    SUPER_ATTR,
+    TEMP_ATTR,
+    TIME_ATTR,
+    TIMOUT_ATTR,
+)
+
+# Chemistry controller attributes (IntelliChlor, IntelliChem)
+CHEM_ATTRIBUTES = {
+    ALK_ATTR,  # (int) IntelliChem: Alkalinity setting
+    BODY_ATTR,  # (objnam) BODY being managed
+    CALC_ATTR,  # (int) IntelliChem: Calcium Hardness setting
+    "CHLOR",  # (ON/OFF) IntelliChem: Chlorinator status
+    COMUART_ATTR,  # (int) X25 related
+    CYACID_ATTR,  # (int) IntelliChem: Cyanuric Acid setting
+    LISTORD_ATTR,  # (int) used to order in UI
+    MODE_ATTR,  # (str) IntelliChem: Operating mode (OFF, etc.)
+    ORPHI_ATTR,  # (ON/OFF) IntelliChem: ORP Level too high?
+    ORPLO_ATTR,  # (ON/OFF) IntelliChem: ORP Level too low?
+    ORPSET_ATTR,  # (int) IntelliChem ORP level setpoint (400-800 mV)
+    ORPTNK_ATTR,  # (int) IntelliChem: ORP Tank Level
+    ORPVAL_ATTR,  # (int) IntelliChem: ORP Level
+    PHHI_ATTR,  # (ON/OFF) IntelliChem: pH Level too high?
+    PHLO_ATTR,  # (ON/OFF) IntelliChem: pH Level too low?
+    PHSET_ATTR,  # (float) IntelliChem pH level setpoint (7.0-7.6)
+    PHTNK_ATTR,  # (int) IntelliChem: pH Tank Level
+    PHVAL_ATTR,  # (float) IntelliChem: pH Level
+    PRIM_ATTR,  # (int) IntelliChlor: primary body output setting in %
+    PROBE_ATTR,  # (str) IntelliChem: Raw probe reading indicator
+    QUALTY_ATTR,  # (float) IntelliChem: Water Quality (Saturation Index)
+    READY_ATTR,  # (ON/OFF) Chemistry controller ready state
+    SALT_ATTR,  # (int) Salt level
+    SEC_ATTR,  # (int) IntelliChlor: secondary body output setting in %
+    "SHARE",  # (objnam) Body sharing
+    "SINDEX",  # (float) Saturation Index
+    SNAME_ATTR,  # friendly name
+    STATIC_ATTR,  # (ON/OFF) Static mode
+    SUBTYP_ATTR,  # 'ICHLOR' for IntelliChlor, 'ICHEM' for IntelliChem
+    SUPER_ATTR,  # (ON/OFF) IntelliChlor: turn on Boost mode (aka Super Chlorinate)
+    TEMP_ATTR,  # (int) IntelliChem: Water temperature reading
+    TIMOUT_ATTR,  # (int) IntelliChlor: timeout in seconds
+}
+
+# Heater attributes
+# Matches node-intellicenter GetHeaters attributes
+HEATER_ATTRIBUTES = {
+    BODY_ATTR,  # the objnam of the body the heater serves or a list (separated by a space)
+    "BOOST",  # (int) Boost mode setting
+    COMUART_ATTR,  # X25 related?
+    "COOL",  # (ON/OFF) Cooling mode
+    DLY_ATTR,  # (int) Delay setting
+    "HEATING",  # (ON/OFF) Currently heating
+    HNAME_ATTR,  # equals to OBJNAM
+    HTMODE_ATTR,  # (int) Heat mode setting
+    LISTORD_ATTR,  # (int) used to order in UI
+    MODE_ATTR,  # (int) Current operating mode (see HeaterType enum)
+    PARENT_ATTR,  # (objnam) parent (module) for this heater
+    "PERMIT",  # (str) Permissions
+    READY_ATTR,  # (ON/OFF) Ready state
+    SHOMNU_ATTR,  # (str) Menu permissions
+    SNAME_ATTR,  # (str) Friendly name
+    "START",  # (int) Start time
+    STATIC_ATTR,  # (ON/OFF) Static setting
+    STATUS_ATTR,  # (ON/OFF) Only seen 'ON'
+    "STOP",  # (int) Stop time
+    SUBTYP_ATTR,  # type of heater 'GENERIC','SOLAR','ULTRA','HEATER'
+    TIME_ATTR,  # (int) Time setting
+    TIMOUT_ATTR,  # (int) Timeout setting
+}
+
+# Pump attributes
+PUMP_ATTRIBUTES = {
+    BODY_ATTR,  # the objnam of the body the pump serves or a list (separated by a space)
+    CIRCUIT_ATTR,  # (int) ??? only seen 1
+    COMUART_ATTR,  # X25 related?
+    HNAME_ATTR,  # same as objnam
+    GPM_ATTR,  # (int) when applicable, real time Gallon Per Minute
+    LISTORD_ATTR,  # (int) used to order in UI
+    MAX_ATTR,  # (int) maximum RPM
+    MAXF_ATTR,  # (int) maximum GPM (if applicable, 0 otherwise)
+    MIN_ATTR,  # (int) minimum RPM
+    MINF_ATTR,  # (int) minimum GPM (if applicable, 0 otherwise)
+    "NAME",  # seems to equal OBJNAM
+    "OBJLIST",  # ([ objnam] ) a list of PMPCIRC settings
+    PRIM_ATTR,  # (str) Primary pump indicator (OFF, etc.)
+    "PRIMFLO",  # (int) Priming Speed
+    "PRIMTIM",  # (int) Priming Time in minutes
+    "PRIOR",  # (int) ???
+    PWR_ATTR,  # (int) when applicable, real time Power usage in Watts
+    READY_ATTR,  # (ON/OFF) Ready state
+    RPM_ATTR,  # (int) when applicable, real time Rotation Per Minute
+    "SETTMP",  # (int) Step size for RPM
+    "SETTMPNC",  # (int) ???
+    SNAME_ATTR,  # friendly name
+    STATIC_ATTR,  # (ON/OFF) Static mode
+    STATUS_ATTR,  # only seen 10 for on, 4 for off
+    SUBTYP_ATTR,  # type of pump: 'SPEED' (variable speed), 'FLOW' (variable flow), 'VSF' (both)
+    "SYSTIM",  # (int) ???
+}
+
+# Pump circuit setting attributes
+PMPCIRC_ATTRIBUTES = {
+    BODY_ATTR,  # not sure, I've only see '00000'
+    CIRCUIT_ATTR,  # (objnam) the circuit this setting is for
+    GPM_ATTR,  # (int): the flow setting for the pump if select is GPM
+    LISTORD_ATTR,  # (int) used to order in UI
+    PARENT_ATTR,  # (objnam) the pump the setting belongs to
+    READY_ATTR,  # (ON/OFF) Ready state
+    "SPEED",  # (int): the speed setting for the pump if select is RPM
+    SELECT_ATTR,  # 'RPM' or 'GPM'
+    STATIC_ATTR,  # (ON/OFF) Static mode
+}
+
+# Sensor attributes
+SENSE_ATTRIBUTES = {
+    CALIB_ATTR,  # (int) calibration offset value
+    HNAME_ATTR,  # same as objnam
+    LISTORD_ATTR,  # number likely used to order things in UI
+    MODE_ATTR,  # I've only seen 'OFF' so far
+    "NAME",  # I've only seen '00000'
+    PARENT_ATTR,  # the parent's objnam
+    PROBE_ATTR,  # the uncalibrated reading of the sensor
+    READY_ATTR,  # (ON/OFF) Ready state
+    SNAME_ATTR,  # friendly name
+    SOURCE_ATTR,  # the calibrated reading of the sensor
+    STATIC_ATTR,  # (ON/OFF) not sure, only seen 'ON'
+    STATUS_ATTR,  # I've only seen 'OK' so far
+    SUBTYP_ATTR,  # 'SOLAR','POOL' (for water), 'AIR'
+}
