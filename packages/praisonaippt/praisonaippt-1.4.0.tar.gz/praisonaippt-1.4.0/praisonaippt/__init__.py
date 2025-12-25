@@ -1,0 +1,29 @@
+"""
+PraisonAI PPT - PowerPoint Bible Verses Generator
+
+A Python package for creating beautiful PowerPoint presentations from Bible verses.
+Includes built-in PDF conversion capabilities.
+"""
+
+__version__ = "1.4.0"
+__author__ = "MervinPraison"
+__license__ = "MIT"
+
+from .core import create_presentation
+from .loader import load_verses_from_file, load_verses_from_dict
+from .pdf_converter import convert_pptx_to_pdf, PDFOptions
+from .lazy_loader import lazy_import, check_optional_dependency
+from .config import load_config, init_config, Config
+
+__all__ = [
+    "create_presentation",
+    "load_verses_from_file",
+    "load_verses_from_dict",
+    "convert_pptx_to_pdf",
+    "PDFOptions",
+    "lazy_import",
+    "check_optional_dependency",
+    "load_config",
+    "init_config",
+    "Config",
+]
