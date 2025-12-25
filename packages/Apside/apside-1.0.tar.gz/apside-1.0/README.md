@@ -1,0 +1,1 @@
+Visit https://apside.neocities.org/ for documentation.
