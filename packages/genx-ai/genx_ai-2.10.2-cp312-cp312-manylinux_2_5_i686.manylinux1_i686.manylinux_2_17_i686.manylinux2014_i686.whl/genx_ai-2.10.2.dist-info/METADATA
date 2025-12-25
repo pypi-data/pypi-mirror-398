@@ -1,0 +1,207 @@
+Metadata-Version: 2.4
+Name: genx-ai
+Version: 2.10.2
+Summary: AI for industry
+Author-email: Jaydeep Ukani <jaydeepukani@outlook.in>, Hardeepsinh Barad <hardeepbarada@gmail.com>
+Project-URL: Homepage, https://github.com/jaydeepukani/GenX-AI
+Project-URL: Issues, https://github.com/jaydeepukani/GenX-AI/issues
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: art>=6.2
+Requires-Dist: GPUtil>=1.4.0
+Requires-Dist: scipy>=1.14.0
+Requires-Dist: imutils>=0.5.4
+Requires-Dist: opencv-python-headless>=4.11.0.86
+Requires-Dist: opencv-contrib-python-headless>=4.11.0.86
+Requires-Dist: psutil>=6.0.0
+Requires-Dist: pusher>=3.3.2
+Requires-Dist: py-cpuinfo>=9.0.0
+Requires-Dist: Pysher>=1.0.8
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: requests>=2.32.3
+Requires-Dist: lapx>=0.5.11.post1
+Requires-Dist: ultralytics>=8.3.47
+Requires-Dist: wget>=3.2
+Requires-Dist: pywin32>=305; platform_system == "Windows"
+Requires-Dist: pyzmq>=26.1.0
+Requires-Dist: rich>=13.7.1
+Requires-Dist: textual>=0.76.0
+Requires-Dist: setproctitle>=1.3.5
+Requires-Dist: ffmpeg>=1.4
+
+# GenX AI
+
+Better Version of Surveillance System
+
+## Commands
+
+* `genx -h` - Show help message
+* `genx -v` - Print version
+* `genx -t TAG` - Set tag for multiple instance in single machine
+
+### Debug
+
+* `genx debug -i CAM_ID` - Debug specific camera
+
+### Model Classes
+
+* `genx print-model-classes -m MODEL_PATH` - Print available model classes
+
+### Environment Management
+
+* `genx env -p` - Print environment variables
+* `genx env -s KEY=VALUE` - Set environment variables
+* `genx env -f FILE` - Load environment variables from file
+* `genx env -e STRING` - Encrypt environment string
+* `genx env -a` - Prompt and set environment variables
+
+### Service Management
+
+* `genx listen` - Start client for listen camera events
+* `genx listen -x` - Start client with UI exposure
+* `genx ui` - UI in command line for better view experience
+* `genx install` - Create service and run at boot time
+* `genx uninstall` - Cleanup all files created by install command
+
+## Virtual Env
+
+* `sudo python -m venv /opt/venv`
+* `sudo nano /opt/venv/bin/activate`
+  * Add env vars
+* `source /opt/venv/bin/activate`
+* `sudo -E /opt/venv/bin/pip install genx_ai-1.x.x-py3-none-any.whl`
+* `sudo -E /opt/venv/bin/genx install`
+
+## Media Streaming Server (Nginx) (RTMP) (Optional)
+
+* `sudo apt-get update`
+* `sudo apt-get install nginx`
+* `sudo apt-get install libnginx-mod-rtmp`
+* `sudo mkdir -p /var/www/html/stream/hls`
+* `sudo mkdir -p /var/www/html/rtmp`
+* `sudo cp /usr/share/doc/libnginx-mod-rtmp/examples/stat.xsl /var/www/html/rtmp/stat.xsl`
+* `sudo nano /etc/nginx/nginx.conf`
+  
+  rtmp {
+  server {
+  listen 1935;
+  chunk_size 4096;
+  allow publish 127.0.0.1;
+  deny publish all;
+  
+  ```
+  application live {
+                      live on;
+                      record off;
+  
+                      hls on;
+                      hls_path /var/www/html/stream/hls;
+                      hls_fragment 3;
+                      hls_playlist_length 10;
+  
+                      dash on;
+                      dash_path /var/www/html/stream/dash;
+              }
+      }
+  ```
+  
+  }
+* `sudo nano /etc/nginx/sites-available/camsenseai.com`
+  
+  server {
+  listen 8088 ssl;
+  server_name camsenseai.com;
+  
+  ```
+  ssl_certificate /etc/letsencrypt/live/camsenseai.com/fullchain.pem; # managed by Certbot
+  ssl_certificate_key /etc/letsencrypt/live/camsenseai.com/privkey.pem; # managed by Certbot
+  include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+  ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+  
+  # To play via browser using video-js
+  location / {
+      add_header Access-Control-Allow-Origin *;
+      root /var/www/html/stream;
+  
+  
+      # Disable cache
+      add_header Cache-Control no-cache;
+  
+  
+      # CORS setup
+      #add_header 'Access-Control-Allow-Origin' '*' always;
+      add_header 'Access-Control-Expose-Headers' 'Content-Length';
+  
+  
+      # allow CORS preflight requests
+      if ($request_method = 'OPTIONS') {
+          add_header 'Access-Control-Allow-Origin' '*';
+          add_header 'Access-Control-Max-Age' 1728000;
+          add_header 'Content-Type' 'text/plain charset=UTF-8';
+          add_header 'Content-Length' 0;
+          return 204;
+      }
+  
+  
+      types {
+          application/dash+xml mpd;
+          application/vnd.apple.mpegurl m3u8;
+          video/mp2t ts;
+      }
+  }
+  
+  # rtmp stat
+  location /stat {
+      rtmp_stat all;
+      rtmp_stat_stylesheet stat.xsl;
+  }
+  
+  location /stat.xsl {
+      root /var/www/html/rtmp;
+  }
+  
+  # rtmp control
+  location /control {
+      rtmp_control all;
+  }
+  ```
+  
+  }
+  
+  types {
+  application/dash+xml mpd;
+  }
+
+## FFMPEG Commands (optional)
+
+* MP4 to RTMP
+  
+  `ffmpeg -stream_loop -1 -i Videos/test.mp4 -preset ultrafast -vcodec libx264 -f flv rtmp://camsenseai.com/live/stream`
+* WebM to RTMP
+  
+  `ffmpeg -stream_loop -1 -i Videos/test.webm -f flv rtmp://camsenseai.com/live/stream`
+* Watch Stream
+  
+  `ffplay rtmp://camsenseai.com/live/stream`
+
+## Env set env variable
+
+> sudo -E /opt/venv/bin/genx env -s GENX_AI_API_ENDPOINT="[https://api.camsenseai.com](https://api.camsenseai.com)"
+> sudo -E /opt/venv/bin/genx env -s GENX_AI_API_USERNAME="<api@example.com>"
+> sudo -E /opt/venv/bin/genx env -s GENX_AI_API_PASSWORD="YourPassword"
+> sudo -E /opt/venv/bin/genx env -s GENX_AI_PUSHER_HOST="socket.camsenseai.com"
+> sudo -E /opt/venv/bin/genx env -s GENX_AI_PUSHER_APP_ID=""
+> sudo -E /opt/venv/bin/genx env -s GENX_AI_PUSHER_KEY=""
+> sudo -E /opt/venv/bin/genx env -s GENX_AI_PUSHER_SECRET=""
+
+## Env encrypt variable
+
+> sudo -E /opt/venv/bin/genx env -e "[https://api.camsenseai.com](https://api.camsenseai.com)"
+> sudo -E /opt/venv/bin/genx env -e "<api@example.com>"
+> sudo -E /opt/venv/bin/genx env -e "YourPassword"
+> sudo -E /opt/venv/bin/genx env -e "socket.camsenseai.com"
+> sudo -E /opt/venv/bin/genx env -e ""
+> sudo -E /opt/venv/bin/genx env -e ""
+> sudo -E /opt/venv/bin/genx env -e ""
+
