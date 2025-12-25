@@ -1,0 +1,72 @@
+# NetBox BGP Plugin
+[Netbox](https://github.com/netbox-community/netbox) plugin for BGP related objects documentation.
+
+## Features
+This plugin provide following Models:
+* BGP Communities
+* BGP Sessions
+* BGP Peer Groups
+* Routing Policy
+* Prefix Lists 
+* AS Path Lists
+
+## Compatibility
+
+|NetBox Version | Plugin    |
+|---------------|-----------|
+| NetBox 3.4.x  | >= 0.9.0  |
+| NetBox 3.5.x  | >= 0.10.0 |
+| NetBox 3.6.x  | >= 0.11.0 |
+| NetBox 3.7.x  | >= 0.12.0 |
+| NetBox 4.0.x  | >= 0.13.3 |
+| NetBox 4.1.x  | >= 0.14.0 |
+| NetBox 4.2.x  | 0.15.x    |
+| NetBox 4.3.x  | 0.16.x    |
+| NetBox 4.4.x  | 0.17.x    |
+| NetBox 4.5.x  | 0.18.x    |
+
+## Installation
+
+The plugin is available as a Python package in pypi and can be installed with pip  
+
+```
+pip install netbox-bgp
+```
+Enable the plugin in /opt/netbox/netbox/netbox/configuration.py:
+```
+PLUGINS = ['netbox_bgp']
+```
+Restart NetBox and add `netbox-bgp` to your local_requirements.txt
+
+See [NetBox Documentation](https://docs.netbox.dev/en/stable/plugins/#installing-plugins) for details
+
+## Configuration
+
+The following options are available:
+* `device_ext_page`: String (default right) Device related BGP sessions display mode. The following values are available:  
+  - `left`: Display BGP sessions in the left column of the device detail page
+  - `right`: Display BGP sessions in the right column of the device detail page  
+  - `full_width`: Display BGP sessions in full width at the bottom of the device detail page
+  - `tab`: Display BGP sessions in a dedicated tab on the device detail page
+  - Set empty value to disable device BGP sessions display
+* `top_level_menu`: Bool (default False) Enable top level section navigation menu for the plugin. 
+
+## Screenshots
+
+BGP Session
+![BGP Session](docs/img/session.png)
+
+BGP Sessions
+![BGP Session Table](docs/img/sessions.png)
+
+Community
+![Community](docs/img/commun.png)
+
+Peer Group
+![Peer Group](docs/img/peer_group.png)
+
+Routing Policy
+![Routing Policy](docs/img/routepolicy.png)
+
+Prefix List
+![Prefix List](docs/img/preflist.png)
