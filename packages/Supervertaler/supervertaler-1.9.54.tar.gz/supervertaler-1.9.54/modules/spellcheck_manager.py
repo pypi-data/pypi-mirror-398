@@ -1,0 +1,524 @@
+"""
+Spellcheck Manager for Supervertaler
+=====================================
+Provides spellchecking functionality using Hunspell dictionaries.
+Supports custom word lists and project-specific dictionaries.
+
+Features:
+- Hunspell dictionary support (via cyhunspell)
+- Fallback to pyspellchecker for basic checking
+- Custom word lists (global and per-project)
+- Integration with PyQt6 text editors
+"""
+
+import os
+import re
+from pathlib import Path
+from typing import List, Set, Dict, Optional, Tuple
+
+# Try to import hunspell (cyhunspell)
+try:
+    from hunspell import Hunspell
+    HAS_HUNSPELL = True
+except ImportError:
+    HAS_HUNSPELL = False
+    Hunspell = None
+
+# Fallback to pyspellchecker
+SPELLCHECKER_IMPORT_ERROR = None
+try:
+    from spellchecker import SpellChecker
+    HAS_SPELLCHECKER = True
+except ImportError as e:
+    HAS_SPELLCHECKER = False
+    SpellChecker = None
+    SPELLCHECKER_IMPORT_ERROR = str(e)
+
+
+class SpellcheckManager:
+    """
+    Manages spellchecking for Supervertaler.
+    
+    Supports:
+    - Hunspell dictionaries (.dic/.aff files)
+    - Custom word lists
+    - Per-project dictionaries
+    """
+    
+    # Common language codes and their Hunspell dictionary names
+    LANGUAGE_MAP = {
+        'English': 'en_US',
+        'Dutch': 'nl_NL',
+        'German': 'de_DE',
+        'French': 'fr_FR',
+        'Spanish': 'es_ES',
+        'Italian': 'it_IT',
+        'Portuguese': 'pt_PT',
+        'Polish': 'pl_PL',
+        'Russian': 'ru_RU',
+        'Chinese': 'zh_CN',
+        'Japanese': 'ja_JP',
+        'Korean': 'ko_KR',
+    }
+    
+    # Short code mappings (for project files that store "nl" instead of "Dutch")
+    SHORT_CODE_MAP = {
+        'en': 'en_US',
+        'nl': 'nl_NL',
+        'de': 'de_DE',
+        'fr': 'fr_FR',
+        'es': 'es_ES',
+        'it': 'it_IT',
+        'pt': 'pt_PT',
+        'pl': 'pl_PL',
+        'ru': 'ru_RU',
+        'zh': 'zh_CN',
+        'ja': 'ja_JP',
+        'ko': 'ko_KR',
+    }
+    
+    # Reverse mapping
+    CODE_TO_LANGUAGE = {v: k for k, v in LANGUAGE_MAP.items()}
+    
+    def __init__(self, user_data_path: str = None):
+        """
+        Initialize the spellcheck manager.
+        
+        Args:
+            user_data_path: Path to user data directory for custom dictionaries
+        """
+        self.user_data_path = Path(user_data_path) if user_data_path else Path("user_data")
+        self.dictionaries_path = self.user_data_path / "dictionaries"
+        self.custom_words_file = self.dictionaries_path / "custom_words.txt"
+        
+        # Ensure directories exist
+        self.dictionaries_path.mkdir(parents=True, exist_ok=True)
+        
+        # Current spell checker instance
+        self._hunspell: Optional[Hunspell] = None
+        self._spellchecker: Optional[SpellChecker] = None
+        self._current_language: Optional[str] = None
+        
+        # Custom words (global)
+        self._custom_words: Set[str] = set()
+        self._load_custom_words()
+        
+        # Session-only ignored words
+        self._ignored_words: Set[str] = set()
+        
+        # Cache for word check results
+        self._word_cache: Dict[str, bool] = {}
+        
+        # Enabled state
+        self.enabled = True
+        
+    def _load_custom_words(self):
+        """Load custom words from file"""
+        self._custom_words.clear()
+        if self.custom_words_file.exists():
+            try:
+                with open(self.custom_words_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        word = line.strip()
+                        if word and not word.startswith('#'):
+                            self._custom_words.add(word.lower())
+            except Exception as e:
+                print(f"Error loading custom words: {e}")
+    
+    def _save_custom_words(self):
+        """Save custom words to file"""
+        try:
+            with open(self.custom_words_file, 'w', encoding='utf-8') as f:
+                f.write("# Supervertaler Custom Dictionary\n")
+                f.write("# Add words that should not be marked as spelling errors\n\n")
+                for word in sorted(self._custom_words):
+                    f.write(f"{word}\n")
+        except Exception as e:
+            print(f"Error saving custom words: {e}")
+    
+    def set_language(self, language: str) -> bool:
+        """
+        Set the spellcheck language.
+        
+        Args:
+            language: Language name (e.g., "English", "Dutch"), short code (e.g., "nl", "en"),
+                      or full code (e.g., "en_US", "nl_NL")
+            
+        Returns:
+            True if language was set successfully
+        """
+        # Convert language name to code if needed
+        # First try full name map (English -> en_US)
+        lang_code = self.LANGUAGE_MAP.get(language)
+        
+        # Then try short code map (nl -> nl_NL)
+        if not lang_code:
+            lang_code = self.SHORT_CODE_MAP.get(language.lower() if language else '')
+        
+        # Fall back to using the input directly (might be en_US already)
+        if not lang_code:
+            lang_code = language
+        
+        if lang_code == self._current_language:
+            return True  # Already set
+        
+        # Clear cache when changing language
+        self._word_cache.clear()
+        
+        # Try Hunspell first
+        if HAS_HUNSPELL:
+            if self._try_hunspell(lang_code):
+                self._current_language = lang_code
+                self._spellchecker = None
+                return True
+        
+        # Fallback to pyspellchecker
+        if HAS_SPELLCHECKER:
+            if self._try_spellchecker(lang_code):
+                self._current_language = lang_code
+                self._hunspell = None
+                return True
+        
+        return False
+    
+    def _try_hunspell(self, lang_code: str) -> bool:
+        """Try to initialize Hunspell with the given language"""
+        try:
+            # Check for dictionary files in user_data/dictionaries
+            dic_file = self.dictionaries_path / f"{lang_code}.dic"
+            aff_file = self.dictionaries_path / f"{lang_code}.aff"
+            
+            if dic_file.exists() and aff_file.exists():
+                self._hunspell = Hunspell(lang_code, hunspell_data_dir=str(self.dictionaries_path))
+                return True
+            
+            # Try system dictionaries
+            try:
+                self._hunspell = Hunspell(lang_code)
+                return True
+            except Exception:
+                pass
+            
+            return False
+        except Exception as e:
+            print(f"Hunspell initialization failed for {lang_code}: {e}")
+            return False
+    
+    def _try_spellchecker(self, lang_code: str) -> bool:
+        """Try to initialize pyspellchecker with the given language"""
+        try:
+            # pyspellchecker uses 2-letter codes
+            short_code = lang_code.split('_')[0].lower()
+            
+            # Check if language is supported
+            # pyspellchecker supports: en, es, de, fr, pt, nl, it, ru, ar, eu, lv
+            supported = ['en', 'es', 'de', 'fr', 'pt', 'nl', 'it', 'ru', 'ar', 'eu', 'lv']
+            
+            target_lang = short_code if short_code in supported else 'en'
+            
+            # Create the spellchecker instance
+            self._spellchecker = SpellChecker(language=target_lang)
+            
+            # Verify it's actually working by testing a common word
+            # Use a simple spell check instead of checking word_frequency length
+            # (word_frequency is a WordFrequency object that doesn't support len())
+            try:
+                test_result = self._spellchecker.known(['the', 'test'])
+                if not test_result:
+                    print(f"SpellChecker: Dictionary appears empty for {target_lang}")
+                    self._spellchecker = None
+                    return False
+            except Exception:
+                # If known() fails, the spellchecker is likely broken
+                self._spellchecker = None
+                return False
+            
+            return True
+        except Exception as e:
+            print(f"SpellChecker initialization failed for {lang_code}: {e}")
+            self._spellchecker = None
+            return False
+    
+    def check_word(self, word: str) -> bool:
+        """
+        Check if a word is spelled correctly.
+        
+        Args:
+            word: The word to check
+            
+        Returns:
+            True if the word is correct, False if misspelled
+        """
+        if not self.enabled:
+            return True
+        
+        if not word or len(word) < 2:
+            return True
+        
+        # Normalize word
+        word_lower = word.lower()
+        
+        # Check cache
+        if word_lower in self._word_cache:
+            return self._word_cache[word_lower]
+        
+        # Check custom words
+        if word_lower in self._custom_words:
+            self._word_cache[word_lower] = True
+            return True
+        
+        # Check ignored words (session only)
+        if word_lower in self._ignored_words:
+            self._word_cache[word_lower] = True
+            return True
+        
+        # Skip if it looks like a number, tag, or special text
+        if self._should_skip_word(word):
+            self._word_cache[word_lower] = True
+            return True
+        
+        # Check with spell checker
+        is_correct = False
+        
+        if self._hunspell:
+            try:
+                is_correct = self._hunspell.spell(word)
+            except Exception:
+                is_correct = True  # Fail open
+        elif self._spellchecker:
+            try:
+                # pyspellchecker returns None for known words
+                is_correct = word_lower in self._spellchecker
+            except Exception:
+                is_correct = True
+        else:
+            is_correct = True  # No spell checker available
+        
+        self._word_cache[word_lower] = is_correct
+        return is_correct
+    
+    def _should_skip_word(self, word: str) -> bool:
+        """Check if a word should be skipped (numbers, tags, etc.)"""
+        # Skip numbers
+        if re.match(r'^[\d.,]+$', word):
+            return True
+        
+        # Skip words with numbers mixed in (like serial numbers)
+        if re.search(r'\d', word):
+            return True
+        
+        # Skip single characters
+        if len(word) < 2:
+            return True
+        
+        # Skip ALL CAPS (likely acronyms)
+        if word.isupper() and len(word) <= 5:
+            return True
+        
+        # Skip HTML/XML-like tags
+        if word.startswith('<') or word.endswith('>'):
+            return True
+        
+        # Skip words starting with special characters
+        if word[0] in '@#$%&':
+            return True
+        
+        return False
+    
+    def get_suggestions(self, word: str, max_suggestions: int = 5) -> List[str]:
+        """
+        Get spelling suggestions for a misspelled word.
+        
+        Args:
+            word: The misspelled word
+            max_suggestions: Maximum number of suggestions to return
+            
+        Returns:
+            List of suggested corrections
+        """
+        if self._hunspell:
+            try:
+                suggestions = self._hunspell.suggest(word)
+                return suggestions[:max_suggestions]
+            except Exception:
+                return []
+        elif self._spellchecker:
+            try:
+                # Get candidates sorted by likelihood
+                candidates = self._spellchecker.candidates(word.lower())
+                if candidates:
+                    return list(candidates)[:max_suggestions]
+            except Exception:
+                return []
+        
+        return []
+    
+    def add_to_dictionary(self, word: str):
+        """
+        Add a word to the custom dictionary (persistent).
+        
+        Args:
+            word: The word to add
+        """
+        word_lower = word.lower()
+        self._custom_words.add(word_lower)
+        self._word_cache[word_lower] = True
+        self._save_custom_words()
+        
+        # Also add to Hunspell session if available
+        if self._hunspell:
+            try:
+                self._hunspell.add(word)
+            except Exception:
+                pass
+    
+    def ignore_word(self, word: str):
+        """
+        Ignore a word for the current session only.
+        
+        Args:
+            word: The word to ignore
+        """
+        word_lower = word.lower()
+        self._ignored_words.add(word_lower)
+        self._word_cache[word_lower] = True
+    
+    def remove_from_dictionary(self, word: str):
+        """
+        Remove a word from the custom dictionary.
+        
+        Args:
+            word: The word to remove
+        """
+        word_lower = word.lower()
+        self._custom_words.discard(word_lower)
+        self._word_cache.pop(word_lower, None)
+        self._save_custom_words()
+    
+    def get_custom_words(self) -> List[str]:
+        """Get all custom dictionary words"""
+        return sorted(self._custom_words)
+    
+    def check_text(self, text: str) -> List[Tuple[int, int, str]]:
+        """
+        Check text and return list of misspelled words with positions.
+        
+        Args:
+            text: The text to check
+            
+        Returns:
+            List of (start_pos, end_pos, word) tuples for misspelled words
+        """
+        if not self.enabled or not text:
+            return []
+        
+        misspelled = []
+        
+        # Find all words with their positions
+        # This regex finds word boundaries properly
+        word_pattern = re.compile(r'\b([a-zA-ZÀ-ÿ]+)\b', re.UNICODE)
+        
+        for match in word_pattern.finditer(text):
+            word = match.group(1)
+            if not self.check_word(word):
+                start = match.start(1)
+                end = match.end(1)
+                misspelled.append((start, end, word))
+        
+        return misspelled
+    
+    def get_available_languages(self) -> List[str]:
+        """Get list of available dictionary languages"""
+        available = []
+        
+        # Check user dictionaries
+        if self.dictionaries_path.exists():
+            for dic_file in self.dictionaries_path.glob("*.dic"):
+                lang_code = dic_file.stem
+                lang_name = self.CODE_TO_LANGUAGE.get(lang_code, lang_code)
+                if lang_name not in available:
+                    available.append(lang_name)
+        
+        # Add pyspellchecker languages if available
+        if HAS_SPELLCHECKER:
+            for code, name in [('en', 'English'), ('es', 'Spanish'), 
+                               ('de', 'German'), ('fr', 'French'), ('pt', 'Portuguese'),
+                               ('nl', 'Dutch'), ('it', 'Italian'), ('ru', 'Russian')]:
+                if name not in available:
+                    available.append(name)
+        
+        return sorted(available)
+    
+    def get_current_language(self) -> Optional[str]:
+        """Get the current spellcheck language"""
+        if self._current_language:
+            return self.CODE_TO_LANGUAGE.get(self._current_language, self._current_language)
+        return None
+    
+    def clear_cache(self):
+        """Clear the word check cache"""
+        self._word_cache.clear()
+    
+    def is_available(self) -> bool:
+        """Check if spellchecking is available"""
+        return HAS_HUNSPELL or HAS_SPELLCHECKER
+    
+    def is_ready(self) -> bool:
+        """Check if spellchecking is initialized and ready to use"""
+        return self._hunspell is not None or self._spellchecker is not None
+    
+    def get_backend_info(self) -> str:
+        """Get information about the spellcheck backend"""
+        if self._hunspell:
+            return f"Hunspell ({self._current_language})"
+        elif self._spellchecker:
+            return f"pyspellchecker ({self._current_language})"
+        elif HAS_HUNSPELL:
+            return "Hunspell (not initialized - call set_language first)"
+        elif HAS_SPELLCHECKER:
+            return "pyspellchecker (not initialized - call set_language first)"
+        else:
+            return "No spellcheck backend available"
+    
+    def get_diagnostics(self) -> dict:
+        """Get diagnostic information about the spellcheck system"""
+        info = {
+            'hunspell_available': HAS_HUNSPELL,
+            'pyspellchecker_available': HAS_SPELLCHECKER,
+            'pyspellchecker_import_error': SPELLCHECKER_IMPORT_ERROR,
+            'hunspell_initialized': self._hunspell is not None,
+            'pyspellchecker_initialized': self._spellchecker is not None,
+            'current_language': self._current_language,
+            'enabled': self.enabled,
+            'custom_words_count': len(self._custom_words),
+            'ignored_words_count': len(self._ignored_words),
+            'cache_size': len(self._word_cache),
+            'dictionaries_path': str(self.dictionaries_path),
+        }
+        
+        # Check if pyspellchecker word frequency data is available
+        if self._spellchecker and hasattr(self._spellchecker, 'word_frequency'):
+            # WordFrequency doesn't support len(), use alternative method
+            try:
+                # Try to get count via the keys() method if available
+                wf = self._spellchecker.word_frequency
+                if hasattr(wf, 'keys'):
+                    info['pyspellchecker_word_count'] = len(list(wf.keys())[:1000])  # Sample size
+                else:
+                    info['pyspellchecker_word_count'] = "available"
+            except:
+                info['pyspellchecker_word_count'] = "available"
+        
+        return info
+
+
+# Singleton instance
+_spellcheck_manager: Optional[SpellcheckManager] = None
+
+
+def get_spellcheck_manager(user_data_path: str = None) -> SpellcheckManager:
+    """Get or create the global spellcheck manager instance"""
+    global _spellcheck_manager
+    if _spellcheck_manager is None:
+        _spellcheck_manager = SpellcheckManager(user_data_path)
+    return _spellcheck_manager
