@@ -1,0 +1,132 @@
+name: Build and Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    name: Build wheels & sdist
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
+#      CIBW_SKIP: "pp* *-musllinux_*"
+#      CIBW_BUILD_VERBOSITY: 1
+
+    steps:
+      - name: Checkout repository and submodules
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      #################################################################
+      # LINUX + macOS: cibuildwheel
+      #################################################################
+      - name: Set up Python (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install build tools (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          python -m pip install --upgrade pip
+          pip install build cibuildwheel mypy flake8
+
+      - name: Lint & type-check (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          mypy --strict
+          flake8
+
+      - name: Build wheels (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: cibuildwheel --output-dir dist
+
+      #################################################################
+      # WINDOWS: Build with MinGW (avoids MSVC incompatibilities)
+      #################################################################
+      - name: Install MSYS2 + MinGW
+        if: matrix.os == 'windows-latest'
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-python
+            git
+
+      - name: Build wheel (Windows via MinGW)
+        if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        env:
+          XNAME: ${{ github.ref_name }}
+        run: |
+          VENV_PATH=$(cygpath -u "$PWD/venv")
+          python3 -m venv "$VENV_PATH"
+          source "$VENV_PATH/bin/activate"
+          XVERSION=${XNAME#v}
+          export SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CERT_UEFI_SUPPORT="$XVERSION"
+          python3.exe -m pip install --upgrade pip || true
+          python -m pip install --upgrade build
+          python -m build --wheel --outdir dist
+          cd dist
+          for whl in *.whl; do
+              newwhl=$(echo "$whl" | sed 's/mingw_x86_64_msvcrt_gnu/win_amd64/')
+              mv "$whl" "$newwhl"
+              echo "$whl" "$newwhl"
+          done
+
+      #################################################################
+      # Source Distribution (only once)
+      #################################################################
+      - name: Build source distribution (Linux only)
+        if: matrix.os == 'ubuntu-latest'
+        run: python -m build --sdist --outdir dist
+
+      #################################################################
+      # Upload Artifacts
+      #################################################################
+      - name: Upload built artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist-${{ matrix.os }}
+          path: dist/*
+
+
+  publish:
+    name: Publish to PyPI via Trusted Publishing
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: python-dist-*
+          path: dist
+          merge-multiple: true
+
+      - name: Update Packaging Tools
+        run: python -m pip install --upgrade twine pkginfo
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: false

@@ -1,0 +1,19 @@
+
+import io
+from typing import Optional
+
+class File(object):
+    def next(self) -> Optional['File']: ...
+    def data(self, buffer: io.BytesIO) -> io.BytesIO: ...
+    info: tuple[str, int, int, tuple[int, int, int, int, int, int]]
+
+class Cabinet(object):
+    def first_file(self) -> Optional[File]: ...
+    def next(self) -> Optional[File]: ...
+
+class Decompressor(object):
+    def __init__(self) -> None: ...
+    def open(self, file: io.IOBase) -> Cabinet: ...
+
+class Error(Exception):
+    pass

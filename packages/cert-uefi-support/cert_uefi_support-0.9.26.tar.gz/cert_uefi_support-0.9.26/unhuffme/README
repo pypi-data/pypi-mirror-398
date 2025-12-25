@@ -1,0 +1,64 @@
+unhuffme v.2.4 compiled from https://io.netgarage.org/me/
+
+Unhuffme v2.4 by bla <blapost@gmail.com>
+
+This tool will attempt to extract and decompress the ME code
+modules out of an SPI flash dump.
+
+If the subdirectory mod/ does not exists it will be created.
+Files with an identical filename in this directory will be
+overwritten without prompt.
+
+Output files are named: [module name]-[loadbase].mod[.lzma]
+for example: KERNEL-2017c000.mod, Pavp-2004c000.mod.lzma
+If the module was compressed with lzma the compressed code
+is dumped, it can be decompressed using standard utilities.
+For example: unlzma mod/*
+The code is not relocatable, loadbase is the virtual address
+where the module would get loaded. 
+
+The first part of the output on the terminal contains
+information on the structure of the dump provided. The last 
+part of the output show the progress of decompression. It
+has the format: [module name] [sha256 hash] [status] 
+The sha256 hash is the one found in the rsa signed manifest.
+The status field can be:
+- plain:      the module was stored in plaintext. only the
+              UPDATE module is typically stored this way.
+- lzma:       the module was stored with lzma. the hash is
+              not checked.
+- MATCH:      the module was stored with the custom scheme
+              and after decompression matches the hash.
+- incomplete: the module was stored with the custom 
+              scheme, and doesn't decompress to hash.
+
+If any module other than VE_FW_NAND fails, please provide
+a copy of your dump.
+
+Unhuffme will attempt to parse a number of file formats. 
+- a full dump starting with the 0ff0a55a magic of a flash 
+  descriptor. 
+- only the ME region of spi flah starting 16 bytes before "$FPT"
+  magic. 
+- an update format most often seen in v6 bios updates consisting 
+  out of an UPDP partition with an UPDATE module.
+
+If all this fails the tool will fall back to scanning for 
+manifest headers at 4 byte aligned offsets "$MNE". A message
+will be printed when the fallback is used. Decompression will
+fail if there are custom scheme compressed modules in a
+partition without local lookup table ("LLUT")
+
+Unhuffme v2.4 unpacks code modules from
+- ME versions 6 through 10
+- SPS ME version 3.x 
+
+Indispensable help by:
+        Igor Skochinsky
+        phcoder
+        Corey Kallenberg
+        Xeno Kovah
+        Rafal Wojtczuk
+
+
+--bla <blapost@gmail.com> March 2017
