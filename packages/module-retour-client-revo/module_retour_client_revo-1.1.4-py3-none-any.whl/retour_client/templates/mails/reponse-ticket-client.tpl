@@ -1,0 +1,1 @@
+<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>Bonjour,<br><br>Nous avons apporté une réponse à votre demande suivante :<br>{{ reponse_bug.retour_client.titre }}<br><br>Réponse:<br>{{ reponse_bug.reponse|safe }}<br><br>Bien cordialement,<br><br>L'équipe Revolucy<br></body></html>

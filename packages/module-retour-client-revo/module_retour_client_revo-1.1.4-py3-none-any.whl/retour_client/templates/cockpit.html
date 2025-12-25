@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Cockpit - Statistiques Tickets</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        body {
+            background: #f5f5f5;
+            color: #333;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+        header {
+            background: #0711c1;
+            padding: 15px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        header .logorevo {
+            height: 40px;
+        }
+        header h1 {
+            font-size: 1.5rem;
+            margin: 0;
+            color: #fff;
+        }
+        header nav a {
+            color: #fff;
+            text-decoration: none;
+            margin-left: 20px;
+            padding: 8px 16px;
+            border-radius: 5px;
+            background: #e63363;
+            transition: background 0.3s;
+        }
+        header nav a:hover {
+            background: #c42a54;
+        }
+        .dashboard {
+            padding: 30px;
+        }
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .kpi-card {
+            background: #fff;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(230, 51, 99, 0.15);
+        }
+        .kpi-card .value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #e63363;
+        }
+        .kpi-card .label {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+        }
+        .kpi-card.success .value { color: #28a745; }
+        .kpi-card.warning .value { color: #e8b019; }
+        .kpi-card.danger .value { color: #dc3545; }
+        .kpi-card.info .value { color: #17a2b8; }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        .chart-card {
+            background: #fff;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
+        }
+        .chart-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            color: #e63363;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 10px;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        .chart-container-small {
+            position: relative;
+            height: 250px;
+        }
+
+        .tables-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+        }
+        .table-card {
+            background: #fff;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
+        }
+        .table-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            color: #e63363;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 10px;
+        }
+        .table-card table {
+            width: 100%;
+        }
+        .table-card th {
+            color: #666;
+            font-weight: normal;
+            font-size: 0.85rem;
+            text-align: left;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .table-card td {
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 0.9rem;
+            color: #333;
+        }
+        .table-card td.count {
+            text-align: right;
+            font-weight: bold;
+            color: #e63363;
+        }
+        .table-card .url {
+            max-width: 250px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            color: #e63363;
+            margin: 30px 0 20px;
+            padding-left: 15px;
+            border-left: 4px solid #e63363;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <div style="display: flex; align-items: center; gap: 20px;">
+        <img src="https://revolucy.fr/wp-content/uploads/2022/02/RVL_logo_quadri_horizontal_blanc.png" alt="Logo Revolucy" class="logorevo">
+        <h1>Cockpit Statistiques</h1>
+    </div>
+    <nav>
+        <a href="{% url 'retour_client:pipeline_retours' %}">Pipeline</a>
+        <a href="{% url 'retour_client:kanban_retours' %}">Kanban</a>
+    </nav>
+</header>
+
+<div class="dashboard">
+    <!-- KPIs principaux -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="value">{{ total_tickets }}</div>
+            <div class="label">Total Tickets</div>
+        </div>
+        <div class="kpi-card danger">
+            <div class="value">{{ tickets_en_attente }}</div>
+            <div class="label">En attente</div>
+        </div>
+        <div class="kpi-card warning">
+            <div class="value">{{ tickets_en_cours }}</div>
+            <div class="label">En cours</div>
+        </div>
+        <div class="kpi-card success">
+            <div class="value">{{ tickets_valides }}</div>
+            <div class="label">Validés</div>
+        </div>
+        <div class="kpi-card info">
+            <div class="value">{{ taux_resolution }}%</div>
+            <div class="label">Taux de résolution</div>
+        </div>
+        <div class="kpi-card danger">
+            <div class="value">{{ tickets_critiques }}</div>
+            <div class="label">Critiques non résolus</div>
+        </div>
+        <div class="kpi-card">
+            <div class="value">{{ tickets_cette_semaine }}</div>
+            <div class="label">Cette semaine</div>
+        </div>
+        <div class="kpi-card info">
+            <div class="value">{{ temps_total_passe }}H</div>
+            <div class="label">Temps total passé</div>
+        </div>
+    </div>
+
+    <!-- Graphiques principaux -->
+    <h2 class="section-title">Évolution</h2>
+    <div class="charts-grid">
+        <div class="chart-card" style="grid-column: span 2;">
+            <h3>Évolution mensuelle des tickets (12 derniers mois)</h3>
+            <div class="chart-container">
+                <canvas id="evolutionChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graphiques de répartition -->
+    <h2 class="section-title">Répartition</h2>
+    <div class="charts-grid">
+        <div class="chart-card">
+            <h3>Répartition par statut</h3>
+            <div class="chart-container-small">
+                <canvas id="statutChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card">
+            <h3>Répartition par type</h3>
+            <div class="chart-container-small">
+                <canvas id="typeChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card">
+            <h3>Répartition par priorité</h3>
+            <div class="chart-container-small">
+                <canvas id="prioriteChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tableaux -->
+    <h2 class="section-title">Détails</h2>
+    <div class="tables-grid">
+        <div class="table-card">
+            <h3>Top 5 - Pages avec le plus de tickets</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>URL</th>
+                        <th style="text-align: right;">Tickets</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for page in top_pages %}
+                    <tr>
+                        <td class="url" title="{{ page.lien_url }}">{{ page.lien_url }}</td>
+                        <td class="count">{{ page.count }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="2">Aucune donnée</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="table-card">
+            <h3>Top 5 - Utilisateurs les plus actifs</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Utilisateur</th>
+                        <th style="text-align: right;">Tickets</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in top_users %}
+                    <tr>
+                        <td>{{ user.utilisateur }}</td>
+                        <td class="count">{{ user.count }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="2">Aucune donnée</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Configuration globale Chart.js (mode clair)
+    Chart.defaults.color = '#666';
+    Chart.defaults.borderColor = '#e0e0e0';
+
+    // Graphique évolution mensuelle
+    const evolutionCtx = document.getElementById('evolutionChart').getContext('2d');
+    new Chart(evolutionCtx, {
+        type: 'line',
+        data: {
+            labels: {{ mois_labels|safe }},
+            datasets: [{
+                label: 'Tickets créés',
+                data: {{ mois_data|safe }},
+                borderColor: '#e63363',
+                backgroundColor: 'rgba(230, 51, 99, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: '#e63363',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 5
+            }, {
+                label: 'Tickets validés',
+                data: {{ mois_resolus_data|safe }},
+                borderColor: '#34eba1',
+                backgroundColor: 'rgba(52, 235, 161, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: '#34eba1',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: '#e0e0e0'
+                    }
+                },
+                x: {
+                    grid: {
+                        color: '#e0e0e0'
+                    }
+                }
+            }
+        }
+    });
+
+    // Graphique statut (doughnut)
+    const statutCtx = document.getElementById('statutChart').getContext('2d');
+    new Chart(statutCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ statut_labels|safe }},
+            datasets: [{
+                data: {{ statut_data|safe }},
+                backgroundColor: [
+                    '#d46060',  // En attente
+                    '#e8b019',  // En cours
+                    '#c3eb34',  // Traité
+                    '#34eba1',  // Validé
+                    '#48cae4',  // V2
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                }
+            }
+        }
+    });
+
+    // Graphique type (doughnut)
+    const typeCtx = document.getElementById('typeChart').getContext('2d');
+    new Chart(typeCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ type_labels|safe }},
+            datasets: [{
+                data: {{ type_data|safe }},
+                backgroundColor: [
+                    '#e63363',  // Bug
+                    '#48cae4',  // Question
+                    '#34eba1',  // Amélioration
+                    '#a0a0a0',  // Non classé
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                }
+            }
+        }
+    });
+
+    // Graphique priorité (bar)
+    const prioriteCtx = document.getElementById('prioriteChart').getContext('2d');
+    new Chart(prioriteCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ priorite_labels|safe }},
+            datasets: [{
+                label: 'Tickets',
+                data: {{ priorite_data|safe }},
+                backgroundColor: [
+                    '#e63363',  // Critique
+                    '#48cae4',  // Normal
+                    '#34eba1',  // Non urgent
+                ],
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: '#e0e0e0'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+</script>
+</body>
+</html>
