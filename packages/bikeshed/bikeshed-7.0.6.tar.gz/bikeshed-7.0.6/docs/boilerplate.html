@@ -1,0 +1,332 @@
+<!doctype html><html lang="en">
+ <head>
+  <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+  <title>Bikeshed Documentation</title>
+  <meta content="width=device-width, initial-scale=1, shrink-to-fit=no" name="viewport">
+<style data-fill-with="stylesheet"></style>
+ <body class="h-entry">
+  <div class="head">
+   <p data-fill-with="logo"></p>
+   <h1 class="no-ref p-name" id="title">Bikeshed Documentation</h1>
+   <h2 class="no-num no-ref no-toc" id="profile-and-date">Living Standard,
+    <time class="dt-updated" datetime="2025-12-19">19 December 2025</time></h2>
+   <div data-fill-with="spec-metadata"></div>
+   <div data-fill-with="warning"></div>
+   <p class="copyright" data-fill-with="copyright"></p>
+   <hr title="Separator for header">
+  </div>
+  <div class="p-summary" data-fill-with="abstract"></div>
+  <div data-fill-with="at-risk"></div>
+  <nav data-fill-with="multipage-table-of-contents" id="toc"></nav>
+  <main>
+   <p>The processor automatically generates nearly all of a spec’s boilerplate,
+the text that is repeated nearly identically across all specs.</p>
+   <p>Generally, you won’t need to understand what’s going on here
+in order to use the processor—​it’ll just automatically do the right thing
+as long as your <a data-link-type="dfn" href="#doctype" id="ref-for-doctype">doctype</a>
+(the <a data-link-type="dfn" href="#metadata-org" id="ref-for-metadata-org①③">Org</a>, <a data-link-type="dfn" href="#metadata-group" id="ref-for-metadata-group①⑤">Group</a>, and <a data-link-type="dfn" href="#metadata-status" id="ref-for-metadata-status①④">Status</a> metadatas)
+is set correctly.</p>
+   <p>For help in creating <em>new</em> boilerplate files for your organization, see <a href="#bp-new">§ 13.6 Creating New Boilerplate Files For Your Organization</a>.</p>
+   <h3 class="heading settled" data-level="13.1" id="rearranging-metadata"><span class="secno">13.1. </span><span class="content">Rearranging and Excluding "Spec Metadata"</span><a class="self-link" href="#rearranging-metadata"></a></h3>
+   <p>An important part of the boilerplate is the "spec-metadata" section.
+This will likely be at the top of your header boilerplate,
+as it contains a bunch of useful information about your spec.</p>
+   <p>Bikeshed generates a lot of these automatically for you,
+based on the metadata you provide
+and other things detected from your document,
+and you can supply "custom" items
+as specified near the end of <a href="#metadata">§ 4 Metadata</a>.
+There’s a predefined ordering of these,
+but if you’d like a slightly different order,
+or to omit some of the automatically-generated items,
+you can use <a data-link-type="dfn" href="#metadata-metadata-include" id="ref-for-metadata-metadata-include">Metadata Include</a> and <a data-link-type="dfn" href="#metadata-metadata-order" id="ref-for-metadata-metadata-order">Metadata Order</a> to control this.</p>
+   <p><a data-link-type="dfn" href="#metadata-metadata-include" id="ref-for-metadata-metadata-include①">Metadata Include</a> takes a comma-separated list of names and <a data-link-type="dfn" href="#boolish" id="ref-for-boolish②②">boolish</a> values,
+where the names are the strings that show up in the <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/grouping-content.html#the-dt-element" id="ref-for-the-dt-element②">dt</a></code> in the spec metadata.
+Everything defaults to "on" currently,
+but you can explicitly turn them "off" to omit them from the spec metadata section.</p>
+   <p><a data-link-type="dfn" href="#metadata-metadata-order" id="ref-for-metadata-metadata-order①">Metadata Order</a> instead controls the ordering of the spec metadata section.
+It’s a comma-separated list of names,
+where the names are the strings that show up in the <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/grouping-content.html#the-dt-element" id="ref-for-the-dt-element③">dt</a></code> in the spec metadata
+(same as <a data-link-type="dfn" href="#metadata-metadata-include" id="ref-for-metadata-metadata-include②">Metadata Include</a>).
+Two special "names" are recognized as well:
+the <code class="highlight">*</code> name stands in for "all the standard keys that aren’t otherwise explicitly specified",
+while <code class="highlight">!*</code> stands in for "all the custom keys that aren’t otherwise explicitly specified".
+(The default value is thus <code class="highlight">Metadata Order: *, !*</code>,
+listing all the standard keys in the default order,
+followed by all the custom keys in the default order.)</p>
+   <p>If a name is specially pluralized when there are multiple entries
+(such as "Editor" vs "Editors"),
+use the singular version in either of these metadatas.</p>
+   <div class="example" id="example-a9b1de37">
+    <a class="self-link" href="#example-a9b1de37"></a>
+	For example, <code class="highlight">Metadata Include: This version off</code>
+	will make Bikeshed omit the "This version" entry from the spec-metadata section,
+	which is otherwise auto-generated by the <a data-link-type="dfn" href="#metadata-ed" id="ref-for-metadata-ed①">ED</a> metadata.
+
+
+    <p>If you wanted to make sure that editors were listed before anything else,
+	you could set <code class="highlight">Metadata Order: Editor, *, !*</code>.</p>
+   </div>
+   <h3 class="heading settled" data-level="13.2" id="conditional"><span class="secno">13.2. </span><span class="content">Conditional Inclusion</span><a class="self-link" href="#conditional"></a></h3>
+   <p>If you have multiple boilerplate files for publishing with different document statuses
+(like WD vs CR),
+but the only difference is that some sections are added/omitted between them,
+you can greatly simplify things by instead making a generic boilerplate for everything,
+and then adding/removing the variant bits with a <em>conditional inclusion</em>.</p>
+   <p>To mark an element as "conditionally included",
+put an <dfn class="dfn-paneled" data-dfn-for="global" data-dfn-type="element-attr" data-export id="element-attrdef-global-include-if"><code class="highlight">include-if</code></dfn> and/or <dfn class="dfn-paneled" data-dfn-for="global" data-dfn-type="element-attr" data-export id="element-attrdef-global-exclude-if"><code class="highlight">exclude-if</code></dfn> attribute on it,
+each of which takes a comma-separated list of inclusion conditions.</p>
+   <ul>
+    <li data-md>
+     <p>If an element has <code><a data-link-type="element-sub" href="#element-attrdef-global-include-if" id="ref-for-element-attrdef-global-include-if">include-if</a></code>, it will included only if it matches at least one of the conditions.</p>
+    <li data-md>
+     <p>If an element has <code><a data-link-type="element-sub" href="#element-attrdef-global-exclude-if" id="ref-for-element-attrdef-global-exclude-if">exclude-if</a></code>, it will be included only if it matches <em>none</em> of the conditions.</p>
+    <li data-md>
+     <p>If an element has both, it will be included only if it passes the inclusion criteria for both.</p>
+   </ul>
+   <p>An element that fails will be removed from the output entirely, along with its contents.</p>
+   <p>Inclusion conditions can be:</p>
+   <ul>
+    <li data-md>
+     <p>A <a data-link-type="dfn" href="#metadata-status" id="ref-for-metadata-status①⑤">Status</a> value, like <code class="highlight">w3c/ED</code> or <code class="highlight">LS</code>,
+so you can include/exclude text for certain publication statuses only.</p>
+    <li data-md>
+     <p>The existence of a custom text macro (defined by the <a data-link-type="dfn" href="#metadata-text-macro" id="ref-for-metadata-text-macro⑤">Text Macro</a> metadata),
+keyed by the text macro name,
+like <code class="highlight">text macro: FOO</code> to match a <code class="highlight">Text Macro: FOO here’s a custom text macro</code> metadata,
+so you can include text that uses a custom text macro only if that macro is defined.</p>
+     <p class="note" role="note"><span class="marker">Note:</span> For technical reasons, text macros are substituted <em>before</em> conditionals can be evaluated.
+If you’re conditioning an element on the existence of a text macro
+so you can use that macro only when it is defined,
+make sure the text macro is marked as <em>optional</em> when you use it
+(written as <code class="highlight">[FOO?]</code> rather than just <code class="highlight">[FOO]</code>),
+so it doesn’t trigger an "unknown text macro" error
+before throwing away the element anyway.</p>
+    <li data-md>
+     <p>The existence of a <a href="#overriding-boilerplate">custom boilerplate element</a> in the document,
+keyed by the boilerplate name,
+like <code class="highlight">boilerplate: FOO</code> to match a <code class="highlight"><c- p>&lt;</c-><c- f>div</c-> <c- e>boilerplate</c-><c- o>=</c-><c- s>FOO</c-><c- p>></c->...<c- p>&lt;/</c-><c- f>div</c-><c- p>></c-></code> element,
+so you can include text that pulls in a custom boilerplate only if that boilerplate is present.</p>
+   </ul>
+   <hr>
+   <p>Normally the conditional attributes go on an existing element in your page,
+which’ll show up in the output assuming it passes the tests.
+If there’s not a natural wrapper element,
+or adding such an element would mess with the semantics or styling of the page,
+you can instead wrap the conditional content in an <dfn class="dfn-paneled" data-dfn-type="element" data-export id="elementdef-if-wrapper"><code class="highlight">if-wrapper</code></dfn> element.</p>
+   <p>The <code><a data-link-type="element" href="#elementdef-if-wrapper" id="ref-for-elementdef-if-wrapper">if-wrapper</a></code> element is a standard block-level element that can contain any flow markup.
+It <strong>must</strong> have one of the conditional attributes.
+If it fails the conditions, it and its contents are removed from the document, as normal;
+if it <em>passes</em> the conditions, <em>it</em> is still removed from the document,
+but its children are left behind in its place.</p>
+   <div class="note" role="note">
+    
+	<code><a data-link-type="element" href="#elementdef-if-wrapper" id="ref-for-elementdef-if-wrapper①">if-wrapper</a></code> is still parsed as a standard unknown "custom" element by the HTML parser,
+	and so can only appear in places where such elements are allowed;
+	it cannot, for example, be used in the <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/semantics.html#the-head-element" id="ref-for-the-head-element">head</a></code> of a document,
+	or as a child of <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/tables.html#the-table-element" id="ref-for-the-table-element②">table</a></code>.
+
+
+    <p>It’s also considered "block level" by the Markdown parser.
+	It <em>can</em> be used inline in text
+	(tho you probably want to instead make the entire block conditional,
+	for readability/editability),
+	but it won’t parse as intended if it’s the very first content in a paragraph.</p>
+   </div>
+   <h3 class="heading settled" data-level="13.3" id="bp-sections"><span class="secno">13.3. </span><span class="content">Boilerplate Sections</span><a class="self-link" href="#bp-sections"></a></h3>
+   <p>The location of the boilerplate sections are indicated by elements with <code class="highlight">data-fill-with=''</code> attributes.
+If the elements contain anything, they’re emptied before being filled with the appropriate boilerplate.
+The valid <code class="highlight">data-fill-with=''</code> values are:</p>
+   <ul>
+    <li data-md>
+     <p>"table-of-contents" for the ToC</p>
+    <li data-md>
+     <p>"spec-metadata" for the <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/grouping-content.html#the-dl-element" id="ref-for-the-dl-element②">dl</a></code> of spec data that’s in the header of all of our specs</p>
+    <li data-md>
+     <p>"abstract" for the spec’s abstract</p>
+    <li data-md>
+     <p>"status" for the status section</p>
+    <li data-md>
+     <p>"logo" for the W3C logo</p>
+    <li data-md>
+     <p>"copyright" for the W3C copyright statement</p>
+    <li data-md>
+     <p>"warning" for the relevant spec warning, if one was indicated in the metadata.</p>
+    <li data-md>
+     <p>"references" for the bibliography refs</p>
+    <li data-md>
+     <p>"index" for the index of terms (all the <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-dfn-element" id="ref-for-the-dfn-element②④">dfn</a></code> elements in the spec)</p>
+    <li data-md>
+     <p>"property-index" for the table summarizing all properties defined in the spec</p>
+    <li data-md>
+     <p>"idl-index"</p>
+    <li data-md>
+     <p>"cddl-index"</p>
+    <li data-md>
+     <p>"issues-index"</p>
+   </ul>
+   <p>Additionally, "header" and "footer" boilerplate files are used to put content at the start and end of your document.
+Most or all of the above boilerplate sections should actually show up here, in the header and footer,
+rather than being manually specified in your source file.</p>
+   <h4 class="heading settled" data-level="13.3.1" id="default-boilerplate"><span class="secno">13.3.1. </span><span class="content">Default Boilerplate</span><a class="self-link" href="#default-boilerplate"></a></h4>
+   <p>Some sections listed above are generated <em>by default</em>;
+if you don’t put an explicitly <code class="highlight">data-fill-with</code> container in your document,
+they’ll generate anyway (if they have anything to fill themselves with),
+appending themselves to the end of the <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/sections.html#the-body-element" id="ref-for-the-body-element">body</a></code>.
+These sections are:</p>
+   <ul>
+    <li data-md>
+     <p>all of the indexes: "index", "property-index", "idl-index", "cddl-index" and "issues-index"</p>
+    <li data-md>
+     <p>"references"</p>
+   </ul>
+   <p>Again, these will only auto-generate if there is something for them to do;
+if your spec doesn’t define any CSS properties, for example,
+the "property-index" boilerplate won’t generate.
+If you want to suppress their generation even when they do have something to do,
+use the <a data-link-type="dfn" href="#metadata-boilerplate" id="ref-for-metadata-boilerplate">Boilerplate</a> metadata, like:</p>
+<pre class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>"metadata"</c-><c- p>></c->
+Boilerplate: idl-index no, property-index no
+<c- p>&lt;/</c-><c- f>pre</c-><c- p>></c->
+</pre>
+   <h4 class="heading settled" data-level="13.3.2" id="overriding-boilerplate"><span class="secno">13.3.2. </span><span class="content">Custom/Overriding Boilerplate</span><a class="self-link" href="#overriding-boilerplate"></a></h4>
+   <p>Sometimes a file-based boilerplate (see below) that is appropriate for most of the specs in your group
+isn’t quite right for your specific spec.
+Any boilerplate, file-based or Bikeshed-generated,
+can be overridden by custom text of your choosing.
+Just add an element to your source document with the content you’d like to show up in place of the offending boilerplate,
+and add a <code class="highlight">boilerplate="foo"</code> attribute to the container,
+specifying which boilerplate section is being replaced.</p>
+   <p>Bikeshed will automatically remove that element from your document,
+and instead inject its contents in place of the boilerplate that it would normally provide.</p>
+   <p>The <code class="highlight">boilerplate</code> attribute isn’t limited to just the predefined boilerplate section names;
+you can supply whatever section name you want,
+and if there’s a <code class="highlight">data-fill-with</code> attribute somewhere in the document with the same name,
+the element’s contents will be moved there.</p>
+   <h3 class="heading settled" data-level="13.4" id="table-of-contents"><span class="secno">13.4. </span><span class="content">Table of Contents</span><a class="self-link" href="#table-of-contents"></a></h3>
+   <p>The headings in the spec are automatically numbered,
+and a table of contents automatically generated.</p>
+   <p>Any heading <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/sections.html#the-h2-element" id="ref-for-the-h2-element①">h2</a></code> to <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/sections.html#the-h6-element" id="ref-for-the-h6-element①">h6</a></code>
+(that is, skipping only the document-titling <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/sections.html#the-h1-element" id="ref-for-the-h1-element⑤">h1</a></code>)
+is automatically numbered by having a <code class="highlight"><c- p>&lt;</c-><c- f>span</c-> <c- e>class</c-><c- o>=</c-><c- s>'secno'</c-><c- p>></c->...<c- p>&lt;/</c-><c- f>span</c-><c- p>></c-></code>
+prepended to its contents.
+You can avoid this behavior for a heading and all of its subsequent subheadings
+by adding <code class="highlight">class="no-num"</code> to the heading.</p>
+   <p>Similarly, a ToC is generated to match.
+Headings and their subheadings can be omitted from the ToC
+by adding <code class="highlight">class="no-toc"</code> to them.</p>
+   <p>Headings also automatically gain a self-link pointing to themselves,
+to enable people to easily link to sections without having to return to the ToC.</p>
+   <h3 class="heading settled" data-level="13.5" id="bp-include"><span class="secno">13.5. </span><span class="content">File-based Includes</span><a class="self-link" href="#bp-include"></a></h3>
+   <p>Several of the data-fill-with values
+(those that are static, rather than generated from in-document data)
+actually come from sets of .include files
+in the <a href="https://github.com/speced/bikeshed-boilerplate/"><code class="highlight">bikeshed-data</code> project</a>.</p>
+   <p>The base files are simply named "foo.include",
+where "foo" is the name of the data-fill-with value.
+They can be specialized, however,
+to particular working groups,
+and to particular document statuses.</p>
+   <p>Putting the boilerplate in a folder named after the group,
+like <code class="highlight">csswg/header.include</code>,
+specializes it for that <a data-link-type="dfn" href="#metadata-group" id="ref-for-metadata-group①⑥">Group</a>.
+Adding a "-STATUS" to the filename specializes it for the <a data-link-type="dfn" href="#metadata-status" id="ref-for-metadata-status①⑥">Status</a>.
+These can be used together, like "csswg/status-CR.include".
+<a data-link-type="dfn" href="#metadata-org" id="ref-for-metadata-org①④">Orgs</a> can also have default boilerplates,
+which are stored in the same way,
+and will be used if the Group doesn’t have a specific boilerplate.</p>
+   <p>The processor will first look for the "GROUP/foo-STATUS.include" file,
+failing over to "GROUP/foo.include",
+then "ORG/foo-STATUS.include",
+then "ORG/foo.include",
+then "foo-STATUS.include",
+and finally "foo.include".</p>
+   <h3 class="heading settled" data-level="13.6" id="bp-new"><span class="secno">13.6. </span><span class="content">Creating New Boilerplate Files For Your Organization</span><a class="self-link" href="#bp-new"></a></h3>
+   <p>Bikeshed’s default boilerplate generates a functional and reasonably attractive spec,
+but if your group has specific style requirements,
+you can produce your own boilerplate files.
+This section is a basic guide to developing these files.</p>
+   <p>The most important part of the boilerplate is the <code class="highlight">header.include</code> and <code class="highlight">footer.include</code> file.
+These define the parts of the spec HTML that precede and follow your actual spec content,
+so the source file can contain only the actual spec text,
+and all specs in the same organization can look similar.</p>
+   <p>Here is a basic example <code class="highlight">header.include</code> file:</p>
+<pre class="highlight language-html"><c- cp>&lt;!DOCTYPE html></c->
+<c- p>&lt;</c-><c- f>html</c-> <c- e>lang</c-><c- o>=</c-><c- s>"en"</c-><c- p>></c->
+<c- p>&lt;</c-><c- f>head</c-><c- p>></c->
+  <c- p>&lt;</c-><c- f>meta</c-> <c- e>http-equiv</c-><c- o>=</c-><c- s>"Content-Type"</c-> <c- e>content</c-><c- o>=</c-><c- s>"text/html; charset=utf-8"</c-><c- p>></c->
+  <c- p>&lt;</c-><c- f>title</c-><c- p>></c->[TITLE]<c- p>&lt;/</c-><c- f>title</c-><c- p>></c->
+  <c- p>&lt;</c-><c- f>style</c-><c- p>></c->
+  <c- o>...</c->
+  <c- p>&lt;/</c-><c- f>style</c-><c- p>></c->
+<c- p>&lt;/</c-><c- f>head</c-><c- p>></c->
+<c- p>&lt;</c-><c- f>body</c-> <c- e>class</c-><c- o>=</c-><c- s>"h-entry"</c-><c- p>></c->
+<c- p>&lt;</c-><c- f>div</c-> <c- e>class</c-><c- o>=</c-><c- s>"head"</c-><c- p>></c->
+  <c- p>&lt;</c-><c- f>p</c-> <c- e>data-fill-with</c-><c- o>=</c-><c- s>"logo"</c-><c- p>>&lt;/</c-><c- f>p</c-><c- p>></c->
+  <c- p>&lt;</c-><c- f>h1</c-> <c- e>id</c-><c- o>=</c-><c- s>"title"</c-> <c- e>class</c-><c- o>=</c-><c- s>"p-name no-ref"</c-><c- p>></c->[TITLE]<c- p>&lt;/</c-><c- f>h1</c-><c- p>></c->
+  <c- p>&lt;</c-><c- f>h2</c-> <c- e>id</c-><c- o>=</c-><c- s>"subtitle"</c-> <c- e>class</c-><c- o>=</c-><c- s>"no-num no-toc no-ref"</c-><c- p>></c->[LONGSTATUS],
+    <c- p>&lt;</c-><c- f>span</c-> <c- e>class</c-><c- o>=</c-><c- s>"dt-updated"</c-><c- p>>&lt;</c-><c- f>span</c-> <c- e>class</c-><c- o>=</c-><c- s>"value-title"</c-> <c- e>title</c-><c- o>=</c-><c- s>"[CDATE]"</c-><c- p>></c->[DATE]<c- p>&lt;/</c-><c- f>span</c-><c- p>></c->
+  <c- p>&lt;/</c-><c- f>h2</c-><c- p>></c->
+  <c- p>&lt;</c-><c- f>div</c-> <c- e>data-fill-with</c-><c- o>=</c-><c- s>"spec-metadata"</c-><c- p>>&lt;/</c-><c- f>div</c-><c- p>></c->
+  <c- p>&lt;</c-><c- f>div</c-> <c- e>data-fill-with</c-><c- o>=</c-><c- s>"warning"</c-><c- p>>&lt;/</c-><c- f>div</c-><c- p>></c->
+  <c- p>&lt;</c-><c- f>p</c-> <c- e>class</c-><c- o>=</c-><c- s>'copyright'</c-> <c- e>data-fill-with</c-><c- o>=</c-><c- s>'copyright'</c-><c- p>>&lt;/</c-><c- f>p</c-><c- p>></c->
+  <c- p>&lt;</c-><c- f>hr</c-> <c- e>title</c-><c- o>=</c-><c- s>"Separator for header"</c-><c- p>></c->
+<c- p>&lt;/</c-><c- f>div</c-><c- p>></c->
+
+<c- p>&lt;</c-><c- f>div</c-> <c- e>class</c-><c- o>=</c-><c- s>"p-summary"</c-> <c- e>data-fill-with</c-><c- o>=</c-><c- s>"abstract"</c-><c- p>>&lt;/</c-><c- f>div</c-><c- p>></c->
+<c- p>&lt;</c-><c- f>div</c-> <c- e>data-fill-with</c-><c- o>=</c-><c- s>"at-risk"</c-><c- p>>&lt;/</c-><c- f>div</c-><c- p>></c->
+
+<c- p>&lt;</c-><c- f>nav</c-> <c- e>data-fill-with</c-><c- o>=</c-><c- s>"table-of-contents"</c-> <c- e>id</c-><c- o>=</c-><c- s>"toc"</c-><c- p>>&lt;/</c-><c- f>nav</c-><c- p>></c->
+<c- p>&lt;</c-><c- f>main</c-><c- p>></c->
+</pre>
+   <p>This uses several of Bikeshed’s boilerplating features:</p>
+   <ul>
+    <li data-md>
+     <p>Text replacement, via the <code class="highlight">[FOO]</code> macros.
+These macros are prepopulated by Bikeshed,
+either from metadata in the spec (like <code class="highlight">[TITLE]</code>) or from environment data (like <code class="highlight">[DATE]</code>).
+The full list of text macros can be found at <a href="#text-macros">§ 5.3 Text Macros</a>.</p>
+    <li data-md>
+     <p>Boilerplate pieces, via empty container elements with <code class="highlight">data-fill-with</code> attributes.
+The list of Bikeshed-provided <code class="highlight">data-fill-with</code> values can be found at <a href="#bp-sections">§ 13.3 Boilerplate Sections</a>.
+At minimum, you want to include the <code class="highlight">abstract</code>, <code class="highlight">table-of-contents</code>, and <code class="highlight">spec-metadata</code> sections here;
+they’re all most useful at the top of the document.</p>
+   </ul>
+  </main>
+  <div data-fill-with="conformance">
+   <h2 class="no-num no-ref" id="conformance">
+    Conformance</h2>
+   <p>
+            Conformance requirements are expressed with a combination of descriptive assertions and RFC 2119 terminology.
+            The key words “MUST”, “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL NOT”, “SHOULD”, “SHOULD NOT”, “RECOMMENDED”, “MAY”, and “OPTIONAL”
+            in the normative parts of this document
+            are to be interpreted as described in RFC 2119.
+            However, for readability,
+            these words do not appear in all uppercase letters in this specification.
+
+        </p>
+   <p>
+            All of the text of this specification is normative
+            except sections explicitly marked as non-normative, examples, and notes. <a data-biblio-type="normative" data-link-type="biblio" data-lt="RFC2119">[RFC2119]</a>
+
+        </p>
+   <p>
+            Examples in this specification are introduced with the words “for example”
+            or are set apart from the normative text with <code nohighlight>class="example"</code>, like this:
+
+        </p>
+   <div class="example" id="example-example">
+            This is an example of an informative example.
+        </div>
+   <p>
+            Informative notes begin with the word “Note”
+            and are set apart from the normative text with <code nohighlight>class="note"</code>, like this:
+
+        </p>
+   <p class="note">
+            Note, this is an informative note.</p>
+   <wpt title="Tests relating to the content of this specification
+                    may be documented in “Tests” blocks.
+                    Any such block is non-normative."></wpt>
+  </div>
+<script></script>

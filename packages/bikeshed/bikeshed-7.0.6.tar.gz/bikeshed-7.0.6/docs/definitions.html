@@ -1,0 +1,404 @@
+<!doctype html><html lang="en">
+ <head>
+  <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+  <title>Bikeshed Documentation</title>
+  <meta content="width=device-width, initial-scale=1, shrink-to-fit=no" name="viewport">
+<style data-fill-with="stylesheet"></style>
+ <body class="h-entry">
+  <div class="head">
+   <p data-fill-with="logo"></p>
+   <h1 class="no-ref p-name" id="title">Bikeshed Documentation</h1>
+   <h2 class="no-num no-ref no-toc" id="profile-and-date">Living Standard,
+    <time class="dt-updated" datetime="2025-12-19">19 December 2025</time></h2>
+   <div data-fill-with="spec-metadata"></div>
+   <div data-fill-with="warning"></div>
+   <p class="copyright" data-fill-with="copyright"></p>
+   <hr title="Separator for header">
+  </div>
+  <div class="p-summary" data-fill-with="abstract"></div>
+  <div data-fill-with="at-risk"></div>
+  <nav data-fill-with="multipage-table-of-contents" id="toc"></nav>
+  <main>
+   <p>Defining a term is as easy as wrapping a <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-dfn-element" id="ref-for-the-dfn-element⑥">dfn</a></code> element around it.
+Most of the time, this is all you’ll need to do -
+the definition automatically gains an id,
+and is usually automatically exposed as an autolink target for local and cross-spec autolinks.</p>
+   <p><strong>Autolinking</strong> is a special mechanism in the processor to let you link terms to their definitions without having to explicitly provide a url.
+Instead, the text of the link is matched against the text of the definitions,
+and if a match is found,
+the link’s <code class="highlight">href</code> is set up to connect the two.</p>
+   <h3 class="heading settled" data-level="6.1" id="conjugating"><span class="secno">6.1. </span><span class="content">Conjugating/Pluralizing/etc the Linking Text</span><a class="self-link" href="#conjugating"></a></h3>
+   <p>Bikeshed can automatically handle a wide range of English conjugations and pluralizations.
+For example, if you define the term "snap",
+you can link to it with "snapping" or "snapped"
+without having to manually add those variations to your <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-dfn-element" id="ref-for-the-dfn-element⑦">dfn</a></code> manually.</p>
+   <p>As such, it’s best to define your term in the "base" form,
+singular and present tense.
+Use <code class="highlight">lt='...'</code> if necessary to set up the correct "base" linking text,
+if your visible text needs to be in a conjugated form due to the surrounding text.</p>
+   <p>These variations only work for the <em>first</em> or the <em>last</em> word in a phrase,
+so it can conjugate "activate the widget" into "activating the widget", "activate the widgets", or "activating the widgets".
+If you have a longer phrase where it’s a middle word that conjugates differently,
+you do still have to manually handle that,
+either by defining multiple linking texts on the <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-dfn-element" id="ref-for-the-dfn-element⑧">dfn</a></code>,
+or by manually specifying the linking text on the <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-a-element" id="ref-for-the-a-element③">a</a></code>.</p>
+   <p>In addition to English variations,
+these "conjugations" handle some IDL variations as well.
+For example, IDL terms that match an IDL keyword must be defined in IDL with a leading underscore,
+to avoid grammatical ambiguities,
+but actually define the term without the underscore.
+You can link to the term with either syntax.</p>
+   <p>Similarly, because methods and attributes technically live in the same namespace,
+it’s safe to link to a method without the parens after its name.
+(This is useful when linking to a method in the middle of prose,
+when you might be providing sample arguments that would interfere with linking,
+or linking to things in the arguments,
+which would interact badly with the arguments themselves being part of the method’s link text.)</p>
+   <h3 class="heading settled" data-level="6.2" id="changing-lt"><span class="secno">6.2. </span><span class="content">Changing the Linking Text</span><a class="self-link" href="#changing-lt"></a></h3>
+   <p>Sometimes, the text of the definition isn’t exactly what you want it to be linked by,
+or you may want it to be linkable with more than one phrase.
+For example, an algorithm named "Check if three characters would start an identifier"
+may also want to be linkable from the phrase "starts with an identifier".
+To alter the linking text, simply add an <code class="highlight">lt</code> attribute (for "Linking Text") to the definition;
+the linking text is used instead of the text content.
+You can separate multiple linking phrases by separating them with the pipe "|" character.</p>
+   <h3 class="heading settled" data-level="6.3" id="local-lt"><span class="secno">6.3. </span><span class="content">Defining Extra-Short "Local" Linking Texts</span><a class="self-link" href="#local-lt"></a></h3>
+   <p>Sometimes you want to use an extra-short version of a term for within a spec,
+but don’t want to confuse things by exporting it globally.
+To achieve this, add a <code class="highlight">local-lt</code> attribute with the terms you want to be only usable within the spec;
+the syntax is identical to that of the <code class="highlight">lt</code> attribute, described above.</p>
+   <p>Using local linking text does not disturb the normal linking-text process;
+that still takes from either the element text or the <code class="highlight">lt</code> attribute,
+as normal.</p>
+   <h3 class="heading settled" data-level="6.4" id="dfn-types"><span class="secno">6.4. </span><span class="content">Definition Types</span><a class="self-link" href="#dfn-types"></a></h3>
+   <p>All definitions have a definition type.
+This allows for "namespacing" of the linking text,
+so you can define, for example, both a property and a term with the same linking text, such as "direction" or "color".</p>
+   <p>There are several types for CSS values:</p>
+   <ul>
+    <li data-md>
+     <p>property</p>
+    <li data-md>
+     <p>descriptor (the things inside at-rules like @font-face)</p>
+    <li data-md>
+     <p>value (any value that goes inside of a property, at-rule, etc.)</p>
+    <li data-md>
+     <p>type (an abstract type for CSS grammars, like <code class="highlight"><c- p>&lt;</c-><c- f>length</c-><c- p>></c-></code> or <code class="highlight"><c- p>&lt;</c-><c- f>image</c-><c- p>></c-></code>)</p>
+    <li data-md>
+     <p>at-rule</p>
+    <li data-md>
+     <p>function (like <code class="highlight">counter()</code> or <code class="highlight">linear-gradient()</code>)</p>
+    <li data-md>
+     <p>selector</p>
+   </ul>
+   <p>There are additional types for WebIDL definitions:</p>
+   <ul>
+    <li data-md>
+     <p>interface</p>
+    <li data-md>
+     <p>constructor</p>
+    <li data-md>
+     <p>method</p>
+    <li data-md>
+     <p>argument</p>
+    <li data-md>
+     <p>attribute</p>
+    <li data-md>
+     <p>callback</p>
+    <li data-md>
+     <p>dictionary</p>
+    <li data-md>
+     <p>dict-member</p>
+    <li data-md>
+     <p>enum</p>
+    <li data-md>
+     <p>enum-value</p>
+    <li data-md>
+     <p>exception (for new DOMException names)</p>
+    <li data-md>
+     <p>const</p>
+    <li data-md>
+     <p>typedef</p>
+    <li data-md>
+     <p>stringifier</p>
+    <li data-md>
+     <p>serializer</p>
+    <li data-md>
+     <p>iterator</p>
+    <li data-md>
+     <p>maplike</p>
+    <li data-md>
+     <p>setlike</p>
+    <li data-md>
+     <p>extended-attribute (things like <code class="highlight">[EnforceRange]</code>)</p>
+   </ul>
+   <p>And for HTML/SVG/etc element definitions:</p>
+   <ul>
+    <li data-md>
+     <p>element</p>
+    <li data-md>
+     <p>element-state (a spec concept, like <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/input.html#the-input-element" id="ref-for-the-input-element">input</a></code> being in the "password state")</p>
+    <li data-md>
+     <p>element-attr</p>
+    <li data-md>
+     <p>attr-value</p>
+   </ul>
+   <p>There are types for CDDL definitions:</p>
+   <ul>
+    <li data-md>
+     <p>cddl-module (when spec needs to define multiple CDDL modules)</p>
+    <li data-md>
+     <p>cddl-type (things like actual types and groups)</p>
+    <li data-md>
+     <p>cddl-key (member names in type or group definitions)</p>
+    <li data-md>
+     <p>cddl-value (values in an enumeration)</p>
+    <li data-md>
+     <p>cddl-parameter (generic parameter names)</p>
+   </ul>
+   <p>A special type for URL schemes, like "http" or "blob":</p>
+   <ul>
+    <li data-md>
+     <p>scheme</p>
+   </ul>
+   <p>A special type for HTTP headers:</p>
+   <ul>
+    <li data-md>
+     <p>http-header</p>
+   </ul>
+   <p>A special type just for definitions of operators used in grammar definitions,
+like <code class="highlight">||</code> and similar:</p>
+   <ul>
+    <li data-md>
+     <p>grammar</p>
+   </ul>
+   <p>A special type for browser permissions:</p>
+   <ul>
+    <li data-md>
+     <p>permission</p>
+   </ul>
+   <p>And finally, some categories for "English" terms:</p>
+   <ul>
+    <li data-md>
+     <p>abstract-op (for "English-language algorithms")</p>
+    <li data-md>
+     <p>dfn (for general terms and phrases, and a catch-all for anything else)</p>
+   </ul>
+   <p>The processor will attempt to infer your definition type from the context and text content of the definition:</p>
+   <ul>
+    <li data-md>
+     <p>Is it inside a propdef, descdef, or elementdef block?  Then it’s a <strong>property</strong>, <strong>descriptor</strong>, or <strong>element</strong>.</p>
+    <li data-md>
+     <p>Is it inside an idl block (&lt;pre class='idl'>)?  Then it’s <strong>one of the IDL types, inferred by parsing the IDL</strong>.</p>
+    <li data-md>
+     <p>Is it inside a cddl block (&lt;pre class='cddl'>)?  Then it’s <strong>one of the CDDL types, inferred by parsing the CDDL</strong>.</p>
+    <li data-md>
+     <p>Do you have the <a data-link-type="dfn" href="#metadata-infer-css-dfns" id="ref-for-metadata-infer-css-dfns">Infer CSS Dfns</a> metadata turned on? (It’s on by default for the SVG, CSSWG, FXTF, and Houdini <a data-link-type="dfn" href="#metadata-group" id="ref-for-metadata-group①④">Groups</a>.) Then:</p>
+     <ul>
+      <li data-md>
+       <p>Does it start with <code class="highlight">@</code>?  Then it’s an <strong>at-rule</strong>.</p>
+      <li data-md>
+       <p>Is it surrounded by <code class="highlight">&lt;></code>?  Then it’s a <strong>type</strong>.</p>
+      <li data-md>
+       <p>Does it start with a <code class="highlight">:</code>?  Then it’s a <strong>selector</strong>.</p>
+      <li data-md>
+       <p>Does it end with parentheses <code class="highlight">()</code> (possibly containing arguments)?  Then it’s a <strong>function</strong>.</p>
+      <li data-md>
+       <p>Is it surrounded by double single quotes in the source, like <code class="highlight">''foo''</code>?  Then it’s a <strong>value</strong>.</p>
+     </ul>
+    <li data-md>
+     <p>Otherwise, it’s a <strong>dfn</strong>.</p>
+   </ul>
+   <p>(This auto-detection is obviously skewed towards CSS types; Bikeshed started as a CSS spec preprocessor, and the CSS types are easier to auto-detect syntactically than anything else.)</p>
+   <p>Note that this auto-detection is a <strong>last-resort</strong> operation.
+There are methods (defined below) to explicitly indicate what type a definition is,
+and those win over the auto-detection.</p>
+   <p>If your value doesn’t fit one of these categories,
+you’ll have to tag it manually.
+Just add the type as a boolean attribute to the definition, like</p>
+<pre class="highlight language-html">attribute DOMString <c- p>&lt;</c-><c- f>dfn</c-> <c- e>attribute</c-> <c- e>for</c-><c- o>=</c-><c- s>Foo</c-><c- p>></c->name<c- p>&lt;/</c-><c- f>dfn</c-><c- p>></c->;
+</pre>
+   <p>Alternately, if you’ve got several definitions of the same type that share some container element (such as a <code class="highlight"><c- p>&lt;</c-><c- f>pre</c-><c- p>></c-></code> or <code class="highlight"><c- p>&lt;</c-><c- f>dl</c-><c- p>></c-></code>),
+just add a <code class="highlight">dfn-type="type-goes-here"</code> attribute to the container.
+Anything which isn’t explicitly tagged otherwise will take that type by default.</p>
+   <p>(There are more methods to determine definition type, but they’re only meant for legacy content, and so are not documented here.)</p>
+   <h3 class="heading settled" data-level="6.5" id="dfn-for"><span class="secno">6.5. </span><span class="content">Namespacing a Definition</span><a class="self-link" href="#dfn-for"></a></h3>
+   <p>Some types of definitions are defined relative to a higher construct,
+such as values for a particular property,
+or attributes of a particular IDL interface.
+This is useful, as it means these names don’t have to be globally unique,
+but that means your autolinks may have a hard time telling which name you intend to link to.</p>
+   <p>To fix this, the processor enforces that some types of definitions <em>must</em> define what they are for.
+This is specified with a <code class="highlight">for</code> attribute on the definition.</p>
+   <p>Specifically:</p>
+   <ul>
+    <li data-md>
+     <p>"attribute", "constructor", "method", "const", "event", "serializer", "stringifier", and "iterator" definitions must define what interface they’re relative to.</p>
+    <li data-md>
+     <p>"argument" definitions must define what method or constructor they’re relative to.</p>
+    <li data-md>
+     <p>"dict-member" definitions must define what dictionary they’re relative to.</p>
+    <li data-md>
+     <p>"enum-value" definitions must define what enum they’re relative to.</p>
+    <li data-md>
+     <p>"element-attr" and "element-state" definitions must define what element they’re relative to.</p>
+    <li data-md>
+     <p>"attr-value" definitions must define what element and attribute they’re relative to.</p>
+    <li data-md>
+     <p>"descriptor" definitions must define what at-rule they’re relative to.
+(This happens automatically if you add a "For" line to the descdef table.)</p>
+    <li data-md>
+     <p>"value" definitions must define what property, descriptor, at-rule, type, selector, or function they’re relative to.
+If a value definition is relative to a descriptor, the value must be of the form "@foo/bar", where "@foo" is the at-rule the "bar" descriptor is relative to.</p>
+    <li data-md>
+     <p>"cddl-key", "cddl-value", and "cddl-parameter" definitions must define what CDDL type they’re relative to.</p>
+   </ul>
+   <p>Just like with the definition type, you can instead declare what several definitions are for by putting an attribute on a container.
+In this case, just add <code class="highlight">dfn-for</code> to the container.
+This is especially useful for property/descriptor values, as they’re usually defined in a <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/grouping-content.html#the-dl-element" id="ref-for-the-dl-element①">dl</a></code>,
+or IDL definitions, as you can just put a <code class="highlight">dfn-for</code>	on the &lt;pre class='idl'>.</p>
+   <p>If a single definition is "for" multiple things,
+you can provide a comma-separated list of values in the attribute.</p>
+   <h3 class="heading settled" data-level="6.6" id="dfn-export"><span class="secno">6.6. </span><span class="content">Exporting Definitions</span><a class="self-link" href="#dfn-export"></a></h3>
+   <p>Most definitions are automatically "exported",
+which means they’re made available for other specs to autolink to.
+The only exceptions are "dfn" and "cddl" type definitions, which aren’t exported by default.</p>
+   <p>To force a link to be exported, add an <code class="highlight">export</code> boolean attribute to it.
+To force a link <em>not</em> to be exported, add a <code class="highlight">noexport</code> boolean attribute instead.
+Like the other attributes, you can instead add this to a container to have it be a default for the definitions inside.</p>
+   <h3 class="heading settled" data-level="6.7" id="dfn-ancestors"><span class="secno">6.7. </span><span class="content">Link Attributes On Ancestors</span><a class="self-link" href="#dfn-ancestors"></a></h3>
+   <p>All of the dfn attributes
+can be specified on an ancestor of the dfn instead,
+if you have a group of dfns that all share a particular attribute.</p>
+   <p>They can be spelled out fully
+(like <code class="highlight">data-dfn-type</code>),
+or without the <code class="highlight">data-</code> prefix,
+like <code class="highlight">dfn-type</code> or <code class="highlight">dfn-for</code>.
+As there’s no overlap with a similar <code class="highlight">data-link-*</code> attribute,
+<code class="highlight">dfn-force</code>
+can omit <code class="highlight">dfn-</code> as well,
+being spelled as merely <code class="highlight">force</code> and <code class="highlight">spec</code>.</p>
+   <p>A link will take the "closest" version of each attribute it can find,
+so specifying an attribute directly on the link
+will override anything coming from an ancestor.</p>
+   <h3 class="heading settled" data-level="6.8" id="custom-dfns"><span class="secno">6.8. </span><span class="content">Providing Custom Definitions</span><a class="self-link" href="#custom-dfns"></a></h3>
+   <p>If you want to link to dfns in specs that aren’t yet part of the autolinking database,
+you can provide your own definition data that Bikeshed can use.
+Within a <code class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>'anchors'</c-><c- p>></c-></code> element,
+define the anchors you need in <a href="#infotree">InfoTree format</a>,
+with the following keys:</p>
+   <ul>
+    <li data-md>
+     <p><strong>text</strong> - the linking text for the definition. (Exactly 1 required.)</p>
+    <li data-md>
+     <p><strong>type</strong> - the definition’s type (dfn, interface, etc)  (Exactly 1 required.)</p>
+    <li data-md>
+     <p><strong>urlPrefix</strong> and/or <strong>url</strong> - define the anchor’s url, as described below.  (At least one of <code class="highlight">urlPrefix</code> or <code class="highlight">url</code> must be specified. 0+ <code class="highlight">urlPrefix</code> entries allowed, 0 or 1 <code class="highlight">url</code> entries allowed.)</p>
+    <li data-md>
+     <p><strong>for</strong> - what the definition is for.  (Any number allowed, including 0.)</p>
+    <li data-md>
+     <p><strong>spec</strong> - Which spec the definition comes from. (optional)</p>
+   </ul>
+   <p>To generate the url for the anchor,
+first all of the <code class="highlight">urlPrefix</code> entries are concatenated.
+If a <code class="highlight">url</code> is provided,
+it’s appended to the prefixes;
+otherwise, the <code class="highlight">text</code> is url-ified and appended.
+(Lowercased, spaces converted to dashes, non-alphanumeric characters dropped.)
+If neither <code class="highlight">urlPrefix</code> nor <code class="highlight">url</code> had a "#" character in them,
+one is inserted between them.</p>
+   <p>The <code class="highlight">spec</code> attribute is used only for index generation, and has no effect on URL generation.</p>
+   <p>Example:</p>
+<pre class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>"anchors"</c-><c- p>></c->
+urlPrefix: https://encoding.spec.whatwg.org/; type: dfn; spec: ENCODING
+  text: ascii whitespace
+  text: decoder
+url: http://www.unicode.org/reports/tr46/#ToASCII; type: dfn; text: toascii
+<c- p>&lt;/</c-><c- f>pre</c-><c- p>></c->
+
+<c- p>&lt;</c-><c- f>a</c-><c- p>></c->ascii whitespace<c- p>&lt;/</c-><c- f>a</c-><c- p>></c-> links now!
+</pre>
+   <p>Alternately, this data can be provided in a file named <code class="highlight">anchors.bsdata</code>,
+in the same folder as the spec source, but this prevents you from using
+<a href="https://api.csswg.org/bikeshed/">the web service</a>.</p>
+   <h3 class="heading settled" data-level="6.9" id="dfn-contract"><span class="secno">6.9. </span><span class="content">Definitions data model</span><a class="self-link" href="#dfn-contract"></a></h3>
+   <p>Bikeshed’s most important feature is its powerful cross-spec autolinking.  This
+is possible due to each definition being annotated with a rich set of metadata,
+which is then exposed via custom attributes and picked up by specialized
+scrapers (such as Shepherd) that then compile a definition database that
+Bikeshed relies on.</p>
+   <p>If you’re writing a spec processor or related tool and would like to
+interoperate with the Bikeshed ecosystem, here’s the full definition data model
+and how to properly expose it.</p>
+   <ol>
+    <li data-md>
+     <p>The defining element MUST be a <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-dfn-element" id="ref-for-the-dfn-element⑨">dfn</a></code> or <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/sections.html#the-h2-element" id="ref-for-the-h2-element">h2</a></code>...<code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/sections.html#the-h6-element" id="ref-for-the-h6-element">h6</a></code>.  No other element
+is recognized as defining a term.</p>
+    <li data-md>
+     <p>The element MUST have an <code class="highlight">id</code> attribute.</p>
+    <li data-md>
+     <p>The linking text defaults to the <strong>text content</strong> of the <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-dfn-element" id="ref-for-the-dfn-element①⓪">dfn</a></code>/heading.
+If the desired text content isn’t suitable for linking text, or you wish to
+provide multiple linking texts, a <a href="#changing-lt"><code class="highlight">lt</code> attribute</a> containing one or more
+pipe-separated linking texts will override the text content. See also <a href="#local-lt">§ 6.3 Defining Extra-Short "Local" Linking Texts</a></p>
+    <li data-md>
+     <p><code class="highlight">data-dfn-type</code> MUST be provided, and set <a href="#dfn-types">one of the accepted values</a>.</p>
+     <p>(In an actual Bikeshed document, this can be omitted from <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-dfn-element" id="ref-for-the-dfn-element①①">dfn</a></code> elements
+and it will be inferred from context,
+usually defaulting to "dfn" type.
+But non-Bikeshed documents must specify this,
+or else they’ll get their dfn type inferred heuristically,
+which may or may not be correct.)</p>
+    <li data-md>
+     <p>Either <a href="#dfn-export"><code class="highlight">data-export</code> or <code class="highlight">data-noexport</code></a> MAY be
+provided (both boolean attributes).  If neither is provided, "dfn" type
+definitions default to noexport, while all others default to export.
+Unexported definitions aren’t linkable by default.</p>
+    <li data-md>
+     <p><a href="#dfn-for">Several types</a> of definitions are namespaced to another
+construct; for example, attribute names are namespaced to an interface.
+These definitions MUST contain a <code class="highlight">data-dfn-for</code> attribute, containing a
+comma-separated list of one or more definitions they’re namespaced to.</p>
+   </ol>
+   <p>If you have written a web spec and it conforms to this definition syntax,
+<a href="https://github.com/speced/bikeshed/issues/">contact the project maintainer</a>
+and ask them to register your spec in Shepherd, so its definitions will be
+available to everyone else.</p>
+  </main>
+  <div data-fill-with="conformance">
+   <h2 class="no-num no-ref" id="conformance">
+    Conformance</h2>
+   <p>
+            Conformance requirements are expressed with a combination of descriptive assertions and RFC 2119 terminology.
+            The key words “MUST”, “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL NOT”, “SHOULD”, “SHOULD NOT”, “RECOMMENDED”, “MAY”, and “OPTIONAL”
+            in the normative parts of this document
+            are to be interpreted as described in RFC 2119.
+            However, for readability,
+            these words do not appear in all uppercase letters in this specification.
+
+        </p>
+   <p>
+            All of the text of this specification is normative
+            except sections explicitly marked as non-normative, examples, and notes. <a data-biblio-type="normative" data-link-type="biblio" data-lt="RFC2119">[RFC2119]</a>
+
+        </p>
+   <p>
+            Examples in this specification are introduced with the words “for example”
+            or are set apart from the normative text with <code nohighlight>class="example"</code>, like this:
+
+        </p>
+   <div class="example" id="example-example">
+            This is an example of an informative example.
+        </div>
+   <p>
+            Informative notes begin with the word “Note”
+            and are set apart from the normative text with <code nohighlight>class="note"</code>, like this:
+
+        </p>
+   <p class="note">
+            Note, this is an informative note.</p>
+   <wpt title="Tests relating to the content of this specification
+                    may be documented in “Tests” blocks.
+                    Any such block is non-normative."></wpt>
+  </div>
+<script></script>

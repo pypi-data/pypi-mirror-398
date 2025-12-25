@@ -1,0 +1,190 @@
+<!doctype html><html lang="en">
+ <head>
+  <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+  <title>Bikeshed Documentation</title>
+  <meta content="width=device-width, initial-scale=1, shrink-to-fit=no" name="viewport">
+<style data-fill-with="stylesheet"></style>
+ <body class="h-entry">
+  <div class="head">
+   <p data-fill-with="logo"></p>
+   <h1 class="no-ref p-name" id="title">Bikeshed Documentation</h1>
+   <h2 class="no-num no-ref no-toc" id="profile-and-date">Living Standard,
+    <time class="dt-updated" datetime="2025-12-19">19 December 2025</time></h2>
+   <div data-fill-with="spec-metadata"></div>
+   <div data-fill-with="warning"></div>
+   <p class="copyright" data-fill-with="copyright"></p>
+   <hr title="Separator for header">
+  </div>
+  <div class="p-summary" data-fill-with="abstract"></div>
+  <div data-fill-with="at-risk"></div>
+  <nav data-fill-with="multipage-table-of-contents" id="toc"></nav>
+  <main>
+   <p>While a locally-installed Bikeshed does provide additional functionality,
+if all you need to do is process a spec,
+there is an API server you can talk to,
+maintained by Peter Linss.</p>
+   <h3 class="heading settled" data-level="2.1" id="curl"><span class="secno">2.1. </span><span class="content">Using Curl</span><a class="self-link" href="#curl"></a></h3>
+   <p>These instructions assume use of the <code class="highlight">curl</code> command,
+but you can use any equivalent "talk HTTP at a server" command you might have access to.</p>
+   <div class="example" id="example-80320586">
+    <a class="self-link" href="#example-80320586"></a>
+	
+<pre class="highlight">curl https://api.csswg.org/bikeshed/ -F <c- g>file</c-><c- o>=</c->@index.bs -F <c- g>force</c-><c- o>=</c-><c- m>1</c-> > index.html
+</pre>
+    <p>Simplest possible usage:</p>
+    <ul>
+     <li data-md>
+      <p>passing the source as <code class="highlight">-F file=@index.bs</code></p>
+     <li data-md>
+      <p>forcing output even if there are errors with <code class="highlight">-F force=1</code></p>
+     <li data-md>
+      <p>piping the output to the desired filename with <code class="highlight">> index.html</code>.</p>
+    </ul>
+    <p>Additional possible arguments:</p>
+    <ul>
+     <li data-md>
+      <p><code class="highlight">-F output=err</code> to just receive errors, if any</p>
+     <li data-md>
+      <p><code class="highlight">-F md-Foo=bar</code> to pass a <code class="highlight">Foo: bar</code> metadata to the spec
+(same as passing <code class="highlight">--md-Foo=bar</code> locally)</p>
+     <li data-md>
+      <p><code class="highlight">-F die-on=[nothing, fatal, link-error, warning, everything]</code>,
+(same as the <code class="highlight">--die-on</code> local flag)</p>
+    </ul>
+   </div>
+   <div class="example" id="example-e056e780">
+    <a class="self-link" href="#example-e056e780"></a>
+	If your source file is online,
+	such as in a git repository,
+	you can pass the url directly instead:
+
+	
+<pre class="highlight">curl http://api.csswg.org/bikeshed/ -F <c- g>url</c-><c- o>=</c->http://dev.w3.org/csswg/css-syntax/Overview.bs -F <c- g>force</c-><c- o>=</c-><c- m>1</c-> > Overview.html
+</pre>
+    <p>If you are using additional files beyond your plain source file—​local boilerplate files,
+	<a href="#including">sub-document includes</a>,
+	<a href="#custom-dfns">custom definition files</a>,
+	etc—​this is the <em>only</em> way to make those still work
+	via the curl API;
+	Bikeshed will look for the additional files
+	relative to the source document’s url.</p>
+    <p>(Any additional files that get included <em>implicitly</em>,
+	such as local boilerplates,
+	must be listed in the <a data-link-type="dfn" href="#metadata-local-boilerplate" id="ref-for-metadata-local-boilerplate">Local Boilerplate</a>
+	or <a data-link-type="dfn" href="#metadata-external-infotrees" id="ref-for-metadata-external-infotrees">External Infotrees</a> metadatas
+	to get picked up.
+	Files explicitly listed in the source file,
+	such as in a <code class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>include</c-><c- p>></c-></code>,
+	will be picked up automatically.)</p>
+   </div>
+   <div class="example" id="example-7ff184b4">
+    <a class="self-link" href="#example-7ff184b4"></a>
+	The separate <code class="highlight">bikeshed issues-list</code> command
+	(for generating issues lists for a W3C Disposition of Comments)
+	can also be invoked via curl:
+
+	
+<pre class="highlight">curl http://api.csswg.org/bikeshed/ -F <c- g>file</c-><c- o>=</c->@Issues.txt -F <c- g>input</c-><c- o>=</c->issues > Issues.html
+</pre>
+   </div>
+   <h3 class="heading settled" data-level="2.2" id="web"><span class="secno">2.2. </span><span class="content">Using the Web Form</span><a class="self-link" href="#web"></a></h3>
+   <p>Alternately, you can just visit <a href="https://api.csswg.org/bikeshed/">https://api.csswg.org/bikeshed/</a> directly,
+and upload a file,
+point to a URL,
+or directly paste in your spec source.</p>
+   <p>It defaults to outputting both the HTML and the errors,
+but you can switch it to one or the other only if you want.</p>
+   <h3 class="heading settled" data-level="2.3" id="commit"><span class="secno">2.3. </span><span class="content">Using CI Tools</span><a class="self-link" href="#commit"></a></h3>
+   <h4 class="heading settled" data-level="2.3.1" id="travis-ci"><span class="secno">2.3.1. </span><span class="content">Travis CI</span><a class="self-link" href="#travis-ci"></a></h4>
+   <p>To use bikeshed on <a href="https://travis-ci.org/">Travis CI</a>’s github integration, you’ll need the following <code class="highlight">.travis.yml</code> commands:</p>
+<pre class="highlight language-yaml"><c- f>language</c-><c- p>:</c-> python
+<c- f>python</c-><c- p>:</c->
+  - <c- s>"3.12"</c->
+<c- f>install</c-><c- p>:</c->
+  - pip install bikeshed
+  - bikeshed update
+<c- f>script</c-><c- p>:</c->
+  <c- c1># Invoke bikeshed here, at your own leisure. E.g.:</c->
+  - bikeshed spec
+</pre>
+   <p><a href="https://github.com/rtoy/auto-deploy-spec">Raymond Toy has written a very thoro guide on the full setup you need to auto-build and -publish the generated files to GitHub via Travis, so you only need to check in the source files themselves.</a></p>
+   <h4 class="heading settled" data-level="2.3.2" id="gh-action-ci"><span class="secno">2.3.2. </span><span class="content">GitHub Actions</span><a class="self-link" href="#gh-action-ci"></a></h4>
+   <p>The W3C maintains a <a href="https://w3c.github.io/spec-prod/#examples">spec-prod</a> GitHub Action
+that allows automatically processing commits or PRs
+as either Bikeshed or ReSpec.</p>
+   <p>To use, add a file to <code class="highlight">.github/workflows/</code> folder in your GitHub project,
+containing:</p>
+<pre class="highlight language-yaml"><c- f>name</c-><c- p>:</c-> CI
+<c- f>on</c-><c- p>:</c->
+  <c- f>workflow_dispatch</c-><c- p>:</c-> {}
+  <c- f>pull_request</c-><c- p>:</c-> {}
+  <c- f>push</c-><c- p>:</c->
+    <c- f>branches</c-><c- p>:</c-> [<c- g>main</c->]
+<c- f>jobs</c-><c- p>:</c->
+  <c- f>main</c-><c- p>:</c->
+    <c- f>name</c-><c- p>:</c-> Build, Validate and Deploy
+    <c- f>runs-on</c-><c- p>:</c-> ubuntu-latest
+    <c- f>permissions</c-><c- p>:</c->
+      <c- f>contents</c-><c- p>:</c-> write
+    <c- f>steps</c-><c- p>:</c->
+      - <c- f>uses</c-><c- p>:</c-> actions/checkout@v4
+      - <c- f>uses</c-><c- p>:</c-> w3c/spec-prod@v2
+        <c- f>with</c-><c- p>:</c->
+          <c- f>TOOLCHAIN</c-><c- p>:</c-> bikeshed
+
+          <c- c1># Modify as appropriate</c->
+          <c- f>GH_PAGES_BRANCH</c-><c- p>:</c-> gh-pages
+
+          <c- c1># if your doc isn't in the root folder,</c->
+          <c- c1># or Bikeshed otherwise can't find it:</c->
+          <c- f>SOURCE</c-><c- p>:</c-> src/spec.bs
+
+          <c- c1># output filename defaults to your input</c->
+          <c- c1># with .html extension instead,</c->
+          <c- c1># but if you want to customize it:</c->
+          <c- f>DESTINATION</c-><c- p>:</c-> src/index.html
+</pre>
+   <p>The linked document has a number of usage examples to achieve various outcomes—​simple validation,
+auto-publishing on w3.org/TR,
+building multiple specs from a single repository,
+and some others.
+It also explains the entire process from start to finish,
+if you need more help setting things up.</p>
+  </main>
+  <div data-fill-with="conformance">
+   <h2 class="no-num no-ref" id="conformance">
+    Conformance</h2>
+   <p>
+            Conformance requirements are expressed with a combination of descriptive assertions and RFC 2119 terminology.
+            The key words “MUST”, “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL NOT”, “SHOULD”, “SHOULD NOT”, “RECOMMENDED”, “MAY”, and “OPTIONAL”
+            in the normative parts of this document
+            are to be interpreted as described in RFC 2119.
+            However, for readability,
+            these words do not appear in all uppercase letters in this specification.
+
+        </p>
+   <p>
+            All of the text of this specification is normative
+            except sections explicitly marked as non-normative, examples, and notes. <a data-biblio-type="normative" data-link-type="biblio" data-lt="RFC2119">[RFC2119]</a>
+
+        </p>
+   <p>
+            Examples in this specification are introduced with the words “for example”
+            or are set apart from the normative text with <code nohighlight>class="example"</code>, like this:
+
+        </p>
+   <div class="example" id="example-example">
+            This is an example of an informative example.
+        </div>
+   <p>
+            Informative notes begin with the word “Note”
+            and are set apart from the normative text with <code nohighlight>class="note"</code>, like this:
+
+        </p>
+   <p class="note">
+            Note, this is an informative note.</p>
+   <wpt title="Tests relating to the content of this specification
+                    may be documented in “Tests” blocks.
+                    Any such block is non-normative."></wpt>
+  </div>
+<script></script>

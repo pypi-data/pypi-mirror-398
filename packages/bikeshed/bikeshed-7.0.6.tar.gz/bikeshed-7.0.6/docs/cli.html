@@ -1,0 +1,484 @@
+<!doctype html><html lang="en">
+ <head>
+  <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+  <title>Bikeshed Documentation</title>
+  <meta content="width=device-width, initial-scale=1, shrink-to-fit=no" name="viewport">
+<style data-fill-with="stylesheet"></style>
+ <body class="h-entry">
+  <div class="head">
+   <p data-fill-with="logo"></p>
+   <h1 class="no-ref p-name" id="title">Bikeshed Documentation</h1>
+   <h2 class="no-num no-ref no-toc" id="profile-and-date">Living Standard,
+    <time class="dt-updated" datetime="2025-12-19">19 December 2025</time></h2>
+   <div data-fill-with="spec-metadata"></div>
+   <div data-fill-with="warning"></div>
+   <p class="copyright" data-fill-with="copyright"></p>
+   <hr title="Separator for header">
+  </div>
+  <div class="p-summary" data-fill-with="abstract"></div>
+  <div data-fill-with="at-risk"></div>
+  <nav data-fill-with="multipage-table-of-contents" id="toc"></nav>
+  <main>
+   <p>Locally-installed Bikeshed is invoked via the command-line.
+There’s a bunch of options,
+but you’ll only use a few in day-to-day use.</p>
+   <p>If you’ve installed Bikeshed via one of the standard local installs above,
+you can typically just type <code class="highlight">bikeshed</code> in the folder where your <code class="highlight">.bs</code> file lives
+and it’ll do its thing,
+automatically invoking the <code class="highlight">spec</code> subcommand.</p>
+   <p>However, Bikeshed has a number of different subcommands,
+and both global and subcommand-specific flags that can be invoked.</p>
+   <h3 class="heading settled" data-level="3.1" id="cli-options"><span class="secno">3.1. </span><span class="content">Global Options</span><a class="self-link" href="#cli-options"></a></h3>
+   <p>There are a few options that apply to many different options,
+so they’re specified before the individual commands:</p>
+   <dl>
+    <dt data-md><code class="highlight">-h</code> or <code class="highlight">--help</code>
+    <dd data-md>
+     <p>Shows the help message for the current command.
+Can be run without any command,
+like <code class="highlight">bikeshed -h</code>
+to show the list of valid commands and the global flags,
+or after a command,
+like <code class="highlight">bikeshed spec -h</code>
+to show the help text for that command in particular.</p>
+    <dt data-md><code class="highlight">--die-on = [ nothing | fatal | link-error | warning | lint | message | everything ]</code>
+    <dd data-md>
+     <p>Bikeshed categorizes errors into several categories,
+depending on their severity:
+clear mistakes are "fatal",
+errors in resolving autolinks are "link-error",
+things that look a little questionable but are totally okay to generate a document with are "warning",
+and things that just violate one of the opt-in lint checks are "lint".
+(The "message" level is for non-errors, like informing you that it’s updating its datafiles.)</p>
+     <p>The <code class="highlight">--die-on</code> flag controls which sorts of errors
+cause Bikeshed to fail to produce output
+and exit with a non-0 status
+(indicating the command failed).</p>
+     <p>Possible values are "nothing", "fatal", "link-error", "warning", "lint", "message", and "everything",
+with each level including all previous levels.
+Defaults to "fatal".</p>
+     <p>It can sometimes be useful to set this to "nothing"
+if you just need to push thru and generate a spec
+that happens to throw some unimportant errors
+you don’t have time to fix.
+The <code class="highlight">-f</code> flag is a shorthand for this.</p>
+     <p>Alternately, it can be useful to set it to a level stricter than "fatal"
+if you want to ensure that,
+for example,
+a CI build fails when link errors creep into your document,
+or if you just generally want to ensure that your document builds "cleanly",
+without any warnings at all.</p>
+     <p>Note that this can also be controlled from within your document
+(or your group’s metadata)
+via the <a data-link-type="dfn" href="#metadata-die-on" id="ref-for-metadata-die-on">Die On</a> metadata.</p>
+    <dt data-md><code class="highlight">--die-when = [ early | late ]</code>
+    <dd data-md>
+     <p>When Bikeshed encounters a disallowed error
+(per the <code class="highlight">--die-on</code> value),
+it can either die <em>immediately</em>
+(<code class="highlight">early</code>)
+so you can see the error and fix it
+without the rest of the document potentially being incorrect
+and throwing nonsensical errors;
+or it can wait until the end of processing (<code class="highlight">late</code>) to die,
+so you can see all the errors
+without having to continually rerun the command.</p>
+     <p>Either way, Bikeshed will exit with a non-zero status,
+and refuse to actually produce an output document.</p>
+     <p>If unspecified, this defaults to <code class="highlight">late</code>.</p>
+     <p>(If using <code class="highlight">late</code>
+and processing a document with many output messages,
+it might be useful to temporarily run it with <code class="highlight">-q</code> or <code class="highlight">-qq</code>,
+so you can focus on the more important messages first.)</p>
+     <p>Note that this can also be controlled from within your document
+(or your group’s metadata)
+via the <a data-link-type="dfn" href="#metadata-die-when" id="ref-for-metadata-die-when">Die When</a> metadata.</p>
+    <dt data-md><code class="highlight">-f</code> or <code class="highlight">--force</code>
+    <dd data-md>
+     <p>A shorthand for <code class="highlight">--die-on=nothing</code>.</p>
+    <dt data-md><code class="highlight">-q</code> or <code class="highlight">--quiet</code>
+    <dd data-md>
+     <p>The <code class="highlight">-q</code> flag suppresses one level of error messages.
+It can be passed multiple times to suppress additional levels,
+in the order "warnings", then "link errors", then "fatal errors".</p>
+    <dt data-md><code class="highlight">-s</code> or <code class="highlight">--silent</code>
+    <dd data-md>
+     <p>The <code class="highlight">-s</code> flag suppresses <em>all</em> console output from Bikeshed,
+regardless of source.
+(It’s more powerful than <code class="highlight">-q</code>,
+as it’ll also suppresses things like the success/failure message.)</p>
+    <dt data-md><code class="highlight">-d</code> or <code class="highlight">--dry-run</code>
+    <dd data-md>
+     <p>The <code class="highlight">-d</code> flag prevents Bikeshed from actually writing anything to disk.
+It does everything else,
+just skips that final "save" operation.</p>
+    <dt data-md><code class="highlight">--print= [ plain | console | markup | json ]</code>
+    <dd data-md>
+     <p>Specifies how Bikeshed should output its messages.</p>
+     <ul>
+      <li data-md>
+       <p><code class="highlight">plain</code> prints as plain text.</p>
+      <li data-md>
+       <p><code class="highlight">console</code> (the default) prints as plain text,
+but with console color codes to help
+(which look like jibberish if not viewed in a console).</p>
+      <li data-md>
+       <p><code class="highlight">markup</code> prints the messages in a light markup structure
+(nominally XML, but I don’t go out of my way to double check that it’s valid;
+it’s definitely parseable as HTML).</p>
+      <li data-md>
+       <p><code class="highlight">json</code> prints the messages as JSON.</p>
+     </ul>
+    <dt data-md><code class="highlight">--no-update</code>
+    <dd data-md>
+     <p>By default, Bikeshed checks how old its data files are
+every time it runs,
+and automatically triggers an update
+(as if you ran <code class="highlight">bikeshed update</code>)
+if they’re more than a few days old.</p>
+     <p>If this is causing problems
+(for example, if something has gone wrong with the update service,
+or you are offline
+and don’t want to wait for the network to timeout),
+you can prevent it from doing the check
+with <code class="highlight">--no-update</code>.</p>
+    <dt data-md><code class="highlight">--allow-nonlocal-files</code>
+    <dt data-md><code class="highlight">--allow-execute</code>
+    <dd data-md>
+     <p>Bikeshed has the ability to include arbitrary files into your spec,
+and in a few cases the ability to execute shell commands or Python
+on your behalf
+(to allow for some extensions).</p>
+     <p>By default, these are restricted:
+you can only include files from the spec’s own folder
+or subfolders,
+and arbitrary code execution is disallowed.</p>
+     <p>If you trust the specs you are processing,
+and need these abilities, however,
+the restrictions can be relaxed
+by passing these flags.</p>
+   </dl>
+   <h3 class="heading settled" data-level="3.2" id="cli-spec"><span class="secno">3.2. </span><span class="content"><code class="highlight">bikeshed spec</code></span><a class="self-link" href="#cli-spec"></a></h3>
+   <p>The <code class="highlight">spec</code> command is the most common one you’ll use.
+It turns a Bikeshed source file
+into an output HTML file.
+The rest of this document mostly describes how to format a source file
+for use with this command.</p>
+   <p>Most of the time you can just run <code class="highlight">bikeshed spec</code>
+and things will "just work"
+as long as your source file has the <code class="highlight">.bs</code> extension.</p>
+   <p>Relevant flags:</p>
+   <dl>
+    <dt data-md><code class="highlight">--gh-token=TOKEN</code>
+    <dd data-md>
+     <p>If you’re using <a data-link-type="dfn" href="#metadata-inline-github-issues" id="ref-for-metadata-inline-github-issues">Inline GitHub Issues</a> heavily,
+you might run into the GitHub rate limit.
+You can generate an OAuth token at <a href="https://github.com/settings/tokens">https://github.com/settings/tokens</a>
+and then pass it to Bikeshed via this flag
+to raise your limit considerably.</p>
+    <dt data-md><code class="highlight">-l</code> or <code class="highlight">--line-numbers</code>
+    <dd data-md>
+     <p>If you’re having trouble locating the source of an error in your code,
+run Bikeshed with this flag
+and <em>almost</em> all errors will report the source line number they appear at
+(or somewhere very close - it’s per-element).</p>
+     <p>This code is unfortunately forced to be fairly hacky,
+and has the potential to lightly corrupt your file
+(inserting extra debugging info into plain text
+that just happens to look like markup),
+so it automatically triggers a dry-run,
+as if you’d specified <code class="highlight">--dry-run</code>.
+When you’re done debugging,
+just run again without this flag to actually get some output.</p>
+   </dl>
+   <p>After any flags,
+you can optionally specify the input file path and output file path.
+Both of these can usually be omitted;
+if you omit the output file,
+it’ll just output to a file with the same name as the input file,
+but with the extension changed to <code class="highlight">.html</code>;
+if you omit the input file,
+it’ll search thru the current directory
+and assume you want the first file with a Bikeshed extension (<code class="highlight">.bs</code>).</p>
+   <p>If you want to feed Bikeshed from stdin
+or have it output to stdout,
+just use <code class="highlight">-</code> as the appropriate filename.</p>
+   <h3 class="heading settled" data-level="3.3" id="cli-watch"><span class="secno">3.3. </span><span class="content"><code class="highlight">bikeshed watch</code></span><a class="self-link" href="#cli-watch"></a></h3>
+   <p>The <code class="highlight">watch</code> command is identical to the <code class="highlight">spec</code> command,
+except it sets up a watcher
+and auto-rebuilds the spec every time it changes.
+With this turned on,
+you can edit with a simple save->refresh cycle,
+rather than having to do save->build->refresh.</p>
+   <p>It accepts all the same arguments as <code class="highlight">spec</code>.
+(Tho using stdin/stdout might get a little weird.)</p>
+   <p>Use Ctrl-C to stop the watcher
+(or whatever key combo kills the currently running process in your console).</p>
+   <h3 class="heading settled" data-level="3.4" id="cli-template"><span class="secno">3.4. </span><span class="content"><code class="highlight">bikeshed template</code></span><a class="self-link" href="#cli-template"></a></h3>
+   <p>The <code class="highlight">template</code> command outputs a minimal "skeleton" document to stdout.
+It’s useful to get started with Bikeshed,
+without having to remember what all the required metadata is.</p>
+   <p>On a Linux-like command line,
+it should be used like:</p>
+<pre class="highlight">bikeshed template > index.bs
+</pre>
+   <h3 class="heading settled" data-level="3.5" id="cli-echidna"><span class="secno">3.5. </span><span class="content"><code class="highlight">bikeshed echidna</code></span><a class="self-link" href="#cli-echidna"></a></h3>
+   <p>The <code class="highlight">echidna</code> command hooks into the W3C’s Echidna auto-publishing system,
+letting you publish W3C specs from the command-line,
+rather than having to go thru a staff contact.</p>
+   <p class="note" role="note"><span class="marker">Note:</span> Currently, only Working Drafts (<strong>not</strong> including FPWD) and Candidate Recommendation Drafts can be published via Echidna.</p>
+   <p>It’s invoked similarly to <code class="highlight">bikeshed spec</code>,
+with three required flags:</p>
+   <dl>
+    <dt data-md><code class="highlight">--u USERNAME</code>
+    <dd data-md>
+     <p>Your W3C username</p>
+    <dt data-md><code class="highlight">--p PASSWORD</code>
+    <dd data-md>
+     <p>Your W3C password</p>
+    <dt data-md><code class="highlight">--decision DECISION_URL</code>
+    <dd data-md>
+     <p>A link to a publicly-visible message approving the publication of this draft.</p>
+   </dl>
+   <p>There are some optional flags:</p>
+   <dl>
+    <dt data-md><code class="highlight">--editorial</code>
+    <dd data-md>
+     <p>Marks the publication as an editorial update.</p>
+    <dt data-md><code class="highlight">--cc EMAILS</code>
+    <dd data-md>
+     <p>A comma-separated list of email addresses
+which the W3C will ping
+when the publication request is completed.</p>
+    <dt data-md><code class="highlight">--additional-directories [DIRECTORY ...]</code>
+    <dd data-md>
+     <p>By default, Bikeshed will look for directories named
+<code class="highlight">images</code>, <code class="highlight">diagrams</code>, and <code class="highlight">examples</code>,
+and include them and their contents in the publication.
+This flag will override that list,
+letting you specify any number of files and/or folders
+that should be included with the publication.</p>
+    <dt data-md><code class="highlight">--self-contained</code>
+    <dd data-md>
+     <p>Conversely, this flag signals
+that the document doesn’t use anything external,
+so it shouldn’t include anything
+even if one of the default directories does exist.</p>
+    <dt data-md><code class="highlight">--just-tar</code>
+    <dd data-md>
+     <p>The Echidna service works
+by accepting an uncompressed TAR file
+of all the files that will be published.
+Passing this flag just constructs that TAR file
+and prints it to stdout,
+without actually contacting Echidna.</p>
+   </dl>
+   <p>After the flags,
+you can optionally specify the input file path,
+just like for <code class="highlight">bikeshed spec</code>;
+if omitted,
+it selects a file automatically in the same way.</p>
+   <p>Bikeshed then builds the spec normally,
+performs a little bit of fixup for common issues that PubRules complains about,
+and submits the spec to Echidna.
+It will print out a URL for you to check on the progress of your publication;
+it should complete in a few seconds.</p>
+   <p>Most likely you’ll have some PubRules errors when you check your progress;
+fix those
+(ask in irc.w3.org#pub for help if needed)
+then just run <code class="highlight">bikeshed echidna</code> again.</p>
+   <p class="note" role="note"><span class="marker">Note:</span> If auto-publishing via Travis CI,
+<a href="https://blog.travis-ci.com/2014-08-22-environment-variables">this Travis blog post about encrypted environment variables</a>
+will be helpful for safely using your W3C password.</p>
+   <h4 class="heading settled" data-level="3.5.1" id="echidna-testing"><span class="secno">3.5.1. </span><span class="content">Testing Publication Locally</span><a class="self-link" href="#echidna-testing"></a></h4>
+   <p>Publishing via Echidna automatically does some "fixup" on your document,
+to fix some common errors that would make the doc fail the W3C’s PubRules check.</p>
+   <p>These fixes are controlled by the <a data-link-type="dfn" href="#metadata-prepare-for-tr" id="ref-for-metadata-prepare-for-tr">Prepare For TR</a> metadata,
+so if you want to see precisely what your spec will look like when it’s published,
+add that to your metadata block manually.</p>
+   <p>If you want to go further,
+and see the actual TAR file that will be sent to the Echidna service,
+you can pass <code class="highlight">--just-tar</code> to the command
+(and omit the authentication flags that are normally required).
+This will cause Bikeshed to create a file named <code class="highlight">test.tar</code> in your current directory.</p>
+   <h4 class="heading settled" data-level="3.5.2" id="echidna-hooks"><span class="secno">3.5.2. </span><span class="content">Echidna Hooks</span><a class="self-link" href="#echidna-hooks"></a></h4>
+   <p>Bikeshed’s default publication behavior is usually sufficient,
+but if you need to customize it in some way,
+there are a few hooks you can use
+(assuming you can write Python).
+In an include file named <code class="highlight">bs-extensions.include</code>,
+provide an implementation of the following methods
+(check the default version of this file for the default implementations,
+for the methods you don’t want to change):</p>
+   <dl>
+    <dt data-md><code class="highlight">BSPrepTR(doc)</code>
+    <dd data-md>
+     <p>This method is called after processing is done,
+when the document is ready to be packed up and sent to Echidna.
+Here, you can perform whatever final post-processing is required.</p>
+     <div class="example" id="example-267f1483"><a class="self-link" href="#example-267f1483"></a>
+	For example, the CSSWG EDs link to a stylesheet
+	in the parent directory of the server they’re stored on.
+	In their <code class="highlight">BSPrepTR()</code>,
+	they search for the link to that stylesheet,
+	and update it to point to the current directory instead.
+</div>
+    <dt data-md><code class="highlight">BSPublishAdditionalFiles(files)</code>
+    <dd data-md>
+     <p>This method allows you to specify what files should be included in the publishing bundle.
+It must return an array of additional files/folders;
+each entry must either be a string,
+referring to a file/folder in the spec’s directory or subdirectories,
+or a tuple of 2 strings,
+the first of which points to a file outside the spec’s directory,
+and the second of which provides the path the file should have within the spec’s directory.</p>
+     <p>The <code class="highlight">files</code> value provides the default values,
+which you probably want to just extend,
+rather than fully replace.
+It defaults to <code class="highlight">["images", "diagrams", "examples"]</code>,
+indicating that those folders,
+if present,
+will be included.</p>
+     <div class="example" id="example-e79df413"><a class="self-link" href="#example-e79df413"></a>
+	For example, as stated in the example for <code class="highlight">BSPrepTR()</code>,
+	the CSSWG needs to include its stylesheet in with its specs.
+	To do so,
+	it just needs to add the entry <code class="highlight">["../default.css", "default.css"]</code>
+	to the <code class="highlight">files</code> array,
+	indicating that Bikeshed should grab the <code class="highlight">default.css</code> file from the parent directory,
+	and put it in the spec’s directory
+	(in the bundle)
+	with the same name.
+</div>
+   </dl>
+   <h3 class="heading settled" data-level="3.6" id="cli-update"><span class="secno">3.6. </span><span class="content"><code class="highlight">bikeshed update</code></span><a class="self-link" href="#cli-update"></a></h3>
+   <p>The <code class="highlight">update</code> command updates Bikeshed’s datafiles,
+which it uses for autolinking and similar things.
+By default it’ll update all of its datafiles,
+but if you want to update only particular ones,
+you can pass any or all of the following flags:</p>
+   <ul>
+    <li data-md>
+     <p><code class="highlight">--anchors</code> to update Bikeshed’s "anchor data" - a list of all the definitions and headers it knows about.</p>
+    <li data-md>
+     <p><code class="highlight">--biblio</code> to update Bikeshed’s bibliography database.</p>
+    <li data-md>
+     <p><code class="highlight">--caniuse</code> to update Bikeshed’s CanIUse.com information.</p>
+    <li data-md>
+     <p><code class="highlight">--link-defaults</code> to update Bikeshed’s manually-maintained list of special linking rules.</p>
+    <li data-md>
+     <p><code class="highlight">--test-suites</code> to update Bikeshed’s database of test-suite information from the Shepherd system.</p>
+    <li data-md>
+     <p><code class="highlight">--languages</code> to update Bikeshed’s database of language codes/names (used for the <a data-link-type="dfn" href="#metadata-translation" id="ref-for-metadata-translation">Translations</a> metadata)</p>
+    <li data-md>
+     <p><code class="highlight">--wpt</code> to update Bikeshed’s database of WPT tests; see <a href="#testing">§ 12 Testing Integration With WPT</a>.</p>
+   </ul>
+   <p>By default, Bikeshed’s update system relies on the <a href="http://github.com/speced/bikeshed-data">Bikeshed-Data</a> project,
+which preprocesses the various data sources directly into Bikeshed’s data formats,
+and prepares a manifest of changed files,
+letting Bikeshed quickly download only what it needs.
+However, this can be up to 10 minutes out of date
+(or longer, if the update process has fallen over);
+if you need absolutely up-to-date information <em>right now</em>,
+pass the <code class="highlight">--skip-manifest</code> flag
+to force Bikeshed to do its full manual update process.
+(You can combine it with any of the flags above to only get the exact files you need.)</p>
+   <h3 class="heading settled" data-level="3.7" id="cli-refs"><span class="secno">3.7. </span><span class="content"><code class="highlight">bikeshed refs</code></span><a class="self-link" href="#cli-refs"></a></h3>
+   <p>The <code class="highlight">refs</code> command lets you search Bikeshed’s anchor database,
+letting you see what sort of things it’s looking at when doing autolinking.
+This can be very useful for debugging,
+or just for a quick check of where something is defined.</p>
+   <p>It’s flags are similar to the attributes used on autolinks:</p>
+   <ul>
+    <li data-md>
+     <p><code class="highlight">--text=FOO</code> to specify the linktext you want to filter for</p>
+    <li data-md>
+     <p><code class="highlight">--type=FOO</code> to specify the link type</p>
+    <li data-md>
+     <p><code class="highlight">--for=FOO</code> to specify the for value</p>
+    <li data-md>
+     <p><code class="highlight">--spec=FOO</code> to specify the spec</p>
+    <li data-md>
+     <p><code class="highlight">--status=foo</code> to specify the status</p>
+    <li data-md>
+     <p><code class="highlight">--exact</code> to turn off the variations that Bikeshed applies to some link texts
+(such as looking for "book" when you search for "books"),
+and just search for the exact text you specified</p>
+   </ul>
+   <p>Any or all of these flags can be specified,
+and Bikeshed will display all the refs it can find matching the criteria.</p>
+   <h3 class="heading settled" data-level="3.8" id="cli-source"><span class="secno">3.8. </span><span class="content"><code class="highlight">bikeshed source</code></span><a class="self-link" href="#cli-source"></a></h3>
+   <p>The <code class="highlight">source</code> command applies various transformations to the source document itself,
+rather than producing a separate output document.
+Its options are described in <a href="#source">§ 15 Source-File Processing: bikeshed source</a>.</p>
+   <h3 class="heading settled" data-level="3.9" id="cli-outline"><span class="secno">3.9. </span><span class="content"><code class="highlight">bikeshed outline</code></span><a class="self-link" href="#cli-outline"></a></h3>
+   <p>The <code class="highlight">outline</code> command processes your document,
+then outputs an outline to stdout,
+listing the text of each heading
+along with its source line number and ID.</p>
+   <h3 class="heading settled" data-level="3.10" id="cli-issues-list"><span class="secno">3.10. </span><span class="content"><code class="highlight">bikeshed issues-list</code></span><a class="self-link" href="#cli-issues-list"></a></h3>
+   <p>The <code class="highlight">issues-list</code> command processes a plain-text document
+in an "issues-list" format pioneered by the CSSWG
+into an equivalent HTML version.</p>
+   <p>Relevant flags:</p>
+   <ul>
+    <li data-md>
+     <p><code class="highlight">-t</code> outputs a template issues-list file to stdout,
+making it easier to start a new document
+without having to reference an old one to remember the format.
+Use it like <code class="highlight">bikeshed issues-list -t > issues-19700101.txt</code>.</p>
+   </ul>
+   <p>After the command you can pass the input and output filenames.
+As usual, one or both can be omitted:
+if you omit the output,
+it’ll write to a file with the same name as the input,
+but a <code class="highlight">.html</code> extension;
+it you omit the input,
+it will look in the current folder
+for any files starting with "issues" and ending in ".txt",
+and then extract the digits from those filenames
+and select the one with the largest number.
+If you name your file as suggested above,
+with an ISO date,
+it’ll correctly always choose the latest issues list.</p>
+   <p class="issue" id="issue-9f3e2897"><a class="self-link" href="#issue-9f3e2897"></a> Define the issues-list format.
+The <code class="highlight">-t</code> output is already more than enough to actually work with,
+but it would still be good to describe it more fully.</p>
+  </main>
+  <div data-fill-with="conformance">
+   <h2 class="no-num no-ref" id="conformance">
+    Conformance</h2>
+   <p>
+            Conformance requirements are expressed with a combination of descriptive assertions and RFC 2119 terminology.
+            The key words “MUST”, “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL NOT”, “SHOULD”, “SHOULD NOT”, “RECOMMENDED”, “MAY”, and “OPTIONAL”
+            in the normative parts of this document
+            are to be interpreted as described in RFC 2119.
+            However, for readability,
+            these words do not appear in all uppercase letters in this specification.
+
+        </p>
+   <p>
+            All of the text of this specification is normative
+            except sections explicitly marked as non-normative, examples, and notes. <a data-biblio-type="normative" data-link-type="biblio" data-lt="RFC2119">[RFC2119]</a>
+
+        </p>
+   <p>
+            Examples in this specification are introduced with the words “for example”
+            or are set apart from the normative text with <code nohighlight>class="example"</code>, like this:
+
+        </p>
+   <div class="example" id="example-example">
+            This is an example of an informative example.
+        </div>
+   <p>
+            Informative notes begin with the word “Note”
+            and are set apart from the normative text with <code nohighlight>class="note"</code>, like this:
+
+        </p>
+   <p class="note">
+            Note, this is an informative note.</p>
+   <wpt title="Tests relating to the content of this specification
+                    may be documented in “Tests” blocks.
+                    Any such block is non-normative."></wpt>
+  </div>
+<script></script>

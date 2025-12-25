@@ -1,0 +1,864 @@
+<!doctype html><html lang="en">
+ <head>
+  <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+  <title>Bikeshed Documentation</title>
+  <meta content="width=device-width, initial-scale=1, shrink-to-fit=no" name="viewport">
+<style data-fill-with="stylesheet"></style>
+ <body class="h-entry">
+  <div class="head">
+   <p data-fill-with="logo"></p>
+   <h1 class="no-ref p-name" id="title">Bikeshed Documentation</h1>
+   <h2 class="no-num no-ref no-toc" id="profile-and-date">Living Standard,
+    <time class="dt-updated" datetime="2025-12-19">19 December 2025</time></h2>
+   <div data-fill-with="spec-metadata"></div>
+   <div data-fill-with="warning"></div>
+   <p class="copyright" data-fill-with="copyright"></p>
+   <hr title="Separator for header">
+  </div>
+  <div class="p-summary" data-fill-with="abstract"></div>
+  <div data-fill-with="at-risk"></div>
+  <nav data-fill-with="multipage-table-of-contents" id="toc"></nav>
+  <main>
+   <p>Bikeshed’s source format is <em>roughly</em> HTML,
+but it allows you to omit or shorten several verbose/annoying parts of the language,
+reducing the amount of format noise in the spec source,
+making it easier to read and write.</p>
+   <h3 class="heading settled" data-level="5.1" id="markdown"><span class="secno">5.1. </span><span class="content">Markdown</span><a class="self-link" href="#markdown"></a></h3>
+   <p>Bikeshed uses a Markdown variant called Bikeshed-flavored Markdown (BSMD).
+By default,
+it recognizes all of the "block-level" Markdown constructs
+defined by <a href="https://commonmark.org/">CommonMark</a>,
+except for indented code blocks:</p>
+   <ul>
+    <li data-md>
+     <p>paragraphs</p>
+    <li data-md>
+     <p>lists</p>
+    <li data-md>
+     <p>blockquotes</p>
+    <li data-md>
+     <p>headings (both underlined and #-surrounded)</p>
+    <li data-md>
+     <p>horizontal rules</p>
+    <li data-md>
+     <p>fenced code blocks (using <code class="highlight">~</code> or <code class="highlight">`</code>)</p>
+    <li data-md>
+     <p>HTML blocks</p>
+   </ul>
+   <p>Because it doesn’t have to handle indented code blocks,
+BSMD’s HTML handling is generally superior to other Markdown implementations.
+You can freely switch back and forth between Markdown and HTML as needed,
+and indent properly.
+(In fact, you <em>should</em> properly indent everything;
+if you don’t, you can sometimes get confusing errors!)</p>
+   <p>If the <code class="highlight">Markup Shorthands: markdown yes</code> metadata is specified,
+it also recognizes several of the Markdown "inline elements":</p>
+   <ul>
+    <li data-md>
+     <p><em>emphasis</em> (<code class="highlight">*emphasis*</code>) and <strong>strong</strong> (<code class="highlight">**strong**</code>) elements</p>
+    <li data-md>
+     <p>inline <code class="highlight">code</code> (<code class="highlight">`code`</code>) elements, which can include literal backticks by
+delimiting the content with multiple-backtick sequences: <code class="highlight">`` ` ``</code>
+produces <code class="highlight">`</code>. (Note that spaces at the beginning and end of the code
+element are stripped.)</p>
+    <li data-md>
+     <p>inline links, with optional title</p>
+   </ul>
+   <p>It does not recognize "autolinks" (surrounded by &lt;> characters),
+images,
+or "hard line breaks";
+use HTML for these.
+It also does not recognize "link references"
+(defining the link location elsewhere,
+and referring to it by reference instead).</p>
+   <p>In addition to standard (CommonMark) Markdown,
+Bikeshed also recognizes <strong>definition lists</strong>, with the following format:</p>
+<pre class="highlight">Here's the dl syntax:
+
+: key
+:: val
+: key 1
+: key 2
+:: more vals
+</pre>
+   <p>For all three list formats,
+on the rare occasions you need to add a class or attribute to the list,
+you can wrap it in the appropriate list container, like:</p>
+<pre class="highlight"><c- p>&lt;</c-><c- f>ol</c-> <c- e>class</c-><c- o>=</c-><c- s>foo</c-><c- p>></c->
+  1. first
+  2. second
+<c- p>&lt;/</c-><c- f>ol</c-><c- p>></c->
+</pre>
+   <p>Bikeshed will use the container you provided,
+rather than generating a fresh one like it does by default.</p>
+   <p>Bikeshed also supports adding IDs to headings,
+via the Markdown Extra syntax:</p>
+<pre class="highlight">Header 1 {#header1}
+========
+
+### Header 2 ### {#header2}
+</pre>
+   <p>More of Markdown will be supported in the future,
+as I get closer to adhering to the CommonMark specification.</p>
+   <h3 class="heading settled" data-level="5.2" id="bs-charref"><span class="secno">5.2. </span><span class="content">Bikeshed-Specific Character References</span><a class="self-link" href="#bs-charref"></a></h3>
+   <p>In addition to the standard HTML character reference syntaxes
+(named refs like <code class="highlight"><c- ni>&amp;copy;</c-></code> or numeric refs like <code class="highlight"><c- ni>&amp;#1234;</c-></code> or <code class="highlight"><c- ni>&amp;#x1a2b;</c-></code>),
+Bikeshed supports a few <dfn class="dfn-paneled" data-dfn-type="dfn" data-lt="bikeshed escapes|custom character references" data-noexport id="bikeshed-escapes">custom character references</dfn> to address some common needs.
+All of these look like <code class="highlight"><c- ni>&amp;bs...;</c-></code>:</p>
+   <dl>
+    <dt data-md>"bs" + any single ASCII punctuation character
+    <dd data-md>
+     <p>This is an escape for that punctuation character.
+For example, <code class="highlight"><c- ni>&amp;bs[;</c-></code> is an escape for the <code class="highlight">[</code> character,
+allowing you to escape an autolink
+without having to remember the codepoint of the character:
+<code class="highlight"><c- ni>&amp;bs[;</c->=foo=]</code>.</p>
+     <p>(Yes, semicolon works too, and still needs to be ended by a semicolon: <code class="highlight"><c- ni>&amp;bs;</c->;</code> to produce ;.)</p>
+    <dt data-md><code class="highlight"><c- ni>&amp;bs&lt;&lt;;</c-></code>
+    <dt data-md><code class="highlight"><c- ni>&amp;bs>>;</c-></code>
+    <dt data-md><code class="highlight"><c- ni>&amp;bs->;</c-></code>
+    <dd data-md>
+     <p>These are escapes for the <a data-link-type="biblio" href="#biblio-infra" title="Infra Standard">[INFRA]</a> syntax for <a data-link-type="dfn" href="https://infra.spec.whatwg.org/#list" id="ref-for-list">lists</a> and <a data-link-type="dfn" href="https://infra.spec.whatwg.org/#ordered-map" id="ref-for-ordered-map">maps</a>:
+«1, 2, 3» or «a→b, c→d ».</p>
+   </dl>
+   <p>More of these will likely be added in the future.</p>
+   <h3 class="heading settled" data-level="5.3" id="text-macros"><span class="secno">5.3. </span><span class="content">Text Macros</span><a class="self-link" href="#text-macros"></a></h3>
+   <p>Bikeshed supports the ability to use "text macros",
+spelled like <code class="highlight">[FOO]</code>
+(a single uppercase word, surrounded by square brackets),
+which expand into other text.</p>
+   <p>Macros can be used in several places,
+which dictate how they’re parsed:</p>
+   <ul>
+    <li data-md>
+     <p>in place of ordinary text/markup, like <code class="highlight"><c- p>&lt;</c-><c- f>p</c-><c- p>></c->It’s [YEAR] right now</code>,
+where their contents are parsed as HTML</p>
+    <li data-md>
+     <p>in HTML attributes, like <code class="highlight"><c- p>&lt;</c-><c- f>a</c-> <c- e>href</c-><c- o>=</c-><c- s>[LATEST]</c-><c- p>></c-></code>,
+where their contents are parsed as HTML attribute value
+(and safely escaped, no need to worry about spaces or quotes)</p>
+    <li data-md>
+     <p>directly within an HTML tag, like <code class="highlight"><c- p>&lt;</c-><c- f>div</c-> [<c- e>ATTRS</c->]<c- p>></c-></code>,
+where their contents are parsed as an HTML attribute list</p>
+    <li data-md>
+     <p>in the <code class="highlight">computed-metadata.include</code> file,
+where their contents are just used as text
+and substituted into the JSON with no escaping.</p>
+   </ul>
+   <p>Macros are <em>not</em> substituted, by default,
+in the "link data" portion of <a data-link-type="dfn" href="#autolink" id="ref-for-autolink">autolinks</a>,
+but this can be allowed by setting <a data-link-type="dfn" href="#metadata-markup-shorthands" id="ref-for-metadata-markup-shorthands②"><code class="highlight">Markup Shorthands: macros-in-autolinks yes</code></a>.
+With this, you can define a common long term in a macro,
+then use it in an autolink like <code class="highlight">[=[LONGTERM]=]</code>.
+(Alternately, you can just put the autolink <em>itself</em> into a macro,
+like <code class="highlight">Text Macro: FOO [=foo=]</code>,
+and then <code class="highlight">[FOO]</code> will expand to the autolink
+without having to adjust <a data-link-type="dfn" href="#metadata-markup-shorthands" id="ref-for-metadata-markup-shorthands③">Markup Shorthands</a>.)</p>
+   <p>Macros are also <em>not</em> substituted, by default,
+in the contents of <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/semantics.html#the-style-element" id="ref-for-the-style-element">style</a></code>, <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/scripting.html#script" id="ref-for-script①">script</a></code>, <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/obsolete.html#xmp" id="ref-for-xmp②">xmp</a></code>, or <a data-link-type="dfn" href="#datablock" id="ref-for-datablock">datablocks</a>,
+as CSS/JS/etc are too likely to contain things that accidentally look like the macro syntax,
+and mixing another escaping syntax into those languages is more trouble than it’s worth.
+You can turn on macro substitution on an element-by-element basis
+by adding the <code class="highlight">bs-macros</code> attribute,
+like <code class="highlight"><c- p>&lt;</c-><c- f>style</c-> <c- e>bs-macros</c-><c- p>></c-><c- f>html</c-><c- p>::</c-><c- nd>before</c-> <c- p>{</c-> <c- k>content</c-><c- p>:</c-> <c- u>"[TITLE]"</c-><c- p>;</c-> <c- p>}&lt;/</c-><c- f>style</c-><c- p>></c-></code>.
+This will substitute them as unparsed plain text,
+so beware if there is any markup in the macro.</p>
+   <p>Macros can contain more macros, which are substituted recursively,
+even when the macros aren’t otherwise parsed
+(like in attribute values).</p>
+   <p>It’s normally a fatal error to use a macro that isn’t defined,
+but you can loosen that restriction by putting a ? at the end,
+like <code class="highlight">[UNKNOWN?]</code>,
+which will cause the macro to substitute with the empty string
+if it’s not defined.</p>
+   <p>Macros can be escaped in several ways,
+if you need to write something that looks like <code class="highlight">[FOO]</code>
+in your source:</p>
+   <ul>
+    <li data-md>
+     <p>using standard HTML escapes to escape the <code class="highlight">[</code>, like <code class="highlight"><c- ni>&amp;#91;</c->FOO]</code></p>
+    <li data-md>
+     <p>using a Bikeshed escape to escape the <code class="highlight">[</code>, like <code class="highlight"><c- ni>&amp;bs[;</c->FOO]</code></p>
+    <li data-md>
+     <p>If <code class="highlight">Markup Shorthands: markdown-escapes</code> is on (it is by default),
+using a leading <code class="highlight">\</code> to escape it, like <code class="highlight">\[FOO]</code>.</p>
+   </ul>
+   <h4 class="heading settled" data-level="5.3.1" id="custom-macros"><span class="secno">5.3.1. </span><span class="content">
+Custom Macro Names</span><a class="self-link" href="#custom-macros"></a></h4>
+   <p>You can define your own macros via the <a data-link-type="dfn" href="#metadata-text-macro" id="ref-for-metadata-text-macro②">Text Macros</a> metadata,
+if you have some long term you’d like to avoid having to repeatedly type.</p>
+   <p>Macros are one of the possible tests you can use for <a href="#conditional">§ 13.2 Conditional Inclusion</a>,
+so defining a custom text macro can be useful
+even if it doesn’t have a meaningful value.</p>
+   <h4 class="heading settled" data-level="5.3.2" id="predefined-macros"><span class="secno">5.3.2. </span><span class="content">
+Predefined Macro Names</span><a class="self-link" href="#predefined-macros"></a></h4>
+   <p>Additionally, Bikeshed supports a number of macros automatically,
+computed from your spec’s metadata.
+Mostly, these are just used by your boilerplate file
+and won’t be seen in the actual document source.</p>
+   <ul>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-title"><code class="highlight">[TITLE]</code></dfn> is the spec’s title
+(taken from <a data-link-type="dfn" href="#metadata-title" id="ref-for-metadata-title③">Title</a>), 
+formatted appropriately for the <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/semantics.html#the-title-element" id="ref-for-the-title-element③">title</a></code> element.</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-spectitle"><code class="highlight">[SPECTITLE]</code></dfn> is the spec’s title
+(taken from <a data-link-type="dfn" href="#metadata-h1" id="ref-for-metadata-h1②">H1</a>, if set; otherwise from <a data-link-type="dfn" href="#metadata-title" id="ref-for-metadata-title④">Title</a>), 
+formatted as normal HTML.</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-shortname"><code class="highlight">[SHORTNAME]</code></dfn> gives the document’s shortname, like "css-cascade"
+(taken from <a data-link-type="dfn" href="#metadata-shortname" id="ref-for-metadata-shortname">Shortname</a>).</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-level"><code class="highlight">[LEVEL]</code></dfn> gives the document’s level
+(taken from <a data-link-type="dfn" href="#metadata-level" id="ref-for-metadata-level">Level</a>).</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-vshortname"><code class="highlight">[VSHORTNAME]</code></dfn> gives the "versioned" shortname, like "css-cascade-3"
+(taken from <a data-link-type="dfn" href="#metadata-shortname" id="ref-for-metadata-shortname①">Shortname</a> + <a data-link-type="dfn" href="#metadata-level" id="ref-for-metadata-level①">Level</a>).</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-status"><code class="highlight">[STATUS]</code></dfn> gives the short version of the spec’s status
+(taken from <a data-link-type="dfn" href="#metadata-status" id="ref-for-metadata-status①⓪">Status</a>),
+like "ED".</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-longstatus"><code class="highlight">[LONGSTATUS]</code></dfn> gives the long form of the spec’s status
+(taken from <a data-link-type="dfn" href="#metadata-status" id="ref-for-metadata-status①①">Status</a>),
+like "Editor’s Draft".</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-statustext"><code class="highlight">[STATUSTEXT]</code></dfn> gives a custom message about the spec’s status
+(taken from <a data-link-type="dfn" href="#metadata-status-text" id="ref-for-metadata-status-text">Status Text</a>).</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-workstatus"><code class="highlight">[WORKSTATUS]</code></dfn> gives the spec’s current work status
+(taken from <a data-link-type="dfn" href="#metadata-work-status" id="ref-for-metadata-work-status">Work Status</a>).</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-latest"><code class="highlight">[LATEST]</code></dfn> gives the link to the latest /TR version of the spec
+(taken from <a data-link-type="dfn" href="#metadata-tr" id="ref-for-metadata-tr">TR</a>).</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-version"><code class="highlight">[VERSION]</code></dfn> gives the link to the ED, if the spec is an ED, and otherwise constructs a dated /TR link from today’s date
+(taken from <a data-link-type="dfn" href="#metadata-ed" id="ref-for-metadata-ed">ED</a>, or <a data-link-type="dfn" href="#metadata-shortname" id="ref-for-metadata-shortname②">Shortname</a> + <a data-link-type="dfn" href="#metadata-level" id="ref-for-metadata-level②">Level</a> + <a data-link-type="dfn" href="#metadata-date" id="ref-for-metadata-date①">Date</a> + <a data-link-type="dfn" href="#metadata-status" id="ref-for-metadata-status①②">Status</a>).</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-abstract"><code class="highlight">[ABSTRACT]</code></dfn> gives the document’s abstract,
+(taken from <a data-link-type="dfn" href="#metadata-abstract" id="ref-for-metadata-abstract①">Abstract</a>).</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-year"><code class="highlight">[YEAR]</code></dfn> gives the current year.</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-date"><code class="highlight">[DATE]</code></dfn> gives a human-readable date like "30 January 2000"
+(taken from <a data-link-type="dfn" href="#metadata-date" id="ref-for-metadata-date②">Date</a>, or today’s date if that’s not set)</p>
+     <ul>
+      <li data-md>
+       <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-date-my"><code class="highlight">[DATE-MY]</code></dfn> gives a partial date like "Jan 2000"</p>
+      <li data-md>
+       <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-date-mmy"><code class="highlight">[DATE-MMY]</code></dfn> gives a partial date like "January 2000"</p>
+      <li data-md>
+       <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-date-dmmy"><code class="highlight">[DATE-DMMY]</code></dfn> is identical to <a data-link-type="dfn" href="#macro-date" id="ref-for-macro-date">[DATE]</a>.</p>
+      <li data-md>
+       <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-cdate"><code class="highlight">[CDATE]</code></dfn> gives a compact date in the format "YYYYMMDD", like "20000130"</p>
+      <li data-md>
+       <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-isodate"><code class="highlight">[ISODATE]</code></dfn> gives a compact date in iso format "YYYY-MM-DD", like "2000-01-30"</p>
+     </ul>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-deadline"><code class="highlight">[DEADLINE]</code></dfn> gives a human-readable version of the deadline date
+(taken from <a data-link-type="dfn" href="#metadata-deadline" id="ref-for-metadata-deadline">Deadline</a>)</p>
+     <ul>
+      <li data-md>
+       <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-isodeadline"><code class="highlight">[ISODEADLINE]</code></dfn> gives the deadline data in iso format.</p>
+     </ul>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-expires"><code class="highlight">[EXPIRES]</code></dfn> gives the expiration date for the draft
+(taken from <a data-link-type="dfn" href="#metadata-expires" id="ref-for-metadata-expires">Expires</a>)</p>
+     <ul>
+      <li data-md>
+       <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-expires-my"><code class="highlight">[EXPIRES-MY]</code></dfn>, <dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-expires-mmy"><code class="highlight">[EXPIRES-MMY]</code></dfn>, <dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-expires-dmmy"><code class="highlight">[EXPIRES-DMMY]</code></dfn>, <dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-cexpires"><code class="highlight">[CEXPIRES]</code></dfn>, and <dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-isoexpires"><code class="highlight">[ISOEXPIRES]</code></dfn> give the expiration data in the specified format, like the <a data-link-type="dfn" href="#macro-date" id="ref-for-macro-date①">[DATE]</a> variants.</p>
+     </ul>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-history"><code class="highlight">[HISTORY]</code></dfn> gives a link to the W3C spec history page
+(taken from <a data-link-type="dfn" href="#metadata-shortname" id="ref-for-metadata-shortname③">Shortname</a> + <a data-link-type="dfn" href="#metadata-level" id="ref-for-metadata-level③">Level</a>, if your spec is in the W3C <a data-link-type="dfn" href="#metadata-org" id="ref-for-metadata-org①①">Org</a>).</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-replacedby"><code class="highlight">[REPLACEDBY]</code></dfn>, <dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-snapshotid"><code class="highlight">[SNAPSHOTID]</code></dfn>, and <dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-snapshoturl"><code class="highlight">[SNAPSHOTURL]</code></dfn>
+give the corresponding components of the "Warning" metadata
+(taken from <a data-link-type="dfn" href="#metadata-warning" id="ref-for-metadata-warning">Warning</a>)</p>
+     <ul>
+      <li data-md>
+       <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-customwarningtext"><code class="highlight">[CUSTOMWARNINGTEXT]</code></dfn> and <dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-customwarningtitle"><code class="highlight">[CUSTOMWARNINGTITLE]</code></dfn> give the text and title of custom warnings
+(taken from <a data-link-type="dfn" href="#metadata-custom-warning-text" id="ref-for-metadata-custom-warning-text①">Custom Warning Text</a> and <a data-link-type="dfn" href="#metadata-custom-warning-title" id="ref-for-metadata-custom-warning-title①">Custom Warning Title</a>, + <a data-link-type="dfn" href="#metadata-warning" id="ref-for-metadata-warning①">Warning</a> to indicate a custom warning)</p>
+     </ul>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-logo"><code class="highlight">[LOGO]</code></dfn> gives the url of the spec’s logo
+(taken from <a data-link-type="dfn" href="#metadata-logo" id="ref-for-metadata-logo">Logo</a>).</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-repository"><code class="highlight">[REPOSITORY]</code></dfn> gives the name of the VCS repository the spec is located in,
+(taken from <a data-link-type="dfn" href="#metadata-repository" id="ref-for-metadata-repository②">Repository</a>, or auto-detected from the source file’s local repo if possible)</p>
+     <ul>
+      <li data-md>
+       <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-repositoryurl"><code class="highlight">[REPOSITORYURL]</code></dfn> gives the URL of the repository
+(auto-computed from <a data-link-type="dfn" href="#metadata-repository" id="ref-for-metadata-repository③">Repository</a>)</p>
+     </ul>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-mailinglist"><code class="highlight">[MAILINGLIST]</code></dfn> and <dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-mailinglistarchives"><code class="highlight">[MAILINGLISTARCHIVES]</code></dfn> give the URLs of the mailing list and archives
+(taken from <a data-link-type="dfn" href="#metadata-mailing-list" id="ref-for-metadata-mailing-list">Mailing List</a> and <a data-link-type="dfn" href="#metadata-mailing-list-archives" id="ref-for-metadata-mailing-list-archives">Mailing List Archives</a>)</p>
+    <li data-md>
+     <p><dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-w3c-stylesheet-url"><code class="highlight">[W3C-STYLESHEET-URL]</code></dfn> and <dfn class="dfn-paneled" data-dfn-for="macro" data-dfn-type="dfn" data-export id="macro-w3c-status-url"><code class="highlight">[W3C-STATUS-URL]</code></dfn> give URLs to the correct W3C stylesheet and status description, if you’re in the W3C <a data-link-type="dfn" href="#metadata-org" id="ref-for-metadata-org①②">Org</a>.
+(taken from <a data-link-type="dfn" href="#metadata-status" id="ref-for-metadata-status①③">Status</a>)</p>
+   </ul>
+   <p>As these are substituted at the text level, not the higher HTML level, you can use them <em>anywhere</em>, including in attribute values.</p>
+   <p>You can mark a macro as "optional" by appending a <code class="highlight">?</code> to its name,
+like <code class="highlight">[DATE?]</code>.
+This will cause Bikeshed to just remove it
+(replace it with the empty string)
+if it can’t find a definition,
+rather than throwing an error.</p>
+   <p>Like most other markup shorthands,
+text macros can be "escaped" by prepending a backslash,
+like <code class="highlight">\[TITLE]</code>.
+When Bikeshed sees this,
+it will remove the slash and leave the text alone.
+This is sometimes necessary when code examples in your doc (such as a regex)
+accidentally look like text macros.</p>
+   <h3 class="heading settled" data-level="5.4" id="notes-etc"><span class="secno">5.4. </span><span class="content">Notes, Issues, Examples, Advisements</span><a class="self-link" href="#notes-etc"></a></h3>
+   <p>The Markdown processor specially recognizes paragraphs starting with
+"Issue: ",
+"Advisement: ",
+"Assertion: ",
+"Note: ",
+or "Note, ",
+and will add a matching class to the paragraph automatically.
+These classes default to <code class="highlight">.issue</code>, <code class="highlight">.advisement</code>, <code class="highlight">.assertion</code>, and <code class="highlight">.note</code>,
+but can be customized with the metadatas
+<a data-link-type="dfn" href="#metadata-issue-class" id="ref-for-metadata-issue-class">Issue Class</a>, <a data-link-type="dfn" href="#metadata-advisement-class" id="ref-for-metadata-advisement-class">Advisement Class</a>, <a data-link-type="dfn" href="#metadata-assertion-class" id="ref-for-metadata-assertion-class">Assertion Class</a>, and <a data-link-type="dfn" href="#metadata-note-class" id="ref-for-metadata-note-class">Note Class</a>.
+(However, the default classes receive styling from the default stylesheet,
+so make sure you provide your own styling if you change them.)</p>
+   <p>The default styling of these blocks includes a generated-content "header"
+containing the word "NOTE:", etc.
+Elements with the <code class="highlight">.example</code> class will also be given a generated-content "header"
+in the format <code class="highlight">EXAMPLE n</code>
+with an auto-incrementing number,
+and have self-links created to allow linking directly to the example.</p>
+   <p>If you’d like to provide your own custom header,
+write out the container element yourself
+(rather than using the Markdown shorthand,
+just create any element with the appropriate class),
+and add a <code class="highlight">heading="YOUR TEXT HERE"</code> attribute to the container.
+It will automatically have "NOTE: "/etc prepended to it.
+(This is used by <a href="#remote-issues">§ 5.13 Remote Issues</a> to put the GitHub issue title on the issue containers.)</p>
+   <p>Alternately, if you want <em>full</em> control over the contents of the heading,
+write out the container element
+and create a <code class="highlight"><c- p>&lt;</c-><c- f>div</c-> <c- e>class</c-><c- o>=</c-><c- s>marker</c-><c- p>></c-></code> element containing the text you want
+as its first child.
+(This is what the <code class="highlight">heading=""</code> attribute does;
+it just automatically prepends "Note:"/etc to the text
+to keep it visually in line with other notes/etc by default.)</p>
+   <h3 class="heading settled" data-level="5.5" id="typography"><span class="secno">5.5. </span><span class="content">Typography Fixes</span><a class="self-link" href="#typography"></a></h3>
+   <p>Bikeshed will automatically handle a few typographic niceties for you, ones that it can reliably detect:</p>
+   <ul>
+    <li data-md>
+     <p>Possessive apostrophes, and most contraction apostrophes, are automatically turned into curly right single quotes (<code class="highlight">’</code>).</p>
+    <li data-md>
+     <p>Ending a line with <code class="highlight">--</code> will turn it into an em dash (<code class="highlight">—</code>) and pull the following line upwards so there’s no space between the surrounding words and the dash.</p>
+   </ul>
+   <h3 class="heading settled" data-level="5.6" id="datablocks"><span class="secno">5.6. </span><span class="content">Datablocks</span><a class="self-link" href="#datablocks"></a></h3>
+   <p>Bikeshed supports embedding a number of custom DSLs into your document,
+known as <dfn class="dfn-paneled" data-dfn-type="dfn" data-lt="datablock" data-noexport id="datablock">datablocks</dfn>.
+These are done by including a <code class="highlight"><c- p>&lt;</c-><c- f>pre</c-><c- p>></c-></code> (or <code class="highlight"><c- p>&lt;</c-><c- f>xmp</c-><c- p>></c-></code> or <code class="highlight"><c- p>&lt;</c-><c- f>script</c-><c- p>></c-></code>) with a particular class.
+These are used for several types of <a href="#def-blocks">definition tables</a>,
+<a href="#railroad">railroad diagrams</a>,
+<a href="#including">file includes</a>,
+and <a href="#bikeshed-data">bikeshed data sources</a>.</p>
+   <p>Datablocks are specially parsed:
+initially, the parser just jumps straight to the closing tag
+without interpreting anything inside of them,
+so there’s no risk of Bikeshed-isms or inline Markdown
+accidentally being parsed.
+(Within a <code class="highlight"><c- p>&lt;</c-><c- f>pre</c-><c- p>></c-></code> datablock, standard HTML is still parsed,
+so use <code class="highlight"><c- p>&lt;</c-><c- f>xmp</c-><c- p>></c-></code> or <code class="highlight"><c- p>&lt;</c-><c- f>script</c-><c- p>></c-></code> if you want to include <code class="highlight">&lt;</code> and <code class="highlight">&amp;</code> without escaping.)
+Even <a data-link-type="dfn" href="#metadata-text-macro" id="ref-for-metadata-text-macro③">text macros</a> aren’t parsed by default;
+put a <code class="highlight">bs-macros</code> boolean attribute on the start tag if you want them.</p>
+   <p>The DSL will handle the actual parsing of the datablock contents,
+and might invoke Bikeshed’s full parser on parts of that text
+where it makes sense.
+It will also determine what to replace the datablock with;
+data sources simply disappear,
+while railroad diagrams become <code><a data-link-type="element" href="https://svgwg.org/svg2-draft/struct.html#elementdef-svg" id="ref-for-elementdef-svg">svg</a></code>s,
+and definition tables become <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/tables.html#the-table-element" id="ref-for-the-table-element">table</a></code>s.</p>
+   <h3 class="heading settled" data-level="5.7" id="autolink-shortcuts"><span class="secno">5.7. </span><span class="content">Autolinks</span><a class="self-link" href="#autolink-shortcuts"></a></h3>
+   <p>There are several <dfn class="dfn-paneled" data-dfn-type="dfn" data-noexport id="autolink">autolink</dfn> shortcuts that make autolinks much shorter to write,
+such as <code class="highlight">'foo'</code> to link to a CSS property or descriptor,
+or <code class="highlight">{{foo}}</code> to link to an IDL construct.
+These are documented in <a href="#autolinking">§ 7 Autolinking</a>.</p>
+   <p>Other types of linking shorthand also exist,
+such as <code class="highlight">[[#foo]]</code> to link to sections of a spec
+(documented in <a href="#section-links">§ 7.9 Section Links</a>),
+or <code class="highlight">[[FOO]]</code> to link to generate and link to bibliography entries
+(documented in <a href="#biblio">§ 8 Bibliography</a>).</p>
+   <h4 class="dfn-paneled heading settled" data-dfn-type="element" data-export data-level="5.7.1" data-lt="l" id="l-element"><span class="secno">5.7.1. </span><span class="content">
+Autolink Shortcuts That Work Anywhere: the <code><a data-link-type="element" href="#l-element" id="ref-for-l-element①">l</a></code> element</span><a class="self-link" href="#l-element" id="ref-for-l-element⑧"></a></h4>
+   <p>The autolink shorthands don’t work in elements like <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/grouping-content.html#the-pre-element" id="ref-for-the-pre-element④">pre</a></code>,
+because it’s too easy for code constructs to look like autolinks.
+You can still manually write out your autolink as an <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-a-element" id="ref-for-the-a-element①">a</a></code> element,
+but that can be much more verbose than the terse syntax that the shorthands provide.
+(For example, <code class="highlight">{{Foo/bar()}}</code> vs <code class="highlight"><c- p>&lt;</c-><c- f>a</c-> <c- e>method</c-> <c- e>for</c-><c- o>=</c-><c- s>Foo</c-><c- p>></c->bar()<c- p>&lt;/</c-><c- f>a</c-><c- p>></c-></code>.)</p>
+   <p>You can avoid this by using the <code><a data-link-type="element" href="#l-element" id="ref-for-l-element②">l</a></code> element,
+and putting an autolink shorthand inside of it,
+like <code class="highlight"><c- p>&lt;</c-><c- f>l</c-><c- p>></c->{{Foo/bar()}}<c- p>&lt;/</c-><c- f>l</c-><c- p>></c-></code>.
+This will autolink exactly the same as normal,
+but works anywhere in your document.
+Extra bonus: it will recognize <em>all</em> the autolinking syntaxes,
+even if you have some turned off with the <a data-link-type="dfn" href="#metadata-markup-shorthands" id="ref-for-metadata-markup-shorthands④">Markup Shorthands</a> metadata.</p>
+   <p>The <code><a data-link-type="element" href="#l-element" id="ref-for-l-element③">l</a></code> element itself is removed from the document and replaced by the autolink,
+but if you specify any attributes on the <code><a data-link-type="element" href="#l-element" id="ref-for-l-element④">l</a></code>,
+they’ll be transferred to the generated <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-a-element" id="ref-for-the-a-element②">a</a></code>.
+This is especially useful for autolinking attributes that can’t be specified in the autolink shorthand,
+like the spec to search for when disambiguating a one-off term: <code class="highlight"><c- p>&lt;</c-><c- f>l</c-> <c- e>spec</c-><c- o>=</c-><c- s>foo</c-><c- p>></c->[=term that exists in multiple specs=]<c- p>&lt;/</c-><c- f>l</c-><c- p>></c-></code>.
+Without this, you’d have to convert the autolink fully to HTML, like <code class="highlight"><c- p>&lt;</c-><c- f>a</c-> <c- e>dfn</c-> <c- e>data-dfn-spec</c-><c- o>=</c-><c- s>foo</c-><c- p>></c->term that exists in multiple specs<c- p>&lt;/</c-><c- f>a</c-><c- p>></c-></code></p>
+   <h3 class="heading settled" data-level="5.8" id="var-and-algorithms"><span class="secno">5.8. </span><span class="content"><code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-var-element" id="ref-for-the-var-element②">var</a></code> and Algorithms</span><a class="self-link" href="#var-and-algorithms"></a></h3>
+   <p>The <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-var-element" id="ref-for-the-var-element③">var</a></code> element (or its shorthand equivalent, <code class="highlight">|foo|</code>) is often used to mark up "arguments" to a prose algorithm.
+Bikeshed explicitly recognizes this,
+and has several features related to this.</p>
+   <p><dfn class="dfn-paneled" data-dfn-type="dfn" data-noexport id="algorithms">Algorithms</dfn> can be explicitly indicated in your markup
+by putting the <code class="highlight">algorithm</code> attribute on a container element
+or a heading.
+All vars within an <a data-link-type="dfn" href="#algorithms" id="ref-for-algorithms">algorithm</a> are "scoped" to that algorithm.</p>
+   <p class="note" role="note"><span class="marker">Note:</span> Algorithms need to have a name.
+By default, it’ll infer one
+if there’s only a single <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-dfn-element" id="ref-for-the-dfn-element③">dfn</a></code> inside the algorithm container,
+but if there’s zero or multiple <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-dfn-element" id="ref-for-the-dfn-element④">dfn</a></code>s,
+or you just want to give a clearer name,
+you can supply it as the value of the <code class="highlight">algorithm</code> attribute,
+like <code class="highlight">algorithm="to foo a bar"</code>.</p>
+   <p>Generally, vars are used at least twice in an algorithm:
+once to define them,
+and at least once to actually use them for something.
+If you use a var only once,
+there’s a good chance it’s actually a typo.
+Bikeshed will emit a warning if it finds any vars used only once in an algorithm.
+If this singular usage is correct,
+you can instruct Bikeshed to ignore the error by adding an <code class="highlight">ignore</code> attribute to the <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-var-element" id="ref-for-the-var-element④">var</a></code> itself.
+(There’s no way to do this with the <code class="highlight">|foo|</code> syntax;
+you have to convert it back to an actual <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-var-element" id="ref-for-the-var-element⑤">var</a></code> element.)</p>
+   <h3 class="heading settled" data-level="5.9" id="code-blocks"><span class="secno">5.9. </span><span class="content">Code Blocks (<code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/grouping-content.html#the-pre-element" id="ref-for-the-pre-element⑤">pre</a></code>, etc)</span><a class="self-link" href="#code-blocks"></a></h3>
+   <p>Bikeshed has several nice features related to "code blocks"—​<code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/grouping-content.html#the-pre-element" id="ref-for-the-pre-element⑥">pre</a></code>, <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/obsolete.html#xmp" id="ref-for-xmp③">xmp</a></code>, and sometimes <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-code-element" id="ref-for-the-code-element①">code</a></code>.</p>
+   <h4 class="heading settled" data-level="5.9.1" id="pre-whitespace-stripping"><span class="secno">5.9.1. </span><span class="content"><code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/grouping-content.html#the-pre-element" id="ref-for-the-pre-element⑦">pre</a></code> whitespace stripping</span><a class="self-link" href="#pre-whitespace-stripping"></a></h4>
+   <p>Using a <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/grouping-content.html#the-pre-element" id="ref-for-the-pre-element⑧">pre</a></code> element in HTML is unsatisfying,
+because it forces you to break your indentation strategy,
+pulling the content back to the margin edge
+(or else employing silly hacks with comments and explicit newlines).
+The preprocessor fixes this.</p>
+   <p>Whenever a <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/grouping-content.html#the-pre-element" id="ref-for-the-pre-element⑨">pre</a></code> element is encountered,
+the processor records how much whitespace precedes the first line,
+and then strips that much whitespace from it and all following lines.</p>
+   <p>Additionally, if the closing <code class="highlight"><c- p>&lt;/</c-><c- f>pre</c-><c- p>></c-></code> is on its own line,
+the processor automatically pulls it up onto the end of the previous line,
+so there’s no final blank line in the content.</p>
+   <p>In other words, you can now write:</p>
+<pre class="highlight"><c- p>&lt;</c-><c- f>div</c-> <c- e>class</c-><c- o>=</c-><c- s>'example'</c-><c- p>></c->
+  <c- p>&lt;</c-><c- f>p</c-><c- p>></c->
+    An example:
+
+  <c- p>&lt;</c-><c- f>pre</c-><c- p>></c->
+    <c- ni>&amp;lt;</c->ul>
+      <c- ni>&amp;lt;</c->li>one
+      <c- ni>&amp;lt;</c->li>two
+    <c- ni>&amp;lt;</c->/ul>
+  <c- p>&lt;/</c-><c- f>pre</c-><c- p>></c->
+<c- p>&lt;/</c-><c- f>div</c-><c- p>></c->
+</pre>
+   <p>The preprocessor will automatically convert it into:</p>
+<pre class="highlight"><c- p>&lt;</c-><c- f>div</c-> <c- e>class</c-><c- o>=</c-><c- s>'example'</c-><c- p>></c->
+  <c- p>&lt;</c-><c- f>p</c-><c- p>></c->
+    An example:
+
+  <c- p>&lt;</c-><c- f>pre</c-><c- p>></c->
+<c- ni>&amp;lt;</c->ul>
+  <c- ni>&amp;lt;</c->li>one
+  <c- ni>&amp;lt;</c->li>two
+<c- ni>&amp;lt;</c->/ul><c- p>&lt;/</c-><c- f>pre</c-><c- p>></c->
+<c- p>&lt;/</c-><c- f>div</c-><c- p>></c->
+</pre>
+   <h4 class="heading settled" data-level="5.9.2" id="xmp"><span class="secno">5.9.2. </span><span class="content"><code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/obsolete.html#xmp" id="ref-for-xmp④">xmp</a></code> To Avoid Escaping Markup</span><a class="self-link" href="#xmp"></a></h4>
+   <p>The <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/obsolete.html#xmp" id="ref-for-xmp⑤">xmp</a></code> element is an old HTML element that’s now deprecated
+(but still required to be supported).
+It was intended for markup examples
+(thus the name),
+and has magical parsing properties,
+where its contents
+(everything until the <code class="highlight"><c- p>&lt;/</c-><c- f>xmp</c-><c- p>></c-></code> closing tag)
+are treated as literal text,
+and not interpreted as HTML.
+In particular, this means that within an <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/obsolete.html#xmp" id="ref-for-xmp⑥">xmp</a></code>
+you don’t need to escape your <code class="highlight">&lt;</code> or <code class="highlight">&amp;</code> characters.</p>
+   <p>Bikeshed supports using <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/obsolete.html#xmp" id="ref-for-xmp⑦">xmp</a></code> <em>anywhere</em> a <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/grouping-content.html#the-pre-element" id="ref-for-the-pre-element①⓪">pre</a></code> can be used;
+it converts it into a properly-escaped <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/grouping-content.html#the-pre-element" id="ref-for-the-pre-element①①">pre</a></code> in the output
+to avoid validation errors.
+For example, the two markup examples in the previous section are using <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/obsolete.html#xmp" id="ref-for-xmp⑧">xmp</a></code> in this document’s source.</p>
+   <p>Use of <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/obsolete.html#xmp" id="ref-for-xmp⑨">xmp</a></code> is particularly useful for IDL blocks,
+as IDL uses <code class="highlight"><c- p>&lt;</c-><c- f>foo</c-><c- p>></c-></code> syntax for higher-order types
+(like <code class="highlight">sequence<c- p>&lt;</c-><c- f>DOMString</c-><c- p>></c-></code>).
+If you’re using a <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/grouping-content.html#the-pre-element" id="ref-for-the-pre-element①②">pre</a></code> and don’t remember to escape this,
+you’ll end up with confusingly-broken IDL,
+as the <code class="highlight"><c- p>&lt;</c-><c- f>DOMString</c-><c- p>></c-></code> part is interpreted as an opening HTML tag.
+If you use <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/obsolete.html#xmp" id="ref-for-xmp①⓪">xmp</a></code> instead,
+there’s no need to remember to escape anything;
+you can write or copy raw WebIDL into the block
+and it’ll be interpreted correctly.</p>
+   <h4 class="heading settled" data-level="5.9.3" id="syntax-highlighting"><span class="secno">5.9.3. </span><span class="content">Syntax Highlighting</span><a class="self-link" href="#syntax-highlighting"></a></h4>
+   <p>You can syntax-highlight code blocks.
+Just add either a <code class="highlight">highlight="foo"</code> attribute
+or a <code class="highlight">lang-foo</code> class to the element,
+or set a <a data-link-type="dfn" href="#metadata-default-highlight" id="ref-for-metadata-default-highlight">Default Highlight</a> metadata,
+and the element will automatically be syntax-highlighted according to the "foo" language rules.
+(Setting <code class="highlight">no-highlight</code> closer will turn if off for an element;
+it looks for the closest ancestor with one of the attributes.)</p>
+   <p>The syntax highlighter uses Pygments, which supports a large set of languages.
+See <a href="http://pygments.org/docs/lexers/">http://pygments.org/docs/lexers/</a> for the full list.
+(Use one of the "short names" of the language for the "foo" value.)</p>
+   <p>Bikeshed comes with a default color scheme based loosely on that of Prism.js.
+If you would like to use your own color scheme,
+turn off the automatic styles with a <code class="highlight">Boilerplate: style-syntax-highlighting off</code> metadata,
+then supply your own.</p>
+   <p class="note" role="note"><span class="marker">Note:</span> If you use <code class="highlight">highlight=html</code>,
+<code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/scripting.html#script" id="ref-for-script②">script</a></code> and <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/semantics.html#the-style-element" id="ref-for-the-style-element①">style</a></code> elements are automatically highlighted with JS and CSS rules.
+Normative WebIDL blocks (<code class="highlight">class=idl</code>) and CDDL blocks (<code class="highlight">class=cddl</code>) are automatically highlighted,
+but you can use <code class="highlight">highlight=idl</code> and <code class="highlight">highlight=cddl</code> to highlight non-normative ones.</p>
+   <p class="note" role="note"><span class="marker">Note:</span> If your code block already has markup in it,
+this feature will safely "merge" the highlighting into your existing markup.</p>
+   <h4 class="heading settled" data-level="5.9.4" id="line-numbers"><span class="secno">5.9.4. </span><span class="content">Line Numbers</span><a class="self-link" href="#line-numbers"></a></h4>
+   <p>You can automatically generate line numbers for code blocks
+by adding a <code class="highlight">line-numbers</code> attribute to the element or an ancestor,
+or setting the <a data-link-type="dfn" href="#metadata-line-numbers" id="ref-for-metadata-line-numbers">Line Numbers</a> metadata to affect all elements.
+(Setting <code class="highlight">no-line-numbers</code> closer will turn it off for an element;
+it looks for the closest ancestor with one of the attributes).
+The numbers are added to each line via CSS generated content,
+so they’ll always stay in sync
+and won’t get copied when you highlight a chunk of text.</p>
+<pre class="highlight line-numbered"><span class="line-no" data-line="1"></span><span class="line">Haikus are easy:</span><span class="line-no" data-line="2"></span><span class="line">five-seven-five syllables,</span><span class="line-no" data-line="3"></span><span class="line">spread over three lines.</span></pre>
+   <p>The lines default to starting at 1;
+to change that,
+set the <code class="highlight">line-start</code> attribute on the element to your desired starting value.</p>
+   <p>If you would like to produce your own line-numbering CSS,
+turn off the automatic styles with a <code class="highlight">Boilerplate: style-line-numbers off</code> metadata,
+then supply your own.</p>
+   <p class="note" role="note"><span class="marker">Note:</span> Similar to syntax highlighting,
+this feature will safely "merge" the line-numbers markup
+into your existing markup.
+The only complication is if the original markup
+has elements that span more than one line;
+in this case, the "line" element will expand to cover all the lines spanned by your original markup.
+It will still put a line marker on the first and last line of this span,
+so the effect isn’t too noticeable
+if the original markup only spans two lines.</p>
+   <h4 class="heading settled" data-level="5.9.5" id="line-highlighting"><span class="secno">5.9.5. </span><span class="content">Highlighting Particular Lines</span><a class="self-link" href="#line-highlighting"></a></h4>
+   <p>If you want to bring attention to particular lines in your code snippet,
+but need to show more surrounding code for context,
+you can highlight the important ones
+with a <code class="highlight">line-highlight</code> attribute.</p>
+<pre class="highlight line-numbered"><span class="line-no"></span><span class="line">Another haiku.</span><span class="highlight-line line-no" data-line="2"></span><span class="highlight-line line">This is the important line.</span><span class="line-no"></span><span class="line">Ignore what's down here.</span></pre>
+   <p>The syntax of <code class="highlight">line-highlight</code> is a comma-separated sequence
+of either integers (like <code class="highlight">5</code>),
+or integer ranges (like <code class="highlight">2-4</code>).
+For example, <code class="highlight">line-highlight="2-4, 6"</code>
+will highlight lines 2, 3, 4, and 6.</p>
+   <p>Like <code class="highlight">line-numbers</code> (above),
+this defaults to considering the first line of the snippet as line 1,
+but the numbering can be changed with the <code class="highlight">line-start</code> attribute.</p>
+   <p>If you would like to produce your own line-highlighting CSS,
+turn off the automatic styles with a <code class="highlight">Boilerplate: style-line-highlighting off</code> metadata,
+then supply your own.</p>
+   <p class="note" role="note"><span class="marker">Note:</span> This feature has the same restriction on line-spanning elements
+as the <code class="highlight">line-numbers</code> feature does.
+In particular,
+if any line being wrapped in a multi-line "line" element
+is highlighted,
+the entire "line" element gets highlighted.</p>
+   <h3 class="heading settled" data-level="5.10" id="id-gen"><span class="secno">5.10. </span><span class="content">Automatic ID Generation</span><a class="self-link" href="#id-gen"></a></h3>
+   <p>If any heading, issue, or <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-dfn-element" id="ref-for-the-dfn-element⑤">dfn</a></code> element doesn’t have an <code class="highlight">id</code> attribute,
+one will be automatically generated by the processor,
+to ensure it’s usable as a link target.</p>
+   <p>Heading IDs are generated directly from the text contents of the element,
+cleaning up the characters to be a valid id.
+This often isn’t the best for complex heading texts,
+so it’s not recommended to rely on this.
+(Bikeshed will warn you that it’s generating IDs, and suggest you supply one manually.)</p>
+   <p>If a heading changed significantly,
+so that you want to change the ID,
+but you want links to the old heading ID to still work,
+put the old ID in an <code class="highlight">oldids=""</code> attribute on the heading element.
+If there are multiple, comma-separate them.</p>
+   <p>Issues (elements with <code class="highlight">class="issue"</code>) will generate IDs of the form "issue-###",
+where "###" is substring of a hash of the issue’s contents.
+This means that an issue’s ID will be stable against changes elsewhere in the document,
+including adding or removing issues above it in the source,
+but will change if you change the contents of the issue.</p>
+   <p>Definition IDs are also generated directly from the text contents of the element.
+Most definitions additionally get a prefix, such as "propdef-",
+to avoid clashes with other definitions.</p>
+   <p>If an automatically-generated ID would collide with any other ID,
+it’s automatically de-duped by appending a number to the end.
+This isn’t very pretty,
+so if you want to avoid it,
+supply an ID yourself.</p>
+   <h3 class="heading settled" data-level="5.11" id="id-assert"><span class="secno">5.11. </span><span class="content">Assertions</span><a class="self-link" href="#id-assert"></a></h3>
+   <p>Bikeshed provides the ability to mark "assertions" that tests can refer to.
+The assertion can either be added with the fake element <code class="highlight"><c- p>&lt;</c-><c- f>assert</c-><c- p>></c-></code> or by
+adding an <code class="highlight">assert</code> attribute to a <code class="highlight">div</code>. (e.g. <code class="highlight"><c- p>&lt;</c-><c- f>div</c-> <c- e>assert</c-><c- p>></c-></code>).</p>
+   <p>For the <code class="highlight"><c- p>&lt;</c-><c- f>assert</c-><c- p>></c-></code> tag, it will be replaced by a <code class="highlight"><c- p>&lt;</c-><c- f>span</c-><c- p>></c-></code> tag in the generated
+source. The <code class="highlight"><c- p>&lt;</c-><c- f>div</c-><c- p>></c-></code> tag will pass through but the <code class="highlight">assert</code> attribute is removed.</p>
+   <p>In both cases a unique ID is generated from the tags contents of the form "assert-###",
+where "###" is a substring of a hash of the assertions contents.
+This ensures that you have a unique ID that won’t change arbitrarily,
+but <em>will</em> change <strong>when the contents of the assertion change</strong>,
+making it easier to tell when a test might no longer be testing the assertion it points to
+(because it’s no longer pointing to a valid target at all!).</p>
+   <h3 class="heading settled" data-level="5.12" id="self-link"><span class="secno">5.12. </span><span class="content">Automatic Self-Link Generation</span><a class="self-link" href="#self-link"></a></h3>
+   <p>Giving IDs to important things in your document,
+like headings and definitions,
+is great, but of little use if people don’t know they can link to them.
+Bikeshed will automatically generate a "self-link"
+in the margin next to certain linkable elements
+which just links to the element,
+so people can click on the link and then just copy the URL from their address bar
+to get a link straight to what they care about.</p>
+   <p>Self-links are currently auto-generated for headings, definitions, and issues,
+and notes, examples, <code class="highlight"><c- p>&lt;</c-><c- f>li</c-><c- p>></c-></code>s, and <code class="highlight"><c- p>&lt;</c-><c- f>dt</c-><c- p>></c-></code>s that have been given IDs.</p>
+   <h3 class="heading settled" data-level="5.13" id="remote-issues"><span class="secno">5.13. </span><span class="content">Remote Issues</span><a class="self-link" href="#remote-issues"></a></h3>
+   <p>There are a few ways to easily link to issues in your source repository.</p>
+   <p>If <a data-link-type="dfn" href="#metadata-markup-shorthands" id="ref-for-metadata-markup-shorthands⑤">Markup Shorthands</a> is set to <code class="highlight">repository-links yes</code>
+(which it is by default),
+you can also use <em>inline</em> repository links
+of the form <code class="highlight">&lt;#123></code> or <code class="highlight"><c- p>&lt;</c-><c- f>org</c->/<c- e>repo</c->#<c- e>123</c-><c- p>></c-></code>.
+This’ll generate an HTML link pointing to the issue,
+with appropriate text
+like <a href="https://github.com/speced/bikeshed/issues/1532">issue #1532</a>.</p>
+   <p>If you’re using <code class="highlight">Issue:</code> paragraphs
+(as described in <a href="#notes-etc">§ 5.4 Notes, Issues, Examples, Advisements</a>),
+you can instead write <code class="highlight">Issue(###):</code>,
+where the <code class="highlight">###</code> is some identifying value for the issue.</p>
+   <p>By default, it’s assumed this is a GitHub issue,
+of the form <code class="highlight">123</code>, <code class="highlight">#123</code>, or <code class="highlight">org/repo#123</code>.
+Plain numbers will refer to the "local" repository
+(either specified by the <a data-link-type="dfn" href="#metadata-repository" id="ref-for-metadata-repository④">Repository</a> metadata,
+or auto-detected from the source folder),
+while the more explicit form refers to the specified repository.</p>
+   <p class="issue" id="issue-8a84a220"><a class="self-link" href="#issue-8a84a220"></a> This will generate a link to the specified issue
+at the end of the issue paragraph,
+like this. <a href="https://github.com/speced/bikeshed/issues/1532">[Issue #1532]</a></p>
+   <p>If no repository is detected,
+or the identifier doesn’t look like the above patterns,
+Bikeshed will check for an <a data-link-type="dfn" href="#metadata-issue-tracker-template" id="ref-for-metadata-issue-tracker-template">Issue Tracker Template</a> metadata
+to format the issue link instead.
+This only applies to <code class="highlight">Issue():</code> paragraphs,
+not inline repository links.</p>
+   <p><a data-link-type="dfn" href="#metadata-inline-github-issues" id="ref-for-metadata-inline-github-issues①">Inline GitHub Issues</a> also affects these <code class="highlight">Issue():</code> paragraphs.</p>
+   <h3 class="heading settled" data-level="5.14" id="including"><span class="secno">5.14. </span><span class="content">Including Other Files</span><a class="self-link" href="#including"></a></h3>
+   <p>Sometimes a spec is too large to easily work with in one file.
+Sometimes there’s lots of repetitive markup that only changes in a few standard ways.
+For whatever reason,
+Bikeshed has the ability to include additional files directly into your spec
+with a &lt;pre class=include> block:</p>
+<pre class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>include</c-><c- p>></c->
+path: relative/to/spec/location
+<c- p>&lt;/</c-><c- f>pre</c-><c- p>></c->
+</pre>
+   <p>The included document is parsed just like if it were written in locally,
+except that metadata blocks aren’t processed.
+(For various reasons, they have to be parsed before <em>any</em> other processing occurs).
+This means that the include file can use markdown,
+data blocks of various kinds (&lt;pre class=anchors>, &lt;pre class=railroad>, etc),
+and both provide definitions for the outer document
+and refer to ones defined by the outer document.</p>
+   <p class="note" role="note"><span class="marker">Note:</span> All include paths are processed relative to the outermost spec document’s location.
+If you’re including a document in another folder,
+and it includes a document itself,
+take care that your paths are correctly relative to the outermost spec,
+not to the included file.</p>
+   <p>If you’re including a block of repetitive markup multiple times,
+and want to vary how it’s displayed,
+you can pass additional "local" text macros in the block,
+which are valid only inside the included file:</p>
+<pre class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>include</c-><c- p>></c->
+path: template.md
+macros:
+  foo: bar
+  baz: qux qux qux
+<c- p>&lt;/</c-><c- f>pre</c-><c- p>></c->
+</pre>
+   <p>With the above code, you can use <code class="highlight">[FOO]</code> and <code class="highlight">[BAZ]</code> macros inside the include file,
+and they’ll be substituted with "bar" and "qux qux qux", respectively.
+(Remember that you can mark text macros as optional by appending a <code class="highlight">?</code>, like <code class="highlight">[FOO?]</code>,
+in which case they’ll be replaced with the empty string if Bikeshed can’t find a definition.)</p>
+   <h4 class="heading settled" data-level="5.14.1" id="including-code"><span class="secno">5.14.1. </span><span class="content">Including Code Files</span><a class="self-link" href="#including-code"></a></h4>
+   <p>While it’s easy to include short code snippets in your document inline
+with an ordinary <code class="highlight"><c- p>&lt;</c-><c- f>pre</c-><c- p>></c-></code> block
+(particularly with a <a href="#syntax-highlighting">highlight attribute</a>
+so it’s formatted nicely),
+you sometimes want to instead include snippets of a larger external file.
+(For example, so you can keep that file up-to-date easily,
+without having to go in and fiddle with all the chunks you’ve inlined into your document.)</p>
+   <p>Normal includes don’t work for this,
+as they include the whole file
+and assume that it’s more Bikeshed code;
+instead, use <code class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>include-code</c-><c- p>></c-></code>
+to include part (or all) of a file
+and have it rendered as highlightable source code.</p>
+<pre class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>include-code</c-><c- p>></c->
+path: bigFile.cpp
+highlight: c++
+show: 100-120
+<c- p>&lt;/</c-><c- f>pre</c-><c- p>></c->
+</pre>
+   <p>This snippet will create a nicely highlighted code block
+containing lines 100-120 of the file <code class="highlight">bigFile.cpp</code>.</p>
+   <p>You can additionally include any of the more advanced highlighting options
+(<a href="#line-numbers">§ 5.9.4 Line Numbers</a>, <a href="#line-highlighting">§ 5.9.5 Highlighting Particular Lines</a>),
+using the same names and value syntax as you would use when specifying them as attributes:</p>
+<pre class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>include-code</c-><c- p>></c->
+path: someFile.cpp
+highlight: c++
+line-numbers:
+line-highlight: 2-5, 10, 12
+<c- p>&lt;/</c-><c- f>pre</c-><c- p>></c->
+</pre>
+   <p>If any of your options cause line-numbers to show up
+(using <code class="highlight">line-numbers</code> or <code class="highlight">line-highlight</code>),
+and you’re showing a snippet of the larger file with <code class="highlight">show</code>,
+the numbering will default to using the numbering of the original file
+(so if you said <code class="highlight">show: 6-10</code>, the first visible line will be numbered "6").
+You can override this with <code class="highlight">line-start</code>, as usual.</p>
+   <p>Note that, unlike <code class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>include</c-><c- p>></c-></code>,
+there is no <code class="highlight">macros</code> option.</p>
+   <h4 class="heading settled" data-level="5.14.2" id="including-raw"><span class="secno">5.14.2. </span><span class="content">Including Non-Bikeshed HTML/SVG/etc</span><a class="self-link" href="#including-raw"></a></h4>
+   <p><code class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>include</c-><c- p>></c-></code> lets you insert chunks of Bikeshed source code
+into a larger outer document.
+But what if you want to include some markup
+that isn’t formatted as Bikeshed code?
+For example, SVG outputted by a design tool
+might not conform to Bikeshed’s syntax—​it might not indent properly,
+or it might use markup that will get messed up if parsed as Markdown,
+etc.</p>
+   <p>To avoid this,
+you can use <code class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>include-raw</c-><c- p>></c-></code>.
+Just like <code class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>include</c-><c- p>></c-></code>,
+it takes a single <code class="highlight">path</code> line:</p>
+<pre class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>include-raw</c-><c- p>></c->
+path: myDiagram.svg
+<c- p>&lt;/</c-><c- f>pre</c-><c- p>></c->
+</pre>
+   <p>…and replaces itself with that markup directly,
+without doing any additional Bikeshed syntax processing.</p>
+   <p class="note" role="note"><span class="marker">Note:</span> Unlike <code class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>include</c-><c- p>></c-></code>,
+there are no local <code class="highlight">macros</code>,
+as macro substitution is part of Bikeshed’s syntax processing,
+which is skipped here.</p>
+   <p class="note" role="note"><span class="marker">Note:</span> Most parts of later Bikeshed processing <em>do</em> work,
+such as linking to definitions,
+etc.,
+because inclusions are processed <em>very</em> early
+in Bikeshed’s transformation pipeline.
+However,
+if you’re writing something that’s intended to use Bikeshed’s features,
+you should really write Bikeshed source code
+and use <code class="highlight"><c- p>&lt;</c-><c- f>pre</c-> <c- e>class</c-><c- o>=</c-><c- s>include</c-><c- p>></c-></code>,
+in case some things move to being part of syntax processing.
+For example, inline autolinking shorthands currently aren’t,
+and so will work in include-raw substitutions,
+but that will change in the future.</p>
+   <h3 class="heading settled" data-level="5.15" id="tracking-vectors"><span class="secno">5.15. </span><span class="content">Tracking Vectors</span><a class="self-link" href="#tracking-vectors"></a></h3>
+   <p>A <a data-link-type="dfn" href="https://infra.spec.whatwg.org/#tracking-vector" id="ref-for-tracking-vector">tracking vector</a> can be annotated with the <code class="highlight">tracking-vector</code> attribute on the enclosing element.
+This will result in a link containing an image being prepended to the element.</p>
+   <div class="example" id="example-tracking-vector">
+    <a class="self-link" href="#example-tracking-vector"></a>
+	
+<pre class="highlight"><c- p>&lt;</c-><c- f>p</c-> <c- e>tracking-vector</c-><c- p>></c->This is an example of an element annotated with that attribute.
+</pre>
+    <p><a class="tracking-vector" href="https://infra.spec.whatwg.org/#tracking-vector" style="color: currentcolor"><svg aria-label="(This is a tracking vector.)" class="darkmode-aware" height="64" role="img" width="46"><title>There is a tracking vector here.</title><use href="#b732b3fe"></use></svg></a> This is an example of an element annotated with that attribute.
+</p>
+   </div>
+   <p>The various "Tracking Vector *" metadata keys can be used to customize the appearance of this annotation,
+though it’s encouraged to leave those in their default state for a consistent appearance across standards.</p>
+   <h3 class="heading settled" data-level="5.16" id="img-size"><span class="secno">5.16. </span><span class="content">Image Size Detection</span><a class="self-link" href="#img-size"></a></h3>
+   <p>If an <code><a data-link-type="element" href="https://html.spec.whatwg.org/multipage/embedded-content.html#the-img-element" id="ref-for-the-img-element①">img</a></code> element has a neither a <code><a data-link-type="element-sub" href="https://html.spec.whatwg.org/multipage/embedded-content-other.html#attr-dim-width" id="ref-for-attr-dim-width">width</a></code> nor a <code><a data-link-type="element-sub" href="https://html.spec.whatwg.org/multipage/embedded-content-other.html#attr-dim-height" id="ref-for-attr-dim-height">height</a></code> attribute,
+Bikeshed will automatically detect these dimensions from the image file
+and insert both attributes into the resulting markup.</p>
+   <div class="example" id="img-size-simple">
+    <a class="self-link" href="#img-size-simple"></a>
+	Given this markup:
+	
+<pre class="highlight"><c- p>&lt;</c-><c- f>img</c-> <c- e>alt</c-><c- o>=</c-><c- s>"…"</c-> <c- e>src</c-><c- o>=</c-><c- s>"img.jpg"</c-><c- p>></c-></pre>
+    
+	if the <code class="highlight">img.jpg</code> file is 300 pixels wide and 100 pixels tall,
+	bikeshed will generate the following output:
+	
+<pre class="highlight"><c- p>&lt;</c-><c- f>img</c-> <c- e>alt</c-><c- o>=</c-><c- s>"…"</c-> <c- e>src</c-><c- o>=</c-><c- s>"img.jpg"</c-> <c- e>width</c-><c- o>=</c-><c- s>"300"</c-> <c- e>height</c-><c- o>=</c-><c- s>"100"</c-><c- p>></c-></pre>
+   </div>
+   <p>Bikeshed will also detect and insert the dimensions of the image
+if the element has no <code><a data-link-type="element-sub" href="https://html.spec.whatwg.org/multipage/embedded-content.html#attr-img-src" id="ref-for-attr-img-src">src</a></code> attribute but does have a <code><a data-link-type="element-sub" href="https://html.spec.whatwg.org/multipage/embedded-content.html#attr-img-srcset" id="ref-for-attr-img-srcset">srcset</a></code> attribute.
+In that case,
+it accepts a narrow subset of the <code><a data-link-type="element-sub" href="https://html.spec.whatwg.org/multipage/embedded-content.html#attr-img-srcset" id="ref-for-attr-img-srcset①">srcset</a></code> syntax:
+a single <a data-link-type="dfn" href="https://html.spec.whatwg.org/multipage/images.html#image-source" id="ref-for-image-source">image source</a> URL
+followed by a single <a data-link-type="dfn" href="https://html.spec.whatwg.org/multipage/images.html#pixel-density-descriptor" id="ref-for-pixel-density-descriptor">pixel density descriptor</a>,
+limited to integers.
+Since the <code><a data-link-type="element-sub" href="https://html.spec.whatwg.org/multipage/embedded-content.html#attr-img-src" id="ref-for-attr-img-src①">src</a></code> attribute is mandatory in HTML,
+bikeshed will also add it to the output.</p>
+   <div class="example" id="img-size-srcset">
+    <a class="self-link" href="#img-size-srcset"></a>
+	In order to specify high resolution images,
+	use the following syntax:
+	
+<pre class="highlight"><c- p>&lt;</c-><c- f>img</c-> <c- e>alt</c-><c- o>=</c-><c- s>"…"</c-> <c- e>srcset</c-><c- o>=</c-><c- s>"highDPI.jpg 2x"</c-><c- p>></c-></pre>
+    
+	If the <code class="highlight">highDPI.jpg</code> file is 600 pixels wide and 200 pixels tall,
+	bikeshed will generate the following output:
+	
+<pre class="highlight"><c- p>&lt;</c-><c- f>img</c-> <c- e>alt</c-><c- o>=</c-><c- s>"…"</c-> <c- e>src</c-><c- o>=</c-><c- s>"highDPI.jpg"</c-> <c- e>srcset</c-><c- o>=</c-><c- s>"highDPI.jpg 2x"</c-> <c- e>width</c-><c- o>=</c-><c- s>"300"</c-> <c- e>height</c-><c- o>=</c-><c- s>"100"</c-><c- p>></c-></pre>
+   </div>
+   <p class="note" role="note"><span class="marker">Note:</span> Bikeshed will only successfully detect the size of local images,
+and will not attempt to fetch resources over the network,
+as there is no way for Bikeshed to know
+whether the size it would get is stable.
+Using local images is generally preferred,
+but if you need to use a remote one,
+consider setting the <code><a data-link-type="element-sub" href="https://html.spec.whatwg.org/multipage/embedded-content-other.html#attr-dim-width" id="ref-for-attr-dim-width①">width</a></code> and <code><a data-link-type="element-sub" href="https://html.spec.whatwg.org/multipage/embedded-content-other.html#attr-dim-height" id="ref-for-attr-dim-height①">height</a></code> manually.</p>
+   <p>If either of the <code><a data-link-type="element-sub" href="https://html.spec.whatwg.org/multipage/embedded-content-other.html#attr-dim-width" id="ref-for-attr-dim-width②">width</a></code> and <code><a data-link-type="element-sub" href="https://html.spec.whatwg.org/multipage/embedded-content-other.html#attr-dim-height" id="ref-for-attr-dim-height②">height</a></code> attributes is already set
+(or both are),
+or if both the <code><a data-link-type="element-sub" href="https://html.spec.whatwg.org/multipage/embedded-content.html#attr-img-src" id="ref-for-attr-img-src②">src</a></code> and <code><a data-link-type="element-sub" href="https://html.spec.whatwg.org/multipage/embedded-content.html#attr-img-srcset" id="ref-for-attr-img-srcset②">srcset</a></code> attributes are set,
+Bikeshed will assume you know what you’re doing,
+skip detection,
+and leave the element unchanged.</p>
+   <p>To opt out of this automated size detection for a single image,
+set the boolean <dfn class="dfn-paneled" data-dfn-for="img" data-dfn-type="element-attr" data-export id="element-attrdef-img-no-autosize"><code class="highlight">no-autosize</code></dfn> attribute on it.
+To opt out for the entire document,
+specify the <a data-link-type="dfn" href="#metadata-image-auto-size" id="ref-for-metadata-image-auto-size">Image Auto Size</a> metadata with the value false.</p>
+  </main>
+  <div data-fill-with="conformance">
+   <h2 class="no-num no-ref" id="conformance">
+    Conformance</h2>
+   <p>
+            Conformance requirements are expressed with a combination of descriptive assertions and RFC 2119 terminology.
+            The key words “MUST”, “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL NOT”, “SHOULD”, “SHOULD NOT”, “RECOMMENDED”, “MAY”, and “OPTIONAL”
+            in the normative parts of this document
+            are to be interpreted as described in RFC 2119.
+            However, for readability,
+            these words do not appear in all uppercase letters in this specification.
+
+        </p>
+   <p>
+            All of the text of this specification is normative
+            except sections explicitly marked as non-normative, examples, and notes. <a data-biblio-type="normative" data-link-type="biblio" data-lt="RFC2119">[RFC2119]</a>
+
+        </p>
+   <p>
+            Examples in this specification are introduced with the words “for example”
+            or are set apart from the normative text with <code nohighlight>class="example"</code>, like this:
+
+        </p>
+   <div class="example" id="example-example">
+            This is an example of an informative example.
+        </div>
+   <p>
+            Informative notes begin with the word “Note”
+            and are set apart from the normative text with <code nohighlight>class="note"</code>, like this:
+
+        </p>
+   <p class="note">
+            Note, this is an informative note.</p>
+   <wpt title="Tests relating to the content of this specification
+                    may be documented in “Tests” blocks.
+                    Any such block is non-normative."></wpt>
+  </div>
+<script></script>

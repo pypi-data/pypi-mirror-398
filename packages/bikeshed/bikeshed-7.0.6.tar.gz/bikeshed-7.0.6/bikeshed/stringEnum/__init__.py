@@ -1,0 +1,1 @@
+from .stringenum import StringEnum
