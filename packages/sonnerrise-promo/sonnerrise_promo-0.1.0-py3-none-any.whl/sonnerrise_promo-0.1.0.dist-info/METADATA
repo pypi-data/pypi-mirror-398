@@ -1,0 +1,104 @@
+Metadata-Version: 2.4
+Name: sonnerrise-promo
+Version: 0.1.0
+Summary: Promotion module for Sonnerrise - track promotion management
+Author-email: Konstantin Boyandin <developer@boyandin.com>
+License-Expression: MIT
+Requires-Python: >=3.11
+Requires-Dist: pydantic>=2.0
+Requires-Dist: sonnerrise-core>=0.1.0
+Requires-Dist: sonnerrise-tracks>=0.1.0
+Provides-Extra: dev
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# sonnerrise-promo
+
+Promotion module for the Sonnerrise suite - manages track promotion materials.
+
+## Features
+
+- Create and manage promotion materials for tracks
+- Store AI art generation prompts (still images and canvas/video)
+- Manage pitch/blurb text for marketing
+- Track promotion links with descriptions
+- Full CRUD operations via Python API or CLI
+
+## Installation
+
+```bash
+pip install sonnerrise-promo
+```
+
+## Usage
+
+### Python API
+
+```python
+from sonnerrise_core import load_config, get_database
+from sonnerrise_promo import PromoRepository, PromoCreate, PromoLinkCreate
+
+config = load_config()
+db = get_database(config)
+db.create_tables()
+
+repo = PromoRepository(db)
+
+# Create promotion materials for a track
+promo = repo.create(PromoCreate(
+    track_id=1,
+    track_art_definition="Epic fantasy landscape, warrior silhouette, dramatic sunset",
+    track_canvas_definition="Slow zoom on album art, particle effects, 8 seconds",
+    pitch="An epic journey through sound - perfect for fantasy game playlists",
+    links=[
+        PromoLinkCreate(url="https://spotify.com/track/...", description="Spotify"),
+        PromoLinkCreate(url="https://youtube.com/watch/...", description="YouTube"),
+    ],
+))
+
+# Get promo by track
+promo = repo.get_by_track(track_id=1)
+
+# Update promo
+repo.update(promo.id, PromoUpdate(pitch="Updated pitch text"))
+```
+
+### CLI
+
+```bash
+# List all promos
+sonnerrise-promo list
+
+# Create promo for a track
+sonnerrise-promo create --track 1 --pitch "Amazing new track!"
+
+# Show promo details
+sonnerrise-promo show 1
+
+# Update promo
+sonnerrise-promo update 1 --pitch "Updated pitch"
+
+# Add a link
+sonnerrise-promo add-link 1 --url "https://spotify.com/..." --description "Spotify"
+
+# Delete promo
+sonnerrise-promo delete 1
+```
+
+## Promo Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| track_id | integer | Reference to track (required, unique) |
+| track_art_definition | text (max 32KB) | AI art generation prompt for still images |
+| track_canvas_definition | text (max 32KB) | AI art generation prompt for video/canvas |
+| pitch | text (max 32KB) | Marketing pitch/blurb text |
+| links | list | Promotion URLs with descriptions |
+
+## Link Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| url | string (max 2048 chars) | Promotion URL |
+| description | string (max 120 chars) | Link description/title |
