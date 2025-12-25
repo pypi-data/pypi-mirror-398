@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block content %}
+{# Home page - no action bar needed #}
+{# Note: Home page manages its own containment for edge-to-edge hero sections #}
+<div class="home">
+    {# Hero Section #}
+    {% set hero_classes = ['hero', 'hero--large'] %}
+    {% if page.metadata.get('blob_background', false) %}
+    {% set _ = hero_classes.append('hero--blob-background') %}
+    {% endif %}
+    <header class="{{ hero_classes | join(' ') }}">
+        {% if page.metadata.get('blob_background', false) %}
+        {# Organic blob background animation #}
+        <div class="hero__blobs" aria-hidden="true">
+            <div class="hero__blob hero__blob--1"></div>
+            <div class="hero__blob hero__blob--2"></div>
+            <div class="hero__blob hero__blob--3"></div>
+            <div class="hero__blob hero__blob--4"></div>
+        </div>
+        {% endif %}
+        <div class="hero__container">
+            <div class="hero__content">
+                <h1 class="hero__title">
+                    <span class="fluid-text">{{ page.title | default(site.config.title) }}</span>
+                </h1>
+                {% if page.metadata.get('description', '') %}
+                <p class="hero__subtitle">{{ page.metadata.get('description', '') }}</p>
+                {% endif %}
+
+                {% if page.metadata.get('cta_buttons') %}
+                <div class="hero__actions">
+                    {% for button in page.metadata.get('cta_buttons') %}
+                    <a href="{{ button.get('href') or button.get('url') | absolute_url }}"
+                        class="hero__button hero__button--{{ button.get('style', 'primary') }} {% if button.get('style') != 'primary' %}gradient-border{% endif %}">
+                        {{ button.get('text') }}
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    {# Feature Highlights - Value Proposition Grid #}
+    {% if page.metadata.get('features') %}
+    <section class="features" aria-label="Key features">
+        <div class="features-grid">
+            {% for feature in page.metadata.get('features') %}
+            <article class="feature-card">
+                {% if feature.icon %}
+                <div class="feature-icon" aria-hidden="true">{{ feature.icon }}</div>
+                {% endif %}
+                <h3 class="feature-title">{{ feature.title }}</h3>
+                <p class="feature-description">{{ feature.description }}</p>
+                {% if feature.link %}
+                <a href="{{ feature.link.get('href') or feature.link.get('url') | absolute_url }}" class="feature-link">
+                    {{ feature.link.get('text', 'Learn more') }}
+                    <span aria-hidden="true">→</span>
+                </a>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {# Main Content #}
+    <div class="home-content prose">
+        {{ content | safe }}
+    </div>
+
+    {# Quick Links Section - Navigation Cards #}
+    {% if page.metadata.get('quick_links') %}
+    <section class="quick-links" aria-label="Quick navigation">
+        <h2>Quick Links</h2>
+        <div class="quick-links-grid">
+            {% for link in page.metadata.get('quick_links') %}
+            <a href="{{ link.get('href') or link.get('url') | absolute_url }}" class="quick-link-card">
+                {% if link.get('icon') %}
+                <div class="quick-link-icon" aria-hidden="true">{{ link.get('icon') }}</div>
+                {% endif %}
+                <h3>{{ link.get('title') }}</h3>
+                {% if link.get('description') %}
+                <p>{{ link.get('description') }}</p>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {# Statistics/Metrics Section - Impressive Numbers #}
+    {% if page.metadata.get('stats') %}
+    <section class="stats" aria-label="Key metrics">
+        <div class="stats-grid">
+            {% for stat in page.metadata.get('stats') %}
+            <div class="stat-card">
+                <div class="stat-value">{{ stat.value }}</div>
+                <div class="stat-label">{{ stat.label }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {# Recent Posts/Updates (if this is a blog-style home) #}
+    {# Show recent posts by default for blog sites, or if explicitly enabled #}
+    {% set show_recent = page.metadata.get('show_recent_posts', true) %}
+    {% if show_recent %}
+    {# Find blog section and get recent posts #}
+    {% set blog_section_name = page.metadata.get('blog_section', 'blog') %}
+    {% set blog_section_candidates = site.sections | selectattr('name', 'equalto', blog_section_name) | list if
+    site.sections else [] %}
+    {% set blog_section = blog_section_candidates[0] if blog_section_candidates else None %}
+    {% if blog_section and blog_section.pages %}
+    {% set recent = blog_section.pages | selectattr('date') | sort_by('date', reverse=true) | limit(3) %}
+    {% elif site.pages %}
+    {# Fallback: find blog posts by URL path or metadata type #}
+    {% set blog_posts = [] %}
+    {% for p in site.pages %}
+    {# Use relative_url for comparisons (without baseurl) #}
+    {% if p.metadata.get('type') == 'blog' or '/blog/' in p._path %}
+    {% set _ = blog_posts.append(p) %}
+    {% endif %}
+    {% endfor %}
+    {% set recent = blog_posts | selectattr('date') | sort_by('date', reverse=true) | limit(3) %}
+    {% else %}
+    {% set recent = [] %}
+    {% endif %}
+
+    {% if recent %}
+    <section class="recent-posts">
+        <h2 class="recent-posts-title">Recent Posts</h2>
+        <div class="posts-grid">
+            {% for post in recent %}
+            <article class="post-card gradient-border fluid-combined">
+                {% if post.metadata.get('image') or post.metadata.get('cover') %}
+                <div class="post-card-image">
+                    <a href="{{ post.href }}">
+                        <img src="{{ post.metadata.get('image') | default(post.metadata.get('cover')) }}"
+                            alt="{{ post.title }}">
+                    </a>
+                </div>
+                {% endif %}
+                <div class="post-card-content">
+                    <h3 class="post-card-title"><a href="{{ post.href }}">{{ post.title }}</a></h3>
+                    {% if post.date %}
+                    <time datetime="{{ post.date | date_iso }}" class="post-card-date">
+                        {{ post.date | dateformat('%B %d, %Y') }}
+                    </time>
+                    {% endif %}
+                    {% if post.metadata.get('description') or post.excerpt %}
+                    <p class="post-card-excerpt">
+                        {{ post.metadata.get('description') | default(post.excerpt) | truncate(150) }}
+                    </p>
+                    {% endif %}
+                    <a href="{{ post.href }}" class="read-more">Read more →</a>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+    {% endif %}
+</div>
+
+{# Styles moved to assets/css/pages/home.css #}
+{% endblock %}
