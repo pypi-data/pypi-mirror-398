@@ -1,0 +1,154 @@
+#:tombi schema.strict = false
+
+[project]
+name = "lattica-polymorph"
+version = "0.4.1"
+description = "Polymarket data aggregator and pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "wkflanders", email = "wflan@seas.upenn.edu" },
+]
+dependencies = [
+  "duckdb>=1.1.0",
+  "httpx[http2]>=0.28.1",
+  "joblib>=1.5.2",
+  "matplotlib>=3.10.7",
+  "numpy>=2.3.4",
+  "optuna>=4.5.0",
+  "polars>=1.35.1",
+  # "prometheus-client>=0.23.1",
+  "pyarrow>=22.0.0",
+  "pydantic>=2.12.3",
+  "pydantic-settings>=2.11.0",
+  "rich>=14.2.0",
+  "scipy>=1.16.3",
+  "sqlalchemy>=2.0.44",
+  "tenacity>=9.1.2",
+  "typer>=0.20.0",
+]
+
+[project.scripts]
+polymorph = "polymorph.cli:main"
+
+[dependency-groups]
+dev = [
+  "anyio>=4.0.0",
+  { include-group = "lint" },
+  { include-group = "security" },
+  { include-group = "test" },
+]
+lint = [
+  "black>=25.9.0",
+  "flake8>=7.3.0",
+  "flake8-bugbear>=25.10.21",
+  "flake8-comprehensions>=3.17.0",
+  "flake8-docstrings>=1.7.0",
+  "isort>=7.0.0",
+  "mypy>=1.18.2",
+  "ruff>=0.14.3",
+  "types-requests>=2.32.4.20250913",
+]
+security = [
+  "bandit>=1.8.6",
+  "vulture>=2.14",
+]
+test = [
+  "pytest>=8.4.2",
+  "pytest-asyncio>=0.23.0",
+  "pytest-cov>=6.0.0",
+  "pytest-timeout>=2.2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 120
+exclude = '''
+/(
+    \.venv
+  | \.git
+  | __pycache__
+  | \.pytest_cache
+  | \.mypy_cache
+  | build
+  | dist
+  | \.eggs
+  | \.egg-info
+  | monitor
+)/
+'''
+
+[tool.coverage.run]
+source = ["polymorph"]
+omit = [
+  "*/tests/*",
+  "*/__pycache__/*",
+  "*/.venv/*",
+  "*/monitor/*",
+]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+  "@abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.hatch.build.targets.wheel]
+packages = ["polymorph"]
+
+[tool.isort]
+profile = "black"
+line_length = 120
+skip_glob = ["**/.venv/**", "**/build/**", "**/dist/**"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+exclude = ['\.venv', "build", "dist", '\.eggs', "test", "monitor"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+  "asyncio: mark test as async to run via pytest-asyncio",
+  "integration: marks tests as integration tests that make real API calls (deselect with '-m \"not integration\"')",
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+addopts = "--strict-markers"
+
+[tool.ruff]
+line-length = 120
+exclude = [
+  ".venv",
+  ".git",
+  "__pycache__",
+  "build",
+  "dist",
+  ".eggs",
+  "*.egg-info",
+  "monitor"
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = []
