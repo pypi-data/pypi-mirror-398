@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: edda
+          POSTGRES_PASSWORD: edda_test_password
+          POSTGRES_DB: edda_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      mysql:
+        image: mysql:9
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: edda_test
+          MYSQL_USER: edda
+          MYSQL_PASSWORD: edda_test_password
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        ports:
+          - 3306:3306
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies (all database drivers and opentelemetry)
+        run: uv sync --extra dev --extra postgresql --extra mysql --extra opentelemetry
+
+      - name: Run tests (all databases)
+        env:
+          EDDA_TEST_POSTGRES_URL: postgresql+asyncpg://edda:edda_test_password@localhost:5432/edda_test
+          EDDA_TEST_MYSQL_URL: mysql+aiomysql://edda:edda_test_password@localhost:3306/edda_test
+        run: uv run pytest -v --tb=short
+
+      - name: Type check
+        run: uv run mypy edda
+
+      - name: Lint with ruff
+        run: uv run ruff check edda tests
+
+      - name: Check formatting
+        run: uv run black --check edda tests
