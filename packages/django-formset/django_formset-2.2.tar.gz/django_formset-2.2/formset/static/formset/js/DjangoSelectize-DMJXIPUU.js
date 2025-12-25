@@ -1,0 +1,1 @@
+import{a,b}from"./chunk-L6SO7EJA.js";import"./chunk-62NUKMDU.js";import"./chunk-XP7HK5C5.js";import"./chunk-74KQCU7Q.js";import"./chunk-IVA6BOTV.js";import"./chunk-S7O4ILSJ.js";import"./chunk-Y7GZ3BOM.js";export{a as DjangoSelectize,b as DjangoSelectizeElement};

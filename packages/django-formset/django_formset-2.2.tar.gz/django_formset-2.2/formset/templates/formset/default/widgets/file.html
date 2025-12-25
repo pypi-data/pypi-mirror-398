@@ -1,0 +1,52 @@
+{% load i18n %}{% spaceless %}
+<div class="dj-control-panel">
+	<input type="{{ widget.type }}" name="{{ widget.name }}"{% include "django/forms/widgets/attrs.html" %}>
+	{% if widget.value is not None %}
+		{% with script_id='initial_'|add:widget.attrs.id %}
+		{{ widget.value|json_script:script_id }}
+		{% endwith %}
+	{% endif %}
+	{% block "dropbox" %}
+	<figure class="dj-dropbox"><div class="dj-empty-item"><p>{% trans "Drag file here" %}</p></div></figure>
+	{% endblock %}
+	{% block "controller" %}
+	<div>
+		{% block "choose-file" %}
+		<button type="button" aria-controls="{{ widget.attrs.id }}">{% trans "Choose file" %}</button>
+		{% endblock %}
+		{% block "progress-bar" %}
+		<progress max="1" value="0" style="visibility: hidden;"></progress>
+		{% endblock %}
+	</div>
+	{% endblock %}
+</div>
+
+{% block "dropbox-items" %}
+<template class="dj-dropbox-items">
+	{% block "file-picture" %}
+	<img src="${thumbnail_url}">
+	{% endblock %}
+	{% block "file-caption" %}
+	<figcaption>
+		<dl>
+			<dt>{% trans 'Name' %}:</dt>
+			<dd>${name}</dd>
+		</dl>
+		<dl>
+			<dt>{% trans 'Content-Type' %}:</dt>
+			<dd>${content_type}</dd>
+		</dl>
+		<dl>
+			<dt>{% trans 'Size' %}:</dt>
+			<dd>${size}</dd>
+		</dl>
+		<div>
+			<a class="dj-delete-file" href="javascript:void(0);">{% trans "Delete" %}</a>
+			<a class="dj-download-file" href="${download_url}" download="${name}">{% trans "Download" %}</a>
+		</div>
+	</figcaption>
+	{% endblock %}
+</template>
+{% endblock %}
+
+{% endspaceless %}

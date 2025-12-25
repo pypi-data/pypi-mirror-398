@@ -1,0 +1,609 @@
+import operator
+import types
+import warnings
+from functools import reduce
+
+from django.core import validators
+from django.core.exceptions import NON_FIELD_ERRORS
+from django.db.utils import IntegrityError
+from django.forms.forms import BaseForm
+from django.forms.models import BaseModelForm, construct_instance, model_to_dict
+from django.forms.utils import ErrorDict, ErrorList, RenderableMixin
+from django.forms.widgets import MediaDefiningClass
+from django.utils.datastructures import MultiValueDict
+from django.utils.text import get_text_list
+from django.utils.translation import gettext_lazy
+
+from formset.formfields.activator import Activator
+from formset.forms import DeclarativeFieldsetMetaclass, FormMixin, FormsetModelFormMetaclass
+from formset.renderers import ButtonSize
+from formset.renderers.default import FormRenderer
+from formset.utils import (
+    MARKED_FOR_REMOVAL, CollectionFieldMixin, FormsetErrorList, HolderMixin, RenderableDetachedFieldMixin,
+)
+from formset.widgets.button import Button
+
+COLLECTION_ERRORS = '_collection_errors_'
+
+
+class AddSiblingButton(Button):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('action', 'activate("add_sibling")')
+        kwargs.setdefault('icon_char', '＋')
+        kwargs.setdefault('icon_left', True)
+        kwargs.setdefault('omit_restore', True)
+        kwargs.setdefault('button_size', ButtonSize.SMALL)
+        super().__init__(*args, **kwargs)
+
+    def build_attrs(self, base_attrs, extra_attrs=None):
+        attrs = super().build_attrs(base_attrs, extra_attrs)
+        attrs['df-disable'] = 'maxNumSiblingsReached()'
+        return attrs
+
+
+class AddSiblingActivator(Activator):
+    """
+    A utility class to be used as Activator for adding a sibling to a FormCollection.
+    """
+    def __init__(self, add_label, *args, **kwargs):
+        kwargs.update(label=add_label)
+        kwargs.setdefault('widget', AddSiblingButton())
+        super().__init__(*args, **kwargs)
+        self.widget.template_name
+
+
+class FormCollectionMeta(MediaDefiningClass):
+    """
+    Collect Forms declared on the base classes.
+    """
+    def __new__(cls, name, bases, attrs):
+        if add_label := attrs.pop('add_label', None):
+            warnings.warn(
+                "'add_label' is deprected in {module}.{name}. Use 'induce_add_sibling' and a "
+                "detached 'AddSiblingActivator' instead.".format(module=attrs.get('__module__'), name=name),
+                PendingDeprecationWarning,
+            )
+            attrs.setdefault('induce_add_sibling', '.add_sibling:active')
+            attrs.setdefault('add_sibling', AddSiblingActivator(add_label))
+
+        # Collect forms and sub-collections from current class and remove them from attrs.
+        attrs['declared_holders'], attrs['detached_holders'] = {}, {}
+        for key, value in list(attrs.items()):
+            if isinstance(value, (BaseForm, BaseFormCollection, Activator)):
+                attrs.pop(key)
+                setattr(value, '_name', key)
+                if isinstance(value, Activator):
+                    if not isinstance(value, RenderableDetachedFieldMixin):
+                        value.__class__ = type(
+                            value.__class__.__name__,
+                            (RenderableDetachedFieldMixin, value.__class__),
+                            {}
+                        )
+                    attrs['detached_holders'][key] = value
+                else:
+                    if not isinstance(value, FormMixin) and isinstance(value, BaseModelForm):
+                        value.__class__ = types.new_class(
+                            value.__class__.__name__,
+                            bases=(FormMixin, value.__class__),
+                            kwds={'metaclass': FormsetModelFormMetaclass},
+                        )
+                        value.error_class = FormsetErrorList
+                    elif not isinstance(value, FormMixin) and isinstance(value, BaseForm):
+                        value.__class__ = types.new_class(
+                            value.__class__.__name__,
+                            bases=(FormMixin, value.__class__),
+                            kwds={'metaclass': DeclarativeFieldsetMetaclass},
+                        )
+                        value.error_class = FormsetErrorList
+                    attrs['declared_holders'][key] = value
+            elif isinstance(value, CollectionFieldMixin):
+                pass
+
+        new_class = super().__new__(cls, name, bases, attrs)
+
+        # Walk through the MRO.
+        declared_holders = {}
+        for base in reversed(new_class.__mro__):
+            # Collect Form and FormCollection instances from base classes.
+            if hasattr(base, 'declared_holders'):
+                declared_holders.update(base.declared_holders)
+
+            # Form shadowing.
+            for attr, value in base.__dict__.items():
+                if value is None and attr in declared_holders:
+                    declared_holders.pop(attr)
+
+        new_class.declared_holders = declared_holders
+
+        return new_class
+
+
+class BaseFormCollection(HolderMixin, RenderableMixin):
+    """
+    The main implementation of all the FormCollection logic.
+    """
+    default_renderer = None
+    auto_id = 'id_%s'
+    prefix = None
+    template_name = 'formset/default/collection.html'
+    instance = None
+    partial = None
+    min_siblings = None
+    max_siblings = None
+    extra_siblings = None
+    is_sortable = None
+    legend = None
+    help_text = None
+    add_label = None
+    ignore_marked_for_removal = None
+    empty_values = list(validators.EMPTY_VALUES)
+
+    def __init__(self,
+        data=None,
+        initial=None,
+        renderer=None,
+        auto_id=None,
+        prefix=None,
+        instance=None,
+        created=None,
+        partial=None,
+        min_siblings=None,
+        max_siblings=None,
+        extra_siblings=None,
+        is_sortable=None,
+        legend=None,
+        help_text=None
+    ):
+        self.data = MultiValueDict() if data is None else data
+        self.initial = initial
+        if auto_id is not None:
+            self.auto_id = auto_id
+        if prefix is not None:
+            self.prefix = prefix
+        self._errors = None  # Stores the errors after `clean()` has been called.
+        if instance:
+            self.instance = instance
+        if created is not None:
+            self.created = created
+        if partial is not None:
+            self.partial = partial
+        if min_siblings is not None:
+            self.min_siblings = min_siblings
+        if max_siblings is not None:
+            self.max_siblings = max_siblings
+        if extra_siblings is not None:
+            self.extra_siblings = extra_siblings
+        if self.has_many:
+            if self.min_siblings is None:
+                self.min_siblings = 1
+            if self.extra_siblings is None:
+                self.extra_siblings = 0
+            if is_sortable is not None:
+                self.is_sortable = is_sortable
+            self.fresh_and_empty = False
+        else:
+            self.is_sortable = False
+        if legend is not None:
+            self.legend = legend
+        if help_text is not None:
+            self.help_text = help_text
+
+        # Initialize form renderer. Use a global default if not specified
+        # either as an argument or as self.default_renderer.
+        if renderer is None:
+            renderer = self.default_renderer
+            if isinstance(self.default_renderer, type):
+                renderer = renderer()
+        self.renderer = renderer
+        super().__init__()
+
+    def iter_single(self):
+        for name, declared_holder in self.declared_holders.items():
+            prefix = f'{self.prefix}.{name}' if self.prefix else name
+            initial = None
+            if isinstance(self.initial, dict):
+                initial = self.initial.get(name)
+            if initial is None:
+                initial = declared_holder.initial
+            holder = declared_holder.replicate(
+                initial=initial,
+                auto_id=self.auto_id,
+                prefix=prefix,
+                renderer=self.renderer,
+                ignore_marked_for_removal=self.ignore_marked_for_removal,
+            )
+            holder.is_single = True
+            yield holder
+
+    def iter_many(self):
+        if isinstance(self.initial, list):
+            num_siblings = max(self.min_siblings, len(self.initial) + self.extra_siblings)
+            if self.max_siblings is not None:
+                num_siblings = min(self.max_siblings, num_siblings)
+        else:
+            self.initial = []
+            num_siblings = max(self.min_siblings, self.extra_siblings)
+
+        first, last = 0, len(self.declared_holders.items()) - 1
+
+        # yield initialized collections and forms
+        for position in range(num_siblings):
+            for item_num, (name, declared_holder) in enumerate(self.declared_holders.items()):
+                prefix = f'{self.prefix}.{position}.{name}' if self.prefix else f'{position}.{name}'
+                initial = self.initial[position].get(name) if position < len(self.initial) else None
+                if initial is None:
+                    initial = declared_holder.initial
+                holder = declared_holder.replicate(
+                    initial=initial,
+                    auto_id=self.auto_id,
+                    prefix=prefix,
+                    renderer=self.renderer,
+                    ignore_marked_for_removal=self.ignore_marked_for_removal,
+                )
+                holder.position = position
+                if item_num == first:
+                    holder.is_first = True
+                if item_num == last:
+                    holder.is_last = True
+                if initial in self.empty_values and (position >= self.min_siblings or self.fresh_and_empty):
+                    holder.fresh_and_empty = True
+                yield holder
+
+        # yield empty placeholder as an HTML template for extra collections
+        for item_num, (name, declared_holder) in enumerate(self.declared_holders.items()):
+            if self.prefix:
+                count = self.prefix.count('${siblingId')
+                assert count < 10, "Maximum number of nested FormCollections reached"
+                # this context rewriting is necessary to render nested templates properly
+                if count > 0:
+                    position = f'${{position_{count}}}'
+                    prefix = f'{self.prefix}.${{siblingId_{count}}}.{name}'
+                else:
+                    position = '${position}'
+                    prefix = f'{self.prefix}.${{siblingId}}.{name}'
+            else:
+                position = '${position}'
+                prefix = f'${{siblingId}}.{name}'
+            holder = declared_holder.replicate(
+                prefix=prefix,
+                renderer=self.renderer,
+                ignore_marked_for_removal=self.ignore_marked_for_removal,
+            )
+            holder.is_template = True
+            holder.position = position
+            if item_num == first:
+                holder.is_first = True
+            if item_num == last:
+                holder.is_last = True
+            yield holder
+
+    def __iter__(self):
+        if self.has_many:
+            yield from self.iter_many()
+        else:
+            yield from self.iter_single()
+
+    def detached(self):
+        # yield detached activators, i.e. fields bound to a collection outside its forms
+        for name, detached_holder in self.detached_holders.items():
+            holder = detached_holder.replicate(
+                auto_id=self.auto_id,
+                prefix=self.prefix,
+                renderer=self.renderer,
+                ignore_marked_for_removal=self.ignore_marked_for_removal,
+            )
+            yield holder
+
+    def get_context(self):
+        return {
+            'collection': self,
+        }
+
+    @property
+    def errors(self):
+        """Return an ErrorDict for the data provided for this form collection."""
+        if self._errors is None:
+            self.full_clean()
+        return self._errors
+
+    def is_valid(self):
+        """Return True if all forms in this collection are valid."""
+        def is_valid(errors):
+            if isinstance(errors, dict):
+                return all(is_valid(e) for e in errors.values())
+            if isinstance(errors, list):
+                return all(is_valid(e) for e in errors)
+            assert isinstance(errors, str)
+            return False
+
+        if self._errors is None:
+            self.full_clean()
+            self.validate_siblings_count()
+        return is_valid(self._errors)
+
+    def full_clean(self):
+        if self.has_many:
+            self.valid_holders = []
+            self._errors = ErrorList()
+            for index, data in enumerate(self.data):
+                if data is None:
+                    # JavaScript allows arrays with holes
+                    continue
+                initial = self.initial[index] if self.initial and index < len(self.initial) else None
+                instance, created = self.get_or_create_instance(data)
+                valid_holders = {}
+                errors = ErrorDict()
+                for name, declared_holder in self.declared_holders.items():
+                    if name in data:
+                        holder = declared_holder.replicate(
+                            data=data[name],
+                            initial=initial.get(name, declared_holder.initial) if initial else None,
+                            instance=instance,
+                            created=created,
+                            ignore_marked_for_removal=self.ignore_marked_for_removal,
+                        )
+                        if MARKED_FOR_REMOVAL in holder.data:
+                            if holder.ignore_marked_for_removal:
+                                break
+                            if getattr(holder, 'has_many', False):
+                                holder.marked_for_removal = True
+                            elif self.has_many:
+                                self.marked_for_removal = True
+                        if holder.is_valid():
+                            valid_holders[name] = holder
+                        errors[name] = holder._errors
+                    elif not self.partial:
+                        # can only happen, if client bypasses browser control
+                        errors[name] = {NON_FIELD_ERRORS: ["Form data is missing."]}
+                else:
+                    self.valid_holders.append(valid_holders)
+                    self._errors.append(errors)
+            self.validate_unique()
+        else:
+            self.valid_holders = {}
+            self._errors = ErrorDict()
+            for name, declared_holder in self.declared_holders.items():
+                if not isinstance(declared_holder, (BaseForm, BaseFormCollection)):
+                    # TODO: Button can have a value and could be validated since it is a field
+                    continue
+                if isinstance(self.data, dict) and name in self.data:
+                    instance, created = self.get_or_create_instance(self.data[name])
+                    holder = declared_holder.replicate(
+                        data=self.data[name],
+                        initial=self.initial.get(name, declared_holder.initial) if self.initial else None,
+                        instance=instance,
+                        created=created,
+                        partial=self.partial,
+                        ignore_marked_for_removal=self.ignore_marked_for_removal,
+                    )
+                    if holder.is_valid():
+                        self.valid_holders[name] = holder
+                    self._errors[name] = holder._errors
+                elif not self.partial:
+                    # can only happen, if client bypasses browser control
+                    self._errors[name] = {NON_FIELD_ERRORS: ["Form data is missing."]}
+
+    def validate_unique(self):
+        unique_fields = {self.related_field} if getattr(self, 'related_field', None) else set()
+        all_unique_checks = set()
+        for valid_holders in self.valid_holders:
+            for name, holder in valid_holders.items():
+                if isinstance(holder, BaseModelForm):
+                    exclude = holder._get_validation_exclusions().difference(unique_fields)
+                    unique_checks, date_checks = holder.instance._get_unique_checks(
+                        exclude=exclude,
+                        include_meta_constraints=True,
+                    )
+                    all_unique_checks.update(unique_checks)
+
+        # Do each of the unique checks (unique and unique_together)
+        for uclass, unique_check in all_unique_checks:
+            seen_data = set()
+            for valid_holders in self.valid_holders:
+                errors = []
+                for name, holder in valid_holders.items():
+                    # Get the data for the set of fields that must be unique among the forms in this collection.
+                    row_data = [
+                        field if field in unique_fields else holder.cleaned_data[field]
+                        for field in unique_check
+                        if field in holder.cleaned_data
+                    ]
+                    # Reduce Model instances to their primary key values
+                    row_data = tuple(
+                        d._get_pk_val() if hasattr(d, '_get_pk_val')
+                        # Prevent "unhashable type: list" errors later on.
+                        else tuple(d) if isinstance(d, list) else d
+                        for d in row_data
+                    )
+                    if row_data and None not in row_data:
+                        # if we've already seen it then we have a uniqueness failure
+                        if row_data in seen_data:
+                            # poke error messages into the right places and mark the form as invalid
+                            errors.append(self.get_unique_error_message(unique_check))
+                            holder._errors[NON_FIELD_ERRORS] = errors
+                            # Remove the data from the cleaned_data dict since it was invalid.
+                            for field in unique_check:
+                                if field in holder.cleaned_data:
+                                    del holder.cleaned_data[field]
+                        # mark the data as seen
+                        seen_data.add(row_data)
+
+    def get_unique_error_message(self, unique_check):
+        if len(unique_check) == 1:
+            return gettext_lazy("Please correct the duplicate data for {0}.").format(*unique_check)
+        else:
+            fields = get_text_list(unique_check, gettext_lazy("and"))
+            return gettext_lazy("Please correct the duplicate data for {0}, which must be unique.").format(fields)
+
+    def validate_siblings_count(self):
+        if not self.has_many or self.marked_for_removal:
+            return
+        num_valid_siblings = reduce(
+            operator.add,
+            (all(not h.marked_for_removal for h in vh.values()) for vh in self.valid_holders),
+            0
+        )
+        collection_name = self.legend if self.legend else self.__class__.__name__
+        if num_valid_siblings < self.min_siblings:
+            self._errors.clear()
+            msg = gettext_lazy("Not enough entries in “{collection_name}”, please add another.")
+            self._errors.append({COLLECTION_ERRORS: [msg.format(collection_name=collection_name)]})
+        if self.max_siblings and num_valid_siblings > self.max_siblings:
+            self._errors.clear()
+            msg = gettext_lazy("Too many entries in “{collection_name}”, please remove one.")
+            self._errors.append({COLLECTION_ERRORS: [msg.format(collection_name=collection_name)]})
+
+    def retrieve_instance(self, data):
+        """
+        Hook to retrieve the main object for a multi object collection.
+        """
+        warnings.warn(
+            "'retrieve_instance' is deprected. Use 'get_or_create_instance(data)' instead.",
+            PendingDeprecationWarning,
+        )
+        return self.get_or_create_instance(data)[0]
+
+    def get_or_create_instance(self, data):
+        """
+        Hook to retrieve or create the main object for a multi object collection.
+        Returns a tuple of (instance, created), where 'created' is a boolean specifying
+        whether a new instance was created.
+        """
+        return self.instance, False
+
+    def clean(self):
+        return self.cleaned_data
+
+    @property
+    def cleaned_data(self):
+        """
+        Return the cleaned data for this collection and nested forms/collections.
+        """
+        if self._errors is None or not self.is_valid():
+            raise AttributeError(f"'{self.__class__}' object has no attribute 'cleaned_data'")
+        if self.has_many:
+            return [
+                {name: holder.cleaned_data for name, holder in valid_holders.items()}
+                for valid_holders in self.valid_holders
+            ]
+        else:
+            return {name: holder.cleaned_data for name, holder in self.valid_holders.items()}
+
+    @property
+    def has_many(self):
+        """
+        Returns True if current FormCollection manages a list of sibling forms/(sub-)collections.
+        """
+        return not (self.min_siblings is None and self.max_siblings is None and self.extra_siblings is None)
+
+    def render(self, template_name=None, context=None, renderer=None):
+        if not (renderer or self.renderer):
+            renderer = FormRenderer()
+        return super().render(template_name, context, renderer)
+
+    __str__ = render
+    __html__ = render
+
+    def model_to_dict(self, instance):
+        """
+        Create initial data from a starting instance. This instance may be traversed recursively and shall be used to
+        fill the initial data for all its sub-collections and forms.
+        Forms which do not correspond to the model given by the starting instance, are responsible themselves to
+        access the proper referenced models by following the reverse relations through the given foreign keys.
+        """
+        object_data = {}
+        for name, holder in self.declared_holders.items():
+            if getattr(holder, 'has_many', False):
+                reverse_accessor = getattr(holder, 'reverse_accessor', holder._name)
+                if related_manager := getattr(instance, reverse_accessor, None):
+                    try:
+                        queryset = related_manager.all()
+                    except ValueError:
+                        pass
+                    else:
+                        object_data[name] = holder.models_to_list(queryset)
+            else:
+                if callable(getattr(holder, 'model_to_dict', None)):
+                    object_data[name] = holder.model_to_dict(instance)
+                elif isinstance(holder, BaseModelForm):
+                    opts = holder._meta
+                    object_data[name] = model_to_dict(instance, opts.fields, opts.exclude)
+                else:
+                    object_data[name] = model_to_dict(instance)
+        return object_data
+
+    def models_to_list(self, queryset):
+        """
+        Create initial data from a queryset. This queryset is traversed recursively and shall be
+        used to fill the initial data for this collection and all its sub-collections and forms.
+
+        Forms and Collections which do not correspond to the model given by the starting instance,
+        are responsible themselves to override this method in order to access the proper referenced
+        models by following the reverse relations through the given foreign keys.
+        """
+        assert self.has_many, "Method `models_to_list()` can be applied only on a collection with siblings"
+        data = [self.model_to_dict(instance) for instance in queryset.all()]
+        return data
+
+    def construct_instance(self, instance=None):
+        """
+        Construct the main instance and all its related objects from the nested dictionary. This
+        method may only be called after the current form collection has been validated, usually by
+        calling `is_valid`.
+
+        Forms and Collections which do not correspond to the model given by the starting instance,
+        are responsible themselves to override this method in order to store the corresponding data
+        inside their related models.
+        """
+        assert self.is_valid(), f"Can not construct instance with invalid collection {self.__class__} object"
+        if self.has_many:
+            for valid_holders in self.valid_holders:
+                # first, handle holders which are forms
+                for name, holder in valid_holders.items():
+                    if not isinstance(holder, BaseModelForm):
+                        continue
+                    if holder.marked_for_removal:
+                        if holder.instance and holder.instance.pk:
+                            holder.instance.delete()
+                        continue
+                    construct_instance(holder, holder.instance)
+                    if getattr(self, 'related_field', None):
+                        setattr(holder.instance, self.related_field, instance)
+                    try:
+                        holder.save()
+                    except (IntegrityError, ValueError) as error:
+                        # some errors are caught only after attempting to save
+                        holder._update_errors(error)
+
+                # next, handle holders which are sub-collections
+                for name, holder in valid_holders.items():
+                    if callable(getattr(holder, 'construct_instance', None)):
+                        holder.construct_instance(holder.instance)
+        else:
+            for name, holder in self.valid_holders.items():
+                if callable(getattr(holder, 'construct_instance', None)):
+                    holder.construct_instance(instance)
+                elif isinstance(holder, BaseModelForm):
+                    opts = holder._meta
+                    holder.cleaned_data = self.cleaned_data[name]
+                    holder.instance = instance
+                    construct_instance(holder, instance, opts.fields, opts.exclude)
+                    try:
+                        holder.save()
+                    except IntegrityError as error:
+                        holder._update_errors(error)
+
+    def get_field(self, field_path):
+        if self.has_many:
+            index, key, path = field_path.split('.', 2)
+            int(index)  # raises ValueError if index is not an integer
+        else:
+            key, path = field_path.split('.', 1)
+        return self.declared_holders[key].get_field(path)
+
+
+class FormCollection(BaseFormCollection, metaclass=FormCollectionMeta):
+    """
+    Base class for a collection of forms. Attributes of this class which inherit from
+    `django.forms.forms.BaseForm` are managed by this class.
+    """
