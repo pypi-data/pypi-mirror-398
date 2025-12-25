@@ -1,0 +1,68 @@
+---
+- name: install tproxy toggle script (local mode only)
+  when: sing_box_mode == 'local'
+  ansible.builtin.copy:
+    src: usr/local/bin/sing-box-tproxy-toggle.sh
+    dest: /usr/local/bin/sing-box-tproxy-toggle.sh
+    mode: "0755"
+
+- name: ensure packages is installed
+  ansible.builtin.package:
+    name:
+      - bash
+      - curl
+      - iproute2
+      - nftables
+    state: present
+
+- name: enable tcp_bbr
+  when:
+    - ansible_kernel is version('4.9.0', '>=')
+    - (tcp_bbr_enabled | ansible.builtin.bool)
+  ansible.builtin.import_tasks: tcp_bbr.yml
+
+- name: ensure ip_forward state
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: "{{ 'present' if _sing_box_enable_ip_forward else 'absent' }}"
+    ignoreerrors: true
+  loop:
+    - name: net.ipv4.ip_forward
+      value: 1
+    - name: net.ipv4.conf.all.proxy_arp
+      value: 1
+    - name: net.ipv6.conf.all.forwarding
+      value: 1
+
+- name: create drop-in directory
+  ansible.builtin.file:
+    path: "{{ directory }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /etc/iproute2/rt_tables.d
+    - /etc/netplan
+  loop_control:
+    loop_var: directory
+
+# 先创建路由表
+- name: template iproute2 rt_tables on remote
+  ansible.builtin.template:
+    src: etc/iproute2/rt_tables.d/sing_box_tproxy.conf.j2
+    dest: /etc/iproute2/rt_tables.d/sing_box_tproxy.conf
+    mode: "0644"
+
+# netplan 包含 routing policy (ip rule) 和 routes (ip route)
+- name: template netplan config on remote (gateway mode only)
+  when: (_sing_box_enable_netplan_routing | ansible.builtin.bool)
+  ansible.builtin.template:
+    src: etc/netplan/99-sing_box_tproxy.yaml.j2
+    dest: /etc/netplan/99-sing_box_tproxy.yaml
+    mode: "0600"
+  notify:
+    - netplan apply
+
+# nftables 才是一切的关键, 为 packet 打 fwmark
+- name: ensure /etc/nftables.conf
+  ansible.builtin.import_tasks: nftables.yml

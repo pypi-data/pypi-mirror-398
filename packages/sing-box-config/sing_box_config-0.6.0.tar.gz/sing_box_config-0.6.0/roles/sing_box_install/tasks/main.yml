@@ -1,0 +1,50 @@
+---
+- name: ensure apt_keyrings_dest directory exists
+  ansible.builtin.file:
+    path: "{{ apt_keyrings_dest | ansible.builtin.dirname }}"
+    state: directory
+    mode: "0755"
+
+- name: get apt key from apt_key_url
+  ansible.builtin.get_url:
+    url: "{{ apt_key_url }}"
+    dest: "{{ apt_keyrings_dest }}"
+    mode: "0644"
+
+- name: add apt repo in DEB822 format
+  vars:
+    # ansible_architecture return x86_64,
+    # but $(dpkg --print-architecture) return = amd64
+    deb_architectures:
+      x86_64: amd64
+  ansible.builtin.deb822_repository:
+    name: "{{ apt_repo }}"
+    state: present
+    enabled: true
+    types: deb
+    uris: "{{ apt_repo_uris }}"
+    suites: "{{ apt_repo_suites }}"
+    components: "{{ apt_repo_components }}"
+    architectures: "{{ deb_architectures[ansible_architecture] }}"
+    signed_by: "{{ apt_keyrings_dest }}"
+
+- name: add apt package pinning
+  ansible.builtin.copy:
+    dest: "/etc/apt/preferences.d/99{{ apt_repo }}"
+    content: |
+      Package: *
+      Pin: origin {{ apt_repo_uris | ansible.builtin.urlsplit('hostname') }}
+      Pin-Priority: 900
+    mode: "0644"
+
+- name: install sing-box package
+  ansible.builtin.apt:
+    name: "{{ apt_repo_packages }}"
+    update_cache: true
+    state: present
+
+- name: ensure proxy_user exists
+  ansible.builtin.import_tasks: proxy_user.yml
+
+- name: template systemd service
+  ansible.builtin.import_tasks: systemd.yml
