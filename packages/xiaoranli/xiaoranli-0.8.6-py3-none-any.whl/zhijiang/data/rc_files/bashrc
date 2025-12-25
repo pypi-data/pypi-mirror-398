@@ -1,0 +1,535 @@
+#------------------------zhijiang, above content is from original bashrc-----------------------------
+# so user can use reverse match >> rm -rf !(patterns)
+# need to put here first, otherwise the following source xx may not take effect
+export DEBIAN_FRONTEND=noninteractive
+shopt -s extglob
+shopt -s histappend
+shopt -s expand_aliases
+export HISTFILE=~/.bash_history_shared
+PROMPT_COMMAND="history -a && history -r"
+# to activate conda in bashrc
+conda_env_name=""
+if [[ -n ${conda_env_name} ]]; then
+    source $(dirname $(dirname $(which conda)))/bin/activate ${conda_env_name}
+fi
+
+#----------------------------- from file "bashrc"-----------------------------
+# use flag to control whether to run setup or not, after running setup, use sed to modify the flag so next time not need to run setup
+setup_flag=1
+if [[ $setup_flag -eq 1 ]]; then
+    echo "------zhijiang, doing one time setup in bashrc-------"
+    conda_bin=$(which conda)
+    if [[ $? -eq 0 ]]; then
+        $conda_bin install --yes conda-bash-completion >&/dev/zero
+    fi
+    sed -i "s/setup_flag=1/setup_flag=0/" ~/.bashrc
+fi
+
+python_pkg_path=$(cat ~/.zhijiang/python_pkg_path)
+zhijiang_pkg_path=$python_pkg_path/zhijiang
+#-----------------------------useful utils-----------------------------
+function _colored_output() {
+    # $1 is the color, $2 is the output
+    RED="\033[31m"
+    NORMAL="\033[0;39m"
+    echo -e "${RED}${*}${NORMAL}"
+}
+
+function till_port_on_listening() {
+    # $1 maybe port, port/xx
+    port=${1%%/*}
+    while true; do
+        if [[ $(netstat -tuln | grep $1) ]]; then
+            break
+        fi
+        sleep 1
+    done
+
+}
+
+function _trigger_vscode_open_browser() {
+    # path can be port number, or port plus file path
+    path=$1
+    till_port_on_listening $port && python -c "import webbrowser; webbrowser.open_new_tab(\"http://localhost:$path\")" &
+}
+
+function _next_file_index() {
+    # list all files with given prefix, get the largest index number in file, and return its next index
+    # $1 is the prefix, $2 is the suffix
+    prefix=$1
+    max_index=$(ls $prefix* 2>/dev/null | sed -n "s/$prefix\([0-9]\+\).*/\1/p" | sort -n | tail -n1)
+    if [[ -z $max_index ]]; then
+        echo 0
+    else
+        echo $((max_index + 1))
+    fi
+}
+
+function _refresh_file() {
+    # if $1 is a file then refresh it, otherwise refresh all files in $1
+    if [[ -f $1 ]]; then
+        cat $1 >&/dev/zero
+    else
+        for file_name in $(find $1 -iname "event*"); do
+            cat $file_name >&/dev/zero
+        done
+    fi
+}
+#-----------------------------useful utils-----------------------------
+
+mkdir_path=$(which mkdir)
+function mkdir_zhijiang() {
+    $mkdir_path -p $*
+    cd $*
+}
+
+function zhijiang-class-uml-py() {
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "use pyreverse to generate class uml"
+        echo "1. zhijiang-py-class-uml dirx >> generate uml for dirx"
+        echo "2. zhijiang-py-class-uml -c xx.yy.clszz xx/yy.py >> uml for clszz, not include its children"
+        return
+    fi
+
+    tmp_dir=$(mktemp -d -t pyreverse-XXXX)
+    pyreverse -o svg --output-directory $tmp_dir $*
+    echo "generated files are in $tmp_dir"
+    zhijiang-http-server $tmp_dir/*.svg
+}
+
+function zhijiang-class-uml-doxygen() {
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "use doxygen to generate class uml"
+        echo "zhijiang-class-uml-doxygen >> either copy Doxyfile in pkg to cwd, or generate uml in cwd"
+        return
+    fi
+
+    doxygen_file="Doxyfile"
+    if [[ -f Doxyfile ]]; then
+        \doxygen $doxygen_file
+    else
+        echo "copying Doxyfile in pkg to cwd, rerun to generate uml"
+        cp "$zhijiang_pkg_path/data/Doxyfile" $doxygen_file
+    fi
+
+}
+
+function zhijiang-call-graph-python() {
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "use code2flow to generate call graph for python function or file"
+        echo "zhijiang-call-graph -h|--target-function xx src_file"
+        return
+    fi
+
+    \sudo rm -rf res.svg
+    code2flow --output res.svg --no-grouping $*
+
+    if [[ -f res.svg ]]; then
+        zhijiang-http-server res.svg
+    else
+        echo "fail to generate call graph"
+    fi
+
+}
+function zhijiang-calltree() {
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "<keyword|regex> [func_match_rule] [direction(called(1)|calling)] [file_path(0|1)] [depth(num)]"
+        echo "if keyword, then exact match; regex can use . * $ \w+; case sensitive"
+        echo "func_match_rule is used to filter the output to force containing content-xx, case sensitive; '' means no filter"
+        echo "zhijiang-calltree '\w+' means all function"
+        return
+    fi
+    calltree $*
+}
+
+function zhijiang-cpptree() {
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "<keyword|regex> [filter] [file_path(0|1)] [depth(num)]"
+        echo "if keyword, then exact match; regex can use . * $ \w+; case sensitive"
+        echo "filter is used to filter keyword/regex output to force containing content-xx, case sensitive; '' means no filter"
+        echo "zhijiang-cpptree '\w+' means all class"
+        echo "zhijiang-cpptree '\w+' '' 1 means all class and its file path"
+        return
+    fi
+    cpptree $*
+}
+
+#------for profiling------
+function zhijiang-prof-perf-record() {
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "usage: zhijiang-prof-perf-record <command>"
+        echo "example: zhijiang-prof-perf-record python 1.py"
+        return
+    fi
+
+    res_dir=$(mktemp -d -t perf-XXXX)
+    set -e
+    sudo perf record --freq=max --call-graph lbr --output=$res_dir/perf.data -- sudo -E env "PATH=$PATH" $*
+    set +e
+    sudo chmod 666 $res_dir/perf.data
+    if [[ -s $res_dir/out.perf ]]; then
+        perf script --input=$res_dir/perf.data >$res_dir/out.perf
+        stackcollapse-perf.pl --all $res_dir/out.perf >$res_dir/out_folded
+        flamegraph.pl $res_dir/out_folded >$res_dir/result.svg
+
+        _colored_output "-------- zhijiang, result files are in $res_dir -----------"
+        zhijiang-http-server $res_dir/result.svg
+    else
+        _colored_output "-------- zhijiang, fail to generate --------"
+    fi
+}
+
+function zhijiang-prof-perf-top() {
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "usage 1: zhijiang-prof-perf-top -p pidxx"
+        echo -e "usage 2: zhijiang-prof-perf-top <command>; command log will be redirected to /tmp/log; \\033[0;31m \n you need to make sure the process live enough to be profiled \\033[0m"
+        return
+    fi
+
+    if [[ $1 == -p ]]; then
+        sudo perf top --hide_kernel_symbols --call-graph lbr --children -p $2
+        return
+    fi
+    # run command in background and profile it
+    $* >&/tmp/log &
+    pid=$!
+    sudo perf top --hide_kernel_symbols --call-graph lbr --children -p $pid
+    sudo kill -9 $pid
+}
+
+function zhijiang-prof-gperf() {
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "usage: zhijiang-prof-gperf <command>"
+        return
+    fi
+    tmp_dir=$(mktemp -d -t gperf-XXXX)
+    tmp_file1=$tmp_dir/gperf.data
+    tmp_file2=$tmp_dir/gperf.svg
+    CPUPROFILE_FREQUENCY=1000 LD_PRELOAD=/usr/local/lib/libprofiler.so CPUPROFILE=$tmp_file1 $*
+    #不要重定向stderr, 否则warning msg会导致生成的svg不能被解析
+    exec_path=$(which $1)
+    pprof --svg $exec_path $tmp_file1 >$tmp_file2
+
+    _colored_output "-------- zhijiang, result files are in $tmp_dir -----------"
+    zhijiang-http-server $tmp_file2
+}
+
+function zhijiang-prof-nsys() {
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "usage: zhijiang-prof-nsys <command>"
+        echo "assume profiled code already calls func \"zhijang_cuda_profiling\", unless FROM_START=1"
+        echo "env still works >> START_STEP, STOP_STEP, RESULT_FILE_NAME, $(_colored_output FROM_START)"
+        return
+    fi
+
+    if [[ -z $RESULT_FILE_NAME ]]; then
+        RESULT_FILE_NAME=prof/nsys_res
+    fi
+
+    sudo rm -f $RESULT_FILE_NAME*
+
+    \nsys profile --help | grep -- --python-backtrace >&/dev/zero
+    # the python backtrace need python version >=3.9
+    if [[ $? -eq 0 && $(python -c 'import sys; from packaging import version;print( version.parse(sys.version.split()[0]) >= version.parse("3.9"))') == True ]]; then
+        cmd_opt=" --python-backtrace=cuda --python-sampling=true "
+    else
+        cmd_opt=""
+    fi
+    mkdir -p $(dirname $RESULT_FILE_NAME)
+
+    if [[ -n $FROM_START ]]; then
+        opt=""
+    else
+        opt="--capture-range=cudaProfilerApi --capture-range-end=stop-shutdown"
+    fi
+
+    set -x
+    export CUDA_LAUNCH_BLOCKING=0
+    \sudo -E env "PATH=$PATH" NSYS=1 \nsys profile \
+        --sample=cpu --backtrace=fp \
+        --trace='cuda,nvtx' --cudabacktrace=all \
+        $opt \
+        --output=$RESULT_FILE_NAME $cmd_opt --force-overwrite=true $*
+
+    if [[ -e $(realpath $RESULT_FILE_NAME*) ]]; then
+        cat $RESULT_FILE_NAME* >&/dev/zero
+        zhijiang-http-server $RESULT_FILE_NAME*
+    else
+        _colored_output "-------- zhijiang, fail to generate --------"
+    fi
+    set +x
+}
+
+function zhijiang-prof-ncu() {
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "usage: KERNEL_NAME=xx zhijiang-prof-ncu <command>"
+        echo "assume profiled code calls zhijang_cuda_profiling already, unless FROM_START=1"
+        echo "env still works >> START_STEP, STOP_STEP, RESULT_FILE_NAME, $(_colored_output FROM_START)"
+        echo "KERNEL_NAME can be exact full kernel name, or regex:expr like $(_colored_output regex:).*gemm|.*cutlass"
+        return
+    fi
+
+    if [[ -z $RESULT_FILE_NAME ]]; then
+        RESULT_FILE_NAME=prof/ncu_res
+    fi
+
+    sudo rm -f $RESULT_FILE_NAME*
+    python_pkg_path=$(cat ~/.zhijiang/python_pkg_path)
+    onnxruntime_so_path=$python_pkg_path/onnxruntime/capi
+    mkdir -p $(dirname $RESULT_FILE_NAME)
+    export CUDA_LAUNCH_BLOCKING=0
+    if [[ -n $FROM_START ]]; then
+        opt="--profile-from-start yes "
+    else
+        opt="--profile-from-start off "
+    fi
+    \sudo -E env NSYS=1 "PATH=$PATH" "LD_LIBRARY_PATH=$onnxruntime_so_path" \ncu --force-overwrite --export "$RESULT_FILE_NAME" \
+        --section ComputeWorkloadAnalysis --section InstructionStats --section LaunchStats --section MemoryWorkloadAnalysis \
+        --section MemoryWorkloadAnalysis_Chart --section MemoryWorkloadAnalysis_Tables --section Occupancy --section SchedulerStats \
+        --section SourceCounters --section SpeedOfLight --section SpeedOfLight_RooflineChart --section WarpStateStats \
+        --target-processes all --replay-mode kernel \
+        --cache-control all --clock-control none --apply-rules no \
+        $opt \
+        --check-exit-code yes \
+        --import-source yes \
+        --profile-from-start off \
+        --kernel-name-base demangled --kernel-name "$KERNEL_NAME" $*
+
+    # --devices 0
+    if [[ -e $(realpath $RESULT_FILE_NAME*) ]]; then
+        cat $RESULT_FILE_NAME* >&/dev/zero
+        zhijiang-http-server $RESULT_FILE_NAME*
+    else
+        _colored_output "-------- zhijiang, fail to generate --------"
+    fi
+}
+
+function zhijiang-prof-viztracer() {
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "usage: zhijiang-prof-viztracer <command>"
+        echo "env still works >> START_STEP, STOP_STEP "
+        echo "env VIZ_COMBINE=1 will combine all processes's result first"
+        return
+    fi
+    export VIZTRACER=1
+    export CUDA_LAUNCH_BLOCKING=1
+    mkdir -p ./prof
+    tmp_dir=$(mktemp --tmpdir=./prof -d -t viztracer-XXXX)
+    export FILE_PREFIX=$tmp_dir/trace
+
+    \sudo -E env "PATH=$PATH" $*
+
+    port=56${RANDOM:0:3}
+    if [[ $VIZ_COMBINE == 1 ]]; then
+        \viztracer combine ${FILE_PREFIX}*json
+        result_file='./result.json'
+    else
+        result_file=${FILE_PREFIX}_rank_0.json
+    fi
+    _colored_output "-------- zhijiang, generated files are $result_file -----------"
+
+    vizviewer --port ${port} ${result_file}
+
+}
+# ------for profiling------
+function zhijiang-memory-torch-cuda() {
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "usage: zhijiang-memory-torch-cuda <command>"
+        echo "env still works >> START_STEP, STOP_STEP, RESULT_FILE_NAME"
+        return
+    fi
+
+    export TORCH_CUDA_MEM_PROFILER=1
+    # if start step and end step not set, then set them to 10 and 12
+    if [[ -z $START_STEP ]]; then
+        export START_STEP=10
+    fi
+    if [[ -z $STOP_STEP ]]; then
+        export STOP_STEP=12
+    fi
+
+    file_suffix_index=$(_next_file_index torch_cuda_mem_profiler_)
+    export FILE_PREFIX=torch_cuda_mem_profiler_${file_suffix_index}
+    # execute the process
+    $*
+
+    _colored_output "-------- the generated file is $FILE_PREFIX**.pickle --------"
+    _colored_output "https://pytorch.org/memory_viz can open the generated file"
+    zhijiang-http-server $FILE_PREFIX*
+
+}
+
+function zhijiang-memory-libleak() {
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "usage: zhijiang-memory-libleak <command>"
+        echo "see https://github.com/WuBingzheng/libleak to know how to control libleak; you can see the libleak env in <command> to override the default env"
+        echo "LEAK_EXPIRE, LEAK_PID_CHECK + LEAK_PID_FILE, LEAK_LIB_BLACKLIST, LEAK_AFTER, "
+        return
+    fi
+
+    log_file_prefix=/tmp/libleak
+    rm -rf $log_file_prefix*
+    LD_PRELOAD=/usr/local/lib/libleak.so LEAK_LOG_FILE=$log_file_prefix LEAK_EXPIRE=0 $*
+
+    _colored_output -------- zhijiang, generated files are prefixed with $log_file_prefix -----------
+    cat $log_file_prefix*
+}
+
+function git_pr() {
+    if [ -n $2 ]; then
+        git fetch origin pull/$1/head:$2
+    else
+        git fetch origin pull/$1/head
+    fi
+}
+alias zhijiang-git-pr=git_pr
+
+function zhijiang-code-reading() {
+    _colored_output "make sure the git commit is saved in the file, so the file link is valid"
+    cp -r $zhijiang_pkg_path/data/code-reading ./zhijiang-code-reading
+    cd ./zhijiang-code-reading
+}
+
+function puml() {
+    file_name="$1"
+    output_dir="generated_files"
+    if [[ ! -e $output_dir ]]; then
+        mkdir -p $output_dir
+    fi
+
+    plantweb --no-cache $file_name
+    generated_file=$(ls -tr1 | tail -n1)
+    generated_file_suffix=${generated_file##*.}
+    # maybe fail to generate file
+    if [[ $generated_file_suffix == "svg" ]]; then
+        mv $generated_file $output_dir
+        zhijiang-http-server $output_dir/$generated_file
+    else
+        echo "fail to generate svg file"
+    fi
+}
+
+function zhijiang-http-server() {
+    # can server puml, onnx, tensorboard, viztracer result, normal directory
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "usage: zhijiang-http-server <file or dir>"
+        echo "will auto call right command to process puml/svg/onnx/tensorboard/viztracer result"
+        return
+    fi
+    cat $* >&/dev/zero
+    port=56${RANDOM:0:3}
+    if [[ $# == 1 ]]; then
+        args1="$1"
+        if [[ -f $args1 ]]; then
+            file_suffix=${args1##*.}
+            if [[ $file_suffix == "puml" ]]; then
+                puml $args1 $port
+            elif [[ $file_suffix == "dot" ]]; then
+                tmp=$(mktemp --suffix .svg)
+                dot -T svg -o $tmp $args1
+                zhijiang-http-server $tmp
+            elif [[ $file_suffix == "onnx" ]]; then
+                # make blob file sync to disk
+                cat $args1 >&/dev/zero
+                _trigger_vscode_open_browser $port
+                netron --port $port $args1
+            elif [[ $file_suffix == "json" ]]; then
+                vizviewer --port $port $args1
+            else
+                # otherwise, it's a normal file, so copy it to a tmp dir, and serve it
+                if [[ $file_suffix == "pickle" ]]; then
+                    _colored_output "https://pytorch.org/memory_viz can open the generated file"
+                fi
+                tmp=$(mktemp -d)
+                cp $args1 $tmp/
+                _trigger_vscode_open_browser $port/$(basename $args1)
+                python -m http.server --directory $tmp $port
+            fi
+        fi
+
+        if [[ -d $args1 ]]; then
+            tensorboard_files=$(find $args1 -maxdepth 4 -iname "events.out.tfevents*")
+            if [[ -n $tensorboard_files ]]; then
+                _trigger_vscode_open_browser $port
+                _refresh_file $tensorboard_files
+                tensorboard --logdir $args1 --port $port
+            else
+                # otherwise, it's a normal directory
+                _trigger_vscode_open_browser $port
+                python -m http.server --directory $args1 $port
+            fi
+        fi
+    else
+        # input multiple files, so copy them to tmp dir
+        set -e
+        tmp=$(mktemp -d)
+        cp $@ $tmp/
+        _trigger_vscode_open_browser $port
+        python -m http.server --directory $tmp $port
+    fi
+}
+
+function zhijiang-download() {
+    if [[ $1 == "-h" || $1 == "--help" || -z $1 ]]; then
+        echo "download specified file to local host"
+        echo "usage: zhijiang-download path/to/file"
+        return
+    fi
+
+    port=56${RANDOM:0:3}
+    tmp=$(mktemp -d)
+    cp $1 $tmp/
+    _trigger_vscode_open_browser $port/$(basename $1)
+    python -m http.server --directory $tmp $port
+    rm -rf $tmp
+}
+
+original_py_spy=$(which py-spy)
+function zhijiang-prof-py-spy() {
+    subcommand=$1
+    other_args=${@:2}
+    \sudo -E env "PATH=$PATH" "$original_py_spy" ${subcommand} --full-filenames --nonblocking ${other_args}
+}
+# let tldr can be tab-completed with existed bash command
+complete -c tldr
+complete -c which
+complete -c whereis
+# tab complete for zhijiang
+if [[ ! -e ~/.zhijiang/zhijiang_complete ]]; then
+    zhijiang -- --completion >~/.zhijiang/zhijiang_complete
+fi
+source ~/.zhijiang/zhijiang_complete
+# command for other scripts's necessity
+if [[ ! -e ~/.zhijiang/.git-completion.bash ]]; then
+    curl https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash -o ~/.zhijiang/.git-completion.bash
+fi
+source ~/.zhijiang/.git-completion.bash
+source /usr/bin/z.sh
+source $zhijiang_pkg_path/data/rc_files/alias
+source $zhijiang_pkg_path/data/rc_files/self-tab-complete
+source $zhijiang_pkg_path/data/rc_files/alias2
+source $zhijiang_pkg_path/scripts/util_cmd.sh
+source $zhijiang_pkg_path/data/rc_files/xr-function
+zhijiang_vscode_launch_json() {
+    [ ! -d .vscode ] && _colored_output ".vscode not found, make it, pls make sure it's right location" && mkdir .vscode
+    cp $zhijiang_pkg_path/data/vscode_launch.json .vscode/launch.json
+}
+# git pre-commit setting
+if [[ ! -d ~/.zhijiang/git_hooks ]]; then
+    cp -r $zhijiang_pkg_path/data/git_hooks ~/.zhijiang/
+fi
+# rc file for cgdb
+mkdir -p ~/.cgdb
+cp $zhijiang_pkg_path/data/rc_files/cgdbrc ~/.cgdb/
+
+[ -f ~/.fzf.bash ] && source ~/.fzf.bash
+complete -o bashdefault -o default -F _fzf_path_completion code
+complete -o bashdefault -o default -F _fzf_proc_completion pidstat
+# so 'code' can use fzf to do tab complete when only . is given as args
+#export FZF_COMPLETION_TRIGGER="."
+export PATH=$zhijiang_pkg_path/data/bin:$PATH
+if [[ -t 0 ]]; then
+    # scp will not copy if stdout has output, as scp depends on stdout to do some decision
+    _colored_output "-------------bashrc done-------------------"
+fi
+#-----------------------------end of file "bashrc"-----------------------------

@@ -1,0 +1,93 @@
+#-----------------------------from file "alias"-----------------------------
+alias ls='ls --color=auto'
+alias grep='grep --color=auto --line-number'
+alias less='less -i' # ignore case when searching
+alias ps='ps auxf'   # process tree
+alias top='top c'
+alias sudo='\sudo -E env PATH="$PATH"'
+alias fuser='\sudo fuser'
+alias j='autojump'
+alias gdb='gdb -q'
+alias htop='sudo htop' # normal htop can not see root's process, while sudo is used commonly
+alias pip='sudo pip'
+alias nvidia-smi='sudo nvidia-smi'
+alias jobs='jobs -l'
+alias pip='sudo pip'
+alias zhijiang-cat=batcat
+
+alias gd='reset && git diff --ignore-all-space'
+alias gca='git commit -a'
+alias gcan='git commit -a --amend --no-edit'
+alias gb='git branch -vv'
+
+# alias viztracer='sudo viztracer '
+
+function cd_ {
+    if [ ! -n "$1" ]; then
+        builtin cd ~
+        return
+    fi
+
+    if [[ $1 == '-' || $1 == '..' ]]; then
+        builtin cd $1
+        return
+    fi
+
+    if [[ $1 == -h || $1 == -l || $1 == -x || $1 == -r ]]; then
+        z $1
+        return
+    fi
+    # if z.sh can find the dir, then cd to it directly
+    [ $(z -e $1) ] && z $1 && return
+
+    # $1 maybe /path/file:48, strip :48
+    tmp=${1%:*}
+    # if the given path is a file, and get it's dir first
+    if [ -f "$tmp" ]; then
+        builtin cd "$(dirname "$tmp")"
+    else
+        builtin cd "$tmp"
+    fi
+}
+
+fkill() {
+    local pid
+    pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
+
+    if [ "x$pid" != "x" ]; then
+        echo $pid | xargs sudo kill -${1:-9}
+    fi
+}
+
+adduser() {
+    sudo \adduser $1
+    sudo echo "$1 ALL=(ALL) NOPASSWD:ALL" >>/etc/sudoers
+}
+
+zhijiang-peco() {
+    if [[ -z $1 || $1 == -h ]]; then
+        echo "Usage: zhijiang-peco [-h] [file]"
+        echo "ctrl + a == select all"
+        echo -e "ctrl + r == rotate filter, \033[31m Regexp is case-sensitive! \033[0;39m"
+        return
+    fi
+    $(which peco) $1
+}
+alias peco=zhijiang-peco
+
+# tab to select multiple matched lines
+alias fzf="\fzf -m -e --bind ctrl-a:toggle-all"
+# shortcut for common commands
+alias ort-build='zhijiang-prj-build_ort'
+alias ortbuild='zhijiang-prj-build_ort'
+alias dummy='zhijiang-prj-dummy'
+
+alias http=zhijiang-http-server
+alias h=zhijiang-http-server
+alias doxygen=zhijiang-class-uml-doxygen
+
+alias nsys=zhijiang-prof-nsys
+alias viztracer='zhijiang-prof-viztracer'
+alias ncu=zhijiang-prof-ncu
+alias py-spy=zhijiang-prof-py-spy
+#-----------------------------end of file "alias"-----------------------------

@@ -1,0 +1,699 @@
+# functions are used to combine multiple commands into one command
+# functions are also used to use command with arguments
+export PATH=$PATH:$HOME/.local/bin:$HOME/miniconda3/bin
+tmux source-file $zhijiang_pkg_path/data/rc_files/xr-tmux.config
+cp $zhijiang_pkg_path/data/rc_files/xr-vimrc $HOME/.vimrc
+conda config --set auto_activate_base false
+###################Conda##########################################
+function xr-conda-install-miniconda(){
+    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+    bash Miniconda3-latest-Linux-x86_64.sh
+}
+
+function xr-conda-create-env(){
+    if [ "$1" = "-v" ]; then
+        echo "conda create -n <env_name> python=3.11"
+        return
+    fi
+    if [ "$#" -lt 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-create-conda-env <env_name>"
+        return
+    fi
+
+    conda create -n "$1" python=3.11
+}
+
+###################Docker##########################################
+function xr-docker-set-sudoless(){
+    sudo groupadd docker
+    sudo gpasswd -a $USER docker
+    newgrp docker
+    docker ps -a
+}
+
+function xr-docker-run(){
+    if [ "$1" = "-v" ]; then
+        echo "docker run --gpus all -it --name <container_name> --cap-add SYS_PTRACE --ipc=host -v /eph/nvme/models/.cache/huggingface:/root/.cache/huggingface -v <host_folder>:<container_folder> <docker_image>"
+        return
+    fi
+    if [ "$#" -ne 4 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-run-docker <container_name> <docker_image> <host_folder> <container_folder>"
+        return
+    fi
+
+    docker run --gpus all -it --name "$1" --cap-add SYS_PTRACE --ipc=host -v /eph/nvme/models/.cache/huggingface:/root/.cache/huggingface -v "$3":"$4" "$2"
+}
+
+function xr-docker-run-hack-entrypoint(){
+    if [ "$1" = "-v" ]; then
+        echo "Usage with 2 args: docker run --gpus all -it --name <container_name> --cap-add SYS_PTRACE --ipc=host -v /eph/nvme/models/.cache/huggingface:/root/.cache/huggingface --entrypoint \"\" <docker_image> bash"
+        echo "Usage with 4 args: docker run --gpus all -it --name <container_name> --cap-add SYS_PTRACE --ipc=host -v <host_folder>:<container_folder> --entrypoint \"\" <docker_image> bash"
+        return
+    fi
+    if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-docker-run-hack-entrypoint <container_name> <docker_image> [<host_folder> <container_folder>]"
+        echo "  2 args: Uses default HuggingFace cache mount"
+        echo "  4 args: Uses custom folder mount"
+        return
+    fi
+
+    if [ "$#" -eq 2 ]; then
+        # 2 arguments: use default HuggingFace cache mount
+        docker run --gpus all -it --name "$1" --cap-add SYS_PTRACE --ipc=host -v /eph/nvme/models/.cache/huggingface:/root/.cache/huggingface --entrypoint "" "$2" bash
+    elif [ "$#" -eq 4 ]; then
+        # 4 arguments: use custom folder mount
+        docker run --gpus all -it --name "$1" --cap-add SYS_PTRACE --ipc=host -v "$3:$4" --entrypoint "" "$2" bash
+    else
+        echo "Error: Invalid number of arguments"
+        echo "Usage: xr-docker-run-hack-entrypoint <container_name> <docker_image> [<host_folder> <container_folder>]"
+        return 1
+    fi
+}
+
+function xr-docker-rm-exited-containers(){
+    if [ "$1" = "-v" ]; then
+        echo "docker rm \$(docker ps -a -q -f status=exited)"
+        return
+    fi
+    if [ "$#" -ne 0 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-docker-rm-exited-containers"
+        return
+    fi
+    docker rm $(docker ps -a -q -f status=exited)
+}
+
+function xr-docker-rm-dangling-images(){
+    if [ "$1" = "-v" ]; then
+        echo "docker rmi \$(docker images -f \"dangling=true\" -q)"
+        return
+    fi
+    if [ "$#" -ne 0 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-docker-rm-dangling-images"
+        return
+    fi
+    if [ "$(docker images -f "dangling=true" -q)" ]; then
+        docker rmi $(docker images -f "dangling=true" -q)
+    else
+        echo "No dangling images to remove"
+    fi
+}
+
+###################Tools##########################################
+function xr-install-oh-my-zsh(){
+    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+    git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
+    git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
+}
+
+function xr-install-codex(){
+    sudo apt-get update
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
+    sudo apt autoremove -y
+    sudo apt-get install -y nodejs
+    sudo npm install -g @openai/codex@latest
+}
+
+function xr-install-rust-cargo-just(){
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    source ~/.bashrc
+    cargo install just
+}
+
+function xr-py-spy(){
+    if [ "$#" -lt 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-py-spy <pid> [-v]"
+        return
+    fi
+
+    if [ "$2" = "-v" ]; then
+        echo "sudo py-spy dump --pid $1 --nonblocking --full-filenames"
+    fi
+
+    sudo py-spy dump --pid $1 --nonblocking --full-filenames
+}
+
+function llp(){
+    if [ "$1" = "-v" ]; then
+        echo "sudo netstat -tulpn|grep LISTEN"
+        return
+    fi
+    # sudo apt-get install net-tools
+    sudo netstat -tulpn|grep LISTEN
+}
+
+function xr-update(){
+    sudo apt update && sudo apt upgrade -y
+}
+
+function xr-setup-nvme-docker(){
+    if [ "$1" = "--help" ]|| [ "$1" = "-h" ]; then
+        echo "use in VM, setup nvme disk and move docker path into nvme, to avoid use MEMORY"
+        return
+    fi
+    sudo curl https://gist.githubusercontent.com/graceleeis/b5cb272c58eaf6f99cea967dfe3bc5fc/raw/95fa69d74ae3931552c8560e0f78a4ed061dcee1/setup_nvme_disk.sh -o ~/setup_nvme_disk.sh
+    sudo curl https://gist.githubusercontent.com/graceleeis/b5cb272c58eaf6f99cea967dfe3bc5fc/raw/075901758e660d03345223f5a8b8443255733c99/setup_docker.sh -o ~/setup_docker.sh
+    sudo curl https://gist.githubusercontent.com/graceleeis/b5cb272c58eaf6f99cea967dfe3bc5fc/raw/599c5a5a095c6d0226c8086e407e6bfeaa19c48b/run_nvme_docker.sh -o ~/run_nvme_docker.sh
+    sudo chmod +x ~/setup_nvme_disk.sh ~/setup_docker.sh ~/run_nvme_docker.sh
+    sudo bash ~/run_nvme_docker.sh
+}
+
+function xr-restore-bashrc-state(){
+    if [ "$1" = "--help" ]|| [ "$1" = "-h" ]; then
+        echo "wraning:Restore the bashrc to the default state"
+        return
+    fi
+    curl https://gist.githubusercontent.com/graceleeis/b5cb272c58eaf6f99cea967dfe3bc5fc/raw/baa73669f4f33f29110abc0f0a0ec156525442c6/ubuntu_bashrc -o ~/ubuntu_bashrc
+    cat ~/ubuntu_bashrc > ~/.bashrc
+}
+
+function xr-wsl-remove(){
+    echo "PowerShell 使用命令 wsl -l -v"
+    echo "PowerShell 使用命令 wsl --unregister <distro>"
+}
+
+function xr-read-elf(){
+    if [ "$#" -lt 2 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-read-elf <elf_file.o> <symbols|disassembly|all> [-v]"
+        return
+    fi
+
+    elf_file=$1
+    command=$2
+    show_command=false
+
+    if [ "$#" -eq 3 ] && [ "$3" = "-v" ]; then
+        show_command=true
+    fi
+
+    case $command in
+        symbols)
+            if [ "$show_command" = true ]; then
+                echo "nm \"$elf_file\""
+            fi
+            nm "$elf_file"
+            ;;
+        disassembly)
+            if [ "$show_command" = true ]; then
+                echo "objdump -d \"$elf_file\""
+            fi
+            objdump -d "$elf_file"
+            ;;
+        all)
+            if [ "$show_command" = true ]; then
+                echo "readelf -a \"$elf_file\""
+            fi
+            readelf -a "$elf_file"
+            ;;
+        *)
+            echo "Invalid command. Use 'symbols', 'disassembly', or 'all'."
+            ;;
+    esac
+}
+###################Kill##########################################
+function xr-kill-port(){
+    if [ "$#" -lt 1 ] || [ "$#" -gt 2 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-kill-port <port> [-v]"
+        return
+    fi
+
+    port=$1
+    show_command=false
+
+    if [ "$#" -eq 2 ] && [ "$2" = "-v" ]; then
+        show_command=true
+    fi
+
+    if [ "$show_command" = true ]; then
+        echo "sudo fuser -k $port/tcp"
+    else
+        sudo fuser -k $port/tcp
+    fi
+}
+
+function xr-kill-process(){
+    if [ "$#" -ne 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-kill-process <pid>"
+        return
+    fi
+
+    sudo kill -9 $1
+}
+
+###################git##########################################
+function xr-git-commit-amend(){
+    if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-git-commit-amend [options]"
+        echo "Options:"
+        echo "  a     - Add all changes to the last commit."
+        echo "  edit  - Amend the last commit and open the default text editor to modify the commit message."
+        echo "  -v    - Show the original git command that will be executed."
+        return
+    fi
+    local amend_options=""
+    local show_command=false
+    for arg in "$@"; do
+        case $arg in
+            a) amend_options="$amend_options -a" ;;
+            edit) amend_options="$amend_options --amend" ;;
+            -v) show_command=true ;;
+        esac
+    done
+
+    if [ -z "$amend_options" ]; then
+        if [ "$show_command" = true ]; then
+            echo "git commit --amend --no-edit"
+        else
+            git commit --amend --no-edit
+        fi
+    else
+        if [ "$show_command" = true ]; then
+            echo "git commit $amend_options"
+        else
+            git commit $amend_options
+        fi
+    fi
+}
+
+function xr-git-commit-move-to-add(){
+    if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-move-commit-to-add <commit_id>"
+        echo "Move the commit to the staging area, 'git add + git commit' now is only 'git add'."
+        return
+    fi
+
+    if [ "$1" = "-v" ]; then
+        echo "git reset --soft HEAD^"
+        return
+    fi
+
+    git reset --soft HEAD^
+}
+
+function xr-git-drop-commit(){
+    if [ "$#" -ne 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-drop-commit <commit_id>"
+        echo "WARNING: Drop the commit, ALL changes in the commit will be lost. 'git add + git commit' now is ALL dropped."
+        return
+    fi
+
+    if [ "$1" = "-v" ]; then
+        echo "git reset --hard <commit_id>"
+        return
+    fi
+
+    git reset --hard $1
+}
+
+function xr-git-drop-add(){
+    if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-drop-git-add"
+        echo "Drop the git add, 'git add' now is dropped"
+        return
+    fi
+
+    if [ "$1" = "-v" ]; then
+        echo "git reset --hard"
+        return
+    fi
+
+    git reset --hard
+}
+
+
+function xr-git-clone(){
+    if [ "$1" = "-v" ]; then
+        echo "git clone --recursive <repo_url>"
+        return
+    fi
+    if [ "$#" -ne 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-git-clone <repo_url>"
+        echo "Clone the git repository with submodule."
+        return
+    fi
+    git clone --recursive $1
+}
+
+function xr-git-submodule-add(){
+    if [ "$#" -ne 2 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-submodule-add <submodule_url> <submodule_path>"
+        echo "Add the git submodule to the repository."
+        return
+    fi
+
+    if [ "$1" = "-v" ]; then
+        echo "git submodule add $2 $3"
+        return
+    fi
+
+    git submodule add $1 $2
+}
+
+function xr-git-submodule-update(){
+    if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "When you forget to git clone with --recursive, you can use this command to clone the submodule."
+        return
+    fi
+
+    if [ "$1" = "-v" ]; then
+        echo "git submodule init"
+        echo "git submodule update"
+        return
+    fi
+
+    git submodule init
+    git submodule update
+}
+
+function xr-git-submodule-remove(){
+    if [ "$#" -ne 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-submodule-remove <submodule_path>"
+        echo "Remove the git submodule."
+        return
+    fi
+
+    if [ "$1" = "-v" ]; then
+        echo "git submodule deinit -f $2"
+        echo "git rm -f $2"
+        echo "rm -rf .git/modules/$2"
+        return
+    fi
+
+    git submodule deinit -f $1
+    git rm -f $1
+    rm -rf .git/modules/$1
+}
+
+function xr-git-lfs-install(){
+    if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-git-lfs-install [-v]"
+        echo "Install git-lfs."
+        echo "  -v    Show the original commands being executed."
+        return
+    fi
+
+    if [ "$1" = "-v" ]; then
+        echo "curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash"
+        echo "sudo apt-get install git-lfs"
+        echo "git lfs install"
+    fi
+
+    curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+    sudo apt-get install git-lfs
+    git lfs install
+}
+
+function xr-git-lfs-track(){
+    if [ "$#" -ne 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-git-lfs-track <file_pattern>"
+        echo "Track the file pattern with git-lfs."
+        return
+    fi
+
+    if [ "$1" = "-v" ]; then
+        echo "git lfs track \"$2\""
+        return
+    fi
+
+    git lfs track "$1"
+    git add .gitattributes
+}
+
+function xr-work-run-sglang(){
+    if [ "$1" = "-v" ] && [ "$#" -eq 1 ]; then
+        echo "Usage: xr-work-run-sglang [-v] [--gpus <gpu_ids>] <model> [tp_size]"
+        echo ""
+        echo "Examples:"
+        echo "  xr-work-run-sglang my-model"
+        echo "  xr-work-run-sglang my-model 4"
+        echo "  xr-work-run-sglang --gpus 0,1 my-model 2"
+        echo "  xr-work-run-sglang --gpus 0,1,2,3 my-model 4"
+        echo ""
+        echo "Command template:"
+        echo "  [CUDA_VISIBLE_DEVICES=<gpu_ids>] SGLANG_TORCH_PROFILER_DIR=/root/.cache/huggingface/sglang/profile_log python3 -m sglang.launch_server --model <model> --tp <tp_size> --trust-remote-code --mem-fraction-static 0.9 --cuda-graph-max-bs 128 --max-running-requests 128"
+        return
+    fi
+
+    local verbose=false
+    local model=""
+    local tp=4
+    local gpu_ids=""
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -v|--verbose)
+                verbose=true
+                shift
+                ;;
+            --gpus)
+                gpu_ids="$2"
+                shift 2
+                ;;
+            --help|-h)
+                echo "Usage: xr-work-run-sglang [-v] [--gpus <gpu_ids>] <model> [tp_size]"
+                echo ""
+                echo "Options:"
+                echo "  -v, --verbose    Show the command being executed"
+                echo "  --gpus <ids>     Specify GPU IDs (e.g., 0,1,2,3)"
+                echo "  -h, --help       Show this help message"
+                echo ""
+                echo "Arguments:"
+                echo "  <model>          Model name/path (required)"
+                echo "  [tp_size]        Tensor parallelism size (default: 4)"
+                echo ""
+                echo "Examples:"
+                echo "  xr-work-run-sglang my-model"
+                echo "  xr-work-run-sglang my-model 4"
+                echo "  xr-work-run-sglang --gpus 0,1 my-model 2"
+                echo "  xr-work-run-sglang -v --gpus 0,1,2,3 my-model 4"
+                return
+                ;;
+            *)
+                if [[ -z "$model" ]]; then
+                    model=$1
+                elif [[ "$tp" == "4" ]]; then
+                    tp=$1
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    if [[ -z "$model" ]]; then
+        echo "Error: Model name is required"
+        echo "Usage: xr-work-run-sglang [-v] [--gpus <gpu_ids>] <model> [tp_size]"
+        echo "Run 'xr-work-run-sglang --help' for more information"
+        return 1
+    fi
+
+    local cmd=""
+    if [[ -n "$gpu_ids" ]]; then
+        cmd="CUDA_VISIBLE_DEVICES=$gpu_ids "
+    fi
+    cmd="${cmd}SGLANG_TORCH_PROFILER_DIR=/root/.cache/huggingface/sglang/profile_log python3 -m sglang.launch_server --model $model --tp $tp --trust-remote-code --mem-fraction-static 0.9 --cuda-graph-max-bs 128 --max-running-requests 128"
+
+    if [[ "$verbose" == "true" ]]; then
+        echo "GPU IDs: ${gpu_ids:-all available}"
+        echo "Model: $model"
+        echo "Tensor Parallelism: $tp"
+        echo "Command: $cmd"
+        echo ""
+    fi
+
+    eval "$cmd"
+}
+
+function xr-work-benchmark-sglang-serving(){
+    if [ "$1" = "-v" ]; then
+        echo "SGLANG_TORCH_PROFILER_DIR=/root/.cache/huggingface/sglang/profile_log python3 -m sglang.bench_serving --backend sglang --port 30000 --model \$1 --max-concurrency \$2 --request-rate 64 --dataset-name random --random-input-len 1000 --random-output-len 1000 --num-prompt 128 --random-range-ratio 1.0 --tokenize-prompt [--profile]"
+        return
+    fi
+
+    local model=$1
+    local max_concurrency=$2
+    local profile=${3:-false}
+
+    local cmd="SGLANG_TORCH_PROFILER_DIR=/root/.cache/huggingface/sglang/profile_log python3 -m sglang.bench_serving --backend sglang --port 30000 --model $model --max-concurrency $max_concurrency --request-rate 64 --dataset-name random --random-input-len 1000 --random-output-len 1000 --num-prompt 128 --random-range-ratio 1.0 --tokenize-prompt"
+
+    if [[ "$profile" == "true" || "$profile" == "profile" ]]; then
+        cmd="$cmd --profile"
+    fi
+
+    echo "Running: $cmd"
+    eval "$cmd"
+}
+
+function xr-work-run-vllm(){
+    if [ "$1" = "-v" ] && [ "$#" -eq 1 ]; then
+        echo "Usage: xr-work-run-vllm [-v] [--gpus <gpu_ids>] <model> [tp_size]"
+        echo ""
+        echo "Examples:"
+        echo "  xr-work-run-vllm my-model"
+        echo "  xr-work-run-vllm my-model 4"
+        echo "  xr-work-run-vllm --gpus 0,1 my-model 2"
+        echo "  xr-work-run-vllm --gpus 0,1,2,3 my-model 4"
+        echo ""
+        echo "Command template:"
+        echo "  [CUDA_VISIBLE_DEVICES=<gpu_ids>] python3 -m vllm.entrypoints.launch_server --model <model> --tensor-parallel-size <tp_size> --port 5000 --max-batch-size 32 --max-concurrency 64 --trust-remote-code"
+        return
+    fi
+
+    local verbose=false
+    local model=""
+    local tp=4
+    local gpu_ids=""
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -v|--verbose)
+                verbose=true
+                shift
+                ;;
+            --gpus)
+                gpu_ids="$2"
+                shift 2
+                ;;
+            --help|-h)
+                echo "Usage: xr-work-run-vllm [-v] [--gpus <gpu_ids>] <model> [tp_size]"
+                echo ""
+                echo "Options:"
+                echo "  -v, --verbose    Show the command being executed"
+                echo "  --gpus <ids>     Specify GPU IDs (e.g., 0,1,2,3)"
+                echo "  -h, --help       Show this help message"
+                echo ""
+                echo "Arguments:"
+                echo "  <model>          Model name/path (required)"
+                echo "  [tp_size]        Tensor parallelism size (default: 4)"
+                echo ""
+                echo "Examples:"
+                echo "  xr-work-run-vllm my-model"
+                echo "  xr-work-run-vllm my-model 4"
+                echo "  xr-work-run-vllm --gpus 0,1 my-model 2"
+                echo "  xr-work-run-vllm -v --gpus 0,1,2,3 my-model 4"
+                return
+                ;;
+            *)
+                if [[ -z "$model" ]]; then
+                    model=$1
+                elif [[ "$tp" == "4" ]]; then
+                    tp=$1
+                fi
+                shift
+                ;;
+        esac
+    done
+    if [[ -z "$model" ]]; then
+        echo "Error: Model name is required"
+        echo "Usage: xr-work-run-vllm [-v] [--gpus <gpu_ids>] <model> [tp_size]"
+        echo "Run 'xr-work-run-vllm --help' for more information"
+        return 1
+    fi
+    local cmd=""
+    if [[ -n "$gpu_ids" ]]; then
+        cmd="CUDA_VISIBLE_DEVICES=$gpu_ids "
+    fi
+    cmd="${cmd}python3 -m vllm.entrypoints.openai.api_server --model $model --tensor-parallel-size $tp --trust-remote-code --uvicorn-log-level trace --no-enable-prefix-caching"
+    if [[ "$verbose" == "true" ]]; then
+        echo "Running: $cmd"
+    fi
+    eval "$cmd"
+}
+
+function xr-work-test-server(){
+    local port=${1:-5000}
+
+    python3 << EOF
+import sys
+import json
+import requests
+
+port = $port
+
+print(f"Using port: {port}")
+print()
+
+# Step 1: Get available models
+print("Fetching available models...")
+try:
+    response = requests.get(f"http://localhost:{port}/v1/models")
+    response.raise_for_status()
+    models_data = response.json()
+    print(f"Models response: {json.dumps(models_data, indent=2)}")
+
+    # Extract the first model id
+    if "data" in models_data and len(models_data["data"]) > 0:
+        model = models_data["data"][0]["id"]
+    else:
+        print("Error: No model found")
+        sys.exit(1)
+
+    print(f"Using model: {model}")
+    print()
+
+    # Step 2: Send chat completion request
+    print("Sending chat completion request...")
+    payload = {
+        "messages": [
+            {
+                "role": "user",
+                "content": "how to run faster?"
+            }
+        ],
+        "temperature": 0.2,
+        "max_tokens": 200,
+        "model": model
+    }
+
+    response = requests.post(
+        f"http://localhost:{port}/v1/chat/completions",
+        headers={"Content-Type": "application/json"},
+        json=payload
+    )
+    response.raise_for_status()
+
+    result = response.json()
+    print(json.dumps(result, indent=2))
+
+except requests.exceptions.RequestException as e:
+    print(f"Error: {e}")
+    sys.exit(1)
+EOF
+}
+
+
+function xr-setup-ssh(){
+    echo "setup ~/.ssh/config for ssh"
+    echo "Host <alias_name>
+    HostName <remote_host>
+    User <username>
+    Port <port>
+    IdentityFile <path_to_private_key>"
+}
+
+function xr-remote-mount-remote-folder-to-local(){
+    if [ "$#" -lt 2 ] || [ "$#" -gt 4 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: xr-remote-mount-remote-folder-to-local <user@remote_host> <remote_folder> [<local_mount_point>] [-v]"
+        echo "Mount remote_folder from remote_host to local machine using sshfs."
+        return
+    fi
+
+    local user_host=$1
+    local remote_folder=$2
+    local local_mount_point=${3:-$HOME/mnt_remote}
+    local show_command=false
+
+    if [ "$#" -eq 4 ] && [ "$4" = "-v" ]; then
+        show_command=true
+    fi
+
+    if [ ! -d "$local_mount_point" ]; then
+        mkdir -p "$local_mount_point"
+    fi
+
+    if [ "$show_command" = true ]; then
+        echo "sshfs $user_host:$remote_folder $local_mount_point"
+    fi
+
+    sshfs $user_host:$remote_folder $local_mount_point
+}
