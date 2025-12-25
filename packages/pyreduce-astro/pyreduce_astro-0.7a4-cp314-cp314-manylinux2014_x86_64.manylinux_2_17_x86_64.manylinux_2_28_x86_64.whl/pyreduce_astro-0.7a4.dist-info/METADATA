@@ -1,0 +1,106 @@
+Metadata-Version: 2.4
+Name: pyreduce-astro
+Version: 0.7a4
+Summary: A data reduction package for echelle spectrographs
+Project-URL: Homepage, https://github.com/ivh/PyReduce
+Project-URL: Documentation, https://pyreduce-astro.readthedocs.io
+Project-URL: Repository, https://github.com/ivh/PyReduce
+Project-URL: Issues, https://github.com/ivh/PyReduce/issues
+Author: Nikolai Piskunov, Thomas Marquart, Ansgar Wehrhahn
+Maintainer-email: Thomas Marquart <thomas.marquart@astro.uu.se>
+License: GPL-3.0-or-later
+License-File: LICENSE
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)
+Classifier: Programming Language :: C
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Scientific/Engineering :: Astronomy
+Requires-Python: >=3.11
+Requires-Dist: astropy>=5.3.0
+Requires-Dist: cffi>=1.17.1
+Requires-Dist: click>=8.1.0
+Requires-Dist: colorlog>=6.8.0
+Requires-Dist: corner>=2.2.0
+Requires-Dist: emcee>=3.1.0
+Requires-Dist: joblib>=1.3.0
+Requires-Dist: jsonschema>=4.20.0
+Requires-Dist: matplotlib>=3.8.0
+Requires-Dist: numpy>=1.26.0
+Requires-Dist: pillow>=10.0.0
+Requires-Dist: pydantic>=2.5.0
+Requires-Dist: python-dateutil>=2.8.0
+Requires-Dist: pyyaml>=6.0.0
+Requires-Dist: scikit-image>=0.22.0
+Requires-Dist: scipy>=1.11.0
+Requires-Dist: spectres>=2.2.0
+Requires-Dist: tqdm>=4.66.0
+Requires-Dist: wget>=3.2
+Description-Content-Type: text/markdown
+
+[![CI](https://github.com/ivh/PyReduce/actions/workflows/python-publish.yml/badge.svg)](https://github.com/ivh/PyReduce/actions/workflows/python-publish.yml)
+[![Documentation Status](https://readthedocs.org/projects/pyreduce-astro/badge/?version=latest)](https://pyreduce-astro.readthedocs.io/en/latest/?badge=latest)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+
+# PyReduce
+
+A data reduction pipeline for echelle spectrographs (HARPS, UVES, XSHOOTER, CRIRES+, JWST/NIRISS, and more).
+
+Based on the [REDUCE](http://www.astro.uu.se/~piskunov/RESEARCH/REDUCE/) package. See the papers:
+- Piskunov & Valenti (2001) [doi:10.1051/0004-6361:20020175](https://doi.org/10.1051/0004-6361:20020175)
+- Piskunov, Wehrhahn & Marquart (2021) [doi:10.1051/0004-6361/202038293](https://doi.org/10.1051/0004-6361/202038293)
+
+## Installation
+
+```bash
+# Using uv (recommended)
+uv add pyreduce-astro
+
+# Or pip
+pip install pyreduce-astro
+```
+
+For development:
+```bash
+git clone https://github.com/ivh/PyReduce
+cd PyReduce
+uv sync
+```
+
+## Quick Start
+
+```bash
+# Download sample data
+uv run reduce download UVES
+
+# Run reduction
+uv run reduce run UVES HD132205 --steps bias,flat,orders,science
+
+# Or run individual steps
+uv run reduce bias UVES HD132205
+uv run reduce flat UVES HD132205
+```
+
+Or use the Python API:
+```python
+from pyreduce.pipeline import Pipeline
+
+Pipeline.from_instrument(
+    instrument="UVES",
+    target="HD132205",
+    night="2010-04-01",
+    arm="middle",
+).run()
+```
+
+## Documentation
+
+Full documentation at [ReadTheDocs](https://pyreduce-astro.readthedocs.io/).
+
+## Output
+
+PyReduce creates `.ech` files (standard FITS with binary table extension). Headers include original keywords plus PyReduce-specific ones prefixed with `e_`.
