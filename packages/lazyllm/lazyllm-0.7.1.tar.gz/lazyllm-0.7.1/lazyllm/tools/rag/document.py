@@ -1,0 +1,771 @@
+import os
+from typing import Callable, Optional, Dict, Union, List, Type
+from functools import cached_property
+from pydantic import BaseModel
+import lazyllm
+from lazyllm import ModuleBase, ServerModule, DynamicDescriptor, deprecated, OnlineChatModule, TrainableModule
+from lazyllm.module import LLMBase
+from lazyllm.launcher import LazyLLMLaunchersBase as Launcher
+from lazyllm.tools.sql.sql_manager import SqlManager, DBStatus
+from lazyllm.common.bind import _MetaBind
+
+from .doc_manager import DocManager
+from .doc_impl import DocImpl, StorePlaceholder, EmbedPlaceholder, BuiltinGroups, DocumentProcessor, NodeGroupType
+from .doc_node import DocNode
+from .doc_to_db import DocInfoSchema, DocToDbProcessor, extract_db_schema_from_files, SchemaExtractor
+from .store import LAZY_ROOT_NAME, EMBED_DEFAULT_KEY
+from .store.store_base import DEFAULT_KB_ID
+from .index_base import IndexBase
+from .utils import DocListManager, ensure_call_endpoint
+from .global_metadata import GlobalMetadataDesc as DocField
+from .web import DocWebModule
+import copy
+import functools
+import weakref
+
+
+class CallableDict(dict):
+    def __call__(self, cls, *args, **kw):
+        return self[cls](*args, **kw)
+
+
+class _MetaDocument(_MetaBind):
+    def __instancecheck__(self, __instance):
+        if isinstance(__instance, UrlDocument): return True
+        return super().__instancecheck__(__instance)
+
+
+class Document(ModuleBase, BuiltinGroups, metaclass=_MetaDocument):
+    """Initialize a document management module with optional embedding, storage, and user interface.
+
+The ``Document`` module provides a unified interface for managing document datasets, including support for local files, cloud-based files, or temporary document files. It can optionally run with a document manager service or a web UI, and supports multiple embedding models and custom storage backends.
+
+Args:
+    dataset_path (Optional[str]): Path to the dataset directory. If not found, the system will attempt to locate it in ``lazyllm.config["data_path"]``.
+    embed (Optional[Union[Callable, Dict[str, Callable]]]): Embedding function or mapping of embedding functions. When a dictionary is provided, keys are embedding names and values are embedding models.
+    manager (Union[bool, str], optional): Whether to enable the document manager. If ``True``, launches a manager service. If ``'ui'``, also enables the document management web UI. Defaults to ``False``.
+    server (Union[bool, int], optional): Whether to run a server interface for knowledge bases. ``True`` enables a default server, an integer specifies a custom port, and ``False`` disables it. Defaults to ``False``.
+    name (Optional[str]): Name identifier for this document collection. Defaults to the system default name.
+    launcher (Optional[Launcher]): Launcher instance for managing server processes. Defaults to a remote asynchronous launcher.
+    store_conf (Optional[Dict]): Storage configuration. Defaults to in-memory MapStore.
+    doc_fields (Optional[Dict[str, DocField]]): Metadata field configuration for storing and retrieving document attributes.
+    cloud (bool): Whether the dataset is stored in the cloud. Defaults to ``False``.
+    doc_files (Optional[List[str]]): Temporary document files. When used, ``dataset_path`` must be ``None``. Only MapStore is supported in this mode.
+    processor (Optional[DocumentProcessor]): Document processing service.
+    display_name (Optional[str]): Human-readable display name for this document module. Defaults to the collection name.
+    description (Optional[str]): Description of the document collection. Defaults to ``"algorithm description"``.
+
+
+Examples:
+    >>> import lazyllm
+    >>> from lazyllm.tools import Document
+    >>> m = lazyllm.OnlineEmbeddingModule(source="glm")
+    >>> documents = Document(dataset_path='your_doc_path', embed=m, manager=False)  # or documents = Document(dataset_path='your_doc_path', embed={"key": m}, manager=False)
+    >>> m1 = lazyllm.TrainableModule("bge-large-zh-v1.5").start()
+    >>> document1 = Document(dataset_path='your_doc_path', embed={"online": m, "local": m1}, manager=False)
+    
+    >>> store_conf = {
+    >>>     "segment_store": {
+    >>>         "type": "map",
+    >>>         "kwargs": {
+    >>>             "uri": "/tmp/tmp_segments.db",
+    >>>         },
+    >>>     },
+    >>>     "vector_store": {
+    >>>         "type": "milvus",
+    >>>         "kwargs": {
+    >>>             "uri": "/tmp/tmp_milvus.db",
+    >>>             "index_kwargs": {
+    >>>                 "index_type": "FLAT",
+    >>>                 "metric_type": "COSINE",
+    >>>             },
+    >>>         },
+    >>>     },
+    >>> }
+    >>> doc_fields = {
+    >>>     'author': DocField(data_type=DataType.VARCHAR, max_size=128, default_value=' '),
+    >>>     'public_year': DocField(data_type=DataType.INT32),
+    >>> }
+    >>> document2 = Document(dataset_path='your_doc_path', embed={"online": m, "local": m1}, store_conf=store_conf, doc_fields=doc_fields)
+    """
+    class _Manager(ModuleBase):
+        def __init__(self, dataset_path: Optional[str], embed: Optional[Union[Callable, Dict[str, Callable]]] = None,
+                     manager: Union[bool, str] = False, server: Union[bool, int] = False, name: Optional[str] = None,
+                     launcher: Optional[Launcher] = None, store_conf: Optional[Dict] = None,
+                     doc_fields: Optional[Dict[str, DocField]] = None, cloud: bool = False,
+                     doc_files: Optional[List[str]] = None, processor: Optional[DocumentProcessor] = None,
+                     display_name: Optional[str] = '', description: Optional[str] = 'algorithm description',
+                     schema_extractor: Optional[Union[LLMBase, SchemaExtractor]] = None):
+            super().__init__()
+            self._origin_path, self._doc_files, self._cloud = dataset_path, doc_files, cloud
+
+            if dataset_path and not os.path.exists(dataset_path):
+                defatult_path = os.path.join(lazyllm.config['data_path'], dataset_path)
+                if os.path.exists(defatult_path):
+                    dataset_path = defatult_path
+            elif dataset_path:
+                dataset_path = os.path.join(os.getcwd(), dataset_path)
+
+            self._launcher: Launcher = launcher if launcher else lazyllm.launchers.remote(sync=False)
+            self._dataset_path = dataset_path
+            self._embed = self._get_embeds(embed)
+            self._processor = processor
+            name = name or DocListManager.DEFAULT_GROUP_NAME
+            if not display_name: display_name = name
+
+            self._dlm = None if (self._cloud or self._doc_files is not None) else DocListManager(
+                dataset_path, name, enable_path_monitoring=False if manager else True)
+            self._kbs = CallableDict({name: DocImpl(
+                embed=self._embed, dlm=self._dlm, doc_files=doc_files, global_metadata_desc=doc_fields,
+                store=store_conf, processor=processor, algo_name=name, display_name=display_name,
+                description=description, schema_extractor=schema_extractor)})
+
+            if manager: self._manager = ServerModule(DocManager(self._dlm), launcher=self._launcher)
+            if manager == 'ui': self._docweb = DocWebModule(doc_server=self._manager)
+            if server: self._kbs = ServerModule(self._kbs, port=(None if isinstance(server, bool) else int(server)))
+            self._global_metadata_desc = doc_fields
+
+        @property
+        def url(self):
+            if hasattr(self, '_manager'): return self._manager._url
+            return None
+
+        @property
+        @deprecated('Document.manager.url')
+        def _url(self):
+            return self.url
+
+        @property
+        def web_url(self):
+            if hasattr(self, '_docweb'): return self._docweb.url
+            return None
+
+        def _get_embeds(self, embed):
+            embeds = embed if isinstance(embed, dict) else {EMBED_DEFAULT_KEY: embed} if embed else {}
+            for embed in embeds.values():
+                if isinstance(embed, ModuleBase):
+                    self._submodules.append(embed)
+            return embeds
+
+        def add_kb_group(self, name, doc_fields: Optional[Dict[str, DocField]] = None,
+                         store_conf: Optional[Dict] = None,
+                         embed: Optional[Union[Callable, Dict[str, Callable]]] = None):
+            embed = self._get_embeds(embed) if embed else self._embed
+            if isinstance(self._kbs, ServerModule):
+                self._kbs._impl._m[name] = DocImpl(dlm=self._dlm, embed=embed, kb_group_name=name,
+                                                   global_metadata_desc=doc_fields, store=store_conf)
+            else:
+                self._kbs[name] = DocImpl(dlm=self._dlm, embed=self._embed, kb_group_name=name,
+                                          global_metadata_desc=doc_fields, store=store_conf)
+            self._dlm.add_kb_group(name=name)
+
+        def get_doc_by_kb_group(self, name):
+            return self._kbs._impl._m[name] if isinstance(self._kbs, ServerModule) else self._kbs[name]
+
+        def stop(self):
+            if hasattr(self, '_docweb'):
+                self._docweb.stop()
+            self._launcher.cleanup()
+
+        def __call__(self, *args, **kw):
+            return self._kbs(*args, **kw)
+
+    def __new__(cls, *args, **kw):
+        if url := kw.pop('url', None):
+            name = kw.pop('name', None)
+            assert not args and not kw, 'Only `name` is supported with `url`'
+            return UrlDocument(url, name)
+        else:
+            return super().__new__(cls)
+
+    def __init__(self, dataset_path: Optional[str] = None, embed: Optional[Union[Callable, Dict[str, Callable]]] = None,
+                 create_ui: bool = False, manager: Union[bool, str, 'Document._Manager', DocumentProcessor] = False,
+                 server: Union[bool, int] = False, name: Optional[str] = None, launcher: Optional[Launcher] = None,
+                 doc_files: Optional[List[str]] = None, doc_fields: Dict[str, DocField] = None,
+                 store_conf: Optional[Dict] = None, display_name: Optional[str] = '',
+                 description: Optional[str] = 'algorithm description',
+                 schema_extractor: Optional[Union[LLMBase, SchemaExtractor]] = None):
+        super().__init__()
+        if create_ui:
+            lazyllm.LOG.warning('`create_ui` for Document is deprecated, use `manager` instead')
+            manager = create_ui
+        if isinstance(dataset_path, (tuple, list)):
+            doc_fields = dataset_path
+            dataset_path = None
+        if doc_files is not None:
+            assert dataset_path is None and not manager, (
+                'Manager and dataset_path are not supported for Document with temp-files')
+            assert store_conf is None or store_conf['type'] == 'map', (
+                'Only map store is supported for Document with temp-files')
+
+        name = name or DocListManager.DEFAULT_GROUP_NAME
+        self._schema_extractor: SchemaExtractor = schema_extractor
+
+        if isinstance(manager, Document._Manager):
+            assert not server, 'Server infomation is already set to by manager'
+            assert not launcher, 'Launcher infomation is already set to by manager'
+            assert not manager._cloud, 'manager is not allowed to share in cloud mode'
+            assert manager._doc_files is None, 'manager is not allowed to share with temp files'
+            if dataset_path != manager._dataset_path and dataset_path != manager._origin_path:
+                raise RuntimeError(f'Document path mismatch, expected `{manager._dataset_path}`'
+                                   f'while received `{dataset_path}`')
+            manager.add_kb_group(name=name, doc_fields=doc_fields, store_conf=store_conf, embed=embed)
+            self._manager = manager
+            self._curr_group = name
+        else:
+            if isinstance(manager, DocumentProcessor):
+                processor, cloud = manager, True
+                processor.start()
+                manager = False
+                assert name, '`Name` of Document is necessary when using cloud service'
+                assert store_conf.get('type') != 'map', 'Cloud manager is not supported when using map store'
+                assert not dataset_path, 'Cloud manager is not supported with local dataset path'
+            else:
+                cloud, processor = False, None
+            self._manager = Document._Manager(dataset_path, embed, manager, server, name, launcher, store_conf,
+                                              doc_fields, cloud=cloud, doc_files=doc_files, processor=processor,
+                                              display_name=display_name, description=description,
+                                              schema_extractor=self._schema_extractor)
+            self._curr_group = name
+        self._doc_to_db_processor: DocToDbProcessor = None
+        self._graph_document: weakref.ref = None
+
+    @staticmethod
+    def list_all_files_in_directory(
+        dataset_path: str, skip_hidden_path: bool = True, recursive: bool = True
+    ) -> List[str]:
+        """List all files in a given directory path.
+
+This method recursively or non-recursively traverses a directory and collects all file paths. It can optionally skip hidden files and directories (those starting with '.'). If the provided path is a file instead of a directory, it returns a list containing only that file path.
+
+Args:
+    dataset_path (str): The path to the directory to list.
+    skip_hidden_path (bool, optional): Whether to skip hidden files and directories (those starting with '.'). Defaults to True.
+    recursive (bool, optional): Whether to recursively search subdirectories. If False, only files in the immediate directory are returned. Defaults to True.
+
+**Returns:**
+
+- List[str]: A list of absolute file paths. Returns an empty list if the path does not exist or is not a directory.
+"""
+        files_list = []
+
+        if not os.path.exists(dataset_path):
+            return files_list
+
+        if not os.path.isdir(dataset_path):
+            return [dataset_path] if os.path.isfile(dataset_path) else files_list
+
+        if recursive:
+            for root, dirs, files in os.walk(os.path.abspath(dataset_path)):
+                # Skip hidden directories
+                if skip_hidden_path:
+                    path_parts = root.split(os.sep)
+                    if any(part.startswith('.') for part in path_parts if part):
+                        continue
+                    # Filter out hidden directories
+                    dirs[:] = [d for d in dirs if not d.startswith('.')]
+
+                # Skip hidden files
+                if skip_hidden_path:
+                    files = [file_path for file_path in files if not file_path.startswith('.')]
+
+                files = [os.path.join(root, file_path) for file_path in files]
+                files_list.extend(files)
+        else:
+            items = os.listdir(dataset_path)
+            for item in items:
+                item_path = os.path.join(dataset_path, item)
+                # Skip hidden files/directories
+                if skip_hidden_path and item.startswith('.'):
+                    continue
+                # Only add files, not directories
+                if os.path.isfile(item_path):
+                    files_list.append(item_path)
+
+        return files_list
+
+    def _list_all_files_in_dataset(self, skip_hidden_path: bool = True) -> List[str]:
+        return self.list_all_files_in_directory(self._manager._dataset_path, skip_hidden_path)
+
+    @property
+    def url(self):
+        assert isinstance(self._manager._kbs, ServerModule), 'Document is not a service, please set `manager` to `True`'
+        return self._manager._kbs._url
+
+    def connect_sql_manager(
+        self,
+        sql_manager: SqlManager,
+        schma: Optional[DocInfoSchema] = None,
+        force_refresh: bool = True,
+    ):
+        """Connect to the SQL manager and initialize the document-to-database processor.
+
+This method validates the database connection and updates or resets the database table schema based on the provided document schema. If the existing schema differs from the new one, ``force_refresh=True`` must be set to enforce a reset.
+
+Args:
+    sql_manager (SqlManager): SQL manager instance for database connection and operations.
+    schma (Optional[DocInfoSchema]): Document table schema definition, including field names, types, and descriptions.
+    force_refresh (bool, optional): Whether to force refresh the database schema when changes are detected. Defaults to ``True``.
+
+Raises:
+    RuntimeError: If the database connection fails.
+    AssertionError: If schema is missing or schema change occurs without setting ``force_refresh``.
+"""
+        def format_schema_to_dict(schema: DocInfoSchema):
+            if schema is None:
+                return None, None
+            desc_dict = {ele['key']: ele['desc'] for ele in schema}
+            type_dict = {ele['key']: ele['type'] for ele in schema}
+            return desc_dict, type_dict
+
+        def compare_schema(old_schema: DocInfoSchema, new_schema: DocInfoSchema):
+            old_desc_dict, old_type_dict = format_schema_to_dict(old_schema)
+            new_desc_dict, new_type_dict = format_schema_to_dict(new_schema)
+            return old_desc_dict == new_desc_dict and old_type_dict == new_type_dict
+
+        # 1. Check valid arguments
+        if sql_manager.check_connection().status != DBStatus.SUCCESS:
+            raise RuntimeError(f'Failed to connect to sql manager: {sql_manager._gen_conn_url()}')
+        pre_doc_table_schema = None
+        if self._doc_to_db_processor:
+            pre_doc_table_schema = self._doc_to_db_processor.doc_info_schema
+        assert pre_doc_table_schema or schma, 'doc_table_schma must be given'
+
+        schema_equal = compare_schema(pre_doc_table_schema, schma)
+        assert (
+            schema_equal or force_refresh is True
+        ), 'When changing doc_table_schema, force_refresh should be set to True'
+
+        # 2. Init handler if needed
+        need_init_processor = False
+        if self._doc_to_db_processor is None:
+            need_init_processor = True
+        else:
+            # avoid reinit for the same db
+            if sql_manager != self._doc_to_db_processor.sql_manager:
+                need_init_processor = True
+        if need_init_processor:
+            self._doc_to_db_processor = DocToDbProcessor(sql_manager)
+
+        # 3. Reset doc_table_schema if needed
+        if schma and not schema_equal:
+            # This api call will clear existing db table 'lazyllm_doc_elements'
+            self._doc_to_db_processor._reset_doc_info_schema(schma)
+
+    def get_sql_manager(self):
+        """Get the SQL manager instance currently bound to this document module.
+
+**Returns:**
+
+- SqlManager: The connected SQL manager instance.
+"""
+        if self._doc_to_db_processor is None:
+            raise ValueError('Please call connect_sql_manager to init handler first')
+        return self._doc_to_db_processor.sql_manager
+
+    def extract_db_schema(
+        self, llm: Union[OnlineChatModule, TrainableModule], print_schema: bool = False
+    ) -> DocInfoSchema:
+        """Extract the database schema from the dataset using a large language model.
+
+This method scans all files in the dataset and uses the LLM to extract document information schema. Optionally, the schema can be printed to the logs.
+
+Args:
+    llm (Union[OnlineChatModule, TrainableModule]): Model used to parse documents and extract schema.
+    print_schema (bool, optional): Whether to log the extracted schema. Defaults to ``False``.
+
+**Returns:**
+
+- DocInfoSchema: The extracted database schema.
+"""
+        file_paths = self._list_all_files_in_dataset()
+        schema = extract_db_schema_from_files(file_paths, llm)
+        if print_schema:
+            lazyllm.LOG.info(f'Extracted Schema:\n\t{schema}\n')
+        return schema
+
+    def update_database(self, llm: Union[OnlineChatModule, TrainableModule]):
+        """Update the database with information extracted from documents using a large language model.
+
+This method iterates through all files in the dataset, extracts structured information, and exports it into the database.
+
+Args:
+    llm (Union[OnlineChatModule, TrainableModule]): Model used to parse documents and extract information.
+"""
+        assert self._doc_to_db_processor, 'Please call connect_db to init handler first'
+        file_paths = self._list_all_files_in_dataset()
+        info_dicts = self._doc_to_db_processor.extract_info_from_docs(llm, file_paths)
+        self._doc_to_db_processor.export_info_to_db(info_dicts)
+
+    @deprecated('Document(dataset_path, manager=doc.manager, name=xx, doc_fields=xx, store_conf=xx)')
+    def create_kb_group(self, name: str, doc_fields: Optional[Dict[str, DocField]] = None,
+                        store_conf: Optional[Dict] = None) -> 'Document':
+        """Create a new knowledge base group (KB Group) and return a document object bound to that group.
+
+Knowledge base groups are used to partition different document collections within the same document module. Each group can have independent field definitions and storage configurations.
+
+Args:
+    name (str): Name of the knowledge base group.
+    doc_fields (Optional[Dict[str, DocField]]): Document field definitions, specifying field names, types, and descriptions.
+    store_conf (Optional[Dict]): Storage configuration, defining the backend and its parameters.
+
+**Returns:**
+
+- Document: A copy of the document object bound to the newly created knowledge base group.
+"""
+        self._manager.add_kb_group(name=name, doc_fields=doc_fields, store_conf=store_conf)
+        doc = copy.copy(self)
+        doc._curr_group = name
+        return doc
+
+    @property
+    @deprecated('Document._manager')
+    def _impls(self): return self._manager
+
+    @property
+    def _impl(self) -> DocImpl: return self._manager.get_doc_by_kb_group(self._curr_group)
+
+    @property
+    def manager(self): return self._manager._processor or self._manager
+
+    def activate_group(self, group_name: str, embed_keys: Optional[Union[str, List[str]]] = None,
+                       enable_embed: bool = True):
+        """Activate the specified knowledge base group, optionally enabling specific embedding keys.
+
+After activation, the document module will perform retrieval and storage operations within the given group. If no embedding keys are provided, all available embeddings will be enabled by default.
+
+Args:
+    group_name (str): Name of the knowledge base group to activate.
+    embed_keys (Optional[Union[str, List[str]]]): Embedding keys to enable, either as a string or a list of strings. Defaults to an empty list, enabling all embeddings.
+"""
+        if embed_keys and not enable_embed:
+            raise ValueError('`enable_embed` must be set to True when `embed_keys` is provided')
+        if isinstance(embed_keys, str): embed_keys = [embed_keys]
+        self._impl.activate_group(group_name, embed_keys, enable_embed)
+
+    def activate_groups(self, groups: Union[str, List[str]], **kwargs):
+        """Activate multiple knowledge base groups in batch.
+
+This method iteratively calls `activate_group` to activate all the provided groups.
+
+Args:
+    groups (Union[str, List[str]]): A single group name or a list of group names to activate.
+"""
+        if isinstance(groups, str): groups = [groups]
+        for group in groups:
+            self.activate_group(group, **kwargs)
+
+    @DynamicDescriptor
+    def create_node_group(self, name: str = None, *, transform: Callable, parent: str = LAZY_ROOT_NAME,
+                          trans_node: bool = None, num_workers: int = 0, display_name: str = None,
+                          group_type: NodeGroupType = NodeGroupType.CHUNK, **kwargs) -> None:
+        """
+Generate a node group produced by the specified rule.
+
+Args:
+    name (str): The name of the node group.
+    transform (Callable): The transformation rule that converts a node into a node group. The function prototype is `(DocNode, group_name, **kwargs) -> List[DocNode]`. Currently built-in options include [SentenceSplitter][lazyllm.tools.SentenceSplitter], and users can define their own transformation rules.
+    trans_node (bool): Determines whether the input and output of transform are `DocNode` or `str`, default is None. Can only be set to true when `transform` is `Callable`.
+    num_workers (int): number of new threads used for transform. default: 0
+    parent (str): The node that needs further transformation. The series of new nodes obtained after transformation will be child nodes of this parent node. If not specified, the transformation starts from the root node.
+    kwargs: Parameters related to the specific implementation.
+
+
+Examples:
+    
+    >>> import lazyllm
+    >>> from lazyllm.tools import Document, SentenceSplitter
+    >>> m = lazyllm.OnlineEmbeddingModule(source="glm")
+    >>> documents = Document(dataset_path='your_doc_path', embed=m, manager=False)
+    >>> documents.create_node_group(name="sentences", transform=SentenceSplitter, chunk_size=1024, chunk_overlap=100)
+    """
+        if isinstance(self, type):
+            DocImpl.create_global_node_group(name, transform=transform, parent=parent, trans_node=trans_node,
+                                             num_workers=num_workers, display_name=display_name,
+                                             group_type=group_type, **kwargs)
+        else:
+            self._impl.create_node_group(name, transform=transform, parent=parent, trans_node=trans_node,
+                                         num_workers=num_workers, display_name=display_name, group_type=group_type,
+                                         **kwargs)
+
+    @DynamicDescriptor
+    def add_reader(self, pattern: str, func: Optional[Callable] = None):
+        """
+Used to specify the file reader for an instance. The scope of action is visible only to the registered Document object. The registered file reader must be a Callable object. It can only be registered by calling a function. The priority of the file reader registered by the instance is higher than that of the file reader registered by the class, and the priority of the file reader registered by the instance and class is higher than the system default file reader. That is, the order of priority is: instance file reader > class file reader > system default file reader.
+
+Args:
+    pattern (str): Matching rules applied by the file reader.
+    func (Callable): File reader, must be a Callable object.
+
+
+Examples:
+    
+    >>> from lazyllm.tools.rag import Document, DocNode
+    >>> from lazyllm.tools.rag.readers import ReaderBase
+    >>> class YmlReader(ReaderBase):
+    ...     def _load_data(self, file, fs=None):
+    ...         try:
+    ...             import yaml
+    ...         except ImportError:
+    ...             raise ImportError("yaml is required to read YAML file: `pip install pyyaml`")
+    ...         with open(file, 'r') as f:
+    ...             data = yaml.safe_load(f)
+    ...         print("Call the class YmlReader.")
+    ...         return [DocNode(text=data)]
+    ...
+    >>> def processYml(file):
+    ...     with open(file, 'r') as f:
+    ...         data = f.read()
+    ...     print("Call the function processYml.")
+    ...     return [DocNode(text=data)]
+    ...
+    >>> doc1 = Document(dataset_path="your_files_path", create_ui=False)
+    >>> doc2 = Document(dataset_path="your_files_path", create_ui=False)
+    >>> doc1.add_reader("**/*.yml", YmlReader)
+    >>> print(doc1._impl._local_file_reader)
+    {'**/*.yml': <class '__main__.YmlReader'>}
+    >>> print(doc2._impl._local_file_reader)
+    {}
+    >>> files = ["your_yml_files"]
+    >>> Document.register_global_reader("**/*.yml", processYml)
+    >>> doc1._impl._reader.load_data(input_files=files)
+    Call the class YmlReader.
+    >>> doc2._impl._reader.load_data(input_files=files)
+    Call the function processYml.
+    """
+        if isinstance(self, type):
+            return DocImpl.register_global_reader(pattern=pattern, func=func)
+        else:
+            self._impl.add_reader(pattern, func)
+
+    @classmethod
+    def register_global_reader(cls, pattern: str, func: Optional[Callable] = None):
+        """
+Used to specify a file reader, which is visible to all Document objects. The registered file reader must be a Callable object. It can be registered using a decorator or by a function call.
+
+Args:
+    pattern (str): Matching rules applied by the file reader.
+    func (Callable): File reader, must be a Callable object.
+
+
+Examples:
+    
+    >>> from lazyllm.tools.rag import Document, DocNode
+    >>> @Document.register_global_reader("**/*.yml")
+    >>> def processYml(file):
+    ...     with open(file, 'r') as f:
+    ...         data = f.read()
+    ...     return [DocNode(text=data)]
+    ...
+    >>> doc1 = Document(dataset_path="your_files_path", create_ui=False)
+    >>> doc2 = Document(dataset_path="your_files_path", create_ui=False)
+    >>> files = ["your_yml_files"]
+    >>> docs1 = doc1._impl._reader.load_data(input_files=files)
+    >>> docs2 = doc2._impl._reader.load_data(input_files=files)
+    >>> print(docs1[0].text == docs2[0].text)
+    # True
+    """
+        return cls.add_reader(pattern, func)
+
+    def get_store(self):
+        """Get the storage placeholder object.
+
+This method returns a placeholder for the storage layer, allowing deferred binding of the actual storage implementation.
+The caller can use this object for storage-related configuration or extension.
+
+**Returns:**
+
+- StorePlaceholder: Storage placeholder object.
+"""
+        return StorePlaceholder()
+
+    def get_embed(self):
+        """Get the embedding placeholder object.
+
+This method returns a placeholder for the embedding layer, allowing deferred binding of the actual embedding implementation.
+The caller can use this object for embedding-related configuration or extension.
+
+**Returns:**
+
+- EmbedPlaceholder: Embedding placeholder object.
+"""
+        return EmbedPlaceholder()
+
+    def register_index(self, index_type: str, index_cls: IndexBase, *args, **kwargs) -> None:
+        """Register a new index type.
+
+This method allows users to register a new index type for the document module, enabling extension of retrieval capabilities.
+Once registered, the index can be referenced by its type.
+
+Args:
+    index_type (str): Name of the index type.
+    index_cls (IndexBase): Index class, must inherit from ``IndexBase``.
+    *args: Variable arguments for index initialization.
+    **kwargs: Keyword arguments for index initialization.
+"""
+        self._impl.register_index(index_type, index_cls, *args, **kwargs)
+
+    def _forward(self, func_name: str, *args, **kw):
+        return self._manager(self._curr_group, func_name, *args, **kw)
+
+    def find_parent(self, target) -> Callable:
+        """Find the parent node of the target.
+
+This method returns a callable object that performs a deferred parent lookup operation.
+It invokes the underlying implementation to retrieve the parent node of the specified target.
+
+Args:
+    target: The target for which to find the parent.
+
+**Returns:**
+
+- Callable: Callable object for performing the parent lookup.
+
+
+Examples:
+    
+    >>> import lazyllm
+    >>> from lazyllm.tools import Document, SentenceSplitter
+    >>> m = lazyllm.OnlineEmbeddingModule(source="glm")
+    >>> documents = Document(dataset_path='your_doc_path', embed=m, manager=False)
+    >>> documents.create_node_group(name="parent", transform=SentenceSplitter, chunk_size=1024, chunk_overlap=100)
+    >>> documents.create_node_group(name="children", transform=SentenceSplitter, parent="parent", chunk_size=1024, chunk_overlap=100)
+    >>> documents.find_parent('children')
+    """
+        return functools.partial(self._forward, 'find_parent', group=target)
+
+    def find_children(self, target) -> Callable:
+        """Find the children nodes of the target.
+
+This method returns a callable object that performs a deferred children lookup operation.
+It invokes the underlying implementation to retrieve all children nodes of the specified target.
+
+Args:
+    target: The target for which to find the children.
+
+**Returns:**
+
+- Callable: Callable object for performing the children lookup.
+
+
+Examples:
+    
+    >>> import lazyllm
+    >>> from lazyllm.tools import Document, SentenceSplitter
+    >>> m = lazyllm.OnlineEmbeddingModule(source="glm")
+    >>> documents = Document(dataset_path='your_doc_path', embed=m, manager=False)
+    >>> documents.create_node_group(name="parent", transform=SentenceSplitter, chunk_size=1024, chunk_overlap=100)
+    >>> documents.create_node_group(name="children", transform=SentenceSplitter, parent="parent", chunk_size=1024, chunk_overlap=100)
+    >>> documents.find_children('parent')
+    """
+        return functools.partial(self._forward, 'find_children', group=target)
+
+    def find(self, target) -> Callable:
+        """Find the target.
+
+This method returns a callable object that performs a deferred lookup operation.
+It invokes the underlying implementation to retrieve the specified target.
+
+Args:
+    target: The target to be found.
+
+**Returns:**
+
+- Callable: Callable object for performing the target lookup.
+"""
+        return functools.partial(self._forward, 'find', group=target)
+
+    def forward(self, *args, **kw) -> List[DocNode]:
+        return self._forward('retrieve', *args, **kw)
+
+    def clear_cache(self, group_names: Optional[List[str]] = None) -> None:
+        """Clear cache.
+
+This method clears the cache of the document module. A list of group names can be specified to
+clear cache for specific groups. If no group names are provided, all group caches will be cleared.
+
+Args:
+    group_names (Optional[List[str]]): List of group names whose cache should be cleared.
+        Defaults to ``None``, meaning clear all caches.
+"""
+        return self._forward('clear_cache', group_names)
+
+    def drop_algorithm(self):
+        """
+Delete the algorithm information registered in the document parsing service for the current document collection.
+"""
+        return self._forward('drop_algorithm')
+
+    def analyze_schema_by_llm(self, kb_id: Optional[str] = None, doc_ids: Optional[List[str]] = None):
+        """
+Use an LLM to auto-infer a field schema for a specific knowledge base or document set in the Document manager, returning a generated Pydantic model. Supports narrowing the sample by kb_id and a list of doc_ids.
+
+Args:
+    kb_id: Target knowledge base id.
+    doc_ids: List of target document ids.
+"""
+        return self._forward('_analyze_schema_by_llm', kb_id, doc_ids)
+
+    def register_schema_set(self, schema_set: Type[BaseModel], kb_id: Optional[str] = DEFAULT_KB_ID,
+                            force_refresh: bool = False) -> str:
+        """
+Manually register a Pydantic model as the schema for the current algorithm and bind it to a specific knowledge base.
+If the KB is already bound to another schema, it raises by default; set ``force_refresh=True`` to replace the binding and clean old records.
+
+Args:
+    schema_set (Type[BaseModel]): Pydantic model that defines the schema to register.
+    kb_id (Optional[str]): Target knowledge base ID. Defaults to ``DEFAULT_KB_ID``.
+    force_refresh (bool): Whether to force refresh when a binding already exists. Defaults to ``False``.
+
+Returns:
+    str: The generated ``schema_set_id``.
+"""
+        return self._forward('_register_schema_set', schema_set, kb_id, force_refresh)
+
+    def _get_post_process_tasks(self):
+        return lazyllm.pipeline(lambda *a: self._forward('_lazy_init'))
+
+    def __repr__(self):
+        return lazyllm.make_repr('Module', 'Document', manager=hasattr(self._manager, '_manager'),
+                                 server=isinstance(self._manager._kbs, ServerModule))
+
+class UrlDocument(ModuleBase):
+    """UrlDocument class inherits from ModuleBase, used to manage remote document resources by specifying a URL and a name.
+Internally delegates calls to lazyllm's UrlModule, supporting document find, retrieve, and querying active node groups.
+
+Args:
+    url (str): Access URL for the remote document resource.
+    name (str): Current document group name used to identify the document group.
+"""
+    def __init__(self, url: str, name: str = None):
+        super().__init__()
+        self._missing_keys = set(dir(Document)) - set(dir(UrlDocument))
+        self._manager = lazyllm.UrlModule(url=ensure_call_endpoint(url))
+        self._curr_group = name or DocListManager.DEFAULT_GROUP_NAME
+
+    def _forward(self, func_name: str, *args, **kwargs):
+        args = (self._curr_group, func_name, *args)
+        return self._manager._call('__call__', *args, **kwargs)
+
+    def find(self, target) -> Callable:
+        """Creates a partially applied function to find a specified target within the current document group.
+
+Args:
+    target (str): The target identifier to find.
+
+**Returns:**
+
+- Callable: A partially applied function that executes the find operation when called.
+"""
+        return functools.partial(self._forward, 'find', group=target)
+
+    def forward(self, *args, **kw):
+        return self._forward('retrieve', *args, **kw)
+
+    @cached_property
+    def active_node_groups(self):
+        return self._forward('active_node_groups')
+
+    def __getattr__(self, name):
+        if name in self._missing_keys:
+            raise RuntimeError(f'Document generated with url and name has no attribute `{name}`')
