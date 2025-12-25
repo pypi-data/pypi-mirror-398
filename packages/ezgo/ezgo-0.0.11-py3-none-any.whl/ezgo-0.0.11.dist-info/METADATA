@@ -1,0 +1,524 @@
+Metadata-Version: 2.1
+Name: ezgo
+Version: 0.0.11
+Summary: 宇树Go2机器狗Python控制库
+Author-email: ezgo <noreply@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/your-username/ezgo
+Project-URL: Repository, https://github.com/your-username/ezgo
+Project-URL: Bug Reports, https://github.com/your-username/ezgo/issues
+Keywords: robotics,unitree,go2,robot,control
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: basic
+Requires-Dist: opencv-python>=4.5.0; extra == "basic"
+Requires-Dist: numpy>=1.19.0; extra == "basic"
+Requires-Dist: Pillow>=8.0.0; extra == "basic"
+Provides-Extra: full
+Requires-Dist: opencv-python>=4.5.0; extra == "full"
+Requires-Dist: numpy>=1.19.0; extra == "full"
+Requires-Dist: Pillow>=8.0.0; extra == "full"
+Requires-Dist: netifaces>=0.10.0; extra == "full"
+Requires-Dist: unitree-sdk2py; extra == "full"
+
+# ezgo - 宇树Go2机器狗Python控制库
+
+[![PyPI version](https://badge.fury.io/py/ezgo.svg)](https://badge.fury.io/py/ezgo)
+[![Python versions](https://img.shields.io/pypi/pyversions/ezgo.svg)](https://pypi.org/project/ezgo/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
+这是一个用于控制宇树Go2机器狗的Python库，提供了简单易用的API接口。支持运动控制、视频流获取、声光控制等功能。
+
+## 功能特性
+
+- 🚶 **基础运动控制**: 支持阻尼、站立、坐下、行走等基本动作
+- 🏃 **高级运动模式**: 支持灵动、并腿跑、跳跃跑、交叉步等多种步态
+- 🤸 **特技动作**: 支持空翻、倒立、舞蹈等表演动作
+- 📷 **摄像头控制**: 支持图片获取和视频流处理
+- 🔊 **声光控制**: 支持LED灯光和音量控制
+- 🎮 **UI界面**: 提供图形化控制界面
+- 🔧 **易于使用**: 简洁的API设计，支持懒加载
+- 📦 **可选依赖**: 核心功能轻量，按需安装依赖
+
+## 安装
+
+### 基础安装（仅核心库，无强制依赖）
+```bash
+pip install ezgo
+```
+
+### 完整功能安装（包含所有可选依赖）
+```bash
+pip install ezgo[full]
+n```
+
+### 仅基础功能（图像处理相关依赖）
+```bash
+pip install ezgo[basic]
+```
+
+> **注意**: `ezgo` 核心库本身没有任何强制依赖。所有依赖都是可选的，您可以根据需要手动安装：
+> - `unitree-sdk2py`: 机器人通信必需
+> - `opencv-python`: 摄像头功能必需  
+> - `numpy`: 数值计算支持
+> - `Pillow`: 图像处理支持
+> - `netifaces`: �络接口检测
+
+## 快速开始
+
+### 基本运动控制
+
+```python
+import ezgo
+
+# 创建Go2控制对象（需要安装unitree-sdk2py）
+robot = ezgo.Go2()
+
+# 初始化连接
+if robot.init():
+    print("连接成功!")
+    
+    # 基本动作
+    robot.Damp()          # 进入阻尼状态
+    robot.BalanceStand()   # 平衡站立
+    robot.StopMove()       # 停止移动
+```
+
+### Go2摄像头控制
+
+```python
+import ezgo
+
+# 方法1: 通过Go2对象获取摄像头（需要unitree-sdk2py）
+robot = ezgo.Go2()
+camera = robot.get_camera()
+
+# 方法2: 直接使用Go2摄像头类（需要unitree-sdk2py）
+camera = ezgo.Go2Camera()
+
+# 初始化摄像头
+if camera.init():
+    # 获取单张图片
+    image = camera.capture_image("photo.jpg")
+    
+    # 打开视频流
+    if camera.open_video_stream():
+        frame = camera.read_frame()
+```
+
+### Go2声光控制
+
+```python
+import ezgo
+
+# 方法1: 通过Go2对象获取VUI控制（需要unitree-sdk2py）
+robot = ezgo.Go2()
+vui = robot.get_vui()
+
+# 方法2: 直接使用VUI类（需要unitree-sdk2py）
+vui = ezgo.Go2VUI()
+
+# 初始化VUI
+if vui.init():
+    # 设置LED亮度 (0-10)
+    vui.set_brightness(5)
+    
+    # 获取当前亮度
+    success, brightness = vui.get_brightness()
+    
+    # 设置音量 (0-10)
+    vui.set_volume(3)
+```
+
+### EasyTk 简化界面开发
+
+```python
+import ezgo
+
+# 创建EasyTk窗口（自动适配灵芯派480x800分辨率）
+app = ezgo.EasyTk(title="机器狗控制", size="480x800")
+
+# 添加标签
+label = app.add_label(text="欢迎使用ezgo", font=("SimHei", 24))
+
+# 添加按钮
+def on_click():
+    print("按钮被点击了!")
+
+button = app.add_button(text="点击我", command=on_click)
+
+# 添加图片显示（支持文件路径、OpenCV图像、PIL图像）
+image_label = app.add_label(image="path/to/image.jpg")
+
+# 运行主循环
+app.root.mainloop()
+```
+
+### EzCamera 优化摄像头控制
+
+```python
+import ezgo
+import cv2
+
+# 创建摄像头对象（自动适配平台）
+camera = ezgo.EzCamera(index=0, width=640, height=480, fps=30)
+
+# 打开摄像头
+if camera.open():
+    print("摄像头打开成功!")
+    
+    # 读取最新帧
+    frame = camera.read()
+    if frame is not None:
+        # 保存图片
+        camera.save_image(frame, "capture.jpg")
+        
+        # 调整尺寸
+        resized = camera.resize(frame, (224, 224))
+        
+        # 裁剪为正方形
+        square = camera.crop_to_square(frame)
+        
+        # 显示图像
+        cv2.imshow("Camera", frame)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    
+    # 关闭摄像头
+    camera.close()
+```
+
+### 高级运动模式
+
+```python
+import ezgo
+
+robot = ezgo.Go2()  # 需要unitree-sdk2py
+if robot.init():
+    # 步态模式切换
+    robot.FreeWalk(True)        # 开启灵动模式
+    robot.FreeWalk(False)       # 关闭灵动模式
+    
+    # 特殊步态（自动演示后关闭）
+    robot.FreeBound(True)       # 并腿跑模式（2秒后自动关闭）
+    robot.FreeJump(True)        # 跳跃模式（4秒后自动关闭）
+    robot.FreeAvoid(True)       # 闪避模式（2秒后自动关闭）
+    robot.WalkUpright(True)     # 后腿直立模式（4秒后自动关闭）
+    robot.CrossStep(True)       # 交叉步模式（4秒后自动关闭）
+    
+    # 常规运动模式
+    robot.TrotRun()             # 进入常规跑步模式
+    robot.StaticWalk()          # 进入常规行走模式
+    robot.EconomicGait()        # 进入常规续航模式
+    robot.ClassicWalk(True)     # 开启经典步态
+    robot.ClassicWalk(False)    # 关闭经典步态
+```
+
+### 特技动作
+
+```python
+import ezgo
+
+robot = ezgo.Go2()  # 需要unitree-sdk2py
+if robot.init():
+    # 表演动作
+    robot.Hello()               # 打招呼
+    robot.Stretch()             # 伸懒腰
+    robot.Content()             # 开心
+    robot.Heart()               # 比心
+    robot.Scrape()              # 拜年作揖
+    robot.Dance1()              # 舞蹈段落1
+    robot.Dance2()              # 舞蹈段落2
+    
+    # 特技动作
+    robot.FrontJump()           # 前跳
+    robot.FrontPounce()         # 向前扑人
+    robot.LeftFlip()            # 左空翻
+    robot.BackFlip()            # 后空翻
+    robot.HandStand(True)       # 倒立（4秒后自动关闭）
+```
+
+### 自动翻身功能
+
+```python
+import ezgo
+
+robot = ezgo.Go2()  # 需要unitree-sdk2py
+if robot.init():
+    # 设置自动翻身
+    success = robot.AutoRecoverSet(True)
+    if success:
+        print("自动翻身已开启")
+    
+    # 查询自动翻身状态
+    is_enabled = robot.AutoRecoverGet()
+    print(f"自动翻身状态: {'开启' if is_enabled else '关闭'}")
+    
+    # 关闭自动翻身
+    robot.AutoRecoverSet(False)
+```
+
+## API 参考
+
+### Go2 类
+
+主要的机器狗控制类，提供运动控制和状态管理功能。
+
+#### 主要方法
+
+**基础控制**:
+- `init()`: 初始化与Go2的连接
+- `Damp()`: 进入阻尼状态
+- `BalanceStand()`: 平衡站立
+- `StopMove()`: 停止所有移动动作
+- `StandUp()`: 关节锁定，站高
+- `StandDown()`: 关节锁定，站低
+- `Sit()`: 坐下
+- `RiseSit()`: 站起（相对于坐下）
+
+**移动控制**:
+- `Move(vx, vy, vyaw)`: 移动（速度范围：vx, vy: -1~1, vyaw: -2~2）
+- `MoveForDuration(vx, vy, vyaw, duration)`: 持续移动指定时间
+- `StartMove(vx, vy, vyaw)`: 开始持续移动
+- `Forward(speed=0.3, duration=2.0)`: 向前移动
+- `Backward(speed=0.3, duration=2.0)`: 向后移动
+- `Left(speed=0.3, duration=2.0)`: 向左移动
+- `Right(speed=0.3, duration=2.0)`: 向右移动
+- `TurnLeft(speed=0.5, duration=2.0)`: 左转
+- `TurnRight(speed=0.5, duration=2.0)`: 右转
+
+**步态模式**:
+- `FreeWalk(flag=None)`: 灵动模式（默认步态）
+- `FreeBound(flag)`: 并腿跑模式
+- `FreeJump(flag)`: 跳跃模式
+- `FreeAvoid(flag)`: 闪避模式
+- `WalkUpright(flag)`: 后腿直立模式
+- `CrossStep(flag)`: 交叉步模式
+- `ClassicWalk(flag)`: 经典步态
+- `TrotRun()`: 进入常规跑步模式
+- `StaticWalk()`: 进入常规行走模式
+- `EconomicGait()`: 进入常规续航模式
+
+**表演动作**:
+- `Hello()`: 打招呼
+- `Stretch()`: 伸懒腰
+- `Content()`: 开心
+- `Heart()`: 比心
+- `Scrape()`: 拜年作揖
+- `Dance1()`: 舞蹈段落1
+- `Dance2()`: 舞蹈段落2
+
+**特技动作**:
+- `FrontJump()`: 前跳
+- `FrontPounce()`: 向前扑人
+- `LeftFlip()`: 左空翻
+- `BackFlip()`: 后空翻
+- `HandStand(flag)`: 倒立行走
+
+**自动功能**:
+- `AutoRecoverSet(flag)`: 设置自动翻身是否生效
+- `AutoRecoverGet()`: 查询自动翻身是否生效
+- `SwitchAvoidMode()`: 闪避模式下，关闭摇杆未推时前方障碍物的闪避
+
+**便利方法**:
+- `get_camera()`: 获取摄像头控制对象
+- `get_vui()`: 获取声光控制对象
+- `capture_image(save_path=None)`: 获取一张图片
+- `start_video_stream(width=480, height=320)`: 开始视频流
+- `get_video_frame()`: 获取最新视频帧
+- `stop_video_stream()`: 停止视频流
+- `cleanup()`: 清理资源
+
+### Go2Camera 类
+
+摄像头控制类，提供图片获取和视频流功能。
+
+#### 主要方法
+
+- `init()`: 初始化摄像头连接
+- `capture_image(save_path=None)`: 获取单张图片
+- `open_video_stream(width=480, height=320)`: 打开视频流
+- `read_frame()`: 从视频流读取一帧
+- `start_stream(width=480, height=320)`: 开始后台视频流
+
+### Go2VUI 类
+
+声光控制类，提供LED灯光和音量控制功能。
+
+#### 主要方法
+
+- `init()`: 初始化VUI客户端
+- `set_brightness(level)`: 设置LED亮度 (0-10)
+- `get_brightness()`: 获取当前LED亮度
+- `set_volume(level)`: 设置音量 (0-10)
+- `get_volume()`: 获取当前音量
+
+## 依赖要求
+
+### 核心依赖
+- Python >= 3.7
+
+### 可选依赖
+
+**基础功能**:
+- opencv-python >= 4.5.0
+- numpy >= 1.19.0
+- Pillow >= 8.0.0
+
+**完整功能**:
+- netifaces >= 0.10.0
+- unitree-sdk2py (需要从官方源安装)
+
+## 注意事项
+
+1. **网络连接**: 确保计算机与Go2机器狗在同一网络中
+2. **权限要求**: 某些功能可能需要管理员权限
+3. **依赖安装**: `unitree-sdk2py` 需要从宇树官方源安装
+4. **接口检测**: 库会自动检测网络接口，也可手动指定
+
+## 故障排除
+
+### 常见问题
+
+1. **导入错误**: 确保已安装所有必需的依赖包
+2. **连接失败**: 检查网络连接和防火墙设置
+3. **摄像头问题**: 确保GStreamer正确安装
+4. **权限问题**: 在某些系统上可能需要管理员权限
+
+### 依赖安装
+
+```bash
+# 安装基础依赖
+pip install opencv-python numpy Pillow netifaces
+
+# unitree-sdk2py 需要从官方源安装
+# 请参考宇树官方文档
+```
+
+## 许可证
+
+本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+## 更新日志
+
+### v0.0.11 (2025-12-11)
+**修复**:
+- 🐛 修复Go2错误码映射，添加错误码0的描述信息
+- 🐛 改进错误状态显示，提供更清晰的状态反馈
+
+**改进**:
+- 🔧 完善错误码字典，包含"检查设备状态"描述
+- 🔧 优化状态码处理逻辑
+
+### v0.0.10 (2025-12-09)
+**修复**:
+- 🐛 修复懒加载模块导入错误，解决TypeError问题
+- 🐛 修复使用importlib替代__import__，提高兼容性
+- 🐛 修复Go2相关模块无法正确实例化的问题
+
+**改进**:
+- 🔧 更新README中的使用示例，明确标注依赖要求
+- 🔧 为每个工具类添加独立的使用示例
+- 🔧 优化文档结构，区分Go2相关和独立功能
+
+### v0.0.9 (2025-12-09)
+**改进**:
+- 🔧 实现懒加载机制，避免导入时的依赖检查
+- 🔧 只在实际使用Go2相关功能时才检查依赖
+- 🔧 eztk和ezcamera模块可直接使用，无任何依赖警告
+- 🔧 优化模块导入结构，提升用户体验
+
+**修复**:
+- 🐛 修复导入ezgo时提示netifaces等依赖缺失的问题
+- 🐛 修复使用eztk/ezcamera时的不必要警告
+- 🐛 实现真正的按需依赖检查机制
+
+### v0.0.8 (2025-12-09)
+**改进**:
+- 🔧 移除自动依赖检查逻辑，避免导入时的警告提示
+- 🔧 用户按需使用功能，不再强制检查所有依赖
+- 🔧 提升用户体验，减少不必要的警告信息
+
+**修复**:
+- 🐛 修复使用eztk时频繁提示unitree-sdk2py依赖的问题
+- 🐛 修复导入库时自动检查所有模块依赖的逻辑
+
+### v0.0.5 (2025-12-04)
+**新增功能**:
+- ✨ 新增15种高级运动模式和特技动作
+- ✨ 支持灵动模式、并腿跑、跳跃跑、交叉步等多种步态
+- ✨ 新增空翻、倒立、舞蹈等表演动作
+- ✨ 增加自动翻身功能设置和查询
+- ✨ 完善移动控制API，支持持续移动和定时移动
+
+**改进**:
+- 🔧 优化网络连接检查，支持非sudo ping
+- 🔧 改进初始化流程，连接失败时仅显示警告
+- 🔧 增强错误处理，对不支持的SDK版本提供友好提示
+- 🔧 所有新函数都包含适当的异常处理
+
+**修复**:
+- 🐛 修复包构建问题，确保源代码正确包含
+- 🐛 修复依赖配置，核心库无强制依赖
+
+### v0.0.4 (2025-12-04)
+**修复**:
+- 🐛 修复包结构问题，源代码未正确包含在PyPI包中
+- 🔧 重新组织包结构，确保所有模块正确打包
+
+### v0.0.3 (2025-12-04)
+**改进**:
+- 🔧 优化依赖配置，移除强制依赖
+- 📦 所有依赖改为可选依赖，支持按需安装
+- 📚 更新安装说明和依赖文档
+
+### v0.0.2 (2025-12-04)
+**新增功能**:
+- ✨ 集成go2_vui声光控制模块
+- ✨ 集成go2_camera摄像头控制模块
+- ✨ 优化模块导入结构，使用相对导入
+
+**改进**:
+- 🔧 修复get_camera方法路径配置
+- 🔧 添加get_vui方法支持声光控制
+- 🔧 完善懒加载机制
+
+### v0.0.1 (2025-12-04)
+**初始发布**:
+- 🎉 基础运动控制功能
+- 📷 摄像头基础支持
+- 🔊 声光控制基础支持
+- 📦 PyPI包发布
+
+### v0.0.2
+- 添加了 Go2Camera 摄像头控制类
+- 添加了 Go2VUI 声光控制类
+- 优化了导入和错误处理
+- 改进了文档和示例
+
+### v0.0.1
+- 初始版本发布
+- 基本运动控制功能
+- UI界面支持
+
+## 链接
+
+- [PyPI 项目页面](https://pypi.org/project/ezgo/)
+- [GitHub 仓库](https://github.com/your-username/ezgo)
+- [问题反馈](https://github.com/your-username/ezgo/issues)
