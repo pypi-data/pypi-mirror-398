@@ -1,0 +1,183 @@
+activity = LINEWRAP* execution_unit* EOF
+execution_unit = LINEWRAP* statement_set sequence_token? (SP+ / LINEWRAP*)
+statement_set = SP* sequenced_statement_set / component_statement_set
+sequenced_statement_set = sequence_token* (block / statement)
+component_statement_set = block / LINEWRAP* statement
+block = SP* '{' execution_unit* '}'
+statement = table_assignment / new_lineage / new_instance / update_ref / delete / migration / scalar_assignment / signal_action / switch / decision / inst_assignment / call / iteration / output_flow
+
+// Explicit sequence using control flow inputs and outputs
+sequence_token = SP* '<' token_name '>' SP* // Named control flow
+token_name = r'[A-Za-z0-9_]+' // No spaces in token names, often single digit: <1> or enum value: _red
+
+// Table expressions
+table_assignment = explicit_table_assignment / implicit_table_assignment
+
+// Explicit table assignment
+explicit_table_assignment = table_def SP+ relation_assign_op SP+ table_value
+relation_assign_op = TABLE_ASSIGN / TUPLE_ASSIGN
+TABLE_ASSIGN = '#='
+TUPLE_ASSIGN = '||='
+table_def = name '[' SP* (attr_type_set SP*)? ']'
+attr_type_set = attr_type_def (',' SP* attr_type_def)*
+attr_type_def = name '::' name
+table_value = '{' SP* (row SP*)* SP* '}'
+row = '{' SP* attr_value_set? SP* '}'
+attr_value_set = scalar_expr (',' SP* scalar_expr)*
+
+// Implicit table assignment
+implicit_table_assignment = name SP+ relation_assign_op SP+ table_expr
+table_expr = SP* table_operation SP*
+table_operation = table_term (SP* TOP SP* table_term)*
+table_term = (instance_set / "(" SP* table_expr SP* ")") header_expr? selection? projection?
+//table_term = table / "(" SP* table_expr SP* ")" header_expr? selection? projection?
+TOP = '^' / '+' / '-' / '*' / '##'
+//table = instance_set header_expr? selection? projection?
+
+// Table header operations
+header_expr = '[' SP* column_op (',' SP+ column_op)* SP*']'
+column_op = extend / rename_op
+rename_op = name SP* rename_attr
+extend = rename_attr '(' SP* op_chain SP* ')'
+rename_attr = RENAME SP* name
+RENAME = '>>'
+
+// Decision action
+decision = scalar_expr true_result false_result?
+true_result = DECISION_OP LINEWRAP? SP? component_statement_set SP*
+false_result = FALSE_RESULT_OP LINEWRAP? SP? component_statement_set // Else
+FALSE_RESULT_OP = ':'
+
+// Switch action
+switch = switch_input DECISION_OP SP* case_block // Boolean expr triggers case_block
+switch_input = rnum / scalar_expr
+case_block = '{' LINEWRAP* case+ LINEWRAP*'}'
+case = LINEWRAP* trigger_set? ':' (SP+ / LINEWRAP*) component_statement_set
+trigger_set = enum_value (',' SP+ enum_value)* SP*
+enum_value = '_' name // Scalar switch has enum value cases
+DECISION_OP = '?'
+
+// Signal action
+signal_action = signal_spec SP+ (signal_dest / external_dest / SIGNAL_OP)
+// SIGNAL_OP only destination means: copy dest from false result of decision action
+signal_spec = name supplied_params?
+signal_dest = SIGNAL_OP '*'? LINEWRAP? SP? (assigner / instance_set) (SP+ delay)?
+assigner = rnum assigner_partition?
+external_dest = SIGNAL_OP LINEWRAP? SP? '~'
+delay = DELAY_OP SP* scalar_expr
+assigner_partition = '( ' instance_set ' )'
+DELAY_OP = '@'
+SIGNAL_OP = '->'
+
+// Instance assignment action
+inst_assignment = flow_output SP+ INST_ASSIGN SP+ instance_set
+INST_ASSIGN = '.=' / '..='
+
+// Synchronous call action (method or ee operation or type operation)
+call = instance_set op_chain? // Post-parse verify that last element is an operation, otherwise invalid call
+operation = owner? '.' name supplied_params
+owner = '~' / name
+supplied_params = '(' SP* (param (',' SP+ param)*)? SP* ')'
+param = (name SP* ':' SP*)? scalar_expr // Comma above keeps scalar_expr from grabbing next param
+
+// Subclass migration
+migration = instance_set? SP* '>>' SP* new_inst_init
+
+// Iteration
+iteration = '<<' SP* instance_set SP* '>>' SP* component_statement_set
+
+// Output flow action
+output_flow = OUTPUT SP+ scalar_expr
+OUTPUT = '=>>'
+
+// Instance set
+instance_set =  new_instance / ((operation / input_param / name / path) (reflexive_selection / selection / operation / path)*)
+selection = '(' SP* (rank_selection / criteria_selection) SP* ')'
+rank_selection = (CARD ', ')? RANKR (name / call / scalar_expr)
+criteria_selection = (CARD ', ' SP* scalar_expr) / CARD / scalar_expr
+CARD = '1' / '*'
+RANKR = '^+' / '^-'
+IN = '^'
+TRUE = 'TRUE'
+FALSE = 'FALSE'
+ITS = 'ITS'
+
+// Creation, deletion and references
+new_instance = '*' new_inst_init // create an instance of a class as an action
+new_lineage = '*[' SP* new_inst_init (';' SP+ new_inst_init)+ SP* ']' // create all instances of a lineage
+new_inst_init = name attr_init? (SP+ to_ref)* (SP+ to_state)? // specify class, attr inits, and any required references
+to_state = '>' SP* name
+attr_init = '(' SP* (attr_value_init (',' SP+ attr_value_init)* SP*)? ')' // all attrs to init for a new instance
+attr_value_init = (name SP? ':' SP+ scalar_expr )*
+update_ref = (instance_set SP+)? to_ref // relate or unrelated to me or explicit instance_set
+to_ref = '&' rnum SP+ instance_set (',' SP+ instance_set)? // non-associative or associative reference
+delete = '!*' SP* instance_set (',' SP+ instance_set)* // supports multi-delete transaction
+
+// Scalar call
+
+// Scalar assignment
+scalar_assignment = scalar_output_set SP* SCALAR_ASSIGN SP* scalar_expr (',' SP* scalar_expr)*
+scalar_output_set = qualified_name / flow_output (',' SP+ flow_output)*
+qualified_name = (name / instance_set) '.' name
+flow_output = name (TYPE_ASSIGN name)?
+projection = '.' (name / '(' ( (ALL / (name (',' SP+ name)*) )? ')')) // TODO: Why is empty () ok in projection?
+ALL = '*'
+
+scalar_expr = SP* scalar_logical_or SP*
+scalar_logical_or = scalar_logical_and (SP* OR SP* scalar_logical_and)*
+scalar_logical_and = equality (SP* AND SP* equality)*
+equality = comparison (SP* EQUAL SP* comparison)*
+comparison = addition (SP* COMPARE SP* addition)*
+addition = factor (SP* ADD SP* factor)*
+factor = term (SP* MULT SP* term)*
+term = (NOT SP*)? UNARY_MINUS? (scalar / "(" SP* scalar_expr SP* ")")
+
+scalar = value / scalar_chain
+scalar_chain = (ITS op_chain) / QTY? ((type_selector / instance_set projection?) op_chain?)
+QTY = '??'
+op_chain = ('.' (scalar_op / name))*
+value = TRUE / FALSE / enum_value
+scalar_op = name supplied_params
+
+// name of type and name of value selected
+type_selector = name '[' SP* selected_value? SP* ']'
+
+reflexive_selection = HIPPITY_HOP scalar_expr (SP* '|' COMPARE '|')?
+HIPPITY_HOP = FAR_HOP / NEAR_HOP
+NEAR_HOP = '/~/'
+FAR_HOP = '/~|'
+
+SCALAR_ASSIGN = '='
+OR = 'OR'
+AND = 'AND' / ';' // ; shorthand for anding attr comparisons in a selection phrase
+NOT = '!' / 'NOT'
+EQUAL = '==' / '!=' / ':'
+COMPARE = '>=' / '>' / '<=' / '<'
+UNARY_MINUS = "-"
+ADD = ("+" / "-")
+MULT = ("*" / "/")
+TYPE_ASSIGN = '::'
+
+input_param =  IN name
+
+// Relationship traversal
+// We keep path components simple, always beginning with the '/' symbol
+path = hop+ // path to some instance set
+hop = '/' (rnum / name) // just a sequence of rels and phrase or class names
+
+// Names
+selected_value = r'[^[\]\s]+' // any non-whitespace character except square brackets
+name = first_word (NAME_GLUE word)* // One word or a sequence of delimited words (name used for most model elements)
+NAME_GLUE = r'[ _]' // delmits words within a name
+rnum = r'O?R[1-9][0-9]*' // Relationship number (name used for relationships)
+//first_word = r'[A-Za-z][A-Za-z0-9]*'
+//word = SP* r'[A-Za-z0-9]+'
+first_word = ignore_keywords r'[A-Za-z][A-Za-z0-9]*'
+word = ignore_keywords r'[A-Za-z0-9]+'
+ignore_keywords = !"TRUE" !"FALSE" !"AND" !"OR" !"NOT"
+
+// Whitespace and comments
+LINEWRAP = EOL SP* // end of line followed by optional indent on next line
+EOL = SP* COMMENT? '\n' // end of line: Comments, blank lines, whitespace we can omit from the parser result
+COMMENT = '//' r'.*' // Comment slashes don't work if included in the regular expression for some reason
+SP = ' '
