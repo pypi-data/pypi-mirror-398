@@ -1,0 +1,1 @@
+from .Querschnitt_Duenn import CrossSectionThin
