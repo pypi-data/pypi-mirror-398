@@ -1,0 +1,100 @@
+
+<div align="center">
+  <img src="pylax_logo.png" alt="pylax logo" width="200"/>
+  <h1>pylax</h1>
+  <p><strong>Zero-friction Python environment orchestrator.</strong></p>
+  <p>Never activate. Never guess. Always be correct.</p>
+  <br>
+  <a href="https://www.buymeacoffee.com/nuhmanpk"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" width="150" alt="Buy Me A Coffee"></a>
+  <br>
+  <a href="https://github.com/sponsors/nuhmanpk"><img src="https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86" alt="Sponsor on GitHub"></a>
+</div>
+
+---
+
+`pylax` removes the need for `source .venv/bin/activate` by directly dispatching commands to your project's virtual environment.
+
+## The Core Idea
+
+Most Python projects start with:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # <-- The friction point
+pip install -r requirements.txt
+```
+
+With `pylax`, you just do:
+```bash
+pylax init
+pylax run app.py
+```
+
+`pylax` effectively runs `.venv/bin/python app.py`. It is not a shell tool; it is a dispatcher.
+
+## Installation
+
+```bash
+pip install pylax
+```
+
+Or for global safety (recommended):
+```bash
+pipx install pylax
+```
+
+## Usage
+
+### Initialize a Project
+Creates `.venv`, upgrades pip, and installs `requirements.txt` (if present).
+```bash
+cd myproject
+pylax init
+```
+
+### Run a Script
+Runs the script using the project's virtual environment.
+```bash
+pylax run app.py
+```
+Equivalent to: `.venv/bin/python app.py`
+
+### Run a Command
+Run any executable from the venv (like `pip`, `black`, `pytest`).
+```bash
+pylax run pip list
+pylax run pytest
+```
+
+### Spawn a Shell (Optional)
+If you really need a shell where `python` and `pip` map to the venv versions:
+```bash
+pylax shell
+```
+
+## Structure
+Pylax enforces a standard, clean structure:
+- Virtual environments are always named `.venv`.
+- It relies on standard `requirements.txt`.
+- It works on macOS, Linux, and Windows.
+
+---
+
+## Development & Testing
+
+### Running Tests
+We use `pytest` for testing.
+
+1. Initialize the dev environment:
+   ```bash
+   # You can even use pylax to develop pylax!
+   python3 -m venv .venv
+   .venv/bin/pip install -e .[test]
+   ```
+
+2. Run tests:
+   ```bash
+   pytest
+   ```
+
+## License
+MIT © [Nuhman PK](https://github.com/nuhmanpk)
