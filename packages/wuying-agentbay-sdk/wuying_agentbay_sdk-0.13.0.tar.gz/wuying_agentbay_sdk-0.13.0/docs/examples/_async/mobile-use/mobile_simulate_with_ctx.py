@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+
+"""
+Mobile Simulate with User Specific Context Example
+
+This example demonstrates how to use the mobile simulate feature with a user specific context to simulate mobile devices across sessions.
+
+1. Get a user specific context
+2. Check if the mobile dev info file exists in user's specific context, if not, get a mobile dev info file from DumpSDK or real device
+3. Upload mobile dev info file to user's specific context
+4. Create a session with mobile simulate configuration and user's specific context
+5. Wait for mobile simulate to complete
+6. Get device model after mobile simulate
+7. Delete session
+"""
+import asyncio
+import os
+from re import A
+from agentbay import CreateSessionParams, ExtraConfigs
+from agentbay import MobileExtraConfig, MobileSimulateMode
+from agentbay import AsyncAgentBay
+from agentbay import AsyncSession
+from agentbay import AsyncMobileSimulateService
+from agentbay import ContextSync, SyncPolicy, BWList, WhiteList
+
+session: AsyncSession = None
+
+async def run_on_mobile_session(agent_bay: AsyncAgentBay):
+    global session
+    try:
+        print("Getting a user specific context...")
+        context_result = await agent_bay.context.get("13000000010", create=True)
+        if not context_result.success or not context_result.context:
+            print(f"Failed to get context: {context_result.error_message}")
+            return
+        context = context_result.context
+        print(f"context.id = {context.id}, context.name = {context.name}")
+        sync_policy = SyncPolicy(
+                bw_list=BWList(white_lists=[WhiteList(path="/com.wuying.devinfo", exclude_paths=[])])
+        )
+        context_sync = ContextSync(
+            context_id=context.id,
+            path="/data/data",
+            policy=sync_policy,
+        )
+
+
+        # Creating mobile simulate service and set simulate params
+        simulate_service = AsyncMobileSimulateService(agent_bay)
+        simulate_service.set_simulate_enable(True)
+        simulate_service.set_simulate_mode(MobileSimulateMode.PROPERTIES_ONLY)
+        print("Checking or uploading mobile dev info file...")
+        # Check if the mobile dev info file exists in user's specific context
+        has_mobile_info = await simulate_service.has_mobile_info(context_sync)
+        if not has_mobile_info:
+            # If not, get a mobile dev info file from DumpSDK or real device
+            mobile_info_file_path = os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))), 
+                    "resource", "mobile_info_model_a.json"
+            )
+            with open(mobile_info_file_path, "r") as f:
+                mobile_info_content = f.read()
+            upload_result = await simulate_service.upload_mobile_info(mobile_info_content, context_sync)
+            if not upload_result.success:
+                print(f"Failed to upload mobile dev info: {upload_result.error_message}")
+                return
+            else:
+                print(f"Mobile dev info uploaded successfully")
+        else:
+            print(f"Mobile dev info already exists: {has_mobile_info}")
+
+
+        params = CreateSessionParams(
+            image_id="mobile_latest",
+            context_syncs=[context_sync],
+            extra_configs=ExtraConfigs(
+                mobile=MobileExtraConfig(
+                    # Set mobile simulate config
+                    simulate_config=simulate_service.get_simulate_config()
+                )
+            )
+        )
+
+        print("Creating session...")
+        session_result = await agent_bay.create(params)
+        if not session_result.success or not session_result.session:
+            print(f"Failed to create session: {session_result.error_message}")
+            return
+
+        session = session_result.session
+        print(f"Session created with ID: {session.session_id}")
+        print(f"session = {session}")
+
+        # Wait for mobile simulate to complete
+        await asyncio.sleep(5)
+
+        print("Getting device model after mobile simulate ...")
+        result = await session.command.execute_command("getprop ro.product.model")
+        if not result.success:
+            print(f"Failed to get device model: {result.error_message}")
+            return
+        product_model = result.output.strip()
+        print(f"Session device model: {product_model}")
+
+    except Exception as e:
+        print(f"Error during demo: {e}")
+
+    finally:
+        pass
+
+
+async def main():
+    """Demonstrate browser context cookie persistence."""
+    # Get API key from environment
+    api_key = os.environ.get("AGENTBAY_API_KEY")
+    if not api_key:
+        print("Error: AGENTBAY_API_KEY environment variable not set")
+        return
+
+    # Initialize AgentBay client
+    agent_bay = AsyncAgentBay(api_key)
+    print("AgentBay client initialized")
+
+    await run_on_mobile_session(agent_bay)
+
+    print("Deleting session...")
+    delete_result = await agent_bay.delete(session, sync_context=True)
+
+    if not delete_result.success:
+        print(f"Failed to delete first session: {delete_result.error_message}")
+        return
+
+    print(f"Session deleted successfully (RequestID: {delete_result.request_id})")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+

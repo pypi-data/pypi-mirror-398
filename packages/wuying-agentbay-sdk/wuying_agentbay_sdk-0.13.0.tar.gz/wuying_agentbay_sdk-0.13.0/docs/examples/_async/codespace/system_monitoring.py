@@ -1,0 +1,167 @@
+"""
+System Monitoring Example
+
+This example demonstrates:
+1. Monitoring system resources
+2. Checking disk usage
+3. Monitoring processes
+4. Network statistics
+"""
+
+import asyncio
+import os
+import sys
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+
+from agentbay import AsyncAgentBay
+from agentbay import CreateSessionParams
+
+
+async def main():
+    """Demonstrate system monitoring operations."""
+    print("=== System Monitoring Example ===\n")
+
+    # Initialize AgentBay client
+    client = AsyncAgentBay()
+    session = None
+
+    try:
+        # Create a session
+        print("Creating session...")
+        session_result = await client.create(
+            CreateSessionParams(
+                image_id="linux_latest"
+            )
+        )
+        session = session_result.session
+        print(f"Session created: {session.session_id}")
+
+        # Check system uptime
+        print("\n1. Checking system uptime...")
+        result = await session.command.execute_command("uptime")
+        print(f"Uptime: {result.output}")
+
+        # Check memory usage
+        print("\n2. Checking memory usage...")
+        result = await session.command.execute_command("free -h")
+        print(f"Memory usage:\n{result.output}")
+
+        # Check disk usage
+        print("\n3. Checking disk usage...")
+        result = await session.command.execute_command("df -h")
+        print(f"Disk usage:\n{result.output}")
+
+        # Check CPU information
+        print("\n4. Checking CPU information...")
+        result = await session.command.execute_command("cat /proc/cpuinfo | grep 'model name' | head -1")
+        print(f"CPU: {result.output}")
+
+        # Count CPU cores
+        print("\n5. Counting CPU cores...")
+        result = await session.command.execute_command("nproc")
+        print(f"CPU cores: {result.output}")
+
+        # Check load average
+        print("\n6. Checking load average...")
+        result = await session.command.execute_command("cat /proc/loadavg")
+        print(f"Load average: {result.output}")
+
+        # List top processes by memory
+        print("\n7. Listing top processes by memory...")
+        result = await session.command.execute_command("ps aux --sort=-%mem | head -10")
+        print(f"Top memory consumers:\n{result.output}")
+
+        # List top processes by CPU
+        print("\n8. Listing top processes by CPU...")
+        result = await session.command.execute_command("ps aux --sort=-%cpu | head -10")
+        print(f"Top CPU consumers:\n{result.output}")
+
+        # Check network interfaces
+        print("\n9. Checking network interfaces...")
+        result = await session.command.execute_command("ip addr show | grep -E 'inet |^[0-9]'")
+        print(f"Network interfaces:\n{result.output}")
+
+        # Check listening ports
+        print("\n10. Checking listening ports...")
+        result = await session.command.execute_command("ss -tuln | head -10")
+        if result.success:
+            print(f"Listening ports:\n{result.output}")
+        else:
+            # Try netstat if ss is not available
+            result = await session.command.execute_command("netstat -tuln | head -10")
+            print(f"Listening ports:\n{result.output}")
+
+        # Check disk I/O statistics
+        print("\n11. Checking disk I/O statistics...")
+        result = await session.command.execute_command("iostat 2>&1 | head -20")
+        print(f"Disk I/O:\n{result.output}")
+
+        # Create a monitoring script
+        print("\n12. Creating system monitoring script...")
+        monitor_script = """#!/bin/bash
+
+echo "=== System Monitor ==="
+echo ""
+
+echo "Timestamp: $(date)"
+echo ""
+
+echo "CPU Usage:"
+top -bn1 | grep "Cpu(s)" | sed "s/.*, *\\([0-9.]*\\)%* id.*/\\1/" | awk '{print 100 - $1"%"}'
+echo ""
+
+echo "Memory Usage:"
+free | grep Mem | awk '{printf "Used: %.2f%% (%s/%s)\\n", $3/$2 * 100.0, $3, $2}'
+echo ""
+
+echo "Disk Usage:"
+df -h / | tail -1 | awk '{print "Used: " $5 " (" $3 "/" $2 ")"}'
+echo ""
+
+echo "Process Count:"
+ps aux | wc -l
+echo ""
+
+echo "Top 5 Processes by Memory:"
+ps aux --sort=-%mem | head -6 | tail -5 | awk '{printf "%s\\t%s\\t%s\\n", $11, $4, $6}'
+"""
+        await session.file_system.write_file("/tmp/monitor.sh", monitor_script)
+        print("Monitoring script created: /tmp/monitor.sh")
+
+        # Make script executable
+        await session.command.execute_command("chmod +x /tmp/monitor.sh")
+
+        # Run the monitoring script
+        print("\n13. Running monitoring script...")
+        result = await session.command.execute_command("/tmp/monitor.sh")
+        print(f"Monitoring output:\n{result.output}")
+
+        # Check system logs
+        print("\n14. Checking recent system logs...")
+        result = await session.command.execute_command("dmesg | tail -20")
+        print(f"Recent system logs:\n{result.output}")
+
+        # Check environment variables
+        print("\n15. Checking key environment variables...")
+        result = await session.command.execute_command("env | grep -E 'PATH|HOME|USER|SHELL' | sort")
+        print(f"Environment variables:\n{result.output}")
+
+        print("\n=== Example completed successfully ===")
+
+    except Exception as e:
+        print(f"\nError occurred: {str(e)}")
+        raise
+
+    finally:
+        # Clean up
+        if session:
+            print("\nCleaning up session...")
+            await client.delete(session)
+            print("Session closed")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+

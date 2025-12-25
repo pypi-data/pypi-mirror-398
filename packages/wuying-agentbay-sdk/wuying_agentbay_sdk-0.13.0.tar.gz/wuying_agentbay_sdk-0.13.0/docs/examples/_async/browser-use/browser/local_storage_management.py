@@ -1,0 +1,295 @@
+"""
+Example demonstrating browser local storage management with AgentBay SDK.
+
+This example shows how to:
+- Get items from local storage
+- Set items in local storage
+- Remove items from local storage
+- Clear all local storage
+- Work with session storage
+- Persist data across page reloads
+"""
+
+import asyncio
+import os
+import json
+
+from agentbay import AsyncAgentBay
+from agentbay import CreateSessionParams
+from agentbay import BrowserOption
+
+from playwright.async_api import async_playwright
+
+
+async def get_local_storage(page) -> dict:
+    """Get all items from local storage."""
+    print("\n📦 Getting all local storage items...")
+    
+    storage_data = await page.evaluate("""
+        () => {
+            const items = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                items[key] = localStorage.getItem(key);
+            }
+            return items;
+        }
+    """)
+    
+    print(f"✅ Found {len(storage_data)} items in local storage")
+    for key, value in storage_data.items():
+        print(f"   - {key}: {value[:50]}...")
+    
+    return storage_data
+
+
+async def set_local_storage_item(page, key: str, value: str):
+    """Set an item in local storage."""
+    print(f"\n💾 Setting local storage item: {key}")
+    
+    await page.evaluate(f"""
+        () => {{
+            localStorage.setItem('{key}', '{value}');
+        }}
+    """)
+    
+    print(f"✅ Item set successfully")
+
+
+async def remove_local_storage_item(page, key: str):
+    """Remove an item from local storage."""
+    print(f"\n🗑️  Removing local storage item: {key}")
+    
+    await page.evaluate(f"""
+        () => {{
+            localStorage.removeItem('{key}');
+        }}
+    """)
+    
+    print(f"✅ Item removed successfully")
+
+
+async def clear_local_storage(page):
+    """Clear all local storage."""
+    print("\n🗑️  Clearing all local storage...")
+    
+    await page.evaluate("() => { localStorage.clear(); }")
+    
+    print("✅ Local storage cleared")
+
+
+async def get_session_storage(page) -> dict:
+    """Get all items from session storage."""
+    print("\n📦 Getting all session storage items...")
+    
+    storage_data = await page.evaluate("""
+        () => {
+            const items = {};
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const key = sessionStorage.key(i);
+                items[key] = sessionStorage.getItem(key);
+            }
+            return items;
+        }
+    """)
+    
+    print(f"✅ Found {len(storage_data)} items in session storage")
+    return storage_data
+
+
+async def set_session_storage_item(page, key: str, value: str):
+    """Set an item in session storage."""
+    print(f"\n💾 Setting session storage item: {key}")
+    
+    await page.evaluate(f"""
+        () => {{
+            sessionStorage.setItem('{key}', '{value}');
+        }}
+    """)
+    
+    print(f"✅ Item set successfully")
+
+
+async def demonstrate_persistence(page):
+    """Demonstrate local storage persistence across page reloads."""
+    print("\n🔄 Demonstrating local storage persistence...")
+    
+    # Set some data
+    test_data = {
+        "user_name": "test_user",
+        "preferences": json.dumps({"theme": "dark", "language": "en"}),
+        "last_visit": "2024-01-01"
+    }
+    
+    for key, value in test_data.items():
+        await set_local_storage_item(page, key, value)
+    
+    print("\n  Reloading page...")
+    await page.reload()
+    await page.wait_for_load_state("networkidle")
+    
+    # Check if data persists
+    storage_after_reload = await get_local_storage(page)
+    
+    all_persisted = all(key in storage_after_reload for key in test_data.keys())
+    
+    if all_persisted:
+        print("✅ All data persisted after reload")
+    else:
+        print("❌ Some data was lost after reload")
+
+
+async def store_complex_data(page):
+    """Store and retrieve complex data structures."""
+    print("\n🗂️  Storing complex data structures...")
+    
+    complex_data = {
+        "user": {
+            "id": 12345,
+            "name": "John Doe",
+            "email": "john@example.com",
+            "preferences": {
+                "theme": "dark",
+                "notifications": True,
+                "language": "en"
+            }
+        },
+        "cart": [
+            {"id": 1, "name": "Product A", "quantity": 2},
+            {"id": 2, "name": "Product B", "quantity": 1}
+        ]
+    }
+    
+    # Store as JSON string
+    json_data = json.dumps(complex_data)
+    await set_local_storage_item(page, "app_data", json_data)
+    
+    # Retrieve and parse
+    retrieved_data = await page.evaluate("""
+        () => {
+            const data = localStorage.getItem('app_data');
+            return data ? JSON.parse(data) : null;
+        }
+    """)
+    
+    if retrieved_data:
+        print("✅ Complex data stored and retrieved successfully")
+        print(f"   User: {retrieved_data['user']['name']}")
+        print(f"   Cart items: {len(retrieved_data['cart'])}")
+    else:
+        print("❌ Failed to retrieve complex data")
+
+
+async def main():
+    """Main function demonstrating local storage management."""
+    api_key = os.getenv("AGENTBAY_API_KEY")
+    if not api_key:
+        print("❌ Error: AGENTBAY_API_KEY environment variable not set")
+        return
+    
+    agent_bay = AsyncAgentBay(api_key=api_key)
+    session = None
+    
+    try:
+        print("=" * 60)
+        print("Browser Local Storage Management Example")
+        print("=" * 60)
+        
+        # Create browser session
+        print("\nCreating browser session...")
+        params = CreateSessionParams(image_id="browser_latest")
+        result = await agent_bay.create(params)
+        
+        if not result.success or not result.session:
+            print(f"❌ Failed to create session: {result.error_message}")
+            return
+        
+        session = result.session
+        print(f"✅ Session created: {session.session_id}")
+        
+        # Initialize browser
+        browser_option = BrowserOption()
+        if not await session.browser.initialize(browser_option):
+            print("❌ Failed to initialize browser")
+            return
+        
+        print("✅ Browser initialized")
+        
+        # Get browser endpoint
+        endpoint_url = await session.browser.get_endpoint_url()
+        
+        async with async_playwright() as p:
+            browser = await p.chromium.connect_over_cdp(endpoint_url)
+            context = browser.contexts[0]
+            page = await context.new_page()
+            
+            # Navigate to a website
+            await page.goto("https://example.com")
+            await page.wait_for_load_state("networkidle")
+            
+            # Example 1: Basic local storage operations
+            print("\n" + "=" * 60)
+            print("Example 1: Basic Local Storage Operations")
+            print("=" * 60)
+            
+            await set_local_storage_item(page, "test_key", "test_value")
+            await set_local_storage_item(page, "user_id", "12345")
+            await set_local_storage_item(page, "session_token", "abc123xyz")
+            
+            await get_local_storage(page)
+            
+            # Example 2: Remove specific item
+            print("\n" + "=" * 60)
+            print("Example 2: Remove Specific Item")
+            print("=" * 60)
+            
+            await remove_local_storage_item(page, "test_key")
+            await get_local_storage(page)
+            
+            # Example 3: Session storage
+            print("\n" + "=" * 60)
+            print("Example 3: Session Storage")
+            print("=" * 60)
+            
+            await set_session_storage_item(page, "temp_data", "temporary_value")
+            await get_session_storage(page)
+            
+            # Example 4: Complex data storage
+            print("\n" + "=" * 60)
+            print("Example 4: Complex Data Storage")
+            print("=" * 60)
+            
+            await store_complex_data(page)
+            
+            # Example 5: Persistence demonstration
+            print("\n" + "=" * 60)
+            print("Example 5: Persistence Demonstration")
+            print("=" * 60)
+            
+            await demonstrate_persistence(page)
+            
+            # Example 6: Clear all storage
+            print("\n" + "=" * 60)
+            print("Example 6: Clear All Storage")
+            print("=" * 60)
+            
+            await clear_local_storage(page)
+            await get_local_storage(page)
+            
+            await browser.close()
+        
+        print("\n✅ Local storage management examples completed")
+        
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
+        
+    finally:
+        if session:
+            print("\n🧹 Cleaning up session...")
+            await agent_bay.delete(session)
+            print("✅ Session deleted")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+

@@ -1,0 +1,230 @@
+"""
+Example demonstrating network testing with AgentBay SDK.
+
+This example shows how to:
+- Test network connectivity
+- Perform DNS lookups
+- Test HTTP/HTTPS endpoints
+- Measure network latency
+- Test port connectivity
+- Perform traceroute
+"""
+
+import asyncio
+import os
+import re
+
+from agentbay import AsyncAgentBay
+from agentbay import CreateSessionParams
+
+
+async def test_ping(session, host: str, count: int = 4):
+    """Test network connectivity using ping."""
+    print(f"\n🏓 Pinging {host}...")
+    
+    command = f"ping -c {count} {host}"
+    result = await session.command.execute_command(command)
+    
+    if result.success:
+        output = result.output
+        # Extract statistics
+        if "packet loss" in output:
+            loss_match = re.search(r'(\d+)% packet loss', output)
+            if loss_match:
+                packet_loss = loss_match.group(1)
+                print(f"✅ Ping successful - Packet loss: {packet_loss}%")
+        
+        # Extract average time
+        if "avg" in output:
+            avg_match = re.search(r'min/avg/max[^=]*=\s*[\d.]+/([\d.]+)/([\d.]+)', output)
+            if avg_match:
+                avg_time = avg_match.group(1)
+                print(f"   Average latency: {avg_time} ms")
+    else:
+        print(f"❌ Ping failed: {result.error_message}")
+
+
+async def test_dns_lookup(session, domain: str):
+    """Perform DNS lookup."""
+    print(f"\n🔍 DNS lookup for {domain}...")
+    
+    command = f"nslookup {domain}"
+    result = await session.command.execute_command(command)
+    
+    if result.success:
+        output = result.output
+        # Extract IP addresses
+        ip_addresses = re.findall(r'Address: ([\d.]+)', output)
+        if ip_addresses:
+            print(f"✅ DNS lookup successful")
+            for ip in ip_addresses:
+                print(f"   IP: {ip}")
+    else:
+        print(f"❌ DNS lookup failed: {result.error_message}")
+
+
+async def test_http_endpoint(session, url: str):
+    """Test HTTP/HTTPS endpoint."""
+    print(f"\n🌐 Testing HTTP endpoint: {url}")
+    
+    command = f"curl -s -o /dev/null -w '%{{http_code}} %{{time_total}}s' {url}"
+    result = await session.command.execute_command(command)
+    
+    if result.success:
+        output = result.output.strip()
+        parts = output.split()
+        if len(parts) >= 2:
+            status_code = parts[0]
+            response_time = parts[1]
+            print(f"✅ HTTP Status: {status_code}")
+            print(f"   Response Time: {response_time}")
+    else:
+        print(f"❌ HTTP test failed: {result.error_message}")
+
+
+async def test_port_connectivity(session, host: str, port: int):
+    """Test if a specific port is open."""
+    print(f"\n🔌 Testing port connectivity: {host}:{port}")
+    
+    command = f"timeout 5 bash -c 'cat < /dev/null > /dev/tcp/{host}/{port}' && echo 'open' || echo 'closed'"
+    result = await session.command.execute_command(command)
+    
+    if result.success:
+        status = result.output.strip()
+        if status == "open":
+            print(f"✅ Port {port} is open")
+        else:
+            print(f"❌ Port {port} is closed")
+    else:
+        print(f"❌ Port test failed: {result.error_message}")
+
+
+async def test_traceroute(session, host: str):
+    """Perform traceroute to a host."""
+    print(f"\n🗺️  Traceroute to {host}...")
+    
+    command = f"traceroute -m 10 {host}"
+    result = await session.command.execute_command(command)
+    
+    if result.success:
+        output = result.output
+        lines = output.strip().split('\n')
+        print(f"✅ Traceroute completed")
+        for line in lines[:5]:  # Show first 5 hops
+            print(f"   {line}")
+        if len(lines) > 5:
+            print(f"   ... and {len(lines) - 5} more hops")
+    else:
+        print(f"❌ Traceroute failed: {result.error_message}")
+
+
+async def test_bandwidth(session, url: str):
+    """Test download bandwidth."""
+    print(f"\n📊 Testing bandwidth with {url}...")
+    
+    command = f"curl -s -w '%{{speed_download}}' -o /dev/null {url}"
+    result = await session.command.execute_command(command)
+    
+    if result.success:
+        speed = float(result.output.strip())
+        speed_mbps = (speed * 8) / (1024 * 1024)  # Convert to Mbps
+        print(f"✅ Download speed: {speed_mbps:.2f} Mbps")
+    else:
+        print(f"❌ Bandwidth test failed: {result.error_message}")
+
+
+async def test_network_interfaces(session):
+    """List network interfaces and their status."""
+    print("\n🔧 Listing network interfaces...")
+    
+    command = "ip addr show"
+    result = await session.command.execute_command(command)
+    
+    if result.success:
+        output = result.output
+        interfaces = re.findall(r'\d+: (\w+):', output)
+        print(f"✅ Found {len(interfaces)} network interfaces:")
+        for interface in interfaces:
+            print(f"   - {interface}")
+    else:
+        print(f"❌ Failed to list interfaces: {result.error_message}")
+
+
+async def main():
+    """Main function demonstrating network testing."""
+    api_key = os.getenv("AGENTBAY_API_KEY")
+    if not api_key:
+        print("❌ Error: AGENTBAY_API_KEY environment variable not set")
+        return
+    
+    agent_bay = AsyncAgentBay(api_key=api_key)
+    session = None
+    
+    try:
+        print("=" * 60)
+        print("Network Testing Example")
+        print("=" * 60)
+        
+        # Create session
+        print("\nCreating session...")
+        params = CreateSessionParams(image_id="linux_latest")
+        result = await agent_bay.create(params)
+        
+        if not result.success or not result.session:
+            print(f"❌ Failed to create session: {result.error_message}")
+            return
+        
+        session = result.session
+        print(f"✅ Session created: {session.session_id}")
+        
+        # Example 1: Ping test
+        print("\n" + "=" * 60)
+        print("Example 1: Ping Test")
+        print("=" * 60)
+        
+        await test_ping(session, "8.8.8.8", count=4)
+        
+        # Example 2: DNS lookup
+        print("\n" + "=" * 60)
+        print("Example 2: DNS Lookup")
+        print("=" * 60)
+        
+        await test_dns_lookup(session, "google.com")
+        
+        # Example 3: HTTP endpoint test
+        print("\n" + "=" * 60)
+        print("Example 3: HTTP Endpoint Test")
+        print("=" * 60)
+        
+        await test_http_endpoint(session, "https://www.google.com")
+        
+        # Example 4: Port connectivity
+        print("\n" + "=" * 60)
+        print("Example 4: Port Connectivity Test")
+        print("=" * 60)
+        
+        await test_port_connectivity(session, "google.com", 80)
+        await test_port_connectivity(session, "google.com", 443)
+        
+        # Example 5: Network interfaces
+        print("\n" + "=" * 60)
+        print("Example 5: Network Interfaces")
+        print("=" * 60)
+        
+        await test_network_interfaces(session)
+        
+        print("\n✅ Network testing examples completed")
+        
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
+        
+    finally:
+        if session:
+            print("\n🧹 Cleaning up session...")
+            await agent_bay.delete(session)
+            print("✅ Session deleted")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+

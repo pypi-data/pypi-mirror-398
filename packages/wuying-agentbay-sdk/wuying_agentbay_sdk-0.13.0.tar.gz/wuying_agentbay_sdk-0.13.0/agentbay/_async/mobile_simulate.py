@@ -1,0 +1,320 @@
+import json
+import time
+import uuid
+from typing import TYPE_CHECKING, Optional
+
+import httpx
+
+from .._common.config import (
+    _MOBILE_INFO_DEFAULT_PATH,
+    _MOBILE_INFO_FILE_NAME,
+    _MOBILE_INFO_SUB_PATH,
+)
+from .._common.logger import get_logger
+from .._common.models import MobileSimulateUploadResult
+from ..api.models import MobileSimulateConfig, MobileSimulateMode
+from .context_sync import WhiteList
+
+if TYPE_CHECKING:
+    from .context_sync import ContextSync
+    from .agentbay import AsyncAgentBay
+    from .context import AsyncContextService, Context
+
+
+# Initialize logger for this module
+_logger = get_logger("mobile_simulate")
+
+
+class AsyncMobileSimulateService:
+    """
+    Provides methods to manage persistent mobile dev info and sync to the mobile device.
+    """
+
+    def __init__(self, agent_bay: "AsyncAgentBay"):
+        """
+        Initialize the MobileSimulateService.
+
+        Args:
+            agent_bay (AsyncAgentBay): The AsyncAgentBay instance.
+        """
+        # validate parameters
+        if not agent_bay:
+            raise ValueError("agent_bay is required")
+        if not agent_bay.context:
+            raise ValueError("agent_bay.context is required")
+
+        self.agent_bay = agent_bay
+        self.context_service: "AsyncContextService" = agent_bay.context
+        self.simulate_enable = False
+        self.simulate_mode = MobileSimulateMode.PROPERTIES_ONLY
+        self.context_id = None
+        self.context_sync = None
+        self.mobile_dev_info_path = None
+        self.use_internal_context = True
+
+    def set_simulate_enable(self, enable: bool):
+        """
+        Set the simulate enable flag.
+
+        Args:
+            enable (bool): The simulate feature enable flag.
+        """
+        self.simulate_enable = enable
+
+    def get_simulate_enable(self) -> bool:
+        """
+        Get the simulate enable flag.
+
+        Returns:
+            bool: The simulate feature enable flag.
+        """
+        return self.simulate_enable
+
+    def set_simulate_mode(self, mode: MobileSimulateMode):
+        """
+        Set the simulate mode.
+
+        Args:
+            mode (MobileSimulateMode): The simulate mode.
+                - PropertiesOnly: Simulate only device properties.
+                - SensorsOnly: Simulate only device sensors.
+                - PackagesOnly: Simulate only installed packages.
+                - ServicesOnly: Simulate only system services.
+                - All: Simulate all aspects of the device.
+        """
+        self.simulate_mode = mode
+
+    def get_simulate_mode(self) -> MobileSimulateMode:
+        """
+        Get the simulate mode.
+
+        Returns:
+            MobileSimulateMode: The simulate mode.
+        """
+        return self.simulate_mode
+
+    def set_simulate_context_id(self, context_id: str):
+        """
+        Set a previously saved simulate context id. Please make sure the context id is provided by MobileSimulateService
+        but not user side created context.
+
+        Args:
+            context_id (str): The context ID of the previously saved mobile simulate context.
+        """
+        self.context_id = context_id
+        _logger.info(f"set simulate context id = {context_id}")
+        self._update_context(True, context_id, None)
+
+    def get_simulate_context_id(self) -> str:
+        """
+        Get the simulate context id.
+
+        Returns:
+            str: The context ID of the mobile simulate context.
+        """
+        return self.context_id
+
+    def get_simulate_config(self) -> MobileSimulateConfig:
+        """
+        Get the simulate config.
+
+        Returns:
+            MobileSimulateConfig: The simulate config.
+            - simulate (bool): The simulate feature enable flag.
+            - simulate_path (str): The path of the mobile dev info file.
+            - simulate_mode (MobileSimulateMode): The simulate mode.
+            - simulated_context_id (str): The context ID of the mobile info.
+                Defaults to "".
+        """
+        if self.use_internal_context:
+            simulated_context_id = self.context_id
+        else:
+            simulated_context_id = None
+
+        return MobileSimulateConfig(
+            simulate=self.simulate_enable,
+            simulate_path=self.mobile_dev_info_path,
+            simulate_mode=self.simulate_mode,
+            simulated_context_id=simulated_context_id,
+        )
+
+    async def has_mobile_info(self, context_sync: "ContextSync") -> bool:
+        """
+        Check if the mobile dev info file exists in one context sync. (Only for user provided context sync)
+
+        Args:
+            context_sync (ContextSync): The context sync to check.
+
+        Returns:
+            bool: True if the mobile dev info file exists, False otherwise.
+
+        Raises:
+            ValueError: If context_sync is not provided or context_sync.context_id or context_sync.path is not provided.
+
+        Notes:
+            This method can only used when mobile simulate context sync is managed by user side. For internal mobile simulate
+            context sync, this method will not work.
+        """
+        if not context_sync:
+            raise ValueError("context_sync is required")
+        if not context_sync.context_id:
+            raise ValueError("context_sync.context_id is required")
+        if not context_sync.path:
+            raise ValueError("context_sync.path is required")
+
+        mobile_dev_info_path = context_sync.path + _MOBILE_INFO_SUB_PATH
+        _logger.debug(
+            f"has_mobile_info: context_id = {context_sync.context_id}, mobile_dev_info_path = {mobile_dev_info_path}"
+        )
+        res = await self.context_service.list_files(
+            context_sync.context_id, mobile_dev_info_path, page_number=1, page_size=50
+        )
+        found_dev_info = False
+        if res.success:
+            for entry in res.entries:
+                if entry.file_name == _MOBILE_INFO_FILE_NAME:
+                    found_dev_info = True
+                    break
+        else:
+            _logger.error(f"failed to list files: {res.error_message}")
+            return False
+
+        if found_dev_info:
+            _logger.info("mobile dev info already exists")
+            # update and save context sync if check success
+            self._update_context(False, context_sync.context_id, context_sync)
+            return True
+        else:
+            _logger.info("mobile dev info does not exists")
+            return False
+
+    async def upload_mobile_info(
+        self,
+        mobile_dev_info_content: str,
+        context_sync: Optional["ContextSync"] = None,
+    ) -> MobileSimulateUploadResult:
+        """
+        Upload the mobile simulate dev info.
+
+        Args:
+            mobile_dev_info_content (str): The mobile simulate dev info content to upload.
+            context_sync (ContextSync): Optional
+                - If not provided, a new context sync will be created for the mobile simulate service and this context id will
+                return by the MobileSimulateUploadResult. User can use this context id to do persistent mobile simulate across sessions.
+                - If provided, the mobile simulate dev info will be uploaded to the context sync in a specific path.
+
+        Returns:
+            MobileSimulateUploadResult: The result of the upload operation.
+            - success (bool): Whether the operation was successful.
+            - mobile_simulate_context_id (str): The context ID of the mobile info.
+                Defaults to "".
+            - error_message (str): The error message if the operation failed.
+                Defaults to "".
+
+        Raises:
+            ValueError: If mobile_dev_info_content is not provided or not a valid JSON string.
+            ValueError: If context_sync is provided but context_sync.context_id is missing.
+
+        Notes:
+            If context_sync is not provided, a new context sync will be created for the mobile simulate.
+            If context_sync is provided, the mobile simulate dev info will be uploaded to the context sync.
+            If the mobile simulate dev info already exists in the context sync, the context sync will be updated.
+            If the mobile simulate dev info does not exist in the context sync, the context sync will be created.
+            If the upload operation fails, the error message will be returned.
+        """
+        # validate parameters
+        if not mobile_dev_info_content:
+            raise ValueError("mobile_dev_info_content is required")
+        if not json.loads(mobile_dev_info_content):
+            raise ValueError("mobile_dev_info_content is not a valid JSON string")
+
+        # Create context sync for simulate if not provided
+        if not context_sync:
+            created_context = await self._create_context_for_simulate()
+            if not created_context:
+                _logger.error("Failed to create context for simulate")
+                return MobileSimulateUploadResult(
+                    success=False, error_message="Failed to create context for simulate"
+                )
+            self._update_context(True, created_context.id, None)
+        else:
+            if not context_sync.context_id:
+                raise ValueError("context_sync.context_id is required")
+            self._update_context(False, context_sync.context_id, context_sync)
+
+        upload_url = await self.context_service.get_file_upload_url(
+            self.context_id, self.mobile_dev_info_path + "/" + _MOBILE_INFO_FILE_NAME
+        )
+        if not upload_url.success:
+            _logger.error(f"Failed to get file upload URL: {upload_url.error_message}")
+            return MobileSimulateUploadResult(
+                success=False, error_message=upload_url.error_message
+            )
+
+        _logger.debug(f"upload_url = {upload_url.url}")
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.put(
+                    upload_url.url, content=mobile_dev_info_content
+                )
+                response.raise_for_status()
+        except Exception as e:
+            _logger.error(f"An error occurred while uploading the file: {e}")
+            return MobileSimulateUploadResult(success=False, error_message=str(e))
+
+        _logger.info("mobile dev info uploaded successfully")
+        return MobileSimulateUploadResult(
+            success=True, mobile_simulate_context_id=self.context_id
+        )
+
+    def _update_context(
+        self,
+        is_internal: bool,
+        context_id: str,
+        context_sync: Optional["ContextSync"] = None,
+    ):
+        if not is_internal:
+            if not context_sync:
+                raise ValueError("context_sync is required")
+            # add mobile info path to context sync bw list
+            if (
+                context_sync.policy
+                and context_sync.policy.bw_list
+                and context_sync.policy.bw_list.white_lists
+            ):
+                if not any(
+                    white_list.path == _MOBILE_INFO_SUB_PATH
+                    for white_list in context_sync.policy.bw_list.white_lists
+                ):
+                    context_sync.policy.bw_list.white_lists.append(
+                        WhiteList(path=_MOBILE_INFO_SUB_PATH, exclude_paths=[])
+                    )
+                    _logger.info(
+                        f"added mobile_dev_info_path to context_sync.policy.bw_list.white_lists: {_MOBILE_INFO_SUB_PATH}"
+                    )
+
+        self.use_internal_context = is_internal
+        self.context_id = context_id
+        self.context_sync = context_sync
+        if is_internal:
+            self.mobile_dev_info_path = _MOBILE_INFO_DEFAULT_PATH
+        else:
+            self.mobile_dev_info_path = context_sync.path + _MOBILE_INFO_SUB_PATH
+        _logger.info(
+            f"updated context, is_internal = {is_internal}, context_id = {self.context_id}, mobile_dev_info_path = {self.mobile_dev_info_path}"
+        )
+
+    async def _create_context_for_simulate(self) -> Optional["Context"]:
+        context_name = f"mobile_sim_{uuid.uuid4().hex}_{int(time.time())}"
+        context_result = await self.context_service.get(context_name, create=True)
+        if not context_result.success or not context_result.context:
+            _logger.error(
+                f"Failed to create mobile simulate context: {context_result.error_message}"
+            )
+            return None
+
+        context = context_result.context
+        _logger.info(
+            f"created mobile simulate context, context_id = {context.id}, context_name = {context.name}"
+        )
+        return context
