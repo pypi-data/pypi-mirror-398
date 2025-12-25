@@ -1,0 +1,842 @@
+"""Strawberry GraphQL types for Stash."""
+
+from __future__ import annotations
+
+# Base types
+from .base import (
+    BulkUpdateIds,
+    BulkUpdateStrings,
+    FromGraphQLMixin,
+    RelationshipMetadata,
+    StashInput,
+    StashObject,
+    StashResult,
+)
+
+# Support types
+from .config import (
+    ConfigDefaultSettingsInput,
+    ConfigDefaultSettingsResult,
+    ConfigDisableDropdownCreate,
+    ConfigDisableDropdownCreateInput,
+    ConfigDLNAInput,
+    ConfigDLNAResult,
+    ConfigGeneralInput,
+    ConfigGeneralResult,
+    ConfigImageLightboxInput,
+    ConfigImageLightboxResult,
+    ConfigInterfaceInput,
+    ConfigInterfaceResult,
+    ConfigResult,
+    ConfigScrapingInput,
+    ConfigScrapingResult,
+    Directory,
+    GenerateAPIKeyInput,
+    SetupInput,
+    StashConfig,
+    StashConfigInput,
+)
+from .date_utils import (
+    DatePrecision,
+    FuzzyDate,
+    normalize_date,
+    parse_date_precision,
+    validate_fuzzy_date,
+)
+from .dlna import (
+    DLNAIP,
+    AddTempDLNAIPInput,
+    DisableDLNAInput,
+    DLNAStatus,
+    EnableDLNAInput,
+    RemoveTempDLNAIPInput,
+)
+from .enums import (
+    BlobsStorageType,
+    BulkUpdateIdMode,
+    CircumisedEnum,
+    CriterionModifier,
+    FilterMode,
+    GenderEnum,
+    HashAlgorithm,
+    IdentifyFieldStrategy,
+    ImageLightboxDisplayMode,
+    ImageLightboxScrollMode,
+    ImportDuplicateEnum,
+    ImportMissingRefEnum,
+    OnMultipleMatch,
+    OrientationEnum,
+    PackageType,
+    PreviewPreset,
+    ResolutionEnum,
+    SortDirectionEnum,
+    StreamingResolutionEnum,
+    SystemStatusEnum,
+)
+from .files import (
+    AssignSceneFileInput,
+    BaseFile,
+    BasicFile,
+    FileSetFingerprintsInput,
+    FindFilesResultType,
+    FindFoldersResultType,
+    Fingerprint,
+    Folder,
+    GalleryFile,
+    ImageFile,
+    MoveFilesInput,
+    SceneHashInput,
+    SetFingerprintsInput,
+    StashID,
+    StashIDInput,
+    VideoFile,
+    VisualFile,
+)
+from .filters import (
+    CircumcisionCriterionInput,
+    CustomFieldCriterionInput,
+    DateCriterionInput,
+    DestroyFilterInput,
+    FindFilterType,
+    FloatCriterionInput,
+    FolderFilterType,
+    GalleryFilterType,
+    GenderCriterionInput,
+    GroupFilterType,
+    HierarchicalMultiCriterionInput,
+    ImageFilterType,
+    IntCriterionInput,
+    MultiCriterionInput,
+    OrientationCriterionInput,
+    PerformerFilterType,
+    PhashDistanceCriterionInput,
+    PHashDuplicationCriterionInput,
+    ResolutionCriterionInput,
+    SavedFilter,
+    SavedFindFilterType,
+    SaveFilterInput,
+    SceneFilterType,
+    SceneMarkerFilterType,
+    SetDefaultFilterInput,
+    StashIDCriterionInput,
+    StringCriterionInput,
+    StudioFilterType,
+    TagFilterType,
+    TimestampCriterionInput,
+)
+
+# Core types
+from .gallery import (
+    BulkGalleryUpdateInput,
+    FindGalleriesResultType,
+    FindGalleryChaptersResultType,
+    Gallery,
+    GalleryAddInput,
+    GalleryChapter,
+    GalleryChapterCreateInput,
+    GalleryChapterUpdateInput,
+    GalleryCreateInput,
+    GalleryDestroyInput,
+    GalleryPathsType,
+    GalleryRemoveInput,
+    GalleryResetCoverInput,
+    GallerySetCoverInput,
+    GalleryUpdateInput,
+)
+from .group import (
+    BulkGroupUpdateInput,
+    BulkUpdateGroupDescriptionsInput,
+    FindGroupsResultType,
+    Group,
+    GroupCreateInput,
+    GroupDescription,
+    GroupDescriptionInput,
+    GroupDestroyInput,
+    GroupSubGroupAddInput,
+    GroupSubGroupRemoveInput,
+    GroupUpdateInput,
+    ReorderSubGroupsInput,
+)
+from .image import (
+    BulkImageUpdateInput,
+    FindImagesResultType,
+    Image,
+    ImageDestroyInput,
+    ImageFileType,
+    ImagePathsType,
+    ImagesDestroyInput,
+    ImageUpdateInput,
+)
+from .job import FindJobInput, Job, JobStatus, JobStatusUpdate
+from .logging import LogEntry, LogLevel
+from .markers import (
+    BulkSceneMarkerUpdateInput,
+    FindSceneMarkersResultType,
+    MarkerStringsResultType,
+    SceneMarker,
+    SceneMarkerCreateInput,
+    SceneMarkerTag,
+    SceneMarkerUpdateInput,
+)
+from .metadata import (
+    AnonymiseDatabaseInput,
+    AutoTagMetadataInput,
+    AutoTagMetadataOptions,
+    BackupDatabaseInput,
+    CleanGeneratedInput,
+    CleanMetadataInput,
+    CustomFieldsInput,
+    ExportObjectsInput,
+    ExportObjectTypeInput,
+    GenerateMetadataInput,
+    GenerateMetadataOptions,
+    GeneratePreviewOptions,
+    GeneratePreviewOptionsInput,
+    IdentifyFieldOptions,
+    IdentifyFieldOptionsInput,
+    IdentifyMetadataInput,
+    IdentifyMetadataOptions,
+    IdentifyMetadataOptionsInput,
+    IdentifyMetadataTaskOptions,
+    IdentifySource,
+    IdentifySourceInput,
+    ImportObjectsInput,
+    MigrateBlobsInput,
+    MigrateInput,
+    MigrateSceneScreenshotsInput,
+    ScanMetaDataFilterInput,
+    ScanMetadataInput,
+    ScanMetadataOptions,
+    SystemStatus,
+)
+from .package import Package, PackageSource, PackageSourceInput, PackageSpecInput
+from .performer import (
+    BulkPerformerUpdateInput,
+    FindPerformersResultType,
+    Performer,
+    PerformerCreateInput,
+    PerformerDestroyInput,
+    PerformerUpdateInput,
+)
+from .plugin import (
+    Plugin,
+    PluginArgInput,
+    PluginHook,
+    PluginPaths,
+    PluginResult,
+    PluginSetting,
+    PluginSettingTypeEnum,
+    PluginTask,
+    PluginValueInput,
+)
+from .scalars import Any, BoolMap, Int64, Map, PluginConfigMap, Time, Timestamp
+from .scene import (
+    BulkSceneUpdateInput,
+    FindScenesResultType,
+    HistoryMutationResult,
+    Scene,
+    SceneCreateInput,
+    SceneDestroyInput,
+    SceneFileType,
+    SceneGroup,
+    SceneGroupInput,
+    SceneMergeInput,
+    SceneMovie,
+    SceneMovieID,
+    SceneMovieInput,
+    SceneParserInput,
+    SceneParserResult,
+    SceneParserResultType,
+    ScenePathsType,
+    ScenesDestroyInput,
+    SceneStreamEndpoint,
+    SceneUpdateInput,
+)
+from .scraped_types import (
+    ScrapeContentType,
+    ScrapedGallery,
+    ScrapedGalleryInput,
+    ScrapedGroup,
+    ScrapedGroupInput,
+    ScrapedImage,
+    ScrapedImageInput,
+    ScrapedMovie,
+    ScrapedMovieInput,
+    ScrapedPerformer,
+    ScrapedPerformerInput,
+    ScrapedScene,
+    ScrapedSceneInput,
+    ScrapedStudio,
+    ScrapedTag,
+    ScrapeMultiPerformersInput,
+    ScrapeMultiScenesInput,
+    Scraper,
+    ScraperSource,
+    ScraperSourceInput,
+    ScraperSpec,
+    ScrapeSingleGalleryInput,
+    ScrapeSingleGroupInput,
+    ScrapeSingleImageInput,
+    ScrapeSingleMovieInput,
+    ScrapeSinglePerformerInput,
+    ScrapeSingleSceneInput,
+    ScrapeSingleStudioInput,
+    ScrapeType,
+    StashBoxBatchTagInput,
+    StashBoxFingerprint,
+    StashBoxPerformerQueryInput,
+    StashBoxPerformerQueryResult,
+    StashBoxSceneQueryInput,
+)
+from .sql import SQLExecResult, SQLQueryResult
+from .stashbox import (
+    StashBox,
+    StashBoxDraftSubmissionInput,
+    StashBoxFingerprintSubmissionInput,
+    StashBoxInput,
+    StashBoxValidationResult,
+)
+from .stats import StatsResultType
+from .studio import (
+    BulkStudioUpdateInput,
+    FindStudiosResultType,
+    Studio,
+    StudioCreateInput,
+    StudioDestroyInput,
+    StudioUpdateInput,
+)
+from .tag import (
+    BulkTagUpdateInput,
+    FindTagsResultType,
+    Tag,
+    TagCreateInput,
+    TagDestroyInput,
+    TagsMergeInput,
+    TagUpdateInput,
+)
+from .unset import UNSET, UnsetType
+from .version import LatestVersion, Version
+
+
+__all__: list[str] = [
+    "DLNAIP",
+    "UNSET",
+    "AddTempDLNAIPInput",
+    "AnonymiseDatabaseInput",
+    "Any",
+    "AssignSceneFileInput",
+    "AutoTagMetadataInput",
+    "AutoTagMetadataOptions",
+    "BackupDatabaseInput",
+    "BaseFile",
+    "BasicFile",
+    "BlobsStorageType",
+    "BoolMap",
+    "BulkGalleryUpdateInput",
+    "BulkGroupUpdateInput",
+    "BulkImageUpdateInput",
+    "BulkPerformerUpdateInput",
+    "BulkSceneMarkerUpdateInput",
+    "BulkSceneUpdateInput",
+    "BulkStudioUpdateInput",
+    "BulkTagUpdateInput",
+    "BulkUpdateGroupDescriptionsInput",
+    "BulkUpdateIdMode",
+    "BulkUpdateIds",
+    "BulkUpdateStrings",
+    "CircumcisionCriterionInput",
+    "CircumisedEnum",
+    "CleanGeneratedInput",
+    "CleanMetadataInput",
+    "ConfigDLNAInput",
+    "ConfigDLNAResult",
+    "ConfigDefaultSettingsInput",
+    "ConfigDefaultSettingsInput",
+    "ConfigDefaultSettingsResult",
+    "ConfigDefaultSettingsResult",
+    "ConfigDisableDropdownCreate",
+    "ConfigDisableDropdownCreate",
+    "ConfigDisableDropdownCreateInput",
+    "ConfigDisableDropdownCreateInput",
+    "ConfigGeneralInput",
+    "ConfigGeneralInput",
+    "ConfigGeneralResult",
+    "ConfigGeneralResult",
+    "ConfigImageLightboxInput",
+    "ConfigImageLightboxInput",
+    "ConfigImageLightboxResult",
+    "ConfigImageLightboxResult",
+    "ConfigInterfaceInput",
+    "ConfigInterfaceInput",
+    "ConfigInterfaceResult",
+    "ConfigInterfaceResult",
+    "ConfigResult",
+    "ConfigResult",
+    "ConfigScrapingInput",
+    "ConfigScrapingResult",
+    "CriterionModifier",
+    "CriterionModifier",
+    "CustomFieldCriterionInput",
+    "CustomFieldCriterionInput",
+    "CustomFieldsInput",
+    "CustomFieldsInput",
+    "DLNAStatus",
+    "DLNAStatus",
+    "DateCriterionInput",
+    "DateCriterionInput",
+    "DatePrecision",
+    "DestroyFilterInput",
+    "DestroyFilterInput",
+    "Directory",
+    "Directory",
+    "DisableDLNAInput",
+    "DisableDLNAInput",
+    "EnableDLNAInput",
+    "EnableDLNAInput",
+    "ExportObjectTypeInput",
+    "ExportObjectTypeInput",
+    "ExportObjectsInput",
+    "ExportObjectsInput",
+    "FileSetFingerprintsInput",
+    "FileSetFingerprintsInput",
+    "FilterMode",
+    "FilterMode",
+    "FindFilesResultType",
+    "FindFilesResultType",
+    "FindFilterType",
+    "FindFilterType",
+    "FindFoldersResultType",
+    "FindFoldersResultType",
+    "FindGalleriesResultType",
+    "FindGalleriesResultType",
+    "FindGalleryChaptersResultType",
+    "FindGalleryChaptersResultType",
+    "FindGroupsResultType",
+    "FindGroupsResultType",
+    "FindImagesResultType",
+    "FindImagesResultType",
+    "FindJobInput",
+    "FindJobInput",
+    "FindPerformersResultType",
+    "FindPerformersResultType",
+    "FindSceneMarkersResultType",
+    "FindSceneMarkersResultType",
+    "FindScenesResultType",
+    "FindScenesResultType",
+    "FindStudiosResultType",
+    "FindStudiosResultType",
+    "FindTagsResultType",
+    "FindTagsResultType",
+    "Fingerprint",
+    "Fingerprint",
+    "FloatCriterionInput",
+    "FloatCriterionInput",
+    "Folder",
+    "Folder",
+    "FolderFilterType",
+    "FolderFilterType",
+    "FromGraphQLMixin",
+    "FromGraphQLMixin",
+    "FuzzyDate",
+    "Gallery",
+    "GalleryAddInput",
+    "GalleryChapter",
+    "GalleryChapterCreateInput",
+    "GalleryChapterUpdateInput",
+    "GalleryCreateInput",
+    "GalleryDestroyInput",
+    "GalleryFile",
+    "GalleryFilterType",
+    "GalleryPathsType",
+    "GalleryRemoveInput",
+    "GalleryResetCoverInput",
+    "GallerySetCoverInput",
+    "GalleryUpdateInput",
+    "GenderCriterionInput",
+    "GenderEnum",
+    "GenerateAPIKeyInput",
+    "GenerateMetadataInput",
+    "GenerateMetadataOptions",
+    "GeneratePreviewOptions",
+    "GeneratePreviewOptionsInput",
+    "Group",
+    "GroupCreateInput",
+    "GroupDescription",
+    "GroupDescriptionInput",
+    "GroupDestroyInput",
+    "GroupFilterType",
+    "GroupSubGroupAddInput",
+    "GroupSubGroupRemoveInput",
+    "GroupUpdateInput",
+    "HashAlgorithm",
+    "HierarchicalMultiCriterionInput",
+    "HistoryMutationResult",
+    "IdentifyFieldOptions",
+    "IdentifyFieldOptionsInput",
+    "IdentifyFieldStrategy",
+    "IdentifyMetadataInput",
+    "IdentifyMetadataOptions",
+    "IdentifyMetadataOptionsInput",
+    "IdentifyMetadataTaskOptions",
+    "IdentifySource",
+    "IdentifySourceInput",
+    "Image",
+    "ImageDestroyInput",
+    "ImageFile",
+    "ImageFileType",
+    "ImageFilterType",
+    "ImageLightboxDisplayMode",
+    "ImageLightboxScrollMode",
+    "ImagePathsType",
+    "ImageUpdateInput",
+    "ImagesDestroyInput",
+    "ImportDuplicateEnum",
+    "ImportMissingRefEnum",
+    "ImportObjectsInput",
+    "Int64",
+    "IntCriterionInput",
+    "Job",
+    "JobStatus",
+    "JobStatusUpdate",
+    "LatestVersion",
+    "LogEntry",
+    "LogLevel",
+    "Map",
+    "MarkerStringsResultType",
+    "MigrateBlobsInput",
+    "MigrateInput",
+    "MigrateSceneScreenshotsInput",
+    "MoveFilesInput",
+    "MultiCriterionInput",
+    "OnMultipleMatch",
+    "OrientationCriterionInput",
+    "OrientationEnum",
+    "PHashDuplicationCriterionInput",
+    "Package",
+    "PackageSource",
+    "PackageSourceInput",
+    "PackageSpecInput",
+    "PackageType",
+    "Performer",
+    "PerformerCreateInput",
+    "PerformerDestroyInput",
+    "PerformerFilterType",
+    "PerformerUpdateInput",
+    "PhashDistanceCriterionInput",
+    "Plugin",
+    "PluginArgInput",
+    "PluginConfigMap",
+    "PluginHook",
+    "PluginPaths",
+    "PluginResult",
+    "PluginSetting",
+    "PluginSettingTypeEnum",
+    "PluginTask",
+    "PluginValueInput",
+    "PreviewPreset",
+    "RelationshipMetadata",
+    "RemoveTempDLNAIPInput",
+    "ReorderSubGroupsInput",
+    "ResolutionCriterionInput",
+    "ResolutionEnum",
+    "SQLExecResult",
+    "SQLQueryResult",
+    "SaveFilterInput",
+    "SavedFilter",
+    "SavedFindFilterType",
+    "ScanMetaDataFilterInput",
+    "ScanMetadataInput",
+    "ScanMetadataOptions",
+    "Scene",
+    "SceneCreateInput",
+    "SceneDestroyInput",
+    "SceneFileType",
+    "SceneFilterType",
+    "SceneGroup",
+    "SceneGroupInput",
+    "SceneHashInput",
+    "SceneMarker",
+    "SceneMarkerCreateInput",
+    "SceneMarkerFilterType",
+    "SceneMarkerTag",
+    "SceneMarkerUpdateInput",
+    "SceneMergeInput",
+    "SceneMovie",
+    "SceneMovieID",
+    "SceneMovieInput",
+    "SceneParserInput",
+    "SceneParserResult",
+    "SceneParserResultType",
+    "ScenePathsType",
+    "SceneStreamEndpoint",
+    "SceneUpdateInput",
+    "ScenesDestroyInput",
+    "ScrapeContentType",
+    "ScrapeMultiPerformersInput",
+    "ScrapeMultiScenesInput",
+    "ScrapeSingleGalleryInput",
+    "ScrapeSingleGroupInput",
+    "ScrapeSingleImageInput",
+    "ScrapeSingleMovieInput",
+    "ScrapeSinglePerformerInput",
+    "ScrapeSingleSceneInput",
+    "ScrapeSingleStudioInput",
+    "ScrapeType",
+    "ScrapedGallery",
+    "ScrapedGalleryInput",
+    "ScrapedGroup",
+    "ScrapedGroupInput",
+    "ScrapedImage",
+    "ScrapedImageInput",
+    "ScrapedMovie",
+    "ScrapedMovieInput",
+    "ScrapedPerformer",
+    "ScrapedPerformerInput",
+    "ScrapedScene",
+    "ScrapedSceneInput",
+    "ScrapedStudio",
+    "ScrapedTag",
+    "Scraper",
+    "ScraperSource",
+    "ScraperSourceInput",
+    "ScraperSpec",
+    "SetDefaultFilterInput",
+    "SetFingerprintsInput",
+    "SetupInput",
+    "SortDirectionEnum",
+    "StashBox",
+    "StashBoxBatchTagInput",
+    "StashBoxDraftSubmissionInput",
+    "StashBoxFingerprint",
+    "StashBoxFingerprintSubmissionInput",
+    "StashBoxInput",
+    "StashBoxPerformerQueryInput",
+    "StashBoxPerformerQueryResult",
+    "StashBoxSceneQueryInput",
+    "StashBoxValidationResult",
+    "StashConfig",
+    "StashConfigInput",
+    "StashID",
+    "StashIDCriterionInput",
+    "StashIDInput",
+    "StashInput",
+    "StashObject",
+    "StashResult",
+    "StatsResultType",
+    "StreamingResolutionEnum",
+    "StringCriterionInput",
+    "Studio",
+    "StudioCreateInput",
+    "StudioDestroyInput",
+    "StudioFilterType",
+    "StudioUpdateInput",
+    "SystemStatus",
+    "SystemStatusEnum",
+    "Tag",
+    "TagCreateInput",
+    "TagDestroyInput",
+    "TagFilterType",
+    "TagUpdateInput",
+    "TagsMergeInput",
+    "Time",
+    "Timestamp",
+    "TimestampCriterionInput",
+    "UnsetType",
+    "Version",
+    "VideoFile",
+    "VisualFile",
+    "normalize_date",
+    "parse_date_precision",
+    "validate_fuzzy_date",
+]
+
+# =============================================================================
+# Pydantic Model Rebuilds
+# =============================================================================
+# Rebuild all Pydantic models to resolve forward references and circular dependencies.
+# This must be done after all types are imported.
+#
+# Forward references occur when a type annotation references a class that hasn't
+# been defined yet. With `from __future__ import annotations`, all annotations
+# become strings that need to be resolved.
+
+# Base types
+StashObject.model_rebuild()
+StashResult.model_rebuild()
+BulkUpdateStrings.model_rebuild()
+BulkUpdateIds.model_rebuild()
+
+# Core domain types (StashObject subclasses with complex relationships)
+Scene.model_rebuild()
+Performer.model_rebuild()
+Image.model_rebuild()
+Gallery.model_rebuild()
+GalleryChapter.model_rebuild()
+Tag.model_rebuild()
+Studio.model_rebuild()
+Group.model_rebuild()
+SceneMarker.model_rebuild()
+
+# File types
+Folder.model_rebuild()
+BaseFile.model_rebuild()
+StashID.model_rebuild()
+StashIDInput.model_rebuild()
+
+# Config models (circular dependencies between StashConfig, ConfigResult, etc.)
+ConfigResult.model_rebuild()
+ConfigDefaultSettingsResult.model_rebuild()
+ConfigDefaultSettingsInput.model_rebuild()
+ConfigGeneralResult.model_rebuild()
+ConfigGeneralInput.model_rebuild()
+ConfigInterfaceResult.model_rebuild()
+ConfigInterfaceInput.model_rebuild()
+ConfigImageLightboxInput.model_rebuild()
+ConfigDLNAResult.model_rebuild()
+ConfigDLNAInput.model_rebuild()
+ConfigImageLightboxResult.model_rebuild()
+ConfigDisableDropdownCreate.model_rebuild()
+ConfigDisableDropdownCreateInput.model_rebuild()
+StashConfig.model_rebuild()
+StashConfigInput.model_rebuild()
+SetupInput.model_rebuild()
+GenerateAPIKeyInput.model_rebuild()
+
+# Metadata/operation models
+ScanMetadataOptions.model_rebuild()
+ScanMetadataInput.model_rebuild()
+AutoTagMetadataOptions.model_rebuild()
+AutoTagMetadataInput.model_rebuild()
+GenerateMetadataOptions.model_rebuild()
+GenerateMetadataInput.model_rebuild()
+GeneratePreviewOptions.model_rebuild()
+GeneratePreviewOptionsInput.model_rebuild()
+IdentifyMetadataOptions.model_rebuild()
+IdentifyFieldOptions.model_rebuild()
+IdentifyFieldOptionsInput.model_rebuild()
+IdentifyMetadataInput.model_rebuild()
+IdentifyMetadataOptionsInput.model_rebuild()
+IdentifyMetadataTaskOptions.model_rebuild()
+IdentifySource.model_rebuild()
+IdentifySourceInput.model_rebuild()
+CleanMetadataInput.model_rebuild()
+CleanGeneratedInput.model_rebuild()
+MigrateInput.model_rebuild()
+BackupDatabaseInput.model_rebuild()
+AnonymiseDatabaseInput.model_rebuild()
+ExportObjectsInput.model_rebuild()
+ImportObjectsInput.model_rebuild()
+
+# Plugin types
+Plugin.model_rebuild()
+PluginTask.model_rebuild()
+PluginHook.model_rebuild()
+PluginSetting.model_rebuild()
+PluginArgInput.model_rebuild()
+PluginValueInput.model_rebuild()
+PluginPaths.model_rebuild()
+PluginResult.model_rebuild()
+
+# Input types with complex relationships
+SceneUpdateInput.model_rebuild()
+SceneCreateInput.model_rebuild()
+PerformerUpdateInput.model_rebuild()
+PerformerCreateInput.model_rebuild()
+BulkPerformerUpdateInput.model_rebuild()
+PerformerDestroyInput.model_rebuild()
+GalleryUpdateInput.model_rebuild()
+GalleryCreateInput.model_rebuild()
+GalleryChapterUpdateInput.model_rebuild()
+GalleryChapterCreateInput.model_rebuild()
+GroupUpdateInput.model_rebuild()
+GroupCreateInput.model_rebuild()
+StudioUpdateInput.model_rebuild()
+StudioCreateInput.model_rebuild()
+TagUpdateInput.model_rebuild()
+TagCreateInput.model_rebuild()
+SceneMarkerUpdateInput.model_rebuild()
+SceneMarkerCreateInput.model_rebuild()
+BulkSceneMarkerUpdateInput.model_rebuild()
+
+# Result types (contain lists of domain types)
+FindFilesResultType.model_rebuild()
+FindFoldersResultType.model_rebuild()
+FindScenesResultType.model_rebuild()
+FindPerformersResultType.model_rebuild()
+FindImagesResultType.model_rebuild()
+FindGalleriesResultType.model_rebuild()
+FindGalleryChaptersResultType.model_rebuild()
+FindGroupsResultType.model_rebuild()
+FindStudiosResultType.model_rebuild()
+FindTagsResultType.model_rebuild()
+FindSceneMarkersResultType.model_rebuild()
+MarkerStringsResultType.model_rebuild()
+
+# SQL types
+SQLQueryResult.model_rebuild()
+SQLExecResult.model_rebuild()
+
+# StashBox types
+StashBox.model_rebuild()
+StashBoxInput.model_rebuild()
+StashBoxFingerprintSubmissionInput.model_rebuild()
+StashBoxDraftSubmissionInput.model_rebuild()
+
+# Scraper types (circular references with ScrapedStudio, ScrapedTag, etc.)
+Scraper.model_rebuild()
+ScraperSpec.model_rebuild()
+ScraperSource.model_rebuild()
+ScraperSourceInput.model_rebuild()
+ScrapedTag.model_rebuild()
+ScrapedStudio.model_rebuild()
+ScrapedPerformer.model_rebuild()
+ScrapedPerformerInput.model_rebuild()
+ScrapedScene.model_rebuild()
+ScrapedSceneInput.model_rebuild()
+ScrapedGallery.model_rebuild()
+ScrapedGalleryInput.model_rebuild()
+ScrapedImage.model_rebuild()
+ScrapedImageInput.model_rebuild()
+ScrapedMovie.model_rebuild()
+ScrapedMovieInput.model_rebuild()
+ScrapedGroup.model_rebuild()
+ScrapedGroupInput.model_rebuild()
+ScrapeSingleSceneInput.model_rebuild()
+ScrapeMultiScenesInput.model_rebuild()
+ScrapeSingleStudioInput.model_rebuild()
+ScrapeSinglePerformerInput.model_rebuild()
+ScrapeMultiPerformersInput.model_rebuild()
+ScrapeSingleGalleryInput.model_rebuild()
+ScrapeSingleImageInput.model_rebuild()
+ScrapeSingleMovieInput.model_rebuild()
+ScrapeSingleGroupInput.model_rebuild()
+StashBoxSceneQueryInput.model_rebuild()
+StashBoxPerformerQueryInput.model_rebuild()
+StashBoxPerformerQueryResult.model_rebuild()
+StashBoxFingerprint.model_rebuild()
+StashBoxBatchTagInput.model_rebuild()
+
+# Stats types
+StatsResultType.model_rebuild()
+
+# Filter types (reference domain types)
+SceneFilterType.model_rebuild()
+PerformerFilterType.model_rebuild()
+GalleryFilterType.model_rebuild()
+GroupFilterType.model_rebuild()
+StudioFilterType.model_rebuild()
+TagFilterType.model_rebuild()
+ImageFilterType.model_rebuild()
+SceneMarkerFilterType.model_rebuild()
+
+# DLNA types
+DLNAIP.model_rebuild()
+DLNAStatus.model_rebuild()
+EnableDLNAInput.model_rebuild()
+DisableDLNAInput.model_rebuild()
+AddTempDLNAIPInput.model_rebuild()
+RemoveTempDLNAIPInput.model_rebuild()
+
+# Migration types
+MigrateBlobsInput.model_rebuild()
+MigrateSceneScreenshotsInput.model_rebuild()
