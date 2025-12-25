@@ -1,0 +1,109 @@
+Metadata-Version: 2.4
+Name: urlpattern-py
+Version: 0.2.0
+Summary: Pure Python implementation of the WHATWG URL Pattern Standard
+Author-email: John Karasinski <karasinski@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/karasinski/urlpattern-py
+Project-URL: Bug Tracker, https://github.com/karasinski/urlpattern-py/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: pre-commit; extra == "dev"
+Dynamic: license-file
+
+# urlpattern-py
+
+[![PyPI](https://img.shields.io/pypi/v/urlpattern-py)](https://pypi.org/project/urlpattern-py/)
+[![Tests](https://github.com/karasinski/urlpattern-py/actions/workflows/test.yml/badge.svg)](https://github.com/karasinski/urlpattern-py/actions/workflows/test.yml)
+
+Pure Python, dependency-free implementation of the [WHATWG URL Pattern Standard](https://urlpattern.spec.whatwg.org/) (as of 3 December 2025).
+
+## Quick Start
+### Installation
+```bash
+pip install urlpattern-py
+```
+
+### Installation (Development)
+```bash
+# Clone repository
+cd urlpattern-py
+
+# Install dev dependencies
+python -m pip install -e ".[dev]"
+```
+
+### Usage
+```python
+from urlpattern import URLPattern
+
+pattern = URLPattern("https://example.com/books/:id")
+assert pattern.test("https://example.com/books/123") is True
+assert pattern.exec("https://example.com/books/123")["pathname"]["groups"]["id"] == "123"
+```
+
+## Development Guidelines
+
+### Code Formatting & Linting
+We use [Ruff](https://docs.astral.sh/ruff/) for formatting and linting. To ensure consistency, please set up [pre-commit](https://pre-commit.com/) to run automatically before each commit.
+
+```bash
+# Install the git hooks (pre-commit is installed via dev dependencies)
+pre-commit install
+```
+
+Once installed, Ruff will run automatically on `git commit`. You can also run it manually on all files:
+
+```bash
+pre-commit run --all-files
+```
+
+Configuration for Ruff (line length, import sorting, etc.) can be found in `pyproject.toml`.
+
+## Architecture
+```
+URLPattern string → Tokenizer → Normalizer → Compiler → Python regex
+```
+
+## Running Tests
+```bash
+# Run the full suite
+python -m pytest
+
+# Run a single module
+python -m pytest tests/test_compliance.py
+```
+
+```
+808 passed, 7 skipped in 0.56s
+```
+
+The pytest suite mirrors all WPT URLPattern cases under `upstream/urlpattern`, including compare, generate, hasRegExpGroups, and constructor coverage; the WPT data options (`expected_obj`, `expected_match`, `exactly_empty_components`, and input/baseURL/ignoreCase variants) are all exercised in `tests/`.
+Polyfill-specific test data under `upstream/urlpattern-polyfill/test` is also mirrored in `tests/resources/polyfill`, with dedicated pytest coverage for the additional cases and compare/hasRegExpGroups behavior; any polyfill expectations that conflict with WPT are skipped.
+The suite also includes tests generated from the examples in MDN and the WHATWG spec (`upstream/index.md` and `upstream/spec.bs`) to keep documentation examples aligned with implementation behavior.
+
+## Upstream Sources
+Upstream files are version-pinned and fetched via `update_upstream.sh`, so the repo only tracks commit pointers and not the downloaded artifacts. The pinned commits are the source for the tests.
+
+```bash
+./update_upstream.sh
+```
+
+- WPT URLPattern tests are fetched into `upstream/urlpattern`.
+- MDN and WHATWG spec sources are fetched into `upstream/index.md` and `upstream/spec.bs`.
+- The URLPattern polyfill is a git submodule at `upstream/urlpattern-polyfill`.
+
+Update the commit hashes at the top of `update_upstream.sh` to refresh pinned versions.
+
+## License
+
+MIT
