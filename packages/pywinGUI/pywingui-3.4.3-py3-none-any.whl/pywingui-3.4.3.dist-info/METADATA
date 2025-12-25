@@ -1,0 +1,342 @@
+Metadata-Version: 2.4
+Name: pywinGUI
+Version: 3.4.3
+Summary: PyWinGUI GUI Automation Library for Windows Forms (Binary Distribution)
+Author: User
+Requires-Python: ==3.13.11
+Description-Content-Type: text/markdown
+Requires-Dist: pywinauto
+Requires-Dist: requests
+Requires-Dist: pyautogui
+Requires-Dist: pywin32
+Requires-Dist: pillow
+Requires-Dist: cryptography
+Requires-Dist: pygetwindow
+Requires-Dist: opencv-python
+
+# pywinGUI – Intelligent Windows GUI Automation Framework
+
+`pywinGUI` is an enterprise-grade Windows GUI automation framework designed to automate complex desktop applications **without relying on automation IDs**.  
+It interacts with UI elements using label recognition, visual ordering, proximity matching, and intelligent fallbacks.
+
+This framework powers automated form filling, radio/checkbox selection, dropdown interactions, button clicks, and active window keystrokes — using a **simple dictionary payload**.
+
+---
+
+## 🚀 Features
+
+### ✅ Label-Based Text Input
+- Fill fields using visible labels (`"Surname:" : "Niranjan"`)
+- Supports repeated labels (`Label:01`, `Label:02`)
+- Matches nearest control by visual proximity
+
+### ✅ Radio Button Automation
+Supports:
+- `radioBtn:toggle:<name>` – attribute-based match  
+- `radioBtn:<name>` – direct name match  
+- `radioBtn:All_01` – global index based on visual order  
+- Group selection via `"Label": "Option"`
+
+### ✅ Checkbox Handling
+Three enterprise-level patterns:
+- `checkboxBtn:toggle:<name>`
+- `checkboxBtn:left:<Label>` – checkbox on the left
+- `checkboxBtn:right:<Label>` – checkbox on the right
+
+### ✅ Dropdown Selections
+- `dropdown:<Label>` → selects matching option text
+
+### ✅ Button Actions
+- `btn:OK`
+- `btn:Save_01`
+- Any button name with optional suffixes
+
+### ✅ Active Window Keystrokes
+Send keystrokes directly to focused window:
+```
+"activeWindow:SendKeys_01": "{ENTER}"
+"activeWindow:SendKeys_02": "niranjan4@outlook.in"
+```
+Executed in numeric order.
+
+### ✅ No Automation ID Required
+Intelligent strategies:
+- Label text matching
+- Visual position sorting
+- Nearest control search
+- Repeated label disambiguation
+
+---
+
+## 📦 Installation
+
+### Requirements
+- Python 3.9+
+- Windows OS
+
+
+---
+
+## 📁 Project Structure
+
+```
+pywinGUI/
+│
+├── controller.py        # Main orchestrator for automation
+├── actions.py           # Typing, clicking, selecting
+├── selectors.py         # Label parsing and detection logic
+├── readers.py           # (Optional) read/extract mode
+├── utils.py             # Helpers, logging, fallback logic
+├── README.md
+```
+
+---
+
+## 🔧 Usage Example
+
+### 1. Import the controller
+
+```python
+from pywinGUI import controller1
+```
+
+### 2. Prepare your payload
+```python
+payload = {
+
+    # ---------------- TEXT FIELDS ----------------
+    "Street:": "ValueStreet",
+    "Date Of Birth:": "11/11/2025",
+    "Title:": "Mr",
+    "Forenames:": "ValueStreet",
+    "Initials:": "GS",
+    "Surname:": "ValueBuilding",
+
+    # ---------------- RADIO BUTTONS ----------------
+    "radioBtn:toggle:Female": True,
+    "radioBtn:toggle:Male": True,
+    "radioBtn:All_01": True,
+    "radioBtn:All_02": True,
+    "radioBtn:Report": True,
+    "radioBtn:Admin Area": True,
+
+    # ---------------- CHECKBOXES ----------------
+    "checkboxBtn:toggle:Format": True,
+    "checkboxBtn:toggle:Use Today's Date": True,
+    "checkboxBtn:right:Inactive": True,
+    "checkboxBtn:left:Services": True,
+    "checkboxBtn:left:Work Type": True,
+
+    # ---------------- DROPDOWNS ----------------
+    "dropdown:Nationality": "India (IN)",
+    "dropdown:Work Type": "ZNDRST2C",
+
+    # ---------------- BUTTONS ----------------
+    "btn:OK": True,
+    "btn:OK_01": True,
+    "btn:OK_02": True,
+
+    # ---------------- BUTTONS ----------------
+    "sleep": "5|5ms|millis|milliseconds|s|sec|secs|seconds",
+
+    # ---------------- ACTIVE WINDOW SEND KEYS ----------------
+    "activeWindow:SendKeys_01": "{ENTER}",
+    "activeWindow:SendKeys_02": "niranjan@gmail.com",
+
+    # ---------------- REPEATED LABELS ----------------
+    "Start:01": "5",
+    "End:01": "5",
+    "Start:02": "1",
+    "End:02": "1",
+}
+```
+
+### 3. Execute
+```python
+controller.fill_form_with_agent("Master Form [Org 01]", payload)
+```
+
+---
+
+## 📘 Payload Reference Guide
+
+### 📝 Text Fields
+```
+"Label:": "TextValue"
+```
+
+### 🔘 Radio Buttons
+1. Toggle match  
+   ```
+   "radioBtn:toggle:Male": True
+   ```
+2. Direct name  
+   ```
+   "radioBtn:Council": True
+   ```
+3. Index-based  
+   ```
+   "radioBtn:All_01": True
+   ```
+
+### ☑️ Checkboxes
+Left of label:
+```
+"checkboxBtn:left:Services": True
+```
+Right of label:
+```
+"checkboxBtn:right:Inactive": True
+```
+Toggle attribute:
+```
+"checkboxBtn:toggle:Format": True
+```
+
+### 🔽 Dropdowns
+```
+"dropdown:Nationality": "India (IN)"
+```
+
+### 🟦 Buttons
+```
+"btn:OK": True
+"btn:Save_01": True
+```
+
+### ⌨️ Active Window Keys
+```
+"activeWindow:SendKeys_01": "{TAB}"
+"activeWindow:SendKeys_02": "test@example.com"
+```
+
+---
+
+### Error handler
+
+```
+ERROR_HANDLERS = [
+    {
+        "code": 1405,
+        "document": (
+            "National Insurance number MUST be  unique.\r\n\r\nAnother core person has this NI number."
+        ),
+        "condition": "and",  # any | and
+        "action": {
+            "btn:OK": True,
+            "NI Number:": "2345678",
+            "btn:Create": True,
+        },
+    },
+    {
+        "code": 1404,
+        "document": "National Insurance number is in an incorrect format.",
+        "condition": "and",
+        # "retry": 10,
+        "action": {
+            "btn:OK": True,
+            "NI Number:": "WL187680C",
+            "btn:Create": True,
+        },
+    },
+]
+
+
+def error_rules():
+    return ERROR_HANDLERS
+
+
+----------------------------------------------
+
+confest.py
+
+from error_engine import ErrorEngine
+from error_rules import error_rules
+from error_reader import get_error_document_text
+
+
+
+# conftest.py
+import pytest
+
+@pytest.fixture(scope="session", autouse=True)
+def register_error_engine():
+    engine = ErrorEngine(
+        rule_provider=error_rules,
+        error_reader=lambda win: get_error_document_text(win, timeout=2.0),
+    )
+
+    controller.set_error_engine(engine)
+
+
+
+
+```
+
+
+### standalone testing
+```
+
+from pywinGUI.controller import orchestrate, set_error_engine
+
+from ..error_engine import ErrorEngine
+from error_rules import error_rules
+from ..error_reader import get_error_document_text
+
+engine = ErrorEngine(
+    rule_provider=error_rules,
+    error_reader=lambda win: get_error_document_text(win, timeout=2.0),
+)
+
+set_error_engine(engine)
+
+
+orchestrate("Create Person Details [Org 01]", {
+    "btn:OK": True,
+    "btn:Create": True,
+    "errorHandler": True,
+})
+
+wait_for_window(window_name) -> wait_for_window("Create Person Details [Org 01]")
+wait_for_window_to_disappear(window_name) -> wait_for_window_to_disappear("Create Person Details [Org 01]")
+```
+
+## 🔄 Execution Flow
+
+1. Connect to target window  
+2. Bring to focus  
+3. Parse payload  
+4. Fill text inputs  
+5. Process radio buttons  
+6. Process checkboxes  
+7. Select dropdowns  
+8. Click buttons  
+9. Send active window keys  
+10. Return completion status  
+
+---
+
+## 🧠 Intelligence Behind the Framework
+
+- Top-left ordering for repeated controls  
+- Visual proximity for matching labels to inputs  
+- Automatic retry mechanisms  
+- Graceful fallback if element not found  
+- Unified naming grammar for all UI control types  
+
+---
+
+
+## 📈 Roadmap
+
+- OCR-based label detection  
+- Read/extract mode  
+- Payload auto-generator  
+- Screenshot capturing on failure  
+- Plugin system for custom strategies  
+
+---
+
+## 🐛 Support
+
+For issues, feature requests, or enhancements, contact the maintainer or open a support ticket.
