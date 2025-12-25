@@ -1,0 +1,58 @@
+# Tactigon IronBoy
+
+![The tactigon team](https://avatars.githubusercontent.com/u/63020285?s=200&v=4)
+
+This package enables to comunicate with IronBoy using a Bluetooth to UART device such as Adafruit Bluefruit LE Uart.
+
+This package can be used alongside with [Tactigon Gear](https://pypi.org/project/tactigon-gear/) and [Tactigon Speech](https://pypi.org/project/tactigon-speech/) libraries to drive IronBoy robot using gesture and "edge" voice command detection.
+
+
+## Prerequisites
+In order to use the Tactigon Arduino Braccio library you need:
+
+* Python version: following versions has been used and tested. It is STRONGLY recommended to use these ones depending on platform.
+  * Win10: 3.8.7
+
+## Installing
+
+Install and update using pip:
+
+`pip install tactigon-ironboy`
+
+## A Simple Example
+
+```python
+import time
+from tactigon_ironboy import IronBoy, IronBoyCommand, IronBoyConfig
+
+if __name__ == "__main__":
+    cfg = IronBoyConfig("TactigonIronBoy", "FE:E2:2B:47:5D:80")
+
+    with IronBoy(cfg) as ironboy:
+        while True:
+            if not ironboy.connected:
+                print("connecting...")
+                time.sleep(1)
+                continue
+
+            print("Connected")
+
+            # Do 5 steps forward
+            ironboy.send_command(IronBoyCommand.WALK_FWD, 5)
+
+            while ironboy.executing:
+                time.sleep(0.1)
+
+            # Do celebration!
+            ironboy.send_command(IronBoyCommand.CELEBRATE)
+
+            while ironboy.executing:
+                time.sleep(0.1)
+            
+            break
+```
+
+## Links
+- [Arduino code](https://github.com/TactigonTeam/Tactigon-SDK/blob/main/examples/arduino_braccio/arduino_code/braccio.ino)
+- [Solver](https://github.com/NNaert/Python-controlled-Braccio-robot-arm)
+- [Tactigon integration](https://github.com/TactigonTeam/Tactigon-SDK)
