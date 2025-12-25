@@ -1,0 +1,135 @@
+Metadata-Version: 2.4
+Name: qfex
+Version: 0.1.0
+Summary: A Python SDK for the QFEX Taker API
+Author-email: QFEX <support@qfex.com>
+License: MIT
+Project-URL: Homepage, https://github.com/qfex-org/qfex-py
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Requires-Dist: websockets>=10.0
+
+# qfex-py
+
+A modern, high-performance Python SDK for the [QFEX](https://qfex.com) Taker API.
+
+![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+## Features
+
+*   **AsyncIO**: Fully asynchronous design using `asyncio` and `websockets` for low-latency trading.
+*   **Type Safe**: Comprehensive type hints and Enums (`Side`, `OrderType`, etc.) for robust code.
+*   **Easy Configuration**: Simple configuration object for switching between Prod/UAT and managing keys.
+*   **Strategy Pattern**: Clean `TakerStrategy` base class to separate your trading logic from connection management.
+*   **Resilience**: Automatic reconnection, exponential backoff, and heartbeat management.
+*   **Modern Python**: Built for Python 3.10+ with Context Manager support.
+
+## Installation
+
+Install via pip (once published) or directly from source:
+
+```bash
+pip install qfex
+```
+
+Or from source:
+
+```bash
+git clone https://github.com/qfex/qfex-py.git
+cd qfex-py
+pip install .
+```
+
+## Quick Start
+
+Here is a minimal example of a strategy that logs the Best Bid/Offer (BBO) and Order Fills.
+
+```python
+import asyncio
+import logging
+from qfex import QFEXTakerClient, QFEXConfig, TakerStrategy, BBO, Side
+
+class MyStrategy(TakerStrategy):
+    async def on_bbo(self, bbo: BBO) -> None:
+        print(f"BBO Update: {bbo.symbol} {bbo.bid_qty} @ {bbo.bid_px}")
+
+    async def on_fill(self, fill: dict) -> None:
+        print(f"Fill: {fill}")
+
+async def main():
+    # 1. Configure
+    cfg = QFEXConfig(
+        is_prod=False,  # Set to True for Production
+        symbol_list=["AAPL-USD"],
+        public_key="YOUR_PUBLIC_KEY",
+        secret_key="YOUR_SECRET_KEY",
+    )
+
+    # 2. Initialize Strategy & Client
+    # Note: Strategy is initialized with a placeholder client initially
+    client = QFEXTakerClient(cfg, strategy=None) # type: ignore
+    strategy = MyStrategy(client)
+    client.strategy = strategy
+
+    # 3. Run
+    print("Starting client...")
+    await client.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Advanced Usage
+
+### Sending Orders
+
+You can send orders easily from within your strategy callbacks or any other async function:
+
+```python
+await client.send_ioc_limit(
+    symbol="AAPL-USD",
+    side=Side.BUY,
+    quantity=Decimal("0.1"),
+    price=Decimal("50000.00")
+)
+```
+
+### Async Context Manager
+
+For integration with other async applications (like FastAPI, or multi-exchange bots), use the client as a context manager. This runs the websocket loops in the background without blocking your main thread.
+
+```python
+async def main():
+    cfg = ... 
+    client = QFEXTakerClient(cfg, strategy=...)
+    
+    async with client:
+        # Client is now connected and processing events
+        print("Client is running in background")
+        
+        # Do other work...
+        await asyncio.sleep(60)
+        
+    # Client automatically disconnects here
+```
+
+## Development
+
+### Requirements
+
+*   Python 3.10+
+*   `websockets`
+
+### Running Tests (Type Checking)
+
+```bash
+mypy src/qfex
+```
+
+## License
+
+MIT
