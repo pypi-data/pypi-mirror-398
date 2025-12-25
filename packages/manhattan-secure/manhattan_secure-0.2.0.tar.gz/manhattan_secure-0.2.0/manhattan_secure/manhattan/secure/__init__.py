@@ -1,0 +1,184 @@
+"""
+Utils for securing processes and data.
+"""
+
+import binascii
+import hashlib
+import hmac
+import random
+import secrets
+import time
+import urllib.parse
+import uuid
+
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
+
+from . import mfa
+
+__all__ = [
+    'compute_signature',
+    'encrypt_password',
+    'escape_csv_value',
+    'hash_password',
+    'mfa',
+    'random_code',
+    'random_token',
+    'safe_redirect_url',
+    'verify_password'
+]
+
+# Constants
+
+CSV_ESCAPE_CHARACTERS = set(['@','+','-', '=', '|', '%'])
+
+
+# Functions
+
+def compute_signature(secret, msg):
+    """Compute a signature for a string"""
+    mac = hmac.new(
+        key=secret.encode('utf-8'),
+        msg=msg,
+        digestmod=hashlib.sha256
+    )
+    return mac.hexdigest()
+
+def encrypt_password(password, salt, hash_name='sha256', iterations=100000):
+    """
+
+    ---
+
+    NOTE: THIS HAS NOW BEEN SUPERSEDED BY `hash_password`.
+
+    The values returned by `hash_password` are not compatible with those from
+    `encrypt_password` and so data stored with `encrypt_password` cannot be
+    directly compared with the output of `hash_password` due to a bug in the
+    original `encrypt_password` password function not decoding the output.
+
+    ---
+
+    Given a password and salt[1] return a hash string that cannot be reversed
+    but which can be regenerated given the same password and salt.
+
+    The name of the hash used and the number of iterations performed can be
+    specified, by default the hash used is 'sha256' and the number of itertaions
+    is 100,000.
+
+    NOTE: When running tests it can be a good idea to specify a lower number of
+    iterations (e.g 1) as the default 100,000 takes a while and can dramatically
+    increase the amount of time it takes for tests to complete.
+
+    NOTE: Remember the salt needs to be stored along with the password hash,
+    without the salt it's not possible to test if a password from a user is
+    correct.
+
+    [1] (https://en.wikipedia.org/wiki/Salt_%28cryptography%29)
+    """
+    dk = hashlib.pbkdf2_hmac(
+        hash_name,
+        str(password).encode('utf8'),
+        str(salt).encode('utf8'),
+        iterations
+    )
+    return str(binascii.hexlify(dk))
+
+def escape_csv_value(v):
+    """
+    If required, escape a value so that it can safely be included in a CSV
+    file that might be opened by an application such as Excel.
+
+    Credit: Andy Gill
+    Source: https://blog.zsec.uk/csv-dangers-mitigations/
+    """
+
+    if not isinstance(v, str):
+        return v
+
+    if len(v) == 0:
+        return v
+
+    if v[0] in CSV_ESCAPE_CHARACTERS:
+        v = v.replace('|', '\|')
+        v = "'" + v + "'"
+        return v
+
+def hash_password(password):
+    """Hash a password"""
+    return PasswordHasher().hash(password)
+
+def random_code(length=12, charset='ABCDEFGHKMNOPQRSTUVW23456789'):
+    """
+    Generate a random code. Optionally the length of the code and the charset
+    used to generate it can be specified.
+
+    NOTE: Random codes are suitable for short term one time use, for example a
+    asking a user to confirm an action by entering a code we sent them. They are
+    not suitable as passwords, even if the charset is made more complex there's
+    no guarantee the output code will be good/safe password choice.
+    """
+    return ''.join(secrets.choice(charset) for _ in range(0, length))
+
+def random_token():
+    """Generate a random hexadecimal token 32 characters in length"""
+    return secrets.token_urlsafe(32)
+
+def safe_redirect_url(url, ignore_paths=None):
+    """
+    Return a local path that can be safely redirected to, e.g after successfully
+    signing in. If a safe redirect path cannot be generated then `None` is
+    returned.
+
+    URLs are converted to a local path (e.g `'http://www.example.com/foo'`
+    becomes `'/foo'`).
+
+    Optionally a list of paths that should be ignored can be specified. It's
+    common practise to specify the '/sign-out' path (or equivalent) as this can
+    put the user in a never ending loop.
+
+    NOTE: There is not check performed to see if the URL exists (e.g if it
+    returns a 404.
+    """
+
+    # Parse the URL
+    url_parts = urllib.parse.urlparse(url)
+
+    # Convert the URL to a local path
+    path = url_parts.path
+
+    # Ensure the URL starts with a '/'
+    if not path.startswith('/'):
+        return None
+
+    # Ensure the path starts with a single '/'
+    path = '/' + path.lstrip('/')
+
+    # Check if we should ignore this path
+    ignore_paths = ignore_paths or []
+    if path in ignore_paths:
+        return None
+
+    # Don't allow back paths in the path
+    if '\\' in path:
+        return None
+
+    # URL is safe return it along with any query and/or fragment
+    if url_parts.query:
+        path += '?' + url_parts.query
+
+    if url_parts.fragment:
+        path += '#' + url_parts.fragment
+
+    return path
+
+def verify_password(hash, password):
+    """
+    Verify the given password against a hashed password generated by the
+    `hash_password` function.
+    """
+
+    try:
+        return PasswordHasher().verify(hash, password)
+
+    except VerifyMismatchError:
+        return False
