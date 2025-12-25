@@ -1,0 +1,136 @@
+import inspect
+import json
+import socket
+import unittest
+from logging import getLogger, FATAL
+from socket import gethostbyname
+from unittest import mock
+from ptrlib import Socket, TubeTimeout
+
+
+class TestSocket(unittest.TestCase):
+    """Tests for Socket
+    """
+    def setUp(self):
+        getLogger("ptrlib").setLevel(FATAL)
+
+    def test_socket(self):
+        """Test socket connection and data exchange.
+        """
+        # connect
+        host = "www.github.com"
+        sock = Socket(host, 80)
+
+        # request 
+        sock.sendline(b'GET / HTTP/1.1\r')
+        sock.send(f'Host: {host}'.encode() + b'\r\n\r\n')
+
+        # shutdown
+        sock.close_send()
+
+        # receive
+        m = sock.recvregex(r"HTTP/\d\.\d (\d{3}) ")
+        status = int(m.group(1))
+        sock.close()
+
+        self.assertIn(status, [200, 301, 302])
+
+    def test_timeout(self):
+        """Test socket timeout behavior.
+        """
+        mod = inspect.getmodule(Socket)
+        assert mod is not None
+        module_name = mod.__name__
+
+        sock = Socket("www.example.com", 80)
+        sock.sendline(b'GET / HTTP/1.1\r')
+        sock.send(b'Host: www.example.com\r\n\r\n')
+
+        with self.assertRaises(TubeTimeout) as cm:
+            sock.recvuntil("*** never expected ***", timeout=2)
+        self.assertEqual(b"200 OK" in cm.exception.buffered, True)
+
+        with self.assertLogs(module_name) as cm:
+            sock.close()
+        self.assertEqual(cm.output, [f"INFO:{module_name}:Connection {str(sock)} closed"])
+
+    def test_reset(self):
+        """Test socket connection reset behavior.
+        """
+        sock = Socket("www.example.com", 80)
+        sock.sendline(b'GET / HTTP/1.1\r')
+        sock.send(b'Host: www.example.com\r\n')
+        sock.send(b'Connection: close\r\n\r\n')
+
+        with self.assertRaises(EOFError):
+            sock.recvuntil("*** never expected ***", timeout=2)
+
+        sock.close()
+
+    def test_tls(self):
+        """Test socket TLS behavior.
+        """
+        host = "check-tls.akamaized.net"
+        path = "/v1/tlssni.json"
+
+        # connect with SNI enabled
+        sock = Socket(host, 443, ssl=True)
+        sock.sendline(f'GET {path} HTTP/1.1'.encode() + b'\r')
+        sock.send(f'Host: {host}'.encode() + b'\r\n')
+        sock.send(b'Connection: close\r\n\r\n')
+        self.assertTrue((contentlength := int(sock.recvlineafter('Content-Length: '))) > 0)
+        sock.recvuntil(b'\r\n\r\n')
+        content = json.loads(sock.recvall(contentlength))
+        sock.close()
+        self.assertEqual(content['tls_sni_status'], "present")
+        self.assertEqual(content['tls_sni_value'], host)
+
+        # connect with a specific SNI value
+        ip_addr = gethostbyname(host)
+        sock = Socket(ip_addr, 443, ssl=True, sni="akamaized.net")
+        sock.sendline(f'GET {path} HTTP/1.1'.encode() + b'\r')
+        sock.send(f'Host: {host}'.encode() + b'\r\n')
+        sock.send(b'Connection: close\r\n\r\n')
+        self.assertTrue((contentlength := int(sock.recvlineafter('Content-Length: '))) > 0)
+        sock.recvuntil(b'\r\n\r\n')
+        content = json.loads(sock.recvall(contentlength))
+        sock.close()
+        self.assertEqual(content['tls_sni_status'], "invalid")
+        self.assertEqual(content['tls_sni_value'], "akamaized.net")
+
+        # connect with SNI disabled
+        sock = Socket(host, 443, ssl=True, sni=False)
+        sock.sendline(f'GET {path} HTTP/1.1'.encode() + b'\r')
+        sock.send(f'Host: {host}'.encode() + b'\r\n')
+        sock.send(b'Connection: close\r\n\r\n')
+        self.assertTrue((contentlength := int(sock.recvlineafter('Content-Length: '))) > 0)
+        sock.recvuntil(b'\r\n\r\n')
+        content = json.loads(sock.recvall(contentlength))
+        sock.close()
+        self.assertEqual(content['tls_sni_status'], "missing")
+        self.assertEqual(content['tls_sni_value'], "")
+
+    def test_connect_timeout_tcp_is_passed(self):
+        """Socket should pass connect_timeout to socket.create_connection."""
+        fake_sock = mock.Mock()
+        with mock.patch("socket.create_connection", return_value=fake_sock) as cc:
+            sock = Socket("example.com", 80, connect_timeout=1.23)
+
+        cc.assert_called_once_with(("example.com", 80), timeout=1.23)
+        fake_sock.settimeout.assert_any_call(None)  # restored to blocking mode
+        sock.close()
+
+    def test_connect_timeout_udp_is_used(self):
+        """UDP path should apply and then clear connect_timeout."""
+        fake_sock = mock.Mock()
+        addrinfo = [(mock.ANY, mock.ANY, mock.ANY, "", ("127.0.0.1", 9999))]
+        with mock.patch("socket.getaddrinfo", return_value=addrinfo) as gai, \
+             mock.patch("socket.socket", return_value=fake_sock) as s_ctor:
+            sock = Socket("127.0.0.1", 9999, udp=True, connect_timeout=0.5)
+
+        gai.assert_any_call("127.0.0.1", 9999, 0, socket.SOCK_DGRAM)
+        s_ctor.assert_called_once()
+        fake_sock.settimeout.assert_any_call(0.5)
+        fake_sock.connect.assert_called_once_with(("127.0.0.1", 9999))
+        fake_sock.settimeout.assert_any_call(None)  # reset after connect
+        sock.close()
