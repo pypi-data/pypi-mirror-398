@@ -1,0 +1,97 @@
+Metadata-Version: 2.4
+Name: artefacts_toolkit_chart
+Version: 1.0.0
+Author-email: FD <fabian@artefacts.com>, AGC <alejandro@artefacts.com>, TN <tomo@artefacts.com>, EP <eric@artefacts.com>
+Project-URL: Homepage, https://github.com/art-e-fact/artefacts-toolkit-chart
+Project-URL: Bug Tracker, https://github.com/art-e-fact/artefacts-toolkit-chart/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: artefacts_toolkit_utilities<0.4.0,>=0.3.0
+Requires-Dist: rosbags
+Requires-Dist: plotly
+Requires-Dist: numpy
+Provides-Extra: dev
+Requires-Dist: build; extra == "dev"
+Requires-Dist: pyre-check; extra == "dev"
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: pytest-env; extra == "dev"
+Requires-Dist: pytest-mock; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: setuptools-scm; extra == "dev"
+Requires-Dist: twine; extra == "dev"
+
+# Artefacts Toolkit (Charts)
+
+_Please consider this as a pre-release package, and thus subject to large, and breaking, changes prior to v1_
+
+A part of the Artefacts Toolkit, this package contains helpers to be used when creating charts from test data
+
+Primarily designed to be used with Artefacts, the package can also be used standalone.
+
+## Usage
+
+- Single plot:
+```
+from artefacts_toolkit_chart import make_chart
+
+make_chart(
+    filepath,
+    topic_x,
+    topic_y,
+    field_unit=None,
+    output_dir="output",
+    chart_name="chart",
+    file_type="rosbag",
+)
+```
+
+- (HTML plot) Multiple plots for 1 axis (i.e: different critics vs time)
+```
+chart = make_chart(
+        rosbag_filepath,
+        ["/critics_cost/ConstraintCritic.data", "/critics_cost/GoalAngleCritic.data", "/critics_cost/GoalCritic.data", "/critics_cost/ObstaclesCritic.data", "/critics_cost/CostCritic.data", "/critics_cost/PathAlignCritic.data", "/critics_cost/PathAngleCritic.data", "/critics_cost/PathFollowCritic.data", "/critics_cost/PreferForwardCritic.data", "/critics_cost/TwirlingCritic.data", "/critics_cost/VelocityDeadbandCritic.data"],
+        "time",
+        x_axis_name="time",
+        y_axis_name="critics",
+        field_unit=None,
+        chart_name="Critics vs Time",
+    )
+```
+
+- (HTML plot) Multiple plots for 2 axes (i.e: different trajectories on x-y coordinates):
+```
+chart = make_chart(
+        rosbag_filepath,
+        ["/odom.pose.pose.position.x", "/gt_odom.pose.pose.position.x"],
+        ["/odom.pose.pose.position.y", "/gt_odom.pose.pose.position.y"],
+        field_unit='m',
+        chart_name="gt vs odom positions",
+    )
+```
+
+_Note: Currently charts can only be created from rosbags_
+
+Takes a file and creates a chart on the provided two topics. `"time"` can also be used as `topic_x` or `topic_y` if desired. An html chart will be created and saved to the `output_dir`.
+
+### Plotting time when using rosbags
+
+* Please note that not all ROS topics contain header timestamps. If no header is present, `make_chart` will use the rosbag’s own timestamps, which may cause timing inaccuracies if the rosbag was recorded or played back at non-real-time speeds.
+
+
+## Notes:
+
+The Artefacts Toolkit also contains a `bag_recorder` helper to assist you if you require help in setting up a rosbag recording for your tests.
+
+```
+from artefacts_toolkit_rosbag.rosbag import get_bag_recorder
+```
+
+* When using in a virtual environment, you may need to add your site packages to `PYTHONPATH`
+
+```
+export PYTHONPATH=$PYTHONPATH:/<your_workspace>/venv/lib/python3.10/site-packages
+```
