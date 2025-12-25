@@ -1,0 +1,66 @@
+from __future__ import annotations
+
+import sys
+from typing import TYPE_CHECKING, Any
+
+from plain.models.expressions import Func
+from plain.models.fields import DecimalField, FloatField, IntegerField
+from plain.models.functions import Cast
+
+if TYPE_CHECKING:
+    from plain.models.backends.base.base import BaseDatabaseWrapper
+    from plain.models.sql.compiler import SQLCompiler
+
+
+class FixDecimalInputMixin(Func):
+    """Mixin for Func subclasses that need to convert FloatField to DecimalField on PostgreSQL."""
+
+    def as_postgresql(
+        self,
+        compiler: SQLCompiler,
+        connection: BaseDatabaseWrapper,
+        **extra_context: Any,
+    ) -> tuple[str, list[Any]]:
+        # Cast FloatField to DecimalField as PostgreSQL doesn't support the
+        # following function signatures:
+        # - LOG(double, double)
+        # - MOD(double, double)
+        output_field = DecimalField(decimal_places=sys.float_info.dig, max_digits=1000)
+
+        clone = self.copy()
+        clone.set_source_expressions(
+            [
+                Cast(expression, output_field)
+                if isinstance(expression.output_field, FloatField)
+                else expression
+                for expression in self.get_source_expressions()
+            ]
+        )
+        return clone.as_sql(compiler, connection, **extra_context)
+
+
+class FixDurationInputMixin(Func):
+    def as_mysql(
+        self,
+        compiler: SQLCompiler,
+        connection: BaseDatabaseWrapper,
+        **extra_context: Any,
+    ) -> tuple[str, list[Any]]:
+        sql, params = super().as_sql(compiler, connection, **extra_context)
+        if self.output_field.get_internal_type() == "DurationField":
+            sql = f"CAST({sql} AS SIGNED)"
+        return sql, params
+
+
+class NumericOutputFieldMixin(Func):
+    def _resolve_output_field(self) -> DecimalField | FloatField:
+        source_fields = self.get_source_fields()
+        if any(isinstance(s, DecimalField) for s in source_fields):
+            return DecimalField()
+        if any(isinstance(s, IntegerField) for s in source_fields):
+            return FloatField()
+        if source_fields:
+            result = super()._resolve_output_field()
+            if isinstance(result, DecimalField | FloatField):
+                return result
+        return FloatField()
