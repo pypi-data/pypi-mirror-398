@@ -1,0 +1,146 @@
+Metadata-Version: 2.4
+Name: forgejo-bot-guard
+Version: 2025.12.21161612
+Summary: This package helps administrators of Forgejo (or Git hosting platforms) generate clear, actionable anti-crawling measures by analyzing user-provided text inputs. When given a description of suspicious
+Author-email: forgejo-bot-guard <hi@eugene.plus>
+License: MIT
+Project-URL: Homepage, https://github.com/chigwell/forgejo-bot-guard
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: langchain-llm7>=0.0.0
+Requires-Dist: llmatch-messages>=0.0.0
+Requires-Dist: langchain-core>=0.3.0
+
+# forgejo-bot-guard
+[![PyPI version](https://badge.fury.io/py/forgejo-bot-guard.svg)](https://badge.fury.io/py/forgejo-bot-guard)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/forgejo-bot-guard)](https://pepy.tech/project/forgejo-bot-guard)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**forgejo-bot-guard** helps Forgejo (or any self‑hosted Git service) administrators quickly generate clear, actionable anti‑crawling measures.  
+Provide a description of suspicious bot activity, scraping attempts, or AI‑crawler patterns, and the package returns a structured list of prioritized technical fixes (e.g., `robots.txt` rules, HTTP headers, CAPTCHA settings) together with short explanations and trade‑off warnings. The library focuses on the most relevant safeguards for Forgejo’s environment, so you can deploy protections without digging through documentation.
+
+## Features
+
+- 📋 *Input:* free‑form text describing suspicious activity.  
+- 🤖 *Processing:* uses a language model (default **ChatLLM7**) to extract a concise, regex‑validated response.  
+- 🚀 *Output:* a list of recommended anti‑crawling measures, ordered by priority, with brief rationale and cautions.  
+- 🔧 *Extensible:* plug in any LangChain‑compatible LLM (OpenAI, Anthropic, Google, etc.) if you prefer.
+
+## Installation
+
+```bash
+pip install forgejo_bot_guard
+```
+
+## Quick Start
+
+```python
+from forgejo_bot_guard import forgejo_bot_guard
+
+# Example user description of a bot that repeatedly hits the API.
+description = """
+Our API endpoint `/api/v1/repos` is being hammered by an unknown script.
+It repeats the same GET request every 2 seconds from many IPs, causing
+high load and occasional timeouts.
+"""
+
+# Use the default ChatLLM7 (requires LLM7_API_KEY env var or explicit key)
+recommendations = forgejo_bot_guard(
+    user_input=description,
+)
+
+print("\n".join(recommendations))
+```
+
+### Using a custom LLM
+
+If you prefer a different language model, pass a LangChain `BaseChatModel` instance:
+
+#### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from forgejo_bot_guard import forgejo_bot_guard
+
+llm = ChatOpenAI()
+response = forgejo_bot_guard(user_input=description, llm=llm)
+```
+
+#### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from forgejo_bot_guard import forgejo_bot_guard
+
+llm = ChatAnthropic()
+response = forgejo_bot_guard(user_input=description, llm=llm)
+```
+
+#### Google Generative AI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from forgejo_bot_guard import forgejo_bot_guard
+
+llm = ChatGoogleGenerativeAI()
+response = forgejo_bot_guard(user_input=description, llm=llm)
+```
+
+### Providing an API key for ChatLLM7
+
+ChatLLM7 can be used without passing a key explicitly – it will read `LLM7_API_KEY` from the environment.  
+If you want to supply the key directly:
+
+```python
+response = forgejo_bot_guard(
+    user_input=description,
+    api_key="YOUR_LLM7_API_KEY"
+)
+```
+
+You can obtain a free API key by registering at https://token.llm7.io/.
+
+## API Reference
+
+```python
+forgejo_bot_guard(
+    user_input: str,
+    llm: Optional[BaseChatModel] = None,
+    api_key: Optional[str] = None
+) -> List[str]
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| **user_input** | `str` | The free‑form text describing the suspicious bot or scraping activity you want to analyse. |
+| **llm** | `Optional[BaseChatModel]` | A LangChain LLM instance. If omitted, the function creates a `ChatLLM7` instance using the provided `api_key` or the `LLM7_API_KEY` environment variable. |
+| **api_key** | `Optional[str]` | API key for ChatLLM7. Ignored when a custom `llm` is supplied. If not given, the function falls back to the `LLM7_API_KEY` environment variable. |
+
+## How It Works
+
+1. **Prompt Construction** – The package builds a system prompt describing the desired output format and a human prompt containing the `user_input`.  
+2. **LLM Call** – The selected LLM generates a response that must match a predefined regular expression (`pattern`).  
+3. **Validation** – `llmatch` validates the response; if it conforms, the extracted list of recommendations is returned.  
+4. **Error Handling** – If the LLM call fails or the output does not match the pattern, a `RuntimeError` is raised with a descriptive message.
+
+## Rate Limits
+
+- The free tier of LLM7 offers generous limits for typical Forgejo‑admin use cases.  
+- For higher throughput, provide your own `api_key` or switch to a different model via the `llm` argument.
+
+## Contributing
+
+Issues, feature requests, and pull requests are welcome!  
+Please open a ticket on GitHub: https://github.com/chigwell/forgejo-bot-guard
+
+## License
+
+This project is licensed under the MIT License.
+
+## Author
+
+**Eugene Evstafev**  
+📧 hi@euegne.plus  
+🐙 GitHub: [chigwell](https://github.com/chigwell)
