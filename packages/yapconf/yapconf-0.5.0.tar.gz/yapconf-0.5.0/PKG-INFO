@@ -1,0 +1,378 @@
+Metadata-Version: 2.4
+Name: yapconf
+Version: 0.5.0
+Summary: Yet Another Python Configuration
+Home-page: https://github.com/beer-garden/yapconf
+Author: The Beer Garden Team + Logan Asher Jones
+Author-email: beer@beer-garden.io
+License: MIT license
+Keywords: yapconf
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+License-File: LICENSE
+License-File: AUTHORS.rst
+Requires-Dist: python-box<8
+Provides-Extra: deploy
+Requires-Dist: wheel; extra == "deploy"
+Requires-Dist: twine; extra == "deploy"
+Provides-Extra: etcd
+Requires-Dist: python-etcd; extra == "etcd"
+Provides-Extra: develop
+Requires-Dist: isort; extra == "develop"
+Requires-Dist: watchdog; extra == "develop"
+Provides-Extra: docs
+Requires-Dist: sphinx; extra == "docs"
+Requires-Dist: sphinx_rtd_theme; extra == "docs"
+Provides-Extra: k8s
+Requires-Dist: kubernetes; extra == "k8s"
+Requires-Dist: watchdog<1; python_version < "3.6"
+Requires-Dist: watchdog>1; python_version > "3.6"
+Provides-Extra: test
+Requires-Dist: codecov; extra == "test"
+Requires-Dist: coverage; extra == "test"
+Requires-Dist: flake8; extra == "test"
+Requires-Dist: funcsigs; extra == "test"
+Requires-Dist: kubernetes; extra == "test"
+Requires-Dist: mock; extra == "test"
+Requires-Dist: pytest; extra == "test"
+Requires-Dist: pytest-lazy-fixtures; extra == "test"
+Requires-Dist: pytest-cov; extra == "test"
+Requires-Dist: pytest-runner; extra == "test"
+Requires-Dist: python-etcd; extra == "test"
+Requires-Dist: ruamel.yaml>=0.15; extra == "test"
+Requires-Dist: tox; extra == "test"
+Provides-Extra: yaml
+Requires-Dist: ruamel.yaml>=0.15; extra == "yaml"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: summary
+
+=======
+Yapconf
+=======
+
+
+.. image:: https://img.shields.io/pypi/v/yapconf.svg
+        :target: https://pypi.python.org/pypi/yapconf
+
+.. image:: https://img.shields.io/travis/beer-garden/yapconf.svg
+        :target: https://travis-ci.org/beer-garden/yapconf
+
+.. image:: https://codecov.io/gh/beer-garden/yapconf/branch/master/graph/badge.svg
+  :target: https://codecov.io/gh/beer-garden/yapconf
+
+.. image:: https://readthedocs.org/projects/yapconf/badge/?version=latest
+        :target: https://yapconf.readthedocs.io/en/latest/?badge=latest
+        :alt: Documentation Status
+
+.. image:: https://pyup.io/repos/github/beer-garden/yapconf/shield.svg
+     :target: https://pyup.io/repos/github/beer-garden/yapconf/
+     :alt: Updates
+
+
+Yet Another Python Configuration. A simple way to manage configurations for python applications.
+
+
+Yapconf allows you to easily manage your python application's configuration. It handles everything involving your
+application's configuration. Often times exposing your configuration in sensible ways can be difficult. You have to
+consider loading order, and lots of boilerplate code to update your configuration correctly. Now what about CLI
+support? Migrating old configs to the new config? Yapconf can help you.
+
+
+Features
+--------
+Yapconf helps manage your python application's configuration
+
+* JSON/YAML config file support
+* Etcd config support
+* Kubernetes ConfigMap support
+* Argparse integration
+* Environment Loading
+* Configuration watching
+* Migrate old configurations to new configurations
+* Generate documentation for your configuration
+
+
+Quick Start
+-----------
+
+To install Yapconf, run this command in your terminal:
+
+.. code-block:: console
+
+    $ pip install yapconf
+
+Then you can use Yapconf yourself!
+
+
+**Load your first config**
+
+.. code-block:: python
+
+    from yapconf import YapconfSpec
+
+    # First define a specification
+    spec_def = {
+        "foo": {"type": "str", "default": "bar"},
+    }
+    my_spec = YapconfSpec(spec_def)
+
+    # Now add your source
+    my_spec.add_source('my yaml config', 'yaml', filename='./config.yaml')
+
+    # Then load the configuration!
+    config = my_spec.load_config('config.yaml')
+
+    print(config.foo)
+    print(config['foo'])
+
+In this example ``load_config`` will look for the 'foo' value in the file
+./config.yaml and will fall back to the default from the specification
+definition ("bar") if it's not found there.
+
+Try running with an empty file at ./config.yaml, and then try running with
+
+.. code-block:: yaml
+
+   foo: baz
+
+
+**Load from Environment Variables**
+
+.. code-block:: python
+
+    from yapconf import YapconfSpec
+
+    # First define a specification
+    spec_def = {
+        "foo-dash": {"type": "str", "default": "bar"},
+    }
+    my_spec = YapconfSpec(spec_def, env_prefix='MY_APP_')
+
+    # Now add your source
+    my_spec.add_source('env', 'environment')
+
+    # Then load the configuration!
+    config = my_spec.load_config('env')
+
+    print(config.foo)
+    print(config['foo'])
+
+In this example ``load_config`` will look for the 'foo' value in the
+environment and will fall back to the default from the specification
+definition ("bar") if it's not found there.
+
+Try running once, and then run ``export MY_APP_FOO_DASH=BAZ`` in the shell
+and run again.
+
+Note that the name yapconf is searching the environment for has been modified.
+The env_prefix ``MY_APP_`` as been applied to the name, and the name itself has
+been capitalized and converted to snake-case.
+
+
+**Load from CLI arguments**
+
+.. code-block:: python
+
+    import argparse
+    from yapconf import YapconfSpec
+
+    # First define a specification
+    spec_def = {
+        "foo": {"type": "str", "default": "bar"},
+    }
+    my_spec = YapconfSpec(spec_def)
+
+    # This will add --foo as an argument to your python program
+    parser = argparse.ArgumentParser()
+    my_spec.add_arguments(parser)
+
+    # Now you can load these via load_config:
+    cli_args = vars(parser.parse_args(sys.argv[1:]))
+    config = my_spec.load_config(cli_args)
+
+    print(config.foo)
+    print(config['foo'])
+
+
+**Load from multiple sources**
+
+.. code-block:: python
+
+    from yapconf import YapconfSpec
+
+    # First define a specification
+    spec_def = {
+        "foo": {"type": "str", "default": "bar"},
+    }
+    my_spec = YapconfSpec(spec_def, env_prefix='MY_APP_')
+
+    # Now add your sources (order does not matter)
+    my_spec.add_source('env', 'environment')
+    my_spec.add_source('my yaml file', 'yaml', filename='./config.yaml')
+
+    # Now load your configuration using the sources in the order you want!
+    config = my_spec.load_config('my yaml file', 'env')
+
+    print(config.foo)
+    print(config['foo'])
+
+In this case ``load_config`` will look for 'foo' in ./config.yaml. If not
+found it will look for ``MY_APP_FOO`` in the environment, and if stil not
+found it will fall back to the default.
+Since the 'my yaml file' label comes first in the load_config arguments
+yapconf will look there for values first, even though add_source was
+called with 'env' first.
+
+
+**Watch your config for changes**
+
+.. code-block:: python
+
+    def my_handler(old_config, new_config):
+        print("TODO: Something interesting goes here.")
+
+    my_spec.spawn_watcher('config.yaml', target=my_handler)
+
+
+**Generate documentation for your config**
+
+.. code-block:: python
+
+    # Show me some sweet Markdown documentation
+    my_spec(spec.generate_documentation())
+
+    # Or write it to a file
+    spec.generate_documentation(output_file_name='configuration_docs.md')
+
+
+For more detailed information and better walkthroughs, checkout the documentation!
+
+Documentation
+-------------
+Documentation is available at https://yapconf.readthedocs.io
+
+
+Credits
+---------
+
+This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
+
+.. _Cookiecutter: https://github.com/audreyr/cookiecutter
+.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+
+
+
+=======
+History
+=======
+
+0.5.0 (2024-12-22)
+------------------
+* Removed Python 2 support, min version tested is Python 3.8
+* Removed Six dependency
+* Upgraded Python-Box 
+
+0.4.0 (2024-11-12)
+------------------
+* Added support for `ruamel.yaml>0.18`
+
+0.3.7 (2019-12-02)
+------------------
+* Fixed broken test
+* Adding CLI source
+* Fixed adding cli_name to items
+
+0.3.6 (2019-09-17)
+------------------
+* Adding `dump_data` to `__all__`
+
+0.3.5 (2019-09-03)
+------------------
+* Adding initial support for loading specific config items.
+
+0.3.4 (2019-09-02)
+------------------
+* Fixed deprecation warning (#96)
+
+
+0.3.3 (2018-06-25)
+------------------
+* Fixed an issue with dumping unicode in python 2 (#82)
+
+0.3.2 (2018-06-11)
+------------------
+* Fixed an issue with dumping box data to YAML (#78)
+
+0.3.1 (2018-06-07)
+------------------
+* Fixed an issue with environment loading (#74)
+* Fixed an issue with watching in-memory dictionaries (#75)
+
+0.3.0 (2018-06-02)
+------------------
+* Fixed an issue where utf-8 migrations would break (#46)
+* Added support for etcd (#47)
+* Added support for kubernetes (#47)
+* Added support for fallbacks for config values (#45)
+* Added the ability to generate documentation for your configuration (#63)
+* Added config watching capabilities (#36)
+
+0.2.4 (2018-05-21)
+------------------
+* Flattened configs before loading (#54)
+* Fixed bug where the ``fq_name`` was not correctly set for complex objects
+* Added ``dump_kwargs`` to ``migrate_config`` (#53)
+* Better error message when validation fails (#55)
+* Made all argparse items optional (#42)
+* Added support for ``long_description`` on config items (#44)
+* Added support for ``validator`` on config items (#43)
+
+0.2.3 (2018-04-03)
+------------------
+* Fixed Python2 unicode error (#41)
+
+0.2.2 (2018-03-28)
+------------------
+* Fixed Python2 compatibility error (#35)
+
+0.2.1 (2018-03-11)
+------------------
+* Added item to YapconfItemNotFound (#21)
+* Removed pytest-runner from setup_requires (#22)
+
+0.2.0 (2018-03-11)
+------------------
+
+* Added auto kebab-case for CLI arguments (#7)
+* Added the flag to apply environment prefixes (#11)
+* Added ``choices`` to item specification (#14)
+* Added ``alt_env_names`` to item specification (#13)
+
+0.1.1 (2018-02-08)
+------------------
+
+* Fixed bug where ``None`` was a respected value.
+
+0.1.0 (2018-02-01)
+------------------
+
+* First release on PyPI.
