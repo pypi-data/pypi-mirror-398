@@ -1,0 +1,109 @@
+name: Generate MCP Manifest
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo_url:
+        description: 'Repository URL to generate manifest for'
+        required: true
+        type: string
+  repository_dispatch:
+    types: [generate-manifest]
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  generate-manifest:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'server submission') }}
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.MCPM_REGISTRY_BOT_APP_ID }}
+          private-key: ${{ secrets.MCPM_REGISTRY_BOT_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Extract repository URL from issue
+        id: extract-url
+        if: github.event_name == 'issues'
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          # Extract the repository URL from the GitHub issue form
+          # The form renders the repository field as a URL line after the label
+          REPO_URL=$(echo "$ISSUE_BODY" | grep -oP 'https://github\.com/[^\s]+' | head -1)
+          if [ -z "$REPO_URL" ]; then
+            echo "No GitHub repository URL found in issue body"
+            echo "Issue body: $ISSUE_BODY"
+            exit 1
+          fi
+          echo "Found repository URL: $REPO_URL"
+          echo "repo_url=$REPO_URL" >> $GITHUB_OUTPUT
+
+      - name: Generate manifest
+        env:
+          ANYON_API_KEY: ${{ secrets.ANYON_API_KEY }}
+        run: |
+          REPO_URL="${{ github.event.inputs.repo_url || github.event.client_payload.repo_url || steps.extract-url.outputs.repo_url }}"
+          python scripts/get_manifest.py "$REPO_URL"
+
+      - name: Extract repo name for branch
+        id: repo-info
+        run: |
+          REPO_URL="${{ github.event.inputs.repo_url || github.event.client_payload.repo_url || steps.extract-url.outputs.repo_url }}"
+          REPO_NAME=$(echo "$REPO_URL" | sed 's/.*github\.com[:/]//' | sed 's/\.git$//' | tr '/' '-')
+          echo "repo_name=$REPO_NAME" >> $GITHUB_OUTPUT
+          echo "branch_name=add-manifest-$REPO_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          commit-message: |
+            feat: add manifest for ${{ steps.repo-info.outputs.repo_name }}
+            
+            Generated manifest JSON for repository: ${{ github.event.inputs.repo_url || github.event.client_payload.repo_url || steps.extract-url.outputs.repo_url }}
+            
+            Co-Authored-By: Lucien
+          title: "feat: Add MCP manifest for ${{ steps.repo-info.outputs.repo_name }}"
+          body: |
+            ## Summary
+            
+            This PR adds a new MCP server manifest generated from the repository: ${{ github.event.inputs.repo_url || github.event.client_payload.repo_url || steps.extract-url.outputs.repo_url }}
+            
+            ## Changes
+            
+            - Added new manifest JSON file in `mcp-registry/servers/`
+            - Manifest was automatically generated using the chatxiv.org API
+            
+            ## Test plan
+            
+            - [ ] Verify the generated JSON is valid
+            - [ ] Check that all required fields are present
+            - [ ] Validate installation instructions work correctly
+            
+            ---
+            
+            🤖 Generated with [Claude Code](https://claude.ai/code)
+          branch: ${{ steps.repo-info.outputs.branch_name }}
+          delete-branch: true
