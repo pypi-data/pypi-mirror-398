@@ -1,0 +1,276 @@
+apiVersion: kubiya.ai/v1
+kind: Skill
+metadata:
+  name: slack
+  version: 1.0.0
+  description: Slack integration with OAuth support and configurable capabilities for messaging, reactions, and channel management
+  author: Kubiya
+  icon: Slack
+  icon_type: react-icon
+
+spec:
+  type: slack
+
+  implementations:
+    agno:
+      module: agno_impl
+      class: SlackTools
+    claude_code:
+      module: agno_impl
+      class: SlackTools
+    default:
+      module: agno_impl
+      class: SlackTools
+
+  pythonDependencies:
+    - slack-sdk>=3.27.0
+    - httpx>=0.27.0
+
+  systemRequirements:
+    supportedOS: [linux, darwin, win32]
+    minPythonVersion: "3.10"
+
+  environmentVariables:
+    - name: SLACK_BOT_TOKEN
+      required: false
+      description: Slack Bot User OAuth Token (xoxb-...). Used as fallback if Integration API is not configured.
+
+    - name: INTEGRATION_API_BASE
+      required: false
+      description: Integration API base URL for OAuth token fetching. Defaults to https://api.kubiya.ai
+
+    - name: KUBIYA_API_KEY
+      required: false
+      description: Kubiya API key for Integration API authentication. Required when using integration_id.
+
+  configSchema:
+    type: object
+    properties:
+      # Authentication Configuration
+      integration_id:
+        type: string
+        description: Integration API ID for OAuth-based authentication. Recommended for multi-workspace support.
+
+      secret_name:
+        type: string
+        description: |
+          (Deprecated: use 'secrets' instead) Name of a single secret containing the Slack Bot Token.
+          The secret value will be injected as an environment variable at runtime.
+
+      secrets:
+        type: array
+        description: |
+          List of secret names from the Kubiya secrets vault. Secret values will be injected as
+          environment variables at runtime (e.g., secret named "SLACK_TOKEN" becomes env var SLACK_TOKEN).
+          The first available secret will be used for authentication.
+        items:
+          type: string
+        example: ["SLACK_BOT_TOKEN", "SLACK_TOKEN_PROD"]
+
+      use_env_fallback:
+        type: boolean
+        description: Allow SLACK_BOT_TOKEN environment variable as fallback authentication method
+        default: true
+
+      # Capability Group Toggles
+      enable_read_messages:
+        type: boolean
+        description: Enable read message capabilities (channels, history, search, threads, users)
+        default: true
+
+      enable_write_messages:
+        type: boolean
+        description: Enable write message capabilities (send, post, reply, update, delete)
+        default: false
+
+      enable_reactions:
+        type: boolean
+        description: Enable reaction capabilities (add, remove, list reactions)
+        default: false
+
+      enable_channel_management:
+        type: boolean
+        description: Enable channel management capabilities (create, invite, archive, topics)
+        default: false
+
+      # Fine-grained Read Permissions
+      read_channels:
+        type: boolean
+        description: Allow listing channels in the workspace
+        default: true
+
+      read_messages:
+        type: boolean
+        description: Allow reading message history from channels
+        default: true
+
+      search_messages:
+        type: boolean
+        description: Allow searching messages across workspace
+        default: true
+
+      read_threads:
+        type: boolean
+        description: Allow reading thread replies
+        default: true
+
+      read_users:
+        type: boolean
+        description: Allow reading user information and listing users
+        default: true
+
+      # Fine-grained Write Permissions
+      send_messages:
+        type: boolean
+        description: Allow sending messages to channels
+        default: true
+
+      post_messages:
+        type: boolean
+        description: Allow posting messages (alias for send_messages)
+        default: true
+
+      reply_to_threads:
+        type: boolean
+        description: Allow replying to message threads
+        default: true
+
+      update_messages:
+        type: boolean
+        description: Allow updating and deleting messages
+        default: true
+
+      # Fine-grained Reaction Permissions
+      add_reactions:
+        type: boolean
+        description: Allow adding reactions to messages
+        default: true
+
+      remove_reactions:
+        type: boolean
+        description: Allow removing reactions from messages
+        default: true
+
+      # Fine-grained Channel Management Permissions
+      create_channels:
+        type: boolean
+        description: Allow creating new channels
+        default: false
+
+      invite_to_channels:
+        type: boolean
+        description: Allow inviting users to channels
+        default: false
+
+      archive_channels:
+        type: boolean
+        description: Allow archiving channels
+        default: false
+
+      set_channel_topic:
+        type: boolean
+        description: Allow setting channel topics and descriptions
+        default: false
+
+      # General Settings
+      timeout:
+        type: integer
+        description: API request timeout in seconds
+        default: 30
+        minimum: 5
+        maximum: 300
+
+      default_channel:
+        type: string
+        description: Default channel for operations (optional)
+
+      # Channel Scoping
+      allowed_channels:
+        type: array
+        description: |
+          Whitelist of channels this skill can access. Can be channel IDs (C01234567)
+          or channel names (general, team-chat). If specified, only these channels are accessible.
+        items:
+          type: string
+        example: ["general", "bot-testing", "C01234567"]
+
+      blocked_channels:
+        type: array
+        description: |
+          Blacklist of channels this skill cannot access. Can be channel IDs or channel names.
+          Takes precedence over allowed_channels if both are specified.
+        items:
+          type: string
+        example: ["admin-only", "sensitive-data"]
+
+      usage_guidelines:
+        type: string
+        description: Custom usage guidelines for AI agent system prompt injection
+
+  requiredScopes:
+    slack:
+      - channels:read
+      - channels:history
+      - chat:write
+      - users:read
+      - reactions:read
+      - reactions:write
+      - channels:manage
+      - groups:read
+      - groups:history
+      - groups:write
+      - im:read
+      - im:history
+      - im:write
+      - mpim:read
+      - mpim:history
+      - mpim:write
+      - search:read
+
+  examples:
+    - name: Get available channels
+      description: Get list of channels available to this skill based on scoping configuration
+      code: |
+        get_available_channels(types="public_channel,private_channel", limit=100)
+
+    - name: List all channels
+      description: Get a list of all public and private channels
+      code: |
+        list_channels(types="public_channel,private_channel", limit=100)
+
+    - name: Send a message
+      description: Send a simple message to a channel
+      code: |
+        send_message(channel="#general", text="Hello from Kubiya!")
+
+    - name: Reply to a thread
+      description: Reply to a specific message thread
+      code: |
+        reply_to_thread(
+          channel="C01234567",
+          thread_ts="1234567890.123456",
+          text="This is a threaded reply"
+        )
+
+    - name: Search messages
+      description: Search for messages across the workspace
+      code: |
+        search_messages(query="error logs", count=20, sort="timestamp")
+
+    - name: Add a reaction
+      description: Add a reaction emoji to a message
+      code: |
+        add_reaction(
+          channel="C01234567",
+          ts="1234567890.123456",
+          reaction="thumbsup"
+        )
+
+    - name: Create a channel
+      description: Create a new public or private channel
+      code: |
+        create_channel(
+          name="project-alpha",
+          is_private=False,
+          description="Discussion channel for Project Alpha"
+        )

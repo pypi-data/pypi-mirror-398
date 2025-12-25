@@ -1,0 +1,79 @@
+apiVersion: kubiya.ai/v1
+kind: Skill
+metadata:
+  name: workflow-executor
+  version: 1.0.0
+  description: Execute workflows defined via JSON or Python DSL
+  author: Kubiya
+  icon: Workflow
+  icon_type: lucide
+
+spec:
+  type: workflow_executor
+
+  implementations:
+    agno:
+      module: agno_impl
+      class: WorkflowExecutorTools
+    claude_code:
+      # Claude Code executes workflow steps via its tool system
+      # No separate implementation needed - uses existing WorkflowExecutorTools
+      module: agno_impl
+      class: WorkflowExecutorTools
+    default:
+      module: agno_impl
+      class: WorkflowExecutorTools
+
+  pythonDependencies:
+    - kubiya-sdk
+
+  systemRequirements:
+    supportedOS: [linux, darwin, win32]
+    minPythonVersion: "3.10"
+
+  environmentVariables:
+    - name: KUBIYA_API_KEY
+      required: false
+      description: Kubiya API key for remote workflow execution
+    - name: KUBIYA_API_BASE
+      required: false
+      description: Kubiya API base URL
+
+  configSchema:
+    type: object
+    properties:
+      workflows:
+        type: array
+        description: Collection of workflow definitions
+        default: []
+      validation_enabled:
+        type: boolean
+        description: Enable workflow validation
+        default: true
+      default_runner:
+        type: string
+        description: Default runner/environment
+        default: ""
+      timeout:
+        type: integer
+        description: Workflow execution timeout in seconds
+        default: 3600
+        minimum: 30
+        maximum: 7200
+      default_parameters:
+        type: object
+        description: Default parameter values
+        default: {}
+      # Legacy fields
+      workflow_type:
+        type: string
+        description: "LEGACY: Workflow type (json or python_dsl)"
+        default: ""
+      workflow_definition:
+        type: string
+        description: "LEGACY: JSON workflow definition"
+        default: ""
+      python_dsl_code:
+        type: string
+        description: "LEGACY: Python DSL code"
+        default: ""

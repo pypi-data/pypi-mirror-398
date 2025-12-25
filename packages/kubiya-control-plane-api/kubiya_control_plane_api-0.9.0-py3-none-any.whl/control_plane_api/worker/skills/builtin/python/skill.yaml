@@ -1,0 +1,60 @@
+apiVersion: kubiya.ai/v1
+kind: Skill
+metadata:
+  name: python
+  version: 1.0.0
+  description: Execute Python code locally
+  author: Kubiya
+  icon: FaPython
+  icon_type: react-icon
+
+spec:
+  type: python
+
+  implementations:
+    agno:
+      module: agno_impl
+      class: PythonTools
+    claude_code:
+      # Claude Code has Python execution via Bash tool
+      # Executes Python code using shell commands
+      builtin: true
+      tools: ["Bash"]
+    default:
+      module: agno_impl
+      class: PythonTools
+
+  pythonDependencies:
+    - agno>=0.1.0
+
+  systemRequirements:
+    supportedOS: [linux, darwin, win32]
+    minPythonVersion: "3.10"
+
+  environmentVariables: []
+
+  configSchema:
+    type: object
+    properties:
+      enable_code_execution:
+        type: boolean
+        description: Enable Python code execution
+        default: true
+      blocked_imports:
+        type: array
+        items:
+          type: string
+        description: Blocked imports for security
+        default: ["os", "subprocess", "sys", "socket", "shutil"]
+      allowed_imports:
+        type: array
+        items:
+          type: string
+        description: Whitelist mode - only allow these imports
+        default: []
+      timeout:
+        type: integer
+        description: Execution timeout in seconds
+        default: 30
+        minimum: 1
+        maximum: 300
