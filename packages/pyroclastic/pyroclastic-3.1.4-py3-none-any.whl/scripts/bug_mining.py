@@ -1,0 +1,252 @@
+"""
+This script assumes you have already done src-to-src transformation with
+lavaTool to add taint and attack point queries to a program, AND managed to
+json project file.
+
+Second arg is an input file you want to run, under panda, to get taint info.
+"""
+
+import os
+import sys
+import time
+import shlex
+import shutil
+import subprocess
+
+from colorama import Fore
+from colorama import Style
+
+from errno import EEXIST
+
+from os.path import dirname
+from os.path import basename
+
+from database_types import Dua, LavaDatabase, Bug, AttackPoint, BugKind
+
+from vars import parse_vars
+from os.path import abspath, join
+from pandare import Panda
+from pandare.extras import dwarfdump
+from dotenv import load_dotenv
+from find_bug_injection import parse_panda_log
+
+load_dotenv()
+
+host_json = abspath(sys.argv[1])
+project_name = sys.argv[2]
+
+project = parse_vars(host_json, project_name)
+qemu_path = project['qemu']
+debug = project['debug']
+
+panda = Panda(generic=qemu_path.split('-')[-1])
+
+start_time = 0
+curtail = 0
+
+installdir = None
+command_args = None
+
+
+# Replace create_recording in first link
+# https://github.com/panda-re/panda/blob/dev/panda/scripts/run_guest.py#L151-L189
+# https://github.com/panda-re/panda/blob/dev/panda/python/core/pandare/panda.py#L2595-L2645
+@panda.queue_blocking
+def create_recording():
+    global command_args
+    global installdir
+    print("args", command_args)
+    print("install dir", installdir)
+    guest_command = subprocess.list2cmdline(command_args)
+    # Technically the first two steps of record_cmd
+    # but running executable ONLY works with absolute paths
+    panda.revert_sync('root')
+    panda.copy_to_guest(installdir, absolute_paths=True)
+
+    # Pass in None for snap_name since I already did the revert_sync already
+    panda.record_cmd(guest_command=guest_command, snap_name=None)
+    panda.stop_run()
+
+
+def tick():
+    global start_time
+    start_time = time.time()
+
+
+def tock():
+    global start_time
+    return time.time() - start_time
+
+
+def dprint(msg: str, debug_bool: bool):
+    if debug_bool:
+        print(msg)
+
+
+def progress(msg):
+    print()
+    if sys.stdout.isatty():
+        print(Fore.GREEN + '[bug_mining.py] ' +
+              Fore.RESET + Style.BRIGHT + msg + Style.RESET_ALL)
+    else:
+        print('[bug_mining.py] ' + msg)
+
+
+if len(sys.argv) < 4:
+    print("Usage: python bug_mining.py host.json project_name inputfile",
+          file=sys.stderr)
+    sys.exit(1)
+
+tick()
+
+input_file = abspath(project["config_dir"] + os.path.sep + sys.argv[3])
+input_file_base = os.path.basename(input_file)
+print("bug_mining.py %s %s" % (project_name, input_file))
+
+if len(sys.argv) > 4:
+    # global curtail
+    curtail = int(sys.argv[4])
+
+lavadir = dirname(dirname(abspath(sys.argv[0])))
+
+progress("Entering {}".format(project['output_dir']))
+
+os.chdir(os.path.join(project['output_dir']))
+
+tar_files = subprocess.check_output(['tar', 'tf', project['tarfile']]).decode('utf-8')
+sourcedir = tar_files.splitlines()[0].split(os.path.sep)[0]
+sourcedir = abspath(sourcedir)
+
+print()
+# e.g. file-5.22-true.iso
+installdir = join(sourcedir, 'lava-install')
+input_file_guest = join(installdir, input_file_base)
+command_args = shlex.split(
+    project['command'].format(
+        install_dir=shlex.quote(installdir),
+        input_file=input_file_guest))
+shutil.copy(input_file, installdir)
+
+# In CI/CD, we should try to use complete record and replay
+# Also, please avoid using debug prints in CI/CD, it can cause issues.
+if project["complete_rr"]:
+    progress("Using complete record and replay, likely in GitHub CI/CD")
+    panda.set_complete_rr_snapshot()
+
+panda.run()
+
+try:
+    os.mkdir('inputs')
+except OSError as e:
+    if e.errno != EEXIST:
+        raise
+shutil.copy(input_file, 'inputs/')
+
+record_time = tock()
+print("panda record complete %.2f seconds" % record_time)
+sys.stdout.flush()
+
+tick()
+print()
+progress("Starting first and only replay, tainting on file open...")
+
+# process name
+if command_args[0].startswith('LD_PRELOAD'):
+    cmdpath = command_args[1]
+    proc_name = basename(command_args[1])
+else:
+    cmdpath = command_args[0]
+    proc_name = basename(command_args[0])
+
+binpath = os.path.join(installdir, "bin", proc_name)
+if not os.path.exists(binpath):
+    binpath = os.path.join(installdir, "lib", proc_name)
+    if not os.path.exists(binpath):
+        binpath = os.path.join(installdir, proc_name)
+
+pandalog = "{}/queries-{}.plog".format(project['output_dir'], input_file_base)
+pandalog_json = "{}/queries-{}.json".format(project['output_dir'], input_file_base)
+
+print("pandalog = [%s] " % pandalog)
+
+dwarf_cmd = ["dwarfdump", "-dil", cmdpath]
+dwarfout = subprocess.check_output(dwarf_cmd)
+dwarfdump.parse_dwarfdump(dwarfout, binpath)
+
+panda.set_pandalog(pandalog)
+panda.load_plugin("pri")
+panda.load_plugin("dwarf2",
+                  args={
+                      'proc': proc_name,
+                      'g_debugpath': installdir,
+                      'h_debugpath': installdir,
+                      'debug' : debug
+                  })
+panda.load_plugin("pri_taint", args={
+    'hypercall' : True,
+    'debug' : debug
+})
+panda.load_plugin("taint2",
+                  args={
+                      'no_tp': True,
+                      'debug': debug
+                  })
+panda.load_plugin('tainted_branch')
+panda.load_plugin("file_taint",
+                    args={
+                        'filename': input_file_guest,
+                        'pos': True,
+                        'verbose': debug
+                    })
+
+
+# Default name is 'recording'
+# https://github.com/panda-re/panda/blob/dev/panda/python/core/pandare/panda.py#L2595
+panda.run_replay("recording")
+
+replay_time = tock()
+print("taint analysis complete %.2f seconds" % replay_time)
+sys.stdout.flush()
+
+tick()
+
+# I attempted to upgrade the version, but panda had trouble including <protobuf-c/protobuf.h> something
+# for now, we can use the python implementation, although it is slower
+# https://github.com/protocolbuffers/protobuf/releases/tag/v21.0
+# https://stackoverflow.com/questions/52040428/how-to-update-protobuf-runtime-library
+os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
+progress("Calling the FBI on queries.plog...")
+convert_json_args = ['python3', '-m', 'pandare.plog_reader', pandalog]
+print("panda log JSON invocation: [%s > %s]" % (subprocess.list2cmdline(convert_json_args), pandalog_json))
+try:
+    with open(pandalog_json, 'wb') as fd:
+        subprocess.check_call(convert_json_args, stdout=fd, stderr=sys.stderr)
+except subprocess.CalledProcessError as e:
+    print("The script to convert the panda log into JSON has failed")
+    raise e
+
+fbi_args = [join(lavadir, 'tools', 'install', 'bin', 'fbi'),
+            host_json,
+            project_name,
+            pandalog_json,
+            input_file_base]
+
+print("Calling fbi invocation")
+
+# Set a few variables before you call fbi
+
+project["max_liveness"] = 100000
+project["max_cardinality"] = 100
+project["max_tcn"] = 100
+project["max_lval_size"] = 100
+project["curtail"] = curtail
+project["input"] = input_file_base
+
+parse_panda_log(pandalog_json, project)
+progress("Found Bugs, Injectable!!")
+
+fib_time = tock()
+print("fib complete %.2f seconds" % fib_time)
+sys.stdout.flush()
+
+
