@@ -1,0 +1,952 @@
+"""
+Cached functions and constants.
+"""
+
+import collections.abc
+import copy
+import functools
+import importlib
+import importlib.util
+import json
+import os
+import pkgutil
+import re
+import shutil
+import sys
+import urllib.parse
+
+import requests.adapters
+import shapely.geometry
+import urllib3
+
+# import name: (package/module name, install name)
+_OPTIONAL_DEPENDENCY = json.loads(
+    pkgutil.get_data(__name__, "data/optional-dependency.json").decode())
+
+
+def _check_dependencies(*names):
+    """
+    Imports one or multiple optional dependency packages/modules.
+
+    This function attempts to import the module specified its name as an optional dependency.
+    If a tuple (i.e. ``(package, name)``) is provided, it attempts to perform
+    `from package import name`.
+
+    :param name: One or multiple names of the packages/modules as optional dependencies.
+    :type name: str
+    :param package: Name of the package that contains ``name``; defaults to ``None``.
+    :type package: str | None
+    :return: A module object if one dependency is passed, or a dict of ``{import_path: module}``
+        if multiple.
+    :rtype: module
+
+    **Tests**::
+
+        >>> from pyhelpers._cache import _check_dependencies
+        >>> psycopg2 = _check_dependencies('psycopg2')
+        >>> psycopg2.__name__
+        'psycopg2'
+        >>> psycopg2_, pyodbc_ = _check_dependencies('pyodbc', 'psycopg2')
+        >>> (psycopg2_.__name__, pyodbc_.__name__)
+        ('pyodbc', 'psycopg2')
+        >>> sqlalchemy_dialects = _check_dependencies(('sqlalchemy', 'dialects'))
+        >>> sqlalchemy_dialects.__name__
+        'sqlalchemy.dialects'
+        >>> gdal = _check_dependencies('gdal')
+        ModuleNotFoundError:
+          Possibly the optional dependency 'GDAL' has not been installed.
+            Instead of `import gdal`, try `import osgeo.gdal` or `from osgeo import gdal`.
+              If the error remains, try `pip install gdal` or `pip install <wheel_file>`.
+        >>> gdal = _check_dependencies(('osgeo', 'gdal'))
+        >>> gdal.__name__
+        'osgeo.gdal'
+        >>> gdal_ = _check_dependencies('osgeo.gdal')
+        >>> gdal.__name__
+        'osgeo.gdal'
+    """
+
+    results = []
+
+    for name in names:
+        if isinstance(name, str):
+            package = None
+        elif isinstance(name, (tuple, list)) and len(name) == 2:
+            package, name = name
+        else:
+            raise TypeError("Each dependency must be a str or a (name, package) tuple.")
+
+        import_name = name.replace('-', '_')
+        if package:
+            pkg_name = package.replace('-', '_')
+            import_name = f'{pkg_name}.{import_name}'
+        else:
+            pkg_name = import_name.split('.', 1)[0] if '.' in import_name else None
+
+        if import_name in sys.modules:  # The optional dependency has already been imported
+            results.append(sys.modules.get(import_name))
+            continue
+
+        if importlib.util.find_spec(name=import_name, package=pkg_name):
+            try:
+                results.append(importlib.import_module(name=import_name, package=pkg_name))
+                continue
+            except ModuleNotFoundError:
+                pass  # Fall back to checking optional mapping
+
+        # Check `_OPTIONAL_DEPENDENCY` mapping
+        if name.startswith('osgeo') or 'gdal' in import_name:
+            display_name, pip_name = 'GDAL', 'gdal'
+
+            raise ModuleNotFoundError(
+                f"\n  Possibly the optional dependency '{display_name}' has not been installed.\n"
+                f"\tInstead of `import gdal`, try `import osgeo.gdal` or `from osgeo import gdal`.\n"
+                f"\t  If the error remains, try `pip install {pip_name}` or "
+                f"`pip install <wheel_file>`.")
+
+        else:
+            if import_name in _OPTIONAL_DEPENDENCY:
+                display_name, pip_name = _OPTIONAL_DEPENDENCY.get(import_name)
+
+            else:
+                display_name = pip_name = import_name.split('.')[0]
+
+            raise ModuleNotFoundError(
+                f"Missing optional dependency '{display_name}'. "
+                f"Use `pip install {pip_name}` to install it.")
+
+    return results[0] if len(results) == 1 else results
+
+
+def _lazy_check_dependencies(*args, **kwargs):
+    """
+    Decorator for lazy imports supporting both package names and aliases.
+
+    **Examples**::
+
+        >>> from pyhelpers._cache import _lazy_check_dependencies
+        >>> @_lazy_check_dependencies('numpy', 'pandas')  # no aliases
+        >>> @_lazy_check_dependencies(numpy='np', pandas='pd')  # with aliases
+        >>> @_lazy_check_dependencies('scipy', matplotlib='plt')  # mixed
+    """
+
+    # Convert all arguments to package:alias mapping
+    package_mapping = {}
+
+    # Handle positional arguments (no aliases)
+    for package in args:
+        if isinstance(package, str):
+            package_mapping[package] = package
+        else:
+            raise TypeError("Package names must be strings.")
+
+    # Handle keyword arguments (with aliases)
+    package_mapping.update(kwargs)
+
+    def decorator(func):
+        # Create proxy class that handles the lazy loading
+        class LazyModule:
+            __slots__ = ['_name', '_module']
+
+            def __init__(self, name):
+                self._name = name
+                self._module = None
+
+            def _load(self):
+                if self._module is None:
+                    try:
+                        # Use import_module to handle 'a.b' correctly
+                        self._module = importlib.import_module(self._name)
+                    except ImportError as e:
+                        raise ImportError(
+                            f"Required package '{self._name}' not found. "
+                            f"Please install it to use '{func.__name__}'."
+                        ) from e
+                return self._module
+
+            def __getattr__(self, attr):
+                return getattr(self._load(), attr)
+
+            def __dir__(self):
+                return dir(self._load())  # Helps with IDE autocompletion once loaded
+
+        @functools.wraps(func)
+        def wrapper(*_args, **_kwargs):
+            for package_, alias_ in package_mapping.items():
+                # Inject the lazy proxy into the function's global namespace
+                func.__globals__[alias_] = LazyModule(package_)
+            return func(*_args, **_kwargs)
+        return wrapper
+
+    return decorator
+
+
+def example_dataframe(osgb36=False):
+    """
+    Returns an example dataframe.
+
+    This functions creates and returns a pandas DataFrame with geographical coordinates either in
+    OSGB36 National Grid format (default) or in longitude and latitude format.
+
+    :param osgb36: Whether to use data based on OSGB36 National Grid; defaults to ``True``.
+    :type osgb36: bool
+    :return: An example dataframe with geographical coordinates.
+    :rtype: pandas.DataFrame
+
+    **Tests**::
+
+        >>> from pyhelpers._cache import example_dataframe
+        >>> example_dataframe()
+                          Easting       Northing
+        City
+        London      530039.558844  180371.680166
+        Birmingham  406705.887014  286868.166642
+        Manchester  383830.039036  398113.055831
+        Leeds       430147.447354  433553.327117
+        >>> example_dataframe(osgb36=False)
+                    Longitude   Latitude
+        City
+        London      -0.127647  51.507322
+        Birmingham  -1.902691  52.479699
+        Manchester  -2.245115  53.479489
+        Leeds       -1.543794  53.797418
+    """
+
+    pd = _check_dependencies('pandas')
+
+    if osgb36:
+        _columns = ['Easting', 'Northing']
+        _example_df = [
+            (530039.5588445, 180371.6801655),  # London
+            (406705.8870136, 286868.1666422),  # Birmingham
+            (383830.0390357, 398113.0558309),  # Manchester
+            (430147.4473539, 433553.3271173),  # Leeds
+        ]
+    else:
+        _columns = ['Longitude', 'Latitude']
+        _example_df = [
+            (-0.1276474, 51.5073219),  # London
+            (-1.9026911, 52.4796992),  # Birmingham
+            (-2.2451148, 53.4794892),  # Manchester
+            (-1.5437941, 53.7974185),  # Leeds
+        ]
+
+    _index = ['London', 'Birmingham', 'Manchester', 'Leeds']
+
+    _example_dataframe = pd.DataFrame(data=_example_df, index=_index, columns=_columns)
+
+    _example_dataframe.index.name = 'City'
+
+    return _example_dataframe
+
+
+def _confirmed(prompt=None, confirmation_required=True, resp=False):
+    """
+    Prompts the user for confirmation to proceed.
+
+    This function prompts the user with a Yes/No message specified by ``prompt``.
+    If ``confirmation_required=True``, the user must confirm to proceed.
+    The function returns ``True`` if the user confirms (either by typing ``'y'`` or ``'yes'``),
+    otherwise ``False``.
+
+    See also [`OPS-C-1 <https://code.activestate.com/recipes/541096/>`_].
+
+    :param prompt: Message prompting a response (Yes/No); defaults to ``None``.
+    :type prompt: str | None
+    :param confirmation_required: Whether confirmation is mandatory; defaults to ``True``.
+    :type confirmation_required: bool
+    :param resp: Default response if no input is provided; defaults to ``False``.
+    :type resp: bool
+    :return: ``True`` if confirmed, ``False`` otherwise.
+    :rtype: bool
+
+    **Tests**::
+
+        >>> from pyhelpers._cache import _confirmed
+        >>> if _confirmed(prompt="Testing if the function works?", resp=True):
+        ...     print("Passed.")
+        Testing if the function works? [Yes]|No: yes
+        Passed.
+    """
+
+    if confirmation_required:
+        if prompt is None:
+            prompt_ = "Confirmed?"
+        else:
+            prompt_ = copy.copy(prompt)
+
+        if resp:  # meaning that default response is True
+            prompt_ = f"{prompt_} [Yes]|No: "
+        else:
+            prompt_ = f"{prompt_} [No]|Yes: "
+
+        ans = input(prompt_)
+        if not ans:
+            return resp
+
+        if re.match('[Yy](es)?', ans):
+            return True
+        if re.match('[Nn](o)?', ans):
+            return False
+        return None
+
+    else:
+        return True
+
+
+def _normalize_pathname(pathname, sep="/", add_slash=False, **kwargs):
+    # noinspection PyShadowingNames
+    """
+    Converts a pathname to a consistent file path format for cross-platform compatibility.
+
+    This function formats a file (or an OS-specific) path to ensure compatibility across
+    Windows and Ubuntu (and other Unix-like systems).
+
+    :param pathname: A pathname.
+    :type pathname: str | bytes | pathlib.Path | os.PathLike
+    :param sep: File path separator used by the operating system; defaults to ``"/"``
+        (forward slash) for both Windows and Ubuntu (and other Unix-like systems).
+    :type sep: str
+    :param add_slash:  If ``True``, adds a leading slash (and, if appropriate, a trailing slash)
+        to the returned pathname; defaults to ``False``.
+    :type add_slash: bool
+    :return: Pathname of a consistent file path format.
+    :rtype: str
+
+    **Examples**::
+
+        >>> from pyhelpers._cache import _normalize_pathname
+        >>> import os
+        >>> import pathlib
+        >>> _normalize_pathname("tests\\data\\dat.csv")
+        'tests/data/dat.csv'
+        >>> _normalize_pathname("tests\\data\\dat.csv", add_slash=True)
+        './tests/data/dat.csv'
+        >>> _normalize_pathname("tests//data/dat.csv")
+        'tests/data/dat.csv'
+        >>> pathname = pathlib.Path("tests\\data/dat.csv")
+        >>> _normalize_pathname(pathname, sep=os.path.sep)  # On Windows
+        'tests\\data\\dat.csv'
+        >>> _normalize_pathname(pathname, sep=os.path.sep, add_slash=True)  # On Windows
+        '.\\tests\\data\\dat.csv'
+    """
+
+    pathname_ = pathname.decode(**kwargs) if isinstance(pathname, bytes) else str(pathname)
+
+    pathname_ = _add_slashes(pathname_, surrounded_by='') if add_slash else pathname_
+
+    return re.sub(r"[\\/]+", re.escape(sep), pathname_)
+
+
+def _add_slashes(pathname, normalized=True, surrounded_by='"'):
+    """
+    Adds leading and/or trailing slashes to a given pathname for formatting or display purposes.
+
+    :param pathname: The pathname of a file or directory.
+    :type pathname: str | bytes | os.PathLike
+    :param normalized: Whether to normalize the returned pathname; defaults to ``True``.
+    :type normalized: bool
+    :param surrounded_by: A string by which the returned pathname is surrounded;
+        defaults to ``'"'``.
+    :type surrounded_by: str
+    :return: A formatted pathname with added slashes.
+    :rtype: str
+
+    **Examples**::
+
+        >>> from pyhelpers._cache import _add_slashes
+        >>> _add_slashes("pyhelpers\\data")
+        '"./pyhelpers/data/"'
+        >>> _add_slashes("pyhelpers\\data", normalized=False)  # on Windows
+        '".\\pyhelpers\\data\\"'
+        >>> _add_slashes("pyhelpers\\data\\pyhelpers.dat")
+        '"./pyhelpers/data/pyhelpers.dat"'
+        >>> _add_slashes("C:\\Windows")  # on Windows
+        '"C:/Windows/"'
+    """
+
+    # Normalize path separators for consistency
+    path = os.path.normpath(pathname.decode() if isinstance(pathname, bytes) else pathname)
+
+    # Add a leading slash
+    if not path.startswith((os.path.sep, ".")) and not os.path.isabs(path):
+        path = f".{os.path.sep}{path}"
+
+    has_trailing_sep = path.endswith(os.path.sep)
+    is_file_like = os.path.splitext(path)[1] != ''
+
+    if not has_trailing_sep and not is_file_like:  # Add a trailing slash
+        path = path + os.path.sep
+
+    if normalized:
+        path = _normalize_pathname(path)
+
+    s = surrounded_by or ""
+
+    return f'{s}{path}{s}'
+
+
+def _check_relative_pathname(pathname, normalized=True):
+    """
+    Checks if the pathname is relative to the current working directory.
+
+    This function returns a relative pathname of the input ``pathname`` to the current working
+    directory if ``pathname`` is within the current working directory;
+    otherwise, it returns a copy of the input.
+
+    :param pathname: Pathname (of a file or directory).
+    :type pathname: str | bytes | pathlib.Path
+    :param normalized: Whether to normalize the returned pathname; defaults to ``True``.
+    :type normalized: bool
+    :return: A location relative to the current working directory
+        if ``pathname`` is within the current working directory; otherwise, a copy of ``pathname``.
+    :rtype: str
+
+    **Tests**::
+
+        >>> from pyhelpers._cache import _check_relative_pathname
+        >>> from pyhelpers.dirs import cd
+        >>> _check_relative_pathname(pathname=".")
+        '.'
+        >>> _check_relative_pathname(pathname=cd())
+        '.'
+        >>> _check_relative_pathname(pathname="C:/Windows")
+        'C:/Windows'
+        >>> _check_relative_pathname(pathname="C:\\Program Files", normalized=False)
+        'C:\\Program Files'
+    """
+
+    if isinstance(pathname, (bytes, bytearray)):
+        pathname_ = str(pathname, encoding='utf-8')
+    else:
+        pathname_ = str(pathname)
+
+    abs_pathname = os.path.abspath(pathname_)
+    abs_cwd = os.getcwd()
+
+    if os.name == "nt":  # Handle different drive letters on Windows
+        if os.path.splitdrive(abs_pathname)[0] != os.path.splitdrive(abs_cwd)[0]:
+            # Return absolute path if drives differ
+            return _normalize_pathname(abs_pathname) if normalized else abs_pathname
+
+    # Check if the pathname is inside the current working directory
+    if os.path.commonpath([abs_pathname, abs_cwd]) == abs_cwd:
+        try:
+            rel_path = os.path.relpath(pathname_)
+        except ValueError:
+            rel_path = copy.copy(pathname_)
+
+    else:
+        rel_path = abs_pathname  # Return original absolute path if outside CWD
+
+    return _normalize_pathname(rel_path) if normalized else rel_path
+
+
+def _check_file_pathname(name, options=None, target=None):
+    # noinspection PyShadowingNames
+    """
+    Checks the pathname of a specified file given its name or filename.
+
+    This function determines whether the specified executable file exists and returns its pathname.
+
+    :param name: Name or filename of the executable file.
+    :type name: str
+    :param options: Possible pathnames or directories to search for ``name``; defaults to ``None``.
+    :type options: list | set | None
+    :param target: Specific pathname that may already be known; defaults to ``None``.
+    :type target: str | None
+    :return: Tuple containing a boolean indicating if the file exists and its pathname.
+    :rtype: tuple[bool, str]
+
+    **Tests**::
+
+        >>> from pyhelpers._cache import _check_file_pathname
+        >>> import os
+        >>> import sys
+        >>> python_exe = "python.exe"
+        >>> python_exe_exists, path_to_python_exe = _check_file_pathname(python_exe)
+        >>> python_exe_exists
+        True
+        >>> possible_paths = [os.path.dirname(sys.executable), sys.executable]
+        >>> target = possible_paths[0]
+        >>> python_exe_exists, path_to_python_exe = _check_file_pathname(python_exe, target=target)
+        >>> python_exe_exists
+        False
+        >>> target = possible_paths[1]
+        >>> python_exe_exists, path_to_python_exe = _check_file_pathname(python_exe, target=target)
+        >>> python_exe_exists
+        True
+        >>> python_exe_exists, path_to_python_exe = _check_file_pathname(possible_paths[1])
+        >>> python_exe_exists
+        True
+        >>> text_exe = "pyhelpers.exe"  # This file does not actually exist
+        >>> test_exe_exists, path_to_test_exe = _check_file_pathname(text_exe, possible_paths)
+        >>> test_exe_exists
+        False
+        >>> os.path.relpath(path_to_test_exe)
+        'pyhelpers.exe'
+    """
+
+    if target:
+        if os.path.isfile(target) and os.path.splitext(name)[0] in os.path.basename(target):
+            file_exists, file_pathname = True, target
+        else:
+            file_exists, file_pathname = False, None
+
+    else:
+        file_pathname = str(name)
+
+        if os.path.isfile(file_pathname):
+            file_exists = True
+
+        else:
+            file_exists = False
+            alt_pathnames = [shutil.which(file_pathname)]  # noqa
+
+            if options:
+                alt_pathnames = list(options) + alt_pathnames
+
+            for x in [x_ for x_ in alt_pathnames if x_]:
+                file_pathname_ = os.path.join(x, file_pathname) if os.path.isdir(x) else x
+
+                if os.path.isfile(file_pathname_) and file_pathname in file_pathname_:
+                    file_exists, file_pathname = True, file_pathname_
+                    break
+
+    return file_exists, file_pathname
+
+
+def _format_error_message(e=None, prefix=""):
+    """
+    Formats an error message.
+
+    This function formats an error message by combining ``message`` and ``e`` (if provided).
+    If ``e`` is provided and is a string, it appends ``e`` to ``message``.
+    If ``e`` is an ``Exception`` or its subclass, it includes the exception's message
+    in the final output.
+
+    :param e: An error message, exception, or any subclass of ``Exception``; defaults to ``None``.
+    :type e: Exception | BaseException | str | None
+    :param prefix: The base text to prepend to ``e``; defaults to ``""``.
+    :type prefix: str
+    :return: A formatted error message.
+    :rtype: str
+
+    **Tests**::
+
+        >>> from pyhelpers._cache import _format_error_message
+        >>> _format_error_message("test")
+        'test.'
+        >>> _format_error_message("test", prefix="Failed.")
+        'Failed. test.'
+    """
+
+    if e:
+        e_ = f"{e}".strip()
+        error_message = e_ + "." if not e_.endswith((".", "!", "?")) else e_
+    else:
+        error_message = ""
+
+    if prefix:
+        error_message = prefix + " " + error_message
+
+    return error_message
+
+
+def _print_failure_message(e, prefix="Error:", verbose=True, raise_error=False):
+    # noinspection PyShadowingNames
+    """
+    Prints an error message associated with the occurrence of an ``Exception``.
+
+    Prints the error message ``msg`` along with details of ``e`` (if provided).
+    If ``verbose=True``, additional relevant information is printed to the console.
+
+    :param e: ``Exception`` or any of its subclasses, indicating the error message;
+        defaults to ``None``.
+    :type e: Exception | BaseException | str | None
+    :param prefix: A text string to prepend to the details of ``e``; defaults to ``"Error:"``.
+    :type prefix: str
+    :param verbose: Whether to print additional information to the console; defaults to ``True``.
+    :type verbose: bool | int
+    :param raise_error: Whether to raise the provided exception;
+        if ``raise_error=False`` (default), the error will be suppressed.
+    :type raise_error: bool
+    :return: None
+    :rtype: None
+
+    **Tests**::
+
+        >>> from pyhelpers._cache import _print_failure_message
+        >>> try:
+        ...     result = 1 / 0  # This will raise a ZeroDivisionError
+        ... except ZeroDivisionError as e:
+        ...     _print_failure_message(e, prefix="Error:")
+        Error: division by zero.
+        >>> try:
+        ...     result = 1 / 0  # This will raise a ZeroDivisionError
+        ... except ZeroDivisionError as e:
+        ...     _print_failure_message(e, prefix="Error:", raise_error=True, verbose=False)
+        Traceback (most recent call last):
+            ...
+        ZeroDivisionError: division by zero
+    """
+
+    error_message = _format_error_message(e=e, prefix=prefix)
+
+    if verbose:
+        print(error_message)
+
+    if raise_error:
+        raise e
+
+
+_USER_AGENT_STRINGS = json.loads(
+    pkgutil.get_data(__name__, "data/user-agent-strings.json").decode())
+
+
+def _init_requests_session(url, max_retries=5, backoff_factor=0.1, retry_status='default',
+                           **kwargs):
+    # noinspection PyShadowingNames
+    """
+    Instantiates a `requests <https://docs.python-requests.org/en/latest/>`_ session
+    with configurable retry behavior.
+
+    :param url: A valid URL to establish the session.
+    :type url: str
+    :param max_retries: Maximum number of retry attempts; defaults to ``5``.
+    :type max_retries: int
+    :param backoff_factor: Backoff factor for exponential backoff in retries; defaults to ``0.1``.
+    :type backoff_factor: float
+    :param retry_status: HTTP status codes that trigger retries,
+        derived from `urllib3.util.Retry()`_;
+        defaults to ``[429, 500, 502, 503, 504]`` when ``retry_status='default'``.
+    :param kwargs: [Optional] Additional parameters for the class `urllib3.util.Retry()`_.
+    :return: A `requests.Session()`_ instance configured with the specified retry settings.
+    :rtype: requests.Session
+
+    .. _`requests`:
+        https://docs.python-requests.org/en/latest/
+    .. _`urllib3.util.Retry()`:
+        https://urllib3.readthedocs.io/en/stable/reference/urllib3.util.html#urllib3.util.Retry
+    .. _`requests.Session()`:
+        https://2.python-requests.org/en/master/api/#request-sessions
+
+    **Examples**::
+
+        >>> from pyhelpers._cache import _init_requests_session
+        >>> url = 'https://www.python.org/static/community_logos/python-logo-master-v3-TM.png'
+        >>> s = _init_requests_session(url)
+        >>> type(s)
+        requests.sessions.Session
+    """
+
+    codes_for_retries = [429, 500, 502, 503, 504] if retry_status == 'default' else retry_status
+    kwargs.update({'backoff_factor': backoff_factor, 'status_forcelist': codes_for_retries})
+    max_retries = urllib3.util.Retry(total=max_retries, **kwargs)
+
+    session = requests.Session()
+
+    # noinspection HttpUrlsUsage
+    session.mount(
+        prefix='https://' if url.startswith('https:') else 'http://',
+        adapter=requests.adapters.HTTPAdapter(max_retries=max_retries))
+
+    return session
+
+
+def _check_url_scheme(url, allowed_schemes=None):
+    """
+    Checks if the scheme of a URL is allowed.
+
+    :param url: A URL.
+    :type url: str
+    :param allowed_schemes: Safe URL schemes.
+    :type allowed_schemes: list | set | None
+    :return: The parsed URL.
+    :rtype: urllib.parse.ParseResult
+
+    **Examples**::
+
+        >>> from pyhelpers._cache import _check_url_scheme
+        >>> _check_url_scheme('https://github.com/mikeqfu/pyhelpers')
+        ParseResult(scheme='https', netloc='github.com', path='/mikeqfu/pyhelpers', params='', q...
+        >>> _check_url_scheme('httpx://github.com/mikeqfu/pyhelpers')
+        Traceback (most recent call last):
+            ...
+        ValueError: Unknown/unsafe URL scheme: 'httpx'.
+    """
+
+    parsed_url = urllib.parse.urlparse(url)
+
+    if allowed_schemes is None:
+        schemes = {'https', 'http', 'ftp', 'file'}
+    else:
+        schemes = {allowed_schemes} if isinstance(allowed_schemes, str) else set(allowed_schemes)
+
+    if parsed_url.scheme not in schemes:  # Check that the scheme is valid
+        raise ValueError(f"Unknown/unsafe URL scheme: '{parsed_url.scheme}'.")
+
+    return parsed_url
+
+
+def _load_ansi_escape_codes():
+    """
+    Loads and filters ANSI escape codes from the package data file.
+
+    The function uses :py:mod:`pkgutil` to access the data file relative to the
+    current package (``__name__``), decodes the JSON content, and filters out
+    any key-value pairs used for comments (keys starting with ``'_comment_'``).
+
+    :return: A dictionary mapping color/style names (e.g. ``'red'``, ``'bold'``) to their
+        full ANSI escape code strings (e.g. ``'\\u001b[31m'``). Returns an empty
+        dictionary on failure and prints a warning.
+    :rtype: dict[str, str]
+
+    :raises json.JSONDecodeError: If the data file is found but contains invalid JSON.
+    :raises FileNotFoundError: If the data file cannot be located by ``pkgutil``.
+    :raises Exception: Catches and handles other general exceptions related to
+        package data loading (e.g. decoding errors, ``pkgutil`` issues).
+
+    **Examples**::
+
+        >>> from pyhelpers._cache import _load_ansi_escape_codes
+        >>> ansi_escape_codes = _load_ansi_escape_codes()
+        >>> ansi_escape_codes.get('red')
+        '\\x1b[31m'
+        >>> ansi_escape_codes.get('_comment_styles')  # Should be filtered out and returns None
+
+    """
+
+    try:
+        data = pkgutil.get_data(__name__, "data/ansi-escape-codes.json").decode()
+        raw_data = json.loads(data)
+        return {k: v for k, v in raw_data.items() if not k.startswith('_comment_')}
+    except Exception as e:  # Fallback for e.g. environments where pkgutil may fail
+        print(f"Warning: Could not load data file. Error: {e}")
+        return {}
+
+
+def _get_ansi_color_code(colors, show_valid_colors=False, concatenated=True, _spelling='color'):
+    """
+    Returns the ANSI escape code(s) for the given color name(s) and/or style(s).
+
+    The function handles both single attribute requests and compound sequences
+    (e.g. ``['red', 'blue']``) by concatenating the codes into a single escape sequence
+    string when appropriate.
+
+    :param colors: A single color/style name (str) or a sequence of names
+        (e.g. ``'red'``, ``'bold'``, ``['red', 'bg_blue']``).
+    :type colors: str | list[str] | tuple[str]
+    :param show_valid_colors: If ``True``, returns a tuple containing the final
+        output (string or list) and a set of all valid color/style names.
+    :type show_valid_colors: bool
+    :param concatenated: If ``True`` (default), multiple requested codes are
+        concatenated into a single string (e.g. ``'\\u001b[31m\\u001b[1m'``).
+        If ``False``, a list of individual escape code strings is returned
+        (e.g. ``['\\u001b[31m', '\\u001b[1m']``).
+    :type concatenated: bool
+    :return: The ANSI escape code(s). This is a single string if
+        ``concatenated=True``, a list of strings if ``concatenated=False``
+        and multiple items were requested, or a tuple if ``show_valid_colors=True``.
+    :rtype: str | list[str] | tuple[Union[str, list[str]], set[str]]
+
+    :raises ValueError: If an invalid color or style name is provided.
+
+    **Examples**::
+
+        >>> from pyhelpers._cache import _get_ansi_color_code
+        >>> _get_ansi_color_code('red')  # \\u001b[31m
+        '\\x1b[31m'
+        >>> _get_ansi_color_code(['red', 'blue'])  # \\u001b[31m\\u001b[34m
+        '\\x1b[31m\\x1b[34m'
+        >>> _get_ansi_color_code(['red', 'blue'], concatenated=False)
+        >>> # ['\\u001b[31m', '\\u001b[34m']
+        ['\\x1b[31m', '\\x1b[34m']
+        >>> _get_ansi_color_code('invalid_color')
+        Traceback (most recent call last):
+            ...
+        ValueError: 'invalid_color' is not a valid name.
+        >>> _get_ansi_color_code('red', show_valid_colors=True)  # ('\\u001b[31m', ...
+        ('\\x1b[31m', {'bg_black', 'bg_blue', 'bg_bright_black', 'bg_bright_blue', ...
+    """
+
+    # Handle single string input
+    if isinstance(colors, str):
+        names = [colors]  # Convert single string to list for uniform processing
+    else:
+        names = list(colors)
+
+    ansi_escape_codes = _load_ansi_escape_codes()
+
+    # Retrieve the raw numeric codes
+    try:
+        escape_codes = [ansi_escape_codes[x.lower()] for x in names]
+    except KeyError as e:
+        raise ValueError(f"'{e.args[0]}' is not a valid {str(_spelling).lower()} name.") from None
+
+    # Create the final ANSI escape sequence
+    if concatenated:  # Concatenate all retrieved codes into a single string
+        final_code = "".join(escape_codes)
+    else:  # Return the list of individual code strings
+        final_code = escape_codes
+
+    # If only one input was given, return the string itself, even if not concatenated
+    if len(names) == 1 and not concatenated:
+        final_code = escape_codes[0]
+
+    valid_names = set(ansi_escape_codes.keys())
+
+    return (final_code, valid_names) if show_valid_colors else final_code
+
+
+_ENGLISH_NUMERALS = json.loads(
+    pkgutil.get_data(__name__, "data/english-numerals.json").decode())
+
+
+def _transform_point_type(*pts, as_geom=True):
+    """
+    Transforms iterable data to geometric type or vice versa.
+
+    :param pts: Iterable data representing points (e.g. list of lists/tuples).
+    :type pts: list | tuple | shapely.geometry.Point
+    :param as_geom: Whether to return points as `shapely.geometry.Point`_; defaults to ``True``.
+    :type as_geom: bool
+    :return: A sequence of points, including ``None`` if errors occur.
+    :rtype: typing.Generator
+
+    .. _`shapely.geometry.Point`: https://shapely.readthedocs.io/en/latest/manual.html#points
+
+    **Examples**::
+
+        >>> from pyhelpers._cache import example_dataframe, _transform_point_type
+        >>> from shapely.geometry import Point
+        >>> example_df = example_dataframe()
+        >>> example_df
+                    Longitude   Latitude
+        City
+        London      -0.127647  51.507322
+        Birmingham  -1.902691  52.479699
+        Manchester  -2.245115  53.479489
+        Leeds       -1.543794  53.797418
+        >>> pt1 = example_df.loc['London'].values  # array([-0.1276474, 51.5073219])
+        >>> pt2 = example_df.loc['Birmingham'].values  # array([-1.9026911, 52.4796992])
+        >>> geom_points = _transform_point_type(pt1, pt2)
+        >>> for x in geom_points:
+        ...     print(x)
+        POINT (-0.1276474 51.5073219)
+        POINT (-1.9026911 52.4796992)
+        >>> geom_points = _transform_point_type(pt1, pt2, as_geom=False)
+        >>> for x in geom_points:
+        ...     print(x)
+        [-0.1276474 51.5073219]
+        [-1.9026911 52.4796992]
+        >>> pt1, pt2 = map(lambda p: Point(p), (pt1, pt2))
+        >>> geom_points = _transform_point_type(pt1, pt2)
+        >>> for x in geom_points:
+        ...     print(x)
+        POINT (-0.1276474 51.5073219)
+        POINT (-1.9026911 52.4796992)
+        >>> geom_points = _transform_point_type(pt1, pt2, as_geom=False)
+        >>> for x in geom_points:
+        ...     print(x)
+        (-0.1276474, 51.5073219)
+        (-1.9026911, 52.4796992)
+        >>> geom_points_ = _transform_point_type(Point([1, 2, 3]), as_geom=False)
+        >>> for x in geom_points_:
+        ...     print(x)
+        (1.0, 2.0, 3.0)
+    """
+
+    for pt in pts:
+        if isinstance(pt, shapely.geometry.Point):
+            if not as_geom:
+                if pt.has_z:
+                    pt = (pt.x, pt.y, pt.z)
+                else:
+                    pt = (pt.x, pt.y)
+
+        elif isinstance(pt, collections.abc.Iterable):
+            assert len(list(pt)) <= 3
+            if as_geom:
+                pt = shapely.geometry.Point(pt)
+
+        yield pt
+
+
+def _vectorize_text(*texts):
+    """
+    Converts input texts into a bag-of-words vector representation.
+
+    :param texts: Multiple text inputs as strings or lists of words.
+    :type texts: str
+    :return: Generator yielding word count vectors for each input.
+    :rtype: typing.Generator
+
+    **Examples**::
+
+        >>> from pyhelpers._cache import _vectorize_text
+        >>> vectors = list(_vectorize_text("Hello world!", "Hello, hello world."))
+        >>> vectors  # "hello" appears twice in the second text
+        [[1, 1], [2, 1]]
+    """
+
+    token_lists = [
+        re.findall(r"[a-zA-Z0-9']+", text.lower().replace("-", " ")) if isinstance(text, str)
+        else [] for text in texts
+    ]
+
+    if any(not tokens for tokens in token_lists):
+        raise TypeError("Inputs must be strings or lists of words.")
+
+    vocab = sorted(set().union(*token_lists))  # Ensure consistent word order
+
+    # Generate word count vectors
+    for tokens in token_lists:
+        yield [tokens.count(word) for word in vocab]
+
+
+def _remove_punctuation(text, rm_whitespace=True, preserve_hyphenated=True):
+    """
+    Removes punctuation from textual data.
+
+    :param text: The input text from which punctuation will be removed.
+    :type text: str
+    :param rm_whitespace: Whether to remove whitespace characters as well; defaults to ``True``.
+    :type rm_whitespace: bool
+    :param preserve_hyphenated: Whether to preserve hyphenated words; defaults to ``True``.
+    :type preserve_hyphenated: bool
+    :return: The input text without punctuation (and optionally without whitespace).
+    :rtype: str
+
+    **Examples**::
+
+        >>> from pyhelpers._cache import _remove_punctuation
+        >>> _remove_punctuation('Hello, world!')
+        'Hello world'
+        >>> raw_text = '   How   are you? '
+        >>> _remove_punctuation(raw_text)
+        'How are you'
+        >>> _remove_punctuation(raw_text, rm_whitespace=False)
+        'How   are you'
+        >>> _remove_punctuation('No-punctuation!', preserve_hyphenated=False)
+        'No punctuation'
+        >>> raw_text = 'Hello world!\tThis is a test. :-)'
+        >>> _remove_punctuation(raw_text)
+        'Hello world This is a test'
+        >>> _remove_punctuation(raw_text, rm_whitespace=False)
+        'Hello world \tThis is a test'
+    """
+
+    if preserve_hyphenated:  # Remove hyphens only if not between words
+        text_ = re.sub(r'(?<!\w)-|-(?!\w)', ' ', text)  # Remove isolated hyphens only
+        text_ = re.sub(r'[^\w\s-]', ' ', text_)  # Remove punctuation except hyphens
+    else:
+        text_ = re.sub(r'[^\w\s]', ' ', text)  # Remove all hyphens completely
+
+    # Strip leading/trailing spaces
+    text_ = text_.strip()
+
+    # Normalize whitespace by collapsing multiple spaces
+    if rm_whitespace:
+        text_ = ' '.join(text_.split())
+
+    return text_
