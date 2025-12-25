@@ -1,0 +1,54 @@
+apiVersion: kubiya.ai/v1
+kind: Skill
+metadata:
+  name: file-system
+  version: 1.0.0
+  description: Access and manipulate files on the local file system
+  author: Kubiya
+  icon: Folder
+  icon_type: lucide
+
+spec:
+  type: file_system
+
+  implementations:
+    agno:
+      module: agno_impl
+      class: FileSystemTools
+    claude_code:
+      # Claude Code has built-in file tools (Read, Write, Edit, Glob, Grep)
+      # No implementation needed - mapped via ClaudeCodeRuntime._map_skills_to_tools()
+      builtin: true
+      tools: ["Read", "Write", "Edit", "Glob", "Grep"]
+    default:
+      module: agno_impl
+      class: FileSystemTools
+
+  pythonDependencies:
+    - agno>=0.1.0
+
+  systemRequirements:
+    supportedOS: [linux, darwin, win32]
+    minPythonVersion: "3.10"
+
+  environmentVariables: []
+
+  configSchema:
+    type: object
+    properties:
+      base_directory:
+        type: string
+        description: Base directory for file operations
+        default: "/workspace"
+      read_only:
+        type: boolean
+        description: Restrict to read-only operations
+        default: false
+      max_file_size:
+        type: integer
+        description: Maximum file size in MB
+        default: 10
+        minimum: 1
+        maximum: 1000
+    required:
+      - base_directory

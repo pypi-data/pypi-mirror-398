@@ -1,0 +1,60 @@
+apiVersion: kubiya.ai/v1
+kind: Skill
+metadata:
+  name: docker
+  version: 1.0.0
+  description: Manage Docker containers, images, volumes, and networks
+  author: Kubiya
+  icon: FaDocker
+  icon_type: react-icon
+
+spec:
+  type: docker
+
+  implementations:
+    agno:
+      module: agno_impl
+      class: DockerTools
+    claude_code:
+      # Claude Code executes Docker commands via Bash tool
+      # Docker CLI commands run through shell
+      builtin: true
+      tools: ["Bash"]
+    default:
+      module: agno_impl
+      class: DockerTools
+
+  pythonDependencies:
+    - docker>=6.0.0
+
+  systemRequirements:
+    supportedOS: [linux, darwin, win32]
+    minPythonVersion: "3.10"
+    externalDependencies:
+      - Docker daemon must be running
+
+  environmentVariables: []
+
+  configSchema:
+    type: object
+    properties:
+      enable_container_management:
+        type: boolean
+        description: Enable container operations
+        default: true
+      enable_image_management:
+        type: boolean
+        description: Enable image operations
+        default: false
+      enable_volume_management:
+        type: boolean
+        description: Enable volume operations
+        default: false
+      enable_network_management:
+        type: boolean
+        description: Enable network operations
+        default: false
+      docker_host:
+        type: string
+        description: Docker daemon socket
+        default: "unix:///var/run/docker.sock"

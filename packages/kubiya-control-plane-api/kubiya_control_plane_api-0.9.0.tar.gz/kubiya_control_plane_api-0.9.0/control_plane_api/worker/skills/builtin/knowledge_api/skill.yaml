@@ -1,0 +1,66 @@
+apiVersion: kubiya.ai/v1
+kind: Skill
+metadata:
+  name: knowledge-api
+  version: 1.0.0
+  description: Semantic search across organization's knowledge base
+  author: Kubiya
+  icon: Database
+  icon_type: lucide
+
+spec:
+  type: knowledge_api
+
+  implementations:
+    agno:
+      module: agno_impl
+      class: KnowledgeAPITools
+    claude_code:
+      # Claude Code will use same implementation converted to MCP server
+      module: agno_impl
+      class: KnowledgeAPITools
+    default:
+      module: agno_impl
+      class: KnowledgeAPITools
+
+  pythonDependencies:
+    - kubiya>=2.0.3
+
+  systemRequirements:
+    supportedOS: [linux, darwin, win32]
+    minPythonVersion: "3.10"
+
+  environmentVariables:
+    - name: KUBIYA_API_KEY
+      required: true
+      description: Kubiya API key for authentication
+    - name: KUBIYA_ORCHESTRATOR_URL
+      required: false
+      description: Custom orchestrator URL
+    - name: KUBIYA_ORG_ID
+      required: false
+      description: Kubiya organization ID
+    - name: KUBIYA_USER_ID
+      required: false
+      description: Kubiya user ID
+
+  configSchema:
+    type: object
+    properties:
+      stream:
+        type: boolean
+        description: Use streaming mode for queries
+        default: true
+      auto_inject_user_context:
+        type: boolean
+        description: Automatically inject user_id and org_id
+        default: true
+      timeout:
+        type: integer
+        description: Request timeout in seconds
+        default: 60
+        minimum: 10
+        maximum: 300
+      orchestrator_url:
+        type: string
+        description: Custom orchestrator URL (optional)

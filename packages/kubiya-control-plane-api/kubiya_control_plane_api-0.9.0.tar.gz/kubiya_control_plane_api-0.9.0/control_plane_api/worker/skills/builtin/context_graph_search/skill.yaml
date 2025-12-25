@@ -1,0 +1,67 @@
+apiVersion: kubiya.ai/v1
+kind: Skill
+metadata:
+  name: context-graph-search
+  version: 1.2.2
+  description: Complete memory system - store/recall memories, ingest knowledge, and search organizational context graph
+  author: Kubiya
+  icon: Brain
+  icon_type: lucide
+
+spec:
+  type: context_graph_search
+
+  implementations:
+    agno:
+      module: agno_impl
+      class: ContextGraphSearchTools
+    claude_code:
+      # Claude Code will use same implementation converted to MCP server
+      module: agno_impl
+      class: ContextGraphSearchTools
+    default:
+      module: agno_impl
+      class: ContextGraphSearchTools
+
+  pythonDependencies:
+    - httpx>=0.24.0
+
+  systemRequirements:
+    supportedOS: [linux, darwin, win32]
+    minPythonVersion: "3.10"
+
+  environmentVariables:
+    - name: CONTEXT_GRAPH_API_BASE
+      required: false
+      description: Context Graph API base URL (auto-fetched from control plane)
+      default: "https://context-graph-api.dev.kubiya.ai"
+    - name: KUBIYA_API_KEY
+      required: true
+      description: Kubiya API key for authentication
+    - name: KUBIYA_ORG_ID
+      required: false
+      description: Kubiya organization ID
+    - name: MEMORY_DATASET_NAME
+      required: false
+      description: Dataset name for memory scoping (defaults to "default")
+      default: "default"
+
+  configSchema:
+    type: object
+    properties:
+      api_base:
+        type: string
+        description: Context Graph API base URL (auto-fetched from control plane)
+        default: "https://context-graph-api.dev.kubiya.ai"
+      timeout:
+        type: integer
+        description: Request timeout in seconds
+        default: 30
+        minimum: 5
+        maximum: 120
+      default_limit:
+        type: integer
+        description: Default result limit for queries
+        default: 100
+        minimum: 1
+        maximum: 1000
