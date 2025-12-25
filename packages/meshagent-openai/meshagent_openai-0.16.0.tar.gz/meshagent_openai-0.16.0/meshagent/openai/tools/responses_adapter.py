@@ -1,0 +1,2255 @@
+from meshagent.agents.agent import AgentChatContext
+from meshagent.api import RoomClient, RoomException, RemoteParticipant
+from meshagent.tools import Toolkit, ToolContext, Tool, BaseTool
+from meshagent.api.messaging import (
+    Response,
+    LinkResponse,
+    FileResponse,
+    JsonResponse,
+    TextResponse,
+    EmptyResponse,
+    RawOutputs,
+    ensure_response,
+)
+from meshagent.agents.adapter import (
+    ToolResponseAdapter,
+    LLMAdapter,
+    ToolkitBuilder,
+    ToolkitConfig,
+)
+import json
+from typing import List, Literal
+from meshagent.openai.proxy import get_client
+from openai import AsyncOpenAI, NOT_GIVEN, APIStatusError
+from openai.types.responses import ResponseFunctionToolCall, ResponseStreamEvent
+import os
+from typing import Optional, Callable
+import base64
+
+import logging
+import re
+import asyncio
+from pydantic import BaseModel
+import copy
+from opentelemetry import trace
+
+logger = logging.getLogger("openai_agent")
+tracer = trace.get_tracer("openai.llm.responses")
+
+
+def safe_json_dump(data: dict):
+    return json.dumps(copy.deepcopy(data))
+
+
+def safe_model_dump(model: BaseModel):
+    try:
+        return safe_json_dump(model.model_dump(mode="json"))
+    except Exception:
+        return {"error": "unable to dump json for model"}
+
+
+def _replace_non_matching(text: str, allowed_chars: str, replacement: str) -> str:
+    """
+    Replaces every character in `text` that does not match the given
+    `allowed_chars` regex set with `replacement`.
+
+    Parameters:
+    -----------
+    text : str
+        The input string on which the replacement is to be done.
+    allowed_chars : str
+        A string defining the set of allowed characters (part of a character set).
+        For example, "a-zA-Z0-9" will keep only letters and digits.
+    replacement : str
+        The string to replace non-matching characters with.
+
+    Returns:
+    --------
+    str
+        A new string where all characters not in `allowed_chars` are replaced.
+    """
+    # Build a regex that matches any character NOT in allowed_chars
+    pattern = rf"[^{allowed_chars}]"
+    return re.sub(pattern, replacement, text)
+
+
+def safe_tool_name(name: str):
+    return _replace_non_matching(name, "a-zA-Z0-9_-", "_")
+
+
+# Collects a group of tool proxies and manages execution of openai tool calls
+class ResponsesToolBundle:
+    def __init__(self, toolkits: List[Toolkit]):
+        self._toolkits = toolkits
+        self._executors = dict[str, Toolkit]()
+        self._safe_names = {}
+        self._tools_by_name = {}
+
+        open_ai_tools = []
+
+        for toolkit in toolkits:
+            for v in toolkit.tools:
+                k = v.name
+
+                name = safe_tool_name(k)
+
+                if k in self._executors:
+                    raise Exception(
+                        f"duplicate in bundle '{k}', tool names must be unique."
+                    )
+
+                self._executors[k] = toolkit
+
+                self._safe_names[name] = k
+                self._tools_by_name[name] = v
+
+                if isinstance(v, OpenAIResponsesTool):
+                    fns = v.get_open_ai_tool_definitions()
+                    for fn in fns:
+                        open_ai_tools.append(fn)
+
+                elif isinstance(v, Tool):
+                    strict = True
+                    if hasattr(v, "strict"):
+                        strict = getattr(v, "strict")
+
+                    fn = {
+                        "type": "function",
+                        "name": name,
+                        "description": v.description,
+                        "parameters": {
+                            **v.input_schema,
+                        },
+                        "strict": strict,
+                    }
+
+                    if v.defs is not None:
+                        fn["parameters"]["$defs"] = v.defs
+
+                    open_ai_tools.append(fn)
+
+                else:
+                    raise RoomException(f"unsupported tool type {type(v)}")
+
+        if len(open_ai_tools) == 0:
+            open_ai_tools = None
+
+        self._open_ai_tools = open_ai_tools
+
+    async def execute(
+        self, *, context: ToolContext, tool_call: ResponseFunctionToolCall
+    ) -> Response:
+        name = tool_call.name
+        arguments = json.loads(tool_call.arguments)
+
+        if name not in self._safe_names:
+            raise RoomException(f"Invalid tool name {name}, check the name of the tool")
+
+        name = self._safe_names[name]
+
+        if name not in self._executors:
+            raise Exception(f"Unregistered tool name {name}")
+
+        proxy = self._executors[name]
+        result = await proxy.execute(context=context, name=name, arguments=arguments)
+        return ensure_response(result)
+
+    def get_tool(self, name: str) -> BaseTool | None:
+        return self._tools_by_name.get(name, None)
+
+    def contains(self, name: str) -> bool:
+        return name in self._open_ai_tools
+
+    def to_json(self) -> List[dict] | None:
+        if self._open_ai_tools is None:
+            return None
+        return self._open_ai_tools.copy()
+
+
+# Converts a tool response into a series of messages that can be inserted into the openai context
+class OpenAIResponsesToolResponseAdapter(ToolResponseAdapter):
+    def __init__(self):
+        pass
+
+    async def to_plain_text(self, *, room: RoomClient, response: Response) -> str:
+        if isinstance(response, LinkResponse):
+            return json.dumps(
+                {
+                    "name": response.name,
+                    "url": response.url,
+                }
+            )
+
+        elif isinstance(response, JsonResponse):
+            return json.dumps(response.json)
+
+        elif isinstance(response, TextResponse):
+            return response.text
+
+        elif isinstance(response, FileResponse):
+            return f"{response.name}"
+
+        elif isinstance(response, EmptyResponse):
+            return "ok"
+
+        # elif isinstance(response, ImageResponse):
+        #     context.messages.append({
+        #         "role" : "assistant",
+        #         "content" : "the user will upload the image",
+        #         "tool_call_id" : tool_call.id,
+        #     })
+        #     context.messages.append({
+        #         "role" : "user",
+        #         "content" : [
+        #             { "type" : "text", "text": "this is the image from tool call id {tool_call.id}" },
+        #             { "type" : "image_url", "image_url": {"url": response.url, "detail": "auto"} }
+        #         ]
+        #     })
+
+        elif isinstance(response, dict):
+            return json.dumps(response)
+
+        elif isinstance(response, str):
+            return response
+
+        elif response is None:
+            return "ok"
+
+        else:
+            raise Exception(
+                "unexpected return type: {type}".format(type=type(response))
+            )
+
+    async def create_messages(
+        self,
+        *,
+        context: AgentChatContext,
+        tool_call: ResponseFunctionToolCall,
+        room: RoomClient,
+        response: Response,
+    ) -> list:
+        with tracer.start_as_current_span("llm.tool_adapter.create_messages") as span:
+            if isinstance(response, RawOutputs):
+                span.set_attribute("kind", "raw")
+                for output in response.outputs:
+                    room.developer.log_nowait(
+                        type="llm.message",
+                        data={
+                            "context": context.id,
+                            "participant_id": room.local_participant.id,
+                            "participant_name": room.local_participant.get_attribute(
+                                "name"
+                            ),
+                            "message": output,
+                        },
+                    )
+
+                return response.outputs
+
+            else:
+                span.set_attribute("kind", "text")
+
+                if isinstance(response, FileResponse):
+                    if response.mime_type and response.mime_type.startswith("image/"):
+                        span.set_attribute(
+                            "output", f"image: {response.name}, {response.mime_type}"
+                        )
+
+                        message = {
+                            "output": [
+                                {
+                                    "type": "input_image",
+                                    "image_url": f"data:{response.mime_type};base64,{base64.b64encode(response.data).decode()}",
+                                }
+                            ],
+                            "call_id": tool_call.call_id,
+                            "type": "function_call_output",
+                        }
+                    else:
+                        span.set_attribute(
+                            "output", f"file: {response.name}, {response.mime_type}"
+                        )
+
+                        if response.mime_type == "application/pdf":
+                            message = {
+                                "output": [
+                                    {
+                                        "type": "input_file",
+                                        "filename": response.name,
+                                        "file_data": f"data:{response.mime_type or 'text/plain'};base64,{base64.b64encode(response.data).decode()}",
+                                    }
+                                ],
+                                "call_id": tool_call.call_id,
+                                "type": "function_call_output",
+                            }
+                        elif response.mime_type is not None and (
+                            response.mime_type.startswith("text/")
+                            or response.mime_type == "application/json"
+                        ):
+                            message = {
+                                "output": response.data.decode(),
+                                "call_id": tool_call.call_id,
+                                "type": "function_call_output",
+                            }
+
+                        else:
+                            message = {
+                                "output": f"{response.name} was not in a supported format",
+                                "call_id": tool_call.call_id,
+                                "type": "function_call_output",
+                            }
+
+                    room.developer.log_nowait(
+                        type="llm.message",
+                        data={
+                            "context": context.id,
+                            "participant_id": room.local_participant.id,
+                            "participant_name": room.local_participant.get_attribute(
+                                "name"
+                            ),
+                            "message": message,
+                        },
+                    )
+
+                    return [message]
+                else:
+                    output = await self.to_plain_text(room=room, response=response)
+                    span.set_attribute("output", output)
+
+                    message = {
+                        "output": output,
+                        "call_id": tool_call.call_id,
+                        "type": "function_call_output",
+                    }
+
+                    room.developer.log_nowait(
+                        type="llm.message",
+                        data={
+                            "context": context.id,
+                            "participant_id": room.local_participant.id,
+                            "participant_name": room.local_participant.get_attribute(
+                                "name"
+                            ),
+                            "message": message,
+                        },
+                    )
+
+                    return [message]
+
+
+class OpenAIResponsesAdapter(LLMAdapter[ResponseStreamEvent]):
+    def __init__(
+        self,
+        model: str = os.getenv("OPENAI_MODEL", "gpt-5.2"),
+        parallel_tool_calls: Optional[bool] = None,
+        client: Optional[AsyncOpenAI] = None,
+        response_options: Optional[dict] = None,
+        reasoning_effort: Optional[str] = None,
+        provider: str = "openai",
+    ):
+        self._model = model
+        self._parallel_tool_calls = parallel_tool_calls
+        self._client = client
+        self._response_options = response_options
+        self._provider = provider
+        self._reasoning_effort = reasoning_effort
+
+    def default_model(self) -> str:
+        return self._model
+
+    def create_chat_context(self):
+        context = AgentChatContext(system_role=None)
+        return context
+
+    async def check_for_termination(
+        self, *, context: AgentChatContext, room: RoomClient
+    ) -> bool:
+        for message in context.messages:
+            if message.get("type", "message") != "message":
+                return False
+
+        return True
+
+    # Takes the current chat context, executes a completion request and processes the response.
+    # If a tool calls are requested, invokes the tools, processes the tool calls results, and appends the tool call results to the context
+    async def next(
+        self,
+        *,
+        model: Optional[str] = None,
+        context: AgentChatContext,
+        room: RoomClient,
+        toolkits: list[Toolkit],
+        tool_adapter: Optional[ToolResponseAdapter] = None,
+        output_schema: Optional[dict] = None,
+        event_handler: Optional[Callable[[ResponseStreamEvent], None]] = None,
+        on_behalf_of: Optional[RemoteParticipant] = None,
+    ):
+        if model is None:
+            model = self.default_model()
+
+        with tracer.start_as_current_span("llm.turn") as span:
+            span.set_attributes({"chat_context": context.id, "api": "responses"})
+
+            if tool_adapter is None:
+                tool_adapter = OpenAIResponsesToolResponseAdapter()
+
+            try:
+                while True:
+                    with tracer.start_as_current_span("llm.turn.iteration") as span:
+                        span.set_attributes(
+                            {"model": model, "provider": self._provider}
+                        )
+
+                        openai = (
+                            self._client
+                            if self._client is not None
+                            else get_client(room=room)
+                        )
+
+                        response_schema = output_schema
+                        response_name = "response"
+
+                        # We need to do this inside the loop because tools can change mid loop
+                        # for example computer use adds goto tools after the first interaction
+                        tool_bundle = ResponsesToolBundle(
+                            toolkits=[
+                                *toolkits,
+                            ]
+                        )
+                        open_ai_tools = tool_bundle.to_json()
+
+                        if open_ai_tools is None:
+                            open_ai_tools = NOT_GIVEN
+
+                        ptc = self._parallel_tool_calls
+                        extra = {}
+                        if ptc is not None and not model.startswith("o"):
+                            extra["parallel_tool_calls"] = ptc
+                            span.set_attribute("parallel_tool_calls", ptc)
+                        else:
+                            span.set_attribute("parallel_tool_calls", False)
+
+                        text = NOT_GIVEN
+                        if output_schema is not None:
+                            span.set_attribute("response_format", "json_schema")
+                            text = {
+                                "format": {
+                                    "type": "json_schema",
+                                    "name": response_name,
+                                    "schema": response_schema,
+                                    "strict": True,
+                                }
+                            }
+                        else:
+                            span.set_attribute("response_format", "text")
+
+                        previous_response_id = NOT_GIVEN
+                        instructions = context.get_system_instructions()
+                        if context.previous_response_id is not None:
+                            previous_response_id = context.previous_response_id
+
+                        stream = event_handler is not None
+
+                        with tracer.start_as_current_span("llm.invoke") as span:
+                            response_options = copy.deepcopy(self._response_options)
+                            if response_options is None:
+                                response_options = {}
+
+                            if self._reasoning_effort is not None:
+                                response_options["reasoning"] = {
+                                    "effort": self._reasoning_effort,
+                                    "summary": "detailed",
+                                }
+
+                            extra_headers = {}
+                            if on_behalf_of is not None:
+                                on_behalf_of_name = on_behalf_of.get_attribute("name")
+                                logger.info(
+                                    f"{room.local_participant.get_attribute('name')} making openai request on behalf of {on_behalf_of_name}"
+                                )
+                                extra_headers["Meshagent-On-Behalf-Of"] = (
+                                    on_behalf_of_name
+                                )
+
+                            logger.info(
+                                f"requesting response from openai with model: {model}"
+                            )
+
+                            response: Response = await openai.responses.create(
+                                extra_headers=extra_headers,
+                                stream=stream,
+                                model=model,
+                                input=context.messages,
+                                tools=open_ai_tools,
+                                text=text,
+                                previous_response_id=previous_response_id,
+                                instructions=instructions or NOT_GIVEN,
+                                **response_options,
+                            )
+
+                            async def handle_message(message: BaseModel):
+                                with tracer.start_as_current_span(
+                                    "llm.handle_response"
+                                ) as span:
+                                    span.set_attributes(
+                                        {
+                                            "type": message.type,
+                                            "message": safe_model_dump(message),
+                                        }
+                                    )
+
+                                    room.developer.log_nowait(
+                                        type="llm.message",
+                                        data={
+                                            "context": context.id,
+                                            "participant_id": room.local_participant.id,
+                                            "participant_name": room.local_participant.get_attribute(
+                                                "name"
+                                            ),
+                                            "message": message.to_dict(),
+                                        },
+                                    )
+
+                                    if message.type == "function_call":
+                                        tasks = []
+
+                                        async def do_tool_call(
+                                            tool_call: ResponseFunctionToolCall,
+                                        ):
+                                            try:
+                                                with tracer.start_as_current_span(
+                                                    "llm.handle_tool_call"
+                                                ) as span:
+                                                    span.set_attributes(
+                                                        {
+                                                            "id": tool_call.id,
+                                                            "name": tool_call.name,
+                                                            "call_id": tool_call.call_id,
+                                                            "arguments": json.dumps(
+                                                                tool_call.arguments
+                                                            ),
+                                                        }
+                                                    )
+
+                                                    tool_context = ToolContext(
+                                                        room=room,
+                                                        caller=room.local_participant,
+                                                        on_behalf_of=on_behalf_of,
+                                                        caller_context={
+                                                            "chat": context.to_json()
+                                                        },
+                                                    )
+                                                    tool_response = (
+                                                        await tool_bundle.execute(
+                                                            context=tool_context,
+                                                            tool_call=tool_call,
+                                                        )
+                                                    )
+                                                    if (
+                                                        tool_response.caller_context
+                                                        is not None
+                                                    ):
+                                                        if (
+                                                            tool_response.caller_context.get(
+                                                                "chat", None
+                                                            )
+                                                            is not None
+                                                        ):
+                                                            tool_chat_context = AgentChatContext.from_json(
+                                                                tool_response.caller_context[
+                                                                    "chat"
+                                                                ]
+                                                            )
+                                                            if (
+                                                                tool_chat_context.previous_response_id
+                                                                is not None
+                                                            ):
+                                                                context.track_response(
+                                                                    tool_chat_context.previous_response_id
+                                                                )
+
+                                                    logger.info(
+                                                        f"tool response {tool_response}"
+                                                    )
+                                                    return await tool_adapter.create_messages(
+                                                        context=context,
+                                                        tool_call=tool_call,
+                                                        room=room,
+                                                        response=tool_response,
+                                                    )
+
+                                            except Exception as e:
+                                                logger.error(
+                                                    f"unable to complete tool call {tool_call}",
+                                                    exc_info=e,
+                                                )
+                                                room.developer.log_nowait(
+                                                    type="llm.error",
+                                                    data={
+                                                        "participant_id": room.local_participant.id,
+                                                        "participant_name": room.local_participant.get_attribute(
+                                                            "name"
+                                                        ),
+                                                        "error": f"{e}",
+                                                    },
+                                                )
+
+                                                return [
+                                                    {
+                                                        "output": json.dumps(
+                                                            {
+                                                                "error": f"unable to complete tool call: {e}"
+                                                            }
+                                                        ),
+                                                        "call_id": tool_call.call_id,
+                                                        "type": "function_call_output",
+                                                    }
+                                                ]
+
+                                        tasks.append(
+                                            asyncio.create_task(do_tool_call(message))
+                                        )
+
+                                        results = await asyncio.gather(*tasks)
+
+                                        all_results = []
+                                        for result in results:
+                                            room.developer.log_nowait(
+                                                type="llm.message",
+                                                data={
+                                                    "context": context.id,
+                                                    "participant_id": room.local_participant.id,
+                                                    "participant_name": room.local_participant.get_attribute(
+                                                        "name"
+                                                    ),
+                                                    "message": result,
+                                                },
+                                            )
+                                            all_results.extend(result)
+
+                                        return all_results, False
+
+                                    elif message.type == "message":
+                                        contents = message.content
+                                        if response_schema is None:
+                                            return [], False
+                                        else:
+                                            for content in contents:
+                                                # First try to parse the result
+                                                try:
+                                                    full_response = json.loads(
+                                                        content.text
+                                                    )
+
+                                                # sometimes open ai packs two JSON chunks seperated by newline, check if that's why we couldn't parse
+                                                except json.decoder.JSONDecodeError:
+                                                    for (
+                                                        part
+                                                    ) in content.text.splitlines():
+                                                        if len(part.strip()) > 0:
+                                                            full_response = json.loads(
+                                                                part
+                                                            )
+
+                                                            try:
+                                                                self.validate(
+                                                                    response=full_response,
+                                                                    output_schema=response_schema,
+                                                                )
+                                                            except Exception as e:
+                                                                logger.error(
+                                                                    "recieved invalid response, retrying",
+                                                                    exc_info=e,
+                                                                )
+                                                                error = {
+                                                                    "role": "user",
+                                                                    "content": "encountered a validation error with the output: {error}".format(
+                                                                        error=e
+                                                                    ),
+                                                                }
+                                                                room.developer.log_nowait(
+                                                                    type="llm.message",
+                                                                    data={
+                                                                        "context": message.id,
+                                                                        "participant_id": room.local_participant.id,
+                                                                        "participant_name": room.local_participant.get_attribute(
+                                                                            "name"
+                                                                        ),
+                                                                        "message": error,
+                                                                    },
+                                                                )
+                                                                context.messages.append(
+                                                                    error
+                                                                )
+                                                                continue
+
+                                                return [full_response], True
+                                    # elif message.type == "computer_call" and tool_bundle.get_tool("computer_call"):
+                                    #    with tracer.start_as_current_span("llm.handle_computer_call") as span:
+                                    #
+                                    #        computer_call :ResponseComputerToolCall = message
+                                    #        span.set_attributes({
+                                    #            "id": computer_call.id,
+                                    #            "action": computer_call.action,
+                                    #            "call_id": computer_call.call_id,
+                                    #            "type": json.dumps(computer_call.type)
+                                    #        })
+
+                                    #        tool_context = ToolContext(
+                                    #            room=room,
+                                    #            caller=room.local_participant,
+                                    #            caller_context={ "chat" : context.to_json }
+                                    #        )
+                                    #        outputs = (await tool_bundle.get_tool("computer_call").execute(context=tool_context, arguments=message.model_dump(mode="json"))).outputs
+
+                                    #    return outputs, False
+
+                                    else:
+                                        with tracer.start_as_current_span(
+                                            "llm.handle_tool_call"
+                                        ) as span:
+                                            for toolkit in toolkits:
+                                                for tool in toolkit.tools:
+                                                    if isinstance(
+                                                        tool, OpenAIResponsesTool
+                                                    ):
+                                                        arguments = message.model_dump(
+                                                            mode="json"
+                                                        )
+                                                        span.set_attributes(
+                                                            {
+                                                                "type": message.type,
+                                                                "arguments": safe_json_dump(
+                                                                    arguments
+                                                                ),
+                                                            }
+                                                        )
+
+                                                        handlers = tool.get_open_ai_output_handlers()
+                                                        if message.type in handlers:
+                                                            tool_context = ToolContext(
+                                                                room=room,
+                                                                caller=room.local_participant,
+                                                                caller_context={
+                                                                    "chat": context.to_json()
+                                                                },
+                                                            )
+
+                                                            try:
+                                                                if (
+                                                                    event_handler
+                                                                    is not None
+                                                                ):
+                                                                    event_handler(
+                                                                        {
+                                                                            "type": "meshagent.handler.added",
+                                                                            "item": message.model_dump(
+                                                                                mode="json"
+                                                                            ),
+                                                                        }
+                                                                    )
+
+                                                                result = await handlers[
+                                                                    message.type
+                                                                ](
+                                                                    tool_context,
+                                                                    **arguments,
+                                                                )
+
+                                                            except Exception as e:
+                                                                if (
+                                                                    event_handler
+                                                                    is not None
+                                                                ):
+                                                                    event_handler(
+                                                                        {
+                                                                            "type": "meshagent.handler.done",
+                                                                            "error": f"{e}",
+                                                                        }
+                                                                    )
+
+                                                                raise
+
+                                                            if (
+                                                                event_handler
+                                                                is not None
+                                                            ):
+                                                                event_handler(
+                                                                    {
+                                                                        "type": "meshagent.handler.done",
+                                                                        "item": result,
+                                                                    }
+                                                                )
+
+                                                            if result is not None:
+                                                                span.set_attribute(
+                                                                    "result",
+                                                                    safe_json_dump(
+                                                                        result
+                                                                    ),
+                                                                )
+                                                                return [result], False
+
+                                                            return [], False
+
+                                            logger.warning(
+                                                f"OpenAI response handler was not registered for {message.type}"
+                                            )
+
+                                    return [], False
+
+                            if not stream:
+                                room.developer.log_nowait(
+                                    type="llm.message",
+                                    data={
+                                        "context": context.id,
+                                        "participant_id": room.local_participant.id,
+                                        "participant_name": room.local_participant.get_attribute(
+                                            "name"
+                                        ),
+                                        "response": response.to_dict(),
+                                    },
+                                )
+
+                                context.track_response(response.id)
+
+                                final_outputs = []
+
+                                for message in response.output:
+                                    context.previous_messages.append(message.to_dict())
+                                    outputs, done = await handle_message(
+                                        message=message
+                                    )
+                                    if done:
+                                        final_outputs.extend(outputs)
+                                    else:
+                                        for output in outputs:
+                                            context.messages.append(output)
+
+                                if len(final_outputs) > 0:
+                                    return final_outputs[0]
+
+                                with tracer.start_as_current_span(
+                                    "llm.turn.check_for_termination"
+                                ) as span:
+                                    term = await self.check_for_termination(
+                                        context=context, room=room
+                                    )
+                                    if term:
+                                        span.set_attribute("terminate", True)
+                                        text = ""
+                                        for output in response.output:
+                                            if output.type == "message":
+                                                for content in output.content:
+                                                    text += content.text
+
+                                        return text
+                                    else:
+                                        span.set_attribute("terminate", False)
+
+                            else:
+                                final_outputs = []
+                                all_outputs = []
+                                async for e in response:
+                                    with tracer.start_as_current_span(
+                                        "llm.stream.event"
+                                    ) as span:
+                                        event: ResponseStreamEvent = e
+                                        span.set_attributes(
+                                            {
+                                                "type": event.type,
+                                                "event": safe_model_dump(event),
+                                            }
+                                        )
+                                        event_handler(event)
+
+                                        if event.type == "response.completed":
+                                            context.track_response(event.response.id)
+
+                                            context.messages.extend(all_outputs)
+
+                                            with tracer.start_as_current_span(
+                                                "llm.turn.check_for_termination"
+                                            ) as span:
+                                                term = await self.check_for_termination(
+                                                    context=context, room=room
+                                                )
+
+                                                if term:
+                                                    span.set_attribute(
+                                                        "terminate", True
+                                                    )
+
+                                                    text = ""
+                                                    for output in event.response.output:
+                                                        if output.type == "message":
+                                                            for (
+                                                                content
+                                                            ) in output.content:
+                                                                text += content.text
+
+                                                    return text
+
+                                                span.set_attribute("terminate", False)
+
+                                            all_outputs = []
+
+                                        elif event.type == "response.output_item.done":
+                                            context.previous_messages.append(
+                                                event.item.to_dict()
+                                            )
+
+                                            outputs, done = await handle_message(
+                                                message=event.item
+                                            )
+                                            if done:
+                                                final_outputs.extend(outputs)
+                                            else:
+                                                for output in outputs:
+                                                    all_outputs.append(output)
+
+                                        else:
+                                            for toolkit in toolkits:
+                                                for tool in toolkit.tools:
+                                                    if isinstance(
+                                                        tool, OpenAIResponsesTool
+                                                    ):
+                                                        callbacks = tool.get_open_ai_stream_callbacks()
+
+                                                        if event.type in callbacks:
+                                                            tool_context = ToolContext(
+                                                                room=room,
+                                                                caller=room.local_participant,
+                                                                caller_context={
+                                                                    "chat": context.to_json()
+                                                                },
+                                                            )
+
+                                                            await callbacks[event.type](
+                                                                tool_context,
+                                                                **event.to_dict(),
+                                                            )
+
+                                        if len(final_outputs) > 0:
+                                            return final_outputs[0]
+
+            except APIStatusError as e:
+                raise RoomException(f"Error from OpenAI: {e}")
+
+
+class OpenAIResponsesTool(BaseTool):
+    def get_open_ai_tool_definitions(self) -> list[dict]:
+        return []
+
+    def get_open_ai_stream_callbacks(self) -> dict[str, Callable]:
+        return {}
+
+    def get_open_ai_output_handlers(self) -> dict[str, Callable]:
+        return {}
+
+
+class ImageGenerationConfig(ToolkitConfig):
+    name: Literal["image_generation"]
+    background: Literal["transparent", "opaque", "auto"] = None
+    input_image_mask_url: Optional[str] = None
+    model: Optional[str] = None
+    moderation: Optional[str] = None
+    output_compression: Optional[int] = None
+    output_format: Optional[Literal["png", "webp", "jpeg"]] = None
+    partial_images: Optional[int] = None
+    quality: Optional[Literal["auto", "low", "medium", "high"]] = None
+    size: Optional[Literal["1024x1024", "1024x1536", "1536x1024", "auto"]] = None
+
+
+class ImageGenerationToolkitBuilder(ToolkitBuilder):
+    def __init__(self):
+        super().__init__(name="image_generation", type=ImageGenerationConfig)
+
+    async def make(
+        self, *, room: RoomClient, model: str, config: ImageGenerationConfig
+    ):
+        return Toolkit(
+            name="image_generation", tools=[ImageGenerationTool(config=config)]
+        )
+
+
+class ImageGenerationTool(OpenAIResponsesTool):
+    def __init__(
+        self,
+        *,
+        config: ImageGenerationConfig,
+    ):
+        super().__init__(name="image_generation")
+        self.background = config.background
+        self.input_image_mask_url = config.input_image_mask_url
+        self.model = config.model
+        self.moderation = config.moderation
+        self.output_compression = config.output_compression
+        self.output_format = config.output_format
+        self.partial_images = (
+            config.partial_images if config.partial_images is not None else 1
+        )
+        self.quality = config.quality
+        self.size = config.size
+
+    def get_open_ai_tool_definitions(self):
+        opts = {"type": "image_generation"}
+
+        if self.background is not None:
+            opts["background"] = self.background
+
+        if self.input_image_mask_url is not None:
+            opts["input_image_mask"] = {"image_url": self.input_image_mask_url}
+
+        if self.model is not None:
+            opts["model"] = self.model
+
+        if self.moderation is not None:
+            opts["moderation"] = self.moderation
+
+        if self.output_compression is not None:
+            opts["output_compression"] = self.output_compression
+
+        if self.output_format is not None:
+            opts["output_format"] = self.output_format
+
+        if self.partial_images is not None:
+            opts["partial_images"] = self.partial_images
+
+        if self.quality is not None:
+            opts["quality"] = self.quality
+
+        if self.size is not None:
+            opts["size"] = self.size
+
+        return [opts]
+
+    def get_open_ai_stream_callbacks(self):
+        return {
+            "response.image_generation_call.completed": self.on_image_generation_completed,
+            "response.image_generation_call.in_progress": self.on_image_generation_in_progress,
+            "response.image_generation_call.generating": self.on_image_generation_generating,
+            "response.image_generation_call.partial_image": self.on_image_generation_partial,
+        }
+
+    def get_open_ai_output_handlers(self):
+        return {"image_generation_call": self.handle_image_generated}
+
+    # response.image_generation_call.completed
+    async def on_image_generation_completed(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    # response.image_generation_call.in_progress
+    async def on_image_generation_in_progress(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    # response.image_generation_call.generating
+    async def on_image_generation_generating(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    # response.image_generation_call.partial_image
+    async def on_image_generation_partial(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        partial_image_b64: str,
+        partial_image_index: int,
+        size: str,
+        quality: str,
+        background: str,
+        output_format: str,
+        **extra,
+    ):
+        pass
+
+    async def on_image_generated(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        data: bytes,
+        status: str,
+        size: str,
+        quality: str,
+        background: str,
+        output_format: str,
+        **extra,
+    ):
+        pass
+
+    async def handle_image_generated(
+        self,
+        context: ToolContext,
+        *,
+        id: str,
+        result: str | None,
+        status: str,
+        type: str,
+        size: str,
+        quality: str,
+        background: str,
+        output_format: str,
+        **extra,
+    ):
+        if result is not None:
+            data = base64.b64decode(result)
+            await self.on_image_generated(
+                context,
+                item_id=id,
+                data=data,
+                status=status,
+                size=size,
+                quality=quality,
+                background=background,
+                output_format=output_format,
+            )
+
+
+class LocalShellConfig(ToolkitConfig):
+    name: Literal["local_shell"]
+
+
+class LocalShellToolkitBuilder(ToolkitBuilder):
+    def __init__(self, *, working_directory: Optional[str] = None):
+        super().__init__(name="local_shell", type=LocalShellConfig)
+        self.working_directory = working_directory
+
+    async def make(self, *, room: RoomClient, model: str, config: LocalShellConfig):
+        return Toolkit(
+            name="local_shell",
+            tools=[
+                LocalShellTool(config=config, working_directory=self.working_directory)
+            ],
+        )
+
+
+MAX_SHELL_OUTPUT_SIZE = 1024 * 100
+
+
+class LocalShellTool(OpenAIResponsesTool):
+    def __init__(
+        self,
+        *,
+        config: Optional[LocalShellConfig] = None,
+        working_directory: Optional[str] = None,
+    ):
+        super().__init__(name="local_shell")
+        if config is None:
+            config = LocalShellConfig(name="local_shell")
+
+        self.working_directory = working_directory
+
+    def get_open_ai_tool_definitions(self):
+        return [{"type": "local_shell"}]
+
+    def get_open_ai_output_handlers(self):
+        return {"local_shell_call": self.handle_local_shell_call}
+
+    async def execute_shell_command(
+        self,
+        context: ToolContext,
+        *,
+        command: list[str],
+        env: dict,
+        type: str,
+        timeout_ms: int | None = None,
+        user: str | None = None,
+        working_directory: str | None = None,
+    ):
+        merged_env = {**os.environ, **(env or {})}
+
+        try:
+            # Spawn the process
+            proc = await asyncio.create_subprocess_exec(
+                *(command if isinstance(command, (list, tuple)) else [command]),
+                cwd=working_directory or self.working_directory or os.getcwd(),
+                env=merged_env,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            timeout = float(timeout_ms) / 1000.0 if timeout_ms else 20.0
+
+            logger.info(f"executing command {command} with timeout: {timeout}s")
+
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            proc.kill()  # send SIGKILL / TerminateProcess
+            logger.info(f"The command timed out after {timeout}s")
+            stdout, stderr = await proc.communicate()
+            return f"The command timed out after {timeout}s"
+            # re-raise so caller sees the timeout
+        except Exception as ex:
+            return f"The command failed: {ex}"
+
+        encoding = os.device_encoding(1) or "utf-8"
+        stdout = stdout.decode(encoding, errors="replace")
+        stderr = stderr.decode(encoding, errors="replace")
+
+        result = stdout + stderr
+        if len(result) > MAX_SHELL_OUTPUT_SIZE:
+            return f"Error: the command returned too much data ({result} bytes)"
+
+        return result
+
+    async def handle_local_shell_call(
+        self,
+        context,
+        *,
+        id: str,
+        action: dict,
+        call_id: str,
+        status: str,
+        type: str,
+        **extra,
+    ):
+        result = await self.execute_shell_command(context, **action)
+
+        output_item = {
+            "type": "local_shell_call_output",
+            "call_id": call_id,
+            "output": result,
+        }
+
+        return output_item
+
+
+class ShellConfig(ToolkitConfig):
+    name: Literal["shell"]
+
+
+class ShellToolkitBuilder(ToolkitBuilder):
+    def __init__(self, *, working_directory: Optional[str] = None):
+        super().__init__(name="shell", type=ShellConfig)
+        self.working_directory = working_directory
+
+    async def make(self, *, room: RoomClient, model: str, config: LocalShellConfig):
+        return Toolkit(
+            name="shell",
+            tools=[ShellTool(config=config, working_directory=self.working_directory)],
+        )
+
+
+class ShellTool(OpenAIResponsesTool):
+    def __init__(
+        self,
+        *,
+        config: Optional[ShellConfig] = None,
+        working_directory: Optional[str] = None,
+    ):
+        super().__init__(name="shell")
+        if config is None:
+            config = ShellConfig(name="shell")
+        self.working_directory = working_directory
+
+    def get_open_ai_tool_definitions(self):
+        return [{"type": "shell"}]
+
+    def get_open_ai_output_handlers(self):
+        return {"shell_call": self.handle_shell_call}
+
+    async def execute_shell_command(
+        self,
+        context: ToolContext,
+        *,
+        commands: list[str],
+        max_output_length: Optional[int] = None,
+        timeout_ms: Optional[int] = None,
+    ):
+        merged_env = {**os.environ}
+
+        results = []
+        encoding = os.device_encoding(1) or "utf-8"
+
+        left = max_output_length
+
+        def limit(s: str):
+            nonlocal left
+            if left is not None:
+                s = s[0:left]
+                left -= len(s)
+                return s
+            else:
+                return s
+
+        timeout = float(timeout_ms) / 1000.0 if timeout_ms else 20.0
+
+        for command in commands:
+            logger.info(f"executing command {command} with timeout: {timeout}s")
+
+            # Spawn the process
+            try:
+                proc = await asyncio.create_subprocess_shell(
+                    command,
+                    cwd=self.working_directory or os.getcwd(),
+                    env=merged_env,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                logger.info(f"The command timed out after {timeout}s")
+                proc.kill()  # send SIGKILL / TerminateProcess
+
+                stdout, stderr = await proc.communicate()
+
+                results.append(
+                    {
+                        "outcome": {"type": "timeout"},
+                        "stdout": limit(stdout.decode(encoding, errors="replace")),
+                        "stderr": limit(stderr.decode(encoding, errors="replace")),
+                    }
+                )
+
+                break
+
+            except Exception as ex:
+                results.append(
+                    {
+                        "outcome": {
+                            "type": "exit",
+                            "exit_code": 1,
+                        },
+                        "stdout": "",
+                        "stderr": f"{ex}",
+                    }
+                )
+                break
+
+            results.append(
+                {
+                    "outcome": {
+                        "type": "exit",
+                        "exit_code": proc.returncode,
+                    },
+                    "stdout": limit(stdout.decode(encoding, errors="replace")),
+                    "stderr": limit(stderr.decode(encoding, errors="replace")),
+                }
+            )
+
+        return results
+
+    async def handle_shell_call(
+        self,
+        context,
+        *,
+        id: str,
+        action: dict,
+        call_id: str,
+        status: str,
+        type: str,
+        **extra,
+    ):
+        result = await self.execute_shell_command(context, **action)
+
+        output_item = {
+            "type": "shell_call_output",
+            "call_id": call_id,
+            "output": result,
+        }
+
+        return output_item
+
+
+class ContainerFile:
+    def __init__(self, *, file_id: str, mime_type: str, container_id: str):
+        self.file_id = file_id
+        self.mime_type = mime_type
+        self.container_id = container_id
+
+
+class CodeInterpreterTool(OpenAIResponsesTool):
+    def __init__(
+        self,
+        *,
+        container_id: Optional[str] = None,
+        file_ids: Optional[List[str]] = None,
+    ):
+        super().__init__(name="code_interpreter_call")
+        self.container_id = container_id
+        self.file_ids = file_ids
+
+    def get_open_ai_tool_definitions(self):
+        opts = {"type": "code_interpreter"}
+
+        if self.container_id is not None:
+            opts["container_id"] = self.container_id
+
+        if self.file_ids is not None:
+            if self.container_id is not None:
+                raise Exception(
+                    "Cannot specify both an existing container and files to upload in a code interpreter tool"
+                )
+
+            opts["container"] = {"type": "auto", "file_ids": self.file_ids}
+
+        return [opts]
+
+    def get_open_ai_output_handlers(self):
+        return {"code_interpreter_call": self.handle_code_interpreter_call}
+
+    async def on_code_interpreter_result(
+        self,
+        context: ToolContext,
+        *,
+        code: str,
+        logs: list[str],
+        files: list[ContainerFile],
+    ):
+        pass
+
+    async def handle_code_interpreter_call(
+        self,
+        context,
+        *,
+        code: str,
+        id: str,
+        results: list[dict],
+        call_id: str,
+        status: str,
+        type: str,
+        container_id: str,
+        **extra,
+    ):
+        logs = []
+        files = []
+
+        for result in results:
+            if result.type == "logs":
+                logs.append(results["logs"])
+
+            elif result.type == "files":
+                files.append(
+                    ContainerFile(
+                        container_id=container_id,
+                        file_id=result["file_id"],
+                        mime_type=result["mime_type"],
+                    )
+                )
+
+        await self.on_code_interpreter_result(
+            context, code=code, logs=logs, files=files
+        )
+
+
+class MCPToolDefinition:
+    def __init__(
+        self,
+        *,
+        input_schema: dict,
+        name: str,
+        annotations: dict | None,
+        description: str | None,
+    ):
+        self.input_schema = input_schema
+        self.name = name
+        self.annotations = annotations
+        self.description = description
+
+
+class MCPServer(BaseModel):
+    server_label: str
+    server_url: Optional[str] = None
+    allowed_tools: Optional[list[str]] = None
+    authorization: Optional[str] = None
+    headers: Optional[dict] = None
+
+    # require approval for all tools
+    require_approval: Optional[Literal["always", "never"]] = None
+    # list of tools that always require approval
+    always_require_approval: Optional[list[str]] = None
+    # list of tools that never require approval
+    never_require_approval: Optional[list[str]] = None
+
+    openai_connector_id: Optional[str] = None
+
+
+class MCPConfig(ToolkitConfig):
+    name: Literal["mcp"]
+    servers: list[MCPServer]
+
+
+class MCPToolkitBuilder(ToolkitBuilder):
+    def __init__(self):
+        super().__init__(name="mcp", type=MCPConfig)
+
+    async def make(self, *, room: RoomClient, model: str, config: MCPConfig):
+        return Toolkit(name="mcp", tools=[MCPTool(config=config)])
+
+
+class MCPTool(OpenAIResponsesTool):
+    def __init__(self, *, config: MCPConfig):
+        super().__init__(name="mcp")
+        self.servers = config.servers
+
+    def get_open_ai_tool_definitions(self):
+        defs = []
+        for server in self.servers:
+            opts = {
+                "type": "mcp",
+                "server_label": server.server_label,
+            }
+
+            if server.server_url is not None:
+                opts["server_url"] = server.server_url
+
+            if server.openai_connector_id is not None:
+                opts["connector_id"] = server.openai_connector_id
+
+            if server.allowed_tools is not None:
+                opts["allowed_tools"] = server.allowed_tools
+
+            if server.authorization is not None:
+                opts["authorization"] = server.authorization
+
+            if server.headers is not None:
+                opts["headers"] = server.headers
+
+            if (
+                server.always_require_approval is not None
+                or server.never_require_approval is not None
+            ):
+                opts["require_approval"] = {}
+
+                if server.always_require_approval is not None:
+                    opts["require_approval"]["always"] = {
+                        "tool_names": server.always_require_approval
+                    }
+
+                if server.never_require_approval is not None:
+                    opts["require_approval"]["never"] = {
+                        "tool_names": server.never_require_approval
+                    }
+
+            if server.require_approval:
+                opts["require_approval"] = server.require_approval
+
+            defs.append(opts)
+
+        return defs
+
+    def get_open_ai_stream_callbacks(self):
+        return {
+            "response.mcp_list_tools.in_progress": self.on_mcp_list_tools_in_progress,
+            "response.mcp_list_tools.failed": self.on_mcp_list_tools_failed,
+            "response.mcp_list_tools.completed": self.on_mcp_list_tools_completed,
+            "response.mcp_call.in_progress": self.on_mcp_call_in_progress,
+            "response.mcp_call.failed": self.on_mcp_call_failed,
+            "response.mcp_call.completed": self.on_mcp_call_completed,
+            "response.mcp_call.arguments.done": self.on_mcp_call_arguments_done,
+            "response.mcp_call.arguments.delta": self.on_mcp_call_arguments_delta,
+        }
+
+    async def on_mcp_list_tools_in_progress(
+        self, context: ToolContext, *, sequence_number: int, type: str, **extra
+    ):
+        pass
+
+    async def on_mcp_list_tools_failed(
+        self, context: ToolContext, *, sequence_number: int, type: str, **extra
+    ):
+        pass
+
+    async def on_mcp_list_tools_completed(
+        self, context: ToolContext, *, sequence_number: int, type: str, **extra
+    ):
+        pass
+
+    async def on_mcp_call_in_progress(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    async def on_mcp_call_failed(
+        self, context: ToolContext, *, sequence_number: int, type: str, **extra
+    ):
+        pass
+
+    async def on_mcp_call_completed(
+        self, context: ToolContext, *, sequence_number: int, type: str, **extra
+    ):
+        pass
+
+    async def on_mcp_call_arguments_done(
+        self,
+        context: ToolContext,
+        *,
+        arguments: dict,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    async def on_mcp_call_arguments_delta(
+        self,
+        context: ToolContext,
+        *,
+        delta: dict,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    def get_open_ai_output_handlers(self):
+        return {
+            "mcp_call": self.handle_mcp_call,
+            "mcp_list_tools": self.handle_mcp_list_tools,
+            "mcp_approval_request": self.handle_mcp_approval_request,
+        }
+
+    async def on_mcp_list_tools(
+        self,
+        context: ToolContext,
+        *,
+        server_label: str,
+        tools: list[MCPToolDefinition],
+        error: str | None,
+        **extra,
+    ):
+        pass
+
+    async def handle_mcp_list_tools(
+        self,
+        context,
+        *,
+        id: str,
+        server_label: str,
+        tools: list,
+        type: str,
+        error: str | None = None,
+        **extra,
+    ):
+        mcp_tools = []
+        for tool in tools:
+            mcp_tools.append(
+                MCPToolDefinition(
+                    input_schema=tool["input_schema"],
+                    name=tool["name"],
+                    annotations=tool["annotations"],
+                    description=tool["description"],
+                )
+            )
+
+        await self.on_mcp_list_tools(
+            context, server_label=server_label, tools=mcp_tools, error=error
+        )
+
+    async def on_mcp_call(
+        self,
+        context: ToolContext,
+        *,
+        name: str,
+        arguments: str,
+        server_label: str,
+        error: str | None,
+        output: str | None,
+        **extra,
+    ):
+        pass
+
+    async def handle_mcp_call(
+        self,
+        context,
+        *,
+        arguments: str,
+        id: str,
+        name: str,
+        server_label: str,
+        type: str,
+        error: str | None,
+        output: str | None,
+        **extra,
+    ):
+        await self.on_mcp_call(
+            context,
+            name=name,
+            arguments=arguments,
+            server_label=server_label,
+            error=error,
+            output=output,
+        )
+
+    async def on_mcp_approval_request(
+        self,
+        context: ToolContext,
+        *,
+        name: str,
+        arguments: str,
+        server_label: str,
+        **extra,
+    ) -> bool:
+        return True
+
+    async def handle_mcp_approval_request(
+        self,
+        context: ToolContext,
+        *,
+        arguments: str,
+        id: str,
+        name: str,
+        server_label: str,
+        type: str,
+        **extra,
+    ):
+        logger.info(f"approval requested for MCP tool {server_label}.{name}")
+        should_approve = await self.on_mcp_approval_request(
+            context, arguments=arguments, name=name, server_label=server_label
+        )
+        if should_approve:
+            logger.info(f"approval granted for MCP tool {server_label}.{name}")
+            return {
+                "type": "mcp_approval_response",
+                "approve": True,
+                "approval_request_id": id,
+            }
+        else:
+            logger.info(f"approval denied for MCP tool {server_label}.{name}")
+            return {
+                "type": "mcp_approval_response",
+                "approve": False,
+                "approval_request_id": id,
+            }
+
+
+class ReasoningTool(OpenAIResponsesTool):
+    def __init__(self):
+        super().__init__(name="reasoning")
+
+    def get_open_ai_output_handlers(self):
+        return {
+            "reasoning": self.handle_reasoning,
+        }
+
+    def get_open_ai_stream_callbacks(self):
+        return {
+            "response.reasoning_summary_text.done": self.on_reasoning_summary_text_done,
+            "response.reasoning_summary_text.delta": self.on_reasoning_summary_text_delta,
+            "response.reasoning_summary_part.done": self.on_reasoning_summary_part_done,
+            "response.reasoning_summary_part.added": self.on_reasoning_summary_part_added,
+        }
+
+    async def on_reasoning_summary_part_added(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        part: dict,
+        sequence_number: int,
+        summary_index: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    async def on_reasoning_summary_part_done(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        part: dict,
+        sequence_number: int,
+        summary_index: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    async def on_reasoning_summary_text_delta(
+        self,
+        context: ToolContext,
+        *,
+        delta: str,
+        output_index: int,
+        sequence_number: int,
+        summary_index: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    async def on_reasoning_summary_text_done(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        summary_index: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    async def on_reasoning(
+        self,
+        context: ToolContext,
+        *,
+        summary: list[str],
+        content: Optional[list[str]] = None,
+        encrypted_content: str | None,
+        status: Literal["in_progress", "completed", "incomplete"],
+    ):
+        pass
+
+    async def handle_reasoning(
+        self,
+        context: ToolContext,
+        *,
+        id: str,
+        summary: list[dict],
+        type: str,
+        content: Optional[list[dict]],
+        encrypted_content: str | None,
+        status: str,
+        **extra,
+    ):
+        await self.on_reasoning(
+            context,
+            summary=summary,
+            content=content,
+            encrypted_content=encrypted_content,
+            status=status,
+        )
+
+
+# TODO: computer tool call
+
+
+class WebSearchConfig(ToolkitConfig):
+    name: Literal["web_search"]
+
+
+class WebSearchToolkitBuilder(ToolkitBuilder):
+    def __init__(self):
+        super().__init__(name="web_search", type=WebSearchConfig)
+
+    async def make(self, *, room: RoomClient, model: str, config: WebSearchConfig):
+        return Toolkit(name="web_search", tools=[WebSearchTool(config=config)])
+
+
+class WebSearchTool(OpenAIResponsesTool):
+    def __init__(self, *, config: Optional[WebSearchConfig] = None):
+        if config is None:
+            config = WebSearchConfig(name="web_search")
+        super().__init__(name="web_search")
+
+    def get_open_ai_tool_definitions(self) -> list[dict]:
+        return [{"type": "web_search_preview"}]
+
+    def get_open_ai_stream_callbacks(self):
+        return {
+            "response.web_search_call.in_progress": self.on_web_search_call_in_progress,
+            "response.web_search_call.searching": self.on_web_search_call_searching,
+            "response.web_search_call.completed": self.on_web_search_call_completed,
+        }
+
+    def get_open_ai_output_handlers(self):
+        return {"web_search_call": self.handle_web_search_call}
+
+    async def on_web_search_call_in_progress(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    async def on_web_search_call_searching(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    async def on_web_search_call_completed(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    async def on_web_search(self, context: ToolContext, *, status: str, **extra):
+        pass
+
+    async def handle_web_search_call(
+        self, context: ToolContext, *, id: str, status: str, type: str, **extra
+    ):
+        await self.on_web_search(context, status=status)
+
+
+class FileSearchResult:
+    def __init__(
+        self, *, attributes: dict, file_id: str, filename: str, score: float, text: str
+    ):
+        self.attributes = attributes
+        self.file_id = file_id
+        self.filename = filename
+        self.score = score
+        self.text = text
+
+
+class FileSearchTool(OpenAIResponsesTool):
+    def __init__(
+        self,
+        *,
+        vector_store_ids: list[str],
+        filters: Optional[dict] = None,
+        max_num_results: Optional[int] = None,
+        ranking_options: Optional[dict] = None,
+    ):
+        super().__init__(name="file_search")
+
+        self.vector_store_ids = vector_store_ids
+        self.filters = filters
+        self.max_num_results = max_num_results
+        self.ranking_options = ranking_options
+
+    def get_open_ai_tool_definitions(self) -> list[dict]:
+        return [
+            {
+                "type": "file_search",
+                "vector_store_ids": self.vector_store_ids,
+                "filters": self.filters,
+                "max_num_results": self.max_num_results,
+                "ranking_options": self.ranking_options,
+            }
+        ]
+
+    def get_open_ai_stream_callbacks(self):
+        return {
+            "response.file_search_call.in_progress": self.on_file_search_call_in_progress,
+            "response.file_search_call.searching": self.on_file_search_call_searching,
+            "response.file_search_call.completed": self.on_file_search_call_completed,
+        }
+
+    def get_open_ai_output_handlers(self):
+        return {"handle_file_search_call": self.handle_file_search_call}
+
+    async def on_file_search_call_in_progress(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    async def on_file_search_call_searching(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    async def on_file_search_call_completed(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        **extra,
+    ):
+        pass
+
+    async def on_file_search(
+        self,
+        context: ToolContext,
+        *,
+        queries: list,
+        results: list[FileSearchResult],
+        status: Literal["in_progress", "searching", "incomplete", "failed"],
+    ):
+        pass
+
+    async def handle_file_search_call(
+        self,
+        context: ToolContext,
+        *,
+        id: str,
+        queries: list,
+        status: str,
+        results: dict | None,
+        type: str,
+        **extra,
+    ):
+        search_results = None
+        if results is not None:
+            search_results = []
+            for result in results:
+                search_results.append(FileSearchResult(**result))
+
+        await self.on_file_search(
+            context, queries=queries, results=search_results, status=status
+        )
+
+
+class ApplyPatchConfig(ToolkitConfig):
+    name: Literal["apply_patch"]
+
+
+class ApplyPatchToolkitBuilder(ToolkitBuilder):
+    def __init__(self):
+        super().__init__(name="apply_patch", type=ApplyPatchConfig)
+
+    async def make(self, *, room: RoomClient, model: str, config: ApplyPatchConfig):
+        return Toolkit(name="apply_patch", tools=[ApplyPatchTool(config=config)])
+
+
+class ApplyPatchTool(OpenAIResponsesTool):
+    """
+    Wrapper for the built-in `apply_patch` tool.
+
+    The model will emit `apply_patch_call` items whenever it wants to create,
+    update, or delete a file using a unified diff. The server / host
+    environment is expected to actually apply the patch and, if desired,
+    log results via `apply_patch_call_output`.
+
+    The two key handler entrypoints you can override are:
+
+      * `on_apply_patch_call`       – called when the model requests a patch
+      * `on_apply_patch_call_output` – called when the tool emits a log/output item
+    """
+
+    def __init__(self, *, config: ApplyPatchConfig):
+        super().__init__(name="apply_patch")
+
+    # Tool definition advertised to OpenAI
+    def get_open_ai_tool_definitions(self) -> list[dict]:
+        # No extra options for now – the built-in tool just needs the type
+        return [{"type": "apply_patch"}]
+
+    # Stream callbacks for `response.apply_patch_call.*` events
+    def get_open_ai_stream_callbacks(self):
+        return {
+            "response.apply_patch_call.in_progress": self.on_apply_patch_call_in_progress,
+            "response.apply_patch_call.completed": self.on_apply_patch_call_completed,
+        }
+
+    # Output handlers for item types
+    def get_open_ai_output_handlers(self):
+        return {
+            # The tool call itself (what to apply)
+            "apply_patch_call": self.handle_apply_patch_call,
+        }
+
+    # --- Stream callbacks -------------------------------------------------
+
+    # response.apply_patch_call.in_progress
+    async def on_apply_patch_call_in_progress(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        **extra,
+    ):
+        # Default: no-op, but you can log progress / show UI here if you want
+        pass
+
+    # response.apply_patch_call.completed
+    async def on_apply_patch_call_completed(
+        self,
+        context: ToolContext,
+        *,
+        item_id: str,
+        output_index: int,
+        sequence_number: int,
+        type: str,
+        **extra,
+    ):
+        # Default: no-op
+        pass
+
+    # --- High-level hooks -------------------------------------------------
+
+    async def on_apply_patch_call(
+        self,
+        context: ToolContext,
+        *,
+        call_id: str,
+        operation: dict,
+        status: str,
+        **extra,
+    ):
+        """
+        Called when the model requests an apply_patch operation.
+
+        operation looks like one of:
+
+        create_file:
+            {
+              "type": "create_file",
+              "path": "relative/path/to/file",
+              "diff": "...unified diff..."
+            }
+
+        update_file:
+            {
+              "type": "update_file",
+              "path": "relative/path/to/file",
+              "diff": "...unified diff..."
+            }
+
+        delete_file:
+            {
+              "type": "delete_file",
+              "path": "relative/path/to/file"
+            }
+        """
+        # Override this to actually apply the patch in your workspace.
+        # Default is no-op.
+
+        from meshagent.openai.tools.apply_patch import apply_diff
+
+        if operation["type"] == "delete_file":
+            path = operation["path"]
+            logger.info(f"applying patch: deleting file {path}")
+            await context.room.storage.delete(path=path)
+            log = f"Deleted file: {path}"
+            logger.info(log)
+            return {"status": "completed", "output": log}
+
+        elif operation["type"] == "create_file":
+            diff = operation["diff"]
+            path = operation["path"]
+            logger.info(f"applying patch: creating file {path} with {diff}")
+            handle = await context.room.storage.open(path=path, overwrite=False)
+            try:
+                patched = apply_diff("", diff, "create")
+            except Exception as ex:
+                return {"status": "failed", "output": f"{ex}"}
+            await context.room.storage.write(handle=handle, data=patched.encode())
+            await context.room.storage.close(handle=handle)
+
+            log = f"Created file: {path} ({len(patched)} bytes)"
+            logger.info(log)
+            return {"status": "completed", "output": log}
+
+        elif operation["type"] == "update_file":
+            path = operation["path"]
+            content = await context.room.storage.download(path=path)
+            text = content.data.decode()
+            diff = operation["diff"]
+
+            logger.info(f"applying patch: updating file {path} with {diff}")
+
+            try:
+                patched = apply_diff(text, diff)
+            except Exception as ex:
+                return {"status": "failed", "output": f"{ex}"}
+
+            handle = await context.room.storage.open(path=path, overwrite=True)
+            await context.room.storage.write(handle=handle, data=patched.encode())
+            await context.room.storage.close(handle=handle)
+
+            log = f"Updated file: {path} ({len(text)} -> {len(patched)} bytes)"
+            logger.info(log)
+            return {"status": "completed", "output": log}
+
+            # apply patch
+        else:
+            raise Exception(f"Unexpected patch operation {operation}")
+
+    async def handle_apply_patch_call(
+        self,
+        context: ToolContext,
+        *,
+        call_id: str,
+        operation: dict,
+        status: str,
+        type: str,
+        id: str | None = None,
+        **extra,
+    ):
+        result = await self.on_apply_patch_call(
+            context,
+            call_id=call_id,
+            operation=operation,
+            status=status,
+            **extra,
+        )
+
+        return {
+            "type": "apply_patch_call_output",
+            "call_id": call_id,
+            **result,
+        }
