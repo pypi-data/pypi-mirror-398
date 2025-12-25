@@ -1,0 +1,599 @@
+# File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+
+from __future__ import annotations
+
+import os
+from typing import TYPE_CHECKING, Any, Mapping
+from typing_extensions import Self, override
+
+import httpx
+
+from . import _exceptions
+from ._qs import Querystring
+from ._types import (
+    Omit,
+    Timeout,
+    NotGiven,
+    Transport,
+    ProxiesTypes,
+    RequestOptions,
+    not_given,
+)
+from ._utils import is_given, get_async_library
+from ._compat import cached_property
+from ._version import __version__
+from ._streaming import Stream as Stream, AsyncStream as AsyncStream
+from ._exceptions import APIStatusError, NotDiamondError
+from ._base_client import (
+    DEFAULT_MAX_RETRIES,
+    SyncAPIClient,
+    AsyncAPIClient,
+)
+
+if TYPE_CHECKING:
+    from .resources import models, preferences, model_router, custom_router, prompt_adaptation
+    from .resources.models import ModelsResource, AsyncModelsResource
+    from .resources.preferences import PreferencesResource, AsyncPreferencesResource
+    from .resources.model_router import ModelRouterResource, AsyncModelRouterResource
+    from .resources.custom_router import CustomRouterResource, AsyncCustomRouterResource
+    from .resources.prompt_adaptation import PromptAdaptationResource, AsyncPromptAdaptationResource
+
+__all__ = [
+    "Timeout",
+    "Transport",
+    "ProxiesTypes",
+    "RequestOptions",
+    "NotDiamond",
+    "AsyncNotDiamond",
+    "Client",
+    "AsyncClient",
+]
+
+
+class NotDiamond(SyncAPIClient):
+    # client options
+    api_key: str
+
+    def __init__(
+        self,
+        *,
+        api_key: str | None = None,
+        base_url: str | httpx.URL | None = None,
+        timeout: float | Timeout | None | NotGiven = not_given,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        default_headers: Mapping[str, str] | None = None,
+        default_query: Mapping[str, object] | None = None,
+        # Configure a custom httpx client.
+        # We provide a `DefaultHttpxClient` class that you can pass to retain the default values we use for `limits`, `timeout` & `follow_redirects`.
+        # See the [httpx documentation](https://www.python-httpx.org/api/#client) for more details.
+        http_client: httpx.Client | None = None,
+        # Enable or disable schema validation for data returned by the API.
+        # When enabled an error APIResponseValidationError is raised
+        # if the API responds with invalid data for the expected schema.
+        #
+        # This parameter may be removed or changed in the future.
+        # If you rely on this feature, please open a GitHub issue
+        # outlining your use-case to help us decide if it should be
+        # part of our public interface in the future.
+        _strict_response_validation: bool = False,
+    ) -> None:
+        """Construct a new synchronous NotDiamond client instance.
+
+        This automatically infers the `api_key` argument from the `NOT_DIAMOND_API_KEY` environment variable if it is not provided.
+        """
+        if api_key is None:
+            api_key = os.environ.get("NOT_DIAMOND_API_KEY")
+        if api_key is None:
+            raise NotDiamondError(
+                "The api_key client option must be set either by passing api_key to the client or by setting the NOT_DIAMOND_API_KEY environment variable"
+            )
+        self.api_key = api_key
+
+        if base_url is None:
+            base_url = os.environ.get("NOTDIAMOND_BASE_URL")
+        if base_url is None:
+            base_url = f"https://api.notdiamond.ai"
+
+        super().__init__(
+            version=__version__,
+            base_url=base_url,
+            max_retries=max_retries,
+            timeout=timeout,
+            http_client=http_client,
+            custom_headers=default_headers,
+            custom_query=default_query,
+            _strict_response_validation=_strict_response_validation,
+        )
+
+    @cached_property
+    def model_router(self) -> ModelRouterResource:
+        from .resources.model_router import ModelRouterResource
+
+        return ModelRouterResource(self)
+
+    @cached_property
+    def preferences(self) -> PreferencesResource:
+        from .resources.preferences import PreferencesResource
+
+        return PreferencesResource(self)
+
+    @cached_property
+    def prompt_adaptation(self) -> PromptAdaptationResource:
+        from .resources.prompt_adaptation import PromptAdaptationResource
+
+        return PromptAdaptationResource(self)
+
+    @cached_property
+    def custom_router(self) -> CustomRouterResource:
+        from .resources.custom_router import CustomRouterResource
+
+        return CustomRouterResource(self)
+
+    @cached_property
+    def models(self) -> ModelsResource:
+        from .resources.models import ModelsResource
+
+        return ModelsResource(self)
+
+    @cached_property
+    def with_raw_response(self) -> NotDiamondWithRawResponse:
+        return NotDiamondWithRawResponse(self)
+
+    @cached_property
+    def with_streaming_response(self) -> NotDiamondWithStreamedResponse:
+        return NotDiamondWithStreamedResponse(self)
+
+    @property
+    @override
+    def qs(self) -> Querystring:
+        return Querystring(array_format="repeat")
+
+    @property
+    @override
+    def auth_headers(self) -> dict[str, str]:
+        api_key = self.api_key
+        return {"Authorization": f"Bearer {api_key}"}
+
+    @property
+    @override
+    def default_headers(self) -> dict[str, str | Omit]:
+        return {
+            **super().default_headers,
+            "X-Stainless-Async": "false",
+            **self._custom_headers,
+        }
+
+    def copy(
+        self,
+        *,
+        api_key: str | None = None,
+        base_url: str | httpx.URL | None = None,
+        timeout: float | Timeout | None | NotGiven = not_given,
+        http_client: httpx.Client | None = None,
+        max_retries: int | NotGiven = not_given,
+        default_headers: Mapping[str, str] | None = None,
+        set_default_headers: Mapping[str, str] | None = None,
+        default_query: Mapping[str, object] | None = None,
+        set_default_query: Mapping[str, object] | None = None,
+        _extra_kwargs: Mapping[str, Any] = {},
+    ) -> Self:
+        """
+        Create a new client instance re-using the same options given to the current client with optional overriding.
+        """
+        if default_headers is not None and set_default_headers is not None:
+            raise ValueError("The `default_headers` and `set_default_headers` arguments are mutually exclusive")
+
+        if default_query is not None and set_default_query is not None:
+            raise ValueError("The `default_query` and `set_default_query` arguments are mutually exclusive")
+
+        headers = self._custom_headers
+        if default_headers is not None:
+            headers = {**headers, **default_headers}
+        elif set_default_headers is not None:
+            headers = set_default_headers
+
+        params = self._custom_query
+        if default_query is not None:
+            params = {**params, **default_query}
+        elif set_default_query is not None:
+            params = set_default_query
+
+        http_client = http_client or self._client
+        return self.__class__(
+            api_key=api_key or self.api_key,
+            base_url=base_url or self.base_url,
+            timeout=self.timeout if isinstance(timeout, NotGiven) else timeout,
+            http_client=http_client,
+            max_retries=max_retries if is_given(max_retries) else self.max_retries,
+            default_headers=headers,
+            default_query=params,
+            **_extra_kwargs,
+        )
+
+    # Alias for `copy` for nicer inline usage, e.g.
+    # client.with_options(timeout=10).foo.create(...)
+    with_options = copy
+
+    @override
+    def _make_status_error(
+        self,
+        err_msg: str,
+        *,
+        body: object,
+        response: httpx.Response,
+    ) -> APIStatusError:
+        if response.status_code == 400:
+            return _exceptions.BadRequestError(err_msg, response=response, body=body)
+
+        if response.status_code == 401:
+            return _exceptions.AuthenticationError(err_msg, response=response, body=body)
+
+        if response.status_code == 403:
+            return _exceptions.PermissionDeniedError(err_msg, response=response, body=body)
+
+        if response.status_code == 404:
+            return _exceptions.NotFoundError(err_msg, response=response, body=body)
+
+        if response.status_code == 409:
+            return _exceptions.ConflictError(err_msg, response=response, body=body)
+
+        if response.status_code == 422:
+            return _exceptions.UnprocessableEntityError(err_msg, response=response, body=body)
+
+        if response.status_code == 429:
+            return _exceptions.RateLimitError(err_msg, response=response, body=body)
+
+        if response.status_code >= 500:
+            return _exceptions.InternalServerError(err_msg, response=response, body=body)
+        return APIStatusError(err_msg, response=response, body=body)
+
+
+class AsyncNotDiamond(AsyncAPIClient):
+    # client options
+    api_key: str
+
+    def __init__(
+        self,
+        *,
+        api_key: str | None = None,
+        base_url: str | httpx.URL | None = None,
+        timeout: float | Timeout | None | NotGiven = not_given,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        default_headers: Mapping[str, str] | None = None,
+        default_query: Mapping[str, object] | None = None,
+        # Configure a custom httpx client.
+        # We provide a `DefaultAsyncHttpxClient` class that you can pass to retain the default values we use for `limits`, `timeout` & `follow_redirects`.
+        # See the [httpx documentation](https://www.python-httpx.org/api/#asyncclient) for more details.
+        http_client: httpx.AsyncClient | None = None,
+        # Enable or disable schema validation for data returned by the API.
+        # When enabled an error APIResponseValidationError is raised
+        # if the API responds with invalid data for the expected schema.
+        #
+        # This parameter may be removed or changed in the future.
+        # If you rely on this feature, please open a GitHub issue
+        # outlining your use-case to help us decide if it should be
+        # part of our public interface in the future.
+        _strict_response_validation: bool = False,
+    ) -> None:
+        """Construct a new async AsyncNotDiamond client instance.
+
+        This automatically infers the `api_key` argument from the `NOT_DIAMOND_API_KEY` environment variable if it is not provided.
+        """
+        if api_key is None:
+            api_key = os.environ.get("NOT_DIAMOND_API_KEY")
+        if api_key is None:
+            raise NotDiamondError(
+                "The api_key client option must be set either by passing api_key to the client or by setting the NOT_DIAMOND_API_KEY environment variable"
+            )
+        self.api_key = api_key
+
+        if base_url is None:
+            base_url = os.environ.get("NOTDIAMOND_BASE_URL")
+        if base_url is None:
+            base_url = f"https://api.notdiamond.ai"
+
+        super().__init__(
+            version=__version__,
+            base_url=base_url,
+            max_retries=max_retries,
+            timeout=timeout,
+            http_client=http_client,
+            custom_headers=default_headers,
+            custom_query=default_query,
+            _strict_response_validation=_strict_response_validation,
+        )
+
+    @cached_property
+    def model_router(self) -> AsyncModelRouterResource:
+        from .resources.model_router import AsyncModelRouterResource
+
+        return AsyncModelRouterResource(self)
+
+    @cached_property
+    def preferences(self) -> AsyncPreferencesResource:
+        from .resources.preferences import AsyncPreferencesResource
+
+        return AsyncPreferencesResource(self)
+
+    @cached_property
+    def prompt_adaptation(self) -> AsyncPromptAdaptationResource:
+        from .resources.prompt_adaptation import AsyncPromptAdaptationResource
+
+        return AsyncPromptAdaptationResource(self)
+
+    @cached_property
+    def custom_router(self) -> AsyncCustomRouterResource:
+        from .resources.custom_router import AsyncCustomRouterResource
+
+        return AsyncCustomRouterResource(self)
+
+    @cached_property
+    def models(self) -> AsyncModelsResource:
+        from .resources.models import AsyncModelsResource
+
+        return AsyncModelsResource(self)
+
+    @cached_property
+    def with_raw_response(self) -> AsyncNotDiamondWithRawResponse:
+        return AsyncNotDiamondWithRawResponse(self)
+
+    @cached_property
+    def with_streaming_response(self) -> AsyncNotDiamondWithStreamedResponse:
+        return AsyncNotDiamondWithStreamedResponse(self)
+
+    @property
+    @override
+    def qs(self) -> Querystring:
+        return Querystring(array_format="repeat")
+
+    @property
+    @override
+    def auth_headers(self) -> dict[str, str]:
+        api_key = self.api_key
+        return {"Authorization": f"Bearer {api_key}"}
+
+    @property
+    @override
+    def default_headers(self) -> dict[str, str | Omit]:
+        return {
+            **super().default_headers,
+            "X-Stainless-Async": f"async:{get_async_library()}",
+            **self._custom_headers,
+        }
+
+    def copy(
+        self,
+        *,
+        api_key: str | None = None,
+        base_url: str | httpx.URL | None = None,
+        timeout: float | Timeout | None | NotGiven = not_given,
+        http_client: httpx.AsyncClient | None = None,
+        max_retries: int | NotGiven = not_given,
+        default_headers: Mapping[str, str] | None = None,
+        set_default_headers: Mapping[str, str] | None = None,
+        default_query: Mapping[str, object] | None = None,
+        set_default_query: Mapping[str, object] | None = None,
+        _extra_kwargs: Mapping[str, Any] = {},
+    ) -> Self:
+        """
+        Create a new client instance re-using the same options given to the current client with optional overriding.
+        """
+        if default_headers is not None and set_default_headers is not None:
+            raise ValueError("The `default_headers` and `set_default_headers` arguments are mutually exclusive")
+
+        if default_query is not None and set_default_query is not None:
+            raise ValueError("The `default_query` and `set_default_query` arguments are mutually exclusive")
+
+        headers = self._custom_headers
+        if default_headers is not None:
+            headers = {**headers, **default_headers}
+        elif set_default_headers is not None:
+            headers = set_default_headers
+
+        params = self._custom_query
+        if default_query is not None:
+            params = {**params, **default_query}
+        elif set_default_query is not None:
+            params = set_default_query
+
+        http_client = http_client or self._client
+        return self.__class__(
+            api_key=api_key or self.api_key,
+            base_url=base_url or self.base_url,
+            timeout=self.timeout if isinstance(timeout, NotGiven) else timeout,
+            http_client=http_client,
+            max_retries=max_retries if is_given(max_retries) else self.max_retries,
+            default_headers=headers,
+            default_query=params,
+            **_extra_kwargs,
+        )
+
+    # Alias for `copy` for nicer inline usage, e.g.
+    # client.with_options(timeout=10).foo.create(...)
+    with_options = copy
+
+    @override
+    def _make_status_error(
+        self,
+        err_msg: str,
+        *,
+        body: object,
+        response: httpx.Response,
+    ) -> APIStatusError:
+        if response.status_code == 400:
+            return _exceptions.BadRequestError(err_msg, response=response, body=body)
+
+        if response.status_code == 401:
+            return _exceptions.AuthenticationError(err_msg, response=response, body=body)
+
+        if response.status_code == 403:
+            return _exceptions.PermissionDeniedError(err_msg, response=response, body=body)
+
+        if response.status_code == 404:
+            return _exceptions.NotFoundError(err_msg, response=response, body=body)
+
+        if response.status_code == 409:
+            return _exceptions.ConflictError(err_msg, response=response, body=body)
+
+        if response.status_code == 422:
+            return _exceptions.UnprocessableEntityError(err_msg, response=response, body=body)
+
+        if response.status_code == 429:
+            return _exceptions.RateLimitError(err_msg, response=response, body=body)
+
+        if response.status_code >= 500:
+            return _exceptions.InternalServerError(err_msg, response=response, body=body)
+        return APIStatusError(err_msg, response=response, body=body)
+
+
+class NotDiamondWithRawResponse:
+    _client: NotDiamond
+
+    def __init__(self, client: NotDiamond) -> None:
+        self._client = client
+
+    @cached_property
+    def model_router(self) -> model_router.ModelRouterResourceWithRawResponse:
+        from .resources.model_router import ModelRouterResourceWithRawResponse
+
+        return ModelRouterResourceWithRawResponse(self._client.model_router)
+
+    @cached_property
+    def preferences(self) -> preferences.PreferencesResourceWithRawResponse:
+        from .resources.preferences import PreferencesResourceWithRawResponse
+
+        return PreferencesResourceWithRawResponse(self._client.preferences)
+
+    @cached_property
+    def prompt_adaptation(self) -> prompt_adaptation.PromptAdaptationResourceWithRawResponse:
+        from .resources.prompt_adaptation import PromptAdaptationResourceWithRawResponse
+
+        return PromptAdaptationResourceWithRawResponse(self._client.prompt_adaptation)
+
+    @cached_property
+    def custom_router(self) -> custom_router.CustomRouterResourceWithRawResponse:
+        from .resources.custom_router import CustomRouterResourceWithRawResponse
+
+        return CustomRouterResourceWithRawResponse(self._client.custom_router)
+
+    @cached_property
+    def models(self) -> models.ModelsResourceWithRawResponse:
+        from .resources.models import ModelsResourceWithRawResponse
+
+        return ModelsResourceWithRawResponse(self._client.models)
+
+
+class AsyncNotDiamondWithRawResponse:
+    _client: AsyncNotDiamond
+
+    def __init__(self, client: AsyncNotDiamond) -> None:
+        self._client = client
+
+    @cached_property
+    def model_router(self) -> model_router.AsyncModelRouterResourceWithRawResponse:
+        from .resources.model_router import AsyncModelRouterResourceWithRawResponse
+
+        return AsyncModelRouterResourceWithRawResponse(self._client.model_router)
+
+    @cached_property
+    def preferences(self) -> preferences.AsyncPreferencesResourceWithRawResponse:
+        from .resources.preferences import AsyncPreferencesResourceWithRawResponse
+
+        return AsyncPreferencesResourceWithRawResponse(self._client.preferences)
+
+    @cached_property
+    def prompt_adaptation(self) -> prompt_adaptation.AsyncPromptAdaptationResourceWithRawResponse:
+        from .resources.prompt_adaptation import AsyncPromptAdaptationResourceWithRawResponse
+
+        return AsyncPromptAdaptationResourceWithRawResponse(self._client.prompt_adaptation)
+
+    @cached_property
+    def custom_router(self) -> custom_router.AsyncCustomRouterResourceWithRawResponse:
+        from .resources.custom_router import AsyncCustomRouterResourceWithRawResponse
+
+        return AsyncCustomRouterResourceWithRawResponse(self._client.custom_router)
+
+    @cached_property
+    def models(self) -> models.AsyncModelsResourceWithRawResponse:
+        from .resources.models import AsyncModelsResourceWithRawResponse
+
+        return AsyncModelsResourceWithRawResponse(self._client.models)
+
+
+class NotDiamondWithStreamedResponse:
+    _client: NotDiamond
+
+    def __init__(self, client: NotDiamond) -> None:
+        self._client = client
+
+    @cached_property
+    def model_router(self) -> model_router.ModelRouterResourceWithStreamingResponse:
+        from .resources.model_router import ModelRouterResourceWithStreamingResponse
+
+        return ModelRouterResourceWithStreamingResponse(self._client.model_router)
+
+    @cached_property
+    def preferences(self) -> preferences.PreferencesResourceWithStreamingResponse:
+        from .resources.preferences import PreferencesResourceWithStreamingResponse
+
+        return PreferencesResourceWithStreamingResponse(self._client.preferences)
+
+    @cached_property
+    def prompt_adaptation(self) -> prompt_adaptation.PromptAdaptationResourceWithStreamingResponse:
+        from .resources.prompt_adaptation import PromptAdaptationResourceWithStreamingResponse
+
+        return PromptAdaptationResourceWithStreamingResponse(self._client.prompt_adaptation)
+
+    @cached_property
+    def custom_router(self) -> custom_router.CustomRouterResourceWithStreamingResponse:
+        from .resources.custom_router import CustomRouterResourceWithStreamingResponse
+
+        return CustomRouterResourceWithStreamingResponse(self._client.custom_router)
+
+    @cached_property
+    def models(self) -> models.ModelsResourceWithStreamingResponse:
+        from .resources.models import ModelsResourceWithStreamingResponse
+
+        return ModelsResourceWithStreamingResponse(self._client.models)
+
+
+class AsyncNotDiamondWithStreamedResponse:
+    _client: AsyncNotDiamond
+
+    def __init__(self, client: AsyncNotDiamond) -> None:
+        self._client = client
+
+    @cached_property
+    def model_router(self) -> model_router.AsyncModelRouterResourceWithStreamingResponse:
+        from .resources.model_router import AsyncModelRouterResourceWithStreamingResponse
+
+        return AsyncModelRouterResourceWithStreamingResponse(self._client.model_router)
+
+    @cached_property
+    def preferences(self) -> preferences.AsyncPreferencesResourceWithStreamingResponse:
+        from .resources.preferences import AsyncPreferencesResourceWithStreamingResponse
+
+        return AsyncPreferencesResourceWithStreamingResponse(self._client.preferences)
+
+    @cached_property
+    def prompt_adaptation(self) -> prompt_adaptation.AsyncPromptAdaptationResourceWithStreamingResponse:
+        from .resources.prompt_adaptation import AsyncPromptAdaptationResourceWithStreamingResponse
+
+        return AsyncPromptAdaptationResourceWithStreamingResponse(self._client.prompt_adaptation)
+
+    @cached_property
+    def custom_router(self) -> custom_router.AsyncCustomRouterResourceWithStreamingResponse:
+        from .resources.custom_router import AsyncCustomRouterResourceWithStreamingResponse
+
+        return AsyncCustomRouterResourceWithStreamingResponse(self._client.custom_router)
+
+    @cached_property
+    def models(self) -> models.AsyncModelsResourceWithStreamingResponse:
+        from .resources.models import AsyncModelsResourceWithStreamingResponse
+
+        return AsyncModelsResourceWithStreamingResponse(self._client.models)
+
+
+Client = NotDiamond
+
+AsyncClient = AsyncNotDiamond
