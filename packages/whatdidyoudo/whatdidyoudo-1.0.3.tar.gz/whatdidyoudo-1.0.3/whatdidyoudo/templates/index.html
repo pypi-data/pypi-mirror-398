@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>What Did You Do?</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+    function isoToday() {
+        const t = new Date();
+        const yyyy = t.getFullYear();
+        const mm = String(t.getMonth() + 1).padStart(2, '0');
+        const dd = String(t.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function initForm() {
+        const expert = document.getElementById('expert');
+        const expertControls = document.getElementById('expertControls');
+        const simpleRow = document.getElementById('simpleDateRow');
+
+    // Initialize dates/time defaults
+    const single = document.getElementById('single_date');
+    const start_dt = document.getElementById('start_dt');
+    const end_dt = document.getElementById('end_dt');
+
+    if (single && !single.value) single.value = isoToday();
+    // default datetime-local values: YYYY-MM-DDTHH:MM
+    if (start_dt && !start_dt.value) start_dt.value = (single ? single.value : isoToday()) + 'T00:00';
+    if (end_dt && !end_dt.value) end_dt.value = (single ? single.value : isoToday()) + 'T23:59';
+
+        // If server rendered the expert checkbox checked, reflect that in UI
+        if (expert.checked) {
+            expertControls.style.display = '';
+            simpleRow.style.display = 'none';
+        }
+
+        expert.addEventListener('change', function() {
+            if (expert.checked) {
+                expertControls.style.display = '';
+                simpleRow.style.display = 'none';
+                // copy single date into start/end if empty
+                if (start_dt && !start_dt.value) start_dt.value = (single ? single.value : isoToday()) + 'T00:00';
+                if (end_dt && !end_dt.value) end_dt.value = (single ? single.value : isoToday()) + 'T23:59';
+            } else {
+                expertControls.style.display = 'none';
+                simpleRow.style.display = '';
+            }
+        });
+    }
+
+    function submitForm() {
+        const user = encodeURIComponent(document.getElementById('user').value);
+        const expert = document.getElementById('expert').checked;
+        if (!expert) {
+            const date = encodeURIComponent(document.getElementById('single_date').value);
+            // keep URL as /user/date
+            window.location.href = '/' + user + '/' + date;
+            return;
+        }
+        // expert mode: use datetime-local inputs. We will split them into date and time
+        const sd_raw = document.getElementById('start_dt').value; // YYYY-MM-DDTHH:MM
+        const ed_raw = document.getElementById('end_dt').value || sd_raw;
+        if (!sd_raw) {
+            alert('Please provide a start date/time.');
+            return;
+        }
+        const [sd_date, sd_time] = sd_raw.split('T');
+        const [ed_date, ed_time] = ed_raw.split('T');
+        window.location.href = '/' + user + '/' + encodeURIComponent(sd_raw) + '/' + encodeURIComponent(ed_raw);
+    }
+
+    window.addEventListener('DOMContentLoaded', initForm);
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h2><a href="/">What Did You Do?</a></h2>
+        {% block fullcontent %}
+        <form id="mainForm" method="get" action="" onsubmit="event.preventDefault(); submitForm();">
+            <label for="user" class="hidden">User:</label>
+            <input type="text" id="user" name="user" value="{{ user or '' }}" placeholder="insert OSM username" required>
+
+            <!-- Simple date (default) -->
+            <div id="simpleDateRow">
+                <label for="single_date" class="hidden">Date:</label>
+                <input type="date" id="single_date" name="single_date" value="{{ (start_date or '').split('T')[0] }}">
+            </div>
+
+            <!-- Expert controls (hidden by default) -->
+            <div id="expertControls" style="display: none; margin-top: 0.5em;">
+                <div class="expert-row">
+                    <label for="start_dt">Start:</label>
+                    <input type="datetime-local" id="start_dt" name="start_dt"
+                     value="{{ (start_date) if start_date else '' }}">
+                </div>
+                <div class="expert-row">
+                    <label for="end_dt">End:</label>
+                    <input type="datetime-local" id="end_dt" name="end_dt"
+                     value="{{ (end_date or start_date) if (end_date or start_date) else '' }}">
+                </div>
+            </div>
+
+            <div class="expert-toggle">
+                <input type="checkbox" id="expert" name="expert"
+                 value="1" {{ 'checked' if expert else '' }}>
+                <label for="expert">Expert mode</label>
+            </div>
+
+            <button type="submit">Show</button>
+        </form>
+        {% block content %}
+        <p>
+            How much did you contribute to <a href="https://www.openstreetmap.org/">OpenStreetMap</a> today? Or any other day?
+        </p>
+        <p>
+            To answer this question, enter your OSM username and the date you want to check above and click "Show".
+        </p>
+        <div class="note">
+            <h4>Tips</h4>
+            <ul>
+                <li>Do you want to have a bookmark that always shows your numbers for the current day?
+                    Just use <code>/YOUR_USERNAME</code> as URL and omit the date!
+                </li>
+                <li>You can enter multiple usernames separated by commas to see their contributions at once.
+                    Try this after a mapwalk with friends!
+                </li>
+            </ul>
+        </div>
+        <div class="disclaimer">
+            <h4>Disclaimers</h4>
+            <ul>
+                <li>Quality beats quantity. While it's nice to see big numbers here, please remember
+                    that just one high-effort change will help more that any amount of mediocre changes.
+                </li>
+                <li>This service is rate-limited to 10 OSM API requests per minute and caches results
+                    for 1 hour (except for the current day) to reduce load on the API.
+                    Too restrictive? Tell me!
+                </li>
+                <li>This is a very simple service. It does exactly one job and tries to do it good.
+                    The data displayed here is shown by many other services, but I didn't find one
+                    that answers my question in this way with just a simple bookmark.
+                    Suggestions are welcome! Get in touch via the issue tracker on the project page.
+                </li>
+            </ul>
+        </div>
+        {% endblock %}
+        {% endblock %}
+        <p class="footer">
+            {% for page in static_pages %}
+                <a href="/-/{{ page }}">{{ page }}</a>{% if not loop.last %} | {% endif %}
+            {% endfor %}
+             |
+             Powered by <a href="https://github.com/rompe/whatdidyoudo">whatdidyoudo {{ version }}</a></p>
+    </div>
+</body>
+</html>
