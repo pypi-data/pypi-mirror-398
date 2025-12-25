@@ -1,0 +1,50 @@
+---
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+      - renovate/**
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.14"]
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: "requirements_dev.txt"
+          activate-environment: true
+      - name: Install dependencies
+        run: |
+          uv pip install -r requirements_dev.txt --prerelease=allow
+      - name: Prepare allenporter/home-assistant-synthetic-home
+        uses: actions/checkout@v6
+        with:
+          repository: allenporter/home-assistant-synthetic-home
+          path: home-assistant-synthetic-home
+          sparse-checkout: |
+            custom_components
+      - name: Test with pytest
+        run: |
+          export PYTHONPATH="${PYTHONPATH}:./home-assistant-synthetic-home/"
+          touch secrets.yaml
+          pytest --cov=home_assistant_datasets --cov-report=term-missing
+      - uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          env_vars: OS,PYTHON
+          fail_ci_if_error: true
+          verbose: true
