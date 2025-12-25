@@ -1,0 +1,151 @@
+[project]
+name = "kerykeion"
+version = "5.6.0"
+authors = [
+    { name = "Giacomo Battaglia", email = "kerykeion.astrology@gmail.com" }
+]
+description = "A Python library for astrological calculations, including natal charts, houses, planetary aspects, and SVG chart generation."
+license = { text = "AGPL-3.0" }
+readme = "README.md"
+keywords = [
+    "astrology",
+    "astrology library",
+    "astrology calculations",
+    "astrology calculator",
+    "natal chart",
+    "birth chart",
+    "planetary aspects",
+    "astrology transits",
+    "houses of astrology",
+    "ephemeris",
+    "zodiac",
+    "zodiac signs",
+    "svg charts",
+    "synastry",
+    "astronomical algorithms"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Religion",
+    "Typing :: Typed",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "pyswisseph>=2.10.3.1",
+    "pydantic>=2.5",
+    "scour>=0.38.2",
+    "requests-cache>=1.2.1",
+    "requests>=2.32.3",
+    "simple-ascii-tables>=1.0.0",
+    "pytz>=2024.2",
+    "typing-extensions>=4.12.2",
+]
+
+[project.urls]
+Homepage = "https://www.kerykeion.net/"
+Repository = "https://github.com/g-battaglia/kerykeion"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["kerykeion"]
+
+# MyPy Static Analysis
+[tool.mypy]
+ignore_missing_imports = true
+mypy_path = "kerykeion"
+files = "kerykeion"
+
+# PyTest Automated Testing
+[tool.pytest.ini_options]
+log_cli_level = 20
+log_cli = true
+testpaths = "tests"
+log_level = 20
+log_date_format = "%Y-%m-%d %H:%M:%S"
+log_format = "%(asctime)s %(levelname)s %(message)s"
+addopts = "--cov=kerykeion --cov-report=html --cov-report=term --cov-report=xml"
+
+# Coverage Configuration
+[tool.coverage.run]
+source = ["kerykeion"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/sweph/*",  # Swiss Ephemeris library files
+    "setup.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+show_missing = true
+skip_covered = false
+precision = 2
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+# Task Runner
+[tool.poe.tasks]
+test = "pytest"
+test-no-capture = "pytest --show-capture no"
+test-nocharts = "pytest --ignore-glob='*chart*.py'"
+test-cov = "pytest --cov=kerykeion --cov-report=html --cov-report=term"
+test-cov-xml = "pytest --cov=kerykeion --cov-report=xml"
+coverage-report = "coverage report"
+coverage-html = "coverage html"
+coverage-erase = "coverage erase"
+analize = "mypy"
+docs = "pdoc kerykeion -o ./docs"
+format = "ruff format"
+"format:all" = "ruff format kerykeion tests"
+lint = "ruff check"
+
+[tool.poe.tasks.quality]
+script = "scripts.quality_check:main"
+
+[tool.ruff]
+line-length = 120
+
+[dependency-groups]
+dev = [
+    "coverage>=7.6.0",
+    "mypy>=1.17.1",
+    "pdoc>=15.0.4",
+    "poethepoet>=0.36.0",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.12.9",
+    "types-pytz>=2025.2.0.20250516",
+    "types-requests>=2.32.4.20250611",
+]
