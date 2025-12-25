@@ -1,0 +1,238 @@
+Metadata-Version: 2.4
+Name: easy-start-device
+Version: 0.1.4
+Summary: 一个用于设备集成的Python包，简单易用
+Home-page: https://gitee.com/guolei19850528/easy_start_device
+Author: guolei
+Author-email: 174000902@qq.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: httpx
+Requires-Dist: jsonschema
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# easy_start_device
+
+一个用于设备集成的Python包，简单易用，主要提供与天津博瑞皓科设备的通信功能。
+
+## 功能特性
+
+- **设备通信**：提供与天津博瑞皓科设备的通信能力
+- **通知发送**：支持向设备发送通知消息
+- **同步/异步支持**：所有API方法均提供同步和异步版本，适用于不同场景
+- **灵活配置**：支持自定义HTTP客户端参数，如超时时间、基础URL等
+- **响应验证**：使用JSON Schema验证API响应结构，确保数据完整性
+- **简单易用**：提供简洁的API接口，降低集成难度
+
+## 安装方法
+
+### 使用pip安装
+
+```bash
+pip install easy-start-device
+```
+
+### 源码安装
+
+```bash
+# 克隆项目
+git clone https://gitee.com/guolei19850528/easy_start_device.git
+
+# 进入项目目录
+cd easy_start_device
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 安装包
+pip install -e .
+```
+
+## 快速开始
+
+### 基本使用示例
+
+#### 同步发送通知
+
+```python
+from easy_start_device.tjbrhk import Speaker
+
+# 创建Speaker客户端实例
+speaker = Speaker(
+    base_url="https://speaker.17laimai.cn",
+    token="your_token",
+    id="your_device_id"
+)
+
+# 同步发送通知
+is_valid, response_json, response = speaker.notify(
+    message="这是一条测试通知消息"
+)
+
+# 处理结果
+print(f"响应验证: {is_valid}")
+print(f"响应数据: {response_json}")
+print(f"响应状态码: {response.status_code}")
+```
+
+#### 异步发送通知
+
+```python
+import asyncio
+from easy_start_device.tjbrhk import Speaker
+
+async def main():
+    # 创建Speaker客户端实例
+    speaker = Speaker(
+        base_url="https://speaker.17laimai.cn",
+        token="your_token",
+        id="your_device_id"
+    )
+    
+    # 异步发送通知
+    is_valid, response_json, response = await speaker.async_notify(
+        message="这是一条异步测试通知消息"
+    )
+    
+    # 处理结果
+    print(f"响应验证: {is_valid}")
+    print(f"响应数据: {response_json}")
+    print(f"响应状态码: {response.status_code}")
+
+# 运行异步函数
+asyncio.run(main())
+```
+
+### 自定义HTTP客户端配置
+
+```python
+from easy_start_device.tjbrhk import Speaker
+
+# 创建Speaker客户端实例
+speaker = Speaker(
+    base_url="https://speaker.17laimai.cn",
+    token="your_token",
+    id="your_device_id"
+)
+
+# 自定义HTTP客户端
+client = speaker.client(
+    timeout=300,  # 5分钟超时
+    headers={"User-Agent": "Custom User Agent"}
+)
+
+# 使用自定义客户端发送通知
+is_valid, response_json, response = speaker.notify(
+    client=client,
+    message="使用自定义客户端发送的通知"
+)
+
+# 关闭客户端
+client.close()
+```
+
+## API文档
+
+### Speaker类
+
+```python
+class Speaker(base_url: str = "https://speaker.17laimai.cn", token: str = "", id: str = "", version: str = "1")
+```
+
+- **参数**:
+  - `base_url` (str): API基础URL，默认值为"https://speaker.17laimai.cn"
+  - `token` (str): 认证令牌，用于API访问权限验证
+  - `id` (str): 设备或用户ID，用于标识发送者
+  - `version` (str): API版本号，默认值为"1"
+
+- **方法**:
+
+  #### client(**kwargs)
+  创建并返回同步HTTP客户端
+  
+  - **参数**:
+    - `**kwargs`: 传递给httpx.Client的额外参数
+    
+  - **返回**:
+    - `httpx.Client`: 配置好的同步HTTP客户端实例
+
+  #### async_client(**kwargs)
+  创建并返回异步HTTP客户端
+  
+  - **参数**:
+    - `**kwargs`: 传递给httpx.AsyncClient的额外参数
+    
+  - **返回**:
+    - `httpx.AsyncClient`: 配置好的异步HTTP客户端实例
+
+  #### notify(client=None, validate_json_schema=None, message="", **kwargs)
+  同步发送通知消息
+  
+  - **参数**:
+    - `client` (httpx.Client, optional): 同步HTTP客户端实例
+    - `validate_json_schema` (dict, optional): JSON Schema验证规则
+    - `message` (str, optional): 要发送的通知消息内容
+    - `**kwargs`: 额外的请求参数
+    
+  - **返回**:
+    - `tuple`: 三元组 (is_valid, response_json, response)
+      - `is_valid`: JSON Schema验证结果（布尔值）
+      - `response_json`: API返回的JSON响应数据
+      - `response`: httpx.Response对象
+
+  #### async_notify(client=None, multiple_return_values=False, validate_json_schema=None, message="", **kwargs)
+  异步发送通知消息
+  
+  - **参数**:
+    - `client` (httpx.AsyncClient, optional): 异步HTTP客户端实例
+    - `multiple_return_values` (bool, optional): 是否返回多个值（保留参数，兼容旧API）
+    - `validate_json_schema` (dict, optional): JSON Schema验证规则
+    - `message` (str, optional): 要发送的通知消息内容
+    - `**kwargs`: 额外的请求参数
+    
+  - **返回**:
+    - `tuple`: 三元组 (is_valid, response_json, response)
+      - `is_valid`: JSON Schema验证结果（布尔值）
+      - `response_json`: API返回的JSON响应数据
+      - `response`: httpx.Response对象
+
+## 依赖项
+
+- **httpx**: 用于HTTP请求（支持同步和异步）
+- **jsonschema**: 用于验证API响应的JSON结构
+
+### 项目结构
+
+```
+easy_start_device/
+├── easy_start_device/
+│   ├── __init__.py
+│   ├── tjbrhk.py
+├── requirements.txt
+├── README.md
+```
+
+## 许可证
+
+本项目采用MIT许可证，详见LICENSE文件。
+
+## 作者信息
+
+- **作者**: guolei
+- **邮箱**: 174000902@qq.com
+- **项目地址**: https://gitee.com/guolei19850528/easy_start_device
+
+
