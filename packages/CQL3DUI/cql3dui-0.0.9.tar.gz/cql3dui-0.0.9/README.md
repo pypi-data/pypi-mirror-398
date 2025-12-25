@@ -1,0 +1,125 @@
+# CQL3DUI
+
+**A simple user-interface for the Bounce-Averaged Fokker-Planck code CQL3D.**
+
+**Author:** Matthew Poulos (CompX)
+**Email:** poulos@compxco.com
+
+---
+
+## Overview
+
+**CQL3DUI** is a simple Python/Tkinter-based GUI for the Fortran-based code CQL3D. The interface allows users to:
+
+1.  **Import, export, view, and edit** `cqlinput` files (Fortran namelists).
+2.  **Load and run** pre-compiled CQL3D executables.
+3.  **Plot and visualize** the resulting output (NetCDF) from CQL3D.
+
+Detailed information and documentation on CQL3D can be found at:
+* [GitHub Repository](https://github.com/compxco/cql3d)
+* [CompX Website](https://www.compxco.com/cql3d.html)
+
+---
+
+## Installation
+
+To install CQL3DUI, open a terminal and run:
+
+```bash
+pip install cql3dui
+```
+
+To run CQL3DUI from within any directory, simply type:
+
+```bash
+cqlui
+```
+
+---
+
+## Running Example Tests
+
+A set of example tests are provided in the folder `cql3dtests` in the source distribution (.tar.gz), available for download at:
+* [PyPI](https://pypi.org/project/CQL3DUI/#files)
+
+### Structure of /cql3dtests folder
+The contents of the test folder are organized as follows:
+
+```text
+cql3dtests/
+├── cqlinput_folder/                                        # Namelist files
+│   ├── test1_cqlinput_eoved_.16_multi-flux-surface_test1.0
+│   ├── test1_cqlinput_eoved_.16_multi-flux-surface_test1.1
+│   ├── test2_cqlinput_freidberg_full_eps.3_short_w_sxr_201024
+│   ├── test3_cqlinput_96143_one_ray.1_short_201024
+│   ├── test4_cqlinput_MAST-like_test.0
+│   ├── test5_cqlinput_H0.short_mmsv8_adjust.4
+│   ├── test6_cqlinput_eoved_.16_multi-flux-surface0.2.11
+│   └── test7_cqlinput_cmod1101201020_AF.26
+└── aux_file_folder/
+    ├── eqdsk                                             # Equilibrium/RF files
+    ├── eqdsk_freidberg_full_eps
+    ├── eqdsk_MAST-like
+    ├── g096143.01440
+    ├── g122080.03100
+    ├── genray_test4.nc
+    ├── genrayfw_18rays.nc
+    ├── fpld_dsk
+    └── rayech
+```
+
+Once downloaded, open a terminal and run the ui by typing `cqlui`.
+
+---
+
+## Workflow
+
+### 1. Import, View, and Edit Namelists
+
+To import a test case (e.g., Test 1.0):
+1.  Click the **Import Namelist** button in the top left.
+2.  Navigate to `cql3dtests/cqlinput_folder/`.
+3.  Select any of the test files.
+
+**Editing Features:**
+* **Navigation:** Use the GUI tabs to navigate through the file.
+* **Documentation:** Click on any variable to highlight it within the `cqlinput_help` documentation (displayed in the right panel).
+* **Tooltips:** Hover the cursor over any namelist variable to see a short description.
+* **Export:** Click **Export Namelist** to save the variables currently in the UI to a `cqlinput` (fortran namelist) file.
+
+**Keyboard Shortcuts:**
+
+| Shortcut | Action |
+| :--- | :--- |
+| **`Up` / `Down`** | Move between variables in the left panel. |
+| **`Ctrl` + `Left` / `Right`** | Move between GUI tabs (Windows/Linux). |
+| **`Cmd` + `Left` / `Right`** | Move between GUI tabs (macOS). |
+| **`Shift` + `Left` / `Right`** | Move between instances of the highlighted variable in the help documentation. |
+
+### 2. Load and Run CQL3D
+
+**Prerequisite:** You must have a pre-compiled CQL3D Fortran executable.
+
+1.  Click the **Aux. File Folder** button (lower left) and navigate to the folder `cql3dtests/aux_file_folder`. This folder stores the auxiliary files (such as eqdsk for equilibrium information) necessary for running CQL3D.
+2.  Click the **Select CQL3D Executable** button (lower left) and navigate to your compiled executable. The UI will remember the locations of the auxiliary file folder and the CQL3D executable for future runs.
+3.  Click the **Run CQL3D** button (lower right).
+
+**What happens after pressing `Run CQL3D`?**
+* A `runs` folder is created in the current directory (if it doesn't exist).
+* A subfolder labeled by the date and time is created inside `runs`.
+* The current namelist variables are saved to a `cqlinput` file inside that subfolder.
+* **File Linking:** The code checks if auxiliary files (`eqdsk`, `rffile`, etc.) are required.
+    * It first looks in the chosen auxiliary file folder for these files
+    * If found, it creates symbolic links in the newly created run folder to the required files.
+* A separate thread is launched to execute CQL3D.
+* After completion, a terminal window pops up showing the output and any errors.
+
+### 3. Plot and Visualize Output
+
+Once CQL3D has successfully completed:
+
+1.  Click the **Plot Results** button (lower right).
+2.  By default, the UI loads the NetCDF (`.nc`) file from the last successful run.
+3.  *Optional:* If no `.nc` file exists or you wish to view a different run, click **Load .nc file** (top left) in the plotting interface.
+4.  Navigate through the various options to visualize the physics results.
+5.  Press the left/right arrow keys in the 2D velocity-space contours to cycle through flux surfaces.

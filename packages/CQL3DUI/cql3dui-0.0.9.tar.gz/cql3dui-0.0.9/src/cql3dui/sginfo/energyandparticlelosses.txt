@@ -1,0 +1,174 @@
+********************************************************************
+**
+** ENERGY AND PARTICLE (KROOK) LOSSES
+**
+********************************************************************
+**
+**  There are three classes of particle and/or energy losses, set
+**    by (1)lossmode(k), (2) torloss(k), and (3) tauegy().gt.0.:
+**
+**  (1)Several models are available and are invoked by setting
+**  lossmode(k) to the chosen "string" in the input:
+**  "snk0"==>  orbits whose energy is less than that corresponding
+**    to normalized velocity x=xsink (namelist input) are loss 
+**    orbits and are lost from the system with characteristic time equal to
+**    the bounce time.
+**  esink/xsink are alternate means for setting a loss boundary.
+**    If esink.ne.0., then this energy (keV) specifies the boundary.
+**    Else, use xsink (normalized velocity to vnorm). Used in cases 
+**    lossmode(k)=snk0 and mirrsnk1.
+**  "snk0accl"==>same as "snk0" except the loss mechanism is acceler-
+**    ated by factor xsinkm (input).
+**  "electron"==> forces a loss cone for general species electrons only
+**    if the parallel energy is greater than eparc(k,l_) or the 
+**    perpendicular energy is greater than eperc(k,l_).
+**  "mirrorcc"==>potential square well model for tandem mirror central
+**    cell calculations; orbits passing through a potential jump
+**    at the throat of magnitude ephicc (namelist, below) are lost.
+**  "mirrsnk"==> means both mirrorcc and snk0 options are used.
+**  "mirrsnk1"==>means a loss cone as for mirrorcc, except
+**     particles with velocity less than esink/xsink are not lost.
+**    default: lossmode(k)="disabled"
+**  "simplban"==> then trapped general species ions (or electrons) with
+**    (banana width (poloidal gyroradius) plus gyroradius) greater than
+**    distance to the (outer flux surface)*simpbfac are lost in a 
+**    bounce time. See subroutine losscone for a few more details.
+**    xxx As of 160602, this option uses deltarho(,,) first order orbit
+**    xxx width calculation to obtain the banana width, for scrapeoff.
+**    xxx ADVISEABLE to use ndeltarho='freya' or 'enabled', if using NBI.
+**    xxx   [This shifts NBI birth points to their BA location, from which
+**    xxx   the "simplban" loss is calculated.]
+**    As of 170715: "simplban" reverted back to coding (effectively) of
+**    pre-160602.  Part of problem is that the deltar coding is not presently
+**    set up for k.gt.1.
+**  "simplbn1" and "simplbn2" are variations on "simplban". "simplbn2"
+**    was "simplban"-option up to 160403. "simplbn1" is a slight refinement
+**    of "simplbn2".
+**    170715: "simplbn2" now gives identical results to "simplban".
+**            Presently, only recommending use of "simplban".
+**            Future work can use the more accurate cql3d-hybrid-FOW code 
+**            FI loss calculation to benchmark these simple models.
+**  simpbfac=factor times radius of LCFS, modifying loss radius at
+**    which particles are scraped off, for "simplban" losses.
+**    For example, 1.05 increases the radius by 5%.  (The physical 
+**    distance will depend somewhat on the value of radcoord.)
+**    default: simpbfct=1.0
+**  "frm_file"==> then read lossfile, specified as below.
+**     [future options could be "file1",  etc. for different formats].
+**  default: lossmode(k)="disabled"
+**
+**  lossfile(k) for lossmode(k)="frm_file", gives the
+**    character*256 ascii path to a file specifying
+**    region of prompt particle loss (integer 0 as function of
+**    u_par,u_perp).  See file format in subroutine losscone.
+**    The file gives loss-regions versus upar-uperp on a radial set
+**    of flux surfaces (presently to be same as cql3d rya(1:lrz) grid).
+**    Max velocity (vc_cgs) for u_par (=max(u_perp)) is specified 
+**    in the file and may be different than given by enorm (for cql3d).
+**    If vc_cgs.lt.vnorm, then loss regions at vc_cgs are extended
+**    to vnorm at constant pitch angle.
+**    Except, if data is given on twice as many flux surfaces as
+**    specified by lrz, then the data set is reduced by omitting
+**    data for every second flux surface.
+**    default: "./prompt_loss.txt"
+**
+**  eparc(k,) and eperc(k,): see lossmode="electron" above.
+**   They are set in the same manner as reden is set, by specifying
+**   eparc(0,k) and if lrz.gt.1 eparc(1,k) also.  Similarly, eperc.
+**
+** (2)The torloss(k) series provides a loss term -f/tloss,
+**    treated time-implicitly (for numerical stability).
+** nonloss, and noffloss give time steps for start and stop
+**    of these loss terms.  (defaults: nonloss=0, noffloss=10000).
+**    torloss(k)="velocity" provides for an additional toroidal loss 
+**    term, and the toroidal loss time will be determined by an 
+**    ad hoc formula determined from input values tauloss(1-3,k):
+**    tloss=tauloss(1,k)*(1.+tauloss(2,k)*(v(j))**tauloss(3,k))
+**    where v(j) is the j'th velocity (momentum/mass) mesh point.
+**    v(j)=x(j)*vnorm, x(j) code variable.
+** tauloss(1:3,k)  loss rate coefficients (default=0.)
+** torloss(k) = "flutter" gives a model similar to "velocity", but
+**    dividing rather than multiplying the x part, to be able to model
+**    Rechester-Rosenbluth type loss (with tauloss(3,k)=1):
+**    tau = tauloss(1,k)/(1 + tauloss(2,k)*(x*vnorm)**tauloss(3,k))
+**    Losses only applied to transiting particles for the following 
+**       "fluttern"  models  (check the code).
+** torloss(k) = "flutter1", further multiply tau(flutter) by gamma**5.
+** torloss(k) = "flutter2", loss time tau is modelled on
+**    electron diffusion in a stochastic magnetic field of
+**    strength deltabdb, defined below.
+**    The loss time is 
+**       tau= (distance from plasma edge)**2/(4*v_par*D_st),
+**       D_st= the magnetic field diffusion coefficient,
+**           =pi*R_eff*deltabdb**2
+**       1/R_eff = 1/(pi*q_safety*R_mag) + 1/lambda_mfp
+** torloss(k) = "flutter3", further multiply tau(flutter2) by gamma**5.
+**       default: torloss="disabled"
+** deltabdb=the perpendicular fluctuating B field amplitude 
+**    divided by the ambient B-field.
+** torloss(k)="energy" means all particles with energy less than
+**    enloss(k) (Kev) will have a loss time of tauloss(1,1)
+** torloss(k)="relativ" means the loss time goes like
+**   tauloss(1,k)*gamma**3
+** torloss(k)="shell" is like "energy" above, but with the additional
+**    effect that all particles with an energy greater than
+**    .9*enorm are also lost.
+** torloss(k)= "disabled" disables this option.
+**    default: torloss(k)="disabled"
+** enloss(k)=See torloss(k)="energy" above.
+**
+** (3)tauegy(k=1,ngen,0:1) .gt. 0.0 gives energy loss profiles, 
+**    according to bounce average of the phenomonological 
+**    energy loss term:
+**            df/dt = v**-2*d/dv[1./tau(v,theta,lr_)*v**3*f/2.]
+**    where   tau is energy loss time specified by
+**            tau=rfact*tauegy*gamma**gamegy, v.le.vte
+**                rfact*tauegy*gamma**gamegy/
+**                (abs(v_par,lr_)/vte)**paregy*(v_per/vte)**peregy
+**                            *(v/vte)**pegy),  v.gt.vte
+**            rfact is a radially dependent modifier, as below.
+**    tauegy(k,0), tauegy(k,1) are expanded out across lrzmax flux surfaces
+**      parabolically, according to
+**         (tauegy(k,0)-tauegy(k,1))*(1-(rho/a)**negy(k))**megy(k)+tauegy(k,1)
+**  negy(1:ngen), megy(1:ngen), as above.
+**  gamegy(1:ngen), paregy(1:ngen), peregy(1:ngen), pegy(1:ngen), as above.
+**
+**
+**
+**  Also have possibility of synchrotron and bremsstrahlung reaction
+**    force on the electrons:
+**
+**  syncrad="gyro" gives synchrotron radiation energy loss
+**            force on electrons according to formula of 
+**            Bernstein and Baxter, Phys. Fl. Vol. 24, p. 108 (1981).
+**          "geom" gives synchrotron radiation energy loss
+**            force on electrons according to formula of
+**            derived (BobH+Paul Parks) to account for accelerations
+**            due to toroidal and poloidal following of field lines.
+**          "gyrogeom" gives both "gyro" and "geom" effects.
+**          (default: "disabled")
+**
+**  bremsrad="enabled" gives bremsstrahlung radiation energy loss 
+**           force on the electrons. (combined with above phenomenological
+**           energy losses).  (default:"disabled")
+**           Reference: Physics Vade Mecum, H.L.Anderson, Ed. Sec. 16.07.F.
+**           brfac,brfac1,brfacgm3 are additional factors which control
+**           onset of an ad hoc high enhanced Bremsstrahlung which is
+**           used to "catch" runaway electrons before they go off the
+**           the edge of the grid.
+**
+**  brfac,brfac1,brfacgm3: ad hoc constants to enhance bremsstrahlung 
+**    at the high energies, beyond (gamma-1)>gam4, where
+**    gam4=brfacgm3*16.43/Z**(1/6), and brfacgm3>1.
+**    The cross-section 'sigmarad' is evaluated as in
+**    above PVM reference in the first and second of three energy ranges. 
+**    In the last (upper) range, beyond (gamma-1)> brfacgm3*16.43/Z**(1/6),
+**    it is multiplied by a factor (1.+brfac*gam5**brfac1) where
+**    gam5 is difference (gamma-1)-gam4 (see above reference, or coding in 
+**    subroutine lossegy.   The purpose of this is to force containment 
+**    of high energy runaway electrons at energy greater than
+**    (gam4-1.)*m*c**2, where m*c**2=510.98 keV.
+**    (For investigation of knockon avalanching, etc.).  
+**    (defaults: brfac=0.,brfac1=0.,brfacgm3=1.0)
+**
+**********************************************************************

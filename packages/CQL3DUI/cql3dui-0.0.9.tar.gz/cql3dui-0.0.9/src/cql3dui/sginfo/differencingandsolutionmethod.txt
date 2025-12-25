@@ -1,0 +1,214 @@
+*********************************************************
+**
+**  DIFFERENCING and SOLUTION METHOD CONTROLS
+**
+*************************************************************
+**
+**  chang= "enabled" forces Chang Cooper differencing; = "disabled" forces
+**    standard centered differencing. chang="noneg" employs an additional
+**    scheme to minimize resulting negative distributions in strongly
+**    driven RF fields. Actually, we employ a variant of strict Chang-
+**    Cooper differencing.  Typical Chang-
+**    Cooper looks at dx*A/B where A is the advective coefficient and
+**    B the diffusive. The closer the ratio is to zero, the closer the
+**    differencing is to central. As the ratio grows larger in absolute
+**    value, the differencing shifts to upwind. We have
+**    empirically determined that in the presence of strong RF excitation
+**    that even with the use of Chang-Cooper, the distribution can
+**    be driven negative. This may be due to a 2-D effect, since the
+**    RF diffusion characteristics rarely coincide with the theta and v
+**    mesh directions. It was discovered that by subtracting off the
+**    contribution from the RF diffusion from the total diffusion
+**    coefficient and then computing the ratio above, the scheme is
+**    driven in the upwind direction and the problem is vastly
+**    ameliorated, in most cases, the difficulties disappear. The
+**    ratio is now dx*A*B/(B-B_ql)**2 for the
+**    velocity differencing. In the limit B_ql==>0, we recover
+**    Chang-Cooper. For the theta differencing, the approach
+**    is similar, except that if chang="noneg", strict one sided
+**    differencing is enforced in the regions where the distribution has been
+**    previously driven negative (during earlier time-steps). All
+**    of this manipulation is a result of experimentation and
+**    has not been proven to be useful rigorously....as indeed
+**    neither has Chang Cooper for the 2D problem.
+**    default: chang="enabled"
+**
+**  ineg="enabled" means negative values of the distribution function 
+**    are reset to zero after time advancement; ="disabled" 
+**    defeats this option.  But, see update below 03-2011 comment.
+**    default: ineg="enabled" [YuP: actually, it is "disabled"]
+**   ="renorm" means if f developes negative values after a time
+**    step, then add 1.1*abs(min(f)) to f, and then multiply by
+**    (old_line_density/new_line_density), to keep total number
+**    of particles constant during this renormalization.  This option
+**    is an attempt to deal with negative distributions sometimes
+**    occurring with QL diffusion.  It can add unacceptable amounts of
+**    high energy particles to the distribution. (BobH, sept/94)
+**   ="trunc_d" is another attempt to cope with QL diffusion causing
+**    negative distributions:  the QL diffusion coefficients are 
+**    smoothly reduced to zero over the last 10 velocity grid points. 
+**    Also, negative values of f reset to zero.
+**    
+**    Modification made after [03-2011] to ineg="enabled" or "trunc_d": 
+**    (See diagimpd.f)
+**    If distr.function f(i,j) is negative or zero 
+**    at some (i,j)-point in vel. space,
+**    it is set to zero for ALL jj.ge.j 
+**    (and fixed i-index of pitch angle),
+**    for energies greater than the maximum in the source term
+**    (for example from NBI).  For lower energies, neg f is set = 0.
+**    Before this modification, it was set to zero 
+**    for only this specific (i,j)-point where f(i,j)<0.
+**    So, no more "islands" in distribution function 
+**    remaining beyond such (i,j)-points, except when they are 
+**    caused by sources like NBI.
+**   ="enabled1" as in ineg="enabled" [after 03-2011], except
+**    f is zeroed at each pitch angle i for all j above the
+**    first velocity where f(i,j)/f(1,1).lt.1.e-20.  This removes
+**    spikes in the tail distribution resulting from (NBI) sources
+**    injected within prompt-loss regions (e.g., lossmode(1)='simplban'
+**    which may create problems for nonthermal full-wave code calculation.
+**    For other purposes, the user might want to see these spikes, which
+**    represent injected density for one time step, before removal.
+**
+**  implct= "enabled" forces implicit differencing and
+**    Gaussian elimination. implct  = "disabled" forces operator 
+**    splitting (can be used for time dependent calculations).
+**    The implct namelist variable relates to (only) the velocity-space
+**    differencing of the FP eqn, and method of solution.
+**    implct="enabled", uses LAPACK linear algebra subroutines which have
+**    been incorporated into the source code.
+**    default: implct="enabled"
+**
+**  manymat="enabled" allows all the factored matrices on all flux
+**    surfaces to live on disk and not disappear after the backsolve.
+**    This means that the next time step will NOT require a new 
+**    factorization IF THE RHS HAS NOT CHANGED. This saves lots
+**    of computer time and is the recommend operating mode. 
+**    manymat="disabled" does not save the factored matrices on disk
+**    and is useful for single flux surface calculations where the
+**    core space used for the factorization is not overwritten
+**    as the code moves from flux surface to flux surface.
+**      default: manymat="disabled".   Only implemented for
+**      soln_method="direct"
+**
+**  soln_method="direct"[default],  use lapack dgbtrf/dgbtrs direct
+**               LU factorization and solve of the velocity-space
+**               equations.
+**               v-space coeff matrix A(,) is inefficiently stored
+**               in LAPACK storage system (with many zeroes).
+**               In radial transport case (transp.eq."enabled") will
+**               also retain the splitting method, for this setting.
+**             ="itsol", obtains v-space coeffs in A(,) directly.
+**               Uses SPARSKIT2 iterative GMRES solver with
+**               ilut drop-tolerance preconditioner for v-space solve,
+**               In radial transport case (transp.eq."enabled") will
+**               also retain the splitting method, for this setting.
+**             ="itsol1",uses translation of inefficient lapack
+**               coeff storage of v-space coeff matrix A(,)to CSR using
+**               SPARSKIT2 translation routine bndcsr.  Then solves as
+**               in "itsol" case.  This option is just for cross-check
+**               that CSR and LAPACK storage methods are understood.
+**             ="it3dv", full 3D v-space matrix (but not
+**               off-diagonal terms for transport yet) with SPARSKIT2
+**               soln of full matrix simultaneously for all flux surfaces.
+**               Gives better converged solution then for 
+**               soln_method="itsol".  [I don't think this is compatible
+**               with transp="enabled" and splitting, BH080319].
+**               [Now OK, 091203].
+**             ="it3drv", is full 3D-implicit solve including radial
+**               transport terms, using SPARSKIT2 GMRES routine with
+**               preconditioning and drop-tolerance.
+**               
+**  droptol=drop tolerance for the itsol preconditioner,
+**          1.d-3 [default].  Off-diagonal elements smaller than
+**          this factor times diagonal element will be eliminated.
+**  lfil= Maximum fill-in of L and U.  If .ge. number of equations to be
+**        solved, it will have no effect. See following. [default:lfil=30]
+**  From itsol.f preconditioner comments:
+**c---- Dual drop strategy works as follows.                             *
+**c                                                                      *
+**c     1) Thresholding in L and U as set by droptol. Any element whose *
+**c        magnitude is less than some tolerance (relative to the abs    *
+**c        value of diagonal element in u) is dropped.                   *
+**c                                                                      *
+**c     2) Keeping only the largest lfil elements in the i-th row of L   * 
+**c        and the largest lfil elements in the i-th row of U (excluding *
+**c        diagonal elements).                                           *
+**c                                                                      *
+**c Flexibility: one  can use  droptol=0  to get  a strategy  based on   *
+**c keeping  the largest  elements in  each row  of L  and U.   Taking   *
+**c droptol .ne.  0 but lfil=n will give  the usual threshold strategy   *
+**c (however, fill-in is then unpredictible).                            *
+
+**
+**  lbdry(k)="conserv" means conservation boundary conditions used
+**    at v=0 for general species "k" (see species descriptors).
+**    Zero v-flux at v=0 is enforced in this case.
+**    Also, no resetting of plasma density, so particles can
+**    flux off the upper grid edge, be lost due to loss terms,
+**    or be gained due to sources.
+**  lbdry(k)="fixed" means zero flux boundary conditions are not 
+**    enforced at v=0. Instead the distribution is held constant at 
+**    v=0 during "time" advancement.  Also, if elecfld is set through 
+**    eoved, then f(v=0) is only set at time step n=0, and not reset.
+**    Unicity at v=0 is applied.
+**  lbdry(k)="scale" is like "fixed", but at each time step after solution
+**    for the distribution, f, is found, the entire distribution is scaled
+**    so that the resulting field line integrated number density does
+**    not change in "time". Unicity at v=0 is applied.
+**    As of June 30, 2017: lbdry(k)="scale" is reset in the code
+**    to "consscal".  This fixes a recent (Apr/2015) bug in cql3d, and
+**    appears to be a more clear way of scaling the distribution to maintain 
+**    given density.
+**  lbdry(k)="consscal", then combine above "conserv" and "scale".
+**            For time-dependent background plasma, nbctime.gt.0,
+**            relativistic Maxwellian distributed particles at the 
+**            local temperature are added.
+**            For nbctime=0 case, then the whole f, the distn, is scaled.
+**  lbdry(k)="conscalm", Combine above "conserv" and scale density
+**                       with added (relativistic) Maxwl distrn at namelist
+**                       (relativistic) temperature, including the case
+**                       of nbctime=0.
+**  lbdry(k)="conserv" is the ONLY option for implct="disabled"
+**    default: lbdry()="conserv"  
+**  NOTE:  no "enabled" or "disabled" option for lbdry().
+**
+**  Note: It is not always a good idea to rescale the distr.func.
+**        Example: When there is a large-power NBI source, 
+**        comparing to the initial background 
+**        set in cqlinput. The value of xlndn00 
+**        (in ratio(k,lr_)=xlndn00(k,lr_)/runden, 
+**        which is the rescaling factor) is based 
+**        on the initial density, so it does not include particles from NBI.
+**        And the value of runden (or sden) does include all sources.
+**        In such a case, it may be better to use lbdry(k)="conserv"
+**
+**  Following lbdry0 input only applies for implct="enabled":
+**  lbdry0="enabled" means use new system computing distrn function f
+**    at v=0 that takes f to be a single value.  This uses 
+**    subroutine impavnc0 for implicit time advancement.  (Modifications
+**    originated by Olivier Sauter). (default="enabled", implct="enabled").
+**    This option only applied if lbdry(i)="conserv" or "conserv_scale".
+**  lbdry0=.ne."enabled" means use old system which computed non-unique
+**    f(v=0) and then set f(v=0) to density conserving average.  Uses
+**    subroutine impavnc. (Applies for implct="enabled").
+**
+**  taunew="enabled" means use new fully numerical calculation of dtau
+**          and tau times (BobH, 970210).
+**          Although more accurate, there remains some work to ensure
+**          compatibility of the extended theta_poloidal region of
+**          dtau with the sinz,cosz,tanz determined for a single
+**          orbit for each velocity grid point (BobH, 010320).
+**          Oct'09: This option is the only possibility with eqsym.eq."none".
+**                  Have removed extended theta_poloidal region of
+**                  dtau by only integrating down the center of the
+**                  pitch angle bin (nii=1); the "extended" feature is
+**                  confusing [to me, BH] and doesn't add much accuracy.
+**         ="disabled" gives old partially analytic method described
+**          in Killeen et al. book.  (default="disabled", changed 010320).
+**  nstps=related to integration for tau and dtau. The number of
+**        subintervals into which each dz along the B-field is
+**        divided, for int[dz/|v_parallel|]. default:nstps=100
+**
+********************************************************

@@ -1,0 +1,254 @@
+***********************************************************
+**
+**  SPECIES DESCRIPTORS
+**
+**************************************************************
+**
+**  In the following, the index (k) refers to the species being
+**    assigned the particular value.  The following conventions are
+**    assumed:
+**
+**    If 1 .le. k .le. ngen, then k is a general (time-advanced) species.
+**    k.gt.ngen means species k is background Maxwellian.
+**    General species are represented by f(theta,x,k,l_), a distribution
+**    function which evolves in time, whereas the background Maxwellians
+**    are represented by two quantities, temp(k,) and reden(k,).
+**    In k order, the general (non-Maxwellian time advanced species) 
+**    come before the background species. Electrons and
+**    ions can be mixed, and any species can be represented
+**    simultaneously as a general and a background species.
+**    If there is more than one Maxwellian ion, then they must
+**    not be separated in k by the electron species.   If more than
+**    one of the ion species has the same charge number bnumb(), (e.g.,
+**    H+, D+, and/or T+) then they should be placed successively at the
+**    beginning of the Maxwellian ion species.
+**
+**********************************************************************
+**
+**  ngen is the number of general species. It must not exceed
+**    parameter value ngena or code will abort with error message.
+**    default:ngen=ngena
+**
+**  nmax is the number of Maxwellian species. It must not exceed
+**    parameter nmaxa or the code will abort with an error message.
+**    default: nmax=nmaxa
+**
+**  kspeci(1,k) is the name of species(k) for k=1,ntotal(=nmax+ngen).
+**  kspeci(2,k) is "general" or "maxwell" for k=1,ntotal, 
+**    designate species as general of Maxwellian.	
+**
+**  fmass(k) is the mass(k) in grams.
+**    default: fmass(k)=1.e-29
+**    Ions are defined by having mass .gt.1.e-27.
+**
+**  bnumb(k) is the atomic number  (-1. for electrons)
+**    default: bnumb(k)=1.
+**
+**  iprote, iproti and iprone, are flags with several possible values
+**     (below) governing the electron temperature, ion temperature
+**     and densities of the plasma profiles for the species.
+**     We have the following possibilities:
+**  iprote="parabola","spline", "asdex" "prbola-t", and "spline-t"
+**     (similarly for iproti and iprone).
+**     Each option is described below.
+**     (The "-t" are time-dependent, and are descibed in a separate
+**     TIME-DEPENDENT PROFILES section below.)
+**     default: "parabola" for everything
+**  iprozeff, iproelec, iprovphi, ipronn:  See below.
+**
+**  iprote or iproti or iprone = "parabola"      
+**    npwr(k) and mpwr(k) (real) specify the profiles: 
+**     The  form is (center-edge)*(1-(r/a)**npwr)**mpwr+edge between the
+**     specified center and edge values described below (see subr profaxis).
+**  npwr(0) and mpwr(0) give reden profiles whereas npwr(k) and
+**     mpwr(k) give the temp profiles for species k. npwr and mpwr
+**     are real variables, not integers.
+**     default: npwr(0)=2.; npwr(k)=2. for all (k=1:ngen+nmax) (k=1:ntotal).
+**     default: mpwr(0)=1.; mpwr(k)=3. for all k>0.
+**
+**  reden(k,l) is the initial density at the midplane (particles/cm**3).
+**     FOR lrz.gt.1 (and iprone.eq."parabola"): 
+**     The user specifies reden(k,0) (central value) and reden(k,1)
+**     (edge value). The intermediate values (l=1,lrzmax) are computed 
+**     by the code (see below).  
+**     FOR lrz.eq.1:
+**     The user specifies reden(k,1)
+**     This rule (involving lrz) is used throughout input. See temp
+**     and eparc and eperc for example. 
+**     default: reden(k,l))=1. (for l=1,lrzmax)
+**
+**  temp(k,l) is the initial temperature (Kev) of species k. This
+**    applies both to general and background species. See reden above
+**    for specification rule.
+**    But, for time-dependent profiles, temp() can evolve in time,
+**    see profiles.f.
+**    default: temp(k,l)=1.
+**
+**  profpsi="disabled" means that the density and temperature profiles
+**    will obey the npwr and mpwr directives (above).
+**  profpsi="enabled" means that the profiles have the following
+**    dependence (used in early days of the code):
+**    reden(k,l)=reden(k,0)*((psi(l)-psimag)/psimag)**.5
+**    temp(k,l)=temp(k,0)*(psi(l)-psimag)/psimag
+**    default: profpsi="disabled"
+**
+**  iprote, iproti, iprone, iprozeff, iproelec, iprovphi, ipronn = "spline"  
+**      In this case the user can specify namelist variable
+**      arrays which give radial profile information for cubic splines. 
+**      A spline routine will interpolate the ene, te, and/or ti data 
+**      onto the computational mesh.
+**      For specified profiles of ene, te, and/or ti, we have:
+**      (l=1:100,k=1,ntotala=ngena+nmaxa)
+**      See iprozeff below.
+**    ryain(l)  (r/a)  l=1,njene (the radial coordinate)
+**      (For ampfar problem spline elecfld, ryain(1) assumed = 0.)
+**    enein(l,k)  the specified density of species k at ryain(l) (/cm**3)
+**      (if enein(1,k)=0. for species k.gt.1, then the enein(l,k-1)/bnumb(k)
+**       values will be used for species k). 
+**    tein(l)   the specified electron temperature (keV)
+**    tiin(l)   the specified ion temperature (same for all ion species
+**                       such that bnumb(k).ne.-1.) (keV)
+**    enescal, tescal, tiscal (and zeffscal, elecscal, see below)  
+**    are scale factors for "spline" input.
+**       (defaults = 1.0).
+**    20100126:  Also added that enescal,tescal,tiscal multiply
+**               all input density/temperature profiles.
+**               Can be useful, e.g., when units need adjusting.
+**               elecscal multiplies t-dep input for efswtch.eq."method1".
+** 
+**    njene must be less than njenea (= 256 is typ value) 
+**       default:  0 
+**
+**   (There are also namelist input variables njte, njti (but no
+**    njzeff) similar to ONETWO input, but for now these variables
+**    have no effect, since the spline values of te, ti, zeff
+**    are all assumed to be input on the same ryain(1:njene) mesh.)
+**
+**  iprote(or ti) (or ne) = "asdex"      
+**      In this case, the code has ASDEX-type exponential profiles
+**      hard-wired into the code. The user need not make further
+**      specifications. See subroutines tdxinitl and tdpro.
+**      Uses acoefne,acoefte.  
+**      default: none
+**
+**  iprozeff = "disabled" (default), "parabola", "prbola-t", 
+**                                   "spline-t" or "spline":
+**           
+**           = "disabled", then this option has no effect.
+**           = "parabola","prbola-t", "spline"  or "spline-t", then this 
+**             option gives ion densities so as to achieve a given zeff
+**             radial profile, consistent with charge neutrality and the 
+**             given electron density profile.
+**
+**             There must be at least one Maxwellian ion species
+**             for this case.
+**             If there are more than one Maxwl ion species with
+**             bnumb() the same as the first (e.g., H+, D+, and/or T+),
+**             then these will be treated as a unit, and their densities
+**             adjusted proportionately, as required.
+**             It is necessary to specify these equal-bnumb() species
+**             successively at the beginning of the Maxwl ion species,
+**             and the densities reden(,) should contain the relative
+**             ratios of each species: e.g., reden(k,)=0.99,
+**                reden(k+1,)=0.01 gives 99% 1st species.
+**             Only up to two different Z ions are implemented for this
+**             option.
+**             If there are two different bnumb() Maxwellian ion species
+**             specified, then densities of these species are adjusted 
+**             to obtain the zeff-profile.
+**             If only one bnumb() value (for .ge.1 Maxwl ions) is 
+**             specified, then bnumb,fmass are as input above into
+**             namelist, and an additional ion species is automatically
+**             added with  bnumb=50., fmass=50*2.*1.67e-24.
+**             The densities of the two different bnumb() species will
+**             be adjusted to achieve the specified profile of zeff.
+**             The first general ion species (if it exists)
+**             will be given density of the first of the two Maxwellian
+**             species.
+**             The second general ion species (if it exists) will be given
+**             the density of the second Maxwellian ion species.
+**             Etc.
+**             (remember that an added species will have bnumb=50,
+**             fmass=50*2.*1.676e-24.)
+**             In particular,
+**             = "parabola", then input zeff profile by
+**               zeffin(0)=central value, zeffin(1)=edge value,
+**               npwrzeff,mpwrzeff (real numbers) specify parabolic
+**               profile as is done above for reden.
+**             = "spline", then input zeff profile data in 
+**               zeffin(1:njene), as done above for enein.
+**               ***NB***  MUST explicitly put zeffin(1)=,in this case.
+**             If using time-dependent profiles, then need
+**             iprozeff="parabola", and input profiles as specified
+**             below.  iprozeff="spline" is not presently implemented
+**             for time-dep. case.
+**
+**  zeffscal=scale factor for zeffin spline input  and zeffc/zeffb
+**           (default=1.0).
+**
+**  zeffin, npwrzeff, mpwrzeff, as above.
+**
+**  izeff = "backgrnd" (default), then zeff(l),l=1,lrzmax profile
+**                 is calculated from all species k=1,ntotal except
+**                 general electrons and Maxwellian electrons.
+**                 [BH070316:  Need to check ngen.gt.1 case]
+**        = "ion", then zeff(l),l=1,lrzmax calculated from all species
+**                 other than general species or electrons. (Use for
+**                 ion simulations, with colmodl=1,3...)
+**             BH recommends checking this out a bit more in ainpla.f,
+**             diaggnde.f and diaggnde2.f, if you are going to use it.
+**
+**  fpld(1:6,1:ngena) controls "additional" loading of the of the
+**      equatorial distribution functions, at time step nfpld.
+**      This set of options was instituted for purposes of study of the
+**      electron knock-on runaway problem. 
+**      It can also be used for INITIALIZING the 
+**      Fokker-Planck'd distribution (ngen=1)
+**      from externally generated distributions (see, for example,
+**      the IDL procedure make_input_distn.pro, BobH, 001124).
+**      (The default, fpld(1,1:ngena)=0.0,
+**      gives no  loading of distribution functions beyond initial
+**      (relativistic) Maxwellians derived from the specified density, 
+**      temp. and zeff.)  
+**      The additional loading 
+**      is in the form of a internally generated vel-space-constant
+**      plus a shifted "Maxwellian" distribution which is localized in
+**      pitch angle, or,  distributions read in from file "fpld_dsk".
+**      (See subroutine finit.)
+**      fpld(1,1)= -1.0,  (Previously "fpld_dsk" option on C90)
+**                 then read initial distribution function
+**                 in from file "fpld_dsk" according to format
+**                 given in source file finit.f.
+**                 (Only works for  No additional preloading).
+**      fpld(1,1)= -2.0   (Previously "fpld_ds1" option on C90)
+**                then add additional loading with distribution
+**                given in file "fpld_dsk", and renormalized to have
+**                a fraction of the total (reden-)density 
+**                as specified in fpld(2,1). Windowing of distribution is
+**                given by fpld(7:10,k), as described below.
+**      fpld(2,1)=in the case fpld(1,1)=-2.0, gives fraction
+**                of additional loading which is in the distribution
+**                specified by the "fpld_dsk" file.
+**      For fpld(1,1)=real number.gt.0., (.ne.-1.0 or -2.0):
+**      fpld(1,k)=fraction of flux surface averaged density of species
+**                k which is in the additional preloading. (.ge.0., .le.1.)
+**                (default=0.)   
+**      fpld(2,k)=fraction of the additional loading which is in the
+**                the shifted "Maxwellian".  (.ge.0., .le.1.)
+**                (default =0.)
+**      fpld(3,k)=Energy of peak of shifted "Maxwellian". (keV)
+**      fpld(4,k)=Energy spread of distn. (keV).
+**      fpld(5,k)=Pitch angle of peak of shifted "Max". (radians)
+**      fpld(6,k)=Dispersion of distn in pitch angle (radians).
+**      fpld(7,k)=Minimum energy(keV) of loading function. (deflt. 0.)
+**	fpld(8,k)=Maximum energy(keV) of loading function. (deflt. 1.e10)
+**      fpld(9,k)=Minimum  pitch angle(radians) of loading function (def. 0.)
+**      fpld(10,k)=Maximum pitch angle(radians) of loading function (def. pi)
+**          N.B.  If using Zeff (as above) increases the number of
+**                ion species, must give any desired additional
+**                preloading through the appropriate fpld(k,...)
+**
+**      nfpld = time step at which to introduce the additional loading
+**              into f.
+**
+**************************************************************

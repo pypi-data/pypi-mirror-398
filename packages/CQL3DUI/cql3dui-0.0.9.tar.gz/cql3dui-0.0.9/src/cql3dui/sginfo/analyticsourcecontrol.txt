@@ -1,0 +1,102 @@
+*******************************************************
+**
+**  ANALYTIC SOURCE CONTROLS
+**  namelist sousetup
+*******************************************************
+**
+**  k is species index, m is source index for each species.
+**
+**  nso is the maximum number of sources per species k: it is the maximum
+**    m used in the arrays below. Note: nso .le. nsoa (parameter)
+**    default: nso=0 (set in code), in which case no
+**                   variables with index m below will be referenced.
+**
+**  nsou is the number of cycles (time steps) between recomputing the source
+**    The source is recomputed if mod(n,nsou)=0.
+**    Except:  Freya is only called from tdinitl, and re-calc'd if
+**             (n+1).eq.nonvphi or noffvphi.
+**             Thus, presently, if nsou.lt.nstop and n doesn't pass 
+**             through the nonvphi/noffvphi interval, the freya source
+**             will be turned off at n=nsou+1 when the source is reset.
+**             N.B.[YuP]: So, for NBI to be intact, MUST have nsou>nstop,
+**             otherwise it will be reset to zero at n=nsou+1, 2*nsou+1, ...
+**             in subr. sourcee.
+**    N.B.:  If nonso.ne.0 (or 1), then NEED nso=1, to get proper
+**           turn on (and off, if noffso.lt.nstop).
+**    default: nsou=1
+**
+**  nonso(k,m) is the on cycle for the source
+**    default; nonso(k,m)=100000
+**
+**  noffso(k,m) is the off cycle for the source [default: 100000].
+**  [Also, appears to be used for parallel transport adjustment:
+**         see tdchief.f, call wptramu/wptrafx, for cqlpmod='enabled']
+**  [YuP/2021: Not anymore, changed to local hard-wired variable n_sub_wp]
+**
+**  For cql3d runs (i.e., lrzmax.ge.4), the following namelist variables
+**    are expanded parabolicly in the radial direction, using
+**    szm1z(k,m,0) to szm1z(k,m,1), etc.  The powers npwrsou(k=1,ngen) 
+**    and mpwrsou(k=1,ngen) (real) are used in the manner of reden for all
+**    of the source specification variables (see above discussion),
+**    except that npwrsou(0) and mpwrsou(0) are used for asorz.
+**  But, if asorz(k,m,0)=-1., then use direct input of asorz (see below).  
+**    
+**  The following rank=3 source variables are dimensioned (ngena,nsoa,0:lrza).
+**
+**  szm1z(k,m,l) is the (z/zmax)-peak of local source(k,m)
+**    default:szm1z(k,m,0)=szm1z(k,m,1)=0.
+**
+**  szm2z(k,m,l) is the (z/zmax) width of local source(k,m)
+**    default: szm2z(k,m,0)=szm2z(k,m,1)=.78
+**    Note: for details, see the end of subr.soup.
+**    Peak position and dispersion are set through facz=exp(-(zl-zm1)**2/zm2)
+**    where zl==z(l), zm1=zmax*szm1z, zm2=(zmax*szm2z)^2, 
+**    smaller szm2z means stronger localization around z=zmax*szm1z
+**
+**  soucoord="cart" means cartesian coordinates are used
+**    for input; soucoord="polar" is the other option (see below)
+**    default: soucoord="cart"
+**
+**  The next eight energy quantities are in units of Kev.
+**  The next four input variable arrays are used only for soucoord="polar"
+**
+**  sem1z(k,m,l) is the energy peak of source(k,m)
+**
+**  sem2z(k,m,l) is the energy dispersion of source(k,m)
+**
+**  sthm1z(k,m,l) is the pitch angle (deg) peak of source(k,m)
+**
+**  scm2z(k,m,l) is the cos(pitch angle) dispersion of source(k,m)
+**
+**  The next four variable arrays are used only for soucoord="cart"
+**
+**  sellm1z(k,m,l) is the parallel energy of the peak of source(k,m)
+**    default: sellm1z(k,m,0)=sellm1z(k,m,1)=0.
+**
+**  seppm1z(k,m,l) is the perpendicular energy of the peak of source(k,m)
+**    default: seppm1z(k,m,0)=seppm1z(k,m,1)=0.
+**
+**  sellm2z(k,m,l) is the parallel energy dispersion of source(k,m)
+**    default: sellm2z(k,m,0)=sellm2z(k,m,1)=1.
+**
+**  seppm2z(k,m,l) is the perpendicular energy dispersion of source(k,m)
+**    default: seppm2z(k,m,0)=seppm2z(k,m,1)=1.
+**
+**  asorz(k,m,l) specified m'th current for general species k
+**    in particles/cc/sec
+**    default: asorz(k,m,0)=asorz(k,m,1)=0.
+**    Alternatively, if asorz(k,m,0)=-1., then input the source profile as 
+**       asorz(k,m,1:lrzmax)
+**    Note: In the above arrays, suffix 'z' is important.
+**          See subr. tdstin which makes a copy of sellm1z() to sellm1(),
+**          and other arrays with 'z' suffix.
+**
+**  pltso="enabled" means plot contours of the source.
+**    ="first" plot contours only if n=nonso(1,1).
+**    Also, options to plot with colors are added [2018-02-07]
+**    ="color" means plot contours of the source in color,
+**    ="first_cl" plot contours in color only if n=nonso(1,1).
+**    Also plot source integrated over theta, in manner of pltfofv (above)
+**    default: pltso="first"
+**
+*******************************************************

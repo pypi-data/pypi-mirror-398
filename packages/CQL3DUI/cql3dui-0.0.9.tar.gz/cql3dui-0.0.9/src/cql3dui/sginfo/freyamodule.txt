@@ -1,0 +1,353 @@
+**************************************************************
+**
+**  BEGIN "FR" MODULE INPUT
+**  (THE CODING IS TAKEN FROM ONETWO - GA TECHNOLOGIES TRANSPORT CODE)
+**  namelist frsetup
+**************************************************************
+**
+**  This module can work for positive or negative ion based neutral
+**  beams.  For negative ion beams, the full energy component is
+**  generally very domoninant.   
+**  For positive ion based NB sources such as TFTR, DIII-D, JET,
+**  [quoting D.M. Thomas et al. (Rev. Sc. Instrum., 2012)]:
+**  "As in all such arc discharge sources, the extracted positive ion 
+**  current is distributed among the atomic and molecular ions D+, 
+**  D_2+, D_3+, with additional small fractions due to such molecular 
+**  ions as DO+, D_2 O+, and others. Subsequent collisions in a 
+**  neutralizer cell ﬁlled with D_2 gas leads to the production of 
+**  full, half, third, and other fractional energy components in the 
+**  resulting neutral beam due to the various dissociation and charge
+**  transfer processes.  While standard operation typically attempts
+**  to maximize the full energy component, signiﬁcant half- and
+**  third-energy components exist."
+**
+**
+**  (Might want to look at subroutine freya comments for a little
+**   more specific information.)
+**
+**  frmod           ="enabled" enables the NFREYA NB deposition.
+**                      default:frmod="disabled"
+**                  MUST also set 
+**                   nso=max number of source per species, as above,
+**                   nonso(kfrsou(1:nbeams),1:nbeams),
+**                   noffso(kfrsou(1:nbeams),1:nbeams) in the above 
+**                   sousetup namelist.
+**                   (kfrsou(1:nbeams), below,  is set in setup namelist.)
+**             N.B.[YuP]: For NBI to be intact, also MUST have nsou>nstop,
+**             otherwise it will be reset to zero at n=nsou+1, 2*nsou+1, ...
+**             in subr. sourcee.
+**
+**  nbeams          nbeams is the number of beams, indexed by ib, below.
+**                  (max=kb=16). Used to set mb=nbeams within freya.f.
+**
+**  kfrsou(1:nbeams) [in namelist setup] = general specie index to which 
+**                               the ib'th NBI source is applied to. 
+**                               Default kfrsou(1:kb)=0, Maximum kb=16
+**                               set in param.h. The number of distinct
+                                 beams species must be .le. ngen.      
+**                               The number of non-zero entries should be
+**                               consistent with nbeams.
+**                               Also, gives the species of the NB.
+**                               Order kfrsou() so that beams of the
+**                               same species are contigous 
+**                               (beamlines involving the same species
+**                               are assumed grouped together in kfrsou())
+**                               Prior to 20171016, only one beam species
+**                               could be specified, and kfrsou was a scalar.
+**  frplt           ="enabled" allows a plot of a selected number of
+**                    birth points on a cross-sectional tokamak 
+**                    background.
+**                  ="plotwrit" plots the nfrplt points and also
+**                    outputs points to ascii file, freya_points.txt
+**                  ="write_op" gives no plotting, but output points
+**                    to ascii file, freya_points.txt
+**                  default:frplt="enabled"
+**  nfrplt          The approx number of birth points selected for 
+**                    the plot (.le. npart, below).
+**  smooth          smooth greater than .005 calls a source
+**                    smoothing function (sub. frsmooth) which weights
+**                    the FREYA generated source current by a Gaussian
+**                    function with a standard deviation which is
+**                    normally a small fraction of the radius, radmin.
+**                    smooth would typically be about .1
+**                    If it is less than .005, smoothing is disabled.
+**                      default: smooth=.05
+**                      [BH110314:
+**                       Best probably to increase npart to 1000000.
+**                       Had negligible effect on execution time.]
+
+**  multiply        character*8 to enable multiplyn
+**  multiplyn       If integer variable multiplyn is gt. 1, 
+**                    and multiply.ne."disabled" we assume that each
+**                    FREYA particle birth point represents the mean
+**                    value of a normally distributed beamlet 
+**                   (of multiplyn
+**                    particles) with a standard deviation of bmsprd.
+**                    multiply="disabled" means disengage this mechanism
+**                    Use smooth first, if needed then try multiply.
+**                    default: multiply="disabled",multiplyn=0
+**  bmsprd          This standard deviation (see above) is normalized to
+**                    to the minor radius, radmin. A typical choice 
+**                    would be .1  [BH081204: Vestegial, as has no effect.]
+**  kfrsou(1:nbeams)  (in namelist setup) is the gen species number of 
+**                  the beam ions
+**
+**  nimp            nimp is the number of impurity species.
+**                  (Only 0 or 1 is allowed, for now; see frinitz.f and frstup.f).
+**                  YuP[2023] Revised version in subr.frstup to ID the impurity ion:
+**                  Scan the Maxwellian_ion list, 
+**                  skip those ions that are present among general_ion list
+**                  (it happens in colmodl=3 runs), 
+**                  take the first ion in the remaining list as the impurity ion.
+**                  See subr.frstup for details.
+**                  In screen/log file, verify this printout:
+**                  'frstup: Impurity species index k=kimp_='
+**                  where kimp_ points to the species index in cqlinput list.
+**                  If no impurity (nimp=0), kimp_ is 0.
+**
+**  nprim           nprim is the number of primary species.  
+**                  Apparently must be .ge.(number of beam species).
+**                     (See frinitz.f, re ibion(). BH170807)
+**                  YuP: In cqlinput, position those nprim ions in the beginning of list.
+**                  E.g., if D and T beams are used, position D and T species
+**                  in the beginning of general_species list, and use nprim=2.
+**                  (Note that ngen can be larger than 2 in this example,
+**                  if electrons are general species, too).
+**
+**  anglev(ib)      Vertical angle (degrees) between optical axis
+**                    and horizontal plane; a positive value indicates
+**                    particles move upward
+**  angleh(ib)      Horizontal angle (degrees) between optical axis and
+**                    vertical plane passing through pivot point and
+**                    toroidal axis; a zero value denotes perpendicular
+**                    injection, while a positive value indicates par-
+**                    ticles move in the co-current direction.
+**                    ==> Tangency Radius = sin(angleh) * rpivot
+**  nsourc          Number of sources per beamline.
+**                    If 1, source is centered on beamline axis.
+**                    If nsourc=2, distinguish between the beamline
+**                    axis and the source centerline (optical axis).
+**                    The two sources are assumed to be mirror images
+**                    through the beamline axis.
+**                    In either case, the exit grid plane is 
+**                    perpendicular to the beamline axis, and 
+**                    contains the source exit grid center(s).
+**                    If nsourc=2, the alignment of the sources w.r.t.
+**                    the beamline axis is specified through bhofset,
+**                    bvofset, and bleni (described further below).
+**  bvofset(ib)     Vertical offset from beamline axis to center
+**                    of each source (cm; used only for nsourc=2)
+**  bhofset(ib)     Horizontal offset from beamline axis to center
+**                    of each source (cm; used only for nsourc=2)
+**  bleni(ib)       Length along source centerline (source optical axis)
+**                   source to intersection point with the beamline axis
+**  sfrac1(ib)      Fraction of source current per beamline coming
+**                    from upper source (used only for nsourc=2)
+**  bcur(ib)        Total current (amps) in ion beam (used only if bptor
+**                    is zero)
+**  bptor(ib)       Total power (watts) through aperture into torus; when
+**                    nonzero, bptor takes precedence over bcur
+**  bshape(ib)      Beam shape
+**                    'circ' : circular
+**                    'rect' : rectangular
+**  bheigh(ib)      Height of source (cm)
+**  bwidth(ib)      Width of source (cm); diameter for
+**                     circular source.
+**  bhfoc(ib)       Horizontal focal length of source (cm)
+**  bvfoc(ib)       Vertical focal length of source (cm)
+**  bhdiv(ib)       Horizontal divergence of source (degrees)
+**  bvdiv(ib)       Vertical divergence of source (degrees)
+**                  Checking in freya.f, the starting velocities
+**                  at the source are distributed with angles
+**                  to the normal given by 
+**                  f(theta)=1/(theta_div*sqrt(2)) * exp(-(theta/theta_div)**2)
+**                  where theta_div is bhdiv or bvdiv, as appropriate.
+**                  [BH, 030611].
+**  ebkev(ib)       Maximum particle energy in source (keV)
+**  fbcur(ie,ib)    Fraction of current at energy ebkeV/ie
+**  npart           Number of particles followed into plasma
+**                    (suggest 100000)
+**  npskip          Ratio of number of particles followed into plasma
+**                    to number of source particles (suggest 1)
+**  naptr           Total number of aperatures encountered by a particle
+**                   as is moves from the source into the plasma chamber
+**                    Maximum is specified by parameter nap (=10).
+**                    First set of aperatures encountered by the particle
+**                    are assumed centered on the source axis, and subseq
+**                    aperatures are centered on the beamline axis; the
+**                    distinction is made through ashape.
+**  ashape(iap,ib)  Aperture shape.
+**                   Prefix 's-' indicates source axis centered.
+**                   Prefix 'b-' indicates beamline axis centered.
+**                     's-circ'          'b-circ'
+**                     's-rect'          'b-rect'
+**                     's-vert'          'b-vert'
+**                     's-horiz'         'b-horiz'
+**                                       'b-d3d'
+**                   (circ=circular aperature, rect=rectagular,
+**                    vert=limits vertical height of source particles,
+**                    horiz=limits horizontal height of source particles,
+**                    d3d= special DIII-D polygonal aperature)
+**                    'circ' : circular
+**                    'rect' : rectangular
+**  aheigh(iap,ib)  Height of aperture (cm)
+**  awidth(iap,ib)  Width of aperture (cm); diameter for circular
+**                    aperture
+**  alen(iap,ib)    Length from source to aperature for 's-type' 
+**                    aperatures and from exit grid plane along beamline 
+**                    axis for 'b-type' aperatures.
+**  blenp(ib)       Distance along beamline axis from source exit
+**                    plane to the fiducial "pivot" point.
+**  rpivot(ib)      Radial position of pivot (cm)
+**  zpivot(ib)      Axial position of pivot (cm)
+**  iexcit = -1     uses Stearn's average cross sections:otw. like =0
+**  iexcit = 0      (default mode) Original Freeman-Jones cross section (crsecs)
+**  iexcit = 1      (not active) use hexnb instead of crsecs to get cross 
+**                  sections but neglect presence of excited states in beam
+**                  2=use hexnb with excited beam states allowed.
+**  iexcit = 5      use JET Atomic Data and Analysis Structure (ADAS) package
+**                  Plasma ions are assumed to be fully stripped. Beam stopping 
+**                  cross sections are returned in the array, sgxn, for each 
+**                  beam and beam energy component, and flux zone. 
+**                  NOTE: ascii cross section files are located 
+**                        in the subdirectory ./data/adas/
+**                        Can create a link in the working directory to a
+**                        given location of the data/adas files.
+**                  In iexcit=5 cases, set the following additional variables:
+**                  fe_tk=factor (>1) to set upper limit of energy in 
+**                     n*sigma array.  max(ebins) = max(ebkev)*fe_tk.
+**                     Required for nonzero rotation cases.
+**                     Default: fe_tk=0.d0
+**                  ne_tk= number of equi-width energy bins used in forming
+**                     n*sigma array.  required for nonzero rotation cases. Is
+**                     internally reset to zero (used as flag to turn off 
+**                     rotational effects on neutral stopping) if angular 
+**                     rotation is not present (iangrot = 0).
+**                  ds_tk= maximum trajectory increment (cm) used in subroutine
+**                     INJECT1 to calculate psi(s), where s is the neutral 
+**                     trajectory pathlength from the first closed flux surface
+**                     it encounters.  Used for non-zero toroidal rotation,
+**                     where mean free path as a function of path length
+**                     is required.
+**                     Default: ds_tk=0.d0
+**  inubpat          switch controlling 2-d beam deposition calculation
+**                   0, (default) bypass 2-d deposition
+**                   MUST BE = 0 FOR CQL RUNS
+**  NOTE:  following namelist variable, eleccomp, must be set in 2nd /setup/
+**  eleccomp        If "enabled", then compute the analytic (Cordey-Start) 
+**                  electron current degradation factor for NBI type 
+**                  calculations.  This assumes that electrons are not
+**                  a general species. 
+**                  If they are, the electron contribution is computed
+**                  directly from the excited electron current.
+**                  Default="enabled".
+**
+**  ranseed=seed for random number generator, random.
+**        Random() is used in Freya NB source modules,
+**        but may be used elsewhere.   (default: ranseed=7**7)
+**
+**  beamplse .ne.'disabled', then turn on square wave oscillating 
+**    NBI power with frequency and pulse length specified 
+**    thru beampon and beampoff.  The frequency is 1./(beampon+beampoff),
+**    and beampon gives the on-time interval during the pulse cycle,
+**    beampoff gives the off-time interval during the pulse cycle.
+**    If beamplse.eq."tauee", these times are measured in units
+**    of tauee, else in terms of seconds.  Presently only set up for
+**    one beam line (the first).
+**  That is,
+**  beampon  is the on time during each cycle.
+**  beampoff is the off time during each cycle.
+**  Note:  nonso and noffso are also used, to time-window the
+**         beampon/beampoff, and the cycle will start with
+**         beam on at time step nonso.
+**         The user might want to coordinate the time-steps and the
+**         beampon and beampoff times.  However, if dtr/dtr1 is
+**         much less that beampon/beampoff, then one might be able
+**	   to neglect exactly when the beam states change.
+**  Note:  Applied to all particle sources, 1:nso. Presently,
+**         all particles from the NBI are added into one source
+**         array.  If needed, the code could readily be modified to
+**         have the various beamlines contribute to separate
+**         source arrays, dimension the beampxxx accordingly,
+**         and apply the beamplse coding to each source [BH120606].
+**
+**  read_birth_pts="enabled", then read a set of birth point files
+**         from NUBEAM (or similar format from other codes),
+**         to compare with results from freya calculation [BH130401].
+**         Beam geometry, as above will not be used.
+**         Each subsequent call to freya will use the next file
+**         in a sequence, coordinated in time to the cql3d run.
+**         A single beam is assumed, with up to three beam energy 
+**         components.
+**         Make sure fr_gyro="disabled", unless want the gyro-shift.
+**         default: "disabled"
+**  nbirth_pts_files=number of birth point files, default=1
+**  birth_pts_files=input nbirth_pts_file filenames into
+**                 the namelist, in the order which they
+**                 will be used in cql3d. character*256.
+**                 Max list length=24.  default='notset'
+**  nbirth_pts= should be same as in all the NUBEAM files. default=250000
+**  The shine through, and total power is read from the files.
+**  nbirth_points is checked.  Power and shine through numbers 
+**  may vary from file to file.
+**
+**  fr_gyro="enabled" gives gyro-radius offset of calculated NBI
+**          birth points, to the guiding center position birth point.
+**          Should be disabled, in case this offset already included for
+**          read_birth_pts="enabled", for example, from NUBEAM.
+**          default = "disabled".  
+** 
+**
+**      
+**
+** ---------------------------------------------------------------------
+**   HOW TO UPDATE NBI/FREYA DEPOSITION AT EVERY TIME STEP
+** ---------------------------------------------------------------------
+** If plasma density and/or temperature change significantly,
+** the NBI deposition should be updated.
+** As of [2022-12] the procedure is developed as follows.
+** Use the logic related to plasma rotation, but without toroidal speed,
+** i.e., set (in &setup section of cqlinput):
+**   nonvphi=2 (example)  and  noffvphi=10000 (example)
+** The FREYA module will be called for time steps n according to 
+**   if( (n+1).ge.nonvphi .and. (n+1).lt.noffvphi )then...
+** See tdchief.f, line ~165. Note that in this logic condition
+** the time step counter n starts with n=0.
+** Leave default values of vphic()=0 and iprovphi="disabled",
+** which means - no toroidal rotation of plasma in this case
+** (if rotation is really needed, then - set those values).
+
+
+** Description of nprim,nimp as in ONETWO TRANSPORT code, from which
+** freya subroutines were originally extracted
+** From onetwo, Version 3.0: cray102.f, Obtained from GA:onetwo_cvs_070823_genr
+c ----------------------------------------------------------------------       @
+c --- ION PARAMETERS                                                           @
+c ----------------------------------------------------------------------       @
+c% nprim       Number of      primary ion species (1 to 3)                     @
+c% nimp        Number of     impurity ion species (0 to 2)                     @
+c% namep(i)    Name   of ith  primary ion species                              @
+c              'h' , protons                                                   @
+c              'd' , deuterons                                                 @
+c              't' , tritons                                                   @
+c              'dt', mixture of d and t                                        @
+c              'he', thermal alphas                                            @
+c% namei(i)    Name   of ith impurity ion species                              @
+c              'he', helium                                                    @
+c              'c' , carbon                                                    @
+c              'o' , oxygen                                                    @
+c              'si', silicon                                                   @
+c              'ar', argon                                                     @
+c              'ti', titanium                                                  @
+c              'cr', chromium                                                  @
+c              'fe', iron                                                      @
+c              'ni', nickel                                                    @
+c              'kr', krypton                                                   @
+c              'mo', molybdenum                                                @
+c              'w' , tungsten                                                  @
+c% fd          Number fraction of deuterons in d-t mixture                     @
+c ----------------------------------------------------------------------       @
+  
+
+
+***************************************************************
