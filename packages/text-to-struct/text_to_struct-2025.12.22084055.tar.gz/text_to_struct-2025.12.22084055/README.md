@@ -1,0 +1,92 @@
+# text-to-struct
+[![PyPI version](https://badge.fury.io/py/text-to-struct.svg)](https://badge.fury.io/py/text-to-struct)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/text-to-struct)](https://pepy.tech/project/text-to-struct)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A Python package that transforms unstructured text inputs into structured, standardized outputs using LLM7 and llmatch-messages.
+
+## Overview
+
+`text_to_struct` enables users to process textual descriptions, ideas, or concepts, and generate structured data adhering to a predefined format. It leverages the LLM7 language model via the `langchain_llm7` package, combined with `llmatch-messages` to ensure the output matches specified patterns. This approach promotes consistency and ease of parsing, making the package particularly useful for content creation, brainstorming, and idea management systems.
+
+## Installation
+
+```bash
+pip install text_to_struct
+```
+
+## Usage
+
+```python
+from text_to_struct import text_to_struct
+
+# Example usage with default LLM7
+response = text_to_struct(user_input="Describe a new innovative app idea.")
+print(response)
+```
+
+## Parameters
+
+- `user_input` (str): The unstructured text to be processed.
+- `llm` (Optional[BaseChatModel]): An optional langchain LLM instance. If not provided, the default `ChatLLM7` will be used.
+- `api_key` (Optional[str]): The API key for LLM7. If not provided, it will be fetched from the `LLM7_API_KEY` environment variable.
+
+## Available LLMs
+
+You can pass your own LLM instances from various providers, such as:
+
+### Using langchain's OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from text_to_struct import text_to_struct
+
+llm = ChatOpenAI()
+response = text_to_struct(user_input, llm=llm)
+```
+
+### Using langchain's Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from text_to_struct import text_to_struct
+
+llm = ChatAnthropic()
+response = text_to_struct(user_input, llm=llm)
+```
+
+### Using langchain's Google Generative AI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from text_to_struct import text_to_struct
+
+llm = ChatGoogleGenerativeAI()
+response = text_to_struct(user_input, llm=llm)
+```
+
+## API Key & Rate Limits
+
+The default free-tier rate limits for LLM7 are sufficient for most use cases. To access higher rate limits, set your API key via:
+
+- Environment variable: `LLM7_API_KEY`
+- Or pass directly: `text_to_struct(user_input, api_key="your_api_key")`
+
+You can obtain a free API key at https://token.llm7.io/.
+
+## Development & Support
+
+- **GitHub issues:** [https://github.com/chigwell/text_to_struct/issues](https://github.com/chigwell/text_to_struct/issues)
+- **Author:** Eugene Evstafev
+- **Email:** hi@eugene.plus
+- **GitHub:** [@chigwell](https://github.com/chigwell)
+
+## Source Code
+
+The core functionality is built on the `langchain_llm7` package (available on PyPI), which interfaces with LLM7. The package also uses `llmatch_messages` for pattern matching and ensuring output structure.
+
+---
+
+**Note:** The `text_to_struct` function relies on a pattern matching regex and specific prompts (`system_prompt` and `human_prompt`) to guide the LLM output. Make sure your input and patterns align with your expected structured output.
