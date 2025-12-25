@@ -1,0 +1,108 @@
+# Copyright 2025 Zhiyuan Yu (Heemskerk's lab, University of Michigan)
+from __future__ import annotations
+
+from typing import Annotated
+
+from anndata import AnnData
+from pydantic import Field
+
+from ..data.containers import HomologyData
+from ..data.metadata import ScloopMeta
+from ..data.types import Index_t, Percent_t, PositiveFloat, Size_t
+
+__all__ = ["find_loops"]
+
+
+def _get_scloop_meta(adata: AnnData) -> ScloopMeta:
+    if "scloop_meta" not in adata.uns:
+        raise ValueError("scloop_meta not found in adata.uns. Run prepare_adata first.")
+    meta = adata.uns["scloop_meta"]
+    if isinstance(meta, dict):
+        meta = ScloopMeta(**meta)
+    return meta
+
+
+def find_loops(
+    adata: AnnData,
+    threshold_homology: PositiveFloat | None = None,
+    threshold_boundary: PositiveFloat | None = None,
+    tightness_loops: Percent_t = 0,
+    n_candidates: Annotated[int, Field(ge=1)] = 1,
+    n_bootstrap: Size_t = 10,
+    n_check_per_candidate: Annotated[int, Field(ge=1)] = 1,
+    n_max_workers: Annotated[int, Field(ge=1)] = 8,
+    verbose: bool = False,
+) -> None:
+    meta = _get_scloop_meta(adata)
+    if meta.bootstrap is None:
+        from ..data.metadata import BootstrapMeta
+
+        meta.bootstrap = BootstrapMeta()
+    meta.bootstrap.life_pct = tightness_loops
+    hd: HomologyData = HomologyData(meta=meta)
+    sparse_dist_mat = hd._compute_homology(adata=adata, thresh=threshold_homology)
+    boundary_thresh = threshold_boundary
+    if boundary_thresh is None:
+        boundary_thresh = threshold_homology
+    hd._compute_boundary_matrix_d1(adata=adata, thresh=boundary_thresh, verbose=verbose)
+    hd._compute_loop_representatives(
+        pairwise_distance_matrix=sparse_dist_mat,
+        top_k=n_candidates,
+        life_pct=tightness_loops,
+    )
+    """
+    ========= bootstrap =========
+    - resample data
+    - find loops in resamples
+    - map loops to original loops
+    =============================
+    """
+    hd._bootstrap(
+        adata=adata,
+        n_bootstrap=n_bootstrap,
+        thresh=threshold_homology,
+        top_k=n_candidates * n_check_per_candidate,
+        k_neighbors_check_equivalence=n_check_per_candidate,
+        n_max_workers=n_max_workers,
+        life_pct=tightness_loops,
+        verbose=verbose,
+    )
+
+    """
+    ========= statistcal tests =========
+    - fisher exact test loop presence
+    - gamma test of persistence
+    ====================================
+    """
+    assert hd.bootstrap_data is not None
+    hd._test_loops(method_pval_correction="benjamini-hochberg")
+    adata.uns["scloop"] = hd
+
+
+def analyze_loops(
+    adata: AnnData,
+    track_ids: list[Index_t] | None = None,
+    n_hodge_components: Annotated[int, Field(ge=1)] = 10,
+    normalized: bool = True,
+) -> None:
+    if "scloop" not in adata.uns:
+        raise ValueError("Run find_loops() first")
+
+    hd: HomologyData = adata.uns["scloop"]
+
+    if hd.boundary_matrix_d0 is None:
+        hd._compute_boundary_matrix_d0()
+
+    assert hd.bootstrap_data is not None
+    track_ids_avail = list(hd.bootstrap_data.loop_tracks.keys())
+    if track_ids is None:
+        track_ids = track_ids_avail
+
+    for track_id in track_ids:
+        if track_id not in track_ids_avail:
+            continue
+        hd._compute_hodge_analysis_for_track(
+            track_id=track_id,
+            n_hodge_components=n_hodge_components,
+            normalized=normalized,
+        )
