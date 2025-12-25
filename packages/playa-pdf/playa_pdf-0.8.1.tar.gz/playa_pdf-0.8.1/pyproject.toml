@@ -1,0 +1,180 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "playa-pdf"
+dynamic = ["version"]
+description = "Parallel and LazY Analyzer for PDFs"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+authors = [
+    { name = "David Huggins-Daines", email = "dhd@ecolingui.ca" },
+]
+keywords = [
+    "pdf parser",
+    "text mining",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Text Processing",
+]
+
+dependencies = ["mypy-extensions"]
+
+[project.optional-dependencies]
+crypto = ["cryptography >= 36.0.0"]
+
+[project.urls]
+Homepage = "https://dhdaines.github.io/playa"
+
+[project.scripts]
+playa = "playa.cli:main"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "playa/_version.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.github",
+  "/playa/cmap/resources",
+  "/samples/contrib",
+  "/samples/3rdparty",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["playa"]
+exclude = [
+  "/playa/cmap/resources",
+  "/playa/cmap/README.txt",
+  "/playa/cmap/Makefile",
+]
+
+[tool.hatch.envs.hatch-static-analysis]
+config-path = "none"  # Disable hatch's unreasonable ruff defaults
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff]
+exclude = ["samples/3rdparty"] # why no leading slash?
+
+[tool.pytest.ini_options]
+testpaths = [ "tests" ]
+markers = [ "contrib", "thirdparty" ]
+
+[tool.hatch.envs.hatch-test]
+extra-dependencies = [ "cryptography", "pdfminer.six" ]
+parallel = true
+
+[tool.hatch.envs.default]
+dependencies = [ "cryptography" ]
+
+[tool.hatch.envs.benchmark]
+# Do not use editable install because of mypyc's .so droppings
+dev-mode = false
+extra-dependencies = [ "pdfminer.six" ]
+
+[tool.hatch.envs.benchmark.scripts]
+bench = [
+    "python benchmarks/parser.py",
+    "python benchmarks/converter.py",
+    "python benchmarks/text.py",
+    "python benchmarks/objects.py",
+    "python benchmarks/miner.py",
+    "python benchmarks/ccitt_decode.py",
+    "python benchmarks/png_predict.py",
+    "python benchmarks/tiff_predict.py",
+    "python benchmarks/marked_content.py",
+    "python benchmarks/parallel.py",
+    "python benchmarks/structure.py",
+]
+
+[tool.hatch.envs.benchmark-mypyc]
+# Do not use editable install (but we get .so droppings anyway)
+dev-mode = false
+template = "benchmark"
+
+[tool.hatch.envs.benchmark-mypyc.env-vars]
+HATCH_BUILD_HOOK_ENABLE_MYPYC = "1"
+
+[tool.hatch.envs.docs]
+dependencies = [
+    "mike",
+    "mkdocs-material",
+    "mkdocstrings[python]",
+    "mkdocs-include-markdown-plugin"
+]
+[tool.hatch.envs.docs.scripts]
+serve = "mkdocs serve"
+publish = "mike deploy --push --update-aliases $(playa --version) latest"
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy[mypyc]>=1.0.0",
+  "pdfminer.six",
+  "pytest",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:playa tests benchmarks}"
+compile = "mypyc playa/ccitt.py playa/image.py playa/utils.py playa/miner.py"
+
+[tool.hatch.envs.schema]
+extra-dependencies = [ "pydantic > 2" ]
+
+[tool.hatch.envs.notebooks]
+extra-dependencies = [ "paves", "jupyterlab" ]
+
+# To enable, set HATCH_BUILD_HOOK_ENABLE_MYPYC=1
+[tool.hatch.build.targets.wheel.hooks.mypyc]
+dependencies = ["hatch-mypyc", "cryptography"]
+enable-by-default = false
+include = [
+    "playa/ccitt.py",
+    "playa/image.py",
+    "playa/utils.py",
+    "playa/miner.py",
+]
+
+[tool.coverage.run]
+omit = [ "tests/*" ]
+
+[tool.coverage.report]
+omit = [ "/etc/python*/*" ]
+exclude_also = [
+    'except ImportError:',
+    'raise NotImplementedError',
+    'if 0:',
+    'if TYPE_CHECKING:',
+]
+
+[tool.setuptools]
+packages = ["playa"]
+
+[tool.cibuildwheel]
+# Build for CPython only, PyPy will optimize itself
+build = ["cp*"]
+# Sorry, not going to spend time building for 32 bit Intel
+# mypyc doesn't work on Python 3.8, and 3.9 is EOL now
+# Skip musl for the moment
+skip = ["cp38*", "cp39*", "*i686*", "win32", "*musl*"]
+# When building wheels, enable binaries!
+environment = { HATCH_BUILD_HOOK_ENABLE_MYPYC=1 }
