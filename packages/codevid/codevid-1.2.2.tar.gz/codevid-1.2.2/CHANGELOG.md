@@ -1,0 +1,95 @@
+# CHANGELOG
+
+<!-- version list -->
+
+## v1.2.2 (2025-12-21)
+
+### Bug Fixes
+
+- Add Playwright test for complete quote creation flow and improve audio duration handling
+  ([`6dabd3d`](https://github.com/MStaniaszek1998/codevid/commit/6dabd3df89e3297030a99c4b5e67b739d721ec1c))
+
+### Documentation
+
+- Update README to remove old tutorial link
+  ([`2ccdcf4`](https://github.com/MStaniaszek1998/codevid/commit/2ccdcf4569cb0026fd249e7209463be314db92f4))
+
+
+## v1.2.1 (2025-12-20)
+
+### Bug Fixes
+
+- Fix the audio sync with the video
+  ([`b8ef815`](https://github.com/MStaniaszek1998/codevid/commit/b8ef8151d79d4b30f24680e173e87d55bb8a5484))
+
+
+## v1.2.0 (2025-12-19)
+
+### Documentation
+
+- Replace old tutorial link with new one
+  ([`33f5287`](https://github.com/MStaniaszek1998/codevid/commit/33f5287d09997bfd4485988317f27cd4a2281cce))
+
+### Features
+
+- Enhance video recording and configuration options in README and YAML
+  ([`ba4f662`](https://github.com/MStaniaszek1998/codevid/commit/ba4f6625c265dfd908d2fefcd852f87bec1b5627))
+
+
+## v1.1.1 (2025-12-18)
+
+
+## v1.1.0 (2025-12-18)
+
+### Features
+
+- Add demo video and tutorial examples to README and examples directory
+  ([`68ce6f3`](https://github.com/MStaniaszek1998/codevid/commit/68ce6f32d7b1ce24e364106953586e22dcd373ac))
+
+
+## v1.0.6 (2025-12-17)
+
+
+## v1.0.5 (2025-12-17)
+
+### Bug Fixes
+
+- Remove deprecated configuration and tutorial files; enhance audio synchronization in pipeline
+  ([`483e494`](https://github.com/MStaniaszek1998/codevid/commit/483e4945b4ef180240644c79f05df5a0b9516592))
+
+
+## v1.0.4 (2025-12-17)
+
+### Bug Fixes
+
+- Update CLI options to be optional and improve help descriptions
+  ([`6703ba9`](https://github.com/MStaniaszek1998/codevid/commit/6703ba95adcf103199aa7c6bff50bd1dcc523e62))
+
+
+## v1.0.3 (2025-12-17)
+
+### Bug Fixes
+
+- Update author name in pyproject.toml and improve temporary file management in pipeline
+  ([`1cfb1ef`](https://github.com/MStaniaszek1998/codevid/commit/1cfb1efb1497942d0da7fbf2dabe248f13bac4c4))
+
+
+## v1.0.2 (2025-12-17)
+
+### Bug Fixes
+
+- Enhance release workflow and changelog configuration
+  ([`83ba464`](https://github.com/MStaniaszek1998/codevid/commit/83ba4646a20428a14f9b73397256d8da19b0eb5b))
+
+
+## v1.0.1 (2025-12-17)
+
+### Bug Fixes
+
+- Update GH_TOKEN secret reference to GITHUB_TOKEN in release workflow
+  ([`c06b6a0`](https://github.com/MStaniaszek1998/codevid/commit/c06b6a078f9b5cfa62263135b43909bfb144b849))
+
+
+## v1.0.0 (2025-12-17)
+
+- Initial Release
