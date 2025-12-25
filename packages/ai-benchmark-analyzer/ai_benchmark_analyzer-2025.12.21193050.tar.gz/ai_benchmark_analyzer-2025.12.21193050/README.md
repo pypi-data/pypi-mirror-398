@@ -1,0 +1,116 @@
+# ai-benchmark-analyzer
+[![PyPI version](https://badge.fury.io/py/ai-benchmark-analyzer.svg)](https://badge.fury.io/py/ai-benchmark-analyzer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/ai-benchmark-analyzer)](https://pepy.tech/project/ai-benchmark-analyzer)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A Python package that analyzes and summarizes AI benchmark results from unstructured text descriptions. It extracts structured insights like top-performing models, key metrics, and comparative analysis using pattern-matching techniques.
+
+---
+
+## 📦 Installation
+
+Install via pip:
+
+```bash
+pip install ai_benchmark_analyzer
+```
+
+---
+
+## 🚀 Quick Start
+
+### Basic Usage (Default LLM7)
+```python
+from ai_benchmark_analyzer import ai_benchmark_analyzer
+
+user_input = """
+Model X achieved 92.3% accuracy on SOTA dataset with 128B parameters.
+Model Y scored 89.1% but used only 7B parameters.
+"""
+response = ai_benchmark_analyzer(user_input)
+print(response)
+```
+
+### Custom LLM Integration
+Replace the default `ChatLLM7` with your preferred LLM (e.g., OpenAI, Anthropic, Google):
+
+#### OpenAI Example
+```python
+from langchain_openai import ChatOpenAI
+from ai_benchmark_analyzer import ai_benchmark_analyzer
+
+llm = ChatOpenAI()
+response = ai_benchmark_analyzer(user_input, llm=llm)
+```
+
+#### Anthropic Example
+```python
+from langchain_anthropic import ChatAnthropic
+from ai_benchmark_analyzer import ai_benchmark_analyzer
+
+llm = ChatAnthropic()
+response = ai_benchmark_analyzer(user_input, llm=llm)
+```
+
+#### Google Generative AI Example
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from ai_benchmark_analyzer import ai_benchmark_analyzer
+
+llm = ChatGoogleGenerativeAI()
+response = ai_benchmark_analyzer(user_input, llm=llm)
+```
+
+---
+
+## 🔧 Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_input` | `str` | Raw text describing benchmark results (required). |
+| `api_key` | `Optional[str]` | LLM7 API key (auto-fetched from `LLM7_API_KEY` env var if not provided). |
+| `llm` | `Optional[BaseChatModel]` | Custom LLM instance (defaults to `ChatLLM7`). |
+
+---
+
+## 🔗 Default LLM: LLM7
+The package uses [ChatLLM7](https://pypi.org/project/langchain-llm7/) by default. Free tier rate limits are sufficient for most use cases. For higher limits:
+- Set `LLM7_API_KEY` environment variable.
+- Pass the key directly: `ai_benchmark_analyzer(api_key="your_key")`.
+
+Get a free API key at [LLM7 Token](https://token.llm7.io/).
+
+---
+
+## 📝 Output Format
+The function returns a **list of structured strings** matching a predefined regex pattern, ensuring consistent and reliable output formatting. Example output:
+```python
+[
+    "Model: ModelX, Metric: Accuracy, Value: 92.3%, Dataset: SOTA, Parameters: 128B",
+    "Model: ModelY, Metric: Accuracy, Value: 89.1%, Dataset: SOTA, Parameters: 7B"
+]
+```
+
+---
+
+## 🛠️ Customization
+- **Pattern Matching**: The output adheres to a regex pattern (defined in `prompts.py`). Modify this file to adjust expected output formats.
+- **LLM Prompts**: System/human prompts are configurable via `prompts.py`.
+
+---
+
+## 📜 License
+MIT
+
+---
+
+## 📢 Support & Issues
+For bugs/feature requests, open an issue on [GitHub](https://github.com/chigwell/ai-benchmark-analyzer/issues).
+
+---
+
+## 👤 Author
+**Eugene Evstafev** ([@chigwell](https://github.com/chigwell))
+📧 [hi@euegne.plus](mailto:hi@euegne.plus)
