@@ -1,0 +1,122 @@
+#!/usr/bin/env python
+
+"""Module containing the CanonicalFasta class and the command line interface."""
+
+from typing import Optional
+from biobb_common.generic.biobb_object import BiobbObject
+from biobb_common.tools.file_utils import launchlogger
+
+from biobb_io.api.common import (
+    check_mandatory_property,
+    check_output_path,
+    download_fasta,
+    write_fasta,
+)
+
+
+class CanonicalFasta(BiobbObject):
+    """
+    | biobb_io CanonicalFasta
+    | This class is a wrapper for downloading a FASTA structure from the Protein Data Bank.
+    | Wrapper for the `Protein Data Bank <https://www.rcsb.org/>`_ and the `MMB PDB mirror <http://mmb.irbbarcelona.org/api/>`_ for downloading a single FASTA structure.
+
+    Args:
+        output_fasta_path (str): Path to the canonical FASTA file. File type: output. `Sample file <https://github.com/bioexcel/biobb_io/raw/master/biobb_io/test/reference/api/canonical_fasta.fasta>`_. Accepted formats: fasta (edam:format_1929).
+        properties (dic - Python dictionary object containing the tool parameters, not input/output files):
+            * **pdb_code** (*str*) - (None) RSCB PDB code.
+            * **api_id** (*str*) - ("pdbe") Identifier of the PDB REST API from which the PDB structure will be downloaded. Values: pdbe (`PDB in Europe REST API <https://www.ebi.ac.uk/pdbe/pdbe-rest-api>`_), pdb (`RCSB PDB REST API <https://data.rcsb.org/>`_), mmb (`MMB PDB mirror API <http://mmb.irbbarcelona.org/api/>`_).
+            * **remove_tmp** (*bool*) - (True) [WF property] Remove temporal files.
+            * **restart** (*bool*) - (False) [WF property] Do not execute if output files exist.
+            * **sandbox_path** (*str*) - ("./") [WF property] Parent path to the sandbox directory.
+
+    Examples:
+        This is a use example of how to use the building block from Python::
+
+            from biobb_io.api.canonical_fasta import canonical_fasta
+            prop = {
+                'pdb_code': '4i23',
+                'api_id': 'pdb'
+            }
+            canonical_fasta(output_fasta_path='/path/to/newFasta.fasta',
+                    properties=prop)
+
+    Info:
+        * wrapped_software:
+            * name: Protein Data Bank
+            * license: Apache-2.0
+        * ontology:
+            * name: EDAM
+            * schema: http://edamontology.org/EDAM.owl
+
+    """
+
+    def __init__(self, output_fasta_path, properties=None, **kwargs) -> None:
+        properties = properties or {}
+
+        # Call parent class constructor
+        super().__init__(properties)
+        self.locals_var_dict = locals().copy()
+
+        # Input/Output files
+        self.io_dict = {"out": {"output_fasta_path": output_fasta_path}}
+
+        # Properties specific for BB
+        self.pdb_code = properties.get("pdb_code", None)
+        self.api_id = properties.get("api_id", "pdbe")
+        self.properties = properties
+
+        # Check the properties
+        self.check_properties(properties)
+        self.check_arguments()
+
+    def check_data_params(self, out_log, err_log):
+        """Checks all the input/output paths and parameters"""
+        self.output_fasta_path = check_output_path(
+            self.io_dict["out"]["output_fasta_path"],
+            "output_fasta_path",
+            False,
+            out_log,
+            self.__class__.__name__,
+        )
+
+    @launchlogger
+    def launch(self) -> int:
+        """Execute the :class:`CanonicalFasta <api.canonical_fasta.CanonicalFasta>` api.canonical_fasta.CanonicalFasta object."""
+
+        # check input/output paths and parameters
+        self.check_data_params(self.out_log, self.err_log)
+
+        # Setup Biobb
+        if self.check_restart():
+            return 0
+
+        check_mandatory_property(
+            self.pdb_code, "pdb_code", self.out_log, self.__class__.__name__
+        )
+
+        self.pdb_code = self.pdb_code.strip().lower()
+
+        # Downloading PDB file
+        pdb_string = download_fasta(
+            self.pdb_code, self.api_id, self.out_log, self.global_log
+        )
+        write_fasta(pdb_string, self.output_fasta_path, self.out_log, self.global_log)
+
+        self.check_arguments(output_files_created=True, raise_exception=False)
+
+        return 0
+
+
+def canonical_fasta(
+    output_fasta_path: str, properties: Optional[dict] = None, **kwargs
+) -> int:
+    """Execute the :class:`CanonicalFasta <api.canonical_fasta.CanonicalFasta>` class and
+    execute the :meth:`launch() <api.canonical_fasta.CanonicalFasta.launch>` method."""
+    return CanonicalFasta(**dict(locals())).launch()
+
+
+canonical_fasta.__doc__ = CanonicalFasta.__doc__
+main = CanonicalFasta.get_main(canonical_fasta, "This class is a wrapper for downloading a FASTA structure from the Protein Data Bank.")
+
+if __name__ == "__main__":
+    main()
