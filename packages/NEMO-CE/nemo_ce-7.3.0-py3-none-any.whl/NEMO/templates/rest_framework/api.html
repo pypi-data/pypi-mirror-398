@@ -1,0 +1,61 @@
+{% extends "rest_framework/base.html" %}
+{% block content %}
+    {{ block.super }}
+    {% if "POST" in allowed_methods and raw_data_post_form %}
+        <div id="file_import_div" class="form-group" style="display:none">
+            <label for="id__content_type" class="col-sm-2 control-label">Or import file:</label>
+            <div class="col-sm-10">
+                <input type="file" id="fileInput" class="form-control-static">
+            </div>
+        </div>
+        <script>
+        // Function to move the file import div to the raw data tab
+        function moveFileImportDiv() {
+            const fileImportDiv = document.getElementById('file_import_div');
+            const formContainer = document.getElementById('post-generic-content-form');
+
+            if (fileImportDiv && formContainer)
+            {
+                const formActionDiv = formContainer.querySelector('.form-actions');
+
+                if (formActionDiv)
+                {
+                    // Get the parent element of the form-action div
+                    const parent = formActionDiv.parentNode;
+
+                    // Insert the file import div before the form-action div
+                    parent.insertBefore(fileImportDiv, formActionDiv);
+
+                    // Make the file import div visible if it was hidden
+                    fileImportDiv.style.display = 'block';
+                }
+            }
+        }
+
+        function readAndSetFileContent(event)
+        {
+            const file = event.target.files[0];
+            if (file)
+            {
+                const reader = new FileReader();
+
+                reader.onload = function(e)
+                {
+                    const contents = e.target.result;
+                    document.getElementById('id__content_type').value = file.type;
+                    document.getElementById('id__content').value = contents;
+                };
+
+                reader.readAsText(file);
+            }
+         }
+
+        // Execute when the DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', moveFileImportDiv);
+        // If the page might be already loaded, also try immediately
+        moveFileImportDiv();
+        // Add event listener for file input change
+        document.getElementById('fileInput').addEventListener('change',readAndSetFileContent);
+        </script>
+    {% endif %}
+{% endblock %}
