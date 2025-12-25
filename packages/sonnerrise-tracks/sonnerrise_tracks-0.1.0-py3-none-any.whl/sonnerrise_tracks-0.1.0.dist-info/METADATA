@@ -1,0 +1,115 @@
+Metadata-Version: 2.4
+Name: sonnerrise-tracks
+Version: 0.1.0
+Summary: Tracks module for Sonnerrise - Suno track management
+Author-email: Konstantin Boyandin <developer@boyandin.com>
+License-Expression: MIT
+Requires-Python: >=3.11
+Requires-Dist: pydantic>=2.0
+Requires-Dist: sonnerrise-core>=0.1.0
+Requires-Dist: sonnerrise-definitions>=0.1.0
+Provides-Extra: dev
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# sonnerrise-tracks
+
+Tracks module for the Sonnerrise suite - manages Suno-generated tracks.
+
+## Features
+
+- Create and manage Suno-generated tracks
+- Link tracks to generation definitions
+- Track events with scheduling (publish dates, promotions, etc.)
+- Store cover art URLs and lyrics
+- Full CRUD operations via Python API or CLI
+
+## Installation
+
+```bash
+pip install sonnerrise-tracks
+```
+
+## Usage
+
+### Python API
+
+```python
+from sonnerrise_core import load_config, get_database
+from sonnerrise_tracks import TrackRepository, TrackCreate, EventCreate
+from datetime import datetime
+
+config = load_config()
+db = get_database(config)
+db.create_tables()
+
+repo = TrackRepository(db)
+
+# Create a track
+track = repo.create(TrackCreate(
+    title="Epic Journey",
+    album="Adventures Vol. 1",
+    definition_id=1,
+    cover_art_url="https://example.com/cover.jpg",
+    lyrics="[Verse 1]\nInto the unknown...",
+    events=[
+        EventCreate(
+            datetime=datetime(2024, 3, 15, 12, 0),
+            description="Publish to Distrokid",
+        ),
+    ],
+))
+
+# List tracks
+tracks = repo.list(page=1, per_page=20)
+
+# Get upcoming events
+events = repo.get_upcoming_events(days=7)
+```
+
+### CLI
+
+```bash
+# List all tracks
+sonnerrise-tracks list
+
+# Create a new track
+sonnerrise-tracks create --title "My Song" --album "My Album"
+
+# Show track details
+sonnerrise-tracks show 1
+
+# Add an event
+sonnerrise-tracks add-event 1 --datetime "2024-03-15 12:00" --description "Publish"
+
+# List upcoming events
+sonnerrise-tracks events --days 7
+
+# Update a track
+sonnerrise-tracks update 1 --title "New Title"
+
+# Delete a track
+sonnerrise-tracks delete 1
+```
+
+## Track Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| title | string (max 120 chars) | Track title (required) |
+| album | string (max 120 chars) | Album or playlist name (optional) |
+| definition_id | integer | Reference to generation definition (optional) |
+| cover_art_url | string (URL) | Cover art image URL (optional) |
+| lyrics | text (max 32KB) | Track lyrics (optional) |
+| comments | text (max 32KB) | Additional notes (optional) |
+| links | list | Associated URLs with descriptions |
+| events | list | Scheduled events with dates and descriptions |
+
+## Event Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| datetime | datetime | Event date and time (required) |
+| description | string (max 200 chars) | Event description (required) |
+| enabled | boolean | Whether event is active (default: true) |
