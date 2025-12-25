@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches:
+    - main
+    - 'v*'
+    tags:
+    - '*'
+  pull_request:
+  schedule:
+    # Weekly Monday 6AM build
+    # * is a special character in YAML so you have to quote this string
+    - cron: '0 6 * * 1'
+
+# Cancel duplicate builds
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # Make sure that packaging will work
+          - name: Lint with flake8
+            os: ubuntu-latest
+            python: 3.x
+            toxenv: codestyle
+          - name: PEP 517 build
+            os: ubuntu-latest
+            python: 3.x
+            toxenv: twine
+          - name: Security audit
+            os: ubuntu-latest
+            python: 3.x
+            toxenv: bandit
+
+          # Basic tests
+          - name: Test with Python 3.11 on OSX
+            os: macos-latest
+            python: '3.11'
+            toxenv: py311-test
+            toxposargs: -sv
+          - name: Test with Python 3.12 on Windows
+            os: windows-latest
+            python: '3.12'
+            toxenv: py312-test
+            toxposargs: -sv
+          - name: Test with Python 3.13 on Linux
+            os: ubuntu-latest
+            python: '3.13'
+            toxenv: py313-test
+            toxposargs: -sv
+          - name: Test with Python 3.14 on Linux
+            os: ubuntu-latest
+            python: '3.14'
+            toxenv: py314-test
+            toxposargs: -sv
+
+          - name: Test with old dependencies
+            os: ubuntu-latest
+            python: '3.11'
+            toxenv: py311-test-oldestdeps
+            toxposargs: -sv
+
+          - name: Test with dev dependencies
+            os: ubuntu-latest
+            python: '3.14'
+            toxenv: py314-test-devdeps
+            toxposargs: -sv
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+      with:
+        fetch-depth: 0
+    - name: Set up Python
+      uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548  # v6.1.0
+      with:
+        python-version: ${{ matrix.python }}
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip tox
+    - name: Run tests
+      run: tox -e ${{ matrix.toxenv }} -- ${{ matrix.toxposargs }}
+
+  # tox does not play well with conda
+  conda_linux_tests:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+      with:
+        fetch-depth: 0
+    - name: Set up Python
+      uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548  # v6.1.0
+      with:
+        python-version: '3.x'
+    - name: Install and build
+      run: |
+        # $CONDA is an environment variable pointing to the root of the miniconda directory
+        $CONDA/bin/conda update -n base -c defaults conda
+        $CONDA/bin/conda install pip setuptools setuptools_scm
+        $CONDA/bin/conda install qtpy pyqt matplotlib
+        $CONDA/bin/conda install attrs "astropy>=5.2" pytest-astropy-header pytest-doctestplus pytest-remotedata -c conda-forge
+        $CONDA/bin/pip install -e .
+    - name: Run tests
+      run: $CONDA/bin/pytest --pyargs ginga doc -sv
