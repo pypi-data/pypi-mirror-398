@@ -1,0 +1,1 @@
+import{wr as e}from"./index-Bji-uPX5.js";var t=e(`MuiStack`,[`root`]);export{t};

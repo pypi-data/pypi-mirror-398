@@ -1,0 +1,1 @@
+import{Fr as e,Ir as t}from"./index-Bji-uPX5.js";var n=t(e()).createContext();export{n as t};

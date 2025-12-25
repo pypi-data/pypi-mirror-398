@@ -1,0 +1,1 @@
+import{n as e}from"./gridClasses-C6QTqQzO.js";import{Er as t,Fr as n,Ir as r,Mr as i,Tr as a,_r as o,gr as s,hr as c,mr as l}from"./index-Bji-uPX5.js";throw n(),Error(`Could not resolve "@mui/material-pigment-css/Grid" imported by "@mui/material". Is it installed?`);export{u as default,e as gridClasses};var u;
