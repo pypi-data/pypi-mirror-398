@@ -1,0 +1,58 @@
+name: quarto-graft-build-publish
+
+on:
+  push:
+    branches:
+      - master
+      - main
+
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (branch/tag/SHA) to build from"
+        required: false
+        default: "master"
+
+permissions:
+    contents: write
+    pages: write
+
+jobs:
+  build:
+    name: Build and assemble document
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Install packages
+        run: |
+          uv sync
+
+      - name: Build grafts
+        run: |
+          uv run quarto-graft trunk build
+
+      - name: Setup Quarto
+        uses: quarto-dev/quarto-actions/setup@v2.2.0
+
+      - name: Render Quarto site
+        uses: quarto-dev/quarto-actions/render@v2.2.0
+        with:
+          path: docs
+          to: html
+
+      - name: Publish to GitHub Pages
+        uses: quarto-dev/quarto-actions/publish@v2.2.0
+        with:
+          path: docs
+          target: gh-pages
+          render: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
