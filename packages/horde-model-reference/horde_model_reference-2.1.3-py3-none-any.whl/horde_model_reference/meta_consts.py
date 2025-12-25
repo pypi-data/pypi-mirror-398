@@ -1,0 +1,423 @@
+from __future__ import annotations
+
+from enum import auto
+
+from loguru import logger
+from pydantic import BaseModel, model_validator
+from strenum import StrEnum
+
+
+class MODEL_STYLE(StrEnum):
+    """An enum of all the model styles."""
+
+    generalist = auto()
+    anime = auto()
+    furry = auto()
+    artistic = auto()
+    other = auto()
+    realistic = auto()
+
+
+class CONTROLNET_STYLE(StrEnum):
+    """An enum of all the ControlNet 'styles' - the process that defines the model's behavior.
+
+    Examples include canny, depth, and openpose.
+    """
+
+    control_seg = auto()
+    control_scribble = auto()
+    control_fakescribbles = auto()
+    control_openpose = auto()
+    control_normal = auto()
+    control_mlsd = auto()
+    control_hough = auto()
+    control_hed = auto()
+    control_canny = auto()
+    control_depth = auto()
+    control_qr = auto()
+    control_qr_xl = auto()
+
+
+KNOWN_TAGS = [
+    "anime",
+    "manga",
+    "cyberpunk",
+    "tv show",
+    "booru",
+    "retro",
+    "character",
+    "hentai",
+    "scenes",
+    "low poly",
+    "cg",
+    "sketch",
+    "high resolution",
+    "landscapes",
+    "comic",
+    "cartoon",
+    "painting",
+    "game",
+]
+
+
+class MODEL_REFERENCE_CATEGORY(StrEnum):
+    """The categories of model reference entries."""
+
+    blip = auto()
+    clip = auto()
+    codeformer = auto()
+    controlnet = auto()
+    esrgan = auto()
+    gfpgan = auto()
+    safety_checker = auto()
+    image_generation = auto()
+    text_generation = auto()
+    video_generation = auto()
+    audio_generation = auto()
+    miscellaneous = auto()
+    lora = auto()
+    ti = auto()
+
+
+github_image_model_reference_categories = [
+    MODEL_REFERENCE_CATEGORY.blip,
+    MODEL_REFERENCE_CATEGORY.clip,
+    MODEL_REFERENCE_CATEGORY.codeformer,
+    MODEL_REFERENCE_CATEGORY.controlnet,
+    MODEL_REFERENCE_CATEGORY.esrgan,
+    MODEL_REFERENCE_CATEGORY.gfpgan,
+    MODEL_REFERENCE_CATEGORY.safety_checker,
+    MODEL_REFERENCE_CATEGORY.image_generation,
+    MODEL_REFERENCE_CATEGORY.miscellaneous,
+]
+"""This distinguishes the original github repo locations and has no other meaning."""
+
+github_text_model_reference_categories = [
+    MODEL_REFERENCE_CATEGORY.text_generation,
+]
+"""This distinguishes the original github repo locations and has no other meaning."""
+
+no_legacy_format_available_categories = [
+    MODEL_REFERENCE_CATEGORY.video_generation,
+    MODEL_REFERENCE_CATEGORY.audio_generation,
+]
+
+
+class MODEL_DOMAIN(StrEnum):
+    """The domain of a model, i.e., what it pertains to (image, text, video, etc.)."""
+
+    image = auto()
+    text = auto()
+    video = auto()
+    audio = auto()
+    rendered_3d = auto()
+
+
+class MODEL_PURPOSE(StrEnum):
+    """The primary purpose of a model, for example, image generation or feature extraction."""
+
+    generation = auto()
+    """The model is the central part of a generative AI system."""
+
+    post_processing = auto()
+    """The model is used for post-processing user input or generation tasks."""
+
+    auxiliary_or_patch = auto()
+    """The model is an auxiliary or patch model, e.g. LoRA or ControlNet."""
+
+    feature_extractor = auto()
+    """The model is a feature extractor, e.g. CLIP or BLIP."""
+
+    safety_checker = auto()
+    """A special case of feature extraction."""
+
+    miscellaneous = auto()
+    """The model does not fit into any other category or is very specialized."""
+
+
+class ModelClassification(BaseModel):
+    """Contains specific information about how to categorize a model.
+
+    This includes the model's `MODEL_DOMAIN` and `MODEL_PURPOSE`.
+    """
+
+    domain: MODEL_DOMAIN
+    """The domain of the model, i.e., what it pertains to (image, text, video, etc.)"""
+
+    purpose: MODEL_PURPOSE
+    """The purpose of the model."""
+
+    @model_validator(mode="after")
+    def validator_known_purpose(self) -> ModelClassification:
+        """Check if the purpose is known."""
+        if str(self.purpose) not in MODEL_PURPOSE.__members__:
+            logger.debug(f"Unknown purpose {self.purpose} for model classification {self}")
+        if str(self.domain) not in MODEL_DOMAIN.__members__:
+            logger.debug(f"Unknown domain {self.domain} for model classification {self}")
+
+        return self
+
+
+class KNOWN_IMAGE_GENERATION_BASELINE(StrEnum):
+    """An enum of all the image generation baselines."""
+
+    infer = auto()
+    """The baseline is not known and should be inferred from the model name."""
+
+    stable_diffusion_1 = auto()
+    stable_diffusion_2_768 = auto()
+    stable_diffusion_2_512 = auto()
+    stable_diffusion_xl = auto()
+    stable_cascade = auto()
+    flux_1 = auto()  # TODO: Extract flux and create "IMAGE_GENERATION_BASELINE_CATEGORY" due to name inconsistency
+    flux_schnell = auto()  # FIXME
+    flux_dev = auto()  # FIXME
+    qwen_image = auto()
+    z_image_turbo = auto()
+
+
+STABLE_DIFFUSION_BASELINE_CATEGORY = KNOWN_IMAGE_GENERATION_BASELINE
+"""Deprecated: Use KNOWN_IMAGE_GENERATION_BASELINE instead."""
+
+_alternative_sd1_baseline_names = [
+    "stable diffusion 1",
+    "stable diffusion 1.4",
+    "stable diffusion 1.5",
+    "SD1",
+    "SD14",
+    "SD1.4",
+    "SD15",
+    "SD1.5",
+    "stable_diffusion",
+    "stable_diffusion_1",
+    "stable_diffusion_1.4",
+    "stable_diffusion_1.5",
+]
+
+alternative_sdxl_baseline_names = [
+    "stable diffusion xl",
+    "SDXL",
+    "stable_diffusion_xl",
+]
+
+_alternative_flux_schnell_baseline_names = [
+    "flux_schnell",
+    "flux schnell",
+]
+
+_alternative_flux_dev_baseline_names = [
+    "flux_dev",
+    "flux dev",
+]
+
+_alternative_stable_cascade_baseline_names = [
+    "stable_cascade",
+    "stable cascade",
+]
+
+_alternative_qwen_image_baseline_names = ["qwen_image", "qwen image", "qwen-image", "qwen"]
+
+_alternative_z_image_turbo_baseline_names = ["z_image_turbo", "z image turbo", "zimage-turbo", "zimage"]
+
+
+def matching_baseline_exists(
+    baseline: str,
+    known_image_generation_baseline: KNOWN_IMAGE_GENERATION_BASELINE,
+) -> bool:
+    """Return True if a matching baseline exists.
+
+    Args:
+        baseline (str): The baseline name.
+        known_image_generation_baseline (KNOWN_IMAGE_GENERATION_BASELINE): The known image generation baseline to
+            check against.
+
+    Returns:
+        True if the baseline name is of the category, False otherwise.
+    """
+    if known_image_generation_baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1:
+        return baseline in _alternative_sd1_baseline_names
+    if known_image_generation_baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl:
+        return baseline in alternative_sdxl_baseline_names
+    if known_image_generation_baseline == KNOWN_IMAGE_GENERATION_BASELINE.flux_schnell:
+        return baseline in _alternative_flux_schnell_baseline_names
+    if known_image_generation_baseline == KNOWN_IMAGE_GENERATION_BASELINE.flux_dev:
+        return baseline in _alternative_flux_dev_baseline_names
+    if known_image_generation_baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade:
+        return baseline in _alternative_stable_cascade_baseline_names
+    if known_image_generation_baseline == KNOWN_IMAGE_GENERATION_BASELINE.qwen_image:
+        return baseline in _alternative_qwen_image_baseline_names
+    if known_image_generation_baseline == KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo:
+        return baseline in _alternative_z_image_turbo_baseline_names
+
+    return baseline == known_image_generation_baseline.name
+
+
+MODEL_CLASSIFICATION_LOOKUP: dict[MODEL_REFERENCE_CATEGORY, ModelClassification] = {
+    MODEL_REFERENCE_CATEGORY.clip: ModelClassification(
+        domain=MODEL_DOMAIN.image,
+        purpose=MODEL_PURPOSE.feature_extractor,
+    ),
+    MODEL_REFERENCE_CATEGORY.blip: ModelClassification(
+        domain=MODEL_DOMAIN.image,
+        purpose=MODEL_PURPOSE.feature_extractor,
+    ),
+    MODEL_REFERENCE_CATEGORY.codeformer: ModelClassification(
+        domain=MODEL_DOMAIN.image,
+        purpose=MODEL_PURPOSE.feature_extractor,
+    ),
+    MODEL_REFERENCE_CATEGORY.controlnet: ModelClassification(
+        domain=MODEL_DOMAIN.image,
+        purpose=MODEL_PURPOSE.auxiliary_or_patch,
+    ),
+    MODEL_REFERENCE_CATEGORY.esrgan: ModelClassification(
+        domain=MODEL_DOMAIN.image,
+        purpose=MODEL_PURPOSE.post_processing,
+    ),
+    MODEL_REFERENCE_CATEGORY.gfpgan: ModelClassification(
+        domain=MODEL_DOMAIN.image,
+        purpose=MODEL_PURPOSE.post_processing,
+    ),
+    MODEL_REFERENCE_CATEGORY.safety_checker: ModelClassification(
+        domain=MODEL_DOMAIN.image,
+        purpose=MODEL_PURPOSE.post_processing,
+    ),
+    MODEL_REFERENCE_CATEGORY.image_generation: ModelClassification(
+        domain=MODEL_DOMAIN.image,
+        purpose=MODEL_PURPOSE.generation,
+    ),
+    MODEL_REFERENCE_CATEGORY.text_generation: ModelClassification(
+        domain=MODEL_DOMAIN.text,
+        purpose=MODEL_PURPOSE.generation,
+    ),
+    MODEL_REFERENCE_CATEGORY.miscellaneous: ModelClassification(
+        domain=MODEL_DOMAIN.image,
+        purpose=MODEL_PURPOSE.miscellaneous,
+    ),
+    MODEL_REFERENCE_CATEGORY.video_generation: ModelClassification(
+        domain=MODEL_DOMAIN.video,
+        purpose=MODEL_PURPOSE.generation,
+    ),
+    MODEL_REFERENCE_CATEGORY.audio_generation: ModelClassification(
+        domain=MODEL_DOMAIN.audio,
+        purpose=MODEL_PURPOSE.generation,
+    ),
+}
+
+IMAGE_GENERATION_BASELINE_NATIVE_RESOLUTION_LOOKUP: dict[KNOWN_IMAGE_GENERATION_BASELINE, int] = {
+    KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1: 512,
+    KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_2_768: 768,
+    KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_2_512: 512,
+    KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl: 1024,
+    KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade: 1024,
+    KNOWN_IMAGE_GENERATION_BASELINE.flux_1: 1024,
+}
+"""The single-side preferred resolution for each known stable diffusion baseline."""
+
+
+def get_baseline_native_resolution(baseline: KNOWN_IMAGE_GENERATION_BASELINE) -> int:
+    """Get the native resolution of a stable diffusion baseline.
+
+    Args:
+        baseline: The stable diffusion baseline.
+
+    Returns:
+        The native resolution of the baseline.
+    """
+    return IMAGE_GENERATION_BASELINE_NATIVE_RESOLUTION_LOOKUP[baseline]
+
+
+def get_baselines_by_resolution(resolution: int) -> list[KNOWN_IMAGE_GENERATION_BASELINE]:
+    """Get all baselines that have the given native resolution.
+
+    Args:
+        resolution: The native resolution to look for.
+
+    Returns:
+        A list of baselines that have the given native resolution.
+    """
+    return [
+        baseline
+        for baseline, native_resolution in IMAGE_GENERATION_BASELINE_NATIVE_RESOLUTION_LOOKUP.items()
+        if native_resolution == resolution
+    ]
+
+
+class TEXT_BACKENDS(StrEnum):
+    """An enum of all the text backends."""
+
+    aphrodite = auto()
+    koboldcpp = auto()
+
+
+_TEXT_LEGACY_CONVERT_BACKEND_PREFIXES = {
+    TEXT_BACKENDS.aphrodite: "aphrodite/",
+    TEXT_BACKENDS.koboldcpp: "koboldcpp/",
+}
+"""These prefixes exist on duplicate entries for backwards compatibility, in the legacy format."""
+
+
+def has_legacy_text_backend_prefix(model_name: str) -> bool:
+    """Check if a model name has a legacy text backend prefix.
+
+    Args:
+        model_name: The model name to check.
+
+    Returns:
+        True if the model name has a legacy text backend prefix, False otherwise.
+    """
+    return any(model_name.startswith(prefix) for prefix in _TEXT_LEGACY_CONVERT_BACKEND_PREFIXES.values())
+
+
+def strip_backend_prefix(model_name: str) -> str:
+    """Strip backend prefix from a model name if present.
+
+    Args:
+        model_name: The model name to strip.
+
+    Returns:
+        The model name without the backend prefix.
+
+    Example:
+        >>> strip_backend_prefix("koboldcpp/Broken-Tutu-24B")
+        "Broken-Tutu-24B"
+        >>> strip_backend_prefix("aphrodite/ReadyArt/Broken-Tutu-24B")
+        "ReadyArt/Broken-Tutu-24B"
+        >>> strip_backend_prefix("ReadyArt/Broken-Tutu-24B")
+        "ReadyArt/Broken-Tutu-24B"
+    """
+    for prefix in _TEXT_LEGACY_CONVERT_BACKEND_PREFIXES.values():
+        if model_name.startswith(prefix):
+            return model_name[len(prefix) :]
+    return model_name
+
+
+def get_model_name_variants(canonical_name: str) -> list[str]:
+    """Get all possible name variants for a canonical model name.
+
+    Given a canonical name like "ReadyArt/Broken-Tutu-24B", returns all possible
+    variants that might appear in the Horde API stats:
+    - Canonical: ReadyArt/Broken-Tutu-24B
+    - Aphrodite: aphrodite/ReadyArt/Broken-Tutu-24B
+    - KoboldCPP: koboldcpp/Broken-Tutu-24B (uses model name only, not org prefix)
+
+    Args:
+        canonical_name: The canonical model name from the model reference.
+
+    Returns:
+        List of all possible name variants, including the canonical name.
+
+    Example:
+        >>> get_model_name_variants("ReadyArt/Broken-Tutu-24B")
+        ["ReadyArt/Broken-Tutu-24B", "aphrodite/ReadyArt/Broken-Tutu-24B", "koboldcpp/Broken-Tutu-24B"]
+    """
+    variants = [canonical_name]
+
+    model_name_only = canonical_name.split("/", 1)[1] if "/" in canonical_name else canonical_name
+
+    for prefix in _TEXT_LEGACY_CONVERT_BACKEND_PREFIXES.values():
+        if prefix == "aphrodite/":
+            variants.append(f"{prefix}{canonical_name}")
+        elif prefix == "koboldcpp/":
+            variants.append(f"{prefix}{model_name_only}")
+
+    return variants
