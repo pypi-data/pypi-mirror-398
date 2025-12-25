@@ -1,0 +1,133 @@
+# concept‑extractor
+[![PyPI version](https://badge.fury.io/py/concept-extractor.svg)](https://badge.fury.io/py/concept-extractor)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/concept-extractor)](https://pepy.tech/project/concept-extractor)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**concept‑extractor** is a lightweight Python package that turns complex, philosophical or thematic text prompts (e.g., “Dark Enlightenment”) into concise, well‑structured summaries or analyses. It leverages language models via LangChain and a pattern‑matching helper (`llmatch`) to guarantee that the output conforms to a user‑defined regular‑expression pattern.
+
+> **Key points**
+> * Text‑only – no multimedia handling.  
+> * Deterministic output thanks to regex‑based validation.  
+> * Works out‑of‑the‑box with the default `ChatLLM7` model; any LangChain‑compatible LLM can be swapped in.
+
+---
+
+## Installation
+
+```bash
+pip install concept_extractor
+```
+
+---
+
+## Quick start
+
+```python
+from concept_extractor import concept_extractor
+
+# Your prompt describing a complex concept
+user_input = """
+The Dark Enlightenment is a contemporary philosophical movement that...
+"""
+
+# Run the extractor (uses ChatLLM7 by default)
+summary = concept_extractor(user_input)
+
+print(summary)
+```
+
+`summary` is a list of strings that matches the pattern defined in `concept_extractor.prompts`.
+
+---
+
+## Function signature
+
+```python
+def concept_extractor(
+    user_input: str,
+    api_key: Optional[str] = None,
+    llm: Optional[BaseChatModel] = None,
+) -> List[str]:
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| **user_input** | `str` | The text you want to analyse. |
+| **api_key** | `Optional[str]` | API key for **LLM7**. If omitted, the environment variable `LLM7_API_KEY` is used; otherwise a placeholder `"None"` is supplied. |
+| **llm** | `Optional[BaseChatModel]` | Any LangChain `BaseChatModel` instance. When omitted the package creates a `ChatLLM7` instance automatically. |
+
+The function returns a `List[str]` containing the extracted data that matches the internal regex pattern.
+
+---
+
+## Using a custom LLM
+
+If you prefer another provider (OpenAI, Anthropic, Google, etc.), simply pass a LangChain chat model instance:
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from concept_extractor import concept_extractor
+
+llm = ChatOpenAI(model="gpt-4o-mini")
+response = concept_extractor(user_input, llm=llm)
+print(response)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from concept_extractor import concept_extractor
+
+llm = ChatAnthropic(model="claude-3-haiku-20240307")
+response = concept_extractor(user_input, llm=llm)
+print(response)
+```
+
+### Google Generative AI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from concept_extractor import concept_extractor
+
+llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+response = concept_extractor(user_input, llm=llm)
+print(response)
+```
+
+---
+
+## API key & rate limits
+
+* The default free tier of **LLM7** (the model used when you don’t supply an `llm`) provides generous rate limits that satisfy most use cases of this package.  
+* To use higher limits or your own quota, set the environment variable `LLM7_API_KEY` **or** pass the key directly:
+
+```python
+response = concept_extractor(user_input, api_key="your_llm7_api_key")
+```
+
+* Obtain a free API key by registering at: <https://token.llm7.io/>
+
+---
+
+## Contributing & support
+
+* **Issues & bug reports:** <https://github.com/chigwell/concept_extractor/issues>  
+* **Pull requests** are welcome – see the repository for the contribution guidelines.
+
+---
+
+## Author
+
+**Eugene Evstafev** – <hi@euegne.plus>  
+GitHub: [chigwell](https://github.com/chigwell)
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file in the repository for details.
