@@ -1,0 +1,193 @@
+Metadata-Version: 2.4
+Name: redlite
+Version: 0.4.3
+Summary: LLM testing on steroids
+Author-email: Mike Kroutikov <mkroutikov@innodata.com>, David Nadeau <dnadeau@innodata.com>
+License: MIT License
+Project-URL: Homepage, https://github.com/innodatalabs/redlite
+Project-URL: Documentation, https://innodatalabs.github.io/redlite
+Project-URL: Repository, https://github.com/innodatalabs/redlite.git
+Project-URL: Issues, https://github.com/innodatalabs/redlite/issues
+Keywords: large langualge models,evaluation,datasets
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: duoname~=0.0.2
+Requires-Dist: tqdm
+Provides-Extra: hf
+Requires-Dist: datasets; extra == "hf"
+Provides-Extra: server
+Requires-Dist: aiohttp~=3.9.0; extra == "server"
+Requires-Dist: aiohttp-cors; extra == "server"
+Provides-Extra: openai
+Requires-Dist: openai; extra == "openai"
+Provides-Extra: anthropic
+Requires-Dist: anthropic~=0.64.0; extra == "anthropic"
+Provides-Extra: zeno
+Requires-Dist: zeno_client; extra == "zeno"
+Provides-Extra: rouge
+Requires-Dist: rouge-score; extra == "rouge"
+Provides-Extra: bleu
+Requires-Dist: nltk; extra == "bleu"
+Provides-Extra: aws
+Requires-Dist: boto3; extra == "aws"
+Provides-Extra: llama-cpp
+Requires-Dist: llama-cpp-python; extra == "llama-cpp"
+Provides-Extra: google
+Requires-Dist: google-genai; extra == "google"
+Provides-Extra: math
+Requires-Dist: pyparsing; extra == "math"
+Provides-Extra: all
+Requires-Dist: redlite[anthropic,aws,bleu,google,hf,llama-cpp,math,openai,rouge,server,zeno]; extra == "all"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: twine; extra == "dev"
+Requires-Dist: portray; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: flake8; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Requires-Dist: pytest-asyncio==0.24.0; extra == "dev"
+Requires-Dist: pytest-aiohttp; extra == "dev"
+Dynamic: license-file
+
+# RedLite
+
+[![PyPI version](https://badge.fury.io/py/redlite.svg)](https://badge.fury.io/py/redlite)
+[![Documentation](https://img.shields.io/badge/documentation-latest-brightgreen)](https://innodatalabs.github.io/redlite/)
+[![Test and Lint](https://github.com/innodatalabs/redlite/actions/workflows/test.yaml/badge.svg)](https://github.com/innodatalabs/redlite)
+[![GitHub Pages](https://github.com/innodatalabs/redlite/actions/workflows/docs.yaml/badge.svg)](https://github.com/innodatalabs/redlite)
+
+An opinionated toolset for testing Conversational Language Models.
+
+## Documentation
+
+<https://innodatalabs.github.io/redlite/>
+
+## Usage
+
+1. Install required dependencies
+
+    ```bash
+    pip install redlite[all]
+    ```
+
+2. Generate several runs (using Python scripting, see [examples](https://github.com/innodatalabs/redlite/tree/master/samples), and below)
+
+3. Review and compare runs
+
+    ```bash
+    redlite server --port <PORT>
+    ```
+
+4. Optionally, upload to Zeno
+
+    ```bash
+    ZENO_API_KEY=zen_XXXX redlite upload
+    ```
+
+## Python API
+
+```python
+import os
+from redlite import run, load_dataset
+from redlite.model.openai_model import OpenAIModel
+from redlite.metric import MatchMetric
+
+
+model = OpenAIModel(api_key=os.environ["OPENAI_API_KEY"])
+dataset = load_dataset("hf:innodatalabs/rt-gsm8k-gaia")
+metric = MatchMetric(ignore_case=True, ignore_punct=True, strategy='prefix')
+
+run(model=model, dataset=dataset, metric=metric)
+```
+
+_Note: the code above uses OpenAI model via their API.
+You will need to register with OpenAI and get an API access key, then set it in the environment as `OPENAI_API_KEY`._
+
+## Goals
+
+* simple, easy-to-learn API
+* lightweight
+* only necessary dependencies
+* framework-agnostic (PyTorch, Tensorflow, Keras, Flax, Jax)
+* basic analytic tools included
+
+## Develop
+
+```bash
+python -m venv .venv
+. .venv/bin/activate
+pip install -e .[dev,all]
+```
+
+Make commands:
+
+* test
+* test-server
+* lint
+* wheel
+* docs
+* docs-server
+* black
+
+## Zeno <zenoml.com> integration
+
+Benchmarks can be uploaded to Zeno interactive AI evaluation platform <hub.zenoml.com>:
+
+```bash
+redlite upload --project my-cool-project
+```
+
+All tasks will be concatenated and uploaded as a single dataset, with extra fields:
+
+* `task_id`
+* `dataset`
+* `metric`
+
+All models will be uploaded. If model was not tested on a specific task, a simulated zero-score dataframe is used instead.
+
+Use `task_id` (or `dataset` as appropriate) to create task slices. Slices can be used to
+navigate data or create charts.
+
+## Serving as a static website
+
+UI server data and code can be exported to a local directory that then can be served statically.
+
+This is useful for publishing as a static website on cloud storage (S3, Google Storage).
+
+```bash
+redlite server-freeze /tmp/my-server
+gsutil -m rsync -R /tmp/my-server gs://{your GS bucket}
+```
+
+Note that you have to configure cloud bucket in a special way, so that cloud provider serves it as a website. How to do this depends on
+the cloud provider.
+
+## TODO
+
+- [x] deps cleanup (randomname!)
+- [x] review/improve module structure
+- [x] automate CI/CD
+- [x] write docs
+- [x] publish docs automatically (CI/CD)
+- [x] web UI styling
+- [ ] better test server
+- [ ] tests
+- [x] Integrate HF models
+- [x] Integrate OpenAI models
+- [x] Integrate Anthropic models
+- [x] Integrate AWS Bedrock models
+- [ ] Integrate vLLM models
+- [x] Fix data format in HF datasets (innodatalabs/rt-* ones) to match standard
+- [ ] more robust backend API (future-proof)
+- [ ] better error handling for missing deps
+- [ ] document which deps we need when
+- [ ] export to CSV
+- [x] Upload to Zeno
