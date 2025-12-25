@@ -1,0 +1,3 @@
+# (c) ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, 2021-2025.
+
+__version__ = "2.1.0"
