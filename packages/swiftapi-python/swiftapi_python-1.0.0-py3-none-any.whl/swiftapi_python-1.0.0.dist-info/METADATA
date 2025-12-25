@@ -1,0 +1,256 @@
+Metadata-Version: 2.4
+Name: swiftapi-python
+Version: 1.0.0
+Summary: SwiftAPI Python SDK - AI Action Verification Gateway
+Author-email: Rayan Pal <rayan@swiftapi.ai>
+License-Expression: MIT
+Project-URL: Homepage, https://swiftapi.ai
+Project-URL: Documentation, https://docs.swiftapi.ai
+Project-URL: Repository, https://github.com/swiftapi/swiftapi-python
+Project-URL: Issues, https://github.com/swiftapi/swiftapi-python/issues
+Keywords: swiftapi,ai,verification,attestation,security,governance,enforcement
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Security
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.31.0
+Requires-Dist: pynacl>=1.5.0
+Requires-Dist: colorama>=0.4.6
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: types-requests>=2.31.0; extra == "dev"
+
+# SwiftAPI Python SDK
+
+**No AI action executes without verification.**
+
+SwiftAPI is the ignition key for AI agents. This SDK provides Python bindings for the SwiftAPI execution governance protocol.
+
+## Installation
+
+```bash
+pip install swiftapi
+```
+
+## Quick Start
+
+```python
+from swiftapi import SwiftAPI, Enforcement
+
+# Initialize client with your API key
+api = SwiftAPI(key="swiftapi_live_...")
+
+# Create an enforcement point
+guard = Enforcement(api)
+
+# THE LINE THAT SAVES THE COMPANY
+guard.run(
+    lambda: os.system("rm -rf /tmp/data"),
+    action="file_delete",
+    intent="Cleanup temporary files"
+)
+```
+
+If the action is denied by policy, a `PolicyViolation` exception is raised and **nothing executes**.
+
+## Features
+
+- **Cryptographic Enforcement**: Ed25519 signed attestations prove authorization
+- **Offline Verification**: Verify attestation signatures without network calls
+- **Policy Enforcement**: Actions blocked if they violate configured policies
+- **Rate Limiting**: Built-in handling for API rate limits
+- **Beautiful Output**: Color-coded terminal output for approvals/denials
+
+## Usage Patterns
+
+### 1. Direct Execution
+
+```python
+from swiftapi import SwiftAPI, Enforcement
+
+api = SwiftAPI(key="swiftapi_live_...")
+guard = Enforcement(api)
+
+# Execute with verification
+result = guard.run(
+    lambda: dangerous_operation(),
+    action="database_write",
+    intent="Update user preferences"
+)
+```
+
+### 2. Decorator
+
+```python
+@guard.protect(action="api_call", intent="Send notification")
+def send_notification(user_id: str, message: str):
+    # This only runs if SwiftAPI approves
+    notification_service.send(user_id, message)
+
+# Usage - automatically enforced
+send_notification("user123", "Hello!")
+```
+
+### 3. Context Manager
+
+```python
+with guard.guard(action="file_write", intent="Save configuration"):
+    # This block only executes if approved
+    with open("/etc/myapp/config.json", "w") as f:
+        json.dump(config, f)
+```
+
+### 4. One-off Enforcement
+
+```python
+from swiftapi import SwiftAPI, enforce
+
+api = SwiftAPI(key="swiftapi_live_...")
+enforce(api, lambda: risky_operation(), action="admin", intent="Reset system")
+```
+
+## Paranoid Mode
+
+For maximum security, enable paranoid mode to check revocation status online:
+
+```python
+guard = Enforcement(api, paranoid=True)
+```
+
+This adds an extra network call but ensures revoked attestations are caught in real-time.
+
+## Offline Verification
+
+You can verify attestation signatures without any network calls:
+
+```python
+from swiftapi import verify_signature, is_valid
+
+# Verify signature (raises exception if invalid)
+verify_signature(attestation)
+
+# Check validity without exceptions
+if is_valid(attestation):
+    print("Attestation is valid")
+```
+
+## Error Handling
+
+```python
+from swiftapi import (
+    SwiftAPI,
+    Enforcement,
+    PolicyViolation,
+    SignatureVerificationError,
+    AttestationRevokedError,
+)
+
+api = SwiftAPI(key="swiftapi_live_...")
+guard = Enforcement(api)
+
+try:
+    guard.run(lambda: delete_everything(), action="nuke", intent="YOLO")
+except PolicyViolation as e:
+    print(f"Action denied: {e.denial_reason}")
+except SignatureVerificationError:
+    print("CRITICAL: Attestation signature is invalid!")
+except AttestationRevokedError as e:
+    print(f"Attestation {e.jti} was revoked")
+```
+
+## API Client
+
+The SDK also provides direct API access:
+
+```python
+from swiftapi import SwiftAPI
+
+api = SwiftAPI(key="swiftapi_live_...")
+
+# Get API info
+info = api.get_info()
+
+# Verify an action
+result = api.verify(
+    action_type="file_write",
+    intent="Save user data",
+    params={"path": "/data/users.json"}
+)
+
+# Check attestation revocation
+is_revoked = api.check_revocation(jti="attestation-id")
+
+# List authority keys (admin only)
+keys = api.list_keys()
+
+# Create new key (admin only)
+new_key = api.create_key(name="agent-1", scopes=["verify"])
+```
+
+## Configuration
+
+```python
+api = SwiftAPI(
+    key="swiftapi_live_...",
+    base_url="https://swiftapi.ai",  # Default
+    timeout=30,  # Request timeout in seconds
+)
+
+guard = Enforcement(
+    client=api,
+    paranoid=False,  # Enable online revocation checks
+    verbose=True,    # Print status messages
+)
+```
+
+## The Golden Loop
+
+Every protected action goes through this verification chain:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    THE GOLDEN LOOP                       │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  1. API CALL                                            │
+│     client.verify() ──────────────────────────────┐     │
+│                                                    │     │
+│  2. CRYPTO CHECK (Offline Truth)                  │     │
+│     verifier.verify_signature() ◄─────────────────┤     │
+│                                                    │     │
+│  3. ONLINE CHECK (Optional/Paranoid)              │     │
+│     client.check_revocation() ◄───────────────────┤     │
+│                                                    │     │
+│  4. EXECUTE                                        │     │
+│     func() ◄──────────────────────────────────────┘     │
+│                                                          │
+│  If ANY step fails → PolicyViolation raised             │
+│  The action NEVER executes without full verification    │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+## License
+
+MIT License - See LICENSE file for details.
+
+## Links
+
+- **API**: https://swiftapi.ai
+- **Documentation**: https://docs.swiftapi.ai
+- **GitHub**: https://github.com/swiftapi/swiftapi-python
+
+---
+
+*Built by Rayan Pal. No AI action executes without verification.*
