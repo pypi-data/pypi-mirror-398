@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>All Sessions</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <button class="back-btn" onclick="window.location.href='index.html'">← Back</button>
+    <h1>📚 All Sessions</h1>
+
+    <div style="margin-bottom: 16px;">
+      <label style="display: inline; font-weight: normal; margin-right: 16px;">
+        <input type="radio" name="filter" value="all" checked onchange="filterRecordings()"> All
+      </label>
+      <label style="display: inline; font-weight: normal; margin-right: 16px;">
+        <input type="radio" name="filter" value="sessions" onchange="filterRecordings()"> Sessions Only
+      </label>
+      <label style="display: inline; font-weight: normal;">
+        <input type="radio" name="filter" value="freehand" onchange="filterRecordings()"> Freehand Only
+      </label>
+    </div>
+
+    <hr>
+
+    <div id="sessions-list"></div>
+
+    <div id="no-sessions" class="info-box">
+      No recordings found. Start a recording session to see them here.
+    </div>
+
+    <button class="btn-danger mt-16" onclick="deleteAll()" style="display: none;" id="delete-all-btn">Delete All Sessions</button>
+  </div>
+
+  <script src="mock-storage.js"></script>
+  <script>
+    console.log('📚 Sessions page loaded');
+
+    let allSessions = [];
+    let currentFilter = 'all';
+
+    // Generate mock data on page load
+    window.onload = () => {
+      loadMockData();
+      renderSessions();
+    };
+
+    function loadMockData() {
+      // Create some mock sessions with recordings
+      const now = Date.now();
+
+      allSessions = [
+        {
+          type: 'session',
+          sessionId: 'session-1',
+          simulatorName: 'metabase',
+          artifactId: '0b950a5a-1f75-4665-a6a0-515698abf64c',
+          status: 'reviewed',
+          reviewResult: { outcome: 'pass', newStatus: 'ready' },
+          startedAt: now - 7200000, // 2 hours ago
+          recordings: [
+            {
+              recordingId: 'rec-1-1',
+              duration: 154000, // 2m 34s
+              eventCount: 1234,
+              networkEventCount: 567,
+              s3Paths: {
+                video: 's3://plato-envgen-artifacts/sessions/session-1/recording-1.webm',
+                events: 's3://plato-envgen-artifacts/sessions/session-1/recording-1.json'
+              }
+            },
+            {
+              recordingId: 'rec-1-2',
+              duration: 72000, // 1m 12s
+              eventCount: 567,
+              networkEventCount: 234,
+              s3Paths: {
+                video: 's3://plato-envgen-artifacts/sessions/session-1/recording-2.webm',
+                events: 's3://plato-envgen-artifacts/sessions/session-1/recording-2.json'
+              }
+            },
+            {
+              recordingId: 'rec-1-3',
+              duration: 45000, // 45s
+              eventCount: 234,
+              networkEventCount: 123,
+              s3Paths: {
+                video: 's3://plato-envgen-artifacts/sessions/session-1/recording-3.webm',
+                events: 's3://plato-envgen-artifacts/sessions/session-1/recording-3.json'
+              }
+            }
+          ]
+        },
+        {
+          type: 'freehand',
+          recordingId: 'freehand-1',
+          duration: 201000, // 3m 21s
+          eventCount: 892,
+          networkEventCount: 445,
+          startedAt: now - 14400000, // 4 hours ago
+          s3Paths: {
+            video: 's3://plato-envgen-artifacts/freehand/freehand-1.webm',
+            events: 's3://plato-envgen-artifacts/freehand/freehand-1.json'
+          }
+        },
+        {
+          type: 'session',
+          sessionId: 'session-2',
+          simulatorName: 'postgres',
+          artifactId: null,
+          status: 'ended',
+          reviewResult: null,
+          startedAt: now - 86400000, // 1 day ago
+          recordings: [
+            {
+              recordingId: 'rec-2-1',
+              duration: 312000, // 5m 12s
+              eventCount: 2341,
+              networkEventCount: 987,
+              s3Paths: {
+                video: 's3://plato-envgen-artifacts/sessions/session-2/recording-1.webm',
+                events: 's3://plato-envgen-artifacts/sessions/session-2/recording-1.json'
+              }
+            },
+            {
+              recordingId: 'rec-2-2',
+              duration: 165000, // 2m 45s
+              eventCount: 1123,
+              networkEventCount: 543,
+              s3Paths: {
+                video: 's3://plato-envgen-artifacts/sessions/session-2/recording-2.webm',
+                events: 's3://plato-envgen-artifacts/sessions/session-2/recording-2.json'
+              }
+            }
+          ]
+        }
+      ];
+
+      console.log('✅ Loaded mock sessions:', allSessions);
+    }
+
+    function renderSessions() {
+      const container = document.getElementById('sessions-list');
+      const noSessionsMsg = document.getElementById('no-sessions');
+      const deleteBtn = document.getElementById('delete-all-btn');
+
+      // Filter sessions
+      const filtered = allSessions.filter(session => {
+        if (currentFilter === 'all') return true;
+        if (currentFilter === 'sessions') return session.type === 'session';
+        if (currentFilter === 'freehand') return session.type === 'freehand';
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '';
+        noSessionsMsg.style.display = 'block';
+        deleteBtn.style.display = 'none';
+        return;
+      }
+
+      noSessionsMsg.style.display = 'none';
+      deleteBtn.style.display = 'block';
+
+      container.innerHTML = filtered.map(session => {
+        if (session.type === 'freehand') {
+          return renderFreehandRecording(session);
+        } else {
+          return renderSessionGroup(session);
+        }
+      }).join('<hr>');
+    }
+
+    function renderFreehandRecording(recording) {
+      const timeAgo = getTimeAgo(recording.startedAt);
+
+      return `
+        <div style="margin: 16px 0;">
+          <h2 style="margin: 0 0 8px 0;">🎥 Freehand Recording</h2>
+          <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
+            ${timeAgo} • ${formatDuration(recording.duration)} • ${recording.eventCount} events
+          </div>
+          <div class="recording-actions">
+            <button class="btn-small" onclick="copyPath('${recording.s3Paths.video}')">📋 Copy Video</button>
+            <button class="btn-small" onclick="copyPath('${recording.s3Paths.events}')">📋 Copy Events</button>
+            <button class="btn-small" onclick="deleteRecording('${recording.recordingId}')">🗑️ Delete</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSessionGroup(session) {
+      const timeAgo = getTimeAgo(session.startedAt);
+      const statusIcon = session.reviewResult ?
+        (session.reviewResult.outcome === 'pass' ? '✅' :
+         session.reviewResult.outcome === 'reject' ? '❌' : '⏭️') :
+        '🛑';
+      const statusText = session.reviewResult ?
+        `Reviewed (${session.reviewResult.outcome})` :
+        'Ended (Not reviewed)';
+
+      const recordingsHtml = session.recordings.map((rec, index) => `
+        <div class="recording-item" style="margin-left: 20px;">
+          <div class="recording-header">
+            <strong>└─ Recording ${index + 1}</strong>
+            <span>${formatDuration(rec.duration)}</span>
+          </div>
+          <div class="recording-actions">
+            <button class="btn-small" onclick="copyPath('${rec.s3Paths.video}')">📋 Video</button>
+            <button class="btn-small" onclick="copyPath('${rec.s3Paths.events}')">📋 Events</button>
+          </div>
+        </div>
+      `).join('');
+
+      return `
+        <div style="margin: 16px 0;">
+          <h2 style="margin: 0 0 8px 0;">📋 Session: ${session.simulatorName}</h2>
+          <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
+            ${timeAgo} • Status: ${statusIcon} ${statusText}
+          </div>
+          ${recordingsHtml}
+        </div>
+      `;
+    }
+
+    function filterRecordings() {
+      currentFilter = document.querySelector('input[name="filter"]:checked').value;
+      console.log('🔍 Filter changed:', currentFilter);
+      renderSessions();
+    }
+
+    function copyPath(path) {
+      navigator.clipboard.writeText(path).then(() => {
+        alert('✅ S3 path copied to clipboard');
+        console.log('📋 Copied path:', path);
+      });
+    }
+
+    function deleteRecording(recordingId) {
+      if (!confirm('Delete this recording?')) return;
+
+      console.log('🗑️ Deleting recording:', recordingId);
+      allSessions = allSessions.filter(s => s.recordingId !== recordingId);
+      renderSessions();
+    }
+
+    function deleteAll() {
+      if (!confirm('Delete ALL recordings? This cannot be undone.')) return;
+
+      console.log('🗑️ Deleting all sessions');
+      allSessions = [];
+      renderSessions();
+    }
+
+    function getTimeAgo(timestamp) {
+      const now = Date.now();
+      const diff = now - timestamp;
+
+      const minutes = Math.floor(diff / 60000);
+      const hours = Math.floor(diff / 3600000);
+      const days = Math.floor(diff / 86400000);
+
+      if (minutes < 60) return `${minutes}m ago`;
+      if (hours < 24) return `${hours}h ago`;
+      return `${days}d ago`;
+    }
+  </script>
+</body>
+</html>
