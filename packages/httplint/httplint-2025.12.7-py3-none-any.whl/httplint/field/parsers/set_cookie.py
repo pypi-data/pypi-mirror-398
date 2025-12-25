@@ -1,0 +1,723 @@
+from calendar import timegm
+from re import match, split
+from urllib.parse import urlsplit
+from typing import List, Tuple, Union, Optional
+
+from httplint.field import HttpField, RFC6265
+from httplint.field.tests import FieldTest
+from httplint.note import Note, categories, levels
+from httplint.types import AddNoteMethodType
+
+CookieType = Tuple[str, str, List[Tuple[str, Union[str, int]]]]
+
+
+MAX_SET_COOKIE_VALUE_LENGTH = 128
+
+
+class set_cookie(HttpField):
+    canonical_name = "Set-Cookie"
+    description = """\
+The `Set-Cookie` response header sets a stateful "cookie" on the client, to be included in future
+requests to the server."""
+    syntax = False
+    reference = RFC6265
+    list_header = False
+    nonstandard_syntax = True
+    deprecated = False
+    valid_in_requests = False
+    valid_in_responses = True
+
+    def parse(self, field_value: str, add_note: AddNoteMethodType) -> CookieType:
+        path = urlsplit(self.message.base_uri).path
+        return loose_parse(field_value, path, self.message.start_time, add_note)
+
+    def evaluate(self, add_note: AddNoteMethodType) -> None:
+        cookie_names = [c[0] for c in self.value]
+        if len(cookie_names) != len(set(cookie_names)):
+            seen = set()
+            duplicates = set()
+            for name in cookie_names:
+                if name in seen:
+                    duplicates.add(name)
+                seen.add(name)
+            add_note(SET_COOKIE_NAME_DUP, cookie_names=", ".join(sorted(duplicates)))
+
+
+def loose_parse(  # pylint: disable=too-many-branches
+    set_cookie_string: str,
+    uri_path: str,
+    current_time: Optional[float],
+    add_note: AddNoteMethodType,
+) -> CookieType:
+    """
+    Parse a Set-Cookie string, as per RFC6265, Section 5.2.
+    """
+    if ";" in set_cookie_string:
+        name_value_pair, unparsed_attributes = set_cookie_string.split(";", 1)
+    else:
+        name_value_pair, unparsed_attributes = set_cookie_string, ""
+
+    try:
+        name, value = name_value_pair.split("=", 1)
+    except ValueError:
+        name = ""
+        value = name_value_pair
+
+    name, value = name.strip(), value.strip()
+    if name == "" and value == "":
+        add_note(SET_COOKIE_NO_NAME)
+        raise ValueError("Cookie doesn't have a name")
+
+    if len(name) + len(value) > 4096:
+        add_note(SET_COOKIE_TOO_LARGE, cookie_name=name)
+
+    if len(value) > MAX_SET_COOKIE_VALUE_LENGTH:
+        add_note(
+            SET_COOKIE_VALUE_TOO_LARGE,
+            cookie_name=name,
+            set_cookie_value_length=f"{len(value):,} bytes",
+        )
+
+    cookie_name, cookie_value = name, value
+    cookie_attribute_list: List[Tuple[str, Union[str, int]]] = []
+    seen_attributes: set[str] = set()
+    lifetime_note_added = False
+
+    while unparsed_attributes != "":
+        if ";" in unparsed_attributes:
+            cookie_av, unparsed_attributes = unparsed_attributes.split(";", 1)
+        else:
+            cookie_av, unparsed_attributes = unparsed_attributes, ""
+
+        if "=" in cookie_av:
+            attribute_name, attribute_value = cookie_av.split("=", 1)
+        else:
+            attribute_name, attribute_value = cookie_av, ""
+
+        attribute_name = attribute_name.strip()
+        attribute_value = attribute_value.strip()
+        case_norm_attribute_name = attribute_name.lower()
+
+        if case_norm_attribute_name in seen_attributes:
+            add_note(
+                SET_COOKIE_ATTRIBUTE_DUP,
+                cookie_name=cookie_name,
+                attribute=attribute_name,
+            )
+        seen_attributes.add(case_norm_attribute_name)
+
+        lifetime_note_added = _process_cookie_attribute(
+            attribute_name,
+            attribute_value,
+            cookie_name,
+            cookie_attribute_list,
+            uri_path,
+            current_time,
+            add_note,
+            lifetime_note_added,
+        )
+
+    if ("SameSite", "None") in cookie_attribute_list and (
+        "Secure",
+        "",
+    ) not in cookie_attribute_list:
+        add_note(SET_COOKIE_NOT_SECURE, cookie_name=cookie_name)
+
+    if ("Partitioned", "") in cookie_attribute_list and (
+        "Secure",
+        "",
+    ) not in cookie_attribute_list:
+        add_note(SET_COOKIE_PARTITIONED_NO_SECURE, cookie_name=cookie_name)
+
+    check_prefixes(cookie_name, cookie_attribute_list, add_note)
+    return (cookie_name, cookie_value, cookie_attribute_list)
+
+
+def _process_cookie_attribute(  # pylint: disable=too-many-branches,too-many-arguments
+    attribute_name: str,
+    attribute_value: str,
+    cookie_name: str,
+    cookie_attribute_list: List[Tuple[str, Union[str, int]]],
+    uri_path: str,
+    current_time: Optional[float],
+    add_note: AddNoteMethodType,
+    lifetime_note_added: bool,
+) -> bool:
+    case_norm_attribute_name = attribute_name.lower()
+
+    if case_norm_attribute_name == "expires":
+        try:
+            expiry_time = loose_date_parse(attribute_value)
+        except ValueError as why:
+            add_note(SET_COOKIE_BAD_DATE, why=str(why), cookie_name=cookie_name)
+            return lifetime_note_added
+        cookie_attribute_list.append(("Expires", expiry_time))
+        if (
+            current_time
+            and expiry_time > current_time + 34560000
+            and not lifetime_note_added
+        ):
+            add_note(SET_COOKIE_LIFETIME_TOO_LONG, cookie_name=cookie_name)
+            lifetime_note_added = True
+
+    elif case_norm_attribute_name == "max-age":
+        if attribute_value == "":
+            add_note(SET_COOKIE_EMPTY_MAX_AGE, cookie_name=cookie_name)
+            return lifetime_note_added
+        if attribute_value[0] == "0":
+            add_note(SET_COOKIE_LEADING_ZERO_MAX_AGE, cookie_name=cookie_name)
+        if not attribute_value.isdigit():
+            add_note(SET_COOKIE_NON_DIGIT_MAX_AGE, cookie_name=cookie_name)
+            return lifetime_note_added
+        delta_seconds = int(attribute_value)
+        cookie_attribute_list.append(("Max-Age", delta_seconds))
+        if delta_seconds > 34560000 and not lifetime_note_added:
+            add_note(SET_COOKIE_LIFETIME_TOO_LONG, cookie_name=cookie_name)
+            lifetime_note_added = True
+
+    elif case_norm_attribute_name == "domain":
+        if attribute_value == "":
+            add_note(SET_COOKIE_EMPTY_DOMAIN, cookie_name=cookie_name)
+            return lifetime_note_added
+        if attribute_value[0] == ".":
+            cookie_domain = attribute_value[1:]
+        else:
+            cookie_domain = attribute_value
+        cookie_attribute_list.append(("Domain", cookie_domain))
+
+    elif case_norm_attribute_name == "path":
+        if attribute_value == "" or attribute_value[0] != "/":
+            # use default path
+            if uri_path == "" or uri_path[0] != "/":
+                cookie_path = "/"
+            if uri_path.count("/") < 2:
+                cookie_path = "/"
+            else:
+                cookie_path = uri_path[: uri_path.rindex("/")]
+        else:
+            cookie_path = attribute_value
+        cookie_attribute_list.append(("Path", cookie_path))
+
+    elif case_norm_attribute_name == "secure":
+        cookie_attribute_list.append(("Secure", ""))
+
+    elif case_norm_attribute_name == "httponly":
+        cookie_attribute_list.append(("HttpOnly", ""))
+
+    elif case_norm_attribute_name == "samesite":
+        case_norm_attribute_value = attribute_value.lower()
+        if case_norm_attribute_value == "strict":
+            cookie_samesite = "Strict"
+        elif case_norm_attribute_value == "none":
+            cookie_samesite = "None"
+        elif case_norm_attribute_value in ("lax", ""):
+            cookie_samesite = "Lax"
+        else:
+            cookie_samesite = attribute_value
+            add_note(
+                SET_COOKIE_UNKNOWN_ATTRIBUTE_VALUE,
+                cookie_name=cookie_name,
+                attribute_name=attribute_name,
+                attribute_value=attribute_value,
+            )
+            return lifetime_note_added
+        cookie_attribute_list.append(("SameSite", cookie_samesite))
+
+    elif case_norm_attribute_name == "partitioned":
+        cookie_attribute_list.append(("Partitioned", ""))
+
+    else:
+        add_note(
+            SET_COOKIE_UNKNOWN_ATTRIBUTE,
+            cookie_name=cookie_name,
+            attribute=attribute_name,
+        )
+
+    return lifetime_note_added
+
+
+def check_prefixes(
+    cookie_name: str,
+    cookie_attribute_list: List[Tuple[str, Union[str, int]]],
+    add_note: AddNoteMethodType,
+) -> None:
+    """
+    Check for cookie prefixes.
+    """
+    lower_name = cookie_name.lower()
+    if lower_name.startswith("__secure-"):
+        if ("Secure", "") not in cookie_attribute_list:
+            add_note(SET_COOKIE_PREFIX_SECURE_MISSING, cookie_name=cookie_name)
+
+    if lower_name.startswith("__host-"):
+        if ("Secure", "") not in cookie_attribute_list:
+            add_note(SET_COOKIE_PREFIX_SECURE_MISSING, cookie_name=cookie_name)
+        if ("Path", "/") not in cookie_attribute_list:
+            add_note(SET_COOKIE_PREFIX_HOST_BAD_PATH, cookie_name=cookie_name)
+        for attr_name, _ in cookie_attribute_list:
+            if attr_name == "Domain":
+                add_note(SET_COOKIE_PREFIX_HOST_BAD_DOMAIN, cookie_name=cookie_name)
+
+
+DELIMITER = r"(?:[\x09\x20-\x2F\x3B-\x40\x5B-\x60\x7B-\x7E])"
+NON_DELIMITER = r"(?:[\x00-\x08\x0A-\x1F0-0\:a-zA-Z\x7F-\xFF])"
+MONTHS = {
+    "jan": 1,
+    "feb": 2,
+    "mar": 3,
+    "apr": 4,
+    "may": 5,
+    "jun": 6,
+    "jul": 7,
+    "aug": 8,
+    "sep": 9,
+    "oct": 10,
+    "nov": 11,
+    "dec": 12,
+}
+
+
+def loose_date_parse(cookie_date: str) -> int:
+    """
+    Parse a date, as per RFC 6265, Section 5.1.1.
+    """
+    found_time = found_day_of_month = found_month = found_year = False
+    hour_value: int
+    minute_value: int
+    second_value: int
+    day_of_month_value: int
+    month_value: int
+    year_value: int
+    date_tokens = split(DELIMITER, cookie_date)
+    for date_token in date_tokens:
+        re_match = None
+        if not found_time:
+            re_match = match(r"^(\d{2}:\d{2}:\d{2})(?:\D)?", date_token)
+            if re_match:
+                found_time = True
+                hour_value, minute_value, second_value = [
+                    int(v) for v in re_match.group(1).split(":")
+                ]
+                continue
+        if not found_day_of_month:
+            re_match = match(r"^(\d\d?)(?:\D)?", date_token)
+            if re_match:
+                found_day_of_month = True
+                day_of_month_value = int(re_match.group(1))
+                continue
+        if not found_month and date_token[:3].lower() in MONTHS:
+            found_month = True
+            month_value = MONTHS[date_token[:3].lower()]
+            continue
+        if not found_year:
+            re_match = match(r"^(\d{2,4})(?:\D)?", date_token)
+            if re_match:
+                found_year = True
+                year_value = int(re_match.group(1))
+                continue
+    if False in [found_time, found_day_of_month, found_month, found_year]:
+        missing = []
+        if not found_time:
+            missing.append("time")
+        if not found_day_of_month:
+            missing.append("day")
+        if not found_month:
+            missing.append("month")
+        if not found_year:
+            missing.append("year")
+        raise ValueError(f"didn't have a: {','.join(missing)}")
+    if 99 >= year_value >= 70:
+        year_value += 1900
+    if 69 >= year_value >= 0:
+        year_value += 2000
+    if not 1 <= day_of_month_value <= 31:
+        raise ValueError(f"{day_of_month_value} is out of range for day_of_month")
+    if year_value < 1601:
+        raise ValueError(f"{year_value} is out of range for year")
+    if hour_value > 23:
+        raise ValueError(f"{hour_value} is out of range for hour")
+    if minute_value > 59:
+        raise ValueError(f"{minute_value} is out of range for minute")
+    if second_value > 59:
+        raise ValueError(f"{second_value} is out of range for second")
+    parsed_cookie_date = timegm(
+        (
+            year_value,
+            month_value,
+            day_of_month_value,
+            hour_value,
+            minute_value,
+            second_value,
+        )
+    )
+    return parsed_cookie_date
+
+
+class SET_COOKIE_NO_NAME(Note):
+    category = categories.GENERAL
+    level = levels.BAD
+    _summary = "This response has a Set-Cookie header without a cookie-name."
+    _text = """\
+This `Set-Cookie` header has an empty name; there needs to be a name before the `=`.
+
+Browsers will ignore this cookie."""
+
+
+class SET_COOKIE_BAD_DATE(Note):
+    category = categories.GENERAL
+    level = levels.WARN
+    _summary = "The %(cookie_name)s cookie has an invalid Expires date."
+    _text = """\
+The `expires` date on this `Set-Cookie` header isn't valid; see
+[RFC6265](https://www.rfc-editor.org/rfc/rfc6265) for details of the correct format."""
+
+
+class SET_COOKIE_EMPTY_MAX_AGE(Note):
+    category = categories.GENERAL
+    level = levels.WARN
+    _summary = "The %(cookie_name)s cookie has an empty Max-Age."
+    _text = """\
+The `max-age` parameter on this `Set-Cookie` header doesn't have a value.
+
+Browsers will ignore the `max-age` value as a result."""
+
+
+class SET_COOKIE_LEADING_ZERO_MAX_AGE(Note):
+    category = categories.GENERAL
+    level = levels.WARN
+    _summary = "The %(cookie_name)s cookie has a Max-Age with a leading zero."
+    _text = """\
+The `max-age` parameter on this `Set-Cookie` header has a leading zero.
+
+Browsers will ignore the `max-age` value as a result."""
+
+
+class SET_COOKIE_NON_DIGIT_MAX_AGE(Note):
+    category = categories.GENERAL
+    level = levels.WARN
+    _summary = "The %(cookie_name)s cookie has a non-numeric Max-Age."
+    _text = """\
+The `max-age` parameter on this `Set-Cookie` header isn't numeric.
+
+Browsers will ignore the `max-age` value as a result."""
+
+
+class SET_COOKIE_EMPTY_DOMAIN(Note):
+    category = categories.GENERAL
+    level = levels.WARN
+    _summary = "The %(cookie_name)s cookie has an empty domain."
+    _text = """\
+The `domain` parameter on this `Set-Cookie` header is empty.
+
+Browsers will probably ignore it as a result."""
+
+
+class SET_COOKIE_NOT_SECURE(Note):
+    category = categories.GENERAL
+    level = levels.WARN
+    _summary = "The %(cookie_name)s cookie is missing the Secure attribute."
+    _text = """\
+The `Secure` attribute on this `Set-Cookie` header is missing.
+
+Browsers will ignore it."""
+
+
+class SET_COOKIE_UNKNOWN_ATTRIBUTE(Note):
+    category = categories.GENERAL
+    level = levels.WARN
+    _summary = "The %(cookie_name)s cookie has an unknown attribute, '%(attribute)s'."
+    _text = """\
+This cookie has an extra parameter, "%(attribute)s".
+
+Browsers will ignore it."""
+
+
+class SET_COOKIE_UNKNOWN_ATTRIBUTE_VALUE(Note):
+    category = categories.GENERAL
+    level = levels.WARN
+    _summary = (
+        "The %(cookie_name)s cookie has an unknown "
+        "'%(attribute_name)s' attribute value."
+    )
+    _text = """\
+This `Set-Cookie` header has an unknown "%(attribute_name)s" attribute value, "%(attribute_value)s".
+
+Browsers will probably ignore it as a result."""
+
+
+class SET_COOKIE_PARTITIONED_NO_SECURE(Note):
+    category = categories.GENERAL
+    level = levels.WARN
+    _summary = (
+        "The %(cookie_name)s cookie has the Partitioned attribute "
+        "but is missing the Secure attribute."
+    )
+    _text = """\
+The `Partitioned` attribute on this `Set-Cookie` header is present, but the `Secure` attribute is
+missing.
+
+Browsers will ignore the `Partitioned` attribute as a result."""
+
+
+class SET_COOKIE_TOO_LARGE(Note):
+    category = categories.GENERAL
+    level = levels.BAD
+    _summary = "The %(cookie_name)s Set-Cookie header is too large."
+    _text = """\
+The `Set-Cookie` header is larger than 4096 bytes.
+
+Browsers will ignore this cookie."""
+
+
+class SET_COOKIE_VALUE_TOO_LARGE(Note):
+    category = categories.GENERAL
+    level = levels.INFO
+    _summary = "The %(cookie_name)s Set-Cookie value is large."
+    _text = """\
+The `Set-Cookie` value is %(set_cookie_value_length)s long.
+
+This may be wasteful."""
+
+
+class ValueTooLargeSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"foo=" + b"a" * (MAX_SET_COOKIE_VALUE_LENGTH + 1)]
+    expected_out = [("foo", "a" * (MAX_SET_COOKIE_VALUE_LENGTH + 1), [])]
+    expected_notes = [SET_COOKIE_VALUE_TOO_LARGE]
+
+
+class SET_COOKIE_LIFETIME_TOO_LONG(Note):
+    category = categories.GENERAL
+    level = levels.WARN
+    _summary = "The %(cookie_name)s Set-Cookie header has a lifetime that is too long."
+    _text = """\
+The `Set-Cookie` header has a lifetime (Max-Age or Expires) that is greater than 400 days.
+
+Browsers will cap the lifetime to 400 days."""
+
+
+class SET_COOKIE_PREFIX_SECURE_MISSING(Note):
+    category = categories.GENERAL
+    level = levels.BAD
+    _summary = "The %(cookie_name)s Set-Cookie header requires the Secure attribute."
+    _text = """\
+The `Set-Cookie` header has a prefix (e.g., `__Secure-` or `__Host-`) that requires the `Secure`
+attribute.
+
+Browsers will reject this cookie."""
+
+
+class SET_COOKIE_PREFIX_HOST_BAD_DOMAIN(Note):
+    category = categories.GENERAL
+    level = levels.BAD
+    _summary = (
+        "The %(cookie_name)s Set-Cookie header has a __Host- prefix but sets a Domain."
+    )
+    _text = """\
+The `Set-Cookie` header has a `__Host-` prefix, but it sets a `Domain` attribute.
+
+Browsers will reject this cookie."""
+
+
+class SET_COOKIE_PREFIX_HOST_BAD_PATH(Note):
+    category = categories.GENERAL
+    level = levels.BAD
+    _summary = "The %(cookie_name)s Set-Cookie header has a __Host- prefix but does not set Path=/."
+    _text = """\
+The `Set-Cookie` header has a `__Host-` prefix, but it does not set `Path=/`.
+
+Browsers will reject this cookie."""
+
+
+class SET_COOKIE_ATTRIBUTE_DUP(Note):
+    category = categories.GENERAL
+    level = levels.WARN
+    _summary = "The %(cookie_name)s Set-Cookie header has duplicate '%(attribute)s' attributes."
+    _text = """\
+The `%(attribute)s` attribute appears more than once in this `Set-Cookie` header.
+
+Browsers will only use the last occurrence."""
+
+
+class SET_COOKIE_NAME_DUP(Note):
+    category = categories.GENERAL
+    level = levels.WARN
+    _summary = "This response sets duplicate cookies."
+    _text = """\
+The following cookies are set more than once in this response: %(cookie_names)s.
+
+Browsers will likely accept all of them, but the order of application
+may vary or be confusing."""
+
+
+class BasicSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"SID=31d4d96e407aad42"]
+    expected_out = [("SID", "31d4d96e407aad42", [])]
+
+
+class ParameterSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"SID=31d4d96e407aad42; Path=/; Domain=example.com"]
+    expected_out = [
+        ("SID", "31d4d96e407aad42", [("Path", "/"), ("Domain", "example.com")])
+    ]
+
+
+class TwoSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [
+        b"SID=31d4d96e407aad42; Path=/; Secure; HttpOnly",
+        b"lang=en-US; Path=/; Domain=example.com",
+    ]
+    expected_out = [
+        ("SID", "31d4d96e407aad42", [("Path", "/"), ("Secure", ""), ("HttpOnly", "")]),
+        ("lang", "en-US", [("Path", "/"), ("Domain", "example.com")]),
+    ]
+
+
+class ExpiresScTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"lang=en-US; Expires=Wed, 09 Jun 2021 10:18:14 GMT"]
+    expected_out = [("lang", "en-US", [("Expires", 1623233894)])]
+
+
+class ExpiresSingleScTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"lang=en-US; Expires=Wed, 9 Jun 2021 10:18:14 GMT"]
+    expected_out = [("lang", "en-US", [("Expires", 1623233894)])]
+
+
+class MaxAgeScTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"lang=en-US; Max-Age=123"]
+    expected_out = [("lang", "en-US", [("Max-Age", 123)])]
+
+
+class MaxAgeLeadingZeroScTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"lang=en-US; Max-Age=0123"]
+    expected_out = [("lang", "en-US", [("Max-Age", 123)])]
+    expected_notes = [SET_COOKIE_LEADING_ZERO_MAX_AGE]
+
+
+class RemoveSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"lang=; Expires=Sun, 06 Nov 1994 08:49:37 GMT"]
+    expected_out = [("lang", "", [("Expires", 784111777)])]
+
+
+class WolframSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [
+        b"WR_SID=50.56.234.188.1398; path=/; max-age=315360000; "
+        b"domain=.wolframalpha.com"
+    ]
+    expected_out = [
+        (
+            "WR_SID",
+            "50.56.234.188.1398",
+            [
+                ("Path", "/"),
+                ("Max-Age", 315360000),
+                ("Domain", "wolframalpha.com"),
+            ],
+        )
+    ]
+    expected_notes = [SET_COOKIE_LIFETIME_TOO_LONG]
+
+
+class PartitionedSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"SID=31d4d96e407aad42; Partitioned; Secure"]
+    expected_out = [("SID", "31d4d96e407aad42", [("Partitioned", ""), ("Secure", "")])]
+
+
+class PartitionedNoSecureSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"SID=31d4d96e407aad42; Partitioned"]
+    expected_out = [("SID", "31d4d96e407aad42", [("Partitioned", "")])]
+    expected_notes = [SET_COOKIE_PARTITIONED_NO_SECURE]
+
+
+class NamelessSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"foo; Path=/"]
+    expected_out = [("", "foo", [("Path", "/")])]
+
+
+class TooLargeSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"foo=" + b"a" * 4094]
+    expected_out = [("foo", "a" * 4094, [])]
+    expected_notes = [SET_COOKIE_TOO_LARGE, SET_COOKIE_VALUE_TOO_LARGE]
+
+
+class SecurePrefixSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"__Secure-ID=123; Secure; Path=/"]
+    expected_out = [("__Secure-ID", "123", [("Secure", ""), ("Path", "/")])]
+
+
+class SecurePrefixMissingSecureSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"__Secure-ID=123; Path=/"]
+    expected_out = [("__Secure-ID", "123", [("Path", "/")])]
+    expected_notes = [SET_COOKIE_PREFIX_SECURE_MISSING]
+
+
+class HostPrefixSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"__Host-ID=123; Secure; Path=/"]
+    expected_out = [("__Host-ID", "123", [("Secure", ""), ("Path", "/")])]
+
+
+class HostPrefixMissingSecureSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"__Host-ID=123; Path=/"]
+    expected_out = [("__Host-ID", "123", [("Path", "/")])]
+    expected_notes = [SET_COOKIE_PREFIX_SECURE_MISSING]
+
+
+class HostPrefixBadPathSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"__Host-ID=123; Secure; Path=/foo"]
+    expected_out = [("__Host-ID", "123", [("Secure", ""), ("Path", "/foo")])]
+    expected_notes = [SET_COOKIE_PREFIX_HOST_BAD_PATH]
+
+
+class HostPrefixBadDomainSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"__Host-ID=123; Secure; Path=/; Domain=example.com"]
+    expected_out = [
+        ("__Host-ID", "123", [("Secure", ""), ("Path", "/"), ("Domain", "example.com")])
+    ]
+    expected_notes = [SET_COOKIE_PREFIX_HOST_BAD_DOMAIN]
+
+
+class LifetimeTooLongMaxAgeSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"lang=en-US; Max-Age=34560001"]
+    expected_out = [("lang", "en-US", [("Max-Age", 34560001)])]
+    expected_notes = [SET_COOKIE_LIFETIME_TOO_LONG]
+
+
+class LifetimeTooLongBothSCTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"lang=en-US; Max-Age=34560001; Expires=Wed, 09 Jun 2021 10:18:14 GMT"]
+    expected_out = [("lang", "en-US", [("Max-Age", 34560001), ("Expires", 1623233894)])]
+    expected_notes = [SET_COOKIE_LIFETIME_TOO_LONG]
+
+
+class SetCookieAttributeDupTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"a=b; Path=/; Path=/foo"]
+    expected_out = [("a", "b", [("Path", "/"), ("Path", "/foo")])]
+    expected_notes = [SET_COOKIE_ATTRIBUTE_DUP]
+
+
+class SetCookieNameDupTest(FieldTest):
+    name = "Set-Cookie"
+    inputs = [b"a=1; Path=/", b"a=2; Path=/"]
+    expected_out = [("a", "1", [("Path", "/")]), ("a", "2", [("Path", "/")])]
+    expected_notes = [SET_COOKIE_NAME_DUP]

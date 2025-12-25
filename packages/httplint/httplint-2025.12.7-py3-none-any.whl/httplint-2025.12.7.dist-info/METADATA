@@ -1,0 +1,150 @@
+Metadata-Version: 2.4
+Name: httplint
+Version: 2025.12.7
+Summary: Lint for HTTP messages.
+Author-email: Mark Nottingham <mnot@mnot.net>
+License: Copyright (c) Mark Nottingham
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in
+        all copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+        THE SOFTWARE.
+        
+Project-URL: homepage, https://github.com/mnot/httplint/
+Classifier: Operating System :: OS Independent
+Classifier: Development Status :: 4 - Beta
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: System Administrators
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Software Development :: Testing
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE.md
+Requires-Dist: Markdown
+Requires-Dist: MarkupSafe
+Requires-Dist: thor
+Requires-Dist: typing_extensions
+Requires-Dist: http-sf>=1.0.7
+Requires-Dist: sniffpy==1.0.0
+Requires-Dist: Babel
+Requires-Dist: Brotli
+Provides-Extra: dev
+Requires-Dist: mypy; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: pylint; extra == "dev"
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-md; extra == "dev"
+Requires-Dist: validate-pyproject; extra == "dev"
+Requires-Dist: build; extra == "dev"
+Requires-Dist: twine; extra == "dev"
+Requires-Dist: types-Markdown; extra == "dev"
+Requires-Dist: llm; extra == "dev"
+Requires-Dist: llm-mlx; extra == "dev"
+Requires-Dist: brotli-stubs; extra == "dev"
+Dynamic: license-file
+
+
+# httplint
+
+This Python library _lints_ HTTP messages; it checks them for correctness and reports any issues it finds. httplint can report on 237 different aspects of your HTTP message, including checks against 164 header fields.
+
+It performs all message-level checks for [REDbot](https://redbot.org/), but does not perform any 'active' checks by making requests to the network, and it does not have a Web user interface.
+
+
+## Using httplint as a Library
+
+httplint exposes two classes for linting: `HttpRequestLinter` and `HttpResponseLinter`. They expose the following methods for telling the linter about the HTTP message:
+
+* As appropriate:
+  * `process_request_topline`, which takes three `bytes` arguments: `method`, `uri`, and `version`
+  * `process_response_topline`, which takes three `bytes` arguments: `version`, `status_code`, and `status_phrase`
+* `process_headers` for the headers, taking a list of (`name`, `value`) tuples (both `bytes`)
+* `feed_content` for the body (which can be called zero to many times), taking an `inbytes` argument
+* `finish_content` when done, which has two arguments; a `bool` indicating whether the response was complete, and an optional list of tuples for the trailers, in the same format that `process_headers` takes.
+
+For example:
+
+~~~ python
+from httplint import HttpResponseLinter
+
+linter = HttpResponseLinter()
+linter.process_response_topline(b'HTTP/1.1', b'200', b'OK')
+linter.process_headers([
+  (b'Content-Type', b'text/plain'),
+  (b'Content-Length', b'10'),
+  (b'Cache-Control', b'max-age=60')
+])
+linter.feed_content(b'12345')
+linter.feed_content(b'67890')
+linter.finish_content(True)
+~~~
+
+## Using httplint from the Command Line
+
+httplint can also be used from the command line. For example:
+
+~~~
+> curl -s -i --raw https://www.mnot.net/ | httplint -n
+* The Content-Length header is correct.
+* The resource last changed 8 days 6 hr ago.
+* This response allows all caches to store it.
+* The server's clock is correct.
+* This response is fresh until 3 hr from now.
+* This response may still be served by a cache once it becomes stale.
+~~~
+
+
+### Interpreting Notes
+
+Once a message has been linted, the results will appear on the `notes` property. This is a list of `Note` objects, each having the following attributes:
+
+* `category` - the Note's category; see `note.categories`
+* `level` - see `note.levels`
+* `summary` - a brief, one-line description of the note
+* `detail` - a longer explanation
+* `subnotes` - a list of child `Note` objects
+
+Note that `summary` is textual, and needs to be escaped in a markup environment; `detail`, however, is already escaped HTML.
+
+Continuing our example:
+
+~~~ python
+for note in linter.notes:
+  print(note.summary)
+~~~
+
+and the output should be:
+
+~~~
+The Content-Length header is correct.
+This response allows all caches to store it.
+This response doesn't have a Date header.
+This response is fresh until 1 min from now.
+This response may still be served by a cache once it becomes stale.
+~~~
+
+### Field Descriptions
+
+The description of any field can be found by calling `get_field_description`. For example:
+
+~~~ python
+>>> from httplint import get_field_description
+>>> get_field_description("Allow")
+'The `Allow` response header advertises the set of methods that are supported by the resource.'
+~~~
+
+If a description cannot be found it will return `None`.
