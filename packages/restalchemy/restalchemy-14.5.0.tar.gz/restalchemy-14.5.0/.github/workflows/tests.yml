@@ -1,0 +1,74 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  Lint:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install tox
+        run: pip install tox
+      - name: Black
+        run: |
+          tox -e black-check
+  tests:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ["3.8", "3.10", "3.12", "3.13"]
+    services:
+      mariadb:
+        image: mariadb:latest
+        ports:
+          - 3306:3306
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: 1
+          MARIADB_DATABASE: ra_database
+          MARIADB_USER: root
+          MYSQL_ROOT_PASSWORD: test_password
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=10s --health-timeout=5s --health-retries=3
+      postgresql:
+        image: postgres:latest
+        # Provide the password for postgres
+        env:
+          POSTGRES_DB: ra_database
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_password
+        # Set health checks to wait until postgres has started
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        ports:
+          # Maps tcp port 5432 on service container to the host
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install tox
+        run: pip install tox
+      - name: Unit tests
+        run: |
+          tox -e ${{ matrix.python-version }}
+      - name: Functional MySQL tests
+        env:
+          DATABASE_URI: "mysql://root:test_password@localhost:3306/ra_database"
+        run: |
+          tox -e ${{ matrix.python-version }}-functional
+      - name: Functional PostgreSQL tests
+        env:
+          DATABASE_URI: "postgresql://postgres:test_password@localhost:5432/ra_database"
+        run: |
+          tox -e ${{ matrix.python-version }}-functional
