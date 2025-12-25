@@ -1,0 +1,499 @@
+# BLE2WLED - Bluetooth Beacon to WLED Visualizer
+
+A Python package that detects Bluetooth Low Energy (BLE) beacons via MQTT and visualizes them in real-time on WLED LED strips using dynamic colors and motion trails.
+
+Read the full documentation on [https://ble2wled.tobotec.ch](https://ble2wled.tobotec.ch).
+
+## Overview
+
+BLE2WLED bridges the gap between Bluetooth beacon detection and visual LED effects. It:
+
+1. **Receives BLE beacon data** via MQTT (beacon ID and signal strength/RSSI)
+2. **Converts signal strength to distance** using RF propagation modeling
+3. **Maps distance to colors** on a gradient (yellow when near → red when far)
+4. **Adds visual identity** with hash-based hue shifts for each beacon
+5. **Implements graceful fade-out** for beacons that disappear
+6. **Renders motion trails** as beacons move along the LED strip
+7. **Outputs to WLED** via HTTP or UDP (DRGB protocol) for smooth real-time animation
+
+## Prerequisites
+
+### ESPresense & MQTT Broker
+
+You need a working MQTT broker that receives BLE beacon data in JSON format. Each message should contain a unique beacon ID and its RSSI value.  
+Ideally use [ESPresense](https://espresense.com/) firmware on ESP32 devices for BLE scanning and MQTT publishing to a mosquito broker (running on [HomeAssistant](https://www.home-assistant.io/) for example).
+
+### WLED Device
+
+You need a [WLED](https://kno.wled.ge/) controlled LED strip. Use an ESP8266 or ESP32 running the WLED firmware.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for recent changes.
+
+## Installation
+
+### From Source
+
+```bash
+# Clone the repository
+git clone https://github.com/tobus3000/ble2wled.git
+cd ble2wled
+
+# Install in development mode
+pip install -e ".[dev]"
+```
+
+### From PyPI
+
+```bash
+pip install ble2wled
+```
+
+## Quick Start
+
+```python
+from ble2wled import BeaconState, BeaconMQTTListener, WLEDUDPController, run_wled_beacons
+
+# Initialize beacon state tracking
+beacon_state = BeaconState(
+    timeout_seconds=6.0,      # How long before a beacon times out
+    fade_out_seconds=4.0      # How long to fade out after timeout
+)
+
+# Set up MQTT listener for beacon data
+mqtt_listener = BeaconMQTTListener(
+    beacon_state,
+    broker="localhost",
+    topic="espresense/devices",
+    port=1883
+)
+mqtt_listener.start()
+
+# Create WLED controller
+controller = WLEDUDPController(
+    host="wled.local",
+    led_count=60,
+    port=21324  # Default DRGB port
+)
+
+# Run the main animation loop
+run_wled_beacons(
+    controller,
+    led_count=60,
+    beacon_state=beacon_state,
+    update_interval=0.2,  # 200ms updates
+    trail_length=10,      # Number of LEDs in trail
+    fade_factor=0.75      # Brightness decay per trail segment
+)
+```
+
+## Configuration via Environment Variables
+
+BLE2WLED can be configured using environment variables or a `.env` file. This is the recommended way to configure the application without modifying code.
+
+### Setup Configuration
+
+1. **Copy the template configuration file:**
+
+```bash
+cp .env.example .env
+```
+
+1. **Edit `.env` with your settings:**
+
+```bash
+# WLED LED Strip
+WLED_HOST=wled.local
+LED_COUNT=60
+
+# MQTT Broker
+MQTT_BROKER=localhost
+MQTT_LOCATION=balkon
+MQTT_PORT=1883
+MQTT_USERNAME=espresense
+MQTT_PASSWORD=your_secure_password
+
+# Beacon Detection
+BEACON_TIMEOUT_SECONDS=6.0
+BEACON_FADE_OUT_SECONDS=4.0
+
+# Animation
+UPDATE_INTERVAL=0.2
+TRAIL_LENGTH=10
+FADE_FACTOR=0.75
+
+# Output
+OUTPUT_MODE=udp
+UDP_PORT=21324
+HTTP_TIMEOUT=1
+
+# Logging
+LOG_LEVEL=INFO
+```
+
+1. **Run the application:**
+
+```bash
+python -m ble2wled
+```
+
+The application will automatically load `.env` from the current working directory.
+
+### Available Configuration Options
+
+| Environment Variable | Default | Description |
+| --- | --- | --- |
+| `WLED_HOST` | `wled.local` | WLED device hostname or IP address |
+| `LED_COUNT` | `60` | Number of LEDs in the strip (must be > 0) |
+| `MQTT_BROKER` | `localhost` | MQTT broker hostname or IP |
+| `MQTT_LOCATION` | `balkon` | Location identifier for beacon filtering (espresense topic) |
+| `MQTT_PORT` | `1883` | MQTT broker port |
+| `MQTT_USERNAME` | `None` | MQTT username for authentication (optional) |
+| `MQTT_PASSWORD` | `None` | MQTT password for authentication (optional) |
+| `BEACON_TIMEOUT_SECONDS` | `6.0` | Seconds before beacon timeout |
+| `BEACON_FADE_OUT_SECONDS` | `4.0` | Seconds to fade out after timeout |
+| `UPDATE_INTERVAL` | `0.2` | Animation update interval in seconds |
+| `TRAIL_LENGTH` | `10` | Number of LEDs in motion trail |
+| `FADE_FACTOR` | `0.75` | Trail brightness decay (0 < x ≤ 1) |
+| `OUTPUT_MODE` | `udp` | Output protocol: `udp` or `http` |
+| `UDP_PORT` | `21324` | UDP port for DRGB protocol |
+| `HTTP_TIMEOUT` | `1` | HTTP request timeout in seconds |
+| `LOG_LEVEL` | `INFO` | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+
+### Note on `.env` file
+
+- The `.env.example` file should be committed to version control
+- Create a `.env` file locally with your settings (it's git-ignored)
+- Each deployment can have different settings without code changes
+
+## Core Components
+
+### BeaconState
+
+Manages the state of detected beacons with automatic timeout and fade-out.
+
+**Parameters:**
+
+- `timeout_seconds` (float, default=5.0): Duration before a beacon is considered timed out (no updates received)
+- `fade_out_seconds` (float, default=3.0): Duration to fade out the beacon after timeout
+
+**Methods:**
+
+- `update(beacon_id: str, rssi: int)`: Update beacon with signal strength
+- `snapshot()`: Get current active beacons with their RSSI and life values (0-1)
+
+```python
+state = BeaconState(timeout_seconds=6.0, fade_out_seconds=4.0)
+state.update("beacon_1", -50)
+beacons = state.snapshot()  # {"beacon_1": (-50, 1.0)}
+```
+
+### BeaconRunner
+
+Manages position animation for beacons moving along the LED strip.
+
+**Parameters:**
+
+- `led_count` (int): Total number of LEDs in the strip
+
+**Methods:**
+
+- `next_position(beacon_id: str)`: Get next position for a beacon (increments and wraps around)
+
+```python
+runner = BeaconRunner(led_count=60)
+pos = runner.next_position("beacon_1")  # Returns 0, then 1, 2, ... 59, 0, ...
+```
+
+### BeaconMQTTListener
+
+Connects to an MQTT broker and listens for beacon updates.
+
+**Parameters:**
+
+- `state` (BeaconState): The beacon state object to update
+- `broker` (str): MQTT broker hostname or IP
+- `topic` (str): MQTT topic to subscribe to
+- `port` (int, default=1883): MQTT broker port
+
+**Expected MQTT message format:**
+
+```json
+{
+  "beacon_id": "device_123",
+  "rssi": -50
+}
+```
+
+**Methods:**
+
+- `start()`: Start listening in background thread
+
+```python
+listener = BeaconMQTTListener(state, "mqtt.example.com", "ble/beacons")
+listener.start()
+```
+
+### WLEDUDPController
+
+Sends LED updates to WLED via UDP (DRGB protocol) - recommended for real-time performance.
+
+**Parameters:**
+
+- `host` (str): WLED device hostname or IP
+- `led_count` (int): Total number of LEDs
+- `port` (int, default=21324): DRGB protocol port
+
+**Methods:**
+
+- `update(leds)`: Send LED color array (list of [R, G, B] values 0-255)
+
+```python
+controller = WLEDUDPController("wled.local", 60)
+leds = [[255, 0, 0], [0, 255, 0], ...]  # 60 RGB values
+controller.update(leds)
+```
+
+### WLEDHTTPController
+
+Sends LED updates to WLED via HTTP - useful for debugging but slower than UDP.
+
+**Parameters:**
+
+- `host` (str): WLED device hostname or IP
+- `led_count` (int): Total number of LEDs
+
+**Methods:**
+
+- `update(leds)`: Send LED color array via HTTP POST
+
+```python
+controller = WLEDHTTPController("wled.local", 60)
+controller.update(leds)
+```
+
+## Color Mapping
+
+### Distance Estimation
+
+RSSI (Received Signal Strength Indicator) is converted to distance using the free-space path loss model:
+
+$$d = 10^{\frac{P_t - \text{RSSI}}{10n}}$$
+
+Where:
+
+- $P_t$ = Transmit power (default: -59 dBm)
+- $n$ = Path loss exponent (default: 2.0)
+
+**Parameters:**
+
+- `rssi` (int): Signal strength in dBm
+- `tx_power` (int, default=-59): Transmit power of beacon in dBm
+- `n` (float, default=2.0): Path loss exponent (2.0 = free space)
+
+```python
+distance = estimate_distance_from_rssi(rssi=-50)
+```
+
+### Gradient Coloring
+
+Beacons are colored on a yellow→red gradient based on distance:
+
+- **Near** (< 0.5m): Yellow (RGB: 255, 255, 0)
+- **Mid** (0.5m - 5m): Yellow→Red transition
+- **Far** (> 10m): Red (RGB: 255, 0, 0)
+
+**Parameters:**
+
+- `distance` (float): Distance in meters
+- `near` (float, default=0.5): Distance threshold for "near" in meters
+- `far` (float, default=10.0): Distance threshold for "far" in meters
+
+```python
+r, g, b = gradient_color(distance=2.5)
+```
+
+### Beacon Identity via Hue Shift
+
+Each beacon receives a unique hue offset (0-8%) based on its hash, ensuring different beacons have distinct colors even at the same distance.
+
+### Life-Based Brightness
+
+The `life` parameter (0-1) modulates the final brightness:
+
+- `life=1.0`: Full brightness
+- `life=0.5`: 50% brightness
+- `life=0.0`: Invisible (faded out)
+
+```python
+r, g, b = ble_beacon_to_rgb("beacon_id", rssi=-50, life=0.75)
+```
+
+## Trail Rendering
+
+Motion trails are rendered behind beacons to create smooth animation:
+
+**Parameters:**
+
+- `trail_length` (int): Number of LEDs in the trail
+- `fade_factor` (float, 0-1): Brightness decay per segment
+  - `0.75`: Each trailing segment is 75% brightness of the previous
+  - Results in smooth fade effect
+
+```python
+add_trail(leds, position=10, color=(255, 0, 0), trail_length=8, fade_factor=0.75)
+```
+
+## Code Quality
+
+This project uses **Ruff** for linting and code formatting with Black style enforcement.
+
+### Ruff Configuration
+
+The project is configured to enforce:
+
+- **Black style** formatting (88-character line length)
+- **PEP 8** compliance via pycodestyle
+- **Import sorting** via isort integration
+- **Code quality** checks via flake8-bugbear
+- **Modern Python** best practices via pyupgrade
+
+### Running Linting & Formatting
+
+```bash
+# Check for linting issues
+ruff check src/ tests/
+
+# Check formatting (dry-run)
+ruff format src/ tests/ --check
+
+# Auto-format all code
+ruff format src/ tests/
+
+# Run all checks and format
+bash lint.sh
+```
+
+## Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=ble2wled tests/
+
+# Run specific test file
+pytest tests/test_beacon_state.py
+
+# Verbose output
+pytest -v
+```
+
+## MQTT Configuration
+
+Set up an MQTT broker to forward BLE beacon data. Expected message format:
+
+```json
+{
+  "beacon_id": "unique_identifier",
+  "rssi": -45
+}
+```
+
+Example with mosquitto:
+
+```bash
+# Publish test beacon
+mosquitto_pub -t "ble/beacons" -m '{"beacon_id": "test_beacon", "rssi": -50}'
+```
+
+## WLED Setup
+
+1. Install [WLED firmware](https://github.com/Aircoookie/WLED) on your ESP32/Arduino device
+2. Ensure UDP realtime protocol is enabled in WLED settings
+3. Configure your WLED host/IP in the controller
+
+## Configuration Parameters
+
+### Beacon Timeout & Fade-Out
+
+- **Shorter timeout** (2-3s): Beacons disappear quickly when signal is lost
+- **Longer timeout** (5-10s): Beacons persist longer despite intermittent drops
+
+- **Shorter fade-out** (1-2s): Quick disappearance
+- **Longer fade-out** (3-5s): Smooth, lingering effect
+
+### Update Interval
+
+- **Faster** (0.1-0.2s): Smooth motion but higher CPU/network usage
+- **Slower** (0.5-1.0s): Lower resource usage, choppier animation
+
+### Trail Parameters
+
+- **Longer trail** (8-15 LEDs): More pronounced motion effect
+- **Shorter trail** (2-5 LEDs): Tighter beacon visualization
+
+- **Higher fade_factor** (0.8-0.9): Brighter trails, less decay
+- **Lower fade_factor** (0.5-0.7): Darker trails, faster fade
+
+## Dependencies
+
+- `requests` >= 2.25.0 - HTTP communication with WLED
+- `paho-mqtt` >= 1.6.0 - MQTT client for beacon reception
+
+## License
+
+MIT License - See LICENSE file for details
+
+## Build Changelog
+
+We use `git-cliff` to generate changelogs from conventional commit messages.  
+Run the following command to generate/update `CHANGELOG.md`:
+
+Generate changelog since last tag:
+
+```bash
+git-cliff --latest -o CHANGELOG.md
+```
+
+For a new release, you can also use:
+
+```bash
+git-cliff --tag v1.0.0 -o CHANGELOG.md
+```
+
+## Contributing
+
+Contributions welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Submit a pull request
+
+## Troubleshooting
+
+### Beacons not appearing
+
+- Check MQTT broker is running and accessible
+- Verify beacon messages match expected JSON format
+- Confirm MQTT topic matches the listener configuration
+
+### LEDs not updating
+
+- Test WLED connectivity: `ping wled.local`
+- Verify UDP port 21324 is open (or configured port)
+- Check WLED device has realtime protocol enabled
+
+### Jerky animation
+
+- Increase `update_interval` to process fewer updates
+- Reduce `trail_length` to lower computation
+- Check network latency to MQTT/WLED devices
+
+### Beacons stuck or not fading
+
+- Adjust `timeout_seconds` if beacons disconnect intermittently
+- Increase `fade_out_seconds` for longer fade effect

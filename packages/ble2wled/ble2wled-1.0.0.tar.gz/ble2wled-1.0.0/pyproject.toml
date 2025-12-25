@@ -1,0 +1,149 @@
+[project]
+name = "ble2wled"
+description = "Real-time Bluetooth Low Energy beacon visualization on WLED LED strips"
+dynamic = ["version"]
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+license-files = ["LICENSE*"]
+authors = [
+    {name = "Tobias Hildebrand", email = "tobus3000@tobotec.ch"}
+]
+keywords = ["bluetooth", "ble", "wled", "leds", "mqtt", "beacon"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Home Automation",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "requests>=2.25.0",
+    "paho-mqtt>=1.6.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+ble2wled = "ble2wled.main:main"
+ble2wled-simulator = "ble2wled.cli_simulator:cli"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=3.0.0",
+    "ruff>=0.1.0",
+    "sphinx>=4.5.0",
+    "sphinx-rtd-theme>=1.0.0",
+    "myst-parser>=0.17.0",
+    "git-cliff>=0.25.0"
+]
+
+[project.urls]
+Homepage = "https://ble2wled.tobotec.ch"
+Repository = "https://github.com/tobus3000/ble2wled"
+Issues = "https://github.com/tobus3000/ble2wled/issues"
+
+[build-system]
+requires = ["hatchling >= 1.26", "hatch-vcs >= 0.5.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+vcs = "git"
+format = "{tag}.dev{distance}"  # omit the +g<hash> local segment
+fallback = "0.0.0.dev0"  # <-- fallback if no tag exists
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
+version_scheme = "guess-next-dev"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ble2wled"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ble2wled"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.git-cliff.changelog]
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.
+"""
+body = """
+{% if version %}
+## Version {{ version }}
+
+{% if commits %}
+{% for commit in commits -%}
+- {{ commit.message | default(default=commit.hash) }}
+{% endfor %}
+{% else %}
+- No changes.
+{% endif %}
+{% endif %}
+"""
+trim = true
+
+[tool.git-cliff.git]
+conventional_commits = true
+filter_unconventional = true
+sort_commits = "oldest"
+tag_pattern = "v[0-9].*"
+
+commit_parsers = [
+  { message = "BREAKING CHANGE", group = "💥 Breaking Changes" },
+  { message = "!", group = "💥 Breaking Changes" },
+  { message = "^feat", group = "🚀 Features" },
+  { message = "^fix", group = "🐛 Bug Fixes" },
+  { message = "^docs", group = "📚 Documentation" },
+  { message = "^perf", group = "⚡ Performance" },
+  { message = "^refactor", group = "🔨 Refactoring" },
+  { message = "^chore", skip = true },
+]
