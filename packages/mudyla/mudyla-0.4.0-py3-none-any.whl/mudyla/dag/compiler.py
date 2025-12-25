@@ -1,0 +1,460 @@
+"""Compiler that transforms Raw AST + CLI inputs into contextualized DAG AST.
+
+This compiler implements the multi-context execution model inspired by DIStage:
+1. Parse raw AST and CLI inputs
+2. Compute execution contexts for each action invocation
+3. Build separate dependency graphs for each context
+4. Unify graphs by merging nodes with identical keys
+"""
+
+import platform
+from dataclasses import dataclass
+from typing import Dict, List, Set
+
+from ..ast.expansions import ActionExpansion, WeakActionExpansion, RetainedExpansion
+from ..ast.models import ParsedDocument
+from ..cli_args import ParsedCLIInputs, ActionInvocation
+from .context import ContextId, ExecutionContext
+from .graph import ActionGraph, ActionNode, ActionKey, Dependency
+
+
+def get_normalized_platform() -> str:
+    """Get the normalized platform name.
+
+    Returns:
+        Platform name: windows, linux, or macos
+    """
+    system = platform.system()
+    if system == "Windows":
+        return "windows"
+    elif system == "Darwin":
+        return "macos"
+    elif system == "Linux":
+        return "linux"
+    else:
+        return system.lower()
+
+
+class CompilationError(Exception):
+    """Raised when compilation fails."""
+
+
+@dataclass(frozen=True)
+class ContextualInvocation:
+    """An action invocation with its computed execution context."""
+
+    action_name: str
+    execution_context: ExecutionContext
+
+
+class DAGCompiler:
+    """Compiles raw AST with CLI inputs into contextualized DAG AST."""
+
+    def __init__(self, document: ParsedDocument, cli_inputs: ParsedCLIInputs):
+        """Initialize the compiler.
+
+        Args:
+            document: Parsed document (raw AST)
+            cli_inputs: Parsed CLI inputs with action invocations
+        """
+        self.document = document
+        self.cli_inputs = cli_inputs
+        self.current_platform = get_normalized_platform()
+
+    def compile(self) -> ActionGraph:
+        """Compile raw AST + CLI inputs into DAG AST.
+
+        Returns:
+            Unified action graph with contextualized keys
+
+        Raises:
+            CompilationError: If compilation fails
+        """
+        # Step 1: Compute execution contexts for each action invocation
+        contextual_invocations = self._compute_contexts()
+
+        # Step 2: Build separate graphs for each invocation
+        individual_graphs: List[ActionGraph] = []
+        for invocation in contextual_invocations:
+            graph = self._build_graph_for_invocation(invocation)
+            individual_graphs.append(graph)
+
+        # Step 3: Unify all graphs
+        unified_graph = self._unify_graphs(individual_graphs)
+
+        return unified_graph
+
+    def _compute_contexts(self) -> List[ContextualInvocation]:
+        """Compute execution contexts for all action invocations.
+
+        Merges global and per-action configurations, applies defaults.
+
+        Returns:
+            List of contextual invocations
+        """
+        contextual_invocations: List[ContextualInvocation] = []
+
+        for invocation in self.cli_inputs.action_invocations:
+            # Merge axes: global + per-action
+            merged_axes = dict(self.cli_inputs.global_axes)
+            merged_axes.update(invocation.axes)
+
+            # Apply axis defaults
+            for axis_name, axis_def in self.document.axis.items():
+                if axis_name not in merged_axes:
+                    default_value = axis_def.get_default_value()
+                    if default_value:
+                        merged_axes[axis_name] = default_value
+
+            # Merge args: global + per-action
+            merged_args = dict(self.cli_inputs.global_args)
+            merged_args.update(invocation.args)
+
+            # Apply argument defaults
+            for arg_name, arg_def in self.document.arguments.items():
+                if arg_name not in merged_args and arg_def.default_value is not None:
+                    merged_args[arg_name] = arg_def.default_value
+
+            # Normalize array arguments: ensure single values become lists
+            self._normalize_array_arguments(merged_args)
+
+            # Merge flags: global + per-action
+            merged_flags = dict(self.cli_inputs.global_flags)
+            merged_flags.update(invocation.flags)
+
+            # Create context ID from all axis values, args, and flags
+            context_id = ContextId.from_dict(merged_axes, merged_args, merged_flags)
+
+            # Create execution context
+            execution_context = ExecutionContext(
+                context_id=context_id,
+                # args and flags are now in context_id, but ExecutionContext keeps them for convenient access
+                # (and they are properties that delegate to context_id)
+            )
+
+            contextual_invocations.append(
+                ContextualInvocation(
+                    action_name=invocation.action_name,
+                    execution_context=execution_context,
+                )
+            )
+
+        return contextual_invocations
+
+    def _compute_transitive_requirements(
+        self, axis_values: Dict[str, str]
+    ) -> Dict[str, tuple[Set[str], Set[str], Set[str]]]:
+        """Compute transitive required axes, args, and flags for each action.
+
+        An action transitively requires any axes/args/flags that its dependencies require,
+        because its output is affected by those values through its dependencies.
+
+        Args:
+            axis_values: Current axis values for version selection
+
+        Returns:
+            Dict mapping action name to (required_axes, required_args, required_flags)
+        """
+        # First pass: collect direct requirements and dependencies for each action
+        direct_requirements: Dict[str, tuple[Set[str], Set[str], Set[str]]] = {}
+        action_deps: Dict[str, Set[str]] = {}
+
+        for action_name, action in self.document.actions.items():
+            direct_requirements[action_name] = (
+                action.get_required_axes(),
+                action.get_required_args(),
+                action.get_required_flags(),
+            )
+
+            # Get dependencies from selected version
+            deps: Set[str] = set()
+            try:
+                selected_version = action.get_version(axis_values, self.current_platform)
+                if selected_version:
+                    # Collect dependency names from expansions
+                    for expansion in selected_version.expansions:
+                        if isinstance(expansion, (ActionExpansion, WeakActionExpansion, RetainedExpansion)):
+                            deps.add(expansion.get_dependency_action())
+                    # Collect from explicit declarations
+                    for dep_decl in selected_version.dependency_declarations:
+                        deps.add(dep_decl.action_name)
+            except ValueError:
+                pass
+            action_deps[action_name] = deps
+
+        # Second pass: compute transitive closure with memoization
+        transitive_cache: Dict[str, tuple[Set[str], Set[str], Set[str]]] = {}
+
+        def compute_transitive(name: str, visited: Set[str]) -> tuple[Set[str], Set[str], Set[str]]:
+            if name in transitive_cache:
+                return transitive_cache[name]
+            if name in visited:
+                # Cycle detected, return direct requirements only
+                return direct_requirements.get(name, (set(), set(), set()))
+            if name not in direct_requirements:
+                return (set(), set(), set())
+
+            visited = visited | {name}
+            axes, args, flags = direct_requirements[name]
+            result_axes = set(axes)
+            result_args = set(args)
+            result_flags = set(flags)
+
+            for dep_name in action_deps.get(name, set()):
+                dep_axes, dep_args, dep_flags = compute_transitive(dep_name, visited)
+                result_axes.update(dep_axes)
+                result_args.update(dep_args)
+                result_flags.update(dep_flags)
+
+            transitive_cache[name] = (result_axes, result_args, result_flags)
+            return (result_axes, result_args, result_flags)
+
+        # Compute for all actions
+        for action_name in self.document.actions:
+            compute_transitive(action_name, set())
+
+        return transitive_cache
+
+    def _build_graph_for_invocation(
+        self, invocation: ContextualInvocation
+    ) -> ActionGraph:
+        """Build a dependency graph for a single action invocation.
+
+        Each action gets a reduced context based on the axes, args, and flags it
+        transitively cares about (including through dependencies).
+        This allows independent actions to be shared across contexts.
+
+        Args:
+            invocation: Contextual invocation to build graph for
+
+        Returns:
+            Action graph with context-appropriate keys
+
+        Raises:
+            CompilationError: If graph building fails
+        """
+        full_context_id = invocation.execution_context.context_id
+        axis_values = invocation.execution_context.axis_values
+        goal_action_name = invocation.action_name
+
+        # Validate goal exists
+        if goal_action_name not in self.document.actions:
+            raise CompilationError(f"Action '{goal_action_name}' not found")
+
+        # Compute transitive requirements for all actions
+        transitive_requirements = self._compute_transitive_requirements(axis_values)
+
+        # Build nodes for all actions with their reduced contexts
+        nodes: Dict[ActionKey, ActionNode] = {}
+
+        for action_name, action in self.document.actions.items():
+            # Compute reduced context based on transitive requirements
+            required_axes, required_args, required_flags = transitive_requirements.get(
+                action_name, (set(), set(), set())
+            )
+
+            reduced_context_id = full_context_id.reduce(required_axes, required_args, required_flags)
+            action_key = ActionKey.from_name(action_name, reduced_context_id)
+
+            # Select appropriate version based on FULL axis values
+            # (version selection needs all axes to pick the right version)
+            try:
+                selected_version = action.get_version(axis_values, self.current_platform)
+            except ValueError:
+                # If version selection fails, set to None
+                # The validator will check if this action is actually required
+                selected_version = None
+
+            # Extract dependencies with their own reduced contexts
+            dependencies: Set[Dependency] = set()
+            if selected_version:
+                # Helper to calculate reduced context for a dependency
+                def get_dep_context_id(dep_name: str) -> ContextId:
+                    dep_axes, dep_args, dep_flags = transitive_requirements.get(
+                        dep_name, (set(), set(), set())
+                    )
+                    return full_context_id.reduce(dep_axes, dep_args, dep_flags)
+
+                # Implicit dependencies from expansions
+                for expansion in selected_version.expansions:
+                    if isinstance(expansion, (ActionExpansion, WeakActionExpansion, RetainedExpansion)):
+                        dep_name = expansion.get_dependency_action()
+                        dep_context_id = get_dep_context_id(dep_name)
+                        dep_key = ActionKey.from_name(dep_name, dep_context_id)
+                        # RetainedExpansion behaves like WeakActionExpansion for dependency purposes
+                        is_weak = isinstance(expansion, (WeakActionExpansion, RetainedExpansion))
+                        dependencies.add(Dependency(action=dep_key, weak=is_weak))
+
+                # Explicit dependencies
+                for dep_decl in selected_version.dependency_declarations:
+                    dep_name = dep_decl.action_name
+                    dep_context_id = get_dep_context_id(dep_name)
+                    dep_key = ActionKey.from_name(dep_name, dep_context_id)
+
+                    if dep_decl.soft and dep_decl.retainer_action:
+                        retainer_context_id = get_dep_context_id(dep_decl.retainer_action)
+                        retainer_key = ActionKey.from_name(dep_decl.retainer_action, retainer_context_id)
+                        dependencies.add(Dependency(
+                            action=dep_key,
+                            soft=True,
+                            retainer_action=retainer_key,
+                        ))
+                    else:
+                        dependencies.add(Dependency(action=dep_key, weak=dep_decl.weak))
+
+            node = ActionNode(
+                key=action_key,
+                action=action,
+                selected_version=selected_version,
+                dependencies=dependencies,
+                # args and flags are now in key.context_id
+                # We keep them here for backward compatibility but they should match key
+                args=reduced_context_id.get_args_dict(),
+                flags=reduced_context_id.get_flags_dict(),
+            )
+            nodes[action_key] = node
+
+        # Build reverse edges (dependents)
+        for action_key, node in nodes.items():
+            for dep in node.dependencies:
+                if dep.action in nodes:
+                    nodes[dep.action].dependents.add(
+                        Dependency(action=action_key, weak=dep.weak)
+                    )
+
+        # Goal uses the goal action's reduced context (with transitive requirements)
+        goal_axes, goal_args, goal_flags = transitive_requirements.get(
+            goal_action_name, (set(), set(), set())
+        )
+        goal_context_id = full_context_id.reduce(goal_axes, goal_args, goal_flags)
+        goal_key = ActionKey.from_name(goal_action_name, goal_context_id)
+        goal_keys = {goal_key}
+
+        return ActionGraph(nodes=nodes, goals=goal_keys)
+
+    def _unify_graphs(self, graphs: List[ActionGraph]) -> ActionGraph:
+        """Unify multiple graphs by merging nodes with identical keys.
+
+        If the same ActionKey appears in multiple graphs:
+        - With identical ActionNode: merge (union of edges)
+        - With different ActionNode: error (conflicting definitions)
+
+        Args:
+            graphs: List of graphs to unify
+
+        Returns:
+            Unified graph
+
+        Raises:
+            CompilationError: If conflicting definitions are found
+        """
+        unified_nodes: Dict[ActionKey, ActionNode] = {}
+        unified_goals: Set[ActionKey] = set()
+
+        for graph in graphs:
+            # Merge goals
+            unified_goals.update(graph.goals)
+
+            # Merge nodes
+            for key, node in graph.nodes.items():
+                if key not in unified_nodes:
+                    # New node - add it
+                    unified_nodes[key] = node
+                else:
+                    # Node exists - verify it's identical and merge edges
+                    existing_node = unified_nodes[key]
+                    if not self._nodes_are_compatible(existing_node, node):
+                        raise CompilationError(
+                            f"Conflicting definitions for action '{key}'. "
+                            f"Same action invoked multiple times with same context "
+                            f"but different configurations."
+                        )
+
+                    # Merge edges (union) and preserve args/flags
+                    # Use existing_node's args/flags (they should be identical if nodes are compatible)
+                    unified_nodes[key] = ActionNode(
+                        key=key,
+                        action=existing_node.action,
+                        selected_version=existing_node.selected_version,
+                        dependencies=existing_node.dependencies | node.dependencies,
+                        dependents=existing_node.dependents | node.dependents,
+                        args=existing_node.args,
+                        flags=existing_node.flags,
+                    )
+
+        return ActionGraph(nodes=unified_nodes, goals=unified_goals)
+
+    def _nodes_are_compatible(self, node1: ActionNode, node2: ActionNode) -> bool:
+        """Check if two nodes with the same key are compatible for merging.
+
+        Nodes are compatible if they have the same action and selected version.
+        Dependencies and dependents can differ (they will be merged).
+
+        Args:
+            node1: First node
+            node2: Second node
+
+        Returns:
+            True if nodes are compatible
+        """
+        # Must be the same action
+        if node1.action.name != node2.action.name:
+            return False
+
+        # Must have selected the same version
+        # (Both None or same conditions)
+        if node1.selected_version is None and node2.selected_version is None:
+            return True
+
+        if node1.selected_version is None or node2.selected_version is None:
+            return False
+
+        # Compare versions by their conditions
+        return (
+            node1.selected_version.conditions == node2.selected_version.conditions
+        )
+
+    def _normalize_array_arguments(self, args: Dict[str, any]) -> None:
+        """Ensure array arguments are always lists, validate scalar args.
+
+        Modifies the args dict in place.
+
+        Args:
+            args: Merged arguments dict to normalize
+
+        Raises:
+            CompilationError: If a scalar arg has multiple values
+        """
+        for arg_name, arg_def in self.document.arguments.items():
+            if arg_name not in args:
+                continue
+
+            value = args[arg_name]
+
+            if arg_def.is_array:
+                # Array argument: ensure it's a list
+                if isinstance(value, str):
+                    args[arg_name] = [value]
+                # Already a list, nothing to do
+            else:
+                # Scalar argument: must be a single string
+                if isinstance(value, list):
+                    raise CompilationError(
+                        f"Argument 'args.{arg_name}' is not an array type but was "
+                        f"specified multiple times. Use type 'array[{arg_def.arg_type.element_type.value}]' "
+                        f"if you want to specify multiple values."
+                    )
+
+    def validate_action_invocations(self) -> None:
+        """Validate that all action invocations reference existing actions.
+
+        Raises:
+            CompilationError: If any action doesn't exist
+        """
+        for invocation in self.cli_inputs.action_invocations:
+            if invocation.action_name not in self.document.actions:
+                available = ", ".join(sorted(self.document.actions.keys()))
+                raise CompilationError(
+                    f"Action '{invocation.action_name}' not found. "
+                    f"Available actions: {available}"
+                )
