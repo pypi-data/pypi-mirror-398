@@ -1,0 +1,561 @@
+#!/usr/bin/env python3
+"""
+LLM-powered code enrichment for autodoc.
+"""
+
+import json
+import logging
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+
+import aiohttp
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+log = logging.getLogger(__name__)
+
+from .analyzer import CodeEntity
+from .config import AutodocConfig
+
+
+@dataclass
+class EnrichedEntity:
+    """An enriched code entity with LLM-generated descriptions."""
+
+    entity: CodeEntity
+    description: str
+    purpose: str
+    key_features: List[str]
+    complexity_notes: Optional[str] = None
+    usage_examples: Optional[List[str]] = None
+    design_patterns: Optional[List[str]] = None
+    dependencies: Optional[List[str]] = None
+
+
+class LLMEnricher:
+    """Enriches code entities with LLM-generated descriptions and analysis."""
+
+    def __init__(self, config: AutodocConfig):
+        self.config = config
+        self.llm_config = config.llm
+        self.enrichment_config = config.enrichment
+        self._session: Optional[aiohttp.ClientSession] = None
+        # Token tracking for cost control
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
+        self.api_calls = 0
+
+    async def __aenter__(self):
+        self._session = aiohttp.ClientSession()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self._session:
+            await self._session.close()
+        # Log token usage summary on exit
+        if self.api_calls > 0:
+            log.info(
+                f"LLM API usage summary: {self.api_calls} calls, "
+                f"{self.total_input_tokens} input tokens, "
+                f"{self.total_output_tokens} output tokens"
+            )
+
+    def get_token_usage(self) -> Dict[str, int]:
+        """Get current token usage statistics."""
+        return {
+            "api_calls": self.api_calls,
+            "input_tokens": self.total_input_tokens,
+            "output_tokens": self.total_output_tokens,
+            "total_tokens": self.total_input_tokens + self.total_output_tokens,
+        }
+
+    async def enrich_entities(
+        self, entities: List[CodeEntity], context: Optional[Dict[str, Any]] = None
+    ) -> List[EnrichedEntity]:
+        """Enrich a list of code entities with LLM analysis."""
+        if not self.enrichment_config.enabled:
+            return []
+
+        api_key = self.llm_config.get_api_key()
+        if not api_key:
+            log.warning(
+                f"No API key found for {self.llm_config.provider}. Skipping enrichment. "
+                f"To generate enrichments, set {self.llm_config.provider.upper()}_API_KEY environment variable"
+            )
+            return []
+
+        enriched = []
+
+        # Process in batches
+        batch_size = self.enrichment_config.batch_size
+        for i in range(0, len(entities), batch_size):
+            batch = entities[i : i + batch_size]
+            batch_enriched = await self._enrich_batch(batch, context)
+            enriched.extend(batch_enriched)
+
+        return enriched
+
+    async def _enrich_batch(
+        self, entities: List[CodeEntity], context: Optional[Dict[str, Any]] = None
+    ) -> List[EnrichedEntity]:
+        """Enrich a batch of entities."""
+        enriched = []
+
+        for entity in entities:
+            try:
+                enriched_entity = await self._enrich_single(entity, context)
+                if enriched_entity:
+                    enriched.append(enriched_entity)
+            except Exception as e:
+                log.error(f"Error enriching {entity.name}: {e}")
+
+        return enriched
+
+    async def _enrich_single(
+        self, entity: CodeEntity, context: Optional[Dict[str, Any]] = None
+    ) -> Optional[EnrichedEntity]:
+        """Enrich a single entity with LLM analysis."""
+        prompt = self._build_enrichment_prompt(entity, context)
+
+        if self.llm_config.provider == "openai":
+            response = await self._call_openai(prompt)
+        elif self.llm_config.provider == "anthropic":
+            response = await self._call_anthropic(prompt)
+        elif self.llm_config.provider == "ollama":
+            response = await self._call_ollama(prompt)
+        else:
+            log.warning(f"Unsupported LLM provider: {self.llm_config.provider}")
+            return None
+
+        if response:
+            return self._parse_enrichment_response(entity, response)
+
+        return None
+
+    def _build_enrichment_prompt(
+        self, entity: CodeEntity, context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Build a prompt for enriching a code entity."""
+        entity_type = entity.type
+
+        prompt = f"""Analyze this {entity_type} and provide a detailed description.
+
+Name: {entity.name}
+Type: {entity_type}
+File: {entity.file_path}
+"""
+
+        if entity.docstring:
+            prompt += f"\nExisting docstring: {entity.docstring}\n"
+
+        if entity.code:
+            prompt += f"\nCode:\n```python\n{entity.code}\n```\n"
+
+        prompt += """
+Please provide:
+1. A clear, concise description of what this {entity_type} does (2-3 sentences)
+2. The primary purpose or responsibility
+3. Key features or capabilities (as a list)
+"""
+
+        if self.enrichment_config.analyze_complexity:
+            prompt += "4. Any complexity or performance considerations\n"
+
+        if self.enrichment_config.include_examples:
+            prompt += "5. 1-2 usage examples (if applicable)\n"
+
+        if self.enrichment_config.detect_patterns:
+            prompt += "6. Any design patterns used\n"
+
+        prompt += "\nProvide the response in JSON format with keys: description, purpose, key_features, complexity_notes, usage_examples, design_patterns"
+
+        return prompt
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(aiohttp.ClientError),
+        reraise=True,
+    )
+    async def _call_openai(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """Call OpenAI API for enrichment."""
+        if not self._session:
+            raise RuntimeError("Session not initialized")
+
+        api_key = self.llm_config.get_api_key()
+        url = self.llm_config.base_url or "https://api.openai.com/v1/chat/completions"
+
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+
+        data = {
+            "model": self.llm_config.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a code analysis expert. Provide clear, technical descriptions of code functionality.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": self.llm_config.temperature,
+            "max_tokens": self.llm_config.max_tokens,
+            "response_format": {"type": "json_object"},
+        }
+
+        try:
+            async with self._session.post(url, headers=headers, json=data) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                    content = result["choices"][0]["message"]["content"]
+                    # Track token usage
+                    usage = result.get("usage", {})
+                    self.total_input_tokens += usage.get("prompt_tokens", 0)
+                    self.total_output_tokens += usage.get("completion_tokens", 0)
+                    self.api_calls += 1
+                    log.debug(
+                        f"OpenAI API call: {usage.get('prompt_tokens', 0)} input, "
+                        f"{usage.get('completion_tokens', 0)} output tokens"
+                    )
+                    return json.loads(content)
+                else:
+                    error = await resp.text()
+                    log.error(f"OpenAI API error: {error}")
+                    return None
+        except (aiohttp.ClientError, json.JSONDecodeError) as e:
+            log.error(f"Error calling OpenAI or parsing response: {e}")
+            return None
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(aiohttp.ClientError),
+        reraise=True,
+    )
+    async def _call_anthropic(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """Call Anthropic API for enrichment."""
+        if not self._session:
+            raise RuntimeError("Session not initialized")
+
+        api_key = self.llm_config.get_api_key()
+        url = self.llm_config.base_url or "https://api.anthropic.com/v1/messages"
+
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+
+        data = {
+            "model": self.llm_config.model or "claude-3-haiku-20240307",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": self.llm_config.temperature,
+            "max_tokens": self.llm_config.max_tokens,
+            "system": "You are a code analysis expert. Provide clear, technical descriptions of code functionality. Always respond with valid JSON.",
+        }
+
+        try:
+            async with self._session.post(url, headers=headers, json=data) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                    content = result["content"][0]["text"]
+                    # Track token usage
+                    usage = result.get("usage", {})
+                    self.total_input_tokens += usage.get("input_tokens", 0)
+                    self.total_output_tokens += usage.get("output_tokens", 0)
+                    self.api_calls += 1
+                    log.debug(
+                        f"Anthropic API call: {usage.get('input_tokens', 0)} input, "
+                        f"{usage.get('output_tokens', 0)} output tokens"
+                    )
+                    return json.loads(content)
+                else:
+                    error = await resp.text()
+                    log.error(f"Anthropic API error: {error}")
+                    return None
+        except (aiohttp.ClientError, json.JSONDecodeError) as e:
+            log.error(f"Error calling Anthropic or parsing response: {e}")
+            return None
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(aiohttp.ClientError),
+        reraise=True,
+    )
+    async def _call_ollama(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """Call Ollama API for enrichment."""
+        if not self._session:
+            raise RuntimeError("Session not initialized")
+
+        url = self.llm_config.base_url or "http://localhost:11434/api/generate"
+
+        data = {
+            "model": self.llm_config.model or "llama2",
+            "prompt": prompt + "\n\nRespond only with valid JSON.",
+            "temperature": self.llm_config.temperature,
+            "stream": False,
+        }
+
+        try:
+            async with self._session.post(url, json=data) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                    response = result.get("response", "")
+                    # Extract JSON from response using efficient string search
+                    # (avoids regex DOS on long strings with many braces)
+                    json_str = self._extract_json_object(response)
+                    if json_str:
+                        return json.loads(json_str)
+                    log.error(f"Ollama API: No JSON found in response: {response[:500]}")
+                    return None
+                else:
+                    error = await resp.text()
+                    log.error(f"Ollama API error: {error}")
+                    return None
+        except (aiohttp.ClientError, json.JSONDecodeError) as e:
+            log.error(f"Error calling Ollama or parsing response: {e}")
+            return None
+
+    def _extract_json_object(self, text: str) -> Optional[str]:
+        """
+        Extract a JSON object from text by finding matching braces.
+
+        More efficient than regex for long strings - O(n) with no backtracking.
+        """
+        start = text.find("{")
+        if start == -1:
+            return None
+
+        # Find matching closing brace by counting brace depth
+        depth = 0
+        in_string = False
+        escape_next = False
+
+        for i, char in enumerate(text[start:], start):
+            if escape_next:
+                escape_next = False
+                continue
+
+            if char == "\\":
+                escape_next = True
+                continue
+
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+
+            if in_string:
+                continue
+
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : i + 1]
+
+        return None  # No matching closing brace found
+
+    def _parse_enrichment_response(
+        self, entity: CodeEntity, response: Dict[str, Any]
+    ) -> EnrichedEntity:
+        """Parse LLM response into an EnrichedEntity."""
+        return EnrichedEntity(
+            entity=entity,
+            description=response.get("description", "No description available"),
+            purpose=response.get("purpose", ""),
+            key_features=response.get("key_features", []),
+            complexity_notes=response.get("complexity_notes"),
+            usage_examples=response.get("usage_examples"),
+            design_patterns=response.get("design_patterns"),
+            dependencies=response.get("dependencies"),
+        )
+
+    async def generate_pack_summary(
+        self,
+        pack_name: str,
+        pack_display_name: str,
+        pack_description: str,
+        entities: List[Dict[str, Any]],
+        files: List[str],
+        tables: List[str],
+        dependencies: List[str],
+    ) -> Optional[Dict[str, Any]]:
+        """Generate an LLM summary for a context pack.
+
+        Args:
+            pack_name: The pack identifier
+            pack_display_name: Human-readable name
+            pack_description: Current description
+            entities: List of entity dicts (functions, classes, etc.)
+            files: List of file paths in the pack
+            tables: List of database tables
+            dependencies: List of dependent pack names
+
+        Returns:
+            Dict with: summary, architecture, key_components, security_notes, usage_patterns
+        """
+        api_key = self.llm_config.get_api_key()
+        if not api_key:
+            log.warning(f"No API key for {self.llm_config.provider}. Skipping pack summary.")
+            return None
+
+        # Build summary of entities for the prompt
+        entity_summary = []
+        for e in entities[:30]:  # Limit to first 30 for prompt size
+            entity_summary.append(f"- {e.get('entity_type', 'unknown')}: {e.get('name', 'unknown')}")
+
+        prompt = f"""Analyze this context pack and provide a comprehensive summary.
+
+Pack: {pack_display_name}
+Current Description: {pack_description}
+
+Files ({len(files)} total):
+{chr(10).join(f'- {f}' for f in files[:15])}
+{'... and ' + str(len(files) - 15) + ' more' if len(files) > 15 else ''}
+
+Database Tables: {', '.join(tables) if tables else 'None'}
+
+Dependencies: {', '.join(dependencies) if dependencies else 'None (standalone)'}
+
+Code Entities ({len(entities)} total):
+{chr(10).join(entity_summary)}
+{'... and ' + str(len(entities) - 30) + ' more' if len(entities) > 30 else ''}
+
+Provide a comprehensive analysis including:
+1. summary: A 3-5 sentence overview of what this pack does
+2. architecture: Key architectural patterns used (MVC, repository, etc.)
+3. key_components: List of the most important functions/classes and their roles
+4. security_notes: Any security considerations (especially if tables include auth/users)
+5. usage_patterns: How other code would typically interact with this pack
+6. suggested_improvements: 1-2 potential improvements
+
+Respond in JSON format with the keys above."""
+
+        if self.llm_config.provider == "openai":
+            response = await self._call_openai(prompt)
+        elif self.llm_config.provider == "anthropic":
+            response = await self._call_anthropic(prompt)
+        elif self.llm_config.provider == "ollama":
+            response = await self._call_ollama(prompt)
+        else:
+            log.warning(f"Unsupported LLM provider: {self.llm_config.provider}")
+            return None
+
+        return response
+
+
+class PackSummaryCache:
+    """Cache for pack LLM summaries to avoid regenerating if content unchanged."""
+
+    def __init__(self, cache_file: str = ".autodoc/pack_summary_cache.json"):
+        self.cache_file = cache_file
+        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._load_cache()
+
+    def _load_cache(self):
+        """Load cache from file."""
+        try:
+            with open(self.cache_file, "r") as f:
+                self._cache = json.load(f)
+        except FileNotFoundError:
+            self._cache = {}
+        except Exception as e:
+            log.error(f"Error loading pack summary cache: {e}")
+            self._cache = {}
+
+    def save_cache(self):
+        """Save cache to file."""
+        import os
+
+        os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
+        try:
+            with open(self.cache_file, "w") as f:
+                json.dump(self._cache, f, indent=2)
+        except Exception as e:
+            log.error(f"Error saving pack summary cache: {e}")
+
+    def _compute_content_hash(self, entities: List[Dict], files: List[str]) -> str:
+        """Compute hash of pack content for cache key."""
+        import hashlib
+
+        # Create a deterministic string from entities and files
+        content = ""
+        for e in sorted(entities, key=lambda x: x.get("name", "")):
+            content += f"{e.get('name', '')}:{e.get('docstring', '')}:{e.get('code', '')[:200]}"
+        for f in sorted(files):
+            content += f
+        return hashlib.md5(content.encode()).hexdigest()
+
+    def get_summary(
+        self, pack_name: str, entities: List[Dict], files: List[str]
+    ) -> Optional[Dict[str, Any]]:
+        """Get cached summary if content hasn't changed."""
+        content_hash = self._compute_content_hash(entities, files)
+        cached = self._cache.get(pack_name)
+        if cached and cached.get("content_hash") == content_hash:
+            log.info(f"Using cached summary for pack '{pack_name}'")
+            return cached.get("summary")
+        return None
+
+    def set_summary(
+        self,
+        pack_name: str,
+        summary: Dict[str, Any],
+        entities: List[Dict],
+        files: List[str],
+    ):
+        """Cache summary with content hash."""
+        content_hash = self._compute_content_hash(entities, files)
+        self._cache[pack_name] = {
+            "content_hash": content_hash,
+            "summary": summary,
+            "cached_at": __import__("datetime").datetime.now().isoformat(),
+        }
+
+    def clear(self, pack_name: Optional[str] = None):
+        """Clear cache for a specific pack or all packs."""
+        if pack_name:
+            self._cache.pop(pack_name, None)
+        else:
+            self._cache = {}
+        self.save_cache()
+
+
+class EnrichmentCache:
+    """Cache for enriched entities."""
+
+    def __init__(self, cache_file: str = "autodoc_enrichment_cache.json"):
+        self.cache_file = cache_file
+        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._load_cache()
+
+    def _load_cache(self):
+        """Load cache from file."""
+        try:
+            with open(self.cache_file, "r") as f:
+                self._cache = json.load(f)
+        except FileNotFoundError:
+            self._cache = {}
+        except Exception as e:
+            log.error(f"Error loading enrichment cache: {e}")
+            self._cache = {}
+
+    def save_cache(self):
+        """Save cache to file."""
+        try:
+            with open(self.cache_file, "w") as f:
+                json.dump(self._cache, f, indent=2)
+        except Exception as e:
+            log.error(f"Error saving enrichment cache: {e}")
+
+    def get_enrichment(self, entity_key: str) -> Optional[Dict[str, Any]]:
+        """Get cached enrichment for an entity."""
+        return self._cache.get(entity_key)
+
+    def set_enrichment(self, entity_key: str, enrichment: Dict[str, Any]):
+        """Cache enrichment for an entity."""
+        self._cache[entity_key] = enrichment
+
+    def clear(self):
+        """Clear the cache."""
+        self._cache = {}
+        self.save_cache()
