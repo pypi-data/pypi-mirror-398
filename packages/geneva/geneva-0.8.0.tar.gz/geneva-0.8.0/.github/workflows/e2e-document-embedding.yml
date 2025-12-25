@@ -1,0 +1,79 @@
+name: E2E Tests - Document Embedding
+
+on:
+  # Manual trigger - can be run on any branch
+  workflow_dispatch:
+    inputs:
+      num_docs:
+        description: 'Number of documents to process'
+        required: false
+        default: '20'
+      batch_size:
+        description: 'Batch size for backfill operations'
+        required: false
+        default: '4'
+
+jobs:
+  e2e-test-document-embedding-gcp:
+    # Manual runs on any branch
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: warp-ubuntu-latest-x64-8x
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.10"
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_CACHE_DIR: /tmp/.uv-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          submodules: true
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Set up Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v2'
+      - uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: ${{ secrets.GCP_KEY }}
+      - id: 'get-credentials'
+        uses: 'google-github-actions/get-gke-credentials@v2'
+        with:
+          cluster_name: 'geneva-integ'
+          location: 'us-central1'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y kubectl
+          # Install main package dependencies
+          uv sync --extra k8s --extra gcp --locked
+          # Install document_embedding e2e test dependencies (separate package)
+          cd e2e/document_embedding && uv sync --locked
+      - name: Generate test slug
+        run: |
+          SLUG=$(printf "%05d" $((RANDOM % 10001)))
+          echo "SLUG=$SLUG" >> $GITHUB_ENV
+      - name: Run e2e tests (test_drivers)
+        run: |
+          RAY_ENABLE_UV_RUN_RUNTIME_ENV=0 uv run -m e2e.document_embedding.benchmarks.geneva_main \
+            --csp gcp \
+            --slug $SLUG \
+            --num-docs ${{ inputs.num_docs || '20' }} \
+            --batch-size ${{ inputs.batch_size || '4' }} \
+            --manifest-name document-embedding-udfs-v1
+      - name: Cleanup Ray Clusters
+        if: always()
+        run: |
+          echo "Deleting rayclusters matching slug $SLUG"
+          kubectl get raycluster -n geneva --no-headers -o custom-columns=":metadata.name" | grep $SLUG | xargs -r -n1 kubectl delete raycluster -n geneva --wait
+      - name: Minimize uv cache
+        run: uv cache prune --ci

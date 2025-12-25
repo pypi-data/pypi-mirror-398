@@ -1,0 +1,188 @@
+name: Python Integration Tests
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - src/**
+      - .github/workflows/integ.yml
+      - uv.lock
+      - pyproject.toml
+
+jobs:
+  integ-test-gcp:
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: warp-ubuntu-latest-x64-8x
+    timeout-minutes: 120
+    strategy:
+      # prevent GHA from cancelling jobs to avoid orphaned k8s resources
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.10"
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_CACHE_DIR: /tmp/.uv-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Set up Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v2'
+      - uses: 'google-github-actions/auth@v2'
+        with:
+          # use credentials for automatically deployed geneva service
+          # geneva-client-sa@lancedb-dev-enterprise-1.iam.gserviceaccount.com
+          credentials_json: ${{ secrets.GCP_GENEVA_CLIENT_SA_KEY }}
+      - id: 'get-credentials'
+        uses: 'google-github-actions/get-gke-credentials@v2'
+        with:
+          cluster_name: 'lancedb'
+          location: 'us-central1'
+          project_id: 'lancedb-dev-enterprise-1'
+      # don't install large deps like torch for this test
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y kubectl
+          uv sync --extra k8s --extra gcp --extra embedding --locked
+      - name: Generate test slug
+        run: |
+          SLUG=$(printf "%05d" $((RANDOM % 10001)))
+          echo "SLUG=$SLUG" >> $GITHUB_ENV
+      - name: Set bucket path
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            # Main branch uses global path
+            echo "BUCKET_PATH=gs://lancedb-lancedb-dev-us-central1/data" >> $GITHUB_ENV
+          else
+            # PR/branch uses slug-isolated path
+            echo "BUCKET_PATH=gs://lancedb-lancedb-dev-us-central1/$SLUG/data" >> $GITHUB_ENV
+          fi
+      - name: Auth check
+        run: |
+          kubectl config current-context
+          kubectl auth whoami
+          kubectl auth can-i get pods -n geneva
+      - name: Run tests
+        run: |
+          make test-integration-gcp SLUG=$SLUG BUCKET_PATH="$BUCKET_PATH"
+      - name: Cleanup Ray Clusters
+        if: always()
+        run: |
+          echo "Deleting rayclusters matching slug $SLUG"
+          kubectl get raycluster -n geneva --no-headers -o custom-columns=":metadata.name" | grep $SLUG | xargs -r -n1 kubectl delete raycluster -n geneva --wait
+      - name: Cleanup bucket data
+        if: success() && !(github.event_name == 'push' && github.ref == 'refs/heads/main')
+        run: |
+          echo "Tests passed. Cleaning up bucket data for slug $SLUG"
+          gcloud storage rm -r gs://lancedb-lancedb-dev-us-central1/$SLUG || echo "Bucket cleanup failed or path doesn't exist"
+      - name: Generate coverage report
+        run: |
+          make coverage-report
+      - name: Minimize uv cache
+        run: uv cache prune --ci
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@main
+        with:
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+          flags: integ-gcp-${{ matrix.python-version }}
+
+  integ-test-aws:
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: warp-ubuntu-latest-x64-8x
+    timeout-minutes: 120
+    strategy:
+      # prevent GHA from cancelling jobs to avoid orphaned k8s resources
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.12"
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_CACHE_DIR: /tmp/.uv-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-region: us-east-1
+          # devland aws account
+          role-to-assume: arn:aws:iam::054483968661:role/github_actions_role
+      # don't install large deps like torch for this test
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y kubectl
+          uv sync --extra k8s --extra aws --extra embedding --locked
+      - name: Set kubeconfig
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name lancedb
+      - name: Generate test slug
+        run: |
+          SLUG=$(printf "%05d" $((RANDOM % 10001)))
+          echo "SLUG=$SLUG" >> $GITHUB_ENV
+      - name: Set bucket path
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            # Main branch uses global path
+            echo "BUCKET_PATH=s3://geneva-integ-test-devland-us-east-1/data" >> $GITHUB_ENV
+          else
+            # PR/branch uses slug-isolated path
+            echo "BUCKET_PATH=s3://geneva-integ-test-devland-us-east-1/$SLUG/data" >> $GITHUB_ENV
+          fi
+      - name: Run tests
+        run: |
+          make test-integration-aws SLUG=$SLUG BUCKET_PATH="$BUCKET_PATH"
+      - name: Refresh AWS Credentials for Cleanup
+        if: always()
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-region: us-east-1
+          role-to-assume: arn:aws:iam::054483968661:role/github_actions_role
+      - name: Refresh kubeconfig
+        if: always()
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name lancedb
+      - name: Cleanup Ray Clusters
+        if: always()
+        run: |
+          echo "Deleting rayclusters matching slug $SLUG"
+          kubectl get raycluster -n geneva --no-headers -o custom-columns=":metadata.name" | grep $SLUG | xargs -r -n1 kubectl delete raycluster -n geneva --timeout=300s
+      - name: Cleanup bucket data
+        if: success() && !(github.event_name == 'push' && github.ref == 'refs/heads/main')
+        run: |
+          echo "Tests passed. Cleaning up bucket data for slug $SLUG"
+          aws s3 rm s3://geneva-integ-test-devland-us-east-1/$SLUG --recursive || echo "Bucket cleanup failed or path doesn't exist"
+      - name: Generate coverage report
+        run: |
+          make coverage-report
+      - name: Minimize uv cache
+        run: uv cache prune --ci
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@main
+        with:
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+          flags: integ-aws-${{ matrix.python-version }}

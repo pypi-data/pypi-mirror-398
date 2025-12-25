@@ -1,0 +1,115 @@
+name: E2E Tests - Oxford Pets
+on:
+  # Manual trigger - can be run on any branch
+  workflow_dispatch:
+    inputs:
+      num_images:
+        description: 'Number of images to process'
+        required: false
+        default: '500'
+      batch_size:
+        description: 'Batch size for backfill operations'
+        required: false
+        default: '10'
+      skip_gpu:
+        description: 'Skip GPU tests'
+        required: false
+        type: boolean
+        default: false
+      run_simple:
+        description: 'Run simple UDF tests'
+        required: false
+        type: boolean
+        default: true
+      run_openclip:
+        description: 'Run OpenCLIP UDF tests'
+        required: false
+        type: boolean
+        default: true
+      run_blip:
+        description: 'Run BLIP UDF tests'
+        required: false
+        type: boolean
+        default: true
+      run_sentence_transformers:
+        description: 'Run Sentence Transformers UDF tests'
+        required: false
+        type: boolean
+        default: true
+  # Weekly schedule: Monday 11pm Pacific = Tuesday 6am UTC (runs on main only)
+  schedule:
+    - cron: '0 6 * * 2'
+
+jobs:
+  e2e-test-gcp:
+    # Scheduled runs are always on main, manual runs can be on any branch
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.ref == 'refs/heads/main')
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: warp-ubuntu-latest-x64-8x
+    timeout-minutes: 120
+    strategy:
+      # prevent GHA from cancelling jobs to avoid orphaned k8s resources
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.10"
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_CACHE_DIR: /tmp/.uv-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # For scheduled runs, checkout main. For manual runs, use the triggered branch
+          ref: ${{ github.event_name == 'schedule' && 'main' || github.ref }}
+          submodules: true
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Set up Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v2'
+      - uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: ${{ secrets.GCP_GENEVA_CLIENT_SA_KEY }}
+      - id: 'get-credentials'
+        uses: 'google-github-actions/get-gke-credentials@v2'
+        with:
+          cluster_name: 'lancedb'
+          location: 'us-central1'
+          project_id: 'lancedb-dev-enterprise-1'
+      # Install dependencies including ML libraries
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y kubectl
+          # Install main package dependencies
+          uv sync --extra k8s --extra gcp --locked
+          # Install Oxford Pets e2e test dependencies (separate package)
+          cd e2e/oxford-pets && uv sync --locked
+      - name: Generate test slug
+        run: |
+          SLUG=$(printf "%05d" $((RANDOM % 10001)))
+          echo "SLUG=$SLUG" >> $GITHUB_ENV
+      - name: Build test file list
+        run: |
+          TEST_FILES=""
+          ${{ inputs.run_simple == true || github.event_name == 'schedule' }} && TEST_FILES="$TEST_FILES test_drivers/test_cpu_simple.py"
+          ${{ inputs.run_openclip == true || github.event_name == 'schedule' }} && TEST_FILES="$TEST_FILES test_drivers/test_embeddings_openclip.py"
+          ${{ inputs.run_blip == true || github.event_name == 'schedule' }} && TEST_FILES="$TEST_FILES test_drivers/test_captions_blip.py"
+          ${{ inputs.run_sentence_transformers == true || github.event_name == 'schedule' }} && TEST_FILES="$TEST_FILES test_drivers/test_embeddings_sentence_transformers.py"
+          echo "TEST_FILES=$TEST_FILES" >> $GITHUB_ENV
+          echo "Selected tests: $TEST_FILES"
+      # Run e2e tests (includes manifest upload via Makefile dependency)
+      - name: Run e2e tests (test_drivers)
+        run: |
+          make test-e2e-oxford-pets-gcp SLUG=$SLUG NUM_IMAGES=${{ inputs.num_images || '500' }} BATCH_SIZE=${{ inputs.batch_size || '10' }} SKIP_GPU=${{ inputs.skip_gpu && '1' || '' }} TEST_FILES="${TEST_FILES}"
+      - name: Cleanup Ray Clusters
+        if: always()
+        run: |
+          echo "Deleting rayclusters matching slug $SLUG"
+          kubectl get raycluster -n geneva --no-headers -o custom-columns=":metadata.name" | grep $SLUG | xargs -r -n1 kubectl delete raycluster -n geneva --wait
+      - name: Minimize uv cache
+        run: uv cache prune --ci

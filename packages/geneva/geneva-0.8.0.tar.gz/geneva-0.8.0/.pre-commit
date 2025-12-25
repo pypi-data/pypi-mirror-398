@@ -1,0 +1,58 @@
+#!/bin/bash
+# Pre-commit hook to run formatting and linting only on staged files
+# Install this with `cp .pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`
+
+# Change to the repository root directory
+cd "$(git rev-parse --show-toplevel)"
+
+# Get list of staged Python files in src directory
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^src/.*\.py$' || true)
+
+if [ -z "$STAGED_FILES" ]; then
+    echo "No Python files staged for commit in src/ directory."
+    exit 0
+fi
+
+echo "Running formatting and linting on staged files..."
+echo "Staged files: $STAGED_FILES"
+
+# Convert newline-separated list to space-separated for commands
+FILES_LIST=$(echo "$STAGED_FILES" | tr '\n' ' ')
+
+# Run ruff format on staged files
+echo "🔧 Formatting staged files..."
+if ! uv run ruff format $FILES_LIST; then
+    echo "❌ Formatting failed!"
+    exit 1
+fi
+
+# Run ruff check with --fix on staged files
+echo "🔍 Linting and fixing staged files..."
+if ! uv run ruff check --fix $FILES_LIST; then
+    echo "❌ Linting failed!"
+    exit 1
+fi
+
+# Check if any files were modified by the formatters
+MODIFIED_FILES=$(git diff --name-only $FILES_LIST 2>/dev/null || true)
+
+if [ -n "$MODIFIED_FILES" ]; then
+    echo "⚠️  The following files were modified by the formatter/linter:"
+    echo "$MODIFIED_FILES"
+    echo ""
+    echo "Please review the changes and add them to your commit:"
+    echo "  git add $MODIFIED_FILES"
+    echo "  git commit"
+    exit 1
+fi
+
+# Run pyright only on staged files for type checking
+echo "🔍 Type checking staged files..."
+if ! uv run pyright $FILES_LIST; then
+    echo "❌ Type checking failed!"
+    echo "Please fix type errors before committing."
+    exit 1
+fi
+
+echo "✅ All checks passed for staged files!"
+exit 0
