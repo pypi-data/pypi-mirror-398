@@ -1,0 +1,442 @@
+# Apside — Galactic Potential + Leapfrog Orbit Integrator (High-Precision Python)
+
+Apside is a Python package for integrating test-particle orbits in a Milky-Way–like gravitational field using a symplectic leapfrog integrator. It provides:
+
+- Analytic accelerations for a 3-component Galaxy model (bulge + disk + halo)
+- Matching analytic potentials and specific energy
+- A leapfrog stepper that imports and uses `acceleration.py`
+- Optional high-precision arithmetic via Python’s `Decimal`
+
+
+## Units and conventions
+
+- Position: kpc
+- Velocity: km/s
+- Mass: Msun
+- Time: kpc / (km/s)
+- Specific energy: (km/s)^2
+
+Gravitational constant:
+
+$$
+G = 4.3009 \times 10^{-6}\ \mathrm{kpc}\,(\mathrm{km/s})^2\,M_\odot^{-1}
+$$
+
+Let position be $\mathbf{r}=(x,y,z)$ and radius $r=\|\mathbf{r}\|=\sqrt{x^2+y^2+z^2}$.
+
+---
+
+## 1) Potentials and accelerations (what the code computes)
+
+Apside models the Galaxy as:
+
+$$
+\Phi(\mathbf{r}) = \Phi_{\mathrm{bulge}}(\mathbf{r}) + \Phi_{\mathrm{disk}}(\mathbf{r}) + \Phi_{\mathrm{halo}}(\mathbf{r})
+$$
+
+The acceleration is defined by Newtonian gravity as the negative gradient of the potential:
+
+$$
+\mathbf{a}(\mathbf{r}) = -\nabla \Phi(\mathbf{r})
+$$
+
+So the total acceleration returned by `acceleration(x,y,z)` is:
+
+$$
+\mathbf{a}(\mathbf{r}) = \mathbf{a}_{\mathrm{bulge}}(\mathbf{r}) + \mathbf{a}_{\mathrm{disk}}(\mathbf{r}) + \mathbf{a}_{\mathrm{halo}}(\mathbf{r})
+$$
+
+The code implements each component separately and sums them.
+
+---
+
+## 2) Bulge: Hernquist model
+
+### Potential
+
+A spherical Hernquist bulge has specific potential:
+
+$$
+\Phi_{\mathrm{bulge}}(r) = -\frac{G M_b}{r + a_b}
+$$
+
+This is what `phiBulge(x,y,z)` computes (with $r=\sqrt{x^2+y^2+z^2}$).
+
+### Derivation of acceleration from the potential
+
+For any spherical potential $\Phi(r)$, the gradient is:
+
+$$
+\nabla \Phi(r) = \frac{d\Phi}{dr}\,\frac{\mathbf{r}}{r}
+$$
+
+Therefore the acceleration is:
+
+$$
+\mathbf{a}(r) = -\nabla \Phi(r) = -\frac{d\Phi}{dr}\,\frac{\mathbf{r}}{r}
+$$
+
+Compute derivative:
+
+$$
+\Phi_{\mathrm{bulge}}(r) = -G M_b (r+a_b)^{-1}
+$$
+
+$$
+\frac{d\Phi_{\mathrm{bulge}}}{dr} = -G M_b \cdot \left(-1\right)(r+a_b)^{-2} = \frac{G M_b}{(r+a_b)^2}
+$$
+
+So:
+
+$$
+\mathbf{a}_{\mathrm{bulge}}(r)
+= -\frac{G M_b}{(r+a_b)^2}\frac{\mathbf{r}}{r}
+$$
+
+Component form:
+
+$$
+a_x = -\frac{G M_b}{(r+a_b)^2}\frac{x}{r},\quad
+a_y = -\frac{G M_b}{(r+a_b)^2}\frac{y}{r},\quad
+a_z = -\frac{G M_b}{(r+a_b)^2}\frac{z}{r}
+$$
+
+---
+
+## 3) Disk: Miyamoto–Nagai model
+
+Define cylindrical radius and vertical helper:
+
+$$
+R = \sqrt{x^2+y^2}
+$$
+
+$$
+B = \sqrt{z^2 + b_d^2}
+$$
+
+$$
+D = \sqrt{R^2 + (a_d + B)^2}
+$$
+
+### Potential
+
+$$
+\Phi_{\mathrm{disk}}(x,y,z) = -\frac{G M_d}{D}
+$$
+
+This is what `phiDisk(x,y,z)` computes.
+
+### Derivation of acceleration from the potential
+
+Start from:
+
+$$
+\Phi_{\mathrm{disk}} = -G M_d D^{-1}
+$$
+
+The acceleration components are:
+
+$$
+a_x = -\frac{\partial \Phi}{\partial x},\quad
+a_y = -\frac{\partial \Phi}{\partial y},\quad
+a_z = -\frac{\partial \Phi}{\partial z}
+$$
+
+Use chain rule:
+
+$$
+\frac{\partial \Phi}{\partial x} = -G M_d \frac{\partial}{\partial x}(D^{-1})
+= -G M_d (-1) D^{-2}\frac{\partial D}{\partial x}
+= \frac{G M_d}{D^2}\frac{\partial D}{\partial x}
+$$
+
+So:
+
+$$
+a_x = -\frac{\partial \Phi}{\partial x} = -\frac{G M_d}{D^2}\frac{\partial D}{\partial x}
+$$
+
+Now compute derivatives of $D=\sqrt{R^2+(a_d+B)^2}$.
+
+Since $D = (R^2+(a_d+B)^2)^{1/2}$:
+
+$$
+\frac{\partial D}{\partial x} = \frac{1}{2} (R^2+(a_d+B)^2)^{-1/2} \cdot 2R\frac{\partial R}{\partial x}
+= \frac{R}{D}\frac{\partial R}{\partial x}
+$$
+
+And $R=\sqrt{x^2+y^2}$ gives:
+
+$$
+\frac{\partial R}{\partial x} = \frac{x}{R}
+$$
+
+Therefore:
+
+$$
+\frac{\partial D}{\partial x} = \frac{R}{D}\cdot \frac{x}{R} = \frac{x}{D}
+$$
+
+Plug into $a_x$:
+
+$$
+a_x = -\frac{G M_d}{D^2}\cdot \frac{x}{D} = -\frac{G M_d}{D^3}x
+$$
+
+Similarly:
+
+$$
+a_y = -\frac{G M_d}{D^3}y
+$$
+
+For $z$, $D$ depends on $z$ through $B$:
+
+$$
+\frac{\partial D}{\partial z} =
+\frac{1}{2}(R^2+(a_d+B)^2)^{-1/2}\cdot 2(a_d+B)\frac{\partial B}{\partial z}
+= \frac{(a_d+B)}{D}\frac{\partial B}{\partial z}
+$$
+
+And $B=\sqrt{z^2+b_d^2}$ implies:
+
+$$
+\frac{\partial B}{\partial z} = \frac{z}{B}
+$$
+
+So:
+
+$$
+\frac{\partial D}{\partial z} = \frac{(a_d+B)}{D}\cdot \frac{z}{B}
+$$
+
+Then:
+
+$$
+a_z = -\frac{G M_d}{D^2}\frac{\partial D}{\partial z}
+= -\frac{G M_d}{D^2}\cdot \frac{(a_d+B)}{D}\cdot \frac{z}{B}
+= -\frac{G M_d}{D^3}\frac{(a_d+B)z}{B}
+$$
+
+These are the forms implemented in `diskAccel`.
+
+---
+
+## 4) Halo: NFW model
+
+### Potential
+
+$$
+\Phi_{\mathrm{halo}}(r) =
+-\frac{G M_h}{r}\ln\!\left(1+\frac{r}{r_s}\right)
+$$
+
+This is what `phiHalo(x,y,z)` computes (with a small epsilon floor on $r$).
+
+### Derivation of acceleration from the potential
+
+Again use spherical-gradient identity:
+
+$$
+\mathbf{a}_{\mathrm{halo}}(r) = -\frac{d\Phi_{\mathrm{halo}}}{dr}\frac{\mathbf{r}}{r}
+$$
+
+Let:
+
+$$
+\Phi_{\mathrm{halo}}(r) = -G M_h \, f(r),
+\quad
+f(r)=\frac{1}{r}\ln\!\left(1+\frac{r}{r_s}\right)
+$$
+
+Compute $f'(r)$ using product rule with $f(r)=\ln(1+r/r_s)\cdot r^{-1}$:
+
+$$
+f'(r) = \left(\frac{1}{1+r/r_s}\cdot \frac{1}{r_s}\right)\cdot r^{-1} + \ln\!\left(1+\frac{r}{r_s}\right)\cdot (-r^{-2})
+$$
+
+Simplify the first term:
+
+$$
+\frac{1}{1+r/r_s}\cdot \frac{1}{r_s} = \frac{1}{r+r_s}
+$$
+
+So:
+
+$$
+f'(r) = \frac{1}{r(r+r_s)} - \frac{1}{r^2}\ln\!\left(1+\frac{r}{r_s}\right)
+$$
+
+Then:
+
+$$
+\frac{d\Phi_{\mathrm{halo}}}{dr} = -G M_h f'(r)
+$$
+
+So:
+
+$$
+\mathbf{a}_{\mathrm{halo}}(r)
+= -\left(-G M_h f'(r)\right)\frac{\mathbf{r}}{r}
+= G M_h f'(r)\frac{\mathbf{r}}{r}
+$$
+
+Factor into the common form used in the code:
+
+$$
+\mathbf{a}_{\mathrm{halo}}(r)
+=
+-\frac{G M_h}{r^3}
+\left[
+\ln\!\left(1+\frac{r}{r_s}\right) - \frac{r}{r+r_s}
+\right]\mathbf{r}
+$$
+
+---
+
+## 5) Energy
+
+The code defines the *specific* energy (energy per unit mass):
+
+$$
+E(\mathbf{x},\mathbf{v})
+= T(\mathbf{v}) + \Phi(\mathbf{x})
+$$
+
+### Kinetic energy
+
+For a unit-mass particle:
+
+$$
+T(\mathbf{v}) = \frac{1}{2}\|\mathbf{v}\|^2
+= \frac{1}{2}(v_x^2+v_y^2+v_z^2)
+$$
+
+This is what `totalEnergy` computes as `kinetic = 0.5 * v2`.
+
+### Potential energy
+
+The gravitational potential (specific) is additive across components:
+
+
+### Conservation of Energy
+
+If $\Phi$ is time-independent, then along the true solution of:
+
+$$
+\dot{\mathbf{x}}=\mathbf{v},\quad \dot{\mathbf{v}}=\mathbf{a}(\mathbf{x})=-\nabla\Phi(\mathbf{x})
+$$
+
+the derivative of $E$ is:
+
+$$
+\frac{dE}{dt}
+=
+\frac{d}{dt}\left(\frac{1}{2}\mathbf{v}\cdot\mathbf{v} + \Phi(\mathbf{x})\right)
+=
+\mathbf{v}\cdot\dot{\mathbf{v}} + \nabla\Phi\cdot\dot{\mathbf{x}}
+$$
+
+Substitute $\dot{\mathbf{v}}=-\nabla\Phi$ and $\dot{\mathbf{x}}=\mathbf{v}$:
+
+$$
+\frac{dE}{dt}
+=
+\mathbf{v}\cdot(-\nabla\Phi) + \nabla\Phi\cdot\mathbf{v} = 0
+$$
+
+So energy is conserved analytically. Numerically, leapfrog is symplectic, so energy typically oscillates with small bounded error rather than drifting rapidly.
+
+---
+
+## 6) Leapfrog integrator
+
+Leapfrog is a second-order symplectic scheme for Hamiltonian systems.
+
+Given state $(\mathbf{x}_n,\mathbf{v}_n)$ and timestep $\Delta t$:
+
+Half-kick:
+
+$$
+\mathbf{v}_{n+\tfrac{1}{2}} = \mathbf{v}_n + \frac{\Delta t}{2}\mathbf{a}(\mathbf{x}_n)
+$$
+
+Drift:
+
+$$
+\mathbf{x}_{n+1} = \mathbf{x}_n + \Delta t\,\mathbf{v}_{n+\tfrac{1}{2}}
+$$
+
+Half-kick:
+
+$$
+\mathbf{v}_{n+1} = \mathbf{v}_{n+\tfrac{1}{2}} + \frac{\Delta t}{2}\mathbf{a}(\mathbf{x}_{n+1})
+$$
+
+Functions map this one to one:
+
+- `halfVelocity` computes $\mathbf{v}_{n+1/2}$
+- `nextPos` computes $\mathbf{x}_{n+1}$
+- `nextVel` computes $\mathbf{v}_{n+1}$
+- `leapfrogStep` executes the sequence and returns the updated state
+
+---
+
+## Examples
+
+### Compute acceleration
+
+```python
+from apside.acceleration import acceleration
+
+a = acceleration("8.0", "0.0", "0.0")
+print(a)
+```
+
+### Compute energy
+
+```python
+from apside.energy import totalEnergy
+
+E = totalEnergy("8.0", "0.0", "0.0", "0.0", "220.0", "0.0")
+print(E)
+```
+
+### Integrate one timestep
+
+```python
+from apside.leapfrog import leapfrogStep
+
+x,y,z = "8.0","0.0","0.0"
+vx,vy,vz = "0.0","220.0","0.0"
+dt = "0.001"
+
+x,y,z,vx,vy,vz = leapfrogStep(x,y,z,vx,vy,vz,dt)
+print(x,y,z,vx,vy,vz)
+```
+
+### Energy conservation test
+
+```python
+from apside.leapfrog import leapfrogStep
+from apside.energy import totalEnergy
+
+x,y,z = "8.0","0.0","0.0"
+vx,vy,vz = "0.0","220.0","0.0"
+dt = "0.001"
+
+E0 = totalEnergy(x,y,z,vx,vy,vz)
+
+for _ in range(10000):
+    x,y,z,vx,vy,vz = leapfrogStep(x,y,z,vx,vy,vz,dt)
+
+E1 = totalEnergy(x,y,z,vx,vy,vz)
+print("DeltaE =", E1 - E0)
+```
+
+---
+
+## Author
+
+Created by Venkata Siddharth Pendyala  
+December 21st 2025
