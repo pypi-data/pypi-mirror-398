@@ -1,0 +1,36 @@
+from django.db import models
+
+
+class AOServices:
+    GES = 'ges'
+    IES = 'ies'
+    HET = 'het'
+    MET = 'MET'
+    ELECTRICITY = 'electricity'
+    HUDUDGAZ_LIQUEFIED_GAS = 'hududgaz-liquefied-gas'
+    HUDUDGAZ_NATURAL_GAS = 'hududgaz-natural-gas'
+    NEFTEGAZ_LIQUID_HYDROCARBONS = 'liquid-hydrocarbons'
+    UZBEKNEFTEGAZ_OIL_WELL = 'oil-well'
+    UZBEKNEFTEGAZ_NATURAL_GAZ = 'uzbekneftegaz'
+    UZ_GAZ_TRADE = 'uz-gas-trade'
+    UZ_TRANS_GAZ = 'uz-trans-gaz'
+    UZBEKKUMIR = 'uzbekkumir'
+    TRANSLATION = 'translation'
+    USER_MANAGEMENT = 'user-management'
+    AO_SERVICE = 'ao-service'
+
+class RegionShortCode(models.TextChoices):
+    ANDIJON = 'AN'
+    BUXORO = 'BX'
+    FARGONA = 'FR'
+    JIZZAX = 'JZ'
+    NAMANGAN = 'NM'
+    NAVOIY = 'NV'
+    QASHQADARYO = 'QD'
+    QORAQALPOGISTON = 'QR'
+    SAMARQAND = 'SN'
+    SIRDARYO = 'SR'
+    SURXONDARYO = 'SD'
+    TOSHKENT_CITY = 'TN'
+    TOSHKENT = 'TV'
+    XORAZM = 'XR'
