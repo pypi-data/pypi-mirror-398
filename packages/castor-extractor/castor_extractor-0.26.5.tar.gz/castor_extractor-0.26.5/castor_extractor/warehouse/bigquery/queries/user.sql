@@ -1,0 +1,4 @@
+SELECT DISTINCT user_email AS user_email
+FROM `{project}.region-{region}.INFORMATION_SCHEMA.JOBS_BY_PROJECT`
+WHERE TRUE
+    AND DATE(creation_time) >= DATE_ADD(CURRENT_DATE, INTERVAL -30 DAY)

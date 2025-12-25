@@ -1,0 +1,1 @@
+from .generic_warehouse import GenericWarehouseFileTemplate

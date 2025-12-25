@@ -1,0 +1,265 @@
+[build-system]
+requires = ["setuptools>=61.2"]
+
+[tool.poetry]
+name = "castor-extractor"
+version = "0.26.5"
+description = "Extract your metadata assets."
+authors = ["Castor <support@castordoc.com>"]
+license = "EULA"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+readme = ["README.md", "CHANGELOG.md"]
+homepage = "https://www.castordoc.com/"
+documentation = "https://docs.castordoc.com/castor-package/castor-extractor"
+include = [
+  "README.md",
+  "CHANGELOG.md",
+  "LICENCE",
+  "*/*/*/*.sql",
+  "Dockerfile",
+  "DockerfileUsage.md",
+]
+
+
+[tool.poetry.dependencies]
+python = ">=3.10, <3.14"
+
+cryptography = { version = "^43.0.0", optional = true } # cryptography (44.0.0) requires Python !=3.9.0,!=3.9.1,>=3.7
+google-api-core = ">=2.1.1, <3.0.0"
+google-api-python-client = {version = "^2.121.0", optional = true}
+google-auth = "^2"
+google-cloud-core = ">=2.1.0, <3.0.0"
+google-resumable-media = "^2.0.3"
+googleapis-common-protos = "^1.53.0"
+looker-sdk = { version = "^25.0.0", optional = true }
+msal = { version = "^1.20.0", optional = true }
+mstrio-py = { version = "^11.5.3.101", python = ">=3.10", optional = true }
+numpy = [ # Subdependency of pyarrow. As numpy add 3.12 in 1.26. And poetry doesn't manage it well.
+  { version = ">=1.26", python = "~3.12", optional = true },
+  { version = "<2", optional = true },                       # https://github.com/numpy/numpy/issues/26710 -> pandas isn't compatible with numpy 2
+]
+pandas = [ # Subdependency of databricks-sql-connector. As pandas add 3.12 wheel in 2.1 . And build pandas from source is complex.
+  { version = ">=2.1", python = "~3.12", optional = true },
+]
+psycopg2-binary = { version = ">=2.0.0, < 3.0.0", optional = true }
+pycryptodome = { version = ">=3.0.0, <4.0.0", optional = true }
+python-dateutil = ">=2.0.0, <=3.0.0"
+requests = ">=2.0.0, <3.0.0"
+snowflake-connector-python = { version = "^3.4.0", optional = true }
+snowflake-sqlalchemy = { version = "!=1.2.5, <2.0.0", optional = true }
+setuptools = ">=78.1"
+sqlalchemy = "~1.4"
+sqlalchemy-bigquery = { version = ">=1.0.0, <= 2.0.0", optional = true, extras = [
+  "bqstorage",
+] }
+sqlalchemy-redshift = { version = "~0.8.14", optional = true }
+tableauserverclient = { version = "^0.25.0", optional = true } # https://gitlab.com/castordoc/extractor/-/merge_requests/2270#note_1982885120
+tqdm = ">=4.0.0, <5.0.0"
+websocket-client = { version = "^1", optional = true }
+pydantic = "^2.6"
+pydantic-settings = "^2.2"
+pymssql = { version = "^2.2.11", optional = true }
+pymysql = { extras = ["rsa"], version = "^1.1.0", optional = true }
+
+# 3.7 has issue with urrllib dependency
+# https://coalescesoftware.slack.com/archives/C08HEQHS487/p1738328811319309
+databricks-sql-connector = { version = "3.6.0", optional = true }
+
+[tool.poetry.extras]
+bigquery = ["sqlalchemy-bigquery", "numpy"]
+count = ["sqlalchemy-bigquery"]
+databricks = ["databricks-sql-connector", "pandas", "numpy"]
+dbt = []
+looker = ["looker-sdk"]
+lookerstudio = ["google-api-python-client"]
+metabase = ["psycopg2-binary", "pycryptodome"]
+mysql = ["pymysql"]
+powerbi = ["msal"]
+qlik = ["websocket-client"]
+postgres = ["psycopg2-binary"]
+redshift = ["psycopg2-binary", "sqlalchemy-redshift"]
+snowflake = [
+  "snowflake-connector-python",
+  "snowflake-sqlalchemy",
+  "cryptography",
+]
+sqlserver = ["pymssql"]
+strategy = ["mstrio-py"]
+tableau = ["tableauserverclient"]
+all = [
+  "databricks-sql-connector",
+  "google-api-python-client",
+  "looker-sdk",
+  "msal",
+  "mstrio-py",
+  "numpy",
+  "pandas",
+  "psycopg2-binary",
+  "pycryptodome",
+  "pymssql",
+  "pymysql",
+  "snowflake-connector-python",
+  "snowflake-sqlalchemy",
+  "sqlalchemy-bigquery",
+  "sqlalchemy-redshift",
+  "tableauserverclient",
+  "websocket-client",
+]
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8"
+pytest-freezegun = "^0.4"
+requests-mock = "^1.11"
+ruff = "^0.9"
+
+[tool.poetry.group.dev.dependencies]
+deptry = ">=0.21"
+
+[tool.poetry.scripts]
+castor-extract-bigquery = "castor_extractor.commands.extract_bigquery:main"
+castor-extract-confluence = "castor_extractor.commands.extract_confluence:main"
+castor-extract-count = "castor_extractor.commands.extract_count:main"
+castor-extract-databricks = "castor_extractor.commands.extract_databricks:main"
+castor-extract-domo = "castor_extractor.commands.extract_domo:main"
+castor-extract-looker = "castor_extractor.commands.extract_looker:main"
+castor-extract-looker-studio = "castor_extractor.commands.extract_looker_studio:main"
+castor-extract-metabase-api = "castor_extractor.commands.extract_metabase_api:main"
+castor-extract-metabase-db = "castor_extractor.commands.extract_metabase_db:main"
+castor-extract-mode = "castor_extractor.commands.extract_mode:main"
+castor-extract-mysql = "castor_extractor.commands.extract_mysql:main"
+castor-extract-notion = "castor_extractor.commands.extract_notion:main"
+castor-extract-postgres = "castor_extractor.commands.extract_postgres:main"
+castor-extract-powerbi = "castor_extractor.commands.extract_powerbi:main"
+castor-extract-qlik = "castor_extractor.commands.extract_qlik:main"
+castor-extract-redshift = "castor_extractor.commands.extract_redshift:main"
+castor-extract-salesforce = "castor_extractor.commands.extract_salesforce:main"
+castor-extract-salesforce-viz = "castor_extractor.commands.extract_salesforce_reporting:main"
+castor-extract-sigma = "castor_extractor.commands.extract_sigma:main"
+castor-extract-snowflake = "castor_extractor.commands.extract_snowflake:main"
+castor-extract-sqlserver = "castor_extractor.commands.extract_sqlserver:main"
+castor-extract-strategy = "castor_extractor.commands.extract_strategy:main"
+castor-extract-tableau = "castor_extractor.commands.extract_tableau:main"
+castor-extract-thoughtspot = "castor_extractor.commands.extract_thoughtspot:main"
+castor-file-check = "castor_extractor.commands.file_check:main"
+castor-upload = "castor_extractor.commands.upload:main"
+
+[tool.poetry.group.poetry.dependencies]
+pip = "*"
+
+[[tool.poetry.source]]
+name = "PyPI"
+priority = "primary"
+
+[[tool.poetry.source]]
+name = "test-pypi"
+url = "https://test.pypi.org/legacy/"
+priority = "explicit"
+
+[tool.pytest.ini_options]
+log_level = "INFO"
+filterwarnings = [
+  "ignore:The Session.close_all",
+  "ignore:the imp module is deprecated",
+  "ignore:invalid escape sequence",
+  "ignore:Using or importing the ABCs",
+]
+
+[tool.sqlfluff.core]
+sql_file_exts = ".sql"
+exclude_rules = "L023,L025,L031,L032,L034"
+dialect = "postgres"
+
+[tool.sqlfluff.rules]
+max_line_length = 120
+
+[tool.sqlfluff.rules.L010]
+capitalisation_policy = "upper"
+
+[tool.sqlfluff.rules.L047]
+prefer_count_1 = true
+
+[tool.sqlfluff.indentation]
+indented_joins = true
+indented_using_on = true
+
+[tool.sqlfluff.templater]
+unwrap_wrapped_queries = true
+
+[tool.deptry.package_module_name_map]
+websocket-client = "websocket"
+pytest-freezegun = "freezegun"
+
+[tool.deptry.per_rule_ignores]
+# Test group are not dev dependencies
+DEP004 = ["pytest", "requests_mock", "freezegun"]
+# SQL Alchemy needs some dependencies to be installed
+DEP002 = [
+  "numpy",                      # See comment on numpy in dependencies
+  "pandas",                     # See comment on pandas in dependencies
+  "psycopg2-binary",
+  "pymssql",
+  "pymysql",
+  "setuptools",
+  "snowflake-connector-python",
+  "snowflake-sqlalchemy",
+  "sqlalchemy-bigquery",
+  "sqlalchemy-redshift",
+]
+
+
+[tool.ruff]
+line-length = 80
+src = ["extractor"]
+include = ["**/*.py", "**/*.pyi"]
+
+[tool.ruff.format]
+exclude = [
+    "**/.eggs/**",
+    "**/.git/**",
+    "**/.hg/**",
+    "**/.mypy_cache/**",
+    "**/.ruff_cache/**",
+    "**/.flakeheaven_cache/**",
+    "**/.tox/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/_build/**",
+    "**/buck-out/**",
+    "**/build/**",
+    "**/dist/**"
+]
+
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "S1", "COM818", "COM819", "PL", "I"]
+ignore = [
+    "E101",    # Indentation contains mixed spaces and tabs
+    "E501",    # line-too-long, in conflict with formatting
+    "E731",    # lambda assigments
+    "E741",    # ambiguous-variable-name
+    "E722",    # bare except
+    "S101",    # use of assert
+    "S113",    # use of requests without timeout
+    "PLR",     # pylint refactor
+    "PLW",     # pylint warning
+    "C90"      # mccabe complex structure
+]
+exclude = [
+    ".venv/",
+    "source/packages/extractor/.venv/",
+    ".mypy_cache/",
+    ".flakeheaven_cache/",
+    ".ruff_cache/",
+    "*__pycache__/",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/*_test.py" = ["S105", "S106"]
+"**/__init__.py" = ["F401"]
+"**/conftest.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
