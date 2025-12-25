@@ -1,0 +1,62 @@
+
+
+## getvector.html - Shows a vector
+
+
+<%page args="vectorobj, timestamp, loggedin, blobfolder, message_timestamp"/>
+
+
+<%include file="state.html" args="vectorobj=vectorobj, timestamp=timestamp, state=vectorobj.state"/>
+
+  <div class="w3-container">
+    % if vectorobj.message:
+       % if message_timestamp:
+          <p id="message_${vectorobj.itemid|h}">${message_timestamp|h} : ${vectorobj.message|h}</p>
+       % else:
+          <p id="message_${vectorobj.itemid|h}">${vectorobj.message|h}</p>
+       % endif
+    % else:
+       <p id="message_${vectorobj.itemid|h}">Message: Waiting...</p>
+    % endif
+  </div>
+
+% if vectorobj.perm != "ro" and loggedin and vectorobj.vectortype != "BLOBVector":
+ <form hx-post="/vector/submit/${vectorobj.itemid|h}" hx-target="#result_${vectorobj.itemid|h}">
+% endif
+
+ % for memberobj in sorted(vectorobj.members().values(), key=lambda memberobj: memberobj.label):
+    ## For each member, sorted by member label
+    % if vectorobj.vectortype == "LightVector":
+      <%include file="lightmember.html" args="vectorobj=vectorobj, memberobj=memberobj, loggedin=loggedin"/>
+    % elif vectorobj.vectortype == "TextVector":
+      <%include file="textmember.html" args="vectorobj=vectorobj, memberobj=memberobj, loggedin=loggedin"/>
+    % elif vectorobj.vectortype == "NumberVector":
+      <%include file="numbermember.html" args="vectorobj=vectorobj, memberobj=memberobj, loggedin=loggedin"/>
+    % elif vectorobj.vectortype == "SwitchVector":
+      <%include file="switchmember.html" args="vectorobj=vectorobj, memberobj=memberobj, loggedin=loggedin"/>
+    % elif vectorobj.vectortype == "BLOBVector":
+      <%include file="blobmember.html" args="vectorobj=vectorobj, memberobj=memberobj, loggedin=loggedin, blobfolder=blobfolder"/>
+    % endif
+ % endfor
+
+% if vectorobj.perm != "ro" and loggedin and vectorobj.vectortype != "BLOBVector":
+
+  <div class="w3-row w3-panel">
+    <div class="w3-container w3-threequarter">
+       <p id="result_${vectorobj.itemid|h}"></p>
+    </div>
+    <div class="w3-container w3-quarter">
+       <button  class="w3-button w3-black w3-ripple w3-round" type="submit">
+         Submit
+       </button>
+    </div>
+  </div>
+</form>
+
+% else:
+
+ <div class="w3-panel">
+   <p id="result_${vectorobj.itemid|h}"></p>
+ </div>
+
+% endif
