@@ -1,0 +1,90 @@
+import smartpy as sp
+
+
+def seconds_of_timestamp(timestamp):
+    """Compute the number of seconds since the epoch for a given timestamp.
+
+    Parameters:
+        timestamp (sp.nat): The timestamp to compute the seconds for.
+
+    Examples:
+        x = sp.timestamp(1095379199)
+        assert utils.seconds_of_timestamp(x) == 1095379199
+
+    Returns:
+        sp.int: The number of seconds since the epoch for the given timestamp.
+    """
+    return abs(timestamp - sp.timestamp(0))
+
+
+def mutez_to_nat(x):
+    """Convert a value of type `sp.mutez` to `sp.nat`.
+
+    Parameters:
+        x (sp.mutez): The value in `sp.mutez` to be converted.
+
+    Examples:
+        x = sp.mutez(3)
+        assert utils.mutez_to_nat(x) == sp.nat(3)
+
+    Returns:
+        sp.nat: The converted value in `sp.nat`.
+    """
+    sp.cast(x, sp.mutez)
+    return sp.fst(sp.ediv(x, sp.mutez(1)).unwrap_some())
+
+
+def nat_to_mutez(x):
+    """Convert a value of type `sp.nat` to `sp.mutez`.
+
+    Parameters:
+        x (sp.nat): The value in `sp.nat` to be converted.
+
+    Examples:
+        x = 3
+        assert utils.nat_to_mutez(x) == sp.mutez(3)
+
+    Returns:
+        sp.mutez: The converted value in `sp.mutez`.
+    """
+    sp.cast(x, sp.nat)
+    return sp.mul(x, sp.mutez(1))
+
+
+def nat_to_tez(x):
+    """Convert a value of type `sp.nat` representing tez to `sp.tez`
+
+    Parameters:
+        x (sp.nat): The value in `sp.nat` to be converted.
+
+    Returns:
+        sp.tez: The converted value in `sp.tez`.
+
+    Examples:
+        import smartpy.utils as utils
+        utils.nat_to_tez(5) == sp.mutez(5*1000000) == sp.tez(5)
+    """
+    sp.cast(x, sp.nat)
+    return sp.mul(x, sp.tez(1))
+
+
+def same_underlying_address(attr1, attr2):
+    """Verify that the two arguments have the same address section when packed
+
+    Parameters:
+        attr1 (sp.address): The first address
+        attr2 (sp.address): The second address
+
+    Returns:
+        sp.bool: Whether the addresses match
+
+    Examples:
+        a = sp.address("KT1WD5PV1i1HQTFhNUxVGNjRda63trNyshwU")
+        b = sp.address("KT1WD5PV1i1HQTFhNUxVGNjRda63trNyshwU%a")
+        assert utils.same_underlying_address(a, b)
+    """
+    addr1 = sp.cast(attr1, sp.address)
+    addr2 = sp.cast(attr2, sp.address)
+    b1 = sp.slice(6, 22, sp.pack(addr1))
+    b2 = sp.slice(6, 22, sp.pack(addr2))
+    return b1 == b2

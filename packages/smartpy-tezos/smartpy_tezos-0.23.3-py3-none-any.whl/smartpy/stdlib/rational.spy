@@ -1,0 +1,229 @@
+import smartpy as sp
+
+import smartpy.stdlib.math as math
+
+
+def mk(ab):
+    """Create a rational number.
+
+    Parameters:
+      ab (sp.pair[sp.int, sp.int]): A pair of int values `(a, b)`
+
+    Returns:
+      sp.record[numerator sp.int, denominator sp.nat]: A record representing the rational number `numerator/denominator`
+    """
+    (a, b) = sp.cast(ab, sp.pair[sp.int, sp.int])
+    assert b != 0
+    if (a < 0 and b < 0) or (a >= 0 and b < 0):
+        a = a * (-1)
+        b = b * (-1)
+    g = math.gcd((a, b))
+    (q1, r1) = sp.ediv(a, g).unwrap_some()
+    (q2, r2) = sp.ediv(b, g).unwrap_some()
+    return sp.record(numerator=q1, denominator=sp.as_nat(q2))
+
+
+def ceil(r):
+    """Compute the ceiling value of `r` (the smallest integer greater than or equal to `r`).
+
+    Parameters:
+      r (sp.record[numerator sp.int, denominator sp.nat]):  A rational number
+
+    Returns:
+      sp.int: The ceiling value of `r`
+
+    Examples:
+        import smartpy.rational as rational
+        r1 = rational.mk((4, 3))
+        r2 = rational.mk((4, 2))
+        r3 = rational.mk((4, 1))
+        rational.ceil(r1) == sp.int(2)
+        rational.ceil(r2) == sp.int(2)
+        rational.ceil(r3) == sp.int(4)
+    """
+    record(numerator=n, denominator=d).match = sp.cast(
+        r, sp.record(numerator=sp.int, denominator=sp.nat)
+    )
+    assert d != 0
+    (quotient, remainder) = sp.ediv(n, d).unwrap_some()
+    return sp.add(quotient, sp.nat(1)) if remainder != 0 else quotient
+
+
+def floor(r):
+    """Compute the floor value of `r` (the largest integer not greater than `r`).
+
+    Parameters:
+      r (sp.record[numerator sp.int, denominator sp.nat]):  A rational number
+
+    Returns:
+      sp.int: The floor value of `r`
+
+    Examples:
+        import smartpy.rational as rational
+        r1 = rational.mk((3, 1))
+        r2 = rational.mk((2, 3))
+        r3 = rational.mk((7, 2))
+        rational.floor(r1) == sp.int(3)
+        rational.floor(r2) == sp.int(0)
+        rational.floor(r3) == sp.int(3)
+    """
+    record(numerator=n, denominator=d).match = sp.cast(
+        r, sp.record(numerator=sp.int, denominator=sp.nat)
+    )
+    assert d != 0
+    return n / sp.to_int(d)
+
+
+def unpack(values):
+    record(numerator=n1, denominator=d1).match = sp.cast(
+        sp.fst(values), sp.record(numerator=sp.int, denominator=sp.nat)
+    )
+    record(numerator=n2, denominator=d2).match = sp.cast(
+        sp.snd(values), sp.record(numerator=sp.int, denominator=sp.nat)
+    )
+    return (n1, d1, n2, d2)
+
+
+def add(values):
+    """Add two rational numbers.
+
+    Parameters:
+      values (sp.pair[rational, rational]): A pair of rational values. A rational value is a `sp.record[numerator: sp.int, denominator: sp.nat]
+
+    Returns:
+      sp.record[numerator sp.int, denominator sp.nat]: The result of adding two rational numbers.
+
+    Examples:
+        import smartpy.rational as rational
+        r1 = rational.mk((3, 5))
+        r2 = rational.mk((4, 3))
+        res = rational.add((r1, r2))
+        res.numerator == sp.int(29)
+        res.denominator == sp.nat(15)
+    """
+    (n1, d1, n2, d2) = unpack(values)
+    temp1 = math.lcm((sp.to_int(d1), sp.to_int(d2)))
+    q1 = temp1 / sp.to_int(d1)
+    q2 = temp1 / sp.to_int(d2)
+    temp2 = (q1 * n1) + (q2 * n2)
+    return mk((temp2, temp1))
+
+
+def sub(values):
+    """Subtract two rational numbers.
+
+    Parameters:
+      values (sp.pair[rational, rational]): A pair of rational values. A rational value is a `sp.record[numerator: sp.int, denominator: sp.nat]
+    Returns:
+      sp.record[numerator sp.int, denominator sp.nat]: The result of subtracting two rational numbers.
+
+    Examples:
+        import smartpy.rational as rational
+        r1 = rational.mk((1, 5))
+        r2 = rational.mk((5, 3))
+        r3 = rational.mk((2, 8))
+        r4 = rational.mk((1, 4))
+        res1 = rational.sub((r1, r2))
+        res1.numerator == sp.int(-22)
+        res1.denominator == sp.nat(15)
+        res2 = rational.sub((r3, r4))
+        assert res.numerator == sp.int(0)
+    """
+    (n1, d1, n2, d2) = unpack(values)
+    temp1 = math.lcm((sp.to_int(d1), sp.to_int(d2)))
+    q1 = temp1 / sp.to_int(d1)
+    q2 = temp1 / sp.to_int(d2)
+    temp2 = (q1 * n1) - (q2 * n2)
+    return mk((temp2, temp1))
+
+
+def mul(values):
+    """Multiply two rational numbers.
+
+    Parameters:
+      values (sp.pair[rational, rational]): A pair of rational values. A rational value is a `sp.record[numerator: sp.int, denominator: sp.nat]`
+
+    Returns:
+      sp.record[numerator sp.int, denominator sp.nat]: The result of multiplying two rational numbers.
+
+    Examples:
+        import smartpy.rational as rational
+        r1 = rational.mk((2, 5))
+        r2 = rational.mk((3, 4))
+        r3 = rational.mk((-4, 6))
+        r4 = rational.mk((1, 4))
+        res1 = rational.mul((r1, r2))
+        res2 = rational.mul((r1, r2))
+        res1.numerator == sp.int(3)
+        res1.denominator == sp.nat(10)
+        res2.numerator == sp.int(-1)
+        res2.denominator == sp.nat(6)
+    """
+    (n1, d1, n2, d2) = unpack(values)
+    return mk((n1 * n2, sp.to_int(d1) * sp.to_int(d2)))
+
+
+def div(values):
+    """Divide two rational numbers.
+
+    Parameters:
+      values (sp.pair[rational, rational]): A pair of rational values. A rational value is a `sp.record[numerator: sp.int, denominator: sp.nat]`.
+
+    Returns:
+      sp.record[numerator sp.int, denominator sp.nat]: The result of dividing two rational numbers.
+
+    Examples:
+        import smartpy.rational as rational
+        r1 = rational.mk((2, 5))
+        r2 = rational.mk((3, 4))
+        r3 = rational.mk((7, 4))
+        r4 = rational.mk((2, 7))
+        res1 = rational.div((r1, r2))
+        res2 = rational.div((r1, r2))
+        res1.numerator == sp.int(8)
+        res1.denominator == sp.nat(15)
+        res2.numerator == sp.int(49)
+        res2.denominator == sp.nat(8)
+    """
+    (n1, d1, n2, d2) = unpack(values)
+    return mk((n1 * sp.to_int(d2), sp.to_int(d1) * n2))
+
+
+def round(r):
+    """Round a rational number to its closest integer.
+
+    Parameters:
+      r (sp.record[numerator sp.int, denominator sp.nat]): A rational number.
+
+    Returns:
+      sp.int: The closest int of `r`
+
+    Examples:
+      import smartpy.rational as rational
+      r1 = rational.mk((1, 3))
+      r2 = rational.mk((2, 3))
+      r3 = rational.mk((3, 3))
+      r4 = rational.mk((4, 3))
+      r5 = rational.mk((5, 3))
+      r6 = rational.mk((6, 3))
+      r7 = rational.mk((7, 3))
+      r8 = rational.mk((8, 3))
+      r9 = rational.mk((9, 3))
+      r10 = rational.mk((10, 3))
+      r11 = rational.mk((11, 3))
+      r12 = rational.mk((12, 3))
+      rational.round(r1) == sp.int(0)
+      rational.round(r2) == sp.int(1)
+      rational.round(r3) == sp.int(1)
+      rational.round(r4) == sp.int(1)
+      rational.round(r5) == sp.int(2)
+      rational.round(r6) == sp.int(2)
+      rational.round(r7) == sp.int(2)
+      rational.round(r8) == sp.int(3)
+      rational.round(r9) == sp.int(3)
+      rational.round(r10) == sp.int(3)
+      rational.round(r11) == sp.int(4)
+      rational.round(r12) == sp.int(4)
+    """
+    base = mk((1, 2))
+    return floor(add((r, base)))

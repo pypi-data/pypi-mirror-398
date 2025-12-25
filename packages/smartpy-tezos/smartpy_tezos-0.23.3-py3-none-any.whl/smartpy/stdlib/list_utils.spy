@@ -1,0 +1,271 @@
+import smartpy as sp
+
+
+def replicate(vn):
+    """Generate a list with 'n' occurrences of a given value 'v'
+
+    Parameters:
+      vn (sp.pair[sp.int, sp.nat]): A pair of int values '(v, n)'.
+
+    Returns:
+      sp.list[int]: `replicate((vn))` returns a list with 'n' occurrences of the value 'v'.
+
+    Examples:
+      import smartpy.stdlib.list_utils as list_utils
+      sp.pack(list_utils.replicate((0, 5))) == sp.pack([0, 0, 0, 0, 0])
+    """
+    (v, n) = sp.cast(vn, sp.pair[sp.int, sp.nat])
+    res = []
+    for i in range(0, n):
+        res = sp.cons(v, res)
+    return res
+
+
+def element_at(ab):
+    """Return the element of a list at a particular index.
+
+    Parameters:
+      ab (sp.pair[sp.list[sp.int], sp.nat]): The pair '(elements, index').
+
+    Returns:
+      sp.int: The value in 'elements' at the 'index' position.
+
+    Examples:
+      import smartpy.stdlib.list_utils as list_utils
+      list_utils.element_at(([1, 2, 3], 0)) == 1
+      list_utils.element_at(([1, 2, 3], 1)) == 2
+      list_utils.element_at(([1, 2, 3], 2)) == 3
+    """
+    (elements, idx) = sp.cast(ab, sp.pair[sp.list[sp.int], sp.nat])
+    assert idx >= 0 and idx < sp.len(elements)
+    it = 0
+    res = 0
+    brk = False
+    for e in elements:
+        if not brk:
+            if it == idx:
+                res = e
+                brk = True
+            it = it + 1
+    return res
+
+
+def update_list(abc):
+    """Update one specific element of a list.
+
+    Parameters:
+      abc (sp.tuple[sp.list[sp.int], sp.int, sp.int]): A tuple with the values '(elements, index, value').
+
+    Returns:
+      sp.list[int]: A new version of the list with the element at the 'index' position updated to 'value'.
+
+    Examples:
+      import smartpy.stdlib.list_utils as list_utils
+      sp.pack(list_utils.update_list(([1, 2, 3, 4, 5], 0, 100))) == sp.pack([100, 2, 3, 4, 5])
+      sp.pack(list_utils.update_list(([1, 2, 3, 4, 5], 1, 100))) == sp.pack([1, 100, 3, 4, 5])
+      sp.pack(list_utils.update_list(([1, 2, 3, 4, 5], 2, 100))) == sp.pack([1, 2, 100, 4, 5])
+    """
+    (elements, idx, value) = sp.cast(abc, sp.tuple[sp.list[sp.int], sp.int, sp.int])
+    i = 0
+    res = []
+    for v in elements:
+        if i == idx:
+            res = sp.cons(value, res)
+        else:
+            res = sp.cons(v, res)
+        i = i + 1
+    return reversed(res)
+
+
+def sub_list(abc):
+    """Compute the portion of a list that contains elements starting at from_index and extends up to element at to_index-1.
+
+    Parameters:
+      abc (sp.tuple[sp.list[sp.int], sp.int, sp.int]: A tuple with the values '(elements, from_index, to_index)'.
+
+    Returns:
+      sp.list[int]: A portion of the original list from 'from_index' (inclusive) up to 'to_index' (exclusive).
+
+    Examples:
+        import smartpy.stdlib.list_utils as list_utils
+        sp.pack(list_utils.sub_list(([1, 2, 3, 4, 5], 1, 3))) == sp.pack([2, 3])
+        sp.pack(list_utils.sub_list(([1, 2, 3, 4, 5], 1, 4))) == sp.pack([2, 3, 4])
+    """
+    (elements, from_index, to_index) = sp.cast(
+        abc, sp.tuple[sp.list[sp.int], sp.int, sp.int]
+    )
+    assert from_index < to_index
+    res = []
+    idx = 0
+    for v in elements:
+        if idx >= from_index and idx < to_index:
+            res.push(v)
+        idx = idx + 1
+    return reversed(res)
+
+
+def insertion_sort(elements):
+    """Sort a list of elements using the insertion sort algorithm (useful when the number of elements is small).
+
+    Parameters:
+      elements (sp.list[sp.int]]: A list to be sorted.
+
+    Returns:
+      sp.list[int]: A permutation of the values in 'elements' in sorted order.
+
+    Examples:
+      import smartpy.stdlib.list_utils as list_utils
+      list_utils.element_at((list_utils.insertion_sort([1, 3, 5, 7, 2, 4, 6, 8]), 0))== 1
+    """
+    els = sp.cast(elements, sp.list[sp.int])
+    n = sp.len(els)
+    for i in range(1, n):
+        key = element_at((els, i))
+        j = i - 1
+        while j >= 0 and element_at((els, sp.as_nat(j))) > key:
+            els = update_list((els, j + 1, element_at((els, sp.as_nat(j)))))
+            j = j - 1
+        els = update_list((els, j + 1, key))
+    return els
+
+
+def merge(almr):
+    (arr, left, mid, right) = sp.cast(
+        almr, sp.tuple[sp.list[sp.int], sp.int, sp.int, sp.int]
+    )
+    n1 = mid - left + 1
+    n2 = right - mid
+    l1 = replicate((0, sp.as_nat(n1)))
+    l2 = replicate((0, sp.as_nat(n2)))
+    for i in range(0, n1):
+        l1 = update_list((l1, i, element_at((arr, sp.as_nat(left + i)))))
+    for i in range(0, n2):
+        l2 = update_list((l2, i, element_at((arr, sp.as_nat(mid + i + 1)))))
+    i = 0
+    j = 0
+    k = left
+    res = arr
+    while i < n1 and j < n2:
+        a = element_at((l1, sp.as_nat(i)))
+        b = element_at((l2, sp.as_nat(j)))
+        if a <= b:
+            res = update_list((res, k, a))
+            i = i + 1
+        else:
+            res = update_list((res, k, b))
+            j = j + 1
+        k = k + 1
+    while i < n1:
+        res = update_list((res, k, element_at((l1, sp.as_nat(i)))))
+        i = i + 1
+        k = k + 1
+    while j < n2:
+        res = update_list((res, k, element_at((l2, sp.as_nat(j)))))
+        j = j + 1
+        k = k + 1
+    return res
+
+
+def merge_sort(elements):
+    """Sort a list of elements using the merge sort algorithm.
+
+    Parameters:
+      elements (sp.list[sp.int]]: A list to be sorted.
+
+    Returns:
+      sp.list[int]: A permutation of the values in 'elements' in sorted order.
+
+    Examples:
+      import smartpy.stdlib.list_utils as list_utils
+      list_utils.element_at((list_utils.insertion_sort([1, 3, 5, 7, 2, 4, 6, 8]), 0))== 1
+    """
+    arr = sp.cast(elements, sp.list[int])
+    width = 1
+    n = sp.len(arr)
+    while width < n:
+        l = 0
+        while l < n:
+            r = sp.min(sp.to_int(l) + ((width * 2) - 1), n - 1)
+            m = sp.min(sp.to_int(l) + (width - 1), n - 1)
+            arr = merge((arr, sp.to_int(l), m, r))
+            l = l + (width * 2)
+        width = width * 2
+    return arr
+
+
+def sort(elements):
+    """Sort a list of elements.
+
+    Parameters:
+      elements (sp.list[sp.int]]: A list to be sorted.
+
+    Returns:
+      sp.list[int]: A permutation of the values in 'elements' in sorted order.
+
+    Examples:
+      import smartpy.stdlib.list_utils as list_utils
+      list_utils.element_at((list_utils.sort([1, 3, 5, 7, 2, 4, 6, 8]), 0))== 1
+    """
+    els = sp.cast(elements, sp.list[int])
+    if sp.len(els) <= 10:
+        els = insertion_sort(elements)
+    else:
+        els = merge_sort(els)
+    return els
+
+
+def partition(alh):
+    (arr, low, high) = sp.cast(alh, sp.tuple[sp.list[int], sp.int, sp.int])
+    pivot = element_at((arr, sp.as_nat(high)))
+    i = low - 1
+    for j in range(low, high):
+        if element_at((arr, sp.as_nat(j))) <= pivot:
+            i = i + 1
+            temp = element_at((arr, sp.as_nat(i)))
+            arr = update_list((arr, i, element_at((arr, sp.as_nat(j)))))
+            arr = update_list((arr, j, temp))
+    temp = element_at((arr, sp.as_nat(i + 1)))
+    arr = update_list((arr, i + 1, element_at((arr, sp.as_nat(high)))))
+    arr = update_list((arr, high, temp))
+    return (arr, (i + 1))
+
+
+def quick_select(ak):
+    """Selects the kth smallest element of an array, using a non-recursive implementation of the QuickSelect algorithm.
+       Adapted from: https://www.geeksforgeeks.org/quickselect-algorithm.
+
+    Parameters:
+       ak (sp.tuple[sp.list[sp.int], sp.int]: A tuple of elements '(arr, k)', where 'arr' is an array of ints and 'k' is the element of interest (i.e., the 'kth' smaller element).
+
+    Returns:
+      sp.int: The 'kth' smallest element in the array.
+
+    Examples:
+      import smartpy.stdlib.list_utils as list_utils
+      list_utils.quick_select(([10, 4, 5, 8, 6, 11, 26], 0)) == 4
+      list_utils.quick_select(([10, 4, 5, 8, 6, 11, 26], 1)) == 5
+      list_utils.quick_select(([10, 4, 5, 8, 6, 11, 26], 2)) == 6
+      list_utils.quick_select(([10, 4, 5, 8, 6, 11, 26], 3)) == 8
+      list_utils.quick_select(([10, 4, 5, 8, 6, 11, 26], 4)) == 10
+      list_utils.quick_select(([10, 4, 5, 8, 6, 11, 26], 5)) == 11
+      list_utils.quick_select(([10, 4, 5, 8, 6, 11, 26], 6)) == 26
+    """
+    (arr, k) = sp.cast(ak, sp.tuple[sp.list[int], sp.int])
+    assert k >= 0 and k < sp.to_int(sp.len(arr))
+    left = sp.int(0)
+    right = sp.len(arr) - 1
+    k = k + 1
+    res = -1
+    done = False
+    while left <= right and not done:
+        (new_array, pivotIndex) = partition((arr, left, right))
+        arr = new_array
+        if pivotIndex == (k - 1):
+            res = element_at((arr, sp.as_nat(pivotIndex)))
+            done = True
+        else:
+            if pivotIndex > (k - 1):
+                right = pivotIndex - 1
+            else:
+                left = pivotIndex + 1
+    return res

@@ -1,0 +1,350 @@
+import smartpy as sp
+
+import smartpy.stdlib.math as math
+import smartpy.stdlib.rational as rational
+
+
+def starts_with(ab):
+    """Check if a `string` starts with a given pattern.
+
+    Parameters:
+      ab (sp.pair[sp.string, sp.string]): A pair of string values (a, b)
+
+    Returns:
+      sp.bool: `starts_with((a,b))` returns `True` if string 'b' starts with string 'a', `False` otherwise.
+
+    Examples:
+        import smartpy.stdlib.string_utils as string_utils
+        string_utils.starts_with(("abc", "abc")) == True
+        string_utils.starts_with(("abc", "abcd")) == True
+        string_utils.starts_with(("abc", "abcdefg")) == True
+    """
+    (a, b) = sp.cast(ab, sp.pair[sp.string, sp.string])
+    return sp.len(b) >= sp.len(a) and sp.slice(0, sp.len(a), b).unwrap_some() == a
+
+
+def drop_first(ab):
+    """Drop the first `n` characters of a `string`.
+
+    Parameters:
+      ab (sp.pair[sp.nat, sp.string]): A pair (a, b), where 'a' is the number of characters to remove from the beginning of string 'b'.
+
+    Returns:
+      sp.Option[sp.string]:  The resulting string after removing the first 'a' characters from 'b'.
+
+    Examples:
+      import smartpy.stdlib.string_utils as string_utils
+      string_utils.drop_first((0, "abcdef")) == sp.Some("abcdef")
+      string_utils.drop_first((1, "abcdef")) == sp.Some("bcdef")
+      string_utils.drop_first((2, "abcdef")) == sp.Some("cdef")
+      string_utils.drop_first((3, "abcdef")) == sp.Some("def")
+      string_utils.drop_first((4, "abcdef")) == sp.Some("ef")
+      string_utils.drop_first((5, "abcdef")) == sp.Some("f")
+      string_utils.drop_first((6, "abcdef")) == sp.Some("")
+      string_utils.drop_first((7, "abcdef")) == None
+    """
+    (n, text) = sp.cast(ab, sp.pair[sp.nat, sp.string])
+    res = None
+    if n < sp.len(text):
+        res = sp.slice(n, sp.as_nat(sp.len(text) - n), text)
+    else:
+        if n == sp.len(text):
+            res = sp.Some("")
+    return res
+
+
+def find_first(ab):
+    """Return the index of the first occurrence of a string within another string.
+
+    Parameters:
+      ab (sp.pair[sp.string, sp.string]): A pair of string values '(key, text)', where 'key' is the search string.
+
+    Returns:
+      sp.Option[sp.nat]: Some of the index of the first appearance of 'key' within 'text' if any, `None` otherwise.
+
+    Examples:
+      import smartpy.stdlib.string_utils as string_utils
+      string_utils.find_first((".", "abc")) == None
+      string_utils.find_first((".", ".abc")) == sp.Some(0)
+      string_utils.find_first((".", "a.bc")) == sp.Some(1)
+      string_utils.find_first((".", "ab.c")) == sp.Some(2)
+      string_utils.find_first((".", "abc.")) == sp.Some(3)
+      string_utils.find_first(("/", "4/6")) == sp.Some(1)
+    """
+    (key, text) = sp.cast(ab, sp.pair[sp.string, sp.string])
+    idx = 0
+    c = text
+    found = False
+    while sp.len(c) >= sp.len(key) and sp.len(c) > 0 and not found:
+        found = starts_with((key, c))
+        if not found:
+            c = drop_first((1, c)).unwrap_some()
+            idx = idx + 1
+    return sp.Some(idx) if found else None
+
+
+def split(ab):
+    """Split a string using another string as delimiter.
+
+    Parameters:
+      ab (sp.pair[sp.string, sp.string]): A pair of string values `(text, delimiter)`.
+
+    Returns:
+      sp.List[sp.string]: A list of strings after spliting the original string 'text'.
+
+    Examples:
+      import smartpy.stdlib.string_utils as string_utils
+      sp.pack(string_utils.split(("abc def ghi", " "))) == sp.pack(["abc", "def", "ghi"])
+    """
+    (text, delimiter) = sp.cast(ab, sp.pair[sp.string, sp.string])
+    assert sp.len(delimiter) > 0
+    res = []
+    sp.cast(res, sp.list[sp.string])
+    len_delimiter = sp.len(delimiter)
+    search = find_first((delimiter, text))
+    while search.is_some():
+        idx = sp.as_nat(search.unwrap_some())
+        temp = sp.slice(0, idx, text).unwrap_some()
+        if sp.len(temp) > 0:
+            res.push(temp)
+        text = drop_first((idx + len_delimiter, text)).unwrap_some()
+        search = find_first((delimiter, text))
+    if sp.len(text) > 0:
+        res.push(text)
+    return reversed(res)
+
+
+def digit(c):
+    """Convert a single-character string representing a digit to its integer value.
+
+    Parameters:
+      a (sp.string): A string containing a single digit character from '0' to '9'.
+
+    Returns:
+      sp.option[sp.int]: Some of the integer value of the digit if 'c' is in the range '0' to '9', None otherwise.
+    """
+    assert sp.len(c) == 1
+    digits = {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9,
+    }
+    return digits.get_opt(c)
+
+
+def is_digit(c):
+    """Check if a string is a single digit character.
+
+    Parameters:
+      c (sp.string): The string to be checked for being a digit.
+
+    Returns:
+      sp.bool: True if the string represents a single digit, False otherwise.
+    """
+    assert sp.len(c) == 1
+    return digit(c).is_some()
+
+
+def to_digit(s):
+    """Convert a single-character string to its corresponding integer value.
+
+    Parameters:
+      s (sp.string): A string containing a single digit character from '0' to '9'.
+
+    Returns:
+      sp.int: The integer value of the digit character.
+
+    Examples:
+      import smartpy.stdlib.string_utils as string_utils
+      string_utils.to_digit("1") == 1
+      string_utils.to_digit("2") == 2
+      string_utils.to_digit("3") == 3
+      string_utils.to_digit("4") == 4
+      string_utils.to_digit("5") == 5
+    """
+    assert is_digit(s)
+    return digit(s).unwrap_some()
+
+
+def to_int(s):
+    """Convert a string to its corresponding integer value.
+
+    Parameters:
+      a (sp.string): A string representing an integer value.
+
+    Returns:
+      sp.int: The integer value represented by the string.
+
+    Examples:
+      import smartpy.stdlib.string_utils as string_utils
+      string_utils.to_int("1") == 1
+      string_utils.to_int("12") == 12
+      string_utils.to_int("123") == 123
+      string_utils.to_int("1234") == 1234
+    """
+    sp.cast(s, sp.string)
+    text = s
+    res = 0
+    length = sp.len(text)
+    while length > 0:
+        n = to_digit(sp.slice(0, 1, text).unwrap_some())
+        e = sp.as_nat(length - 1)
+        p = math.pow((10, e))
+        res = res + (p * n)
+        text = drop_first((1, text)).unwrap_some()
+        length = sp.len(text)
+    return res
+
+
+def to_rational(s):
+    """Convert a string to a rational number.
+
+    Parameters:
+      a (sp.string): A string representing a rational value in the format 'numerator/denominator' (e.g.: '4/3', '3/5').
+
+    Returns:
+      sp.record[numerator sp.int, denominator sp.nat]: A record representing a rational number.
+
+    Examples:
+      import smartpy.stdlib.string_utils as string_utils
+      to_rational("4/6") == rational.mk((2, 3))
+      to_rational("4/60") == rational.mk((2, 30))
+      to_rational("04/60") == rational.mk((2, 30))
+      to_rational("0/3") == rational.mk((0, 3))
+    """
+    sp.cast(s, sp.string)
+    l = sp.len(s)
+    temp = find_first(("/", s))
+    assert temp.is_some()
+    assert temp.unwrap_some() > 0
+    assert temp.unwrap_some() < sp.to_int(l)
+    idx = sp.as_nat(temp.unwrap_some())
+    numerator = to_int(sp.slice(0, idx, s).unwrap_some())
+    denominator = to_int(sp.slice(idx + 1, sp.as_nat(l - (idx + 1)), s).unwrap_some())
+    return rational.mk((numerator, denominator))
+
+
+def from_digit(d):
+    """Convert a digit to its string representation.
+
+    Parameters:
+      d (sp.int): An integer value in the range `0` to `9`.
+
+    Returns:
+      sp.string: The string representation of the digit.
+
+    Examples:
+      import smartpy.stdlib.string_utils as string_utils
+      string_utils.from_digit(0) == "0"
+      string_utils.from_digit(1) == "1"
+      string_utils.from_digit(2) == "2"
+      string_utils.from_digit(3) == "3"
+      string_utils.from_digit(4) == "4"
+      string_utils.from_digit(5) == "5"
+    """
+    chars = {
+        0: "0",
+        1: "1",
+        2: "2",
+        3: "3",
+        4: "4",
+        5: "5",
+        6: "6",
+        7: "7",
+        8: "8",
+        9: "9",
+    }
+    sp.cast(d, sp.int)
+    assert d >= 0 and d < 10
+    return chars[d]
+
+
+def from_int(n):
+    """Convert an integer value to its string representation.
+
+    Parameters:
+      n (sp.int): Any valid integer value.
+
+    Returns:
+      sp.string: The string representation of the integer.
+
+    Examples:
+      import smartpy.stdlib.string_utils as string_utils
+      string_utils.from_int(1) == "1"
+      string_utils.from_int(2) == "2"
+      string_utils.from_int(3) == "3"
+      string_utils.from_int(123) == "123"
+      string_utils.from_int(-123) == "-123"
+    """
+    positive = n >= 0
+    sp.cast(n, sp.int)
+    v = sp.to_int(abs(n))
+    arr = []
+    while v > 0:
+        (q, r) = sp.ediv(v, 10).unwrap_some()
+        arr.push(from_digit(sp.to_int(r)))
+        v = q
+    res = sp.concat(arr)
+    return res if positive else "-" + res
+
+
+def from_rational(r):
+    """Convert a rational number to its string representation.
+
+    Parameters:
+      r (record[numerator sp.int, denominator sp.nat]): A rational number.
+
+    Returns:
+      sp.string: A string representation of the rational number.
+
+    Examples:
+      import smartpy.stdlib.string_utils as string_utils
+      string_utils.from_rational(rational.mk((4, 3))) == "4/3"
+      string_utils.from_rational(rational.mk((-4, 3))) == "-4/3"
+      string_utils.from_rational(rational.mk((2, 6))) == "1/3"
+    """
+    record(numerator=n, denominator=d).match = sp.cast(
+        r, sp.record(numerator=sp.int, denominator=sp.nat)
+    )
+    arr = [from_int(n), "/", from_int(sp.to_int(d))]
+    return sp.concat(arr)
+
+
+def from_fixed_point(fixed):
+    """Convert a fixed point number to its string representation.
+
+    Parameters:
+      fixed (record[value sp.int, exponent sp.int]): A fixed point number.
+
+    Returns:
+      sp.string: The string representation of the fixed point number.
+
+    Examples:
+      import smartpy.stdlib.string_utils as string_utils
+      string_utils.from_fixed_point(fp.mk((123, 2))) == "1.23"
+    """
+    record(value=v, exponent=e).match = sp.cast(
+        fixed, sp.record(value=sp.int, exponent=sp.int)
+    )
+    temp = from_int(v)
+    length = sp.to_int(sp.len(temp))
+    sep = length - e
+    res = ""
+    if sep <= 0:
+        res = sp.concat(["0", ".", temp])
+    else:
+        res = sp.concat(
+            [
+                sp.slice(0, sp.as_nat(sep), temp).unwrap_some(),
+                ".",
+                sp.slice(sp.as_nat(sep), sp.as_nat(length - sep), temp).unwrap_some(),
+            ]
+        )
+    return res

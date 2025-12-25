@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+[ "$#" -lt 2 ] && { echo "Usage: $0 <docker image> <command> ..."; exit 1; }
+docker_image="$1"
+command="$2"
+shift 2
+
+wd=$(pwd)
+uid=$(id -u)
+gid=$(id -g)
+
+mountpoints=()
+
+function add_mountpoint() {
+    local d=$(realpath "$1")
+    set +u # work around for old bash version (default on macOS)
+    for x in "${mountpoints[@]}"
+    do
+        [ "$x" == "$d" ] && return
+    done
+    set -u
+    mountpoints+=("$d")
+}
+
+add_mountpoint "$wd"
+
+function run_docker() {
+    args=()
+    for d in "${mountpoints[@]}"
+    do
+        local d=$(echo "$d" | sed 's/"/""/g')
+        args+=(--mount type=bind,\"source="$d"\",\"target="$d"\")
+    done
+    docker run -i --init --rm --user "$uid":"$gid" "${args[@]}" -w "$wd" "$docker_image" "$@"
+}
+
+function check_args() {
+    script="$1"
+    output="$2"
+
+    [ -f "$script" ] || { echo "File $script does not exist (or is not a file)." ; exit 1; }
+    mkdir -p "$output"
+
+    add_mountpoint "$script"
+    mkdir -p $(dirname "$output")
+    add_mountpoint "$output"
+}
+
+which docker &> /dev/null || { echo 'SmartPy requires docker: https://docs.docker.com/get-docker/' ; exit 1; }
+
+case $command in
+    "oasis")
+        run_docker /smartpy/smartpy-oasis.exe "$@"
+        ;;
+
+    "canopy")
+        run_docker /smartpy/smartpy-canopy.exe "$@"
+        ;;
+
+    *)
+        echo Unknown command: "$command"
+        exit 1
+esac

@@ -1,0 +1,43 @@
+import smartpy as sp
+
+import smartpy.templates.threefry as r
+
+t_input: type = sp.record(seed=r.four_digit, ctr=r.four_digit)
+t_output: type = r.four_digit
+
+
+class Rng(sp.Contract):
+    def __init__(self, rng_contract):
+        """
+        rng_contract has to have an onchain_view called 'rand'
+        rand : t_input -> t_output
+        """
+        self.data.rng = rng_contract
+        self.data.tickets = sp.cast(
+            sp.big_map(), sp.big_map[sp.nat, sp.ticket[t_input]]
+        )
+
+    @sp.entrypoint
+    def add_ticket(self, param):
+        (key, ticket) = param
+        with sp.modify_record(self.data) as data:
+            data.tickets[key] = ticket
+
+    @sp.entrypoint
+    def send_ticket(self, key, receiver):
+        with sp.modify_record(self.data) as data:
+            c = sp.contract(sp.ticket[t_output], receiver).unwrap_some()
+            (option_ticket, tickets) = sp.get_and_update(key, None, data.tickets)
+            match option_ticket:
+                case Some(ticket):
+                    (tdata, _) = sp.read_ticket(ticket)
+                    o = sp.view(
+                        "rand",
+                        data.rng,
+                        sp.record(seed=tdata.contents.seed, ctr=tdata.contents.ctr),
+                        t_output,
+                    ).unwrap_some()
+                    sp.transfer(sp.ticket(o, 1), sp.tez(0), c)
+                case None:
+                    raise "Ticket not in map"
+            data.tickets = tickets

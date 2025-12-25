@@ -1,0 +1,148 @@
+import smartpy as sp
+
+
+def mk(fp):
+    """Create a decimal fixed-point number.
+
+    Parameters:
+      fp (sp.pair[sp.int, sp.int]): A tuple of int values `(v, e)`, where `v` stands for the decimal number representation and `e` is the scale factor.
+
+    Returns:
+      sp.record[value sp.int, exponent sp.int]: A record representing a number in the fixed-point representation.
+    """
+    (v, e) = sp.cast(fp, sp.pair[sp.int, sp.int])
+    return sp.record(value=v, exponent=e)
+
+
+def unpack(values):
+    r1 = sp.fst(values)
+    r2 = sp.snd(values)
+    v1 = r1.value
+    e1 = r1.exponent
+    v2 = r2.value
+    e2 = r2.exponent
+    return (v1, e1, v2, e2)
+
+
+def add(values):
+    """Add two fixed point numbers.
+
+    Parameters:
+      values (sp.pair[fp, fp]): A pair of fixed-point values. A fixed-point value is a `sp.record[value: sp.int, exponent: sp.int]`.
+
+    Returns:
+      sp.record[value sp.int, exponent sp.int]: the result of adding two fixed-point numbers.
+
+    Examples:
+        import smartpy.fixed_point as fp
+        v1 = fp.mk((123, 2))
+        v2 = fp.mk((245, 2))
+        assert fp.add((v1, v2)) == sp.record(value=sp.int(368), exponent=2)
+    """
+    (v1, e1, v2, e2) = unpack(values)
+    assert e1 == e2
+    return mk((v1 + v2, e1))
+
+
+def sub(values):
+    """Subtract two fixed point numbers.
+
+    Parameters:
+      values (sp.pair[fp, fp]): A pair of fixed-point values. A fixed-point value is a `sp.record[value: sp.int, exponent: sp.int]`
+
+    Returns:
+      sp.record[value sp.int, exponent sp.int]: the result of subtracting two fixed-point numbers.
+
+    Examples:
+        import smartpy.fixed_point as fp
+        v1 = fp.mk((245, 2))
+        v2 = fp.mk((123, 2))
+        fp.sub((v1, v2)) == sp.record(value=sp.int(122), exponent=2)
+    """
+    (v1, e1, v2, e2) = unpack(values)
+    assert e1 == e2
+    return mk((v1 - v2, e1))
+
+
+def mul(values):
+    """Multiply two fixed point numbers.
+
+    Parameters:
+      values (sp.pair[fp, fp]): A pair of fixed-point values. A fixed-point value is a `sp.record[value: sp.int, exponent: sp.int]`
+
+    Returns:
+      sp.record[value sp.int, exponent sp.int]: the result of multiplying two fixed-point numbers.
+
+    Examples:
+        import smartpy.fixed_point as fp
+        v1 = fp.mk((123, 3))
+        v2 = fp.mk((25, 1))
+        fp.mul((v1, v2)) == sp.record(value=sp.int(3075), exponent=4)
+    """
+    (v1, e1, v2, e2) = unpack(values)
+    return mk((v1 * v2, e1 + e2))
+
+
+def eq(values):
+    """Check if two fixed point numbers are equal.
+
+    Parameters:
+      values (sp.pair[fp, fp]): A pair of fixed-point values. A fixed-point value is a `sp.record[value: sp.int, exponent: sp.int]`.
+
+    Returns:
+      sp.bool: True if both fixed point numbers are equal.
+    """
+    record(value=v, exponent=e).match = sub(values)
+    return v == 0
+
+
+def lt(values):
+    """Check if a fixed point value (v1) is less than another fixed point value (v2).
+
+    Parameters:
+      values (sp.pair[fp, fp]): A pair of fixed-point values (v1, v2). A fixed-point value is a `sp.record[value: sp.int, exponent: sp.int]`.
+
+    Returns:
+      sp.bool: True if v1 is less than v2.
+    """
+    record(value=v, exponent=e).match = sub(values)
+    return v < 0
+
+
+def gt(values):
+    """Check if a fixed point value (v1) is greater than another fixed point value (v2).
+
+    Parameters:
+      values (sp.pair[fp, fp]): A pair of fixed-point values (v1, v2). A fixed-point value is a `sp.record[value: sp.int, exponent: sp.int]`.
+
+    Returns:
+      sp.bool: True if v1 is greater than v2.
+    """
+    record(value=v, exponent=e).match = sub(values)
+    return v > 0
+
+
+def leq(values):
+    """Check if a fixed point value (v1) is less than (or equal to) another fixed point value (v2).
+
+    Parameters:
+      values (sp.pair[fp, fp]): A pair of fixed-point values (v1, v2). A fixed-point value is a `sp.record[value: sp.int, exponent: sp.int]`.
+
+    Returns:
+      sp.bool: True if v1 is less than or equal to v2.
+    """
+    record(value=v, exponent=e).match = sub(values)
+    return v <= 0
+
+
+def geq(values):
+    """Check if a fixed point value (v1) is greater than (or equal to) another fixed point value (v2).
+
+    Parameters:
+      values (sp.pair[fp, fp]): A pair of fixed-point values (v1, v2). A fixed-point value is a `sp.record[value: sp.int, exponent: sp.int]`.
+
+    Returns:
+      sp.bool: True if v1 is greater than or equal to v2.
+    """
+    record(value=v, exponent=e).match = sub(values)
+    return v >= 0
