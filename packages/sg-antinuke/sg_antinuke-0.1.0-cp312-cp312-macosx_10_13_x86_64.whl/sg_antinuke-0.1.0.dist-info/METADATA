@@ -1,0 +1,114 @@
+Metadata-Version: 2.4
+Name: sg-antinuke
+Version: 0.1.0
+Summary: Reusable Anti-Nuke Discord cog from SassGuard
+Author-email: techcodes27 <sassguard@sassguard.app>
+License: Proprietary
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: Other/Proprietary License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: discord.py>=2.3
+Requires-Dist: aiohttp
+Requires-Dist: aiofiles
+Provides-Extra: redis
+Requires-Dist: redis>=5.0; extra == "redis"
+
+sg-antinuke
+Reusable SassGuard's Anti‑Nuke cog you can plug into any discord.py bot to detect and mitigate server nukes (malicious mass actions) with optional Redis-backed caching.
+
+Install
+- Local dev: `pip install -e .`
+- From PyPI (after publish): `pip install sg-antinuke`
+- Optional Redis support: `pip install sg-antinuke[redis]` and set `REDIS_URL`.
+- Requires Python 3.10+
+
+Quick Start
+- Load as extension:
+  ```py
+  bot.load_extension('sg_antinuke')
+  ```
+- Or add programmatically:
+  ```py
+  from sg_antinuke import AntiNuke
+
+  async def setup_hook():
+      await bot.add_cog(AntiNuke(bot))
+  bot.setup_hook = setup_hook
+  ```
+
+Minimal Bot Example
+```py
+import os
+import discord
+from discord.ext import commands
+
+intents = discord.Intents.default()
+intents.guilds = True
+intents.members = True
+intents.bans = True
+intents.message_content = False
+
+bot = commands.Bot(command_prefix='!', intents=intents)
+
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}")
+
+async def setup_hook():
+    bot.load_extension('sg_antinuke')  # or await bot.add_cog(AntiNuke(bot))
+bot.setup_hook = setup_hook
+
+bot.run(os.environ['DISCORD_TOKEN'])
+```
+
+Configuration & Storage
+- By default, the cog stores data under `./sg_antinuke_data/` with subfolders:
+  - `config/` per‑guild config files like `<guild_id>_config.json`
+  - `backups/` periodic guild structure backups
+  - `cache/` transient caches
+- Override base directory via env var:
+  - `SG_ANTINUKE_DIR=/absolute/or/relative/path`
+
+Optional Redis Caching
+- Install extra: `pip install sg-antinuke[redis]`
+- Set environment variable: `REDIS_URL=redis://localhost:6379/0`
+- If available, Redis is used for:
+  - Guild config caching
+  - Recent messages cache per channel
+  - Tracking flagged/malicious users
+- If `REDIS_URL` is not set or redis is not installed, features gracefully degrade to in‑process storage.
+
+Environment Variables
+- `SG_ANTINUKE_DIR`: Base folder for configs/backups/cache (default: `./sg_antinuke_data`)
+- `REDIS_URL`: Optional Redis connection (e.g., `redis://localhost:6379/0`)
+
+Bot Permissions & Intents
+- Intents: enable `guilds`, `members`, `bans` (and any others your bot requires).
+- Permissions: to mitigate attacks, the bot typically needs Manage Channels/Roles, Kick/Ban Members, and Manage Webhooks where appropriate.
+
+Commands (high‑level)
+- The cog exposes an `antinuke` command group with subcommands to enable/disable, configure thresholds, and manage whitelists. Typical flows:
+  - `antinuke enable` / `antinuke disable`
+  - `antinuke whitelist add @user` / `antinuke whitelist remove @user` / `antinuke whitelist list`
+  - `antinuke settings` (view current config)
+  - `antinuke thresholds` (view/edit detection thresholds)
+  - Log channel and quarantine role setters (if supported by your command prefix and permissions)
+
+Logging
+- Uses logger name `sg_antinuke` with a `NullHandler` by default (won’t create files automatically).
+- To capture logs, configure logging in your bot:
+  ```py
+  import logging
+  logger = logging.getLogger('sg_antinuke')
+  logger.setLevel(logging.INFO)
+  handler = logging.StreamHandler()
+  formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
+  handler.setFormatter(formatter)
+  logger.addHandler(handler)
+  ```
+
+Notes
+- No hardcoded App ID; the cog uses the running bot’s user ID when present.
+- Data paths and Redis are fully optional and configurable via env vars.
