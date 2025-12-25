@@ -1,0 +1,8 @@
+set(PLUMED_RUNTIME_LOAD  "/project/src/plumed/_lib/lib/libplumedWrapper.a" -ldl  )
+set(PLUMED_STATIC_LOAD  "/project/src/plumed/_lib/lib/libplumed.a" -ldl  -lstdc++ -lz -ldl  -Wl,-rpath,RIGIN/../lib -rdynamic -Wl,-Bsymbolic -fopenmp )
+set(PLUMED_SHARED_LOAD  "/project/src/plumed/_lib/lib/libplumed.so" -ldl  )
+set(PLUMED_RUNTIME_DEPENDENCIES )
+set(PLUMED_STATIC_DEPENDENCIES  "/project/src/plumed/_lib/lib/libplumed.a")
+set(PLUMED_SHARED_DEPENDENCIES  "/project/src/plumed/_lib/lib/libplumed.so")
+set(PLUMED_FORTRAN  "/project/src/plumed/_lib/lib/plumed/fortran/plumed.f90")
+set(PLUMED_FORTRAN08  "/project/src/plumed/_lib/lib/plumed/fortran/plumed_f08.f90")
