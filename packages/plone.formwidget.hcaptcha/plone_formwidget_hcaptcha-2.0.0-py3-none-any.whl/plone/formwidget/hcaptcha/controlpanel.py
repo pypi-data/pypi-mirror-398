@@ -1,0 +1,26 @@
+from plone.app.registry.browser import controlpanel
+from plone.formwidget.hcaptcha.i18n import _
+from plone.formwidget.hcaptcha.interfaces import IHCaptchaSettings
+
+
+class HCaptchaSettingsEditForm(controlpanel.RegistryEditForm):
+    schema = IHCaptchaSettings
+    label = _("HCaptcha settings")
+    description = _(
+        "In order to use HCaptcha on your Plone site, go to"
+        " https://www.hcaptcha.com/ to create an account and to receive your"
+        " private/secret and public/site key. Then configure them at"
+        " https://host/path/to/site/@@hcaptcha-settings. If you don't want to"
+        " rely on an external service for captcha, you might want to consider"
+        " using plone.formwidget.captcha instead."
+    )
+
+    def updateFields(self):
+        super(HCaptchaSettingsEditForm, self).updateFields()
+
+    def updateWidgets(self):
+        super(HCaptchaSettingsEditForm, self).updateWidgets()
+
+
+class HCaptchaSettingsControlPanel(controlpanel.ControlPanelFormWrapper):
+    form = HCaptchaSettingsEditForm
