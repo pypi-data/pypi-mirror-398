@@ -1,0 +1,224 @@
+# EOxElements Jupyter
+
+A Python wrapper for using [EOxElements web components](https://github.com/EOX-A/EOxElements/) inside Jupyter Notebooks. 
+
+Built on top of [anywidget](https://anywidget.dev/), this package provides a Pythonic API to visualize Earth Observation data using modern web standards (Custom Elements) directly in your notebook.
+
+**Useful Links:**
+- **Demos & Docs:** [EOxElements Documentation](https://eox-a.github.io/EOxElements/)
+- **Source:** [GitHub Repository](https://github.com/EOX-A/EOxElements/)
+
+## Features
+- **Simple Python API:** CamelCase Python classes (e.g., `EOxMap`) map automatically to kebab-case HTML tags (`<eox-map>`).
+- **Auto-generated:** Wrappers are generated from the official `custom-elements.json` manifest, ensuring API parity.
+- **Version Pinning:** Manage specific versions of the underlying JavaScript libraries via a simple configuration file.
+- **Jupyter Integration:** Works in JupyterLab, Jupyter Notebook, and VS Code.
+
+## Installation
+
+You can install the package via pip:
+
+```bash
+pip install ipyeoxelements
+```
+
+### Installing inside JupyterLab / Notebook
+
+If you are already running a notebook, you can install the package directly from a code cell. Using `%pip` ensures it installs into the correct environment (kernel):
+
+```python
+%pip install ipyeoxelements
+```
+
+> **⚠️ Important:** After installing, you must **restart the Jupyter Kernel** (Menu -\> Kernel -\> Restart Kernel) for the widget extension to be loaded correctly.
+
+
+## Usage
+
+For a comprehensive walkthrough, check out [**examples.ipynb**](https://www.google.com/search?q=./examples.ipynb) included in this repository.
+
+### 1\. Map (`EOxMap`)
+
+Define layers using Python lists and dictionaries.
+
+```python
+from ipyeoxelements import EOxMap
+
+map_layers = [
+    {
+        "type": "STAC",
+        "properties": {
+          "id": "stacLayer",
+        },
+        "url": "https://s3.us-west-2.amazonaws.com/sentinel-cogs/sentinel-s2-l2a-cogs/10/T/ES/2022/7/S2A_10TES_20220726_0_L2A/S2A_10TES_20220726_0_L2A.json",
+    },
+    {
+        "type": "Tile",
+        "properties": {"id": "osm", "title": "OSM"},
+        "source": {"type": "OSM"},
+    }
+]
+
+map = EOxMap(
+    layers=map_layers, 
+    zoom=7, 
+    center=[-122, 46.5], 
+    layout={"height": "400px"}
+)
+
+display(map)
+```
+
+### 2\. Chart (`EOxChart`)
+
+Pass a [Vega-Lite](https://vega.github.io/vega-lite/) specification dictionary directly to the widget.
+
+```python
+from ipyeoxelements import EOxChart
+
+spec_data = {
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "description": "A simple bar chart with embedded data.",
+    "data": {
+        "values": [
+            {"a": "A", "b": 28}, {"a": "B", "b": 55}, {"a": "C", "b": 43},
+            {"a": "D", "b": 91}, {"a": "E", "b": 81}, {"a": "F", "b": 53},
+            {"a": "G", "b": 19}, {"a": "H", "b": 87}, {"a": "I", "b": 52},
+        ],
+    },
+    "mark": {"type": "bar", "tooltip": True, "fill": "#004170"},
+    "encoding": {
+        "x": {"field": "a", "type": "ordinal"},
+        "y": {"field": "b", "type": "quantitative"},
+    },
+}
+
+my_chart = EOxChart(
+    spec=spec_data,
+    layout={"height": "400px"}
+)
+
+display(my_chart)
+```
+
+### 3\. Advanced Layout (`EOxMap` + `EOxLayercontrol`)
+
+To combine widgets, use standard [ipywidgets](https://ipywidgets.readthedocs.io/en/stable/) layout containers like `HBox` or `VBox`.
+
+**Important:** You must link the Layer Control to the Map using the map's `id` and the controller's `for_` argument.
+
+```python
+from ipywidgets import HBox, Layout
+from ipyeoxelements import EOxMap, EOxLayercontrol
+
+MAP_ID = "my-unique-map-id"
+
+# 1. Create Map
+my_map = EOxMap(
+    id=MAP_ID,
+    layers=[{"type": "Tile", "source": {"type": "OSM"}}],
+    center=[16, 48],
+    zoom=5,
+    layout=Layout(flex="2", height="400px") # Take up 2/3 width
+)
+
+# 2. Create Control linked to Map
+control = EOxLayercontrol(
+    for_=f"#{MAP_ID}", # Must match the Map ID selector
+    tools=["config"],
+    layout=Layout(flex="1", height="400px", overflow="auto") # Take up 1/3 width
+)
+
+# 3. Display side-by-side
+display(HBox([my_map, control]))
+```
+
+### 4. Overriding Versions
+
+You can override the default version of an element (defined in `elements_config.json`) by passing the `version` argument during initialization.
+
+```python
+from ipyeoxelements import EOxMap
+
+# Load a specific version of the map component
+# Note: This must be done before the element is loaded in the browser for the first time,
+# or requires a page refresh if a different version was already loaded.
+custom_map = EOxMap(
+    version="2.1.0-dev.1",
+    layers=[{"type": "Tile", "source": {"type": "OSM"}}],
+    layout={"height": "400px"}
+)
+
+display(custom_map)
+```
+
+## Local Development
+
+This package uses a **Code Generator** (`generate.py`) to create the Python wrappers based on a configuration file (`elements_config.json`).
+
+### 1\. Configuration
+
+To add new elements, update versions, or add dependencies, edit `elements_config.json`:
+
+```json
+{
+  "eox-map": {
+    "version": "latest",
+    "dependencies": [],
+    "extra_imports": ["dist/eox-map-advanced-layers-and-sources.js"]
+  }
+}
+```
+
+Then run the generator to update `ipyeoxelements/generated.py`:
+
+```bash
+python generate.py
+```
+
+### 2\. Development Environment
+
+To develop locally, it is recommended to install with the `[dev]` extra dependencies. This ensures build tools (like `requests` for the generator) and runtime dependencies (like `anywidget`) are installed correctly.
+
+#### Option A: Jupyter inside Docker (Recommended)
+
+This ensures a clean environment isolated from your system Python.
+
+1.  **Run Jupyter** mounting your current directory to `/home/jovyan/work`:
+    ```bash
+    docker run -p 8888:8888 -v "$(pwd):/home/jovyan/work" jupyter/base-notebook
+    ```
+2.  Open the link printed in the terminal to access JupyterLab.
+3.  Open a **Terminal** inside JupyterLab.
+4.  Navigate to the work folder:
+    ```bash
+    cd work
+    ```
+5.  Install the package in **Editable Mode** with dev dependencies:
+    ```bash
+    pip install -e ".[dev]" --break-system-packages
+    ```
+    *(Note: `--break-system-packages` is safe here as it is a disposable container).*
+6.  Open `examples.ipynb` and run the cells. If you make changes to `generate.py`, run it, then **Restart the Kernel** to see changes.
+
+#### Option B: VS Code
+
+You can develop locally using VS Code's native Jupyter support.
+
+1.  Create a virtual environment:
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate
+    ```
+2.  Install dependencies and the package in editable mode:
+    ```bash
+    pip install -e ".[dev]"
+    pip install ipykernel
+    ```
+3.  Open `examples.ipynb` in VS Code.
+4.  Click **Select Kernel** (top right) -\> **Python Environments** -\> Select your `.venv`.
+5.  Run the cells.
+
+## License
+
+MIT
