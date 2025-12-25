@@ -1,0 +1,67 @@
+name: "Structured Output Example"
+description: "Example workflow demonstrating structured output configuration"
+version: "1.0"
+agent_framework: "pydantic-ai"
+
+data:
+  - name: user_profile
+    type: dict
+    description: "User profile with structured data"
+  - name: confirmation
+    type: text
+    description: "Confirmation message"
+
+steps:
+  - id: collect_profile
+    action: collect_input_with_agent
+    field: user_profile
+    retry_limit: 3
+    validator: "validator.validate_output"
+    agent:
+      name: "ProfileCollector"
+      model: "gpt-4o-mini"
+      description: "Collect user profile information"
+      initial_message: "Please tell me about yourself - your name, age, and email."
+      instructions: |
+        Your goal is to collect the user's profile information including their name, age, and email.
+        
+        Ask the user for their information and extract it into the structured format.
+        The response will be automatically structured with the following fields:
+        - name: The user's full name
+        - age: The user's age as a number
+        - email: The user's email address
+        
+        if any of the information is available use the bot_response field to request the user for providing the missing information.
+        
+        or if the user is asking any question about the the required fields, then also use the bot_response field to answer the query.
+
+      structured_output:
+        enabled: true
+        fields:
+          - name: name
+            type: text
+            description: "User's full name"
+            required: true
+          - name: age
+            type: number
+            description: "User's age"
+            required: true
+          - name: email
+            type: text
+            description: "User's email address"
+            required: true
+    transitions:
+      - match: 27
+        next: end_success
+        ref: age
+
+  - id: print_info
+    action: call_function
+    function: "greeting_functions.print_user_info"
+    output: confirmation
+    next: end_success
+
+outcomes:
+  - id: end_success
+    type: success
+    message: "Profile collected successfully: {user_profile}"
