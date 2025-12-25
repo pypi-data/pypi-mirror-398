@@ -1,0 +1,135 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+
+  coverage-24:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python_version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python_version }}
+          cache: 'pip' # caching pip dependencies
+      - name: python package installation
+        run: |
+          pip install -e.[dev]
+      - run: coverage run -m pytest
+      - run: coverage report
+
+  mypy-24:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python_version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python_version }}
+          cache: 'pip' # caching pip dependencies
+      - name: python package installation
+        run: |
+          pip install -e.[dev]
+      - run: mypy yanico/ --install-types
+
+  pylint-24:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python_version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python_version }}
+          cache: 'pip' # caching pip dependencies
+      - name: python package installation
+        run: |
+          pip install -e.[dev]
+      - run: pylint setup.py tests/ yanico/
+
+  rst2html5-24:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python_version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python_version }}
+          cache: 'pip' # caching pip dependencies
+      - name: python package installation
+        run: |
+          pip install -e.[dev]
+      - run: rst2html5 --strict README.rst >/dev/null
+
+  black-24:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python_version:
+          - "3.14"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python_version }}
+          cache: 'pip' # caching pip dependencies
+      - name: python package installation
+        run: |
+          pip install -e.[dev]
+      - run: black .
+
+  build-24:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python_version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python_version }}
+          cache: 'pip' # caching pip dependencies
+      - name: python package installation
+        run: |
+          pip install -e.
+          pip install build
+      - run: python -m build
