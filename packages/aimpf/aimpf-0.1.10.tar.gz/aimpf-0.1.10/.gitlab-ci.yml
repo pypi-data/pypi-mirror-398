@@ -1,0 +1,50 @@
+stages:
+  - test
+  - build
+  - publish
+
+test:
+  stage: test
+  image: python:3.12
+  services:
+    - name: eclipse-mosquitto:2
+      alias: localhost
+      command: ["mosquitto", "-c", "/mosquitto-no-auth.conf"]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_TAG
+      allow_failure: true
+  script:
+    - pip install -e ".[testing]"
+    # Skip tests that require external services (mqtt dispatcher needs real infra)
+    - pytest --cov aimpf --cov-report term-missing --ignore=tests/test_mqtt_dispatcher/
+
+build:
+  stage: build
+  image: python:3.12
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: always
+  script:
+    - git fetch --tags
+    - pip install --upgrade build
+    - python -m build
+  artifacts:
+    paths:
+      - dist/
+
+publish:
+  stage: publish
+  image: python:3.12
+  dependencies:
+    - build
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual
+      allow_failure: false
+  id_tokens:
+    PYPI_ID_TOKEN:
+      aud: pypi
+  script:
+    - pip install --upgrade twine
+    - twine upload dist/*
