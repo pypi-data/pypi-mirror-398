@@ -1,0 +1,251 @@
+// Copyright 2025 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//      https://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+
+syntax = "proto3";
+
+package safari_sdk.ui;
+
+// Frames and Parts.
+//
+// A frame is a mechanism for describing the position and orientation of
+// something.
+//
+// NOTE: Most frames correspond to a part in the Parts message (above).  The
+// exceptions are ODOM and MAP.  robot_state_test.cc helps ensure this.
+//
+// Each frame defines a 3D coordinate system (origin and 3 basis vectors) which
+// is "attached" to an object.  As the object moves and rotates, the frame moves
+// and rotates with the object.  This allows us to describe the position and
+// orientation of an object by describing the position and orientation of the
+// frame attached to that object.  The position and orientation of a frame can
+// be described with respect to another frame using a Transform (see Transform
+// below).
+//
+// A robot is a collection of parts.  Every part has a frame associated with it.
+// Most frames have a part associated with it (but some do not - see ODOM
+// below).
+//
+// The Frame.Enum is used to identify a frame, and also used to identify a part
+// attached to that frame.
+//
+// The "ODOM" frame is an inertial frame.
+// See "BASE, ODOM, MAP Note" below for what this means.
+//
+// The "MAP" frame is a non-inertial frame attached to the world.
+// See "BASE, ODOM, MAP Note" below for what this means.
+//
+// The "BASE" frame is a frame attached to the base part of the robot.
+//
+// BASE, ODOM, MAP Note
+// --------------------
+// In a non-mobile robot (e.g. an arm attached to a table) BASE, ODOM, and MAP
+// are equivalent.
+// In a mobile robot, the robot ideally knows exactly where it is, and if this
+// were true, MAP and ODOM would be the same thing.  However, the robot does
+// not always know where it is, and sometimes its opinion of where it is in
+// the world can suddenty change (when the localization code realizes the
+// robot is in a different position/orientation than it previously thought).
+// This can cause a "jump" in the map_transform_robot transform as the localizer
+// updates the location of the robot wrt the MAP (i.e. the world) frame,
+// However, the ODOM frame is an inertial frame and odom_transform_robot never
+// "jumps" (unless the robot actually physically jumps).  Therefore, when
+// map_transform_robot jumps, map_transform_odom also jumps.  These
+// map_transform_odom jumps mean that, over time, the ODOM frame "drifts" with
+// respect to the MAP (aka world) frame. You can always measure the robot's
+// velocity (or acceleration) wrt ODOM and get a value which matches the robot's
+// sensor-based understanding of how it is moving.  But since ODOM may drift
+// (position and orientation changes over time with respect to MAP) the absolute
+// pose of the robot wrt ODOM is not verty meaningful.  OTOH the absolute pose
+// of the robot wrt MAP is meaningful e.g., if the robot is trying to achieve
+// some pose wrt an object in the map (i.e. an object with a known position in
+// the world).
+message Frame {
+  // An enum used to identify Frames and Parts.
+  enum Enum {
+    // Not used.
+    ENUM_UNSPECIFIED = 0;
+
+    // The "ODOM" frame is an inertial frame.
+    // See "BASE, ODOM, MAP Note" above for what this means.
+    ODOM = 1;
+
+    // The "MAP" frame is a non-inertial frame attached to the world.
+    // See "BASE, ODOM, MAP Note" above for what this means.
+    MAP = 2;
+
+    // The "BASE" frame is a frame attached to the base of the robot.
+    //  x points forward.
+    //  y points left.
+    //  z points up when the robot is upright.
+    BASE = 4;
+
+    // The "RIGHT_ARM" frame is attached to the last link of the right (or only)
+    // arm of a robot.  The frame is robot dependent, but is generally the
+    // attachment point for a gripper which is usually defined by the
+    // manufacturer of the arm.
+    RIGHT_ARM = 5;
+
+    // The "LEFT_ARM" frame is attached to the last link of the left arm of a 2+
+    // arm robot.  The frame is robot dependent, but is generally the attachment
+    // point for a gripper which is usually defined by the manufacturer of the
+    // arm.
+    LEFT_ARM = 6;
+
+    // The RIGHT_GRIPPER frame is coincident with the RIGHT_ARM frame.
+    //
+    // The RIGHT_GRIPPER frame is the same as the RIGHT_GRIPPER_THUMB frame when
+    // the fingers are in the nominal "closed  configuration".  See the
+    // RIGHT_GRIPPER_THUMB comment for details.
+    RIGHT_GRIPPER = 7;
+    // The LEFT_GRIPPER frame is coincident with the LEFT_ARM frame.
+    //
+    // The LEFT_GRIPPER frame is the same as the RIGHT_GRIPPER_THUMB frame when
+    // the fingers are in the nominal "closed  configuration".  See the
+    // RIGHT_GRIPPER_THUMB comment for details.
+    LEFT_GRIPPER = 8;
+
+    // The first finger (thumb) on the right gripper.
+    //
+    // The frame of each fingertip is defined using the nominal "closed
+    // configuration" of the gripper.  If there is no nominal "closed
+    // configuration" then use a configuration where the fingertips are all
+    // touching each other (or as close to touching as possible), the average of
+    // the fingertip positions is centered on the palm of the gripper, and the
+    // fingertips are half way between the minimum and maximum possible distance
+    // from the palm.
+    //  - The origin is on the surface of the fingertip at the center of the
+    //      main point of contact of the finger when the fingers are in their
+    //      nominal closed configuration.  If the finger touches multiple other
+    //      fingers in this pose, then use the center of contact with the most
+    //      opposed finger, or the average center of contact.  If the finger
+    //      does not touch any other fingers then use the center of its nominal
+    //      gripping area, or the point on the surface of the fingertip closest
+    //      to the other finger contact points.
+    //  - X is the normal vector of the surface of the fingertip at the origin.
+    //  - Z points from the origin up past the tip of the finger (or as close as
+    //       possible while still being orthogonal to X).
+    //
+    //                   ^ Z                      ^ Z
+    //                   |                        |
+    //                   |   X points into page   |
+    //               _ _ |                        | _ _
+    //        Y <---|-|-|+|   _         Y <------|+| | |_
+    //            | | | | | / /              \ \ | | | | |
+    //            | | | | |/ /                \ \| | | | |
+    //            \         /                  \         /
+    //             \       /                    \       /
+    //              \     /                      \     /
+    //    LEFT_GRIPPER_INDEX_FINGER     RIGHT_GRIPPER_INDEX_FINGER
+    //
+    // Right thumb state.
+    RIGHT_GRIPPER_THUMB = 9;
+    // The 2nd finger (index finger) on the right_gripper.
+    RIGHT_GRIPPER_INDEX_FINGER = 10;
+    // The 3rd finger (middle finger) on the right_gripper.
+    RIGHT_GRIPPER_MIDDLE_FINGER = 11;
+    // The 4th finger (ring finger) on the right_gripper.
+    RIGHT_GRIPPER_RING_FINGER = 12;
+    // The 5th finger (pinkie finger) on the right_gripper.
+    RIGHT_GRIPPER_PINKIE_FINGER = 13;
+    // The first finger (thumb) on the left_gripper.
+    LEFT_GRIPPER_THUMB = 14;
+    // The 2nd finger (index finger) on the left_gripper.
+    LEFT_GRIPPER_INDEX_FINGER = 15;
+    // The 3rd finger (middle finger) on the left_gripper.
+    LEFT_GRIPPER_MIDDLE_FINGER = 16;
+    // The 4th finger (ring finger) on the left_gripper.
+    LEFT_GRIPPER_RING_FINGER = 17;
+    // The 5th finger (pinkie finger) on the left_gripper.
+    LEFT_GRIPPER_PINKIE_FINGER = 18;
+
+    // The right rear wheel.
+    //
+    // Wheel notes:
+    //  - A one-wheeled robot should use RIGHT_REAR_WHEEL.
+    //  - A ball robot can use RIGHT_REAR_WHEEL with 2 or more joints.
+    //  - A two wheel robot (side bv side) should use RIGHT_REAR_WHEEL and
+    //      LEFT_REAR_WHEEL.
+    //  - A two wheel robot (inline) should use RIGHT_REAR_WHEEL and
+    //      RIGHT_FRONT_WHEEL.
+    //  - A three wheel robot should use two RIGHT wheels and one LEFT wheel.
+    //      This can be used with 3 omni-wheels.
+    //
+    // The coordinate system is
+    //  Origin at center of wheel.
+    //  Y axis points to the left of the robot along the axis of the wheel.
+    //  X starts pointing forward but rotates with the wheel.
+    //  Z starts pointing up but rotates with the wheel.
+    //
+    // Non-powered wheels are usually not included as parts.  So a 3 wheel robot
+    // where one of the wheels is a free-spinning castor wheel would be
+    // considered a 2 wheeled robot.
+    RIGHT_REAR_WHEEL = 19;
+    // The left rear wheel.  The left wheel for a 2-wheeled robot.
+    LEFT_REAR_WHEEL = 20;
+    // The right front wheel for a robot with more than 2 wheels.
+    RIGHT_FRONT_WHEEL = 21;
+    // The left front wheel for a robot with more than 2 wheels.
+    LEFT_FRONT_WHEEL = 22;
+
+    // The right rear leg.
+    //
+    // The foot coordinate system is
+    //  Origin at center of contact area of the foot.
+    //  X points forward when the robot is standing in standard pose.
+    //  Y points left when the robot is standing in standard pose.
+    //  Z points up when the robot is standing in standard pose.
+    //
+    // The right leg for a 2-legged robot.
+    // The only leg for a 1-legged robot.
+    RIGHT_REAR_LEG = 23;
+    // The left rear leg.
+    // The left leg for a 2-legged robot.
+    LEFT_REAR_LEG = 24;
+    // The right front leg for a robot with more than 2 legs.
+    RIGHT_FRONT_LEG = 25;
+    // The left front leg for a robot with more than 2 legs.
+    LEFT_FRONT_LEG = 26;
+
+    // The head of the robot.
+    //
+    // The head frame is defined as
+    //   origin is a point inside the head, centered from left to right.
+    //   X points forward when the robot head is looking forward.
+    //   Y points left when the robot head is looking forward.
+    //   Z points up when the robot head is looking forward.
+    HEAD = 27;
+
+    // The torso of the robot.
+    //
+    // The joints in a torso for a humanoid are all joints in the spine
+    // between the hips and the shoulders (i.e. NOT including the neck which
+    // is included in the head part).
+    //
+    // The legs are connected to the base, the arms are connected to the
+    // torso, and the torso joints describe how the torso moves relative to
+    // the base.
+    //
+    // The torso frame is defined as
+    //  Origin at center of most distal joint from the head joint.
+    //  X points forward when the robot is standing in standard pose.
+    //  Y points left when the robot is standing in standard pose.
+    //  Z points up when the robot is standing in standard pose.
+    TORSO = 28;
+
+    // 3 is reserved because it is used for the "world" part in PartsState, but
+    // there is no "WORLD" frame (only an ODOM frame and a MAP frame - See
+    // "BASE, ODOM, MAP Note" above).
+    reserved 3;
+  }
+}
