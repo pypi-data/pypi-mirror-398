@@ -1,0 +1,1075 @@
+"""
+Constants for csle collector
+"""
+import re
+
+LATEST_VERSION = "latest"
+INSTALL = "sudo /root/miniconda3/bin/pip install -U --no-cache-dir csle-collector "
+
+
+class DICT_PROPERTIES:
+    """
+    String constants representing dict properties
+    """
+    RUNNING = "running"
+    TOPICS = "topics"
+
+
+class HTTP:
+    """
+    Constants related to HTTP
+    """
+    HTTP_PROTOCOL_PREFIX = "http://"
+    LOCALHOST = "localhost"
+    GET = "GET"
+    PUT = "PUT"
+    POST = "POST"
+    DELETE = "DELETE"
+    APPLICATION_JSON_TYPE = "application/json"
+    OK_RESPONSE_CODE = 200
+    INTERNAL_SERVER_ERROR_RESPONSE_CODE = 500
+    BAD_REQUEST_RESPONSE_CODE = 400
+
+
+class BEATS:
+    """
+    Constants related to beats
+    """
+    RELOAD_ENABLED_PROPERTY = "reload.enabled"
+    SETUP_TEMPLATE_SETTINGS_PROPERTY = "setup.template.settings"
+    INDEX_NUM_SHARDS_PROPERTY = "index.number_of_shards"
+    SETUP_KIBANA_PROPERTY = "setup.kibana"
+    HOST_PROPERTY = "host"
+    HOSTS_PROPERTY = "hosts"
+    ELASTIC_OUTPUT_PROPERTY = "output.elasticsearch"
+    PROCESSORS_PROPERTY = "processors"
+    ADD_HOST_METADATA_PROPERTY = "add_host_metadata"
+    WHEN_NOT_CONTAIN_TAGS_PROPERTY = "when.not.contains.tags"
+    FORWARDED_PROPERTY = "forwarded"
+    MODULE_PROPERTY = "module"
+    LOG_PROPERTY = "log"
+    SYSLOG_PROPERTY = "syslog"
+    AUTH_PROPERTY = "auth"
+    SLOWLOG_PROPERTY = "slowlog"
+    AUDIT_PROPERTY = "audit"
+    SERVER_PROPERTY = "server"
+    VAR_INPUT_PROPERTY = "var.input"
+    VAR_PATHS_PROPERTY = "var.paths"
+    FILE_PROPERTY = "file"
+    TYPE_PROPERTY = "type"
+    FILESTREAM_PROPERTY = "filestream"
+    KAFKA_PROPERTY = "kafka"
+    TOPICS_PROPERTY = "topics"
+    GROUP_ID_PROPERTY = "group_id"
+    ID_PROPERTY = "id"
+    NAME_PROPERTY = "name"
+    ENABLED_PROPERTY = "enabled"
+    PATHS_PROPERTY = "paths"
+    PATH_PROPERTY = "path"
+    PERIOD_PROPERTY = "period"
+    METRICSETS_PROPERTY = "metricsets"
+
+
+class FILEBEAT:
+    """
+    Constants related to Filebeat
+    """
+    FILEBEAT_GROUP_ID = "filebeat"
+    CONFIG_DIR = "/etc/filebeat/"
+    CONFIG_FILE = "/etc/filebeat/filebeat.yml"
+    SETUP_CMD = "filebeat setup -e"
+    SNORT_MODULE = "snort"
+    ELASTICSEARCH_MODULE = "elasticsearch"
+    KIBANA_MODULE = "kibana"
+    SYSTEM_MODULE = "system"
+    KAFKA_MODULE = "kafka"
+    LOGSTASH_MODULE = "logstash"
+    ENABLE_MODULE_CMD = "filebeat modules enable {}"
+    MODULES_CONFIG_DIR = "/etc/filebeat/modules.d/"
+    SNORT_MODULE_CONFIG_FILE = "snort.yml"
+    LOGSTASH_MODULE_CONFIG_FILE = "logstash.yml"
+    KIBANA_MODULE_CONFIG_FILE = "kibana.yml"
+    SYSTEM_MODULE_CONFIG_FILE = "system.yml"
+    KAFKA_MODULE_CONFIG_FILE = "kafka.yml"
+    ELASTICSEARCH_MODULE_CONFIG_FILE = "elasticsearch.yml"
+    INPUTS_PROPERTY = "filebeat.inputs"
+    MODULES_PROPERTY = "filebeat.config.modules"
+    FILEBEAT_STATUS = "sudo service filebeat status"
+    FILEBEAT_START = "sudo service filebeat start"
+    FILEBEAT_STOP = "sudo service filebeat stop"
+
+
+class PACKETBEAT:
+    """
+    Constants related to Packetbeat
+    """
+    CONFIG_DIR = "/etc/packetbeat/"
+    CONFIG_FILE = "/etc/packetbeat/packetbeat.yml"
+    SETUP_CMD = "packetbeat setup -e"
+    PACKETBEAT_STATUS = "sudo service packetbeat status"
+    PACKETBEAT_START = "sudo service packetbeat start"
+    PACKETBEAT_STOP = "sudo service packetbeat stop"
+    INTERFACES_TYPE_PROPERTY = "packetbeat.interfaces.type"
+    AF_PACKET_PROPERTY = "af_packet"
+    ANY_DEVICE_PROPERTY = "any"
+    INTERFACES_DEVICE_PROPERTY = "packetbeat.interfaces.device"
+    FLOWS = "packetbeat.flows"
+    TIMEOUT_PROPERTY = "timeout"
+    PROTOCOLS = "packetbeat.protocols"
+    ICMP_PROTOCOL = "icmp"
+    AMQP_PROTOCOL = "amqp"
+    PORTS_PROPERTY = "ports"
+    AMQP_PORTS = [5672]
+    CASSANDRA_PROTOCOL = "cassandra"
+    CASSANDRA_PORTS = [9042]
+    DHCPV4_PROTOCOL = "dhcpv4"
+    DHCPV4_PORTS = [67, 68]
+    DNS_PROTOCOL = "dns"
+    DNS_PORTS = [53]
+    HTTP_PROTOCOL = "http"
+    HTTP_PORTS = [80, 8080, 8000, 5000, 8002]
+    MEMCACHE_PROTOCOL = "memcache"
+    MEMCACHE_PORTS = [11211]
+    MYSQL_PROTOCOL = "mysql"
+    MYSQL_PORTS = [3306, 3307]
+    PGSQL_PROTOCOL = "pgsql"
+    PGSQL_PORTS = [5432]
+    REDIS_PROTOCOL = "redis"
+    REDIS_PORTS = [6379]
+    THRIFT_PROTOCOL = "thrift"
+    THRIFT_PORTS = [9090]
+    MONGODB_PROTOCOL = "mongodb"
+    MONGODB_PORTS = [27017]
+    NFS_PROTOCOL = "nfs"
+    NFS_PORTS = [2049]
+    TLS_PROTOCOL = "tls"
+    TLS_PORTS = [443, 993, 995, 5223, 8443, 8883, 9243]
+    SIP_PROTOCOL = "sip"
+    SIP_PORTS = [9243]
+
+
+class METRICBEAT:
+    """
+    Constants related to Metricbeat
+    """
+    CONFIG_DIR = "/etc/metricbeat/"
+    CONFIG_FILE = "/etc/metricbeat/metricbeat.yml"
+    SETUP_CMD = "metricbeat setup -e"
+    ELASTICSEARCH_MODULE = "elasticsearch"
+    KIBANA_MODULE = "kibana"
+    SYSTEM_MODULE = "system"
+    LINUX_MODULE = "linux"
+    KAFKA_MODULE = "kafka"
+    LOGSTASH_MODULE = "logstash"
+    ENABLE_MODULE_CMD = "metricbeat modules enable {}"
+    MODULES_CONFIG_DIR = "/etc/metricbeat/modules.d/"
+    SNORT_MODULE_CONFIG_FILE = "snort.yml"
+    LOGSTASH_MODULE_CONFIG_FILE = "logstash.yml"
+    KIBANA_MODULE_CONFIG_FILE = "kibana.yml"
+    SYSTEM_MODULE_CONFIG_FILE = "system.yml"
+    LINUX_MODULE_CONFIG_FILE = "linux.yml"
+    KAFKA_MODULE_CONFIG_FILE = "kafka.yml"
+    ELASTICSEARCH_MODULE_CONFIG_FILE = "elasticsearch.yml"
+    MODULES_PROPERTY = "metricbeat.config.modules"
+    METRICBEAT_STATUS = "sudo service metricbeat status"
+    METRICBEAT_START = "sudo service metricbeat start"
+    METRICBEAT_STOP = "sudo service metricbeat stop"
+    PROCESSES_PROPERTY = "processes"
+    CPU_METRICS_PROPERTY = "cpu.metrics"
+    CORE_METRICS_PROPERTY = "core.metrics"
+    PERCENTAGES_PROPERTY = "percentages"
+    NORMALIZED_PERCENTAGES_PROPERTY = "normalized_percentages"
+    CPU_METRIC = "cpu"
+    LOAD_METRIC = "load"
+    MEMORY_METRIC = "memory"
+    NETWORK_METRIC = "network"
+    PROCESS_METRIC = "process"
+    PROCESS_SUMMARY_METRIC = "process_summary"
+    SOCKET_SUMMARY_METRIC = "socket_summary"
+    PAGEINFO_METRIC = "pageinfo"
+    SUMMARY_METRIC = "memory"
+
+
+class HEARTBEAT:
+    """
+    Constants related to heartbeat
+    """
+    CONFIG_DIR = "/etc/heartbeat/"
+    CONFIG_FILE = "/etc/heartbeat/heartbeat.yml"
+    SETUP_CMD = "heartbeat setup -e"
+    HEARTBEAT_STATUS = "sudo service heartbeat-elastic status"
+    HEARTBEAT_START = "sudo service heartbeat-elastic start"
+    HEARTBEAT_STOP = "sudo service heartbeat-elastic stop"
+    SCHEDULE_PROPERTY = "schedule"
+    ICMP_MONITOR_TYPE = "icmp"
+    HEARTBEAT_MONITORS_PROPERTY = "heartbeat.monitors"
+    CSLE_MONITOR_SERVICE_NAME = "csle-topology-connection-service"
+    CSLE_MONITOR_SERVICE_ID = "csle-topology-connection-service-id"
+
+
+class GRPC:
+    """
+    Constants related to GRPC
+    """
+    TIMEOUT_SECONDS = 60
+    CONFIG_TIMEOUT_SECONDS = 300
+    OPERATION_TIMEOUT_SECONDS = 30000
+
+
+class SYSTEM:
+    """
+    Constants related to system
+    """
+    AUTH_LOG = "/var/log/auth.log"
+    SYSLOG = "/var/log/syslog"
+
+
+class LOG_FILES:
+    """
+    Constants related to the log files
+    """
+    KAFKA_MANAGER_LOG_FILE = "kafka_manager.log"
+    KAFKA_MANAGER_LOG_DIR = "/"
+    OSSEC_IDS_MANAGER_LOG_FILE = "ossec_ids_manager.log"
+    OSSEC_IDS_MANAGER_LOG_DIR = "/"
+    SNORT_IDS_MANAGER_LOG_FILE = "snort_ids_manager.log"
+    SNORT_IDS_MANAGER_LOG_DIR = "/"
+    ELK_MANAGER_LOG_FILE = "elk_manager.log"
+    ELK_MANAGER_LOG_DIR = "/"
+    DOCKER_STATS_MANAGER_LOG_FILE = "docker_stats_manager.log"
+    CLUSTER_MANAGER_LOG_FILE = "cluster_manager.log"
+    DOCKER_STATS_MANAGER_LOG_DIR = "/var/log/csle/"
+    CLUSTER_MANAGER_LOG_DIR = "/var/log/csle/"
+    HOST_MANAGER_LOG_FILE = "host_manager.log"
+    HOST_MANAGER_LOG_DIR = "/"
+    CLIENT_MANAGER_LOG_FILE = "client_manager.log"
+    CLIENT_MANAGER_LOG_DIR = "/"
+    TRAFFIC_MANAGER_LOG_FILE = "traffic_manager.log"
+    TRAFFIC_MANAGER_LOG_DIR = "/"
+    KAFKA_LOG_FILE = "/usr/local/kafka/logs/server.log"
+    RYU_MANAGER_LOG_FILE = "ryu_manager.log"
+    RYU_MANAGER_LOG_DIR = "/"
+    MINBFT_MANAGER_LOG_FILE = "minbft_manager.log"
+    MINBFT_MANAGER_LOG_DIR = "/"
+    MINBFT_CLIENT_MANAGER_LOG_FILE = "minbft_manager.log"
+    MINBFT_CLIENT_MANAGER_LOG_DIR = "/"
+    DEFAULT_LOG_FILE_PATHS = ["/*.log", "/var/log/*.log", "/var/log/*/*.log", "/var/log/*/*/*.log"]
+    FIVE_G_CORE_MANAGER_LOG_FILE = "five_g_core_manager.log"
+    FIVE_G_CORE_MANAGER_LOG_DIR = "/"
+    FIVE_G_CU_MANAGER_LOG_FILE = "five_g_cu_manager.log"
+    FIVE_G_CU_MANAGER_LOG_DIR = "/"
+    FIVE_G_DU_MANAGER_LOG_FILE = "five_g_du_manager.log"
+    FIVE_G_DU_MANAGER_LOG_DIR = "/"
+    FIVE_G_CORE_LOG_FILE = "/var/log/open5gs/amf.log"
+    FIVE_G_DU_LOG_FILE = "/du.log"
+    FIVE_G_CU_LOG_FILE = "/cu.log"
+    FIVE_G_UE_LOG_FILE = "/ue.log"
+
+
+class MANAGER_PORTS:
+    """
+    Constants related to the ports of managers
+    """
+    TRAFFIC_MANAGER_DEFAULT_PORT = 50043
+    CLIENT_MANAGER_DEFAULT_PORT = 50044
+    SDN_CONTROLLER_MANAGER_DEFAULT_PORT = 50042
+    HOST_MANAGER_DEFAULT_PORT = 50049
+    SNORT_IDS_MANAGER_DEFAULT_PORT = 50048
+    OSSEC_IDS_MANAGER_DEFAULT_PORT = 50047
+    DOCKER_STATS_MANAGER_DEFAULT_PORT = 50046
+    ELK_MANAGER_DEFAULT_PORT = 50045
+    KAFKA_MANAGER_DEFAULT_PORT = 50051
+    FIVE_G_CORE_MANAGER_DEFAULT_PORT = 50052
+    FIVE_G_CU_MANAGER_DEFAULT_PORT = 50053
+    FIVE_G_DU_MANAGER_DEFAULT_PORT = 50054
+
+
+class GRPC_WORKERS:
+    """
+    Constants related to the number of GRPC workers
+    """
+    DEFAULT_MAX_NUM_WORKERS = 100
+
+
+class TRAFFIC_GENERATOR:
+    """
+    Constants related to the traffic generator
+    """
+    START_TRAFFIC_GENERATOR_CMD = "sudo nohup /traffic_generator.sh &"
+    TRAFFIC_GENERATOR_FILE_NAME = "traffic_generator.sh"
+    CREATE_TRAFFIC_GENERATOR_FILE = "sudo touch /traffic_generator.sh"
+    MAKE_TRAFFIC_GENERATOR_FILE_EXECUTABLE = "sudo chmod 777 /traffic_generator.sh"
+    REMOVE_OLD_TRAFFIC_GENERATOR_FILE = "sudo rm -f /traffic_generator.sh"
+    CHECK_IF_TRAFFIC_GENERATOR_IS_RUNNING = "ps -aux | grep traffic_generator"
+    STOP_TRAFFIC_GENERATOR = "sudo pkill -f traffic_generator.sh"
+
+
+class DOCKER_STATS:
+    """
+    Constants related to Docker stats
+    """
+    CPU_STATS = "cpu_stats"
+    CPU_USAGE = "cpu_usage"
+    PERCPU_USAGE = "percpu_usage"
+    PRECPU_STATS = "precpu_stats"
+    TOTAL_USAGE = "total_usage"
+    SYSTEM_CPU_USAGE = "system_cpu_usage"
+    ONLINE_CPUS = "online_cpus"
+    BLKIO_STATS = "blkio_stats"
+    IO_SERVICE_BYTES_RECURSIVE = "io_service_bytes_recursive"
+    OP = "op"
+    READ = "Read"
+    VALUE = "value"
+    WRITE = "Write"
+    NETWORKS = "networks"
+    RX_BYTES = "rx_bytes"
+    TX_BYTES = "tx_bytes"
+    MEMORY_STATS = "memory_stats"
+    USAGE = "usage"
+    LIMIT = "limit"
+    PIDS = "pids"
+    TIMESTAMP = "timestamp"
+    CPU_PERCENT = "cpu_percent"
+    MEM_CURRENT = "mem_current"
+    MEM_TOTAL = "mem_total"
+    MEM_PERCENT = "mem_percent"
+    BLK_READ = "blk_read"
+    BLK_WRITE = "blk_write"
+    NET_RX = "net_rx"
+    NET_TX = "net_tx"
+    PIDS_STATS = "pids_stats"
+    CURRENT = "current"
+    CONTAINER_NAME = "container_name"
+    CONTAINER_ID = "container_id"
+    CONTAINER_IP = "container_ip"
+    UNIX_DOCKER_SOCK_URL = "unix://var/run/docker.sock"
+
+
+class OSSEC:
+    """
+    Constants related to the OSSEC HIDS
+    """
+    MAX_ALERTS = 10000
+    OSSEC_ALERTS_FILE = "/var/ossec/alerts/alerts.log"
+    OSSEC_LOG_FILE = "/var/ossec/logs/ossec.log"
+    TAIL_ALERTS_COMMAND = "sudo tail -" + str(MAX_ALERTS)
+    ALERTLINE_REGEX = re.compile(r"\*\* Alert (\d+.\d+)*: - (\w+.+)")
+    HOSTLINE_REGEX = re.compile(r"\d+ \w+ \d+ \d+:\d+:\d+ \((\w+.+)\) (\d+.\d+.\d+.\d+)")
+    SERVHOSTLINE_REGEX = re.compile(r"\d+ \w+ \d+ \d+:\d+:\d+ (\w+)")
+    RULELINE_REGEX = re.compile(r"Rule: (\d+)* \(level (\d+)\) -> '(\w+.+)'")
+    SRCIPLINE_REGEX = re.compile(r"Src IP: (\d+.\d+.\d+.\d+)")
+    USERLINE_REGEX = re.compile(r"User: (\w+)")
+    DATELINEREGEX = re.compile(r"\d+ \w+ \d+ \d+:\d+:\d+")
+    OSSEC_ALERT_RULE_ID_TO_DESCR = {}
+    OSSEC_ALERT_RULE_ID_TO_DESCR[0] = "Ignored - No action taken. Used to avoid false positives. " \
+                                      "These rules are scanned before all the others. " \
+                                      "They include events with no security relevance."
+    OSSEC_ALERT_RULE_ID_TO_DESCR[1] = "None"
+    OSSEC_ALERT_RULE_ID_TO_DESCR[2] = "System low priority notification - System notification or status messages. " \
+                                      "They have no security relevance."
+    OSSEC_ALERT_RULE_ID_TO_DESCR[3] = "Successful/Authorized events - They include successful login attempts, " \
+                                      "firewall allow events, etc."
+    OSSEC_ALERT_RULE_ID_TO_DESCR[4] = "System low priority error - Errors related to bad configurations or " \
+                                      "unused devices/applications. They have no security relevance and are usually " \
+                                      "caused by default installations or software testing."
+    OSSEC_ALERT_RULE_ID_TO_DESCR[5] = "User generated error - They include missed passwords, denied actions, etc. " \
+                                      "By itself they have no security relevance."
+    OSSEC_ALERT_RULE_ID_TO_DESCR[6] = "Low relevance attack - They indicate a worm or a virus that have no affect to " \
+                                      "the system (like code red for apache servers, etc). " \
+                                      "They also include frequently IDS events and frequently errors."
+    OSSEC_ALERT_RULE_ID_TO_DESCR[7] = "'Bad word' matching. They include words like 'bad', " \
+                                      "'error', etc. These events " \
+                                      "are most of the time unclassified and may have some security relevance."
+    OSSEC_ALERT_RULE_ID_TO_DESCR[8] = "First time seen - Include first time seen events. First time an IDS event is " \
+                                      "fired or the first time an user logged in. If you just started using OSSEC " \
+                                      "HIDS these messages will probably be frequently. After a while they should " \
+                                      "go away, It also includes security relevant actions " \
+                                      "(like the starting of a sniffer or something like that)."
+    OSSEC_ALERT_RULE_ID_TO_DESCR[9] = "Error from invalid source - Include attempts to login as an unknown user or " \
+                                      "from an invalid source. May have security relevance (specially if repeated). " \
+                                      "They also include errors regarding the “admin” (root) account."
+    OSSEC_ALERT_RULE_ID_TO_DESCR[10] = "Multiple user generated errors - They include multiple bad passwords, " \
+                                       "multiple failed logins, etc. " \
+                                       "They may indicate an attack or may just be that a user " \
+                                       "just forgot his credentials."
+    OSSEC_ALERT_RULE_ID_TO_DESCR[11] = "Integrity checking warning - They include messages regarding the " \
+                                       "modification of binaries or the presence of rootkits (by rootcheck). " \
+                                       "If you just modified your system configuration you should be fine " \
+                                       "regarding the “syscheck” messages. " \
+                                       "They may indicate a successful attack. Also included IDS events that " \
+                                       "will be ignored (high number of repetitions)."
+    OSSEC_ALERT_RULE_ID_TO_DESCR[12] = "High importancy event - They include error or warning messages from the " \
+                                       "system, kernel, etc. They may indicate an attack against a " \
+                                       "specific application."
+    OSSEC_ALERT_RULE_ID_TO_DESCR[13] = "Unusual error (high importance) - Most of the times it matches a " \
+                                       "common attack pattern."
+    OSSEC_ALERT_RULE_ID_TO_DESCR[14] = "High importance security event. Most of the times done with correlation and " \
+                                       "it indicates an attack."
+    OSSEC_ALERT_RULE_ID_TO_DESCR[15] = "Severe attack - No chances of false positives. Immediate attention " \
+                                       "is necessary."
+    OSSEC_IDS_ALERT_GROUP_ID = {}
+    OSSEC_IDS_ALERT_GROUP_ID["invalid_login"] = 0
+    OSSEC_IDS_ALERT_GROUP_ID["authentication_success"] = 1
+    OSSEC_IDS_ALERT_GROUP_ID["authentication_failed"] = 2
+    OSSEC_IDS_ALERT_GROUP_ID["connection_attempt"] = 3
+    OSSEC_IDS_ALERT_GROUP_ID["attacks"] = 4
+    OSSEC_IDS_ALERT_GROUP_ID["adduser"] = 5
+    OSSEC_IDS_ALERT_GROUP_ID["sshd"] = 6
+    OSSEC_IDS_ALERT_GROUP_ID["ids"] = 7
+    OSSEC_IDS_ALERT_GROUP_ID["firewall"] = 8
+    OSSEC_IDS_ALERT_GROUP_ID["squid"] = 9
+    OSSEC_IDS_ALERT_GROUP_ID["apache"] = 10
+    OSSEC_IDS_ALERT_GROUP_ID["syslog"] = 11
+    OSSEC_SEVERE_ALERT_LEVEL_THRESHOLD = 10
+    STOP_OSSEC_IDS = "/var/ossec/bin/ossec-control stop"
+    START_OSSEC_IDS = "/var/ossec/bin/ossec-control start"
+    CHECK_IF_OSSEC_IS_RUNNING_CMD = "service ossec status"
+    OSSEC_RUNNING_SEARCH = "ossec-execd is running"
+
+
+class SNORT_IDS_ROUTER:
+    """
+    Constants related to the Snort IDS
+    """
+    MAX_ALERTS = 10000
+    UPDATE_RULESET = "/pulledpork/pulledpork.pl -c /pulledpork/etc/pulledpork.conf -l -P -E -H SIGHUP"
+    SNORT_FAST_LOG_FILE = "/var/snort/fast.log"
+    SNORT_ALERTS_FILE = "/var/snort/alert.csv"
+    SNORT_STATS_FILE = "/var/snort/snort.stats"
+    TAIL_ALERTS_COMMAND = "sudo tail -" + str(MAX_ALERTS)
+    TAIL_FAST_LOG_COMMAND = "sudo tail -" + str(str(MAX_ALERTS))
+    TAIL_ALERTS_LATEST_COMMAND = "sudo tail -1"
+    PRIORITY_REGEX = re.compile(r"Priority: \d")
+    IPS_REGEX = re.compile(r"\d{1,3}.\d{1,3}\.\d{1,3}\.\d{1,3} -> \d{1,3}.\d{1,3}\.\d{1,3}\.\d{1,3}")
+    RULE_ID_REGEX = re.compile(r"\[\d{1,3}\:\d{1,3}")
+    CLASSIFICATION_REGEX = re.compile(r"(?<=Classification: )(.*?)(?=])")
+    SNORT_SEVERE_ALERT_PRIORITY_THRESHOLD = 2
+    SNORT_ALERT_IDS_ID = {}
+    SNORT_ALERT_IDS_ID["tcp-connection"] = 0
+    SNORT_ALERT_IDS_ID["A TCP connection was detected"] = 0
+    SNORT_ALERT_IDS_ID["unknown"] = 1
+    SNORT_ALERT_IDS_ID["Unknown Traffic"] = 1
+    SNORT_ALERT_IDS_ID["string-detect"] = 2
+    SNORT_ALERT_IDS_ID["A suspicious string was detected"] = 2
+    SNORT_ALERT_IDS_ID["protocol-command-decode"] = 3
+    SNORT_ALERT_IDS_ID["Generic Protocol Command Decode"] = 3
+    SNORT_ALERT_IDS_ID["not-suspicious"] = 4
+    SNORT_ALERT_IDS_ID["Not Suspicious Traffic"] = 4
+    SNORT_ALERT_IDS_ID["network-scan"] = 5
+    SNORT_ALERT_IDS_ID["Detection of a Network Scan"] = 5
+    SNORT_ALERT_IDS_ID["misc-activity"] = 6
+    SNORT_ALERT_IDS_ID["Misc activity"] = 6
+    SNORT_ALERT_IDS_ID["icmp-event"] = 7
+    SNORT_ALERT_IDS_ID["Generic ICMP event"] = 7
+    SNORT_ALERT_IDS_ID["web-application-activity"] = 8
+    SNORT_ALERT_IDS_ID["Access to a potentially vulnerable web application"] = 8
+    SNORT_ALERT_IDS_ID["unusual-client-port-connection"] = 9
+    SNORT_ALERT_IDS_ID["A client was using an unusual port"] = 9
+    SNORT_ALERT_IDS_ID["system-call-detect"] = 10
+    SNORT_ALERT_IDS_ID["A system call was detected"] = 10
+    SNORT_ALERT_IDS_ID["suspicious-login"] = 11
+    SNORT_ALERT_IDS_ID["An attempted login using a suspicious username was detected"] = 11
+    SNORT_ALERT_IDS_ID["suspicious-filename-detect"] = 12
+    SNORT_ALERT_IDS_ID["A suspicious filename was detected"] = 12
+    SNORT_ALERT_IDS_ID["successful-recon-limited"] = 13
+    SNORT_ALERT_IDS_ID["Information Leak"] = 13
+    SNORT_ALERT_IDS_ID["successful-recon-largescale"] = 14
+    SNORT_ALERT_IDS_ID["Large Scale Information Leak"] = 14
+    SNORT_ALERT_IDS_ID["successful-dos"] = 15
+    SNORT_ALERT_IDS_ID["Denial of Service"] = 15
+    SNORT_ALERT_IDS_ID["rpc-portmap-decode"] = 16
+    SNORT_ALERT_IDS_ID["Decode of an RPC Query"] = 16
+    SNORT_ALERT_IDS_ID["non-standard-protocol"] = 17
+    SNORT_ALERT_IDS_ID["Detection of a non-standard protocol or event"] = 17
+    SNORT_ALERT_IDS_ID["misc-attack"] = 18
+    SNORT_ALERT_IDS_ID["Misc Attack"] = 18
+    SNORT_ALERT_IDS_ID["denial-of-service"] = 19
+    SNORT_ALERT_IDS_ID["Detection of a Denial of Service Attack"] = 19
+    SNORT_ALERT_IDS_ID["default-login-attempt"] = 20
+    SNORT_ALERT_IDS_ID["Attempt to login by a default username and password"] = 20
+    SNORT_ALERT_IDS_ID["bad-unknown"] = 21
+    SNORT_ALERT_IDS_ID["Potentially Bad Traffic"] = 21
+    SNORT_ALERT_IDS_ID["attempted-recon"] = 22
+    SNORT_ALERT_IDS_ID["Attempted Information Leak"] = 22
+    SNORT_ALERT_IDS_ID["attempted-dos"] = 23
+    SNORT_ALERT_IDS_ID["Attempted Denial of Service"] = 23
+    SNORT_ALERT_IDS_ID["web-application-attack"] = 24
+    SNORT_ALERT_IDS_ID["Web Application Attack"] = 24
+    SNORT_ALERT_IDS_ID["unsuccessful-user"] = 25
+    SNORT_ALERT_IDS_ID["Unsuccessful User Privilege Gain"] = 25
+    SNORT_ALERT_IDS_ID["trojan-activity"] = 26
+    SNORT_ALERT_IDS_ID["A Network Trojan was detected"] = 26
+    SNORT_ALERT_IDS_ID["successful-user"] = 27
+    SNORT_ALERT_IDS_ID["Successful User Privilege Gain"] = 27
+    SNORT_ALERT_IDS_ID["successful-admin"] = 28
+    SNORT_ALERT_IDS_ID["Successful Administrator Privilege Gain"] = 28
+    SNORT_ALERT_IDS_ID["shellcode-detect"] = 29
+    SNORT_ALERT_IDS_ID["Executable code was detected"] = 29
+    SNORT_ALERT_IDS_ID["policy-violation"] = 30
+    SNORT_ALERT_IDS_ID["Potential Corporate Privacy Violation"] = 30
+    SNORT_ALERT_IDS_ID["inappropriate-content"] = 31
+    SNORT_ALERT_IDS_ID["Inappropriate Content was Detected"] = 31
+    SNORT_ALERT_IDS_ID["attempted-user"] = 32
+    SNORT_ALERT_IDS_ID["Attempted User Privilege Gain"] = 32
+    SNORT_ALERT_IDS_ID["attempted-admin"] = 33
+    SNORT_ALERT_IDS_ID["Attempted Administrator Privilege Gain"] = 33
+    STOP_SNORT_IDS = "kill -9 $(pgrep snort)"
+    START_SNORT_IDS = "sudo snort -D -q -c /etc/snort/snort.conf -i {}:{} -l " \
+                      "/var/snort/ -h {} -Q -I --create-pidfile"
+    SNORT_LOG_DIR_PERMISSION_CMD = "sudo chmod -R 777 /var/snort"
+    CHECK_IF_SNORT_IS_RUNNING_CMD = "ps -aux | grep snort.conf"
+    PS_AUX_CMD = "ps -aux"
+    GREP_SNORT_CONF = "grep snort.conf"
+    SEARCH_SNORT_RUNNING = "/etc/snort/snort.conf"
+
+
+class HOST_METRICS:
+    """
+    Constants related to the defender's sensor commands
+    """
+    LIST_LOGGED_IN_USERS_CMD = "users"
+    LIST_OPEN_CONNECTIONS_CMD = "netstat -n"
+    LIST_USER_ACCOUNTS = "cat /etc/passwd"
+    LIST_FAILED_LOGIN_ATTEMPTS = "sudo tail -10000 /var/log/auth.log"
+    LIST_SUCCESSFUL_LOGIN_ATTEMPTS = "last"
+    LIST_NUMBER_OF_PROCESSES = "ps -e | wc -l"
+
+
+class EXTERNAL_NETWORK:
+    """
+    Constants related to the external network
+    """
+    NETWORK_ID_THIRD_OCTET = 1
+
+
+class ELK_CONFIG:
+    """
+    Constants related to the ELK container configuration
+    """
+    NETWORK_ID_THIRD_OCTET = 253
+    NETWORK_ID_FOURTH_OCTET = 252
+    SUFFIX = "_1"
+
+
+class KAFKA_CONFIG:
+    """
+    Constants related to the kafka container configuration
+    """
+    DEFAULT_NUM_PARTITIONS = 1
+    DEFAULT_NUM_REPLICAS = 1
+    DEFAULT_RETENTION_TIME_HOURS = 240
+    NETWORK_ID_THIRD_OCTET = 253
+    NETWORK_ID_FOURTH_OCTET = 253
+    SUFFIX = "_1"
+    CLIENT_POPULATION_TOPIC_NAME = "client_population"
+    SNORT_IDS_LOG_TOPIC_NAME = "snort_ids_log"
+    SNORT_IDS_RULE_LOG_TOPIC_NAME = "snort_ids_rule_log"
+    SNORT_IDS_IP_LOG_TOPIC_NAME = "snort_ids_ip_log"
+    OSSEC_IDS_LOG_TOPIC_NAME = "ossec_ids_log"
+    HOST_METRICS_TOPIC_NAME = "host_metrics"
+    FIVE_G_CORE_AMF_METRICS_TOPIC_NAME = "five_g_core_amf_metrics"
+    FIVE_G_CORE_UPF_METRICS_TOPIC_NAME = "five_g_core_upf_metrics"
+    FIVE_G_CORE_MME_METRICS_TOPIC_NAME = "five_g_core_mme_metrics"
+    FIVE_G_CORE_SMF_METRICS_TOPIC_NAME = "five_g_core_smf_metrics"
+    FIVE_G_CORE_HSS_METRICS_TOPIC_NAME = "five_g_core_hss_metrics"
+    FIVE_G_CORE_PCRF_METRICS_TOPIC_NAME = "five_g_core_pcrf_metrics"
+    FIVE_G_CORE_PCF_METRICS_TOPIC_NAME = "five_g_core_pcf_metrics"
+    FIVE_G_DU_METRICS_TOPIC_NAME = "five_g_du_metrics"
+    FIVE_G_DU_CELL_METRICS_TOPIC_NAME = "five_g_du_cell_metrics"
+    FIVE_G_DU_LOW_METRICS_TOPIC_NAME = "five_g_du_low_metrics"
+    FIVE_G_DU_RLC_METRICS_TOPIC_NAME = "five_g_du_rlc_metrics"
+    FIVE_G_DU_APP_RESOURCE_USAGE_METRICS_TOPIC_NAME = "five_g_du_app_resource_usage_metrics"
+    FIVE_G_DU_BUFFER_POOL_METRICS_TOPIC_NAME = "five_g_du_buffer_pool_metrics"
+    FIVE_G_CU_CP_METRICS_TOPIC_NAME = "five_g_cu_cp_metrics"
+    FIVE_G_CU_APP_RESOURCE_USAGE_METRICS_TOPIC_NAME = "five_g_cu_app_resource_usage_metrics"
+    FIVE_G_CU_BUFFER_POOL_METRICS_TOPIC_NAME = "five_g_cu_buffer_pool_metrics"
+    DOCKER_STATS_TOPIC_NAME = "docker_stats"
+    DOCKER_HOST_STATS_TOPIC_NAME = "docker_host_stats"
+    OPENFLOW_FLOW_STATS_TOPIC_NAME = "openflow_flow_stats"
+    OPENFLOW_PORT_STATS_TOPIC_NAME = "openflow_port_stats"
+    OPENFLOW_AGG_FLOW_STATS_TOPIC_NAME = "openflow_flow_agg_stats"
+    AVERAGE_OPENFLOW_FLOW_STATS_PER_SWITCH_TOPIC_NAME = "avg_openflow_flow_stats_per_switch"
+    AVERAGE_OPENFLOW_PORT_STATS_PER_SWITCH_TOPIC_NAME = "avg_openflow_port_stats_per_switch"
+    ATTACKER_ACTIONS_TOPIC_NAME = "attacker_actions"
+    DEFENDER_ACTIONS_TOPIC_NAME = "defender_actions"
+    CLIENT_POPULATION_TOPIC_ATTRIBUTES = ["timestamp", "ip", "num_clients", "rate"]
+    SNORT_IDS_LOG_TOPIC_ATTRIBUTES = ["timestamp", "ip", "attempted-admin", "attempted-user",
+                                      "inappropriate-content", "policy-violation", "shellcode-detect",
+                                      "successful-admin", "successful-user", "trojan-activity", "unsuccessful-user",
+                                      "web-application-attack", "attempted-dos", "attempted-recon", "bad-unknown",
+                                      "default-login-attempt", "denial-of-service", "misc-attack",
+                                      "non-standard-protocol", "rpc-portmap-decode", "successful-dos",
+                                      "successful-recon-largescale", "successful-recon-limited",
+                                      "suspicious-filename-detect", "suspicious-login", "system-call-detect",
+                                      "unusual-client-port-connection", "web-application-activity", "icmp-event",
+                                      "misc-activity", "network-scan", "not-suspicious", "protocol-command-decode",
+                                      "string-detect", "unknown", "tcp-connection", "priority_1", "priority_2",
+                                      "priority_3", "priority_4", "alerts_weighted_by_priority", "total_alerts",
+                                      "severe_alerts", "warning_alerts"]
+    OSSEC_IDS_LOG_TOPIC_ATTRIBUTES = ["timestamp", "ip", "total_alerts", "warning_alerts", "severe_alerts",
+                                      "alerts_weighted_by_level", "level_0_alerts", "level_1_alerts",
+                                      "level_2_alerts", "level_3_alerts", "level_4_alerts", "level_5_alerts",
+                                      "level_6_alerts", "level_7_alerts", "level_8_alerts", "level_9_alerts",
+                                      "level_10_alerts", "level_11_alerts", "level_12_alerts", "level_13_alerts",
+                                      "level_14_alerts", "level_15_alerts", "invalid_login_alerts",
+                                      "authentication_success_alerts", "authentication_failed_alerts",
+                                      "connection_attempt_alerts", "attacks_alerts", "adduser_alerts", "sshd_alerts",
+                                      "ids_alerts", "firewall_alerts", "squid_alerts",
+                                      "apache_alerts", "syslog_alerts"]
+    SNORT_IDS_RULE_LOG_ATTRIBUTES = ["timestamp", "ip", "alert_rule_id", "num_alerts"]
+    SNORT_IDS_IP_LOG_ATTRIBUTES = ["timestamp", "ip", "alert_ip", "attempted-admin", "attempted-user",
+                                   "inappropriate-content", "policy-violation", "shellcode-detect",
+                                   "successful-admin", "successful-user", "trojan-activity", "unsuccessful-user",
+                                   "web-application-attack", "attempted-dos", "attempted-recon", "bad-unknown",
+                                   "default-login-attempt", "denial-of-service", "misc-attack",
+                                   "non-standard-protocol", "rpc-portmap-decode", "successful-dos",
+                                   "successful-recon-largescale", "successful-recon-limited",
+                                   "suspicious-filename-detect", "suspicious-login", "system-call-detect",
+                                   "unusual-client-port-connection", "web-application-activity", "icmp-event",
+                                   "misc-activity", "network-scan", "not-suspicious", "protocol-command-decode",
+                                   "string-detect", "unknown", "tcp-connection", "priority_1", "priority_2",
+                                   "priority_3", "priority_4", "alerts_weighted_by_priority", "total_alerts",
+                                   "severe_alerts", "warning_alerts"]
+    HOST_METRICS_TOPIC_ATTRIBUTES = ["timestamp", "ip", "num_logged_in_users", "num_failed_login_attempts",
+                                     "num_open_connections", "num_login_events", "num_processes", "num_users"]
+    DOCKER_STATS_TOPIC_ATTRIBUTES = ["timestamp", "ip", "cpu_percent", "mem_current", "mem_total",
+                                     "mem_percent", "blk_read", "blk_write", "net_rc", "net_tx", "pids"]
+    ATTACKER_ACTIONS_ATTRIBUTES = ["timestamp", "id", "description", "index", "name", "time", "ip", "cmd"]
+    DEFENDER_ACTIONS_ATTRIBUTES = ["timestamp", "id", "description", "index", "name", "time", "ip", "cmd"]
+    OPENFLOW_FLOW_STATS_TOPIC_ATTRIBUTES = ["timestamp", "datapath_id", "in_port", "out_port", "dst_mac_address",
+                                            "num_packets", "num_bytes", "duration_nanoseconds",
+                                            "duration_seconds", "hard_timeout", "idle_timeout", "priority",
+                                            "cookie"]
+    OPENFLOW_PORT_STATS_TOPIC_ATTRIBUTES = ["timestamp", "datapath_id", "port", "num_received_packets",
+                                            "num_received_bytes", "num_received_errors", "num_transmitted_packets",
+                                            "num_transmitted_bytes", "num_transmitted_errors", "num_received_dropped",
+                                            "num_transmitted_dropped", "num_received_frame_errors",
+                                            "num_received_overrun_errors", "num_received_crc_errors", "num_collisions",
+                                            "duration_nanoseconds", "duration_seconds"]
+    OPENFLOW_AGG_FLOW_STATS_TOPIC_ATTRIBUTES = ["timestamp", "datapath_id", "total_num_packets", "total_num_bytes",
+                                                "total_num_flows"]
+    AVERAGE_OPENFLOW_FLOW_STATS_PER_SWITCH_TOPIC_ATTRIBUTES = [
+        "timestamp", "datapath_id", "total_num_packets", "total_num_bytes", "avg_duration_nanoseconds",
+        "avg_duration_seconds", "avg_hard_timeout", "avg_idle_timeout", "avg_priority", "avg_cookie"]
+    AVERAGE_OPENFLOW_PORT_STATS_PER_SWITCH_TOPIC_ATTRIBUTES = [
+        "timestamp", "datapath_id", "total_num_received_packets", "total_num_received_bytes",
+        "total_num_received_errors", "total_num_transmitted_packets", "total_num_transmitted_bytes",
+        "total_num_transmitted_errors", "total_num_received_dropped", "total_num_transmitted_dropped",
+        "total_num_received_frame_errors", "total_num_received_overrun_errors",
+        "total_num_received_crc_errors", "total_num_collisions", "avg_duration_nanoseconds", "avg_duration_seconds"]
+    FIVE_G_CORE_AMF_TOPIC_ATTRIBUTES = ["timestamp", "ip",
+                                        "fivegs_amffunction_mm_confupdate", "fivegs_amffunction_rm_reginitreq",
+                                        "fivegs_amffunction_rm_regemergreq", "fivegs_amffunction_mm_paging5greq",
+                                        "fivegs_amffunction_rm_regperiodreq", "fivegs_amffunction_mm_confupdatesucc",
+                                        "fivegs_amffunction_rm_reginitsucc", "fivegs_amffunction_amf_authreject",
+                                        "fivegs_amffunction_rm_regmobreq", "amf_session",
+                                        "fivegs_amffunction_rm_regmobsucc", "fivegs_amffunction_amf_authreq",
+                                        "fivegs_amffunction_rm_regemergsucc", "fivegs_amffunction_mm_paging5gsucc",
+                                        "ran_ue", "fivegs_amffunction_rm_regperiodsucc",
+                                        "process_max_fds", "process_virtual_memory_max_bytes",
+                                        "process_cpu_seconds_total", "process_virtual_memory_bytes",
+                                        "process_start_time_seconds",
+                                        "process_start_time_seconds", "process_open_fds"]
+    FIVE_G_CORE_UPF_TOPIC_ATTRIBUTES = ["timestamp", "ip",
+                                        "fivegs_ep_n3_gtp_indatapktn3upf", "fivegs_ep_n3_gtp_outdatapktn3upf",
+                                        "fivegs_upffunction_sm_n4sessionestabreq",
+                                        "fivegs_upffunction_sm_n4sessionreport",
+                                        "fivegs_upffunction_sm_n4sessionreportsucc",
+                                        "fivegs_upffunction_upf_sessionnbr",
+                                        "pfcp_peers_active", "process_max_fds", "process_virtual_memory_max_bytes",
+                                        "process_cpu_seconds_total", "process_virtual_memory_bytes",
+                                        "process_resident_memory_bytes", "process_start_time_seconds",
+                                        "process_open_fds"]
+    FIVE_G_CORE_MME_TOPIC_ATTRIBUTES = ["timestamp", "ip",
+                                        "enb_ue", "mme_session", "enb", "process_max_fds",
+                                        "process_virtual_memory_max_bytes", "process_cpu_seconds_total",
+                                        "process_virtual_memory_bytes", "process_resident_memory_bytes",
+                                        "process_start_time_seconds", "process_open_fds"]
+    FIVE_G_CORE_SMF_TOPIC_ATTRIBUTES = [
+        "timestamp",
+        "ip",
+        "gn_rx_createpdpcontextreq",
+        "gn_rx_deletepdpcontextreq",
+        "gtp1_pdpctxs_active",
+        "pfcp_peers_active",
+        "fivegs_smffunction_sm_n4sessionreport",
+        "ues_active",
+        "gtp2_sessions_active",
+        "pfcp_sessions_active",
+        "s5c_rx_createsession",
+        "s5c_rx_deletesession",
+        "gtp_new_node_failed",
+        "s5c_rx_parse_failed",
+        "fivegs_smffunction_sm_n4sessionreportsucc",
+        "fivegs_smffunction_sm_n4sessionestabreq",
+        "bearers_active",
+        "gn_rx_parse_failed",
+        "gtp_peers_active",
+        "fivegs_smffunction_sm_sessionnbr",
+        "fivegs_smffunction_sm_pdusessioncreationreq",
+        "fivegs_smffunction_sm_pdusessioncreationsucc",
+        "fivegs_smffunction_sm_qos_flow_nbr",
+        "fivegs_smffunction_sm_n4sessionestabfail",
+        "fivegs_smffunction_sm_pdusessioncreationfail",
+        "process_max_fds",
+        "process_virtual_memory_max_bytes",
+        "process_cpu_seconds_total",
+        "process_virtual_memory_bytes",
+        "process_resident_memory_bytes",
+        "process_start_time_seconds",
+        "process_open_fds"
+    ]
+
+    FIVE_G_CORE_HSS_TOPIC_ATTRIBUTES = [
+        "timestamp",
+        "ip",
+        "cx_rx_lir",
+        "cx_rx_uar",
+        "cx_tx_lia",
+        "cx_rx_unknown",
+        "cx_rx_sar",
+        "s6a_rx_pur",
+        "swx_rx_mar_error",
+        "cx_tx_uaa",
+        "s6a_rx_pur_error",
+        "s6a_tx_clr",
+        "cx_tx_saa",
+        "cx_rx_lir_error",
+        "s6a_rx_ulr",
+        "s6a_rx_cla",
+        "s6a_rx_cla_error",
+        "s6a_rx_air",
+        "cx_rx_mar",
+        "swx_rx_sar",
+        "s6a_rx_air_error",
+        "s6a_rx_ida_error",
+        "cx_tx_maa",
+        "swx_rx_mar",
+        "s6a_rx_unknown",
+        "s6a_tx_pua",
+        "swx_rx_unknown",
+        "cx_rx_mar_error",
+        "cx_rx_uar_error",
+        "s6a_tx_ula",
+        "s6a_rx_ulr_error",
+        "s6a_tx_aia",
+        "s6a_tx_idr",
+        "s6a_rx_ida",
+        "cx_rx_sar_error",
+        "swx_rx_sar_error",
+        "swx_tx_maa",
+        "swx_tx_saa",
+        "hss_imsi",
+        "hss_impi",
+        "hss_impu",
+        "process_max_fds",
+        "process_virtual_memory_max_bytes",
+        "process_cpu_seconds_total",
+        "process_virtual_memory_bytes",
+        "process_resident_memory_bytes",
+        "process_start_time_seconds",
+        "process_open_fds"
+    ]
+
+    FIVE_G_CORE_PCRF_TOPIC_ATTRIBUTES = [
+        "timestamp",
+        "ip",
+        "gx_rx_unknown",
+        "gx_rx_ccr",
+        "gx_rx_ccr_error",
+        "gx_rx_raa",
+        "gx_tx_cca",
+        "gx_tx_rar",
+        "gx_tx_rar_error",
+        "rx_rx_unknown",
+        "rx_rx_aar",
+        "rx_rx_aar_error",
+        "rx_rx_asa",
+        "rx_rx_asa_error",
+        "rx_rx_str_error",
+        "rx_tx_aaa",
+        "rx_tx_sar",
+        "rx_tx_sta",
+        "process_max_fds",
+        "process_virtual_memory_max_bytes",
+        "process_cpu_seconds_total",
+        "process_virtual_memory_bytes",
+        "process_resident_memory_bytes",
+        "process_start_time_seconds",
+        "process_open_fds"
+    ]
+
+    FIVE_G_CORE_PCF_TOPIC_ATTRIBUTES = [
+        "timestamp",
+        "ip",
+        "fivegs_pcffunction_pa_policyamassoreq",
+        "fivegs_pcffunction_pa_policyamassosucc",
+        "fivegs_pcffunction_pa_policysmassoreq",
+        "fivegs_pcffunction_pa_policysmassosucc",
+        "fivegs_pcffunction_pa_sessionnbr",
+        "process_max_fds",
+        "process_virtual_memory_max_bytes",
+        "process_cpu_seconds_total",
+        "process_virtual_memory_bytes",
+        "process_resident_memory_bytes",
+        "process_start_time_seconds",
+        "process_open_fds"
+    ]
+
+    FIVE_G_DU_TOPIC_ATTRIBUTES = ["timestamp", "ip", "pci", "average_latency_us", "cpu_usage_percent", "max_latency_us",
+                                  "min_latency_us"]
+
+    FIVE_G_DU_CELL_TOPIC_ATTRIBUTES = ["timestamp", "ip", "pci", "average_latency",
+                                       "max_latency", "pucch_tot_rb_usage_avg", "active_ues",
+                                       "dl_brate", "ul_brate", "dl_mcs", "ul_mcs",
+                                       "pusch_snr_db", "pucch_snr_db", "cqi", "dl_bler",
+                                       "ul_bler"]
+
+    FIVE_G_DU_LOW_TOPIC_ATTRIBUTES = ["timestamp", "ip", "dl_avg_latency_us",
+                                      "dl_cpu_usage_percent", "dl_max_latency_us",
+                                      "dl_fec_tput_mbps", "ul_avg_latency_us",
+                                      "ul_cpu_usage_percent", "ul_max_latency_us",
+                                      "ul_sinr_db", "ul_ch_est_latency_us",
+                                      "ul_ldpc_dec_latency_us", "ul_fec_tput_mbps"]
+
+    FIVE_G_DU_RLC_TOPIC_ATTRIBUTES = ["timestamp", "ip", "ue_id", "drb_id", "rx_num_pdus",
+                                      "rx_num_bytes", "rx_num_lost_pdus",
+                                      "rx_num_malformed_pdus", "tx_num_sdus", "tx_num_bytes",
+                                      "tx_num_dropped_sdus", "tx_num_discarded_sdus",
+                                      "tx_max_pdu_latency_ns", "tx_sum_pdu_latency_ns",
+                                      "tx_sum_sdu_latency_us"]
+
+    FIVE_G_DU_APP_RESOURCE_TOPIC_ATTRIBUTES = ["timestamp", "ip", "cpu_usage_percent",
+                                               "memory_usage_mb", "power_consumption_watts"]
+
+    FIVE_G_DU_BUFFER_POOL_TOPIC_ATTRIBUTES = ["timestamp", "ip", "central_cache_size"]
+
+    FIVE_G_CU_CP_TOPIC_ATTRIBUTES = ["timestamp", "ip", "cu_cp_id", "amf_connected",
+                                     "nof_cn_initiated_paging_requests",
+                                     "nof_pdu_sessions_requested_to_setup",
+                                     "nof_pdu_sessions_successfully_setup",
+                                     "nof_pdu_sessions_failed_to_setup_total",
+                                     "nof_handover_preparations_requested",
+                                     "nof_successful_handover_preparations",
+                                     "rrc_establishments_attempted_total",
+                                     "rrc_establishments_successful_total",
+                                     "rrc_establishments_attempted_mo_data",
+                                     "rrc_establishments_successful_mo_data",
+                                     "rrc_establishments_attempted_mo_sig",
+                                     "rrc_establishments_successful_mo_sig",
+                                     "max_nof_rrc_connections",
+                                     "mean_nof_rrc_connections",
+                                     "rrc_reestablishments_attempted",
+                                     "rrc_reestablishments_successful",
+                                     "nof_handover_executions_requested",
+                                     "nof_successful_handover_executions"]
+
+    FIVE_G_CU_APP_RESOURCE_TOPIC_ATTRIBUTES = ["timestamp", "ip", "cpu_usage_percent",
+                                               "memory_usage_mb", "power_consumption_watts"]
+
+    FIVE_G_CU_BUFFER_POOL_TOPIC_ATTRIBUTES = ["timestamp", "ip", "central_cache_size"]
+
+    SNORT_IDS_ALERTS_LABELS = [
+        "total_alerts", "warning_alerts", "severe_alerts", "alerts_weighted_by_priority",
+        "priority_1_alerts", "priority_2_alerts",
+        "priority_3_alerts", "priority_4_alerts", "attempted-admin_alerts",
+        "attempted-user_alerts", "inappropriate-content_alerts", "policy-violation_alerts",
+        "shellcode-detect_alerts", "successful-admin_alerts",
+        "successful-user_alerts", "trojan-activity_alerts", "unsuccessful-user_alerts",
+        "web-application-attack_alerts",
+        "attempted-dos_alerts", "attempted-recon_alerts", "bad-unknown_alerts",
+        "default-login-attempt_alerts",
+        "denial-of-service_alerts", "misc-attack_alerts", "non-standard-protocol_alerts",
+        "rpc-portmap-decode_alerts",
+        "successful-dos_alerts", "successful-recon-largescale_alerts", "successful-recon-limited_alerts",
+        "suspicious-filename-detect_alerts", "suspicious-login_alerts", "system-call-detect_alerts",
+        "unusual-client-port-connection_alerts", "web-application-activity_alerts", "icmp-event_alerts",
+        "misc-activity_alerts", "network-scan_alerts", "not-suspicious_alerts", "protocol-command-decode_alerts",
+        "string-detect_alerts", "unknown_alerts", "tcp-connection_alerts"
+    ]
+    OSSEC_IDS_ALERTS_LABELS = [
+        "total_alerts", "warning_alerts", "severe_alerts", "alerts_weighted_by_level",
+        "level_0_alerts", "level_1_alerts",
+        "level_2_alerts", "level_3_alerts", "level_4_alerts", "level_5_alerts", "level_6_alerts", "level_7_alerts",
+        "level_8_alerts", "level_9_alerts", "level_10_alerts", "level_11_alerts", "level_12_alerts",
+        "level_13_alerts", "level_14_alerts", "level_15_alerts",
+        "invalid_login_alerts", "authentication_success_alerts", "authentication_failed_alerts",
+        "connection_attempt_alerts", "attacks_alerts", "adduser_alerts", "sshd_alerts", "ids_alerts",
+        "firewall_alerts", "squid_alerts", "apache_alerts", "syslog_alerts"
+    ]
+    HOST_METRICS_LABELS = [
+        "num_logged_in_users", "severe_alerts", "warning_alerts",
+        "num_failed_login_attempts", "num_open_connections", "num_login_events",
+        "num_processes", "num_users"
+    ]
+    DOCKER_STATS_COUNTER_LABELS = [
+        "pids", "cpu_percent", "mem_current", "mem_total",
+        "mem_percent", "blk_read", "blk_write", "net_rx", "net_tx"
+    ]
+    DOCKER_STATS_PERCENT_LABELS = [
+        "cpu_percent", "cpu_percent"
+    ]
+    CLIENT_POPULATION_METRIC_LABELS = ["num_clients", "rate", "service_time"]
+    ALL_DELTA_AGG_LABELS = (SNORT_IDS_ALERTS_LABELS + HOST_METRICS_LABELS + DOCKER_STATS_COUNTER_LABELS +
+                            DOCKER_STATS_PERCENT_LABELS + CLIENT_POPULATION_METRIC_LABELS + OSSEC_IDS_ALERTS_LABELS)
+    ALL_DELTA_MACHINE_LABELS = (SNORT_IDS_ALERTS_LABELS + HOST_METRICS_LABELS + DOCKER_STATS_COUNTER_LABELS +
+                                DOCKER_STATS_PERCENT_LABELS + OSSEC_IDS_ALERTS_LABELS)
+    ALL_INITIAL_AGG_LABELS = (HOST_METRICS_LABELS + DOCKER_STATS_COUNTER_LABELS + DOCKER_STATS_PERCENT_LABELS +
+                              CLIENT_POPULATION_METRIC_LABELS + SNORT_IDS_ALERTS_LABELS + OSSEC_IDS_ALERTS_LABELS)
+    ALL_INITIAL_MACHINE_LABELS = (HOST_METRICS_LABELS + DOCKER_STATS_COUNTER_LABELS + DOCKER_STATS_PERCENT_LABELS +
+                                  SNORT_IDS_ALERTS_LABELS + OSSEC_IDS_ALERTS_LABELS)
+
+
+class KAFKA:
+    """
+    String constants for managing Kafka
+    """
+    KAFKA_STATUS = "service kafka status"
+    KAFKA_STOP = "service kafka stop"
+    KAFKA_START = "service kafka start"
+    RETENTION_MS_CONFIG_PROPERTY = "retention.ms"
+    BOOTSTRAP_SERVERS_PROPERTY = "bootstrap.servers"
+    CLIENT_ID_PROPERTY = "client.id"
+    GROUP_ID_PROPERTY = "group.id"
+    AUTO_OFFSET_RESET_PROPERTY = "auto.offset.reset"
+    EARLIEST_OFFSET = "earliest"
+    PORT = 9092
+    EXTERNAL_PORT = 9292
+    INTERNAL_IP_PLACEHOLDER = "INTERNAL_IP"
+    EXTERNAL_IP_PLACEHOLDER = "EXTERNAL_IP"
+    DIR = "/usr/local/kafka/logs/"
+    KAFKA_CONFIG_FILE = "/usr/local/kafka/config/server.properties"
+
+
+class ELK:
+    """
+    String constants for managing the ELK stack
+    """
+    ELK_START = "nohup /usr/local/bin/start.sh > /elk_server.log &"
+    ELK_LOG = "/elk_server.log"
+    ELASTICSEARCH_STOP = "service elasticsearch stop"
+    KIBANA_STOP = "service kibana stop"
+    LOGSTASH_STOP = "service logstash stop"
+    ELASTICSEARCH_START = "service elasticsearch start"
+    KIBANA_START = "service kibana start"
+    LOGSTASH_START = "service logstash start"
+    ELASTICSEARCH_STATUS = "service elasticsearch status"
+    KIBANA_STATUS = "service kibana status"
+    LOGSTASH_STATUS = "service logstash status"
+    ELASTICSEARCH_LOG_DIR = "/var/log/elasticsearch/"
+    LOGSTASH_LOG_DIR = "/var/log/logstash/"
+    KIBANA_LOG_DIR = "/var/log/kibana/"
+    ELASTIC_PORT = 9200
+    KIBANA_PORT = 5601
+    LOGSTASH_PORT = 5044
+
+
+class RYU:
+    """
+    String constants for managing Ryu
+    """
+    CHECK_IF_RYU_CONTROLLER_IS_RUNNING = "ps -aux | grep ryu_controller.py"
+    STOP_RYU_CONTROLLER = "sudo pkill -f ryu_controller.py"
+    STOP_RYU_CONTROLLER_MANAGER = "sudo pkill -f ryu-manager"
+    RYU_CONTROLLER_FILENAME = "ryu_controller.py"
+    SEARCH_CONTROLLER = "/root/miniconda3/bin/python3 /ryu_controller.py"
+    START_RYU_CONTROLLER = "sudo nohup /root/miniconda3/bin/python3 /ryu_controller.py --port {} --webport {} " \
+                           "--controller {} &"
+    START_PRODUCER_HTTP_RESOURCE = "/cslenorthboundapi/producer/start"
+    STOP_PRODUCER_HTTP_RESOURCE = "/cslenorthboundapi/producer/stop"
+    STATUS_PRODUCER_HTTP_RESOURCE = "/cslenorthboundapi/producer/status"
+    TIME_STEP_LEN_SECONDS = "time_step_len_seconds"
+    PRODUCER_RUNNING = "producer_running"
+    KAFKA_CONF = "kafka_conf"
+    REQUEST_TIMEOUT_S = 5
+
+
+class INTERFACES:
+    """
+    String constrants related to networking interfaces
+    """
+    ETH1 = "eth1"
+    ETH0 = "eth0"
+    ADDR = "addr"
+
+
+class SPARK:
+    """
+    Constants related to Spark
+    """
+    START_SPARK_MASTER = "/spark-3.3.3-bin-hadoop3/sbin/start-master.sh"
+    START_SPARK_WORKER = "/spark-3.3.3-bin-hadoop3/sbin/start-worker.sh spark://15.13.1.161:7077 -m 2G -c 1"
+    SPARK_MASTER_PID_FILE = "/tmp/spark--org.apache.spark.deploy.master.Master-1.pid"
+    SPARK_WORKER_PID_FILE = "/tmp/spark--org.apache.spark.deploy.worker.Worker-1.pid"
+    STOP_SPARK_WORKER = "sudo kill -9 {}"
+    STOP_SPARK_MASTER = "sudo kill -9 {}"
+
+
+class FIVE_G_CORE:
+    """
+    Constants related to the 5G core
+    """
+    AMF_METRICS_URL = "http://127.0.0.5:9090/metrics"
+    UPF_METRICS_URL = "http://127.0.0.7:9090/metrics"
+    MME_METRICS_URL = "http://127.0.0.2:9090/metrics"
+    SMF_METRICS_URL = "http://127.0.0.4:9090/metrics"
+    HSS_METRICS_URL = "http://127.0.0.8:9090/metrics"
+    PCRF_METRICS_URL = "http://127.0.0.9:9090/metrics"
+    PCF_METRICS_URL = "http://127.0.0.13:9090/metrics"
+    CONTROL_SCRIPT_PATH = "/start_stop_5g.sh"
+    SUBSCRIBER_CONTROL_SCRIPT_PATH = "/subscriber_init.sh"
+    RUNNING = "RUNNING"
+    STOPPED = "STOPPED"
+    ALL = "all"
+    STATUS = "status"
+    START = "start"
+    STOP = "stop"
+    INIT = "init"
+    MONGO = "mongo"
+    MME = "mme"
+    SGWC = "sgwc"
+    SMF = "smf"
+    AMF = "amf"
+    SGWU = "sgwu"
+    UPF = "upf"
+    HSS = "hss"
+    PCRF = "pcrf"
+    NRF = "nrf"
+    SCP = "scp"
+    SEPP = "sepp"
+    AUSF = "ausf"
+    UDM = "udm"
+    PCF = "pcf"
+    NSSF = "nssf"
+    BSF = "bsf"
+    UDR = "udr"
+    WEBUI = "webui"
+
+
+class FIVE_G_CU:
+    """
+    Constants related to the 5G CU
+    """
+    CONTROL_SCRIPT_PATH = "/start_stop_cu.sh"
+    RUNNING = "RUNNING"
+    STOPPED = "STOPPED"
+    STATUS = "status"
+    START = "start"
+    STOP = "stop"
+    CU = "srscu"
+
+
+class FIVE_G_DU:
+    """
+    Constants related to the 5G DU
+    """
+    CONTROL_SCRIPT_PATH = "/start_stop_du.sh"
+    UE_CONTROL_SCRIPT_PATH = "/start_stop_ue.sh"
+    RUNNING = "RUNNING"
+    STOPPED = "STOPPED"
+    STATUS = "status"
+    START = "start"
+    STOP = "stop"
+    INIT = "init"
+    DU = "srsdu"
+    UE = "srsue"
