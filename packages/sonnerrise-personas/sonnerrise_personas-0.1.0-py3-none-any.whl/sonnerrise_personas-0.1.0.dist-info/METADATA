@@ -1,0 +1,93 @@
+Metadata-Version: 2.4
+Name: sonnerrise-personas
+Version: 0.1.0
+Summary: Personas module for Sonnerrise - Suno persona definitions
+Author-email: Konstantin Boyandin <developer@boyandin.com>
+License-Expression: MIT
+Requires-Python: >=3.11
+Requires-Dist: pydantic>=2.0
+Requires-Dist: sonnerrise-core>=0.1.0
+Provides-Extra: dev
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# sonnerrise-personas
+
+Personas module for the Sonnerrise suite - manages Suno persona definitions.
+
+## Features
+
+- Create and manage Suno personas (voice/style references)
+- Link personas to parental tracks
+- Full CRUD operations via Python API or CLI
+
+## Installation
+
+```bash
+pip install sonnerrise-personas
+```
+
+## Usage
+
+### Python API
+
+```python
+from sonnerrise_core import load_config, get_database
+from sonnerrise_personas import PersonaRepository, PersonaCreate
+
+config = load_config()
+db = get_database(config)
+db.create_tables()
+
+repo = PersonaRepository(db)
+
+# Create a persona
+persona = repo.create(PersonaCreate(
+    name="Epic Narrator",
+    style_of_music="deep male voice, dramatic, orchestral",
+))
+
+# List personas
+personas = repo.list(page=1, per_page=20)
+
+# Search by name
+results = repo.search("narrator")
+
+# Update
+repo.update(persona.id, PersonaUpdate(name="Epic Voice"))
+
+# Delete
+repo.delete(persona.id)
+```
+
+### CLI
+
+```bash
+# List all personas
+sonnerrise-personas list
+
+# Create a new persona
+sonnerrise-personas create --name "Epic Voice" --style "dramatic, orchestral"
+
+# Show persona details
+sonnerrise-personas show 1
+
+# Update a persona
+sonnerrise-personas update 1 --name "New Name"
+
+# Delete a persona
+sonnerrise-personas delete 1
+
+# Search personas
+sonnerrise-personas search "voice"
+```
+
+## Persona Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| name | string (max 48 chars) | Persona name (required) |
+| style_of_music | string (max 1000 chars) | Style description (optional) |
+| parental_track_id | integer | Reference to parent track (optional) |
+| comments | text (max 32KB) | Additional notes (optional) |
