@@ -1,0 +1,430 @@
+Metadata-Version: 2.4
+Name: airun-sdk
+Version: 1.0.3
+Summary: Python SDK for Hamonize AIRUN API
+Author-email: Hamonize Team <team@hamonize.kr>
+License: MIT
+Project-URL: Homepage, https://github.com/hamonikr/airun
+Project-URL: Documentation, https://docs.hamonize.kr/airun
+Project-URL: Repository, https://github.com/hamonikr/airun.git
+Project-URL: Bug Tracker, https://github.com/hamonikr/airun/issues
+Keywords: hamonize,airun,api,sdk,ai,rag
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.28.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: typing-extensions>=4.5.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Provides-Extra: streaming
+Requires-Dist: websocket-client>=1.6.0; extra == "streaming"
+Requires-Dist: websockets>=12.0; extra == "streaming"
+Provides-Extra: all
+Requires-Dist: airun-sdk[dev,streaming]; extra == "all"
+
+# AIRUN Python SDK
+
+Python SDK for [Hamonize AIRUN](https://github.com/hamonikr/airun) API - AI-powered document generation and management platform.
+
+## Features
+
+- **Chat API**: AI conversations with streaming support
+- **Code Generation**: Generate code with AI
+- **Code Execution**: Execute Python code safely
+- **RAG (Retrieval-Augmented Generation)**: Document search and upload
+- **Web Search**: Integrated web search capabilities
+- **Report Generation**: Automated document creation
+- **Session Management**: Manage conversation sessions
+- **User Management**: System prompts and user settings
+
+## Installation
+
+```bash
+# Basic installation
+pip install airun-sdk
+
+# With streaming support (WebSocket)
+pip install airun-sdk[streaming]
+
+# All features
+pip install airun-sdk[all]
+```
+
+## Quick Start
+
+```python
+from airun import AIRUN
+
+# Initialize client
+client = AIRUN(
+    server_url="http://localhost:5500",
+    api_key="your-api-key-here"
+)
+
+# Basic chat
+response = client.chat.create_sync(
+    prompt="What is Python?",
+    options={"model": "gpt-3.5-turbo"}
+)
+
+print(response["data"]["response"])
+```
+
+## Usage Examples
+
+### Chat with RAG and Web Search
+
+```python
+from airun import AIRUN
+from airun.models import ChatOptions
+
+client = AIRUN(
+    server_url="http://localhost:5500",
+    api_key="your-api-key"
+)
+
+# Chat with RAG and Web search enabled
+response = client.chat.create_sync(
+    prompt="What are the latest AI trends?",
+    options=ChatOptions(
+        model="gpt-3.5-turbo",
+        rag=True,           # Enable RAG search
+        web=True,           # Enable web search
+        rag_search_scope="personal",
+        reasoning_level="high"
+    )
+)
+
+print(response["data"]["response"])
+```
+
+### Streaming Chat
+
+```python
+# Option 1: Callback-based streaming
+def on_content(chunk):
+    print(chunk, end='', flush=True)
+
+def on_progress(data):
+    print(f"\nProgress: {data.get('percent', 0)}%")
+
+response = client.chat.stream_chat(
+    prompt="Explain quantum computing",
+    on_content=on_content,
+    on_progress=on_progress
+)
+
+print(f"\nSession ID: {response['sessionId']}")
+```
+
+```python
+# Option 2: Generator-based streaming
+for message in client.chat.stream_chat_generator("Tell me a story"):
+    if message['type'] == 'content':
+        print(message['data'], end='', flush=True)
+    elif message['type'] == 'progress':
+        print(f"\nProgress: {message['data'].get('percent')}%")
+    elif message['type'] == 'complete':
+        print("\nDone!")
+```
+
+```python
+# Option 3: Async streaming
+import asyncio
+
+async def stream_example():
+    response = await client.chat.stream_chat_async(
+        prompt="Write a haiku about coding",
+        on_content=lambda chunk: print(chunk, end='', flush=True)
+    )
+    print(f"\nSession: {response['sessionId']}")
+
+asyncio.run(stream_example())
+```
+
+### Code Generation
+
+```python
+# Generate code
+response = client.code.create_sync(
+    prompt="Create a function to calculate fibonacci numbers",
+    options={
+        "language": "python",
+        "include_docs": True,
+        "include_tests": True
+    }
+)
+
+print(response["data"]["code"])
+```
+
+### Code Execution
+
+```python
+# Execute Python code
+code = """
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n-1) + fibonacci(n-2)
+
+print(f"fibonacci(10) = {fibonacci(10)}")
+"""
+
+response = client.code.execute(python_code=code)
+print(response["data"]["output"])
+```
+
+### RAG Document Upload
+
+```python
+# Upload a document to RAG
+response = client.rag.upload(
+    file_path="/path/to/document.pdf",
+    file_type="document",
+    user_id="user123"
+)
+
+print(f"Uploaded: {response.get('imageUrl', 'Success')}")
+
+# Search documents
+response = client.rag.search_sync(
+    query="machine learning algorithms",
+    rag_search_scope="personal"
+)
+
+for result in response["data"].get("results", []):
+    print(f"- {result.get('title', 'N/A')}: {result.get('snippet', '')[:100]}")
+```
+
+### Web Search
+
+```python
+# Search the web
+response = client.web.search_sync(
+    query="Python 3.12 new features",
+    engine="auto",
+    max_results=5
+)
+
+for result in response["data"]:
+    print(f"Title: {result.get('title')}")
+    print(f"URL: {result.get('link')}")
+    print(f"Snippet: {result.get('snippet', '')[:100]}\n")
+```
+
+### Report Generation
+
+```python
+# Generate a report
+response = client.report.create(
+    prompt="Generate a market analysis report for AI industry",
+    format="pdf",
+    template="simple"
+)
+
+job_id = response["data"]["job_id"]
+
+# Check job status
+status = client.report.get_status(job_id)
+print(f"Status: {status['data']['status']}")
+
+# Get report templates
+templates = client.report.get_simple_templates()
+for template in templates["data"]:
+    print(f"- {template['name']}")
+```
+
+### Session Management
+
+```python
+# Create a new session
+session = client.sessions.create(
+    type="chat",
+    title="My Conversation"
+)
+
+session_id = session["data"]["sessionId"]
+
+# List all sessions
+sessions = client.sessions.get_sessions()
+for s in sessions["data"]["sessions"]:
+    print(f"{s['sessionId']}: {s['title']}")
+
+# Update session
+client.sessions.update_session(
+    session_id,
+    title="Updated Title"
+)
+
+# Delete session
+client.sessions.delete_session(session_id)
+```
+
+### User System Prompt
+
+```python
+# Get user's system prompt
+prompt = client.user.get_system_prompt()
+
+# Update system prompt
+client.user.update_system_prompt(
+    content="You are a helpful AI assistant specialized in Python programming."
+)
+```
+
+## Configuration
+
+The SDK can be configured via environment variables:
+
+```bash
+export AIRUN_SERVER_URL="http://localhost:5500"
+export AIRUN_API_KEY="your-api-key"
+```
+
+Then initialize without parameters:
+
+```python
+client = AIRUN()
+```
+
+Or using a `.env` file:
+
+```env
+AIRUN_SERVER_URL=http://localhost:5500
+AIRUN_API_KEY=your-api-key
+```
+
+## API Reference
+
+### Client Methods
+
+| Method | Description |
+|--------|-------------|
+| `chat.create_sync()` | Synchronous chat completion |
+| `chat.stream_chat()` | Stream chat with callbacks |
+| `chat.stream_chat_generator()` | Generator-based streaming |
+| `chat.stream_chat_async()` | Async streaming |
+| `code.create_sync()` | Generate code |
+| `code.execute()` | Execute Python code |
+| `rag.search_sync()` | Search RAG documents |
+| `rag.upload()` | Upload document to RAG |
+| `rag.add()` | Add documents by path/URL |
+| `rag.delete()` | Delete RAG documents |
+| `web.search_sync()` | Web search |
+| `report.create()` | Generate report |
+| `report.get_status()` | Get report job status |
+| `report.download_report()` | Download report file |
+| `sessions.create()` | Create session |
+| `sessions.get_sessions()` | List sessions |
+| `user.get_system_prompt()` | Get system prompt |
+| `user.update_system_prompt()` | Update system prompt |
+| `validate_key()` | Validate API key |
+| `get_status()` | Get API status |
+
+### ChatOptions Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `model` | str | - | Model name |
+| `provider` | str | - | AI provider (openai, anthropic, etc.) |
+| `temperature` | float | 0.0 | Sampling temperature (0-2) |
+| `max_tokens` | int | 8000 | Maximum tokens to generate |
+| `rag` | bool | false | Enable RAG search |
+| `web` | bool | false | Enable web search |
+| `rag_search_scope` | str | "personal" | RAG search scope (personal/shared/all) |
+| `session_id` | str | - | Session ID for continuity |
+| `history` | list | - | Conversation history |
+| `reasoning_level` | str | "medium" | Reasoning depth (low/medium/high) |
+| `image` | str | - | Image path for vision analysis |
+
+## Error Handling
+
+```python
+from airun import AIRUN
+from airun.exceptions import (
+    APIError,
+    AuthenticationError,
+    RateLimitError,
+    ValidationError,
+    NetworkError
+)
+
+client = AIRUN(api_key="your-api-key")
+
+try:
+    response = client.chat.create_sync("Hello!")
+except AuthenticationError:
+    print("Invalid API key")
+except RateLimitError as e:
+    print(f"Rate limited. Retry after {e.retry_after} seconds")
+except ValidationError as e:
+    print(f"Validation error: {e}")
+except APIError as e:
+    print(f"API error: {e}")
+except NetworkError as e:
+    print(f"Network error: {e}")
+```
+
+## Requirements
+
+- Python 3.8+
+- requests >= 2.28.0
+- python-dotenv >= 1.0.0
+- pydantic >= 2.0.0
+
+Optional (for streaming):
+- websocket-client >= 1.6.0
+- websockets >= 12.0
+
+## Development
+
+```bash
+# Clone repository
+git clone https://github.com/hamonikr/airun.git
+cd airun/sdk/python-sdk
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install in development mode
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Format code
+black src tests
+isort src tests
+
+# Type checking
+mypy src
+```
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Links
+
+- [GitHub Repository](https://github.com/hamonikr/airun)
+- [Documentation](https://docs.hamonize.kr/airun)
+- [Issue Tracker](https://github.com/hamonikr/airun/issues)
