@@ -1,0 +1,44 @@
+---
+name: dockerfile Linting
+
+on:
+  pull_request:
+    branches: &branches
+      - 'develop'
+      - 'develop-1.9'
+    paths: &paths
+      - 'Dockerfile'
+      - '.github/workflows/dockerfile-lint.yml'
+
+  push:
+    branches: *branches
+    paths: *paths
+
+permissions: {}
+
+# When a PR is updated, cancel the jobs from the previous version. Merges
+# do not define head_ref, so use run_id to never cancel those jobs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  dockerfile-lint:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      # Hadolint does not support all modern constructs in Dockerfile. Edit Dockerfile
+      # in place to remove them before linting.
+      - name: Remove unsupported parts of Dockerfile
+        run: |
+          perl -pi -e 's# --checksum=sha256:\S+##g' Dockerfile
+
+      - name: lint Dockerfile
+        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
+        with:
+          dockerfile: Dockerfile
+          ignore: DL3008,DL3002,DL3013,DL3059,SC2102

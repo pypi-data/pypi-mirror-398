@@ -1,0 +1,108 @@
+---
+name: Prod dockercompose test
+
+on:
+  pull_request:
+    branches: &branches
+      - 'develop'
+      - 'develop-1.9'
+    paths: &paths
+      - '**'
+      - '!docs/**'
+      - '!*.rst'
+      - '!*.md'
+      - '!datacube_ows/__init__.py'
+      - '!.github/**'
+      - '.github/workflows/test-prod.yaml'
+
+  push:
+    branches: *branches
+    paths: *paths
+
+env:
+  DOCKER_IMAGE: ghcr.io/opendatacube/ows:tests
+
+permissions: {}
+
+# When a PR is updated, cancel the jobs from the previous version. Merges
+# do not define head_ref, so use run_id to never cancel those jobs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prod-docker-compose-tests:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Get Git commit timestamps
+        run: |
+          TIMESTAMP=$(git log -1 --pretty=%ct pyproject.toml uv.lock datacube_ows)
+          echo "TIMESTAMP=$TIMESTAMP" >> $GITHUB_ENV
+
+      - name: Build Docker
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          file: Dockerfile
+          context: .
+          tags: ${{ env.DOCKER_IMAGE }}
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+        env:
+          SOURCE_DATE_EPOCH: ${{ env.TIMESTAMP }}
+
+      - name: Run prod OWS image
+        run: |
+          export LOCAL_UID=$(id -u $USER)
+          export LOCAL_GID=$(id -g $USER)
+          export $(grep -v '^#' .env_simple | xargs)
+          docker compose -f docker-compose.yaml -f docker-compose.db.yaml -f docker-compose.prod.yaml up --quiet-pull -d --wait
+          docker compose -f docker-compose.yaml -f docker-compose.db.yaml exec -T ows /bin/sh -c "cd /src && ./check-code-all.sh --no-test"
+
+      # Run some tests on the images
+      # These tests require a working database
+      - name: Test ping
+        run: |
+          curl --show-error --fail \
+          --connect-timeout 5 \
+          --max-time 10 \
+          --retry 5 \
+          --retry-all-errors \
+          --retry-delay 0 \
+          --retry-max-time 40 \
+          "localhost:8000/ping" \
+          > /dev/null
+
+      - name: Test WMS GetCapabilities
+        run: |
+          curl --silent --show-error --fail \
+          "localhost:8000/?service=WMS&version=1.3.0&request=GetCapabilities" \
+      - name: Test WMTS GetCapabilities
+        run: |
+          curl --silent --show-error --fail \
+          "localhost:8000/?service=WMS&version=1.0.0&request=GetCapabilities" \
+          > /dev/null
+      - name: Test WCS1 GetCapabilities
+        run: |
+          curl --silent --show-error --fail \
+          "localhost:8000/?service=WCS&version=1.0.0&request=GetCapabilities"
+          > /dev/null
+      - name: Test WCS2 GetCapabilities
+        run: |
+          curl --silent --show-error --fail \
+          "localhost:8000/?service=WCS&version=2.0.1&request=GetCapabilities"
+          > /dev/null
+      - name: Test Prometheus Metrics
+        run: |
+          curl --silent --show-error --fail \
+          "localhost:8000/metrics"
+          > /dev/null
