@@ -1,0 +1,209 @@
+Metadata-Version: 2.4
+Name: data-wise-location-mcp-server
+Version: 1.0.12
+Summary: Location MCP Server - 提供银行、身份证、IP、手机号归属地查询的 MCP 服务
+Project-URL: Homepage, https://github.com/datawisecenter/location-mcp-server
+Project-URL: Repository, https://github.com/datawisecenter/location-mcp-server
+Project-URL: Documentation, https://github.com/datawisecenter/location-mcp-server#readme
+Project-URL: Bug Tracker, https://github.com/datawisecenter/location-mcp-server/issues
+Author-email: DataWiseCenter <contact@datawisecenter.com>
+License: MIT
+License-File: LICENSE
+Keywords: attribution,bank,fastmcp,id,ip,location,mcp,mobile
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Internet :: WWW/HTTP :: HTTP Servers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Requires-Dist: duckdb==1.4.3
+Requires-Dist: fastmcp>=2.14.1
+Provides-Extra: dev
+Requires-Dist: black>=23.0.0; extra == 'dev'
+Requires-Dist: isort>=5.12.0; extra == 'dev'
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Location MCP Server
+
+提供银行、身份证、IP、手机号归属地查询的 MCP (Model Context Protocol) 服务，基于 FastMCP 框架构建。
+
+## 功能特性
+
+- **银行卡归属地查询**: 根据银行卡号查询银行名称、卡类型等信息
+- **身份证归属地查询**: 根据身份证号查询地区归属信息
+- **IP归属地查询**: 根据IP地址查询地理位置和ISP信息
+- **手机号归属地查询**: 根据手机号查询省份、城市和运营商信息
+
+支持批量查询，每次最多可查询1000条记录。
+
+## 安装和使用
+
+### 方式 1: uvx 运行（推荐）
+
+```bash
+uvx data-wise-location-mcp-server
+```
+
+### 方式 2: 安装后运行
+
+```bash
+pip install data-wise-location-mcp-server
+data-wise-location-mcp-server
+```
+
+### 方式 3: Python 模块运行
+
+```bash
+python -m location.main
+```
+
+## IDE 配置
+
+### Windsurf/Codeium 配置
+
+在 `~/.codeium/windsurf/mcp_config.json` 中添加以下配置：
+
+```json
+{
+  "mcpServers": {
+    "data-wise-location": {
+      "command": "uvx",
+      "args": [
+        "data-wise-location-mcp-server"
+      ],
+      "disabled": false,
+      "env": {}
+    }
+  }
+}
+```
+
+### Cursor 配置
+
+在 Cursor 的 MCP 设置中添加：
+
+```json
+{
+  "mcpServers": {
+    "data-wise-location": {
+      "command": "uvx",
+      "args": [
+        "data-wise-location-mcp-server"
+      ],
+      "disabled": false,
+      "env": {}
+    }
+  }
+}
+```
+
+### Claude Desktop 配置
+
+在 `~/Library/Application Support/Claude/claude_desktop_config.json` 中添加：
+
+```json
+{
+  "mcpServers": {
+    "data-wise-location": {
+      "command": "uvx",
+      "args": [
+        "data-wise-location-mcp-server"
+      ],
+      "disabled": false,
+      "env": {}
+    }
+  }
+}
+```
+
+### 可用工具
+
+1. **bank_attribution_batch**
+   - 描述: 批量查询银行卡归属地信息
+   - 参数: `card_numbers` (string[]) - 银行卡号列表
+
+2. **id_attribution_batch**
+   - 描述: 批量查询身份证归属地信息
+   - 参数: `id_numbers` (string[]) - 身份证号列表
+
+3. **ip_attribution_batch**
+   - 描述: 批量查询IP地址归属地信息
+   - 参数: `ip_addresses` (string[]) - IP地址列表
+
+4. **mobile_attribution_batch**
+   - 描述: 批量查询手机号归属地信息
+   - 参数: `phone_numbers` (string[]) - 手机号列表
+
+## 技术架构
+
+- **FastMCP**: 基于 FastAPI 的 MCP 框架，提供类型安全的工具定义
+- **Pydantic**: 用于请求验证和数据模型定义
+- **DuckDB**: 高性能嵌入式数据库，存储归属地数据
+
+## 数据来源
+
+服务使用 DuckDB 数据库存储归属地数据，数据库文件位于：
+- `bank_card_bin_data.duckdb` - 银行卡BIN数据
+- `id_location.duckdb` - 身份证地区代码数据
+- `ip_location.duckdb` - IP地址归属地数据
+- `mobile_location.duckdb` - 手机号归属地数据
+
+## 返回格式
+
+所有工具返回统一的JSON格式：
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      // 具体的归属地信息字段
+    }
+  ],
+  "count": 10
+}
+```
+
+## 错误处理
+
+当查询失败时，返回：
+
+```json
+{
+  "success": false,
+  "error": "错误信息",
+  "data": null
+}
+```
+
+## 开发说明
+
+本项目从 DataWiseCenter 主项目的 location 数据集模块独立出来，适配 MCP 协议标准。
+
+### 项目结构
+
+```
+location/
+├── __init__.py          # 包初始化
+├── main.py              # FastMCP 服务主程序
+├── query.py             # 查询引擎
+├── requirements.txt     # 依赖包
+└── README.md           # 说明文档
+```
+
+### FastMCP 优势
+
+- **类型安全**: 使用 Pydantic 模型进行参数验证
+- **自动文档**: 自动生成工具文档和schema
+- **FastAPI 集成**: 与 FastAPI 生态系统无缝集成
+- **简化开发**: 减少样板代码，提高开发效率
