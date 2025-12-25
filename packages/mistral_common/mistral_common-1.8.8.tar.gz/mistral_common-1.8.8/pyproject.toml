@@ -1,0 +1,100 @@
+[build-system]
+requires = ["setuptools>=42", "wheel", "build"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mistral_common"
+version = "1.8.8"
+description = "Mistral-common is a library of common utilities for Mistral AI."
+authors = [{name = "bam4d", email = "bam4d@mistral.ai"}]
+license = "Apache-2.0"
+license-files = ["LICENSE"] 
+readme = "README.md"
+requires-python = ">=3.10.0,<3.14"
+
+dependencies = [
+    "pydantic>=2.7,<3.0",
+    "jsonschema>=4.21.1",
+    "typing-extensions>=4.11.0",
+    "tiktoken>=0.7.0",
+    "pillow>=10.3.0",
+    "requests>=2.0.0",
+    "numpy>=1.25",
+    "pydantic-extra-types[pycountry]>=2.10.5",
+]
+
+[project.optional-dependencies]
+opencv = ["opencv-python-headless>=4.0.0"]
+sentencepiece = ["sentencepiece>=0.2.0"]
+soundfile = ["soundfile>=0.12.1"]
+soxr = ["soxr>=0.5.0"]
+audio = ["mistral_common[soundfile]", "mistral_common[soxr]"]
+image = ["mistral_common[opencv]"]
+
+hf-hub = ["huggingface-hub>=0.32.4"]
+server = ["fastapi[standard]>=0.115.12", "pydantic-settings >= 2.9.1", "click>=8.1.0"]
+
+[project.scripts]
+mistral_common = "mistral_common.experimental.app.main:cli"
+
+[dependency-groups]
+dev = [
+    "types-jsonschema>=4.21.0.20240118",
+    "types-protobuf>=4.24.0.20240129",
+    "mypy-protobuf>=3.5.0",
+    "pytest>=7.4.4",
+    "ruff>=0.2.2",
+    "mypy>=1.8.0",
+    "pytest-cov>=4.1.0",
+    "diff-cover>=8.0.3",
+    "types-Pillow>=10.2.0",
+    "types-requests>=2.32",
+    "coverage[toml]>=7.4.4",
+    "openai>=1.84.0",
+    "pre-commit>=4.0.0",
+]
+
+docs = [
+    "mkdocs",
+    "mkdocstrings",
+    "mkdocstrings-python",
+    "mkdocs-material",
+    "mkdocs-gen-files",
+    "mkdocs-literate-nav",
+]
+
+
+[tool.ruff]
+lint.select = ["E", "F", "W", "Q", "I"]
+lint.ignore = ["E203"]
+lint.fixable = ["ALL"]
+lint.unfixable = []
+line-length = 120
+exclude = ["docs", "build"]
+
+[tool.mypy]
+disallow_untyped_defs = true
+show_error_codes = true
+no_implicit_optional = true
+warn_return_any = true
+warn_unused_ignores = true
+exclude = ["docs", "tools", "build"]
+
+[[tool.mypy.overrides]]
+module = ["sentencepiece.*", "cv2", "cv2.*","soxr", "soundfile"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["./tests"]
+
+[tool.coverage.run]
+omit = ["tests", "*src/mistral_common/data*"]
+
+[tool.coverage.report]
+skip_covered = true
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
