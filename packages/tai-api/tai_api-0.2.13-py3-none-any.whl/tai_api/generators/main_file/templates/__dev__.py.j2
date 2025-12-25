@@ -1,0 +1,74 @@
+"""
+{{ project_name }} - Main Application
+Generado automáticamente por tai-api
+
+Este es el archivo principal de la aplicación FastAPI.
+Estado: Proyecto básico inicializado
+"""
+{% if auth_type == 'keycloak' %}import os{% endif %}
+
+from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware 
+from {{ resources_import_path }} import setup_exception_handlers{% if with_mcp %}, set_mcp{% endif %}
+
+{% if has_routers %}
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+from {{ routers_import_path }} import database_router
+
+description = """
+{% for schema in schemas %}
+<details>
+<summary>Diagrama ER: {{ schema }}</summary>
+
+![ER](/diagrams/{{ schema }}.png)
+
+</details>
+{% endfor %}
+"""
+
+{% if auth_type == 'keycloak' %}
+os.environ["RBAC_ENABLED"] = "false"
+
+{% endif %}
+app = FastAPI(
+    title="{{ project_name }}",
+    version="{{ version }}",
+    description=description
+)
+
+# Montar carpeta estática de diagramas
+app.mount("/diagrams", StaticFiles(directory=Path(__file__).parent / "diagrams"), name="diagrams")
+
+# Incluir router de API generada
+app.include_router(database_router)
+
+{% else %}
+
+app = FastAPI(title="{{ project_name }}", version="{{ version }}")
+
+{% endif %}
+# Configurar manejadores de excepciones
+setup_exception_handlers(app)
+
+# Configurar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configurar según ambiente
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+{% if with_mcp %}
+set_mcp(
+    app,
+    {% if operations %}
+    operations=[
+        {% for operation in operations %}
+        "{{ operation }}"{% if not loop.last %},{% endif %}{{''}}
+        {% endfor %}
+    ]
+    {% endif %}
+)
+{% endif %}

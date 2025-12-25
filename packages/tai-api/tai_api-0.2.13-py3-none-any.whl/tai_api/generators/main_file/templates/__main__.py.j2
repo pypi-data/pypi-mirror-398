@@ -1,0 +1,114 @@
+"""
+{{ project_name }} - Main Application
+Generado automáticamente por tai-api
+
+Este es el archivo principal de la aplicación FastAPI.
+Estado: Proyecto completo con autenticación y API de base de datos
+"""
+{% if auth_type == 'keycloak' %}
+import os
+from contextlib import asynccontextmanager
+{% endif %}
+{% if has_routers %}from pathlib import Path{% endif %}
+
+from fastapi import FastAPI{% if auth_type == 'database' %}, Depends{% endif %}
+
+from starlette.middleware.cors import CORSMiddleware
+from {{ resources_import_path }} import setup_exception_handlers{% if with_mcp %}, set_mcp{% endif %}
+
+{% if has_routers %}
+from fastapi.staticfiles import StaticFiles
+from {{ routers_import_path }} import database_router
+{% endif %}
+{% if has_auth %}
+from {{ auth_import_path }} import auth_router{% if auth_type == 'database' %}, get_current_user{% endif %}{% if auth_type == 'keycloak' %}, get_keycloak_client{% endif %}
+
+
+{% if auth_type == 'keycloak' %}
+os.environ["RBAC_ENABLED"] = "true"
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    kc = get_keycloak_client()
+    # Inicializar LLM al iniciar la app
+    await kc.get_public_key()
+    yield
+
+{% endif %}
+{% endif %}
+{% if has_routers %}
+description = """
+{% for schema in schemas %}
+<details>
+<summary>Diagrama ER: {{ schema }}</summary>
+
+![ER](/diagrams/{{ schema }}.png)
+
+</details>
+{% endfor %}
+"""
+
+app = FastAPI(
+    title="{{ project_name }}",
+    version="{{ version }}",
+    description=description,
+    {% if auth_type == 'keycloak' %}    lifespan=lifespan{% endif %}
+    
+)
+
+# Montar carpeta estática de diagramas
+app.mount("/diagrams", StaticFiles(directory=Path(__file__).parent / "diagrams"), name="diagrams")
+
+{% if has_auth %}
+# Incluir router de autenticación
+app.include_router(auth_router)
+
+{% endif %}
+
+{% if auth_type == 'database' %}
+# Incluir router de API generada
+app.include_router(
+    database_router, 
+    dependencies=[Depends(get_current_user)]
+)
+
+{% else %}
+# Incluir router de API generada
+app.include_router(database_router)
+
+{% endif %}
+{% else %}
+app = FastAPI(title="{{ project_name }}", version="{{ version }}")
+
+{% if has_auth %}
+# Incluir router de autenticación
+app.include_router(auth_router)
+
+{% endif %}
+
+{% endif %}
+
+# Configurar manejadores de excepciones
+setup_exception_handlers(app)
+
+# Configurar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configurar según ambiente
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+{% if with_mcp %}
+set_mcp(
+    app,
+    {% if operations %}
+    operations=[
+        {% for operation in operations %}
+        "{{ operation }}"{% if not loop.last %},{% endif %}{{''}}
+        {% endfor %}
+    ]
+    {% endif %}
+)
+{% endif %}

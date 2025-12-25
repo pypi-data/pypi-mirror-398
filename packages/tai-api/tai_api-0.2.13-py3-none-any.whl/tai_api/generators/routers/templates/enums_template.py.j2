@@ -1,0 +1,26 @@
+{#- Template Jinja2 para generar router de enumeraciones -#}
+{#- Este template genera endpoints GET para todas las enumeraciones del sistema -#}
+{{ imports|join('\n') }}
+
+enumerations_router = APIRouter(
+    prefix="/enums",
+    tags=["Enumeraciones"]
+)
+
+{% for enum in enumerations %}
+@enumerations_router.get("/{{ enum.hypen_name }}", tags=["Enumeraciones"], response_model=APIResponse[List[{{ enum.type }}]])
+async def get_{{ enum.name }}_enumeration(
+    {% if with_keycloak %}    token: AccessToken = Depends(requires_permissions('read', 'enums')),{% endif %}
+    api: {{ crud_class }} = Depends({{ crud_class }})
+) -> APIResponse[List[{{ enum.type }}]]:
+    """
+    Obtiene los valores de la enumeración {{ enum.name }}.
+    """
+    values = api.{{ enum.name }}.find_many()
+    
+    return APIResponse.success(
+        data=values,
+        message="Enumeración {{ enum.name }} obtenida exitosamente"
+    )
+
+{% endfor %}

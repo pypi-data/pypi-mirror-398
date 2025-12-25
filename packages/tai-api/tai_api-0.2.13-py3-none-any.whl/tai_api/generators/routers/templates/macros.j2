@@ -1,0 +1,327 @@
+
+
+{% macro generate_query_parameters(model) -%}
+{% for column in model.columns -%}
+{% if not column.args.get('autoincrement', False) and not column.encrypt -%}
+    {% if column.args.get('primary_key', False) -%}
+{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="{{ 'Filtrar por ' + column.name + ' (clave primaria)' }}"{% if column.args.get('autoincrement', False) %}, gt=0{% endif %}),
+    {% elif column.is_foreign_key -%}
+{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="{{ 'Filtrar por ' + column.name + ' (clave foránea)' }}"{% if column.args.get('autoincrement', False) %}, gt=0{% endif %}),
+    {% elif 'str' == column.type -%}
+{{ column.name }}: Optional[{{ column.type }}] = Query(None, description='{{ 'Filtrar por ' + column.name + '. Utiliza "%' + column.name + '%" para hacer consultas ILIKE. ' + column.description }}', min_length=1, max_length=255),
+in_{{ column.name }}: Optional[List[{{ column.type }}]] = Query(None, description='{{ 'Filtrar por varios valores de la columna ' + column.name + '. ' + column.description }}'),
+    {% elif 'bool' == column.type -%}
+{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="{{ 'Filtrar por ' + column.name + ' (verdadero/falso). ' + column.description }}"),
+    {% elif  'date' == column.type -%}
+{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="{{ 'Filtrar por fecha exacta de ' + column.name + ' (formato: YYYY-MM-DD). ' + column.description }}"),
+min_{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="Fecha mínima para {{ column.name }} (incluida, formato: YYYY-MM-DD)"),
+max_{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="Fecha máxima para {{ column.name }} (incluida, formato: YYYY-MM-DD)"),
+    {% elif  'int' == column.type -%}
+{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="{{ 'Filtrar por valor exacto de ' + column.name + '. ' + column.description }}"),
+min_{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="Valor mínimo para {{ column.name }} (incluido)"),
+max_{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="Valor máximo para {{ column.name }} (incluido)"),
+    {% elif 'float' == column.type -%}
+min_{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="Valor mínimo para {{ column.name }} (incluido)"),
+max_{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="Valor máximo para {{ column.name }} (incluido)"),
+    {% elif 'datetime' == column.type -%}
+min_{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="Fecha y hora mínima para {{ column.name }} (incluida, formato: YYYY-MM-DDTHH:MM:SS)"),
+max_{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="Fecha y hora máxima para {{ column.name }} (incluida, formato: YYYY-MM-DDTHH:MM:SS)"),
+    {% elif 'time' == column.type -%}
+min_{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="Hora mínima para {{ column.name }} (incluida, formato: HH:MM:SS)"),
+max_{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="Hora máxima para {{ column.name }} (incluida, formato: HH:MM:SS)"),
+    {% else -%}
+{{ column.name }}: Optional[{{ column.type }}] = Query(None, description="{{ 'Filtrar por ' + column.name + '. ' + column.description  }}"),
+    {%- endif -%}
+{%- endif -%}
+{%- endfor -%}
+{%- endmacro -%}
+
+
+{% macro generate_pagination_parameters() -%}
+limit: Optional[int] = Query(None, description="Número de registros a retornar.", gt=0),
+order_by: List[str] = Query(None, description="Lista de nombres de columnas para ordenar los resultados. Si no existen serán omitidas."),
+order: Optional[Literal["ASC", "DESC"]] = Query("ASC", description="Dirección de ordenamiento: 'ASC' para ascendente (por defecto), 'DESC' para descendente. Solo aplica si order_by está definido", regex="^(ASC|DESC)$"),
+offset: Optional[int] = Query(None, description="Número de registros a omitir desde el inicio. Útil para paginación. Debe ser un valor no negativo", ge=0),
+{%- endmacro -%}
+
+
+{% macro generate_includes_parameter() -%}
+includes: List[str] = Query(None, description="Lista de relaciones a incluir en la respuesta para obtener datos relacionados. Especifica los nombres de las relaciones que deseas expandir"),
+{%- endmacro -%}
+
+
+{% macro generate_path_parameters(model) -%}
+{% for column in model.columns if column.args.get('primary_key', False) %}
+{{ column.name }}: {{ column.type }} = Path(..., description="{{ column.description }}"{% if column.args.get('autoincrement', False) %}, gt=0{% endif %}),
+{% endfor %}
+{%- endmacro -%}
+
+
+{% macro generate_query_args(model) -%}
+{% for column in model.columns -%}
+{% if not column.args.get('autoincrement', False) and not column.encrypt -%}
+{% if column.args.get('primary_key', False) or column.is_foreign_key -%}
+- **{{ column.name }}**: Filtrar por {{ column.name }}
+{% elif 'str' == column.type -%}
+- **{{ column.name }}**: Filtrar por {{ column.name }}. Utilizar "%{{ column.name }}%" para hacer consultas ILIKE.
+- **in_{{ column.name }}**: Filtrar por varios valores de la columna {{ column.name }}
+{% elif 'bool' == column.type -%}
+- **{{ column.name }}**: Filtrar por {{ column.name }} (verdadero/falso)
+{% elif  'date' == column.type or 'int' == column.type -%}
+- **{{ column.name }}**: Filtrar por {{ column.name }}
+- **min_{{ column.name }}**: Filtrar por fecha mínima (incluída)
+- **max_{{ column.name }}**: Filtrar por fecha máxima (incluída)
+{% elif 'float' == column.type or 'datetime' == column.type or 'time' == column.type -%}
+- **min_{{ column.name }}**: Filtrar por valor mínimo de {{ column.name }} (incluído el valor del filtro)
+- **max_{{ column.name }}**: Filtrar por valor máximo de {{ column.name }} (incluído el valor del filtro)
+{% elif 'bytes' == column.type %}
+{% else -%}
+- **{{ column.name }}**: Filtrar por {{ column.name }}
+{%- endif -%}
+{%- endif -%}
+{%- endfor -%}
+{%- endmacro %}
+
+
+{% macro asing_parameters(model) -%}
+{% for column in model.columns -%}
+{% if not column.args.get('autoincrement', False) and not column.encrypt -%}
+{% if column.args.get('primary_key', False) or column.is_foreign_key -%}
+{{ column.name }}={{ column.name }},
+{% elif 'str' == column.type or 'bool' == column.type -%}
+{{ column.name }}={{ column.name }},
+in_{{ column.name }}=in_{{ column.name }},
+{% elif  'date' == column.type or 'int' == column.type -%}
+{{ column.name }}={{ column.name }},
+min_{{ column.name }}=min_{{ column.name }},
+max_{{ column.name }}=max_{{ column.name }},
+{% elif 'float' == column.type or 'datetime' == column.type or 'time' == column.type -%}
+min_{{ column.name }}=min_{{ column.name }},
+max_{{ column.name }}=max_{{ column.name }},
+{% elif 'bytes' == column.type %}
+{% else -%}
+{{ column.name }}={{ column.name }},
+{%- endif -%}
+{%- endif -%}
+{%- endfor -%}
+{%- endmacro %}
+
+
+{# Macros para generar documentación de links #}
+{% macro generate_find_many_links(model) -%}
+{
+    "self": {
+        "operationId": "{{ model.tablename }}_find_many",
+        "description": "Enlace a la consulta actual con los mismos filtros",
+        "parameters": {
+            {% for column in model.columns if not column.args.get('autoincrement', False) and not column.encrypt -%}
+            {% if not column.args.get('primary_key', False) or not column.is_foreign_key %}
+            "{{ column.name }}": "$request.query.{{ column.name }}",
+            {% endif -%}
+            {% endfor %}
+            "limit": "$request.query.limit",
+            "offset": "$request.query.offset",
+            "order_by": "$request.query.order_by",
+            "order": "$request.query.order",
+            "includes": "$request.query.includes"
+        }
+    },
+    "item": {
+        "operationId": "{{ model.tablename }}_find",
+        "description": "Enlace para acceder a un elemento específico",
+        "parameters": {
+            {% for column in model.columns if column.args.get('primary_key', False) %}
+            "{{ column.name }}": "$response.body#/data/**/{{ column.name }}",
+            {% endfor %}
+            "includes": "$request.query.includes"
+        }
+    },
+    "create": {
+        "operationId": "{{ model.tablename }}_create",
+        "description": "Enlace para crear un nuevo {{ model.name }}"
+    },
+    "count": {
+        "operationId": "{{ model.tablename }}_count",
+        "description": "Enlace para obtener el conteo total con los mismos filtros",
+        "parameters": {
+            {% for column in model.columns if not column.args.get('autoincrement', False) and not column.encrypt -%}
+            {% if not column.args.get('primary_key', False) or not column.is_foreign_key %}
+            "{{ column.name }}": "$request.query.{{ column.name }}",
+            {% endif -%}
+            {% endfor %}
+        }
+    }{% if model.relations %},
+    {% for relation in model.relations -%}
+    "{{ relation.name }}": {
+        {% if relation.direction == 'many-to-one' -%}
+        "operationId": "{{ relation.target.lower() }}_find",
+        "description": "Enlace al {{ relation.target }} relacionado",
+        "parameters": {
+            {% for field, ref in zip(relation.fields, relation.references) %}
+            "{{ ref }}": "$response.body#/data/**/{{ field }}",
+            {% endfor %}
+            "includes": "$request.query.includes"
+        }
+        {% else -%}
+        "operationId": "{{ relation.target.lower() }}_find_many",
+        "description": "Enlace a los {{ relation.target }}s relacionados",
+        "parameters": {
+            {% for field, ref in zip(relation.fields, relation.references) %}
+            "{{ field }}": "$response.body#/data/**/{{ ref }}",
+            {% endfor %}
+            "includes": "$request.query.includes"
+        }
+        {% endif -%}
+    }{{ "," if not loop.last }}
+    {% endfor -%}
+    {% endif %}
+}
+{%- endmacro %}
+
+
+{% macro generate_find_links(model) -%}
+{
+    "self": {
+        "operationId": "{{ model.tablename }}_find",
+        "description": "Enlace al recurso actual",
+        "parameters": {
+            {% for column in model.columns if column.args.get('primary_key', False) %}
+            "{{ column.name }}": "$response.body#/data/{{ column.name }}",
+            {% endfor %}
+            "includes": "$request.query.includes"
+        }
+    },
+    "collection": {
+        "operationId": "{{ model.tablename }}_find_many",
+        "description": "Enlace a la colección de {{ model.name }}s"
+    },
+    "edit": {
+        "operationId": "{{ model.tablename }}_update",
+        "description": "Enlace para actualizar este {{ model.name }}",
+        "parameters": {
+            {% for column in model.columns if column.args.get('primary_key', False) %}
+            "{{ column.name }}": "$response.body#/data/{{ column.name }}",
+            {% endfor %}
+        }
+    },
+    "delete": {
+        "operationId": "{{ model.tablename }}_delete",
+        "description": "Enlace para eliminar este {{ model.name }}",
+        "parameters": {
+            {% for column in model.columns if column.args.get('primary_key', False) %}
+            "{{ column.name }}": "$response.body#/data/{{ column.name }}",
+            {% endfor %}
+        }
+    }{% if model.relations %},
+    {% for relation in model.relations -%}
+    "{{ relation.name }}": {
+        {% if relation.direction == 'many-to-one' -%}
+        "operationId": "{{ relation.target.lower() }}_find",
+        "description": "Enlace al {{ relation.target }} relacionado",
+        "parameters": {
+            {% for field, ref in zip(relation.fields, relation.references) %}
+            "{{ ref }}": "$response.body#/data/{{ field }}",
+            {% endfor %}
+            "includes": "$request.query.includes"
+        }
+        {% else -%}
+        "operationId": "{{ relation.target.lower() }}_find_many",
+        "description": "Enlace a los {{ relation.target }}s relacionados",
+        "parameters": {
+            {% for field, ref in zip(relation.fields, relation.references) %}
+            "{{ field }}": "$response.body#/data/{{ ref }}",
+            {% endfor %}
+            "includes": "$request.query.includes"
+        }
+        {% endif -%}
+    }{{ "," if not loop.last }}
+    {% endfor -%}
+    {% endif %}
+}
+{%- endmacro %}
+
+
+{% macro generate_links_documentation(model, operation_type) -%}
+
+## Enlaces Disponibles
+
+Los siguientes enlaces están disponibles en la respuesta para facilitar la navegación:
+
+{% if operation_type == 'find_many' -%}
+### Enlaces de Navegación
+- **self**: Enlace a la consulta actual con los mismos parámetros
+- **item**: Template para acceder a elementos individuales (usar con IDs específicos)
+- **create**: Enlace para crear nuevos {{ model.name }}s
+- **count**: Enlace para obtener el conteo total con los mismos filtros
+
+{% elif operation_type == 'find' -%}
+### Enlaces de Navegación
+- **self**: Enlace al recurso actual
+- **collection**: Enlace de vuelta a la colección de {{ model.name }}s
+- **edit**: Enlace para actualizar este {{ model.name }}
+- **delete**: Enlace para eliminar este {{ model.name }}
+
+{% endif -%}
+{% if model.relations -%}
+### Enlaces Relacionales
+{% for relation in model.relations -%}
+- **{{ relation.name }}**: 
+  {% if relation.direction == 'many-to-one' -%}
+  Enlace al {{ relation.target }} relacionado
+  {% else -%}
+  Enlace a los {{ relation.target }}s relacionados de este {{ model.name }}
+  {% endif %}
+  {% if relation.description %}
+  
+  {{ relation.description | indent(2) }}
+  {% endif %}
+{% endfor -%}
+
+### Ejemplos de Uso de Enlaces
+```javascript
+// Ejemplo de respuesta con enlaces
+{
+  "status": "success",
+  "data": [...],
+  "links": {
+    "self": "/{{ model.tablename }}?limit=10&offset=0",
+    "item": "/{{ model.tablename }}/{id}",
+    {% for relation in model.relations[:2] -%}
+    "{{ relation.name }}": "/{{ relation.target.lower() }}{% if relation.direction == 'many-to-one' %}/{id}{% else %}?{{ relation.fields[0] if relation.fields }}={id}{% endif %}",
+    {% endfor -%}
+  }
+}
+```
+{% endif -%}
+{%- endmacro %}
+
+
+{% macro generate_filter_query(model) -%}
+{% for column in model.columns -%}
+{% if not column.args.get('autoincrement', False) and not column.encrypt  -%}
+{% if column.args.get('primary_key', False) or column.is_foreign_key -%}
+if {{ column.name }} is not None:
+    query = query.where({{ model.name }}.{{ column.name }} == {{ column.name }})
+{% elif 'str' == column.type or 'bool' == column.type -%}
+if {{ column.name }} is not None:
+    query = query.where({{ model.name }}.{{ column.name }} == {{ column.name }})
+{% elif 'date' == column.type or 'int' == column.type -%}
+if {{ column.name }} is not None:
+    query = query.where({{ model.name }}.{{ column.name }} == {{ column.name }})
+if min_{{ column.name }} is not None:
+    query = query.where({{ model.name }}.{{ column.name }} >= min_{{ column.name }})
+if max_{{ column.name }} is not None:
+    query = query.where({{ model.name }}.{{ column.name }} <= max_{{ column.name }})
+{% elif 'float' == column.type or 'datetime' == column.type or 'time' == column.type -%}
+if min_{{ column.name }} is not None:
+    query = query.where({{ model.name }}.{{ column.name }} >= min_{{ column.name }})
+if max_{{ column.name }} is not None:
+    query = query.where({{ model.name }}.{{ column.name }} <= max_{{ column.name }})
+{% elif 'bytes' == column.type %}
+{% else -%}
+if {{ column.name }} is not None:
+    query = query.where({{ model.name }}.{{ column.name }} == {{ column.name }})
+{%- endif -%}
+{%- endif -%}
+{%- endfor -%}
+{%- endmacro %}

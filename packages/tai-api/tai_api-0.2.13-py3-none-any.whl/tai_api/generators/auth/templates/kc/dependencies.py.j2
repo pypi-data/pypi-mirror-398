@@ -1,0 +1,96 @@
+"""
+{{ project_name }} - Authentication Dependencies
+Generado automáticamente por tai-api set-auth
+
+Este módulo contiene las dependencias de FastAPI para autenticación
+"""
+from __future__ import annotations
+import os
+from fastapi import Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
+from typing import Annotated, Literal, Callable
+from tai_keycloak import AccessToken, KeycloakAsyncAPIClient, faked_token
+from {{ resources_import_path }} import (
+    UnAuthorizedException,
+    InvalidTokenException
+)
+
+from .utils import get_keycloak_client
+
+http_bearer = HTTPBearer()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/docslogin", auto_error=False)
+
+
+async def validate_token(
+    # Primer intento: Bearer token directo
+    bearer_credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(http_bearer)] = None,
+    # Segundo intento: OAuth2 token (para Swagger)
+    oauth2_token: Annotated[str | None, Depends(oauth2_scheme)] = None,
+    kc: KeycloakAsyncAPIClient = Depends(get_keycloak_client),
+) -> AccessToken:
+    """
+    FastAPI dependency unificada que valida tokens de múltiples fuentes:
+    1. Header Authorization: Bearer <token> (para uso directo/programático)
+    2. OAuth2 flow (para Swagger UI con username/password)
+    
+    Prioridad: Bearer header tiene precedencia sobre OAuth2 token
+    """
+    # Determinar qué token usar
+    token_str = None
+    if bearer_credentials:
+        token_str = bearer_credentials.credentials
+    elif oauth2_token:
+        token_str = oauth2_token
+    
+    if not token_str:
+        raise UnAuthorizedException("No se ha encontrado token. Prueba con /login")
+
+    # Validar el token
+    result = kc.token.decode(token_str, kc.public_key, expected_audience=["api"])
+
+    if not result.success:
+        raise InvalidTokenException(result.message)
+
+    return result.data
+
+
+def requires_permissions(action: Literal['admin', 'read', 'write', 'update', 'delete'], resource: str) -> Callable:
+    """
+    Factory function que retorna una dependency de FastAPI para validar permisos específicos.
+    
+    Args:
+        action: Acción requerida (admin, read, write, update, delete)
+        resource: Recurso al que se aplica el permiso
+        
+    Returns:
+        Dependency function que valida el permiso y retorna el token
+    """
+
+    def fake_permission_dependency() -> AccessToken:
+        # En modo testing/desarrollo, siempre permitir
+        return faked_token
+    
+    def permission_dependency(
+        token: Annotated[AccessToken, Depends(validate_token)]
+    ) -> AccessToken:
+
+        # Resolver el permiso 'sudo'
+        if 'sudo' in token.api_roles:
+            return token
+
+        # Construir el permiso requerido en formato recurso-acción
+        required_perm = f"{resource}-{action}"
+
+        # Validar que el token tenga el permiso requerido
+        if required_perm not in token.api_roles:
+            raise UnAuthorizedException("Permisos insuficientes", details={
+                "required_permission": required_perm,
+                "user_permissions": token.api_roles,
+            })
+        
+        return token
+
+    if not os.getenv("RBAC_ENABLED", "false").lower() == "true":
+        return fake_permission_dependency
+    
+    return permission_dependency
