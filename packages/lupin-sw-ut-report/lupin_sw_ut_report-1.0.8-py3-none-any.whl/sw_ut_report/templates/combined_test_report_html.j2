@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+        table, th, td { border: 1px solid #ddd; }
+        th, td { padding: 8px; text-align: left; }
+        h1, h2, h3, h4 { margin: 20px 0 10px; }
+        .report { margin-bottom: 40px; }
+        .testcase { margin-left: 20px; }
+    </style>
+</head>
+<body>
+    <h1>{{ title }}</h1>
+
+    {% if summary %}
+    <h2>Summary</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sum in summary %}
+            <tr>
+                <td>{{ sum.id }}</td>
+                <td>{{ sum.status }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% for report in reports %}
+    <div class="report">
+        <hr>
+        <p><strong>Test file:</strong> {{ report.filename }}</p>
+        {% if report.date %}
+        <p><strong>Date:</strong> {{ report.date }}</p>
+        {% endif %}
+        {% if report.tag %}
+        <p><strong>Tag:</strong> {{ report.tag }}</p>
+        {% endif %}
+
+        {% if report.type == "xml" %}
+        <h2>{{ report.content.name }}</h2>
+        <p><strong>Date:</strong> {{ report.content.timestamp }}</p>
+        <p><strong>Number of tests:</strong> {{ report.content.tests }}</p>
+        <p><strong>Errors:</strong> {{ report.content.errors }}</p>
+        <p><strong>Failures:</strong> {{ report.content.failures }} {{ report.content.status }}</p>
+        <hr>
+        {% for testsuite in report.content.suites %}
+        <h3>{{ testsuite.name }}</h3>
+        <p><strong>Number of tests:</strong> {{ testsuite.tests }}</p>
+        <p><strong>Failures:</strong> {{ testsuite.failures }} {{ testsuite.status }}</p>
+        <div class="testcase">
+            {% for testcase in testsuite.testcases %}
+            <p>- {{ testcase.name }} {{ testcase.status }}</p>
+            <ul>
+                <li><strong>Number of tests:</strong> {{ testcase.tests }}</li>
+                <li><strong>Failures:</strong> {{ testcase.failures }}</li>
+            </ul>
+            {% endfor %}
+        </div>
+        {% endfor %}
+
+        {% elif report.type == "txt" %}
+        {% for test_case in report.test_cases %}
+        <h3>{{ test_case.scenario }}</h3>
+        <p><strong>Covers:</strong></p>
+        <ul>
+            {% for cover in test_case.requirements_covers %}
+            <li>{{ cover.id }}</li>
+            {% endfor %}
+        </ul>
+        {% if test_case.given_when_then %}
+        <div>
+            {% for block in test_case.given_when_then %}
+            <div>
+                {% for step in block %}
+                <p>{{ step }}</p>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if test_case.additional_tests %}
+        <div>
+            {% for additional_test in test_case.additional_tests %}
+            <p>{{ additional_test }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+    </div>
+    {% endfor %}
+</body>
+</html>
