@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2024 UL Research Institutes
+# SPDX-License-Identifier: Apache-2.0
+
+stages:
+  - test
+  - build
+  - deploy
+
+include:
+  - project: saferatday0/library/gitlab
+    ref: 0.18.3
+    file:
+      - gitlab-release.yml
+  - project: saferatday0/library/detect-secrets
+    ref: 0.7.2
+    file:
+      - detect-secrets.yml
+  - project: saferatday0/library/prettier
+    ref: 0.7.1
+    file:
+      - prettier.yml
+  - project: saferatday0/library/python
+    ref: 0.22.0
+    file:
+      - python-autoflake.yml
+      - python-black.yml
+      - python-build-sdist.yml
+      - python-build-wheel.yml
+      - python-isort.yml
+      - python-mypy.yml
+      - python-pyroma.yml
+      - python-pytest.yml
+      - python-twine-upload.yml
+      - python-docformatter.yml
+  - project: saferatday0/library/skywalking-eyes
+    ref: 0.8.3
+    file:
+      - license-eye-header-check.yml
+
+variables:
+  PYTHON_PACKAGE: dyff/schema
+  PYTHON_REQUIREMENTS: .
+
+python-autoflake:
+  variables:
+    PYTHON_AUTOFLAKE_OPTS: >-
+      --expand-star-imports
+      --remove-duplicate-keys
+      --remove-unused-variables
+
+python-twine-upload-pypi:
+  extends: python-twine-upload
+  variables:
+    TWINE_USERNAME: __token__
+    TWINE_PASSWORD: $PYPI_API_TOKEN
+    TWINE_REPOSITORY_URL: https://upload.pypi.org/legacy/
+
+python-pytest:
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ['3.10', '3.11', '3.12']
