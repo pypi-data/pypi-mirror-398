@@ -1,0 +1,1 @@
+from .main import run_api_openness_check
