@@ -1,0 +1,185 @@
+[project]
+name = "fastgeoapi"
+version = "0.0.7"
+description = "fastgeoapi"
+authors = [{ name = "Francesco Bartoli", email = "francesco.bartoli@geobeyond.it" }]
+maintainers = [{ name = "Youssef Harby", email = "youssef.harby@geobeyond.it" }]
+requires-python = ">=3.12,<3.14"
+readme = "README.md"
+license = "MIT"
+classifiers = ["Development Status :: 4 - Beta"]
+dependencies = [
+    "mangum>=0.19,<1.0",
+    "loguru>=0.7.3,<1.0",
+    "fastapi-opa>=2.0.3,<3",
+    "rasterio>=1.4.3,<2",
+    "pygeoapi>=0.22.0",
+    "fastapi[standard]>=0.126,<1.0",
+    "typer>=0.15.3,<0.16",
+    "fastapi-key-auth>=0.15.4,<0.16.0",
+    "sqlalchemy>=2.0.40,<2.1",
+    "geoalchemy2>=0.17.1,<0.18",
+    "shapely>=2.0,<3",
+    "psycopg2-binary>=2.9.10,<3",
+    "openapi-pydantic>=0.5.1,<=1.0",
+    "pygeofilter",
+    "pydantic-settings>=2.9.1,<3",
+    "authlib>=1.5.2,<2",
+    "cachetools>=5.5.2,<6",
+    "fencer",
+    "json-ref-dict>=0.7.2,<=1.0",
+    "pyyaml>=6.0.2,<7",
+    "scalar-fastapi>=1.4.3,<2",
+    "fastmcp>=2.14.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/geobeyond/fastgeoapi"
+Repository = "https://github.com/geobeyond/fastgeoapi"
+Documentation = "https://geobeyond.github.io/fastgeoapi/"
+Changelog = "https://github.com/geobeyond/fastgeoapi/releases"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[project.scripts]
+fastgeoapi = "app.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2.0,<9",
+    "coverage[toml]>=6.5.0,<7",
+    "typeguard>=4.0.0,<5",
+    "xdoctest[colors]>=0.15.10,<0.16",
+    "pre-commit>=2.21.0,<3",
+    "ruff>=0.8.3",
+    "pre-commit-hooks>=4.0.1,<5",
+    "termynal>=0.12.0,<0.13",
+    "mkdocs>=1.6.0,<2",
+    "mkdocs-material>=9.6.2,<10",
+    "mkdocs-material-extras>=0.0.8,<0.0.9",
+    "mkdocs-material-extensions>=1.1.1,<2",
+    "mkdocs-swagger-ui-tag>=0.6.8,<0.7",
+    "mkdocstrings[python]>=0.27.0",
+    "bandit>=1.7.5,<2",
+    "ipython<8.12",
+    "safety>=3.0,<4",
+    "ty>=0.0.1a0",
+    "commitizen>=3.24.0,<4",
+    "openapi-resolver>=0.0.6,<0.0.7",
+    "schemathesis>=4.0",
+    "mkdocs-typer>=0.0.3,<0.0.4",
+    "mkdocs-include-markdown-plugin>=7.0.0,<8",
+    "pytest-asyncio>=0.24.0,<0.25",
+    "nox[uv]>=2025.11.12",
+]
+
+[tool.uv]
+
+[tool.uv.sources]
+pygeoapi = { git = "https://github.com/geopython/pygeoapi.git", branch = "master" }
+pygeofilter = { git = "https://github.com/geopython/pygeofilter.git", tag = "v0.3.1" }
+fencer = { git = "https://github.com/abunuwas/fencer.git", branch = "main" }
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "app",
+    "app/**/*.py",
+]
+
+[tool.hatch.build.targets.wheel]
+include = [
+    "app",
+    "app/**/*.py",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.coverage.paths]
+source = [".", "*/site-packages"]
+tests = ["tests", "*/tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["fastgeoapi", "tests"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 100
+
+[tool.ty.environment]
+python-version = "3.12"
+
+[tool.ty.rules]
+# ty is still in alpha, ignoring some rules temporarily
+# These are mostly false positives with pydantic-settings and Starlette
+missing-argument = "ignore"       # pydantic-settings gets values from env vars
+invalid-argument-type = "ignore"  # Starlette middleware type inference issues
+unresolved-attribute = "ignore"   # Dynamic attribute access patterns
+unknown-argument = "ignore"       # openapi-pydantic uses aliased fields (security_scheme_in -> in)
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [
+    ".venv",
+    "venv",
+    ".nox",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+preview = true
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "S",      # flake8-bandit
+    "C4",     # flake8-comprehensions
+    "D",      # pydocstyle
+    "DOC",    # pydoclint (requires preview)
+    "N",      # pep8-naming
+    "RUF",    # ruff-specific rules
+]
+ignore = [
+    "D100",   # Missing docstring in public module
+    "D104",   # Missing docstring in public package
+    "D107",   # Missing docstring in __init__
+    "S101",   # Use of assert detected (needed for tests)
+    "D400",   # First line should end with a period (tracked in #315)
+    "D401",   # First line should be in imperative mood (tracked in #315)
+    "D404",   # First word of docstring should not be "This" (tracked in #315)
+    "DOC201", # Return not documented in docstring (tracked in #315)
+    "DOC402", # Yield not documented in docstring (tracked in #315)
+    "DOC501", # Raised exception missing from docstring (tracked in #315)
+    "RUF012", # Mutable class attributes should use ClassVar (tracked in #315)
+    "RUF029", # Async function without await (tracked in #315)
+    "RUF052", # Local variable with leading underscore shadowing (tracked in #315)
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S104", "S105", "S106", "S108", "N802", "D", "E501"]
+"app/pygeoapi/*" = ["D", "DOC"]  # Temporarily ignored, tracked in #315
+"noxfile.py" = ["S404", "S603", "S607"]  # subprocess calls to git are safe
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "$version"
+version_scheme = "semver"
+version_provider = "pep621"
+update_changelog_on_bump = true
+major_version_zero = true
