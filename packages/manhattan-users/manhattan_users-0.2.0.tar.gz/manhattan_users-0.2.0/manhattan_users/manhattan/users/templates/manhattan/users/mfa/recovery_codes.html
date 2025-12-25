@@ -1,0 +1,62 @@
+{%- extends "manage/base.html" -%}
+{%- import "manhattan/manage/components/boxes.html" as _boxes -%}
+{%- import "manhattan/manage/components/dataset.html" as _dataset -%}
+
+{% block main %}
+
+    {% call _boxes.box() -%}
+        {% call _dataset.set() -%}
+
+            {% call _dataset.row() %}
+                {% call _dataset.column() %}
+                    {% call _dataset.value(class='mh-formatted') %}
+                        <p>
+                            <b>Recovery codes</b> are used to access your
+                            account in the event you cannot receive two-factor
+                            authentication codes. Each recovery code can be used
+                            once.
+                        </p>
+                        {% if not mfa_recovery_codes %}
+                            <p>
+                                <b>You have no remaining recovery codes.</b>
+                                It is strongly recommended that you (re)generate
+                                new recovery codes.
+                            </b>
+                            </p>
+                        {% endif %}
+                    {% endcall %}
+                {% endcall %}
+            {% endcall %}
+
+            {% if mfa_recovery_codes %}
+                {% call _dataset.row() %}
+                    {% call _dataset.column() %}
+                        {% call _dataset.value() %}
+                            <ul class="mh-recovery-codes" data-mh-recovery-codes>
+                                {% for code in mfa_recovery_codes %}
+                                    <li class="mh-recovery-code">
+                                        {{ code }}{% if masked %}**********{% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% endcall %}
+                    {% endcall %}
+                {% endcall %}
+            {% endif %}
+
+        {% endcall %}
+    {% endcall %}
+
+    <form
+        id="regenerate-recovery-codes-form"
+        method="post"
+        action="{{ url_for(
+            manage_config.get_endpoint('mfa_regenerate_recovery_codes')
+        ) }}"
+        >
+        {% if csrf_token %}
+            <input name="csrf_token" type="hidden" value="{{ csrf_token() }}">
+        {% endif %}
+    </form>
+
+{% endblock %}

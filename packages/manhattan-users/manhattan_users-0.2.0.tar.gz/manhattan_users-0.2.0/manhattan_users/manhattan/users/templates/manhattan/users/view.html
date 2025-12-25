@@ -1,0 +1,113 @@
+{%- extends "manhattan/manage/generics/view.html" -%}
+{%- import "manhattan/manage/components/status.html" as _status -%}
+{%- import "manhattan/users/components/sessions.html" as _sessions with context -%}
+
+{% macro user_tags(user) %}
+
+    {% if user.invite_accepted %}
+        {{ _status.tag(
+            'Invite accepted',
+            class='mh-tag--invite-accepted'
+        ) }}
+    {% elif user.invited %}
+        {{ _status.tag(
+            'Invite pending',
+            class='mh-tag--invited'
+        ) }}
+    {% else %}
+        {{ _status.tag(
+            'Not yet invited',
+            class='mh-tag--not-invited'
+        ) }}
+    {% endif %}
+
+    {% if user.mfa_enabled %}
+        {{ _status.tag(
+            '2FA enabled',
+            class='mh-tag--mfa-enabled'
+        ) }}
+    {% endif %}
+
+    {% if user.is_locked_out(user.email) %}
+        {{ _status.tag(
+            'Locked out',
+            class='mh-tag--locked-out'
+        ) }}
+    {% endif %}
+
+{% endmacro %}
+
+{% block main -%}
+
+    {% set user = get_context()[manage_config.var_name] %}
+
+    {% block details %}
+
+        {% set user = get_context()[manage_config.var_name] %}
+
+        {% call _boxes.box() -%}
+            {% call _dataset.set() -%}
+
+                {% call _dataset.head() -%}
+                    {% call _dataset.heading() -%}
+                        <span>Details</span>
+                        {{ user_tags(user) }}
+                    {%- endcall %}
+                {%- endcall %}
+
+                {% call _dataset.row() -%}
+                    {{ _dataset.column(
+                        'Email',
+                        user.email,
+                        url='mailto:' + user.email
+                    ) }}
+                    {% set last_accessed = user.last_accessed %}
+                    {{ _dataset.column(
+                        'Last accessed',
+                        last_accessed|humanize_datetime if last_accessed else 'Never'
+                    ) }}
+                {%- endcall %}
+
+            {%- endcall %}
+        {%- endcall %}
+    {% endblock %}
+
+    {% if user_sessions %}
+        {% call _boxes.box() -%}
+            {% call _dataset.set('Sessions') -%}
+                {{ _sessions.sessions(
+                    user_sessions,
+                    manage_config.get_endpoint('revoke_session'),
+                    user.current_session
+                ) }}
+            {% endcall %}
+        {% endcall %}
+    {% endif %}
+
+    {% if not user.invite_accepted %}
+        <form
+            id="resend-invite-form"
+            method="post"
+            action="{{ url_for(manage_config.get_endpoint('resend_invite')) }}"
+            >
+            {% if csrf_token %}
+                <input name="csrf_token" type="hidden" value="{{ csrf_token() }}">
+            {% endif %}
+            <input type="hidden" name="{{ manage_config.var_name }}" value="{{ user._id }}">
+        </form>
+    {% endif %}
+
+    {% if user.is_locked_out(user.email) %}
+        <form
+            id="remove-lock-form"
+            method="post"
+            action="{{ url_for(manage_config.get_endpoint('remove_lock')) }}"
+            >
+            {% if csrf_token %}
+                <input name="csrf_token" type="hidden" value="{{ csrf_token() }}">
+            {% endif %}
+            <input type="hidden" name="{{ manage_config.var_name }}" value="{{ user._id }}">
+        </form>
+    {% endif %}
+
+{%- endblock %}

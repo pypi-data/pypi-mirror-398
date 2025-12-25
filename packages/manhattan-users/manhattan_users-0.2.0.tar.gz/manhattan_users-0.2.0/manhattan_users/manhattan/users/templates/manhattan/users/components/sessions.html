@@ -1,0 +1,82 @@
+{#
+    A set of components for rendering session details (as in a user session).
+#}
+
+{% macro session(session, revoke_endpoint, is_current_session=False) %}
+    <div class="session | sessions__session">
+        <div class="session-info | session__info">
+            <div class="session-info__label">
+                Location
+            </div>
+            <div class="session-info__value">
+                {{ session.location }}
+            </div>
+        </div>
+        <div class="session-info | session__info">
+            <div class="session-info__label">
+                Platform
+            </div>
+            <div class="session-info__value">
+                {{ session.platform }}
+            </div>
+        </div>
+        <div class="session-info | session__info">
+            <div class="session-info__label">
+                Signed-in
+            </div>
+            <div class="session-info__value">
+                {{ session.signed_in|humanize_datetime }}
+            </div>
+        </div>
+        {% if session.mfa_authorized %}
+            <div class="session-info | session__info">
+                <div class="session-info__label">
+                    2FA
+                </div>
+                <div class="session-info__value">
+                    {{ session.mfa_authorized|humanize_datetime }}
+                </div>
+            </div>
+        {% endif %}
+        <div class="session-info | session__info">
+            <div class="session-info__label">
+                Last accessed
+            </div>
+            <div class="session-info__value">
+                {{ session.last_accessed|humanize_datetime }}
+            </div>
+        </div>
+        <form
+            method="post"
+            action="{{ url_for(revoke_endpoint) }}"
+            class="session__form"
+            >
+            {% if csrf_token %}
+                <input
+                    name="csrf_token"
+                    type="hidden"
+                    value="{{ csrf_token() }}"
+                    >
+            {% endif %}
+            <input
+                type="hidden"
+                name="session"
+                value="{{ session._id }}"
+                >
+            {% if is_current_session %}
+                <div class="session__current">
+                    Current
+                </div>
+            {% endif %}
+            <button type="submit" class="session__revoke">Revoke</button>
+        </form>
+    </div>
+{% endmacro %}
+
+{% macro sessions(sessions, revoke_endpoint, current_session=None) %}
+     <div class="sessions">
+        {% for s in sessions %}
+            {{ session(s, revoke_endpoint, s == current_session) }}
+        {% endfor %}
+    </div>
+{% endmacro %}

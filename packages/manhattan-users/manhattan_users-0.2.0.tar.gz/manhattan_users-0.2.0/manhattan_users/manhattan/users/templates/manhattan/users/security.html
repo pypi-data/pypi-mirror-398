@@ -1,0 +1,94 @@
+{%- extends "manage/base.html" -%}
+
+{%- import "manhattan/manage/components/boxes.html" as _boxes -%}
+{%- import "manhattan/manage/components/dataset.html" as _dataset -%}
+{%- import "manhattan/manage/components/form.html" as _form with context -%}
+{%- import "manhattan/users/components/sessions.html" as _sessions with context -%}
+
+{%- block main -%}
+
+    {% set user = g.get(manage_config.frame_cls.get_g_key()) %}
+
+    {%- call _boxes.box() %}
+        {% call _form.form(form) %}
+            {{ _form.field(form.email, class='ninja') }}
+
+            {%- block fieldsets %}
+
+                {% call _form.fieldset('Change password') %}
+                    {{ _form.field(form.current_password, class='mh-field--3-3') }}
+                {%- endcall %}
+
+                {% call _form.fieldset() %}
+
+                    {% block password_rules %}
+                        {% include "manhattan/users/includes/password_rules.html" %}
+                    {% endblock %}
+
+                    {{ _form.field(
+                        form.new_password,
+                        class='mh-field--3-3'
+                        ) -}}
+                    {{ _form.field(
+                        form.confirm_password,
+                        class='mh-field--3-3'
+                        ) -}}
+                {%- endcall %}
+
+            {% endblock %}
+
+            {% call _form.buttons() %}
+                {{ _form.button('Update password') }}
+            {% endcall %}
+        {% endcall %}
+    {% endcall %}
+
+    {% call _boxes.box() %}
+
+        {% call _dataset.set() %}
+
+            {% call _dataset.head() %}
+                {{ _dataset.heading('Two factor authentication') }}
+
+                <div class="mh-btns  mh-btns--collapse">
+                    {% if user.mfa_enabled %}
+                        <a
+                            href="{{ url_for(manage_config.get_endpoint('mfa_recovery_codes')) }}"
+                            class="mh-btn mh-btn--small"
+                            >
+                            Recovery codes
+                        </a>
+                        <a
+                            href="{{ url_for(manage_config.get_endpoint('mfa_disable')) }}"
+                            class="mh-btn mh-btn--error mh-btn--small"
+                            >
+                            Disable 2FA
+                        </a>
+                    {% else %}
+                        <a
+                            href="{{ url_for(manage_config.get_endpoint('mfa_enable')) }}"
+                            class="mh-btn mh-btn--small"
+                            >
+                            Enable 2FA
+                        </a>
+                    {% endif %}
+                </div>
+            {% endcall %}
+
+        {% endcall%}
+
+    {% endcall %}
+
+    {% call _boxes.box() %}
+        {% call _dataset.set('Sessions') %}
+
+            {{ _sessions.sessions(
+                user_sessions,
+                manage_config.get_endpoint('revoke_my_session'),
+                user.current_session
+            ) }}
+
+        {% endcall %}
+    {% endcall %}
+
+{% endblock %}
