@@ -1,0 +1,196 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flac-detective"
+version = "0.9.5"
+description = "Advanced FLAC authenticity analyzer - Detects MP3-to-FLAC transcodes with high precision"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+authors = [
+    {name = "Guillain Méjane", email = "guillain@poulpe.us"}
+]
+keywords = ["flac", "audio", "analysis", "transcode", "detection", "mp3", "quality", "authenticity"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "numpy>=1.20.0",
+    "scipy>=1.7.0",
+    "mutagen>=1.45.0",
+    "soundfile>=0.10.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "flake8-docstrings>=1.7.0",
+    "flake8-bugbear>=23.0.0",
+    "flake8-comprehensions>=3.14.0",
+    # "flake8-simplify>=0.21.0",  # Temporarily disabled - incompatible with Python 3.14 (astor dependency issue)
+    "mypy>=1.0.0",
+    "pylint>=2.17.0",
+    "pre-commit>=3.5.0",
+    "bandit>=1.7.0",
+    "interrogate>=1.5.0",
+    "commitizen>=3.0.0",
+]
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=2.0.0",
+    "sphinx-autodoc-typehints>=1.25.0",
+    "myst-parser>=2.0.0",
+]
+
+[project.scripts]
+flac-detective = "flac_detective.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_gitignore = true
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+ignore_missing_imports = true
+exclude = [
+    "src/flac_detective/repair\\.py$",  # Compatibility wrapper - intentional module shadow
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "mutagen.*",
+    "soundfile.*",
+    "scipy.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--showlocals",
+    "--cov=flac_detective",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+# Fail if coverage is below this threshold
+fail_under = 80
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+[tool.pylint.messages_control]
+max-line-length = 100
+disable = [
+    "C0111",  # missing-docstring
+    "R0903",  # too-few-public-methods
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.9.5"
+tag_format = "v$version"
+update_changelog_on_bump = true
+version_files = [
+    "pyproject.toml:version",
+    "src/flac_detective/__init__.py:__version__"
+]
+bump_message = "bump: version $current_version → $new_version"
+major_version_zero = false
+
+# Flake8 configuration
+# Note: flake8 doesn't support pyproject.toml natively yet, so .flake8 file is still needed
+[tool.flake8]
+max-line-length = 100
+extend-ignore = ["E203", "E266", "E501", "W503", "D100", "D104", "D107"]
+max-complexity = 12
+exclude = [".git", "__pycache__", ".venv", "venv", "build", "dist", ".eggs", "*.egg-info", ".mypy_cache", ".pytest_cache"]
+per-file-ignores = [
+    "tests/*:D100,D101,D102,D103,S101",
+    "__init__.py:F401,D104"
+]
+docstring-convention = "google"
