@@ -1,0 +1,78 @@
+---
+name: Build and upload pre-release PyPI package
+
+on:
+  push:
+    branches:
+      - master
+      - "[0-9]*-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  check-version:
+    name: Check if version changed
+    runs-on: ubuntu-latest
+    outputs:
+      version_changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect pyproject version change
+        id: check
+        run: |
+          before="${{ github.event.before }}"
+          after="${{ github.sha }}"
+
+          if ! git diff --quiet "$before" "$after" -- pyproject.toml; then
+            echo "pyproject.toml changed"
+
+            old_version=$(git show "$before:pyproject.toml" | sed -n 's/^version *= *"\(.*\)".*/\1/p')
+            new_version=$(git show "$after:pyproject.toml"  | sed -n 's/^version *= *"\(.*\)".*/\1/p')
+
+            if [ "$old_version" != "$new_version" ] && [ -n "$old_version" ] && [ -n "$new_version" ]; then
+              echo "Version changed: $old_version -> $new_version"
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "pyproject.toml changed but version did not"
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "pyproject.toml not changed"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-package:
+    name: Build & verify package
+    runs-on: ubuntu-latest
+    needs: check-version
+    if: needs.check-version.outputs.version_changed == 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: hynek/build-and-inspect-python-package@v2
+        with:
+          attest-build-provenance-github: "false"
+
+  release-test-pypi:
+    name: Publish in-dev package to test.pypi.org
+    environment: release-test-pypi
+    runs-on: ubuntu-latest
+    needs: build-package
+    if: needs.check-version.outputs.version_changed == 'true'
+    steps:
+      - name: Download packages built by build-and-inspect-python-package
+        uses: actions/download-artifact@v7
+        with:
+          name: Packages
+          path: dist
+      - name: Upload package to Test PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
