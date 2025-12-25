@@ -1,0 +1,300 @@
+##################### 🥐 WELCOME TO UrbanMapper 🥐 #####################
+
+# Here is the proposed pipeline for your urban data processing.
+# Feel free to copy and paste the code snippets into your next cell or script!
+
+# Importing Modules
+# To begin using the `urban_mapper` library, you need to import the core classes:
+
+```python
+from urban_mapper import UrbanMapper
+from urban_mapper.pipeline import UrbanPipeline
+```
+
+# Instantiate `UrbanMapper` to start building your pipeline:
+
+```python
+um = UrbanMapper()  # Optional: set debug level to "LOW", "MID", or "HIGH"
+```
+
+### Pipeline Components Overview
+
+The `urban_mapper` library provides a modular framework for processing urban data.
+Below is an overview of each module, its purpose, and its available chaining methods.
+
+# Urban Layers
+# - Purpose: Represent urban data layers such as streets, intersections, etc.
+# - Available Types:
+#   - streets_intersections: OSMNXIntersections
+#   - streets_roads: OSMNXStreets
+#   - streets_sidewalks: Tile2NetSidewalks
+#   - streets_crosswalks: Tile2NetCrosswalks
+#   - streets_features: OSMFeatures
+#   - region_cities: RegionCities
+#   - region_neighborhoods: RegionNeighborhoods
+#   - region_states: RegionStates
+#   - region_countries: RegionCountries
+#   - custom_urban_layer: CustomUrbanLayer
+# - Chaining Methods:
+#   - .with_type(type): Specify the urban layer type.
+#   - .with_mapping(longitude_column, latitude_column, output_column, threshold_distance=None, **kwargs): Define mapping.
+#   - .from_place(place_name, **kwargs): Load from place.
+#   - .from_file(file_path, **kwargs): Load from file. # Available for streets_sidewalks (Tile2Net inference), and streets_crosswalks (Tile2Net inference), as well as, custom_urban_layer.
+#   - Other from_* methods: .from_address, .from_bbox, .from_point, .from_polygon, .from_xml. –– Available for streets_intersections and streets_roads, as well as all region layers.
+#   - .build(): Finalise the component.
+# - Note: Multiple .with_mapping can be chained for multiple mappings.
+
+# Loaders
+# - Purpose: Load geospatial data from files or DataFrames.
+# - Available Loaders:
+#   - CSVLoader
+#   - ShapefileLoader
+#   - ParquetLoader
+# - Chaining Methods:
+#   - .from_file(file_path): Load from file.
+#   - .from_dataframe(dataframe): Load from DataFrame.
+#   - .with_columns(longitude_column, latitude_column): Specify coordinate columns.
+#   - .with_crs(crs): Set CRS.
+#   - .build(): Finalise the component.
+# - Note: Only one pair of coordinates can be loaded at a time.
+
+# Imputers
+# - Purpose: Handle missing geographic data.
+# - Available Types:
+#   - SimpleGeoImputer: Drops rows with missing coordinates.
+#   - AddressGeoImputer: Imputes coordinates using address data.
+# - Chaining Methods:
+#   - .with_type(type): Specify imputer type.
+#   - .on_columns(longitude_column, latitude_column): Define columns to impute.
+#   - .build(): Finalise the component.
+# - Note: Multiple imputers can be instantiated for different coordinate pairs.
+
+# Filters
+# - Purpose: Filter data based on criteria.
+# - Available Types:
+#   - BoundingBoxFilter: Filters to urban layer's bounding box.
+# - Chaining Methods:
+#   - .with_type(type): Specify filter type.
+#   - .build(): Finalise the component.
+# - Note: Multiple filters can be used.
+
+# Enrichers
+# - Purpose: Enrich urban layer with aggregated or counted values.
+# - Available Actions:
+#   - aggregate_by: Aggregates values.
+#   - count_by: Counts occurrences.
+# - Chaining Methods:
+#   - .with_data(group_by, values_from=None): Specify grouping and value columns.
+#   - .aggregate_by(method, output_column): Aggregate using method. Method can be "mean", "sum", "min", "max", as well as a custom-user-defined functions that receives a pandas Series and returns a single value.
+#   - .count_by(output_column): Count occurrences.
+#   - .build(): Finalise the component.
+# - Note: Multiple enrichers can be used.
+
+# Visualisers
+# - Purpose: Visualise enriched urban layer.
+# - Available Types:
+#   - Interactive: Interactive maps using Folium.
+#   - Static: Static plots using Matplotlib.
+# - Chaining Methods:
+#   - .with_type(type): Specify visualiser type.
+#   - .with_style(style_dict): Customise visualization.
+#   - .build(): Finalise the component.
+# - Note: Only one visualiser per pipeline.
+
+# Component Usage Examples
+
+# Urban Layer Example
+
+```python
+urban_layer = (
+    um.urban_layer
+    .with_type("streets_intersections")
+    .with_mapping(
+        longitude_column="longitude",
+        latitude_column="latitude",
+        output_column="nearest_intersection",
+        threshold_distance=50,
+    )
+    .from_place("Downtown Brooklyn, New York City, USA", network_type="drive")
+    .build()
+)
+```
+
+# Loader Example
+
+```python
+loader = (
+    um.loader
+    .from_file("./data/PLUTO/csv/pluto.csv")
+    .with_columns(longitude_column="longitude", latitude_column="latitude")
+    .build()
+)
+```
+
+# Imputer Example
+
+```python
+imputer = (
+    um.imputer
+    .with_type("SimpleGeoImputer")
+    .on_columns("longitude", "latitude")
+    .build()
+)
+```
+
+# Filter Example
+
+```python
+filter_step = (
+    um.filter
+    .with_type("BoundingBoxFilter")
+    .build()
+)
+```
+
+# Enricher Example
+
+```python
+enricher = (
+    um.enricher
+    .with_data(group_by="nearest_intersection", values_from="numfloors")
+    .aggregate_by(method="mean", output_column="avg_floors")
+    .build()
+)
+```
+
+# Visualiser Example
+
+```python
+visualiser = (
+    um.visual
+    .with_type("geopandas_interactive")
+    .with_style({"tiles": "CartoDB dark_matter"})
+    .build()
+)
+```
+
+# Full Pipeline Example
+
+```python
+# Define components
+urban_layer = (
+    um.urban_layer
+    .with_type("streets_intersections")
+    .with_mapping(
+        longitude_column="longitude",
+        latitude_column="latitude",
+        output_column="nearest_intersection",
+        threshold_distance=50,
+    )
+    .from_place("Downtown Brooklyn, New York City, USA", network_type="drive")
+    .build()
+)
+
+loader = (
+    um.loader
+    .from_file("./data/PLUTO/csv/pluto.csv")
+    .with_columns(longitude_column="longitude", latitude_column="latitude")
+    .build()
+)
+
+imputer = (
+    um.imputer
+    .with_type("SimpleGeoImputer")
+    .on_columns("longitude", "latitude")
+    .build()
+)
+
+filter_step = (
+    um.filter
+    .with_type("BoundingBoxFilter")
+    .build()
+)
+
+enricher = (
+    um.enricher
+    .with_data(group_by="nearest_intersection", values_from="numfloors")
+    .aggregate_by(method="mean", output_column="avg_floors")
+    .build()
+)
+
+visualiser = (
+    um.visual
+    .with_type("geopandas_interactive")
+    .with_style({"tiles": "CartoDB dark_matter"})
+    .build()
+)
+
+# Create the pipeline
+pipeline = UrbanPipeline([
+    ("urban_layer", urban_layer),
+    ("loader", loader),
+    ("imputer", imputer),
+    ("filter", filter_step),
+    ("enricher", enricher),
+    ("visualiser", visualiser),
+])
+
+# Preview the pipeline
+pipeline.preview(format="ascii") # could have been format="json" too.
+
+# Compose the pipeline
+pipeline.compose()
+
+# Transform the data
+mapped_data, enriched_layer = pipeline.transform()
+
+# Visualise the results
+fig = pipeline.visualise(["avg_floors"])
+fig  # Displays the interactive map
+```
+
+# Pipeline Structure and Methods
+
+# Pipeline Structure
+# - The `UrbanPipeline` is constructed with a list of tuples, each containing a step name and a component instance.
+# - Example:
+
+```python
+pipeline = UrbanPipeline([
+    ("urban_layer", urban_layer),
+    ("loader", loader),
+    # ... other steps
+])
+```
+
+# Available Methods
+# - preview(format="ascii"): Displays the pipeline configuration.
+# - compose(): Validates and prepares the pipeline.
+# - transform(): Executes the pipeline, returning (mapped_data, enriched_layer).
+# - compose_transform(): Combines compose() and transform().
+# - visualise(columns): Visualises the enriched layer.
+# - save(filepath): Saves the pipeline configuration.
+# - load(filepath): Loads a saved pipeline.
+
+####################################################################
+
+#### OUTPUT Style For The User
+
+- 1) I would like all texts-based output to be like if it was a python script, hence starting with `#` and then the text.
+ This is to make it easier for the user to copy and paste the text into their python script.
+
+- 2) I would like the code to always breath enough, nothing too inliner-based.
+ This is to make it easier for the user to read the text and understand what is going on.
+
+- 3) I would like the code to always be between three backticks, so that the user can easily copy and paste the code into their python script.
+
+- 4) I would like no markdown or latex formatting in the text-based output. This is because jupyter notebook cell's output does not support markdown or latex formatting.
+
+- 5) Lastly, I would like you to always start the answer with the following header, without the backticks:
+
+##################### 🥐 WELCOME TO UrbanMapper 🥐 #####################
+
+# Here is the proposed pipeline for your urban data analysis.
+# Feel free to copy and paste the code snippets into your next cell or script!
+
+< The rest of the text-based output here >
+
+####################################################################
+
+Cheers :)!
