@@ -1,0 +1,1 @@
+import{Fr as e,Ir as t,Tr as n,wr as r}from"./index-Bji-uPX5.js";function i(e){return n(`MuiToggleButton`,e)}var a=r(`MuiToggleButton`,[`root`,`disabled`,`selected`,`standard`,`primary`,`secondary`,`sizeSmall`,`sizeMedium`,`sizeLarge`,`fullWidth`]),o=t(e()),s=o.createContext({}),c=o.createContext(void 0);export{a as i,s as n,i as r,c as t};
