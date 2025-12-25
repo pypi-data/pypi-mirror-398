@@ -1,0 +1,241 @@
+{%- if cookiecutter.enable_docker %}
+# Backend development configuration
+# Usage: docker-compose up -d
+
+services:
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: {{ cookiecutter.project_slug }}_backend
+    ports:
+      - "{{ cookiecutter.backend_port }}:{{ cookiecutter.backend_port }}"
+    volumes:
+      - ./backend/app:/app/app:ro
+      - ./backend/cli:/app/cli:ro
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=true
+      - ENVIRONMENT=local
+{%- if cookiecutter.use_postgresql %}
+      - POSTGRES_HOST=db
+{%- endif %}
+{%- if cookiecutter.enable_redis %}
+      - REDIS_HOST=redis
+{%- endif %}
+{%- if cookiecutter.use_celery %}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+{%- endif %}
+{%- if cookiecutter.use_taskiq %}
+      - TASKIQ_BROKER_URL=redis://redis:6379/1
+      - TASKIQ_RESULT_BACKEND=redis://redis:6379/1
+{%- endif %}
+    command: uvicorn app.main:app --host 0.0.0.0 --port {{ cookiecutter.backend_port }} --reload
+    networks:
+      - backend
+{%- if cookiecutter.use_postgresql or cookiecutter.enable_redis %}
+    depends_on:
+{%- if cookiecutter.use_postgresql %}
+      db:
+        condition: service_healthy
+{%- endif %}
+{%- if cookiecutter.enable_redis %}
+      redis:
+        condition: service_healthy
+{%- endif %}
+{%- endif %}
+    restart: unless-stopped
+
+{%- if cookiecutter.use_postgresql %}
+
+  db:
+    image: postgres:16-alpine
+    container_name: {{ cookiecutter.project_slug }}_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-{{ cookiecutter.project_slug }}}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Port exposed only for local development - remove in production
+    ports:
+      - "5432:5432"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+{%- endif %}
+
+{%- if cookiecutter.enable_redis %}
+
+  redis:
+    image: redis:7-alpine
+    container_name: {{ cookiecutter.project_slug }}_redis
+    # Port exposed only for local development - remove in production
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+{%- endif %}
+
+{%- if cookiecutter.use_celery %}
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: {{ cookiecutter.project_slug }}_celery_worker
+    volumes:
+      - ./backend/app:/app/app:ro
+    command: celery -A app.worker.celery_app worker --loglevel=debug
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=true
+{%- if cookiecutter.use_postgresql %}
+      - POSTGRES_HOST=db
+{%- endif %}
+      - REDIS_HOST=redis
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+{%- if cookiecutter.use_postgresql %}
+      db:
+        condition: service_healthy
+{%- endif %}
+    restart: unless-stopped
+
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: {{ cookiecutter.project_slug }}_celery_beat
+    volumes:
+      - ./backend/app:/app/app:ro
+    command: celery -A app.worker.celery_app beat --loglevel=debug
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=true
+      - REDIS_HOST=redis
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: {{ cookiecutter.project_slug }}_flower
+    command: celery -A app.worker.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=true
+      - REDIS_HOST=redis
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+{%- endif %}
+
+{%- if cookiecutter.use_taskiq %}
+
+  taskiq_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: {{ cookiecutter.project_slug }}_taskiq_worker
+    volumes:
+      - ./backend/app:/app/app:ro
+    command: taskiq worker app.worker.taskiq_app:broker --workers 1 --reload
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=true
+{%- if cookiecutter.use_postgresql %}
+      - POSTGRES_HOST=db
+{%- endif %}
+      - REDIS_HOST=redis
+      - TASKIQ_BROKER_URL=redis://redis:6379/1
+      - TASKIQ_RESULT_BACKEND=redis://redis:6379/1
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+{%- if cookiecutter.use_postgresql %}
+      db:
+        condition: service_healthy
+{%- endif %}
+    restart: unless-stopped
+
+  taskiq_scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: {{ cookiecutter.project_slug }}_taskiq_scheduler
+    volumes:
+      - ./backend/app:/app/app:ro
+    command: taskiq scheduler app.worker.taskiq_app:scheduler
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=true
+      - REDIS_HOST=redis
+      - TASKIQ_BROKER_URL=redis://redis:6379/1
+      - TASKIQ_RESULT_BACKEND=redis://redis:6379/1
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+{%- endif %}
+
+networks:
+  backend:
+    driver: bridge
+
+{%- if cookiecutter.use_postgresql or cookiecutter.enable_redis %}
+
+volumes:
+{%- if cookiecutter.use_postgresql %}
+  postgres_data:
+{%- endif %}
+{%- if cookiecutter.enable_redis %}
+  redis_data:
+{%- endif %}
+{%- endif %}
+{%- else %}
+# Docker is disabled for this project
+{%- endif %}
