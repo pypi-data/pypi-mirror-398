@@ -1,0 +1,194 @@
+# MarkItDown YAML Plugin
+A [MarkItDown](https://github.com/microsoft/markitdown) plugin that converts YAML files to well-structured Markdown.
+
+## Overview
+MarkItDown YAML enables conversion of YAML configuration files into clean, readable Markdown format. This is particularly valuable for:
+- **Documentation Generation**: Create human-readable documentation from YAML workflows and configs
+- **Unified Documentation Systems**: Convert YAML files to match Markdown-based documentation formats
+- **Improved Readability**: Make complex YAML structures easier to scan and review
+
+## Features
+- **YAML 1.2 Compliance**: Correctly handles keywords like `on`, `off`, `yes`, `no` as strings (not booleans)
+- **Structure Preservation**: Maintains hierarchical relationships, lists, mappings, and data types
+- **Smart Formatting**: Dictionary items in lists are formatted as readable key-value pairs
+- **LLM-Optimized Output**: Generates Markdown that's easy for AI models to parse and understand
+- **Error Handling**: Gracefully handles malformed YAML with clear error messages
+- **MIME Type Detection**: Supports both file extension and MIME type-based detection
+
+## YAML Files Tested
+This initial release is generic for YAML files. It does not apply use-case specific formatting, such as those for GitHub Actions and Helm charts. Testing has been performed with the below files:
+- **GitHub Actions workflows** - CI/CD pipeline definitions
+- **Kubernetes manifests** - Deployments, services, and configurations
+- **Docker Compose files** - Multi-container application definitions
+
+## Known Limitations
+- Some formats with deeply nested dictionary structures (like Ansible playbooks) may use header formatting instead of inline key-value pairs
+- Complex nested structures are preserved but may require future formatting improvements
+
+Future versions will expand support for additional YAML formats.
+
+## Use Cases
+- Generate documentation from infrastructure-as-code definitions
+- Create readable snapshots of configuration states for review
+- Convert YAML configs to match your Markdown documentation format
+- Make CI/CD pipeline definitions easier to read and audit
+
+## Example Output
+### GitHub Actions Workflow
+
+**Input (workflow.yaml):**
+```yaml
+name: CI Pipeline
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run tests
+        run: npm test
+```
+
+**Output:**
+```markdown
+# name
+CI Pipeline
+# on
+- push
+- pull_request
+# jobs
+## test
+### runs-on
+ubuntu-latest
+### steps
+1. **uses**: actions/checkout@v4
+2. **name**: Run tests
+   **run**: npm test
+```
+
+### Kubernetes Manifest
+
+**Input (deployment.yaml):**
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+```
+
+**Output:**
+```markdown
+# apiVersion
+apps/v1
+# kind
+Deployment
+# metadata
+## name
+nginx
+# spec
+## replicas
+3
+## selector
+### matchLabels
+#### app
+nginx
+```
+
+## Installation
+
+### From PyPI (Stable Release)
+```bash
+pip install markitdown-yaml
+```
+
+### From Source (Development)
+```bash
+git clone https://github.com/YasirAlibrahem/markitdown-yaml.git
+cd markitdown-yaml
+pip install -e ".[test]"
+```
+
+## Basic Conversion
+```python
+from markitdown import MarkItDown
+
+# Create instance with plugins enabled
+md = MarkItDown(enable_plugins=True)
+
+# Convert a YAML file
+result = md.convert("workflow.yaml")
+
+# Print the Markdown output
+print(result.text_content)
+```
+
+## CLI
+The MarkItDown CLI automatically discovers and uses installed plugins:
+```bash
+# Convert YAML to Markdown (print to stdout)
+markitdown workflow.yaml
+
+# Save to a file
+markitdown workflow.yaml > workflow.md
+
+# Convert multiple files
+markitdown deployment.yaml service.yaml configmap.yaml
+
+# Specify output file
+markitdown -o output.md config.yaml
+```
+## Testing
+This project uses pytest for testing. The test suite covers:
+- YAML file conversion (GitHub Actions, Kubernetes, Docker Compose)
+- File type detection (extensions and MIME types)
+- Edge cases (empty files, invalid YAML, encoding errors)
+- Plugin integration with MarkItDown
+
+### Running Tests
+```bash
+# Install test dependencies
+pip install -e ".[test]"
+
+# Run all tests
+pytest tests/
+
+# Run with verbose output
+pytest tests/ -v
+
+# Run with coverage report
+pytest tests/ --cov=markitdown_yaml --cov-report=html
+
+# View coverage report
+open htmlcov/index.html  # macOS
+xdg-open htmlcov/index.html  # Linux
+```
+
+### Test Structure
+```
+tests/
+├── test_yaml_converter.py  # Main test suite
+└── test_files/             # Sample YAML files
+    ├── test_actions.yaml
+    ├── test_kubernetes.yaml
+    └── test_docker_compose.yaml
+```
+
+## Contributing
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+Areas where contributions are especially welcome:
+- Specialized formatting for specific YAML types (GitHub Actions, Helm, OpenAPI, etc.)
+- Performance improvements for large files
+- Enhanced rendering options
+- Additional test cases
+
+## Changelog
+See [CHANGELOG.md](CHANGELOG.md) for version history and changes.
+
+## License
+MIT License - see [LICENSE](LICENSE) for details.
