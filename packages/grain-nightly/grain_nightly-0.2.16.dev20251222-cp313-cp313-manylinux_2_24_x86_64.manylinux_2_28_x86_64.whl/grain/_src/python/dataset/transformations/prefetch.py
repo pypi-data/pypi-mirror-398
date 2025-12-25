@@ -1,0 +1,1103 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Implements LazyDataset elements prefetching."""
+
+from __future__ import annotations
+
+import collections
+from collections.abc import Callable, Iterator, Sequence
+import contextlib
+import copy
+import functools
+import math
+from multiprocessing import queues
+from multiprocessing import synchronize
+import queue
+import sys
+import threading
+import time
+import typing
+from typing import Any, Generic, Optional, Protocol, TypeVar
+
+import cloudpickle
+from concurrent import futures
+from grain._src.core import monitoring as grain_monitoring
+from grain._src.core import tree_lib
+import multiprocessing as mp
+from grain._src.python import grain_pool
+from grain._src.python import options as grain_options
+from grain._src.python import shared_memory_array
+from grain._src.python.dataset import base
+from grain._src.python.dataset import dataset
+from grain._src.python.dataset import stats as dataset_stats
+from grain._src.python.dataset.transformations import filter as filter_dataset
+from grain._src.python.dataset.transformations import interleave
+from grain._src.python.dataset.transformations import source
+import numpy as np
+
+T = TypeVar("T")
+
+
+def _initialize_prefetch_stats(
+    iterator: dataset.DatasetIterator[Any],
+    execution_tracking_mode: base.ExecutionTrackingMode,
+    parent_stats: Sequence[dataset_stats.Stats],
+    stats_in_queues: Optional[tuple[queues.Queue[Any], ...]] = None,
+) -> dataset_stats.Stats:
+  """Helper to initialize stats for prefetch iterators."""
+  config = dataset_stats.StatsConfig(
+      name=str(iterator),
+      transform_mutates_spec=iterator._MUTATES_ELEMENT_SPEC,  # pylint: disable=protected-access
+      is_prefetch=True,
+      iter_weakref=dataset_stats.HashableWeakRef(iterator),
+  )
+  if stats_in_queues is not None:
+    config.stats_in_queues = stats_in_queues
+
+  # If the stats object has already been initialized, copy the queues from
+  # the original stats object to the new stats object.
+  if "_stats" in iterator.__dict__:
+    # pylint: disable=protected-access
+    config.stats_out_queue = iterator._stats._config.stats_out_queue
+    config.stats_in_queues = iterator._stats._config.stats_in_queues
+    # pylint: enable=protected-access
+
+  return dataset_stats.make_stats(
+      config,
+      parent_stats,
+      execution_tracking_mode=execution_tracking_mode,
+  )
+
+
+@dataset_stats.trace_input_pipeline_prefetch
+def _getitem(
+    stats: dataset_stats.Stats, parent: dataset.MapDataset[T], index: int
+) -> T:
+  """Helper to record the memory usage of the element before prefetching."""
+  return stats.record_bytes_consumed(parent[index])
+
+
+@typing.runtime_checkable
+class SupportsInPlaceSlicing(Protocol):
+  """Datasets that support mutation by setting the processed data slice."""
+
+  def set_slice(self, sl: slice, sequential_slice: bool = False) -> None:
+    ...
+
+
+class PrefetchIterDataset(dataset.IterDataset[T]):
+  """Iterable dataset that uses a thread pool for prefetching."""
+
+  def __init__(
+      self,
+      parent: dataset.MapDataset[T],
+      *,
+      read_options: grain_options.ReadOptions,
+      allow_nones: bool = False,
+  ):
+    super().__init__(parent)
+    self._read_options = read_options
+    self._allow_nones = allow_nones
+
+  def set_slice(self, sl: slice, sequential_slice: bool = False) -> None:
+    """Replaces `MapDataset` parents with their sliced versions."""
+    assert isinstance(self._parent, dataset.MapDataset), self._parent
+    if not sequential_slice:
+      self._parents = (self._parent.slice(sl),)
+    else:
+      _set_slice_map_dataset(self._parent, sl, sequential_slice)
+
+  def __str__(self) -> str:
+    return (
+        f"PrefetchIterDataset(read_options={self._read_options},"
+        f" allow_nones={self._allow_nones})"
+    )
+
+  def __iter__(self) -> dataset.DatasetIterator[T]:
+    return PrefetchDatasetIterator(
+        self._parent, self._read_options, self._allow_nones
+    )
+
+  @property
+  def _element_spec(self) -> Any:
+    return dataset.get_element_spec(self._parent)
+
+
+class PrefetchDatasetIterator(dataset.DatasetIterator[T]):
+  """Iterator that performs prefetching using a thread pool."""
+
+  _MUTATES_ELEMENT_SPEC = False
+
+  def __init__(
+      self,
+      parent: dataset.MapDataset[T],
+      read_options: grain_options.ReadOptions,
+      allow_nones: bool,
+  ):
+    # Note that the parent is not a conventional iterator, but a MapDataset.
+    super().__init__()
+    self._map_parent = parent
+    self._dataset_length = len(parent)
+    self._read_options = read_options
+    self._next_returned_index = 0
+    self._next_buffered_index = 0
+    self._buffer = collections.deque()
+    self._lock = threading.Lock()
+    self._prefetch_buffer_size = (
+        read_options.prefetch_buffer_size if read_options.num_threads > 0 else 0
+    )
+    self._num_threads = read_options.num_threads
+    self._allow_nones = allow_nones
+    if self._prefetch_buffer_size > 0:
+      self._executor = futures.ThreadPoolExecutor(
+          self._num_threads, thread_name_prefix="grain-prefetch"
+      )
+
+  def _initialize_stats(
+      self, execution_tracking_mode: base.ExecutionTrackingMode
+  ):
+    parent_stats = self._map_parent._initialize_stats(execution_tracking_mode)  # pylint: disable=protected-access
+    # Connect to `MapDataset` parent stats.
+    self._stats = _initialize_prefetch_stats(
+        self, execution_tracking_mode, (parent_stats,)
+    )
+    return self._stats
+
+  @functools.cached_property
+  def _stats(self):
+    return self._initialize_stats(
+        self._ctx.dataset_options.execution_tracking_mode
+    )
+
+  @functools.cached_property
+  def _threshold_checker(self):
+    # Sparse `MapDataset` transformations produce Nones which we filter out
+    # here. The validator helps to detect if we discard too many elements.
+    return filter_dataset.FilterThresholdChecker(
+        transform_name=str(self),
+        warn_threshold=self._ctx.dataset_options.filter_warn_threshold_ratio,
+        raise_threshold=self._ctx.dataset_options.filter_raise_threshold_ratio,
+    )
+
+  @dataset_stats.record_next_duration_if_output
+  @dataset_stats.trace_input_pipeline_next(
+      stage_category=dataset_stats.IPL_CAT_PREFETCH
+  )
+  def __next__(self) -> T:
+    self._assert_not_closed()
+    # The time recorded here is the time spent in prefetch node to return an
+    # element, including the time spent in parent node.
+    timer = dataset_stats.Timer()
+    # We loop here to skip all None elements (in case the underlying dataset
+    # is sparse), if self._allow_nones = False, else we return Nones too.
+    while True:
+      if self._next_returned_index == self._dataset_length:
+        break
+      with self._lock, timer:
+        if self._prefetch_buffer_size > 0:
+          if not self._buffer:
+            # Fill the buffer on the first iteration.
+            self._fill_buffer()
+          element = self._buffer.popleft()
+          # Prefetch elements until the buffer is full again.
+          self._fill_buffer()
+          element = element.result()
+        else:
+          # In case prefetch buffer size was decreased, we still want to consume
+          # the already prefetched elements.
+          if self._buffer:
+            element = self._buffer.popleft().result()
+          else:
+            element = self._stats.record_bytes_consumed(
+                self._map_parent[self._next_returned_index]
+            )
+            self._next_buffered_index += 1
+        self._next_returned_index += 1
+      return_element = self._allow_nones or element is not None
+      self._threshold_checker.check(return_element)
+      if return_element:
+        with self._stats.record_self_time(offset_ns=timer.value()):
+          element = self._stats.record_bytes_produced(element)
+          return self._stats.record_output_spec(element)
+    raise StopIteration
+
+  def get_state(self):
+    return {"next_index": self._next_returned_index}
+
+  def set_state(self, state):
+    with self._lock:
+      self._next_returned_index = state["next_index"]
+      self._next_buffered_index = self._next_returned_index
+      if (
+          self._next_returned_index < 0
+          or self._next_returned_index > self._dataset_length
+      ):
+        raise IndexError(
+            f"Checkpoint `next_index` {self._next_returned_index} is out of"
+            f" range for dataset of length {self._dataset_length}."
+        )
+      if self._prefetch_buffer_size > 0:
+        # Cancel all pending futures in the buffer.
+        while self._buffer:
+          future = self._buffer.popleft()
+          future.cancel()
+
+  def __str__(self) -> str:
+    return (
+        f"PrefetchDatasetIterator(read_options={self._read_options},"
+        f" allow_nones={self._allow_nones})"
+    )
+
+  def set_prefetch_buffer_size(self, buffer_size: int):
+    self._prefetch_buffer_size = buffer_size
+    # The executor is created in the constructor only if the prefetch buffer
+    # size is greater than 0. If the user changes the prefetch buffer size, we
+    # need to create or destroy the executor accordingly.
+    if self._prefetch_buffer_size > 0 and not hasattr(self, "_executor"):
+      if self._num_threads == 0:
+        raise ValueError(
+            "num_threads must be greater than 0 when prefetch buffer size is"
+            " greater than 0."
+        )
+      self._executor = futures.ThreadPoolExecutor(
+          self._num_threads, thread_name_prefix="grain-prefetch"
+      )
+    elif self._prefetch_buffer_size == 0 and hasattr(self, "_executor"):
+      self._executor.shutdown()
+      delattr(self, "_executor")
+
+  def set_num_threads(self, num_threads: int) -> None:
+    self._num_threads = num_threads
+    old_executor = None
+    # Accounts for the case where the executor does not exit. This can
+    # happen if the prefetch buffer size is set to 0.
+    if hasattr(self, "_executor"):
+      old_executor = self._executor
+    if self._num_threads > 0:
+      self._executor = futures.ThreadPoolExecutor(
+          self._num_threads, thread_name_prefix="grain-prefetch"
+      )
+    else:
+      delattr(self, "_executor")
+    if old_executor is not None:
+      # Allows the old executor to finish running the tasks it was already
+      # assigned asynchronously.
+      old_executor.shutdown(wait=False)
+
+  def _fill_buffer(self):
+    while (
+        len(self._buffer) < self._prefetch_buffer_size
+        and self._next_buffered_index < self._dataset_length
+    ):
+      # Note that we trigger creation of `_stats` in this (single) thread, it is
+      # important because the stats initialization is not thread-safe.
+      self._buffer.append(
+          self._executor.submit(
+              functools.partial(_getitem, self._stats, self._map_parent),
+              self._next_buffered_index,
+          )
+      )
+      self._next_buffered_index += 1
+
+  def start_prefetch(self):
+    if self._prefetch_buffer_size > 0:
+      self._fill_buffer()
+
+  def close(self) -> None:
+    """Shuts down the thread pool executor and cancels all pending futures."""
+    if self._closed:
+      return
+    self._closed = True
+    # Shutdown the thread pool executor if it exists.
+    if hasattr(self, "_executor"):
+      self._executor.shutdown(wait=False)
+      # Cancel all pending futures in the buffer.
+      while self._buffer:
+        future = self._buffer.popleft()
+        future.cancel()
+
+
+def _iterator_with_context(
+    iterator: contextlib.AbstractContextManager[Iterator[T]],
+) -> Iterator[T]:
+  with iterator as it:
+    yield from it
+
+
+def _validate_no_double_prefetch(
+    parent: dataset.MapDataset | dataset.IterDataset,
+) -> None:
+  """Checks that there are no multiple levels of parallelization."""
+  to_check: list[dataset.MapDataset | dataset.IterDataset] = [parent]
+  while to_check:
+    ds = to_check.pop(0)
+    if isinstance(ds, MultiprocessPrefetchIterDataset):
+      raise ValueError(
+          "Nesting multiprocessing or multithreading is not allowed."
+      )
+    to_check.extend(ds.parents)
+
+
+class MultiprocessPrefetchIterDataset(dataset.IterDataset[T]):
+  """Uses a pool of processes to prefetch elements ahead of time.
+
+  It usually makes sense to add this transformation in the end of the pipeline
+  since it will execute the parent IterDataset in multiple processes.
+  """
+
+  def __init__(
+      self,
+      parent: dataset.IterDataset[T],
+      multiprocessing_options: grain_options.MultiprocessingOptions,
+      worker_init_fn: Callable[[int, int], None] | None = None,
+      sequential_slice: bool = False,
+      always_report_worker_state: bool = False,
+  ):
+    if multiprocessing_options.num_workers < 0:
+      raise ValueError(
+          "`num_workers` must be greater than or equal to 0, got "
+          f"{multiprocessing_options.num_workers}."
+      )
+    super().__init__(parent)
+    self._multiprocessing_options = multiprocessing_options
+    self._worker_init_fn = worker_init_fn
+    self._sequential_slice = sequential_slice
+    _validate_no_double_prefetch(self._parent)
+    self._always_report_worker_state = always_report_worker_state
+
+  def __str__(self) -> str:
+    return (
+        "MultiprocessPrefetchIterDataset("
+        f"multiprocessing_options={self._multiprocessing_options})"
+    )
+
+  def __iter__(self) -> dataset.DatasetIterator[T]:
+    if self._multiprocessing_options.num_workers == 0:
+      return self._parent.__iter__()
+    return _MultiprocessPrefetchDatasetIterator(
+        self._parent,
+        self._multiprocessing_options,
+        self._worker_init_fn,
+        self._sequential_slice,
+        self._always_report_worker_state,
+    )
+
+  @property
+  def _element_spec(self) -> Any:
+    return dataset.get_element_spec(self._parent)
+
+
+# Keys in `MultiprocessPrefetchDatasetIterator` checkpoints.
+_WORKERS_STATE = "workers_state"
+_ITERATIONS_TO_SKIP = "iterations_to_skip"
+_LAST_WORKER_INDEX = "last_worker_index"
+
+# Minimal interval (in seconds) between consecutive state recordings in worker
+# processes of `MultiprocessPrefetchDatasetIterator`. We record the state
+# periodically to reduce the overhead of sending the state from workers.
+# Note that this is also an approximate upper bound on how long it is going to
+# take to recover from a checkpointed state. Larger values will decrease the
+# overhead of sending the updated state but will also make recovery from a
+# checkpoint longer on average.
+_RECORD_STATE_INTERVAL_S = 3
+
+
+def _copy_leaf_to_shm(leaf: Any, min_size: int = 0) -> Any:
+  """Copies `leaf` to shared memory if it's a big enough numpy array."""
+  if isinstance(leaf, shared_memory_array.SharedMemoryArray):
+    return leaf.metadata
+  if (
+      not isinstance(leaf, np.ndarray)
+      or leaf.dtype.hasobject
+      or not leaf.flags.c_contiguous
+      or math.prod(leaf.shape) == 0
+      or leaf.nbytes < min_size
+  ):
+    return leaf
+
+  shared_memory_arr = shared_memory_array.SharedMemoryArray(
+      leaf.shape, leaf.dtype
+  )
+  np.copyto(shared_memory_arr, leaf, casting="no")
+  return shared_memory_arr.metadata
+
+
+def _copy_struct_to_shm(struct: Any, min_size: int = 0) -> Any:
+  """Copies leaf ndarrays of the structure to shared memory."""
+  return tree_lib.map_structure(
+      functools.partial(_copy_leaf_to_shm, min_size=min_size), struct
+  )
+
+
+def _open_leaf_from_shm(leaf: Any) -> Any:
+  """Recovers `leaf` from shared memory if it's a numpy array metadata."""
+  if isinstance(leaf, shared_memory_array.SharedMemoryArrayMetadata):
+    leaf = shared_memory_array.SharedMemoryArray.from_metadata(leaf)
+    leaf.unlink_on_del()
+  return leaf
+
+
+def _open_struct_from_shm(struct: Any) -> Any:
+  """Recovers leaf ndarrays of the structure from shared memory."""
+  return tree_lib.map_structure(_open_leaf_from_shm, struct)
+
+
+def _set_slice_iter_dataset(
+    ds: dataset.IterDataset,
+    sl: slice,
+    sequential_slice: bool = False,
+) -> None:
+  """Sets data slice for the given dataset.IterDataset in place.
+
+  WARNING: mutates the dataset object. Must only be used on dataset object copy.
+
+  Applies recursively for parents.
+
+  Args:
+   ds: dataset.IterDataset to apply slice to.
+   sl: slice to apply.
+   sequential_slice: whether to apply sequential slicing.
+  """
+  if isinstance(ds, SupportsInPlaceSlicing):
+    ds.set_slice(sl, sequential_slice)
+    return
+  if not ds.parents:
+    raise ValueError(f"Cannot slice `IterDataset` source. {type(ds)}")
+  for parent in ds.parents:
+    if isinstance(parent, dataset.MapDataset):
+      _set_slice_map_dataset(parent, sl, sequential_slice)
+    else:
+      _set_slice_iter_dataset(parent, sl, sequential_slice)
+
+
+def _set_slice_map_dataset(
+    ds: dataset.MapDataset,
+    sl: slice,
+    sequential_slice: bool = False,
+) -> None:
+  """Sets data slice for the given dataset.MapDataset in place.
+
+  WARNING: mutates the dataset object. Must only be used on dataset object copy.
+
+  Applies recursively for parents.
+
+  Args:
+   ds: dataset.MapDataset to apply slice to.
+   sl: slice to apply.
+   sequential_slice: whether to apply sequential slicing.
+  """
+  if isinstance(ds, SupportsInPlaceSlicing):
+    ds.set_slice(sl, sequential_slice)
+    return
+  if not ds.parents:
+    raise ValueError(f"Cannot slice `MapDataset` source. {type(ds)}")
+  for parent in ds.parents:
+    if isinstance(parent, dataset.MapDataset):
+      _set_slice_map_dataset(parent, sl, sequential_slice)
+    else:
+      _set_slice_iter_dataset(parent, sl, sequential_slice)
+
+
+def _check_picklable(
+    ds: dataset.IterDataset | dataset.MapDataset,
+):
+  """Detects the first unpickle-able dataset in post-order.
+
+  Args:
+    ds: IterDataset or MapDataset to check whether it is picklable.
+
+  NOTE: This function's time complexity is O(n^2) where n is the number of
+  Grain dataset operations because `cloudpickle.dumps(ds)` will trigger
+  pickling into all the datasets. If this naive O(n^2) algorithm takes too
+  much time, we could consider doing copying `ds`, delete its parents and then
+  do `cloudpickle.dumps(new_ds)` to reduce the time complexity to O(n).
+  """
+
+  # Traverses the graph in post-order to find the first unpickle-able subtree
+  for parent in ds.parents:
+    _check_picklable(parent)
+
+  try:
+    cloudpickle.dumps(ds)
+  except Exception as e:  # pylint: disable=broad-exception-caught
+    if sys.version_info >= (3, 11):
+      e.add_note(
+          f"Dataset: {ds} cannot be pickled!"
+      )
+    raise e
+
+
+class GetElementProducerFn(grain_pool.GetElementProducerFn, Generic[T]):
+  """Implements `GetElementProducerFn` for `grain_pool.MultiProcessIterator`.
+
+  This class implements `GetElementProducerFn` with `serialize` being overridden
+  to generate better error messages if user-provided dataset is not pickle-able.
+  """
+
+  def __init__(
+      self,
+      state: dict[str, dict[str, Any] | int],
+      ds: dataset.IterDataset[T],
+      sequential_slice: bool = False,
+      always_report_worker_state: bool = False,
+  ):
+    self._state = state
+    self._ds = ds
+    self._sequential_slice = sequential_slice
+    self._always_report_worker_state = always_report_worker_state
+
+  def __call__(
+      self,
+      *,
+      worker_index: int,
+      worker_count: int,
+      start_profiling_event: synchronize.Event | None = None,
+      stop_profiling_event: synchronize.Event | None = None,
+      stats_out_queue: queues.Queue | None = None,
+  ) -> Iterator[tuple[T, Optional[dict[str, Any]]]]:
+    if worker_count > 1:
+      _set_slice_iter_dataset(
+          self._ds,
+          slice(worker_index, None, worker_count),
+          self._sequential_slice,
+      )
+    # Prevent OutputDatasetIterator injection in worker processes.
+    # The injection should only happen in the main process iterator,
+    # which wraps the _MultiprocessPrefetchDatasetIterator.
+    it = self._ds.__iter__()
+    it._ctx.mp_context = base.MultiprocessingContext(
+        process_index=worker_index, process_count=worker_count
+    )
+    min_shm_size = it._ctx.dataset_options.min_shm_size
+    # Recover from the last recorded state for the given worker.
+    worker_state = self._state[_WORKERS_STATE][str(worker_index)]
+    if worker_state is not None:
+      it.set_state(worker_state)
+    # Set the stats queue in worker process to send stats to the main process.
+    it._stats._config.stats_out_queue = stats_out_queue  # pytype: disable=attribute-error
+    # Skip the required number of iterations after the last recorded state.
+    for _ in range(self._state[_ITERATIONS_TO_SKIP][str(worker_index)]):
+      _ = next(it)
+    last_recorded_state_time = time.time()
+    for element in it:
+      now = time.time()
+      element = _copy_struct_to_shm(element, min_size=min_shm_size)
+      # If the node is prefetch, we already record the bytes produced in it's
+      # __next__ method.
+      if not it._stats._config.is_prefetch:
+        it._stats.record_bytes_produced(element)
+      if (
+          self._always_report_worker_state
+          or now - last_recorded_state_time >= _RECORD_STATE_INTERVAL_S
+      ):
+        last_recorded_state_time = now
+        yield (element, it.get_state())  # pytype: disable=attribute-error
+      else:
+        yield (element, None)
+
+  def serialize(self) -> bytes:
+    """Overrides the default implementation to generate better error messages."""
+
+    try:
+      return cloudpickle.dumps(self)
+    except Exception as e:  # pylint: disable=broad-except
+      # Calls `_check_picklable` to generate useful pickle errors
+      #
+      # Note: No need to check `self._state` because it should not generate
+      # unpicklable errors and it is controlled by us, not from user's code
+      # in most cases. Except for the case when users try to implement their own
+      # `MapDataset` and `IterDataset` with custom pickle-ing logic that
+      # contains unpickle-able objects.
+      _check_picklable(self._ds)
+
+      # If somehow we cannot find the dataset that is causing the pickle
+      # issues, just raise the original error
+      raise e
+
+
+def _get_dataset_options(ds: dataset.IterDataset) -> base.DatasetOptions:
+  result = base.DatasetOptions()
+  to_visit = [ds]
+  while to_visit:
+    parent = to_visit.pop()
+    if isinstance(parent, dataset.WithOptionsIterDataset):
+      result = result.merge(parent.options)
+    to_visit.extend(parent.parents)
+  return result
+
+
+class _MultiprocessPrefetchDatasetIterator(dataset.DatasetIterator[T]):
+  """Iterator that performs prefetching using a multiprocessing pool."""
+
+  def __init__(
+      self,
+      parent: dataset.IterDataset[T],
+      multiprocessing_options: grain_options.MultiprocessingOptions,
+      worker_init_fn: Callable[[int, int], None] | None = None,
+      sequential_slice: bool = False,
+      always_report_worker_state: bool = False,
+  ):
+    super().__init__()
+    self._iter_parent = parent
+    # Since the parent iterator is going to be created in each subprocess, and
+    # the options are propagated during iterator creation, we need to manually
+    # propagate them.
+    self._ctx.dataset_options = _get_dataset_options(parent)
+    self._multiprocessing_options = multiprocessing_options
+    self._worker_init_fn = worker_init_fn
+    self._sequential_slice = sequential_slice
+    # The underlying iterator producing elements and workers state.
+    self._iterator = None
+    # Raw reference to the underlying iterator that can be used to determine the
+    # last worker index.
+    self._raw_iterator = None
+    # Create initial state. We record state of each worker periodically together
+    # with the number of iterations without the recorded state and index of the
+    # last worker.
+    iterations_to_skip: dict[str, int] = {
+        str(i): 0 for i in range(multiprocessing_options.num_workers)
+    }
+    workers_state: dict[str, Any] = {
+        str(i): None for i in range(multiprocessing_options.num_workers)
+    }
+    self._stats_in_queues = tuple(
+        mp.get_context("spawn").Queue(maxsize=5)
+        for _ in range(multiprocessing_options.num_workers)
+    )
+    self._start_profiling_event = mp.get_context("spawn").Event()
+    self._stop_profiling_event = mp.get_context("spawn").Event()
+
+    self._state: dict[str, dict[str, Any] | int] = {
+        _WORKERS_STATE: workers_state,
+        _ITERATIONS_TO_SKIP: iterations_to_skip,
+        _LAST_WORKER_INDEX: -1,
+    }
+
+    self._always_report_worker_state = always_report_worker_state
+
+  def _initialize_stats(
+      self, execution_tracking_mode: base.ExecutionTrackingMode
+  ):
+    self._stats = _initialize_prefetch_stats(
+        self,
+        execution_tracking_mode,
+        parent_stats=[],
+        stats_in_queues=self._stats_in_queues,
+    )
+    return self._stats
+
+  @functools.cached_property
+  def _stats(self):
+    return self._initialize_stats(
+        self._ctx.dataset_options.execution_tracking_mode
+    )
+
+  def __iter__(self) -> dataset.DatasetIterator[T]:
+    return self
+
+  @dataset_stats.record_next_duration_if_output
+  @dataset_stats.trace_input_pipeline_next(
+      stage_category=dataset_stats.IPL_CAT_PREFETCH
+  )
+  def __next__(self) -> T:
+    self._assert_not_closed()
+    self._ensure_iterator_initialized()
+    # The time recorded here is the time spent in prefetch node to return an
+    # element, including the time spent in parent node.
+    timer = dataset_stats.Timer()
+    result, state = next(self._iterator)
+    with self._stats.record_self_time(offset_ns=timer.value()):
+      worker_index = self._raw_iterator.get_last_worker_index()  # pytype: disable=attribute-error
+
+      # pytype: disable=annotation-type-mismatch
+      iterations_to_skip: dict[str, Any] = self._state[_ITERATIONS_TO_SKIP]
+      worker_state: dict[str, Any] = self._state[_WORKERS_STATE]
+      # pytype: enable=annotation-type-mismatch
+
+      self._state[_LAST_WORKER_INDEX] = worker_index
+      worker_index_str = str(worker_index)
+      if state is None:
+        iterations_to_skip[worker_index_str] += 1
+      else:
+        iterations_to_skip[worker_index_str] = 0
+        worker_state[worker_index_str] = state
+    result = self._stats.record_bytes_produced(result)
+    return _open_struct_from_shm(result)
+
+  def start_prefetch(self) -> None:
+    """Prefetches elements from the iterator.
+
+    This will run background processes for prefetching. To make sure to clean up
+    the resources, it should be followed by at least one `next` call.
+    """
+    self._ensure_iterator_initialized()
+
+  def set_state(self, state: dict[str, dict[str, Any] | int]) -> None:
+    self._state = state
+    self._raw_iterator = None
+    self._iterator = None
+
+  def get_state(self) -> dict[str, Any]:
+    result = copy.deepcopy(self._state)
+    workers_state: dict[str, Any] = result[_WORKERS_STATE]  # pytype: disable=annotation-type-mismatch
+    parent_state = None
+    for worker_index, worker_state in workers_state.items():
+      # Create initial state from the parent iterator. This is to make sure the
+      # spec of the produced iterator does not change.
+      if worker_state is None:
+        parent_state = parent_state or self._iter_parent.__iter__().get_state()
+        workers_state[worker_index] = copy.deepcopy(parent_state)
+    return result
+
+  def _ensure_iterator_initialized(self) -> None:
+    if self._iterator is None:
+      self._raw_iterator = self._create_iterator_context()
+      self._raw_iterator.start_prefetch()
+      self._iterator = _iterator_with_context(self._raw_iterator)
+
+  def _create_iterator_context(self) -> grain_pool.MultiProcessIterator[T]:
+    """Creates a `MultiProcessIterator`."""
+    # Apply the latest options to the subprocess dataset. We delay this until
+    # starting subprocesses because child iterators may update them.
+    ds = dataset.WithOptionsIterDataset(
+        self._iter_parent, self._ctx.dataset_options
+    )
+    get_element_producer_fn = GetElementProducerFn(
+        self._state,
+        ds,
+        self._sequential_slice,
+        self._always_report_worker_state,
+    )
+
+    return grain_pool.MultiProcessIterator(
+        get_element_producer_fn,
+        self._multiprocessing_options,
+        (self._state[_LAST_WORKER_INDEX] + 1)
+        % self._multiprocessing_options.num_workers,
+        self._worker_init_fn,
+        self._start_profiling_event,
+        self._stop_profiling_event,
+        self._stats_in_queues,
+    )
+
+  def __str__(self) -> str:
+    return (
+        "MultiprocessPrefetchDatasetIterator("
+        f"multiprocessing_options={self._multiprocessing_options})"
+    )
+
+  def close(self) -> None:
+    """Shuts down the prefetching threads and multiprocessing pool."""
+    if self._closed:
+      return
+    self._closed = True
+    if self._raw_iterator is not None:
+      self._raw_iterator.stop_prefetch()
+
+
+class ThreadPrefetchIterDataset(dataset.IterDataset[T]):
+  """Iterable dataset that uses a synchronized queue for prefetching.
+
+  This is a thread-based alternative to `MultiprocessPrefetchIterDataset`.
+
+  Attributes:
+    parent: The parent dataset to prefetch from.
+    prefetch_buffer_size: The size of the prefetch buffer. Must be greater than
+      or equal to 0. If 0, prefetching is disabled and this is a noop.
+  """
+
+  def __init__(
+      self,
+      parent: dataset.IterDataset[T],
+      *,
+      prefetch_buffer_size: int,
+  ):
+    super().__init__(parent)
+    if prefetch_buffer_size < 0:
+      raise ValueError(
+          "`prefetch_buffer_size` must be greater than or equal to 0, got "
+          f"{prefetch_buffer_size}."
+      )
+    self._prefetch_buffer_size = prefetch_buffer_size
+
+  def __str__(self) -> str:
+    return (
+        "ThreadPrefetchIterDataset("
+        f"prefetch_buffer_size={self._prefetch_buffer_size})"
+    )
+
+  def __iter__(self) -> dataset.DatasetIterator[T]:
+    parent_iter = self._parent.__iter__()
+    if self._prefetch_buffer_size == 0:
+      return parent_iter
+    return ThreadPrefetchDatasetIterator(
+        parent_iter, self._prefetch_buffer_size
+    )
+
+  @property
+  def _element_spec(self) -> Any:
+    return dataset.get_element_spec(self._parent)
+
+
+# Type for the iterator state.
+StateT = dict[str, Any]
+
+
+def _put_iterator_elements_in_buffer(
+    iterator: dataset.DatasetIterator[T],
+    buffer: queue.Queue[tuple[T, StateT, Exception | None]],
+    should_stop: threading.Event,
+    stats: dataset_stats.Stats,
+):
+  """Fetches elements from the iterator and puts them in the buffer."""
+  try:
+    while not should_stop.is_set():
+      element = stats.record_bytes_consumed(iterator.__next__())
+      state = iterator.get_state()
+      buffer.put((element, state, None))
+  except Exception as e:  # pylint: disable=broad-except
+    buffer.put((None, None, e))
+
+
+class CheckpointableIterator(Iterator[T], Protocol[T]):
+  """Iterator that can be checkpointed."""
+
+  def get_state(self) -> StateT:
+    """Returns the current state of the iterator."""
+
+  def set_state(self, state: StateT):
+    """Sets the current state of the iterator."""
+
+
+class ThreadPrefetchDatasetIterator(dataset.DatasetIterator[T]):
+  """Iterator that performs prefetching using a synchronized queue."""
+
+  _MUTATES_ELEMENT_SPEC = False
+
+  def __init__(
+      self,
+      parent: CheckpointableIterator[T],
+      prefetch_buffer_size: int,
+  ):
+    if isinstance(parent, dataset.DatasetIterator):
+      super().__init__(parent)
+    else:
+      super().__init__()
+    self._maybe_nonnative_parent = parent
+
+    assert prefetch_buffer_size > 0, prefetch_buffer_size
+    self._prefetch_buffer_size = prefetch_buffer_size
+    self._step_zero_state: StateT = parent.get_state()
+    self._state: StateT | None = None
+
+    self._prefetch_thread: threading.Thread | None = None
+    self._prefetch_should_stop: threading.Event = threading.Event()
+    self._buffer: queue.Queue[tuple[T, StateT, Exception | None]] = queue.Queue(
+        maxsize=self._prefetch_buffer_size
+    )
+
+  # pytype: disable=attribute-error
+  # pylint: disable=protected-access
+
+  def _initialize_stats(
+      self, execution_tracking_mode: base.ExecutionTrackingMode
+  ):
+    # This method is needed to set `is_prefetch` to `True` in the stats config.
+    parent_stats = [
+        p._initialize_stats(execution_tracking_mode) for p in self._parents
+    ]
+    self._stats = _initialize_prefetch_stats(
+        self, execution_tracking_mode, parent_stats
+    )
+    return self._stats
+
+  @functools.cached_property
+  def _stats(self):
+    return self._initialize_stats(
+        self._ctx.dataset_options.execution_tracking_mode
+    )
+
+  # pytype: enable=attribute-error
+  # pylint: enable=protected-access
+
+  def start_prefetch(self):
+    """Starts prefetching elements in background.
+
+    Raises:
+      ValueError: If the iterator has been closed.
+    """
+    if self._closed:
+      raise ValueError("Attempting to use a closed iterator.")
+    if self._prefetch_thread is not None:
+      return
+
+    self._prefetch_should_stop.clear()
+    self._prefetch_thread = threading.Thread(
+        target=functools.partial(
+            _put_iterator_elements_in_buffer,
+            iterator=self._maybe_nonnative_parent,
+            buffer=self._buffer,
+            should_stop=self._prefetch_should_stop,
+            stats=self._stats,
+        ),
+        daemon=True,
+        name=f"grain-thread-prefetch-{str(self)}",
+    )
+    self._prefetch_thread.start()
+
+  @dataset_stats.record_next_duration_if_output
+  @dataset_stats.trace_input_pipeline_next(
+      stage_category=dataset_stats.IPL_CAT_PREFETCH
+  )
+  def __next__(self):
+    timer = dataset_stats.Timer()
+    with timer:
+      self.start_prefetch()
+      element, state, err = self._buffer.get()
+
+    if err is not None:
+      self._stop_prefetch()
+      raise err
+    self._state = state
+    with self._stats.record_self_time(offset_ns=timer.value()):
+      element = self._stats.record_bytes_produced(element)
+      return self._stats.record_output_spec(element)
+
+  def close(self):
+    """Stops the iterator. No further calls to the iterator are expected."""
+    self._closed = True
+    self._stop_prefetch()
+
+  def _clear_buffer(self):
+    while True:
+      try:
+        self._buffer.get_nowait()
+      except queue.Empty:
+        return
+
+  def _stop_prefetch(self):
+    """Stops the prefetching thread if it's currently running."""
+    if self._prefetch_thread is None:
+      return
+
+    self._prefetch_should_stop.set()
+    # Remove entries from the buffer to unblock the producer, so that it checks
+    # producer_running.is_set() and exits.
+    self._clear_buffer()
+    self._prefetch_thread.join()
+    self._prefetch_thread = None
+    # Clear the buffer again in case the prefetch loop added more elements on
+    # exit.
+    self._clear_buffer()
+
+  def get_state(self) -> StateT:
+    return self._step_zero_state if self._state is None else self._state
+
+  def set_state(self, state: StateT):
+    self._stop_prefetch()
+    self._maybe_nonnative_parent.set_state(state)
+    self._state = self._maybe_nonnative_parent.get_state()
+
+  def __str__(self) -> str:
+    return (
+        "ThreadPrefetchDatasetIterator("
+        f"prefetch_buffer_size={self._prefetch_buffer_size})"
+    )
+
+
+class _MpContextIterDataset(dataset.IterDataset[T]):
+  """Sets mp_context on iterator."""
+
+  def __init__(
+      self,
+      parent: dataset.IterDataset[T],
+      mp_context: base.MultiprocessingContext,
+  ):
+    super().__init__(parent)
+    self._mp_context = mp_context
+
+  def __iter__(self) -> dataset.DatasetIterator[T]:
+    it = self._parent.__iter__()
+    it._ctx.mp_context = self._mp_context
+    return it
+
+  def __str__(self) -> str:
+    return f"_MpContextIterDataset(mp_context={self._mp_context})"
+
+  @property
+  def _element_spec(self) -> Any:
+    return dataset.get_element_spec(self._parent)
+
+
+def multithread_prefetch(
+    ds: dataset.IterDataset[T],
+    num_threads: int,
+    buffer_size: int,
+    sequential_slice: bool = False,
+) -> dataset.IterDataset[T]:
+  """Uses a pool of threads to prefetch elements ahead of time.
+
+  This is a thread-based alternative to `multiprocess_prefetch`
+  intended to be used with free-threaded Python.
+
+  It works by sharding the input dataset into `num_threads` shards, and
+  interleaving them. Each shard is read by a separate thread inside
+  `InterleaveIterDataset`.
+
+  Args:
+    ds: The parent dataset to prefetch from.
+    num_threads: The number of threads to use for prefetching. If 0, prefetching
+      is disabled and this is a no-op.
+    buffer_size: The size of the prefetch buffer for each thread.
+    sequential_slice: Whether to use sequential slicing.
+
+  Returns:
+    An `IterDataset` that prefetches elements from `ds` using multiple threads.
+  """
+  if num_threads == 0:
+    return ds
+
+  _validate_no_double_prefetch(ds)
+
+  shards = []
+  for i in range(num_threads):
+    worker_ds = copy.deepcopy(ds)
+    _set_slice_iter_dataset(
+        worker_ds, slice(i, None, num_threads), sequential_slice
+    )
+    shards.append(
+        _MpContextIterDataset(
+            worker_ds,
+            base.MultiprocessingContext(
+                process_index=i,
+                process_count=num_threads,
+            ),
+        )
+    )
+
+  return interleave.InterleaveIterDataset(
+      shards, cycle_length=num_threads, iter_buffer_size=buffer_size
+  )
+
+
+def is_prefetch_iterator(it: dataset.DatasetIterator) -> bool:
+  """Returns whether the iterator is a prefetch iterator."""
+  return isinstance(
+      it,
+      (
+          PrefetchDatasetIterator,
+          ThreadPrefetchDatasetIterator,
+          _MultiprocessPrefetchDatasetIterator,
+      ),
+  )
