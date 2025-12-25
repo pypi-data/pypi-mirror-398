@@ -1,0 +1,161 @@
+import json
+import textwrap
+from typing import Callable, Dict, List, Optional
+
+import click
+from pycarlo.core import Client, Query
+from pycarlo.features.circuit_breakers import CircuitBreakerService
+from tabulate import tabulate
+
+from montecarlodata.errors import manage_errors
+
+
+class MonitorService:
+    MONITORS_HEADERS = (
+        "Monitor UUID",
+        "Type",
+        "Namespace",
+        "Description",
+        "Last Update Time",
+    )
+    MORE_MONITOR_MESSAGE = "There are more monitors available. Increase the limit to view them."
+    PSEUDO_MONITOR_TYPE_CB_COMPATIBLE = "CIRCUIT_BREAKER_COMPATIBLE"
+    MONITOR_TYPE_STATS = "STATS"
+    MONITOR_TYPE_CATEGORIES = "CATEGORIES"
+    MONITOR_TYPE_JSON_SCHEMA = "JSON_SCHEMA"
+    MONITOR_TYPE_CUSTOM_SQL = "CUSTOM_SQL"
+    MONITOR_TYPE_TABLE_METRIC = "TABLE_METRIC"  # Legacy Volume SLIs
+    MONITOR_TYPE_FRESHNESS = "FRESHNESS"
+    MONITOR_TYPE_VOLUME = "VOLUME"
+    MONITOR_TYPES = [
+        PSEUDO_MONITOR_TYPE_CB_COMPATIBLE,
+        MONITOR_TYPE_CUSTOM_SQL,
+        MONITOR_TYPE_TABLE_METRIC,
+        MONITOR_TYPE_FRESHNESS,
+        MONITOR_TYPE_VOLUME,
+        MONITOR_TYPE_STATS,
+        MONITOR_TYPE_CATEGORIES,
+        MONITOR_TYPE_JSON_SCHEMA,
+    ]
+
+    def __init__(
+        self,
+        client: Client,
+        command_name: str,
+        print_func: Callable = click.echo,
+    ):
+        self._pycarlo_client = client
+        self._command_name = command_name
+        self._print_func = print_func
+
+    @manage_errors
+    def list_monitors(
+        self,
+        limit=100,
+        namespaces: Optional[List[str]] = None,
+        monitor_types: Optional[List[str]] = None,
+    ):
+        """
+        Get all monitors filter by namespaces and monitor_types
+        """
+        kwargs: Dict = {"limit": limit + 1}
+        if namespaces:
+            kwargs["namespaces"] = namespaces
+        if monitor_types:
+            kwargs["monitor_types"] = monitor_types
+        query = Query()
+        query.get_monitors(**kwargs).__fields__(
+            "uuid",
+            "monitor_type",
+            "namespace",
+            "description",
+            "last_update_time",
+        )
+        response = self._pycarlo_client(
+            query,
+            additional_headers={
+                "x-mcd-telemetry-reason": "cli",
+                "x-mcd-telemetry-service": "monitor_service",
+                "x-mcd-telemetry-command": self._command_name,
+            },
+        )
+        monitors = [
+            (
+                item.uuid,
+                item.monitor_type,
+                item.namespace,
+                textwrap.fill(
+                    item.description,  # type: ignore
+                    width=70,
+                )
+                if item.description
+                else "",
+                item.last_update_time,
+            )
+            for item in response.get_monitors
+        ]
+        more_ns_available = False
+        if len(monitors) > limit:
+            monitors = monitors[:-1]
+            more_ns_available = True
+        self._print_func(tabulate(monitors, headers=self.MONITORS_HEADERS, tablefmt="fancy_grid"))
+
+        if more_ns_available:
+            self._print_func(self.MORE_MONITOR_MESSAGE)
+
+    def run_circuit_breaker(
+        self,
+        namespace: Optional[str] = None,
+        name: Optional[str] = None,
+        uuid: Optional[str] = None,
+        runtime_variables: Optional[str] = None,
+    ):
+        """
+        Run a circuit breaker monitor and poll for the result.
+
+        Args:
+            namespace: Namespace of the monitor
+            name: Name of the monitor
+            uuid: UUID of the monitor (alternative to namespace/name)
+            runtime_variables: JSON string of runtime variables
+
+        Returns:
+            True if the circuit breaker passed (no breach), False if it breached
+        """
+        if not uuid and (not namespace or not name):
+            raise click.UsageError("You must provide either --uuid or both --namespace and --name")
+
+        if uuid and (namespace or name):
+            raise click.UsageError("Cannot use --uuid together with --namespace or --name")
+
+        runtime_vars = None
+        if runtime_variables:
+            try:
+                runtime_vars = json.loads(runtime_variables)
+            except json.JSONDecodeError as e:
+                raise click.UsageError(f"Invalid JSON for runtime variables: {e}")
+
+        service = CircuitBreakerService(
+            print_func=self._print_func,
+            mc_client=self._pycarlo_client,
+        )
+
+        kwargs = {}
+        if uuid:
+            kwargs["rule_uuid"] = uuid
+        else:
+            kwargs["namespace"] = namespace
+            kwargs["rule_name"] = name
+
+        if runtime_vars:
+            kwargs["runtime_variables"] = runtime_vars
+
+        self._print_func("Running circuit breaker...")
+        result = service.trigger_and_poll(**kwargs)
+
+        if result:
+            self._print_func("✗ Circuit breaker breached")
+            return True
+        else:
+            self._print_func("✓ Circuit breaker passed (no breach detected)")
+            return False
