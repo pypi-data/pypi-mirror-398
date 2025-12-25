@@ -1,0 +1,3 @@
+# yiki
+
+Minimal Python package.
