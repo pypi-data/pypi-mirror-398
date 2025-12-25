@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  pypi-publish:
+    name: Upload release to PyPI
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write
+    if: github.event.release.prerelease == false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '>=3.8'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends asciidoctor
+          python -m pip install --upgrade pip
+          pip install -U build
+      - name: Build
+        run: python -m build
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
+  deb-package:
+    name: Build deb package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            --no-install-recommends build-essential devscripts debhelper equivs
+          sudo mk-build-deps -ir
+      - name: Create upstream tarball
+        run: |
+          version=$(git describe --tags | sed 's/^v//;s/-.*$//;s/_.*$//')
+          git archive --format=tar.gz --prefix="dotbackup-$version/" HEAD > \
+            "../dotbackup_$version.orig.tar.gz"
+      - name: Build
+        run: debuild -us -uc -b && mv ../*.deb .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: '*.deb'
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: '*.deb'
