@@ -1,0 +1,88 @@
+name: Build Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          python-version: 3.13
+
+      - name: Install dependencies
+        run: |
+          uv sync --group dev
+      
+      - name: Build binary
+        run: |
+          uv run pyinstaller --clean --name autoreporeview --onefile autoreporeview_cli.py
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: autoreporeview-${{ matrix.os }}
+          path: dist/autoreporeview*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+      
+      - name: Extract version from tag
+        id: tag_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Create or Update Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ steps.tag_version.outputs.version }}
+          body: |
+            ## AutoRepoReview ${{ steps.tag_version.outputs.version }}
+            
+            ### PyPI Package
+            Install from PyPI:
+            ```bash
+            pip install autoreporeview==${{ steps.tag_version.outputs.version }}
+            ```
+            
+            ### Downloads
+            - **Windows**: `autoreporeview.exe`
+            - **Linux**: `autoreporeview` (Linux binary)
+            - **macOS**: `autoreporeview` (macOS binary)
+            
+            ### Installation
+            1. Download the binary for your platform
+            2. Make it executable (Linux/macOS): `chmod +x autoreporeview`
+            3. Run: `./autoreporeview summary <path> <commit_a> <commit_b>`
+          files: |
+            release-artifacts/**/*
+          draft: false
+          prerelease: false
+          update: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
