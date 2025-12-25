@@ -1,0 +1,93 @@
+Metadata-Version: 2.4
+Name: postgres-wire
+Version: 1.0.1
+Summary: Add your description here
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
+Requires-Dist: pydantic>=2.12.5
+
+# postgres-wire
+
+This module provides a [postgres wire compatible](https://www.yugabyte.com/key-concepts/postgresql-compatibility/) server for Python that leverages [Pydantic models](https://docs.pydantic.dev/latest/) for brevity.
+
+```bash
+$ # The example below is being run in a separate terminal
+$ psql postgresql://user:password@localhost:5432/db
+psql (14.19 (Homebrew), server 0.0.0)
+Type "help" for help.
+
+db=> SELECT t;
+  foo   | bar
+--------+-----
+ 'wow'  |  12
+ 'woah' |  21
+(2 rows)
+
+db=>
+```
+
+## Installing
+
+You should be able to use your preferred package manager to fetch the latest version from [PyPi](https://pypi.org/project/postgres-wire/).
+
+```bash
+$ uv add postgres-wire
+$ # or pip install postgres-wire
+```
+
+## Usage
+
+```python
+from postgres_wire import create_server, Handler
+from pydantic import BaseModel
+
+
+class YourObject(BaseModel):
+  foo: str
+  bar: int
+
+class YourHandler(Handler):
+  # If you'd like to listen on a different port
+  # port = 55432
+
+  def query(self, sql):
+    print(f"Handling the query <{sql}>")
+    return [YourObject(foo="wow", bar=12), YourObject(foo="woah", bar=21)]
+
+serve = create_server(YourHandler)
+serve() # You can now connect with `psql postgresql://user:pass@localhost:5432`
+```
+
+## Usage with auth
+
+If you're interested in adding auth (ie API keys), then implement a `check_auth` method for the handler object which accepts a username and password as arguments.
+
+```python
+from postgres_wire import create_server, Handler
+from pydantic import BaseModel
+
+
+class YourObject(BaseModel):
+  foo: str
+  bar: int
+
+class YourHandler(Handler):
+  # If you'd like to listen on a different port
+  # port = 55432
+
+  def query(self, sql):
+    print(f"Handling the query <{sql}>")
+    return [YourObject(foo="wow", bar=12), YourObject(foo="woah", bar=21)]
+
+  def check_auth(self, user, password):
+    if password == "pass":
+      # Raising an exception will cause the authentication to fail
+      raise ValueError
+
+serve = create_server(YourHandler)
+serve() # You can now connect with `psql postgresql://user:password@localhost:5432`
+```
+
+## Background
+
+The initial code is taken from [this gist](https://gist.github.com/ddurham2/b2449a565c0e95e94627a7f28bcbe531) which was an improvement atop [this gist](https://gist.github.com/eatonphil/079f8654174b9b9c1953b76008d024ae).
