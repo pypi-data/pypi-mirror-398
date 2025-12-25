@@ -1,0 +1,78 @@
+name: Dual PyPI Publish - exonware-xwformats & xwformats
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags like v0.0.1, v1.0.0, etc.
+  workflow_dispatch:  # Allows manual trigger of the workflow
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.8'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+    
+    - name: Build exonware-xwformats package
+      run: |
+        echo "Building exonware-xwformats package..."
+        python -m build
+        
+    - name: Build xwformats wrapper package
+      run: |
+        echo "Building xwformats wrapper package..."
+        cp pyproject.toml pyproject.backup.toml
+        cp pyproject.xwformats.toml pyproject.toml
+        python -m build --wheel
+        mv pyproject.backup.toml pyproject.toml
+    
+    - name: List built packages
+      run: |
+        echo "Built packages:"
+        find dist -name "*.whl" -o -name "*.tar.gz" | sort
+    
+    - name: Publish exonware-xwformats to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        echo "Publishing exonware-xwformats to PyPI..."
+        ls -la dist/
+        twine upload dist/exonware_xwformats-*.whl dist/exonware_xwformats-*.tar.gz
+    
+    - name: Publish xwformats wrapper to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        echo "Publishing xwformats wrapper to PyPI..."
+        twine upload dist/xwformats-*.whl
+        
+    - name: Success notification
+      run: |
+        echo "✅ Successfully published both packages:"
+        echo "   📦 exonware-xwformats v${{ github.ref_name }} (full package)"
+        echo "   📦 xwformats v${{ github.ref_name }} (wrapper)"
+        echo ""
+        echo "PyPI URLs:"
+        echo "   https://pypi.org/project/exonware-xwformats/"
+        echo "   https://pypi.org/project/xwformats/"
+        echo ""
+        echo "Install with either:"
+        echo "   pip install xwformats  # Recommended (wrapper)"
+        echo "   pip install exonware-xwformats  # Direct"
+        echo ""
+        echo "Both import paths work:"
+        echo "   import xwformats"
+        echo "   import exonware.xwformats"
+
