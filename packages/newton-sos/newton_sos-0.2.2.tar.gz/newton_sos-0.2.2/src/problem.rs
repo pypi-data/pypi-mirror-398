@@ -1,0 +1,271 @@
+//! Defines the optimization problem structure, as well as methods for computing
+//! the features matrix and kernel matrix.
+
+use std::fmt::Debug;
+
+use faer::{Side, linalg::solvers::LltError, prelude::*};
+use rayon::prelude::*;
+
+#[derive(Debug, Clone, Copy)]
+/// Enum representing the natively supported kernel types.
+///
+/// The following kernels are supported:
+/// - Laplacian kernel with bandwidth parameter $\sigma$, defined as:
+///   $$k(x, y) = \exp\left(-\frac{||x - y||_2}{\sigma}\right)$$
+/// - Gaussian kernel with bandwidth parameter $\sigma$, defined as:
+///   $$k(x, y) = \exp\left(-\frac{||x - y||_2^2}{2 \sigma^2}\right)$$
+pub enum Kernel {
+    /// Laplacian kernel with the specified bandwidth parameter.
+    Laplacian(f64),
+    /// Gaussian kernel with the specified bandwidth parameter.
+    Gaussian(f64),
+}
+
+/// Represents errors that can occur during problem setup and initialization if the `Problem` struct.
+pub enum ProblemError {
+    /// Indicates that an invalid parameter was provided.
+    InvalidParameter(String),
+    /// Indicates that the kernel matrix has already been initialized.
+    KernelAlreadyInitialized,
+    /// Wraps a faer LLT decomposition error.
+    FaerLltError(LltError),
+    /// Raised when Phi is requested before $K$ has been initialized.
+    KernelNotInitialized,
+}
+
+impl Debug for ProblemError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProblemError::InvalidParameter(msg) => write!(f, "Invalid parameter: {}", msg),
+            ProblemError::KernelAlreadyInitialized => {
+                write!(f, "Kernel has already been initialized")
+            }
+            ProblemError::FaerLltError(e) => write!(f, "LLT decomposition error: {:?}", e),
+            ProblemError::KernelNotInitialized => write!(
+                f,
+                "Kernel matrix not initialized. Please call Problem::initialize_native_kernel before Problem::compute_phi."
+            ),
+        }
+    }
+}
+
+#[allow(non_snake_case)]
+#[derive(Debug, Clone)]
+/// Represents an instance of the optimization problem.
+///
+/// The problem is defined as:
+/// $$\max_{c\in\mathbb{R}, B \in \mathbb{S}^n_+} c - \lambda \text{Tr}(B) + t \log \det (B) \qquad \text{s.t. }\quad f_i - c = \Phi_i^T B \Phi_i, \\:\\:\forall i\in[\\![1, N]\\!]$$
+/// where:
+/// - $\lambda$ is the trace penalty,
+/// - $t$ is the relative precision, with $t = \varepsilon / n$,
+/// - $x_i$ are the sample points,
+/// - $f_i$ are the function values at the sample points,
+/// - $\Phi$ is the features matrix derived from the kernel matrix $K$,
+/// - $K$ is the kernel matrix computed from the sample points using a specified kernel function.
+///
+/// In practice, $K$ only is computed first, and $\Phi$ is optionally computed later.
+pub struct Problem {
+    /// Trace penalty
+    pub(crate) lambda: f64,
+    /// Relative precision ($\varepsilon / n$)
+    pub(crate) t: f64,
+    /// Sample points
+    pub(crate) x_samples: Mat<f64>,
+    /// Function values at the samples
+    pub(crate) f_samples: Mat<f64>,
+    /// Features matrix (columns of the Cholesky factor $R$ of the kernel matrix $K$)
+    pub(crate) phi: Option<Mat<f64>>,
+    /// Kernel matrix $K$
+    pub(crate) K: Option<Mat<f64>>,
+}
+
+impl Problem {
+    /// Creates a new problem instance from samples and parameters.
+    ///
+    /// The features matrix $\Phi$ and kernel matrix $K$ are not computed at this stage.
+    ///
+    /// # Arguments
+    /// * `lambda` - Trace penalty parameter.
+    /// * `t` - Relative precision parameter.
+    /// * `x_samples` - Sample points matrix of shape (n, d).
+    /// * `f_samples` - Function values at the sample points of shape (n, 1).
+    ///
+    /// **Note**: this function does not compute the kernel matrix $K$ or the features matrix $\Phi$.
+    /// To compute them, please call `initialize_native_kernel` and `compute_phi` respectively.
+    pub fn new(
+        lambda: f64,
+        t: f64,
+        x_samples: Mat<f64>,
+        f_samples: Mat<f64>,
+    ) -> Result<Self, ProblemError> {
+        if x_samples.nrows() != f_samples.nrows() {
+            return Err(ProblemError::InvalidParameter(format!(
+                "Number of x_samples ({}) must match number of f_samples ({}).",
+                x_samples.nrows(),
+                f_samples.nrows()
+            )));
+        }
+        if f_samples.ncols() != 1 {
+            return Err(ProblemError::InvalidParameter(format!(
+                "f_samples must be a column vector (got {} columns).",
+                f_samples.ncols()
+            )));
+        }
+        if x_samples.nrows() == 0 {
+            return Err(ProblemError::InvalidParameter(format!(
+                "Number of samples must be greater than zero (got {}).",
+                x_samples.nrows()
+            )));
+        }
+        if lambda < 0.0 {
+            return Err(ProblemError::InvalidParameter(format!(
+                "Lambda must be non-negative (got {}).",
+                lambda
+            )));
+        }
+        if t <= 0.0 {
+            return Err(ProblemError::InvalidParameter(format!(
+                "t must be positive (got {}).",
+                t
+            )));
+        }
+
+        Ok(Self {
+            lambda,
+            t,
+            x_samples,
+            f_samples,
+            phi: None,
+            K: None,
+        })
+    }
+
+    /// Initializes the kernel matrix $K$ using the specified native kernel.
+    ///
+    /// This method computes the kernel matrix based on the provided kernel type and its parameters,
+    /// and then derives the features matrix from the Cholesky decomposition of the kernel matrix.
+    ///
+    /// # Arguments
+    /// * `kernel` - The kernel type and its associated parameter (see [`Kernel`] enum).
+    ///
+    /// # Errors
+    /// Returns `ProblemError::KernelAlreadyInitialized` if the kernel has already been initialized.
+    /// Returns a faer variant of `ProblemError` if there is an error during the Cholesky decomposition.
+    pub fn initialize_native_kernel(&mut self, kernel: Kernel) -> Result<(), ProblemError> {
+        if self.K.is_some() || self.phi.is_some() {
+            return Err(ProblemError::KernelAlreadyInitialized);
+        }
+
+        // Verify kernel parameters
+        match kernel {
+            Kernel::Laplacian(sigma) | Kernel::Gaussian(sigma) => {
+                if sigma <= 0.0 {
+                    return Err(ProblemError::InvalidParameter(format!(
+                        "Kernel bandwidth parameter sigma must be positive (got {}).",
+                        sigma
+                    )));
+                }
+            }
+        }
+
+        let n_samples = self.x_samples.nrows();
+        let x_samples = &self.x_samples;
+
+        // Compute the kernel matrix using the selected kernel type
+        let mut kernel_matrix = Mat::<f64>::zeros(n_samples, n_samples);
+
+        match kernel {
+            Kernel::Laplacian(sigma) => {
+                kernel_matrix
+                    .par_col_iter_mut()
+                    .enumerate()
+                    .for_each(|(j, col)| {
+                        col.par_iter_mut().enumerate().for_each(|(i, val)| {
+                            let diff = x_samples.row(i) - x_samples.row(j);
+                            *val = (-diff.norm_l2() / sigma).exp();
+                        });
+                    });
+            }
+            Kernel::Gaussian(sigma) => {
+                kernel_matrix
+                    .par_col_iter_mut()
+                    .enumerate()
+                    .for_each(|(j, col)| {
+                        col.par_iter_mut().enumerate().for_each(|(i, val)| {
+                            let diff = x_samples.row(i) - x_samples.row(j);
+                            *val = (-diff.norm_l2().powi(2) / (2.0 * sigma.powi(2))).exp();
+                        });
+                    });
+            }
+        }
+
+        self.K = Some(kernel_matrix);
+
+        Ok(())
+    }
+
+    /// Computes the features matrix $\Phi$ from the kernel matrix $K$ using Cholesky decomposition.
+    ///
+    /// This function must be called after `initialize_native_kernel`.
+    #[allow(non_snake_case)]
+    pub fn compute_phi(&mut self) -> Result<(), ProblemError> {
+        // If phi is already computed, return early
+        if self.phi.is_some() {
+            return Ok(());
+        }
+
+        let K = match &self.K {
+            Some(K) => K,
+            None => return Err(ProblemError::KernelNotInitialized),
+        };
+        let llt = K.llt(Side::Lower).map_err(ProblemError::FaerLltError)?;
+        let r = llt.L();
+        self.phi = Some(r.transpose().to_owned());
+        // TODO: implement other decompositions (LDLT, ...)
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_problem_initialization_gaussian() {
+        let n = 10;
+        let x_samples = Mat::<f64>::from_fn(n, 20, |i, j| (i + j) as f64);
+        let f_samples = Mat::<f64>::from_fn(n, 1, |i, _| i as f64);
+
+        let problem = Problem::new(1.0, 1.0, x_samples, f_samples);
+        assert!(problem.is_ok());
+        let result = problem
+            .unwrap()
+            .initialize_native_kernel(Kernel::Gaussian(1.0));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_problem_initialization_laplacian() {
+        let n = 10;
+        let x_samples = Mat::<f64>::from_fn(n, 20, |i, j| (i + j) as f64);
+        let f_samples = Mat::<f64>::from_fn(n, 1, |i, _| i as f64);
+
+        let problem = Problem::new(1.0, 1.0, x_samples, f_samples);
+        assert!(problem.is_ok());
+        let result = problem
+            .unwrap()
+            .initialize_native_kernel(Kernel::Laplacian(1.0));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_problem_f_non_real() {
+        let n = 10;
+        let x_samples = Mat::<f64>::from_fn(n, 20, |i, j| (i + j) as f64);
+        let f_samples = Mat::<f64>::from_fn(n, 30, |i, _| i as f64);
+
+        let problem = Problem::new(1.0, 1.0, x_samples, f_samples);
+        assert!(problem.is_err());
+    }
+}
