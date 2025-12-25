@@ -1,0 +1,314 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ezplog"
+version = "1.2.0"
+description = "Modern Python logging framework with Rich console output and loguru file logging, featuring advanced display capabilities, configuration management, and a simple typed API."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Neuraaak" }]
+maintainers = [{ name = "Neuraaak" }]
+keywords = ["logging", "rich", "loguru", "console", "file", "framework", "cli"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Logging",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "loguru>=0.7.2", # Pour FileLogger uniquement
+    "rich>=13.0.0",  # Pour ConsolePrinter et RichWizard (gère les couleurs, panels, tables, progress bars)
+    "click>=8.0.0",  # Pour CLI
+]
+
+[project.optional-dependencies]
+dev = [
+    # Development tools
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+    
+    # Security
+    "bandit>=1.7.0",
+    
+    # Tests
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "pytest-xdist>=3.0.0",
+    
+    # Build and distribution
+    "build>=1.0.0",
+    "twine>=4.0.0",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "pytest-xdist>=3.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/neuraaak/ezpl"
+Repository = "https://github.com/neuraaak/ezpl"
+
+[project.scripts]
+ezpl = "ezpl.cli.main:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ezpl", "ezpl.*"]
+exclude = [
+    "tests*",
+    "build*",
+    "dist*",
+    "*.egg-info*",
+    ".pytest_cache*",
+    ".mypy_cache*",
+    ".ruff_cache*",
+    ".cursor*",
+    ".benchmarks*",
+    "coverage*",
+    "htmlcov*",
+    ".venv*",
+    "venv*",
+    "__pycache__*",
+    "**/__pycache__*",
+    ".git*",
+    "*.pyc",
+    "*.pyo",
+    "*.pyd",
+    ".coverage",
+    "*.log",
+    ".DS_Store",
+    "Thumbs.db",
+    "docs*",
+    "examples*",
+    "_temp*",
+    ".hooks*",
+]
+
+# Configuration Black
+[tool.black]
+line-length = 88
+target-version = ['py310', 'py311', 'py312', 'py313']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.pytest_cache
+  | \.benchmarks
+  | \.venv
+  | venv
+  | build
+  | dist
+  | htmlcov
+  | \.vscode
+  | __pycache__
+  | \.egg-info
+  | \.hooks
+  | _temp
+  | docs
+  | examples
+)/
+'''
+
+# Configuration isort
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+src_paths = ["."]
+skip = [
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    ".pytest_cache",
+    ".benchmarks",
+    "htmlcov",
+    ".vscode",
+    "__pycache__",
+    ".egg-info",
+    ".hooks",
+    "_temp",
+    "docs",
+    "examples",
+]
+
+# Configuration MyPy
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+# Ignorer certains modules pour lesquels on n'a pas de stubs
+[[tool.mypy.overrides]]
+module = "winreg"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "win32*"
+ignore_missing_imports = true
+
+# Configuration Pytest
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=ezpl",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-fail-under=60",
+    "--verbose",
+    "--tb=short",
+    "--color=yes",
+    "--durations=10",
+    "--maxfail=5",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "robustness: marks tests as robustness tests",
+    "unit: marks tests as unit tests (default)",
+    "wizard: marks tests related to RichWizard",
+    "config: marks tests related to ConfigurationManager",
+    "cli: marks tests related to CLI",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# Configuration Coverage
+[tool.coverage.run]
+source = ["ezpl"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+    "*/.pytest_cache/*",
+    "*/.benchmarks/*",
+    "*/.vscode/*",
+    "*/.egg-info/*",
+    "*/.hooks/*",
+    "setup.py",
+    "build/*",
+    "dist/*",
+    ".venv/*",
+    "venv/*",
+    "htmlcov/*",
+    "coverage.xml",
+    ".coverage",
+    "docs/*",
+    "examples/*",
+    "_temp/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+    "if platform.system\\(\\) == \"Windows\":",
+    "except ImportError:",
+]
+show_missing = true
+precision = 2
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+# Bandit configuration (security)
+[tool.bandit]
+exclude_dirs = ["tests", "build", "dist", "venv", ".venv", ".hooks", "docs", "examples", "_temp"]
+skips = ["B101", "B601"]
+
+# Configuration Ruff (remplace flake8)
+[tool.ruff]
+target-version = "py39"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "S",   # bandit security
+    "T20", # flake8-print
+    "ARG", # flake8-unused-arguments
+    "PIE", # flake8-pie
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501", # line too long, handled by black
+    "B008", # do not perform function calls in argument defaults
+    "S101", # assert_used (pour les tests)
+    "S106", # hardcoded_password_funcarg
+    "T201", # print statements (pour init.py et scripts)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*" = ["S101", "S311", "E501"]
+"examples/**/*" = ["T201", "E501"]
+"ezpl/cli/**/*" = ["T201", "E501"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
