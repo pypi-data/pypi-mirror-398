@@ -1,0 +1,50 @@
+{% extends 'bom/bom-base.html' %}
+
+{% load static %}
+
+{% block head-title %}{{ title }}{% endblock %}
+
+{% block bom-menu %}
+    <li><a href="{% url 'bom:home' %}">Cancel</a></li>
+{% endblock %}
+
+
+{% block content %}
+    <div class="container-app">
+        {% if profile.role == 'A' %}
+            <h5>Upload Parts</h5>
+            <p>To batch create parts, upload a csv that contains columns with the headers
+                {% if organization.number_scheme == 'S' %}<b>'part_class'</b> or {% endif %}<b>'part_number'</b>, <b>'description'</b> or <b>'value'</b>
+                along with <b>'value_units'</b>, and <b>'revision'</b>. {% if organization.number_scheme == 'S' %}If you specify a part number
+                then it must be one that is not already being used. If you don't specify a part number
+                then IndaBOM will create one for you.{% endif %}
+            </p>
+            </p>
+            You may optionally specify a manufacturer and manufacturer's part number using
+            columns with the headers <b>'manufacturer'</b> and a <b>'manufacturer_part_number'</b>.
+            For the names of other optional columns click <a href="{% url 'bom:upload-parts-help' %}">here</a>.
+            </p>
+            <form action="{% url 'bom:upload-parts' %}" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col m10 s12 file-field input-field">
+                        <div class="green lighten-1 btn">
+                            <span>File</span>
+                            {{ form.file }}
+                        </div>
+                        <div class="file-path-wrapper">
+                            <input class="file-path validate" type="text" placeholder="Upload a file.">
+                            {{ form.file.errors }}
+                        </div>
+                    </div>
+                    <div class="col m2 s12 text-center input-field">
+                        <input class="green lighten-1 btn" type="submit" value="Upload"/>
+                    </div>
+                </div>
+            </form>
+        {% else %}
+            {% include 'bom/nothing-to-see.html' with required_privilege='Admin' %}
+        {% endif %}
+    </div>
+{% endblock %}
+
