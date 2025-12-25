@@ -1,0 +1,83 @@
+"""
+Mobile UI Automation Example
+
+This example demonstrates:
+1. UI element interaction
+2. Screen gestures
+3. UI testing automation
+"""
+
+import asyncio
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+
+from agentbay import AsyncAgentBay
+from agentbay import CreateSessionParams
+
+
+async def main():
+    """Demonstrate mobile UI automation."""
+    print("=== Mobile UI Automation Example ===\n")
+
+    client = AsyncAgentBay()
+    session = None
+
+    try:
+        # Create a mobile session
+        print("Creating mobile session...")
+        session_result = await client.create(
+            CreateSessionParams(image_id="mobile_latest")
+        )
+        session = session_result.session
+        print(f"Session created: {session.session_id}")
+
+        # Get screen size
+        print("\n1. Getting screen size...")
+        result = await session.command.execute_command("wm size")
+        print(f"Screen size: {result.output}")
+
+        # Get screen density
+        print("\n2. Getting screen density...")
+        result = await session.command.execute_command("wm density")
+        print(f"Screen density: {result.output}")
+
+        # Simulate tap (demonstration)
+        print("\n3. Simulating screen tap...")
+        print("Note: Actual tap would use: session.mobile.tap(x, y)")
+        result = await session.command.execute_command("input tap 500 500")
+        print("Tap simulated at (500, 500)")
+
+        # Simulate swipe (demonstration)
+        print("\n4. Simulating swipe gesture...")
+        print("Note: Actual swipe would use: session.mobile.swipe(x1, y1, x2, y2)")
+        result = await session.command.execute_command("input swipe 500 1000 500 500 300")
+        print("Swipe simulated (upward)")
+
+        # Get current activity
+        print("\n5. Getting current activity...")
+        result = await session.command.execute_command("dumpsys window | grep mCurrentFocus")
+        print(f"Current activity:\n{result.output}")
+
+        # Take screenshot (demonstration)
+        print("\n6. Taking screenshot...")
+        result = await session.command.execute_command("screencap -p /sdcard/screenshot.png")
+        print("Screenshot saved to /sdcard/screenshot.png")
+
+        print("\n=== Example completed successfully ===")
+
+    except Exception as e:
+        print(f"\nError occurred: {str(e)}")
+        raise
+
+    finally:
+        if session:
+            print("\nCleaning up session...")
+            await client.delete(session)
+            print("Session closed")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+

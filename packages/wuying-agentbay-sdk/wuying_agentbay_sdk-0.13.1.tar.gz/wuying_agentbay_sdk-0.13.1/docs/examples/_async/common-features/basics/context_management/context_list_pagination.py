@@ -1,0 +1,105 @@
+import asyncio
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from agentbay import AsyncAgentBay, AgentBayError, ContextListParams
+
+async def list_contexts(agent_bay, max_results=10, next_token=None):
+    """列出上下文，支持分页"""
+    print(f"Listing contexts (max: {max_results})...")
+    
+    params = ContextListParams(max_results=max_results, next_token=next_token)
+    result = await agent_bay.context.list(params)
+    
+    if result.success:
+        print(f"Found {len(result.contexts)} contexts (Total: {result.total_count or 'Unknown'})")
+        for i, ctx in enumerate(result.contexts, 1):
+            print(f" {i}. {ctx.name} ({ctx.id})")
+            if ctx.created_at:
+                print(f"    Created: {ctx.created_at}")
+        
+        if result.next_token:
+            print(f"Has more results (next_token: {result.next_token[:20]}...)")
+        return result
+    else:
+        print(f"Failed to list contexts: {result.error_message}")
+        return None
+
+async def create_context(agent_bay, name):
+    """创建新的上下文"""
+    print(f"Creating context: {name}")
+    
+    result = await agent_bay.context.get(name=name, create=True)
+    
+    if result.success:
+        print(f"✅ Context created successfully!")
+        print(f"   ID: {result.context.id}")
+        print(f"   Name: {result.context.name}")
+        return result.context
+    else:
+        print(f"❌ Failed to create context: {result.error_message}")
+        return None
+
+async def get_context_details(agent_bay, context_name):
+    """获取上下文详细信息"""
+    print(f"Getting context details for: {context_name}")
+    
+    result = await agent_bay.context.get(name=context_name)
+    
+    if result.success:
+        ctx = result.context
+        print(f"📋 Context Details:")
+        print(f"   ID: {ctx.id}")
+        print(f"   Name: {ctx.name}")
+        print(f"   Created: {ctx.created_at or 'Unknown'}")
+        print(f"   Last Used: {ctx.last_used_at or 'Unknown'}")
+        return ctx
+    else:
+        print(f"❌ Failed to get context: {result.error_message}")
+        return None
+
+async def demo_basic_usage(agent_bay):
+    """演示基础用法"""
+    print("\n=== Basic Context Listing ===")
+    await list_contexts(agent_bay, max_results=5)
+
+async def demo_pagination(agent_bay):
+    """演示分页功能"""
+    print("\n=== Pagination Demo ===")
+    result = await list_contexts(agent_bay, max_results=3)
+    
+    if result and result.next_token:
+        print("\nGetting next page...")
+        await list_contexts(agent_bay, max_results=3, next_token=result.next_token)
+
+async def demo_create_context(agent_bay):
+    """演示创建上下文"""
+    print("\n=== Create Context Demo ===")
+    import time
+    context_name = f"demo-context-{int(time.time())}"
+    
+    created_ctx = await create_context(agent_bay, context_name)
+    
+    if created_ctx:
+        print("\nGetting details of newly created context...")
+        await get_context_details(agent_bay, created_ctx.name)
+
+async def main():
+    api_key = os.environ.get("AGENTBAY_API_KEY") or "your_api_key_here"
+    agent_bay = AsyncAgentBay(api_key=api_key)
+    
+    try:
+        # 演示所有功能
+        await demo_basic_usage(agent_bay)
+        await demo_pagination(agent_bay)
+        await demo_create_context(agent_bay)
+        
+    except AgentBayError as e:
+        print(f"AgentBay error: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(main())

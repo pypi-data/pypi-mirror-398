@@ -1,0 +1,192 @@
+import json
+from typing import Any, Dict, Optional
+
+from .._common.exceptions import AgentBayError, CommandError
+from .._common.logger import get_logger
+from .._common.models.command import CommandResult
+from .._common.models.response import ApiResponse
+from .base_service import AsyncBaseService
+
+# Initialize _logger for this module
+_logger = get_logger("command")
+
+
+class AsyncCommand(AsyncBaseService):
+    """
+    Async command execution service for session shells in the AgentBay cloud environment.
+
+    Use this class for non-blocking command execution; for blocking/synchronous usage,
+    refer to the `Command` service in the sync API.
+    """
+
+    async def execute_command(
+        self,
+        command: str,
+        timeout_ms: int = 50000,
+        cwd: Optional[str] = None,
+        envs: Optional[Dict[str, str]] = None,
+    ) -> CommandResult:
+        """
+        Execute a shell command with optional working directory and environment variables.
+
+        Executes a shell command in the session environment with configurable timeout,
+        working directory, and environment variables. The command runs with session
+        user permissions in a Linux shell environment.
+
+        Args:
+            command: The shell command to execute
+            timeout_ms: Timeout in milliseconds (default: 50000ms/50s). Maximum allowed
+                timeout is 50000ms (50s). If a larger value is provided, it will be
+                automatically limited to 50000ms
+            cwd: The working directory for command execution. If not specified,
+                the command runs in the default session directory
+            envs: Environment variables as a dictionary of key-value pairs.
+                These variables are set for the command execution only
+
+        Returns:
+            CommandResult: Result object containing:
+                - success: Whether the command executed successfully (exit_code == 0)
+                - output: Command output for backward compatibility (stdout + stderr)
+                - exit_code: The exit code of the command execution (0 for success)
+                - stdout: Standard output from the command execution
+                - stderr: Standard error from the command execution
+                - trace_id: Trace ID for error tracking (only present when exit_code != 0)
+                - request_id: Unique identifier for this API request
+                - error_message: Error description if execution failed
+
+        Raises:
+            CommandError: If the command execution fails due to system errors
+
+        Example:
+            session = agent_bay.create().session
+            result = await session.command.execute_command("echo 'Hello, World!'")
+            print(result.output)
+            print(result.exit_code)
+            await session.delete()
+
+        Example:
+            result = await session.command.execute_command(
+                "pwd",
+                timeout_ms=5000,
+                cwd="/tmp",
+                envs={"TEST_VAR": "test_value"}
+            )
+            print(result.stdout)
+            await session.delete()
+        """
+        # Validate environment variables - strict type checking (before try block to allow ValueError to propagate)
+        if envs is not None:
+            invalid_vars = []
+            for key, value in envs.items():
+                if not isinstance(key, str):
+                    invalid_vars.append(f"key '{key}' (type: {type(key).__name__})")
+                if not isinstance(value, str):
+                    invalid_vars.append(f"value for key '{key}' (type: {type(value).__name__})")
+            
+            if invalid_vars:
+                raise ValueError(
+                    f"Invalid environment variables: all keys and values must be strings. "
+                    f"Found invalid entries: {', '.join(invalid_vars)}"
+                )
+
+        try:
+            # Limit timeout to maximum 50s (50000ms) as per SDK constraints
+            MAX_TIMEOUT_MS = 50000
+            if timeout_ms > MAX_TIMEOUT_MS:
+                _logger.warning(
+                    f"Timeout {timeout_ms}ms exceeds maximum allowed {MAX_TIMEOUT_MS}ms. "
+                    f"Limiting to {MAX_TIMEOUT_MS}ms."
+                )
+                timeout_ms = MAX_TIMEOUT_MS
+
+            # Build request arguments
+            args = {"command": command, "timeout_ms": timeout_ms}
+            if cwd is not None:
+                args["cwd"] = cwd
+            if envs is not None:
+                args["envs"] = envs
+
+            result = await self.session.call_mcp_tool("shell", args)
+            _logger.debug(f"Execute command response: {result}")
+
+            if result.success:
+                # Try to parse the new JSON format response
+                try:
+                    # Parse JSON string from result.data
+                    if isinstance(result.data, str):
+                        data_json = json.loads(result.data)
+                    else:
+                        data_json = result.data
+
+                    # Extract fields from new format
+                    stdout = data_json.get("stdout", "")
+                    stderr = data_json.get("stderr", "")
+                    exit_code = data_json.get("exit_code", 0)
+                    trace_id = data_json.get("traceId", "")
+
+                    # Determine success based on exit_code (0 means success)
+                    success = exit_code == 0
+
+                    # For backward compatibility, output should be stdout + stderr
+                    output = stdout + stderr
+
+                    return CommandResult(
+                        request_id=result.request_id,
+                        success=success,
+                        output=output,
+                        exit_code=exit_code,
+                        stdout=stdout,
+                        stderr=stderr,
+                        trace_id=trace_id,
+                    )
+                except (json.JSONDecodeError, TypeError, AttributeError) as e:
+                    # Fallback to old format if JSON parsing fails
+                    _logger.debug(f"Failed to parse JSON response, using old format: {e}")
+                    return CommandResult(
+                        request_id=result.request_id,
+                        success=True,
+                        output=result.data if isinstance(result.data, str) else str(result.data),
+                    )
+            else:
+                # Try to parse error message as JSON (in case backend returns JSON in error_message)
+                try:
+                    if isinstance(result.error_message, str):
+                        error_data = json.loads(result.error_message)
+                    else:
+                        error_data = result.error_message
+                    
+                    if isinstance(error_data, dict):
+                        # Extract fields from error JSON
+                        stdout = error_data.get("stdout", "")
+                        stderr = error_data.get("stderr", "")
+                        # Backend may return either "exit_code" or "errorCode", support both
+                        exit_code = error_data.get("exit_code") or error_data.get("errorCode", 0)
+                        trace_id = error_data.get("traceId", "")
+                        # For backward compatibility, output should be stdout + stderr
+                        output = stdout + stderr
+                        
+                        return CommandResult(
+                            request_id=result.request_id,
+                            success=False,
+                            output=output,
+                            exit_code=exit_code,
+                            stdout=stdout,
+                            stderr=stderr,
+                            trace_id=trace_id,
+                            error_message=stderr or result.error_message or "Failed to execute command",
+                        )
+                except (json.JSONDecodeError, TypeError, AttributeError):
+                    # If parsing fails, use original error message
+                    pass
+                
+                return CommandResult(
+                    request_id=result.request_id,
+                    success=False,
+                    error_message=result.error_message or "Failed to execute command",
+                )
+        except Exception as e:
+            return CommandResult(
+                request_id="",
+                success=False,
+                error_message=f"Failed to execute command: {e}",
+            )

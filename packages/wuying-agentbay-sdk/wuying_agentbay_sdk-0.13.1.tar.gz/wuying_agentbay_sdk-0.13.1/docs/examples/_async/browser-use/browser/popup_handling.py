@@ -1,0 +1,149 @@
+"""
+Browser Popup and Dialog Handling Example
+
+This example demonstrates:
+1. Handling JavaScript alerts
+2. Managing confirm dialogs
+3. Working with prompts
+4. Dealing with modal windows
+"""
+
+import asyncio
+import os
+import sys
+from pydantic import BaseModel, Field
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))))
+
+from agentbay import AsyncAgentBay, CreateSessionParams
+from agentbay import BrowserOption, ActOptions, ExtractOptions
+
+
+class ModalStatus(BaseModel):
+    is_modal_visible: bool = Field(..., description="Whether to show modal dialog")
+
+class TabCount(BaseModel):
+    count: int = Field(..., description="Number of open browser windows or tabs")
+
+async def main():
+    """Demonstrate browser popup and dialog handling."""
+    print("=== Browser Popup and Dialog Handling Example ===\n")
+
+    # Initialize AgentBay client
+    client = AsyncAgentBay()
+    session = None
+
+    try:
+        # Create a session with browser enabled
+        print("Creating session with browser...")
+        session_result = await client.create(
+            CreateSessionParams(image_id="browser_latest")
+        )
+        if not session_result.success or not session_result.session:
+            raise Exception(f"Failed to create session: {session_result.error_message}")
+        session = session_result.session
+        print(f"Session created: {session.session_id}")
+
+        # Initialize browser
+        print("Initializing browser...")
+        if not await session.browser.initialize(BrowserOption()):
+            raise Exception("Failed to initialize browser")
+        print("Browser initialized")
+
+        # Navigate to a test page
+        print("\n1. Navigating to test page...")
+        await session.browser.agent.navigate("https://example.com")
+
+        # Trigger an alert (via JavaScript)
+        print("\n2. Testing alert dialog...")
+        await session.browser.agent.act(
+            ActOptions(action="Execute JavaScript: alert('This is a test alert')")
+        )
+        print("Alert triggered")
+
+        # Handle the alert
+        await session.browser.agent.act(ActOptions(action="Accept the alert dialog"))
+        print("Alert handled")
+
+        # Test confirm dialog
+        print("\n3. Testing confirm dialog...")
+        await session.browser.agent.act(
+            ActOptions(action="Execute JavaScript: confirm('Do you want to continue?')")
+        )
+        print("Confirm dialog triggered")
+
+        # Accept confirm
+        await session.browser.agent.act(ActOptions(action="Accept the confirm dialog"))
+        print("Confirm dialog accepted")
+
+        # Test prompt dialog
+        print("\n4. Testing prompt dialog...")
+        await session.browser.agent.act(
+            ActOptions(action="Execute JavaScript: prompt('Please enter your name:', 'John Doe')")
+        )
+        print("Prompt dialog triggered")
+
+        # Handle prompt
+        await session.browser.agent.act(ActOptions(action="Enter 'Test User' in the prompt and submit"))
+        print("Prompt handled")
+
+        # Test modal-like overlay
+        print("\n5. Testing modal overlay...")
+        await session.browser.agent.act(
+            ActOptions(action="Execute JavaScript to create a modal overlay: "
+            "var modal = document.createElement('div'); "
+            "modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border:2px solid black;z-index:1000'; "
+            "modal.innerHTML = '<h2>Modal Dialog</h2><p>This is a modal</p><button onclick=\"this.parentElement.remove()\">Close</button>'; "
+            "document.body.appendChild(modal)")
+        )
+        print("Modal created")
+
+        # Take screenshot of modal
+        print("\n6. Taking screenshot of modal...")
+        modal_screenshot = await session.browser.agent.screenshot()
+        print(f"Modal screenshot saved: {modal_screenshot}")
+
+        # Close modal
+        print("\n7. Closing modal...")
+        await session.browser.agent.act(ActOptions(action="Click the Close button in the modal"))
+        print("Modal closed")
+
+        # Verify modal is closed
+        print("\n8. Verifying modal is closed...")
+        verify_result = await session.browser.agent.extract(
+            ExtractOptions(instruction="Is there a modal dialog visible on the page?", schema=ModalStatus)
+        )
+        print(f"Modal status: {verify_result.extracted_content.is_modal_visible}")
+
+        # Test new window/tab popup
+        print("\n9. Testing new window popup...")
+        await session.browser.agent.act(
+            ActOptions(action="Execute JavaScript to open a new window: "
+            "window.open('https://httpbin.org', '_blank', 'width=600,height=400')")
+        )
+        print("New window opened")
+
+        # Check for new windows
+        print("\n10. Checking for new windows...")
+        tab_count = await session.browser.agent.extract(
+            ExtractOptions(instruction="How many browser windows or tabs are open?", schema=TabCount)
+        )
+        print(f"Open windows: {tab_count.extracted_content}")
+
+        print("\n=== Example completed successfully ===")
+
+    except Exception as e:
+        print(f"\nError occurred: {str(e)}")
+        raise
+
+    finally:
+        # Clean up
+        if session:
+            print("\nCleaning up session...")
+            await client.delete(session)
+            print("Session closed")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

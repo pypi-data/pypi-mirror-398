@@ -1,0 +1,149 @@
+"""
+Git Operations Example
+
+This example demonstrates:
+1. Initializing a Git repository
+2. Configuring Git user
+3. Making commits
+4. Viewing Git history and status
+"""
+
+import asyncio
+import os
+import sys
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+
+from agentbay import AsyncAgentBay
+from agentbay import CreateSessionParams
+
+
+async def main():
+    """Demonstrate Git operations."""
+    print("=== Git Operations Example ===\n")
+
+    # Initialize AgentBay client
+    client = AsyncAgentBay()
+    session = None
+
+    try:
+        # Create a session
+        print("Creating session...")
+        session_result = await client.create(
+            CreateSessionParams(
+                image_id="linux_latest"
+            )
+        )
+        session = session_result.session
+        print(f"Session created: {session.session_id}")
+
+        # Check Git version
+        print("\n1. Checking Git version...")
+        result = await session.command.execute_command("git --version")
+        print(f"Git version: {result.output}")
+
+        # Create a project directory
+        print("\n2. Creating project directory...")
+        await session.command.execute_command("mkdir -p /tmp/myproject")
+        print("Project directory created: /tmp/myproject")
+
+        # Initialize Git repository
+        print("\n3. Initializing Git repository...")
+        result = await session.command.execute_command("cd /tmp/myproject && git init")
+        print(f"Git init output: {result.output}")
+
+        # Configure Git user
+        print("\n4. Configuring Git user...")
+        await session.command.execute_command('cd /tmp/myproject && git config user.name "AgentBay User"')
+        await session.command.execute_command('cd /tmp/myproject && git config user.email "user@agentbay.com"')
+        print("Git user configured")
+
+        # Create a README file
+        print("\n5. Creating README.md...")
+        readme_content = """# My Project
+
+This is a sample project created with AgentBay SDK.
+
+## Features
+
+- Feature 1
+- Feature 2
+- Feature 3
+
+## Getting Started
+
+Instructions for getting started with this project.
+"""
+        await session.file_system.write_file("/tmp/myproject/README.md", readme_content)
+        print("README.md created")
+
+        # Check Git status
+        print("\n6. Checking Git status...")
+        result = await session.command.execute_command("cd /tmp/myproject && git status")
+        print(f"Git status:\n{result.output}")
+
+        # Add files to staging
+        print("\n7. Adding files to staging...")
+        result = await session.command.execute_command("cd /tmp/myproject && git add .")
+        print("Files added to staging")
+
+        # Check status again
+        print("\n8. Checking Git status after staging...")
+        result = await session.command.execute_command("cd /tmp/myproject && git status")
+        print(f"Git status:\n{result.output}")
+
+        # Make a commit
+        print("\n9. Making a commit...")
+        result = await session.command.execute_command('cd /tmp/myproject && git commit -m "Initial commit: Add README"')
+        print(f"Commit output:\n{result.output}")
+
+        # Create another file
+        print("\n10. Creating a new file...")
+        code_content = """def hello():
+    print("Hello from AgentBay!")
+
+if __name__ == "__main__":
+    hello()
+"""
+        await session.file_system.write_file("/tmp/myproject/main.py", code_content)
+        print("main.py created")
+
+        # Add and commit the new file
+        print("\n11. Adding and committing new file...")
+        await session.command.execute_command("cd /tmp/myproject && git add main.py")
+        result = await session.command.execute_command('cd /tmp/myproject && git commit -m "Add main.py"')
+        print(f"Commit output:\n{result.output}")
+
+        # View Git log
+        print("\n12. Viewing Git log...")
+        result = await session.command.execute_command("cd /tmp/myproject && git log --oneline")
+        print(f"Git log:\n{result.output}")
+
+        # View detailed log
+        print("\n13. Viewing detailed Git log...")
+        result = await session.command.execute_command("cd /tmp/myproject && git log -2")
+        print(f"Detailed Git log:\n{result.output}")
+
+        # Show current branch
+        print("\n14. Showing current branch...")
+        result = await session.command.execute_command("cd /tmp/myproject && git branch")
+        print(f"Current branch:\n{result.output}")
+
+        print("\n=== Example completed successfully ===")
+
+    except Exception as e:
+        print(f"\nError occurred: {str(e)}")
+        raise
+
+    finally:
+        # Clean up
+        if session:
+            print("\nCleaning up session...")
+            await client.delete(session)
+            print("Session closed")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+

@@ -1,0 +1,235 @@
+"""
+示例：多站点商品巡检与抽取
+批量访问站点，抽取商品名称/价格/相对链接，并归一化
+保存 JSON 结果与截图
+重点：ExtractOptions + Pydantic schema
+"""
+
+import asyncio
+import base64
+import json
+import os
+
+from datetime import datetime
+from typing import List, Optional
+from urllib.parse import urlparse, urljoin
+from pydantic import BaseModel, Field
+
+from agentbay import AsyncAgentBay as AgentBay
+from agentbay import CreateSessionParams
+from agentbay import BrowserOption, BrowserScreen, BrowserProxy
+from agentbay import ActOptions, ExtractOptions
+
+
+class ProductInfo(BaseModel):
+    name: str = Field(..., description="商品名")
+    price: Optional[str] = Field(None, description="价格文本；可为空")
+    link: str = Field(..., description="商品页的相对路径 (如 /products/item1)")
+
+
+class InspectionResult(BaseModel):
+    products: List[ProductInfo] = Field(..., description="页面上的全部商品")
+
+
+def domain_of(url: str) -> str:
+    return urlparse(url).netloc
+
+
+def normalize_abs_link(base_url: str, link: str) -> Optional[str]:
+    link = (link or "").strip()
+    if not link or link.startswith("#"):
+        return None
+    if link.startswith("/"):
+        return urljoin(base_url, link)
+    return link
+
+
+def normalize_links(base_url: str, products: List[ProductInfo]) -> List[ProductInfo]:
+    out: List[ProductInfo] = []
+    for p in products:
+        abs_link = normalize_abs_link(base_url, p.link)
+        if not abs_link:
+            continue
+        out.append(
+            ProductInfo(
+                name=p.name.strip(), price=(p.price or "").strip(), link=abs_link
+            )
+        )
+    return out
+
+
+def is_valid_product(p: ProductInfo) -> bool:
+    has_name = bool(p.name and p.name.strip())
+    has_valid_link = bool(p.link and p.link.strip())
+    has_price = bool(p.price and p.price.strip())
+
+    return has_name and (has_valid_link or has_price)
+
+
+def has_valid_products(products: List[ProductInfo], min_items: int = 2) -> bool:
+    goods = [p for p in products if is_valid_product(p)]
+    return len(goods) >= min_items
+
+
+async def act(agent, instruction: str) -> bool:
+    print(f"Acting: {instruction}")
+    ret = await agent.act(ActOptions(action=instruction))
+    return bool(getattr(ret, "success", False))
+
+
+async def take_and_save_screenshot(agent, base_url: str, out_dir: str) -> Optional[str]:
+    try:
+        s = await agent.screenshot(full_page=False)
+        if not isinstance(s, str):
+            raise RuntimeError(f"Screenshot failed: non-string response: {type(s)}")
+
+        s = s.strip()
+        print(f"Screenshot for {s}")
+        if not s.startswith("data:"):
+            raise RuntimeError(
+                f"Unsupported screenshot format (not data URL): {s[:32]}"
+            )
+
+        header, encoded = s.split(",", 1)
+        if ";base64" not in header:
+            raise RuntimeError(f"Unsupported data URL (not base64): {header[:64]}")
+
+        image_data = base64.b64decode(encoded)
+        if not image_data:
+            raise RuntimeError("Decoded image is empty")
+        host = urlparse(base_url).netloc
+        os.makedirs(out_dir, exist_ok=True)
+
+        screenshot_path = os.path.join(out_dir, f"screenshot_{host}.png")
+        with open(screenshot_path, "wb") as f:
+            f.write(image_data)
+        print(f"Screenshot for {base_url} saved to: {screenshot_path}")
+        return screenshot_path
+
+    except Exception as e:
+        print(f"Failed to take screenshot for {base_url} due to an exception: {e}")
+        return None
+
+
+async def extract_products(agent, base_url: str) -> List[ProductInfo]:
+    ok, data = await agent.extract(
+        ExtractOptions(
+            instruction=(
+                "请提取本页所有商品。价格可为范围（例如 $199–$299）或“from $199”。"
+                "对于商品链接(link)，请仅返回相对路径（例如 /path/to/product），不要包含域名。"
+            ),
+            schema=InspectionResult,
+            use_text_extract=True,
+        )
+    )
+    if not ok or not isinstance(data, InspectionResult) or not data.products:
+        return []
+
+    products = normalize_links(base_url, data.products)
+    if not has_valid_products(products):
+        print(
+            f"Extracted products from {base_url} but none were valid after normalization."
+        )
+        return None
+
+    return products
+
+
+async def ensure_listing_page(
+    agent, base_url: str, out_dir: str, max_steps: int = 3
+) -> List[ProductInfo]:
+    common_action = "前往商品列表页，例如 'Shop'、'Store'、'All products'、'Catalog' 或 'Collections' 等页面。如果当前不是商品列表页，请转到商品列表或目录页面（列表或网格视图）。如果页面存在弹窗、Cookie 横幅或遮罩，请先关闭。"
+    await act(agent, common_action)
+    await asyncio.sleep(0.6)
+    for i in range(max_steps):
+        print(f"Extraction attempt {i+1}/{max_steps} for {base_url}...")
+        products_found = await extract_products(agent, base_url)
+        if products_found is not None:
+            valid_count = len([p for p in products_found if is_valid_product(p)])
+            print(
+                f"Extraction successful on attempt {i+1}. Found {valid_count} valid products."
+            )
+
+            await take_and_save_screenshot(agent, base_url, out_dir)
+            return products_found
+
+        if i < max_steps - 1:
+            print("Extraction failed, attempting to navigate to a listing page...")
+            await act(agent, common_action)
+            await asyncio.sleep(0.6)
+
+    print(f"All {max_steps} extraction attempts failed for {base_url}.")
+    return []
+
+
+async def process_site(agent, url: str, out_dir: str = "/tmp") -> None:
+    host = domain_of(url)
+    await agent.navigate(url)
+    if url in CAPTURE_DETECT_URL:
+        print(f"CAPTCHA detected on {host}")
+        await asyncio.sleep(40)
+
+    products_from_page = await ensure_listing_page(agent, url, out_dir, max_steps=3)
+    products = [p for p in products_from_page if is_valid_product(p)]
+
+    out_path = os.path.join(out_dir, f"inspection_{host}.json")
+    os.makedirs(out_dir, exist_ok=True)
+
+    if products:
+        try:
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    [p.model_dump(mode="json") for p in products],
+                    f,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            priced_cnt = sum(1 for p in products if p.price)
+            print(
+                f"{host} -> {len(products)} items (with price: {priced_cnt}) saved: {out_path}"
+            )
+        except Exception as e:
+            print(f"{host} -> save failed: {e}")
+    else:
+        print(f"{host} -> no products found (name+link/price)")
+
+    await agent.close()
+
+
+SITES = [
+    "https://waydoo.com/",
+]
+
+CAPTURE_DETECT_URL = [
+    "https://www.shop.com/",
+]
+
+
+async def main():
+    api_key = os.getenv("AGENTBAY_API_KEY")
+    agent_bay = AgentBay(api_key=api_key)
+    params = CreateSessionParams(image_id="browser_latest")
+    session_result = await agent_bay.create(params)
+    assert session_result.success and session_result.session is not None
+    session = session_result.session
+    try:
+        screen_option = BrowserScreen(width=1920, height=1080)
+        browser_init_options = BrowserOption(
+            screen=screen_option,
+            solve_captchas=True,
+        )
+        assert await session.browser.initialize(browser_init_options)
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        for url in SITES:
+            try:
+                await process_site(
+                    session.browser.agent, url, out_dir=f"./results_{date_str}"
+                )
+            except Exception as e:
+                print(f"[ERR] {domain_of(url)} -> {e}")
+    finally:
+        await agent_bay.delete(session)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
