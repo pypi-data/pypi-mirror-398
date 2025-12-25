@@ -1,0 +1,110 @@
+# hybrid_cloud_navigator
+[![PyPI version](https://badge.fury.io/py/hybrid-cloud-navigator.svg)](https://badge.fury.io/py/hybrid-cloud-navigator)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/hybrid-cloud-navigator)](https://pepy.tech/project/hybrid-cloud-navigator)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+==========================
+
+## Overview
+----------
+
+A Python package to help users navigate the complexities of hybrid cloud environments in 2025. It takes user input, processes it, and provides structured, actionable insights to mitigate data gravity and egress shock, optimize cloud architecture, and ensure cost-efficiency and performance in hybrid cloud setups.
+
+## Installation
+------------
+
+```bash
+pip install hybrid_cloud_navigator
+```
+
+## Usage
+-----
+
+```python
+from hybrid_cloud_navigator import hybrid_cloud_navigator
+
+response = hybrid_cloud_navigator(
+    user_input="Your specific hybrid cloud challenges",
+    api_key="Your LLM7 API key"
+)
+```
+
+You can also pass your own LLM instance if you want to use another language model:
+
+```python
+from langchain_llm7 import ChatLLM7
+from hybrid_cloud_navigator import hybrid_cloud_navigator
+
+llm = ChatLLM7(api_key="Your LLM7 API key")
+response = hybrid_cloud_navigator(
+    user_input="Your specific hybrid cloud challenges",
+    llm=llm
+)
+```
+
+Or using other LLMs:
+
+```python
+from langchain_openai import ChatOpenAI
+from hybrid_cloud_navigator import hybrid_cloud_navigator
+
+llm = ChatOpenAI()
+response = hybrid_cloud_navigator(
+    user_input="Your specific hybrid cloud challenges",
+    llm=llm
+)
+
+# Using Anthropic
+from langchain_anthropic import ChatAnthropic
+from hybrid_cloud_navigator import hybrid_cloud_navigator
+
+llm = ChatAnthropic()
+response = hybrid_cloud_navigator(
+    user_input="Your specific hybrid cloud challenges",
+    llm=llm
+)
+
+# Using Google GenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
+from hybrid_cloud_navigator import hybrid_cloud_navigator
+
+llm = ChatGoogleGenerativeAI()
+response = hybrid_cloud_navigator(
+    user_input="Your specific hybrid cloud challenges",
+    llm=llm
+)
+```
+
+## API Documentation
+------------------
+
+### hybrid_cloud_navigator function
+------------------------------
+
+* `user_input`: the user input text to process (str)
+* `api_key`: the LLM7 API key (Optional[str])
+* `llm`: the langchain LLM instance to use (Optional[BaseChatModel])
+* Returns: a list of actionable insights
+
+## Contributing
+------------
+
+Contributions are welcome.
+
+## Rate Limits
+------------
+
+The default rate limits for LLM7 free tier are sufficient for most use cases of this package. If you need higher rate limits, you can pass your own API key via environment variable `LLM7_API_KEY` or directly.
+
+You can get a free API key by registering at https://token.llm7.io/.
+
+## Issues
+-------
+
+https://github.com/chigwell/hybrid_cloud_navigator/issues
+
+## Author
+-----
+
+Eugene Evstafev (hi@eugeneplus.com)
