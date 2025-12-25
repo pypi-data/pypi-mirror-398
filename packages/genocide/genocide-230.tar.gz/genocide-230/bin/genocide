@@ -1,0 +1,384 @@
+#!/usr/bin/env python3
+# This file is placed in the Public Domain.
+
+
+"runtime"
+
+
+import importlib.util
+import os
+import pathlib
+import time
+import sys
+
+
+sys.path.insert(0, os.getcwd())
+
+
+from genocide.defines import SYSTEMD, CLI, Commands, Config, Message, Workdir
+from genocide.defines import command, enable, parse, launch, level, scan, spl
+from genocide.defines import moddir, pidname, skel, where, wrapped
+
+
+Config.ignore = "man,mbx,rst,udp,web"
+Config.level = "info"
+Config.name = "genocide" 
+Config.version = 230
+
+
+TXT = " ".join(sys.argv[1:])
+
+
+"clients"
+
+
+class Line(CLI):
+
+    def raw(self, text):
+        "write to console."
+        print(text.encode('utf-8', 'replace').decode("utf-8"))
+
+
+class Console(Line):
+
+    def callback(self, event):
+        "wait for callback result."
+        if not event.text:
+            return
+        super().callback(event)
+        event.wait()
+
+    def poll(self):
+        "poll for inpput."
+        evt = Message()
+        evt.text = input("> ")
+        evt.kind = "command"
+        return evt
+
+
+"runtime"
+
+
+def banner():
+    "in the beginning."
+    tme = time.ctime(time.time()).replace("  ", " ")
+    print("%s %s %s since %s (%s)" % (
+        Config.name.upper(),
+        Config.version,
+        Config.opts.strip().upper(),
+        tme,
+        Config.level.upper()
+    ))
+    sys.stdout.flush()
+
+
+def boot(txt):
+    "set important variables like workdir and module paths."
+    Workdir.wdr = Workdir.wdr or os.path.expanduser(f"~/.{Config.name}")
+    skel()
+    parse(Config, txt)
+    configure()
+    if "ignore" in Config.sets:
+        Config.ignore = Config.sets.ignore
+    level(Config.sets.level or Config.level or "info")
+
+
+def check(text):
+    "check for options."
+    args = sys.argv[1:]
+    for arg in args:
+        if not arg.startswith("-"):
+            continue
+        for char in text:
+               if char in arg:
+                   return True
+        return False
+
+
+def daemon(verbose=False, nochdir=False):
+    "run in the background."
+    pid = os.fork()
+    if pid != 0:
+        os._exit(0)
+    os.setsid()
+    pid2 = os.fork()
+    if pid2 != 0:
+        os._exit(0)
+    if not verbose:
+        with open('/dev/null', 'r', encoding="utf-8") as sis:
+            os.dup2(sis.fileno(), sys.stdin.fileno())
+        with open('/dev/null', 'a+', encoding="utf-8") as sos:
+            os.dup2(sos.fileno(), sys.stdout.fileno())
+        with open('/dev/null', 'a+', encoding="utf-8") as ses:
+            os.dup2(ses.fileno(), sys.stderr.fileno())
+    if not nochdir:
+        os.umask(0)
+        os.chdir("/")
+    os.nice(10)
+
+
+def forever():
+    "run forever until ctrl-c."
+    while True:
+        try:
+            time.sleep(0.1)
+        except (KeyboardInterrupt, EOFError):
+            break
+
+
+def init(names=None, wait=False):
+    "run init function of modules."
+    if names is None:
+        names = modules()
+    mods = []
+    for name in spl(names):
+        module = getmod(name)
+        if not module:
+            continue
+        if "init" in dir(module):
+            thr = launch(module.init)
+            mods.append((module, thr))
+    if wait:
+        for module, thr in mods:
+            thr.join()
+    return mods
+
+
+def pidfile(filename):
+    "write pidfile."
+    if os.path.exists(filename):
+        os.unlink(filename)
+    path2 = pathlib.Path(filename)
+    path2.parent.mkdir(parents=True, exist_ok=True)
+    with open(filename, "w", encoding="utf-8") as fds:
+        fds.write(str(os.getpid()))
+
+
+def privileges():
+    "drop privileges."
+    import getpass
+    import pwd
+    pwnam2 = pwd.getpwnam(getpass.getuser())
+    os.setgid(pwnam2.pw_gid)
+    os.setuid(pwnam2.pw_uid)
+
+
+def scanner(names=None):
+    "scan named modules for commands."
+    if names is None:
+        names = modules()
+    mods = []
+    for name in spl(names):
+        module = getmod(name)
+        if not module:
+            continue
+        scan(module)
+    return mods
+
+
+def wrap(func):
+    "restore console."
+    import termios
+    old = None
+    try:
+        old = termios.tcgetattr(sys.stdin.fileno())
+    except termios.error:
+        pass
+    try:
+        wrapped(func)
+    finally:
+        pass
+    if old:
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old)
+
+
+"modules"
+
+
+class Mods:
+
+    dirs = {}
+    modules = {}
+    path = where(scan)
+    package = os.path.dirname(path).split(os.sep)[-1]
+
+
+def configure():
+    "configure directories to load modules from."
+    name = Mods.package + ".modules" 
+    dirs(name, os.path.join(Mods.path, "modules"))
+    dirs("modules", moddir())
+    if "m" in Config.opts:
+        dirs("mods", "mods")
+
+
+def dirs(name: str, path):
+    "add module directory."
+    Mods.dirs[name] = path
+
+
+def importer(name, pth=""):
+    "import module by path."
+    if pth and os.path.exists(pth):
+        spec = importlib.util.spec_from_file_location(name, pth)
+    else:
+        spec = importlib.util.find_spec(name)
+    if not spec or not spec.loader:
+        return None
+    mod = importlib.util.module_from_spec(spec)
+    if not mod:
+        return None
+    Mods.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def getmod(name):
+    "import module by name." 
+    if name in spl(Config.ignore):
+        return None
+    if name in Mods.modules:
+        return Mods.modules[name]
+    mname = ""
+    pth = ""
+    for packname, path in Mods.dirs.items():
+        modpath = os.path.join(path, name + ".py")
+        if os.path.exists(modpath):
+            pth = modpath
+            mname = f"{packname}.{name}"
+            break
+    return importer(mname, pth)
+
+
+def mods(names):
+    "list of named modules."
+    return [
+        getmod(x) for x in sorted(spl(names))
+        if x not in spl(Config.ignore)
+        or x in spl(Config.sets.init)
+    ]
+
+
+def modules():
+    "comma seperated list of available modules."
+    mods = []
+    for name, path in Mods.dirs.items():
+        if name in spl(Config.ignore):
+            continue
+        if not os.path.exists(path):
+            continue
+        mods.extend([
+            x[:-3] for x in os.listdir(path)
+            if x.endswith(".py") and not x.startswith("__") and x not in spl(Config.ignore)
+        ])
+    return ",".join(sorted(mods))
+
+
+"scripts"
+
+
+def background():
+    "background script."
+    daemon(check("v"), check("m"))
+    privileges()
+    boot(TXT)
+    pidfile(pidname(Config.name))
+    enable(cmd, mod, ver)
+    scanner(modules())
+    init(modules())
+    forever()
+
+
+def console():
+    "console script."
+    import readline
+    readline.redisplay()
+    if check("0"):
+        Config.ignore = list()
+    boot(TXT)
+    if "v" in Config.opts:
+        banner()
+    scanner()
+    enable(cmd, mod, ver)
+    if "a" in Config.opts:
+        mds = modules()
+    else:
+        mds = Config.sets.init
+    init(mds, "w" in Config.opts)
+    csl = Console()
+    csl.start()
+    forever()
+
+
+def control():
+    "cli script."
+    if len(sys.argv) == 1:
+        return
+    boot(TXT)
+    scanner()
+    enable(cmd, mod, srv, ver)
+    cli = Line()
+    evt = Message()
+    evt.orig = repr(cli)
+    evt.text = " ".join(sys.argv[1:])
+    evt.type = "command"
+    command(evt)
+    evt.wait()
+
+
+def service():
+    "service script."
+    privileges()
+    boot(TXT)
+    banner()
+    pidfile(pidname(Config.name))
+    enable(cmd, mod, ver)
+    scanner()
+    init(modules())
+    forever()
+
+
+"commands"
+
+
+def cmd(event):
+    "list available commands."
+    event.reply(",".join(sorted(Commands.names or Commands.cmds)))
+
+
+def mod(event):
+    "list available commands."
+    event.reply(modules())
+
+
+def srv(event):
+    "generate systemd service file."
+    import getpass
+    name = getpass.getuser()
+    event.reply(SYSTEMD % (Config.name.upper(), name, name, name, Config.name))
+
+
+def ver(event):
+    "show version."
+    event.reply(f"{Config.name.upper()} {Config.version} {Config.opts}")
+
+
+"runtime"
+
+
+def main():
+    "runtime."
+    if check('z'):
+        Config.debug = True
+    if check("c"):
+        wrap(console)
+    elif check("d"):
+        background()
+    elif check("s"):
+        wrapped(service)
+    else:
+        wrapped(control)
+
+
+if __name__ == "__main__":
+    main()
