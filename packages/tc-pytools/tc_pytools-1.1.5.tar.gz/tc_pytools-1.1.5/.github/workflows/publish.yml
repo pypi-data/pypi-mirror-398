@@ -1,0 +1,83 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      publish_to:
+        description: 'Publish to (pypi or testpypi)'
+        required: true
+        default: 'testpypi'
+        type: choice
+        options:
+          - testpypi
+          - pypi
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # 添加这行环境变量配置
+    env:
+      UV_INDEX_URL: https://pypi.org/simple
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Set up Python
+      run: uv python install 3.11
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Run tests
+      run: uv run pytest
+
+    - name: Build package
+      run: uv build
+
+    - name: Check package
+      run: |
+        uv pip install twine
+        uv run twine check dist/*
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      # 动态选择环境：如果是 Release 事件则为 pypi，否则根据手动输入选择
+      name: ${{ github.event_name == 'release' && 'pypi' || github.event.inputs.publish_to }}
+    permissions:
+      id-token: write
+    steps:
+    # 删除了 redundant 的 checkout 步骤
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+    - name: Publish to Test PyPI
+      # 逻辑修复：仅当手动触发且明确选择 testpypi 时运行
+      if: github.event.inputs.publish_to == 'testpypi'
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        skip-existing: true # 允许重复上传相同版本（测试时很有用）
+
+    - name: Publish to PyPI
+      # 逻辑修复：Release 事件 或 手动选择了 pypi 时运行
+      if: github.event_name == 'release' || github.event.inputs.publish_to == 'pypi'
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
