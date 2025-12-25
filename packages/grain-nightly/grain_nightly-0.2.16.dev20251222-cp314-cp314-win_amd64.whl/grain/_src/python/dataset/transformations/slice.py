@@ -1,0 +1,63 @@
+# Copyright 2023 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Implements slice transformation."""
+from typing import Any, Sequence, TypeVar
+
+from grain._src.python.dataset import dataset
+
+T = TypeVar("T")
+
+
+class SliceMapDataset(dataset.MapDataset[T]):
+  """Slices a MapDataset similar to the slicing syntax in Python."""
+
+  _MUTATES_ELEMENT_SPEC = False
+
+  def __init__(self, parent: dataset.MapDataset[T], sl: slice):
+    super().__init__(parent)
+    if not isinstance(sl, slice):
+      raise ValueError(f"sl is not a slice: {type(sl)}")
+    self._parent_length = len(parent)
+    self._start, self._stop, self._step = sl.indices(self._parent_length)
+    self._length = len(range(self._start, self._stop, self._step))
+
+  def __len__(self) -> int:
+    return self._length
+
+  def _sliced_index(self, index: int) -> int:
+    parent_epoch, relative_offset = divmod(index, len(self))
+    return (
+        self._start
+        + relative_offset * self._step
+        + parent_epoch * self._parent_length
+    )
+
+  def __getitem__(self, index):
+    if isinstance(index, slice):
+      return SliceMapDataset(self, index)
+    with self._stats.record_self_time():
+      parent_index = self._sliced_index(index)
+    return self._parent[parent_index]
+
+  def _getitems(self, indices: Sequence[int]):
+    with self._stats.record_self_time(num_elements=len(indices)):
+      parent_indices = [self._sliced_index(index) for index in indices]
+    return self._parent._getitems(parent_indices)  # pylint: disable=protected-access
+
+  def __str__(self) -> str:
+    return f"SliceMapDataset[{self._start}:{self._stop}:{self._step}]"
+
+  @property
+  def _element_spec(self) -> Any:
+    return dataset.get_element_spec(self._parent)
