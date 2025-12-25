@@ -1,0 +1,97 @@
+from .general import FLDROOT_LAYOUT, FLDMAP_LAYOUT
+from .gas import (
+    GASSEG_LAYOUT, GASCYCLE_LAYOUT, GSFLDRUL_LAYOUT, GASAFORM_LAYOUT, 
+    GASRMRKS_LAYOUT, GSCOUNTY_LAYOUT, GASAFACT_LAYOUT, ASSOCGAS_LAYOUT,
+    GSOPTRUL_LAYOUT
+)
+from .oil import (
+    OILSEG_LAYOUT, OILCYCLE_LAYOUT, OLFLDRUL_LAYOUT, OILAFORM_LAYOUT,
+    OILRMRKS_LAYOUT, OILFTROT_LAYOUT, OILAFACT_LAYOUT, OLCOUNTY_LAYOUT,
+    OLOPTRUL_LAYOUT
+)
+from .market import (
+    FLMKTDMD_LAYOUT, OPRMKTDM_LAYOUT, FLMKTRMK_LAYOUT, FLSUPRMK_LAYOUT
+)
+from .forms import (
+    ASHEET_LAYOUT, ASHEETMO_LAYOUT, FLT3ROOT_LAYOUT, FLDT3_LAYOUT,
+    FLDMO_LAYOUT, CALC49B_LAYOUT
+)
+
+def get_layout(identifier):
+    """
+    Get a layout by Record ID (str/int) or Segment Name (str).
+    
+    Args:
+        identifier: '01', 1, 'FLDROOT' -> FLDROOT_LAYOUT
+                    '02', 2, 'GASSEG' -> GASSEG_LAYOUT
+                    ...
+                    '30', 30, 'OLOPTRUL' -> OLOPTRUL_LAYOUT
+    """
+    # 1. Normalize String IDs
+    if isinstance(identifier, int):
+        identifier = f"{identifier:02d}"
+    
+    mapping = {
+        '01': FLDROOT_LAYOUT,
+        'FLDROOT': FLDROOT_LAYOUT,
+        '02': GASSEG_LAYOUT,
+        'GASSEG': GASSEG_LAYOUT,
+        '03': FLMKTDMD_LAYOUT,
+        'FLMKTDMD': FLMKTDMD_LAYOUT,
+        '04': OPRMKTDM_LAYOUT,
+        'OPRMKTDM': OPRMKTDM_LAYOUT,
+        '05': FLMKTRMK_LAYOUT,
+        'FLMKTRMK': FLMKTRMK_LAYOUT,
+        '06': FLSUPRMK_LAYOUT,
+        'FLSUPRMK': FLSUPRMK_LAYOUT,
+        '07': GASCYCLE_LAYOUT,
+        'GASCYCLE': GASCYCLE_LAYOUT,
+        '08': GSFLDRUL_LAYOUT,
+        'GSFLDRUL': GSFLDRUL_LAYOUT,
+        '09': GASAFORM_LAYOUT,
+        'GASAFORM': GASAFORM_LAYOUT,
+        '10': GASRMRKS_LAYOUT,
+        'GASRMRKS': GASRMRKS_LAYOUT,
+        '11': GSCOUNTY_LAYOUT,
+        'GSCOUNTY': GSCOUNTY_LAYOUT,
+        '12': GASAFACT_LAYOUT,
+        'GASAFACT': GASAFACT_LAYOUT,
+        '13': ASHEET_LAYOUT,
+        'ASHEET': ASHEET_LAYOUT,
+        '14': ASHEETMO_LAYOUT,
+        'ASHEETMO': ASHEETMO_LAYOUT,
+        '15': FLT3ROOT_LAYOUT,
+        'FLT3ROOT': FLT3ROOT_LAYOUT,
+        '16': FLDT3_LAYOUT,
+        'FLDT3': FLDT3_LAYOUT,
+        '17': FLDMO_LAYOUT,
+        'FLDMO': FLDMO_LAYOUT,
+        '18': CALC49B_LAYOUT,
+        'CALC49B': CALC49B_LAYOUT,
+        '19': OILSEG_LAYOUT,
+        'OILSEG': OILSEG_LAYOUT,
+        '20': OILCYCLE_LAYOUT,
+        'OILCYCLE': OILCYCLE_LAYOUT,
+        '21': OLFLDRUL_LAYOUT,
+        'OLFLDRUL': OLFLDRUL_LAYOUT,
+        '22': OILAFORM_LAYOUT,
+        'OILAFORM': OILAFORM_LAYOUT,
+        '23': OILRMRKS_LAYOUT,
+        'OILRMRKS': OILRMRKS_LAYOUT,
+        '24': OILFTROT_LAYOUT,
+        'OILFTROT': OILFTROT_LAYOUT,
+        '25': OILAFACT_LAYOUT,
+        'OILAFACT': OILAFACT_LAYOUT,
+        '26': OLCOUNTY_LAYOUT,
+        'OLCOUNTY': OLCOUNTY_LAYOUT,
+        '27': ASSOCGAS_LAYOUT,
+        'ASSOCGAS': ASSOCGAS_LAYOUT,
+        '28': FLDMAP_LAYOUT,
+        'FLDMAP': FLDMAP_LAYOUT,
+        '29': GSOPTRUL_LAYOUT,
+        'GSOPTRUL': GSOPTRUL_LAYOUT,
+        '30': OLOPTRUL_LAYOUT,
+        'OLOPTRUL': OLOPTRUL_LAYOUT,
+    }
+    
+    return mapping.get(str(identifier))
