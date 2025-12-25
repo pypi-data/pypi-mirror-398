@@ -1,0 +1,151 @@
+{% extends 'base/layout.html' %}
+
+{% block title %}{{ device }} - Tenant Group Permissions Sync{% endblock %}
+
+{% block header %}
+<nav class="breadcrumb-container px-3" aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'dcim:device_list' %}">Devices</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'dcim:device' pk=device.id %}">{{ device.name }}</a></li>
+  </ol>
+</nav>
+{{ block.super }}
+{% endblock %}
+
+{% block content %}
+<style>
+  .sync-status { padding: 10px; border-radius: 4px; margin-bottom: 20px; }
+  .needs-sync { background-color: var(--tblr-warning-bg, var(--bs-warning-bg-subtle)); border: 1px solid var(--tblr-warning, var(--bs-warning-border-subtle)); }
+  .synced { background-color: var(--tblr-success-bg, var(--bs-success-bg-subtle)); border: 1px solid var(--tblr-success, var(--bs-success-border-subtle)); }
+  .value-badge { display: inline-block; background-color: var(--tblr-secondary-bg, var(--bs-secondary-bg)); color: var(--tblr-body-color, var(--bs-body-color)); padding: 4px 8px; border-radius: 3px; font-size: 0.85em; margin: 2px; font-family: monospace; }
+</style>
+
+<div class="card">
+  <div class="card-header"><h4>Device</h4></div>
+  <div class="card-body">
+    <table class="table table-sm">
+      <tr>
+        <th>Name:</th>
+        <td><strong>{{ device.name }}</strong></td>
+      </tr>
+      <tr>
+        <th>Tenant:</th>
+        <td>
+          {% if device.tenant %}
+            {{ device.tenant }}
+          {% else %}
+            <em>Not set</em>
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <th>Tenant Group ID (source):</th>
+        <td>
+          {% if tenant_group_id is not None %}
+            <span class="value-badge">{{ tenant_group_id }}</span>
+          {% else %}
+            <em>Not set (device has no tenant or tenant has no group)</em>
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <th>Target custom field:</th>
+        <td><span class="value-badge">{{ cf_name }}</span></td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><h4>Components Status</h4></div>
+  <div class="card-body">
+    <p>Total components: <strong>{{ components_total }}</strong></p>
+    <p>Needing sync: <strong class="text-warning">{{ components_to_sync|length }}</strong></p>
+    <p>Already synced: <strong class="text-success">{{ components_synced|length }}</strong></p>
+  </div>
+</div>
+
+{% if tenant_group_id is None %}
+  <div class="alert alert-warning mt-3">
+    <i class="mdi mdi-alert"></i>
+    Device has no tenant or tenant has no tenant group. Synchronization is not possible.
+  </div>
+{% endif %}
+
+{% if components_to_sync %}
+<div class="card mt-3">
+  <div class="card-header"><h4>Components Needing Synchronization</h4></div>
+  <div class="card-body">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Name</th>
+          <th>Current {{ cf_name }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in components_to_sync %}
+        <tr class="sync-status needs-sync">
+          <td><strong>{{ c.model }}</strong></td>
+          <td>{{ c.name }}</td>
+          <td>
+            {% if c.current_value is not None %}
+              <span class="value-badge">{{ c.current_value }}</span>
+            {% else %}
+              <em>Not set</em>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="text-right mt-3">
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-success" {% if tenant_group_id is None %}disabled{% endif %}>
+          <i class="mdi mdi-sync"></i> Sync All Components
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-success mt-3">
+  <i class="mdi mdi-check-circle"></i> All components are already synchronized.
+</div>
+{% endif %}
+
+{% if components_synced %}
+<div class="card mt-3">
+  <div class="card-header"><h4>Already Synchronized Components</h4></div>
+  <div class="card-body">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Name</th>
+          <th>{{ cf_name }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in components_synced %}
+        <tr class="sync-status synced">
+          <td><strong>{{ c.model }}</strong></td>
+          <td>{{ c.name }}</td>
+          <td>
+            {% if c.current_value is not None %}
+              <span class="value-badge">{{ c.current_value }}</span>
+            {% else %}
+              <em>Not set</em>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
