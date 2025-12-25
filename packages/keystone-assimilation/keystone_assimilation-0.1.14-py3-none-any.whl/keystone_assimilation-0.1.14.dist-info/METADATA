@@ -1,0 +1,292 @@
+Metadata-Version: 2.4
+Name: keystone-assimilation
+Version: 0.1.14
+Summary: Keystone assimilation tooling for forward-only governance
+Author: Keystone
+License: Proprietary
+Requires-Python: >=3.10
+Requires-Dist: pyyaml>=6.0.3
+Requires-Dist: requests>=2.32.5
+Provides-Extra: dev
+Requires-Dist: build>=1.3.0; extra == 'dev'
+Requires-Dist: commitizen>=4.10.1; extra == 'dev'
+Requires-Dist: pytest-cov>=7.0.0; extra == 'dev'
+Requires-Dist: pytest>=9.0.2; extra == 'dev'
+Requires-Dist: ruff>=0.14.10; extra == 'dev'
+Requires-Dist: twine>=5.1.1; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Keystone Assimilation System
+
+## 1.0 📄 Overview
+
+This directory contains the **central, authoritative implementation**
+of Keystone’s assimilation system.
+
+The assimilation system is responsible for:
+
+- understanding external repositories
+- enforcing forward-only governance
+- generating machine-readable signals
+- feeding governance decisions
+- enabling IP Bank extraction
+
+Assimilation is **non-destructive, incremental, and inevitable**.
+Legacy code is never rewritten; governance applies **forward-only**.
+
+## 1.1 📜 Core Principles
+
+- **Read-only analysis** of external repositories
+- **Forward-only enforcement**
+- **Pull-based ingestion**
+- **No autonomous mutation**
+- **Governance decides truth**
+
+If a change is not ratified via governance, it does not exist.
+
+## 1.2 📜 Assimilation States
+
+The assimilation system defines five explicit states for external repositories:
+
+- `observed`
+- `catalogued`
+- `governed`
+- `canonical`
+- `ipbanked`
+
+State is declared in `.keystone/assimilation.yaml`
+inside the target repository.
+
+State controls:
+
+- what CI enforces
+- what signals are collected
+- what promotion is allowed
+
+```mermaid
+stateDiagram-v2
+    [*] --> observed
+    observed --> catalogued
+    catalogued --> governed
+    governed --> canonical
+    canonical --> ipbanked
+```
+
+## 1.3 🧠 What This Code Does
+
+- Reads .keystone/assimilation.yaml
+- Runs AST / static analysis
+- Collects dependency and coverage signals
+- Enforces rules only when state ≥ governed
+- Emits structured, machine-readable reports
+- Produces governance-ready evidence
+
+## 1.4 🚫 What This Code Never Does
+
+- Rewrite git history
+- Auto-promote IP
+- Modify external repositories
+- Bypass governance
+- Guess intent
+- Invent structure
+
+## 1.5 🔁 How It’s Used
+
+### In external (assimilated) repositories
+
+A GitHub Action runs on PRs, merges, and a schedule:
+
+```bash
+uv run keystone-assimilation-run
+```
+
+This produces artifacts only. No state changes occur. Artifacts are uploaded to GitHub Actions.
+
+### In Keystone (central repo)
+
+Keystone pulls assimilation evidence using a scheduled collector:
+
+```bash
+uv run keystone-assimilation-collect
+```
+
+This stages evidence for governance review and opens
+a PR containing facts, not decisions.
+
+### Authority
+
+- Constitution: .specify/memory/constitution.md
+- Enforcement rules: AGENTS.md
+- Process: docs/process.md
+- Assimilation doctrine: docs/assimilation.md
+
+## 1.6 🧭 End-to-End Assimilation Flow
+
+```mermaid
+flowchart TD
+    Repo[External Repo]
+    Watcher[Assimilation Watcher Action]
+    Artifacts[GitHub Artifacts]
+
+    Collector[Keystone Collector Action]
+    Evidence[Assimilation Evidence Store]
+    Governance[Monthly Governance]
+    IPBank[IP Bank]
+
+    Repo --> Watcher
+    Watcher --> Artifacts
+    Artifacts --> Collector
+    Collector --> Evidence
+    Evidence --> Governance
+    Governance --> IPBank
+```
+
+## 2.0 ⚙️ Implementation Details
+
+### 2.1 📁 Directory Layout (Keystone repo)
+
+```text
+keystone/
+  tools/
+    assimilation/
+      README.md
+      Makefile
+      assimilation.default.yaml
+      pyproject.toml
+      src/keystone_assimilation/
+        __init__.py
+        analysis/
+          __init__.py
+          python_ast.py
+          dependency_graph.py
+          coverage_map.py
+        cli.py
+        collect.py
+        config.py
+        ingest.py
+        models.py
+        states.py
+      tests/
+      workflows/
+      uv.lock
+```
+
+### 2.2 📄 Default Assimilation Configuration
+
+This file lives in Keystone and is copied into new repositories.
+
+Location:
+`keystone/tools/assimilation/assimilation.default.yaml`
+
+```yaml
+keystone:
+  project_id: "<REPLACE_ME>"
+  owner: "<REPLACE_ME>"
+
+  state: observed
+  target_state: null
+
+  assimilated_at: null
+  last_reviewed: null
+
+  metadata:
+    role: unknown
+    description: ""
+    maturity: unknown
+    primary_language: unknown
+    secondary_languages: []
+    active: true
+
+  analysis:
+    enabled: true
+    languages:
+      - python
+    tools:
+      - python_ast
+      - dependency_graph
+      - coverage_map
+    last_run: null
+
+  enforcement:
+    forward_only: true
+    require_make_check: false
+    min_coverage: 80
+
+    commit_discipline: true
+    one_file_per_commit: true
+    conventional_commits: true
+    require_footer_refs: true
+
+  ip_candidates: []
+  notes: []
+```
+
+### 2.3 🔎 keystone-assimilation-run — Assimilation Watcher (External Repos)
+
+Executed inside the assimilated repository.
+
+Responsibilities:
+
+- read config
+- run analysis
+- enforce forward-only rules
+- emit reports
+
+It never mutates the repo.
+
+### 2.4 🧲 keystone-assimilation-collect — Central Keystone Collector
+
+Executed only in Keystone.
+
+Responsibilities:
+
+- pull artifacts from GitHub
+- store evidence immutably
+- prepare governance review
+- never mutate external repos
+- never auto-promote state or IP
+
+## 3.0 🔌 How Other Repositories Integrate
+
+Minimal steps for any repo (including kcmt):
+
+1. Add `.keystone/assimilation.yaml`
+2. Add GitHub Action:
+
+```yaml
+- name: Run Keystone Assimilation
+  run: uv run keystone-assimilation-run
+```
+
+1. Upload artifacts
+2. Done
+
+No refactors. No rewrites. No coupling.
+
+## 4.0 🏛 Governance & Enforcement
+
+- Assimilation state changes require a written governance decision
+- Evidence is reviewed monthly
+- CI enforcement ratchets forward
+- IP extraction is deliberate and reviewed
+
+If a decision is not written, it did not happen.
+
+## 5.0 🎯 Why This Works
+
+This system makes management easy and dropping balls hard:
+
+- State is explicit
+- Enforcement is forward-only
+- Evidence is machine-generated
+- Decisions are written
+- IP extraction is intentional
+- Nothing moves silently
+
+Assimilation turns legacy into leverage — without disruption.
+
+## 6.0 📦 Packaging & Quality Gates
+
+- Install locally: `uv sync --extra dev`
+- Run quality gates: `make check` (format check, lint, tests with coverage >=80%)
+- Build artifacts: `make build`
