@@ -1,0 +1,425 @@
+# ==========================================================================
+# AGENTS - IMPLEMENTATION WORKFLOW WORKFLOW
+# Generated: 2025-12-05 07:40
+# Source: agents.json, artifacts.json, instructions.json
+# Workflow: Implementation Workflow
+#
+# NOTE: This file is GENERATED from canonical JSON files.
+#       Edit the source JSON in manifests/_canonical/ instead.
+# ==========================================================================
+agents:
+
+  # ======================================================================
+  # I-00: Implementation Orchestrator
+  # ======================================================================
+  - id: I-00
+    slug: orchestrator
+    role: Implementation Orchestrator
+    agent_type: orchestrator
+    purpose: Synchronize all implementation agents, track progress, escalate blocking issues.
+    key_responsibilities:
+    - Maintain global session state and active-task context
+    - Route incoming planning artifacts to the correct specialist
+    - Monitor task queue, detect blockers, and reassign when thresholds hit
+    - Aggregate agent status reports into the session index
+    - Invoke on-demand agents when specialty work is required
+    produces:
+      core:
+      - filename: implementation_index.md
+        description: Index of all implementation artifacts and their status.
+      - filename: active_session.md
+        description: Active implementation session state.
+    consumes:
+      gating:
+      - filename: implementation_readiness_report.md
+      - filename: implementation_handoff_plan.md
+      - filename: implementation_task_list.md
+    handoff:
+      next:
+      - id: I-01
+      conditions:
+      - Initial tasks assigned
+      - Scaffold requirements identified
+
+
+  # ======================================================================
+  # I-01: Scaffold & DevOps Architect
+  # ======================================================================
+  - id: I-01
+    slug: scaffold
+    role: Scaffold & DevOps Architect
+    agent_type: core
+    purpose: Create project structure, configure CI/CD, establish development infrastructure.
+    key_responsibilities:
+    - Create initial directory layout matching architecture spec
+    - Configure build tools, linters, formatters
+    - Set up CI/CD pipelines with test gates
+    - Create Docker/container configurations
+    - Establish development environment consistency
+    produces:
+      core:
+      - filename: codebase_scaffold_map.md
+        description: Map of project structure and scaffolding.
+        is_gating: true
+      - filename: SETUP.md
+        description: Project setup instructions.
+      - filename: INFRASTRUCTURE.md
+        description: Infrastructure documentation.
+      domain:
+      - filename: cicd_config/
+        description: CI/CD configuration files.
+      - filename: infrastructure/
+        description: Infrastructure as code templates.
+      - filename: linter_configs/
+        description: Linter and code quality configurations.
+    consumes:
+      core:
+      - filename: implementation_task_list.md
+      - filename: api_specifications.md
+      - filename: architecture_overview.md
+      domain:
+      - filename: infrastructure_plan.md
+      - filename: cicd_pipeline_plan.md
+      - filename: environment_strategy.md
+      reference:
+      - filename: deployment_model.md
+      - filename: cloud_cost_projection.md
+      gating:
+      - filename: implementation_feasibility_gap_report.md
+      - filename: integration_consistency_audit.md
+    handoff:
+      next:
+      - id: I-02
+      conditions:
+      - Scaffold tests pass
+      - CI/CD operational
+
+
+  # ======================================================================
+  # I-02: Backend & Data Engineer
+  # ======================================================================
+  - id: I-02
+    slug: backend
+    role: Backend & Data Engineer
+    agent_type: core
+    purpose: Implement server-side logic, APIs, database integrations following TDD.
+    key_responsibilities:
+    - Implement API endpoints per specification
+    - Create database schemas and migrations
+    - Build business logic services
+    - Integrate external services and APIs
+    - Write unit and integration tests first (TDD)
+    produces:
+      core:
+      - filename: api_realization_status.md
+        description: Status of API endpoint implementation.
+      - filename: backend_test_coverage.md
+        description: Backend test coverage report.
+    consumes:
+      core:
+      - filename: implementation_task_list.md
+      - filename: api_specifications.md
+      - filename: traceability_matrix.md
+      domain:
+      - filename: business_logic_map.md
+      - filename: logical_data_model.md
+      - filename: data_strategy.md
+      reference:
+      - filename: integration_plan.md
+      - filename: communication_flows.md
+      - filename: data_governance_plan.md
+      gating:
+      - filename: implementation_feasibility_gap_report.md
+      - filename: integration_consistency_audit.md
+    handoff:
+      next:
+      - id: I-03
+      conditions:
+      - API endpoints tested and passing
+      - Data layer operational
+
+
+  # ======================================================================
+  # I-03: Frontend & UX Engineer
+  # ======================================================================
+  - id: I-03
+    slug: frontend
+    role: Frontend & UX Engineer
+    agent_type: core
+    purpose: Build UI components, implement client-side logic, ensure accessibility.
+    key_responsibilities:
+    - Create UI components per design specification
+    - Implement client-side state management
+    - Build forms with validation
+    - Ensure accessibility compliance (WCAG)
+    - Write component and E2E tests first (TDD)
+    produces:
+      core:
+      - filename: ui_component_inventory.md
+        description: Inventory of UI components.
+      - filename: frontend_test_coverage.md
+        description: Frontend test coverage report.
+    consumes:
+      core:
+      - filename: implementation_task_list.md
+      - filename: api_specifications.md
+      - filename: traceability_matrix.md
+      domain:
+      - filename: conceptual_wireframes.md
+      - filename: interaction_flows.md
+      - filename: information_architecture.md
+      - filename: accessibility_compliance_plan.md
+      reference:
+      - filename: user_journeys.md
+      - filename: ux_principles_and_goals.md
+      gating:
+      - filename: implementation_feasibility_gap_report.md
+      - filename: integration_consistency_audit.md
+    handoff:
+      next:
+      - id: I-04
+      conditions:
+      - UI components tested
+      - Integration with backend verified
+
+
+  # ======================================================================
+  # I-04: Quality & Validation Specialist
+  # ======================================================================
+  - id: I-04
+    slug: quality
+    role: Quality & Validation Specialist
+    agent_type: core
+    purpose: Validate cross-component integration, maintain test suites, enforce quality gates.
+    key_responsibilities:
+    - Create and maintain integration test suites
+    - Run end-to-end test scenarios
+    - Monitor and enforce code coverage thresholds
+    - Identify gaps in test coverage
+    - Validate cross-component interactions
+    produces:
+      core:
+      - filename: test_execution_register.md
+        description: Register of all test executions.
+        is_gating: true
+      - filename: code_review_report.md
+        description: Summary of code review findings.
+      - filename: metrics_catalog.md
+        description: Catalog of application metrics.
+      - filename: instrumentation_status.md
+        description: Status of observability instrumentation.
+      - filename: coverage_report.md
+        description: Consolidated test coverage report.
+        is_gating: true
+    consumes:
+      core:
+      - filename: implementation_task_list.md
+      - filename: requirements_spec.md
+      - filename: traceability_matrix.md
+      domain:
+      - filename: testing_strategy.md
+      - filename: test_architecture_plan.md
+      - filename: nonfunctional_validation_plan.md
+      reference:
+      - filename: resilience_architecture_plan.md
+      - filename: quality_governance.md
+    handoff:
+      next:
+      - id: I-05
+      conditions:
+      - Quality gates pass
+      - No blocking issues
+
+
+  # ======================================================================
+  # I-05: Release & Integration Manager
+  # ======================================================================
+  - id: I-05
+    slug: release
+    role: Release & Integration Manager
+    agent_type: core
+    purpose: Package releases, coordinate deployments, validate production readiness.
+    key_responsibilities:
+    - Create release packages with versioning
+    - Generate changelogs from commit history
+    - Coordinate deployment to environments
+    - Validate deployment success
+    - Rollback on failure detection
+    produces:
+      core:
+      - filename: CHANGELOG.md
+        description: Project changelog.
+      - filename: release_notes.md
+        description: Release notes for current version.
+      - filename: deployment_verification_log.md
+        description: Log of deployment verification results.
+        is_gating: true
+    consumes:
+      core:
+      - filename: implementation_task_list.md
+      - filename: test_execution_register.md
+        source: I-04
+      - filename: traceability_matrix.md
+      domain:
+      - filename: transition_readiness_summary.md
+      - filename: implementation_handoff_plan.md
+      reference:
+      - filename: deployment_model.md
+      - filename: environment_strategy.md
+      gating:
+      - filename: implementation_feasibility_gap_report.md
+      - filename: integration_consistency_audit.md
+    handoff:
+      next: null
+      conditions:
+      - Release complete
+      - Handoff to operations
+
+
+  # ======================================================================
+  # I-SEC: Security Hardening Auditor
+  # ======================================================================
+  - id: I-SEC
+    slug: security
+    role: Security Hardening Auditor
+    agent_type: on_demand
+    purpose: Audit code for security vulnerabilities, enforce security standards.
+    key_responsibilities:
+    - Scan code for known vulnerabilities
+    - Review authentication and authorization logic
+    - Audit data handling and encryption
+    - Check dependency security
+    - Generate security audit reports
+    produces:
+      core:
+      - filename: security_audit_report.md
+        description: Security audit findings.
+      - filename: vulnerability_scan.md
+        description: Vulnerability scan results.
+      - filename: dependency_audit.md
+        description: Dependency audit results.
+      - filename: security_signoff.md
+        description: Security sign-off document.
+        is_gating: true
+    consumes:
+      core:
+      - filename: secure_design_recommendations.md
+      - filename: security_control_trace.md
+    handoff:
+      next:
+      - id: I-00
+      conditions:
+      - Audit complete
+      - Findings documented
+
+
+  # ======================================================================
+  # I-DOC: Documentation Sprint Agent
+  # ======================================================================
+  - id: I-DOC
+    slug: documentation
+    role: Documentation Sprint Agent
+    agent_type: on_demand
+    purpose: Generate and maintain technical documentation, API docs, user guides.
+    key_responsibilities:
+    - Generate API documentation from code
+    - Write user guides and tutorials
+    - Maintain README and contribution guides
+    - Create architecture documentation
+    - Keep documentation in sync with code
+    produces:
+      core:
+      - filename: docs/ARCHITECTURE.md
+        description: Architecture documentation.
+      - filename: docs/API_REFERENCE.md
+        description: API reference documentation.
+      - filename: docs/USER_GUIDE.md
+        description: User guide.
+      - filename: docs/DEVELOPER_GUIDE.md
+        description: Developer guide.
+      - filename: docs/DEPLOYMENT_GUIDE.md
+        description: Deployment guide.
+    consumes:
+      core:
+      - filename: architecture_overview.md
+      - filename: api_specifications.md
+    handoff:
+      next:
+      - id: I-00
+      conditions:
+      - Documentation updated
+      - Review complete
+
+
+  # ======================================================================
+  # I-DS: Data Store Implementation Specialist
+  # ======================================================================
+  - id: I-DS
+    slug: data_steward
+    role: Data Store Implementation Specialist
+    agent_type: on_demand
+    purpose: Design and implement database schemas, optimize queries, manage migrations.
+    key_responsibilities:
+    - Design database schemas
+    - Create and manage migrations
+    - Optimize queries for performance
+    - Implement data access patterns
+    - Ensure data integrity constraints
+    produces:
+      core:
+      - filename: migration_safety_checklist.md
+        description: Data migration safety checklist.
+      - filename: data_change_impact_log.md
+        description: Log of data change impacts.
+      - filename: pii_handling_register.md
+        description: Register of PII handling procedures.
+      - filename: data_quality_scorecard.md
+        description: Data quality scorecard.
+    consumes:
+      core:
+      - filename: logical_data_model.md
+      - filename: data_governance_plan.md
+      - filename: data_lifecycle_plan.md
+    handoff:
+      next:
+      - id: I-02
+      conditions:
+      - Schema ready
+      - Migrations tested
+
+
+  # ======================================================================
+  # I-PERF: Performance Optimization Agent
+  # ======================================================================
+  - id: I-PERF
+    slug: performance
+    role: Performance Optimization Agent
+    agent_type: on_demand
+    purpose: Profile application performance, identify bottlenecks, implement optimizations.
+    key_responsibilities:
+    - Profile application under load
+    - Identify performance bottlenecks
+    - Optimize critical paths
+    - Implement caching strategies
+    - Establish performance baselines
+    produces:
+      core:
+      - filename: performance_report.md
+        description: Performance analysis report.
+      - filename: optimization_log.md
+        description: Log of performance optimizations.
+      - filename: load_test_results.md
+        description: Load test results.
+      - filename: performance_baseline.md
+        description: Performance baseline metrics.
+    consumes:
+      core:
+      - filename: nonfunctional_validation_plan.md
+      - filename: capacity_planning_model.md
+    handoff:
+      next:
+      - id: I-00
+      conditions:
+      - Optimization complete
+      - Metrics documented
+

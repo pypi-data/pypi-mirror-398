@@ -1,0 +1,147 @@
+{#- Agent Base Template -#}
+{#- Base template for all agent prompts. Extend this for role-specific templates. -#}
+
+{#- Import partials -#}
+{% from '_partials/frontmatter_helpers.j2' import agent_frontmatter, cli_commands %}
+
+{#- Frontmatter Block -#}
+{% block frontmatter %}
+---
+agent_id: {{ agent_id }}
+agent_role: {{ agent_role }}
+agent_type: {{ agent_type }}
+workflow_name: {{ workflow_name }}
+{% if stage %}
+stage: {{ stage.id if stage.id else stage.name }}
+{% endif %}
+project_name: {{ project_name }}
+context_file: agent_context/{{ workflow_name }}_context_index.md
+cli_commands:
+  - "agentic status"
+  - "agentic decision --title '...' --rationale '...'"
+  - "agentic assumption --assumption '...' --rationale '...'"
+{% if next_agent_id %}
+  - "agentic handoff --to {{ next_agent_id }} --artifacts '{{ required_artifacts | join(', ') if required_artifacts else '...' }}' --notes '...'"
+{% else %}
+  - "agentic end"
+{% endif %}
+---
+{% endblock %}
+
+{#- Quick Reference Block -#}
+{% block quickref %}
+## Quick Reference
+
+| Property | Value |
+|----------|-------|
+| **Agent** | `{{ agent_id }}` — {{ agent_role }} |
+| **Type** | {{ agent_type | capitalize }} |
+| **Workflow** | {{ workflow_display_name }} |
+{% if stage %}| **Stage** | {{ stage.name if stage.name else stage.id }} |{% endif %}
+{% if next_agent_id %}| **Next** | `{{ next_agent_id }}` |{% endif %}
+
+{% endblock %}
+
+{#- Main Body Block -#}
+{% block body %}
+# Agent Persona
+
+**You are Agent {{ agent_id }}: {{ agent_role }}**
+
+{{ purpose }}
+
+---
+
+{% block responsibilities_section %}
+## Responsibilities
+
+{% for resp in responsibilities %}
+- {{ resp }}
+{% endfor %}
+{% endblock %}
+
+---
+
+{% block workflow_section %}
+## Workflow
+
+{% if workflow.entry_conditions %}
+### Entry Conditions
+{% for cond in workflow.entry_conditions %}
+- {{ cond }}
+{% endfor %}
+{% endif %}
+
+{% if workflow.steps %}
+### Steps
+{% for step in workflow.steps %}
+{{ loop.index }}. {{ step }}
+{% endfor %}
+{% endif %}
+
+{% if workflow.exit_conditions %}
+### Exit Conditions
+{% for cond in workflow.exit_conditions %}
+- {{ cond }}
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+---
+
+{% block artifacts_section %}
+{% include '_partials/artifact_table.j2' %}
+{% endblock %}
+
+---
+
+{% block boundaries_section %}
+## Boundaries
+
+{% if boundaries.in_scope %}
+### In Scope
+{% for item in boundaries.in_scope %}
+- ✅ {{ item }}
+{% endfor %}
+{% endif %}
+
+{% if boundaries.out_of_scope %}
+### Out of Scope
+{% for item in boundaries.out_of_scope %}
+- ❌ {{ item }}
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% if domain_rules %}
+---
+
+{% block domain_rules_section %}
+## Domain Rules
+
+{% for rule in domain_rules %}
+- {{ rule }}
+{% endfor %}
+{% endblock %}
+{% endif %}
+
+{% endblock %}
+
+{#- Checkpoint Warning Block -#}
+{% block checkpoint_section %}
+{% if checkpoint %}
+{% include '_partials/checkpoint_warning.j2' %}
+{% endif %}
+{% endblock %}
+
+{#- Handoff Block -#}
+{% block handoff_section %}
+{% include '_partials/handoff_section.j2' %}
+{% endblock %}
+
+{#- Governance Footer Block -#}
+{% block governance_section %}
+{% if governance or enforcement %}
+{% include '_partials/governance_footer.j2' %}
+{% endif %}
+{% endblock %}

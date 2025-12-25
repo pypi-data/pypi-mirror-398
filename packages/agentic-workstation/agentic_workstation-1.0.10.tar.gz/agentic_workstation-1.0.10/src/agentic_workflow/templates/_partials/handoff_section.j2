@@ -1,0 +1,64 @@
+{#- Handoff Section Partial -#}
+{#- Displays next agent info, required artifacts/logs, and pre-handoff checklist -#}
+
+{#- Parameters:
+    handoff: dict with keys: next, required_artifacts, required_logs, notes, conditions
+    handoff.next: array of {id, role, stage} or null for terminal agents
+-#}
+
+## Handoff
+
+{% if handoff.next %}
+### Next Agent
+{% for agent in handoff.next %}
+{% if loop.first %}
+**Primary:** `{{ agent.id }}` — {{ agent.role | default('Agent') }}{% if agent.stage %} ({{ agent.stage }}){% endif %}
+
+{% else %}
+- **Alternate:** `{{ agent.id }}` — {{ agent.role | default('Agent') }}{% if agent.stage %} ({{ agent.stage }}){% endif %}
+
+{% endif %}
+{% endfor %}
+{% else %}
+**Terminal Agent** — No handoff required. End workflow with `agentic end`.
+{% endif %}
+
+{% if handoff.conditions %}
+### Handoff Conditions
+{% for condition in handoff.conditions %}
+- {{ condition }}
+{% endfor %}
+{% endif %}
+
+{% if handoff.required_artifacts or handoff.required_logs %}
+### Pre-Handoff Checklist
+
+Before handoff, verify:
+
+{% if handoff.required_artifacts %}
+**Artifacts:**
+{% for artifact in handoff.required_artifacts %}
+- [ ] `{{ artifact }}` created and validated
+{% endfor %}
+{% endif %}
+
+{% if handoff.required_logs %}
+**Logs:**
+{% for log_type in handoff.required_logs %}
+- [ ] {{ log_type | capitalize }} log recorded
+{% endfor %}
+{% endif %}
+{% endif %}
+
+{% if handoff.notes %}
+### Notes
+
+{{ handoff.notes }}
+{% endif %}
+
+{% if handoff.next %}
+**Handoff Command:**
+```bash
+agentic handoff --to {{ handoff.next[0].id }} --artifacts "{{ handoff.required_artifacts | join(', ') if handoff.required_artifacts else '...' }}" --notes "Handoff notes"
+```
+{% endif %}

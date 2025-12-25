@@ -1,0 +1,150 @@
+# ==========================================================================
+# WORKFLOW CREATION WORKFLOW WORKFLOW
+# Generated: 2025-12-05 07:40
+# Source: workflow.json, agents.json
+# Workflow: Workflow Creation Workflow
+#
+# NOTE: This file is GENERATED from canonical JSON files.
+#       Edit the source JSON in manifests/_canonical/ instead.
+# ==========================================================================
+# --- Workflow Metadata ---
+name: workflow-creation
+workflow_id: workflow-creation
+display_name: Workflow Creation Workflow
+version: 1.0.0
+description: A guided workflow for creating new workflow packages. Each agent leads the user through one phase of workflow
+  creation, gathering requirements, generating files, and validating before handoff.
+
+# --- Agent Summary (derived) --------------------------------------------
+agent_summary:
+  total_agents: 9
+  total_artifacts: 21
+  agent_counts:
+    orchestrator: 1
+    core: 7
+    gating: 1
+  pipeline_order:
+  - W-00
+  - W-01
+  - W-02
+  - W-03
+  - W-04
+  - W-05
+  - W-06
+  - W-07
+  - W-08
+  parallel_groups: []
+  checkpoints:
+  - after_agent: W-01
+    type: human
+    prompt: Domain Analysis Review - verify domain purpose, phases, and quality gates
+    owner: W-01
+    validation_command: ''
+    timeout_seconds: 30
+  - after_agent: W-04
+    type: human
+    prompt: Definition Review - verify all agents defined, artifacts mapped, ownership clear
+    owner: W-04
+    validation_command: ''
+    timeout_seconds: 30
+  - after_agent: W-07
+    type: human
+    prompt: Workflow Verified - verify tests pass, generation works, CLI commands work
+    owner: W-07
+    validation_command: ./workflow validate-workflow --workflow workflow-creation
+    timeout_seconds: 60
+
+# --- Pipeline Configuration ---------------------------------------------
+pipeline:
+  order:
+  - W-00
+  - W-01
+  - W-02
+  - W-03
+  - W-04
+  - W-05
+  - W-06
+  - W-07
+  - W-08
+  allow_skip: false
+  allow_parallel: false
+
+# --- Directory Structure ------------------------------------------------
+# Used by scaffold scripts for project initialization
+directories:
+  root: projects/{project_name}/
+  artifacts: artifacts/
+  agent_files: agent_files/
+  agent_context: agent_context/
+  agent_log: agent_log/
+  docs: docs/
+  input: input/
+  package: package/
+  templates: templates/workflow-creation/
+  workflow_package: output/workflow_package/
+  validation: output/validation/
+
+# --- Checkpoints --------------------------------------------------------
+checkpoints:
+- after_agent: W-01
+  type: human
+  prompt: Domain Analysis Review - verify domain purpose, phases, and quality gates
+  owner: W-01
+  validation_command: ''
+  timeout_seconds: 30
+- after_agent: W-04
+  type: human
+  prompt: Definition Review - verify all agents defined, artifacts mapped, ownership clear
+  owner: W-04
+  validation_command: ''
+  timeout_seconds: 30
+- after_agent: W-07
+  type: human
+  prompt: Workflow Verified - verify tests pass, generation works, CLI commands work
+  owner: W-07
+  validation_command: ./workflow validate-workflow --workflow workflow-creation
+  timeout_seconds: 60
+
+# --- Stages -------------------------------------------------------------
+stages:
+- id: DISCOVERY
+  name: Discovery
+  description: Understand the domain and establish foundation
+- id: DEFINITION
+  name: Definition
+  description: Define agents, artifacts, and instructions
+- id: GENERATION
+  name: Generation
+  description: Create templates and generate files
+- id: VALIDATION
+  name: Validation
+  description: Test and document the workflow
+
+# --- Global Rules -------------------------------------------------------
+globals:
+  output_requirements:
+  - Use mustache `{{variable}}` NOT Jinja2 `{{ variable }}`
+  - All YAML files must be valid and follow schema
+  - Filenames must match artifact registry
+  non_overlap_rules:
+  - Each agent handles one phase only
+  - Do not generate files for other phases
+  - Reference existing workflows for format guidance
+  log_schema:
+  - 'Log File: (See `log_file` in frontmatter)'
+  - 'Entry Types: DEFINE | VALIDATE | GENERATE | REVIEW'
+  - 'Schema: `timestamp | entry_type | ref_ids | summary | status/outcome`'
+  context_rules:
+  - 'Rehydration: On startup, READ `project_index.md` → READ `context_file` → Check `exchange_log.md`'
+  - 'Gating: Do NOT proceed if upstream HANDOFF is missing'
+  - 'Validation: Test each file before handoff'
+
+# --- CLI Configuration --------------------------------------------------
+cli:
+  examples:
+  - command: ./workflow status
+    description: Show project status
+  - command: ./workflow activate W01
+    description: Activate agent W01
+  - command: ./workflow handoff --from W01 --to W02 --artifacts "domain_notes.md"
+    description: Signal handoff

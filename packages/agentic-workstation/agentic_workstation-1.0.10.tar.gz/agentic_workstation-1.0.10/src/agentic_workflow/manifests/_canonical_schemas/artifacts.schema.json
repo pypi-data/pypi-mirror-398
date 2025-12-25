@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Artifacts manifest schema",
+  "description": "Artifact definitions with ownership, categories, and template information. Source of truth for all workflow outputs.",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "workflow_id": {
+      "type": "string",
+      "description": "The workflow this artifacts file belongs to"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["filename", "owner", "description", "category"],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Artifact filename or directory path (directories end with /)"
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[A-Z]{1,2}-[A-Z0-9]{2,6}$",
+            "description": "Agent ID that produces this artifact"
+          },
+          "description": {
+            "type": "string",
+            "description": "What this artifact contains"
+          },
+          "category": {
+            "type": "string",
+            "enum": ["core", "domain", "reference", "gating", "log"],
+            "description": "Artifact category for pipeline filtering"
+          },
+          "purpose": {
+            "type": "string",
+            "description": "Why this artifact exists"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["file", "directory"],
+            "default": "file",
+            "description": "Artifact type - file or directory"
+          },
+          "template": {
+            "type": "string",
+            "description": "Template file path relative to templates/ directory. Omit field if artifact has no template."
+          },
+          "sections": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Content sections for template-less artifacts"
+          },
+          "is_shared": {
+            "type": "boolean",
+            "default": false,
+            "description": "Multiple agents can modify this artifact"
+          },
+          "is_gating": {
+            "type": "boolean",
+            "default": false,
+            "description": "Required for workflow progression"
+          },
+          "required": {
+            "type": "boolean",
+            "default": true,
+            "description": "Must exist for workflow completion"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Additional artifact-specific data"
+          }
+        ,
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$",
+          "description": "Semantic version for gating artifacts (optional)"
+        }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["artifacts"],
+  "additionalProperties": false
+}

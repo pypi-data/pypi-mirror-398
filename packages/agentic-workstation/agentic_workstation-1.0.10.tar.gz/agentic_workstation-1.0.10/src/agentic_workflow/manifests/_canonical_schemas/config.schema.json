@@ -1,0 +1,135 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "config.schema.json",
+  "title": "Workflow Configuration",
+  "description": "Per-project workflow configuration for enforcement modes and logging requirements",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Configuration schema version",
+      "default": "1.0"
+    },
+    "enforcement": {
+      "type": "object",
+      "description": "Enforcement mode settings",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["strict", "lenient", "none"],
+          "default": "strict",
+          "description": "Global enforcement mode. strict=block on failures, lenient=warn only, none=skip checks"
+        },
+        "checkpoint_gating": {
+          "type": "string",
+          "enum": ["strict", "warn", "none"],
+          "default": "strict",
+          "description": "Checkpoint enforcement level"
+        },
+        "handoff_gating": {
+          "type": "string",
+          "enum": ["strict", "warn", "none"],
+          "default": "strict",
+          "description": "Handoff enforcement level"
+        }
+      },
+      "additionalProperties": false
+    },
+    "logging": {
+      "type": "object",
+      "description": "Logging requirements",
+      "properties": {
+        "require_session_log": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require session start/end logging"
+        },
+        "require_decision_log": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require decision logging"
+        },
+        "require_assumption_log": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require assumption logging"
+        },
+        "require_handoff_log": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require handoff logging"
+        },
+        "require_artifact_tracking": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require artifact tracking"
+        }
+      },
+      "additionalProperties": false
+    },
+    "validation": {
+      "type": "object",
+      "description": "Validation settings",
+      "properties": {
+        "run_validation_commands": {
+          "type": "boolean",
+          "default": true,
+          "description": "Execute checkpoint validation_command in strict mode"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 30,
+          "description": "Timeout for validation commands"
+        }
+      },
+      "additionalProperties": false
+    },
+    "bypass": {
+      "type": "object",
+      "description": "Bypass settings",
+      "properties": {
+        "require_reason": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require --reason flag for bypass commands"
+        },
+        "log_bypasses": {
+          "type": "boolean",
+          "default": true,
+          "description": "Log all bypasses to decision log"
+        }
+      },
+      "additionalProperties": false
+    },
+    "workflow_overrides": {
+      "type": "object",
+      "description": "Per-workflow configuration overrides",
+      "additionalProperties": {
+        "$ref": "#/definitions/workflow_override"
+      }
+    }
+  },
+  "definitions": {
+    "workflow_override": {
+      "type": "object",
+      "description": "Override settings for a specific workflow",
+      "properties": {
+        "enforcement": {
+          "$ref": "#/properties/enforcement"
+        },
+        "logging": {
+          "$ref": "#/properties/logging"
+        },
+        "validation": {
+          "$ref": "#/properties/validation"
+        },
+        "bypass": {
+          "$ref": "#/properties/bypass"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

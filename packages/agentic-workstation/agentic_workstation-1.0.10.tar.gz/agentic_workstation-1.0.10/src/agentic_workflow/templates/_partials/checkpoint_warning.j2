@@ -1,0 +1,75 @@
+{#- Checkpoint Warning Partial -#}
+{#- Displays checkpoint information when a checkpoint follows the current agent -#}
+
+{#- Parameters:
+    checkpoint: dict with keys: type, prompt, gating, required_artifacts, required_logs, 
+                bypass_policy, owner, validation_command
+    agent_id: current agent's ID
+-#}
+
+{% if checkpoint %}
+---
+
+> ⚠️ **CHECKPOINT AFTER THIS AGENT**
+
+### Checkpoint Details
+
+| Property | Value |
+|----------|-------|
+| **Type** | {{ checkpoint.type | default('human') | capitalize }} |
+| **Gating** | {{ checkpoint.gating | default('strict') | upper }} |
+{% if checkpoint.owner %}| **Owner** | `{{ checkpoint.owner }}` |{% endif %}
+
+{% if checkpoint.prompt %}
+**Prompt:** {{ checkpoint.prompt }}
+{% endif %}
+
+{% if checkpoint.required_artifacts %}
+### Required Before Checkpoint
+
+**Artifacts:**
+{% for artifact in checkpoint.required_artifacts %}
+- [ ] `{{ artifact }}`
+{% endfor %}
+{% endif %}
+
+{% if checkpoint.required_logs %}
+**Logs:**
+{% for log_type in checkpoint.required_logs %}
+- [ ] {{ log_type | capitalize }} log
+{% endfor %}
+{% endif %}
+
+{% if checkpoint.validation_command %}
+### Validation
+
+```bash
+{{ checkpoint.validation_command }}
+```
+{% if checkpoint.gating == 'strict' %}
+> Validation runs automatically in **strict** mode. Must pass to proceed.
+{% else %}
+> Validation runs for information only in **{{ checkpoint.gating }}** mode.
+{% endif %}
+{% endif %}
+
+{% if checkpoint.bypass_policy %}
+### Bypass Policy
+
+{% if checkpoint.bypass_policy.allowed_roles %}
+**Allowed roles:** {{ checkpoint.bypass_policy.allowed_roles | join(', ') }}
+{% endif %}
+{% if checkpoint.bypass_policy.requires_approval %}
+**Requires approval:** Yes ({{ checkpoint.bypass_policy.approval_count | default(1) }} approver(s))
+{% endif %}
+
+**Bypass command:**
+```bash
+./workflow checkpoint-bypass --reason "..."
+```
+
+> ⚠️ All bypasses are logged to the decision log.
+{% endif %}
+
+---
+{% endif %}

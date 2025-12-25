@@ -1,0 +1,178 @@
+# Project Governance Guide
+
+> **Complete governance rules for {{ project_name }}**  
+> Generated from global base + {{ workflow_name }} workflow rules.
+
+---
+
+# Part 1: Universal Governance
+
+## 1. Universal ID Schema
+
+All agents use consistent ID prefixes for traceability:
+
+| Type | Format | Example |
+|------|--------|---------|
+| Decision | `DEC-{agent_id}-###` | `DEC-02-001` |
+| Question | `Q-{agent_id}-###` | `Q-06-002` |
+| Assumption | `A-{agent_id}-###` | `A-01-003` |
+| Risk | `R-{agent_id}-###` | `R-11-001` |
+| Gap | `G-{agent_id}-###` | `G-03-002` |
+
+**Rules:**
+- IDs are globally unique within the project
+- Agent ID is zero-padded (01, 02, ... 13)
+- Sequence numbers increment per type per agent
+
+---
+
+## 2. Universal Logging Schema
+
+All log entries follow this structure:
+
+```
+| timestamp | entry_type | ref_ids | summary | status |
+```
+
+**Fields:**
+- `timestamp`: ISO 8601 format
+- `entry_type`: INTAKE | DECISION | QUESTION | ASSUMPTION | RISK | GAP | HANDOFF
+- `ref_ids`: Comma-separated IDs (REQ-*, DEC-*, R-*, etc.)
+- `summary`: Concise description (≤100 chars)
+- `status`: OPEN | RESOLVED | ACCEPTED | REJECTED | PENDING
+
+---
+
+## 3. Decision Pattern
+
+Every decision entry **MUST** include:
+
+1. **Rationale:** Why this option was chosen
+2. **Rejected Alternative:** At least 1 alternative considered and why rejected
+3. **Impact:** REQ IDs or components affected
+4. **Mitigation:** If decision introduces risk, how it's mitigated
+
+**Template:**
+```markdown
+### DEC-{agent_id}-{seq}: {title}
+
+**Decision:** {chosen option}
+
+**Rationale:** {why}
+
+**Rejected:** {alternative} — {why rejected}
+
+**Impacts:** {REQ IDs, components}
+
+**Mitigation:** {if applicable}
+```
+
+---
+
+## 4. Escalation Rules
+
+| Condition | Action |
+|-----------|--------|
+| QUESTION unresolved >1 cycle | Convert to ASSUMPTION with impact note OR escalate via ADR |
+| ASSUMPTION validated | Convert to DECISION or remove |
+| ASSUMPTION invalidated | Log impact and propose remediation |
+| CRITICAL severity issue | Blocks readiness gate until resolved |
+| GAP blocking progress | Create provisional ASSUMPTION if safe, mark clearly |
+
+**Cycle Definition:** One agent session or 48 hours, whichever is shorter.
+
+---
+
+## 5. Review Cadence
+
+**Default:** Every 60 days
+
+**Immediate Review Triggers:**
+- ADR affecting agent scope
+- CRITICAL ticket referencing agent artifacts
+- Major upstream change (requirement, architecture)
+- Significant feedback from downstream agents
+
+---
+
+## 6. Traceability Obligations
+
+When updating artifacts, agents **MUST**:
+
+1. Update relevant `traceability_matrix.md` rows
+2. Set `last_writer_agent` to current agent ID
+3. Increment `iteration_cycle` for changed rows
+4. Add REQ ID references to log entries
+
+---
+
+## 7. ADR Impact Protocol
+
+When a structural change requires formal decision:
+
+1. Create/update ADR in `adr/` directory
+2. Populate `traceability_impacts` with affected REQ IDs
+3. Log DECISION entry referencing ADR
+4. Notify affected downstream agents via handoff note
+
+---
+
+## 8. Handoff Protocol
+
+Before signaling completion:
+
+1. **Verify:** All owned artifacts updated
+2. **Document:** Outstanding items (Q, A, R, G) with owners
+3. **Log:** HANDOFF entry in exchange_log with artifacts touched, open items count
+4. **Gate:** No unresolved CRITICAL items
+
+---
+
+## 9. Planning-Only Constraint
+
+**All agents operate in planning mode:**
+
+- ❌ No implementation code
+- ❌ No infrastructure provisioning
+- ❌ No tool configuration
+- ✅ Conceptual designs only
+- ✅ Decision rationale with alternatives
+- ✅ Specification documents
+
+---
+
+## 10. Artifact Standards
+
+**Format:** Markdown only
+
+**Structure:**
+- Clear hierarchical headers
+- Tables for structured data
+- Bullet lists for enumerations
+- Code blocks only for schemas, examples, or diagrams (Mermaid)
+
+**Naming:** 
+- Lowercase with underscores: `{domain}_{type}.md`
+
+---
+
+## 11. Validation Checklist
+
+Before marking phase complete:
+
+- [ ] All owned artifacts present and updated
+- [ ] No QUESTION older than 1 cycle without ASSUMPTION fallback
+- [ ] All DECISION entries have rejected alternative
+- [ ] RISK entries (HIGH/CRITICAL) have mitigation
+- [ ] Traceability rows updated with agent attribution
+- [ ] Handoff logged in exchange_log
+
+---
+
+# Part 2: {{ workflow_name }} Workflow Rules
+
+{{ workflow_governance }}
+
+---
+
+*Generated for {{ project_name }} using {{ workflow_name }} workflow v{{ workflow_version }}*
