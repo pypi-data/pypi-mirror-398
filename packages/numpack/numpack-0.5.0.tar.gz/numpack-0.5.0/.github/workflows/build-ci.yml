@@ -1,0 +1,344 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "maturin>=1.0,<2.0"
+          
+      - name: Build sdist
+        run: |
+          # 使用 maturin 构建 sdist
+          maturin build --sdist --out dist
+          
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }} - Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+        include:
+          # Linux ARM64 builds
+          - os: ubuntu-latest
+            python: '3.9'
+            target: 'aarch64-unknown-linux-gnu'
+          - os: ubuntu-latest
+            python: '3.10'
+            target: 'aarch64-unknown-linux-gnu'
+          - os: ubuntu-latest
+            python: '3.11'
+            target: 'aarch64-unknown-linux-gnu'
+          - os: ubuntu-latest
+            python: '3.12'
+            target: 'aarch64-unknown-linux-gnu'
+          - os: ubuntu-latest
+            python: '3.13'
+            target: 'aarch64-unknown-linux-gnu'
+          # Apple Silicon (M1/M2) builds
+          - os: macos-latest
+            python: '3.9'
+            target: 'aarch64-apple-darwin'
+          - os: macos-latest
+            python: '3.10'
+            target: 'aarch64-apple-darwin'
+          - os: macos-latest
+            python: '3.11'
+            target: 'aarch64-apple-darwin'
+          - os: macos-latest
+            python: '3.12'
+            target: 'aarch64-apple-darwin'
+          - os: macos-latest
+            python: '3.13'
+            target: 'aarch64-apple-darwin'
+          
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          
+      # Install Python dependencies
+      - name: Install Python dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install virtualenv
+          python -m virtualenv venv
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            . venv/Scripts/activate
+          else
+            . venv/bin/activate
+          fi
+          python -m pip install "maturin>=1.0,<2.0" "numpy>=1.26.0" pytest pytest-timeout
+          
+      # Install system dependencies (Linux)
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # Disable needrestart completely
+          sudo rm -f /etc/apt/apt.conf.d/99needrestart
+          sudo rm -f /etc/needrestart/needrestart.conf
+          
+          # Install required packages
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential pkg-config libssl-dev libopenblas-dev
+          
+          # Install ARM64 cross-compilation tools if target is ARM64
+          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          fi
+          
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          
+      # Install Rust toolchain (all platforms including Windows)
+      - name: Install Rust (with target)
+        if: matrix.target != ''
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          
+      - name: Install Rust (default)
+        if: matrix.target == '' || matrix.target == null
+        uses: dtolnay/rust-toolchain@stable
+          
+      # Cache Cargo dependencies
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+        
+      # Install package in development mode
+      - name: Install package
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            . venv/Scripts/activate
+          else
+            . venv/bin/activate
+          fi
+          # 所有平台都使用 Rust + Python 构建
+          maturin develop --release
+        
+      # Run tests
+      - name: Run tests
+        shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONLEGACYWINDOWSSTDIO: utf-8
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            . venv/Scripts/activate
+            export PYTHONUTF8=1
+          else
+            . venv/bin/activate
+          fi
+          python -m pytest -m "not benchmark" --timeout=300
+        
+      # Build wheels only (no sdist)
+      - name: Build wheels
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            . venv/Scripts/activate
+          else
+            . venv/bin/activate
+          fi
+          # 所有平台都使用 maturin 构建wheel
+          maturin build --release --out dist --find-interpreter
+          
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.python }}
+          path: dist/*.whl
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [build_sdist, build_wheels]
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download sdist
+        uses: actions/download-artifact@v4
+        with:
+          name: sdist
+          path: dist
+          
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: wheels-temp
+          
+      - name: Organize distribution files
+        run: |
+          echo "=== Moving wheel files to dist ==="
+          # 将所有下载的wheel文件移动到dist目录
+          find wheels-temp -name "*.whl" -type f -exec mv {} dist/ \;
+          
+          # 清理临时目录
+          rm -rf wheels-temp
+          
+          echo "=== Distribution files after organization ==="
+          ls -la dist/
+          
+      - name: Verify distribution files integrity
+        run: |
+          echo "=== Verifying tar.gz files ==="
+          for file in dist/*.tar.gz; do
+            if [ -f "$file" ]; then
+              echo "Checking $file..."
+              if tar -tzf "$file" > /dev/null 2>&1; then
+                echo "✓ $file is valid"
+              else
+                echo "✗ $file is corrupted, removing..."
+                rm -f "$file"
+              fi
+            fi
+          done
+          
+          echo "=== Verifying wheel files ==="
+          for file in dist/*.whl; do
+            if [ -f "$file" ]; then
+              echo "Checking $file..."
+              # wheel文件是ZIP格式，使用unzip测试
+              if unzip -t "$file" > /dev/null 2>&1; then
+                echo "✓ $file is valid"
+              else
+                echo "✗ $file is corrupted, removing..."
+                rm -f "$file"
+              fi
+            fi
+          done
+          
+          # 移除任何非wheel和非tar.gz文件
+          echo "=== Removing non-distribution files ==="
+          find dist/ -type f ! -name "*.whl" ! -name "*.tar.gz" -delete || true
+          
+          echo "=== Final distribution files ==="
+          ls -la dist/
+          
+          # 统计文件数量
+          sdist_count=$(ls dist/*.tar.gz 2>/dev/null | wc -l)
+          wheel_count=$(ls dist/*.whl 2>/dev/null | wc -l)
+          
+          echo "Found $sdist_count sdist file(s) and $wheel_count wheel file(s)"
+          
+          if [ $sdist_count -eq 0 ]; then
+            echo "Error: No valid sdist files found"
+            exit 1
+          fi
+          
+          if [ $wheel_count -eq 0 ]; then
+            echo "Error: No wheel files found"
+            exit 1
+          fi
+          
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          
+      - name: Install twine and wheel
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade twine wheel setuptools
+        
+      - name: Deep verify wheel files with Python
+        run: |
+          echo "=== Deep verification of wheel files ==="
+          python3 << 'EOF'
+          import sys
+          import zipfile
+          from pathlib import Path
+          
+          dist_path = Path("dist")
+          failed = False
+          
+          for wheel_file in dist_path.glob("*.whl"):
+              print(f"Checking {wheel_file.name}...")
+              try:
+                  with zipfile.ZipFile(wheel_file, 'r') as zf:
+                      # 测试所有文件
+                      bad_file = zf.testzip()
+                      if bad_file:
+                          print(f"  ✗ Corrupted file in archive: {bad_file}")
+                          failed = True
+                      else:
+                          print(f"  ✓ Valid")
+              except zipfile.BadZipFile as e:
+                  print(f"  ✗ Bad ZIP file: {e}")
+                  failed = True
+              except Exception as e:
+                  print(f"  ✗ Error: {e}")
+                  failed = True
+          
+          if failed:
+              print("\nError: Some wheel files are corrupted")
+              sys.exit(1)
+          print("\nAll wheel files are valid")
+          EOF
+        
+      - name: Verify files with twine
+        run: |
+          echo "=== Verifying files with twine ==="
+          python -m twine check dist/* --strict
+        
+      - name: Upload to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: python -m twine upload dist/* --verbose
+        
