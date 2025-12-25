@@ -1,0 +1,253 @@
+Metadata-Version: 2.4
+Name: easy-start-wisharetec
+Version: 0.1.0
+Summary: 一个用于 Wisharetec（慧享）系统集成的 Python 包，提供简洁易用的 API 接口，支持同步和异步操作，帮助开发者快速实现与慧享相关系统的集成功能。
+Home-page: https://gitee.com/guolei19850528/easy_start_wisharetec
+Author: guolei
+Author-email: 174000902@qq.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: httpx
+Requires-Dist: diskcache
+Requires-Dist: redis
+Requires-Dist: jsonschema
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# easy-start-wisharetec
+
+一个用于 Wisharetec（慧享）系统集成的 Python 包，提供简洁易用的 API 接口，支持同步和异步操作，帮助开发者快速实现与慧享相关系统的集成功能。
+
+## 功能特性
+
+### SCAASP 模块
+
+- 同步和异步登录功能
+- 令牌管理和自动刷新
+- 支持 Redis 和 DiskCache 缓存机制
+- 完整的错误处理和响应验证
+
+### 善数系统模块
+
+- 同步和异步登录功能
+- 组织管理树获取
+- 令牌管理和自动刷新
+- 支持 Redis 和 DiskCache 缓存机制
+
+## 安装方法
+
+### 使用 pip 安装
+
+```bash
+pip install easy-start-wisharetec
+```
+
+### 从源码安装
+
+```bash
+# 克隆仓库
+git clone https://gitee.com/guolei19850528/easy_start_wisharetec.git
+cd easy_start_wisharetec
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 安装包
+pip install -e .
+```
+
+## 快速开始
+
+### SCAASP 模块使用示例
+
+```python
+from easy_start_wisharetec import scaasp
+
+# 初始化客户端
+client = scaasp.Admin(
+    base_url="https://sq.wisharetec.com/",
+    username="your_username",
+    password="your_password"
+)
+
+# 刷新令牌
+client.refresh_token()
+
+# 发送请求
+state, data, response = client.request(
+    url="/api/some/endpoint",
+    method="POST",
+    json={"key": "value"}
+)
+
+print(data)
+```
+
+### 善数系统模块使用示例
+
+```python
+from easy_start_wisharetec import shanshu
+
+# 初始化客户端
+client = shanshu.Admin(
+    base_url="https://saas.wisharetec.com/",
+    account="your_account",
+    password="your_password"
+)
+
+# 刷新令牌
+client.refresh_token()
+
+# 获取组织管理树
+state, data, response = client.manage_tree()
+
+print(data)
+```
+
+### 使用 Redis 缓存
+
+```python
+import redis
+from easy_start_wisharetec import shanshu
+
+# 创建 Redis 连接
+redis_client = redis.Redis(host="localhost", port=6379, db=0)
+
+# 初始化客户端，使用 Redis 缓存
+client = shanshu.Admin(
+    base_url="https://saas.wisharetec.com/",
+    account="your_account",
+    password="your_password",
+    cache_config={
+        "instance": redis_client,
+        "expire": 3600  # 缓存过期时间（秒）
+    }
+)
+
+# 刷新令牌（将使用 Redis 缓存）
+client.refresh_token()
+```
+
+### 异步使用示例
+
+```python
+import asyncio
+from easy_start_wisharetec import shanshu
+
+
+async def main():
+    # 初始化客户端
+    client = shanshu.Admin(
+        base_url="https://saas.wisharetec.com/",
+        account="your_account",
+        password="your_password"
+    )
+
+    # 异步刷新令牌
+    await client.async_refresh_token()
+
+    # 异步获取组织管理树
+    state, data, response = await client.async_manage_tree()
+
+    print(data)
+
+
+# 运行异步函数
+asyncio.run(main())
+```
+
+## API 文档
+
+### SCAASP 模块
+
+#### `scaasp.Admin` 类
+
+**初始化参数：**
+
+- `base_url`: API 基础 URL，默认 `https://sq.wisharetec.com/`
+- `username`: 用户名
+- `password`: 密码
+- `cache_config`: 缓存配置字典，支持以下键：
+    - `key`: 缓存键名，默认 `wisharetec_scaasp_token_{username}`
+    - `expire`: 缓存过期时间（秒），默认 180 天
+    - `instance`: 缓存实例，支持 `diskcache.Cache` 或 `redis.Redis` 对象
+
+**主要方法：**
+
+- `client(**kwargs)`: 创建同步 HTTP 客户端
+- `async_client(**kwargs)`: 创建异步 HTTP 客户端
+- `get_login_state(client=None, token=None, **kwargs)`: 检查登录状态
+- `async_get_login_state(client=None, **kwargs)`: 异步检查登录状态
+- `login(client=None, validate_json_schema=None, **kwargs)`: 同步登录
+- `async_login(client=None, validate_json_schema=None, **kwargs)`: 异步登录
+- `refresh_token(client=None)`: 刷新令牌
+- `async_refresh_token(client=None)`: 异步刷新令牌
+- `request(client=None, validate_json_schema=None, token=None, **kwargs)`: 发送同步请求
+- `async_request(client=None, validate_json_schema=None, token=None, **kwargs)`: 发送异步请求
+
+### 善数系统模块
+
+#### `shanshu.Admin` 类
+
+**初始化参数：**
+
+- `base_url`: API 基础 URL，默认 `https://saas.wisharetec.com/`
+- `account`: 账号
+- `password`: 密码
+- `cache_config`: 缓存配置字典，支持以下键：
+    - `key`: 缓存键名，默认 `wisharetec_shanshu_admin_token_{account}`
+    - `expire`: 缓存过期时间（秒），默认 180 天
+    - `instance`: 缓存实例，支持 `diskcache.Cache` 或 `redis.Redis` 对象
+
+**主要方法：**
+
+- `client(**kwargs)`: 创建同步 HTTP 客户端
+- `async_client(**kwargs)`: 创建异步 HTTP 客户端
+- `manage_tree(client=None, validate_json_schema=None, token=None, **kwargs)`: 获取组织管理树
+- `async_manage_tree(client=None, validate_json_schema=None, token=None, **kwargs)`: 异步获取组织管理树
+- `login(client=None, validate_json_schema=None, **kwargs)`: 同步登录
+- `async_login(client=None, validate_json_schema=None, **kwargs)`: 异步登录
+- `refresh_token(client=None)`: 刷新令牌
+- `async_refresh_token(client=None)`: 异步刷新令牌
+- `request(client=None, validate_json_schema=None, token=None, **kwargs)`: 发送同步请求
+- `async_request(client=None, validate_json_schema=None, token=None, **kwargs)`: 发送异步请求
+
+## 依赖项
+
+- `httpx`: 用于发送 HTTP 请求
+- `diskcache`: 用于本地磁盘缓存
+- `redis`: 用于 Redis 缓存
+- `jsonschema`: 用于验证 API 响应格式
+
+## 项目结构
+
+```
+easy_start_wisharetec/
+├── easy_start_wisharetec/
+│   ├── scaasp.py
+│   ├── shanshu.py
+├── README.md
+├── requirements.txt
+```
+
+## 许可证
+
+MIT License
+
+## 作者
+
+- 郭磊 (guolei)
+- Email: 174000902@qq.com
+- 项目地址: [https://gitee.com/guolei19850528/easy_start_wisharetec](https://gitee.com/guolei19850528/easy_start_wisharetec)
