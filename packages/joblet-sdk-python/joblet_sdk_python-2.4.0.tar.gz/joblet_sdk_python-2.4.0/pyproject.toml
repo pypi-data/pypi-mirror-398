@@ -1,0 +1,131 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "joblet-sdk-python"
+version = "2.4.0"
+description = "Python SDK for Joblet - A distributed task execution system"
+readme = "README.md"
+license = "MIT"
+authors = [{name = "Jay Ehsaniara"}]
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "grpcio>=1.75.1",
+    "grpcio-tools>=1.75.1",
+    "protobuf>=4.25.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-asyncio>=0.21",
+
+    # Code quality - handled by pre-commit
+    "pre-commit>=3.0",
+
+    # Type checking
+    "mypy>=1.0",
+    "types-pyyaml",
+    "types-protobuf",
+]
+
+[project.urls]
+Homepage = "https://github.com/ehsaniara/joblet-sdk-python"
+Issues = "https://github.com/ehsaniara/joblet-sdk-python/issues"
+
+# Tool configurations all in one place
+[tool.black]
+line-length = 88
+extend-exclude = '''
+/(
+    proto/
+  | joblet_pb2\.py
+  | joblet_pb2_grpc\.py
+  | .*_pb2\.pyi
+  | _proto_generation_info\.py
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+skip = [
+    "joblet_pb2.py",
+    "joblet_pb2_grpc.py",
+    "joblet_pb2.pyi",
+    "local_joblet_pb2.pyi",
+    "_proto_generation_info.py"
+]
+extend_skip = ["proto/"]
+
+[tool.flake8]
+# Note: flake8 doesn't support pyproject.toml natively
+# These settings should match .flake8 file
+max-line-length = 88
+extend-ignore = ["E203", "W503"]
+exclude = [
+    "proto/",
+    "joblet_pb2.py",
+    "joblet_pb2_grpc.py",
+    "*.pyi",
+    "_proto_generation_info.py"
+]
+
+[tool.mypy]
+python_version = "2.4.0"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = [
+    "proto/",
+    "examples/",
+    "joblet_pb2\\.py",
+    "joblet_pb2_grpc\\.py",
+    ".*_pb2\\.pyi",
+    "_proto_generation_info\\.py"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+addopts = "-v --tb=short"
+markers = [
+    "integration: marks tests as integration tests (may be slower)",
+    "network: marks tests that require network access",
+    "slow: marks tests as slow running",
+]
+
+[tool.coverage.run]
+source = ["joblet"]
+omit = [
+    "*/proto/*",
+    "*_pb2.py",
+    "*_pb2_grpc.py",
+    "*_pb2.pyi",
+    "*_proto_generation_info.py"
+]
+
+[tool.coverage.report]
+fail_under = 70
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
