@@ -1,0 +1,139 @@
+[project]
+name = "gmail-archiver-cli"
+dynamic = ["version"]
+description = "A CLI tool to archive old Gmail messages to local mbox files with validation and safe deletion"
+readme = "README.md"
+requires-python = ">=3.14"
+license = {text = "Apache-2.0"}
+authors = [{name = "GMailArchiver Contributors"}]
+maintainers = [{name = "GMailArchiver Contributors"}]
+keywords = ["gmail", "email", "archive", "backup", "mbox", "cli"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Communications :: Email",
+    "Topic :: System :: Archiving",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "google-api-python-client>=2.100.0",
+    "google-auth>=2.23.0",
+    "google-auth-oauthlib>=1.1.0",
+    "google-auth-httplib2>=0.1.1",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "python-dateutil>=2.8.2",
+    "questionary>=2.0.0",
+    "aiosqlite>=0.21.0",
+    "aiofiles>=25.1.0",
+    "httpx[http2]>=0.28.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/tumma72/GMailArchiver"
+Documentation = "https://github.com/tumma72/GMailArchiver#readme"
+Repository = "https://github.com/tumma72/GMailArchiver"
+"Bug Tracker" = "https://github.com/tumma72/GMailArchiver/issues"
+Changelog = "https://github.com/tumma72/GMailArchiver/blob/main/CHANGELOG.md"
+"Release Notes" = "https://github.com/tumma72/GMailArchiver/releases"
+
+[project.scripts]
+gmailarchiver = "gmailarchiver.__main__:app"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.1.0"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/gmailarchiver/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gmailarchiver"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# Allow Mock* naming convention in tests (e.g., MockCreds, MockFlow)
+"tests/*" = ["N806", "F841"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = [
+    "googleapiclient.*",
+    "google_auth_oauthlib.*",
+    "google.auth.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "--cov=gmailarchiver --cov-report=term-missing"
+filterwarnings = [
+    "ignore:install .ipywidgets. for Jupyter support:UserWarning",
+]
+markers = [
+    "unit: Fast isolated tests (no I/O, no external deps)",
+    "integration: Tests with mocked external dependencies",
+    "contract: API/database contract tests",
+    "e2e: End-to-end workflow tests",
+    "slow: Tests taking >1s",
+]
+
+[tool.coverage.run]
+source = ["src/gmailarchiver"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/__main__.py",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18.2",
+    "pytest>=9.0.1",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.4",
+    "types-aiofiles>=25.1.0.20251011",
+    "types-python-dateutil>=2.9.0.20251108",
+]
