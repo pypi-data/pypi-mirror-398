@@ -1,0 +1,104 @@
+Metadata-Version: 2.4
+Name: ezpi
+Version: 0.5.0
+Summary: A simple library to write content to public-inbox repositories
+Author-email: Konstantin Ryabitsev <mricon@kernel.org>
+License-Expression: MIT-0
+Project-URL: Homepage, https://sr.ht/~monsieuricon/ezpi/
+Project-URL: Documentation, https://ezpi.readthedocs.io/
+Keywords: git,lore.kernel.org,public-inbox
+Requires-Python: >=3.9
+Description-Content-Type: text/x-rst
+License-File: COPYING
+Provides-Extra: docs
+Requires-Dist: sphinx>=7.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=2.0; extra == "docs"
+Provides-Extra: libgit2
+Requires-Dist: pygit2>=1.12; extra == "libgit2"
+Dynamic: license-file
+
+EZPI: a simple library to write to public-inbox repos
+=====================================================
+This is a very simple library that allows writing to public-inbox v2
+repositories. Note, that this is not a suitable replacement for
+public-inbox in itself -- the goal is merely to provide a way to write
+public-inbox repositories that can be cloned, indexed and served from an
+actual public-inbox server running elsewhere.
+
+What it does:
+
+- adds RFC2822 messages to git repositories compatible with public-inbox
+- supports public-inbox v2 format with automatic epoch management
+
+What it doesn't do:
+
+- anything else
+
+For the public-inbox v2 format, see:
+
+- https://public-inbox.org/public-inbox-v2-format.html
+
+Requirements
+------------
+The ``git`` command must exist and be in your path.
+
+Installing
+----------
+For CLI usage, install with pipx::
+
+  pipx install ezpi
+
+For library usage, install with pip::
+
+  pip install ezpi
+
+Library usage
+-------------
+This is the simplest usage example:
+
+.. code-block:: python
+
+  from email.message import EmailMessage
+  from ezpi import add_rfc822_v2
+
+  msg = EmailMessage()
+  msg.set_content('Hello world!')
+  # We must have a Subject: and From: headers at least, in order
+  # to make a useful git commit with that data
+  msg['Subject'] = 'My excellent subject'
+  msg['From'] = 'E.X. Ample <example@example.com'>
+  # The v2 inbox will be created automatically if it doesn't exist
+  add_rfc822_v2('/path/to/inbox', msg)
+
+You can also pass bytes instead of an EmailMessage object, but we must
+be able to run message_from_bytes() on it.
+
+ezpi command
+------------
+We also provide an ezpi command. Example::
+
+  ezpi --v2-path /path/to/inbox --rfc822 < valid.eml
+
+Run ``ezpi --help`` for full usage information.
+
+How to delete messages?
+-----------------------
+Since every message is a separate commit to the git repository, deleting
+requires a git history rewrite. You will need to find the commit with
+the message you want to delete and perform operations directly on the
+git repository in order to delete that commit and rebase the ones that
+follow. Once it's done, you will need to force-push the repository to
+wherever it is hosted.
+
+Caution: if anyone is replicating your repository without --mirror, the
+history rewrite will result in an error the next time they do "git
+remote update". Needless to say, they will be very interested in finding
+out what it is you just tried to delete, so use this as the last resort
+solution.
+
+Problems? Patches?
+------------------
+Email ~monsieuricon/public-inbox@lists.sr.ht
+
+(That's a different kind of public-inbox. Unfortunately, there's a name
+collision, but I believe public-inbox.org had that claimed earlier.)
