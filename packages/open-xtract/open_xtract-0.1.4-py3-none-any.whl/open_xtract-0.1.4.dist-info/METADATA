@@ -1,0 +1,96 @@
+Metadata-Version: 2.4
+Name: open-xtract
+Version: 0.1.4
+Summary: Extract structured data from documents, images, audio, and video using LLMs
+Project-URL: Homepage, https://github.com/colesmcintosh/open-xtract-v2
+Project-URL: Repository, https://github.com/colesmcintosh/open-xtract-v2
+Project-URL: Issues, https://github.com/colesmcintosh/open-xtract-v2/issues
+Author: Cole McIntosh
+License-Expression: MIT
+Keywords: ai,document,extraction,llm,pydantic,structured-data
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.12
+Requires-Dist: pydantic-ai-slim[google,logfire]>=1.37.0
+Requires-Dist: pydantic>=2.12.5
+Description-Content-Type: text/markdown
+
+# open-xtract
+
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Pydantic v2](https://img.shields.io/badge/pydantic-v2-E92063.svg)](https://docs.pydantic.dev/)
+[![pydantic-ai](https://img.shields.io/badge/pydantic--ai-1.37+-7C3AED.svg)](https://ai.pydantic.dev/)
+
+Extract structured data from documents, images, audio, and video using LLMs.
+
+## Installation
+
+```bash
+uv add open-xtract
+```
+
+## Usage
+
+```python
+from pydantic import BaseModel
+from open_xtract import extract
+
+class PdfInfo(BaseModel):
+    summary: str
+    language: str
+
+result = extract(
+    schema=PdfInfo,
+    model="google-gla:gemini-3-flash-preview",
+    url="https://example.com/document.pdf",
+    instructions="return a 2 sentence summary and the primary language of the document",
+)
+print(result)
+```
+
+## Logging
+
+To enable logfire instrumentation for tracing:
+
+```python
+from open_xtract import configure_logging
+
+configure_logging()
+```
+
+## Error Handling
+
+```python
+from open_xtract import (
+    extract,
+    ExtractionError,
+    ModelError,
+    SchemaValidationError,
+    UrlFetchError,
+)
+
+try:
+    result = extract(...)
+except UrlFetchError as e:
+    print(f"Failed to fetch URL: {e}")
+except SchemaValidationError as e:
+    print(f"Output didn't match schema: {e}")
+except ModelError as e:
+    print(f"Model API error: {e}")
+except ExtractionError as e:
+    print(f"Extraction failed: {e}")
+```
+
+## Supported Media Types
+
+| Type | Extensions |
+|------|------------|
+| Documents | `.pdf`, `.doc`, `.docx`, `.txt`, `.html`, `.csv`, `.xls`, `.xlsx` |
+| Images | `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.bmp`, `.svg` |
+| Audio | `.mp3`, `.wav`, `.ogg`, `.flac`, `.aac`, `.m4a` |
+| Video | `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm`, `.wmv` |
