@@ -1,0 +1,402 @@
+#!/usr/bin/env python3
+
+"""Module containing the SanderMDRun class and the command line interface."""
+from typing import Optional
+import shutil
+import re
+from pathlib import Path, PurePath
+from biobb_common.generic.biobb_object import BiobbObject
+from biobb_common.tools import file_utils as fu
+from biobb_common.tools.file_utils import launchlogger
+from biobb_amber.sander.common import check_input_path, check_output_path
+
+
+class SanderMDRun(BiobbObject):
+    """
+    | biobb_amber SanderMDRun
+    | Wrapper of the `AmberTools (AMBER MD Package) sander tool <https://ambermd.org/AmberTools.php>`_ module.
+    | Runs energy minimization, molecular dynamics, and NMR refinements using sander tool from the AmberTools MD package.
+
+    Args:
+        input_top_path (str): Input topology file (AMBER ParmTop). File type: input. `Sample file <https://github.com/bioexcel/biobb_amber/raw/master/biobb_amber/test/data/sander/cln025.prmtop>`_. Accepted formats: top (edam:format_3881), parmtop (edam:format_3881), prmtop (edam:format_3881).
+        input_crd_path (str): Input coordinates file (AMBER crd). File type: input. `Sample file <https://github.com/bioexcel/biobb_amber/raw/master/biobb_amber/test/data/sander/cln025.inpcrd>`_. Accepted formats: crd (edam:format_3878), mdcrd (edam:format_3878), inpcrd (edam:format_3878), netcdf (edam:format_3650), nc (edam:format_3650), ncrst (edam:format_3886), rst (edam:format_3886).
+        input_mdin_path (str) (Optional): Input configuration file (MD run options) (AMBER mdin). File type: input. `Sample file <https://github.com/bioexcel/biobb_amber/raw/master/biobb_amber/test/data/sander/npt.mdin>`_. Accepted formats: mdin (edam:format_2330), in (edam:format_2330), txt (edam:format_2330).
+        input_cpin_path (str) (Optional): Input constant pH file (AMBER cpin). File type: input. `Sample file <https://github.com/bioexcel/biobb_amber/raw/master/biobb_amber/test/data/sander/cln025.cpin>`_. Accepted formats: cpin (edam:format_2330).
+        input_ref_path (str) (Optional): Input reference coordinates for position restraints. File type: input. `Sample file <https://github.com/bioexcel/biobb_amber/raw/master/biobb_amber/test/data/sander/sander.rst>`_. Accepted formats: rst (edam:format_3886), rst7 (edam:format_3886), netcdf (edam:format_3650), nc (edam:format_3650), ncrst (edam:format_3886), crd (edam:format_3878).
+        output_log_path (str): Output log file. File type: output. `Sample file <https://github.com/bioexcel/biobb_amber/raw/master/biobb_amber/test/reference/sander/sander.log>`_. Accepted formats: log (edam:format_2330), out (edam:format_2330), txt (edam:format_2330), o (edam:format_2330).
+        output_traj_path (str): Output trajectory file. File type: output. `Sample file <https://github.com/bioexcel/biobb_amber/raw/master/biobb_amber/test/reference/sander/sander.x>`_. Accepted formats: trj (edam:format_3878), crd (edam:format_3878), mdcrd (edam:format_3878), x (edam:format_3878), netcdf (edam:format_3650), nc (edam:format_3650).
+        output_rst_path (str): Output restart file. File type: output. `Sample file <https://github.com/bioexcel/biobb_amber/raw/master/biobb_amber/test/reference/sander/sander.rst>`_. Accepted formats: rst (edam:format_3886), rst7 (edam:format_3886), netcdf (edam:format_3650), nc (edam:format_3650), ncrst (edam:format_3886).
+        output_cpout_path (str) (Optional): Output constant pH file (AMBER cpout). File type: output. `Sample file <https://github.com/bioexcel/biobb_amber/raw/master/biobb_amber/test/reference/sander/sander.cpout>`_. Accepted formats: cpout (edam:format_2330).
+        output_cprst_path (str) (Optional): Output constant pH restart file (AMBER rstout). File type: output. `Sample file <https://github.com/bioexcel/biobb_amber/raw/master/biobb_amber/test/reference/sander/sander.cprst>`_. Accepted formats: cprst (edam:format_3886), rst (edam:format_3886), rst7 (edam:format_3886).
+        output_mdinfo_path (str) (Optional): Output MD info. File type: output. `Sample file <https://github.com/bioexcel/biobb_amber/raw/master/biobb_amber/test/reference/sander/sander.mdinfo>`_. Accepted formats: mdinfo (edam:format_2330).
+        properties (dict - Python dictionary object containing the tool parameters, not input/output files):
+            * **mdin** (*dict*) - ({}) Sander MD run options specification. (Used if *input_mdin_path* is None)
+            * **simulation_type** (*str*) - ("minimization") Default options for the mdin file. Each creates a different mdin file. Values: `minimization <https://biobb-amber.readthedocs.io/en/latest/_static/mdins/min.mdin>`_ (Runs an energy minimization), `min_vacuo <https://biobb-amber.readthedocs.io/en/latest/_static/mdins/min_vacuo.mdin>`_ (Runs an energy minimization in vacuo), `NVT <https://biobb-amber.readthedocs.io/en/latest/_static/mdins/nvt.mdin>`_ (Runs an NVT equilibration), `npt <https://biobb-amber.readthedocs.io/en/latest/_static/mdins/npt.mdin>`_ (Runs an NPT equilibration), `free <https://biobb-amber.readthedocs.io/en/latest/_static/mdins/free.mdin>`_ (Runs a MD simulation), `heat <https://biobb-amber.readthedocs.io/en/latest/_static/mdins/heat.mdin>`_ (Heats the MD system).
+            * **binary_path** (*str*) - ("sander") sander binary path to be used.
+            * **direct_mdin** (*bool*) - (False) Use input_mdin_path as it is, skip file parsing.
+            * **mpi_bin** (*str*) - (None) Path to the MPI runner. Usually "mpirun" or "srun".
+            * **mpi_np** (*int*) - (0) [0~1000|1] Number of MPI processes. Usually an integer bigger than 1.
+            * **mpi_flags** (*str*) - (None) Path to the MPI hostlist file.
+            * **remove_tmp** (*bool*) - (True) [WF property] Remove temporal files.
+            * **restart** (*bool*) - (False) [WF property] Do not execute if output files exist.
+            * **sandbox_path** (*str*) - ("./") [WF property] Parent path to the sandbox directory.
+            * **container_path** (*str*) - (None) Container path definition.
+            * **container_image** (*str*) - ('afandiadib/ambertools:serial') Container image definition.
+            * **container_volume_path** (*str*) - ('/tmp') Container volume path definition.
+            * **container_working_dir** (*str*) - (None) Container working directory definition.
+            * **container_user_id** (*str*) - (None) Container user_id definition.
+            * **container_shell_path** (*str*) - ('/bin/bash') Path to default shell inside the container.
+
+    Examples:
+        This is a use example of how to use the building block from Python::
+
+            from biobb_amber.sander.sander_mdrun import sander_mdrun
+            prop = {
+                'simulation_type' : 'minimization',
+                'mdin' : {
+                    'dt' : 0.002
+                }
+            }
+            sander_mdrun(input_top_path='/path/to/topology.top',
+                         input_crd_path='/path/to/coordinates.crd',
+                         output_traj_path='/path/to/newTrajectory.crd',
+                         output_rst_path='/path/to/newRestart.rst',
+                         output_log_path='/path/to/newAmberlog.log',
+                         properties=prop)
+
+    Info:
+        * wrapped_software:
+            * name: AmberTools Sander
+            * version: >20.9
+            * license: LGPL 2.1
+            * multinode: mpi
+        * ontology:
+            * name: EDAM
+            * schema: http://edamontology.org/EDAM.owl
+
+    """
+
+    def __init__(self, input_top_path: str, input_crd_path: str, output_log_path: str, output_traj_path: str, output_rst_path: str,
+                 input_ref_path: Optional[str] = None, input_mdin_path: Optional[str] = None, input_cpin_path: Optional[str] = None, output_cpout_path: Optional[str] = None, output_cprst_path: Optional[str] = None, output_mdinfo_path: Optional[str] = None,
+                 properties: Optional[dict] = None, **kwargs) -> None:
+
+        properties = properties or {}
+
+        # Call parent class constructor
+        super().__init__(properties)
+        self.locals_var_dict = locals().copy()
+
+        # Input/Output files
+        self.io_dict = {
+            'in': {'input_top_path': input_top_path,
+                   'input_crd_path': input_crd_path,
+                   'input_mdin_path': input_mdin_path,
+                   'input_ref_path': input_ref_path,
+                   'input_cpin_path': input_cpin_path},
+            'out': {'output_log_path': output_log_path,
+                    'output_traj_path': output_traj_path,
+                    'output_rst_path': output_rst_path,
+                    'output_cpout_path': output_cpout_path,
+                    'output_cprst_path': output_cprst_path,
+                    'output_mdinfo_path': output_mdinfo_path}
+        }
+
+        # Properties specific for BB
+        self.properties = properties
+        self.simulation_type = properties.get('simulation_type', "minimization")
+        self.binary_path = properties.get('binary_path', "sander")
+
+        self.direct_mdin = properties.get('direct_mdin', False)
+        self.mdin = {k: str(v) for k, v in properties.get('mdin', dict()).items()}
+
+        if 'restraintmask' in self.mdin and self.mdin['restraintmask'][0] != '"' and self.mdin['restraintmask'][-1] != '"':
+            self.mdin['restraintmask'] = "\"" + self.mdin['restraintmask'] + "\""
+
+        # Properties for MPI
+        self.mpi_bin = properties.get('mpi_bin')
+        self.mpi_np = properties.get('mpi_np')
+        self.mpi_flags = properties.get('mpi_flags')
+
+        # Check the properties
+        self.check_properties(properties)
+        self.check_arguments()
+
+    def check_data_params(self, out_log, out_err):
+        """ Checks input/output paths correctness """
+
+        # Check input(s)
+        self.io_dict["in"]["input_top_path"] = check_input_path(self.io_dict["in"]["input_top_path"], "input_top_path", False, out_log, self.__class__.__name__)
+        self.io_dict["in"]["input_crd_path"] = check_input_path(self.io_dict["in"]["input_crd_path"], "input_crd_path", False, out_log, self.__class__.__name__)
+        self.io_dict["in"]["input_mdin_path"] = check_input_path(self.io_dict["in"]["input_mdin_path"], "input_mdin_path", True, out_log, self.__class__.__name__)
+        self.io_dict["in"]["input_cpin_path"] = check_input_path(self.io_dict["in"]["input_cpin_path"], "input_cpin_path", True, out_log, self.__class__.__name__)
+        self.io_dict["in"]["input_ref_path"] = check_input_path(self.io_dict["in"]["input_ref_path"], "input_ref_path", True, out_log, self.__class__.__name__)
+
+        # Check output(s)
+        self.io_dict["out"]["output_log_path"] = check_output_path(self.io_dict["out"]["output_log_path"], "output_log_path", False, out_log, self.__class__.__name__)
+        self.io_dict["out"]["output_traj_path"] = check_output_path(self.io_dict["out"]["output_traj_path"], "output_traj_path", False, out_log, self.__class__.__name__)
+        self.io_dict["out"]["output_rst_path"] = check_output_path(self.io_dict["out"]["output_rst_path"], "output_rst_path", False, out_log, self.__class__.__name__)
+        self.io_dict["out"]["output_cpout_path"] = check_output_path(self.io_dict["out"]["output_cpout_path"], "output_cpout_path", True, out_log, self.__class__.__name__)
+        self.io_dict["out"]["output_cprst_path"] = check_output_path(self.io_dict["out"]["output_cprst_path"], "output_cprst_path", True, out_log, self.__class__.__name__)
+        self.io_dict["out"]["output_mdinfo_path"] = check_output_path(self.io_dict["out"]["output_mdinfo_path"], "output_mdinfo_path", True, out_log, self.__class__.__name__)
+
+    def create_mdin(self, path: Optional[str] = None) -> str:
+        """Creates an AMBER MD configuration file (mdin) using the properties file settings"""
+        mdin_list = []
+        mdin_firstPart = []
+        mdin_middlePart = []
+        mdin_lastPart = []
+
+        self.output_mdin_path = path
+
+        if self.io_dict['in']['input_mdin_path']:
+            # MDIN parameters read from an input mdin file
+            if (not self.direct_mdin):
+                mdin_firstPart.append("Mdin read from input file: " + self.stage_io_dict['in']['input_mdin_path'])
+                mdin_firstPart.append("and modified by the biobb_amber module from the BioBB library ")
+                with open(self.stage_io_dict['in']['input_mdin_path']) as input_params:
+                    firstPart = True
+                    secondPart = False
+                    for line in input_params:
+                        if '=' in line and not secondPart:
+                            firstPart = False
+                            mdin_middlePart.append(line.rstrip())
+                        else:
+                            if (firstPart):
+                                mdin_firstPart.append(line.rstrip())
+                            elif (secondPart):
+                                mdin_lastPart.append(line.rstrip())
+                            else:
+                                secondPart = True
+                                mdin_lastPart.append(line.rstrip())
+
+                for line in mdin_middlePart:
+                    if ('!' in line or '#' in line) and not ('!@' in line or '!:' in line):
+                        # Parsing lines with comments (#,!), e.g. :
+                        # ntc=2, ntf=2, ! SHAKE, constrain lenghts of the bonds having H
+                        params = re.split('!|#', line)
+                        for param in params[0].split(','):
+                            if param.strip():
+                                mdin_list.append("  " + param.strip() + " ! " + params[1])
+                    elif ('@' in line or ':' in line):
+                        # Parsing masks, e.g. :
+                        # restraintmask = ":1-40@P,O5',C5',C4',C3',O3'", restraint_wt = 0.5
+                        mylist = re.findall(r'(?:[^,"]|"(?:\\.|[^"])*")+', line)
+                        [mdin_list.append("  " + i.lstrip()) for i in mylist]  # type: ignore
+                    else:
+                        for param in line.split(','):
+                            if param.strip():
+                                if not param.strip().startswith('!'):
+                                    mdin_list.append("  " + param.strip())
+
+        else:
+            # MDIN parameters added by the biobb_amber module
+            mdin_list.append("This mdin file has been created by the biobb_amber module from the BioBB library ")
+
+            sim_type = self.properties.get('simulation_type', 'minimization')
+            # sim_type = self.mdin.get('simulation_type', 'minimization')
+            minimization = (sim_type == 'minimization')
+            min_vacuo = (sim_type == 'min_vacuo')
+            heat = (sim_type == 'heat')
+            nvt = (sim_type == 'nvt')
+            npt = (sim_type == 'npt')
+            free = (sim_type == 'free')
+            md = (nvt or npt or free or heat)
+
+            mdin_list.append("Type of mdin: " + sim_type)
+            mdin_list.append("&cntrl")
+
+            # Pre-configured simulation type parameters
+            if minimization:
+                mdin_list.append("  imin = 1 ! BioBB simulation_type minimization")
+            if min_vacuo:
+                mdin_list.append("  imin = 1 ! BioBB simulation_type min_vacuo")
+                mdin_list.append("  ncyc = 250 ! BioBB simulation_type min_vacuo")
+                mdin_list.append("  ntb = 0 ! BioBB simulation_type min_vacuo")
+                mdin_list.append("  igb = 0 ! BioBB simulation_type min_vacuo")
+                mdin_list.append("  cut = 12 ! BioBB simulation_type min_vacuo")
+            if md:
+                mdin_list.append("  imin = 0 ! BioBB simulation_type nvt|npt|free|heat")
+                mdin_list.append("  cut = 10.0 ! BioBB simulation_type nvt|npt|free|heat")
+                mdin_list.append("  ntr = 0 ! BioBB simulation_type nvt|npt|free|heat")
+                mdin_list.append("  ntc = 2 ! BioBB simulation_type nvt|npt|free|heat")
+                mdin_list.append("  ntf = 2 ! BioBB simulation_type nvt|npt|free|heat")
+                mdin_list.append("  ntt = 3 ! BioBB simulation_type nvt|npt|free|heat")
+                mdin_list.append("  ig = -1 ! BioBB simulation_type nvt|npt|free|heat")
+                mdin_list.append("  ioutfm = 1 ! BioBB simulation_type nvt|npt|free|heat")
+                mdin_list.append("  iwrap = 1 ! BioBB simulation_type nvt|npt|free|heat")
+                mdin_list.append("  nstlim = 5000 ! BioBB simulation_type nvt|npt|free|heat")
+                mdin_list.append("  dt = 0.002 ! BioBB simulation_type nvt|npt|free|heat")
+            if npt:
+                mdin_list.append("  irest = 1 ! BioBB simulation_type npt")
+                mdin_list.append("  gamma_ln = 5.0 ! BioBB simulation_type npt")
+                mdin_list.append("  pres0 = 1.0 ! BioBB simulation_type npt")
+                mdin_list.append("  ntp = 1 ! BioBB simulation_type npt")
+                mdin_list.append("  taup = 2.0 ! BioBB simulation_type npt")
+                mdin_list.append("  ntx = 5 ! BioBB simulation_type npt")
+            if nvt:
+                mdin_list.append("  irest = 1 ! BioBB simulation_type nvt")
+                mdin_list.append("  gamma_ln = 5.0 ! BioBB simulation_type nvt")
+                mdin_list.append("  ntb = 1 ! BioBB simulation_type nvt")
+                mdin_list.append("  ntx = 5 ! BioBB simulation_type nvt")
+            if heat:
+                mdin_list.append("  tempi = 0.0 ! BioBB simulation_type heat")
+                mdin_list.append("  temp0 = 300.0 ! BioBB simulation_type heat")
+                mdin_list.append("  irest = 0 ! BioBB simulation_type heat")
+                mdin_list.append("  ntb = 1 ! BioBB simulation_type heat")  # periodic boundaries
+                mdin_list.append("  gamma_ln = 1.0 ! BioBB simulation_type heat")
+                # mdin_list.append("  nmropt = 1 ! BioBB simulation_type heat")
+
+                # mdin_lastPart.append("/")
+                # mdin_lastPart.append("&wt")
+                # mdin_lastPart.append(" TYPE = 'TEMP0' ! BioBB simulation_type heat")
+                # mdin_lastPart.append(" ISTEP1 = 1 ! BioBB simulation_type heat")
+                # mdin_lastPart.append(" ISTEP2 = 4000 ! BioBB simulation_type heat")
+                # mdin_lastPart.append(" VALUE1 = 10.0 ! BioBB simulation_type heat")
+                # mdin_lastPart.append(" VALUE2 = 300.0 ! BioBB simulation_type heat")
+                # mdin_lastPart.append("/")
+                # mdin_lastPart.append("&wt")
+                # mdin_lastPart.append(" TYPE = 'END' ! BioBB simulation_type heat")
+                # mdin_lastPart.append("/")
+
+        if (not self.direct_mdin):
+
+            # Adding the rest of parameters in the config file to the mdin file
+            # if the parameter has already been added replace the value
+            parameter_keys = [parameter.split('=')[0].strip() for parameter in mdin_list]
+            for k, v in self.mdin.items():
+                config_parameter_key = str(k).strip()
+                if config_parameter_key in parameter_keys:
+                    mdin_list[parameter_keys.index(config_parameter_key)] = '  ' + config_parameter_key + ' = ' + str(v) + ' ! BioBB property'
+                else:
+                    mdin_list.append('  ' + config_parameter_key + ' = '+str(v) + ' ! BioBB property')
+
+            # Writing MD configuration file (mdin)
+            with open(str(self.output_mdin_path), 'w') as mdin:
+                # Start of file keyword(s)
+                if mdin_firstPart:
+                    for line in mdin_firstPart:
+                        mdin.write(line + '\n')
+
+                # MD config parameters
+                for line in mdin_list:
+                    mdin.write(line + '\n')
+
+                # End of file keyword(s)
+                if mdin_lastPart:
+                    for line in mdin_lastPart:
+                        mdin.write(line + '\n')
+                else:
+                    mdin.write("&end\n")
+        else:
+            # Copying generated output file to the final (user-given) file name
+            shutil.copy2(self.io_dict['in']['input_mdin_path'], str(self.output_mdin_path))
+
+        return str(self.output_mdin_path)
+
+    @launchlogger
+    def launch(self):
+        """Launches the execution of the BuildLinearStructure module."""
+
+        # check input/output paths and parameters
+        self.check_data_params(self.out_log, self.err_log)
+
+        # Setup Biobb
+        if self.check_restart():
+            return 0
+        self.stage_files()
+
+        # Creating temporary folder
+        # tmp_folder = fu.create_unique_dir()
+        # fu.log('Creating %s temporary folder' % tmp_folder, self.out_log)
+
+        # if self.io_dict['in']['input_mdin_path']:
+        #    self.output_mdin_path = self.io_dict['in']['input_mdin_path']
+        # else:
+        #    self.output_mdin_path = self.create_mdin(path=str(Path(tmp_folder).joinpath("sander.mdin")))
+        # self.output_mdin_path = self.create_mdin(path=str(Path(tmp_folder).joinpath("sander.mdin")))
+
+        # Creating temporary folder & Sander configuration (instructions) file
+        if self.container_path:
+            # instructions_file = str(PurePath(self.stage_io_dict['unique_dir']).joinpath("leap.in"))
+            # instructions_file_path = str(PurePath(self.container_volume_path).joinpath("leap.in"))
+            instructions_file = self.create_mdin(path=str(Path(self.stage_io_dict['unique_dir']).joinpath("sander.mdin")))
+            self.output_mdin_path = str(PurePath(self.container_volume_path).joinpath(PurePath(instructions_file).name))
+            tmp_folder = None
+        else:
+            tmp_folder = fu.create_unique_dir()
+            fu.log('Creating %s temporary folder' % tmp_folder, self.out_log)
+            self.output_mdin_path = self.create_mdin(path=str(Path(tmp_folder).joinpath("sander.mdin")))
+
+        # Command line
+        # sander -O -i mdin/min.mdin -p $1.cpH.prmtop -c ph$i/$1.inpcrd -r ph$i/$1.min.rst7 -o ph$i/$1.min.o
+        self.cmd = [self.binary_path,
+                    '-O',
+                    '-i', self.output_mdin_path,
+                    '-p', self.stage_io_dict['in']['input_top_path'],
+                    '-c', self.stage_io_dict['in']['input_crd_path'],
+                    '-r', self.stage_io_dict['out']['output_rst_path'],
+                    '-o', self.stage_io_dict['out']['output_log_path'],
+                    '-x', self.stage_io_dict['out']['output_traj_path']
+                    ]
+
+        if self.io_dict['in']['input_ref_path']:
+            self.cmd.append('-ref')
+            self.cmd.append(self.stage_io_dict['in']['input_ref_path'])
+
+        if self.io_dict['in']['input_cpin_path']:
+            self.cmd.append('-cpin')
+            self.cmd.append(self.stage_io_dict['in']['input_cpin_path'])
+
+        if self.io_dict['out']['output_mdinfo_path']:
+            self.cmd.append('-inf')
+            self.cmd.append(self.stage_io_dict['out']['output_mdinfo_path'])
+
+        if self.io_dict['out']['output_cpout_path']:
+            self.cmd.append('-cpout')
+            self.cmd.append(self.stage_io_dict['out']['output_cpout_path'])
+
+        if self.io_dict['out']['output_cprst_path']:
+            self.cmd.append('-cprestrt')
+            self.cmd.append(self.stage_io_dict['out']['output_cprst_path'])
+
+        # general mpi properties
+        if self.mpi_bin:
+            mpi_cmd = [self.mpi_bin]
+            if self.mpi_np:
+                mpi_cmd.append('-n')
+                mpi_cmd.append(str(self.mpi_np))
+            if self.mpi_flags:
+                mpi_cmd.extend(self.mpi_flags)
+            self.cmd = mpi_cmd + self.cmd
+
+        # Run Biobb block
+        self.run_biobb()
+
+        # Copy files to host
+        self.copy_to_host()
+
+        # remove temporary folder(s)
+        self.tmp_files.extend(["mdinfo", str(tmp_folder)])
+        self.remove_tmp_files()
+
+        self.check_arguments(output_files_created=True, raise_exception=False)
+
+        return self.return_code
+
+
+def sander_mdrun(input_top_path: str, input_crd_path: str,
+                 output_log_path: str, output_traj_path: str, output_rst_path: str,
+                 input_mdin_path: Optional[str] = None, input_cpin_path: Optional[str] = None,
+                 output_cpout_path: Optional[str] = None, output_cprst_path: Optional[str] = None,
+                 output_mdinfo_path: Optional[str] = None, input_ref_path: Optional[str] = None,
+                 properties: Optional[dict] = None, **kwargs) -> int:
+    """Create :class:`SanderMDRun <sander.sander_mdrun.SanderMDRun>`sander.sander_mdrun.SanderMDRun class and
+    execute :meth:`launch() <sander.sander_mdrun.SanderMDRun.launch>` method"""
+    return SanderMDRun(**dict(locals())).launch()
+
+
+sander_mdrun.__doc__ = SanderMDRun.__doc__
+main = SanderMDRun.get_main(sander_mdrun, "Running energy minimization, molecular dynamics, and NMR refinements using sander tool from the AmberTools MD package.")
+
+if __name__ == '__main__':
+    main()
