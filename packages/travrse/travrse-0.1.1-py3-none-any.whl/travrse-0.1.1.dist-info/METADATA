@@ -1,0 +1,467 @@
+Metadata-Version: 2.4
+Name: travrse
+Version: 0.1.1
+Summary: Python SDK for the Travrse Platform
+Project-URL: Homepage, https://travrse.ai
+Project-URL: Documentation, https://docs.travrse.ai
+Project-URL: Support, https://travrse.ai/support
+Author-email: Travrse <dev@travrse.ai>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: agents,ai,automation,llm,travrse,workflows
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Requires-Dist: eval-type-backport>=0.2.0; python_version < '3.10'
+Requires-Dist: httpx>=0.24.0
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: respx>=0.20.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Travrse Python SDK
+
+The official Python SDK for the [Travrse](https://travrse.ai) AI product platform
+
+## Installation
+
+```bash
+pip install travrse
+```
+
+## Quick Start
+
+```python
+from travrse import TravrseClient, FlowBuilder
+
+# Initialize client
+client = TravrseClient(api_key="your-api-key")
+
+# List flows
+flows = client.flows.list()
+for flow in flows.data:
+    print(flow.name)
+
+# Build and execute a flow
+result = (
+    FlowBuilder()
+    .create_flow(name="My Analysis Flow")
+    .prompt(
+        name="Analyze",
+        model="gpt-4o",
+        user_prompt="Summarize the following: {{input}}"
+    )
+    .with_options(stream_response=True)
+    .run(client)
+)
+
+# Get the result
+output = result.get_result("Analyze")
+print(output)
+```
+
+## Features
+
+- **Synchronous and Asynchronous Clients**: Choose the client that fits your use case
+- **Fluent Flow Builder**: Chain methods to build complex flows with ease
+- **Streaming Support**: Real-time streaming of flow execution events
+- **Type Hints**: Full type annotations for IDE support and type checking
+- **Pydantic Models**: Robust data validation and serialization
+
+## Usage
+
+### Client Initialization
+
+```python
+from travrse import TravrseClient, AsyncTravrseClient
+
+# Synchronous client
+client = TravrseClient(
+    api_key="your-api-key",
+    base_url="https://api.travrse.ai",  # Optional
+    timeout=30.0,  # Optional
+)
+
+# Async client
+async_client = AsyncTravrseClient(api_key="your-api-key")
+```
+
+### Resource Operations
+
+```python
+# Flows
+flows = client.flows.list()
+flow = client.flows.get("flow_123")
+flow = client.flows.create(name="New Flow", description="A new flow")
+client.flows.delete("flow_123")
+
+# Records
+records = client.records.list()
+record = client.records.create(
+    type="customer",
+    name="Acme Corp",
+    metadata={"industry": "tech"}
+)
+
+# Prompts
+prompts = client.prompts.list()
+prompt = client.prompts.create(
+    name="Summarizer",
+    text="Summarize: {{input}}",
+    model="gpt-4o"
+)
+```
+
+### Flow Builder
+
+The `FlowBuilder` provides a fluent interface for building and executing flows:
+
+```python
+from travrse import FlowBuilder
+
+result = (
+    FlowBuilder()
+    .create_flow(name="Data Pipeline")
+    .fetch_url(
+        name="Fetch Data",
+        url="https://api.example.com/data",
+        output_variable="raw_data"
+    )
+    .transform_data(
+        name="Transform",
+        script="return data.items.map(i => i.name)",
+        output_variable="items"
+    )
+    .prompt(
+        name="Analyze",
+        model="gpt-4o",
+        user_prompt="Analyze these items: {{items}}",
+        output_variable="analysis"
+    )
+    .run(client)
+)
+
+# Access results
+analysis = result.get_result("Analyze")
+```
+
+### Streaming with Callbacks
+
+```python
+from travrse import FlowBuilder, StreamCallbacks
+
+def on_step_chunk(chunk: str, event):
+    print(chunk, end="", flush=True)
+
+def on_flow_complete(event):
+    print(f"\nCompleted in {event.execution_time}ms")
+
+callbacks = StreamCallbacks(
+    on_step_chunk=on_step_chunk,
+    on_flow_complete=on_flow_complete,
+)
+
+summary = builder.run(client, callbacks=callbacks)
+```
+
+### Local Tools (Client-Side Execution)
+
+Local tools allow flows to pause and wait for your code to execute locally, then resume with the result. This is useful for:
+- **Data Privacy**: Keep sensitive logic on your infrastructure
+- **Internal Systems**: Access databases, files, or services not exposed via APIs
+- **Custom Logic**: Execute complex business logic client-side
+
+```python
+from travrse import TravrseClient, FlowBuilder
+
+client = TravrseClient(api_key="your-api-key")
+
+# Define local tool handlers
+def get_user_data(args: dict) -> dict:
+    user_id = args.get("user_id")
+    # Query your internal database
+    return {"name": "John", "balance": 100.50}
+
+def process_payment(args: dict) -> dict:
+    # Handle payment locally
+    return {"success": True, "transaction_id": "txn_123"}
+
+# Execute flow with local tools
+result = (
+    FlowBuilder()
+    .create_flow(name="Purchase Flow")
+    .prompt(
+        name="Process Order",
+        model="gpt-4o",
+        user_prompt="Process order for user {{user_id}}",
+        tools={
+            "runtime_tools": [
+                {
+                    "name": "get_user_data",
+                    "description": "Get user information from database",
+                    "tool_type": "local",
+                    "parameters_schema": {
+                        "type": "object",
+                        "properties": {
+                            "user_id": {"type": "string"}
+                        }
+                    }
+                },
+                {
+                    "name": "process_payment",
+                    "description": "Process a payment transaction",
+                    "tool_type": "local",
+                    "parameters_schema": {
+                        "type": "object",
+                        "properties": {
+                            "amount": {"type": "number"},
+                            "user_id": {"type": "string"}
+                        }
+                    }
+                }
+            ]
+        }
+    )
+    .with_options(flow_mode="virtual")
+    .run(
+        client,
+        local_tools={
+            "get_user_data": get_user_data,
+            "process_payment": process_payment,
+        }
+    )
+)
+
+# Get the final result
+order_result = result.get_result("Process Order")
+```
+
+The SDK automatically handles the pause/resume cycle - when the AI calls a local tool, the flow pauses, your function executes, and the flow resumes with the result.
+
+### Async Usage
+
+```python
+import asyncio
+from travrse import AsyncTravrseClient, FlowBuilder
+
+async def main():
+    async with AsyncTravrseClient(api_key="your-api-key") as client:
+        # List flows
+        flows = await client.flows.list()
+
+        # Stream flow execution
+        async for event in await client.dispatch(
+            {"flow": {"name": "Test", "steps": [...]}},
+            stream=True
+        ):
+            print(event["type"])
+
+asyncio.run(main())
+```
+
+### Using Existing Flows
+
+```python
+result = (
+    FlowBuilder()
+    .use_existing_flow("flow_abc123")
+    .with_record(name="Customer A", type="customer")
+    .with_messages([
+        {"role": "user", "content": "Analyze this customer"}
+    ])
+    .run(client)
+)
+```
+
+### Upsert Mode
+
+For code-first flow management, use upsert mode to create or update flows:
+
+```python
+result = (
+    FlowBuilder()
+    .upsert_flow(
+        name="My Flow",
+        create_version_on_change=True
+    )
+    .prompt(name="Process", model="gpt-4o", user_prompt="...")
+    .run(client)
+)
+```
+
+### Runtype Fluent API
+
+The `Runtype` class provides a modern static/fluent API for building and executing flows with global configuration:
+
+```python
+from travrse import Runtype
+
+# Configure once at app startup
+Runtype.configure(api_key="your-api-key")
+
+# Build and stream a flow (async)
+result = await (
+    Runtype.flows.upsert(name="My Flow")
+    .prompt(name="Analyze", model="gpt-4o", user_prompt="Analyze: {{input}}")
+    .stream()
+)
+
+output = result.get_result("Analyze")
+```
+
+#### Flow Modes
+
+```python
+# Upsert mode - Create or update flow by name
+result = await (
+    Runtype.flows.upsert(name="My Flow", create_version_on_change=True)
+    .prompt(name="Step", model="gpt-4o", user_prompt="...")
+    .stream()
+)
+
+# Virtual mode - One-off execution, not saved
+result = await (
+    Runtype.flows.virtual(name="Temp Flow")
+    .prompt(name="Step", model="gpt-4o", user_prompt="...")
+    .stream()
+)
+
+# Existing flow - Execute a saved flow by ID
+result = await (
+    Runtype.flows.use("flow_abc123")
+    .with_record(name="Customer A", type="customer")
+    .stream()
+)
+```
+
+#### Synchronous Execution
+
+```python
+# Use stream_sync() or result_sync() for synchronous code
+result = (
+    Runtype.flows.virtual(name="My Flow")
+    .prompt(name="Analyze", model="gpt-4o", user_prompt="...")
+    .stream_sync()
+)
+
+output = result.get_result("Analyze")
+```
+
+#### Local Tools with Runtype
+
+```python
+from travrse import Runtype
+
+Runtype.configure(api_key="your-api-key")
+
+def get_user_data(args: dict) -> dict:
+    return {"name": "John", "balance": 100.50}
+
+result = await (
+    Runtype.flows.virtual(name="Purchase Flow")
+    .prompt(
+        name="Process Order",
+        model="gpt-4o",
+        user_prompt="Process order for user {{user_id}}",
+        tools={
+            "runtime_tools": [{
+                "name": "get_user_data",
+                "description": "Get user info",
+                "tool_type": "local",
+                "parameters_schema": {
+                    "type": "object",
+                    "properties": {"user_id": {"type": "string"}}
+                }
+            }]
+        }
+    )
+    .with_local_tools({"get_user_data": get_user_data})
+    .stream()
+)
+```
+
+#### Other Namespaces
+
+```python
+# Batches - Schedule batch operations
+batch = await Runtype.batches.schedule(
+    flow_id="flow_123",
+    record_type="customers",
+)
+
+# Get batch status
+status = await Runtype.batches.get(batch["id"])
+
+# Prompts - Manage and execute prompts
+prompts = await Runtype.prompts.list()
+result = await Runtype.prompts.run("prompt_123").result()
+```
+
+## Available Step Types
+
+- `prompt()` - Execute an LLM prompt
+- `fetch_url()` - Make HTTP requests
+- `transform_data()` - Transform data with JavaScript
+- `search()` - Web or database search
+- `retrieve_record()` - Load record data
+- `upsert_record()` - Save or update records
+- `vector_search()` - Semantic vector search
+- `send_email()` - Send email messages
+- `send_stream()` - Send streaming messages
+- `conditional()` - Branching logic
+- `wait_until()` - Delays and polling
+
+## Error Handling
+
+```python
+from travrse import TravrseClient, APIError, AuthenticationError, NotFoundError
+
+client = TravrseClient(api_key="your-api-key")
+
+try:
+    flow = client.flows.get("nonexistent")
+except NotFoundError:
+    print("Flow not found")
+except AuthenticationError:
+    print("Invalid API key")
+except APIError as e:
+    print(f"API error: {e.status_code} - {e.message}")
+```
+
+## Development
+
+```bash
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run tests with coverage
+pytest --cov=travrse
+
+# Type checking
+mypy travrse
+
+# Linting
+ruff check travrse
+```
+
+## License
+
+MIT License - see LICENSE file for details.
