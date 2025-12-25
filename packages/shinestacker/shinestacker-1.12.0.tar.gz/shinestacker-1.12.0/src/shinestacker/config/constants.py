@@ -1,0 +1,177 @@
+# pylint: disable=C0114, C0115, C0116, C0103, R0903
+import sys
+import re
+
+
+class _Constants:
+    APP_TITLE = "Shine Stacker"
+    APP_STRING = "ShineStacker"
+
+    NUM_UINT8 = 256
+    NUM_UINT16 = 65536
+    MAX_UINT8 = 255
+    MAX_UINT16 = 65535
+    ONE_KILO = 1024
+    ONE_MEGA = ONE_KILO**2
+    ONE_GIGA = ONE_KILO**3
+
+    LOG_FONTS = ['Monaco', 'Menlo', ' Lucida Console', 'Courier New', 'Courier', 'monospace']
+    LOG_FONTS_STR = ", ".join(LOG_FONTS)
+
+    ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+    PLT_FIG_SIZE = (10, 5)
+
+    ACTION_JOB = "Job"
+    ACTION_COMBO = "CombinedActions"
+    ACTION_NOISEDETECTION = "NoiseDetection"
+    ACTION_FOCUSSTACK = "FocusStack"
+    ACTION_FOCUSSTACKBUNCH = "FocusStackBunch"
+    ACTION_MULTILAYER = "MultiLayer"
+    ACTION_TYPES = [ACTION_COMBO, ACTION_FOCUSSTACKBUNCH, ACTION_FOCUSSTACK,
+                    ACTION_MULTILAYER, ACTION_NOISEDETECTION]
+    COMPOSITE_TYPES = [ACTION_COMBO]
+    ACTION_MASKNOISE = "MaskNoise"
+    ACTION_VIGNETTING = "Vignetting"
+    ACTION_ALIGNFRAMES = "AlignFrames"
+    ACTION_BALANCEFRAMES = "BalanceFrames"
+    SUB_ACTION_TYPES = [ACTION_ALIGNFRAMES, ACTION_BALANCEFRAMES,
+                        ACTION_VIGNETTING, ACTION_MASKNOISE]
+    STACK_ALGO_PYRAMID = 'Pyramid'
+    STACK_ALGO_DEPTH_MAP = 'Depth map'
+    STACK_ALGO_OPTIONS = [STACK_ALGO_PYRAMID, STACK_ALGO_DEPTH_MAP]
+
+    ACTION_ICONS = {
+        ACTION_JOB: '',
+        ACTION_COMBO: '',
+        ACTION_NOISEDETECTION: '',
+        ACTION_FOCUSSTACK: '',
+        ACTION_FOCUSSTACKBUNCH: '',
+        ACTION_MULTILAYER: '',
+        ACTION_MASKNOISE: '',
+        ACTION_VIGNETTING: '',
+        ACTION_ALIGNFRAMES: '',
+        ACTION_BALANCEFRAMES: ''
+    }
+
+    PATH_SEPARATOR = ';'
+
+    LOG_COLOR_ALERT = 'red'
+    LOG_COLOR_WARNING = 'yellow'
+    LOG_COLOR_LEVEL_JOB = 'green'
+    LOG_COLOR_LEVEL_1 = 'blue'
+    LOG_COLOR_LEVEL_2 = 'magenta'
+    LOG_COLOR_LEVEL_3 = 'cyan'
+
+    STATUS_RUNNING = 1
+    STATUS_PAUSED = 2
+    STATUS_STOPPED = 3
+
+    RUN_COMPLETED = 0
+    RUN_ONGOING = 1
+    RUN_FAILED = 2
+    RUN_STOPPED = 3
+
+    CALLBACK_BEFORE_ACTION = 'before_action'
+    CALLBACK_AFTER_ACTION = 'after_action'
+    CALLBACK_STEP_COUNTS = 'step_counts'
+    CALLBACK_BEGIN_STEPS = 'begin_steps'
+    CALLBACK_END_STEPS = 'end_steps'
+    CALLBACK_AFTER_STEP = 'after_step'
+    CALLBACK_CHECK_RUNNING = 'check_running'
+    CALLBACK_SAVE_PLOT = 'save_plot'
+    CALLBACK_OPEN_APP = 'open_app'
+    CALLBACK_ADD_STATUS_BOX = 'add_status_box'
+    CALLBACK_ADD_FRAME = 'add_frame'
+    CALLBACKS_SET_TOTAL_ACTIONS = 'set_total_actions'
+    CALLBACK_UPDATE_FRAME_STATUS = 'update_frame_status'
+
+    MULTILAYER_WARNING_MEM_GB = 1
+
+    FIELD_SUBSAMPLE_VALUES_1 = [2, 3, 4, 6, 8, 12, 16, 24, 32]
+    FIELD_SUBSAMPLE_OPTIONS_1 = [f"1/{n} × 1/{n}" for n in FIELD_SUBSAMPLE_VALUES_1]
+    FIELD_SUBSAMPLE_VALUES = [0, 1] + FIELD_SUBSAMPLE_VALUES_1
+    FIELD_SUBSAMPLE_OPTIONS = ['Auto', 'Full resolution'] + FIELD_SUBSAMPLE_OPTIONS_1
+
+    INTERPOLATE_MEAN = 'MEAN'
+    INTERPOLATE_MEDIAN = 'MEDIAN'
+    RGB_LABELS = ['r', 'g', 'b']
+    RGBA_LABELS = ['r', 'g', 'b', 'a']
+    VALID_INTERPOLATE = {INTERPOLATE_MEAN, INTERPOLATE_MEDIAN}
+
+    ALIGN_HOMOGRAPHY = "ALIGN_HOMOGRAPHY"
+    ALIGN_RIGID = "ALIGN_RIGID"
+    BORDER_CONSTANT = "BORDER_CONSTANT"
+    BORDER_REPLICATE = "BORDER_REPLICATE"
+    BORDER_REPLICATE_BLUR = "BORDER_REPLICATE_BLUR"
+    DETECTOR_SIFT = "SIFT"
+    DETECTOR_ORB = "ORB"
+    DETECTOR_SURF = "SURF"
+    DETECTOR_AKAZE = "AKAZE"
+    DETECTOR_BRISK = "BRISK"
+    DESCRIPTOR_SIFT = "SIFT"
+    DESCRIPTOR_ORB = "ORB"
+    DESCRIPTOR_AKAZE = "AKAZE"
+    DESCRIPTOR_BRISK = "BRISK"
+    MATCHING_KNN = "KNN"
+    MATCHING_NORM_HAMMING = "NORM_HAMMING"
+    ALIGN_RANSAC = "RANSAC"
+    ALIGN_LMEDS = "LMEDS"
+
+    VALID_DETECTORS = [DETECTOR_SIFT, DETECTOR_ORB, DETECTOR_SURF, DETECTOR_AKAZE, DETECTOR_BRISK]
+    VALID_DESCRIPTORS = [DESCRIPTOR_SIFT, DESCRIPTOR_ORB, DESCRIPTOR_AKAZE, DESCRIPTOR_BRISK]
+    VALID_MATCHING_METHODS = [MATCHING_KNN, MATCHING_NORM_HAMMING]
+    VALID_TRANSFORMS = [ALIGN_RIGID, ALIGN_HOMOGRAPHY]
+    VALID_BORDER_MODES = [BORDER_CONSTANT, BORDER_REPLICATE, BORDER_REPLICATE_BLUR]
+    VALID_ESTIMATION_METHODS = [ALIGN_RANSAC, ALIGN_LMEDS]
+    NOKNN_METHODS = {'detectors': [DETECTOR_ORB, DETECTOR_SURF, DETECTOR_AKAZE, DETECTOR_BRISK],
+                     'descriptors': [DESCRIPTOR_ORB, DESCRIPTOR_AKAZE, DESCRIPTOR_BRISK]}
+
+    ALIGN_VALID_MODES = ['auto', 'sequential', 'parallel']
+    BALANCE_LINEAR = "LINEAR"
+    BALANCE_GAMMA = "GAMMA"
+    BALANCE_MATCH_HIST = "MATCH_HIST"
+    VALID_BALANCE = [BALANCE_LINEAR, BALANCE_GAMMA, BALANCE_MATCH_HIST]
+
+    BALANCE_LUMI = "LUMI"
+    BALANCE_RGB = "RGB"
+    BALANCE_HSV = "HSV"
+    BALANCE_HLS = "HLS"
+    BALANCE_LAB = "LAB"
+    VALID_BALANCE_CHANNELS = [BALANCE_LUMI, BALANCE_RGB, BALANCE_HSV, BALANCE_HLS,
+                              BALANCE_LAB]
+
+    FLOAT_32 = 'float-32'
+    FLOAT_64 = 'float-64'
+    VALID_FLOATS = [FLOAT_32, FLOAT_64]
+
+    DM_ENERGY_VARIANCE = "variance"
+    DM_ENERGY_TENENGRAD = "tenengrad"
+    DM_ENERGY_LAPLACIAN = "laplacian"
+    DM_ENERGY_MOD_LAPLACIAN = "mod_laplacian"
+    DM_ENERGY_SOBEL = "sobel"
+    DM_MAP_AVERAGE = "average"
+    DM_MAP_MAX = "max"
+    VALID_DM_MAP = [DM_MAP_AVERAGE, DM_MAP_MAX]
+    VALID_DM_ENERGY = [DM_ENERGY_TENENGRAD, DM_ENERGY_VARIANCE, DM_ENERGY_LAPLACIAN,
+                       DM_ENERGY_MOD_LAPLACIAN, DM_ENERGY_SOBEL]
+
+    PY_VALID_MODES = ['auto', 'memory', 'tiled']
+    DM_VALID_MODES = ['auto', 'memory', 'i/o']
+    PY_MEMORY_OVERHEAD = 2.5
+
+    NOISE_METHOD_RGB = 'rgb'
+    NOISE_METHOD_NORM_LAB = 'norm_lab'
+    NOISE_METHOD_NORM_RGB = 'norm_rgb'
+    VALID_NOISE_METHODS = [NOISE_METHOD_NORM_LAB, NOISE_METHOD_NORM_RGB, NOISE_METHOD_RGB]
+
+    def __setattr__aux(self, name, value):
+        raise AttributeError(f"Can't reassign constant '{name}'")
+
+    def __init__(self):
+        self.PYTHON_APP = sys.executable
+        self.RETOUCH_APP = "shinestacker-retouch"
+        _Constants.__setattr__ = _Constants.__setattr__aux
+
+
+constants = _Constants()
