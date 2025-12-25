@@ -1,0 +1,76 @@
+# Built from:
+# https://docs.github.com/en/actions/guides/building-and-testing-python
+
+name: Build and test
+
+on:
+  push:
+    branches: [ main ]
+
+  pull_request:
+      types:
+          - opened
+          - reopened
+          - synchronize
+          - ready_for_review
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install tox
+
+      - name: Check code quality with ruff
+        run: tox -e lint_stats
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ '3.9', '3.10', '3.11', '3.12', '3.13' ]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ts-graphviz/setup-graphviz@v2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Generate LinkML-Map Transformation Model artifacts
+        run: |
+          # Force regenerate by removing the target file first
+          rm -f src/linkml_map/datamodel/transformer_model.py
+          make src/linkml_map/datamodel/transformer_model.py
+          
+          # Run tests to make sure everything works
+          make test
+          
+          # Check if there are any changes and commit them
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add src/
+          
+          # Only commit if there are changes
+          if ! git diff --cached --quiet; then
+            git commit -m "Regenerate artifacts from linkml-map transformer_model.yaml"
+            git push
+          else
+            echo "No changes to commit"
+          fi
