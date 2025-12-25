@@ -1,0 +1,182 @@
+[project]
+name = "chunklet-py"
+version = "2.1.1"
+description = "Advanced text, code, and document chunking for LLM applications. Split content semantically, visualize chunks interactively, and process multiple file formats with flexible, context-aware segmentation."
+authors = [
+  { name = "speedyk_005", email = "speedy40115719@gmail.com" }
+]
+
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.10"
+
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Information Technology",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Text Processing",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Libraries :: Python Modules"
+]
+
+keywords = [
+  "nlp", "chunking", "text-splitting", "sentence-splitting", "llm", "rag", "ai", "multilingual",
+  "text processing", "natural language processing", "data processing",
+  "information retrieval", "semantic search", "document processing", "document-chunker",
+  "code chunking", "code-chunker", "source code analysis", "programming languages",
+  "code structure", "chunk-visualization",
+]
+
+dependencies = [
+  "pysbd>=0.3.4",
+  "sentsplit>=1.0.7",
+
+  # Pinning to the last known working version with a reliable binary/build.
+  # The 1.0.x series has a broken sdist package structure.
+  "sentencex<=0.6.1",
+
+  "indic-nlp-library>=0.90",
+  "py3langid>=0.3.0",
+  "mpire>=2.10.0",
+  "python-box>=7.3.0",
+  "more-itertools>=10.6.0",
+  "regex>=2024.11.6",
+  "pydantic>=2.11",
+  "typer>=0.19.0",
+ ]
+
+[project.optional-dependencies]
+document = [
+  "pdfminer.six>=20250324",
+  "python-docx>=1.2.0",
+  "mammoth>=1.9.0",
+  "ebooklib>=0.19",
+  "docutils>=0.21.2",
+  "markdownify>=1.1.0",
+  "striprtf>=0.0.29",
+  "pylatexenc>=2.10",
+  "odfpy>=1.4.1",
+  "openpyxl>=3.1.2",
+  "tabulate2>=1.10.0",
+  "charset-normalizer>=3.4.0",
+]
+
+code = [
+  "defusedxml>=0.7.1",
+  "littletree>=0.8.4",
+  "charset-normalizer>=3.4.0",
+]
+
+visualization = [
+  "uvicorn>=0.34.0",
+  "fastapi>=0.115.12",
+  "python-multipart>=0.0.20",
+  "aiofiles>=24.1.0",
+  "charset-normalizer>=3.4.0",
+]
+
+all = ["chunklet-py[document,code,visualization]"]
+
+dev = [
+  "pytest>=8.3.5",
+  "pytest-cov>=6.2.1",
+  "pytest-mock>=3.14.1",
+  "black>=25.1.0",
+  "flake8>=7.3.0",
+  "flake8-pyproject>=1.2.3",
+]
+
+docs = [
+  "mike>=2.1.2",
+  "mkdocs-material>=9.6.20",
+  "mkdocs-api-autonav>=0.4.0",
+  "mkdocstrings-python>=1.17.0",
+  "pymdown-extensions>=10.16.1",
+]
+
+dev-all = ["chunklet-py[dev,docs,document,code,visualization]"]
+
+[project.urls]
+Homepage = "https://github.com/speedyk-005/chunklet-py"
+Repository = "https://github.com/speedyk-005/chunklet-py"
+Documentation = "https://speedyk-005.github.io/chunklet-py/"
+Issues = "https://github.com/speedyk-005/chunklet-py/issues"
+Changelog = "https://github.com/speedyk-005/chunklet-py/blob/main/CHANGELOG.md"
+
+[project.scripts]
+chunklet = "chunklet.cli:app"
+
+[build-system]
+requires = [
+    "setuptools>=64", 
+    "wheel", # Essential for building dependencies that use legacy setup.py (like odfpy)
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+packages = [
+    "chunklet",
+    "chunklet.common",
+    "chunklet.document_chunker",
+    "chunklet.document_chunker.converters",
+    "chunklet.document_chunker.processors",
+    "chunklet.code_chunker",
+    "chunklet.sentence_splitter",
+    "chunklet.visualizer",
+]
+include-package-data = true
+
+[tool.setuptools.package-data]
+chunklet = ["visualizer/static/*", "visualizer/static/**/*"]
+
+[tool.pytest.ini_options]
+minversion = "7.4"
+
+# disable coverage report to prevent racing with multiprocessing
+# addopts = "--cov=chunklet --cov-report=term-missing:skip-covered --durations=10"
+
+testpaths = ["tests"]
+python_files = "test_*.py"
+
+[tool.coverage.report]
+omit = [
+    "src/chunklet/cli.py"
+]
+
+[tool.black]
+line-length = 88
+force-exclude = '''
+/(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+  )/
+  | src/chunklet/code_chunker/patterns.py
+'''
+
+[tool.flake8]
+per-file-ignores = [
+    "src/chunklet/__init__.py:F401",
+    "src/chunklet/document_chunker/__init__.py:F401,F403",
+    "src/chunklet/sentence_splitter/__init__.py:F401,F403",
+    "src/chunklet/code_chunker/__init__.py:F401,F403",
+    "src/chunklet/visualizer/__init__.py:F401,F403",
+]
+extend-ignore = ["E501", "E203"]
+count = true
+exclude = ["src/chunklet/code_chunker/patterns.py"]
