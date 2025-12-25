@@ -1,0 +1,168 @@
+# KaggleEase
+
+The fastest, notebook-first way to load Kaggle datasets into pandas with one line.
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/)
+
+---
+
+## Installation
+
+```bash
+pip install kaggleease
+```
+
+## Quick Start
+
+```python
+from kaggleease import load
+df = load("titanic")
+```
+
+## Advanced Features
+
+### Progress Indication
+Large downloads show progress bars automatically:
+```python
+from kaggleease import load
+df = load("large-dataset", timeout=600)  # Progress shown for large files
+```
+
+### Thread-Safe Authentication
+Multiple concurrent operations are supported safely:
+```python
+import threading
+from kaggleease import load
+
+def load_dataset(dataset):
+    return load(dataset)
+
+# Safe to run concurrently
+threads = [threading.Thread(target=lambda: load_dataset("dataset")) for _ in range(5)]
+for t in threads: t.start()
+for t in threads: t.join()
+```
+
+### Retry Logic with Exponential Backoff
+Network failures are automatically retried:
+- First retry after 1s
+- Second retry after 2s
+- Third retry after 4s
+
+## Notebook Magic
+
+`KaggleEase` comes with powerful notebook magics:
+
+```python
+# Load the titanic dataset into a variable named 'df'
+%kaggle load titanic --as df --timeout 600
+
+# Preview the first few rows of a dataset
+%kaggle preview titanic --timeout 30
+
+# Search for datasets
+%kaggle search "credit risk" --timeout 30
+
+# Load specific file from dataset
+%kaggle load kaggle/titanic --file train.csv --as train_df
+```
+
+## Command Line Interface
+
+KaggleEase provides a comprehensive CLI:
+
+```bash
+# Load a dataset with custom timeout
+kaggleease load kaggle/titanic --timeout 600
+
+# Preview a dataset
+kaggleease preview kaggle/titanic
+
+# Search for datasets with result limit
+kaggleease search "credit risk" --top 10
+
+# Load specific file from dataset
+kaggleease load kaggle/titanic --file train.csv
+```
+
+## API Reference
+
+### `load(dataset_handle, file=None, timeout=300)`
+
+Load a Kaggle dataset into a pandas DataFrame with automatic progress indication for large files.
+
+**Parameters:**
+- `dataset_handle` (str): The Kaggle dataset handle in the format "owner/dataset-name"
+- `file` (str, optional): Specific file to load from the dataset
+- `timeout` (int): Timeout in seconds for API calls and downloads (default: 300)
+
+**Returns:**
+- `pandas.DataFrame`: The loaded dataset
+
+**Features:**
+- Automatic progress indication for files > 100MB
+- Thread-safe authentication
+- Retry logic with exponential backoff
+- Structured logging
+
+### `search(query, top=5, timeout=30)`
+
+Search for Kaggle datasets.
+
+**Parameters:**
+- `query` (str): Search query
+- `top` (int): Maximum number of results to return (default: 5)
+- `timeout` (int): Timeout in seconds for the search operation (default: 30)
+
+**Returns:**
+- `list`: List of dataset information dictionaries
+
+### `ProgressBar` and `show_progress`
+
+Progress indication utilities for large downloads:
+```python
+from kaggleease.progress import ProgressBar
+
+progress = ProgressBar(1000, "Download")
+progress.update(500)  # Update with downloaded bytes
+progress.complete()
+```
+
+## Troubleshooting
+
+### Authentication Error
+If you encounter authentication errors, make sure you have your Kaggle API credentials set up:
+
+1. Go to https://www.kaggle.com/account and download your `kaggle.json` file
+2. Place it in `~/.kaggle/kaggle.json` (or `%USERPROFILE%\.kaggle\kaggle.json` on Windows)
+3. Ensure the file has restricted permissions (600)
+
+### Large Dataset Warning
+When loading large datasets (>5GB), you'll see a warning. Consider if you really need the entire dataset or if you can work with a subset.
+
+### Timeout Errors
+If you're experiencing timeout errors, try increasing the timeout value:
+```python
+# Increase timeout to 600 seconds
+df = load("titanic", timeout=600)
+```
+
+### Progress Indication
+For large downloads, progress is shown automatically. For manual control:
+```python
+from kaggleease.progress import show_progress
+progress = show_progress(250, 1000, "Download")  # 250 bytes of 1000 total
+```
+
+### Thread Safety
+The library is thread-safe for concurrent operations. Multiple threads can safely call `load()` simultaneously.
+
+## Security Considerations
+
+- Authentication credentials are stored securely with proper file permissions (600)
+- Thread-safe authentication prevents credential corruption in concurrent environments
+- All network operations include timeout protection
+
+---
+
+*(GIF placeholder: A short animation showing the `%kaggle load titanic` magic in action)*
