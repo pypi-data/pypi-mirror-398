@@ -1,0 +1,48 @@
+name: unit-tests
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Unit tests (pip)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    env:
+      PGSUI_TEST_DISABLE_PLOTS: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          sudo apt-get clean || true
+          docker system prune -af || true
+
+      - name: Clean test artifacts
+        run: rm -rf dist build .pytest_cache tmp_test_output
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        env:
+          MPLCONFIGDIR: ${{ runner.temp }}/mpl
+        run: |
+          python -m pip install -U pip
+          python -m pip install --no-cache-dir ".[dev,gui]"
+          python -m pip cache purge || true
+
+      - name: Run tests
+        env:
+          MPLCONFIGDIR: ${{ runner.temp }}/mpl
+        run: pytest -q

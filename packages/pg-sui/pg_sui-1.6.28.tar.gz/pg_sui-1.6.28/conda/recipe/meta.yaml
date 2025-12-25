@@ -1,0 +1,67 @@
+# meta.yaml - pg-sui conda recipe
+# Normalize version from CI/exported variables (PKG_VERSION/SETUPTOOLS_SCM_PRETEND_VERSION/GIT_DESCRIBE_TAG), fallback to default.
+{% set raw_version = environ.get("SETUPTOOLS_SCM_PRETEND_VERSION") or environ.get("PKG_VERSION") or environ.get("GIT_DESCRIBE_TAG") or "1.6.8" %}
+{% set version = raw_version.lstrip("v").replace("-", ".").replace("+", ".") %}
+
+package:
+  name: "pg-sui"
+  version: "{{ version }}"
+
+source:
+  # Point to repo root (recipe lives in conda/recipe)
+  path: ../..
+
+build:
+  number: 0
+  # Prevent pip from re-resolving deps during conda-build (downloads can fail on large wheels)
+  script: {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
+  # Build only on linux-64 and macOS arm64 runners
+  skip: true  # [not (linux64 or (osx and arm64))]
+
+requirements:
+  host:
+    - python {{ python }}
+    - pip
+    - setuptools
+    - wheel
+    - setuptools-scm
+  run:
+    - python {{ python }}
+    - matplotlib
+    - numpy {{ numpy }}
+    - pandas >=2.2.2
+    - scikit-learn >=1.4
+    - scipy
+    - seaborn
+    - pytorch
+    - tqdm
+    - toytree
+    - optuna
+    - rich
+    - rich[jupyter]
+    - snpio
+    # GUI / server components
+    - fastapi >=0.110
+    - uvicorn-standard >=0.23
+
+test:
+  requires:
+    - pip
+  commands:
+    - python -c "import pgsui, sys; print(pgsui.__version__); sys.exit(0)"
+    - pg-sui --help
+
+about:
+  home: https://github.com/btmartin721/PG-SUI
+  summary: "Python machine and deep learning API to impute missing genotypes."
+  description: |
+    "PG-SUI (Population Genomic Supervised and Unsupervised Imputation) is a Python package that leverages machine learning and deep learning techniques to accurately impute missing genotypes in genetic datasets. By incorporating phylogenetic information, PG-SUI enhances the accuracy of genotype imputation, making it a valuable tool for researchers in genomics and bioinformatics."
+  license: GPL-3.0-only
+  license_file:
+    - LICENSE
+  doc_url: https://pg-sui.readthedocs.io/en/latest/
+  dev_url: https://github.com/btmartin721/PG-SUI.git
+
+extra:
+  recipe-maintainers:
+    - btmartin721

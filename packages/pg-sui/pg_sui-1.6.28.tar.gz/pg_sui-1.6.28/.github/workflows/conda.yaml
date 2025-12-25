@@ -1,0 +1,170 @@
+name: conda
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      run_conda_build:
+        description: "Build and upload conda package"
+        required: false
+        default: "true"
+
+jobs:
+  wait-unit-tests:
+    name: Wait for unit-tests workflow
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Wait for unit-tests success
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          workflow_id=$(gh api repos/${{ github.repository }}/actions/workflows --jq '.workflows[] | select(.name=="unit-tests") | .id' | head -n 1)
+          if [[ -z "${workflow_id:-}" ]]; then
+            echo "Could not find unit-tests workflow id in repository workflows."
+            exit 1
+          fi
+
+          echo "Waiting for unit-tests workflow (id: $workflow_id) to finish for SHA $TARGET_SHA"
+
+          for attempt in {1..40}; do
+            run_info=$(gh api "repos/${{ github.repository }}/actions/workflows/${workflow_id}/runs" \
+              --jq 'first(.workflow_runs[] | select(.head_sha=="'"${TARGET_SHA}"'"))')
+
+            if [[ -z "${run_info:-}" || "$run_info" == "null" ]]; then
+              echo "No matching unit-tests run yet (attempt $attempt/40); sleeping 30s..."
+              sleep 30
+              continue
+            fi
+
+            status=$(echo "$run_info" | jq -r '.status')
+            conclusion=$(echo "$run_info" | jq -r '.conclusion // ""')
+            url=$(echo "$run_info" | jq -r '.html_url')
+
+            echo "unit-tests workflow run: $url (status=$status, conclusion=$conclusion)"
+
+            if [[ "$status" == "completed" ]]; then
+              if [[ "$conclusion" == "success" ]]; then
+                echo "unit-tests workflow completed successfully."
+                exit 0
+              else
+                echo "unit-tests workflow finished with conclusion=$conclusion"
+                exit 1
+              fi
+            fi
+
+            sleep 30
+          done
+
+          echo "Timed out waiting for unit-tests workflow to complete."
+          exit 1
+
+  clean:
+    name: Clean conda build cache
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up micromamba
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-name: conda-clean
+          create-args: >-
+            micromamba
+          init-shell: bash
+
+      - name: Clean conda build cache
+        run: |
+          micromamba clean --all --yes
+
+  conda-package:
+    name: Build conda package
+    runs-on: ${{ matrix.os }}
+    needs: [wait-unit-tests, clean]
+    if: |
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.run_conda_build == 'true')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            subdir: linux-64
+          - os: macos-latest
+            subdir: osx-arm64
+    defaults:
+      run:
+        shell: bash -l {0}
+    env:
+      MPLCONFIGDIR: /tmp/mpl
+      # Resolve token from common secret names to avoid misconfiguration
+      UPLOAD_TOKEN: ${{ secrets.PGSUI_UPLOAD_TOKEN || secrets.CONDA_UPLOAD_TOKEN }}
+      CONDA_SUBDIR: ${{ matrix.subdir }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up micromamba
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-name: conda-build
+          create-args: >-
+            python=3.11
+            pip
+            conda-build
+            anaconda-client
+            -c conda-forge
+            -c defaults
+          init-shell: bash
+          cache-environment: true
+
+      - name: Build recipe
+        env:
+          PKG_VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          RAW_VERSION=${PKG_VERSION:-}
+          CLEAN_VERSION=${RAW_VERSION#v}
+          # Conda versions cannot contain hyphens or plus signs; normalize to dots (e.g., v1.6.14-dev2 -> 1.6.14.dev2)
+          CLEAN_VERSION=${CLEAN_VERSION//-/.}
+          CLEAN_VERSION=${CLEAN_VERSION//+/.}
+          export PKG_VERSION=${CLEAN_VERSION:-1.6.8}
+          export SETUPTOOLS_SCM_PRETEND_VERSION=${PKG_VERSION}
+          # Help conda/jinja resolve version even if .git metadata is absent
+          export GIT_DESCRIBE_TAG=${PKG_VERSION}
+          echo "Building conda package version: ${PKG_VERSION} for ${CONDA_SUBDIR}"
+          conda build conda/recipe --output-folder conda/dist -c btmartin721 -c conda-forge -c bioconda -c pytorch -c defaults
+
+      - name: Upload conda artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: conda-packages-${{ matrix.subdir }}
+          path: |
+            conda/dist/**/*.tar.bz2
+            conda/dist/**/*.conda
+
+      - name: Verify upload token
+        run: |
+          set -euo pipefail
+          if [[ -z "${UPLOAD_TOKEN:-}" ]]; then
+            echo "No Anaconda token available. Set one of the secrets: PGSUI_UPLOAD_TOKEN, CONDA_UPLOAD_TOKEN, ANACONDA_API_TOKEN, ANACONDA_TOKEN, or ANACONDA_UPLOAD_TOKEN."
+            exit 1
+          fi
+          echo "::add-mask::${UPLOAD_TOKEN}"
+
+      - name: Publish to Anaconda
+        run: |
+          set -euo pipefail
+          files=$(find conda/dist -type f \( -name '*.tar.bz2' -o -name '*.conda' \))
+          if [[ -z "${files}" ]]; then
+            echo "No conda artifacts found to upload."
+            exit 1
+          fi
+          # macOS bash (3.2) lacks mapfile/readarray, so rely on word splitting
+          anaconda -t "$UPLOAD_TOKEN" upload --label main --user btmartin721 $files

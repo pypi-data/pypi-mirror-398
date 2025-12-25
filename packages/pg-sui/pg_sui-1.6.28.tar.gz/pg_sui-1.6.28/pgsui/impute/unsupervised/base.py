@@ -1,0 +1,1536 @@
+import copy
+import gc
+import inspect
+import json
+import logging
+from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Mapping, Tuple, Type
+
+import matplotlib.pyplot as plt
+import numpy as np
+import optuna
+import pandas as pd
+import plotly.graph_objects as go
+import torch
+import torch.nn.functional as F
+from matplotlib.figure import Figure
+from sklearn.metrics import classification_report
+from sklearn.model_selection import train_test_split
+from snpio import SNPioMultiQC
+from snpio.utils.logging import LoggerManager
+from snpio.utils.misc import validate_input_type
+
+from pgsui.data_processing.transformers import SimMissingTransformer
+from pgsui.impute.unsupervised.nn_scorers import Scorer
+from pgsui.utils.classification_viz import ClassificationReportVisualizer
+from pgsui.utils.logging_utils import configure_logger
+from pgsui.utils.plotting import Plotting
+from pgsui.utils.pretty_metrics import PrettyMetrics
+
+if TYPE_CHECKING:
+    from snpio.read_input.genotype_data import GenotypeData
+
+
+class BaseNNImputer:
+    """An abstract base class for neural network-based imputers.
+
+    This class provides a shared framework and common functionality for all neural network imputers. It is not meant to be instantiated directly. Instead, child classes should inherit from it and implement the abstract methods. Provided functionality: Directory setup and logging initialization; A hyperparameter tuning pipeline using Optuna; Utility methods for building models (`build_model`), initializing weights (`initialize_weights`), and checking for fitted attributes (`ensure_attribute`); Helper methods for calculating class weights for imbalanced data; Setup for standardized plotting and model scoring classes.
+    """
+
+    def __init__(
+        self,
+        model_name: str,
+        genotype_data: "GenotypeData",
+        prefix: str,
+        *,
+        device: Literal["gpu", "cpu", "mps"] = "cpu",
+        verbose: bool = False,
+        debug: bool = False,
+    ):
+        """Initializes the base class for neural network imputers.
+
+        This constructor sets up the device (CPU, GPU, or MPS), creates the necessary output directories for models and results, and a logger. It also initializes a genotype encoder for handling genotype data.
+
+        Args:
+            prefix (str): A prefix used to name the output directory (e.g., 'pgsui_output').
+            device (Literal["gpu", "cpu", "mps"]): The device to use for PyTorch operations. If 'gpu' or 'mps' is chosen, it will fall back to 'cpu' if the required hardware is not available. Defaults to "cpu".
+            verbose (bool): If True, enables detailed logging output. Defaults to False.
+            debug (bool): If True, enables debug mode. Defaults to False.
+        """
+        self.model_name = model_name
+        self.genotype_data = genotype_data
+        if not hasattr(self, "simulate_missing"):
+            self.simulate_missing = True
+        if not hasattr(self, "tree_parser"):
+            self.tree_parser = None
+        if not hasattr(self, "sim_kwargs"):
+            self.sim_kwargs = {}
+
+        self.prefix = prefix
+        self.verbose = verbose
+        self.debug = debug
+
+        # Quiet Matplotlib/fontTools INFO logging when saving PDF/SVG
+        for name in (
+            "fontTools",
+            "fontTools.subset",
+            "fontTools.ttLib",
+            "matplotlib.font_manager",
+        ):
+            lg = logging.getLogger(name)
+            lg.setLevel(logging.WARNING)
+            lg.propagate = False
+
+        self.device = self._select_device(device)
+
+        # Prepare directory structure
+        outdirs = ["models", "plots", "metrics", "optimize", "parameters"]
+        self._create_model_directories(prefix, outdirs)
+
+        # Initialize loggers
+        kwargs = {"prefix": prefix, "verbose": verbose, "debug": debug}
+        logman = LoggerManager(__name__, **kwargs)
+        self.logger = configure_logger(
+            logman.get_logger(), verbose=self.verbose, debug=self.debug
+        )
+
+        self.logger.info(f"Using PyTorch device: {self.device.type}.")
+
+        self._float_genotype_cache: np.ndarray | None = None
+        self._sim_mask_cache: dict[tuple, np.ndarray] = {}
+        self._tune_ready: bool = False
+
+        # To be initialized by child classes or fit method
+        self.tune_save_db: bool = False
+        self.tune_resume: bool = False
+        self.n_trials: int = 100
+        self.model_params: Dict[str, Any] = {}
+        self.tune_metric: str = "f1"
+        self.learning_rate: float = 1e-3
+        self.plotter_: "Plotting"
+        self.num_features_: int = 0
+        self.num_classes_: int = 3
+        self.plot_format: Literal["pdf", "png", "jpg", "jpeg", "svg"] = "pdf"
+        self.plot_fontsize: int = 10
+        self.plot_dpi: int = 300
+        self.title_fontsize: int = 12
+        self.despine: bool = True
+        self.show_plots: bool = False
+        self.scoring_averaging: Literal["macro", "micro", "weighted"] = "macro"
+        self.pgenc: Any = None
+        self.is_haploid: bool = False
+        self.ploidy: int = 2
+        self.beta: float = 0.9999
+        self.max_ratio: float = 5.0
+        self.sim_strategy: str = "mcar"
+        self.sim_prop: float = 0.1
+        self.seed: int | None = 42
+        self.rng: np.random.Generator = np.random.default_rng(self.seed)
+        self.ground_truth_: np.ndarray
+        self.tune_fast: bool = False
+        self.tune_max_samples: int = 1000
+        self.tune_max_loci: int = 500
+        self.validation_split: float = 0.2
+        self.tune_batch_size: int = 64
+        self.tune_proxy_metric_batch: int = 512
+        self.batch_size: int = 64
+        self.best_params_: Dict[str, Any] = {}
+
+        self.optimize_dir: Path
+        self.models_dir: Path
+        self.plots_dir: Path
+        self.metrics_dir: Path
+        self.parameters_dir: Path
+        self.study_db: Path | None = None
+        self.X_model_input_: np.ndarray | None = None
+        self.sim_mask_global_: np.ndarray | None = None
+
+    def tune_hyperparameters(self) -> Dict[str, Any]:
+        """Tunes model hyperparameters using an Optuna study.
+
+        This method orchestrates the hyperparameter search process. It creates an Optuna study that aims to maximize the metric defined in `self.tune_metric`. The search is driven by the `_objective` method, which must be implemented by the child class. After the search, the best parameters are logged, saved to a JSON file, and visualizations of the study are generated.
+
+        Raises:
+            NotImplementedError: If the `_objective` or `_set_best_params` methods are not implemented in the inheriting child class.
+        """
+        self.logger.info("Tuning hyperparameters. This might take a while...")
+
+        if self.verbose or self.debug:
+            optuna.logging.set_verbosity(optuna.logging.INFO)
+        else:
+            optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+        study_db = None
+        load_if_exists = False
+        if self.tune_save_db:
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            study_db = (
+                self.optimize_dir / "study_database" / f"optuna_study_{timestamp}.db"
+            )
+            study_db.parent.mkdir(parents=True, exist_ok=True)
+
+            if self.tune_resume and study_db.exists():
+                load_if_exists = True
+
+            if not self.tune_resume and study_db.exists():
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                study_db = study_db.with_name(f"optuna_study_{timestamp}.db")
+
+        self.study_db = study_db
+        study_name = f"{self.prefix} {self.model_name} Model Optimization"
+        storage = f"sqlite:///{study_db}" if self.tune_save_db else None
+
+        study = optuna.create_study(
+            direction="maximize",
+            study_name=study_name,
+            storage=storage,
+            load_if_exists=load_if_exists,
+            pruner=optuna.pruners.MedianPruner(
+                # Guard against pathological small `n_trials` values (e.g., 1)
+                # that can otherwise produce 0 for these settings.
+                n_startup_trials=max(
+                    1, min(int(self.n_trials * 0.1), 10, int(self.n_trials))
+                ),
+                n_warmup_steps=25,
+                n_min_trials=max(
+                    1, min(int(0.5 * self.n_trials), 10, int(self.n_trials))
+                ),
+            ),
+        )
+
+        if not hasattr(self, "_objective"):
+            msg = "`_objective()` must be implemented in the child class."
+            self.logger.error(msg)
+            raise NotImplementedError(msg)
+
+        self.n_jobs = getattr(self, "n_jobs", 1)
+        if self.n_jobs < -1 or self.n_jobs == 0:
+            self.logger.warning(f"Invalid n_jobs={self.n_jobs}. Setting n_jobs=1.")
+            self.n_jobs = 1
+
+        show_progress_bar = not self.verbose and not self.debug and self.n_jobs == 1
+
+        # Set the best parameters.
+        # NOTE: `_set_best_params()` must be implemented in the child class.
+        if not hasattr(self, "_set_best_params"):
+            msg = "Method `_set_best_params()` must be implemented in the child class."
+            self.logger.error(msg)
+            raise NotImplementedError(msg)
+
+        study.optimize(
+            lambda trial: self._objective(trial),
+            n_trials=self.n_trials,
+            n_jobs=self.n_jobs,
+            gc_after_trial=True,
+            show_progress_bar=show_progress_bar,
+        )
+
+        try:
+            best_metric = study.best_value
+            best_params = study.best_params
+        except ValueError:
+            msg = "Tuning failed: No successful trials completed."
+            self.logger.error(msg)
+            raise RuntimeError(msg)
+
+        self.best_params_ = self._set_best_params(best_params)
+        self.model_params.update(self.best_params_)
+        self.logger.info(f"Best {self.tune_metric} metric: {best_metric}")
+        self.logger.info("Best parameters:")
+        best_params_tmp = copy.deepcopy(best_params)
+        best_params_tmp["learning_rate"] = self.learning_rate
+
+        title = f"{self.model_name} Optimized Parameters"
+
+        if self.verbose or self.debug:
+            pm = PrettyMetrics(best_params_tmp, precision=6, title=title)
+            pm.render()
+
+        # Save best parameters to a JSON file.
+        self._save_best_params(best_params_tmp, objective_mode=True)
+
+        tn = f"{self.tune_metric} Value"
+
+        if self.show_plots:
+            self.plotter_.plot_tuning(
+                study, self.model_name, self.optimize_dir / "plots", target_name=tn
+            )
+
+        return best_params_tmp
+
+    @staticmethod
+    def initialize_weights(module: torch.nn.Module) -> None:
+        """Initializes model weights using the Kaiming Uniform distribution.
+
+        This static method is intended to be applied to a PyTorch model to initialize the weights of its linear and convolutional layers. This initialization scheme is particularly effective for networks that use ReLU-family activation functions, as it helps maintain stable activation variances during training.
+
+        Args:
+            module (torch.nn.Module): The PyTorch module (e.g., a layer) to initialize.
+        """
+        if isinstance(
+            module, (torch.nn.Linear, torch.nn.Conv1d, torch.nn.ConvTranspose1d)
+        ):
+            # Use Kaiming Uniform initialization for Linear and Conv layers
+            torch.nn.init.kaiming_uniform_(module.weight, nonlinearity="relu")
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+
+    def build_model(
+        self,
+        Model: Type[torch.nn.Module],
+        model_params: Dict[str, Any],
+    ) -> torch.nn.Module:
+        """Builds and initializes a neural network model instance.
+
+        This method instantiates a model by combining fixed, data-dependent parameters (like `n_features`) with variable hyperparameters (like `latent_dim`). The resulting model is then moved to the appropriate compute device.
+
+        Args:
+            Model (torch.nn.Module): The model class to be instantiated.
+            model_params (Dict[str, Any]): A dictionary of variable model hyperparameters, typically sampled during a hyperparameter search.
+
+        Returns:
+            torch.nn.Module: The constructed model instance, ready for training.
+
+        Raises:
+            TypeError: If `model_params` is not a dictionary.
+            AttributeError: If a required data-dependent attribute like `num_features_` has not been set, typically by calling `fit` first.
+        """
+        if not isinstance(model_params, dict):
+            msg = f"'model_params' must be a dictionary, but got {type(model_params)}."
+            self.logger.error(msg)
+            raise TypeError(msg)
+
+        if not hasattr(self, "num_features_"):
+            msg = (
+                "Attribute 'num_features_' is not set. Call fit() before build_model()."
+            )
+            self.logger.error(msg)
+            raise AttributeError(msg)
+
+        # Start with a base set of fixed (non-tuned) parameters.
+        base_num_classes = getattr(self, "output_classes_", None)
+        if base_num_classes is None:
+            base_num_classes = self.num_classes_
+        all_params = {
+            "n_features": self.num_features_,
+            "prefix": self.prefix,
+            "num_classes": base_num_classes,
+            "verbose": self.verbose,
+            "debug": self.debug,
+            "device": self.device,
+        }
+
+        # Update with the variable hyperparameters from the provided dictionary
+        all_params.update(model_params)
+
+        return Model(**all_params).to(self.device)
+
+    def initialize_plotting_and_scorers(self) -> Tuple[Plotting, Scorer]:
+        """Initializes and returns the plotting and scoring utility classes.
+
+        This method should be called within a `fit` method to set up the standardized utilities for generating plots and calculating performance metrics.
+
+        Returns:
+            Tuple[Plotting, Scorer]: A tuple containing the initialized Plotting and Scorer objects.
+        """
+        fmt = self.plot_format
+
+        # Initialize plotter.
+        plotter = Plotting(
+            model_name=self.model_name,
+            prefix=self.prefix,
+            plot_format=fmt,
+            plot_fontsize=self.plot_fontsize,
+            plot_dpi=self.plot_dpi,
+            title_fontsize=self.title_fontsize,
+            despine=self.despine,
+            show_plots=self.show_plots,
+            verbose=self.verbose,
+            debug=self.debug,
+            multiqc=True,
+            multiqc_section=f"PG-SUI: {self.model_name} Model Imputation",
+        )
+
+        # Metrics
+        scorers = Scorer(
+            prefix=self.prefix,
+            average=self.scoring_averaging,
+            verbose=self.verbose,
+            debug=self.debug,
+        )
+
+        return plotter, scorers
+
+    def _objective(self, trial: optuna.Trial) -> float:
+        """Defines the objective function for Optuna hyperparameter tuning.
+
+        This abstract method must be implemented by the child class. It should define a single hyperparameter tuning trial, which typically involves building, training, and evaluating a model with a set of sampled hyperparameters.
+
+        Args:
+            trial (optuna.Trial): The Optuna trial object, used to sample hyperparameters.
+
+        Returns:
+            float: The value of the metric to be optimized (e.g., validation accuracy, F1-score).
+        """
+        msg = "Method `_objective()` must be implemented in the child class."
+        self.logger.error(msg)
+        raise NotImplementedError(msg)
+
+    def fit(self, X: np.ndarray | pd.DataFrame | list | None = None) -> "BaseNNImputer":
+        """Fits the imputer model to the data.
+
+        This abstract method must be implemented by the child class. It should contain the logic for training the neural network model on the provided input data `X`.
+
+        Args:
+            X (np.ndarray | pd.DataFrame | list | None): The input data, which may contain missing values.
+
+        Returns:
+            BaseNNImputer: The fitted imputer instance.
+        """
+        msg = "Method ``fit()`` must be implemented in the child class."
+        self.logger.error(msg)
+        raise NotImplementedError(msg)
+
+    def transform(
+        self, X: np.ndarray | pd.DataFrame | list | None = None
+    ) -> np.ndarray:
+        """Imputes missing values in the data using the trained model.
+
+        This abstract method must be implemented by the child class. It should use the fitted model to fill in missing values in the provided data `X`.
+
+        Args:
+            X (np.ndarray | pd.DataFrame | list | None): The input data with missing values.
+
+        Returns:
+            np.ndarray: IUPAC strings with missing values imputed.
+        """
+        msg = "Method ``transform()`` must be implemented in the child class."
+        self.logger.error(msg)
+        raise NotImplementedError(msg)
+
+    def _class_balanced_weights_from_mask(
+        self,
+        y: np.ndarray,
+        train_mask: np.ndarray,
+        num_classes: int,
+        beta: float = 0.9999,
+        max_ratio: float = 5.0,
+        mode: Literal["allele", "genotype10"] = "allele",
+    ) -> torch.Tensor:
+        """Class-balanced weights (Cui et al. 2019) with overflow-safe effective number.
+
+        mode="allele": y is 1D alleles in {0..3}, train_mask same shape. mode="genotype10": y is (nS,nF,2) alleles; train_mask is (nS,nF) loci where both alleles known.
+
+        Args:
+            y (np.ndarray): Ground truth labels.
+            train_mask (np.ndarray): Boolean mask of training examples (same shape as y or y without last dim for genotype10).
+            num_classes (int): Number of classes.
+            beta (float): Hyperparameter for effective number calculation. Clamped to (0,1). Default is 0.9999.
+            max_ratio (float): Maximum allowed ratio between largest and smallest non-zero weight. Default is 5.0.
+            mode (Literal["allele", "genotype10"]): Whether y contains allele labels or 10-class genotypes. Default is "allele".
+
+        Returns:
+            torch.Tensor: Class weights of shape (num_classes,). Mean weight is 1.0, zero-weight classes remain zero.
+        """
+        if mode == "allele":
+            valid = (y >= 0) & train_mask
+            cls, cnt = np.unique(y[valid].astype(np.int64), return_counts=True)
+            counts = np.zeros(num_classes, dtype=np.float64)
+            counts[cls] = cnt
+
+        elif mode == "genotype10":
+            if y.ndim != 3 or y.shape[-1] != 2:
+                msg = "For genotype10, y must be (nS,nF,2)."
+                self.logger.error(msg)
+                raise ValueError(msg)
+
+            if train_mask.shape != y.shape[:2]:
+                msg = "train_mask must be (nS,nF) for genotype10."
+                self.logger.error(msg)
+                raise ValueError(msg)
+
+            # only loci where both alleles known and in training
+            m = train_mask & np.all(y >= 0, axis=-1)
+            if not np.any(m):
+                counts = np.zeros(num_classes, dtype=np.float64)
+
+            else:
+                a1 = y[:, :, 0][m].astype(int)
+                a2 = y[:, :, 1][m].astype(int)
+                lo, hi = np.minimum(a1, a2), np.maximum(a1, a2)
+                # map to 10-class index
+                map10 = self.pgenc.map10
+                idx10 = map10[lo, hi]
+                idx10 = idx10[(idx10 >= 0) & (idx10 < num_classes)]
+                counts = np.bincount(idx10, minlength=num_classes).astype(np.float64)
+        else:
+            msg = f"Unknown mode supplied to _class_balanced_weights_from_mask: {mode}"
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        # ---- Effective number ----
+        beta = float(beta)
+
+        # clamp beta ∈ (0,1)
+        if not np.isfinite(beta):
+            beta = 0.9999
+
+        beta = min(max(beta, 1e-8), 1.0 - 1e-8)
+
+        logb = np.log(beta)  # < 0
+        t = counts * logb  # ≤ 0
+
+        # 1 - beta^n = 1 - exp(n*log(beta)) = -(exp(n*log(beta)) - 1)
+        # use expm1 for accuracy near 0; for very negative t, eff≈1.0
+        eff = np.where(t > -50.0, -np.expm1(t), 1.0)
+
+        # class-balanced weights
+        w = (1.0 - beta) / (eff + 1e-12)
+
+        # Give unseen classes the largest non-zero weight (keeps it learnable)
+        if np.any(counts == 0) and np.any(counts > 0):
+            w[counts == 0] = w[counts > 0].max()
+
+        # normalize by mean of non-zero
+        nz = w > 0
+        w[nz] /= w[nz].mean() + 1e-12
+
+        # cap spread consistently with a single 'cap'
+        cap = float(max_ratio) if max_ratio is not None else 10.0
+        cap = max(cap, 5.0)  # ensure we allow some differentiation
+        if np.any(nz):
+            spread = w[nz].max() / max(w[nz].min(), 1e-12)
+            if spread > cap:
+                scale = cap / spread
+                w[nz] = 1.0 + (w[nz] - 1.0) * scale
+
+        return torch.tensor(w.astype(np.float32), device=self.device)
+
+    def _select_device(self, device: Literal["gpu", "cpu", "mps"]) -> torch.device:
+        """Selects the appropriate PyTorch device based on user preference and availability.
+
+        This method checks the user's device preference ('gpu', 'cpu', or 'mps') and verifies if the requested hardware is available. If the preferred device is not available, it falls back to CPU and logs a warning.
+
+        Args:
+            device (Literal["gpu", "cpu", "mps"]): The preferred device type for PyTorch operations.
+
+        Returns:
+            torch.device: The selected PyTorch device.
+        """
+        dvc = device.lower().strip()
+        if dvc == "cpu":
+            return torch.device("cpu")
+        if dvc == "mps":
+            if torch.backends.mps.is_available():
+                return torch.device("mps")
+            return torch.device("cpu")
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        return torch.device("cpu")
+
+    def _create_model_directories(
+        self, prefix: str, outdirs: List[str], *, outdir: Path | str | None = None
+    ) -> None:
+        """Creates the directory structure for storing model outputs.
+
+        This method sets up a standardized folder hierarchy for saving models, plots, metrics, and optimization results, organized under a main directory named after the provided prefix.
+
+        Args:
+            prefix (str): The prefix for the main output directory.
+            outdirs (List[str]): A list of subdirectory names to create within the main directory.
+            outdir (Path | str | None): The base output directory. If None, uses the current working directory. Defaults to None.
+
+        Raises:
+            Exception: If any of the directories cannot be created.
+        """
+        base_root = Path(outdir) if outdir is not None else Path.cwd()
+        formatted_output_dir = base_root / f"{prefix}_output"
+        formatted_output_dir = Path(f"{prefix}_output")
+        base_dir = formatted_output_dir / "Unsupervised"
+
+        for d in outdirs:
+            subdir = base_dir / d / self.model_name
+            setattr(self, f"{d}_dir", subdir)
+            try:
+                getattr(self, f"{d}_dir").mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                msg = f"Failed to create directory {getattr(self, f'{d}_dir')}: {e}"
+                self.logger.error(msg)
+                raise Exception(msg)
+
+    def _clear_resources(
+        self,
+        model: torch.nn.Module,
+        train_loader: torch.utils.data.DataLoader,
+        latent_vectors: torch.nn.Parameter | None = None,
+    ) -> None:
+        """Releases GPU and CPU memory after an Optuna trial.
+
+        This is a crucial step during hyperparameter tuning to prevent memory leaks between trials, ensuring that each trial runs in a clean environment.
+
+        Args:
+            model (torch.nn.Module): The model from the completed trial.
+            train_loader (torch.utils.data.DataLoader): The data loader from the trial.
+            latent_vectors (torch.nn.Parameter | None): The latent vectors from the trial.
+        """
+        try:
+            del model, train_loader
+
+            if latent_vectors is not None:
+                del latent_vectors
+
+        except NameError:
+            pass
+
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        elif hasattr(torch, "mps") and torch.backends.mps.is_available():
+            try:
+                torch.mps.empty_cache()
+            except Exception:
+                pass
+
+    def _make_eval_visualizations(
+        self,
+        labels: List[str],
+        y_pred_proba: np.ndarray,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        metrics: Dict[str, float],
+        msg: str,
+    ):
+        """Generate and save evaluation visualizations.
+
+        3-class (zygosity) or 10-class (IUPAC) depending on `labels` length.
+
+        Args:
+            labels (List[str]): Class label names.
+            y_pred_proba (np.ndarray): Predicted probabilities (2D array).
+            y_true (np.ndarray): True labels (1D array).
+            y_pred (np.ndarray): Predicted labels (1D array).
+            metrics (Dict[str, float]): Computed metrics.
+            msg (str): Message to log before generating plots.
+        """
+        self.logger.info(msg)
+
+        prefix = "zygosity" if len(labels) == 3 else "iupac"
+        n_labels = len(labels)
+
+        if self.show_plots:
+            self.plotter_.plot_metrics(
+                y_true=y_true,
+                y_pred_proba=y_pred_proba,
+                metrics=metrics,
+                label_names=labels,
+                prefix=f"geno{n_labels}_{prefix}",
+            )
+            self.plotter_.plot_confusion_matrix(
+                y_true_1d=y_true,
+                y_pred_1d=y_pred,
+                label_names=labels,
+                prefix=f"geno{n_labels}_{prefix}",
+            )
+
+    def _make_class_reports(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        metrics: Dict[str, float],
+        y_pred_proba: np.ndarray | None = None,
+        labels: List[str] = ["REF", "HET", "ALT"],
+    ) -> None:
+        """Generate and save detailed classification reports and visualizations.
+
+        3-class (zygosity) or 10-class (IUPAC) depending on `labels` length.
+
+        Args:
+            y_true (np.ndarray): True labels (1D array).
+            y_pred (np.ndarray): Predicted labels (1D array).
+            metrics (Dict[str, float]): Computed metrics.
+            y_pred_proba (np.ndarray | None): Predicted probabilities (2D array). Defaults to None.
+            labels (List[str]): Class label names
+                (default: ["REF", "HET", "ALT"] for 3-class).
+        """
+        report_name = "zygosity" if len(labels) == 3 else "iupac"
+        middle = "IUPAC" if report_name == "iupac" else "Zygosity"
+
+        msg = f"{middle} Report (on {y_true.size} total genotypes)"
+        self.logger.info(msg)
+
+        if y_pred_proba is not None:
+            if self.show_plots:
+                self.plotter_.plot_metrics(
+                    y_true,
+                    y_pred_proba,
+                    metrics,
+                    label_names=labels,
+                    prefix=report_name,
+                )
+
+            if self.show_plots:
+                self.plotter_.plot_confusion_matrix(
+                    y_true, y_pred, label_names=labels, prefix=report_name
+                )
+
+        report: str | dict = classification_report(
+            y_true,
+            y_pred,
+            labels=list(range(len(labels))),
+            target_names=labels,
+            zero_division=0,
+            output_dict=True,
+        )
+
+        if not isinstance(report, dict):
+            msg = "Expected classification_report to return a dict."
+            self.logger.error(msg, exc_info=True)
+            raise ValueError(msg)
+
+        report_subset = {}
+        for k, v in report.items():
+            tmp = {}
+            if isinstance(v, dict) and "support" in v:
+                for k2, v2 in v.items():
+                    if k2 != "support":
+                        tmp[k2] = v2
+                if tmp:
+                    report_subset[k] = tmp
+
+        if report_subset and (self.verbose or self.debug):
+            pm = PrettyMetrics(
+                report_subset,
+                precision=3,
+                title=f"{self.model_name} {middle} Report",
+            )
+            pm.render()
+
+        with open(self.metrics_dir / f"{report_name}_report.json", "w") as f:
+            json.dump(report, f, indent=4)
+
+        if self.show_plots:
+            viz = ClassificationReportVisualizer(reset_kwargs=self.plotter_.param_dict)
+            try:
+                plots = viz.plot_all(
+                    report,  # type: ignore
+                    title_prefix=f"{self.model_name} {middle} Report",
+                    show=self.show_plots,
+                    heatmap_classes_only=True,
+                )
+            finally:
+                viz._reset_mpl_style()
+
+            for name, fig in plots.items():
+                fout = (
+                    self.plots_dir / f"{report_name}_report_{name}.{self.plot_format}"
+                )
+                if hasattr(fig, "savefig") and isinstance(fig, Figure):
+                    fig.savefig(fout, dpi=300, facecolor="#111122")
+                    plt.close(fig)
+                elif hasattr(fig, "write_html") and isinstance(fig, go.Figure):
+                    fout_html = fout.with_suffix(".html")
+                    fig.write_html(file=fout_html)
+
+                    SNPioMultiQC.queue_html(
+                        fout_html,
+                        panel_id=f"pgsui_{self.model_name.lower()}_{report_name}_radar",
+                        section=f"PG-SUI: {self.model_name} Model Imputation",
+                        title=f"{self.model_name} {middle} Radar Plot",
+                        index_label=name,
+                        description=f"{self.model_name} {middle} {len(labels)}-base Radar Plot. This radar plot visualizes model performance for three metrics per-class: precision, recall, and F1-score. Each axis represents one of these metrics, allowing for a quick visual assessment of the model's strengths and weaknesses. Higher values towards the outer edge indicate better performance.",
+                    )
+
+            if not self.is_haploid:
+                msg = f"Ploidy: {self.ploidy}. Evaluating per genotype (REF, HET, ALT)."
+                self.logger.info(msg)
+
+    def _compute_hidden_layer_sizes(
+        self,
+        n_inputs: int,
+        n_outputs: int,
+        n_samples: int,
+        n_hidden: int,
+        *,
+        alpha: float = 4.0,
+        schedule: str = "pyramid",
+        min_size: int = 16,
+        max_size: int | None = None,
+        multiple_of: int = 8,
+        decay: float | None = None,
+        cap_by_inputs: bool = True,
+    ) -> list[int]:
+        """Compute hidden layer sizes given problem scale and a layer count.
+
+        This method computes a list of hidden layer sizes based on the number of input features, output classes, training samples, and desired hidden layers. The sizes are determined using a specified schedule (pyramid, constant, or linear) and are constrained by minimum and maximum sizes, as well as rounding to multiples of a specified value.
+
+        Args:
+            n_inputs (int): Number of input features.
+            n_outputs (int): Number of output classes.
+            n_samples (int): Number of training samples.
+            n_hidden (int): Number of hidden layers.
+            alpha (float): Scaling factor for base layer size. Default is 4.0.
+            schedule (Literal["pyramid", "constant", "linear"]): Size schedule. Default is "pyramid".
+            min_size (int): Minimum layer size. Default is 16.
+            max_size (int | None): Maximum layer size. Default is None (no limit).
+            multiple_of (int): Round layer sizes to be multiples of this. Default is 8.
+            decay (float | None): Decay factor for "pyramid" schedule. If None, it is computed automatically. Default is None.
+            cap_by_inputs (bool): If True, cap layer sizes to n_inputs. Default is True.
+
+        Returns:
+            list[int]: List of hidden layer sizes.
+
+        Raises:
+            ValueError: If n_hidden < 0 or if alpha * (n_inputs + n_outputs) <= 0 or if schedule is unknown.
+            TypeError: If any argument is not of the expected type.
+
+        Notes:
+            - If n_hidden is 0, returns an empty list.
+            - The base layer size is computed as ceil(n_samples / (alpha * (n_inputs + n_outputs))).
+            - The sizes are adjusted according to the specified schedule and constraints.
+        """
+        if n_hidden < 0:
+            msg = f"n_hidden must be >= 0, got {n_hidden}."
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        if schedule not in {"pyramid", "constant", "linear"}:
+            msg = f"Unknown schedule '{schedule}'. Use 'pyramid', 'constant', or 'linear'."
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        if n_hidden == 0:
+            return []
+
+        denom = float(alpha) * float(n_inputs + n_outputs)
+
+        if denom <= 0:
+            msg = f"alpha * (n_inputs + n_outputs) must be > 0, got {denom}."
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        base = int(np.ceil(float(n_samples) / denom))
+
+        if max_size is None:
+            max_size = max(n_inputs, base)
+
+        base = int(np.clip(base, min_size, max_size))
+
+        if schedule == "constant":
+            sizes = np.full(shape=(n_hidden,), fill_value=base, dtype=float)
+
+        elif schedule == "linear":
+            target = max(min_size, min(base, base // 4))
+            sizes = (
+                np.array([base], dtype=float)
+                if n_hidden == 1
+                else np.linspace(base, target, num=n_hidden, dtype=float)
+            )
+
+        elif schedule == "pyramid":
+            if n_hidden == 1:
+                sizes = np.array([base], dtype=float)
+            else:
+                if decay is None:
+                    target = max(min_size, base // 4)
+                    if base <= 0 or target <= 0:
+                        dcy = 1.0
+                    else:
+                        dcy = (target / float(base)) ** (1.0 / (n_hidden - 1))
+                        dcy = float(np.clip(dcy, 0.25, 0.99))
+                exponents = np.arange(n_hidden, dtype=float)
+                sizes = base * (dcy**exponents)
+
+        else:
+            msg = f"Unknown schedule '{schedule}'. Use 'pyramid', 'constant', or 'linear'."
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        sizes = np.clip(sizes, min_size, max_size)
+
+        if cap_by_inputs:
+            sizes = np.minimum(sizes, float(n_inputs))
+
+        sizes = (np.ceil(sizes / multiple_of) * multiple_of).astype(int)
+        sizes = np.minimum.accumulate(sizes)
+        return np.clip(sizes, min_size, max_size).astype(int).tolist()
+
+    def _class_weights_from_zygosity(self, X: np.ndarray) -> torch.Tensor:
+        y = X[X != -1].ravel().astype(np.int64)
+        if y.size == 0:
+            return torch.ones(
+                self.num_classes_, dtype=torch.float32, device=self.device
+            )
+
+        if getattr(self, "is_haploid", False):
+            y = y.copy()
+            y[y == 2] = 1
+
+        # If haploid, num_classes_ should be 2 for weights; enforce defensively
+        num_classes = (
+            2 if getattr(self, "is_haploid", False) else int(self.num_classes_)
+        )
+
+        return self._class_balanced_weights_from_mask(
+            y=y,
+            train_mask=np.ones_like(y, dtype=bool),
+            num_classes=num_classes,
+            beta=self.beta,
+            max_ratio=self.max_ratio,
+            mode="allele",
+        ).to(self.device)
+
+    @staticmethod
+    def _normalize_class_weights(
+        weights: torch.Tensor | None,
+    ) -> torch.Tensor | None:
+        """Normalize class weights once to keep loss scale stable.
+
+        Args:
+            weights (torch.Tensor | None): Class weights to normalize.
+
+        Returns:
+            torch.Tensor | None: Normalized class weights or None if input is None.
+        """
+        if weights is None:
+            return None
+        return weights / weights.mean().clamp_min(1e-8)
+
+    def _one_hot_encode_012(
+        self, X: np.ndarray | torch.Tensor, num_classes: int | None
+    ) -> torch.Tensor:
+        """One-hot encode genotype calls with masking for missing (<0).
+
+        Contract:
+            - Valid classes must be integers in [0, K-1]
+            - Missing is any value < 0
+
+        Special-case:
+            - If K==2 and values are in {0,2} (no 1s), map 2->1.
+        """
+        Xt = (
+            torch.from_numpy(X).to(self.device)
+            if isinstance(X, np.ndarray)
+            else X.to(self.device)
+        )
+
+        # Make sure we have integer class labels
+        if Xt.dtype.is_floating_point:
+            # Convert NaN -> -1 and cast to long
+            Xt = torch.nan_to_num(Xt, nan=-1.0).long()
+        else:
+            Xt = Xt.long()
+
+        B, L = Xt.shape
+        K = int(num_classes) if num_classes is not None else int(self.num_classes_)
+
+        # Missing is anything < 0 (covers -1, -9, etc.)
+        valid = Xt >= 0
+
+        # If binary mode but data is {0,2} (haploid-like or "ref vs non-ref"), map 2->1
+        if K == 2:
+            has_het = torch.any(valid & (Xt == 1))
+            has_alt2 = torch.any(valid & (Xt == 2))
+            if has_alt2 and not has_het:
+                Xt = Xt.clone()
+                Xt[valid & (Xt == 2)] = 1
+
+        # Now enforce the one-hot precondition
+        if torch.any(valid & (Xt >= K)):
+            bad_vals = torch.unique(Xt[valid & (Xt >= K)]).detach().cpu().tolist()
+            all_vals = torch.unique(Xt[valid]).detach().cpu().tolist()
+            raise ValueError(
+                f"_one_hot_encode_012 received class values outside [0, {K-1}]. "
+                f"num_classes={K}, offending_values={bad_vals}, observed_values={all_vals}. "
+                "Upstream encoding mismatch (e.g., passing 0/1/2 with num_classes=2)."
+            )
+
+        X_ohe = torch.zeros((B, L, K), dtype=torch.float32, device=self.device)
+        idx = Xt[valid]
+
+        if idx.numel() > 0:
+            X_ohe[valid] = F.one_hot(idx, num_classes=K).float()
+
+        return X_ohe
+
+    def _eval_for_pruning(
+        self,
+        *,
+        model: torch.nn.Module,
+        X_val: np.ndarray,
+        params: dict,
+        metric: str,
+        objective_mode: bool = True,
+        do_latent_infer: bool = False,
+        latent_steps: int = 50,
+        latent_lr: float = 1e-2,
+        latent_weight_decay: float = 0.0,
+        latent_seed: int | None = 123,
+        _latent_cache: dict | None = None,
+        _latent_cache_key: str | None = None,
+        y_true_matrix: np.ndarray | None = None,
+        eval_mask_override: np.ndarray | None = None,
+        GT_val: np.ndarray | None = None,
+    ) -> float:
+        """Compute a scalar metric (to MAXIMIZE) on a fixed validation set.
+
+        This method is used for Optuna pruning decisions. It optionally performs latent inference (for models like UBP that benefit from it), then calls `_evaluate_model()` and returns a single metric value. If `eval_mask_override` is provided (e.g., simulated-missing mask), you SHOULD provide `y_true_matrix` aligned to `X_val` to avoid scoring against masked (-1) values.
+
+        Returns:
+            float: Metric value to maximize. Returns -inf on failure/non-finite.
+        """
+        optimized_val_latents: torch.Tensor | None = None
+
+        # --- Optional latent inference path (cache-aware) ---
+        if do_latent_infer and hasattr(self, "_latent_infer_for_eval"):
+            try:
+                # Your _latent_infer_for_eval currently returns None; it writes into cache.
+                # We call it for side-effects then try to retrieve from the cache.
+                self._latent_infer_for_eval(  # type: ignore[attr-defined]
+                    model=model,
+                    X_val=X_val,
+                    steps=latent_steps,
+                    lr=latent_lr,
+                    weight_decay=latent_weight_decay,
+                    seed=latent_seed,
+                    cache=_latent_cache,
+                    cache_key=_latent_cache_key,
+                )
+
+                if _latent_cache is not None and _latent_cache_key is not None:
+                    cached = _latent_cache.get(_latent_cache_key, None)
+                    if cached is not None:
+                        optimized_val_latents = cached
+            except Exception as e:
+                # If latent inference fails, just prune hard (return -inf).
+                self.logger.warning(f"Latent inference for pruning failed: {e}")
+                return -np.inf
+
+        # --- If you thin the validation set (proxy metric), thin everything aligned ---
+        if getattr(self, "_tune_eval_slice", None) is not None:
+            sl = self._tune_eval_slice
+            X_val = X_val[sl]
+            if eval_mask_override is not None:
+                eval_mask_override = eval_mask_override[sl]
+            if y_true_matrix is not None:
+                y_true_matrix = y_true_matrix[sl]
+
+        # --- Build kwargs for evaluator with signature compatibility ---
+        eval_kwargs: dict[str, Any] = dict(
+            X_val=X_val,
+            model=model,
+            params=params,
+            objective_mode=objective_mode,
+            latent_vectors_val=optimized_val_latents,
+            eval_mask_override=eval_mask_override,
+        )
+
+        # Pass ground truth matrix under the correct parameter name:
+        # - Prefer GT_val (new)
+        # - Fall back to y_true_matrix (old)
+        if y_true_matrix is not None:
+            sig = inspect.signature(self._evaluate_model)  # type: ignore
+            if "GT_val" in sig.parameters:
+                eval_kwargs["GT_val"] = y_true_matrix
+            elif "y_true_matrix" in sig.parameters:
+                eval_kwargs["y_true_matrix"] = y_true_matrix
+            else:
+                # If evaluator doesn't accept GT at all, this is unsafe for mask_override scoring.
+                if eval_mask_override is not None:
+                    self.logger.error(
+                        "Evaluator does not accept ground truth matrix; "
+                        "cannot safely score with eval_mask_override."
+                    )
+                    return -np.inf
+
+        # --- Evaluate safely for pruning ---
+        try:
+            metrics = self._evaluate_model(**eval_kwargs)  # type: ignore[attr-defined]
+        except Exception as e:
+            self.logger.warning(f"Pruning-eval failed (returning -inf): {e}")
+            return -np.inf
+
+        # Prefer the requested metric; fall back to self.tune_metric if needed.
+        val = metrics.get(metric, metrics.get(getattr(self, "tune_metric", ""), None))
+
+        if val is None or not np.isfinite(val):
+            return -np.inf
+
+        return float(val)
+
+    def _first_linear_in_features(self, model: torch.nn.Module) -> int:
+        """Return in_features of the model's first Linear layer.
+
+        This method iterates through the modules of the provided PyTorch model to find the first instance of a Linear layer. It then retrieves and returns the `in_features` attribute of that layer, which indicates the number of input features expected by the layer.
+
+        Args:
+            model (torch.nn.Module): The model to inspect.
+
+        Returns:
+            int: The in_features of the first Linear layer.
+        """
+        for m in model.modules():
+            if isinstance(m, torch.nn.Linear):
+                return int(m.in_features)
+        raise RuntimeError("No Linear layers found in model.")
+
+    def decode_012(
+        self, X: np.ndarray | pd.DataFrame | List[List[int]], is_nuc: bool = False
+    ) -> np.ndarray:
+        """Decode 012 or 0-9 integer encodings to single-character IUPAC nucleotides.
+
+        Always returns single-character IUPAC codes:
+        - A, C, G, T for homozygotes
+        - R, Y, S, W, K, M (plus B, D, H, V when REF/ALT are ambiguous)
+        - N for missing/invalid
+
+        Modes:
+        1) Standard 012 (0=REF, 1=HET, 2=ALT, -9/-1=missing) using per-locus REF/ALT from GenotypeData.
+        Special case: ALT="." (or empty) is treated as monomorphic and defaults to REF.
+        2) IUPAC-integer mode (is_nuc=True) using SNPio's updated order:
+        A=0, C=1, G=2, T=3, W=4, R=5, M=6, K=7, Y=8, S=9, N=-9/-1.
+
+        Args:
+            X: Matrix of 012 or 0-9 IUPAC integers.
+            is_nuc: If True, interpret inputs as 0-9 IUPAC integers (A=0, C=1, G=2, T=3, ...).
+
+        Returns:
+            np.ndarray: Same shape as X, dtype '<U1', with single-character IUPAC codes.
+
+        Raises:
+            ValueError: If REF/ALT metadata are unavailable for 012 decoding.
+        """
+        df = validate_input_type(X, return_type="df")
+
+        if not isinstance(df, pd.DataFrame):
+            msg = "Internal error: expected DataFrame after validation."
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        iupac_to_bases = {
+            "A": {"A"},
+            "C": {"C"},
+            "G": {"G"},
+            "T": {"T"},
+            "R": {"A", "G"},
+            "Y": {"C", "T"},
+            "S": {"G", "C"},
+            "W": {"A", "T"},
+            "K": {"G", "T"},
+            "M": {"A", "C"},
+            "B": {"C", "G", "T"},
+            "D": {"A", "G", "T"},
+            "H": {"A", "C", "T"},
+            "V": {"A", "C", "G"},
+        }
+        bases_to_iupac = {frozenset(v): k for k, v in iupac_to_bases.items()}
+        missing_codes = {"", ".", "N", "NONE"}
+
+        def _normalize_iupac(value: object) -> str | None:
+            if value is None:
+                return None
+            if isinstance(value, (bytes, np.bytes_)):
+                value = value.decode("utf-8", errors="ignore")
+            if isinstance(value, (list, tuple, np.ndarray, pd.Series)):
+                for item in value:
+                    code = _normalize_iupac(item)
+                    if code is not None:
+                        return code
+                return None
+            if isinstance(value, str):
+                for part in value.upper().split(","):
+                    part = part.strip()
+                    if not part or part in missing_codes:
+                        continue
+                    if part in iupac_to_bases:
+                        return part
+                return None
+            part = str(value).upper().strip()
+            if part in missing_codes:
+                return None
+            if "," in part:
+                for token in part.split(","):
+                    token = token.strip()
+                    if token in iupac_to_bases:
+                        return token
+                return None
+            return part if part in iupac_to_bases else None
+
+        if is_nuc:
+            # UPDATED SNPio order: A=0, C=1, G=2, T=3, W=4, R=5, M=6, K=7, Y=8, S=9, N=-9/-1
+            iupac_list = ["A", "C", "G", "T", "W", "R", "M", "K", "Y", "S"]
+            mapping = {i: iupac_list[i] for i in range(10)}
+            mapping[-9] = "N"
+            mapping[-1] = "N"
+
+            # accept strings too
+            mapping.update({str(k): v for k, v in mapping.items()})
+            return df.replace(mapping).to_numpy(dtype="<U1")
+
+        # ---- Standard 012 decoding using REF/ALT per column ----
+        ref_alleles = getattr(self.genotype_data, "ref", None)
+        alt_alleles = getattr(self.genotype_data, "alt", None)
+
+        def _alleles_missing(value: object) -> bool:
+            try:
+                return value is None or len(value) == 0  # type: ignore[arg-type]
+            except TypeError:
+                return value is None
+
+        if _alleles_missing(ref_alleles):
+            ref_alleles = getattr(self.genotype_data, "_ref", None)
+        if _alleles_missing(ref_alleles):
+            ref_alleles = getattr(self, "_ref", None)
+
+        if _alleles_missing(alt_alleles):
+            alt_alleles = getattr(self.genotype_data, "_alt", None)
+        if _alleles_missing(alt_alleles):
+            alt_alleles = getattr(self, "_alt", None)
+
+        if ref_alleles is None or alt_alleles is None:
+            msg = (
+                "Reference and alternate alleles are not available in GenotypeData; "
+                "cannot decode 012 matrix."
+            )
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        df_out = df.copy().astype(object)
+        n_cols = len(df_out.columns)
+
+        if isinstance(ref_alleles, np.ndarray):
+            ref_alleles = ref_alleles.tolist()
+        if isinstance(alt_alleles, np.ndarray):
+            alt_alleles = alt_alleles.tolist()
+
+        def _transpose_alt_alleles(alts: object) -> object:
+            if not isinstance(alts, list) or len(alts) == 0:
+                return alts
+            try:
+                if len(alts) != n_cols and all(
+                    not isinstance(a, (str, bytes))
+                    and hasattr(a, "__len__")
+                    and len(a) == n_cols
+                    for a in alts
+                ):
+                    return [[a[i] for a in alts] for i in range(n_cols)]
+            except TypeError:
+                return alts
+            return alts
+
+        alt_alleles = _transpose_alt_alleles(alt_alleles)
+
+        if len(ref_alleles) != n_cols or len(alt_alleles) != n_cols:
+            try:
+                alleles = self.genotype_data.get_ref_alt_alleles(
+                    self.genotype_data.snp_data
+                )
+            except Exception:
+                alleles = None
+
+            if alleles:
+                ref_candidate = alleles[0]
+                if isinstance(ref_candidate, np.ndarray):
+                    ref_candidate = ref_candidate.tolist()
+                if len(ref_candidate) == n_cols:
+                    ref_alleles = ref_candidate
+
+                alt_candidate = [x for i, x in enumerate(alleles) if i > 0]
+                alt_candidate = _transpose_alt_alleles(alt_candidate)
+                if len(alt_candidate) == n_cols:
+                    alt_alleles = alt_candidate
+
+        if len(ref_alleles) != n_cols or len(alt_alleles) != n_cols:
+            msg = (
+                "Reference and alternate alleles do not align with genotype columns; "
+                "cannot decode 012 matrix."
+            )
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        for j, col in enumerate(df_out.columns):
+            ref = _normalize_iupac(ref_alleles[j])
+            alt = _normalize_iupac(alt_alleles[j])
+
+            if ref is None and alt is None:
+                ref = "A"
+                alt = "A"
+            elif ref is None:
+                ref = alt
+
+            if alt is None:
+                alt = ref
+
+            if ref == alt:
+                het_code = ref
+            else:
+                het_set = iupac_to_bases[ref] | iupac_to_bases[alt]
+                het_code = bases_to_iupac.get(frozenset(het_set), ref)
+
+            col_map = {
+                0: ref,
+                "0": ref,
+                1: het_code,
+                "1": het_code,
+                2: alt,
+                "2": alt,
+                -9: "N",
+                "-9": "N",
+                -1: "N",
+                "-1": "N",
+            }
+
+            df_out[col] = df_out[col].map(col_map)
+
+        return df_out.to_numpy(dtype="<U1")
+
+    def _assert_model_latent_compat(
+        self, model: torch.nn.Module, latent_vectors: torch.nn.Parameter
+    ) -> None:
+        """Raise if model's first Linear doesn't match latent_vectors width.
+
+        This method checks that the dimensionality of the provided latent vectors matches the expected input feature size of the model's first linear layer. If there is a mismatch, it raises a ValueError with a descriptive message.
+
+        Args:
+            model (torch.nn.Module): The model to check.
+            latent_vectors (torch.nn.Parameter): The latent vectors to check.
+
+        Raises:
+            ValueError: If the latent dimension does not match the model's expected input features.
+        """
+        zdim = int(latent_vectors.shape[1])
+        first_in = self._first_linear_in_features(model)
+        if first_in != zdim:
+            raise ValueError(
+                f"Latent mismatch: zdim={zdim}, model first Linear expects in_features={first_in}"
+            )
+
+    def _prepare_tuning_artifacts(self) -> None:
+        """Prepare data and artifacts needed for hyperparameter tuning.
+
+        Optionally subsamples both samples (rows) and loci (columns) for fast tuning and ensures all derived artifacts remain row/column aligned, including simulated-missing masks.
+
+        Raises:
+            ValueError: If there are shape mismatches between ground truth, model input, or simulated-missing masks.
+        """
+        if getattr(self, "_tune_ready", False):
+            return
+
+        rng = self.rng
+        X_truth = self.ground_truth_
+        X_input = self.X_model_input_
+
+        if X_input is None:
+            msg = "X_model_input_ is None; cannot prepare tuning artifacts."
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        if X_truth.shape != X_input.shape:
+            msg = f"Shape mismatch between ground truth and model input."
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        sim_global = getattr(self, "sim_mask_global_", None)
+        if sim_global is not None and sim_global.shape != X_truth.shape:
+            msg = "Shape mismatch between sim_mask_global_ and ground truth."
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        n_samp, n_loci = X_truth.shape
+
+        # --- Build tune-fast subset (rows + loci), else use full ---
+        if self.tune_fast:
+            s = min(n_samp, int(self.tune_max_samples))
+            l = (
+                n_loci
+                if int(self.tune_max_loci) == 0
+                else min(n_loci, int(self.tune_max_loci))
+            )
+
+            samp_idx = np.sort(rng.choice(n_samp, size=s, replace=False))
+            loci_idx = np.sort(rng.choice(n_loci, size=l, replace=False))
+
+            self._tune_samp_idx = samp_idx
+            self._tune_loci_idx = loci_idx
+
+            X_truth_small = X_truth[np.ix_(samp_idx, loci_idx)]
+            X_input_small = X_input[np.ix_(samp_idx, loci_idx)]
+            sim_small = (
+                None
+                if sim_global is None
+                else sim_global[np.ix_(samp_idx, loci_idx)].astype(bool, copy=False)
+            )
+
+        else:
+            self._tune_samp_idx = None
+            self._tune_loci_idx = None
+
+            X_truth_small = X_truth
+            X_input_small = X_input
+            sim_small = (
+                None if sim_global is None else sim_global.astype(bool, copy=False)
+            )
+
+        # Persist tune-aligned artifacts (optional but useful for debugging)
+        self._tune_X_small = X_input_small
+        self._tune_GT_small = X_truth_small
+        self._tune_sim_mask_small = sim_small
+
+        # --- Ensure enough samples for train/val split ---
+        n_rows = X_input_small.shape[0]
+        if n_rows < 3:
+            msg = f"Not enough samples ({n_rows}) for train/val split. Increase tune_max_samples or disable tune_fast."
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        # --- Split rows of the tune set ---
+        idx = np.arange(X_input_small.shape[0])
+        tr, te = train_test_split(
+            idx, test_size=self.validation_split, random_state=self.seed
+        )
+
+        self._tune_train_idx = tr
+        self._tune_test_idx = te
+
+        self._tune_X_train = X_input_small[tr]
+        self._tune_X_test = X_input_small[te]
+        self._tune_GT_train = X_truth_small[tr]
+        self._tune_GT_test = X_truth_small[te]
+
+        if sim_small is not None:
+            self._tune_sim_mask_train = sim_small[tr]
+            self._tune_sim_mask_test = sim_small[te]
+        else:
+            self._tune_sim_mask_train = None
+            self._tune_sim_mask_test = None
+
+        # Class weights computed from TRAIN INPUT matrix (masked)
+        self._tune_class_weights = self._normalize_class_weights(
+            self._class_weights_from_zygosity(self._tune_X_train)
+        )
+
+        # Temporarily bump batch size only for tuning loader
+        orig_bs = self.batch_size
+        self.batch_size = self.tune_batch_size
+        self._tune_loader = self._get_data_loaders(self._tune_X_train)  # type: ignore
+        self.batch_size = orig_bs
+
+        self._tune_num_features = self._tune_X_train.shape[1]
+        self._tune_val_latents_source = None
+        self._tune_train_latents_source = None
+
+        # Optional: for huge val sets, thin them for proxy metric
+        if (
+            self.tune_proxy_metric_batch
+            and self._tune_X_test.shape[0] > self.tune_proxy_metric_batch
+        ):
+            self._tune_eval_slice = np.arange(self.tune_proxy_metric_batch)
+        else:
+            self._tune_eval_slice = None
+
+        self._tune_ready = True
+
+    def _save_best_params(
+        self, best_params: Dict[str, Any], objective_mode: bool = False
+    ) -> None:
+        """Save the best hyperparameters to a JSON file.
+
+        This method saves the best hyperparameters found during hyperparameter tuning to a JSON file in the optimization directory. The filename includes the model name for easy identification.
+
+        Args:
+            best_params (Dict[str, Any]): A dictionary of the best hyperparameters to save.
+        """
+        if not hasattr(self, "parameters_dir"):
+            msg = "Attribute 'parameters_dir' not found. Ensure _create_model_directories() has been called."
+            self.logger.error(msg)
+            raise AttributeError(msg)
+
+        if objective_mode:
+            fout = self.optimize_dir / "parameters" / "best_tuned_parameters.json"
+        else:
+            fout = self.parameters_dir / "best_parameters.json"
+
+        fout.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(fout, "w") as f:
+            json.dump(best_params, f, indent=4)
+
+    def _set_best_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """An abstract method for setting best parameters."""
+        raise NotImplementedError
+
+    def _resolve_gamma(
+        self,
+        params: dict | Mapping[str, Any] | None = None,
+        model: torch.nn.Module | None = None,
+    ) -> float:
+        """Resolve focal gamma with precedence: params -> params['model_params'] -> model -> self.
+
+        Args:
+            params (dict | None): Parameter dictionary that may contain 'gamma' or 'model_params
+            model (torch.nn.Module | None): Model instance that may have a 'gamma' attribute.
+
+        Returns:
+            float: Resolved gamma value, clamped to [0.0, 10.0].
+        """
+        g = None
+
+        if params is not None:
+            if isinstance(params, dict):
+                if "gamma" in params:
+                    g = params.get("gamma", None)
+                elif isinstance(params.get("model_params", None), dict):
+                    g = params["model_params"].get("gamma", None)
+
+        if g is None and model is not None:
+            g = getattr(model, "gamma", None)
+
+        if g is None:
+            g = getattr(self, "gamma", 0.0)
+
+        # clamp to sane range
+        try:
+            g = float(g)
+        except Exception:
+            g = 0.0
+        return max(0.0, min(g, 10.0))
+
+    def sim_missing_transform(self):
+        GT_full = self.pgenc.genotypes_012
+        GT_full[GT_full < 0] = -1  # ensure missing = -1
+        GT_full = np.nan_to_num(GT_full, nan=-1.0)  # just in case
+        self.ground_truth_ = GT_full.astype(np.int64)
+
+        if not self.simulate_missing:
+            msg = "Training without simulated missing data is not currently supported for UBP imputer. Please enable `simulate_missing`."
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        if not hasattr(self, "sim_prop") or self.sim_prop <= 0.0:
+            msg = "simulate_missing is True but sim_prop is not set or <= 0.0."
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        if not hasattr(self, "tree_parser") and "nonrandom" in self.sim_strategy:
+            msg = "simulate_missing is True but tree_parser is not set for 'nonrandom' or 'nonrandom_weighted' strategy."
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        # --- Simulate missing data ---
+        X_for_sim = self.ground_truth_.astype(np.float32, copy=True)
+        tr = SimMissingTransformer(
+            genotype_data=self.genotype_data,
+            tree_parser=self.tree_parser,
+            prop_missing=self.sim_prop,
+            strategy=self.sim_strategy,
+            missing_val=-1,
+            mask_missing=True,
+            verbose=self.verbose,
+            **self.sim_kwargs,
+        )
+        tr.fit(X_for_sim.copy())
+        X_for_model = tr.transform(X_for_sim.copy())
+        sim_mask_global = tr.sim_missing_mask_.astype(bool)
+        orig_mask_global = tr.original_missing_mask_.astype(bool)
+
+        return X_for_model, sim_mask_global, orig_mask_global
