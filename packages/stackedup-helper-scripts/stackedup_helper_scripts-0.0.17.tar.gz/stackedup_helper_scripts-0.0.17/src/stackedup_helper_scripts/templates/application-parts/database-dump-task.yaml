@@ -1,0 +1,248 @@
+---
+Transform: AWS::Serverless-2016-10-31
+Description: OMBU / Application / Database Dump Task
+
+# The database-dump-task stack will provision an encrypted S3 bucket to hold
+# database dump files created by the database_dump ECS task.
+
+Parameters:
+
+  ApplicationName:
+    Description: The name of the application.
+    Type: String
+
+  EnvironmentType:
+    Description: The application environment.
+    Type: String
+
+  ClusterStack:
+    Description: The stack name that define the cluster for the application.
+    Type: String
+
+  ImageTag:
+    Description: The container image tag to deploy.
+    Default: v1.0.0
+    Type: String
+
+  DatabaseType:
+    Description: The type of database.
+    Default: postgres
+    Type: String
+
+  DatabaseHost:
+    Description: The hostname of the database server.
+    Type: String
+
+  DatabaseName:
+    Description: The database name.
+    Type: String
+
+  DatabaseUser:
+    Description: The database user.
+    Type: String
+
+  DatabasePort:
+    Description: The port for the database.
+    Default: 5432
+    Type: Number
+
+  NotificationArn:
+    Description: The ARN of the SNS topic to send notifications to.
+    Type: String
+
+  BackupExpirationDays:
+    Description: The number of days after which backup objects are deleted.
+    Default: 1
+    Type: Number
+
+  LogRetention:
+    Description: How long to keep logs for in days.
+    Default: 30
+    Type: Number
+
+Resources:
+
+  DatabaseDumpBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteAfterOneDay
+            Status: Enabled
+            ExpirationInDays: !Ref BackupExpirationDays
+            NoncurrentVersionExpirationInDays: !Ref BackupExpirationDays
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  DatabaseDumpBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DatabaseDumpBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: MustBeEncryptedInTransit
+            Action:
+              - 's3:*'
+            Effect: Deny
+            Resource:
+              - !Join
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref DatabaseDumpBucket
+              - !Join
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref DatabaseDumpBucket
+                  - '/*'
+            Principal: '*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  DatabaseDumpExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+                - events.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-AccessToSecretsKey"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - secretsmanager:GetSecretValue
+                  - kms:Decrypt
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:\
+                          parameter/${ApplicationName}/${EnvironmentType}/*"
+
+  DatabaseDumpTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+                - events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-SNSTopic"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref NotificationArn
+        - PolicyName: !Sub "${AWS::StackName}-BackupTaskRoleBucketPolicy"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub "${DatabaseDumpBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt DatabaseDumpBucket.Arn
+        - PolicyName: !Sub "${AWS::StackName}-AccessToSecretsKey"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - secretsmanager:GetSecretValue
+                  - kms:Decrypt
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:\
+                          parameter/${ApplicationName}/${EnvironmentType}/*"
+
+  DatabaseDumpCloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "${AWS::StackName}-DatabaseDump"
+      RetentionInDays: !Ref LogRetention
+
+  DatabaseDumpTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${ApplicationName}_${EnvironmentType}_database_dump"
+      ExecutionRoleArn: !GetAtt DatabaseDumpExecutionRole.Arn
+      TaskRoleArn: !Ref DatabaseDumpTaskRole
+      ContainerDefinitions:
+        - Name: database-dump
+          Essential: true
+          Image: !Join
+            - ''
+            - - Fn::ImportValue: !Sub "${ClusterStack}-ECRRepository"
+              - !Sub "/ombu/task/databasedump/${DatabaseType}:${ImageTag}"
+          MemoryReservation: 128
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref DatabaseDumpCloudWatchLogsGroup
+              awslogs-region: !Ref AWS::Region
+          Secrets:
+            - Name: DB_PW
+              ValueFrom:
+                !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/\
+                      ${ApplicationName}/${EnvironmentType}/database_password"
+          Environment:
+            - Name: APPLICATION_NAME
+              Value: !Ref ApplicationName
+            - Name: AWS_DEFAULT_REGION
+              Value: !Ref AWS::Region
+            - Name: ENVIRONMENT_TYPE
+              Value: !Ref EnvironmentType
+            - Name: DB_HOST
+              Value: !Ref DatabaseHost
+            - Name: DB_DB
+              Value: !Ref DatabaseName
+            - Name: DB_USER
+              Value: !Ref DatabaseUser
+            - Name: DB_PORT
+              Value: !Ref DatabasePort
+            - Name: NOTIFICATION_ARN
+              Value: !Ref NotificationArn
+            - Name: BUCKET
+              Value: !Ref DatabaseDumpBucket
+            - Name: LOG_FORMAT
+              Value: json
+
+Outputs:
+
+  DatabaseDumpBucket:
+    Description: The name of the S3 backup bucket.
+    Value: !Ref DatabaseDumpBucket
+
+  LogGroup:
+    Description: The CloudWatch log group.
+    Value: !Ref DatabaseDumpCloudWatchLogsGroup

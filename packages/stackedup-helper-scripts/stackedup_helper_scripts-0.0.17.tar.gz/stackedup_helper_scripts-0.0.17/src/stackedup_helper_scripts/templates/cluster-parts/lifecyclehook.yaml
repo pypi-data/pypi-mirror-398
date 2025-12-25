@@ -1,0 +1,120 @@
+---
+Transform: AWS::Serverless-2016-10-31
+Description: OMBU Cluster / ECS Lifecycle Hook
+
+# Auto Scaling Lifecycle Hook to drain Tasks
+# drain Tasks from your Container Instances when an Instance is selected for
+# Termination in your Auto Scaling Group.
+
+Parameters:
+
+  Cluster:
+    Description: Name of ECS Cluster.
+    Type: String
+
+  ECSAutoScalingGroupName:
+    Description: Name of Auto Scaling Group.
+    Type: String
+
+Resources:
+
+  NotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !GetAtt
+            - LifecycleHandlerFunction
+            - Arn
+          Protocol: lambda
+
+  InstanceTerminatingHook:
+    Type: AWS::AutoScaling::LifecycleHook
+    Properties:
+      AutoScalingGroupName: !Ref ECSAutoScalingGroupName
+      DefaultResult: ABANDON
+      HeartbeatTimeout: 900
+      LifecycleTransition: autoscaling:EC2_INSTANCE_TERMINATING
+      NotificationTargetARN: !Ref NotificationTopic
+      RoleARN: !GetAtt
+        - AutoscalingNotificationRole
+        - Arn
+
+  AutoscalingNotificationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - autoscaling.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/\
+           AutoScalingNotificationAccessRole"
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Policies:
+        - PolicyName: lambda-inline
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - autoscaling:CompleteLifecycleAction
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceAttribute
+                  - ec2:DescribeInstanceStatus
+                  - ec2:DescribeHosts
+                  - ecs:ListContainerInstances
+                  - ecs:SubmitContainerStateChange
+                  - ecs:SubmitTaskStateChange
+                  - ecs:DescribeContainerInstances
+                  - ecs:UpdateContainerInstancesState
+                  - ecs:ListTasks
+                  - ecs:DescribeTasks
+                  - sns:Publish
+                  - sns:ListSubscriptions
+                Resource: '*'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/\
+           AutoScalingNotificationAccessRole"
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LifecycleHandlerFunction
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref NotificationTopic
+
+  LifecycleHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../scripts/cluster_lifecyclehook
+      Handler: cluster_lifecyclehook.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.12
+      Timeout: 10
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
+      Description: Send message via SNS about lifecycle.
+      Environment:
+        Variables:
+          CLUSTER: !Ref Cluster

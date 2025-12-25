@@ -1,0 +1,271 @@
+---
+Description: OMBU Alarms / SES / Bounce and Complaint Feedback Logging
+
+# Stack to track the bounce and complaint of a SES identity. Provides
+# notifications if bounce or complaints exceed the recommended warning rate.
+
+Parameters:
+
+  Identity:
+    Description: A domain or email SES identity.
+    Type: String
+
+  IdentityFriendlyName:
+    Description: Friendly name for identity.
+    Type: String
+
+  NotificationArn:
+    Description: The ARN of the SNS topic to send notifications to.
+    Type: String
+
+  LogRetention:
+    Description: How long to keep logs for in days.
+    Default: 30
+    Type: Number
+
+  HasLambdaAlarms:
+    Description: Turn on error lambda alarms for compliance.
+    Default: false
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  AlarmEmailEndpoint:
+    Description: Email address to receive alarm notifications.
+    Default: analytics+lambdaalarm@ombuweb.com
+    Type: String
+
+  ErrorThreshold:
+    Description: The threshold for Lambda function errors to trigger the alarm.
+    Default: 1
+    Type: Number
+
+  EvaluationPeriods:
+    Description: >
+      The number of periods over which data is compared to the threshold.
+    Default: 1
+    Type: Number
+
+  Period:
+    Description: The period in seconds over which the statistic is applied.
+    Default: 60
+    Type: Number
+
+Conditions:
+
+  HasLambdaAlarms: !Equals [!Ref HasLambdaAlarms, true]
+
+Resources:
+
+  LambdaErrorAlarmTopic:
+    Type: AWS::SNS::Topic
+    Condition: HasLambdaAlarms
+    Properties:
+      DisplayName: Lambda Error Alarms
+      TopicName: !Sub "${AWS::StackName}-LambdaErrorAlarms"
+
+  LambdaErrorAlarmSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasLambdaAlarms
+    Properties:
+      Protocol: email
+      Endpoint: !Ref AlarmEmailEndpoint
+      TopicArn: !Ref LambdaErrorAlarmTopic
+
+  BounceRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName:
+        !Sub "bounce-rate-for-${IdentityFriendlyName}-in-${AWS::Region}"
+      Namespace: AWS/SES
+      MetricName: Reputation.BounceRate
+      Dimensions:
+        - Name: Identity
+          Value: !Ref Identity
+      Statistic: Maximum
+      Period: 86400
+      EvaluationPeriods: 1
+      Threshold: 0.05
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref NotificationArn
+      AlarmDescription:
+        !Sub "Bounce rate for ${Identity} in ${AWS::Region} is <currentvalue>%\
+              , exceeding the alarm threshold of 5%."
+
+  ComplaintRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName:
+        !Sub "complaint-rate-for-${IdentityFriendlyName}-in-${AWS::Region}"
+      Namespace: AWS/SES
+      MetricName: Reputation.ComplaintRate
+      Dimensions:
+        - Name: Identity
+          Value: !Ref Identity
+      Statistic: Maximum
+      Period: 86400
+      EvaluationPeriods: 1
+      Threshold: 0.001
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref NotificationArn
+      AlarmDescription:
+        !Sub "Complaint rate for ${Identity} in ${AWS::Region} is \
+              <currentvalue>%, exceeding the alarm threshold of 1%."
+
+  FeedbackLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        !Sub "/aws/ses/feedback/${IdentityFriendlyName}/${AWS::Region}"
+      RetentionInDays: !Ref LogRetention
+
+  BounceTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName:
+        !Sub "bounce-feedback-${IdentityFriendlyName}-${AWS::Region}"
+
+  ComplaintTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName:
+        !Sub "complaint-feedback-${IdentityFriendlyName}-${AWS::Region}"
+
+  FeedbackLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-FeedbackLoggingPolicy"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - sns:publish
+                Resource: '*'
+
+  FeedbackLoggerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt FeedbackLambdaRole.Arn
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          LOG_GROUP_NAME:
+            !Sub "/aws/ses/feedback/${IdentityFriendlyName}/${AWS::Region}"
+      Code:
+        ZipFile: |
+          import os
+          import json
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def lambda_handler(event, context):
+              logger.info(json.dumps(event))
+              return {'statusCode': 200}
+
+  FeedbackLoggerFunctionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasLambdaAlarms
+    Properties:
+      AlarmName: !Sub "${FeedbackLoggerFunction}-ErrorAlarm"
+      AlarmDescription: Alarm for Lambda function errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: !Ref Period
+      EvaluationPeriods: !Ref EvaluationPeriods
+      Threshold: !Ref ErrorThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref FeedbackLoggerFunction
+      AlarmActions:
+        - !Ref LambdaErrorAlarmTopic
+      OKActions:
+        - !Ref LambdaErrorAlarmTopic
+
+  BounceSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn: !Ref BounceTopic
+      Endpoint: !GetAtt FeedbackLoggerFunction.Arn
+
+  ComplaintSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn: !Ref ComplaintTopic
+      Endpoint: !GetAtt FeedbackLoggerFunction.Arn
+
+  LambdaInvokePermissionBounce:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref FeedbackLoggerFunction
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref BounceTopic
+
+  LambdaInvokePermissionComplaint:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref FeedbackLoggerFunction
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref ComplaintTopic
+
+Outputs:
+
+  CloudWatchLogGroupName:
+    Description: CloudWatch log group for feedback.
+    Value: !Sub "/aws/ses/feedback/${IdentityFriendlyName}/${AWS::Region}"
+
+  BounceSNSTopicArn:
+    Description: SNS Topic ARN for bounce feedback.
+    Value: !Ref BounceTopic
+
+  ComplaintSNSTopicArn:
+    Description: SNS Topic ARN for complaint feedback.
+    Value: !Ref ComplaintTopic
+
+  LambdaFunctionName:
+    Description: Lambda Function name for logging feedback.
+    Value: !Ref FeedbackLoggerFunction
+
+  BounceRateAlarmName:
+    Description: CloudWatch Alarm for bounce rate.
+    Value: !Ref BounceRateAlarm
+
+  ComplaintRateAlarmName:
+    Description: CloudWatch Alarm for complaint rate.
+    Value: !Ref ComplaintRateAlarm
+
+  AlarmNotificationSNSTopicArn:
+    Description: SNS Topic ARN for CloudWatch alarm notifications.
+    Value: !Ref NotificationArn

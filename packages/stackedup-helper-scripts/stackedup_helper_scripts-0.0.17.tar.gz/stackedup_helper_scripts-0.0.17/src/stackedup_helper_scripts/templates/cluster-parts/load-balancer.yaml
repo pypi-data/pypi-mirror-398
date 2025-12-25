@@ -1,0 +1,221 @@
+---
+Description: OMBU Cluster / Load Balancer
+
+Parameters:
+
+  StackName:
+    Description: An environment name that will be prefixed to resource names.
+    Type: String
+
+  VPC:
+    Description: The VPC the Application Load Balancer should be deployed to.
+    Type: AWS::EC2::VPC::Id
+
+  Subnets:
+    Description: >
+      The subnets the Application Load Balancer should be deployed to.
+    Type: List<AWS::EC2::Subnet::Id>
+
+  SecurityGroup:
+    Description: The Security Group to apply to the Application Load Balancer.
+    Type: AWS::EC2::SecurityGroup::Id
+
+  Certificate:
+    Description: ARN for a Certificate Manager certificate.
+    Default: ''
+    Type: String
+    AllowedPattern: '^$|(arn:aws:acm:)([a-z0-9/:-])*([a-z0-9])$'
+
+  HasLogs:
+    Description: Turn on and off access log bucket for load balancer.
+    Default: false
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  LogRetention:
+    Description: How long to keep logs for in days.
+    Default: 365
+    Type: Number
+
+Conditions:
+
+  HasLogs: !Equals [!Ref HasLogs, true]
+
+Resources:
+
+  LoadBalancerBucket:
+    Type: AWS::S3::Bucket
+    Condition: HasLogs
+    Properties:
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteAfter
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 5
+            ExpirationInDays: !Ref LogRetention
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  LoadBalancerBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: HasLogs
+    Properties:
+      Bucket: !Ref LoadBalancerBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowSSLRequestsOnly
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !Sub "arn:aws:s3:::${LoadBalancerBucket}"
+              - !Sub "arn:aws:s3:::${LoadBalancerBucket}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+          - Sid: AllowLoadBalancerToLogToS3
+            Effect: Allow
+            Principal:
+              AWS: arn:aws:iam::797873946194:root
+            Action:
+              - s3:PutObject
+              - s3:ListBucket
+            Resource:
+              - !Sub "arn:aws:s3:::${LoadBalancerBucket}"
+              - !Sub "arn:aws:s3:::${LoadBalancerBucket}/*"
+          - Sid: VPCFlowAclCheck
+            Effect: Allow
+            Principal:
+              Service: delivery.logs.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource:
+              - !Sub "arn:aws:s3:::${LoadBalancerBucket}"
+              - !Sub "arn:aws:s3:::${LoadBalancerBucket}/*"
+          - Sid: VPCFlowWrite
+            Effect: Allow
+            Principal:
+              Service: delivery.logs.amazonaws.com
+            Action: s3:PutObject
+            Resource:
+              - !Sub "arn:aws:s3:::${LoadBalancerBucket}"
+              - !Sub "arn:aws:s3:::${LoadBalancerBucket}/*"
+            Condition:
+              StringEquals:
+                's3:x-amz-acl': bucket-owner-full-control
+          - Sid: CloudTrailAclCheck
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource:
+              - !Sub "arn:aws:s3:::${LoadBalancerBucket}"
+              - !Sub "arn:aws:s3:::${LoadBalancerBucket}/*"
+          - Sid: CloudTrailWrite
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:PutObject
+            Resource:
+              - !Sub "arn:aws:s3:::${LoadBalancerBucket}"
+              - !Sub "arn:aws:s3:::${LoadBalancerBucket}/*"
+            Condition:
+              StringEquals:
+                's3:x-amz-acl': bucket-owner-full-control
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets: !Ref Subnets
+      SecurityGroups:
+        - !Ref SecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Ref StackName
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: '180'
+        - Key: deletion_protection.enabled
+          Value: 'true'
+        - Key: routing.http.drop_invalid_header_fields.enabled
+          Value: 'true'
+
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref DefaultTargetGroup
+
+  LoadBalancerListenerSsl:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      Certificates:
+        - CertificateArn: !Ref Certificate
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref DefaultTargetGroup
+
+  # We define a default target group here, as this is a mandatory Parameters
+  # when creating an Application Load Balancer Listener. This is not used,
+  # instead a target group is created per-service in each service template
+  # (../services/*)
+  DefaultTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VPC
+      Port: 80
+      Protocol: HTTP
+      HealthCheckPath: /health-check/
+      Matcher:
+        # Allowing 301 because often the default target hosts
+        # the redirector service
+        HttpCode: 200-301
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '5'
+
+Outputs:
+
+  LoadBalancer:
+    Description: A reference to the Application Load Balancer.
+    Value: !Ref LoadBalancer
+
+  LoadBalancerDNSName:
+    Description: The URL of the ALB.
+    Value: !GetAtt LoadBalancer.DNSName
+
+  LoadBalancerHostedZone:
+    Description: The URL of the ALB.
+    Value: !GetAtt LoadBalancer.CanonicalHostedZoneID
+
+  ListenerHttp:
+    Description: A reference to a port 80 listener.
+    Value: !Ref LoadBalancerListener
+
+  ListenerHttps:
+    Description: A reference to a port 443 listener.
+    Value: !Ref LoadBalancerListenerSsl
+
+  DefaultTargetGroup:
+    Description: >
+      The target group to handle requests not matched by other listerer rules.
+    Value: !Ref DefaultTargetGroup

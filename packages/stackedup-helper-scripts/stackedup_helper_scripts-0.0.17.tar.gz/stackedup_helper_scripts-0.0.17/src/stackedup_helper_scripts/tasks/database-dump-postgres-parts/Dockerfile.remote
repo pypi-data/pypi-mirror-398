@@ -1,0 +1,24 @@
+FROM alpine:3.22
+
+LABEL maintainer="OMBU"
+
+ARG BUILD_SHA=""
+
+# Set TZ.
+RUN apk add --no-cache tzdata && \
+  ln -s /usr/share/zoneinfo/America/Los_Angeles /etc/localtime
+ENV TZ="America/Los_Angeles"
+
+RUN apk update && \
+    apk add --no-cache aws-cli && \
+    apk add --no-cache postgresql-client
+
+COPY database-dump.sh /tmp
+
+RUN chmod +x /tmp/database-dump.sh
+
+WORKDIR /tmp
+
+RUN echo $BUILD_SHA > /tmp/GIT_SHA
+
+CMD ["./database-dump.sh"]

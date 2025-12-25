@@ -1,0 +1,373 @@
+---
+Description: OMBU Cluster / Database / Postgres
+
+# Database infrastructure fo PostgresSQL settings that has specific slowlog
+# parameters.
+
+Parameters:
+
+  DatabaseInstanceType:
+    Description: The Amazon RDS database instance class.
+    ConstraintDescription: Must be a valid RDS instance class.
+    Type: String
+
+  AllocatedStorage:
+    Description: >
+      The amount of storage (in gibibytes) to allocate for the DB instance.
+    ConstraintDescription: Must be between 5-1000
+    Default: 5
+    Type: Number
+    MinValue: 5
+    MaxValue: 1000
+
+  DatabaseInstanceName:
+    Description: The Amazon RDS instance database name.
+    Type: String
+
+  DatabaseName:
+    Description: The Amazon RDS master database name.
+    Default: ''
+    Type: String
+    AllowedPattern: ^([a-zA-Z0-9]*)$
+
+  DatabaseMasterUser:
+    Description: The user name for the database master user.
+    Default: root
+    Type: String
+
+  Engine:
+    Description: The database engine.
+    Type: String
+
+  EngineVersion:
+    Description: The database engine version.
+    Type: String
+
+  StorageType:
+    Description: The type of storage to use.
+    Default: gp2
+    Type: String
+
+  Subnets:
+    Description: Choose which subnets this database should be deployed to.
+    Type: List<AWS::EC2::Subnet::Id>
+
+  SecurityGroup:
+    Description: Select the Security Group to use for the database.
+    Type: AWS::EC2::SecurityGroup::Id
+
+  BackupRetentionPeriod:
+    Description: The number of days to retain database snapshots.
+    Default: 0
+    Type: Number
+
+  DnsName:
+    Description: An optional DNS name for the database instance.
+    Default: ''
+    Type: String
+
+  HostedZoneId:
+    Description: |
+      The Route 53 host zone ID for the DnsName (Required when DnsName is
+      provided).
+    Default: ''
+    Type: String
+
+  SourceDBInstanceIdentifier:
+    Description: |
+      The RDS id of the source database, if this will be a read replica.
+    Default: ''
+    Type: String
+
+  SnapshotArn:
+    Description: An optional snapshot to restore from.
+    Default: ''
+    Type: String
+
+  EnableEnhancedMonitoring:
+    Description: >
+      Provide metrics in real time for the operating system (OS)
+      that your DB instance runs on.
+    Default: false
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  HasSlowQueryLog:
+    Description: Enables logging of database slow queries.
+    Default: false
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  SlowQueryLogThreshold:
+    Description: Minimum query duration considered slow in milliseconds.
+    Default: 100
+    Type: Number
+
+  LogStatementType:
+    Description: The type of logs that should be recorded
+    Default: ddl
+    Type: String
+    AllowedValues:
+      - none
+      - ddl
+      - mod
+      - all
+
+  DatabaseStorageThreshold:
+    Description: The freespace left threshold in bytes.
+    Default: ''
+    Type: String
+
+  HasAlarms:
+    Description: Enables alarms.
+    Default: false
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  NotificationArn:
+    Description: The ARN of the SNS topic to send notifications to.
+    Type: String
+
+Conditions:
+
+  HasDnsName: !Not [!Equals [!Ref DnsName, '']]
+  IsReadReplica: !Not [!Equals [!Ref SourceDBInstanceIdentifier, '']]
+  IsNotReadReplica: !Not [!Condition IsReadReplica]
+  HasBackups: !Not [!Equals [!Ref BackupRetentionPeriod, 0]]
+  HasSnapshot: !Not [!Equals [!Ref SnapshotArn, '']]
+  HasEnhancedMonitoring: !Equals [!Ref EnableEnhancedMonitoring, 'true']
+  HasSlowQueryLog: !Equals [!Ref HasSlowQueryLog, 'true']
+  HasAlarms: !Equals [!Ref HasAlarms, 'true']
+
+Resources:
+
+  PostgresParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Condition: HasSlowQueryLog
+    Properties:
+      Description: !Sub "postgres ${EngineVersion} slow logs"
+      Family: !Join
+        - ''
+        - - !Ref Engine
+          - !Select
+            - 0
+            - !Split
+              - '.'
+              - !Ref EngineVersion
+      Parameters:
+        log_min_duration_statement: !Ref SlowQueryLogThreshold
+        log_statement: !Ref LogStatementType
+
+  EnhancedMonitoringRole:
+    Condition: HasEnhancedMonitoring
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: monitoring.rds.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
+
+  SecretMasterUser:
+    Condition: IsNotReadReplica
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      GenerateSecretString:
+        ExcludePunctuation: true
+        GenerateStringKey: "password"
+        PasswordLength: 20
+        SecretStringTemplate: !Sub "{\"username\": \"${DatabaseMasterUser}\" }"
+
+  DatabaseInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    Properties:
+      DBSnapshotIdentifier: !If
+        - HasSnapshot
+        - !Ref SnapshotArn
+        - !Ref AWS::NoValue
+      AllowMajorVersionUpgrade: false
+      Engine: !Ref Engine
+      EngineVersion: !Ref EngineVersion
+      MultiAZ: false
+      MasterUsername: !If
+        - IsReadReplica
+        - !Ref AWS::NoValue
+        - !Ref DatabaseMasterUser
+      MasterUserPassword: !If
+        - IsReadReplica
+        - !Ref AWS::NoValue
+        - !Sub "{{resolve:secretsmanager:${SecretMasterUser}:\
+                SecretString:password}}"
+      DBName: !If
+        - IsReadReplica
+        - !Ref AWS::NoValue
+        - !Ref DatabaseName
+      DBInstanceIdentifier: !Ref DatabaseInstanceName
+      DBInstanceClass: !Ref DatabaseInstanceType
+      BackupRetentionPeriod: !If
+        - HasBackups
+        - !Ref BackupRetentionPeriod
+        - !Ref AWS::NoValue
+      PreferredMaintenanceWindow: !If
+        - HasBackups
+        - 'sun:07:00-sun:08:00'
+        - !Ref AWS::NoValue
+      PreferredBackupWindow: !If
+        - HasBackups
+        - '09:00-09:30'
+        - !Ref AWS::NoValue
+      DBSubnetGroupName: !If
+        - IsNotReadReplica
+        - !Ref DataSubnetGroup
+        - !Ref AWS::NoValue
+      VPCSecurityGroups:
+        - !Ref SecurityGroup
+      StorageType: !Ref StorageType
+      AllocatedStorage: !If [IsReadReplica, !Ref AWS::NoValue, !Ref
+                             AllocatedStorage]
+      PubliclyAccessible: true
+      SourceDBInstanceIdentifier: !If
+        - IsReadReplica
+        - !Ref SourceDBInstanceIdentifier
+        - !Ref AWS::NoValue
+      CopyTagsToSnapshot: true
+      DeletionProtection: true
+      MonitoringInterval: !If
+        - HasEnhancedMonitoring
+        - 60
+        - 0
+      MonitoringRoleArn: !If
+        - HasEnhancedMonitoring
+        - !GetAtt EnhancedMonitoringRole.Arn
+        - !Ref AWS::NoValue
+      EnableIAMDatabaseAuthentication: true
+      DBParameterGroupName: !If
+        - HasSlowQueryLog
+        - !Ref PostgresParameterGroup
+        - !Ref AWS::NoValue
+      EnableCloudwatchLogsExports: !If
+        - HasSlowQueryLog
+        - [postgresql]
+        - []
+
+  DataSubnetGroup:
+    Condition: IsNotReadReplica
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Database Subnet Group for !Ref DatabaseName
+      SubnetIds: !Ref Subnets
+
+  DatabaseDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: HasDnsName
+    Properties:
+      Comment: DNS name for a database
+      Name: !Ref DnsName
+      Type: CNAME
+      HostedZoneId: !Ref HostedZoneId
+      TTL: 900
+      ResourceRecords:
+        - !GetAtt DatabaseInstance.Endpoint.Address
+
+  DatabaseCPUUtilizationHighAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasAlarms
+    Properties:
+      AlarmName: !Sub "database-${DatabaseInstance}-high-cpu-utilization"
+      Namespace: AWS/RDS
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DatabaseInstance
+      MetricName: CPUUtilization
+      ComparisonOperator: GreaterThanThreshold
+      Statistic: Average
+      Threshold: 80
+      Period: 900
+      EvaluationPeriods: 1
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref NotificationArn
+      AlarmDescription:
+        !Sub "CPU utilization for database ${DatabaseInstance} is \
+              <currentvalue>%, exceeding the alarm threshold of 80%."
+
+  DatabaseClusterMemoryUtilizationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasAlarms
+    Properties:
+      AlarmName: !Sub "database-${DatabaseInstance}-high-memory-utilization"
+      Namespace: AWS/RDS
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DatabaseInstance
+      MetricName: MemoryUtilization
+      ComparisonOperator: GreaterThanThreshold
+      Statistic: Average
+      Threshold: 80
+      Period: 900
+      EvaluationPeriods: 1
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref NotificationArn
+      AlarmDescription:
+        !Sub "Memory utilization for database ${DatabaseInstance} is \
+              <currentvalue>%, exceeding the alarm threshold of 75%."
+
+  DatabaseFreeStorageSpaceTooLowAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasAlarms
+    Properties:
+      AlarmName: !Sub "database-${DatabaseInstance}-low-storage-space"
+      Namespace: AWS/RDS
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DatabaseInstance
+      MetricName: FreeStorageSpace
+      ComparisonOperator: LessThanThreshold
+      Statistic: Average
+      Threshold: !Ref DatabaseStorageThreshold
+      Period: 900
+      EvaluationPeriods: 1
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref NotificationArn
+      AlarmDescription:
+        !Sub "Free storage space for instance ${DatabaseInstance} is \
+              <currentvalue> bytes, below the 15% alarm threshold"
+
+Outputs:
+
+  DatabaseInstance:
+    Description: The main database instance.
+    Value: !Ref DatabaseInstance
+
+  DataSubnetGroup:
+    Condition: IsNotReadReplica
+    Description: The database subnet.
+    Value: !Ref DataSubnetGroup
+
+  DatabaseEndpoint:
+    Description: The main database instance endpoint.
+    Value: !GetAtt DatabaseInstance.Endpoint.Address
+
+  DatabaseUserSecret:
+    Condition: IsNotReadReplica
+    Description: Read/write credentials stored in Secrets Manager.
+    Value: !Ref SecretMasterUser
+
+  DatabaseSlowQueryLogGroupName:
+    Condition: HasSlowQueryLog
+    Description: Name of the CloudWatch log group for slow queries.
+    Value: !Sub "/aws/rds/instance/${DatabaseInstance}/postgresql"

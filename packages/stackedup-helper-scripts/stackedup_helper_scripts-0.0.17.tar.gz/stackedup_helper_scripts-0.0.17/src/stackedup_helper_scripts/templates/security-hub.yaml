@@ -1,0 +1,40 @@
+---
+Description: OMBU / Security Hub
+
+# Turns on security hub for an account. Sets the standard to AWS Foundational
+# Security Best Practices v1.0.0.
+
+Parameters:
+
+  ApplicationName:
+    Description: The application name.
+    Type: String
+
+Resources:
+
+  SecurityHub:
+    Type: AWS::SecurityHub::Hub
+    Properties:
+      Tags:
+        ManagedBy: OMBU
+        Name: !Sub "${ApplicationName}-security-hub"
+      EnableDefaultStandards: false
+      ControlFindingGenerator: SECURITY_CONTROL
+
+  AFSBPStandard:
+    DependsOn: SecurityHub
+    Type: AWS::SecurityHub::Standard
+    Properties:
+      StandardsArn: !Sub "arn:${AWS::Partition}:securityhub:${AWS::Region}\
+                          ::standards/aws-foundational-security-best-practices\
+                          /v/1.0.0"
+
+Outputs:
+
+  SecurityHubArn:
+    Description: The ARN for Security Hub..
+    Value: !Ref SecurityHub
+
+  AFSBPStandardArn:
+    Description: The ARN for the AWS Foundational Security Best Practices.
+    Value: !Ref AFSBPStandard

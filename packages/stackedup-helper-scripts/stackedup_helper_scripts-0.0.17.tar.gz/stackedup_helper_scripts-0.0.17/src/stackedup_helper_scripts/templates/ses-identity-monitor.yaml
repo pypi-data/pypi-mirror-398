@@ -1,0 +1,202 @@
+---
+Description: OMBU / SES / Bounce and Complaint Feedback Logging
+
+# To help ensure a healthy SES reputation this stack will log and raise alarms
+# for a SES identity when the bounce rate exceeds 2.5% (5% is the AWS
+# recommended value for warning) and when the complaint rate exceeds 0.05%
+#  (0.1% is the AWS recommended value for warning).
+
+Parameters:
+
+  Identity:
+    Description: A domain or email SES identity.
+    Type: String
+
+  IdentityFriendlyName:
+    Description: Friendly name for identity.
+    Type: String
+
+  LogRetention:
+    Description: How long to keep logs for in days.
+    Default: 180
+    Type: Number
+
+Resources:
+
+  AlarmNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName:
+        !Sub "alarm-notification-${IdentityFriendlyName}-${AWS::Region}"
+
+  BounceRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "BounceRate-Alarm-${IdentityFriendlyName}-${AWS::Region}"
+      Namespace: AWS/SES
+      MetricName: Reputation.BounceRate
+      Dimensions:
+        - Name: Identity
+          Value: !Ref Identity
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0.025
+      ComparisonOperator: GreaterThanThreshold
+      AlarmDescription:
+        !Sub "Bounce rate for ${Identity} in ${AWS::Region} exceeds 2.5%."
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+  ComplaintRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName:
+        !Sub "ComplaintRate-Alarm-${IdentityFriendlyName}-${AWS::Region}"
+      Namespace: AWS/SES
+      MetricName: Reputation.ComplaintRate
+      Dimensions:
+        - Name: Identity
+          Value: !Ref Identity
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0.0005
+      ComparisonOperator: GreaterThanThreshold
+      AlarmDescription:
+        !Sub "Complaint rate for ${Identity} in ${AWS::Region} exceeds 0.05%."
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+  FeedbackLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        !Sub "/aws/ses/feedback/${IdentityFriendlyName}/${AWS::Region}"
+      RetentionInDays: !Ref LogRetention
+
+  BounceTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName:
+        !Sub "bounce-feedback-${IdentityFriendlyName}-${AWS::Region}"
+
+  ComplaintTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName:
+        !Sub "complaint-feedback-${IdentityFriendlyName}-${AWS::Region}"
+
+  FeedbackLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-FeedbackLoggingPolicy"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - sns:publish
+                Resource: '*'
+
+  FeedbackLoggerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt FeedbackLambdaRole.Arn
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          LOG_GROUP_NAME:
+            !Sub "/aws/ses/feedback/${IdentityFriendlyName}/${AWS::Region}"
+      Code:
+        ZipFile: |
+          import os
+          import json
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def lambda_handler(event, context):
+              logger.info(json.dumps(event))
+              return {'statusCode': 200}
+
+  BounceSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn: !Ref BounceTopic
+      Endpoint: !GetAtt FeedbackLoggerFunction.Arn
+
+  ComplaintSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn: !Ref ComplaintTopic
+      Endpoint: !GetAtt FeedbackLoggerFunction.Arn
+
+  LambdaInvokePermissionBounce:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref FeedbackLoggerFunction
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref BounceTopic
+
+  LambdaInvokePermissionComplaint:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref FeedbackLoggerFunction
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref ComplaintTopic
+
+Outputs:
+
+  CloudWatchLogGroupName:
+    Description: CloudWatch log group for feedback.
+    Value: !Sub "/aws/ses/feedback/${IdentityFriendlyName}/${AWS::Region}"
+
+  BounceSNSTopicArn:
+    Description: SNS Topic ARN for bounce feedback.
+    Value: !Ref BounceTopic
+
+  ComplaintSNSTopicArn:
+    Description: SNS Topic ARN for complaint feedback.
+    Value: !Ref ComplaintTopic
+
+  LambdaFunctionName:
+    Description: Lambda Function name for logging feedback.
+    Value: !Ref FeedbackLoggerFunction
+
+  BounceRateAlarmName:
+    Description: CloudWatch Alarm for bounce rate.
+    Value: !Ref BounceRateAlarm
+
+  ComplaintRateAlarmName:
+    Description: CloudWatch Alarm for complaint rate.
+    Value: !Ref ComplaintRateAlarm
+
+  AlarmNotificationSNSTopicArn:
+    Description: SNS Topic ARN for CloudWatch alarm notifications.
+    Value: !Ref AlarmNotificationTopic

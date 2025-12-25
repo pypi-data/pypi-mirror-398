@@ -1,0 +1,117 @@
+---
+Transform: AWS::Serverless-2016-10-31
+Description: OMBU / Deploy Pipeline Notification
+
+# The deploy-pipeline stack will create an AWS EventBridge
+# listener for detecting when an image is sent to ECR. When a new image is
+# detected it will trigger an AWS Lambda function to notifiy the user
+# via AWS SNS about the new image available in ECR.
+
+Parameters:
+
+  ApplicationName:
+    Description: The name of the application.
+    Type: String
+
+  EnvironmentType:
+    Description: The application environment.
+    Type: String
+
+  RepositoryName:
+    Description: The Repository to watch.
+    Type: String
+
+  AccountFriendlyName:
+    Description: Freindly name instead of acocunt id for notifications.
+    Type: String
+
+  NotificationArn:
+    Description: The ARN of the SNS topic to send notifications to.
+    Type: String
+
+  LogRetention:
+    Description: How long to keep logs for in days.
+    Default: 30
+    Type: Number
+
+Resources:
+
+  SendNotificationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-AllowLogging"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:\
+                          log-group:/aws/lambda/*"
+        - PolicyName: !Sub "${AWS::StackName}-SNSTopic"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref NotificationArn
+
+  SendNotificationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${SendNotification}"
+      RetentionInDays: !Ref LogRetention
+
+  SendNotification:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../scripts/deploy_notification
+      Handler: deploy_notification.handler
+      Role: !GetAtt SendNotificationRole.Arn
+      Runtime: python3.12
+      Timeout: 30
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
+      Description: Send a slack notification
+      Environment:
+        Variables:
+          ACCOUNT_FRIENDLY_NAME: !Ref AccountFriendlyName
+          TOPIC_ARN: !Ref NotificationArn
+      Events:
+        ECREvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              detail:
+                action-type: [PUSH]
+                repository-name: [!Ref RepositoryName]
+                result: [SUCCESS]
+              detail-type: [ECR Image Action]
+              source: [aws.ecr]
+
+Outputs:
+
+  NotificationLambdaName:
+    Description: Fucntion name.
+    Value: !Ref SendNotification
+
+  NotificationLambdaArn:
+    Description: Fucntion ARN.
+    Value: !GetAtt SendNotification.Arn
+
+  LogGroup:
+    Description: The CloudWatch log group.
+    Value: !Ref SendNotificationLogGroup

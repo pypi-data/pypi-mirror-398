@@ -1,0 +1,53 @@
+---
+Description: OMBU Alarms
+
+# Deafult OMBU setup alarms for one account, one SES Identity.
+
+Parameters:
+
+  BaselineCost:
+    Description: Expected monthly baseline AWS cost.
+    Type: Number
+
+  ThresholdCost:
+    Description: Threshold cost about 50% of baseline cost.
+    Type: Number
+
+  SESIdentity:
+    Description: A domain or email SES identity.
+    Type: String
+
+  SESIdentityFriendlyName:
+    Description: Friendly name for identity.
+    Type: String
+
+  NotificationArn:
+    Description: The ARN of the SNS topic to send notifications to.
+    Type: String
+
+Resources:
+
+  RelaySNSTopic:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: alarm-parts/sns-relay.yaml
+      Parameters:
+        NotificationArn: !Ref NotificationArn
+
+  AccountCostAlarm:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: alarm-parts/account-cost-alarm.yaml
+      Parameters:
+        BaselineCost: !Ref BaselineCost
+        ThresholdCost: !Ref ThresholdCost
+        NotificationArn: !GetAtt RelaySNSTopic.Outputs.RelaySNSTopicArn
+
+  SESIdentityMonitor:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: alarm-parts/ses-identity-monitor-alarms.yaml
+      Parameters:
+        Identity: !Ref SESIdentity
+        IdentityFriendlyName: !Ref SESIdentityFriendlyName
+        NotificationArn: !GetAtt RelaySNSTopic.Outputs.RelaySNSTopicArn

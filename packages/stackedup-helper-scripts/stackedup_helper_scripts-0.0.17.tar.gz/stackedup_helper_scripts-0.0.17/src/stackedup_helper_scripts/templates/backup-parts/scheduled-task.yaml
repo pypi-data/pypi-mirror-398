@@ -1,0 +1,197 @@
+---
+Description: OMBU Cluster / Cluster / S3 Backups / Scheduled Task
+
+Parameters:
+
+  ImageTag:
+    Description: The container image tag to deploy.
+    Type: String
+
+  ApplicationName:
+    Description: The name of the application.
+    Default: ombu
+    Type: String
+
+  ClusterStack:
+    Description: The stack name that define the cluster for the application.
+    Type: String
+
+  EnvironmentType:
+    Description: The application environment.
+    Type: String
+
+  BackupFilePath:
+    Description: The path to backup.
+    Type: String
+
+  ExcludePaths:
+    Description: A comma delimited list of the paths to exclude from backup.
+    Default: ''
+    Type: String
+
+  BackupExpirationDays:
+    Description: The number of days after which backup objects are deleted.
+    Type: Number
+
+  ScheduleExpression:
+    Description: The UTC time that the backup will run.
+    Default: '0 10 * * ? *'
+    Type: String
+
+  LogRetention:
+    Description: How long to keep logs for in days.
+    Default: 30
+    Type: Number
+
+Resources:
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteAfterTwoDays
+            Status: Enabled
+            ExpirationInDays: !Ref BackupExpirationDays
+            NoncurrentVersionExpirationInDays: !Ref BackupExpirationDays
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Bucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: MustBeEncryptedInTransit
+            Action:
+              - s3:*
+            Effect: Deny
+            Resource:
+              - !Join
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref Bucket
+              - !Join
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref Bucket
+                  - '/*'
+            Principal: '*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${ApplicationName}_${EnvironmentType}_backup"
+      TaskRoleArn: !Ref TaskRole
+      ContainerDefinitions:
+        - Name: backup-task
+          Essential: true
+          Image: !Join
+            - ''
+            - - Fn::ImportValue: !Sub "${ClusterStack}-ECRRepository"
+              - !Sub "/${ApplicationName}/task/backup:${ImageTag}"
+          MemoryReservation: 128
+          Environment:
+            - Name: AWS_DEFAULT_REGION
+              Value: !Ref AWS::Region
+            - Name: BACKUP_BUCKET
+              Value: !Ref Bucket
+            - Name: FILE_PATH
+              Value: !Ref BackupFilePath
+            - Name: EXCLUDE
+              Value: !Ref ExcludePaths
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref AWS::StackName
+              awslogs-region: !Ref AWS::Region
+          MountPoints:
+            - ContainerPath: /mnt/efs
+              SourceVolume: efs
+      Volumes:
+        - Name: efs
+          Host:
+            SourcePath: /mnt/efs
+
+  CloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Ref AWS::StackName
+      RetentionInDays: !Ref LogRetention
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+                - events.amazonaws.com
+      Policies:
+        - PolicyName: !Sub "${EnvironmentType}-BackupTaskRoleBucketPolicy"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub "${Bucket.Arn}/*"
+              - Effect: "Allow"
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt Bucket.Arn
+        - PolicyName: !Sub "${EnvironmentType}-BackupTaskRoleEventRole"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:\
+                                task-definition/\
+                                ${ApplicationName}_${EnvironmentType}_backup*"
+
+  ScheduledBackupTask:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Runs the backup scrit daily
+      State: ENABLED
+      ScheduleExpression: !Sub "cron(${ScheduleExpression})"
+      Targets:
+        - Id: backup-task
+          RoleArn: !GetAtt TaskRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref TaskDefinition
+            TaskCount: 1
+          Arn:
+            Fn::ImportValue: !Sub "${ClusterStack}-ClusterArn"
+
+Outputs:
+
+  BackupBucket:
+    Description: The name of the S3 backup bucket.
+    Value: !Ref Bucket
+
+  LogGroup:
+    Description: The CloudWatch log group for task runs.
+    Value: !Ref CloudWatchLogsGroup

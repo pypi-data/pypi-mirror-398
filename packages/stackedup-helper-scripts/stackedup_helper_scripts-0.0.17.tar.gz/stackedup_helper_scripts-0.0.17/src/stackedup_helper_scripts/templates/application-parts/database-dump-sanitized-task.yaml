@@ -1,0 +1,291 @@
+---
+Transform: AWS::Serverless-2016-10-31
+Description: OMBU / Application / Database Dump Sanitized Task
+
+# The database-dump-task stack will provision an encrypted S3 bucket to hold
+# database dump files created by the database_dump ECS task.
+
+Parameters:
+
+  ApplicationName:
+    Type: String
+    Description: The name of the application.
+
+  EnvironmentType:
+    Type: String
+    Description: The application environment.
+
+  ClusterStack:
+    Type: String
+    Description: The stack name that define the cluster for the application.
+
+  ImageTag:
+    Description: The container image tag to deploy.
+    Default: v1.0.0
+    Type: String
+
+  DatabaseType:
+    Description: The type of database.
+    Default: postgres
+    Type: String
+
+  DatabaseHost:
+    Description: The hostname of the database server.
+    Type: String
+
+  DatabaseName:
+    Description: The database name.
+    Type: String
+
+  DatabaseUser:
+    Description: The database user.
+    Type: String
+
+  DatabasePort:
+    Description: The port for the database
+    Default: 5432
+    Type: String
+
+  NotificationArn:
+    Description: The ARN of the SNS topic to send notifications to.
+    Type: String
+
+  BackupExpirationDays:
+    Type: Number
+    Default: 1
+    Description: The number of days after which backup objects are deleted.
+
+  LogRetention:
+    Description: How long to keep logs for in days.
+    Default: 30
+    Type: Number
+
+Resources:
+
+  DatabaseDumpSanitizedBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteAfterOneDay
+            Status: Enabled
+            ExpirationInDays: !Ref BackupExpirationDays
+            NoncurrentVersionExpirationInDays: !Ref BackupExpirationDays
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  DatabaseDumpSanitizedBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DatabaseDumpSanitizedBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: MustBeEncryptedInTransit
+            Action:
+              - 's3:*'
+            Effect: Deny
+            Resource:
+              - !Join
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref DatabaseDumpSanitizedBucket
+              - !Join
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref DatabaseDumpSanitizedBucket
+                  - /*
+            Principal: '*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  DatabaseDumpSanitizedExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+                - events.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: !Sub ${AWS::StackName}-AccessToSecretsKey
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - secretsmanager:GetSecretValue
+                  - kms:Decrypt
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:\
+                          parameter/${ApplicationName}/${EnvironmentType}/*"
+
+  DatabaseDumpSanitizedTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+                - events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub "${EnvironmentType}-SNS-Topic"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref NotificationArn
+        - PolicyName: !Sub "${EnvironmentType}-BackupTaskRoleBucketPolicy"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub "${DatabaseDumpSanitizedBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt DatabaseDumpSanitizedBucket.Arn
+        - PolicyName: !Sub ${AWS::StackName}-AccessToSecretsKey
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - secretsmanager:GetSecretValue
+                  - kms:Decrypt
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:\
+                          parameter/${ApplicationName}/${EnvironmentType}/*"
+
+  DatabaseDumpSanitizedCloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "${AWS::StackName}-DatabaseSanitizedDump"
+      RetentionInDays: !Ref LogRetention
+
+  DatabaseDumpSanitizedTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family:
+        !Sub "${ApplicationName}_${EnvironmentType}_database_sanitized_dump"
+      ExecutionRoleArn: !GetAtt DatabaseDumpSanitizedExecutionRole.Arn
+      TaskRoleArn: !Ref DatabaseDumpSanitizedTaskRole
+      ContainerDefinitions:
+        - Name: db
+          Essential: true
+          Image: mysql:8.0.35
+          MemoryReservation: 128
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref DatabaseDumpSanitizedCloudWatchLogsGroup
+              awslogs-region: !Ref AWS::Region
+          HealthCheck:
+            Command:
+              ["CMD-SHELL", "mysql -uroot -proot1 database -e 'SELECT 1'"]
+            Interval: 5
+            Retries: 10
+          Environment:
+            - Name: MYSQL_ROOT_PASSWORD
+              Value: root1
+            - Name: MYSQL_DATABASE
+              Value: database
+            - Name: MYSQL_USER
+              Value: user
+            - Name: MYSQL_PASSWORD
+              Value: meh
+        - Name: task
+          Essential: true
+          Image: !Join
+            - ''
+            - - Fn::ImportValue: !Sub "${ClusterStack}-ECRRepository"
+              - '/'
+              - !Sub "ombu/task/databasedump/sanitized/\
+                      ${DatabaseType}:${ImageTag}"
+          MemoryReservation: 128
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref DatabaseDumpSanitizedCloudWatchLogsGroup
+              awslogs-region: !Ref AWS::Region
+          Secrets:
+            - Name: DB_PW
+              ValueFrom:
+                !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/\
+                      ${ApplicationName}/${EnvironmentType}/database_password"
+          DependsOn:
+            -
+              ContainerName: db
+              Condition: HEALTHY
+          Links:
+            - db
+          Environment:
+            - Name: APPLICATION_NAME
+              Value: !Ref ApplicationName
+            - Name: AWS_DEFAULT_REGION
+              Value: !Ref AWS::Region
+            - Name: ENVIRONMENT_TYPE
+              Value: !Ref EnvironmentType
+            - Name: DB_HOST
+              Value:
+                Fn::ImportValue: !Sub "${ClusterStack}-MYSQLDatabase"
+            - Name: DB_DB
+              Value: !Ref DatabaseName
+            - Name: DB_USER
+              Value: !Ref DatabaseUser
+            - Name: DB_PORT
+              Value: !Ref DatabasePort
+            - Name: NOTIFICATION_ARN
+              Value: !Ref NotificationArn
+            - Name: BUCKET
+              Value: !Ref DatabaseDumpSanitizedBucket
+            - Name: LOG_FORMAT
+              Value: json
+            - Name: SANITIZER_DATABASE_USER
+              Value: root
+            - Name: SANITIZER_DATABASE_PASSWORD
+              Value: root1
+            - Name: SANITIZER_DATABASE_ENDPOINT
+              Value: db
+            - Name: SANITIZER_DATABASE_NAME
+              Value: !Ref DatabaseName
+            - Name: SANITIZER_DATABASE_PORT
+              Value: 3306
+
+Outputs:
+
+  DatabaseDumpSanitizedBucket:
+    Description: The name of the S3 backup bucket.
+    Value: !Ref DatabaseDumpSanitizedBucket
+
+  LogGroup:
+    Description: The CloudWatch log group.
+    Value: !Ref DatabaseDumpSanitizedCloudWatchLogsGroup
