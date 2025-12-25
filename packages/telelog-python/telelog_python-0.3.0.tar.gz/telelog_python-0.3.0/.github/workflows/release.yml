@@ -1,0 +1,252 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+env:
+  PYTHON_IMPORT_NAME: telelog
+
+jobs:
+  # Run tests before building anything
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml', 'rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run tests
+        run: cargo test --all-features
+
+  # Build Python wheels for Linux x86_64 only (skip aarch64 for reliability)
+  build-linux:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x86_64
+          args: --release --out dist --interpreter python${{ matrix.python-version }}
+          sccache: "true"
+          manylinux: auto
+
+      - name: Test wheel import
+        run: |
+          pip install dist/*.whl --force-reinstall
+            cd /tmp
+          python -c "import ${{ env.PYTHON_IMPORT_NAME }}; print(f'Successfully imported {${{ env.PYTHON_IMPORT_NAME }}.__name__}')"
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-x86_64-py${{ matrix.python-version }}
+          path: dist/*.whl
+          if-no-files-found: error
+          retention-days: 30
+
+  # Build Python wheels for Windows x64 only (skip x86 for modern compatibility)
+  build-windows:
+    needs: test
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x64
+          args: --release --out dist --interpreter python${{ matrix.python-version }}
+          sccache: "true"
+
+      - name: Test wheel import
+        shell: bash
+        run: |
+          pip install dist/*.whl --force-reinstall
+            cd /tmp
+          python -c "import ${{ env.PYTHON_IMPORT_NAME }}; print(f'Successfully imported {${{ env.PYTHON_IMPORT_NAME }}.__name__}')"
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-x64-py${{ matrix.python-version }}
+          path: dist/*.whl
+          if-no-files-found: error
+          retention-days: 30
+
+  # Build Python wheels for macOS Apple Silicon only (aarch64)
+  build-macos-arm:
+    needs: test
+    runs-on: macos-14 # ARM64 runner (Apple Silicon)
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: aarch64
+          args: --release --out dist --interpreter python${{ matrix.python-version }}
+          sccache: "true"
+
+      - name: Test wheel import
+        run: |
+          pip install dist/*.whl --force-reinstall
+            cd /tmp
+          python -c "import ${{ env.PYTHON_IMPORT_NAME }}; print(f'Successfully imported {${{ env.PYTHON_IMPORT_NAME }}.__name__}')"
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-aarch64-py${{ matrix.python-version }}
+          path: dist/*.whl
+          if-no-files-found: error
+          retention-days: 30
+
+  # Build source distribution
+  build-sdist:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+  # Publish to PyPI using Trusted Publishing (OIDC)
+  release-pypi:
+    name: Publish to PyPI
+    needs: [build-linux, build-windows, build-macos-arm, build-sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    permissions:
+      id-token: write # Required for trusted publishing
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: dist-artifacts
+
+      - name: Flatten artifacts into dist directory
+        run: |
+          mkdir -p dist
+          find dist-artifacts -type f \( -name "*.whl" -o -name "*.tar.gz" \) -exec mv {} dist/ \;
+
+      - name: Verify distributions
+        run: |
+          ls -lah dist/
+          file_count=$(find dist -type f | wc -l)
+          echo "Found $file_count distribution files"
+          if [ "$file_count" -eq 0 ]; then
+            echo "Error: No distribution files found"
+            exit 1
+          fi
+
+          # List all files for verification
+          echo "Distribution files:"
+          ls -1 dist/
+
+      - name: Publish to PyPI
+        uses: PyO3/maturin-action@v1
+        with:
+          command: upload
+          args: --non-interactive --skip-existing dist/*
+
+  # Create GitHub Release (independent of PyPI publishing)
+  release-github:
+    name: Create GitHub Release
+    needs: [build-linux, build-windows, build-macos-arm, build-sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: dist-artifacts
+
+      - name: Flatten artifacts into dist directory
+        run: |
+          mkdir -p dist
+          find dist-artifacts -type f \( -name "*.whl" -o -name "*.tar.gz" \) -exec mv {} dist/ \;
+
+      - name: Verify distributions
+        run: |
+          ls -lah dist/
+          if [ -z "$(ls -A dist/)" ]; then
+            echo "Error: No distribution files found"
+            exit 1
+          fi
+
+          # Show what will be uploaded
+          echo "Files to be released:"
+          ls -1 dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
