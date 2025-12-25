@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+
+"""Module containing the PCAzip class and the command line interface."""
+from typing import Optional
+import shutil
+from pathlib import PurePath
+from biobb_common.tools import file_utils as fu
+from biobb_common.generic.biobb_object import BiobbObject
+from biobb_common.tools.file_utils import launchlogger
+
+
+class PCZzip(BiobbObject):
+    """
+    | biobb_flexserv PCZzip
+    | Wrapper of the pcazip tool from the PCAsuite FlexServ module.
+    | Compress Molecular Dynamics (MD) trajectories using Principal Component Analysis (PCA) algorithms.
+
+    Args:
+        input_pdb_path (str): Input PDB file. File type: input. `Sample file <https://github.com/bioexcel/biobb_flexserv/raw/master/biobb_flexserv/test/data/pcasuite/structure.ca.pdb>`_. Accepted formats: pdb (edam:format_1476).
+        input_crd_path (str): Input Trajectory file. File type: input. `Sample file <https://github.com/bioexcel/biobb_flexserv/raw/master/biobb_flexserv/test/data/pcasuite/traj.crd>`_. Accepted formats: crd (edam:format_3878), mdcrd (edam:format_3878), inpcrd (edam:format_3878).
+        output_pcz_path (str): Output compressed trajectory. File type: output. `Sample file <https://github.com/bioexcel/biobb_flexserv/raw/master/biobb_flexserv/test/reference/pcasuite/pcazip.pcz>`_. Accepted formats: pcz (edam:format_3874).
+        properties (dict - Python dictionary object containing the tool parameters, not input/output files):
+            * **binary_path** (*str*) - ("pcazip") pcazip binary path to be used.
+            * **neigenv** (*int*) - (0) Number of generated eigenvectors
+            * **variance** (*int*) - (90) Percentage of variance captured by the final set of eigenvectors
+            * **verbose** (*bool*) - (False) Make output verbose
+            * **gauss_rmsd** (*bool*) - (False) Use a gaussian RMSd for fitting
+            * **remove_tmp** (*bool*) - (True) [WF property] Remove temporal files.
+            * **restart** (*bool*) - (False) [WF property] Do not execute if output files exist.
+            * **sandbox_path** (*str*) - ("./") [WF property] Parent path to the sandbox directory.
+
+    Examples:
+        This is a use example of how to use the building block from Python::
+
+            from biobb_flexserv.pcasuite.pcz_zip import pcz_zip
+            prop = {
+                'variance': 90
+            }
+            pcz_zip( input_pdb_path='/path/to/pcazip_input.pdb',
+                    input_crd_path='/path/to/pcazip_input.crd',
+                    output_pcz_path='/path/to/pcazip_traj.pcz',
+                    properties=prop)
+
+    Info:
+        * wrapped_software:
+            * name: FlexServ PCAsuite
+            * version: >=1.0
+            * license: Apache-2.0
+        * ontology:
+            * name: EDAM
+            * schema: http://edamontology.org/EDAM.owl
+
+    """
+
+    def __init__(self, input_pdb_path: str, input_crd_path: str,
+                 output_pcz_path: str, properties: Optional[dict] = None, **kwargs) -> None:
+
+        properties = properties or {}
+
+        # Call parent class constructor
+        super().__init__(properties)
+        self.locals_var_dict = locals().copy()
+
+        # Input/Output files
+        self.io_dict = {
+            'in': {'input_pdb_path': input_pdb_path,
+                   'input_crd_path': input_crd_path},
+            'out': {'output_pcz_path': output_pcz_path}
+        }
+
+        # Properties specific for BB
+        self.properties = properties
+        self.binary_path = properties.get('binary_path', 'pcazip')
+        self.neigenv = properties.get('neigenv', 0)
+        # self.variance = properties.get('variance', 90)
+        self.variance = properties.get('variance')
+        self.verbose = properties.get('verbose', False)
+        self.gauss_rmsd = properties.get('gauss_rmsd', False)
+
+        # Check the properties
+        self.check_properties(properties)
+        self.check_arguments()
+
+    @launchlogger
+    def launch(self):
+        """Launches the execution of the FlexServ pcazip module."""
+
+        # Setup Biobb
+        if self.check_restart():
+            return 0
+        # self.stage_files()
+
+        # try:
+        #     # Using rel paths to shorten the amount of characters due to fortran path length limitations
+        #     input_pdb = str(Path(self.stage_io_dict["in"]["input_pdb_path"]).relative_to(Path.cwd()))
+        #     input_crd = str(Path(self.stage_io_dict["in"]["input_crd_path"]).relative_to(Path.cwd()))
+        #     output_pcz = str(Path(self.stage_io_dict["out"]["output_pcz_path"]).relative_to(Path.cwd()))
+        # except ValueError:
+        #     # Container or remote case
+        #     input_pdb = self.stage_io_dict["in"]["input_pdb_path"]
+        #     input_crd = self.stage_io_dict["in"]["input_crd_path"]
+        #     output_pcz = self.stage_io_dict["out"]["output_pcz_path"]
+
+        # Manually creating a Sandbox to avoid issues with input parameters buffer overflow:
+        #   Long strings defining a file path makes Fortran or C compiled programs crash if the string
+        #   declared is shorter than the input parameter path (string) length.
+        #   Generating a temporary folder and working inside this folder (sandbox) fixes this problem.
+        #   The problem was found in Galaxy executions, launching Singularity containers (May 2023).
+
+        # Creating temporary folder
+        tmp_folder = fu.create_unique_dir()
+        fu.log('Creating %s temporary folder' % tmp_folder, self.out_log)
+
+        shutil.copy2(self.io_dict["in"]["input_pdb_path"], tmp_folder)
+        shutil.copy2(self.io_dict["in"]["input_crd_path"], tmp_folder)
+
+        # Command line
+        # pcazip -i infile -o outfile -n natoms
+        # [-v] [--mask maskfile] [-e nev] [-q qual] [--pdb pdbfile]
+        # self.cmd = [self.binary_path,
+        #             "-p", input_pdb,
+        #             "-i", input_crd,
+        #             "-o", output_pcz
+        #             ]
+
+        self.cmd = ['cd', tmp_folder, ';',
+                    self.binary_path,
+                    "-p", PurePath(self.io_dict["in"]["input_pdb_path"]).name,
+                    "-i", PurePath(self.io_dict["in"]["input_crd_path"]).name,
+                    "-o", PurePath(self.io_dict["out"]["output_pcz_path"]).name
+                    ]
+
+        if self.verbose:
+            self.cmd.append('-v')
+
+        if self.gauss_rmsd:
+            self.cmd.append('-g')
+
+        if self.neigenv:
+            self.cmd.append('-e')
+            self.cmd.append(str(self.neigenv))
+
+        if self.variance:
+            self.cmd.append('-q')
+            self.cmd.append(str(self.variance))
+
+        # Run Biobb block
+        self.run_biobb()
+
+        # Copy outputs from temporary folder to output path
+        shutil.copy2(PurePath(tmp_folder).joinpath(PurePath(self.io_dict["out"]["output_pcz_path"]).name), PurePath(self.io_dict["out"]["output_pcz_path"]))
+
+        # Copy files to host
+        # self.copy_to_host()
+
+        # Remove temporary folder(s)
+        self.tmp_files.append(tmp_folder)
+        self.remove_tmp_files()
+
+        self.check_arguments(output_files_created=True, raise_exception=False)
+
+        return self.return_code
+
+
+def pcz_zip(input_pdb_path: str, input_crd_path: str,
+            output_pcz_path: str,
+            properties: Optional[dict] = None, **kwargs) -> int:
+    """Create :class:`PCZzip <flexserv.pcasuite.PCZzip>`flexserv.pcasuite.PCZzip class and
+    execute :meth:`launch() <flexserv.pcasuite.PCZzip.launch>` method"""
+    return PCZzip(**dict(locals())).launch()
+
+
+pcz_zip.__doc__ = PCZzip.__doc__
+main = PCZzip.get_main(pcz_zip, "Compress Molecular Dynamics (MD) trajectories using Principal Component Analysis (PCA) algorithms.")
+
+if __name__ == '__main__':
+    main()
