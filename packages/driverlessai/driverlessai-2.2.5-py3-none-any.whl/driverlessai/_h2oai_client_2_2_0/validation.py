@@ -1,0 +1,6 @@
+"""Type validation for _h2oai_client_2_2_0."""
+
+
+def validate_toml(value, name):
+    # We don't want to depend on toml so we validate it only on the server.
+    pass
