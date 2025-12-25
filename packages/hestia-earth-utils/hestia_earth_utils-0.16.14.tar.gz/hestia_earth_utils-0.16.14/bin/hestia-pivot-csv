@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+
+import json
+import sys
+import argparse
+from hestia_earth.utils.pivot.pivot_json import pivot_hestia_file as pivot_hestia_file_json
+from hestia_earth.utils.pivot.pivot_csv import pivot_csv, pivot_hestia_file as pivot_hestia_file_csv
+
+
+parser = argparse.ArgumentParser(description='Pivot nodes in CSV or JSON format.')
+parser.add_argument('--input-file', type=str, required=True,
+                    help='The path of the CSV or JSON file.')
+parser.add_argument('--output-file', type=str,
+                    help='The path of where to store the pivoted file. Adds "-pivoted.csv" suffix by default to input.')
+
+args = parser.parse_args()
+
+
+def main():
+    src = args.input_file
+    dest = args.output_file or src.split('.')[0] + '-pivoted.csv'
+    if dest.endswith('.csv'):
+        pd = pivot_csv(src) if src.endswith('.csv') else pivot_hestia_file_csv(open(src, 'r').read())
+        pd.to_csv(dest, index=None)
+    else:
+        pivoted = pivot_hestia_file_json(open(src, 'r').read())
+        with open(dest, 'w') as file:
+            file.write(json.dumps({'nodes': pivoted}, sort_keys=True, indent=4))
+
+
+if __name__ == '__main__':
+    sys.exit(main())
