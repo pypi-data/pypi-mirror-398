@@ -1,0 +1,148 @@
+"""
+Copyright 2024 Entropica Labs Pte Ltd
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+"""
+
+from loom.eka import Circuit
+from loom.eka.operations import ResetAllDataQubits
+from loom.eka.stabilizer import Stabilizer
+from loom.interpreter.syndrome import Syndrome
+
+from .generate_syndromes import generate_syndromes
+from ..interpretation_step import InterpretationStep
+
+
+def reset_all_data_qubits(
+    interpretation_step: InterpretationStep,
+    operation: ResetAllDataQubits,
+    same_timeslice: bool,
+    debug_mode: bool,  # pylint: disable=unused-argument
+) -> InterpretationStep:
+    """
+    Resets all data qubits of a block to a specific SingleQubitPauliEigenstate.
+    It also adds empty Syndrome objects for the stabilizers that will be deterministic
+    in the first round of syndrome measurement cycles dependent on the
+    initialization state. This helps to put Detectors on these deterministic
+    measurements when the block is measured.
+
+    NOTE: Initializing a Y state may come with some caveats, as the implementation of
+    the initialization may not be fault-tolerant for some codes. For example, in the
+    case of the Rotated Surface Code, initializing a Y state may require distillation
+    for it to be fault-tolerant.
+
+    Parameters
+    ----------
+    interpretation_step : InterpretationStep
+        Interpretation step containing the blocks whose data qubits need to be reset.
+    operation : ResetAllDataQubits
+        Reset data operation description.
+    same_timeslice : bool
+        Flag indicating whether the operation is part of the same timestep as the
+        previous operation.
+    debug_mode : bool
+        Flag indicating whether the interpretation should be done in debug mode.
+        Activating debug mode will enable commutation validation for Block
+
+    Returns
+    -------
+    InterpretationStep
+        Interpretation step after the reset data operation.
+    """
+
+    # Get the block
+    block_before_reset = interpretation_step.get_block(operation.input_block_name)
+    block = block_before_reset.rename(operation.input_block_name)  # Create a new uuid
+
+    # Create a circuit that resets the data qubits to the given state
+    reset_circuit = Circuit(
+        name=f"reset all data qubits of block {block.unique_label} to "
+        f"|{operation.state.value}>",
+        circuit=[
+            # Reset the data qubits on the same time step
+            [
+                Circuit(
+                    f"reset_{operation.state.value}",
+                    channels=interpretation_step.get_channel_MUT(q),
+                )
+                for q in block.data_qubits
+            ]
+        ],
+    )
+
+    # Create single-qubit stabilizers for the reset data qubits
+    reset_single_qubit_stabilizers = {
+        Stabilizer(pauli=operation.state.pauli_basis, data_qubits=(q,))
+        for q in block.data_qubits
+    }
+    # pylint: disable-next=unused-variable
+    reset_single_qubit_syndromes = (
+        Syndrome(
+            stabilizer=stab.uuid,
+            measurements=(),
+            block=block.uuid,
+            round=-1,  # should not be associated with any round
+            labels={stab.uuid: stab.data_qubits[0]},
+        )
+        # only deterministic outcomes are considered
+        for stab in reset_single_qubit_stabilizers
+        if stab.pauli == operation.state.pauli_basis
+    )
+
+    relevant_stabs = [
+        stab
+        for stab in block.stabilizers
+        if set(stab.pauli) == {operation.state.pauli_basis}
+    ]
+
+    initialization_values = [
+        (
+            (1,)
+            if (
+                # The parity of the first syndrome is 1 only if:
+                # 1. The state is a -1 eigenstate of the corresponding pauli
+                # 2. The number of qubits is odd
+                operation.state.basis_expectation_value == -1
+                and len(stab.pauli) % 2 == 1
+            )
+            else ()
+        )
+        for stab in relevant_stabs
+    ]
+
+    new_syndromes = generate_syndromes(
+        interpretation_step=interpretation_step,
+        stabilizers=relevant_stabs,
+        block=block,
+        stab_measurements=list(initialization_values),
+    )
+
+    interpretation_step.append_syndromes_MUT(new_syndromes)
+    # Add the reset circuit to the interpretation step
+    interpretation_step.append_circuit_MUT(reset_circuit, same_timeslice)
+
+    # Change the block history
+    interpretation_step.update_block_history_and_evolution_MUT(
+        old_blocks=(block_before_reset,),
+        new_blocks=(block,),
+        update_evolution=False,
+    )
+
+    # Add `reset_single_qubit_stabilizers` for new block
+    interpretation_step.update_reset_single_qubit_stabilizers_MUT(
+        block_id=block.uuid, new_single_qubit_stabilizers=reset_single_qubit_stabilizers
+    )
+
+    # Return the new interpretation step
+    return interpretation_step
