@@ -1,0 +1,99 @@
+name: Continous Integration
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+
+jobs:
+  pre-commit-checks:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
+      with:
+        egress-policy: audit
+
+    -
+      name: Setup code repository
+      uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      with:
+        fetch-depth: 1
+    - name: Setup Python
+      uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+      with:
+        python-version: 3.12
+    -
+      name: pre-commit
+      uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+
+  tests:
+    needs: pre-commit-checks
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
+      with:
+        egress-policy: audit
+
+    -
+      name: Setup code repository
+      uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      with:
+        fetch-depth: 1
+    -
+      name: Setup uv
+      uses: astral-sh/setup-uv@f3bcaebff5eace81a1c062af9f9011aae482ca9d # v3.1.7
+      with:
+        enable-cache: true
+    -
+      name: Setup Python ${{ matrix.python-version }}
+      run: |
+        uv python install ${{ matrix.python-version }}
+        uv venv --python ${{ matrix.python-version }}
+        uv sync --all-extras --dev
+    -
+      name: Login to CANFAR
+      env:
+        CANFAR_BASEURL: ${{ secrets.CANFAR_BASEURL }}
+        CANFAR_USERNAME: ${{ secrets.CANFAR_USERNAME }}
+        CANFAR_PASSWORD: ${{ secrets.CANFAR_PASSWORD }}
+      run: |
+        echo -e "machine ${CANFAR_BASEURL}\n  login ${CANFAR_USERNAME}\n  password ${CANFAR_PASSWORD}" > ~/.netrc
+        uv run cadc-get-cert --days-valid 1 --netrc-file ~/.netrc
+        rm ~/.netrc
+    -
+      name: Run tests
+      run: |
+        uv run pytest tests --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
+    -
+      name: Remove CANFAR Certificate
+      if: always()
+      run: |
+        rm -rf ~/.ssl/
+    -
+      name: Upload coverage to Codecov
+      env:
+        CODECOV_TOKEN:  ${{ secrets.CODECOV_TOKEN }}
+      uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4.6.0
+      with:
+        fail_ci_if_error: true # Fail the CI if an error occurs during the upload
+        token: ${{ env.CODECOV_TOKEN }}
+        flags: ${{ matrix.python-version }}
+        verbose: true # optional (default = false)
+    -
+      name: Upload test results to Codecov
+      if: ${{ !cancelled() }}
+      uses: codecov/test-results-action@9739113ad922ea0a9abb4b2c0f8bf6a4aa8ef820 # v1.0.1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
