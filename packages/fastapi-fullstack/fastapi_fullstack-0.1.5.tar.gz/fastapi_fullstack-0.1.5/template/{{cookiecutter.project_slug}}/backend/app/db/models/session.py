@@ -1,0 +1,126 @@
+{%- if cookiecutter.enable_session_management and cookiecutter.use_jwt %}
+{%- if cookiecutter.use_postgresql %}
+"""Session database model for tracking user sessions."""
+
+import uuid
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.base import Base
+
+
+class Session(Base):
+    """User session model for tracking active login sessions."""
+
+    __tablename__ = "sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    refresh_token_hash: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    device_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    device_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
+    last_used_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # Relationship
+    user = relationship("User", back_populates="sessions")
+
+    def __repr__(self) -> str:
+        return f"<Session(id={self.id}, user_id={self.user_id}, device={self.device_name})>"
+
+
+{%- elif cookiecutter.use_sqlite %}
+"""Session database model for tracking user sessions."""
+
+import uuid
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.base import Base
+
+
+class Session(Base):
+    """User session model for tracking active login sessions."""
+
+    __tablename__ = "sessions"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    refresh_token_hash: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    device_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    device_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+    last_used_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    # Relationship
+    user = relationship("User", back_populates="sessions")
+
+    def __repr__(self) -> str:
+        return f"<Session(id={self.id}, user_id={self.user_id}, device={self.device_name})>"
+
+
+{%- elif cookiecutter.use_mongodb %}
+"""Session document model for tracking user sessions."""
+
+from datetime import UTC, datetime
+from typing import Optional
+
+from beanie import Document, Link
+from pydantic import Field
+
+
+class Session(Document):
+    """User session document for tracking active login sessions."""
+
+    user_id: str
+    refresh_token_hash: str
+    device_name: Optional[str] = None
+    device_type: Optional[str] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    last_used_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    expires_at: datetime
+
+    class Settings:
+        name = "sessions"
+        indexes = [
+            "user_id",
+            "refresh_token_hash",
+        ]
+
+
+{%- endif %}
+{%- else %}
+"""Session model - not configured."""
+{%- endif %}

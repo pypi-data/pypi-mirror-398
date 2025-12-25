@@ -1,0 +1,797 @@
+{%- if cookiecutter.enable_conversation_persistence and cookiecutter.use_postgresql %}
+"""Conversation service (PostgreSQL async).
+
+Contains business logic for conversation, message, and tool call operations.
+"""
+
+from datetime import datetime
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.exceptions import NotFoundError
+from app.db.models.conversation import Conversation, Message, ToolCall
+from app.repositories import conversation_repo
+from app.schemas.conversation import (
+    ConversationCreate,
+    ConversationUpdate,
+    MessageCreate,
+    ToolCallCreate,
+    ToolCallComplete,
+)
+
+
+class ConversationService:
+    """Service for conversation-related business logic."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    # =========================================================================
+    # Conversation Methods
+    # =========================================================================
+
+    async def get_conversation(
+        self,
+        conversation_id: UUID,
+        *,
+        include_messages: bool = False,
+    ) -> Conversation:
+        """Get conversation by ID.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        conversation = await conversation_repo.get_conversation_by_id(
+            self.db, conversation_id, include_messages=include_messages
+        )
+        if not conversation:
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"conversation_id": str(conversation_id)},
+            )
+        return conversation
+
+    async def list_conversations(
+        self,
+{%- if cookiecutter.use_jwt %}
+        user_id: UUID | None = None,
+{%- endif %}
+        *,
+        skip: int = 0,
+        limit: int = 50,
+        include_archived: bool = False,
+    ) -> list[Conversation]:
+        """List conversations with pagination."""
+        return await conversation_repo.get_conversations_by_user(
+            self.db,
+{%- if cookiecutter.use_jwt %}
+            user_id=user_id,
+{%- endif %}
+            skip=skip,
+            limit=limit,
+            include_archived=include_archived,
+        )
+
+    async def create_conversation(
+        self,
+        data: ConversationCreate,
+    ) -> Conversation:
+        """Create a new conversation."""
+        return await conversation_repo.create_conversation(
+            self.db,
+{%- if cookiecutter.use_jwt %}
+            user_id=data.user_id,
+{%- endif %}
+            title=data.title,
+        )
+
+    async def update_conversation(
+        self,
+        conversation_id: UUID,
+        data: ConversationUpdate,
+    ) -> Conversation:
+        """Update a conversation.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        conversation = await self.get_conversation(conversation_id)
+        update_data = data.model_dump(exclude_unset=True)
+        return await conversation_repo.update_conversation(
+            self.db, db_conversation=conversation, update_data=update_data
+        )
+
+    async def archive_conversation(self, conversation_id: UUID) -> Conversation:
+        """Archive a conversation.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        conversation = await conversation_repo.archive_conversation(
+            self.db, conversation_id
+        )
+        if not conversation:
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"conversation_id": str(conversation_id)},
+            )
+        return conversation
+
+    async def delete_conversation(self, conversation_id: UUID) -> bool:
+        """Delete a conversation.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        deleted = await conversation_repo.delete_conversation(self.db, conversation_id)
+        if not deleted:
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"conversation_id": str(conversation_id)},
+            )
+        return True
+
+    # =========================================================================
+    # Message Methods
+    # =========================================================================
+
+    async def get_message(self, message_id: UUID) -> Message:
+        """Get message by ID.
+
+        Raises:
+            NotFoundError: If message does not exist.
+        """
+        message = await conversation_repo.get_message_by_id(self.db, message_id)
+        if not message:
+            raise NotFoundError(
+                message="Message not found",
+                details={"message_id": str(message_id)},
+            )
+        return message
+
+    async def list_messages(
+        self,
+        conversation_id: UUID,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        include_tool_calls: bool = False,
+    ) -> list[Message]:
+        """List messages in a conversation."""
+        # Verify conversation exists
+        await self.get_conversation(conversation_id)
+        return await conversation_repo.get_messages_by_conversation(
+            self.db,
+            conversation_id,
+            skip=skip,
+            limit=limit,
+            include_tool_calls=include_tool_calls,
+        )
+
+    async def add_message(
+        self,
+        conversation_id: UUID,
+        data: MessageCreate,
+    ) -> Message:
+        """Add a message to a conversation.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        # Verify conversation exists
+        await self.get_conversation(conversation_id)
+        return await conversation_repo.create_message(
+            self.db,
+            conversation_id=conversation_id,
+            role=data.role,
+            content=data.content,
+            model_name=data.model_name,
+            tokens_used=data.tokens_used,
+        )
+
+    async def delete_message(self, message_id: UUID) -> bool:
+        """Delete a message.
+
+        Raises:
+            NotFoundError: If message does not exist.
+        """
+        deleted = await conversation_repo.delete_message(self.db, message_id)
+        if not deleted:
+            raise NotFoundError(
+                message="Message not found",
+                details={"message_id": str(message_id)},
+            )
+        return True
+
+    # =========================================================================
+    # Tool Call Methods
+    # =========================================================================
+
+    async def get_tool_call(self, tool_call_id: UUID) -> ToolCall:
+        """Get tool call by ID.
+
+        Raises:
+            NotFoundError: If tool call does not exist.
+        """
+        tool_call = await conversation_repo.get_tool_call_by_id(self.db, tool_call_id)
+        if not tool_call:
+            raise NotFoundError(
+                message="Tool call not found",
+                details={"tool_call_id": str(tool_call_id)},
+            )
+        return tool_call
+
+    async def list_tool_calls(self, message_id: UUID) -> list[ToolCall]:
+        """List tool calls for a message."""
+        # Verify message exists
+        await self.get_message(message_id)
+        return await conversation_repo.get_tool_calls_by_message(self.db, message_id)
+
+    async def start_tool_call(
+        self,
+        message_id: UUID,
+        data: ToolCallCreate,
+    ) -> ToolCall:
+        """Record the start of a tool call.
+
+        Raises:
+            NotFoundError: If message does not exist.
+        """
+        # Verify message exists
+        await self.get_message(message_id)
+        return await conversation_repo.create_tool_call(
+            self.db,
+            message_id=message_id,
+            tool_call_id=data.tool_call_id,
+            tool_name=data.tool_name,
+            args=data.args,
+            started_at=data.started_at or datetime.utcnow(),
+        )
+
+    async def complete_tool_call(
+        self,
+        tool_call_id: UUID,
+        data: ToolCallComplete,
+    ) -> ToolCall:
+        """Mark a tool call as completed.
+
+        Raises:
+            NotFoundError: If tool call does not exist.
+        """
+        tool_call = await self.get_tool_call(tool_call_id)
+        return await conversation_repo.complete_tool_call(
+            self.db,
+            db_tool_call=tool_call,
+            result=data.result,
+            completed_at=data.completed_at or datetime.utcnow(),
+            success=data.success,
+        )
+
+
+{%- elif cookiecutter.enable_conversation_persistence and cookiecutter.use_sqlite %}
+"""Conversation service (SQLite sync).
+
+Contains business logic for conversation, message, and tool call operations.
+"""
+
+from datetime import datetime
+
+from sqlalchemy.orm import Session
+
+from app.core.exceptions import NotFoundError
+from app.db.models.conversation import Conversation, Message, ToolCall
+from app.repositories import conversation_repo
+from app.schemas.conversation import (
+    ConversationCreate,
+    ConversationUpdate,
+    MessageCreate,
+    ToolCallCreate,
+    ToolCallComplete,
+)
+
+
+class ConversationService:
+    """Service for conversation-related business logic."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    # =========================================================================
+    # Conversation Methods
+    # =========================================================================
+
+    def get_conversation(
+        self,
+        conversation_id: str,
+        *,
+        include_messages: bool = False,
+    ) -> Conversation:
+        """Get conversation by ID.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        conversation = conversation_repo.get_conversation_by_id(
+            self.db, conversation_id, include_messages=include_messages
+        )
+        if not conversation:
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"conversation_id": conversation_id},
+            )
+        return conversation
+
+    def list_conversations(
+        self,
+{%- if cookiecutter.use_jwt %}
+        user_id: str | None = None,
+{%- endif %}
+        *,
+        skip: int = 0,
+        limit: int = 50,
+        include_archived: bool = False,
+    ) -> list[Conversation]:
+        """List conversations with pagination."""
+        return conversation_repo.get_conversations_by_user(
+            self.db,
+{%- if cookiecutter.use_jwt %}
+            user_id=user_id,
+{%- endif %}
+            skip=skip,
+            limit=limit,
+            include_archived=include_archived,
+        )
+
+    def create_conversation(
+        self,
+        data: ConversationCreate,
+    ) -> Conversation:
+        """Create a new conversation."""
+        return conversation_repo.create_conversation(
+            self.db,
+{%- if cookiecutter.use_jwt %}
+            user_id=data.user_id,
+{%- endif %}
+            title=data.title,
+        )
+
+    def update_conversation(
+        self,
+        conversation_id: str,
+        data: ConversationUpdate,
+    ) -> Conversation:
+        """Update a conversation.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        conversation = self.get_conversation(conversation_id)
+        update_data = data.model_dump(exclude_unset=True)
+        return conversation_repo.update_conversation(
+            self.db, db_conversation=conversation, update_data=update_data
+        )
+
+    def archive_conversation(self, conversation_id: str) -> Conversation:
+        """Archive a conversation.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        conversation = conversation_repo.archive_conversation(self.db, conversation_id)
+        if not conversation:
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"conversation_id": conversation_id},
+            )
+        return conversation
+
+    def delete_conversation(self, conversation_id: str) -> bool:
+        """Delete a conversation.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        deleted = conversation_repo.delete_conversation(self.db, conversation_id)
+        if not deleted:
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"conversation_id": conversation_id},
+            )
+        return True
+
+    # =========================================================================
+    # Message Methods
+    # =========================================================================
+
+    def get_message(self, message_id: str) -> Message:
+        """Get message by ID.
+
+        Raises:
+            NotFoundError: If message does not exist.
+        """
+        message = conversation_repo.get_message_by_id(self.db, message_id)
+        if not message:
+            raise NotFoundError(
+                message="Message not found",
+                details={"message_id": message_id},
+            )
+        return message
+
+    def list_messages(
+        self,
+        conversation_id: str,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        include_tool_calls: bool = False,
+    ) -> list[Message]:
+        """List messages in a conversation."""
+        # Verify conversation exists
+        self.get_conversation(conversation_id)
+        return conversation_repo.get_messages_by_conversation(
+            self.db,
+            conversation_id,
+            skip=skip,
+            limit=limit,
+            include_tool_calls=include_tool_calls,
+        )
+
+    def add_message(
+        self,
+        conversation_id: str,
+        data: MessageCreate,
+    ) -> Message:
+        """Add a message to a conversation.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        # Verify conversation exists
+        self.get_conversation(conversation_id)
+        return conversation_repo.create_message(
+            self.db,
+            conversation_id=conversation_id,
+            role=data.role,
+            content=data.content,
+            model_name=data.model_name,
+            tokens_used=data.tokens_used,
+        )
+
+    def delete_message(self, message_id: str) -> bool:
+        """Delete a message.
+
+        Raises:
+            NotFoundError: If message does not exist.
+        """
+        deleted = conversation_repo.delete_message(self.db, message_id)
+        if not deleted:
+            raise NotFoundError(
+                message="Message not found",
+                details={"message_id": message_id},
+            )
+        return True
+
+    # =========================================================================
+    # Tool Call Methods
+    # =========================================================================
+
+    def get_tool_call(self, tool_call_id: str) -> ToolCall:
+        """Get tool call by ID.
+
+        Raises:
+            NotFoundError: If tool call does not exist.
+        """
+        tool_call = conversation_repo.get_tool_call_by_id(self.db, tool_call_id)
+        if not tool_call:
+            raise NotFoundError(
+                message="Tool call not found",
+                details={"tool_call_id": tool_call_id},
+            )
+        return tool_call
+
+    def list_tool_calls(self, message_id: str) -> list[ToolCall]:
+        """List tool calls for a message."""
+        # Verify message exists
+        self.get_message(message_id)
+        return conversation_repo.get_tool_calls_by_message(self.db, message_id)
+
+    def start_tool_call(
+        self,
+        message_id: str,
+        data: ToolCallCreate,
+    ) -> ToolCall:
+        """Record the start of a tool call.
+
+        Raises:
+            NotFoundError: If message does not exist.
+        """
+        # Verify message exists
+        self.get_message(message_id)
+        return conversation_repo.create_tool_call(
+            self.db,
+            message_id=message_id,
+            tool_call_id=data.tool_call_id,
+            tool_name=data.tool_name,
+            args=data.args,
+            started_at=data.started_at or datetime.utcnow(),
+        )
+
+    def complete_tool_call(
+        self,
+        tool_call_id: str,
+        data: ToolCallComplete,
+    ) -> ToolCall:
+        """Mark a tool call as completed.
+
+        Raises:
+            NotFoundError: If tool call does not exist.
+        """
+        tool_call = self.get_tool_call(tool_call_id)
+        return conversation_repo.complete_tool_call(
+            self.db,
+            db_tool_call=tool_call,
+            result=data.result,
+            completed_at=data.completed_at or datetime.utcnow(),
+            success=data.success,
+        )
+
+
+{%- elif cookiecutter.enable_conversation_persistence and cookiecutter.use_mongodb %}
+"""Conversation service (MongoDB).
+
+Contains business logic for conversation, message, and tool call operations.
+"""
+
+from datetime import datetime
+
+from app.core.exceptions import NotFoundError
+from app.db.models.conversation import Conversation, Message, ToolCall
+from app.repositories import conversation_repo
+from app.schemas.conversation import (
+    ConversationCreate,
+    ConversationUpdate,
+    MessageCreate,
+    ToolCallCreate,
+    ToolCallComplete,
+)
+
+
+class ConversationService:
+    """Service for conversation-related business logic."""
+
+    # =========================================================================
+    # Conversation Methods
+    # =========================================================================
+
+    async def get_conversation(
+        self,
+        conversation_id: str,
+        *,
+        include_messages: bool = False,
+    ) -> Conversation:
+        """Get conversation by ID.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        conversation = await conversation_repo.get_conversation_by_id(
+            conversation_id, include_messages=include_messages
+        )
+        if not conversation:
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"conversation_id": conversation_id},
+            )
+        return conversation
+
+    async def list_conversations(
+        self,
+{%- if cookiecutter.use_jwt %}
+        user_id: str | None = None,
+{%- endif %}
+        *,
+        skip: int = 0,
+        limit: int = 50,
+        include_archived: bool = False,
+    ) -> list[Conversation]:
+        """List conversations with pagination."""
+        return await conversation_repo.get_conversations_by_user(
+{%- if cookiecutter.use_jwt %}
+            user_id=user_id,
+{%- endif %}
+            skip=skip,
+            limit=limit,
+            include_archived=include_archived,
+        )
+
+    async def create_conversation(
+        self,
+        data: ConversationCreate,
+    ) -> Conversation:
+        """Create a new conversation."""
+        return await conversation_repo.create_conversation(
+{%- if cookiecutter.use_jwt %}
+            user_id=data.user_id,
+{%- endif %}
+            title=data.title,
+        )
+
+    async def update_conversation(
+        self,
+        conversation_id: str,
+        data: ConversationUpdate,
+    ) -> Conversation:
+        """Update a conversation.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        conversation = await self.get_conversation(conversation_id)
+        update_data = data.model_dump(exclude_unset=True)
+        return await conversation_repo.update_conversation(
+            db_conversation=conversation, update_data=update_data
+        )
+
+    async def archive_conversation(self, conversation_id: str) -> Conversation:
+        """Archive a conversation.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        conversation = await conversation_repo.archive_conversation(conversation_id)
+        if not conversation:
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"conversation_id": conversation_id},
+            )
+        return conversation
+
+    async def delete_conversation(self, conversation_id: str) -> bool:
+        """Delete a conversation.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        deleted = await conversation_repo.delete_conversation(conversation_id)
+        if not deleted:
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"conversation_id": conversation_id},
+            )
+        return True
+
+    # =========================================================================
+    # Message Methods
+    # =========================================================================
+
+    async def get_message(self, message_id: str) -> Message:
+        """Get message by ID.
+
+        Raises:
+            NotFoundError: If message does not exist.
+        """
+        message = await conversation_repo.get_message_by_id(message_id)
+        if not message:
+            raise NotFoundError(
+                message="Message not found",
+                details={"message_id": message_id},
+            )
+        return message
+
+    async def list_messages(
+        self,
+        conversation_id: str,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[Message]:
+        """List messages in a conversation."""
+        # Verify conversation exists
+        await self.get_conversation(conversation_id)
+        return await conversation_repo.get_messages_by_conversation(
+            conversation_id,
+            skip=skip,
+            limit=limit,
+        )
+
+    async def add_message(
+        self,
+        conversation_id: str,
+        data: MessageCreate,
+    ) -> Message:
+        """Add a message to a conversation.
+
+        Raises:
+            NotFoundError: If conversation does not exist.
+        """
+        # Verify conversation exists
+        await self.get_conversation(conversation_id)
+        return await conversation_repo.create_message(
+            conversation_id=conversation_id,
+            role=data.role,
+            content=data.content,
+            model_name=data.model_name,
+            tokens_used=data.tokens_used,
+        )
+
+    async def delete_message(self, message_id: str) -> bool:
+        """Delete a message.
+
+        Raises:
+            NotFoundError: If message does not exist.
+        """
+        deleted = await conversation_repo.delete_message(message_id)
+        if not deleted:
+            raise NotFoundError(
+                message="Message not found",
+                details={"message_id": message_id},
+            )
+        return True
+
+    # =========================================================================
+    # Tool Call Methods
+    # =========================================================================
+
+    async def get_tool_call(self, tool_call_id: str) -> ToolCall:
+        """Get tool call by ID.
+
+        Raises:
+            NotFoundError: If tool call does not exist.
+        """
+        tool_call = await conversation_repo.get_tool_call_by_id(tool_call_id)
+        if not tool_call:
+            raise NotFoundError(
+                message="Tool call not found",
+                details={"tool_call_id": tool_call_id},
+            )
+        return tool_call
+
+    async def list_tool_calls(self, message_id: str) -> list[ToolCall]:
+        """List tool calls for a message."""
+        # Verify message exists
+        await self.get_message(message_id)
+        return await conversation_repo.get_tool_calls_by_message(message_id)
+
+    async def start_tool_call(
+        self,
+        message_id: str,
+        data: ToolCallCreate,
+    ) -> ToolCall:
+        """Record the start of a tool call.
+
+        Raises:
+            NotFoundError: If message does not exist.
+        """
+        # Verify message exists
+        await self.get_message(message_id)
+        return await conversation_repo.create_tool_call(
+            message_id=message_id,
+            tool_call_id=data.tool_call_id,
+            tool_name=data.tool_name,
+            args=data.args,
+            started_at=data.started_at or datetime.utcnow(),
+        )
+
+    async def complete_tool_call(
+        self,
+        tool_call_id: str,
+        data: ToolCallComplete,
+    ) -> ToolCall:
+        """Mark a tool call as completed.
+
+        Raises:
+            NotFoundError: If tool call does not exist.
+        """
+        tool_call = await self.get_tool_call(tool_call_id)
+        return await conversation_repo.complete_tool_call(
+            db_tool_call=tool_call,
+            result=data.result,
+            completed_at=data.completed_at or datetime.utcnow(),
+            success=data.success,
+        )
+
+
+{%- else %}
+"""Conversation service - not configured."""
+{%- endif %}
