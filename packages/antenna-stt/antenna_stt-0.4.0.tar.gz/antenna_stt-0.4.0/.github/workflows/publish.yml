@@ -1,0 +1,212 @@
+name: Build and Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to PyPI (yes/no)'
+        required: true
+        default: 'no'
+
+permissions:
+  contents: read
+
+jobs:
+  # Build CPU wheels for Linux
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist -i python3.9 -i python3.10 -i python3.11 -i python3.12 -i python3.13
+          sccache: 'true'
+          manylinux: auto
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.target }}
+          path: dist
+
+  # Build CUDA wheels for Linux (x86_64 only)
+  linux-cuda:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cuda-version: ['12.4']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install CUDA toolkit
+        uses: Jimver/cuda-toolkit@v0.2.18
+        id: cuda-toolkit
+        with:
+          cuda: ${{ matrix.cuda-version }}
+          method: 'network'
+          sub-packages: '["nvcc", "cudart-dev"]'
+
+      - name: Verify CUDA installation
+        run: |
+          echo "CUDA_PATH: $CUDA_PATH"
+          nvcc --version
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build CUDA wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x86_64
+          args: --release --out dist --features cuda -i python3.10 -i python3.11 -i python3.12 -i python3.13
+          sccache: 'true'
+          manylinux: auto
+        env:
+          CUDA_PATH: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}
+
+      - name: Upload CUDA wheels as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-cuda-${{ matrix.cuda-version }}
+          path: dist
+
+  # Upload CUDA wheels to GitHub Release (not PyPI - PyPI doesn't support local versions)
+  upload-cuda-to-release:
+    name: Upload CUDA wheels to GitHub Release
+    runs-on: ubuntu-latest
+    needs: [linux-cuda]
+    if: github.event_name == 'release'
+    permissions:
+      contents: write
+    steps:
+      - name: Download CUDA wheels
+        uses: actions/download-artifact@v4
+        with:
+          path: cuda-wheels
+          pattern: wheels-linux-cuda-*
+          merge-multiple: true
+
+      - name: Rename wheels to indicate CUDA version
+        run: |
+          cd cuda-wheels
+          for f in *.whl; do
+            newname=$(echo "$f" | sed 's/\(antenna_stt-[0-9.]*\)/\1+cu124/')
+            mv "$f" "$newname"
+          done
+          ls -la
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: cuda-wheels/*.whl
+
+  # Build wheels for macOS
+  macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}-apple-darwin
+          args: --release --out dist -i python3.9 -i python3.10 -i python3.11 -i python3.12 -i python3.13
+          sccache: 'true'
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-${{ matrix.target }}
+          path: dist
+
+  # Build wheels for Windows
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [x64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: ${{ matrix.target }}
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          args: --release --out dist -i python3.9 -i python3.10 -i python3.11 -i python3.12 -i python3.13
+          sccache: 'true'
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-${{ matrix.target }}
+          path: dist
+
+  # Build source distribution
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
+          path: dist
+
+  # Publish to PyPI
+  publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: [linux, macos, windows, sdist]
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'yes')
+    environment:
+      name: pypi
+      url: https://pypi.org/project/antenna-stt/
+    permissions:
+      id-token: write  # Required for trusted publishing
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: wheels-*
+          merge-multiple: true
+
+      - name: List wheels
+        run: ls -la dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          verbose: true

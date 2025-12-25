@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antenna STT - Real-Time Transcription</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 1.1rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .card h2 {
+            font-size: 1.2rem;
+            margin-bottom: 16px;
+            color: #00d9ff;
+        }
+
+        .status-row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #666;
+        }
+
+        .status-dot.connected {
+            background: #00ff88;
+            box-shadow: 0 0 10px #00ff88;
+        }
+
+        .status-dot.recording {
+            background: #ff4444;
+            box-shadow: 0 0 10px #ff4444;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            color: #1a1a2e;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 217, 255, 0.3);
+        }
+
+        .btn-danger {
+            background: #ff4444;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #ff6666;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e0e0e0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .transcript-box {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+
+        .transcript-box:empty::before {
+            content: 'Transcripts will appear here...';
+            color: #666;
+            font-style: italic;
+        }
+
+        .transcript-partial {
+            color: #888;
+            font-style: italic;
+        }
+
+        .transcript-final {
+            color: #00ff88;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+        }
+
+        .info-item {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .info-label {
+            font-size: 0.8rem;
+            color: #888;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #00d9ff;
+        }
+
+        .config-row {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .config-row label {
+            min-width: 100px;
+            color: #888;
+        }
+
+        .config-row input, .config-row select {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.3);
+            color: #e0e0e0;
+            font-size: 1rem;
+        }
+
+        .visualizer {
+            height: 60px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 0 20px;
+        }
+
+        .visualizer-bar {
+            width: 4px;
+            background: linear-gradient(180deg, #00d9ff, #00ff88);
+            border-radius: 2px;
+            transition: height 0.05s;
+        }
+
+        .log-box {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 2px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .log-entry.error {
+            color: #ff4444;
+        }
+
+        .log-entry.success {
+            color: #00ff88;
+        }
+
+        .log-entry.info {
+            color: #00d9ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Antenna STT</h1>
+            <p class="subtitle">Real-Time Speech-to-Text Transcription</p>
+        </header>
+
+        <div class="card">
+            <h2>Server Connection</h2>
+            <div class="config-row">
+                <label>Server URL:</label>
+                <input type="text" id="serverUrl" value="http://localhost:8080" />
+            </div>
+            <div class="status-row" style="margin-bottom: 16px;">
+                <div class="status-item">
+                    <div class="status-dot" id="serverStatus"></div>
+                    <span id="serverStatusText">Disconnected</span>
+                </div>
+                <div class="status-item">
+                    <div class="status-dot" id="wsStatus"></div>
+                    <span id="wsStatusText">WebSocket: Closed</span>
+                </div>
+            </div>
+            <div class="controls">
+                <button class="btn-primary" id="connectBtn" onclick="checkServer()">Check Server</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Server Info</h2>
+            <div class="info-grid" id="serverInfo">
+                <div class="info-item">
+                    <div class="info-label">Status</div>
+                    <div class="info-value" id="infoStatus">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Backend</div>
+                    <div class="info-value" id="infoBackend">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Model</div>
+                    <div class="info-value" id="infoModel">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Device</div>
+                    <div class="info-value" id="infoDevice">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Sessions</div>
+                    <div class="info-value" id="infoSessions">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Ready</div>
+                    <div class="info-value" id="infoReady">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Recording Controls</h2>
+            <div class="status-row" style="margin-bottom: 16px;">
+                <div class="status-item">
+                    <div class="status-dot" id="recordingStatus"></div>
+                    <span id="recordingStatusText">Not Recording</span>
+                </div>
+                <div class="status-item">
+                    <span id="sessionId">Session: None</span>
+                </div>
+            </div>
+            <div class="controls">
+                <button class="btn-primary" id="startBtn" onclick="startRecording()" disabled>Start Recording</button>
+                <button class="btn-danger" id="stopBtn" onclick="stopRecording()" disabled>Stop Recording</button>
+                <button class="btn-secondary" id="clearBtn" onclick="clearTranscript()">Clear</button>
+            </div>
+            <div class="visualizer" id="visualizer">
+                <!-- Bars will be added by JS -->
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Live Transcript</h2>
+            <div class="transcript-box" id="transcript"></div>
+        </div>
+
+        <div class="card">
+            <h2>Event Log</h2>
+            <div class="log-box" id="logBox"></div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let serverUrl = 'http://localhost:8080';
+        let sessionId = null;
+        let websocket = null;
+        let mediaRecorder = null;
+        let audioContext = null;
+        let analyser = null;
+        let isRecording = false;
+
+        // DOM elements
+        const serverUrlInput = document.getElementById('serverUrl');
+        const serverStatus = document.getElementById('serverStatus');
+        const serverStatusText = document.getElementById('serverStatusText');
+        const wsStatus = document.getElementById('wsStatus');
+        const wsStatusText = document.getElementById('wsStatusText');
+        const recordingStatus = document.getElementById('recordingStatus');
+        const recordingStatusText = document.getElementById('recordingStatusText');
+        const sessionIdEl = document.getElementById('sessionId');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const transcript = document.getElementById('transcript');
+        const logBox = document.getElementById('logBox');
+        const visualizer = document.getElementById('visualizer');
+
+        // Initialize visualizer bars
+        for (let i = 0; i < 32; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'visualizer-bar';
+            bar.style.height = '4px';
+            visualizer.appendChild(bar);
+        }
+
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logBox.appendChild(entry);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        async function checkServer() {
+            serverUrl = serverUrlInput.value.replace(/\/$/, '');
+            log(`Checking server at ${serverUrl}...`);
+
+            try {
+                // Check health
+                const healthRes = await fetch(`${serverUrl}/health`);
+                const health = await healthRes.json();
+
+                // Get detailed info
+                const infoRes = await fetch(`${serverUrl}/info`);
+                const info = await infoRes.json();
+
+                // Update status
+                serverStatus.classList.add('connected');
+                serverStatusText.textContent = 'Connected';
+
+                // Update info display
+                document.getElementById('infoStatus').textContent = health.status;
+                document.getElementById('infoBackend').textContent = info.backend.name;
+                document.getElementById('infoModel').textContent = info.backend.model;
+                document.getElementById('infoDevice').textContent = info.backend.device;
+                document.getElementById('infoSessions').textContent = `${info.sessions.active}/${info.sessions.max}`;
+                document.getElementById('infoReady').textContent = info.backend.ready ? 'Yes' : 'No';
+
+                startBtn.disabled = !info.backend.ready;
+                log('Server connected successfully', 'success');
+
+            } catch (err) {
+                serverStatus.classList.remove('connected');
+                serverStatusText.textContent = 'Connection Failed';
+                log(`Failed to connect: ${err.message}`, 'error');
+                startBtn.disabled = true;
+            }
+        }
+
+        async function createSession() {
+            try {
+                const res = await fetch(`${serverUrl}/sessions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    sessionId = data.data.session_id;
+                    sessionIdEl.textContent = `Session: ${sessionId.substring(0, 8)}...`;
+                    log(`Session created: ${sessionId}`, 'success');
+                    return data.data;
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (err) {
+                log(`Failed to create session: ${err.message}`, 'error');
+                throw err;
+            }
+        }
+
+        function connectWebSocket(wsPath) {
+            const wsUrl = `${serverUrl.replace('http', 'ws')}${wsPath}`;
+            log(`Connecting WebSocket to ${wsUrl}...`);
+
+            websocket = new WebSocket(wsUrl);
+
+            websocket.onopen = () => {
+                wsStatus.classList.add('connected');
+                wsStatusText.textContent = 'WebSocket: Connected';
+                log('WebSocket connected', 'success');
+            };
+
+            websocket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleTranscriptEvent(data);
+                } catch (err) {
+                    log(`WebSocket message error: ${err.message}`, 'error');
+                }
+            };
+
+            websocket.onclose = () => {
+                wsStatus.classList.remove('connected');
+                wsStatusText.textContent = 'WebSocket: Closed';
+                log('WebSocket closed');
+            };
+
+            websocket.onerror = (err) => {
+                log(`WebSocket error`, 'error');
+            };
+        }
+
+        function handleTranscriptEvent(event) {
+            // Handle different event types from StreamingEvent enum
+            // Events use tagged enum format: {"type": "final", "text": "...", ...}
+            const eventType = event.type || '';
+
+            switch (eventType) {
+                case 'partial':
+                    updateTranscript(event.text || '', false);
+                    break;
+                case 'final':
+                    if (event.text && event.text.trim()) {
+                        updateTranscript(event.text, true);
+                    }
+                    break;
+                case 'segment_start':
+                    log(`Segment started at ${(event.timestamp || 0).toFixed(2)}s`, 'info');
+                    break;
+                case 'segment_end':
+                    log(`Segment ended at ${(event.timestamp || 0).toFixed(2)}s (duration: ${(event.duration || 0).toFixed(2)}s)`, 'info');
+                    break;
+                case 'vad_state_change':
+                    log(`VAD: ${event.state} at ${(event.timestamp || 0).toFixed(2)}s`, 'info');
+                    break;
+                case 'error':
+                    log(`Transcription error: ${event.message || 'Unknown error'}`, 'error');
+                    break;
+                default:
+                    log(`Unknown event type: ${eventType}`, 'info');
+            }
+        }
+
+        let partialElement = null;
+
+        function updateTranscript(text, isFinal) {
+            if (isFinal) {
+                // Remove partial if exists
+                if (partialElement) {
+                    partialElement.remove();
+                    partialElement = null;
+                }
+                // Add final transcript
+                const span = document.createElement('span');
+                span.className = 'transcript-final';
+                span.textContent = text + ' ';
+                transcript.appendChild(span);
+            } else {
+                // Update or create partial
+                if (!partialElement) {
+                    partialElement = document.createElement('span');
+                    partialElement.className = 'transcript-partial';
+                    transcript.appendChild(partialElement);
+                }
+                partialElement.textContent = text;
+            }
+            transcript.scrollTop = transcript.scrollHeight;
+        }
+
+        async function startRecording() {
+            try {
+                // Create session first
+                const session = await createSession();
+
+                // Connect WebSocket
+                connectWebSocket(session.websocket_url);
+
+                // Get microphone access
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        sampleRate: 16000,
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true
+                    }
+                });
+
+                // Set up audio context for visualization and processing
+                audioContext = new AudioContext({ sampleRate: 16000 });
+                const source = audioContext.createMediaStreamSource(stream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 64;
+                source.connect(analyser);
+
+                // Create script processor for sending audio
+                const processor = audioContext.createScriptProcessor(4096, 1, 1);
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+
+                processor.onaudioprocess = (e) => {
+                    if (!isRecording) return;
+
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    // Convert to f32 little-endian bytes
+                    const buffer = new ArrayBuffer(inputData.length * 4);
+                    const view = new DataView(buffer);
+                    for (let i = 0; i < inputData.length; i++) {
+                        view.setFloat32(i * 4, inputData[i], true); // true = little-endian
+                    }
+
+                    // Send to server
+                    sendAudio(buffer);
+                };
+
+                isRecording = true;
+                recordingStatus.classList.add('recording');
+                recordingStatusText.textContent = 'Recording...';
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                log('Recording started', 'success');
+
+                // Start visualization
+                updateVisualization();
+
+            } catch (err) {
+                log(`Failed to start recording: ${err.message}`, 'error');
+            }
+        }
+
+        async function sendAudio(buffer) {
+            if (!sessionId) return;
+
+            try {
+                await fetch(`${serverUrl}/sessions/${sessionId}/audio`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/octet-stream' },
+                    body: buffer
+                });
+            } catch (err) {
+                // Silently ignore send errors during recording
+            }
+        }
+
+        function updateVisualization() {
+            if (!isRecording || !analyser) return;
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(dataArray);
+
+            const bars = visualizer.querySelectorAll('.visualizer-bar');
+            bars.forEach((bar, i) => {
+                const value = dataArray[i] || 0;
+                const height = Math.max(4, (value / 255) * 50);
+                bar.style.height = `${height}px`;
+            });
+
+            requestAnimationFrame(updateVisualization);
+        }
+
+        async function stopRecording() {
+            isRecording = false;
+
+            // Close WebSocket
+            if (websocket) {
+                websocket.close();
+                websocket = null;
+            }
+
+            // Close audio context
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+
+            // Close session
+            if (sessionId) {
+                try {
+                    await fetch(`${serverUrl}/sessions/${sessionId}`, { method: 'DELETE' });
+                    log(`Session ${sessionId.substring(0, 8)}... closed`, 'success');
+                } catch (err) {
+                    log(`Failed to close session: ${err.message}`, 'error');
+                }
+                sessionId = null;
+            }
+
+            // Reset UI
+            recordingStatus.classList.remove('recording');
+            recordingStatusText.textContent = 'Not Recording';
+            sessionIdEl.textContent = 'Session: None';
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+
+            // Reset visualizer
+            const bars = visualizer.querySelectorAll('.visualizer-bar');
+            bars.forEach(bar => bar.style.height = '4px');
+
+            log('Recording stopped');
+        }
+
+        function clearTranscript() {
+            transcript.innerHTML = '';
+            partialElement = null;
+            log('Transcript cleared');
+        }
+
+        // Initial server check
+        setTimeout(checkServer, 500);
+    </script>
+</body>
+</html>
