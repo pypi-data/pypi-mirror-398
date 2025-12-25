@@ -1,0 +1,110 @@
+# Pricewise-Hardware
+[![PyPI version](https://badge.fury.io/py/pricewise-hardware.svg)](https://badge.fury.io/py/pricewise-hardware)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/pricewise-hardware)](https://pepy.tech/project/pricewise-hardware)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A Python package designed to assist users in making informed purchasing decisions for servers, RAM, and flash storage during market price fluctuations.
+
+## Features
+
+- **Hardware Recommendations**: Get tailored hardware configurations based on your specific needs.
+- **Price Trend Analysis**: Understand market price trends to make informed decisions.
+- **Optimal Purchasing Strategies**: Receive data-driven advice to secure the best value for your investments.
+- **Flexible LLM Integration**: Use any LangChain-compatible LLM for processing.
+
+## Installation
+
+```bash
+pip install pricewise_hardware
+```
+
+## Usage
+
+### Basic Usage
+
+```python
+from pricewise_hardware import pricewise_hardware
+
+user_input = "I need a server with 64GB RAM and 1TB SSD, my budget is $2000."
+response = pricewise_hardware(user_input)
+print(response)
+```
+
+### Using a Custom LLM
+
+You can use any LangChain-compatible LLM by passing it to the `pricewise_hardware` function.
+
+#### Example with OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from pricewise_hardware import pricewise_hardware
+
+llm = ChatOpenAI()
+response = pricewise_hardware(user_input, llm=llm)
+print(response)
+```
+
+#### Example with Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from pricewise_hardware import pricewise_hardware
+
+llm = ChatAnthropic()
+response = pricewise_hardware(user_input, llm=llm)
+print(response)
+```
+
+#### Example with Google
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from pricewise_hardware import pricewise_hardware
+
+llm = ChatGoogleGenerativeAI()
+response = pricewise_hardware(user_input, llm=llm)
+print(response)
+```
+
+### Using LLM7 API Key
+
+By default, the package uses the `ChatLLM7` from `langchain_llm7`. If you want to use a specific API key, you can pass it directly or set it as an environment variable.
+
+#### Using Environment Variable
+
+```bash
+export LLM7_API_KEY="your_api_key"
+```
+
+#### Passing API Key Directly
+
+```python
+from pricewise_hardware import pricewise_hardware
+
+user_input = "I need a server with 64GB RAM and 1TB SSD, my budget is $2000."
+response = pricewise_hardware(user_input, api_key="your_api_key")
+print(response)
+```
+
+## Parameters
+
+- **user_input** (str): The user input text to process.
+- **llm** (Optional[BaseChatModel]): The LangChain LLM instance to use. If not provided, the default `ChatLLM7` will be used.
+- **api_key** (Optional[str]): The API key for LLM7. If not provided, the environment variable `LLM7_API_KEY` will be used.
+
+## Rate Limits
+
+The default rate limits for LLM7 free tier are sufficient for most use cases of this package. If you need higher rate limits, you can get a free API key by registering at [LLM7](https://token.llm7.io/).
+
+## Issues
+
+If you encounter any issues, please report them on the [GitHub issues page](https://github.com/chigwell/pricewise-hardware/issues).
+
+## Author
+
+- **Eugene Evstafev**
+- **Email**: hi@eugene.plus
+- **GitHub**: [chigwell](https://github.com/chigwell)
