@@ -1,0 +1,78 @@
+from typing import cast
+
+from cognite.client import CogniteClient
+from rich.console import Console
+
+from cognite_toolkit._cdf_tk.client.api.legacy.canvas import CanvasAPI
+from cognite_toolkit._cdf_tk.client.api.legacy.charts import ChartsAPI
+from cognite_toolkit._cdf_tk.client.api.legacy.dml import DMLAPI
+from cognite_toolkit._cdf_tk.client.api.legacy.extended_data_modeling import ExtendedDataModelingAPI
+from cognite_toolkit._cdf_tk.client.api.legacy.extended_files import ExtendedFileMetadataAPI
+from cognite_toolkit._cdf_tk.client.api.legacy.extended_functions import ExtendedFunctionsAPI
+from cognite_toolkit._cdf_tk.client.api.legacy.extended_raw import ExtendedRawAPI
+from cognite_toolkit._cdf_tk.client.api.legacy.extended_timeseries import ExtendedTimeSeriesAPI
+from cognite_toolkit._cdf_tk.client.api.legacy.robotics import RoboticsAPI
+from cognite_toolkit._cdf_tk.utils.http_client import HTTPClient
+
+from .api.infield import InfieldAPI
+from .api.lookup import LookUpGroup
+from .api.migration import MigrationAPI
+from .api.project import ProjectAPI
+from .api.search import SearchAPI
+from .api.streams import StreamsAPI
+from .api.three_d import ThreeDAPI
+from .api.token import TokenAPI
+from .api.verify import VerifyAPI
+from .config import ToolkitClientConfig
+
+
+class ToolAPI:
+    """This is reimplemented CogniteAPIs in Toolkit"""
+
+    def __init__(self, http_client: HTTPClient, console: Console) -> None:
+        self.http_client = http_client
+        self.three_d = ThreeDAPI(http_client, console)
+
+
+class ToolkitClient(CogniteClient):
+    def __init__(
+        self,
+        config: ToolkitClientConfig | None = None,
+        enable_set_pending_ids: bool = False,
+        console: Console | None = None,
+    ) -> None:
+        super().__init__(config=config)
+        http_client = HTTPClient(self.config)
+        self.http_client = http_client
+        toolkit_config = ToolkitClientConfig.from_client_config(self.config)
+        self.console = console or Console()
+        self.tool = ToolAPI(http_client, self.console)
+        self.search = SearchAPI(self._config, self._API_VERSION, self)
+        self.robotics = RoboticsAPI(self._config, self._API_VERSION, self)
+        self.dml = DMLAPI(self._config, self._API_VERSION, self)
+        self.verify = VerifyAPI(self._config, self._API_VERSION, self)
+        self.lookup = LookUpGroup(self._config, self._API_VERSION, self, self.console)
+        self.functions: ExtendedFunctionsAPI = ExtendedFunctionsAPI(
+            toolkit_config, self._API_VERSION, self, self.console
+        )
+        self.data_modeling: ExtendedDataModelingAPI = ExtendedDataModelingAPI(self._config, self._API_VERSION, self)
+        if enable_set_pending_ids:
+            self.time_series: ExtendedTimeSeriesAPI = ExtendedTimeSeriesAPI(self._config, self._API_VERSION, self)
+            self.files: ExtendedFileMetadataAPI = ExtendedFileMetadataAPI(self._config, self._API_VERSION, self)
+        self.raw: ExtendedRawAPI = ExtendedRawAPI(self._config, self._API_VERSION, self)
+        self.canvas = CanvasAPI(self.data_modeling.instances)
+        self.migration = MigrationAPI(self.data_modeling.instances)
+        self.token = TokenAPI(self)
+        self.charts = ChartsAPI(self._config, self._API_VERSION, self)
+        self.project = ProjectAPI(config=toolkit_config, cognite_client=self)
+        self.infield = InfieldAPI(http_client, self.console)
+        self.streams = StreamsAPI(http_client, self.console)
+
+    @property
+    def config(self) -> ToolkitClientConfig:
+        """Returns a config object containing the configuration for the current client.
+
+        Returns:
+            ToolkitClientConfig: The configuration object.
+        """
+        return cast(ToolkitClientConfig, self._config)
