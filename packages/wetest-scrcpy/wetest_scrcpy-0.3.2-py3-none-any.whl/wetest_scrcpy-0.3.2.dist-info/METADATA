@@ -1,0 +1,263 @@
+Metadata-Version: 2.4
+Name: wetest-scrcpy
+Version: 0.3.2
+Summary: Wetest Scrcpy is a lightweight Python framework based on the scrcpy protocol, supporting screenshot and screen recording for both Android and iOS devices.
+Author: WeTest
+Author-email: wetest@tencent.com
+Requires-Python: >=3.8
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Dist: adbutils (>=2.9.3,<3.0.0)
+Requires-Dist: av (<=12.3.0)
+Requires-Dist: construct (>=2.10.70,<3.0.0)
+Requires-Dist: numpy (>=1.21.0) ; python_version < "3.12"
+Requires-Dist: numpy (>=1.26.0) ; python_version >= "3.12"
+Requires-Dist: opencv-python (>=4.8.0,<4.10.0)
+Requires-Dist: pydantic (<=2.10.6)
+Requires-Dist: wetest-osplatform (>=0.0.2,<0.0.3)
+Requires-Dist: wetest-pyidb (>=0.0.2,<0.0.3)
+Description-Content-Type: text/markdown
+
+# Wetest Scrcpy Python Client
+
+![Group WeTest](https://img.shields.io/badge/group-Wetest-blue.svg)
+![python>=3.8](https://img.shields.io/badge/python-%3E%3D3.8-green.svg?logo=python)
+[![release (latest version)](https://img.shields.io/badge/release-skyblue.svg)](https://mirrors.tencent.com/#/private/pypi/detail?repo_id=155&project_name=wetest-scrcpy)
+[![Issues](https://img.shields.io/badge/Issues-问题反馈-red.svg)](https://git.woa.com/CloudTesting/automation/scrcpy-python-client/issues)
+[![Pull Requests](https://img.shields.io/badge/Pull%20Requests-贡献代码-green.svg)](https://git.woa.com/CloudTesting/automation/scrcpy-python-client/-/merge_requests)
+
+**Wetest Scrcpy Python Client** 是一款基于 [**scrcpy**](https://github.com/Genymobile/scrcpy) 协议的轻量化 Python 框架，支持对 Android 和 iOS 设备进行点击、滑动、输入等操作和截图。
+
+如需同等功能的 Go SDK，请参考 [go-scrcpy](https://git.woa.com/CloudTesting/UDT/go-scrcpy)
+
+## 实现原理
+
+本项目是一个 scrcpy 的 Python 客户端，通过 scrcpy 协议与 scrcpy server 进行通信，实现对设备的操作和截图。
+
+- **Android 设备**：scrcpy server 以后台保活的 jar 包形式运行，对外暴露两个 Unix Socket：`scrcpy-ctrl`（控制流）和 `scrcpy-video`（视频流）
+- **iOS 设备**：scrcpy 以 ipa 包形式运行，对外暴露两个端口：`21343` (控制流) 和 `21344` (视频流)
+
+### 双通道功能说明
+
+#### 控制流 ([CtrlConnection](./src/wetest/scrcpy/core/_control.py#L58))
+
+负责设备交互操作，支持以下功能：
+
+- **触控操作**：点击、滑动、多点触控
+- **按键输入**：物理按键、文本输入、剪贴板操作
+- **设备控制**：屏幕旋转、电源管理、通知面板展开/收起
+- **信息获取**：屏幕信息、设备旋转状态、应用列表、系统语言
+- **截图功能**：高频截图（适用于 ≤25fps 场景）
+
+#### 视频流 ([VideoStreamScreenshot](./src/wetest/scrcpy/core/_video.py#L61))
+
+负责实时视频传输，提供以下能力：
+
+- **高帧率截图支持**：适用于高频截图 (适用于 > 25fps 场景)
+
+通过这种双通道设计，实现了控制指令和视频数据的分离传输，确保了操作响应的实时性和视频流的稳定性。
+
+## 快速开始
+
+### 1. 环境准备
+
+#### 云真机环境
+
+云测平台和 UDT 平台均已支持后台保活 scrcpy，**无需额外操作**。如果发现 scrcpy 未启动，请联系平台管理员。
+
+#### 本地设备环境
+
+**Android 设备**
+
+1. 下载仓库中的 [src/wetest/scrcpy/resource/android](./src/wetest/scrcpy/resource/android) 至本地
+2. 下载 [scrcpy-server](https://mirrors.tencent.com/#/private/generic2/detail?repo_name=scrcpy-server) 最新版本至 `android` 目录，并更名为 `scrcpy-server`
+3. 确保文件结构如下：
+
+   ```
+   ├── android
+      ├── libjpeg-turbo
+      ├── run.sh
+      └── scrcpy-server
+   ```
+
+4. 执行启动脚本：
+
+   ```shell
+   ./resource/android/run.sh
+   ```
+
+**iOS 设备**
+
+1. 确保已安装 idb（获取方式：<https://iwiki.woa.com/p/4008369879>）
+2. 启动 scrcpy 应用 (请企微联系zhongkaizhu(朱忠凯)咨询 scrcpy ipa 包的相关事宜)：
+
+   ```shell
+   idb launch com.wetest.wda-scrcpy.xctrunner
+   ```
+
+### 2. 验证服务状态
+
+启动完成后，请验证 scrcpy 服务是否正常运行：
+
+**Android 设备验证**
+
+```shell
+$ adb shell netstat -an | grep scrcpy
+
+unix  2      [ ACC ]     STREAM     LISTENING     66740846 @ct-scrcpy-ctrl
+unix  2      [ ACC ]     STREAM     LISTENING     66740848 @ct-scrcpy-video
+```
+
+**iOS 设备验证**
+
+```shell
+$ idb ps | grep scrcpy
+
+2209 scrcpy-Runner com.wetest.wda-scrcpy.xctrunner scrcpy-Runner 2025-08-08 15:33:19
+```
+
+### 3. 开始使用
+
+服务启动并验证成功后，即可开始使用 Python 客户端进行设备操作
+
+## 使用指南
+
+### 安装
+
+支持 Python 3.8 及以上版本，使用以下命令从腾讯 PyPI 源安装：
+
+```shell
+python -m pip install wetest-scrcpy --upgrade --extra-index-url https://mirrors.tencent.com/repository/pypi/tencent_pypi/simple
+```
+
+### 快速上手
+
+#### 基本使用流程
+
+使用 wetest-scrcpy 的基本流程包括三个步骤：
+
+1. **初始化设备实例**：创建 Android 或 iOS 设备对象
+2. **创建连接**：建立控制流或视频流连接
+3. **调用方法**：执行设备操作或获取截图
+
+#### 代码示例
+
+```python
+from wetest.scrcpy import IOSDevice, AndroidDevice, CtrlConnection, VideoStreamScreenshot, Action
+
+# 1. 初始化设备实例
+android_device = AndroidDevice("<your_android_serial>")  # Android 设备
+ios_device = IOSDevice("<your_ios_udid>")  # iOS 设备
+
+# 2. 创建连接
+# 控制流连接：用于设备操作（点击、滑动等）
+ctrl_conn = CtrlConnection(android_device)
+# 视频流连接：用于高性能截图
+video_conn = VideoStreamScreenshot(android_device)
+
+# 3. 调用方法
+# 控制操作示例
+ctrl_conn.touch(100, 100, Action.DOWN)  # 点击屏幕
+ctrl_conn.text("Hello World")  # 输入文本
+
+# 截图示例
+ctrl_screenshot = ctrl_conn.screenshot()  # 通过控制流截图（适用于 ≤25fps 截图）
+video_screenshot = video_conn.get_screenshot()  # 通过视频流截图（适用于 > 25fps 截图）
+
+# 4. 关闭连接
+ctrl_conn.close()
+video_conn.close()
+```
+
+### 更多示例
+
+- 完整触控操作示例：[touch.py](examples/touch.py)
+- 高性能截图示例：[fast_screenshot.py](examples/fast_screenshot.py)
+- 版本变更记录：[CHANGELOG.md](CHANGELOG.md)
+
+## 问题反馈
+
+如果您在使用过程中遇到问题或有功能建议，请通过以下方式反馈：
+
+### 创建 Issue
+
+1. **访问 Issues 页面**：<https://git.woa.com/CloudTesting/automation/scrcpy-python-client/issues>
+2. **搜索已有问题**：在创建新 Issue 前，请先搜索是否已有相似问题
+3. **创建新 Issue**：Bug Report 或 Feature Request
+
+#### Bug Report
+
+**适用场景**：程序崩溃、功能异常、性能问题、API 行为不符合预期
+
+- 问题描述和复现步骤
+- 预期行为和实际行为
+- 环境信息（Python版本、操作系统、设备型号）
+- 错误日志或截图
+- 最小复现代码示例
+
+#### Feature Request
+
+**适用场景**：新功能需求、API 改进、性能优化建议
+
+- 功能需求描述
+- 使用场景说明
+- 预期的API设计
+
+## 贡献指南
+
+我们非常欢迎社区贡献！请遵循以下步骤：
+
+1. Fork 本仓库
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)，如存在关联的 Issue，请在提交信息中添加 `Fix #123` 格式
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 创建 Pull Request
+
+### 开发环境设置
+
+本项目使用 [Poetry](https://github.com/python-poetry/poetry) 管理依赖和开发环境：
+
+```shell
+# 1. 克隆仓库
+git clone https://git.woa.com/CloudTesting/automation/scrcpy-python-client.git
+cd scrcpy-python-client
+
+# 2. 安装 Poetry（如果尚未安装）
+python -m pip install poetry
+
+# 3. 安装项目依赖
+poetry install
+
+# 4. 更新依赖
+poetry update
+
+# 5. 下载 scrcpy-server
+SCRCPY_VERSION=v3.3.1.2 poetry run download-server
+
+# 6. 构建项目
+poetry build
+```
+
+### 代码规范
+
+- 使用 [Black](https://github.com/psf/black) 进行代码格式化
+- 使用 [isort](https://github.com/PyCQA/isort) 整理导入语句
+- 添加适当的代码注释
+- 为新功能编写单元测试，放置到 `test` 目录下
+- 更新README.md文件，介绍新功能的使用方法
+- 如有必要，编写示例代码，放置到`examples`目录下
+
+## 作者信息&致谢
+
+### [**Tencent WeTest Team**](https://wetest.qq.com/)
+
+特别感谢以下开源项目的启发:
+
+- <https://github.com/Genymobile/scrcpy>
+
