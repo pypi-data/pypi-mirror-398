@@ -1,0 +1,17 @@
+# File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+
+from typing_extensions import Literal
+
+from ..._models import BaseModel
+
+__all__ = ["FloatingAddress"]
+
+
+class FloatingAddress(BaseModel):
+    """Schema for `floating` addresses."""
+
+    addr: str
+    """Address"""
+
+    type: Literal["floating"]
+    """Type of the address"""
