@@ -1,0 +1,1 @@
+<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>Bonjour,<br><br>Nouveau ticket créé (#{{ retour_client.pk }}) :<br><strong>{{ retour_client.titre }}</strong><br><br>{{ retour_client.description|safe }}</body></html>
