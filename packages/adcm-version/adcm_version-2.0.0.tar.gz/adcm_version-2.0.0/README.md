@@ -1,0 +1,43 @@
+# ADCM version
+
+## Name
+ADCM version
+
+## Description
+This package is intended to compare versions of the [ADCM](https://docs.arenadata.io/en/ADCM/current/introduction/intro.html) product.
+
+## Installation
+`pip install adcm-version`
+
+## Usage
+
+There are two major functions to compare versions:
+
+* `compare_adcm_versions(this, other)` - Compare two ADCM version strings
+* `compare_prototype_versions(this, other)` - Compare two prototype version strings for ADCM objects
+
+Both returning:
+
+* `ComparisonResult.NEWER` when `this` is newer
+* `ComparisonResult.EQUAL` when versions are equal
+* `ComparisonResult.OLDER` when `other` is newer
+
+Example:
+
+```jupyterpython
+>>> from adcm_version import compare_prototype_versions, ComparisonResult
+>>> compare_prototype_versions("2.1.10_b1", "2.1.6_b4")
+ComparisonResult.NEWER
+```
+
+As for releases `2.x.y` `ComparisonResult` can be treated as integer (returned value of `1.x.y` versions).
+
+Also there is a function to check if version format is legacy ADCM version format:
+
+* `is_legacy(version)` - return `True`, if ADCM version format is old (for example `2023.11.28.07`), else `False`
+
+  ```jupyterpython
+  >>> from adcm_version import is_legacy
+  >>> is_legacy("2021.11.22.15")
+  True
+  ```
