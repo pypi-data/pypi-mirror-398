@@ -1,0 +1,59 @@
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import litestar from "litestar-vite-plugin";
+{% if use_tailwind %}
+import tailwindcss from "@tailwindcss/vite";
+{% endif %}
+
+{% if enable_ssr %}
+export default defineConfig(({ ssrBuild }) => ({
+{% else %}
+export default defineConfig({
+{% endif %}
+  server: {
+    host: "0.0.0.0",
+    port: Number(process.env.VITE_PORT || "{{ vite_port }}"),
+    cors: true,
+    hmr: {
+      host: "localhost",
+    },
+  },
+  plugins: [
+{% if use_tailwind %}
+    tailwindcss(),
+{% endif %}
+    react(),
+    litestar({
+      input: ["{{ resource_dir }}/main.tsx"],
+{% if enable_ssr %}
+      ssr: "{{ resource_dir }}/ssr.tsx",
+{% endif %}
+{% if enable_types %}
+      types: {
+        enabled: true,
+        output: "{{ resource_dir }}/generated/api",
+      },
+{% endif %}
+    }),
+  ],
+{% if enable_ssr %}
+  build: {
+    rollupOptions: {
+      output: ssrBuild
+        ? {
+            entryFileNames: "ssr.js",
+          }
+        : undefined,
+    },
+  },
+{% endif %}
+  resolve: {
+    alias: {
+      "@": "/{{ resource_dir }}",
+    },
+  },
+{% if enable_ssr %}
+}));
+{% else %}
+});
+{% endif %}
