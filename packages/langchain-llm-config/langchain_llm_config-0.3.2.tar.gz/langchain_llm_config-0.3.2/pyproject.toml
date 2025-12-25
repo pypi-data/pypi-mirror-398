@@ -1,0 +1,242 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "langchain-llm-config"
+version = "0.3.2"
+description = "A comprehensive LLM configuration package supporting multiple providers (OpenAI, VLLM, Gemini, Infinity) for chat assistants and embeddings"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Xingbang Liu", email = "xingbangliu48@gmail.com"},
+]
+keywords = ["llm", "langchain", "openai", "vllm", "gemini", "embeddings", "chat", "assistant"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+    # Core langchain packages only - much lighter!
+    "langchain-core>=0.1.0",
+]
+
+[project.optional-dependencies]
+# Provider-specific dependencies for assistants
+openai = [
+    "openai>=1.0.0",
+    "langchain-openai>=0.1.0",
+]
+vllm = [
+    "langchain-community>=0.3.27",  # For VLLMOpenAI
+]
+gemini = [
+    "langchain-google-genai>=2.0.10",
+]
+# Provider-specific dependencies for embeddings
+infinity = [
+    "langchain-community>=0.1.0",  # For InfinityEmbeddings
+]
+local-models = [
+    "sentence-transformers>=2.2.0",
+]
+# Convenience groups
+assistants = [
+    "langchain-llm-config[openai,vllm,gemini]",
+]
+embeddings = [
+    "langchain-llm-config[infinity,local-models]",
+]
+all = [
+    "langchain-llm-config[assistants,embeddings]",
+]
+
+# Development and testing dependencies
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+]
+dev = [
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=7.0.0",
+    "pyflakes>=3.2.0",
+    "mypy>=1.0.0",
+    "build>=1.2.2.post1",
+    "twine>=6.1.0",
+    "types-pyyaml>=6.0.12.20250516",
+    "pytest-mypy>=1.0.1",
+]
+
+[project.scripts]
+llm-config = "langchain_llm_config.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/liux2/Langchain-LLM-Config"
+Repository = "https://github.com/liux2/Langchain-LLM-Config"
+Documentation = "https://github.com/liux2/Langchain-LLM-Config#readme"
+"Bug Tracker" = "https://github.com/liux2/Langchain-LLM-Config/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["langchain_llm_config"]
+
+[tool.hatch.build.targets.wheel.sources]
+"llm" = "langchain_llm_config"
+
+[tool.hatch.build.targets.wheel.include]
+"langchain_llm_config/.tiktoken_cache" = "langchain_llm_config/.tiktoken_cache"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["langchain_llm_config"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+exclude = [
+    "examples/",
+    "build/",
+    "dist/",
+    ".venv/",
+    "venv/",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "pydantic.*",
+    "langchain.*",
+    "openai.*",
+    "typing_extensions",
+    "pytest.*",
+    "pytest",
+]
+ignore_missing_imports = true
+
+# Optional dependencies - ignore when not available
+[[tool.mypy.overrides]]
+module = [
+    "langchain_community.*",
+    "langchain_google_genai.*",
+    "langchain_openai.*",
+    "sentence_transformers.*",
+    "numpy.*",
+]
+ignore_missing_imports = true
+ignore_errors = true
+
+# Files with optional dependencies - don't warn about unused ignores or return any
+[[tool.mypy.overrides]]
+module = [
+    "langchain_llm_config.embeddings.providers.*",
+    "langchain_llm_config.assistant.providers.*",
+]
+warn_unused_ignores = false
+warn_return_any = false
+
+[[tool.mypy.overrides]]
+module = [
+    "pydantic.*",
+    "langchain.*",
+    "openai.*",
+    "typing_extensions",
+    "pytest.*",
+    "pytest",
+]
+ignore_missing_imports = true
+
+# Optional dependencies - ignore when not available
+[[tool.mypy.overrides]]
+module = [
+    "langchain_community.*",
+    "langchain_google_genai.*",
+    "sentence_transformers.*",
+    "numpy.*",
+]
+ignore_missing_imports = true
+ignore_errors = true
+
+# Files with optional dependencies - don't warn about unused ignores
+[[tool.mypy.overrides]]
+module = [
+    "langchain_llm_config.embeddings.providers.infinity",
+    "langchain_llm_config.embeddings.providers.gemini",
+    "langchain_llm_config.assistant.providers.gemini",
+]
+warn_unused_ignores = false
+
+[tool.coverage.run]
+source = ["langchain_llm_config"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/migrations/*",
+    "*/venv/*",
+    "*/env/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.pytest.ini_options]
+addopts = "--cov=langchain_llm_config --cov-report=term-missing --cov-report=html"
+testpaths = ["tests"]
+
+[tool.uv.sources]
+langchain-llm-config = { workspace = true }
