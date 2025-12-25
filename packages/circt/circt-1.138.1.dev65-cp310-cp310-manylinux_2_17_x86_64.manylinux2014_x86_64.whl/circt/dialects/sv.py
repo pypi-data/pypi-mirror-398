@@ -1,0 +1,217 @@
+#  Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+#  See https://llvm.org/LICENSE.txt for license information.
+#  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+from . import sv, hw
+from .. import support
+from .._mlir_libs._circt._sv import *
+from ..dialects._ods_common import _cext as _ods_cext
+from ..ir import ArrayAttr, Attribute, FlatSymbolRefAttr, OpView, StringAttr
+from ._sv_ops_gen import *
+from ._sv_ops_gen import _Dialect
+
+from typing import List, Optional
+
+
+@_ods_cext.register_operation(_Dialect, replace=True)
+class IfDefOp(IfDefOp):
+
+  def __init__(self, cond: Attribute, *, loc=None, ip=None):
+    operands = []
+    results = []
+    attributes = {"cond": cond}
+    regions = 2
+    super().__init__(
+        self.build_generic(attributes=attributes,
+                           results=results,
+                           operands=operands,
+                           successors=None,
+                           regions=regions,
+                           loc=loc,
+                           ip=ip))
+    self.regions[0].blocks.append()
+    self.regions[1].blocks.append()
+
+
+@_ods_cext.register_operation(_Dialect, replace=True)
+class WireOp(WireOp):
+
+  def __init__(self,
+               data_type,
+               name,
+               *,
+               sym_name=None,
+               svAttributes=None,
+               loc=None,
+               ip=None):
+    attributes = {"name": StringAttr.get(name)}
+    if sym_name is not None:
+      attributes["inner_sym"] = hw.InnerSymAttr.get(StringAttr.get(sym_name))
+    if svAttributes is not None:
+      attributes["svAttributes"] = ArrayAttr.get(svAttributes)
+    OpView.__init__(
+        self,
+        self.build_generic(attributes=attributes,
+                           results=[data_type],
+                           operands=[],
+                           successors=None,
+                           regions=0,
+                           loc=loc,
+                           ip=ip))
+
+  @staticmethod
+  def create(data_type, name=None, sym_name=None):
+    if not isinstance(data_type, hw.InOutType):
+      data_type = hw.InOutType.get(data_type)
+    return sv.WireOp(data_type, name, sym_name=sym_name)
+
+
+@_ods_cext.register_operation(_Dialect, replace=True)
+class RegOp(RegOp):
+
+  def __init__(self,
+               data_type,
+               name,
+               *,
+               sym_name=None,
+               svAttributes=None,
+               loc=None,
+               ip=None):
+    attributes = {"name": StringAttr.get(name)}
+    if sym_name is not None:
+      attributes["inner_sym"] = hw.InnerSymAttr.get(StringAttr.get(sym_name))
+    if svAttributes is not None:
+      attributes["svAttributes"] = ArrayAttr.get(svAttributes)
+    OpView.__init__(
+        self,
+        self.build_generic(attributes=attributes,
+                           results=[data_type],
+                           operands=[],
+                           successors=None,
+                           regions=0,
+                           loc=loc,
+                           ip=ip))
+
+
+@_ods_cext.register_operation(_Dialect, replace=True)
+class AssignOp(AssignOp):
+
+  @staticmethod
+  def create(dest, src):
+    return sv.AssignOp(dest=dest, src=src)
+
+
+@_ods_cext.register_operation(_Dialect, replace=True)
+class ReadInOutOp(ReadInOutOp):
+
+  @staticmethod
+  def create(value):
+    value = support.get_value(value)
+    type = support.get_self_or_inner(value.type).element_type
+    return sv.ReadInOutOp(value)
+
+
+@_ods_cext.register_operation(_Dialect, replace=True)
+class SVVerbatimSourceOp(SVVerbatimSourceOp):
+
+  def __init__(self,
+               sym_name,
+               content,
+               output_file,
+               *,
+               parameters=None,
+               additional_files=None,
+               verilog_name=None,
+               loc=None,
+               ip=None):
+    attributes = {}
+    attributes["sym_name"] = StringAttr.get(str(sym_name))
+    attributes["content"] = StringAttr.get(str(content))
+    attributes["output_file"] = output_file
+
+    if parameters is not None:
+      attributes["parameters"] = parameters
+    else:
+      attributes["parameters"] = ArrayAttr.get([])
+
+    if additional_files is not None:
+      attributes["additional_files"] = additional_files
+
+    if verilog_name is not None:
+      attributes["verilogName"] = StringAttr.get(str(verilog_name))
+    else:
+      # Default to using the symbol name without file extension
+      name = str(sym_name)
+      if name.endswith('.v'):
+        attributes["verilogName"] = StringAttr.get(name[:-2])
+      else:
+        attributes["verilogName"] = StringAttr.get(name)
+
+    OpView.__init__(
+        self,
+        self.build_generic(attributes=attributes,
+                           results=[],
+                           operands=[],
+                           successors=None,
+                           regions=0,
+                           loc=loc,
+                           ip=ip))
+
+
+@_ods_cext.register_operation(_Dialect, replace=True)
+class SVVerbatimModuleOp(SVVerbatimModuleOp):
+
+  def __init__(self,
+               name,
+               source,
+               input_ports=[],
+               output_ports=[],
+               *,
+               parameters=None,
+               verilog_name=None,
+               attributes={},
+               loc=None,
+               ip=None):
+    attributes = dict(attributes)
+    attributes["source"] = source
+
+    if parameters is not None:
+      attributes["parameters"] = parameters
+    else:
+      attributes["parameters"] = ArrayAttr.get([])
+
+    if verilog_name is not None:
+      attributes["verilogName"] = StringAttr.get(str(verilog_name))
+
+    hw.ModuleLike.init(self,
+                       name,
+                       input_ports,
+                       output_ports,
+                       parameters=parameters if parameters is not None else [],
+                       attributes=attributes,
+                       body_builder=None,
+                       loc=loc,
+                       ip=ip)
+
+  def instantiate(self, *args, **kwargs):
+    return hw.ModuleLike.instantiate(self, *args, **kwargs)
+
+  @property
+  def type(self):
+    return hw.ModuleLike.type(self)
+
+  @property
+  def name(self):
+    return hw.ModuleLike.name(self)
+
+  @property
+  def is_external(self):
+    return True
+
+  @property
+  def parameters(self) -> list[hw.ParamDeclAttr]:
+    return hw.ModuleLike.parameters(self)
+
+
+VerbatimSourceOp = SVVerbatimSourceOp
+VerbatimModuleOp = SVVerbatimModuleOp
