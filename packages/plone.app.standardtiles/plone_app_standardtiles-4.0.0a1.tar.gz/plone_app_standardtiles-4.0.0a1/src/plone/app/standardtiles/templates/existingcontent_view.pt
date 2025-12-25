@@ -1,0 +1,142 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      lang="en"
+      xml:lang="en"
+      i18n:domain="plone"
+>
+  <tal:block condition="nocall:view/content_context">
+    <tal:block condition="nocall:view/item_macros">
+      <body tal:define="
+              context nocall:view/content_context;
+              icons nocall:context/@@iconresolver;
+              main_macro nocall:view/item_macros/main|nothing;
+              content_core_macro nocall:view/item_macros/content-core|nothing;
+              data view/data;
+              show_title python: data.get('show_title', True);
+              show_description python: data.get('show_description', True);
+              show_text python: data.get('show_text', True);
+              show_image python: data.get('show_image', False);
+              show_comments python: data.get('show_comments', False);
+            ">
+        <!--!
+        If there is a `metal:define-macro="main"` in the template
+        it takes over the complete representation of the existing content
+        -->
+        <div class="${view/tile_class}"
+             tal:condition="main_macro"
+        >
+          <div metal:use-macro="main_macro"
+               tal:define="
+                 view nocall:view/content_view;
+                 plone_view context/@@plone;
+                 portal_state context/@@plone_portal_state;
+                 context_state context/@@plone_context_state;
+                 plone_layout context/@@plone_layout;
+                 lang portal_state/language;
+                 dummy python: plone_layout.mark_view(view);
+                 portal_url portal_state/portal_url;
+                 checkPermission nocall: context/portal_membership/checkPermission;
+                 fix python:request.set('ACTUAL_URL', context.absolute_url());
+               "
+          >main macro</div>
+        </div>
+
+        <section class="${view/tile_class}"
+                 tal:condition="not:main_macro"
+        >
+          <h2 tal:define="
+                title context/Title|nothing;
+              "
+              tal:condition="show_title"
+              tal:content="title"
+          >Title or id</h2>
+
+          <div class="documentDescription description"
+               tal:define="
+                 description context/Description|nothing;
+               "
+               tal:condition="show_description"
+               tal:content="description"
+          >
+          Description
+          </div>
+          <tal:image condition="show_image">
+            <div class="content-image"
+                 tal:define="
+                   image_tag view/image_tag;
+                 "
+            >
+              <figure><img tal:replace="structure image_tag" /></figure>
+            </div>
+          </tal:image>
+          <tal:text condition="show_text">
+            <tal:block condition="content_core_macro">
+              <div metal:use-macro="content_core_macro"
+                   tal:define="
+                     view nocall:view/content_view;
+                     plone_view context/@@plone;
+                     portal_state context/@@plone_portal_state;
+                     context_state context/@@plone_context_state;
+                     plone_layout context/@@plone_layout;
+                     lang portal_state/language;
+                     dummy python: plone_layout.mark_view(view);
+                     portal_url portal_state/portal_url;
+                     checkPermission nocall: context/portal_membership/checkPermission;
+                     fix python:request.set('ACTUAL_URL', context.absolute_url());
+                   "
+              >content core</div>
+            </tal:block>
+
+            <tal:block tal:condition="not:content_core_macro">
+              <!--!
+              This is a fallback if your default_view has no "content-core"
+              macro defined. Displays an error message for the developer.
+              -->
+              <div class="alert alert-warning"
+                   i18n:translate=""
+              >The template of the
+                <b i18n:name="view_name">${view/content_view_name}</b>
+                 view of
+                <b i18n:name="content_url">${context/absolute_url}</b>
+                does not define a "content-core" macro.</div></tal:block>
+          </tal:text>
+          <div class="content-comments"
+               tal:define="
+                 comments view/comments_count;
+               "
+               tal:condition="show_comments"
+          >
+            <a href="${context/absolute_url}#commenting">
+              <span class="icon-controlpanel-discussion"></span>
+          ${comments}
+            </a>
+          </div>
+        </section>
+      </body>
+    </tal:block>
+    <tal:block condition="not:nocall:view/item_macros">
+      <body>
+        <tal:panels define="
+                      panels python:view.item_panels;
+                    ">
+          <div tal:condition="panels"
+               tal:repeat="panel panels"
+               tal:replace="structure panel"
+          >
+          content
+          </div>
+          <div class="alert alert-warning"
+               tal:condition="not:panels"
+               i18n:translate=""
+          >Selected view
+            <b i18n:name="view_name">${view/data/view_template}</b>
+            is not available for
+            <b i18n:name="content_title">${view/content_context/title_or_id}</b>.</div>
+        </tal:panels>
+      </body>
+    </tal:block>
+  </tal:block>
+  <body tal:condition="not:nocall:view/content_context"></body>
+</html>
