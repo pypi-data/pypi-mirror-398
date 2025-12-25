@@ -1,0 +1,160 @@
+# pytoolkit
+
+`pytoolkit` is a small collection of helper modules that can be used across different Python projects.
+
+The focus is on simple building blocks: configuration handling, logging, timing, HTTP helpers, caching, string helpers, and more.
+
+Current version: **0.3.1**
+
+🌐 **Website**: [www.actobotics.net](https://www.actobotics.net)  
+🐦 **X/Twitter**: [@actoboticsnet](https://x.com/actoboticsnet)
+
+[![CI](https://github.com/actobotics/pyToolkit/workflows/CI/badge.svg)](https://github.com/actobotics/pyToolkit/actions)
+[![codecov](https://codecov.io/gh/actobotics/pyToolkit/branch/main/graph/badge.svg)](https://codecov.io/gh/actobotics/pyToolkit)
+[![Python Version](https://img.shields.io/pypi/pyversions/pytoolkit)](https://pypi.org/project/pytoolkit/)
+[![License](https://img.shields.io/github/license/actobotics/pyToolkit)](LICENSE)
+
+## Project goals
+
+- Provide small, composable utilities instead of a heavy framework
+- Keep dependencies minimal and well known
+- Make it easy to reuse the same helpers across many projects
+- Stay readable and beginner friendly while still being robust
+
+## Installation
+
+### Basic Installation
+
+```bash
+pip install acto-pytoolkit
+```
+
+### From Source
+
+```bash
+git clone https://github.com/actobotics/pyToolkit.git
+cd pyToolkit
+pip install -e .
+```
+
+### Optional Dependencies
+
+```bash
+# For async HTTP client support
+pip install acto-pytoolkit[async]
+
+# For development (testing, linting, type checking)
+pip install acto-pytoolkit[dev]
+
+# For building documentation
+pip install acto-pytoolkit[docs]
+
+# Install everything
+pip install acto-pytoolkit[all]
+```
+
+## Usage overview
+
+The package is split into focused modules:
+
+- `config_loader` - Load configuration from JSON, YAML, TOML, and .env files
+- `logger` - Colored logging with environment-based configuration
+- `timer` - Function timing and profiling utilities
+- `http_client` - Sync HTTP client with retry logic
+- `async_http_client` - Async HTTP client using aiohttp (optional)
+- `crypto_utils` - Hashing and secure token generation
+- `file_utils` - Safe file operations with atomic writes
+- `cache` - In-memory caching with TTL support
+- `retry` - Retry decorator with exponential backoff
+- `validators` - Validation for email, URL, UUID, IP addresses
+- `math_tools` - Moving average, normalization, scaling
+- `string_tools` - Slugify, case conversion, text processing
+- `task_scheduler` - Simple in-process task scheduling
+- `env` - Environment detection utilities
+- `cli` - Command-line interface framework
+- `context_utils` - Nested dictionary operations
+- `serialization` - JSON, YAML, TOML helpers
+
+See the `examples` directory for small, complete scripts, or check the [full documentation](https://pytoolkit.readthedocs.io/).
+
+## Quick Example
+
+```python
+from pytoolkit import ConfigLoader, get_logger, HttpClient
+
+# Configure logging
+logger = get_logger()
+
+# Load configuration
+config = ConfigLoader(env_file=".env", json_file="config.json")
+api_url = config.get("API_URL", "https://api.example.com")
+
+# Make HTTP request with automatic retries
+with HttpClient(base_url=api_url, max_retries=3) as client:
+    response = client.get("/users")
+    users = client.json(response)
+    logger.info("Fetched %d users", len(users))
+```
+
+## CLI
+
+After installation a small CLI entry point is available:
+
+```bash
+pytoolkit info
+pytoolkit env
+```
+
+Use `pytoolkit --help` to see available commands.
+
+## Contributing
+
+- Fork the repository
+- Create a new branch for your change
+- Add or adjust tests where it makes sense
+- Run the test suite:
+
+```bash
+python -m unittest discover -s tests
+```
+
+- Open a pull request with a short description of your change
+
+## Versioning
+
+The project follows a simple semantic versioning scheme:
+
+- Breaking changes bump the **major** version
+- New features bump the **minor** version
+- Small fixes bump the **patch** version
+
+## Key Features
+
+### 🚀 Enhanced HTTP Client
+- Support for PATCH method
+- Custom headers and authentication
+- Async HTTP client with aiohttp
+
+### 🎯 Improved Validators
+- Better email validation (RFC 5322 compliant)
+- URL validation with TLD requirements
+- Strict mode options
+
+### 🧪 Comprehensive Testing
+- 80%+ code coverage
+- Tests for all modules
+- CI/CD with GitHub Actions
+
+### 📚 Complete Documentation
+- Sphinx documentation
+- API reference for all modules
+- Quick start guide and examples
+
+### 🛠️ Developer Tools
+- Pre-commit hooks (Black, Ruff)
+- MyPy strict type checking
+- Automated testing on Python 3.9-3.12
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes.
