@@ -1,0 +1,265 @@
+{
+  "$defs": {
+    "AssessmentRule": {
+      "description": "Individual assessment outcome with condition.",
+      "properties": {
+        "outcome": {
+          "description": "Assessment outcome, e.g., 'PASS', 'FAIL', 'A', 'F'",
+          "title": "Outcome",
+          "type": "string"
+        },
+        "condition": {
+          "description": "Condition to evaluate against the metric value",
+          "enum": [
+            "equal_to",
+            "greater_than",
+            "less_than",
+            "greater_equal",
+            "less_equal",
+            "all_true",
+            "any_false",
+            "count_equals"
+          ],
+          "title": "Condition",
+          "type": "string"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Threshold value for comparison conditions",
+          "title": "Threshold"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable description for this assessment outcome",
+          "title": "Description"
+        }
+      },
+      "required": [
+        "outcome",
+        "condition"
+      ],
+      "title": "AssessmentRule",
+      "type": "object"
+    },
+    "AuditAssessmentRule": {
+      "description": "Assessment outcome for audit indicators.",
+      "properties": {
+        "outcome": {
+          "description": "Assessment outcome, e.g., 'A', 'B', 'C', 'PASS', 'FAIL'.",
+          "title": "Outcome",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable description for this audit outcome",
+          "title": "Description"
+        }
+      },
+      "required": [
+        "outcome"
+      ],
+      "title": "AuditAssessmentRule",
+      "type": "object"
+    },
+    "AuditScoreCardIndicator": {
+      "description": "Manual audit indicator.\n\nOutcome is provided via an external audit responses file.",
+      "properties": {
+        "id": {
+          "description": "A unique, human-readable ID (up to 32 characters) for this audit indicator. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
+          "pattern": "^[0-9a-z_]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "audit",
+          "default": "audit",
+          "description": "Indicator type. Must be 'audit' for manual audit indicators.",
+          "title": "Type",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable name for this audit indicator",
+          "title": "Name"
+        },
+        "assessment": {
+          "description": "List of possible audit outcomes (A–E, PASS/FAIL, etc.).",
+          "items": {
+            "$ref": "#/$defs/AuditAssessmentRule"
+          },
+          "title": "Assessment",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "assessment"
+      ],
+      "title": "AuditScoreCardIndicator",
+      "type": "object"
+    },
+    "MetricExpression": {
+      "description": "Expression-based metric evaluation with explicit value declarations.",
+      "properties": {
+        "expression": {
+          "description": "Mathematical formula combining metrics. Variable names in the expression must match keys in the 'values' dict.",
+          "title": "Expression",
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Mapping from expression variable names to metric paths. Keys are used in the expression, values are paths to extract from test results.",
+          "title": "Values",
+          "type": "object"
+        }
+      },
+      "required": [
+        "expression",
+        "values"
+      ],
+      "title": "MetricExpression",
+      "type": "object"
+    },
+    "ScoreCardFilter": {
+      "description": "Defines which test results an indicator applies to.",
+      "properties": {
+        "test_id": {
+          "description": "Test id to filter by, e.g., 'run_mock_on_compatible_sut'",
+          "title": "Test Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "test_id"
+      ],
+      "title": "ScoreCardFilter",
+      "type": "object"
+    },
+    "ScoreCardIndicator": {
+      "description": "Individual score card indicator with filtering and assessment.",
+      "properties": {
+        "id": {
+          "description": "A unique, human-readable ID (up to 32 characters) for this score card indicator. Can include lowercase letters (a–z), digits (0–9) and underscore (_).",
+          "pattern": "^[0-9a-z_]{1,32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable name for this score card indicator",
+          "title": "Name"
+        },
+        "apply_to": {
+          "$ref": "#/$defs/ScoreCardFilter",
+          "description": "Filter criteria for which test results this indicator applies to"
+        },
+        "metric": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/MetricExpression"
+            }
+          ],
+          "description": "Metric to evaluate. Can be either:\n1. Simple path (string): 'average_answer_relevance' or 'stats.pass_rate'\n2. Expression object with 'expression' and 'values' fields:\n   metric:\n     expression: '0.7 * accuracy + 0.3 * relevance'\n     values:\n       accuracy: 'average_answer_accuracy'\n       relevance: 'average_answer_relevance'\n   Supports arithmetic operators (+, -, *, /), functions (min, max, avg), and parentheses.\n   Variable names in expression are mapped to metric paths via the 'values' dict.",
+          "title": "Metric"
+        },
+        "assessment": {
+          "description": "List of assessment rules to evaluate against the metric",
+          "items": {
+            "$ref": "#/$defs/AssessmentRule"
+          },
+          "title": "Assessment",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "apply_to",
+        "metric",
+        "assessment"
+      ],
+      "title": "ScoreCardIndicator",
+      "type": "object"
+    }
+  },
+  "description": "Complete grading score card configuration.",
+  "properties": {
+    "score_card_name": {
+      "description": "Name of the grading score card",
+      "title": "Score Card Name",
+      "type": "string"
+    },
+    "indicators": {
+      "description": "List of score card indicators to evaluate (non-audit and audit).",
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ScoreCardIndicator"
+          },
+          {
+            "$ref": "#/$defs/AuditScoreCardIndicator"
+          }
+        ]
+      },
+      "title": "Indicators",
+      "type": "array"
+    }
+  },
+  "required": [
+    "score_card_name",
+    "indicators"
+  ],
+  "title": "ASQI ScoreCard",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
