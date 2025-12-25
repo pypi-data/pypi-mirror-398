@@ -1,0 +1,57 @@
+[metadata]
+icon = "mdi:view-grid"
+name = "MkShowcase"
+
+[examples.toml]
+title = "From TOML format"
+jinja = """
+{{
+'
+["Card 1"]
+title = "Some title 1"
+image = "https://picsum.photos/300"
+caption = "Some **markdown**"
+["Card 2"]
+title = "Some title 2"
+image = "https://picsum.photos/301"
+caption = "Some **markdown**"
+' | load_toml | MkShowcase
+}}
+"""
+
+[examples.cards]
+title = "Manual"
+python = """
+import mknodes as mk
+
+node = mk.MkShowcase()
+for i in range(6):
+    node.add_card(
+        target="https://phil65.github.io/mknodes/",
+        title=f"Title {i}",
+        image="https://picsum.photos/300",
+        caption=f"Caption {i}",
+    )
+node
+"""
+jinja = """
+{% set url = "https://phil65.github.io/mknodes/" %}
+{% set img_url = "https://picsum.photos/300" %}
+{{ ["Title 0" | MkCard(target=url, image=img_url, caption="Caption 0"),
+    "Title 1" | MkCard(target=url, image=img_url, caption="Caption 1"),
+    "Title 2" | MkCard(target=url, image=img_url, caption="Caption 2"),
+    "Title 3" | MkCard(target=url, image=img_url, caption="Caption 3"),
+    "Title 4" | MkCard(target=url, image=img_url, caption="Caption 4"),
+    "Title 5" | MkCard(target=url, image=img_url, caption="Caption 5")] | MkShowcase }}
+"""
+
+[output.markdown]
+template = """
+{% for items in node.get_items() | batch(node.column_count) %}
+<div class="row">
+{% for item in items %}
+  <div class="column">
+{{ item | string | indent(first=True) }}  </div>
+{% endfor %}
+</div>{% endfor %}
+"""

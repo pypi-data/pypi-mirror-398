@@ -1,0 +1,57 @@
+[metadata]
+name = "MkConfigSetting"
+icon = "mdi:library"
+virtual_children = true
+
+[requirements.extension.def_list]
+
+[examples.yaml]
+title = "YAML format"
+jinja = """
+{{ "path" | MkConfigSetting(mode="yaml",
+                            setting={"plugins": {"mknodes": {"path": "path.to.module"}}},
+                            description="Some **markdown** to describe the setting",
+                            default="path.to.module")}}
+"""
+
+[examples.json]
+title = "JSON format"
+jinja = """
+{{ "path" | MkConfigSetting(mode="json",
+                            setting={"plugins": {"mknodes": {"path": "path.to.module"}}},
+                            description="Some **markdown** to describe the setting",
+                            default="path.to.module")}}
+"""
+
+[examples.toml]
+title = "TOML format"
+jinja = """
+{{ "path" | MkConfigSetting(mode="toml",
+                            setting={"plugins": {"mknodes": {"path": "path.to.module"}}},
+                            description="Some **markdown** to describe the setting",
+                            default="path.to.module")}}
+"""
+
+[output.markdown]
+template = """
+{{ node.title | md_style(bold=True, code=True) }}
+:   {% filter indent %}Default: `{{ node.default | repr }}`
+
+{% if node.version_added %}
+Version added: `{{ node.version_added }}`
+
+{% endif %}
+{% if node.optional is not none %}
+Required: `{{ "yes" if node.required else "no" }}`
+
+{% endif %}
+{{ node.description }}
+
+
+{% if node.setting is instance(dict) %}
+{{ node.setting | serialize(node.mode) | MkCode(language=node.mode) }}
+{% else %}
+{{ node.setting | MkCode(language=node.mode) }}
+{% endif %}
+{% endfilter %}
+"""

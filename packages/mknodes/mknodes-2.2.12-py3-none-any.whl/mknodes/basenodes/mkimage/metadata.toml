@@ -1,0 +1,82 @@
+[metadata]
+icon = "mdi:image"
+name = "MkImage"
+group = "image"
+
+[examples.with_caption]
+title = "With caption"
+jinja = """
+{{ "https://picsum.photos/200" | MkImage(caption="A caption!") }}
+"""
+
+[examples.right_aligned]
+title = "Right-aligned"
+jinja = """
+{{ "https://picsum.photos/200" | MkImage(align="right") }}
+"""
+
+[examples.fixed_width]
+title = "Fixed width"
+jinja = """
+{{ "https://picsum.photos/200" | MkImage(width=500) }}
+"""
+
+[examples.hyperlinked]
+title = "Hyperlinked"
+jinja = """
+{{ "https://picsum.photos/200" | MkImage(target="https://phil65.github.io/mknodes") }}
+"""
+
+[examples.dark_mode_image]
+title = "Separate dark mode image"
+jinja = """
+{{ "https://picsum.photos/200" | MkImage(path_dark_mode="https://picsum.photos/300") }}
+"""
+
+[fragments]
+image = """
+![{{ node.title ~ "](" ~ path ~ (mode | add("#only-")) ~ ")" ~ (node.align | add("{ align=", " }")) ~ (node.width | add('{ width="', '" }')) }}{% if node.lazy %}{ loading=lazy }{% endif %}
+"""
+linked_image = """
+{% if node.get_url() %}
+[{{ "fragments/image" | render_template(node=node, path=path, mode=mode) }}]({{ node.get_url() }}){% else %}
+{{ "fragments/image" | render_template(node=node, path=path, mode=mode) }}{% endif %}
+"""
+
+[output.markdown]
+template = """
+{% if node.path_dark_mode %}
+{% set link_dark = "fragments/linked_image" | render_template(node=node, path=node.path_dark_mode, mode="dark") %}
+{% set link_light = "fragments/linked_image" | render_template(node=node, path=node.path, mode="light") %}
+{% set markdown_link = link_dark ~ " " ~ link_light %}
+{% else %}
+{% set markdown_link = "fragments/linked_image" | render_template(node=node, path=node.path, mode=None) %}
+{% endif %}
+{% if node.caption %}
+<figure markdown>
+  {{ markdown_link }}
+  <figcaption>{{ node.caption }}</figcaption>
+</figure>
+{% else %}
+{{ markdown_link }}{% endif %}
+"""
+
+[output.github]
+template = """
+<picture>
+{% if node.path_dark_mode %}
+ <source media="(prefers-color-scheme: dark)" srcset="{{ node.path_dark_mode }}">
+ <source media="(prefers-color-scheme: light)" srcset="{{ node.path }}">
+{% endif %}
+ <img alt="{{ node.caption }}" src="{{ node.path }}">
+</picture>
+"""
+
+[output.rst]
+template = """
+.. image:: {{ node.path }}
+{% if node.width %}    :width: {{ node.width }}{% endif %}
+{% if node.caption %}    :alt: {{ node.caption }}{% endif %}
+{% if node.align %}    :align: {{ node.align }}{% endif %}
+{% if node.get_url() %}    :target: {{ node.get_url() }}{% endif %}
+"""

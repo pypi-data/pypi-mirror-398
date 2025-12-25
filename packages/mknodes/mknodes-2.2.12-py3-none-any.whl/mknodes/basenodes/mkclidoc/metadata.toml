@@ -1,0 +1,74 @@
+[metadata]
+icon = "mdi:api"
+name = "MkCliDoc"
+
+[examples.cli]
+title = "MkDocs-MkNodes CLI"
+jinja = """
+{{ "mkdocs_mknodes.cli:cli" | MkCliDoc }}
+"""
+
+[examples.sub_command]
+title = "SubCommand"
+jinja = """
+{{ "mkdocs_mknodes.cli:cli" | MkCliDoc(prog_name="build") }}
+"""
+
+[examples.argparse]
+title = "ArgumentParser"
+python = """
+from git_changelog import cli
+import mknodes as mk
+
+parser = cli.get_parser()
+mk.MkCliDoc(parser)
+"""
+
+[fragments]
+param_template = """
+{{ param.opt_str | MkHeader(level=3) }}
+
+{% if param.required %}
+"{{ "REQUIRED" | md_style(bold=True) }}"
+{% endif %}
+{% if param.envvar %}
+Environment variable{{ param.envvar }}
+{% endif %}
+{% if param.multiple %}
+{{ "Multiple values allowed." | md_style(bold=True) }}
+{% endif %}
+{% if param.default %}
+{{ "Default:" | md_style(bold=True) }} {{ param.default }}
+{% endif %}
+{% if param.is_flag %}
+{{ "mdi:flag" | MkMaterialBadge("Flag") }}
+{% endif %}
+{% if param.help %}
+{{ param.help }}
+{% endif %}
+"""
+command_template = """
+{{ info.name | MkHeader }}
+
+{{ info.description }}
+
+{{ info.usage | MkCode }}
+
+{% for param in info.params %}
+{{ "fragments/param_template" | render_template(param=param) }}
+
+{% endfor %}
+
+"""
+
+[output.markdown]
+template = """
+{% if node.info %}
+{{ "fragments/command_template" | render_template(info=node.info) }}
+{% if node.show_subcommands %}
+{% for sub_info in node.info.subcommands.values() %}
+{{ "fragments/command_template" | render_template(info=sub_info) }}
+{% endfor %}
+{% endif %}
+{% endif %}
+"""
