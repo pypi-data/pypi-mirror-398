@@ -1,0 +1,62 @@
+[project]
+name = "trobz-agent"
+version = "1.0.1"
+description = "Run an AI agent"
+authors = [{name = "Hai Lang", email = "hailn@trobz.com"}]
+requires-python = ">=3.10"
+readme = "README.md"
+license = "AGPL-3.0"
+license-files = ["LICENSE"]
+
+dependencies = [
+    "typer>=0.19.2"
+]
+
+[project.urls]
+Repository = "https://github.com/trobz/agent.py"
+
+[project.scripts]
+agent = "trobz_agent.agent:cli"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=2.20.0",
+    "ty>=0.0.1a16",
+    "ruff>=0.11.5",
+    "pytest>=7.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+
+[build-system]
+requires = ["uv_build>=0.7.19,<0.8.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "trobz_agent"
+module-root = ""
+
+
+[project.optional-dependencies]
+build = ["uv ~= 0.7.12"]
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+build_command = """
+  python -m pip install -e '.[build]'
+  uv lock --upgrade-package trobz-agent
+  git add uv.lock
+  uv build
+"""
+
+[tool.semantic_release.changelog]
+exclude_commit_patterns = [
+    '''chore(?:\([^)]*?\))?: .+''',
+    '''ci(?:\([^)]*?\))?: .+''',
+    '''style(?:\([^)]*?\))?: .+''',
+    '''test(?:\([^)]*?\))?: .+''',
+    '''build\((?!deps\): .+)''',
+    '''initial commit.*''',
+]
