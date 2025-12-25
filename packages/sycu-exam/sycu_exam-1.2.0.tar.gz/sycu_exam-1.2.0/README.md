@@ -1,0 +1,79 @@
+# sycu_exam
+
+sycu 算分程序 - 根据学生等级自动生成各项评分细则。
+
+## 安装
+
+```bash
+poetry install
+```
+
+## 运行
+
+```bash
+poetry run sycu-exam
+```
+
+## 配置说明
+
+配置文件: `sycu_config.yaml`
+
+### 课程类型配置 (course_types)
+
+```yaml
+common:
+  course_types:
+    # (课程关键字, 课程分数, 实训次数, 小组次数, 作业次数, 结课类型)
+    JAVA: ["java", 3, 1, 1, 3, "exam"]
+    ML: ["ml", 2, 1, 0, 0, "paper"]
+```
+
+### 年级配置 (grade_types)
+
+```yaml
+common:
+  grade_types: ["23", "24", "25"]
+```
+
+### 激活课程配置
+
+```yaml
+couses:
+  actived_course: ["JAVA", "ML"]
+  JAVA:
+    GradeType: ["SK24"]
+    ClazzType: ["C1", "C2"]
+    actived_model: "Two"
+  ML:
+    GradeType: ["SK23"]
+    ClazzType: ["C1", "C2"]
+    actived_model: "Two"
+```
+
+## 数据文件
+
+- 输入: `data/{年级}/stu_{年级}_{班级}_{课程}.csv`
+- 输出: `grade/{年级}/grd_{年级}_{班级}_{课程}_{时间戳}.csv`
+
+## 等级对应分数
+
+| 等级 | 分数范围 |
+|------|----------|
+| A    | 90+      |
+| A-   | 85-89    |
+| B+   | 80-84    |
+| B    | 75-79    |
+| B-   | 70-74    |
+| C+   | 65-69    |
+| C    | 62-64    |
+| D    | 50以下   |
+
+## 测试
+
+```bash
+# 运行所有测试
+poetry run pytest
+
+# 运行单个测试
+poetry run pytest tests/sycu_exam/test_random.py::test_randam_do -vs
+```
