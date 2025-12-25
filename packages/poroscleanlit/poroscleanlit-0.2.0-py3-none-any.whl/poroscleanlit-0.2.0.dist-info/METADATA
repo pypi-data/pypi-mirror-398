@@ -1,0 +1,440 @@
+Metadata-Version: 2.1
+Name: poroscleanlit
+Version: 0.2.0
+Summary: 支持 Markdown 代码块与 LaTeX 公式保护、参考文献自动规范、中英排版优化的专业清洗工具
+Author-email: Kivent YE <72405514@cityu-dg.edu.cn>
+Maintainer-email: Kivent YE <72405514@cityu-dg.edu.cn>
+License: MIT
+Keywords: text,cleaning,latex,greek,preprocessing,nlp,llm,token-optimization
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Text Processing
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Requires-Dist: black>=23.0; extra == "dev"
+Requires-Dist: flake8>=6.0; extra == "dev"
+Requires-Dist: mypy>=1.0; extra == "dev"
+Requires-Dist: chardet>=5.0; extra == "dev"
+
+# PorosCleanlit - 专业文本清洗工具包
+
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**PorosCleanlit** 是一个专为学术文档和专业文本设计的清洗工具包，支持 LaTeX 数学公式和 Markdown 语法的智能保护与规范化。
+
+## 🏛️ 系统架构
+
+### Shield → Core → Restore 处理流程
+
+PorosCleanlit 采用三阶段安全处理架构，确保敏感内容在清洗过程中不受损害：
+
+```
+输入文本
+    ↓ [🛡️ Shield 保护阶段]
+检测并保护：代码块 ```...```、LaTeX公式 $...$、行内代码 `...`
+将敏感内容替换为占位符 (__POROSCLEANLIT_SHIELD_001__)
+
+    ↓ [🔧 Core Pipeline 执行阶段]
+依次应用清洗组件：
+├── patterns_cleaning       # 基础正则模式清洗
+├── citation_rules          # 参考文献标号规范化
+├── document_numbering_rules # 文档结构编号处理
+├── greek_to_latex          # 希腊字母转换
+├── normalize_whitespace    # 空白字符规范化
+└── remove_extra_spaces     # 多余空格压缩
+
+    ↓ [🔄 Restore 还原阶段]
+将占位符替换回原始敏感内容
+输出清洗后的安全文本
+```
+
+### 核心包结构
+
+```
+src/PorosCleanlit/                    # 核心工具包 (src布局)
+├── __init__.py                  # 包初始化
+├── text_cleaner.py             # TextCleaner 主类 + 内置插件
+├── plugin_system.py            # 插件注册中心 (核心)
+├── patterns.py                 # 正则模式清洗插件
+├── citation_rules.py           # 参考文献规范化插件
+├── document_numbering_rules.py # 文档编号插件
+├── greek_latex_converter.py    # 希腊字母转换插件
+├── unicode_norm.py             # Unicode归一化插件 (新增)
+├── config.py                   # 配置管理
+└── utils.py                    # 工具函数
+```
+
+## 🎯 功能特性矩阵
+
+### 参考文献处理 (Citations)
+
+| 功能场景 | 输入 (Before) | 输出 (After) | 处理逻辑 |
+|----------|---------------|--------------|----------|
+| **全角转半角** | `参考【 1 】和［2］` | `参考[1]和[2]` | 转换中文全角括号 |
+| **内侧空格压缩** | `文献[ 12 ]和[ I ]` | `文献[12]和[I]` | 清理标号内部空格 |
+| **外侧间距优化** | `文本 [1] 和 [2]` | `文本[1] 和 [2]` | 移除引用前空格 |
+| **行首列表** | `[1]作者名\n[2]标题` | `[1] 作者名\n[2] 标题` | 标准化列表间距 |
+
+### 罗马数字保护 (Roman Numerals)
+
+| 功能场景 | 输入 (Before) | 输出 (After) | 安全说明 |
+|----------|---------------|--------------|----------|
+| **文献标号保护** | `引文[I]和[II]保持` | `引文[I]和[II]保持` | ✅ 不转换方括号内罗马数字 |
+| **独立数字转换** | `第II章和III节` | `第2章和3节` | ✅ 只转换独立罗马数字 |
+| **混合场景** | `[I]文献和独立II` | `[I]文献和独立2` | ✅ 智能区分上下文 |
+
+### LaTeX 专项处理 (LaTeX Support)
+
+| 功能场景 | 输入 (Before) | 输出 (After) | 模式说明 |
+|----------|---------------|--------------|----------|
+| **公式边界保护** | `` `代码` 和 $E=mc^2$ `` | `` `代码` 和 $E=mc^2$ `` | 基础模式：完整保护 |
+| **希腊字母转换** | `α + β = γ 公式` | `\alpha + \beta = \gamma 公式` | 基础模式：Unicode→LaTeX |
+| **公式内空格压缩** | `$ \mathbf { X } $` | `$ \mathbf{X} $` | 高级模式：需开启选项 |
+
+### Markdown 保护 (Markdown Preservation)
+
+| 功能场景 | 输入 (Before) | 输出 (After) | 保护机制 |
+|----------|---------------|--------------|----------|
+| **代码块保护** | ````python\nprint("hello")\n``` `` | ````python\nprint("hello")\n``` `` | ✅ 完整保留代码内容 |
+| **行内代码** | `` `func()` 调用`` | `` `func()` 调用`` | ✅ 保护反引号内容 |
+| **标题格式** | `#   标题   ` | `# 标题` | ✅ 清理空格，保留格式 |
+| **链接保护** | `[Google](url)` | `[Google](url)` | ✅ 不误伤链接语法 |
+
+## ⚙️ 执行流说明
+
+### 默认自动执行组件
+
+创建 `TextCleaner()` 实例时，会自动配置以下 Pipeline：
+
+```python
+# 默认 Pipeline 顺序
+pipeline = [
+    "patterns_cleaning",        # 基础正则清洗
+    "citation_rules",           # 参考文献规范化
+    "document_numbering_rules", # 文档编号处理
+    "greek_to_latex",           # 希腊字母转换
+    "normalize_whitespace",     # 空白规范化
+    "remove_extra_spaces"       # 空格压缩
+]
+```
+
+### 手动开启高级选项
+
+通过 `clean_options` 参数启用高级功能：
+
+```python
+# 启用 LaTeX 公式内部空格清理
+cleaner = TextCleaner(
+    clean_options={
+        "clean_latex_math_spaces": True  # 清理 \mathbf { X } → \mathbf{X}
+    }
+)
+```
+
+**高级选项列表：**
+
+| 选项名称 | 默认值 | 功能说明 |
+|----------|--------|----------|
+| `clean_latex_math_spaces` | `False` | 清理 LaTeX 公式内部多余空格 |
+
+## 🔌 插件化开发指南
+
+### 工程目录架构
+
+PorosCleanlit 采用模块化的插件架构，便于扩展和定制：
+
+```
+src/PorosCleanlit/
+├── plugin_system.py              # 插件注册中心 (核心)
+├── text_cleaner.py               # TextCleaner主类 + 内置插件
+├── patterns.py                   # 正则模式清洗插件
+├── citation_rules.py             # 参考文献规范化插件
+├── document_numbering_rules.py   # 文档编号插件
+├── greek_latex_converter.py      # 希腊字母转换插件
+├── unicode_norm.py               # Unicode归一化插件 (新增)
+├── config.py                     # 配置管理
+└── utils.py                      # 工具函数
+```
+
+### Pipeline 8步执行流
+
+PorosCleanlit 的清洗流程分为四大核心阶段：
+
+#### 🏗️ Pre-Shield 阶段 (前置处理)
+```
+1. 希腊字母转换 → 2. 公式空间塌陷 → 3. 预处理空格清理
+```
+- **希腊字母转换**: 将 α, β, γ 转换为 \alpha, \beta, \gamma
+- **公式空间塌陷**: 压缩 `$  \alpha   +   \beta  $` 为 `$\alpha + \beta$` (Token极简化)
+- **预处理清理**: 移除公式外部的明显多余空格
+
+#### 🛡️ Shielding 阶段 (内容保护)
+```
+4. Shield保护 → 生成占位符字典
+```
+- 保护代码块 ```...``` 和公式 $...$
+- 生成 `__CLEANLIT_SHIELD_XXX__` 占位符
+- 确保敏感内容在后续处理中不受影响
+
+#### 🔄 Pipeline 阶段 (插件执行)
+```
+5. Plugin Pipeline → 自定义插件注入
+```
+- **patterns_cleaning**: 正则模式清洗
+- **citation_rules**: 参考文献规范化
+- **document_numbering_rules**: 罗马数字转换
+- **unicode_normalization**: Unicode归一化 (新增)
+- **normalize_whitespace**: 空白字符归一化
+- **remove_extra_spaces**: 多余空格压缩
+
+#### 🔄 Restoration 阶段 (还原收尾)
+```
+6. Shield还原 → 7. LaTeX公式内部清理 → 8. 最终全局清理
+```
+- **Shield还原**: 使用占位符字典恢复原始内容
+- **LaTeX公式清理**: 强制清理公式内部多余空格
+- **全局清理**: 确保没有任何多余空格遗留
+
+### 插件标准接口
+
+**基础插件实现模式：**
+
+```python
+# src/PorosCleanlit/your_plugin.py
+from .plugin_system import PluginRegistry
+
+class YourProcessor:
+    """专业处理器类"""
+
+    def __init__(self, option1=True, option2=False):
+        self.option1 = option1
+        self.option2 = option2
+
+    def process(self, text: str) -> str:
+        """核心处理逻辑"""
+        # 实现你的处理算法
+        return processed_text
+
+@PluginRegistry.register("your_plugin_name")
+def apply_your_plugin(text: str) -> str:
+    """
+    插件入口函数
+
+    Args:
+        text: 输入文本 (可能包含占位符)
+
+    Returns:
+        处理后的文本
+    """
+    processor = YourProcessor(option1=True, option2=False)
+    return processor.process(text)
+```
+
+**集成到Pipeline：**
+
+```python
+# 在 TextCleaner.__init__ 中添加
+self.pipeline = [
+    "your_plugin_name",        # 新插件 (首位执行)
+    "patterns_cleaning",
+    "citation_rules",
+    "unicode_normalization",   # Unicode归一化
+    # ... 其他插件
+]
+```
+
+### LLM 预处理优化愿景
+
+PorosCleanlit 的插件化架构专为 LLM 训练语料预处理优化而设计：
+
+#### 📏 Token 压缩优化
+- **公式空间塌陷**: `$  \alpha   +   \beta  $` → `$\alpha + \beta$` (节省3-5个Token)
+- **Unicode归一化**: NFKC标准化 + 移除零宽字符 (提升模型稳定性)
+- **智能空格压缩**: 保持语义完整的同时最大化Token效率
+
+#### 🧹 噪声消除
+- **不可见字符清理**: 移除零宽空格、控制字符等训练干扰因子
+- **编码一致性**: 统一Unicode表示形式，避免编码导致的模型困惑
+- **格式标准化**: 统一引号、括号等符号的表示
+
+#### 🚀 性能收益
+- **训练效率**: 更少的Token意味着更快的训练速度
+- **模型质量**: 更清洁的数据提升模型的泛化能力和准确性
+- **推理优化**: 标准化输入减少模型的计算开销
+
+通过插件化架构，PorosCleanlit 能够灵活扩展更多 LLM 优化功能，为大规模语言模型训练提供高质量的预处理解决方案。
+
+## 📦 安装与开发
+
+### 本地开发安装
+
+```bash
+# 克隆项目到本地
+git clone <repository-url>
+cd <project-directory>
+
+# 开发模式安装（推荐）
+pip install -e .
+pip install PorosCleanlit
+
+# 验证安装成功
+python -c "from PorosCleanlit import TextCleaner; print('PorosCleanlit 安装成功！')"
+```
+
+### 运行测试
+
+```bash
+# 安装测试依赖
+pip install -r requirements-dev.txt
+
+# 运行完整测试套件
+pytest
+
+# 运行特定组件测试
+pytest tests/unit/test_citation_rules.py -v
+
+# 生成测试覆盖率报告
+pytest --cov=PorosCleanlit --cov-report=html
+```
+
+**测试覆盖范围：**
+- ✅ 单元测试：各组件独立功能验证
+- ✅ 集成测试：Pipeline 执行流程验证
+- ✅ 边界测试：空输入和异常处理
+- ✅ 保护测试：Markdown/LaTeX 内容完整性验证
+
+## 🚀 快速上手
+
+### 基础用法
+
+```python
+from PorosCleanlit import TextCleaner
+
+# 创建清洗器（使用默认配置）
+cleaner = TextCleaner()
+
+# 处理包含多种元素的复杂文本
+complex_text = """
+# 研究论文
+
+这是一个包含 `Python` 代码和 $E = mc^2$ 公式的文档。
+
+文献引用【 12 】和[I]，还有独立罗马数字 II III。
+
+```python
+def hello():
+    print("Hello, World!")
+    return "processed"
+```
+"""
+
+# 执行清洗
+result = cleaner.clean(complex_text)
+print(result)
+```
+
+### 输出示例
+
+```
+# 研究论文
+
+这是一个包含 `Python` 代码和 $E = mc^2$ 公式的文档。
+
+文献引用[12]和[I]，还有独立罗马数字2 3。
+
+```python
+def hello():
+    print("Hello, World!")
+    return "processed"
+```
+```
+
+### 高级用法
+
+```python
+# 启用 LaTeX 公式内部清理
+advanced_cleaner = TextCleaner(
+    clean_options={
+        "clean_latex_math_spaces": True
+    }
+)
+
+# 自定义处理流程
+custom_cleaner = TextCleaner(
+    pipeline=["citation_rules", "greek_to_latex"]  # 只使用特定组件
+)
+```
+
+### 文件处理
+
+```python
+# 清洗单个文件
+cleaner.clean_file("input.md", "output.md")
+
+# 批量处理（结合项目脚本使用）
+```
+
+## 📋 API 参考
+
+### TextCleaner 类
+
+```python
+class TextCleaner:
+    def __init__(self, pipeline=None, clean_options=None):
+        """初始化文本清洗器
+
+        Args:
+            pipeline (list, optional): 自定义处理组件顺序
+            clean_options (dict, optional): 高级功能选项
+        """
+
+    def clean(self, text: str) -> str:
+        """清洗文本内容
+
+        Args:
+            text (str): 输入文本
+
+        Returns:
+            str: 清洗后的文本
+        """
+
+    def clean_file(self, input_path: str, output_path=None, encoding="utf-8") -> str:
+        """清洗文件
+
+        Args:
+            input_path (str): 输入文件路径
+            output_path (str, optional): 输出文件路径，默认覆盖原文件
+            encoding (str): 文件编码，默认为 UTF-8
+
+        Returns:
+            str: 清洗后的文本内容
+        """
+```
+
+## 🤝 贡献指南
+
+1. Fork 本项目
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交变更 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 创建 Pull Request
+
+## 📄 许可证
+
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+
+---
+
+**版本**: 0.2.0 | **维护状态**: 活跃开发 | **兼容性**: Python 3.8+
