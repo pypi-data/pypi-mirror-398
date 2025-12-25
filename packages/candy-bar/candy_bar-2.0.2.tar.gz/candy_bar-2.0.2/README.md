@@ -1,0 +1,174 @@
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FMacDumi%2FCandyBar.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FMacDumi%2FCandyBar?ref=badge_shield)
+# CandyBar
+
+A Progress Bar inspired by Arch pacman with `ILoveCandy` option enabled.
+
+![CandyBar](https://raw.githubusercontent.com/MacDumi/CandyBar/refs/heads/main/images/candybar.gif)
+
+## Instalation
+
+### Python
+
+#### Manual instalation
+
+Clone the repository, build, and install the package:
+
+```bash
+git clone https://github.com/MacDumi/CandyBar.git
+cd CandyBar
+pip install .
+```
+
+#### Install from PyPi
+
+```bash
+pip install candy_bar
+```
+
+### C++
+
+Don't like `Python`? Use it with `C++`!
+Clone the repository and either install the library or build against it:
+
+```bash
+git clone https://github.com/MacDumi/CandyBar.git
+cd CandyBar
+make && make install
+```
+
+## Usage
+
+Import the package and create the progress bar object:
+
+```python
+# Python
+from candy_bar import CandyBar
+
+cb = CandyBar(100, "Progress")
+```
+
+```C++
+// C++
+#include "candybar.h"
+
+...
+
+CandyBar cb(100, "Progress");
+```
+
+### Parameters
+
+#### Python
+| Parameter      | Default        | Description                                             |
+| ---            | ---            | ---                                                     |
+| iterable       | `None`         | Iterable object                                         |
+| total          | `None`         | Defines the value for 100% if not used with an iterable |
+| message        | `None`         | Write some text at the beginning of the line            |
+| messageWidth   | `message width`| Size (in chars) of the message (padded with spaces).    |
+| width          | `console size` | Size (in chars) of the full progress bar.               |
+| linePos        |   0            | Line position in case of nested progress bars.          |
+| leftJustified  |   true         | Defines the justification of the message.               |
+| disable        |   false        | When set, the progress bar will be disabled.            |
+
+#### C++
+| Parameter      | Default        | Description                                             |
+| ---            | ---            | ---                                                     |
+| total          | --             | Defines the value corresponding to 100%                 |
+| message        | `None`         | Write some text at the beginning of the line            |
+| messageWidth   | `message width`| Size (in chars) of the message (padded with spaces).    |
+| width          | `console size` | Size (in chars) of the full progress bar.               |
+| linePos        |   0            | Line position in case of nested progress bars.          |
+| leftJustified  |   true         | Defines the justification of the message.               |
+| disable        |   false        | When set, the progress bar will be disabled.            |
+
+To update the position of the progress bar use the `update` method:
+
+```python
+# Python
+total = 100
+
+for i in range(total):
+    # Your code goes here
+    cb.update(i + 1)
+
+# Use it as an iterable
+for i in CandyBar(range(total), message="Progress"):
+    # your code here
+    # no need to call the update
+```
+
+```C++
+// C++
+constexpr uint32_t total{100};
+
+for (auto i{0}; i < total; ++i)
+{
+    // Your code goes here
+    cb.update(i);
+}
+```
+The progress bar can be disabled:
+
+```python
+# Python
+def function(verbose):
+    ...
+    cb.disable(not verbose)
+    ...
+```
+
+```C++
+// C++
+void function(bool verbose)
+{
+    ...
+    cb.disable(!verbose);
+    ...
+}
+```
+
+The __total__ value, the __message__, and the __justification__ of the progress bar can be changed:
+
+```python
+# Python
+cb.set_total(150)
+cb.set_message("Another message")
+cb.set_left_justified(False)
+```
+
+```C++
+// C++
+cb.set_total(150);
+cb.set_message("Another message");
+cb.set_left_justified(false);
+```
+
+__Multiple progress bars__:
+
+```python
+# Python
+for i in CandyBar(range(100), message="Outer", linePos=1):
+    for j in CandyBar(range(50), message="Inner", linePos=0):
+        # your code here
+```
+
+```C++
+// C++
+cb_top.setLinePos(1);
+cb_bottom.setLinePos(0);
+
+for (auto i{0}; i < cb_top.getTotal(); ++i)
+{
+    for (auto j{0}; j < cb_boyyom.getTotal(); ++j)
+    {
+        // your code here
+        cb_bottom.update(j);
+    }
+    cb_top.update(i);
+}
+```
+
+#### Like what I do?
+
+Buy me coffee
+<img src="https://web.getmonero.org/press-kit/symbols/monero-symbol-480.png" alt="Donate with monero" width="15"/> `85jJPcfLPZRUKm3Re6qHZsKBZskVS2tYMWFoY5sYXUSQJzqzqpuPFepXMtqTKCRfuhYXaiJ3zQVeRPDYJUfepVjnJDpApH5`
