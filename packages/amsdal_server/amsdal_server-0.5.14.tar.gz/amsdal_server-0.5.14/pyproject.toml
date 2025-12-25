@@ -1,0 +1,328 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.github",
+  "/tests",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/amsdal_server"]
+
+[project]
+name = "amsdal_server"
+dynamic = ["version"]
+description = "Rest API server for AMSDAL framework"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = {file = "LICENSE.txt"}
+keywords = []
+authors = [
+    { name = "A. Michael Salem", email = "ams@amsdal.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+    "pydantic~=2.12",
+    "pydantic-settings~=2.12",
+    "fastapi~=0.127",
+    "orjson~=3.11",
+    "uvicorn~=0.23",
+    "amsdal==0.5.*",
+    "asgi-correlation-id~=4.3",
+    "pillow==11.3.*",
+    "joblib==1.5.*",
+]
+[project.optional-dependencies]
+otel = [
+    "opentelemetry-distro==0.60b1",
+    "opentelemetry-exporter-otlp==1.39.1",
+    "opentelemetry-instrumentation-fastapi==0.60b1",
+    "opentelemetry-instrumentation-logging==0.60b1",
+    "opentelemetry-instrumentation-requests==0.60b1",
+]
+
+[dependency-groups]
+dev = [
+    "amsdal[postgres-binary]",
+    "amsdal[async-sqlite]",
+    "pytest-cov>=6.0.0",
+    "pytest==8.3.3",
+    "pytest-mock==3.14.0",
+    "pytest-subtests==0.13.1",
+    "pytest-asyncio>=0.25.3",
+    "pytest-xdist[psutil]>=3.6.1",
+    "black>=24.3.0",
+    "mypy>=1.17.0",
+    "ruff>=0.12.4",
+    "httpx==0.27.*",
+    "types-openpyxl==3.*",
+    "towncrier==23.11.0",
+    " pandas-stubs",
+    "types-PyYAML",
+    "types-Pygments",
+    "types-colorama",
+    "types-defusedxml",
+    "types-pexpect",
+    "types-ujson",
+    "optype",
+    "scipy-stubs",
+    "types-python-dateutil",
+]
+
+[project.urls]
+Documentation = "https://pypi.org/project/amsdal_server/#readme"
+Issues = "https://pypi.org/project/amsdal_server/"
+Source = "https://pypi.org/project/amsdal_server/"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.version]
+path = "src/amsdal_server/__about__.py"
+
+
+[[tool.hatch.envs.all.matrix]]
+python = ["3.11", "3.12", "3.13"]
+
+[tool.hatch.envs.default]
+installer = "uv"
+path = ".venv"
+
+[tool.hatch.envs.default.scripts]
+sync = "uv sync --group dev"
+lock = "uv lock"
+lock-upgrade = "uv lock --upgrade"
+test = "pytest -n auto {args:tests}"
+test-single = "pytest {args:tests}"
+test-cov = "pytest --cov=src -n auto {args:tests}"
+cov = [
+    "test-cov",
+]
+typing = "mypy --install-types --non-interactive {args:src/amsdal_server tests}"
+style = [
+    "ruff check {args:.}",
+    "black --check --diff {args:.}",
+]
+fmt = [
+    "black {args:.}",
+    "ruff check --fix {args:.}",
+    "style",
+]
+all = [
+    "style",
+    "typing",
+]
+change-logs = "towncrier {args:.}"
+release = "rm latest-changelogs.md && towncrier build --yes --version {args:version} && (cat latest-changelogs.md; cat change-logs.md) > temp.md && mv temp.md change-logs.md && git add change-logs.md latest-changelogs.md release_notes && git commit -m 'Updated release notes'"
+
+[tool.hatch.envs.local]
+installer = "uv"
+path = ".venv"
+pre-install-commands = [
+  "uv pip install -e ../amsdal-glue/libs/core/",
+  "uv pip install -e ../amsdal-glue/libs/connections/[postgres-binary,async-sqlite]",
+  "uv pip install -e ../amsdal-glue/libs/amsdal-glue/",
+  "uv pip install -e ../amsdal_utils/",
+  "uv pip install -e ../amsdal_data/",
+  "uv pip install -e ../amsdal_models/",
+  "uv pip install -e ../amsdal_framework/",
+]
+
+[tool.hatch.envs.local.scripts]
+sync = "uv sync --group dev"
+lock = "uv lock"
+lock-upgrade = "uv lock --upgrade"
+test = "pytest -n auto {args:tests}"
+test-single = "pytest {args:tests}"
+test-cov = "pytest --cov=src -n auto {args:tests}"
+cov = [
+    "test-cov",
+]
+typing = "mypy --install-types --non-interactive {args:src/amsdal_server tests}"
+style = [
+    "ruff check {args:.}",
+    "black --check --diff {args:.}",
+]
+fmt = [
+    "black {args:.}",
+    "ruff check --fix {args:.}",
+    "style",
+]
+all = [
+    "style",
+    "typing",
+]
+
+[tool.black]
+target-version = ["py311"]
+line-length = 120
+skip-string-normalization = true
+exclude = "tests/fixtures/*|.venv"
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+exclude = "tests/fixtures/*"
+
+# for strict mypy: (this is the tricky one :-))
+disallow_untyped_defs = true
+
+[tool.ruff.lint.flake8-quotes]
+docstring-quotes = "double"
+inline-quotes = "single"
+multiline-quotes = "double"
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "A",
+    "ARG",
+    "B",
+    "C",
+    "DTZ",
+    "E",
+    "EM",
+    "F",
+    "FBT",
+    "I",
+    "ICN",
+    "ISC",
+    "N",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+    "Q",
+    "RUF",
+    "S",
+    "T",
+    "TID",
+    "UP",
+    "W",
+    "YTT",
+]
+ignore = [
+    # Allow non-abstract empty methods in abstract base classes
+    "B027",
+    # Allow boolean positional values in function calls, like `dict.get(... True)`
+    "FBT003",
+    # Ignore checks for possible passwords
+    "S105", "S106", "S107",
+    # Ignore complexity
+    "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+    "PLC0415",
+    "PLW1641",
+    "UP045",
+]
+unfixable = [
+    # Don't touch unused imports
+    "F401",
+]
+exclude = ["tests/fixtures/"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint.isort]
+force-single-line = true
+order-by-type = true
+known-first-party = ["amsdal_server"]
+
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Body"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
+
+[tool.coverage.run]
+source_pkgs = ["amsdal_server", "tests"]
+branch = true
+parallel = true
+omit = [
+    "src/amsdal_server/__about__.py",
+]
+
+[tool.coverage.paths]
+amsdal_server = ["src/amsdal_server", "*/amsdal_server/src/amsdal_server"]
+tests = ["tests", "*/amsdal_server/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "no cov",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.towncrier]
+directory= "release_notes"
+name = "AMSDAL SERVER"
+title_format = "## [v{version}](https://pypi.org/project/amsdal_server/{version}/) - {project_date}"
+filename = "latest-changelogs.md"
+underlines = ["", "", ""]
+
+[[tool.towncrier.type]]
+directory = "security"
+name = "Security"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "removed"
+name = "Removed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "deprecated"
+name = "Deprecated"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "added"
+name = "Added"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "changed"
+name = "Changed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "fixed"
+name = "Fixed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "performance"
+name = "Performance"
+showcontent = true
