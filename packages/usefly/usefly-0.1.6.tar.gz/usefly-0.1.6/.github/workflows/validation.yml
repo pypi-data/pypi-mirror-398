@@ -1,0 +1,108 @@
+name: Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build Docker image
+        run: docker build --build-arg VERSION=0.1.0.dev1 -t usefly:test .
+        
+      - name: Run Docker container
+        run: |
+          docker run -d -p 8000:8080 --name usefly-test usefly:test
+          
+      - name: Wait for container to be ready
+        run: |
+          timeout=60
+          while ! curl -s http://localhost:8000/docs > /dev/null; do
+            if [ $timeout -le 0 ]; then
+              echo "Timed out waiting for application to be ready"
+              exit 1
+            fi
+            echo "Waiting for backend to be ready..."
+            sleep 5
+            timeout=$((timeout - 5))
+          done
+          echo "Backend is ready!"
+          
+      - name: Validate UI serving
+        run: |
+          # Fetch the main page
+          echo "Fetching UI from http://localhost:8000/ ..."
+          response=$(curl -s http://localhost:8000/)
+          
+          # Check for basic HTML structure and App Title
+          if ! echo "$response" | grep -q "<!DOCTYPE html>"; then
+            echo "Error: UI did not return valid HTML. Response start:"
+            echo "$response" | head -n 5
+            exit 1
+          fi
+          
+          if ! echo "$response" | grep -q "<title>Usefly</title>"; then
+            echo "Error: UI HTML does not contain expected title. Response head:"
+            echo "$response" | head -n 20
+            exit 1
+          fi
+          
+          echo "UI validation successful!"
+          
+      - name: Check container logs
+        if: always()
+        run: docker logs usefly-test
+
+  validate-pypi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Build UI
+        run: |
+          cd ui
+          pnpm install
+          pnpm build
+          
+      - name: Build package
+        run: |
+          pip install build
+          python -m build
+        
+      - name: Verify package installation
+        run: |
+          # Create strict environment
+          python -m venv test-env
+          source test-env/bin/activate
+          
+          # Install from built wheel
+          pip install dist/*.whl
+          
+          # Verify cli is available (if applicable)
+          # Assuming 'usefly' command is installed via pyproject.toml
+          if command -v usefly >/dev/null 2>&1; then
+             echo "usefly command found"
+          else
+             echo "usefly command NOT found"
+             exit 1
+          fi
+          
+          # Verify import works and print version/info
+          python -c "import src; print('Usefly package imported successfully')"
