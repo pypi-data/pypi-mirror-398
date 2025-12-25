@@ -1,0 +1,145 @@
+name: Release (auto-tag)
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Which part of the version to bump"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - rc
+      version:
+        description: "Optional explicit version (e.g., 0.2.0 or 0.2.0rc1). If set, bump is ignored."
+        required: false
+        type: string
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Compute next version
+        id: ver
+        env:
+          INPUT_BUMP: ${{ inputs.bump }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install packaging
+
+          python - << 'PY'
+          import os
+          import re
+          import subprocess
+          from packaging.version import Version
+          
+          bump = os.environ.get("INPUT_BUMP", "patch").strip()
+          explicit = (os.environ.get("INPUT_VERSION") or "").strip()
+          
+          def run(cmd: list[str]) -> str:
+            return subprocess.check_output(cmd, text=True).strip()
+          
+          def all_tags() -> list[str]:
+            out = run(["git", "tag", "--list", "v*"])
+            return [t.strip() for t in out.splitlines() if t.strip()]
+          
+          def normalize_tag_to_version(tag: str) -> str | None:
+            if not tag.startswith("v"):
+              return None
+            v = tag[1:]
+            # Normalize legacy prerelease tags like 0.0.1-rc.1 -> 0.0.1rc1
+            v = re.sub(r"(?i)-rc\.(\d+)$", r"rc\1", v)
+            v = re.sub(r"(?i)-rc(\d+)$", r"rc\1", v)
+            v = re.sub(r"(?i)\.rc\.(\d+)$", r"rc\1", v)
+            # Accept only pep440-ish versions we can parse
+            try:
+              Version(v)
+              return v
+            except Exception:
+              return None
+          
+          def latest_version() -> Version:
+            best: Version | None = None
+            for t in all_tags():
+              nv = normalize_tag_to_version(t)
+              if not nv:
+                continue
+              vv = Version(nv)
+              if best is None or vv > best:
+                best = vv
+            return best or Version("0.0.0")
+          
+          def next_from(latest: Version, bump: str) -> Version:
+            major, minor, patch = latest.release + (0, 0, 0)
+            major, minor, patch = major, minor, patch
+            if bump == "major":
+              return Version(f"{major+1}.0.0")
+            if bump == "minor":
+              return Version(f"{major}.{minor+1}.0")
+            if bump == "patch":
+              return Version(f"{major}.{minor}.{patch+1}")
+            if bump == "rc":
+              base = Version(f"{major}.{minor}.{patch+1}") if latest.pre is None else Version(f"{major}.{minor}.{patch}")
+              # If latest is already an rc for this base, increment rcN
+              if latest.pre and base.release == latest.release and latest.pre[0] == "rc":
+                return Version(f"{major}.{minor}.{patch}rc{latest.pre[1]+1}")
+              return Version(f"{base.release[0]}.{base.release[1]}.{base.release[2]}rc1")
+            raise SystemExit(f"Unknown bump: {bump}")
+          
+          if explicit:
+            try:
+              v = Version(explicit)
+            except Exception as e:
+              raise SystemExit(f"Invalid explicit version '{explicit}': {e}")
+          else:
+            v = next_from(latest_version(), bump)
+          
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+            f.write(f"version={v}\n")
+            f.write(f"tag=v{v}\n")
+          print(f"Computed version: {v} (tag v{v})")
+          PY
+
+      - name: Create and push tag
+        env:
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${TAG}"
+          git push origin "${TAG}"
+
+      # NOTE: Tag pushes from GITHUB_TOKEN generally don't trigger other workflows.
+      # Explicitly dispatch the publish workflow so publishing always happens.
+      - name: Trigger publish workflow
+        env:
+          TAG: ${{ steps.ver.outputs.tag }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "publish.yml",
+              ref: "main",
+              inputs: { tag: process.env.TAG },
+            });
+
+
+
