@@ -1,0 +1,109 @@
+# idea-extractor
+[![PyPI version](https://badge.fury.io/py/idea-extractor.svg)](https://badge.fury.io/py/idea-extractor)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/idea-extractor)](https://pepy.tech/project/idea-extractor)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**idea‑extractor** is a lightweight Python package that helps you pull high‑impact software ideas from community discussions.  
+Feed it text from forums like Hacker News, Reddit, or any discussion thread and it will parse, categorize, and summarize potential software ideas based on community trends, feasibility, and market impact.
+
+> **Install**
+> ```bash
+> pip install idea_extractor
+> ```
+
+## Quick Start
+
+```python
+# Import the function – note the underscore instead of the hyphen in the module name
+from idea_extractor import idea_extractor
+
+# Plain text from a discussion thread
+user_text = """
+I've noticed that a lot of devs complain about the hassle of setting up CI/CD pipelines for small projects.
+Maybe there's a lightweight, plug‑and‑play service that automatically generates GitHub Actions or CircleCI configs from a simple config file.
+"""
+
+# Call the function with the default LLM7 engine
+ideas = idea_extractor(user_input=user_text)
+
+# ideas is a list of strings, each representing a structured idea
+print(ideas)
+```
+
+## Customizing the LLM
+
+By default `idea_extractor` will use the free tier of **ChatLLM7** (via `langchain_llm7`).  
+If you prefer another LLM, simply pass an instance that follows the `BaseChatModel` API.
+
+### Using OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from idea_extractor import idea_extractor
+
+llm = ChatOpenAI()              # your OpenAI configuration is handled automatically
+response = idea_extractor(user_input="...", llm=llm)
+```
+
+### Using Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from idea_extractor import idea_extractor
+
+llm = ChatAnthropic()
+response = idea_extractor(user_input="...", llm=llm)
+```
+
+### Using Google Gemini
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from idea_extractor import idea_extractor
+
+llm = ChatGoogleGenerativeAI()
+response = idea_extractor(user_input="...", llm=llm)
+```
+
+## API Reference
+
+```python
+def idea_extractor(
+    user_input: str,
+    api_key: Optional[str] = None,
+    llm: Optional[BaseChatModel] = None
+) -> List[str]
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_input` | `str` | Raw text from a community discussion to analyze. |
+| `llm` | `Optional[BaseChatModel]` | An instance of a LangChain LLM. If omitted, the package defaults to **ChatLLM7**. |
+| `api_key` | `Optional[str]` | API key for the free tier of **ChatLLM7**. If not supplied, the environment variable `LLM7_API_KEY` is used. |
+
+The function returns a list of extracted ideas, each formatted as a concise sentence or short paragraph.
+
+## Configuration
+
+### LLM7 Free Tier
+
+The default ChatLLM7 free tier includes sufficient rate limits for most projects.  
+If you need higher rates, supply your own key:
+
+```bash
+export LLM7_API_KEY="your_api_key_here"    # or pass directly via the api_key parameter
+```
+
+Free keys can be obtained by registering at [https://token.llm7.io/](https://token.llm7.io/).
+
+## Issues & Support
+
+Found a bug or want to request a feature? Open an issue on GitHub: <https://github....>.
+
+## Author
+
+- **Name:** Eugene Evstafev  
+- **Email:** hi@euegne.plus  
+- **GitHub:** [chigwell](https://github.com/chigwell)
