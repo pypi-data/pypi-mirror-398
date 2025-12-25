@@ -1,0 +1,100 @@
+Metadata-Version: 2.4
+Name: flamehaven-tensor-canon
+Version: 0.1.3
+Summary: Universal tensor validation and drift detection for PyTorch (NumPy optional).
+Author-email: Flamehaven Sovereign Core <core@flamehaven.ai>
+License-Expression: MIT
+Keywords: pytorch,numpy,validation,drift-detection,mmd
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch>=2.0.0
+Provides-Extra: numpy
+Requires-Dist: numpy>=1.20.0; extra == "numpy"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: build; extra == "dev"
+Dynamic: license-file
+
+# Flamehaven Tensor Canon
+
+> "Data is not just numbers; it is a structural covenant."
+
+Flamehaven Tensor Canon is a small library for:
+
+- Structural validation (shapes and optional dtypes)
+- Distribution drift detection (MMD-based)
+
+PyTorch is required. NumPy support is optional.
+
+## Installation
+
+```bash
+pip install flamehaven-tensor-canon
+```
+
+Enable NumPy support:
+
+```bash
+pip install flamehaven-tensor-canon[numpy]
+```
+
+## Quick start (validation)
+
+```python
+import torch
+from tensor_canon import validate
+
+spec = "batch channels 224 224"
+data = torch.randn(32, 3, 224, 224)
+
+validate(data, spec, key="input_layer")
+```
+
+## Drift detection
+
+```python
+import torch
+from tensor_canon.validator import engine
+
+torch.manual_seed(42)
+golden = torch.randn(100, 5)
+engine.check_drift("embeddings", golden, register_golden=True)
+
+current = golden + torch.randn_like(golden) * 0.01
+drift = engine.check_drift("embeddings", current)
+print("drift:", drift)
+```
+
+## Development
+
+```bash
+pip install -e .[dev,numpy]
+ruff check .
+pytest -q
+```
+
+## Docker
+
+```bash
+docker build -t tensor-canon .
+docker run --rm tensor-canon
+```
+
+## Release notes and security
+
+- See `CHANGELOG.md` for release notes.
+- See `SECURITY.md` for vulnerability reporting.
+
+## License
+
+MIT. See `LICENSE`.
