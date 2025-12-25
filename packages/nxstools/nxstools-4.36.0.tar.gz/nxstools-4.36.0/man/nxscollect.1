@@ -1,0 +1,353 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "NXSCOLLECT" "1" "Jul 31, 2025" "4.26" "NXSTools"
+.SH NAME
+nxscollect \- upload external images into NeXus/HDF5 file
+.SH DESCRIPTION
+.sp
+The nxscollect is  a command\-line tool dedicated to collect detector images.
+.sp
+The append sub\-commnand adds images of external formats into the NeXus master file.
+The images to collect should be denoted by postrun fields inside NXcollection groups or given by command\-line parameters.
+.sp
+The link sub\-commnand creates external or internal link in the NeXus master file to NeXus data files.
+.SH SYNOPSIS FOR NXSCOLLECT APPEND
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+        nxscollect append [\-h] [\-c COMPRESSION] [\-p PATH] [\-i INPUTFILES]
+                       [\-\-separator SEPARATOR] [\-\-dtype DATATYPE]
+                       [\-\-shape SHAPE] [\-s] [\-r] [\-\-test] [\-\-h5py]
+                       [\-\-h5cpp]
+                       [nexus_file [nexus_file ...]]
+
+
+nexus_file            nexus files to be collected
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B Options:
+.INDENT 7.0
+.TP
+.B  \-h\fP,\fB  \-\-help
+show this help message and exit
+.TP
+.BI \-c \ COMPRESSION\fR,\fB \ \-\-compression \ COMPRESSION
+deflate compression rate from 0 to 9 (default: 2) or
+<filterid>:opt1,opt2,... e.g. \-c 32008:0,2 for
+bitshuffle with lz4
+.TP
+.BI \-p \ PATH\fR,\fB \ \-\-path \ PATH
+nexus path for the output field, e.g.
+/scan/instrument/pilatus/data
+.TP
+.BI \-i \ INPUTFILES\fR,\fB \ \-\-input_files \ INPUTFILES
+input data files defined with a pattern or separated
+by \(aq,\(aq e.g.\(aqscan_%05d.tif:0:100\(aq
+.TP
+.BI \-\-separator \ SEPARATOR
+input data files separator (default: \(aq,\(aq)
+.TP
+.BI \-\-dtype \ DATATYPE
+datatype of input data \- only for raw data, e.g.
+\(aquint8\(aq
+.TP
+.BI \-\-shape \ SHAPE
+shape of input data \- only for raw data, e.g.
+\(aq[4096,2048]\(aq
+.TP
+.B  \-s\fP,\fB  \-\-skip_missing
+skip missing files
+.TP
+.B  \-r\fP,\fB  \-\-replace_nexus_file
+if it is set the old file is not copied into a file
+with .__nxscollect__old__* extension
+.TP
+.B  \-\-test
+execute in the test mode
+.TP
+.B  \-\-h5py
+use h5py module as a nexus reader/writer
+.TP
+.B  \-\-h5cpp
+use h5cpp module as a nexus reader/writer
+.UNINDENT
+.UNINDENT
+.SH EXAMPLES OF NXSCOLLECT APPEND
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nxscollect append \-c1 /tmp/gpfs/raw/scan_234.nxs
+
+nxscollect append \-c32008:0,2 /ramdisk/scan_123.nxs
+
+nxscollect append \-\-test /tmp/gpfs/raw/scan_234.nxs
+
+nxscollect append scan_234.nxs \-\-path /scan/instrument/pilatus/data  \-\-inputfiles \(aqscan_%05d.tif:0:100\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH SYNOPSIS FOR NXSCOLLECT LINK
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+        nxscollect link [\-h] [\-n NAME] [\-t TARGET] [\-r] [\-\-test]
+                     [\-\-h5py] [\-\-h5cpp]
+                     [nexus_file_path]
+
+nexus_file_path       nexus files with the nexus directory to place the link
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B Options:
+.INDENT 7.0
+.TP
+.B  \-h\fP,\fB  \-\-help
+show this help message and exit
+.TP
+.BI \-n \ NAME\fR,\fB \ \-\-name \ NAME
+link name
+.TP
+.BI \-t \ TARGET\fR,\fB \ \-\-target \ TARGET
+link target with the file name if external
+.TP
+.B  \-r\fP,\fB  \-\-replace_nexus_file
+if it is set the old file is not copied into a file
+with .__nxscollect__old__* extension
+.TP
+.B  \-\-test
+execute in the test mode
+.TP
+.B  \-\-h5py
+use h5py module as a nexus reader/writer
+.TP
+.B  \-\-h5cpp
+use h5cpp module as a nexus reader
+.UNINDENT
+.UNINDENT
+.SH EXAMPLES OF NXSCOLLECT LINK
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nxscollect link scan_234.nxs://entry/instrument/lambda \-\-name data \-\-target lambda.nxs://entry/data/data
+
+nxscollect link scan_123.nxs://entry:NXentry/instrument/eiger:NXdetector  \-\-target eiger.nxs://entry/data/data
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH SYNOPSIS FOR NXSCOLLECT VDS
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nxscollect vds [\-h] [\-e TARGETFIELDS] [\-\-separator SEPARATOR]
+            [\-t DTYPE] [\-s SHAPE] [\-f FILLVALUE] [\-p SHAPES]
+            [\-o OFFSETS] [\-b BLOCKS] [\-c COUNTS] [\-d STRIDES]
+            [\-l SLICES] [\-P TARGETSHAPES] [\-O TARGETOFFSETS]
+            [\-B TARGETBLOCKS] [\-C TARGETCOUNTS] [\-D TARGETSTRIDES]
+            [\-L TARGETSLICES] [\-r] [\-\-test] [\-\-h5cpp] [\-\-h5py]
+            [nexus_file_path_field]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+create a virual dataset in the master file
+.sp
+nexus_file_path_field    nexus files with the nexus directory and a field name  to create the VDS field
+.sp
+Options:
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.TP
+.B  \-h\fP,\fB  \-\-help
+show this help message and exit
+.TP
+.BI \-t \ DTYPE\fR,\fB \ \-\-dtype \ DTYPE
+datatype of the VDS field, e.g. \(aquint8\(aq
+.TP
+.BI \-s \ SHAPE\fR,\fB \ \-\-shape \ SHAPE
+shape of the VDS field, e.g. \(aq[U,4096,2048]\(aq or
+U,4096,2048 where U means span along the field\(aq
+.TP
+.BI \-f \ FILLVALUE\fR,\fB \ \-\-fill\-value \ FILLVALUE
+fill value for the gaps, default is 0
+.TP
+.BI \-e \ TARGETFIELDS\fR,\fB \ \-\-target\-fields \ TARGETFIELDS
+external fields with their NeXus file paths defined
+with a pattern or separated by \(aq,\(aq
+e.g.\(aqscan_123/lambda_%05d.nxs://entry/data/\fI\%data:0:3\fP\(aq
+.TP
+.BI \-\-separator \ SEPARATOR
+input data files separator (default: \(aq,\(aq)
+.TP
+.BI \-p \ SHAPES\fR,\fB \ \-\-shapes \ SHAPES
+shapes in the VDS layout hyperslab for the
+corresponding target fields with coordinates sepatated
+by \(aq,\(aq and different fields separated by \(aq;\(aq, \(aq:\(aq or
+spaces e.g.\(aq,,;,300,;,600,0\(aq where an empty coordinate
+means 0
+.TP
+.BI \-o \ OFFSETS\fR,\fB \ \-\-offsets \ OFFSETS
+offsets in the VDS layout hyperslab for the
+corresponding target fields with coordinates sepatated
+by \(aq,\(aq and different fields separated by \(aq;\(aq, \(aq:\(aq or
+spaces e.g.\(aq,,;,300,;,600,0\(aq where an empty coordinate
+means 0
+.TP
+.BI \-b \ BLOCKS\fR,\fB \ \-\-blocks \ BLOCKS
+block sizes in the VDS layout hyperslab for the
+corresponding target fields with coordinates sepatated
+by \(aq,\(aq and different fields separated by \(aq;\(aq, \(aq:\(aq or
+spaces e.g. \(aq,256,512;,256,512;,256,512\(aq where an
+empty coordinate means 1
+.TP
+.BI \-c \ COUNTS\fR,\fB \ \-\-counts \ COUNTS
+count numbers in the VDS layout hyperslabfor the
+corresponding target fields with coordinates sepatated
+by \(aq,\(aq and different fields separated by \(aq;\(aq, \(aq:\(aq or
+spaces e.g. \(aq,1,1;,1,1;,1,1\(aq where an empty coordinate
+means span along the layout
+.TP
+.BI \-d \ STRIDES\fR,\fB \ \-\-strides \ STRIDES
+stride sizes in the VDS layout hyperslabfor the
+corresponding target fields with coordinates sepatated
+by \(aq,\(aq and different fields separated by \(aq;\(aq, \(aq:\(aq or
+spaces e.g. \(aq,,;,,;,,\(aq where an empty coordinate means
+1
+.TP
+.BI \-l \ SLICES\fR,\fB \ \-\-slices \ SLICES
+mapping slices in the VDS layoutfor the corresponding
+target fields with coordinates sepatated by \(aq,\(aq and
+different fields separated by \(aq;\(aq or spaces e.g.
+\(aq:,0:50,: :,50:100,:\(aq where U means span along the
+layout
+.TP
+.BI \-P \ TARGETSHAPES\fR,\fB \ \-\-target\-shapes \ TARGETSHAPES
+field shapes with coordinates sepatated by \(aq,\(aq and
+different fields separated by \(aq;\(aq, \(aq:\(aq or spaces
+e.g.\(aq,,;,300,;,600,0\(aq
+.TP
+.BI \-O \ TARGETOFFSETS\fR,\fB \ \-\-target\-offsets \ TARGETOFFSETS
+offsets in the view hyperslab of target fieldswith
+coordinates sepatated by \(aq,\(aq and different fields
+separated by \(aq;\(aq, \(aq:\(aq or spaces e.g.\(aq,,;,300,;,600,0\(aq
+where an empty coordinate means 0
+.TP
+.BI \-B \ TARGETBLOCKS\fR,\fB \ \-\-target\-blocks \ TARGETBLOCKS
+block sizes in the view hyperslab of target fields
+with coordinates sepatated by \(aq,\(aq and different fields
+separated by \(aq;\(aq, \(aq:\(aq or spaces e.g.
+\(aq,256,512;,256,512;,256,512\(aq where an empty coordinate
+means 1
+.TP
+.BI \-C \ TARGETCOUNTS\fR,\fB \ \-\-target\-counts \ TARGETCOUNTS
+count numbers in the view hyperslab of target fields
+with coordinates sepatated by \(aq,\(aq and different fields
+separated by \(aq;\(aq, \(aq:\(aq or spaces e.g. \(aq,1,1;,1,1;,1,1\(aq
+where an empty coordinate means span along the layout
+.TP
+.BI \-D \ TARGETSTRIDES\fR,\fB \ \-\-target\-strides \ TARGETSTRIDES
+stride sizes numbers in the view hyperslab of target
+fields with coordinates sepatated by \(aq,\(aq and different
+fields separated by \(aq;\(aq, \(aq:\(aq or spaces e.g. \(aq,,;,,;,,\(aq
+where an empty coordinate means 1
+.TP
+.BI \-L \ TARGETSLICES\fR,\fB \ \-\-target\-slices \ TARGETSLICES
+view slices of target fields with coordinates
+sepatated by \(aq,\(aq and different fields separated by \(aq;\(aq
+or spaces e.g. \(aq:,0:50,: :,0:50,:\(aq where U means span
+along the layout
+.TP
+.B  \-r\fP,\fB  \-\-replace\-nexus\-file
+if it is set the old file is not copied into a file
+with .__nxscollect__old__* extension
+.TP
+.B  \-\-test
+execute in the test mode
+.TP
+.B  \-\-h5cpp
+use h5cpp module as a nexus reader
+.TP
+.B  \-\-h5py
+use h5py module as a nexus reader/writer
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SH EXAMPLES OF NXSCOLLECT VDS
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+nxscollect vds scan_234.nxs://entry/instrument/eiger/data  \-\-shape \(aq1000,2048,1024\(aq \-\-dtype uint32 \-\-target\-fields \(aqeiger_%05d.nxs://entry/data/data:1:10\(aq \-\-shapes \(aq100,,:100,,:100,,:100,,:100,,:100,,:100,,:100,,:100,,:100,,\(aq   \-\-offsets \(aq0,,:100,,:200,,:300,,:400,,:500,,:600,,:700,,:800,,:900,,\(aq
+
+    \- creates VDS (shape [1000,2048,1024]) of ten nexus files (shape [100,2048,1024]) merged in their first dimension
+
+nxscollect vds scan_234.nxs://entry/instrument/lambda/data  \-\-shape \(aq100,300,762\(aq  \-\-dtype uint32 \-\-target\-fields \(aqlambda_%05d.nxs://entry/data/data:0:2\(aq \-\-shapes \(aq,,250:,,250:,,250\(aq   \-\-offsets \(aq,,:,,256:,,512\(aq  \-\-counts \(aqU,,:U,,:U,,\(aq \-f 1
+
+    \- creates VDS (shape [100,300,762]) of three nexus files (shape [100,300,250]) merged in their third dimension,
+        separated with a 6 pixel gap of 1 values and unlimited first dimension
+
+nxscollect vds scan_234.nxs://entry/instrument/percival/data  \-\-shape \(aq4000,1600,2000\(aq \-\-dtype int16 \-\-target\-fields \(aqpercival_%05d.nxs://entry/data/data:1:4\(aq \-\-shapes \(aq1000,,:1000,,:1000,,:1000,,\(aq   \-\-offsets \(aq0,,:1,,:2,,:3,,\(aq  \-\-counts \(aqU,,:U,,:U,,:U,,\(aq \-\-strides \(aq4,,:4,,:4,,:4,,\(aq
+
+    \- creates VDS (shape [1000,1600,2000]) of three nexus files (shape [1000,1600,2000])
+         merged in their the first dimension with interlaying frames
+         and unlimited first dimension
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Jan Kotanski
+.SH COPYRIGHT
+2012-2018 DESY, Jan Kotanski <jkotan@mail.desy.de>
+
+GNU GENERAL PUBLIC LICENSE, version 3
+.\" Generated by docutils manpage writer.
+.

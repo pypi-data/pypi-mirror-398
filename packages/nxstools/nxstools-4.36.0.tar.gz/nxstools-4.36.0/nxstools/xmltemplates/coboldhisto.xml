@@ -1,0 +1,50 @@
+<?xml version='1.0'?>
+<definition>
+  <group type="NXentry" name="$var.entryname#'$(__entryname__)'$var.serialno">
+    <group type="NXinstrument" name="$(__insname__)">
+      <group type="NXdetector" name="$(name)">
+
+        <field type="NX_CHAR" name="description">$(name)<strategy mode="INIT"/>
+	</field>
+
+        <field type="NX_CHAR" name="layout">linear<strategy mode="INIT"/>
+        </field>
+
+        <field units="ns" type="NX_FLOAT64" name="x_pixel_size">
+	  <strategy mode="FINAL"/>$datasources.$(binsize)
+        </field>
+
+        <field units="s" type="NX_FLOAT64" name="count_time">
+          <strategy mode="FINAL"/>$datasources.$(exposuretime)
+	</field>
+
+        <field units="ns" long_name="time of flight" type="NX_FLOAT64" name="time_of_flight">
+          <strategy mode="FINAL"/>$datasources.$(name)_timeofflight
+	  <dimensions rank="1">
+            <dim value="1" index="1"/>
+	  </dimensions>
+	</field>
+	
+	<field name="data" type="NX_FLOAT64">
+	  $datasources.$(histogram)
+	  <strategy mode="STEP"/>
+	  <dimensions rank="1"/>
+          <attribute type="NX_CHAR" name="axes">
+            <strategy mode="INIT"/>
+	    .
+	    $(histogram)_time_of_flight
+	    <dimensions rank="1">
+                  <dim value="2" index="1"/>
+	    </dimensions>
+	  </attribute>
+	</field>
+
+      </group>
+    </group>
+    <group name="data" type="NXdata">
+      <link name="$(histogram)" target="/$var.entryname#'$(__entryname__)'$var.serialno:NXentry/$(__insname__)/$(name):NXdetector/data"/>
+
+      <link name="$(histogram)_time_of_flight" target="/$var.entryname#'$(__entryname__)'$var.serialno:NXentry/$(__insname__)/$(name):NXdetector/time_of_flight"/>
+    </group>
+  </group>
+</definition>
