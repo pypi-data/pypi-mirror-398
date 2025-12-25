@@ -1,0 +1,144 @@
+# holiday‑narrative‑parser
+[![PyPI version](https://badge.fury.io/py/holiday-narrative-parser.svg)](https://badge.fury.io/py/holiday-narrative-parser)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/holiday-narrative-parser)](https://pepy.tech/project/holiday-narrative-parser)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A lightweight Python package that extracts structured information from holiday‑themed narratives.  
+Given a free‑form text (e.g., “The Christmas Tree that came in from the Cold”), the parser identifies:
+
+- **Main theme**
+- **Emotional tone**
+- **Key story elements**
+- **Relevant details**
+
+The extracted data is returned as a list of strings that match a predefined regular‑expression pattern, making it easy to feed into downstream analysis, categorisation, or summarisation pipelines.
+
+---
+
+## Installation
+
+```bash
+pip install holiday_narrative_parser
+```
+
+---
+
+## Quick Start
+
+```python
+from holiday_narrative_parser import holiday_narrative_parser
+
+story = """
+The Christmas tree arrived shivering from the frosty north,
+its branches still dusted with snow. Yet inside the living room,
+the glow of candlelight warmed its needles, and the family sang
+songs of joy and togetherness.
+"""
+
+result = holiday_narrative_parser(user_input=story)
+print(result)
+# Example output:
+# [
+#   "Theme: Christmas",
+#   "Tone: Warm, nostalgic",
+#   "Elements: Tree, Snow, Candlelight, Family singing",
+#   "Details: Tree came from cold, interior warmth"
+# ]
+```
+
+---
+
+## API Reference
+
+```python
+holiday_narrative_parser(
+    user_input: str,
+    llm: Optional[BaseChatModel] = None,
+    api_key: Optional[str] = None
+) -> List[str]
+```
+
+| Parameter   | Type                     | Description |
+|-------------|--------------------------|-------------|
+| **user_input** | `str` | The narrative text to be processed. |
+| **llm** | `Optional[BaseChatModel]` | A LangChain `BaseChatModel` instance. If omitted, the default `ChatLLM7` from **langchain‑llm7** is used. |
+| **api_key** | `Optional[str]` | API key for the LLM7 service. If not supplied, the function looks for the `LLM7_API_KEY` environment variable; otherwise it falls back to a placeholder `"None"` (which triggers the default behaviour of `ChatLLM7`). |
+
+**Returns**: A list of strings that match the extraction pattern defined in the package.
+
+---
+
+## Using a Custom LLM
+
+You can provide any LangChain‑compatible chat model (OpenAI, Anthropic, Google Gemini, etc.). This is useful if you need a different provider, higher token limits, or specialized model behaviour.
+
+### OpenAI (ChatGPT)
+
+```python
+from langchain_openai import ChatOpenAI
+from holiday_narrative_parser import holiday_narrative_parser
+
+my_llm = ChatOpenAI(model="gpt-4o-mini")
+response = holiday_narrative_parser(user_input=story, llm=my_llm)
+print(response)
+```
+
+### Anthropic (Claude)
+
+```python
+from langchain_anthropic import ChatAnthropic
+from holiday_narrative_parser import holiday_narrative_parser
+
+my_llm = ChatAnthropic(model="claude-3-haiku-20240307")
+response = holiday_narrative_parser(user_input=story, llm=my_llm)
+print(response)
+```
+
+### Google Gemini
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from holiday_narrative_parser import holiday_narrative_parser
+
+my_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+response = holiday_narrative_parser(user_input=story, llm=my_llm)
+print(response)
+```
+
+---
+
+## LLM7 Default Settings & Rate Limits
+
+- By default the package uses `ChatLLM7` from **[langchain‑llm7](https://pypi.org/project/langchain-llm7/)**.  
+- The free tier of LLM7 provides sufficient request‑per‑minute limits for typical development and small‑scale production use.  
+- For higher limits, supply your personal API key either via the `LLM7_API_KEY` environment variable or directly:
+
+```python
+response = holiday_narrative_parser(user_input=story, api_key="YOUR_LLM7_API_KEY")
+```
+
+You can obtain a free API key by registering at **https://token.llm7.io/**.
+
+---
+
+## Contributing & Support
+
+If you encounter bugs, have feature requests, or need help, please open an issue:
+
+- **GitHub Issues:** https://github.com/chigwell/holiday_narrative_parser/issues
+
+---
+
+## Author
+
+**Eugene Evstafev**  
+📧 Email: hi@euegne.plus  
+🐙 GitHub: [chigwell](https://github.com/chigwell)
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
