@@ -1,0 +1,189 @@
+syntax = "proto3";
+
+package noderesources;
+
+import "google/protobuf/timestamp.proto";
+import public "nucliadb_protos/utils.proto";
+
+message TextInformation {
+    string text = 1;
+    repeated string labels = 2;
+}
+
+message IndexMetadata {
+    google.protobuf.Timestamp modified = 1; // Tantivy doc & para
+    google.protobuf.Timestamp created = 2; // Tantivy doc & para
+}
+
+message ShardId {
+    string id = 1;
+}
+
+message ShardIds {
+    repeated ShardId ids = 1;
+}
+
+message ShardCreated {
+    reserved 2, 3, 4, 5;
+
+    string id = 1;
+}
+
+message ResourceID {
+    string shard_id = 1;
+    string uuid = 2;
+}
+
+
+message Shard {
+    ShardMetadata metadata = 5;
+    string shard_id = 1;
+    uint64 fields = 2;
+    uint64 paragraphs = 3;
+    uint64 sentences = 4;
+    uint64 size_bytes = 6;
+}
+
+message EmptyQuery {}
+
+message Position {
+    uint64 index = 1;
+    uint64 start = 2;
+    uint64 end = 3;
+
+    // For pdfs/documents only
+    // FIXME: this should be an optional, otherwise the Python bindings always
+    // output a default page 0, false information in most of the cases
+    uint64 page_number = 4;
+    bool in_page = 7;
+
+    // For multimedia only
+    repeated uint32 start_seconds = 5;
+    repeated uint32 end_seconds = 6;
+}
+
+message Representation {
+    bool is_a_table = 1;
+    string file = 2;
+}
+
+message SentenceMetadata {
+    Position position = 1;
+    bool page_with_visual = 2;
+    Representation representation = 3;
+}
+
+message VectorSentence {
+    repeated float vector = 1;
+    SentenceMetadata metadata = 9;
+}
+
+message VectorsetSentences {
+    map<string, VectorSentence> sentences = 1; // key is full id for vectors
+}
+
+message ParagraphMetadata {
+    Position position = 1;
+    bool page_with_visual = 2;
+    Representation representation = 3;
+}
+
+message IndexParagraph {
+    int32 start = 1; // Start end position in field text
+    int32 end = 2; // Start end position in field text
+    repeated string labels = 3; // Paragraph specific labels
+    map<string, VectorSentence> sentences = 4; // key is full id for vectors
+    map<string, VectorsetSentences> vectorsets_sentences = 10; // key is vectorset id
+    string field = 5;
+    string split = 6; // split were it belongs
+    uint64 index = 7;
+    bool repeated_in_field = 8;
+    ParagraphMetadata metadata = 9;
+}
+
+message VectorSetID {
+    ShardId shard = 1;
+    string vectorset = 2;
+}
+
+message VectorSetList {
+    ShardId shard = 1;
+    repeated string vectorsets = 2;
+}
+
+message IndexParagraphs {
+    // id of the paragraph f"{self.rid}/{field_key}/{paragraph.start}-{paragraph.end}"
+    map<string, IndexParagraph> paragraphs = 1;
+}
+
+message Resource {
+    reserved 12, 13;
+
+    ResourceID resource = 1;
+
+    IndexMetadata metadata = 2;
+
+    // Doc index
+    map<string, TextInformation> texts = 3; // Tantivy doc filled by field allways full
+    // Key is RID/FIELDID
+
+    repeated string labels = 4; // Document labels always serialized full
+
+    enum ResourceStatus {
+        PROCESSED = 0;
+        EMPTY = 1;
+        ERROR = 2;
+        DELETE = 3;
+        PENDING = 4;
+        BLOCKED = 5;
+        EXPIRED = 6;
+    }
+
+    ResourceStatus status = 5; // Tantivy doc
+
+    // Paragraph
+    map<string, IndexParagraphs> paragraphs = 6; // Paragraphs by field
+
+    repeated string paragraphs_to_delete = 7;
+
+    // Delete in all vectorsets (e.g: resource deletion)
+    repeated string vectors_to_delete_in_all_vectorsets = 8;
+    // Delete in some vectorsets (e.g: updating some vectors)
+    // vectorset_id -> [vector_key_prefix, ...]
+    map<string, StringList> vector_prefixes_to_delete = 15;
+
+    repeated string relation_fields_to_delete = 16;
+    repeated string texts_to_delete = 17;
+
+    // Relations
+    map<string, IndexRelations> field_relations = 10;
+
+    string shard_id = 11;
+
+    optional utils.Security security = 14;
+
+    // Boleans to indicate if the indexing needs to be done
+    bool skip_texts = 18;
+    bool skip_paragraphs = 19;
+}
+
+message ShardMetadata {
+    reserved 2;
+
+    string kbid = 1;
+}
+
+message StringList {
+    repeated string items = 1;
+}
+
+// Relations as sent and retrieved from the index, with some additional metadata
+message IndexRelation {
+    utils.Relation relation = 1;
+    optional string resource_field_id = 2;
+    repeated string facets = 3;
+}
+
+message IndexRelations {
+    repeated IndexRelation relations = 1;
+}

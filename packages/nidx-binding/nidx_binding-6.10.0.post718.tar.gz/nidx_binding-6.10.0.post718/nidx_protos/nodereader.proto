@@ -1,0 +1,412 @@
+syntax = "proto3";
+
+package nodereader;
+
+import public "nidx_protos/noderesources.proto";
+import "google/protobuf/timestamp.proto";
+import public "nucliadb_protos/utils.proto";
+
+message StreamFilter {
+    enum Conjunction {
+        AND = 0;
+        OR = 1;
+        NOT = 2;
+    }
+    Conjunction conjunction = 1;
+
+    repeated string labels = 2;
+}
+
+
+message Faceted {
+    repeated string labels = 1;
+}
+
+
+message OrderBy {
+    reserved 1;
+
+    enum OrderType {
+      DESC = 0;
+      ASC = 1;
+    }
+    enum OrderField {
+        CREATED = 0;
+        MODIFIED = 1;
+    }
+
+    OrderType type = 2;
+    OrderField sort_by = 3;
+}
+
+message FacetResult {
+    string tag = 1;
+    int32 total = 2;
+}
+message FacetResults {
+    repeated FacetResult facetresults = 1;
+}
+
+message ResultScore {
+    float bm25 = 1;
+    // In the case of two equal bm25 scores, booster
+    // decides
+    float booster = 2;
+}
+
+message DocumentResult {
+    string uuid = 1;
+    oneof sort_value {
+        ResultScore score = 3;
+        google.protobuf.Timestamp date = 6;
+    }
+    string field = 4;
+    repeated string labels = 5;
+}
+
+message DocumentSearchResponse {
+    reserved 4;
+
+    int32 total = 1;
+
+    repeated DocumentResult results = 2;
+
+    map<string, FacetResults> facets = 3;
+
+    int32 result_per_page = 5;
+
+    // The text that lead to this results
+    string query = 6;
+
+    // Is there a next page
+    bool next_page = 7;
+    bool bm25 = 8;
+}
+
+message ParagraphResult {
+    string uuid = 1;
+    string field = 3;
+    uint64 start = 4;
+    uint64 end = 5;
+    string paragraph = 6;
+    string split = 7;
+    uint64 index = 8;
+    oneof sort_value {
+        ResultScore score = 9;
+        google.protobuf.Timestamp date = 13;
+    }
+
+    repeated string matches = 10;
+
+    // Metadata that can't be searched with but is returned on search results
+    noderesources.ParagraphMetadata metadata = 11;
+
+    repeated string labels = 12;
+}
+
+message ParagraphSearchResponse {
+    reserved 4;
+
+    int32 fuzzy_distance = 10;
+    int32 total = 1;
+    repeated ParagraphResult results = 2;
+
+    // For each field what facets are.
+    map<string, FacetResults> facets = 3;
+
+    // How many results are in this page.
+    int32 result_per_page = 5;
+
+    // The text that lead to this results
+    string query = 6;
+
+    // Is there a next page
+    bool next_page = 7;
+    bool bm25 = 8;
+    repeated string ematches = 9;
+}
+
+message DocumentVectorIdentifier {
+    string id = 1;
+}
+
+message DocumentScored {
+    DocumentVectorIdentifier doc_id = 1;
+    float score = 2;
+    noderesources.SentenceMetadata metadata = 3;
+    repeated string labels = 4;
+}
+
+message VectorSearchResponse {
+    reserved 4;
+
+    // List of docs closer to the asked one.
+    repeated DocumentScored documents = 1;
+
+    // How many results are in this page.
+    int32 result_per_page = 5;
+}
+
+message RelationPrefixSearchResponse {
+    repeated utils.RelationNode nodes = 1;
+}
+
+message GraphQuery {
+    message Node {
+        reserved 4;
+
+        optional string value = 1;
+        optional utils.RelationNode.NodeType node_type = 2;
+        optional string node_subtype = 3;
+
+        enum MatchLocation {
+            // Match full value. Search "Rosa Parks" to find "Rosa Parks"
+            FULL = 0;
+            // Match prefix. Search "Rosa P" or "Ros" to find "Rosa Parks"
+            PREFIX = 1;
+            // Match individual words. Search "Rosa" or "Parks" to find "Rosa Parks"
+            WORDS = 2;
+            // Match individual word by prefix. Search "Ros" or "Par" to find "Rosa Parks"
+            PREFIX_WORDS = 3;
+        }
+
+        message ExactMatch {
+            MatchLocation kind = 1;
+        }
+
+        message FuzzyMatch {
+            MatchLocation kind = 1;
+            uint32 distance = 2;
+        }
+
+        oneof match_kind {
+            ExactMatch exact = 5;
+            FuzzyMatch fuzzy = 6;
+        }
+    }
+
+    message Relation {
+        optional string value = 1;
+        optional utils.Relation.RelationType relation_type = 2;
+    }
+
+    message Path {
+        optional Node source = 1;
+        optional Relation relation = 2;
+        optional Node destination = 3;
+        bool undirected = 4;
+    }
+
+    message BoolQuery {
+        repeated PathQuery operands = 1;
+    }
+
+    message FacetFilter {
+        string facet = 1;
+    }
+
+    message PathQuery {
+        oneof query {
+            GraphQuery.Path path = 1;
+            PathQuery bool_not = 2;
+            BoolQuery bool_and = 3;
+            BoolQuery bool_or = 4;
+            FacetFilter facet = 5;
+        }
+    }
+
+    // Search directed/undirected paths (triplets of node-relation-node). It
+    // can also be used to express node and relation queries
+    PathQuery path = 1;
+}
+
+message GraphSearchRequest {
+    string shard = 1;
+    GraphQuery query = 2;
+
+    // Decides what do we want in return: paths (triplets), nodes or relations.
+    // Returning paths implies returning nodes and relations.
+    enum QueryKind {
+        PATH = 0;
+        NODES = 1;
+        RELATIONS = 2;
+    }
+    QueryKind kind = 3;
+
+    uint32 top_k = 4;
+
+    optional utils.Security security = 5;
+    optional FilterExpression field_filter = 6;
+}
+
+message GraphSearchResponse {
+    message Relation {
+        utils.Relation.RelationType relation_type = 1;
+        string label = 2;
+    }
+
+    // To optimize proto size, paths are built using pointers to nodes and
+    // relations. This avoid repetition of nodes/relations and allow smaller
+    // protos for big graphs.
+    message Path {
+        uint32 source = 1;
+        uint32 relation = 2;
+        uint32 destination = 3;
+        optional utils.RelationMetadata metadata = 4;
+        optional string resource_field_id = 5;
+        repeated string facets = 6;
+    }
+
+    repeated utils.RelationNode nodes = 1;
+    repeated Relation relations = 2;
+    repeated Path graph = 3;
+}
+
+message FilterExpression {
+    message FilterExpressionList {
+        repeated FilterExpression operands = 1;
+    }
+    message ResourceFilter {
+        string resource_id = 1;
+    }
+    message FieldFilter {
+        string field_type = 1;
+        optional string field_id = 2;
+    }
+    message DateRangeFilter {
+        enum DateField {
+            CREATED = 0;
+            MODIFIED = 1;
+        }
+        DateField field = 1;
+        optional google.protobuf.Timestamp since = 2;
+        optional google.protobuf.Timestamp until = 3;
+    }
+    message KeywordFilter {
+        string keyword = 1;
+    }
+    message FacetFilter {
+        string facet = 1;
+    }
+
+    oneof expr {
+        FilterExpressionList bool_and = 1;
+        FilterExpressionList bool_or = 2;
+        FilterExpression bool_not = 3;
+
+        ResourceFilter resource = 4;
+        FieldFilter field = 5;
+        KeywordFilter keyword = 6;
+        DateRangeFilter date = 7;
+        FacetFilter facet = 8;
+    }
+}
+
+enum FilterOperator {
+    AND = 0;
+    OR = 1;
+}
+
+message SearchRequest {
+    reserved 7, 20, 21;
+
+    string shard = 1;
+
+    // query this text in all the paragraphs
+    string body = 3;
+
+    OrderBy order = 5;
+
+    Faceted faceted = 6;
+
+    int32 result_per_page = 8;
+
+    repeated float vector = 10; // Embedded vector search.
+
+    string vectorset = 15;
+
+    bool paragraph = 12;
+    bool document = 13;
+
+    bool with_duplicates = 14;
+    bool only_faceted = 16;
+
+    optional string advanced_query = 18;
+
+    float min_score_semantic = 23;
+    float min_score_bm25 = 25;
+
+    optional utils.Security security = 24;
+
+    optional FilterExpression field_filter = 26;
+    optional FilterExpression paragraph_filter = 27;
+    FilterOperator filter_operator = 28;
+
+    // Reduced graph search for specific use case of text block search. It only
+    // supports path search (as it's the only one that can return paragraph_ids)
+    // and filters are inherited from the main request
+    message GraphSearch {
+        GraphQuery query = 1;
+    }
+    GraphSearch graph_search = 29;
+}
+
+
+enum SuggestFeatures {
+    ENTITIES = 0;
+    PARAGRAPHS = 1;
+}
+
+message SuggestRequest {
+    string shard = 1;
+
+    string body = 2;
+    repeated SuggestFeatures features = 6;
+
+    optional FilterExpression field_filter = 7;
+    optional FilterExpression paragraph_filter = 8;
+    FilterOperator filter_operator = 9;
+}
+
+
+message SuggestResponse {
+    int32 total = 1;
+    repeated ParagraphResult results = 2;
+
+    // The text that lead to this results
+    string query = 3;
+    repeated string ematches = 4;
+
+    // Entities related with the query
+    RelationPrefixSearchResponse entity_results = 6;
+}
+
+message SearchResponse {
+    reserved 4;
+    DocumentSearchResponse document = 1;
+    ParagraphSearchResponse paragraph = 2;
+    VectorSearchResponse vector = 3;
+    GraphSearchResponse graph = 5;
+}
+
+message GetShardRequest {
+    noderesources.ShardId shard_id = 1;
+    string vectorset = 2;
+}
+
+message ParagraphItem {
+    string id = 1;
+    repeated string labels = 2;
+}
+
+message DocumentItem {
+    string uuid = 1;
+    string field = 2;
+    repeated string labels = 3;
+}
+
+message StreamRequest {
+    noderesources.ShardId shard_id = 3;
+    StreamFilter filter = 4;
+    optional FilterExpression filter_expression = 5;
+}

@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package nodewriter;
+
+import public "nidx_protos/noderesources.proto";
+
+
+message OpStatus {
+    reserved 3, 4, 5, 6;
+
+    enum Status {
+        OK = 0;
+        WARNING = 1;
+        ERROR = 2;
+    }
+    Status status = 1;
+    string detail = 2;
+}
+
+// Implemented at nucliadb_object_storage
+
+enum TypeMessage {
+    CREATION = 0;
+    DELETION = 1;
+}
+
+enum IndexMessageSource {
+    PROCESSOR = 0;
+    WRITER = 1;
+}
+
+message IndexMessage {
+    string node = 1;
+    string shard = 2;  // physical shard message is for
+    uint64 txid = 3;
+    string resource = 4;
+    TypeMessage typemessage = 5;
+    string reindex_id = 6;
+    optional string partition = 7;
+    string storage_key = 8;
+    string kbid = 9;
+    IndexMessageSource source = 10;
+}
+
+enum VectorType {
+    DENSE_F32 = 0;
+}
+
+message VectorIndexConfig {
+    utils.VectorSimilarity similarity = 1;
+    bool normalize_vectors = 2;
+    VectorType vector_type = 3;
+    optional uint32 vector_dimension = 4;
+}
+
+message NewShardRequest {
+    reserved 1, 3, 4, 5;
+
+    string kbid = 2;
+
+    map<string, VectorIndexConfig> vectorsets_configs = 6;
+    bool prewarm_enabled = 7;
+
+}
+
+message NewVectorSetRequest {
+    reserved 2, 3;
+
+    noderesources.VectorSetID id = 1;
+    VectorIndexConfig config = 4;
+}
