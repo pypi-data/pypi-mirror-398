@@ -1,0 +1,16 @@
+PSQL_FE_MESSAGES = {
+  b'p': "Password message",
+  b'Q': "Simple query",
+  b'P': "Parse",
+  b'B': "Bind",
+  b'E': "Execute",
+  b'D': "Describe",
+  b'C': "Close",
+  b'H': "Flush",
+  b'S': "Sync",
+  b'F': "Function call",
+  b'd': "Copy data",
+  b'c': "Copy completion",
+  b'f': "Copy failure",
+  b'X': "Termination",
+}
