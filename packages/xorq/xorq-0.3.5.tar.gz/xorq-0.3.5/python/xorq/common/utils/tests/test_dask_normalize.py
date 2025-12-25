@@ -1,0 +1,242 @@
+import hashlib
+import operator
+import pathlib
+import re
+from unittest.mock import (
+    Mock,
+    patch,
+)
+
+import dask
+import pytest
+import toolz
+
+import xorq.api as xo
+import xorq.common.utils.dask_normalize  # noqa: F401
+from xorq.caching import (
+    SourceSnapshotCache,
+)
+from xorq.common.utils.dask_normalize import (
+    get_normalize_token_subset,
+)
+from xorq.common.utils.dask_normalize.dask_normalize_utils import (
+    file_digest,
+    gen_batches,
+    manual_file_digest,
+    patch_normalize_token,
+    walk_normalized,
+)
+
+
+def test_ensure_deterministic():
+    assert dask.config.get("tokenize.ensure-deterministic")
+
+
+def test_unregistered_raises():
+    class Unregistered:
+        pass
+
+    with pytest.raises(ValueError, match="cannot be deterministically hashed"):
+        dask.base.tokenize(Unregistered())
+
+
+@pytest.fixture(scope="function")
+def alltypes_df(pg):
+    return pg.table("functional_alltypes").execute()
+
+
+@pytest.fixture(scope="function")
+def batting(pg):
+    return pg.table("batting")
+
+
+@pytest.mark.snapshot_check
+def test_tokenize_datafusion_memory_expr(alltypes_df, snapshot):
+    con = xo.datafusion.connect()
+    t = con.register(alltypes_df, "t")
+    f = Mock(side_effect=toolz.functoolz.return_none)
+    with patch_normalize_token(type(con), f=f):
+        actual = dask.base.tokenize(t)
+    f.assert_not_called()
+    snapshot.assert_match(actual, "datafusion_memory_key.txt")
+
+
+@pytest.mark.snapshot_check
+def test_tokenize_datafusion_parquet_expr(alltypes_df, tmp_path, snapshot):
+    path = pathlib.Path(tmp_path).joinpath("data.parquet")
+    alltypes_df.to_parquet(path)
+    con = xo.datafusion.connect()
+    t = con.register(path, "t")
+    # work around tmp_path variation
+    (prefix, suffix) = (
+        re.escape(part)
+        for part in (
+            r"file_groups={1 group: [[",
+            r"]]",
+        )
+    )
+    to_hash = re.sub(
+        prefix + f".*?/{path.name}" + suffix,
+        prefix + f"/{path.name}" + suffix,
+        str(tuple(dask.base.normalize_token(t))),
+    )
+    actual = hashlib.md5(to_hash.encode(), usedforsecurity=False).hexdigest()
+    snapshot.assert_match(actual, "datafusion_key.txt")
+
+
+@pytest.mark.snapshot_check
+def test_tokenize_pandas_expr(alltypes_df, snapshot):
+    con = xo.pandas.connect()
+    t = con.create_table("t", alltypes_df)
+    f = Mock(side_effect=toolz.functoolz.return_none)
+    with patch_normalize_token(type(t.op().source), f=f):
+        actual = dask.base.tokenize(t)
+    f.assert_not_called()
+    snapshot.assert_match(actual, "pandas_key.txt")
+
+
+@pytest.mark.snapshot_check
+def test_tokenize_duckdb_expr(batting, snapshot):
+    con = xo.duckdb.connect()
+    t = con.register(batting.to_pyarrow(), "dashed-name")
+    f = Mock(side_effect=toolz.functoolz.return_none)
+    with patch_normalize_token(type(con), f=f):
+        actual = dask.base.tokenize(t)
+    f.assert_not_called()
+
+    snapshot.assert_match(actual, "duckdb_key.txt")
+
+
+@pytest.mark.snapshot_check
+def test_pandas_snapshot_key(alltypes_df, snapshot):
+    con = xo.pandas.connect()
+    t = con.create_table("t", alltypes_df)
+    cache = SourceSnapshotCache.from_kwargs(source=con)
+    actual = cache.strategy.calc_key(t)
+    snapshot.assert_match(actual, "pandas_snapshot_key.txt")
+
+
+@pytest.mark.snapshot_check
+def test_duckdb_snapshot_key(batting, snapshot):
+    con = xo.duckdb.connect()
+    t = con.register(batting.to_pyarrow(), "dashed-name")
+    cache = SourceSnapshotCache.from_kwargs(source=con)
+    actual = cache.strategy.calc_key(t)
+    snapshot.assert_match(actual, "duckdb_snapshot_key.txt")
+
+
+@pytest.mark.parametrize(
+    "target, expected",
+    (
+        (1, 1),
+        (1.0, 1),
+        ("two", 2),
+        # bytes are converted to text
+        (b"three", 0),
+        ("three", 3),
+    ),
+)
+def test_walk_normalized(target, expected):
+    normalized = (
+        [
+            (
+                b"three",
+                b"three",
+                1,
+                [
+                    "two",
+                ],
+            ),
+        ],
+        (
+            2,
+            (
+                3,
+                b"three",
+            ),
+            "two",
+        ),
+    )
+    f = toolz.curry(operator.eq, target)
+    actual = sum(walk_normalized(f, normalized))
+    assert actual == expected
+
+
+def test_normalize_token_lookup():
+    assert not get_normalize_token_subset()
+
+
+def test_dask_tokenize_object():
+    class MissingDaskTokenize:
+        pass
+
+    tokenize_value = 1
+
+    class HasDaskTokenize:
+        def __dask_tokenize__(self):
+            return tokenize_value
+
+    assert dask.base.normalize_token(HasDaskTokenize()) == tokenize_value
+    with pytest.raises(ValueError):
+        dask.base.tokenize(MissingDaskTokenize())
+
+
+def test_partitioning():
+    path = pathlib.Path(xo.config.options.pins.get_path("batting"))
+    assert len(tuple(gen_batches(path))) > 1
+    content = b"".join(gen_batches(path))
+    assert content == path.read_bytes()
+
+
+def test_file_digest():
+    path = pathlib.Path(xo.config.options.pins.get_path("batting"))
+    actual = manual_file_digest(path)
+    expected = file_digest(path)
+    assert actual == expected
+
+
+def test_patch_normalize_token():
+    def make_type(name):
+        cls = type(name, (), {})
+        cls.__module__ = name
+        return cls
+
+    names = ("to_retain", "to_drop")
+    name_to_cls = {name: make_type(name) for name in names}
+    name_to_mock = {
+        cls.__module__: Mock(
+            side_effect=toolz.partial(
+                dask.base.normalize_token.register,
+                cls,
+                toolz.functoolz.return_none,
+            ),
+        )
+        for cls in name_to_cls.values()
+    }
+
+    assert not any(
+        cls.__module__ in dask.base.normalize_token._lazy
+        for cls in name_to_cls.values()
+    )
+    assert not any(
+        cls in dask.base.normalize_token._lookup for cls in name_to_cls.values()
+    )
+    values = {name: name_to_mock[name] for name in ("to_retain",)}
+    with patch.dict(
+        dask.base.normalize_token._lazy,
+        values=values,
+    ):
+        with patch_normalize_token(
+            name_to_cls["to_drop"],
+            f=toolz.functoolz.return_none,
+        ):
+            assert name_to_cls["to_retain"] not in dask.base.normalize_token._lookup
+            for name in names:
+                dask.base.tokenize(name_to_cls[name]())
+            for cls in name_to_cls.values():
+                assert cls in dask.base.normalize_token._lookup
+        assert name_to_cls["to_drop"] not in dask.base.normalize_token._lookup
+        assert name_to_cls["to_retain"] in dask.base.normalize_token._lookup
+
+    assert "to_retain" not in dask.base.normalize_token._lookup
+    assert name_to_cls["to_retain"] in dask.base.normalize_token._lookup
