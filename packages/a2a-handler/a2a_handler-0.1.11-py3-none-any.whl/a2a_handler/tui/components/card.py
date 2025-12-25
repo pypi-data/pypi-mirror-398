@@ -1,0 +1,137 @@
+"""Agent card panel component for displaying agent metadata and capabilities."""
+
+import json
+from typing import Any
+
+from a2a.types import AgentCard
+from rich.syntax import Syntax
+from textual.app import ComposeResult
+from textual.binding import Binding
+from textual.containers import Container, VerticalScroll
+from textual.widgets import Static
+
+from a2a_handler.common import get_logger
+
+logger = get_logger(__name__)
+
+TEXTUAL_TO_SYNTAX_THEME_MAP: dict[str, str] = {
+    "gruvbox": "gruvbox-dark",
+    "nord": "nord",
+    "textual-light": "default",
+    "solarized-light": "solarized-light",
+    "dracula": "dracula",
+}
+
+
+class AgentCardPanel(Container):
+    """Panel displaying agent card information with tabs."""
+
+    BINDINGS = [
+        Binding("j", "scroll_down", "↓ Scroll", show=True, key_display="j/↓"),
+        Binding("k", "scroll_up", "↑ Scroll", show=True, key_display="k/↑"),
+        Binding("down", "scroll_down", "Scroll Down", show=False),
+        Binding("up", "scroll_up", "Scroll Up", show=False),
+        Binding("ctrl+d", "scroll_half_down", "½ Page ↓", show=True),
+        Binding("ctrl+u", "scroll_half_up", "½ Page ↑", show=True),
+    ]
+
+    can_focus = True
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Hide scroll actions when no agent card is loaded."""
+        if action in ("scroll_down", "scroll_up", "scroll_half_down", "scroll_half_up"):
+            return self._current_agent_card is not None
+        return True
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._current_agent_card: AgentCard | None = None
+
+    def compose(self) -> ComposeResult:
+        yield Static("Connect to an A2A server", id="placeholder")
+        yield VerticalScroll(
+            Static("", id="agent-raw"),
+            id="raw-scroll",
+        )
+
+    def on_mount(self) -> None:
+        for widget in self.query("VerticalScroll"):
+            widget.can_focus = False
+        self._show_placeholder()
+        logger.debug("Agent card panel mounted")
+
+    def _show_placeholder(self) -> None:
+        """Show the hatch placeholder, hide the raw scroll content."""
+        placeholder = self.query_one("#placeholder", Static)
+        raw_scroll = self.query_one("#raw-scroll", VerticalScroll)
+        placeholder.display = True
+        raw_scroll.display = False
+
+    def _show_content(self) -> None:
+        """Show the raw scroll content, hide the placeholder."""
+        placeholder = self.query_one("#placeholder", Static)
+        raw_scroll = self.query_one("#raw-scroll", VerticalScroll)
+        placeholder.display = False
+        raw_scroll.display = True
+
+    def _get_syntax_theme_for_current_app_theme(self) -> str | None:
+        """Get the Rich Syntax theme name for the current app theme."""
+        current_theme = self.app.theme or ""
+        return TEXTUAL_TO_SYNTAX_THEME_MAP.get(current_theme)
+
+    def update_card(self, agent_card: AgentCard | None) -> None:
+        """Update the displayed agent card."""
+        self._current_agent_card = agent_card
+        self.refresh_bindings()
+
+        raw_view_widget = self.query_one("#agent-raw", Static)
+
+        if agent_card is None:
+            logger.debug("Clearing agent card display")
+            raw_view_widget.update("")
+            self._show_placeholder()
+        else:
+            logger.info("Displaying agent card for: %s", agent_card.name)
+            json_content = json.dumps(agent_card.model_dump(), indent=2, default=str)
+            syntax_theme = self._get_syntax_theme_for_current_app_theme()
+            if syntax_theme:
+                raw_view_widget.update(Syntax(json_content, "json", theme=syntax_theme))
+            else:
+                raw_view_widget.update(json_content)
+            self._show_content()
+
+    def refresh_theme(self) -> None:
+        """Refresh the raw view syntax highlighting for theme changes."""
+        if self._current_agent_card is None:
+            return
+
+        logger.debug("Refreshing syntax theme for agent card raw view")
+        json_content = json.dumps(
+            self._current_agent_card.model_dump(), indent=2, default=str
+        )
+        syntax_theme = self._get_syntax_theme_for_current_app_theme()
+        raw_widget = self.query_one("#agent-raw", Static)
+        if syntax_theme:
+            raw_widget.update(Syntax(json_content, "json", theme=syntax_theme))
+        else:
+            raw_widget.update(json_content)
+
+    def action_scroll_down(self) -> None:
+        """Scroll down in the scroll container."""
+        scroll_container = self.query_one("#raw-scroll", VerticalScroll)
+        scroll_container.scroll_down()
+
+    def action_scroll_up(self) -> None:
+        """Scroll up in the scroll container."""
+        scroll_container = self.query_one("#raw-scroll", VerticalScroll)
+        scroll_container.scroll_up()
+
+    def action_scroll_half_down(self) -> None:
+        """Scroll down half a page."""
+        scroll_container = self.query_one("#raw-scroll", VerticalScroll)
+        scroll_container.scroll_relative(y=scroll_container.size.height // 2)
+
+    def action_scroll_half_up(self) -> None:
+        """Scroll up half a page."""
+        scroll_container = self.query_one("#raw-scroll", VerticalScroll)
+        scroll_container.scroll_relative(y=-(scroll_container.size.height // 2))
