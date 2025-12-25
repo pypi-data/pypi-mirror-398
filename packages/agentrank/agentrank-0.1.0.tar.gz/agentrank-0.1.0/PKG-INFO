@@ -1,0 +1,100 @@
+Metadata-Version: 2.4
+Name: agentrank
+Version: 0.1.0
+Summary: Temporal-aware embedding model for AI agent memory retrieval
+Author-email: Vrushket More <vrushket2604@gmail.com>
+License: Apache-2.0
+Project-URL: Homepage, https://github.com/vmore2/AgentRank-base
+Project-URL: Documentation, https://huggingface.co/vrushket/agentrank-base
+Project-URL: Repository, https://github.com/vmore2/AgentRank-base
+Project-URL: Issues, https://github.com/vmore2/AgentRank-base/issues
+Keywords: embeddings,transformers,ai-agents,memory,retrieval,rag,vector-search,temporal,llm
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: torch>=1.9.0
+Requires-Dist: transformers>=4.20.0
+Requires-Dist: huggingface-hub>=0.14.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: black>=22.0.0; extra == "dev"
+Requires-Dist: flake8>=4.0.0; extra == "dev"
+
+# 🧠 AgentRank
+
+**The First Retrieval Model Family Optimized for AI Agent Memory**
+
+Every existing agent memory system (Mem0, Letta, CogniHive, etc.) uses generic embeddings. AgentRank is the first specialized solution.
+
+## Model Family
+
+| Model | Size | Base | Use Case |
+|-------|------|------|----------|
+| `agentrank-small` | 33M | MiniLM | Edge/fast |
+| `agentrank-base` | 110M | ModernBERT-base | Standard |
+| `agentrank-reranker` | 140M | Cross-encoder | Top-k reranking |
+
+## Novel Features
+
+1. **Temporal Position Embeddings** - Understands when memories were created
+2. **Memory Type Embeddings** - Distinguishes episodic/semantic/procedural
+3. **Importance Prediction** - Auxiliary task for ranking critical memories
+
+## Quick Start
+
+```python
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("vrushank/agentrank-base")
+
+# Encode memories
+memories = [
+    "User prefers dark mode in all applications",
+    "Yesterday we discussed Python debugging",
+    "To deploy: run pytest → build docker → push to ECR"
+]
+embeddings = model.encode(memories)
+
+# Encode query and find relevant memories
+query = "What are the user's UI preferences?"
+query_emb = model.encode(query)
+similarities = model.similarity(query_emb, embeddings)
+```
+
+## Project Structure
+
+```
+agentrank/
+├── data/
+│   ├── generators/      # Memory & query generators
+│   └── datasets/        # Generated training data
+├── models/
+│   ├── embedder.py      # AgentRank embedder
+│   └── reranker.py      # AgentRank reranker
+├── training/
+│   ├── train_embedder.py
+│   └── train_reranker.py
+├── evaluation/
+│   └── agentmembench.py
+└── scripts/
+    ├── generate_data.py
+    └── upload_to_hub.py
+```
+
+## Training Data
+
+- 500K synthetic agent memory traces
+- 3 memory types: Episodic (40%), Semantic (35%), Procedural (25%)
+- 5 types of hard negatives for robust training
+
+## License
+
+Apache 2.0
