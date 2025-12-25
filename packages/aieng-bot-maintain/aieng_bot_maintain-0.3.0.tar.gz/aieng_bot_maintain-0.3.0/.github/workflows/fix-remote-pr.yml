@@ -1,0 +1,653 @@
+name: Fix Remote Repository PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: 'Target repository (e.g., VectorInstitute/repo-name)'
+        required: true
+      pr_number:
+        description: 'PR number to fix'
+        required: true
+
+permissions:
+  contents: read
+  issues: write
+  id-token: write
+
+jobs:
+  fix-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout bot repository
+        uses: actions/checkout@v6
+        with:
+          path: bot-repo
+
+      - name: Get PR details
+        id: pr-details
+        run: |
+          REPO="${{ github.event.inputs.target_repo }}"
+          PR_NUMBER="${{ github.event.inputs.pr_number }}"
+
+          # Get PR information including mergeable status
+          PR_INFO=$(gh pr view $PR_NUMBER --repo "$REPO" --json \
+            title,author,headRefName,headRepository,headRepositoryOwner,statusCheckRollup,baseRefName,mergeable)
+
+          echo "PR Info:"
+          echo "$PR_INFO" | jq '.'
+
+          # Extract details
+          HEAD_REF=$(echo "$PR_INFO" | jq -r '.headRefName')
+          BASE_REF=$(echo "$PR_INFO" | jq -r '.baseRefName')
+          PR_TITLE=$(echo "$PR_INFO" | jq -r '.title')
+          PR_AUTHOR=$(echo "$PR_INFO" | jq -r '.author.login')
+          MERGEABLE=$(echo "$PR_INFO" | jq -r '.mergeable')
+
+          echo "head-ref=$HEAD_REF" >> $GITHUB_OUTPUT
+          echo "base-ref=$BASE_REF" >> $GITHUB_OUTPUT
+          echo "pr-title=$PR_TITLE" >> $GITHUB_OUTPUT
+          echo "pr-author=$PR_AUTHOR" >> $GITHUB_OUTPUT
+          echo "mergeable=$MERGEABLE" >> $GITHUB_OUTPUT
+
+          # Get failed checks
+          FAILED_CHECKS=$(echo "$PR_INFO" | jq -c '[.statusCheckRollup[] | select(.conclusion == "FAILURE")]')
+          echo "failed-checks=$FAILED_CHECKS" >> $GITHUB_OUTPUT
+
+          FAILED_COUNT=$(echo "$FAILED_CHECKS" | jq 'length')
+          echo "Found $FAILED_COUNT failed checks"
+          echo "PR mergeable status: $MERGEABLE"
+        env:
+          GH_TOKEN: ${{ secrets.ORG_ACCESS_TOKEN }}
+
+      - name: Checkout target repository PR branch
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.inputs.target_repo }}
+          ref: refs/pull/${{ github.event.inputs.pr_number }}/head
+          token: ${{ secrets.ORG_ACCESS_TOKEN }}
+          path: target-repo
+          fetch-depth: 0
+
+      - name: Configure git for agent
+        working-directory: target-repo
+        run: |
+          git config user.name "aieng-bot-maintain[bot]"
+          git config user.email "aieng-bot@vectorinstitute.ai"
+
+      - name: Attempt merge to expose conflicts
+        id: merge-attempt
+        working-directory: target-repo
+        run: |
+          MERGEABLE='${{ steps.pr-details.outputs.mergeable }}'
+          BASE_REF="${{ steps.pr-details.outputs.base-ref }}"
+
+          # If PR has merge conflicts, attempt merge to create conflict markers
+          if [ "$MERGEABLE" = "CONFLICTING" ]; then
+            echo "PR has merge conflicts - attempting merge to expose conflict markers"
+
+            # Fetch the base branch
+            git fetch origin "$BASE_REF"
+
+            # Attempt to merge (this will fail and create conflict markers)
+            if ! git merge "origin/$BASE_REF" --no-edit; then
+              echo "✓ Merge failed as expected - conflict markers are now in files"
+              echo "conflicts-exposed=true" >> $GITHUB_OUTPUT
+
+              # Show which files have conflicts
+              echo "Files with conflicts:"
+              git diff --name-only --diff-filter=U
+            else
+              echo "⚠️  Merge succeeded unexpectedly - PR may no longer have conflicts"
+              echo "conflicts-exposed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "PR is mergeable - no conflict exposure needed"
+            echo "conflicts-exposed=false" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Get failure logs
+        id: get-logs
+        run: |
+          REPO="${{ github.event.inputs.target_repo }}"
+          FAILED_CHECKS='${{ steps.pr-details.outputs.failed-checks }}'
+
+          echo "Extracting failure logs from failed checks..."
+
+          # Extract job URLs and fetch their logs
+          > /tmp/failure-logs.txt
+
+          echo "$FAILED_CHECKS" | jq -r '.[].detailsUrl' | while read -r JOB_URL; do
+            if [ -n "$JOB_URL" ]; then
+              # Extract run ID and job ID from URL
+              # Format: https://github.com/OWNER/REPO/actions/runs/RUN_ID/job/JOB_ID
+              RUN_ID=$(echo "$JOB_URL" | grep -oP 'runs/\K[0-9]+')
+              JOB_ID=$(echo "$JOB_URL" | grep -oP 'job/\K[0-9]+')
+
+              echo "Fetching logs for job $JOB_ID in run $RUN_ID"
+
+              # Fetch full run logs
+              gh run view "$RUN_ID" --repo "$REPO" --log > /tmp/full-logs.txt 2>&1 || continue
+
+              # Extract relevant failure sections (errors, failures, security issues)
+              grep -i -E "(error|fail|traceback|exception|exit code [^0]|vulnerability|vulnerabilities|CVE-|GHSA-|audit|found [0-9]+ known)" /tmp/full-logs.txt | tail -2000 >> /tmp/failure-logs.txt || true
+
+              # Also get the last 1000 lines which often contain the summary
+              tail -1000 /tmp/full-logs.txt >> /tmp/failure-logs.txt
+
+              rm -f /tmp/full-logs.txt
+            fi
+          done
+
+          # If we got no logs, try fallback method
+          if [ ! -s /tmp/failure-logs.txt ]; then
+            echo "No logs from specific jobs, trying fallback..."
+            HEAD_REF="${{ steps.pr-details.outputs.head-ref }}"
+            RUN_ID=$(gh run list --repo "$REPO" --branch "$HEAD_REF" --limit 5 \
+              --json databaseId,status,conclusion \
+              --jq '.[] | select(.conclusion == "failure") | .databaseId' | head -1)
+
+            if [ -n "$RUN_ID" ]; then
+              gh run view $RUN_ID --repo "$REPO" --log > /tmp/full-logs.txt 2>&1
+              grep -i -E "(error|fail|traceback|exception|exit code [^0]|vulnerability|vulnerabilities|CVE-|GHSA-|audit|found [0-9]+ known)" /tmp/full-logs.txt | tail -2000 > /tmp/failure-logs.txt || true
+              tail -1000 /tmp/full-logs.txt >> /tmp/failure-logs.txt
+              rm -f /tmp/full-logs.txt
+            fi
+          fi
+
+          # Log the size of extracted logs
+          if [ -f /tmp/failure-logs.txt ] && [ -s /tmp/failure-logs.txt ]; then
+            echo "Extracted $(wc -l < /tmp/failure-logs.txt) lines of failure logs"
+          else
+            echo "No failure logs could be extracted" > /tmp/failure-logs.txt
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.ORG_ACCESS_TOKEN }}
+
+      - name: Setup Python for classification
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install classifier dependencies
+        run: |
+          cd bot-repo
+          pip install -e .
+
+      - name: Analyze failure type with Claude
+        id: analyze
+        working-directory: target-repo
+        run: |
+          FAILED_CHECKS='${{ steps.pr-details.outputs.failed-checks }}'
+          MERGEABLE='${{ steps.pr-details.outputs.mergeable }}'
+
+          echo "Analyzing failures with Claude-based classifier..."
+          echo "$FAILED_CHECKS" | jq -r '.[] | "\(.name): \(.conclusion)"'
+
+          # Check for merge conflicts first via PR mergeable status
+          if [ "$MERGEABLE" = "CONFLICTING" ]; then
+            echo "failure-type=merge_conflict" >> $GITHUB_OUTPUT
+            echo "failed-check-names=merge-conflict" >> $GITHUB_OUTPUT
+            echo "confidence=1.0" >> $GITHUB_OUTPUT
+            echo "reasoning=PR has merge conflicts with base branch (mergeable=CONFLICTING)" >> $GITHUB_OUTPUT
+            echo "✓ Detected merge conflicts via PR mergeable status"
+            exit 0
+          fi
+
+          # Also check git status as fallback
+          if git status | grep -q "Unmerged paths\|merge conflict"; then
+            echo "failure-type=merge_conflict" >> $GITHUB_OUTPUT
+            echo "failed-check-names=merge-conflict" >> $GITHUB_OUTPUT
+            echo "confidence=1.0" >> $GITHUB_OUTPUT
+            echo "reasoning=Git merge conflicts detected in working tree" >> $GITHUB_OUTPUT
+            echo "✓ Detected merge conflicts via git status"
+            exit 0
+          fi
+
+          # Prepare PR context JSON
+          PR_INFO=$(jq -n \
+            --arg repo "${{ github.event.inputs.target_repo }}" \
+            --arg pr_number "${{ github.event.inputs.pr_number }}" \
+            --arg pr_title "${{ steps.pr-details.outputs.pr-title }}" \
+            --arg pr_author "${{ steps.pr-details.outputs.pr-author }}" \
+            --arg base_ref "${{ steps.pr-details.outputs.base-ref }}" \
+            --arg head_ref "${{ steps.pr-details.outputs.head-ref }}" \
+            '{repo: $repo, pr_number: $pr_number, pr_title: $pr_title, pr_author: $pr_author, base_ref: $base_ref, head_ref: $head_ref}')
+
+          # Check if failure logs file exists
+          if [ ! -f /tmp/failure-logs.txt ]; then
+            echo "⚠️  Warning: Failure logs file not found at /tmp/failure-logs.txt"
+            echo "No failure logs could be extracted" > /tmp/failure-logs.txt
+          fi
+
+          echo "Failure logs file size: $(wc -c < /tmp/failure-logs.txt) bytes"
+          echo "Failure logs file lines: $(wc -l < /tmp/failure-logs.txt) lines"
+
+          # Run Python classifier (using installed CLI entry point)
+          # Pass file path instead of content to avoid bash variable size limits
+          cd ../bot-repo
+
+          echo "Running classifier..."
+          if ! classify-pr-failure \
+            --pr-info "$PR_INFO" \
+            --failed-checks "$FAILED_CHECKS" \
+            --failure-logs-file /tmp/failure-logs.txt \
+            --output-format github > /tmp/classification-output.txt 2> /tmp/classification-error.txt; then
+            echo "❌ Classification failed with exit code $?"
+            echo "STDOUT:"
+            cat /tmp/classification-output.txt || echo "(no stdout)"
+            echo ""
+            echo "STDERR:"
+            cat /tmp/classification-error.txt || echo "(no stderr)"
+            exit 1
+          fi
+
+          CLASSIFICATION=$(cat /tmp/classification-output.txt)
+
+          # Parse and output results
+          echo "$CLASSIFICATION" >> $GITHUB_OUTPUT
+          echo "Classification results:"
+          echo "$CLASSIFICATION"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Prepare for agent execution
+        id: prepare
+        run: |
+          FAILURE_TYPE="${{ steps.analyze.outputs.failure-type }}"
+          CONFIDENCE="${{ steps.analyze.outputs.confidence }}"
+          REASONING="${{ steps.analyze.outputs.reasoning }}"
+
+          echo "Classification: $FAILURE_TYPE (confidence: $CONFIDENCE)"
+          echo "Reasoning: $REASONING"
+
+          # Skip unknown failure types
+          if [ "$FAILURE_TYPE" = "unknown" ]; then
+            echo "Failure type is unknown - skipping automated fix attempt"
+            echo "Reasoning: $REASONING"
+            echo "should-skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Verify failure type is supported
+          case "$FAILURE_TYPE" in
+            merge_conflict|test|lint|security|build)
+              echo "✓ Failure type '$FAILURE_TYPE' is supported"
+              ;;
+            *)
+              echo "Unsupported failure type: $FAILURE_TYPE - skipping"
+              echo "should-skip=true" >> $GITHUB_OUTPUT
+              exit 0
+              ;;
+          esac
+
+          # Copy skills to target-repo so agent can use them
+          echo "Copying Claude Code skills to target repository..."
+          cp -r bot-repo/.claude target-repo/.claude
+          echo "✓ Skills copied to target-repo/.claude/"
+
+          # Copy failure logs to target-repo so agent can read it
+          if [ -f /tmp/failure-logs.txt ]; then
+            cp /tmp/failure-logs.txt target-repo/.failure-logs.txt
+            echo "✓ Failure logs copied to target-repo/.failure-logs.txt"
+          else
+            echo "⚠️  Warning: No failure logs found at /tmp/failure-logs.txt"
+          fi
+
+          echo "should-skip=false" >> $GITHUB_OUTPUT
+          echo "Ready to apply fixes using skills"
+
+      - name: Install Claude Code CLI
+        if: steps.prepare.outputs.should-skip != 'true'
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Setup Python for Agent SDK
+        if: steps.prepare.outputs.should-skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: bot-repo/.python-version
+
+      - name: Install uv (Python package manager)
+        if: steps.prepare.outputs.should-skip != 'true'
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Authenticate to Google Cloud
+        if: steps.prepare.outputs.should-skip != 'true'
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+        continue-on-error: true
+
+      - name: Set up Cloud SDK
+        if: steps.prepare.outputs.should-skip != 'true'
+        uses: google-github-actions/setup-gcloud@v3
+        continue-on-error: true
+
+      - name: Apply AI fixes using Claude Agent SDK with Skills
+        if: steps.prepare.outputs.should-skip != 'true'
+        id: claude-fix
+        working-directory: target-repo
+        run: |
+          # Apply fixes using skills from .claude/skills/
+          apply-agent-fix \
+            --repo "${{ github.event.inputs.target_repo }}" \
+            --pr-number "${{ github.event.inputs.pr_number }}" \
+            --pr-title "${{ steps.pr-details.outputs.pr-title }}" \
+            --pr-author "${{ steps.pr-details.outputs.pr-author }}" \
+            --pr-url "https://github.com/${{ github.event.inputs.target_repo }}/pull/${{ github.event.inputs.pr_number }}" \
+            --failure-type "${{ steps.analyze.outputs.failure-type }}" \
+            --failed-check-names "${{ steps.analyze.outputs.failed-check-names }}" \
+            --failure-logs-file ".failure-logs.txt" \
+            --workflow-run-id "${{ github.run_id }}" \
+            --github-run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --cwd "$(pwd)"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        continue-on-error: false
+
+      - name: Upload trace to GCS
+        if: always()
+        working-directory: target-repo
+        run: |
+          if [ -f /tmp/agent-execution-trace.json ]; then
+            # Generate date-based path: traces/YYYY/MM/DD/
+            DATE_PATH=$(date -u +"%Y/%m/%d")
+
+            # Generate filename: repo-name-pr-123-runid.json
+            REPO_NAME=$(echo "${{ github.event.inputs.target_repo }}" | sed 's/\//-/g')
+            TRACE_FILE="$REPO_NAME-pr-${{ github.event.inputs.pr_number }}-${{ github.run_id }}.json"
+
+            DEST_PATH="traces/$DATE_PATH/$TRACE_FILE"
+
+            echo "Uploading trace to gs://bot-dashboard-vectorinstitute/$DEST_PATH"
+
+            gcloud storage cp /tmp/agent-execution-trace.json \
+              "gs://bot-dashboard-vectorinstitute/$DEST_PATH" \
+              --content-type="application/json" \
+              --cache-control="no-cache, no-store, must-revalidate" || {
+              echo " Failed to upload trace to GCS, will rely on GitHub artifact"
+            }
+
+            # Save trace URL for PR comment
+            echo "trace_url=https://storage.googleapis.com/bot-dashboard-vectorinstitute/$DEST_PATH" >> $GITHUB_OUTPUT
+
+            # Update traces index for faster lookups
+            cat > /tmp/trace-index-entry.json << EOF
+            {
+              "repo": "${{ github.event.inputs.target_repo }}",
+              "pr_number": ${{ github.event.inputs.pr_number }},
+              "trace_path": "$DEST_PATH",
+              "workflow_run_id": "${{ github.run_id }}",
+              "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            }
+          EOF
+
+            # Download existing index or create new one
+            if gcloud storage cp gs://bot-dashboard-vectorinstitute/data/traces_index.json /tmp/traces_index.json 2>/dev/null; then
+              echo "Downloaded existing traces index"
+            else
+              echo '{"traces": [], "last_updated": ""}' > /tmp/traces_index.json
+              echo "Created new traces index"
+            fi
+
+            # Append new entry to index
+            jq --slurpfile entry /tmp/trace-index-entry.json \
+              '.traces += $entry | .last_updated = "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"' \
+              /tmp/traces_index.json > /tmp/traces_index_updated.json
+
+            # Upload updated index back to GCS
+            gcloud storage cp /tmp/traces_index_updated.json \
+              gs://bot-dashboard-vectorinstitute/data/traces_index.json \
+              --content-type="application/json" \
+              --cache-control="no-cache, no-store, must-revalidate" || {
+              echo " Failed to update traces index"
+            }
+
+            echo "✓ Trace uploaded successfully and index updated"
+
+            # Also record to activity log for unified dashboard view
+            echo "📊 Recording bot fix activity to activity log..."
+
+            # Extract key info from trace
+            TRACE_STATUS=$(jq -r '.result.status' /tmp/agent-execution-trace.json)
+            FAILURE_TYPE=$(jq -r '.metadata.failure.type' /tmp/agent-execution-trace.json)
+            FIX_TIME=$(jq -r '.execution.duration_seconds / 3600' /tmp/agent-execution-trace.json)
+
+            # Create activity entry
+            ACTIVITY_JSON=$(cat <<ACTIVITY_EOF
+            {
+              "type": "bot_fix",
+              "repo": "${{ github.event.inputs.target_repo }}",
+              "pr_number": ${{ github.event.inputs.pr_number }},
+              "pr_title": "${{ steps.pr-details.outputs.title }}",
+              "pr_author": "${{ steps.pr-details.outputs.author }}",
+              "pr_url": "https://github.com/${{ github.event.inputs.target_repo }}/pull/${{ github.event.inputs.pr_number }}",
+              "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+              "workflow_run_id": "${{ github.run_id }}",
+              "github_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "status": "$TRACE_STATUS",
+              "failure_type": "$FAILURE_TYPE",
+              "trace_path": "$DEST_PATH",
+              "fix_time_hours": $FIX_TIME
+            }
+          ACTIVITY_EOF
+            )
+
+            # Download existing activity log or create new one
+            ACTIVITY_LOG="/tmp/bot_activity_log.json"
+            if gcloud storage cp gs://bot-dashboard-vectorinstitute/data/bot_activity_log.json "$ACTIVITY_LOG" 2>/dev/null; then
+              echo "✓ Downloaded existing activity log"
+            else
+              echo '{"activities": [], "last_updated": null}' > "$ACTIVITY_LOG"
+              echo "✓ Created new activity log"
+            fi
+
+            # Append new activity and update timestamp
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            jq --argjson new_activity "$ACTIVITY_JSON" \
+               --arg timestamp "$TIMESTAMP" \
+               '.activities += [$new_activity] | .last_updated = $timestamp' \
+               "$ACTIVITY_LOG" > /tmp/updated_activity_log.json
+
+            # Upload back to GCS
+            gcloud storage cp /tmp/updated_activity_log.json gs://bot-dashboard-vectorinstitute/data/bot_activity_log.json \
+              --content-type=application/json \
+              --cache-control="no-cache, no-store, must-revalidate" || {
+              echo " Failed to update activity log"
+            }
+
+            echo "✓ Bot fix activity recorded to GCS"
+          else
+            echo " No trace file found at /tmp/agent-execution-trace.json"
+          fi
+        continue-on-error: true
+        id: upload-trace
+
+      - name: Upload trace as GitHub artifact (backup)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-trace-${{ github.event.inputs.pr_number }}-${{ github.run_id }}
+          path: /tmp/agent-execution-trace.json
+          retention-days: 90
+        continue-on-error: true
+
+      - name: Check for changes and push
+        if: steps.prepare-prompt.outputs.should-skip != 'true'
+        id: push-fixes
+        working-directory: target-repo
+        run: |
+          # Remove failure logs file (don't commit it to the repo)
+          rm -f .failure-logs.txt
+
+          # Check if Agent SDK created a commit (check if HEAD differs from remote)
+          git fetch origin ${{ steps.pr-details.outputs.head-ref }}
+
+          if ! git diff --quiet HEAD FETCH_HEAD; then
+            echo " Agent SDK made changes, pushing commit..."
+
+            # Push the commit created by Agent SDK
+            git push origin HEAD:${{ steps.pr-details.outputs.head-ref }}
+
+            echo "changes-pushed=true" >> $GITHUB_OUTPUT
+            echo " Fixes pushed to PR"
+          elif [ -n "$(git status --porcelain)" ]; then
+            echo "Uncommitted changes detected, committing..."
+
+            git config user.name "aieng-bot-maintain[bot]"
+            git config user.email "aieng-bot@vectorinstitute.ai"
+            git add -A
+
+            cat > /tmp/commit-message.txt <<EOF
+          Fix ${{ steps.analyze.outputs.primary-type }} failures after dependency updates
+
+          Automated fixes applied by AI Engineering Maintenance Bot
+
+          Fixes: ${{ steps.analyze.outputs.failed-names }}
+
+          Co-authored-by: AI Engineering Maintenance Bot <aieng-bot@vectorinstitute.ai>
+          EOF
+
+            git commit -F /tmp/commit-message.txt
+            git push origin HEAD:${{ steps.pr-details.outputs.head-ref }}
+
+            echo "changes-pushed=true" >> $GITHUB_OUTPUT
+            echo " Fixes pushed to PR"
+          else
+            echo "changes-pushed=false" >> $GITHUB_OUTPUT
+            echo "  No changes to push"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.ORG_ACCESS_TOKEN }}
+        continue-on-error: true
+
+      - name: Comment on PR - Result
+        if: steps.push-fixes.outputs.changes-pushed == 'true'
+        run: |
+          REPO="${{ github.event.inputs.target_repo }}"
+          PR_NUMBER="${{ github.event.inputs.pr_number }}"
+          FAILURE_TYPE="${{ steps.analyze.outputs.primary-type }}"
+
+          # Read the fix summary if available
+          FIX_SUMMARY=""
+          if [ -f /tmp/fix-summary.txt ]; then
+            FIX_SUMMARY=$(cat /tmp/fix-summary.txt)
+          fi
+
+          TRACE_URL="${{ steps.upload-trace.outputs.trace_url }}"
+          DASHBOARD_URL="https://catalog.vectorinstitute.ai/aieng-bot-maintain"
+
+          echo "**Automated fix applied**" > /tmp/pr-result.txt
+          echo "" >> /tmp/pr-result.txt
+          echo "Fixed ${FAILURE_TYPE} failures after dependency updates." >> /tmp/pr-result.txt
+          echo "" >> /tmp/pr-result.txt
+
+          if [ -n "$FIX_SUMMARY" ]; then
+            echo "$FIX_SUMMARY" >> /tmp/pr-result.txt
+            echo "" >> /tmp/pr-result.txt
+          fi
+
+          echo "CI checks will re-run automatically." >> /tmp/pr-result.txt
+          echo "" >> /tmp/pr-result.txt
+          echo "**[View detailed trace on dashboard](${DASHBOARD_URL})** | [Raw trace](${TRACE_URL})" >> /tmp/pr-result.txt
+          echo "" >> /tmp/pr-result.txt
+          echo "*AI Engineering Maintenance Bot*" >> /tmp/pr-result.txt
+
+          gh pr comment $PR_NUMBER --repo "$REPO" --body-file /tmp/pr-result.txt
+        env:
+          GH_TOKEN: ${{ secrets.ORG_ACCESS_TOKEN }}
+
+      - name: Wait for checks to complete
+        if: steps.apply-fix.outcome == 'success'
+        id: wait-checks
+        run: |
+          REPO="${{ github.event.inputs.target_repo }}"
+          PR_NUMBER="${{ github.event.inputs.pr_number }}"
+
+          echo "✓ Fix pushed successfully"
+          echo "Waiting for CI checks to complete before triggering auto-merge..."
+          echo ""
+
+          MAX_WAIT_MINUTES=15
+          CHECK_INTERVAL=30  # Check every 30 seconds
+          MAX_ATTEMPTS=$((MAX_WAIT_MINUTES * 60 / CHECK_INTERVAL))
+          ATTEMPT=1
+
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "⏳ Check attempt $ATTEMPT/$MAX_ATTEMPTS (waiting ${CHECK_INTERVAL}s between checks)..."
+
+            # Get check status
+            STATUS=$(gh pr view $PR_NUMBER --repo "$REPO" --json statusCheckRollup --jq '
+              .statusCheckRollup
+              | if . == null or length == 0 then
+                  "NO_CHECKS"
+                else
+                  if any(.conclusion == null or .conclusion == "" or .status == "IN_PROGRESS" or .status == "QUEUED" or .status == "PENDING") then
+                    "RUNNING"
+                  elif any(.conclusion == "FAILURE") then
+                    "FAILED"
+                  else
+                    "COMPLETED"
+                  end
+                end
+            ')
+
+            echo "  Status: $STATUS"
+
+            if [ "$STATUS" = "COMPLETED" ]; then
+              echo ""
+              echo "✅ All checks completed successfully!"
+              echo "checks_completed=true" >> $GITHUB_OUTPUT
+              break
+            elif [ "$STATUS" = "FAILED" ]; then
+              echo ""
+              echo "❌ Some checks failed. Will not trigger auto-merge."
+              echo "   The monitor workflow will re-attempt fixes on its next run."
+              echo "checks_completed=false" >> $GITHUB_OUTPUT
+              exit 0
+            elif [ "$STATUS" = "NO_CHECKS" ] && [ $ATTEMPT -gt 2 ]; then
+              # If no checks after 1 minute, something might be wrong
+              echo ""
+              echo "⚠️  No checks found on PR. This might indicate:"
+              echo "   - Repository has no CI configured"
+              echo "   - Checks haven't started yet (will retry)"
+              echo ""
+            fi
+
+            # If this is the last attempt, give up and let scheduled monitor handle it
+            if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+              echo ""
+              echo "⏱️  Timeout: Checks still running after ${MAX_WAIT_MINUTES} minutes"
+              echo "   Will not trigger auto-merge now."
+              echo "   The monitor workflow (runs every 6h) will merge when checks complete."
+              echo "checks_completed=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            sleep $CHECK_INTERVAL
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+        env:
+          GH_TOKEN: ${{ secrets.ORG_ACCESS_TOKEN }}
+
+      - name: Trigger monitor workflow for auto-merge
+        if: steps.wait-checks.outputs.checks_completed == 'true'
+        run: |
+          echo "🚀 Triggering monitor workflow to auto-merge PR..."
+          echo ""
+
+          # Trigger the monitor workflow to check and merge the PR
+          gh workflow run monitor-org-bot-prs.yml \
+            --repo VectorInstitute/aieng-bot-maintain
+
+          echo "✓ Monitor workflow triggered"
+          echo "  It will check the PR and auto-merge if all conditions are met."
+        env:
+          GH_TOKEN: ${{ secrets.ORG_ACCESS_TOKEN }}
