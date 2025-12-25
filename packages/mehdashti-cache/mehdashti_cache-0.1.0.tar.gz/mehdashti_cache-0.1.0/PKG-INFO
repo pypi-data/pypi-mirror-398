@@ -1,0 +1,104 @@
+Metadata-Version: 2.4
+Name: mehdashti-cache
+Version: 0.1.0
+Summary: Caching utilities with Redis and Memory providers for Smart Platform
+Project-URL: Homepage, https://github.com/mehdashti/smart-platform
+Project-URL: Repository, https://github.com/mehdashti/smart-platform
+Project-URL: Issues, https://github.com/mehdashti/smart-platform/issues
+Author-email: mehdashti <mehdashti@gmail.com>
+License: MIT
+Keywords: cache,fastapi,redis,smart-platform
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: FastAPI
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.13
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: redis>=5.0.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Smart Cache
+
+Caching utilities with Redis and Memory providers for Smart Platform.
+
+## Features
+
+- **Multiple Providers**: Redis and in-memory caching
+- **Async/Await**: Full async support
+- **TTL Support**: Time-based expiration
+- **Decorators**: Easy function caching
+- **Type Safe**: Full type hints
+
+## Installation
+
+```bash
+pip install smart-cache
+```
+
+## Usage
+
+### Memory Cache
+
+```python
+from mehdashti_cache import MemoryCache, cached
+
+# Initialize cache
+cache = MemoryCache(cleanup_interval=60)
+await cache.start_cleanup()
+
+# Use directly
+await cache.set("user:1", {"name": "John"}, ttl=300)
+user = await cache.get("user:1")
+
+# Use as decorator
+@cached(cache, ttl=300)
+async def get_user(user_id: int):
+    # Expensive operation
+    return await db.get_user(user_id)
+```
+
+### Redis Cache
+
+```python
+from mehdashti_cache import RedisCache, cached
+
+# Initialize cache
+cache = RedisCache(redis_url="redis://localhost:6379/0")
+
+# Use directly
+await cache.set("user:1", {"name": "John"}, ttl=300)
+user = await cache.get("user:1")
+
+# Use as decorator
+@cached(cache, ttl=300, key_prefix="user")
+async def get_user(user_id: int):
+    return await db.get_user(user_id)
+```
+
+## API
+
+### CacheProvider
+
+Base interface for all cache providers.
+
+- `get(key)`: Get value
+- `set(key, value, ttl)`: Set value
+- `delete(key)`: Delete value
+- `exists(key)`: Check if exists
+- `clear()`: Clear all
+- `get_many(keys)`: Get multiple values
+- `set_many(items, ttl)`: Set multiple values
+- `delete_many(keys)`: Delete multiple values
+- `get_ttl(key)`: Get remaining TTL
+
+## License
+
+MIT
