@@ -1,0 +1,224 @@
+name: "User Greeting Workflow"
+description: "Collects user information and provides a personalized greeting"
+version: "1.0"
+agent_framework: "crewai"
+
+data:
+  - name: name
+    type: text
+    description: "User's name"
+  - name: age
+    type: number
+    description: "User's age in years"
+  - name: weight
+    type: double
+    description: "User's weight in years"
+  - name: height
+    type: number
+    description: "User's height in years"
+  - name: phone_number
+    type: number
+    description: "User's phone number in years"
+  - name: greeting_message
+    type: text
+    description: "Final greeting message"
+  - name: state
+    type: text
+    description: "User's state"
+
+
+steps:
+  - id: get_name
+    action: collect_input_with_agent
+    field: name
+    retry_limit: 3
+    validator: "validator.validate_name"
+    agent:
+      name: "NameCollector"
+      model: "qwen/qwen3-coder-30b"
+      description: "Node to collect name of the user"
+      initial_message: "Please provide your name."
+      instructions: |
+        Your goal is to capture the user's name.
+
+        IMPORTANT: If this is the FIRST interaction (no user message yet), greet the user warmly and ask for their name.
+
+        If the user has provided a response, validate it:
+        - If it's a valid name, then captured_name should be true
+        - If it's invalid/empty, ask again politely and explain what you need
+        - Only make captured_name false after max attempts are exhausted (rare case)
+        - Only use bot_response if you want to respond to user's question or you need more information from the user, otherwise dont use it.
+        - Otherwise, just set captured_name to true or false.
+
+        Examples:
+        - First interaction (no prior messages) -> "Hello! I'd love to get to know you. What's your name?"
+        - User says 'John' -> captured_name should be true
+        - User says 'My name is Sarah' -> captured_name should be true
+        - User says '' (empty) -> "I didn't catch that. Could you please tell me your name?"
+      structured_output:
+        enabled: true
+        fields:
+          - name: captured_name
+            type: boolean
+            description: "Name captured successfully"
+            required: true
+    transitions:
+      - match: true
+        next: get_age
+        ref: captured_name
+
+  - id: get_age
+    action: collect_input_with_agent
+    field: age
+    retry_limit: 3
+    validator: "validator.validate_age"
+    agent:
+      name: "AgeCollector"
+      model: "qwen/qwen3-coder-30b"
+      description: "Node to collect age of the user"
+      initial_message: "Please enter your age"
+      instructions: |
+        Your goal is to capture the user's age as a number.
+
+        IMPORTANT: If this is the FIRST interaction for collecting age, ask them for their age in a friendly way.
+
+        If the user has provided a response, validate it:
+        - Age must be a valid integer between 1 and 150
+        - If valid, respond with ONLY: 'AGE_CAPTURED: [age]'
+        - If invalid, ask again politely and explain the valid range
+        - Only use 'AGE_FAILED:' after max attempts are exhausted (rare case)
+
+        Examples:
+        - First interaction -> "Great! How old are you?"
+        - User says '25' -> respond: 'AGE_CAPTURED: 25'
+        - User says 'I am 30 years old' -> respond: 'AGE_CAPTURED: 30'
+        - User says '999' -> "That doesn't seem right. Could you provide your age? It should be between 1 and 150."
+    transitions:
+      - pattern: "AGE_CAPTURED:"
+        next: get_weight
+      - pattern: "AGE_FAILED:"
+        next: end_failed
+
+  - id: get_weight
+    action: collect_input_with_agent
+    field: weight
+    depends_on: age
+    retry_limit: 3
+    agent:
+      name: "WeightCollector"
+      model: "qwen/qwen3-coder-30b"
+      description: "Node to collect weight of the user"
+      initial_message: "Please enter your weight"
+      instructions: |
+        Your goal is to capture the user's weight as a number.
+
+        IMPORTANT: If this is the FIRST interaction for collecting weight, ask them for their weight in a friendly way.
+
+        If the user has provided a response, validate it:
+        - Weight must be a valid integer between 1 and 300
+        - If valid, respond with ONLY: 'WEIGHT_CAPTURED: [weight]'
+        - If invalid, ask again politely and explain the valid range
+        - Only use 'WEIGHT_FAILED:' after max attempts are exhausted (rare case)
+
+        Examples:
+        - First interaction -> "Great! may I know your weight?"
+        - User says '25' -> respond: 'WEIGHT_CAPTURED: 25'
+        - User says 'I am 30kg' -> respond: 'WEIGHT_CAPTURED: 30'
+        - User says '999' -> "That doesn't seem right. Could you provide your weight? It should be between 1 and 300."
+    transitions:
+      - pattern: "WEIGHT_CAPTURED:"
+        next: get_height
+      - pattern: "WEIGHT_FAILED:"
+        next: end_failed
+
+  - id: get_height
+    action: collect_input_with_agent
+    field: height
+    depends_on: weight
+    retry_limit: 3
+    agent:
+      name: "HeightCollector"
+      model: "qwen/qwen3-coder-30b"
+      description: "Node to collect height of the user"
+      initial_message: "Please enter your height"
+      instructions: |
+        Your goal is to capture the user's height as a number.
+
+        IMPORTANT: If this is the FIRST interaction for collecting height, ask them for their height in a friendly way.
+
+        If the user has provided a response, validate it:
+        - Height must be a valid integer between 1 and 300
+        - If valid, respond with ONLY: 'HEIGHT_CAPTURED: [height]'
+        - If invalid, ask again politely and explain the valid range
+        - Only use 'HEIGHT_FAILED:' after max attempts are exhausted (rare case)
+        
+        Examples:
+        - First interaction -> "Great! may I know your height?"
+        - User says '25' -> respond: 'HEIGHT_CAPTURED: 25'
+        - User says 'I am 30cm' -> respond: 'HEIGHT_CAPTURED: 30'
+        - User says '999' -> "That doesn't seem right. Could you provide your height? It should be between 1 and 300."
+    transitions:
+      - pattern: "HEIGHT_CAPTURED:"
+        next: get_phone_number
+      - pattern: "HEIGHT_FAILED:"
+        next: end_failed
+
+  - id: get_phone_number
+    action: collect_input_with_agent
+    field: phone_number
+    depends_on: height
+    retry_limit: 3
+    agent:
+      name: "PhoneNumberCollector"
+      model: "qwen/qwen3-coder-30b"
+      description: "Node to collect phone number of the user"
+      initial_message: "Please enter your phone number"
+      instructions: |
+        Your goal is to capture the user's phone number.
+
+        IMPORTANT: If this is the FIRST interaction for collecting phone number, ask them for their phone number in a friendly way.
+        
+        Use the available tool to list all states in India.
+        
+        If the user has provided a response, validate it:
+        - Phone number must be a valid format (e.g., 123-456-7890)
+        - If valid, respond with ONLY: 'PHONE_NUMBER_CAPTURED: [phone_number]'
+        - If invalid, ask again politely and explain the valid format
+        - Only use 'PHONE_NUMBER_FAILED:' after max attempts are exhausted (rare case)
+
+        Examples:
+        - First interaction -> "Great! may I know your phone number?"
+        - User says '123-456-7890' -> respond: 'PHONE_NUMBER_CAPTURED: 123-456-7890'
+        - User says 'I can be reached at 9876543210' -> respond: 'PHONE_NUMBER_CAPTURED: 9876543210'
+        - User says 'invalid' -> "That doesn't seem right. Could you provide your phone number? It should be in the format 123-456-7890."
+
+      tools:
+        - list_states
+    transitions:
+      - pattern: "PHONE_NUMBER_CAPTURED:"
+        next: generate_greeting
+      - pattern: "PHONE_NUMBER_FAILED:"
+        next: end_failed
+
+  - id: generate_greeting
+    action: call_function
+    function: "greeting_functions.create_personalized_greeting"
+    output: greeting_message
+    depends_on: phone_number
+    next: end_success
+
+
+outcomes:
+  - id: end_success
+    type: success
+    message: "{{ greeting_message }}"
+
+  - id: end_failed
+    type: failure
+    message: "Sorry, I couldn't complete the workflow. Please try again later."
+
+tool_config:
+  tools:
+    - name: list_states
+      description: List all the states in the country
+      callable: tools.address.list_states

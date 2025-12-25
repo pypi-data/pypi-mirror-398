@@ -1,0 +1,129 @@
+name: "Return Processing Workflow"
+description: "AI-powered workflow for processing customer returns"
+version: "1.0"
+
+data:
+  - name: order_id
+    type: text
+    description: "Customer's order ID"
+  - name: return_reason
+    type: text
+    description: "Reason for the return"
+  - name: is_eligible
+    type: boolean
+    description: "Whether the order is eligible for return"
+  - name: is_reason_valid
+    type: boolean
+    description: "Whether the return reason is valid"
+  - name: return_processed
+    type: boolean
+    description: "Whether the return was successfully processed"
+
+steps:
+  - id: collect_order_id
+    action: collect_input_with_agent
+    field: order_id
+    max_attempts: 5
+    agent:
+      name: "OrderIdCollector"
+      model: "gpt-4o-mini"
+      instructions: |
+        Your ONLY job is to capture the customer's order ID. Do NOT ask about anything else.
+
+        IMPORTANT: If this is the FIRST interaction (no user message yet), greet them warmly and ask ONLY for their order ID.
+
+        DO NOT ask about return reasons, items, or any other information - ONLY the order ID.
+
+        If the user has provided a response, validate it:
+        - If it looks like an order ID, respond with ONLY: 'ORDER_ID_CAPTURED: [order_id]'
+        - If they confirm 'yes' or 'correct' to your clarification, accept the order ID
+        - If it's unclear/empty, ask again politely
+        - If the user says they don't know the order id, respond with ONLY: 'ORDER_ID_FAILED:'
+        - Only use 'ORDER_ID_FAILED:' after max attempts are exhausted (rare case)
+
+        Examples:
+        - First interaction (no prior messages) -> "Hello! I'd be happy to help with your return. Could you please provide your order ID?"
+        - User says '1234' -> respond: 'ORDER_ID_CAPTURED: 1234'
+        - User says 'yes correct' after you asked 'Is your order ID #1234?' -> respond: 'ORDER_ID_CAPTURED: 1234'
+        - User says 'my order is #1234' -> respond: 'ORDER_ID_CAPTURED: #1234'
+        - User says '' (empty) -> "I didn't catch that. What's your order ID?"
+    transitions:
+      - pattern: "ORDER_ID_CAPTURED:"
+        next: check_eligibility
+      - pattern: "ORDER_ID_FAILED:"
+        next: failed
+
+  - id: check_eligibility
+    action: call_function
+    function: "return_functions.check_eligibility"
+    output: is_eligible
+    transitions:
+      - condition: true
+        next: collect_reason
+      - condition: false
+        next: ineligible
+
+  - id: collect_reason
+    action: collect_input_with_agent
+    field: return_reason
+    max_attempts: 5
+    agent:
+      name: "ReasonCollector"
+      model: "gpt-4o-mini"
+      instructions: |
+        Your goal is to capture the reason why the user wants to return their order.
+
+        IMPORTANT: If this is the FIRST interaction for collecting the reason, ask them for it in a friendly way.
+
+        If the user has provided a response, validate it:
+        - Valid return reasons include: damaged item, wrong size, wrong color, defective, not as described, changed mind, etc.
+        - If it's a clear reason, respond with ONLY: 'REASON_CAPTURED: [reason]'
+        - If it's unclear/empty, ask again politely
+        - Only use 'REASON_FAILED:' after max attempts are exhausted (rare case)
+
+        Examples:
+        - First interaction -> "Could you please tell me why you'd like to return this order?"
+        - User says 'it was damaged' -> respond: 'REASON_CAPTURED: damaged item'
+        - User says 'wrong size' -> respond: 'REASON_CAPTURED: wrong size'
+        - User says '' (empty) -> "I need to know the reason for the return. Is it damaged, wrong size, or something else?"
+    transitions:
+      - pattern: "REASON_CAPTURED:"
+        next: check_validity
+      - pattern: "REASON_FAILED:"
+        next: failed
+
+  - id: check_validity
+    action: call_function
+    function: "return_functions.validate_reason"
+    output: is_reason_valid
+    transitions:
+      - condition: true
+        next: process_return
+      - condition: false
+        next: invalid_reason
+
+  - id: process_return
+    action: call_function
+    function: "return_functions.process_return"
+    output: return_processed
+    next: success
+
+outcomes:
+  - id: success
+    type: success
+    message: |
+      ✅ Return processed successfully!
+      Your order {order_id} return request has been approved.
+      You will receive further instructions via email.
+
+  - id: ineligible
+    type: failure
+    message: "Your return request cannot be processed because the order is not eligible for return."
+
+  - id: invalid_reason
+    type: failure
+    message: "Your return request cannot be processed due to an invalid return reason. Please contact customer service for assistance."
+
+  - id: failed
+    type: failure
+    message: "Sorry, I couldn't complete the workflow. Please contact customer service for assistance."

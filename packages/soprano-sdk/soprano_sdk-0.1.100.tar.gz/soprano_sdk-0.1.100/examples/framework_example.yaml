@@ -1,0 +1,48 @@
+name: "Agent Framework Example"
+description: "Example workflow demonstrating explicit framework configuration"
+version: "1.0"
+agent_framework: "langgraph"  # Top-level config applies to all agents in workflow
+
+
+data:
+  - name: username
+    type: text
+    description: "User's name"
+  - name: greeting
+    type: text
+    description: "Generated greeting message"
+
+steps:
+  - id: collect_name
+    action: collect_input_with_agent
+    field: username
+    retry_limit: 3
+    agent:
+      name: "NameCollector"
+      model: "gpt-4o-mini"
+      description: "Node to collect user's name"
+      initial_message: "What is your name?"
+      instructions: |
+        Your goal is to capture the user's name.
+        
+        If the user has provided a response, validate it:
+        - If it's a valid name, respond with ONLY: 'NAME_CAPTURED: [name]'
+        - If it's invalid/empty, ask again politely
+        
+        Examples:
+        - User says 'John' -> respond: 'NAME_CAPTURED: John'
+        - User says 'My name is Sarah' -> respond: 'NAME_CAPTURED: Sarah'
+    transitions:
+      - pattern: "NAME_CAPTURED:"
+        next: generate_greeting
+
+  - id: generate_greeting
+    action: call_function
+    function: "greeting_functions.create_simple_greeting"
+    output: greeting
+    next: end_success
+
+outcomes:
+  - id: end_success
+    type: success
+    message: "{greeting}"
