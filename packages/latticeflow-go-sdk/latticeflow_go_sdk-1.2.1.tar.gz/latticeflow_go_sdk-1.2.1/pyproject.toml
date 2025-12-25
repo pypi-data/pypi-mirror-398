@@ -1,0 +1,111 @@
+[project]
+name = "latticeflow-go-sdk"
+description = "Latticeflow AI GO! SDK."
+dynamic = ["version"]
+requires-python = ">=3.9"
+license = "LicenseRef-Proprietary"
+
+dependencies = [
+    "pyyaml>=5.0.0",
+    "httpx>=0.20.0,<0.29.0",
+    "attrs>=22.2.0",
+    "python-dateutil~=2.9.0",
+    'tomli; python_version < "3.11"',
+    "pydantic==2.11.7",
+    "typer==0.19.2",
+    # `openapi-python-client` generator implicitly installs a version of `click` which does
+    # not support features we want to use. The generator itself doesn’t hit these issues
+    # (it doesn’t use those features), but we do, so we explicitly pin the package to a
+    # working version.
+    "click==8.1.7",
+    "pyperclip",
+    "requests==2.32.5",
+    "questionary==2.1.1",
+    "python-dotenv>=1.1.0",
+]
+
+
+[project.optional-dependencies]
+"test"= [
+    "pytest~=8.3.5",
+    "pytest-extra-durations~=0.1.3",
+    "pytest-asyncio",
+    "pytest-mock~=3.8.2",
+    "types-pyyaml==6.0.12.20250402",
+    "jinja2~=3.1.5",
+    "types-Jinja2",
+    "types-requests",
+    "mypy==1.18.1",
+    "polyfactory",
+    "ruff==0.11.6",
+]
+"eval"= [
+  # Evidence script dependencies.
+  "types-tqdm==4.67.0.20250417",
+]
+
+[project.urls]
+Homepage = "https://latticeflow.ai/"
+
+[project.scripts]
+lf = "latticeflow.go.cli.lf:app"
+
+[build-system]
+requires = [
+  "hatchling==1.27.0",
+  "jinja2~=3.1.5",
+  "openapi-python-client==0.26.2",
+  "libcst==1.8.5",
+  "ruff==0.11.6",
+]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+# Disable traversal from the root and only take latticeflow.
+only-include = ["latticeflow"]
+# These files are in .gitignore so we need to include them explicitly
+artifacts = [
+  "latticeflow/go/_generated",
+  "latticeflow/go/client.py",
+  "latticeflow/go/base.py",
+  "latticeflow/go/models/__init__.py",
+]
+
+[tool.hatch.build.targets.wheel]
+# Do not pickup data outside packages.
+only-packages = true
+only-include = ["latticeflow"]
+# These files are in .gitignore so we need to include them explicitly
+artifacts = [
+  "latticeflow/go/_generated",
+  "latticeflow/go/client.py",
+  "latticeflow/go/base.py",
+  "latticeflow/go/models/__init__.py",
+]
+
+[tool.hatch.metadata.hooks.custom]
+# Required to trigger custom build for version computation.
+
+[tool.hatch.build.hooks.custom]
+# Required to trigger custom build for writing the version file.
+
+[tool.mypy]
+python_version = "3.11"  # Python version in the Docker image.
+check_untyped_defs = true
+no_implicit_optional = true
+warn_unused_configs = true
+warn_redundant_casts = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_typed = true
+warn_untyped_fields = true
+
+[[tool.mypy.overrides]]
+module = [
+  "hatchling.*",
+  "libcst.*",
+]
+ignore_missing_imports = true
