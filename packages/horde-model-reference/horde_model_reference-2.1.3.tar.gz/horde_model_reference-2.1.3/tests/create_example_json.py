@@ -1,0 +1,119 @@
+import json
+
+from horde_model_reference import (
+    KNOWN_IMAGE_GENERATION_BASELINE,
+    MODEL_DOMAIN,
+    MODEL_PURPOSE,
+    MODEL_STYLE,
+    ModelClassification,
+)
+from horde_model_reference.model_reference_records import (
+    DownloadRecord,
+    ImageGenerationModelRecord,
+)
+
+SCHEMAS_FOLDER = "schemas"
+
+STABLE_DIFFUSION_EXAMPLE_JSON_FILENAME = f"{SCHEMAS_FOLDER}/stable_diffusion.example.json"
+STABLE_DIFFUSION_SCHEMA_JSON_FILENAME = f"{SCHEMAS_FOLDER}/stable_diffusion.schema.json"
+
+LEGACY_STABLE_DIFFUSION_SCHEMA_JSON_FILENAME = f"{SCHEMAS_FOLDER}/legacy_stable_diffusion.schema.json"
+
+
+def create_example_json_schema() -> None:
+    """Create an example JSON file for the StableDiffusion_ModelReference."""
+    example_record_name = "Example General Model"
+    example_download_record = DownloadRecord(
+        file_name="example_general_model.ckpt",
+        file_url="https://www.some_website.com/a_different_name_on_the_website.ckpt",
+        sha256sum="DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF",
+    )
+
+    # An example ImageGeneration_ModelRecord with test data
+    example_model_record = ImageGenerationModelRecord(
+        name=example_record_name,
+        description="This would be a description of the model.",
+        version="1.0",
+        inpainting=False,
+        style=MODEL_STYLE.generalist,
+        config={"download": [example_download_record]},
+        model_classification=ModelClassification(
+            domain=MODEL_DOMAIN.image,
+            purpose=MODEL_PURPOSE.generation,
+        ),
+        baseline=KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1,
+        tags=["anime", "faces"],
+        showcases=[
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/test/test_general_01.png",
+        ],
+        min_bridge_version=12,
+        trigger=["trigger1", "some other_trigger"],
+        homepage="https://www.not.a.real_website.com",
+        nsfw=False,
+        size_on_disk_bytes=123456789,
+    )
+
+    example_record_2_name = "Example anime model"
+    example_download_record_2 = DownloadRecord(
+        file_name="example_general_model.ckpt",
+        file_url="https://www.some_website.com/a_different_name_on_the_website.ckpt",
+        sha256sum="DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF",
+    )
+    example_model_record_2 = ImageGenerationModelRecord(
+        name=example_record_2_name,
+        description="This would be a description of the model.",
+        version="2.5",
+        inpainting=False,
+        style=MODEL_STYLE.anime,
+        config={"download": [example_download_record_2]},
+        model_classification=ModelClassification(
+            domain=MODEL_DOMAIN.image,
+            purpose=MODEL_PURPOSE.generation,
+        ),
+        baseline=KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1,
+        tags=["anime", "faces"],
+        showcases=[
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/test/anime_01.png",
+        ],
+        min_bridge_version=12,
+        trigger=["anime", "some other_anime_trigger"],
+        homepage="https://www.another_fake_website.com",
+        nsfw=True,
+        size_on_disk_bytes=123456789,
+    )
+
+    reference = {
+        "example model 1": example_model_record,
+        "example model 2": example_model_record_2,
+    }
+
+    with open(STABLE_DIFFUSION_EXAMPLE_JSON_FILENAME, "w") as example_file:
+        example_file.write(
+            json.dumps(
+                reference,
+                indent=4,
+                default=lambda o: o.model_dump(
+                    exclude_none=True,
+                    exclude_unset=True,
+                    exclude_defaults=True,
+                    by_alias=True,
+                ),
+            )
+            + "\n",
+        )
+
+    # Create the JSON Schema
+    schema = ImageGenerationModelRecord.model_json_schema(by_alias=True)
+
+    with open(STABLE_DIFFUSION_SCHEMA_JSON_FILENAME, "w") as schema_file:
+        schema_file.write(
+            json.dumps(
+                schema,
+                indent=4,
+            )
+            + "\n",
+        )
+
+
+if __name__ == "__main__":
+    create_example_json_schema()
