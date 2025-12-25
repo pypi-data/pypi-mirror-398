@@ -1,0 +1,178 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# FileType: CONFIG
+# FileCopyrightText: 2025, GFZ Helmholtz Centre for Geosciences
+# FileCopyrightText: 2025, Daniel Scheffler (danschef@gfz.de)
+
+variables:
+  MAMBA_ROOT_PREFIX: "/opt/conda"
+
+
+stages:
+  - test
+  - scan
+  - deploy
+  - cleanup
+
+test_enfrosp_enmapboxapp:
+  stage: test
+  coverage: '/TOTAL\s+\d+\s+\d+\s+(\d+%)/'
+  script:
+    - source activate ci_env
+
+    # install enfrosp_enmapboxapp, otherwise the executable scripts are not in place
+    - pip install -e .
+
+    # update enfrosp to be sure all parameters are covered by the GUI
+    - mamba install 'enfrosp>=0.3.1'
+
+    # set environment variables
+    - export IS_CI_ENV=1  # to notify tests that they are running within a docker CI system
+    - export CONDA_ROOT=/opt/conda/
+    - export PYTHONPATH=$PYTHONPATH:/tmp/enmapbox
+
+    # run tests
+    - make pytest
+
+    # create the docs
+    - make docs
+
+  artifacts:
+    expose_as: 'Test and coverage report'
+    paths:
+    - htmlcov/
+    - report.html
+    - docs/_build/html/
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+      junit: report.xml
+    expire_in: 30 days
+    when: always
+
+
+test_styles:
+  stage: test
+  script:
+    - source activate ci_env
+    - make lint
+  artifacts:
+    paths:
+    - tests/linting/flake8.log
+    - tests/linting/pycodestyle.log
+    - tests/linting/pydocstyle.log
+    when: always
+
+
+test_urls:
+  stage: test
+  script:
+    - source activate ci_env
+    - make urlcheck
+  when: always
+
+
+test_enfrosp_enmapboxapp_install:
+  stage: test
+  script:
+    - source activate
+
+    # update base environment
+    - mamba update mamba conda
+
+    # create an environment containing qgis, enfrosp and the EnMAP-Box requirements
+    - mamba env create -n enfrosp_enmapboxapp_testinstall -f tests/CI_docker/context/environment_enfrosp_enmapboxapp.yml
+    - conda activate enfrosp_enmapboxapp_testinstall
+
+    # install enmapbox
+    - cd ..
+    - rm -rf enmap-box
+    - git clone -b main --recurse-submodules https://github.com/EnMAP-Box/enmap-box.git
+    - cd enmap-box
+    # - git checkout v3.11.1  # latest stable release
+    # install requirements but actually everything should be there
+    - pip install -r https://raw.githubusercontent.com/EnMAP-Box/enmap-box/main/.env/linux/requirements_ubuntu.txt
+    - export PYTHONPATH=$PYTHONPATH:$(pwd)
+    - cd ../enfrosp_enmapboxapp
+
+    # run installer
+    - pip install -e .
+    - pwd
+    - ls
+
+    # check if all dependencies are correctly installed and print output
+    - conda list qgis
+    - conda list enmapbox
+    - conda list enfrosp
+    - OUTPUT=$(pip check) || { echo "$OUTPUT"; true; }
+
+    # test if its importable
+    - cd ..
+    - ls
+    - python -c "import enfrosp_enmapboxapp; print(enfrosp_enmapboxapp)"
+  only:
+    - main
+
+gitleaks_scan:
+  stage: scan
+  image:
+    name: zricethezav/gitleaks:latest
+    entrypoint: [ "" ]
+  script:
+    # Scanning with gitleaks:
+    # scan actual version of repo
+    #- gitleaks dir -v $CI_PROJECT_DIR
+
+    # or scan the whole repo including with all commits and create links in the log to founded leaks
+    - gitleaks git --platform gitlab --config .gitleaks.toml --max-decode-depth 5 --redact -v $CI_PROJECT_DIR
+
+pages:  # this job must be called 'pages' to advise GitLab to upload content to GitLab Pages
+  stage: deploy
+  dependencies:
+    - test_enfrosp_enmapboxapp
+  script:
+    # Create the public directory
+    - rm -rf public
+    - mkdir public
+    - mkdir -p public/doc
+    - mkdir -p public/images/
+    - mkdir -p public/coverage
+    - mkdir -p public/test_reports
+
+    # Copy over the docs
+    - cp -r docs/_build/html/* public/doc/
+    - cp docs/index.html public/
+    # - cp -r docs/images/* public/images/  # we don't have images so far
+
+    # Copy over the coverage reports
+    - cp -r htmlcov/* public/coverage/
+
+    # Copy over the test reports
+    - cp report.html public/test_reports/
+
+    # Check if everything is working great
+    - ls -al public
+    - ls -al public/doc
+    - ls -al public/coverage
+    - ls -al public/test_reports
+  artifacts:
+    paths:
+      - public
+    expire_in: 30 days
+  only:
+    - main
+
+deploy_pypi:
+  stage: deploy
+  dependencies:
+    - test_enfrosp_enmapboxapp
+  script:
+    - source activate ci_env
+    - mamba update twine python-build
+    - python -m build --sdist
+    - twine check dist/*
+    - twine upload dist/*  # requires creds as environment variables
+  only:
+    - /^v\d+\.\d+\.\d+([abc]\d*)?$/  # PEP-440 compliant version (tags)
+  except:
+    - dev
