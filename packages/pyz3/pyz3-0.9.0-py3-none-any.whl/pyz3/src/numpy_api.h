@@ -1,0 +1,69 @@
+// NumPy C API bindings for pyz3
+// Comprehensive interface to NumPy's C API
+// Based on NumPy 2.0+ API
+
+#ifndef PYZ3_NUMPY_API_H
+#define PYZ3_NUMPY_API_H
+
+#define NPY_NO_DEPRECATED_API NPY_2_0_API_VERSION
+#define PY_ARRAY_UNIQUE_SYMBOL PYZ3_ARRAY_API
+#define PY_UFUNC_UNIQUE_SYMBOL PYZ3_UFUNC_API
+
+// Include numpy headers if available
+// The actual import will happen at runtime via import_array()
+#include <Python.h>
+
+// Forward declarations for NumPy types
+typedef struct PyArrayObject PyArrayObject;
+typedef struct PyArray_Descr PyArray_Descr;
+typedef struct PyArrayIterObject PyArrayIterObject;
+
+// NumPy type numbers
+enum NPY_TYPES {
+    NPY_BOOL = 0,
+    NPY_BYTE, NPY_UBYTE,
+    NPY_SHORT, NPY_USHORT,
+    NPY_INT, NPY_UINT,
+    NPY_LONG, NPY_ULONG,
+    NPY_LONGLONG, NPY_ULONGLONG,
+    NPY_FLOAT, NPY_DOUBLE, NPY_LONGDOUBLE,
+    NPY_CFLOAT, NPY_CDOUBLE, NPY_CLONGDOUBLE,
+    NPY_OBJECT = 17,
+    NPY_STRING, NPY_UNICODE,
+    NPY_VOID,
+    NPY_DATETIME, NPY_TIMEDELTA,
+    NPY_HALF,
+    NPY_NTYPES,
+    NPY_NOTYPE,
+    NPY_USERDEF = 256
+};
+
+// NumPy array flags
+enum NPY_ARRAY_FLAGS {
+    NPY_ARRAY_C_CONTIGUOUS = 0x0001,
+    NPY_ARRAY_F_CONTIGUOUS = 0x0002,
+    NPY_ARRAY_OWNDATA = 0x0004,
+    NPY_ARRAY_FORCECAST = 0x0010,
+    NPY_ARRAY_ENSURECOPY = 0x0020,
+    NPY_ARRAY_ENSUREARRAY = 0x0040,
+    NPY_ARRAY_ELEMENTSTRIDES = 0x0080,
+    NPY_ARRAY_ALIGNED = 0x0100,
+    NPY_ARRAY_NOTSWAPPED = 0x0200,
+    NPY_ARRAY_WRITEABLE = 0x0400,
+    NPY_ARRAY_WRITEBACKIFCOPY = 0x2000,
+    NPY_ARRAY_BEHAVED = NPY_ARRAY_ALIGNED | NPY_ARRAY_WRITEABLE,
+    NPY_ARRAY_CARRAY = NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_BEHAVED,
+    NPY_ARRAY_CARRAY_RO = NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_ALIGNED,
+    NPY_ARRAY_FARRAY = NPY_ARRAY_F_CONTIGUOUS | NPY_ARRAY_BEHAVED,
+    NPY_ARRAY_FARRAY_RO = NPY_ARRAY_F_CONTIGUOUS | NPY_ARRAY_ALIGNED,
+    NPY_ARRAY_DEFAULT = NPY_ARRAY_CARRAY,
+    NPY_ARRAY_IN_ARRAY = NPY_ARRAY_CARRAY_RO,
+    NPY_ARRAY_OUT_ARRAY = NPY_ARRAY_CARRAY,
+    NPY_ARRAY_INOUT_ARRAY = NPY_ARRAY_CARRAY
+};
+
+// Type for array dimensions and strides
+typedef long long npy_intp;
+typedef unsigned long long npy_uintp;
+
+#endif // PYZ3_NUMPY_API_H

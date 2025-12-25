@@ -1,0 +1,42 @@
+[build-system]
+requires = ["poetry-core", "pyz3==0.8.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "{{ cookiecutter.project_slug }}"
+version = "{{ cookiecutter.version }}"
+description = "{{ cookiecutter.description }}"
+authors = ["{{ cookiecutter.author_name }} <{{ cookiecutter.author_email }}>"]
+readme = "README.md"
+packages = [{ include = "{{ cookiecutter.package_name }}" }]
+include = [
+    { path = "src/", format = "sdist" },
+    { path = "{{ cookiecutter.package_name }}/*.so", format = "wheel" },
+    "{{ cookiecutter.package_name }}/*.pyi"
+]
+
+[tool.poetry.build]
+script = "build.py"
+
+[tool.poetry.dependencies]
+python = "^{{ cookiecutter.python_version }}"
+
+[tool.poetry.group.dev.dependencies]
+pyz3 = "0.8.0"
+pytest = "^8.0.0"
+ruff = "^0.14.0"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "UP", "I001", "I002"]
+
+[[tool.pyz3.ext_module]]
+name = "{{ cookiecutter.package_name }}.{{ cookiecutter.module_name }}"
+root = "src/{{ cookiecutter.zig_file_name }}.zig"
+{% if cookiecutter.include_c_example == "yes" -%}
+c_sources = ["src/{{ cookiecutter.c_helper_name }}.c"]
+c_include_dirs = ["include/"]
+c_flags = ["-O2"]
+{% endif -%}
