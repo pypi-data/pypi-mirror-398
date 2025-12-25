@@ -1,0 +1,678 @@
+import operator
+import re
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from contextlib import closing
+from contextvars import ContextVar
+from pathlib import Path
+from sqlite3 import connect
+from typing import Any, TypeVar, cast
+
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import pydantic
+import xarray as xr
+from datacompy.core import Compare
+from pandera.typing import DataFrame
+from pandera.typing.geopandas import GeoDataFrame
+from pydantic import BaseModel as PydanticBaseModel
+from pydantic import (
+    ConfigDict,
+    DirectoryPath,
+    Field,
+    PrivateAttr,
+    ValidationInfo,
+    field_serializer,
+    field_validator,
+    model_serializer,
+    model_validator,
+    validate_call,
+)
+
+import ribasim
+from ribasim.db_utils import (
+    _get_db_schema_version,
+    _set_gpkg_attribute_table,
+    create_index,
+    esc_id,
+    exists,
+)
+from ribasim.schemas import _BaseSchema
+
+from .styles import _add_styles_to_geopackage
+
+__all__ = ("TableModel",)
+
+delimiter = " / "
+node_names_snake_case = [
+    "basin",
+    "continuous_control",
+    "discrete_control",
+    "flow_boundary",
+    "flow_demand",
+    "level_boundary",
+    "level_demand",
+    "linear_resistance",
+    "manning_resistance",
+    "outlet",
+    "pid_control",
+    "pump",
+    "tabulated_rating_curve",
+    "user_demand",
+]
+
+context_file_loading: ContextVar[dict[str, Path]] = ContextVar(
+    "file_loading", default={}
+)
+context_file_writing: ContextVar[dict[str, Path]] = ContextVar(
+    "file_writing", default={}
+)
+
+TableT = TypeVar("TableT", bound=_BaseSchema)
+
+
+class BaseModel(PydanticBaseModel):
+    """Overrides Pydantic BaseModel to set our own config."""
+
+    model_config = ConfigDict(
+        validate_assignment=True,
+        validate_default=True,
+        populate_by_name=True,
+        use_enum_values=True,
+        extra="forbid",
+    )
+
+    @classmethod
+    def _fields(cls) -> list[str]:
+        """Return the names of the fields contained in the Model."""
+        return list(cls.model_fields.keys())
+
+    def model_dump(self, **kwargs) -> dict[str, object]:
+        return super().model_dump(serialize_as_any=True, **kwargs)
+
+    def diff(
+        self, other: "BaseModel", ignore_meta: bool = False
+    ) -> dict[str, Any] | None:
+        """
+        Compare two instances of a BaseModel.
+
+        ** Warning: This method is experimental and is likely to change. **
+
+        If they are equal, return None. Otherwise, return a nested dictionary with the differences.
+        When the differences are not a DataFrame (like the toml config),
+        the dict has self and other as key.
+        For DataFrames we return a dict with diff as key, and a datacompy Comparison object.
+
+        When ignore_meta is set to True, the meta_* columns in the DataFrames are ignored.
+        Note that in that case the key will still be returned and the value will be None.
+
+        Examples
+        --------
+        >>> nbasic == basic
+        False
+        >>> x = nbasic.diff(basic)
+        {'basin': {'node': {'diff': <datacompy.core.Compare object at 0x16e5a45c0>},
+                'static': {'diff': <datacompy.core.Compare object at 0x16eb90080>}},
+        'solver': {'saveat': {'other': 86400.0, 'self': 0.0}}}
+        >>> x["basin"]["static"]["diff"].report()
+        DataComPy Comparison
+        --------------------
+        ...
+        """
+        if not (isinstance(other, self.__class__)):
+            raise ValueError(f"Cannot compare {self} with {other}")
+        if self == other:
+            return None
+        data: dict[str, Any] = {}
+        for key in self._fields():
+            self_attr = getattr(self, key)
+            other_attr = getattr(other, key)
+            if self_attr == other_attr:
+                continue
+            if isinstance(self_attr, BaseModel):
+                data[key] = self_attr.diff(
+                    other_attr,
+                    ignore_meta=ignore_meta,
+                )
+            else:
+                data[key] = {"self": self_attr, "other": other_attr}
+        return data
+
+    # __eq__ from Pydantic BaseModel itself, edited to remove the comparison of private attrs
+    # https://github.com/pydantic/pydantic/blob/ff3789d4cc06ee024b7253b919d3e36748a72829/pydantic/main.py#L1069
+    # The MIT License (MIT) | Copyright (c) 2017 to present Pydantic Services Inc. and individual contributors.
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, BaseModel):
+            self_type = self.__pydantic_generic_metadata__["origin"] or self.__class__
+            other_type = (
+                other.__pydantic_generic_metadata__["origin"] or other.__class__
+            )
+
+            if not (
+                self_type == other_type
+                # This comparison has been removed, otherwise we recurse because
+                # we store the parent of the model in a private attribute
+                # and getattr(self, "__pydantic_private__", None)
+                # == getattr(other, "__pydantic_private__", None)
+                and self.__pydantic_extra__ == other.__pydantic_extra__
+            ):
+                return False
+
+            if self.__dict__ == other.__dict__:
+                return True
+
+            model_fields = type(self).__pydantic_fields__.keys()
+            if (
+                self.__dict__.keys() <= model_fields
+                and other.__dict__.keys() <= model_fields
+            ):
+                return False
+
+            getter = (
+                operator.itemgetter(*model_fields)
+                if model_fields
+                else lambda _: pydantic._utils._SENTINEL  # type: ignore
+            )
+            try:
+                return getter(self.__dict__) == getter(other.__dict__)
+            except KeyError:
+                self_fields_proxy = pydantic._utils.SafeGetItemProxy(self.__dict__)  # type: ignore
+                other_fields_proxy = pydantic._utils.SafeGetItemProxy(other.__dict__)  # type: ignore
+                return getter(self_fields_proxy) == getter(other_fields_proxy)
+
+        else:
+            return NotImplemented
+
+
+class FileModel(BaseModel, ABC):
+    """Base class to represent models with a file representation.
+
+    It therefore always has a `filepath` and if it is given on
+    initialization, it will parse that file.
+
+    This class extends the `model_validator` option of Pydantic,
+    so when when a Path is given to a field with type `FileModel`,
+    it doesn't error, but actually initializes the `FileModel`.
+
+    Attributes
+    ----------
+        filepath (Path | None):
+            The path of this FileModel.
+    """
+
+    filepath: Path | None = Field(default=None, exclude=True, repr=False)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _check_filepath(cls, value: object) -> object:
+        # Enable initialization with a Path.
+        if isinstance(value, dict):
+            # Pydantic Model init requires a dict
+            filepath = value.get("filepath", None)
+            if filepath is not None:
+                filepath = Path(filepath)
+            data = cls._load(filepath)
+            data.update(value)
+            return data
+        elif isinstance(value, Path | str):
+            # Pydantic Model init requires a dict
+            data = cls._load(Path(value))
+            data["filepath"] = value
+            return data
+        else:
+            return value
+
+    @validate_call
+    def set_filepath(self, filepath: Path) -> None:
+        """Set the filepath of this instance.
+
+        Args:
+            filepath (Path): The filepath to set.
+        """
+        # Disable assignment validation, which would
+        # otherwise trigger check_filepath() and _load() again.
+        self.model_config["validate_assignment"] = False
+        self.filepath = filepath
+        self.model_config["validate_assignment"] = True
+
+    @field_serializer("filepath")
+    def _serialize_path(self, path: Path) -> str:
+        return path.as_posix()
+
+    @classmethod
+    @abstractmethod
+    def _load(cls, filepath: Path | None) -> dict[str, object]:
+        """Load the data at filepath and returns it as a dictionary.
+
+        If a derived FileModel does not load data from disk, this should
+        return an empty dictionary.
+
+        Args
+        ----
+            filepath (Path): Path to the data to load.
+
+        Returns
+        -------
+            dict: The data stored at filepath
+        """
+        raise NotImplementedError()
+
+
+class TableModel[TableT: _BaseSchema](FileModel):
+    df: DataFrame[TableT] | None = Field(default=None, exclude=True, repr=False)
+    _sort_keys: list[str] = PrivateAttr(default=[])
+
+    model_config = ConfigDict(
+        extra="allow",
+    )
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, TableModel):
+            if self.df is None and other.df is None:
+                return True
+            if self.df is None or other.df is None:
+                return False
+            else:
+                return self.df.equals(other.df)
+
+        return NotImplemented
+
+    def diff(self, other: BaseModel, ignore_meta=False) -> dict[str, Any] | None:
+        # Only diff with other TableModel[TableT] instances
+        if not (isinstance(other, self.__class__)):
+            raise ValueError(f"Cannot compare {self} with {other}")
+        # Both are None
+        if self.df is None and other.df is None:
+            return None
+        # Both are DataFrames
+        elif self.df is not None and other.df is not None:
+            # Differences might've been in the meta columns
+            # so we check if the DataFrames are equal again
+            if ignore_meta:
+                a = self.df.loc[:, self.columns()]
+                b = other.df.loc[:, self.columns()]
+                if a.equals(b):
+                    return None
+            else:
+                a = self.df
+                b = other.df
+
+            comp = Compare(a, b, on_index=True, df1_name="self", df2_name="other")
+            return {"diff": comp}
+        # One of the instances is None
+        else:
+            return {"self": self.df, "other": other.df}
+
+    @field_validator("df", mode="before")
+    @classmethod
+    def _check_schema(cls, v: DataFrame[TableT]):
+        """Allow only extra columns with `meta_` prefix."""
+        if isinstance(v, pd.DataFrame | gpd.GeoDataFrame):
+            # On reading from geopackage, migrate the tables when necessary
+            db_path = context_file_loading.get().get("database")
+            if db_path is not None:
+                version = _get_db_schema_version(db_path)
+                if version < ribasim.__schema_version__:
+                    v = cls.tableschema().migrate(v, version)
+            for colname in v.columns:
+                if colname not in cls.columns() and not colname.startswith("meta_"):
+                    raise ValueError(
+                        f"Unrecognized column '{colname}'. Extra columns need a 'meta_' prefix."
+                    )
+        return v
+
+    @model_serializer
+    def _set_model(self) -> "str | None":
+        return self.filepath.as_posix() if self.filepath is not None else None
+
+    @classmethod
+    def tablename(cls) -> str:
+        """Retrieve tablename based on attached Schema.
+
+        NodeSchema -> Node
+        TabularRatingCurveStaticSchema -> TabularRatingCurve / static
+        """
+        cls_string = str(cls.tableschema())
+        names: list[str] = re.sub("([A-Z]+)", r" \1", cls_string).split()[:-1]
+        names_lowered = [name.lower() for name in names]
+        if len(names) == 1:
+            return names[0]
+        else:
+            for n in range(1, len(names_lowered) + 1):
+                node_name_snake_case = "_".join(names_lowered[:n])
+                if node_name_snake_case in node_names_snake_case:
+                    node_name = "".join(names[:n])
+                    table_name = "_".join(names_lowered[n:])
+                    return node_name + delimiter + table_name
+            raise ValueError(f"Found no known node name in {cls_string}")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _check_dataframe(cls, value: object) -> object:
+        # Enable initialization with a Dict.
+        if isinstance(value, dict) and len(value) > 0 and "df" not in value:
+            value = DataFrame(dict(**value))
+
+        # Enable initialization with a DataFrame.
+        if isinstance(value, pd.DataFrame | gpd.GeoDataFrame):
+            value = {"df": value}
+
+        return value
+
+    def _node_ids(self) -> set[int]:
+        node_ids: set[int] = set()
+        if self.df is not None and "node_id" in self.df.columns:
+            node_ids.update(self.df["node_id"])
+
+        return node_ids
+
+    @classmethod
+    def _load(cls, filepath: Path | None) -> dict[str, object]:
+        db = context_file_loading.get().get("database")
+        if filepath is not None and db is not None:
+            suffix = filepath.suffix.lower()
+            if suffix == ".nc":
+                df = cls._from_netcdf(filepath)
+                return {"df": df}
+            elif suffix == ".arrow":
+                df = cls._from_arrow(filepath)
+                return {"df": df}
+            else:
+                raise ValueError(
+                    f"Unsupported file: '{filepath}'. "
+                    "Only '.nc' and '.arrow' extensions are supported."
+                )
+        elif db is not None:
+            ddf = cls._from_db(db, cls.tablename())
+            return {"df": ddf}
+        else:
+            return {}
+
+    def _save(self, directory: DirectoryPath, input_dir: DirectoryPath) -> None:
+        db_path = context_file_writing.get().get("database")
+        self.sort()
+        if self.filepath is not None:
+            suffix = self.filepath.suffix.lower()
+            if suffix == ".nc":
+                self._write_netcdf(self.filepath, directory, input_dir)
+            elif suffix == ".arrow":
+                self._write_arrow(self.filepath, directory, input_dir)
+            else:
+                raise ValueError(
+                    f"Unsupported file: '{self.filepath}'. "
+                    "Only '.nc' and '.arrow' extensions are supported."
+                )
+        elif db_path is not None:
+            self._write_geopackage(db_path)
+
+    def _write_geopackage(self, temp_path: Path) -> None:
+        """
+        Write the contents of the input to a database.
+
+        Parameters
+        ----------
+        connection : Connection
+            SQLite connection to the database.
+        """
+        assert self.df is not None
+        table = self.tablename()
+
+        with closing(connect(temp_path)) as connection:
+            self.df.to_sql(
+                table,
+                connection,
+                index=True,
+                if_exists="replace",
+                dtype={"fid": "INTEGER PRIMARY KEY AUTOINCREMENT"},
+            )
+            create_index(connection, table, "node_id", unique=False)
+            _set_gpkg_attribute_table(connection, table)
+
+    def _write_arrow(self, filepath: Path, directory: Path, input_dir: Path) -> None:
+        """Write the contents of the input to an arrow file."""
+        assert self.df is not None
+        path = directory / input_dir / filepath
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.df.to_feather(
+            path,
+            compression="zstd",
+            compression_level=6,
+        )
+
+    def _write_netcdf(self, filepath: Path, directory: Path, input_dir: Path) -> None:
+        """Write the contents of the input to a NetCDF file."""
+        assert self.df is not None
+
+        cols = self.df.columns
+        err = ValueError(
+            f"Table doesn't support writing to NetCDF: {self.tablename()}."
+        )
+
+        # Convert DataFrame to xarray Dataset
+        # DataFrame indices will become coordinates
+        unsupported_dims = ("link_id", "subgrid_id", "substance", "demand_priority")
+        if any(col in unsupported_dims for col in cols):
+            raise err
+        elif "time" in cols:
+            ds = self.df.set_index(["time", "node_id"]).to_xarray()
+        elif "node_id" in cols:
+            ds = self.df.set_index(["node_id"]).to_xarray()
+        else:
+            raise err
+
+        # Write to NetCDF file
+        path = directory / input_dir / filepath
+        path.parent.mkdir(parents=True, exist_ok=True)
+        ds.to_netcdf(path)
+
+    @classmethod
+    def _from_db(cls, path: Path, table: str) -> pd.DataFrame | None:
+        with closing(connect(path)) as connection:
+            if exists(connection, table):
+                query = f"select * from {esc_id(table)}"
+                df = pd.read_sql_query(
+                    query,
+                    connection,
+                    # we store TIMESTAMP in SQLite like "2025-05-29 14:16:00"
+                    # see https://www.sqlite.org/lang_datefunc.html
+                    parse_dates={"time": {"format": "ISO8601"}},
+                )
+                df.set_index("fid", inplace=True)
+            else:
+                df = None
+
+            return df
+
+    @classmethod
+    def _from_arrow(cls, path: Path) -> pd.DataFrame:
+        directory = context_file_loading.get().get("directory", Path("."))
+        return pd.read_feather(directory / path)
+
+    @classmethod
+    def _from_netcdf(cls, path: Path) -> pd.DataFrame:
+        """Read a NetCDF file and convert it back to a DataFrame."""
+        directory = context_file_loading.get().get("directory", Path("."))
+        full_path = directory / path
+
+        with xr.open_dataset(full_path) as ds:
+            df = ds.to_dataframe().reset_index()
+
+        return df
+
+    def sort(self):
+        """Sort the table as required.
+
+        Sorting is done automatically before writing the table.
+        """
+        if self.df is not None:
+            df = self.df.sort_values(self._sort_keys, ignore_index=True)
+            df.index.rename("fid", inplace=True)
+            self.df = df  # trigger validation and thus index coercion to int32
+
+    @classmethod
+    def tableschema(cls) -> TableT:
+        """Retrieve Pandera Schema.
+
+        The type of the field `df` is known to always be an DataFrame[TableT]]] | None
+        """
+        optionalfieldtype = cls.model_fields["df"].annotation
+        fieldtype = optionalfieldtype.__args__[0]  # type: ignore
+        T: TableT = fieldtype.__args__[0]
+        return T
+
+    @classmethod
+    def columns(cls) -> list[str]:
+        """Retrieve column names."""
+        T = cls.tableschema()
+        return list(T.to_schema().columns.keys())
+
+    def __repr__(self) -> str:
+        # Make sure not to return just "None", because it gets extremely confusing
+        # when debugging.
+        return f"{self.tablename()}\n{self.df.__repr__()}"
+
+    def _repr_html_(self):
+        if self.df is None:
+            return self.__repr__()
+        else:
+            return f"<div>{self.tablename()}</div>" + self.df._repr_html_()
+
+    def __getitem__(self, index) -> pd.DataFrame | gpd.GeoDataFrame:
+        tablename = self.tablename()
+        if self.df is None:
+            raise ValueError(f"Cannot index into {tablename}: it contains no data.")
+
+        # Allow for indexing with multiple values.
+        np_index = np.atleast_1d(index)
+        missing = np.setdiff1d(np_index, self.df["node_id"].unique())
+        if missing.size > 0:
+            raise IndexError(f"{tablename} does not contain node_id: {missing}")
+
+        # Index with .loc[..., :] to always return a DataFrame.
+        return self.df.loc[self.df["node_id"].isin(np_index), :]
+
+
+class SpatialTableModel[TableT: _BaseSchema](TableModel[TableT]):
+    df: GeoDataFrame[TableT] | None = Field(default=None, exclude=True, repr=False)
+
+    def sort(self):
+        # Only sort the index (node_id / link_id) since this needs to be sorted in a GeoPackage.
+        # Under most circumstances, this retains the input order,
+        # making the link_id as stable as possible; useful for post-processing.
+        self.df.sort_index(inplace=True)
+
+    @classmethod
+    def _from_db(cls, path: Path, table: str):
+        with closing(connect(path)) as connection:
+            if exists(connection, table):
+                # pyogrio hardcodes fid name on reading
+                df = gpd.read_file(path, layer=table, fid_as_index=True, use_arrow=True)
+            else:
+                df = None
+
+            return df
+
+    def _write_geopackage(self, path: Path) -> None:
+        """
+        Write the contents of the input to the GeoPackage.
+
+        Parameters
+        ----------
+        path : Path
+        """
+        assert self.df is not None
+        self.df.to_file(
+            path,
+            layer=self.tablename(),
+            driver="GPKG",
+            index=True,
+            fid=self.df.index.name,
+        )
+        with closing(connect(path)) as connection:
+            create_index(
+                connection,
+                self.tablename(),
+                self.tableschema()._index_name(),
+                unique=True,
+            )
+            _add_styles_to_geopackage(connection, self.tablename())
+
+
+class ChildModel(BaseModel):
+    _parent: BaseModel | None = None
+    _parent_field: str | None = None
+
+    @model_validator(mode="after")
+    def _check_parent(self) -> "ChildModel":
+        if self._parent is not None and self._parent_field is not None:
+            self._parent.model_fields_set.update({self._parent_field})
+        return self
+
+
+class NodeModel(ChildModel):
+    """Base class to handle combining the tables for a single node type."""
+
+    @model_serializer(mode="wrap")
+    def set_modeld(
+        self, serializer: Callable[["NodeModel"], dict[str, object]]
+    ) -> dict[str, object]:
+        content = serializer(self)
+        return dict(filter(lambda x: x[1], content.items()))
+
+    @field_validator("*")
+    @classmethod
+    def set_sort_keys(cls, v: object, info: ValidationInfo) -> object:
+        """Set sort keys for all TableModels if present in FieldInfo."""
+        if isinstance(v, TableModel) and info.field_name is not None:
+            field = cls.model_fields[info.field_name]
+            extra = field.json_schema_extra
+            if extra is not None and isinstance(extra, dict):
+                # We set sort_keys ourselves as list[str] in json_schema_extra
+                # but mypy doesn't know.
+                v._sort_keys = cast(list[str], extra.get("sort_keys", []))
+        return v
+
+    @classmethod
+    def get_input_type(cls):
+        return cls.__name__
+
+    @classmethod
+    def _layername(cls, field: str) -> str:
+        return f"{cls.get_input_type()}{delimiter}{field}"
+
+    def _tables(self):
+        for key in self._fields():
+            attr = getattr(self, key)
+            if isinstance(attr, TableModel) and (attr.df is not None) and key != "node":
+                yield attr
+
+    def _node_ids(self) -> set[int]:
+        node_ids: set[int] = set()
+        for table in self._tables():
+            node_ids.update(table._node_ids())
+        return node_ids
+
+    def _save(self, directory: DirectoryPath, input_dir: DirectoryPath):
+        for table in self._tables():
+            table._save(directory, input_dir)
+
+    def _repr_content(self) -> str:
+        """Generate a succinct overview of the content.
+
+        Skip "empty" attributes: when the dataframe of a TableModel is None.
+        """
+        content = []
+        for field in self._fields():
+            attr = getattr(self, field)
+            if isinstance(attr, TableModel):
+                if attr.df is not None:
+                    content.append(field)
+            else:
+                content.append(field)
+        return ", ".join(content)
+
+    def __repr__(self) -> str:
+        content = self._repr_content()
+        typename = type(self).__name__
+        return f"{typename}({content})"
