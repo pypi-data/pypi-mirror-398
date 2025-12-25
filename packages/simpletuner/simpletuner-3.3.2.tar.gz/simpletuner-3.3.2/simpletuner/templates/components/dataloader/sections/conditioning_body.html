@@ -1,0 +1,165 @@
+<!-- Conditioning Body (for modal) -->
+<div class="modal-section-body">
+    <!-- Conditioning Type (for conditioning datasets only) -->
+    <div class="section-group" x-show="editingDataset.dataset_type === 'conditioning' && matchesParamFilter('conditioning', 'type', 'controlnet', 'mask', 'reference')">
+        <h6 class="modal-section-title">Conditioning Type</h6>
+        <label class="form-label small">Type <a x-show="showDocLinks" href="https://github.com/bghira/SimpleTuner/blob/main/documentation/DATALOADER.md#conditioning_type" target="_blank" class="text-muted" title="Documentation"><sup><i class="fas fa-external-link-alt fa-xs"></i></sup></a></label>
+        <select class="form-select form-select-sm"
+                x-model="editingDataset.conditioning_type"
+                @change="markAsUnsaved()"
+                :class="{'border-danger': !editingDataset.conditioning_type}">
+            <option value="">Select conditioning type...</option>
+            <option value="controlnet" x-show="modelContext.controlnetEnabled">ControlNet</option>
+            <option value="mask">Inpainting Mask</option>
+            <option value="reference_strict">Reference (Strict Alignment)</option>
+            <option value="reference_loose">Reference (Loose Alignment)</option>
+        </select>
+        <div class="form-text small text-muted">
+            <span x-show="!editingDataset.conditioning_type" class="text-danger"><i class="fas fa-exclamation-triangle"></i> Please select a conditioning type</span>
+            <span x-show="editingDataset.conditioning_type === 'controlnet'">For ControlNet training with control signal inputs</span>
+            <span x-show="editingDataset.conditioning_type === 'mask'">For inpainting with binary mask inputs</span>
+            <span x-show="editingDataset.conditioning_type === 'reference_strict'">For edit models (Qwen Edit) with strict pixel alignment</span>
+            <span x-show="editingDataset.conditioning_type === 'reference_loose'">For edit models with loose alignment</span>
+        </div>
+    </div>
+
+    <!-- Source Dataset (for reference_strict/loose/mask conditioning datasets) -->
+    <div class="section-group" x-show="editingDataset.dataset_type === 'conditioning' && ['reference_strict', 'reference_loose', 'mask'].includes(editingDataset.conditioning_type) && matchesParamFilter('source', 'dataset', 'reference', 'link')">
+        <h6 class="modal-section-title">Source Dataset</h6>
+        <p class="text-muted small mb-2">
+            Link to the source image/video dataset for pixel alignment.
+        </p>
+        <label class="form-label small">Source <a x-show="showDocLinks" href="https://github.com/bghira/SimpleTuner/blob/main/documentation/DATALOADER.md#conditioning" target="_blank" class="text-muted" title="Documentation"><sup><i class="fas fa-external-link-alt fa-xs"></i></sup></a></label>
+        <select class="form-select form-select-sm"
+                x-model="editingDataset.source_dataset_id"
+                @change="markAsUnsaved()">
+            <option value="">Select source dataset...</option>
+            <template x-for="(option, idx) in sourceDatasetOptions(editingDataset)" :key="`src-${idx}-${option.id}`">
+                <option :value="option.id" x-text="option.label"></option>
+            </template>
+        </select>
+        <div class="form-text small text-warning" x-show="!editingDataset.source_dataset_id && ['reference_strict', 'mask'].includes(editingDataset.conditioning_type)" x-cloak>
+            <i class="fas fa-exclamation-triangle"></i> Source dataset required for strict alignment.
+        </div>
+    </div>
+
+    <!-- Conditioning Dataset Links (for image/video datasets only) -->
+    <div class="section-group" x-show="editingDataset.dataset_type !== 'conditioning' && matchesParamFilter('conditioning', 'dataset', 'link', 'control')">
+        <h6 class="modal-section-title">Conditioning Datasets</h6>
+        <p class="text-muted small mb-2">
+            Link existing <code x-text="conditioningDatasetType"></code> datasets to feed control inputs.
+        </p>
+        <label class="form-label small">Linked Datasets <a x-show="showDocLinks" href="https://github.com/bghira/SimpleTuner/blob/main/documentation/DATALOADER.md#conditioning_data" target="_blank" class="text-muted" title="Documentation"><sup><i class="fas fa-external-link-alt fa-xs"></i></sup></a></label>
+        <template x-if="conditioningOptions(editingDataset).length === 0">
+            <div class="alert alert-secondary small py-2 mb-2">
+                Create a <code x-text="conditioningDatasetType"></code> dataset first.
+            </div>
+        </template>
+        <select class="form-select form-select-sm"
+                multiple
+                x-model="editingDataset.conditioning_data"
+                @change="onConditioningDataChange(editingDataset, $event)"
+                style="min-height: 80px;">
+            <template x-for="option in conditioningOptions(editingDataset)" :key="option">
+                <option :value="option" x-text="option"></option>
+            </template>
+        </select>
+        <div class="form-text small">Hold <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> to select multiple</div>
+    </div>
+
+    <!-- Conditioning Generators (for image/video datasets only) -->
+    <div class="section-group" x-show="editingDataset.dataset_type !== 'conditioning' && matchesParamFilter('conditioning', 'generator', 'canny', 'depth', 'edge', 'lineart', 'normal', 'scribble', 'mask')">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <h6 class="modal-section-title mb-0">Conditioning Generators <a x-show="showDocLinks" href="https://github.com/bghira/SimpleTuner/blob/main/documentation/DATALOADER.md#conditioning" target="_blank" class="text-muted" title="Documentation"><sup><i class="fas fa-external-link-alt fa-xs"></i></sup></a></h6>
+            <button type="button"
+                    class="btn btn-sm btn-outline-primary"
+                    @click="addConditioningGenerator(editingDataset)"
+                    :disabled="!conditioningSupported">
+                <i class="fas fa-plus"></i> Add
+            </button>
+        </div>
+
+        <template x-if="conditioningRequired && (!Array.isArray(editingDataset.conditioning) || editingDataset.conditioning.length === 0)">
+            <div class="alert alert-warning small py-2 mb-2">
+                This model requires conditioning. Link a dataset or add a generator.
+            </div>
+        </template>
+
+        <!-- Generator List -->
+        <template x-for="(generator, genIndex) in editingDataset.conditioning" :key="generator._uiKey || genIndex">
+            <div class="card mb-2 conditioning-generator-card">
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div class="flex-grow-1 me-2">
+                            <label class="form-label small mb-1">Generator Type</label>
+                            <select class="form-select form-select-sm"
+                                    x-model="generator._selectedType"
+                                    @change="onGeneratorTypeSelect(generator)"
+                                    :disabled="!conditioningSupported">
+                                <option value="">Select...</option>
+                                <template x-for="option in availableGeneratorTypes" :key="option.value">
+                                    <option :value="option.value"
+                                            :title="option.description"
+                                            x-text="option.label"></option>
+                                </template>
+                            </select>
+                            <div class="mt-1" x-show="generator._selectedType === '__custom__'" x-cloak>
+                                <input type="text"
+                                       class="form-control form-control-sm"
+                                       x-model="generator._customType"
+                                       @input="onGeneratorTypeManual(generator)"
+                                       placeholder="Custom generator id">
+                            </div>
+                        </div>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger"
+                                @click="removeConditioningGenerator(editingDataset, generator)"
+                                title="Remove">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small mb-1">Parameters (JSON)</label>
+                        <textarea class="form-control form-control-sm font-monospace"
+                                  rows="3"
+                                  x-model="generator._paramsText"
+                                  @blur="onGeneratorParamsBlur(generator)"
+                                  :class="{'is-invalid': generator._paramsParseError}"></textarea>
+                        <div class="invalid-feedback" x-show="generator._paramsParseError" x-text="generator._paramsParseError"></div>
+                    </div>
+
+                    <div>
+                        <label class="form-label small mb-1">Captions</label>
+                        <select class="form-select form-select-sm"
+                                x-model="generator._captionsMode"
+                                @change="onGeneratorCaptionsModeChange(generator)">
+                            <option value="inherit">Inherit from dataset</option>
+                            <option value="none">Disable captions</option>
+                            <option value="single">Single prompt</option>
+                            <option value="list">Prompt list</option>
+                        </select>
+                        <div class="mt-1" x-show="generator._captionsMode === 'single'" x-cloak>
+                            <input type="text"
+                                   class="form-control form-control-sm"
+                                   x-model="generator._captionsValue"
+                                   @input="onGeneratorCaptionsInput(generator)"
+                                   placeholder="e.g. outline sketch">
+                        </div>
+                        <div class="mt-1" x-show="generator._captionsMode === 'list'" x-cloak>
+                            <textarea class="form-control form-control-sm"
+                                      rows="2"
+                                      x-model="generator._captionsValue"
+                                      @input="onGeneratorCaptionsInput(generator)"
+                                      placeholder="One caption per line"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <div class="text-muted small" x-show="!editingDataset.conditioning || editingDataset.conditioning.length === 0">
+            No generators configured.
+        </div>
+    </div>
+</div>

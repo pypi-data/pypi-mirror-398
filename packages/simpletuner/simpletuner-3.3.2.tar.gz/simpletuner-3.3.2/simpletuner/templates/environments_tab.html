@@ -1,0 +1,3261 @@
+<!-- templates/environments_tab.html - Configuration management tab -->
+<link rel="stylesheet" href="/static/css/form-sections.css" id="css-form-sections-environments">
+<script>document.getElementById('css-form-sections-environments').href = '/static/css/form-sections.css?t=' + Date.now();</script>
+<script>
+window.__promptLibraries = {{ (prompt_libraries or []) | tojson | safe }};
+</script>
+<script>
+(() => {
+const localSanitizeConfigName = window.sanitizeConfigName
+    ? window.sanitizeConfigName
+    : (name) => {
+        if (typeof name !== 'string') {
+            return name;
+        }
+        const trimmed = name.trim();
+        return trimmed.toLowerCase().endsWith('.json') ? trimmed.slice(0, -5) : trimmed;
+    };
+window.localSanitizeConfigName = localSanitizeConfigName;
+
+const localSanitizeConfigEntry = window.sanitizeConfigEntry
+    ? window.sanitizeConfigEntry
+    : (entry) => {
+        if (!entry || typeof entry !== 'object') {
+            return entry;
+        }
+        const clone = { ...entry };
+        if (clone.name) {
+            clone.name = localSanitizeConfigName(clone.name);
+        }
+        return clone;
+    };
+window.localSanitizeConfigEntry = localSanitizeConfigEntry;
+
+const initialPromptLibraries = (() => {
+    if (Array.isArray(window.__promptLibraries)) {
+        return window.__promptLibraries.slice();
+    }
+    if (Array.isArray(window.__initialPromptLibraries)) {
+        return window.__initialPromptLibraries.slice();
+    }
+    return [];
+})();
+window.__initialPromptLibraries = initialPromptLibraries.slice();
+delete window.__promptLibraries;
+
+const cloneValue = (value) => JSON.parse(JSON.stringify(value));
+
+const handleGitResponseWarnings = (data) => {
+    if (data && data.git_push_error) {
+        window.showToast && window.showToast('Git push failed: ' + data.git_push_error, 'warning');
+    }
+    if (data && data.git_error) {
+        window.showToast && window.showToast('Git snapshot failed: ' + data.git_error, 'warning');
+    }
+};
+
+const safeGetPreferredViewMode = () => {
+    if (typeof localStorage === 'undefined') {
+        return 'cards';
+    }
+    try {
+        return localStorage.getItem('environmentsViewMode') || 'cards';
+    } catch (error) {
+        console.warn('[EnvironmentsTab] Unable to read view mode preference from localStorage', error);
+        return 'cards';
+    }
+};
+
+const buildLycorisCollapsedDefaults = () => ({
+    algorithm: false,
+    core: false,
+    algoSpecific: true,
+    presets: true,
+    targets: true,
+    moduleOverrides: true,
+    nameOverrides: true,
+    preview: true,
+});
+
+const fallbackState = {
+    createEnvironmentModal: false,
+    dataloaderModal: { open: false, environment: '', path: '', loading: false },
+    lycorisEditor: { open: false, loading: false, selectedEnvironment: null },
+    lycorisEditorMode: 'environment',
+    lycorisLibraryName: null,
+    lycorisLibraryIsNew: false,
+    lycorisMetadataLoading: false,
+    lycorisMetadata: null,
+    lycorisPresetSelection: '',
+    lycorisModuleOverrides: [],
+    lycorisNameOverrides: [],
+    lycorisPresetLists: {
+        target_module: '',
+        target_name: '',
+        unet_target_module: '',
+        unet_target_name: '',
+        text_encoder_target_module: '',
+        text_encoder_target_name: '',
+        exclude_name: '',
+    },
+    lycorisCollapsedSections: buildLycorisCollapsedDefaults(),
+    lycorisConfig: {
+        algo: 'lora',
+        multiplier: 1.0,
+        linear_dim: 64,
+        linear_alpha: 32,
+        factor: null,
+        block_size: null,
+        apply_preset: {},
+    },
+};
+
+Object.entries(fallbackState).forEach(([key, value]) => {
+    if (typeof window[key] === 'undefined') {
+        window[key] = cloneValue(value);
+    }
+});
+
+const fallbackFns = {
+    renderLycorisSuggestions: () => '',
+    currentLycorisAlgorithm: () => null,
+    getLycorisConfigJSON: () => 'null',
+    lycorisEditorContextLabel: () => 'Environment',
+};
+
+Object.entries(fallbackFns).forEach(([key, fn]) => {
+    if (typeof window[key] !== 'function') {
+        window[key] = fn;
+    }
+});
+
+window.environmentsTabComponent = function environmentsTabComponent() {
+
+    try {
+        const state = {
+         configs: [],
+         templates: [],
+         selectedConfigs: [],
+         searchTerm: '',
+         activePanel: 'configs',
+         captionFilterSearch: '',
+         filterEditor: {
+             open: false,
+             mode: 'create',
+             name: '',
+             originalName: '',
+             label: '',
+             description: '',
+             entriesText: '',
+             testInput: '',
+             testResult: null,
+             testing: false,
+         },
+         viewMode: safeGetPreferredViewMode(),
+         configType: 'model',  // 'model', 'dataloader', 'webhook', or 'lycoris'
+         createEnvironmentModal: false,
+        dataloaderConfigs: [],
+        expandedEnvironments: {},
+        dataloaderModal: {
+            open: false,
+            environment: '',
+            path: '',
+            loading: false
+        },
+        lycorisEditor: {
+            open: false,
+            loading: false,
+            selectedEnvironment: null
+        },
+        lycorisEditorMode: 'environment',
+        lycorisLibraryName: null,
+        lycorisLibraryIsNew: false,
+        lycorisConfig: {
+            algo: 'lora',
+            multiplier: 1.0,
+            linear_dim: 64,
+            linear_alpha: 32,
+            factor: null,
+            block_size: null,
+            apply_preset: {}
+        },
+        lycorisMetadata: null,
+        lycorisMetadataLoading: false,
+        lycorisPresetSelection: '',
+        lycorisModuleOverrides: [
+            { key: '', algo: '', options: [{ key: '', value: '' }] }
+        ],
+        lycorisNameOverrides: [
+            { key: '', algo: '', options: [{ key: '', value: '' }] }
+        ],
+        lycorisPresetLists: {
+            target_module: '',
+            target_name: '',
+            unet_target_module: '',
+            unet_target_name: '',
+            text_encoder_target_module: '',
+            text_encoder_target_name: '',
+            exclude_name: '',
+        },
+        lycorisCollapsedSections: buildLycorisCollapsedDefaults(),
+        promptLibraries: Array.isArray(window.__initialPromptLibraries)
+            ? window.__initialPromptLibraries.slice()
+            : [],
+        promptLibrariesLoading: false,
+        promptLibrariesListener: null,
+        gitReady: false,
+        gitStatus: null,
+        gitHistoryModal: {
+            open: false,
+            target: null,
+            commits: [],
+            diff: null,
+            workingDiff: null,
+            loading: false,
+            error: '',
+        },
+
+        hasDataloader(config) {
+            if (!config) {
+                return false;
+            }
+            const candidateKeys = [
+                'dataloader_path',
+                'data_backend_config',
+                '--data_backend_config',
+                'dataloader_config',
+                '--dataloader_config',
+            ];
+            for (const key of candidateKeys) {
+                const value = config[key];
+                if (typeof value === 'string' && value.trim() !== '') {
+                    return true;
+                }
+            }
+            return Boolean(config.has_dataloader);
+        },
+        get captionFilters() {
+            const trainer = Alpine.store('trainer');
+            return (trainer && Array.isArray(trainer.captionFilters)) ? trainer.captionFilters : [];
+        },
+        filteredCaptionFilters() {
+            if (!this.captionFilterSearch) {
+                return this.captionFilters;
+            }
+            const needle = this.captionFilterSearch.toLowerCase();
+            return this.captionFilters.filter((filter) => {
+                const label = (filter.label || filter.name || '').toLowerCase();
+                const description = (filter.description || '').toLowerCase();
+                return label.includes(needle) || description.includes(needle);
+            });
+        },
+        ensureCaptionFiltersLoaded(force = false) {
+            const trainer = Alpine.store('trainer');
+            if (trainer && typeof trainer.loadCaptionFilters === 'function') {
+                return trainer.loadCaptionFilters(force);
+            }
+            return Promise.resolve([]);
+        },
+        switchPanel(panel) {
+            if (this.activePanel === panel) {
+                return;
+            }
+            this.activePanel = panel;
+            if (panel === 'configs') {
+                this.switchConfigType(this.configType);
+            } else if (panel === 'filters') {
+                this.ensureCaptionFiltersLoaded();
+            } else if (panel === 'promptLibraries') {
+                this.loadPromptLibraries();
+            }
+        },
+        resetFilterEditor() {
+            this.filterEditor = {
+                open: false,
+                mode: 'create',
+                name: '',
+                originalName: '',
+                label: '',
+                description: '',
+                entriesText: '',
+                testInput: '',
+                testResult: null,
+                testing: false,
+            };
+        },
+        openFilterEditor(filter = null) {
+            if (filter) {
+                this.filterEditor = {
+                    open: true,
+                    mode: 'edit',
+                    name: filter.name || '',
+                    originalName: filter.name || '',
+                    label: filter.label || '',
+                    description: filter.description || '',
+                    entriesText: Array.isArray(filter.entries) ? filter.entries.join('\n') : '',
+                    testInput: '',
+                    testResult: null,
+                    testing: false,
+                };
+            } else {
+                this.resetFilterEditor();
+                this.filterEditor.open = true;
+            }
+        },
+        duplicateCaptionFilter(filter) {
+            if (!filter) {
+                return;
+            }
+            this.filterEditor = {
+                open: true,
+                mode: 'create',
+                name: `${filter.name || 'filter'}-copy`,
+                originalName: '',
+                label: filter.label ? `${filter.label} (copy)` : '',
+                description: filter.description || '',
+                entriesText: Array.isArray(filter.entries) ? filter.entries.join('\n') : '',
+                testInput: '',
+                testResult: null,
+                testing: false,
+            };
+        },
+        closeFilterEditor() {
+            this.resetFilterEditor();
+        },
+        async saveCaptionFilter() {
+            const name = (this.filterEditor.name || '').trim();
+            if (!name) {
+                window.showToast('Filter name is required.', 'warning');
+                return;
+            }
+            const entries = (this.filterEditor.entriesText || '')
+                .split(/\r?\n/)
+                .map((line) => line.trim())
+                .filter((line) => line !== '');
+
+            const payload = {
+                name,
+                label: (this.filterEditor.label || '').trim() || null,
+                description: (this.filterEditor.description || '').trim() || null,
+                entries,
+            };
+
+            try {
+                const endpoint = this.filterEditor.mode === 'edit'
+                    ? `/api/caption-filters/${encodeURIComponent(this.filterEditor.originalName)}`
+                    : '/api/caption-filters';
+                const method = this.filterEditor.mode === 'edit' ? 'PUT' : 'POST';
+                const response = await fetch(endpoint, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || 'Failed to save caption filter');
+                }
+                window.showToast(`Caption filter ${this.filterEditor.mode === 'edit' ? 'updated' : 'created'}`, 'success');
+                this.closeFilterEditor();
+                await this.ensureCaptionFiltersLoaded(true);
+            } catch (error) {
+                console.error('Failed to save caption filter:', error);
+                window.showToast(error.message || 'Failed to save caption filter', 'error');
+            }
+        },
+        async deleteCaptionFilter(name) {
+            if (!name) {
+                return;
+            }
+            if (!confirm(`Delete caption filter "${name}"?`)) {
+                return;
+            }
+            try {
+                const response = await fetch(`/api/caption-filters/${encodeURIComponent(name)}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || 'Failed to delete caption filter');
+                }
+                window.showToast('Caption filter deleted', 'success');
+                await this.ensureCaptionFiltersLoaded(true);
+            } catch (error) {
+                console.error('Failed to delete caption filter:', error);
+                window.showToast(error.message || 'Failed to delete caption filter', 'error');
+            }
+        },
+        async testCaptionFilter() {
+            const entries = (this.filterEditor.entriesText || '')
+                .split(/\r?\n/)
+                .map((line) => line.trim())
+                .filter((line) => line !== '');
+            const sample = (this.filterEditor.testInput || '').toString();
+            if (!entries.length) {
+                window.showToast('Add at least one filter entry before testing.', 'warning');
+                return;
+            }
+            if (!sample) {
+                window.showToast('Provide a sample caption to test.', 'warning');
+                return;
+            }
+            this.filterEditor.testing = true;
+            this.filterEditor.testResult = null;
+            try {
+                const response = await fetch('/api/caption-filters/test', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        entries,
+                        sample
+                    })
+                });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || 'Failed to test caption filter');
+                }
+                const result = await response.json();
+                this.filterEditor.testResult = result.output || '';
+            } catch (error) {
+                console.error('Failed to test caption filter:', error);
+                window.showToast(error.message || 'Failed to test caption filter', 'error');
+                this.filterEditor.testResult = null;
+            } finally {
+                this.filterEditor.testing = false;
+            }
+        },
+
+        setViewMode(mode) {
+            this.viewMode = mode;
+            if (typeof localStorage === 'undefined') {
+                return;
+            }
+            try {
+                localStorage.setItem('environmentsViewMode', mode);
+            } catch (error) {
+                console.warn('[EnvironmentsTab] Unable to persist view mode preference', error);
+            }
+        },
+
+        async switchConfigType(type) {
+            this.configType = type;
+            this.selectedConfigs = [];
+            await this.loadConfigs();
+            if (type === 'lycoris') {
+                await this.ensureLycorisMetadata();
+            }
+            if (type === 'model') {
+                await this.loadTemplates();
+            } else {
+                this.templates = [];  // Clear templates for non-model types
+            }
+        },
+
+        normalizeConfigNameForType(name) {
+            if (name === undefined || name === null) {
+                return '';
+            }
+            // Always use the same normalization as the backend - strip .json extension
+            return localSanitizeConfigName(String(name).trim());
+        },
+
+        normalizeConfigEntry(entry) {
+            if (this.configType === 'model') {
+                return localSanitizeConfigEntry(entry);
+            }
+             if (this.configType === 'lycoris' && entry && typeof entry === 'object') {
+                 const clone = { ...entry };
+                 clone.name = this.normalizeConfigNameForType(clone.name || '');
+                 clone.source = clone.source || 'library';
+                 return clone;
+             }
+            return entry;
+        },
+
+        async openCreateEnvironmentModal() {
+            this.createEnvironmentModal = true;
+            this.$nextTick(async () => {
+                const formEl = this.$refs.createEnvironmentForm;
+                const component = formEl && formEl.__x ? formEl.__x.$data : null;
+                if (component && typeof component.prepareForDisplay === 'function') {
+                    await component.prepareForDisplay();
+                }
+            });
+        },
+
+        closeCreateEnvironmentModal() {
+            this.createEnvironmentModal = false;
+            const formEl = this.$refs.createEnvironmentForm;
+            const component = formEl && formEl.__x ? formEl.__x.$data : null;
+            if (component && typeof component.resetForm === 'function') {
+                component.resetForm();
+            }
+        },
+
+        async handleEnvironmentCreated(detail) {
+            const payload = detail?.payload || null;
+            const environment = detail?.environment || null;
+            this.closeCreateEnvironmentModal();
+            await this.loadConfigs();
+            const dataloaderStore = Alpine.store('dataloaderConfigs');
+            if (dataloaderStore) {
+                await dataloaderStore.load(true);
+            }
+            this.dataloaderConfigs = [];
+            const trainerStore = Alpine.store('trainer');
+            if (trainerStore) {
+                if (typeof trainerStore.loadEnvironmentConfigs === 'function') {
+                    await trainerStore.loadEnvironmentConfigs();
+                }
+
+                if (environment && Array.isArray(trainerStore.environments)) {
+                    const exists = trainerStore.environments.some(
+                        (entry) => entry && entry.name === environment.name
+                    );
+                    if (!exists) {
+                        trainerStore.environments.push(environment);
+                    }
+                }
+
+                let switched = false;
+                if (environment && typeof trainerStore.switchEnvironment === 'function') {
+                    try {
+                        await trainerStore.switchEnvironment(environment.name);
+                        switched = true;
+                    } catch (error) {
+                        console.error('Failed to switch to new environment automatically:', error);
+                    }
+                }
+
+                if (!switched && typeof trainerStore.updateConfigSelectors === 'function') {
+                    await trainerStore.updateConfigSelectors();
+                }
+            }
+            await this.announceConfigChange(
+                {
+                    source: 'environment-create',
+                    name: payload && payload.name
+                        ? payload.name
+                        : (environment && environment.name ? environment.name : null),
+                    environment: environment,
+                },
+                { skipTrainerRefresh: true }
+            );
+        },
+
+        openCreateDataloaderModal(environmentName) {
+            this.dataloaderModal.environment = environmentName;
+            this.dataloaderModal.path = `${environmentName}/multidatabackend.json`;
+            this.dataloaderModal.open = true;
+        },
+
+        closeCreateDataloaderModal() {
+            this.dataloaderModal.open = false;
+            this.dataloaderModal.loading = false;
+        },
+
+        async createEnvironmentDataloader() {
+            if (!this.dataloaderModal.environment) {
+                window.showToast('Environment name missing', 'warning');
+                return;
+            }
+            this.dataloaderModal.loading = true;
+            const payload = {
+                path: this.dataloaderModal.path || null
+            };
+            try {
+                const response = await fetch(`/api/configs/${this.dataloaderModal.environment}/dataloader`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    handleGitResponseWarnings(data);
+                    this.closeCreateDataloaderModal();
+                    // Force reload shared dataloader store
+                    const dataloaderStore = Alpine.store('dataloaderConfigs');
+                    if (dataloaderStore) {
+                        await dataloaderStore.load(true);
+                    }
+                    if (this.configType === 'dataloader') {
+                        await this.loadConfigs();
+                    } else {
+                        this.dataloaderConfigs = [];
+                    }
+                    window.showToast('Dataloader configuration created', 'success');
+                } else {
+                    const error = await response.json().catch(() => ({}));
+                    window.showToast(error.detail || 'Failed to create dataloader', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to create dataloader:', error);
+                window.showToast('Failed to create dataloader', 'error');
+            } finally {
+                this.dataloaderModal.loading = false;
+            }
+        },
+
+        async loadConfigs() {
+            try {
+                const response = await fetch(`/api/configs/?config_type=${this.configType}`);
+                const data = await response.json();
+                const configs = Array.isArray(data.configs)
+                    ? data.configs.map((entry) => this.normalizeConfigEntry(entry))
+                    : [];
+                this.configs = configs;
+
+                // Load all dataloader configs if we're viewing model configs
+                if (this.configType === 'model') {
+                    await this.loadAllDataloaderConfigs();
+                }
+            } catch (error) {
+                console.error('Failed to load configs:', error);
+            }
+        },
+
+        async loadGitStatus(force = false) {
+            if (this.gitHistoryModal.loading && !force) {
+                return;
+            }
+            try {
+                const response = await fetch(`/api/git/status?config_type=${this.configType}`);
+                if (!response.ok) {
+                    throw new Error('Git status unavailable');
+                }
+                const status = await response.json();
+                this.gitStatus = status;
+                this.gitReady = Boolean(status.git_available && status.repo_present);
+            } catch (error) {
+                console.debug('Git status check failed', error);
+                this.gitReady = false;
+            }
+        },
+
+        async openHistoryModal(configName) {
+            const target = this.normalizeConfigNameForType(configName);
+            if (!target) {
+                return;
+            }
+            this.gitHistoryModal.open = true;
+            this.gitHistoryModal.target = target;
+            this.gitHistoryModal.loading = true;
+            this.gitHistoryModal.error = '';
+            try {
+                await this.loadGitStatus(true);
+                if (!this.gitReady) {
+                    throw new Error('Git is not configured for the configs directory.');
+                }
+                const historyResponse = await fetch(
+                    `/api/git/history?path=${encodeURIComponent(target)}&config_type=${this.configType}`
+                );
+                if (!historyResponse.ok) {
+                    const detail = await historyResponse.json().catch(() => ({}));
+                    throw new Error(detail.detail || 'Failed to load history');
+                }
+                const payload = await historyResponse.json();
+                this.gitHistoryModal.commits = Array.isArray(payload.commits) ? payload.commits : [];
+
+                await this.loadDiffForCommit(null);
+            } catch (error) {
+                console.error('Failed to open git history modal', error);
+                this.gitHistoryModal.error = error.message || 'Unable to load history';
+            } finally {
+                this.gitHistoryModal.loading = false;
+            }
+        },
+
+        closeHistoryModal() {
+            this.gitHistoryModal.open = false;
+            this.gitHistoryModal.target = null;
+            this.gitHistoryModal.commits = [];
+            this.gitHistoryModal.diff = null;
+            this.gitHistoryModal.workingDiff = null;
+            this.gitHistoryModal.error = '';
+        },
+
+        async loadDiffForCommit(commitSha = null) {
+            if (!this.gitHistoryModal.target) {
+                return;
+            }
+            try {
+                const url = `/api/git/diff?path=${encodeURIComponent(this.gitHistoryModal.target)}&config_type=${this.configType}${commitSha ? `&commit=${encodeURIComponent(commitSha)}` : ''}`;
+                const response = await fetch(url);
+                if (!response.ok) {
+                    const detail = await response.json().catch(() => ({}));
+                    throw new Error(detail.detail || 'Failed to load diff');
+                }
+                const data = await response.json();
+                this.gitHistoryModal.diff = data;
+                if (!commitSha) {
+                    this.gitHistoryModal.workingDiff = data;
+                }
+            } catch (error) {
+                console.error('Failed to load diff', error);
+                this.gitHistoryModal.error = error.message || 'Unable to load diff';
+            }
+        },
+
+        async restoreCommit(commitSha) {
+            if (!this.gitHistoryModal.target || !commitSha) {
+                return;
+            }
+            if (!confirm('Restore this configuration to the selected commit? This will overwrite the current file.')) {
+                return;
+            }
+            try {
+                const response = await fetch('/api/git/revert', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        path: this.gitHistoryModal.target,
+                        commit: commitSha,
+                        config_type: this.configType,
+                    }),
+                });
+                if (!response.ok) {
+                    const detail = await response.json().catch(() => ({}));
+                    throw new Error(detail.detail || 'Failed to restore configuration');
+                }
+                window.showToast && window.showToast('Configuration restored from git', 'success');
+                await this.loadConfigs();
+                await this.openHistoryModal(this.gitHistoryModal.target);
+            } catch (error) {
+                console.error('Restore failed', error);
+                window.showToast && window.showToast(error.message || 'Restore failed', 'error');
+            }
+        },
+
+        async snapshotConfig(targetName) {
+            const target = this.normalizeConfigNameForType(targetName || this.gitHistoryModal.target);
+            if (!target) {
+                return;
+            }
+            const defaultMessage = `env:${target} snapshot`;
+            const message = prompt('Commit message', defaultMessage) || defaultMessage;
+            try {
+                const response = await fetch('/api/git/snapshot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        paths: [target],
+                        message,
+                        include_untracked: false,
+                        push: false,
+                        config_type: this.configType,
+                    }),
+                });
+                if (!response.ok) {
+                    const detail = await response.json().catch(() => ({}));
+                    throw new Error(detail.detail || 'Failed to create snapshot');
+                }
+                const result = await response.json();
+                if (result.push_error) {
+                    window.showToast && window.showToast('Snapshot created but push failed: ' + result.push_error, 'warning');
+                } else {
+                    window.showToast && window.showToast('Snapshot created', 'success');
+                }
+                await this.loadGitStatus(true);
+                if (this.gitHistoryModal.open) {
+                    await this.openHistoryModal(target);
+                }
+            } catch (error) {
+                console.error('Snapshot failed', error);
+                window.showToast && window.showToast(error.message || 'Snapshot failed', 'error');
+            }
+        },
+
+        async loadPromptLibraries(force = false) {
+            if (!window.promptLibraryManager) {
+                this.promptLibrariesLoading = false;
+                setTimeout(() => this.loadPromptLibraries(force), 100);
+                return;
+            }
+            this.promptLibrariesLoading = true;
+            try {
+                const libs = await window.promptLibraryManager.refreshList(force);
+                if (Array.isArray(libs)) {
+                    this.promptLibraries = libs;
+                }
+            } catch (error) {
+                console.error('Failed to load prompt libraries:', error);
+            } finally {
+                this.promptLibrariesLoading = false;
+            }
+        },
+
+        openPromptLibraryModal(library = null) {
+            const manager = window.promptLibraryManager;
+            if (!manager) {
+                window.showToast('Prompt library manager is not ready yet', 'warning');
+                return;
+            }
+            const options = {};
+            if (library && library.filename) {
+                options.filename = library.filename;
+            }
+            manager.openModal(options);
+        },
+
+        registerPromptLibraryListener() {
+            if (this.promptLibrariesListener) {
+                return;
+            }
+            this.promptLibrariesListener = (event) => {
+                const libs = event?.detail?.libraries;
+                if (Array.isArray(libs)) {
+                    this.promptLibraries = libs;
+                } else {
+                    this.loadPromptLibraries(true);
+                }
+            };
+            window.addEventListener('promptLibrarySaved', this.promptLibrariesListener);
+            this.loadPromptLibraries(true);
+        },
+
+        formatLibraryTimestamp(value) {
+            if (!value) {
+                return '';
+            }
+            const parsed = new Date(value);
+            if (Number.isNaN(parsed.getTime())) {
+                return value;
+            }
+            return parsed.toLocaleString();
+        },
+
+        async loadAllDataloaderConfigs() {
+            const store = Alpine.store('dataloaderConfigs');
+            if (store) {
+                await store.load();
+            }
+        },
+
+        async announceConfigChange(detail = {}, { skipTrainerRefresh = false } = {}) {
+            const eventDetail = {
+                source: `${this.configType}-manager`,
+                configType: this.configType,
+                ...detail,
+            };
+
+            if (this.configType === 'model' && !skipTrainerRefresh) {
+                const trainerStore = Alpine.store('trainer');
+                if (trainerStore) {
+                    try {
+                        if (typeof trainerStore.loadEnvironmentConfigs === 'function') {
+                            await trainerStore.loadEnvironmentConfigs();
+                        } else if (typeof trainerStore.updateConfigSelectors === 'function') {
+                            await trainerStore.updateConfigSelectors();
+                        }
+                    } catch (error) {
+                        console.error('Failed to refresh trainer configs after update:', error);
+                    }
+                }
+            }
+
+            window.dispatchEvent(new CustomEvent('configs-updated', { detail: eventDetail }));
+        },
+
+        get allDataloaderConfigs() {
+            const store = Alpine.store('dataloaderConfigs');
+            return store ? store.configs : [];
+        },
+
+        toggleEnvironmentExpansion(configName) {
+            const key = this.normalizeConfigNameForType(configName);
+            this.expandedEnvironments[key] = !this.expandedEnvironments[key];
+        },
+
+        isEnvironmentExpanded(configName) {
+            const key = this.normalizeConfigNameForType(configName);
+            return Boolean(this.expandedEnvironments[key]);
+        },
+
+        getDataloadersForEnvironment(config) {
+            if (!config) return [];
+            const dataBackendPath = config.data_backend_config || config['--data_backend_config'] || config.dataloader_path;
+            if (!dataBackendPath) return [];
+
+            // Find matching dataloaders by path
+            return this.allDataloaderConfigs.filter(dl => {
+                const dlPath = dl.path || '';
+                return dlPath === dataBackendPath || dlPath.includes(dataBackendPath) || dataBackendPath.includes(dlPath);
+            });
+        },
+
+        async copyDataloaderJSON(dataloaderPath) {
+            try {
+                const response = await fetch(`/api/configs/dataloader/content?path=${encodeURIComponent(dataloaderPath)}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch dataloader content');
+                }
+                const data = await response.json();
+                const jsonString = JSON.stringify(data, null, 2);
+                await navigator.clipboard.writeText(jsonString);
+                window.showToast('JSON copied to clipboard', 'success');
+            } catch (error) {
+                console.error('Failed to copy dataloader JSON:', error);
+                window.showToast('Failed to copy JSON: ' + error.message, 'error');
+            }
+        },
+
+        async deleteDataloader(dataloaderPath, dataloaderName) {
+            if (!confirm(`Delete dataloader configuration "${dataloaderName}"?\n\nWarning: Any environments referencing this configuration will need to be updated.`)) {
+                return;
+            }
+            try {
+                const response = await fetch(`/api/configs/dataloader?path=${encodeURIComponent(dataloaderPath)}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || 'Failed to delete dataloader');
+                }
+                window.showToast('Dataloader configuration deleted', 'success');
+
+                // Reload shared store
+                const store = Alpine.store('dataloaderConfigs');
+                if (store) {
+                    await store.load(true);
+                }
+                await this.loadConfigs();
+            } catch (error) {
+                console.error('Failed to delete dataloader:', error);
+                window.showToast('Failed to delete dataloader: ' + error.message, 'error');
+            }
+        },
+
+         async loadTemplates() {
+             try {
+                 const response = await fetch('/api/configs/templates');
+                 const data = await response.json();
+                 this.templates = data.templates || [];
+             } catch (error) {
+                 console.error('Failed to load templates:', error);
+             }
+         },
+
+         filteredConfigs() {
+             if (!this.configs || !Array.isArray(this.configs)) return [];
+             if (!this.searchTerm) return this.configs;
+             const needle = this.searchTerm.toLowerCase();
+             return this.configs.filter((config) => {
+                 const fields = [
+                     config.name,
+                     config.description,
+                     config.model_family,
+                     config.model_type,
+                     config.model_flavour,
+                 ];
+                 if (this.configType === 'lycoris') {
+                     fields.push(
+                         config.algo,
+                         config.relative_path,
+                         config.environment,
+                         config.source,
+                     );
+                 }
+                 return fields.some(
+                     (field) => typeof field === 'string' && field.toLowerCase().includes(needle),
+                 );
+             });
+         },
+
+        getConfigEntryByName(name) {
+            if (!Array.isArray(this.configs) || !name) {
+                return null;
+            }
+            const target = this.normalizeConfigNameForType(name);
+            return (
+                this.configs.find(
+                    (config) => this.normalizeConfigNameForType(config.name) === target,
+                ) || null
+            );
+        },
+
+        canModifyLycorisConfig(name) {
+            if (this.configType !== 'lycoris') {
+                return true;
+            }
+            const entry = this.getConfigEntryByName(name);
+            return Boolean(entry && entry.source === 'library');
+        },
+
+        toggleSelection(configName) {
+            if (this.configType === 'lycoris' && !this.canModifyLycorisConfig(configName)) {
+                window.showToast('Only standalone LyCORIS library entries can be selected.', 'warning');
+                return;
+            }
+            const sanitized = this.normalizeConfigNameForType(configName);
+            const index = this.selectedConfigs.indexOf(sanitized);
+            if (index > -1) {
+                this.selectedConfigs.splice(index, 1);
+            } else {
+                this.selectedConfigs.push(sanitized);
+            }
+        },
+
+        toggleSelectAll(checked) {
+            if (!checked) {
+                this.selectedConfigs = [];
+                return;
+            }
+            if (!Array.isArray(this.configs) || this.configs.length === 0) {
+                this.selectedConfigs = [];
+                return;
+            }
+            if (this.configType === 'lycoris') {
+                const libraryEntries = this.configs
+                    .filter((config) => config.source === 'library')
+                    .map((config) => this.normalizeConfigNameForType(config.name));
+                if (libraryEntries.length === 0) {
+                    window.showToast('No LyCORIS library entries available for bulk actions.', 'info');
+                }
+                this.selectedConfigs = libraryEntries;
+                return;
+            }
+            this.selectedConfigs = this.configs.map((config) => this.normalizeConfigNameForType(config.name));
+        },
+
+        isSelected(configName) {
+            const sanitized = this.normalizeConfigNameForType(configName);
+            return this.selectedConfigs.includes(sanitized);
+        },
+
+        async deleteConfig(name) {
+            if (this.configType === 'lycoris' && !this.canModifyLycorisConfig(name)) {
+                window.showToast('LyCORIS configs that belong to environments can only be managed alongside their environment.', 'warning');
+                return;
+            }
+            const sanitized = this.normalizeConfigNameForType(name);
+            const promptLabel = this.configType === 'lycoris'
+                ? `LyCORIS library config "${sanitized}"`
+                : sanitized;
+            if (!confirm('Are you sure you want to delete ' + promptLabel + '?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/configs/' + encodeURIComponent(sanitized) + '?config_type=' + this.configType, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                     await this.loadConfigs();
+                     window.showToast('Deleted configuration: ' + name, 'success');
+                     await this.announceConfigChange({
+                         source: 'environment-delete',
+                         name: sanitized,
+                     });
+                 } else {
+                     const error = await response.json();
+                     // Show more specific error for active config
+                     let errorMsg = error.detail || 'Failed to delete configuration';
+                     if (error.detail && error.detail.includes('active configuration')) {
+                         errorMsg = 'Cannot delete the active configuration. Please activate a different configuration first.';
+                     }
+                     window.showToast(errorMsg, 'error');
+                 }
+             } catch (error) {
+                 console.error('Failed to delete config:', error);
+                 window.showToast('Failed to delete configuration', 'error');
+             }
+         },
+
+         async deleteSelected() {
+             if (this.selectedConfigs.length === 0) {
+                 window.showToast('No configurations selected', 'warning');
+                 return;
+             }
+             let deletable = this.selectedConfigs.slice();
+             if (this.configType === 'lycoris') {
+                 deletable = deletable.filter((name) => this.canModifyLycorisConfig(name));
+                 if (deletable.length === 0) {
+                     window.showToast('Select LyCORIS library entries to delete. Environment-linked configs cannot be deleted here.', 'warning');
+                     return;
+                 }
+                 const skipped = this.selectedConfigs.length - deletable.length;
+                 if (skipped > 0) {
+                     window.showToast(`${skipped} selection(s) skipped because they belong to environments.`, 'info');
+                 }
+             }
+
+             if (!confirm('Delete ' + deletable.length + ' selected configurations?')) {
+                 return;
+             }
+
+             for (const name of deletable) {
+                 await this.deleteConfig(name);
+             }
+
+             this.selectedConfigs = [];
+         },
+
+        async duplicateConfig(name) {
+            if (this.configType === 'lycoris' && !this.canModifyLycorisConfig(name)) {
+                window.showToast('Duplicate library entries only. Environment LyCORIS configs are read-only here.', 'warning');
+                return;
+            }
+            const sourceName = this.normalizeConfigNameForType(name);
+            let newName = prompt('Enter name for duplicate of ' + sourceName);
+            if (!newName) return;
+            const targetName = this.normalizeConfigNameForType(newName);
+            if (!targetName) {
+                window.showToast('Name is required', 'warning');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/configs/' + encodeURIComponent(sourceName) + '/copy?config_type=' + this.configType, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        target_name: targetName
+                    })
+                });
+
+                if (response.ok) {
+                    await this.loadConfigs();
+                    window.showToast('Created duplicate: ' + targetName, 'success');
+                    await this.announceConfigChange({
+                        source: 'environment-duplicate',
+                        name: targetName,
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to duplicate config:', error);
+                window.showToast('Failed to duplicate configuration', 'error');
+            }
+        },
+
+        async renameConfig(name) {
+            if (this.configType === 'lycoris' && !this.canModifyLycorisConfig(name)) {
+                window.showToast('LyCORIS configs that belong to environments cannot be renamed here.', 'warning');
+                return;
+            }
+            const sourceName = this.normalizeConfigNameForType(name);
+            let newName = prompt('Rename ' + sourceName + ' to:');
+            if (!newName) return;
+            const targetName = this.normalizeConfigNameForType(newName);
+            if (!targetName || targetName === sourceName) return;
+
+            try {
+                const response = await fetch('/api/configs/' + encodeURIComponent(sourceName) + '/rename?config_type=' + this.configType, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        new_name: targetName
+                    })
+                });
+
+                if (response.ok) {
+                    await this.loadConfigs();
+                    window.showToast('Renamed to ' + targetName, 'success');
+                    await this.announceConfigChange({
+                        source: 'environment-rename',
+                        name: targetName,
+                        previousName: sourceName,
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to rename config:', error);
+                window.showToast('Failed to rename configuration', 'error');
+            }
+        },
+
+        async exportConfig(name) {
+            const resolvedName = this.normalizeConfigNameForType(name);
+            try {
+                const response = await fetch('/api/configs/' + encodeURIComponent(resolvedName) + '/export?config_type=' + this.configType + '&include_metadata=false');
+                const data = await response.json();
+
+                const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = resolvedName + '_config.json';
+                a.click();
+                URL.revokeObjectURL(url);
+
+                window.showToast('Exported configuration: ' + resolvedName, 'success');
+            } catch (error) {
+                console.error('Failed to export config:', error);
+                window.showToast('Failed to export configuration', 'error');
+            }
+        },
+
+        async createFromTemplate(templateName) {
+            let configName = prompt('Enter name for new configuration from template: ' + templateName);
+            if (!configName) return;
+            const normalizedName = this.normalizeConfigNameForType(configName);
+            if (!normalizedName) {
+                window.showToast('Name is required', 'warning');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/configs/from-template?config_type=' + this.configType, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        template_name: templateName,
+                        config_name: normalizedName
+                    })
+                });
+
+                if (response.ok) {
+                    await this.loadConfigs();
+                    window.showToast('Created configuration from template: ' + normalizedName, 'success');
+                    await this.announceConfigChange({
+                        source: 'environment-from-template',
+                        name: normalizedName,
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to create from template:', error);
+                window.showToast('Failed to create from template', 'error');
+            }
+        },
+
+        async importConfig(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const config = JSON.parse(text);
+
+                const promptName = prompt('Enter name for imported configuration: ' + file.name.replace('.json', ''));
+                if (!promptName) return;
+                const name = this.normalizeConfigNameForType(promptName);
+                if (!name) {
+                    window.showToast('Name is required', 'warning');
+                    return;
+                }
+
+                const response = await fetch('/api/configs/import?config_type=' + this.configType, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                     },
+                     body: JSON.stringify({
+                         name: name,
+                         data: JSON.parse(text)
+                     })
+                 });
+
+                if (response.ok) {
+                    await this.loadConfigs();
+                    window.showToast('Imported configuration: ' + name, 'success');
+                    await this.announceConfigChange({
+                        source: 'environment-import',
+                        name: name,
+                    });
+                }
+             } catch (error) {
+                 console.error('Failed to import config:', error);
+                 window.showToast('Failed to import configuration', 'error');
+             }
+         },
+
+        async openLycorisEditor(config) {
+            if (!config || !config.name) {
+                console.warn('[LyCORIS UI] openLycorisEditor called without config name', config);
+                return;
+            }
+            console.log('[LyCORIS UI] Opening environment LyCORIS editor', config.name);
+            this.lycorisEditor.open = true;
+            this.lycorisEditor.loading = true;
+            this.resetLycorisCollapsedSections();
+            this.nudgeLycorisModal();
+            await this.ensureLycorisMetadata();
+            this.lycorisEditorMode = 'environment';
+            this.lycorisLibraryName = null;
+            this.lycorisLibraryIsNew = false;
+            this.lycorisEditor.selectedEnvironment = this.normalizeConfigNameForType(config.name);
+            await this.loadLycorisConfig(this.lycorisEditor.selectedEnvironment);
+        },
+
+        lycorisEditorContextLabel() {
+            if (this.lycorisEditorMode === 'library') {
+                return this.lycorisLibraryName
+                    ? `Library entry: ${this.lycorisLibraryName}`
+                    : 'Library entry';
+            }
+            if (this.lycorisEditor.selectedEnvironment) {
+                return `Environment: ${this.lycorisEditor.selectedEnvironment}`;
+            }
+            return 'Environment';
+        },
+
+        resetLycorisCollapsedSections() {
+            this.lycorisCollapsedSections = buildLycorisCollapsedDefaults();
+        },
+
+        async handleLycorisCardEdit(config) {
+            if (!config) {
+                console.warn('[LyCORIS UI] handleLycorisCardEdit called with null config');
+                return;
+            }
+            if (config.source === 'library') {
+                console.log('[LyCORIS UI] Editing library entry', config.name);
+                await this.openLycorisLibraryEditor(config);
+                return;
+            }
+            const envName = config.environment || config.name;
+            if (!envName) {
+                window.showToast('Unable to locate environment for this LyCORIS config', 'warning');
+                console.warn('[LyCORIS UI] Missing environment mapping for LyCORIS config', config);
+                return;
+            }
+            await this.openLycorisEditor({ name: envName });
+        },
+
+        async openLycorisLibraryCreator() {
+            await this.ensureLycorisMetadata();
+            const name = prompt('Enter a name for the LyCORIS config');
+            if (!name) {
+                console.log('[LyCORIS UI] Library creation cancelled');
+                return;
+            }
+            const normalized = this.normalizeConfigNameForType(name);
+            if (!normalized) {
+                window.showToast('Name is required', 'warning');
+                console.warn('[LyCORIS UI] Invalid name for LyCORIS library entry', name);
+                return;
+            }
+            console.log('[LyCORIS UI] Creating new library entry', normalized);
+            this.lycorisEditorMode = 'library';
+            this.lycorisLibraryName = normalized;
+            this.lycorisLibraryIsNew = true;
+            this.lycorisEditor.selectedEnvironment = null;
+            this.lycorisEditor.loading = true;
+            this.lycorisEditor.open = true;
+            this.resetLycorisCollapsedSections();
+            this.nudgeLycorisModal();
+            try {
+                this.initializeLycorisEditorState(this.cloneLycorisDefaults('lora'));
+            } catch (error) {
+                console.error('Failed to initialize LyCORIS defaults', error);
+                window.showToast('Failed to initialize LyCORIS configuration', 'error');
+                this.closeLycorisEditor();
+            } finally {
+                this.lycorisEditor.loading = false;
+            }
+        },
+
+        async openLycorisLibraryEditor(config) {
+            if (!config || !config.name) {
+                console.warn('[LyCORIS UI] openLycorisLibraryEditor called without config name', config);
+                return;
+            }
+            await this.ensureLycorisMetadata();
+            const normalized = this.normalizeConfigNameForType(config.name);
+            this.lycorisEditorMode = 'library';
+            this.lycorisLibraryName = normalized;
+            this.lycorisLibraryIsNew = false;
+            this.lycorisEditor.selectedEnvironment = null;
+            this.lycorisEditor.open = true;
+            this.lycorisEditor.loading = true;
+            this.resetLycorisCollapsedSections();
+            this.nudgeLycorisModal();
+            console.log('[LyCORIS UI] Loading library entry', normalized);
+            try {
+                const response = await fetch(`/api/configs/${encodeURIComponent(normalized)}?config_type=lycoris`);
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || 'Failed to load LyCORIS configuration');
+                }
+                const data = await response.json();
+                this.initializeLycorisEditorState(data.config || data || {});
+                console.log('[LyCORIS UI] Loaded library entry', normalized);
+            } catch (error) {
+                console.error('Failed to load LyCORIS config:', error);
+                window.showToast(error.message || 'Failed to load LyCORIS configuration', 'error');
+                this.closeLycorisEditor();
+            } finally {
+                this.lycorisEditor.loading = false;
+            }
+        },
+
+        closeLycorisEditor() {
+            this.lycorisEditor.open = false;
+            this.lycorisEditor.loading = false;
+            this.lycorisEditor.selectedEnvironment = null;
+            this.lycorisEditorMode = 'environment';
+            this.lycorisLibraryName = null;
+            this.lycorisLibraryIsNew = false;
+            this.lycorisPresetSelection = '';
+            const manager = window.lycorisConfigurator;
+            const template = manager ? manager.createEmptyOverride() : { key: '', algo: '', options: [{ key: '', value: '' }] };
+            this.lycorisModuleOverrides = [JSON.parse(JSON.stringify(template))];
+            this.lycorisNameOverrides = [JSON.parse(JSON.stringify(template))];
+            Object.keys(this.lycorisPresetLists).forEach((field) => {
+                this.lycorisPresetLists[field] = '';
+            });
+            this.resetLycorisCollapsedSections();
+            this.nudgeLycorisModal();
+        },
+
+        async loadLycorisConfig(envId) {
+            if (!envId) return;
+            await this.ensureLycorisMetadata();
+            const sanitizedId = this.normalizeConfigNameForType(envId);
+            this.lycorisEditorMode = 'environment';
+            this.lycorisLibraryName = null;
+            this.lycorisLibraryIsNew = false;
+            this.lycorisEditor.selectedEnvironment = sanitizedId;
+            this.lycorisEditor.loading = true;
+            console.log('[LyCORIS UI] Fetching environment LyCORIS config', sanitizedId);
+            try {
+                const response = await fetch(`/api/configs/environments/${encodeURIComponent(sanitizedId)}/lycoris`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.initializeLycorisEditorState(data.config || this.cloneLycorisDefaults('lora'));
+                    console.log('[LyCORIS UI] Loaded environment LyCORIS config', sanitizedId, data);
+                } else {
+                    console.warn('[LyCORIS UI] Environment LyCORIS fetch returned', response.status, response.statusText);
+                    this.initializeLycorisEditorState(this.cloneLycorisDefaults('lora'));
+                }
+            } catch (error) {
+                console.error('Failed to load LyCORIS config:', error);
+                window.showToast('Failed to load LyCORIS configuration', 'error');
+                this.initializeLycorisEditorState(this.cloneLycorisDefaults('lora'));
+            } finally {
+                this.lycorisEditor.loading = false;
+                this.nudgeLycorisModal();
+            }
+        },
+
+        async waitForLycorisConfigurator(maxAttempts = 40) {
+            let attempts = 0;
+            while (!window.lycorisConfigurator && attempts < maxAttempts) {
+                await new Promise((resolve) => setTimeout(resolve, 50));
+                attempts += 1;
+            }
+            return window.lycorisConfigurator || null;
+        },
+
+        async ensureLycorisMetadata(force = false) {
+            if (this.lycorisMetadata && !force) {
+                console.log('[LyCORIS UI] LyCORIS metadata already loaded');
+                return this.lycorisMetadata;
+            }
+            const manager = await this.waitForLycorisConfigurator();
+            if (!manager) {
+                console.error('LyCORIS configurator script did not load.');
+                return null;
+            }
+            this.lycorisMetadataLoading = true;
+            try {
+                const data = await manager.fetchMetadata(force);
+                this.lycorisMetadata = data;
+                console.log('[LyCORIS UI] Loaded LyCORIS metadata', data);
+                return data;
+            } catch (error) {
+                console.error('Failed to load LyCORIS metadata', error);
+                window.showToast('Failed to load LyCORIS metadata', 'error');
+                return null;
+            } finally {
+                this.lycorisMetadataLoading = false;
+            }
+        },
+
+        nudgeLycorisModal() {
+            this.$nextTick(() => {
+                const modal = this.$refs.lycorisModal;
+                if (!modal) {
+                    console.warn('[LyCORIS UI] Modal element reference missing');
+                    return;
+                }
+                if (this.lycorisEditor.open) {
+                    modal.removeAttribute('x-cloak');
+                }
+                modal.dataset.visible = this.lycorisEditor.open ? '1' : '0';
+                modal.dataset.loading = this.lycorisEditor.loading ? '1' : '0';
+                modal.style.display = this.lycorisEditor.open ? 'flex' : 'none';
+                modal.style.opacity = this.lycorisEditor.open ? '1' : '0';
+                modal.style.pointerEvents = this.lycorisEditor.open ? 'auto' : 'none';
+                const computed = window.getComputedStyle(modal);
+                const rect = modal.getBoundingClientRect();
+                console.log('[LyCORIS UI] Modal visibility updated', modal.dataset, {
+                    display: computed.display,
+                    opacity: computed.opacity,
+                    visibility: computed.visibility,
+                    pointerEvents: computed.pointerEvents,
+                    zIndex: computed.zIndex,
+                    rect,
+                });
+            });
+        },
+
+        cloneLycorisDefaults(algo = 'lora') {
+            const defaults = (this.lycorisMetadata && this.lycorisMetadata.defaults) || {};
+            const fallback = defaults.lora || {};
+            const source = defaults[algo] || fallback;
+            return JSON.parse(JSON.stringify(source));
+        },
+
+        normalizeApplyPreset(preset) {
+            const normalized =
+                preset && typeof preset === 'object' ? JSON.parse(JSON.stringify(preset)) : {};
+            if (!normalized.module_algo_map || typeof normalized.module_algo_map !== 'object') {
+                normalized.module_algo_map = {};
+            }
+            if (!normalized.name_algo_map || typeof normalized.name_algo_map !== 'object') {
+                normalized.name_algo_map = {};
+            }
+            return normalized;
+        },
+
+        hydrateLycorisConfig(config) {
+            const base = this.cloneLycorisDefaults(config?.algo || 'lora');
+            const payload = Object.assign({}, base, config || {});
+            payload.apply_preset = this.normalizeApplyPreset(payload.apply_preset);
+            return payload;
+        },
+
+        initializeLycorisEditorState(rawConfig) {
+            this.lycorisConfig = this.hydrateLycorisConfig(rawConfig);
+            this.bootstrapLycorisOverrides();
+            this.refreshLycorisPresetText();
+        },
+
+        bootstrapLycorisOverrides() {
+            const manager = window.lycorisConfigurator;
+            if (!manager) {
+                this.lycorisModuleOverrides = [];
+                this.lycorisNameOverrides = [];
+                return;
+            }
+            this.lycorisModuleOverrides = manager.toOverrideArray(this.lycorisConfig.apply_preset?.module_algo_map);
+            this.lycorisNameOverrides = manager.toOverrideArray(this.lycorisConfig.apply_preset?.name_algo_map);
+        },
+
+        refreshLycorisPresetText() {
+            const preset = this.lycorisConfig.apply_preset || {};
+            Object.keys(this.lycorisPresetLists).forEach((field) => {
+                const values = Array.isArray(preset[field]) ? preset[field] : [];
+                this.lycorisPresetLists[field] = values.join('\n');
+            });
+        },
+
+        updatePresetListFromText(field) {
+            const values = this.parsePresetText(this.lycorisPresetLists[field] || '');
+            if (!this.lycorisConfig.apply_preset || typeof this.lycorisConfig.apply_preset !== 'object') {
+                this.lycorisConfig.apply_preset = {};
+            }
+            if (values.length) {
+                this.lycorisConfig.apply_preset[field] = values;
+            } else {
+                delete this.lycorisConfig.apply_preset[field];
+            }
+        },
+
+        parsePresetText(value) {
+            if (!value) {
+                return [];
+            }
+            const entries = value
+                .split(/[\n,]+/)
+                .map((entry) => entry.trim())
+                .filter((entry) => entry.length > 0);
+            return [...new Set(entries)];
+        },
+
+        renderLycorisSuggestions(field) {
+            const suggestions = (this.lycorisMetadata?.suggestions?.[field]) || [];
+            if (!suggestions.length) {
+                return '';
+            }
+            return suggestions.slice(0, 8).join(', ');
+        },
+
+        currentLycorisAlgorithm() {
+            if (!this.lycorisMetadata || !Array.isArray(this.lycorisMetadata.algorithms)) {
+                return null;
+            }
+            return this.lycorisMetadata.algorithms.find((algo) => algo.name === this.lycorisConfig.algo) || null;
+        },
+
+        applyLycorisPreset() {
+            if (!this.lycorisPresetSelection || !this.lycorisMetadata) {
+                return;
+            }
+            const preset = this.lycorisMetadata.presets.find((entry) => entry.name === this.lycorisPresetSelection);
+            if (!preset) {
+                window.showToast('Preset not found', 'warning');
+                return;
+            }
+            this.lycorisConfig.apply_preset = this.normalizeApplyPreset(preset.config);
+            this.refreshLycorisPresetText();
+            this.bootstrapLycorisOverrides();
+            window.showToast(`Applied preset ${this.lycorisPresetSelection}`, 'success');
+        },
+
+        addLycorisOverride(scope = 'module') {
+            const manager = window.lycorisConfigurator;
+            const target = scope === 'name' ? this.lycorisNameOverrides : this.lycorisModuleOverrides;
+            const template = manager ? manager.createEmptyOverride() : { key: '', algo: '', options: [{ key: '', value: '' }] };
+            target.push(JSON.parse(JSON.stringify(template)));
+        },
+
+        removeLycorisOverride(scope, index) {
+            const target = scope === 'name' ? this.lycorisNameOverrides : this.lycorisModuleOverrides;
+            target.splice(index, 1);
+            if (!target.length) {
+                this.addLycorisOverride(scope);
+            }
+        },
+
+        addLycorisOption(scope, index) {
+            const manager = window.lycorisConfigurator;
+            const target = scope === 'name' ? this.lycorisNameOverrides : this.lycorisModuleOverrides;
+            const row = target[index];
+            if (!row) {
+                return;
+            }
+            const template = manager ? manager.createEmptyOption() : { key: '', value: '' };
+            if (!Array.isArray(row.options)) {
+                row.options = [];
+            }
+            row.options.push(JSON.parse(JSON.stringify(template)));
+        },
+
+        removeLycorisOption(scope, index, optionIndex) {
+            const target = scope === 'name' ? this.lycorisNameOverrides : this.lycorisModuleOverrides;
+            const row = target[index];
+            if (!row || !Array.isArray(row.options) || row.options.length === 0) {
+                return;
+            }
+            if (row.options.length === 1) {
+                row.options[0] = { key: '', value: '' };
+                return;
+            }
+            row.options.splice(optionIndex, 1);
+        },
+
+        updateAlgorithmDefaults() {
+            const algo = this.lycorisConfig.algo || 'lora';
+            const defaults = this.lycorisMetadata?.defaults?.[algo];
+            if (!defaults) {
+                return;
+            }
+            const fields = ['multiplier', 'linear_dim', 'linear_alpha', 'factor', 'block_size', 'constraint', 'rescaled'];
+            fields.forEach((field) => {
+                if (defaults[field] !== undefined) {
+                    this.lycorisConfig[field] = defaults[field];
+                } else if (['factor', 'block_size', 'constraint', 'rescaled'].includes(field)) {
+                    delete this.lycorisConfig[field];
+                }
+            });
+        },
+
+        overrideHasContent(override) {
+            if (!override) {
+                return false;
+            }
+            if ((override.algo || '').trim()) {
+                return true;
+            }
+            if (Array.isArray(override.options)) {
+                return override.options.some((option) => (option?.key || '').trim());
+            }
+            return false;
+        },
+
+        validateOverrideRows(scope) {
+            const overrides = scope === 'name' ? this.lycorisNameOverrides : this.lycorisModuleOverrides;
+            for (const override of overrides) {
+                const key = (override?.key || '').trim();
+                if (!key && this.overrideHasContent(override)) {
+                    window.showToast('Override entries require a name before saving', 'warning');
+                    return false;
+                }
+            }
+            return true;
+        },
+
+        validateLycorisConfig() {
+            if (!this.lycorisConfig.algo) {
+                window.showToast('Algorithm is required', 'warning');
+                return false;
+            }
+            if (this.lycorisConfig.multiplier === null || this.lycorisConfig.multiplier === undefined) {
+                window.showToast('Multiplier is required', 'warning');
+                return false;
+            }
+            if (
+                !['full', 'ia3'].includes(this.lycorisConfig.algo) &&
+                (this.lycorisConfig.linear_dim === null || this.lycorisConfig.linear_dim === undefined)
+            ) {
+                window.showToast('Linear dimension is required for this algorithm', 'warning');
+                return false;
+            }
+            if (!this.validateOverrideRows('module') || !this.validateOverrideRows('name')) {
+                return false;
+            }
+            return true;
+        },
+
+        syncPresetTextToConfig() {
+            Object.keys(this.lycorisPresetLists).forEach((field) => this.updatePresetListFromText(field));
+        },
+
+        buildApplyPresetPayload() {
+            this.syncPresetTextToConfig();
+            const preset = Object.assign({}, this.lycorisConfig.apply_preset || {});
+            const manager = window.lycorisConfigurator;
+            if (manager) {
+                const moduleMap = manager.serializeOverrides(this.lycorisModuleOverrides);
+                const nameMap = manager.serializeOverrides(this.lycorisNameOverrides);
+                if (Object.keys(moduleMap).length) {
+                    preset.module_algo_map = moduleMap;
+                } else {
+                    delete preset.module_algo_map;
+                }
+                if (Object.keys(nameMap).length) {
+                    preset.name_algo_map = nameMap;
+                } else {
+                    delete preset.name_algo_map;
+                }
+            }
+            return preset;
+        },
+
+        prepareLycorisSavePayload() {
+            const payload = JSON.parse(JSON.stringify(this.lycorisConfig));
+            const preset = this.buildApplyPresetPayload();
+            if (preset && Object.keys(preset).length) {
+                payload.apply_preset = preset;
+            } else {
+                delete payload.apply_preset;
+            }
+            return payload;
+        },
+
+        async saveLycorisConfig() {
+            if (!this.validateLycorisConfig()) {
+                return;
+            }
+            this.lycorisEditor.loading = true;
+            try {
+                const payload = this.prepareLycorisSavePayload();
+                if (this.lycorisEditorMode === 'library') {
+                    if (!this.lycorisLibraryName) {
+                        window.showToast('Configuration name is required', 'warning');
+                        return;
+                    }
+                    const targetName = this.normalizeConfigNameForType(this.lycorisLibraryName);
+                    const body = {
+                        name: targetName,
+                        config: payload,
+                        description: null,
+                        tags: [],
+                    };
+                    const isCreate = this.lycorisLibraryIsNew;
+                    const url = isCreate
+                        ? '/api/configs?config_type=lycoris'
+                        : `/api/configs/${encodeURIComponent(targetName)}?config_type=lycoris`;
+                    console.log('[LyCORIS UI] Saving library entry', {
+                        name: targetName,
+                        mode: isCreate ? 'create' : 'update',
+                    });
+                    const response = await fetch(url, {
+                        method: isCreate ? 'POST' : 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(body),
+                    });
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({}));
+                        console.warn('[LyCORIS UI] Library save failed', error);
+                        throw new Error(error.detail || 'Failed to save LyCORIS configuration');
+                    }
+                    this.lycorisLibraryName = targetName;
+                    this.lycorisLibraryIsNew = false;
+                    window.showToast('LyCORIS configuration saved', 'success');
+                    await this.loadConfigs();
+                    window.dispatchEvent(
+                        new CustomEvent('configs-updated', {
+                            detail: {
+                                source: 'lycoris-library-save',
+                                configType: 'lycoris',
+                                name: targetName,
+                            },
+                        }),
+                    );
+                    console.log('[LyCORIS UI] Saved library entry', targetName);
+                } else {
+                    if (!this.lycorisEditor.selectedEnvironment) {
+                        window.showToast('No environment selected', 'warning');
+                        console.warn('[LyCORIS UI] Attempted to save environment LyCORIS without selection');
+                        return;
+                    }
+                    const environmentId = this.normalizeConfigNameForType(this.lycorisEditor.selectedEnvironment);
+                    console.log('[LyCORIS UI] Saving environment LyCORIS config', environmentId);
+                    const response = await fetch(
+                        `/api/configs/environments/${encodeURIComponent(environmentId)}/lycoris`,
+                        {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ config: payload }),
+                        }
+                    );
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({}));
+                        throw new Error(error.detail || 'Failed to save LyCORIS configuration');
+                    }
+                    const data = await response.json().catch(() => ({}));
+                    handleGitResponseWarnings(data);
+                    window.showToast('LyCORIS configuration saved', 'success');
+                    await this.loadLycorisConfig(environmentId);
+                    console.log('[LyCORIS UI] Saved environment LyCORIS config', environmentId);
+                }
+            } catch (error) {
+                console.error('Failed to save LyCORIS config:', error);
+                window.showToast(error.message || 'Failed to save LyCORIS configuration', 'error');
+            } finally {
+                this.lycorisEditor.loading = false;
+            }
+        },
+
+        getLycorisConfigJSON() {
+            return JSON.stringify(this.prepareLycorisSavePayload(), null, 2);
+        }
+        };
+        return state;
+    } catch (error) {
+        console.error('Failed to initialize environmentsTabComponent()', error);
+        throw error;
+    }
+}
+})();
+</script>
+
+<div class="tab-fragment"
+     id="environments-tab-content"
+     data-tab-name="environments"
+     x-data="environmentsTabComponent()"
+     x-init="loadConfigs(); loadTemplates(); registerPromptLibraryListener(); loadGitStatus()">
+
+    <!-- Main Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-1"><i class="fas fa-folder-open me-2"></i>Configuration Environments</h5>
+            <p class="text-muted mb-3">Manage training configurations and caption filters</p>
+
+            <!-- Panel Switcher -->
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-sm"
+                        :class="activePanel === 'configs' ? 'btn-primary' : 'btn-outline-secondary'"
+                        @click="switchPanel('configs')">
+                    <i class="fas fa-folder"></i> Configurations
+                </button>
+                <button type="button" class="btn btn-sm"
+                        :class="activePanel === 'filters' ? 'btn-primary' : 'btn-outline-secondary'"
+                        @click="switchPanel('filters')">
+                    <i class="fas fa-filter"></i> Caption Filters
+                </button>
+                <button type="button" class="btn btn-sm"
+                        :class="activePanel === 'promptLibraries' ? 'btn-primary' : 'btn-outline-secondary'"
+                        @click="switchPanel('promptLibraries')">
+                    <i class="fas fa-book"></i> Validation Prompt Libraries
+                </button>
+            </div>
+                <div x-show="activePanel === 'filters'">
+                    <button type="button" class="btn btn-sm btn-success" @click="openFilterEditor()">
+                        <i class="fas fa-plus"></i> New Filter
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body">
+    <div x-show="activePanel === 'configs'">
+    <!-- Config Type Tabs -->
+    <div class="btn-group mb-3" role="group">
+        <button type="button" class="btn"
+                :class="configType === 'model' ? 'btn-primary' : 'btn-outline-secondary'"
+                @click="switchConfigType('model')">
+            <i class="fas fa-cog"></i> Model Configs
+        </button>
+        <button type="button" class="btn"
+                :class="configType === 'dataloader' ? 'btn-primary' : 'btn-outline-secondary'"
+                @click="switchConfigType('dataloader')">
+            <i class="fas fa-database"></i> Dataloader Configs
+        </button>
+        <button type="button" class="btn"
+                :class="configType === 'webhook' ? 'btn-primary' : 'btn-outline-secondary'"
+                @click="switchConfigType('webhook')">
+            <i class="fas fa-webhook"></i> Webhook Configs
+        </button>
+        <button type="button" class="btn"
+                :class="configType === 'lycoris' ? 'btn-primary' : 'btn-outline-secondary'"
+                @click="switchConfigType('lycoris')">
+            <i class="fas fa-brain"></i> LyCORIS Configs
+        </button>
+    </div>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h5>
+            <i class="fas fa-folder-open"></i>
+            <span x-text="configType === 'lycoris' ? 'LyCORIS Configuration Library' : 'Configuration Environments'"></span>
+        </h5>
+
+        <div class="d-flex align-items-center gap-3">
+            <!-- Search -->
+            <div class="input-group input-group-sm" style="width: 250px;">
+                <input type="text"
+                       class="form-control"
+                       placeholder="Search configurations..."
+                       x-model="searchTerm">
+                <span class="input-group-text">
+                    <i class="fas fa-search"></i>
+                </span>
+            </div>
+
+            <!-- View Mode -->
+            <div class="btn-group btn-group-sm">
+                <button type="button"
+                        class="btn"
+                        :class="viewMode === 'cards' ? 'btn-primary' : 'btn-outline-secondary'"
+                        @click="setViewMode('cards')">
+                    <i class="fas fa-th-large"></i>
+                </button>
+                <button type="button"
+                        class="btn"
+                        :class="viewMode === 'list' ? 'btn-primary' : 'btn-outline-secondary'"
+                        @click="setViewMode('list')">
+                    <i class="fas fa-list"></i>
+                </button>
+            </div>
+
+            <!-- Actions -->
+            <button type="button"
+                    class="btn btn-sm btn-success"
+                    x-show="configType === 'model'"
+                    @click="openCreateEnvironmentModal()">
+                <i class="fas fa-plus"></i> Create Environment
+            </button>
+            <button type="button"
+                    class="btn btn-sm btn-success"
+                    x-show="configType === 'lycoris'"
+                    @click="openLycorisLibraryCreator()">
+                <i class="fas fa-plus"></i> New LyCORIS Config
+            </button>
+            <button type="button"
+                    class="btn btn-sm btn-primary"
+                    onclick="document.getElementById('import-file').click()">
+                <i class="fas fa-upload"></i> Import
+            </button>
+            <input type="file"
+                   id="import-file"
+                   style="display: none;"
+                   accept=".json"
+                   @change="importConfig($event)">
+
+            <button type="button"
+                    class="btn btn-sm btn-danger"
+                    @click="deleteSelected()"
+                    :disabled="selectedConfigs.length === 0">
+                <i class="fas fa-trash"></i> Delete Selected
+            </button>
+        </div>
+    </div>
+
+    <!-- Templates Section -->
+    <div class="mb-4" x-show="configType === 'model' && templates.length > 0">
+        <h6 class="text-muted mb-3">
+            <i class="fas fa-magic"></i> Quick Start Templates
+        </h6>
+        <div class="row g-3">
+            <template x-for="template in templates" :key="template.name">
+                <div class="col-md-3">
+                    <div class="card template-card">
+                        <div class="card-body p-3">
+                            <h6 class="card-title" x-text="template.name"></h6>
+                            <p class="card-text small text-muted" x-text="template.description"></p>
+                            <button class="btn btn-sm btn-outline-primary w-100"
+                                    @click="createFromTemplate(template.name)">
+                                <i class="fas fa-plus"></i> Use Template
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Configurations Grid/List -->
+    <div class="configurations-container">
+        <div class="alert alert-info d-flex align-items-start gap-2 small" x-show="configType === 'model'" x-cloak>
+            <i class="fas fa-info-circle mt-1"></i>
+            <span>
+                The <strong>Default</strong> environment is optionally merged with the active environment when training begins.<br />
+                You can enable or disable this from <strong>Basic Config → Project Settings → "Merge active environment defaults"</strong>.
+            </span>
+        </div>
+        <!-- Cards View -->
+        <div x-show="viewMode === 'cards'" class="row g-3">
+            <template x-for="config in filteredConfigs()" :key="config.name">
+                <div class="col-md-4">
+                    <div class="card config-card"
+                         :class="{
+                             'selected': isSelected(config.name),
+                             'bg-dark-subtle text-white': configType === 'lycoris'
+                         }">
+                        <div class="card-body">
+                            <!-- Selection checkbox -->
+                            <div class="form-check position-absolute top-0 end-0 m-2">
+                                <input type="checkbox"
+                                       class="form-check-input"
+                                       :disabled="configType === 'lycoris' && config.source !== 'library'"
+                                       :checked="isSelected(config.name)"
+                                       @change="toggleSelection(config.name)">
+                            </div>
+
+                            <h6 class="card-title">
+                                <i class="fas fa-file-alt text-primary"></i>
+                                <span x-text="config.name"></span>
+                            </h6>
+
+                            <p class="card-text small text-muted" x-text="config.description || 'No description'"></p>
+                            <template x-if="configType === 'lycoris'">
+                                <div class="mb-2 small text-muted">
+                                    <span class="badge" :class="config.source === 'library' ? 'bg-primary' : 'bg-secondary'">
+                                        <span x-text="config.source === 'library' ? 'Library' : 'Environment'"></span>
+                                    </span>
+                                    <template x-if="config.relative_path">
+                                        <code class="d-block mt-1" x-text="config.relative_path"></code>
+                                    </template>
+                                    <template x-if="config.environment && config.source !== 'library'">
+                                        <span class="d-block mt-1">Environment: <strong x-text="config.environment"></strong></span>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <small class="text-muted">
+                                    <template x-if="configType === 'model'">
+                                        <span>
+                                            <span x-text="config.model_type === 'lora' ? (config.lora_type === 'lycoris' ? 'LyCORIS' : 'LoRA') : (config.model_type ? config.model_type.toUpperCase() : 'UNKNOWN')"></span> •
+                                            <span x-text="config.model_family || '-'"></span>
+                                            <span x-show="config.model_flavour" class="text-muted small">
+                                                (<span x-text="config.model_flavour"></span>)
+                                            </span>
+                                        </span>
+                                    </template>
+                                    <template x-if="configType === 'dataloader'">
+                                        <span>
+                                            <i class="fas fa-database"></i>
+                                            <span x-text="config.dataset_count || 0"></span> datasets
+                                        </span>
+                                    </template>
+                                    <template x-if="configType === 'webhook'">
+                                        <span>
+                                            <i class="fas fa-webhook"></i>
+                                            <span x-text="config.webhook_type || 'Unknown'"></span> webhook
+                                        </span>
+                                    </template>
+                                    <template x-if="configType === 'lycoris'">
+                                        <span>
+                                            <i class="fas fa-brain"></i>
+                                            Algorithm: <span x-text="config.algo || 'Unknown'"></span>
+                                        </span>
+                                    </template>
+                                </small>
+                                <small class="text-muted" x-text="new Date(config.modified_at).toLocaleDateString()"></small>
+                            </div>
+
+                            <div class="btn-group btn-group-sm w-100">
+                                <button type="button"
+                                        class="btn btn-outline-secondary"
+                                        x-show="configType === 'model' && !hasDataloader(config)"
+                                        @click="openCreateDataloaderModal(config.name)"
+                                        title="Create Dataloader">
+                                    <i class="fas fa-database"></i>
+                                </button>
+                                <button type="button"
+                                        class="btn btn-outline-primary"
+                                        x-show="configType === 'model' && config.lora_type === 'lycoris'"
+                                        @click="openLycorisEditor(config)"
+                                        title="Edit LyCORIS Config">
+                                    <i class="fas fa-brain"></i>
+                                </button>
+                                <button type="button"
+                                        class="btn btn-outline-primary"
+                                        x-show="configType === 'lycoris'"
+                                        @click="handleLycorisCardEdit(config)"
+                                        :title="config.source === 'library' ? 'Edit LyCORIS config' : 'Edit attached environment config'">
+                                    <i class="fas fa-brain"></i>
+                                </button>
+                                <button type="button"
+                                        class="btn btn-outline-secondary"
+                                        x-show="configType !== 'lycoris' || config.source === 'library'"
+                                        @click="renameConfig(config.name)"
+                                        title="Rename">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button type="button"
+                                        class="btn btn-outline-secondary"
+                                        x-show="configType !== 'lycoris' || config.source === 'library'"
+                                        @click="duplicateConfig(config.name)"
+                                        title="Duplicate">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                                <button type="button"
+                                        class="btn btn-outline-secondary"
+                                        :disabled="!gitReady"
+                                        @click="openHistoryModal(config.name)"
+                                        :title="gitReady ? 'Version history' : 'Git not configured'">
+                                    <i class="fas fa-history"></i>
+                                </button>
+                                <button type="button"
+                                        class="btn btn-outline-secondary"
+                                        @click="exportConfig(config.name)"
+                                        title="Export">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                                <button type="button"
+                                        class="btn btn-outline-danger"
+                                        x-show="configType !== 'lycoris' || config.source === 'library'"
+                                        @click="deleteConfig(config.name)"
+                                        title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+
+                            <!-- Expandable Dataloader Configs Section -->
+                            <div x-show="configType === 'model' && hasDataloader(config)" class="mt-3 dataloader-configs">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-info w-100 dataloader-configs__toggle"
+                                        @click="toggleEnvironmentExpansion(config.name)">
+                                    <i class="fas"
+                                       :class="isEnvironmentExpanded(config.name) ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                                    <span x-text="isEnvironmentExpanded(config.name) ? 'Hide' : 'Show'"></span>
+                                    Dataloader Configs
+                                    <span class="badge bg-secondary ms-1 dataloader-configs__badge" x-text="getDataloadersForEnvironment(config).length"></span>
+                                </button>
+
+                                <div x-show="isEnvironmentExpanded(config.name)" x-cloak class="mt-2">
+                                    <template x-if="getDataloadersForEnvironment(config).length === 0">
+                                        <div class="alert alert-sm alert-warning mb-0">
+                                            No dataloader configurations found for this environment.
+                                        </div>
+                                    </template>
+                                    <template x-if="getDataloadersForEnvironment(config).length > 0">
+                                        <div class="list-group list-group-flush dataloader-configs__list">
+                                            <template x-for="dataloader in getDataloadersForEnvironment(config)" :key="dataloader.path">
+                                                <div class="list-group-item bg-dark-subtle dataloader-configs__item">
+                                                    <div class="dataloader-configs__meta">
+                                                        <div class="d-flex align-items-center gap-2 w-100 dataloader-configs__header">
+                                                            <div class="d-flex align-items-center gap-2 flex-grow-1 dataloader-configs__title">
+                                                                <i class="fas fa-database text-info dataloader-configs__icon"></i>
+                                                                <strong class="dataloader-configs__name" x-text="dataloader.name"></strong>
+                                                            </div>
+                                                            <span class="badge bg-secondary dataloader-configs__dataset-count" x-text="`${dataloader.dataset_count || 0} datasets`"></span>
+                                                        </div>
+                                                        <small class="text-muted d-block mt-1 dataloader-configs__path"
+                                                               x-text="(dataloader.path || '').split('/').join('/\u200b')"></small>
+                                                    </div>
+                                                    <div class="btn-group btn-group-sm dataloader-configs__actions">
+                                                        <button type="button"
+                                                                class="btn btn-outline-light dataloader-configs__action-btn"
+                                                                @click="copyDataloaderJSON(dataloader.path)"
+                                                                title="Copy JSON">
+                                                            <i class="fas fa-copy"></i>
+                                                        </button>
+                                                        <button type="button"
+                                                                class="btn btn-outline-danger dataloader-configs__action-btn"
+                                                                @click="deleteDataloader(dataloader.path, dataloader.name)"
+                                                                title="Delete">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- List View -->
+        <div x-show="viewMode === 'list'">
+            <table class="table table-dark table-hover">
+                <thead>
+                    <tr>
+                        <th width="30">
+                            <input type="checkbox"
+                                   class="form-check-input"
+                                   @change="toggleSelectAll($event.target.checked)">
+                        </th>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th x-show="configType === 'model'">Type</th>
+                        <th x-text="configType === 'model' ? 'Model' : configType === 'dataloader' ? 'Datasets' : configType === 'webhook' ? 'Webhook Type' : 'Algorithm'"></th>
+                        <th>Modified</th>
+                        <th width="150">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="config in filteredConfigs()" :key="config.name">
+                        <tr :class="{'table-active': isSelected(config.name)}">
+                            <td>
+                                <input type="checkbox"
+                                       class="form-check-input"
+                                       :disabled="configType === 'lycoris' && config.source !== 'library'"
+                                       :checked="isSelected(config.name)"
+                                       @change="toggleSelection(config.name)">
+                            </td>
+                            <td>
+                                <i class="fas fa-file-alt text-primary me-2"></i>
+                                <span x-text="config.name"></span>
+                                <template x-if="configType === 'lycoris'">
+                                    <span class="badge ms-2" :class="config.source === 'library' ? 'bg-primary' : 'bg-secondary'">
+                                        <span x-text="config.source === 'library' ? 'Library' : 'Environment'"></span>
+                                    </span>
+                                </template>
+                                <template x-if="configType === 'lycoris' && config.relative_path">
+                                    <div class="text-muted small mt-1">
+                                        <code x-text="config.relative_path"></code>
+                                    </div>
+                                </template>
+                                <template x-if="configType === 'lycoris' && config.environment && config.source !== 'library'">
+                                    <div class="text-muted small">Environment: <strong x-text="config.environment"></strong></div>
+                                </template>
+                            </td>
+                            <td x-text="config.description || '-'"></td>
+                            <td x-show="configType === 'model'">
+                                <span x-text="config.model_type === 'lora' ? (config.lora_type === 'lycoris' ? 'LyCORIS' : 'LoRA') : (config.model_type ? config.model_type.toUpperCase() : '-')"></span>
+                            </td>
+                            <td>
+                                <template x-if="configType === 'model'">
+                                    <span>
+                                        <span x-text="config.model_family || '-'"></span>
+                                        <span x-show="config.model_flavour" class="text-muted small">
+                                            (<span x-text="config.model_flavour"></span>)
+                                        </span>
+                                    </span>
+                                </template>
+                                <template x-if="configType === 'dataloader'">
+                                    <span>
+                                        <span x-text="config.dataset_count || 0"></span> datasets
+                                    </span>
+                                </template>
+                                <template x-if="configType === 'webhook'">
+                                    <span>
+                                        <span x-text="config.webhook_type || 'Unknown'"></span> webhook
+                                    </span>
+                                </template>
+                                <template x-if="configType === 'lycoris'">
+                                    <span>
+                                        Algorithm: <span x-text="config.algo || 'Unknown'"></span>
+                                    </span>
+                                </template>
+                            </td>
+                            <td x-text="new Date(config.modified_at).toLocaleDateString()"></td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button"
+                                            class="btn btn-outline-secondary"
+                                            x-show="configType === 'model' && !hasDataloader(config)"
+                                            @click="openCreateDataloaderModal(config.name)"
+                                            title="Create Dataloader">
+                                        <i class="fas fa-database"></i>
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-outline-primary"
+                                            x-show="configType === 'model' && config.lora_type === 'lycoris'"
+                                            @click="openLycorisEditor(config)"
+                                            title="Edit LyCORIS Config">
+                                        <i class="fas fa-brain"></i>
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-outline-primary"
+                                            x-show="configType === 'lycoris'"
+                                            @click="handleLycorisCardEdit(config)"
+                                            :title="config.source === 'library' ? 'Edit LyCORIS config' : 'Edit attached environment config'">
+                                        <i class="fas fa-brain"></i>
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-outline-secondary"
+                                            x-show="configType !== 'lycoris' || config.source === 'library'"
+                                            @click="renameConfig(config.name)"
+                                            title="Rename">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-outline-secondary"
+                                            x-show="configType !== 'lycoris' || config.source === 'library'"
+                                            @click="duplicateConfig(config.name)"
+                                            title="Duplicate">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-outline-secondary"
+                                            @click="exportConfig(config.name)"
+                                            title="Export">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-outline-danger"
+                                            x-show="configType !== 'lycoris' || config.source === 'library'"
+                                            @click="deleteConfig(config.name)"
+                                            title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Empty State -->
+        <div x-show="filteredConfigs().length === 0" class="text-center py-5">
+            <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No configurations found</h5>
+            <p class="text-muted">Create your first configuration or import an existing one.</p>
+        </div>
+    </div>
+
+    </div><!-- /configs panel -->
+
+    <!-- Filters Panel -->
+
+    <div x-show="activePanel === 'filters'" class="caption-filters-panel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="input-group input-group-sm" style="max-width: 320px;">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                <input type="text"
+                       class="form-control"
+                       placeholder="Search filters..."
+                       x-model="captionFilterSearch">
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" @click="ensureCaptionFiltersLoaded(true)">
+                <i class="fas fa-sync"></i> Refresh
+            </button>
+        </div>
+
+        <template x-if="filteredCaptionFilters().length === 0">
+            <div class="alert alert-info">
+                No caption filters defined yet. Create one to reuse filtering rules across datasets.
+            </div>
+        </template>
+
+        <div class="row g-3" x-show="filteredCaptionFilters().length > 0">
+            <template x-for="filter in filteredCaptionFilters()" :key="filter.name">
+                <div class="col-md-6">
+                    <div class="card caption-filter-card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="card-title mb-1" x-text="filter.label || filter.name"></h6>
+                                    <small class="text-muted" x-text="filter.name"></small>
+                                </div>
+                                <span class="badge bg-secondary" x-text="`${(filter.entries || []).length} rule(s)`"></span>
+                            </div>
+                            <p class="card-text flex-grow-1" x-text="filter.description || 'No description provided.'"></p>
+                            <div class="card-text">
+                                <strong>Preview:</strong>
+                                <template x-if="(filter.entries || []).length === 0">
+                                    <span class="text-muted">No rules</span>
+                                </template>
+                                <ul class="mb-2" x-show="(filter.entries || []).length > 0">
+                                    <template x-for="entry in (filter.entries || []).slice(0, 3)" :key="entry">
+                                        <li><code x-text="entry"></code></li>
+                                    </template>
+                                    <li x-show="(filter.entries || []).length > 3" class="text-muted">…</li>
+                                </ul>
+                            </div>
+                            <div class="d-flex justify-content-end gap-2 mt-auto">
+                                <button type="button" class="btn btn-sm btn-outline-primary"
+                                        @click="openFilterEditor(filter)">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        @click="duplicateCaptionFilter(filter)">
+                                    <i class="fas fa-clone"></i> Duplicate
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                        @click="deleteCaptionFilter(filter.name)">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <div x-show="activePanel === 'promptLibraries'" class="prompt-libraries-panel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0"><i class="fas fa-book"></i> Validation Prompt Libraries</h5>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        :disabled="promptLibrariesLoading"
+                        @click="loadPromptLibraries(true)">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
+                <button type="button" class="btn btn-sm btn-success" @click="openPromptLibraryModal()">
+                    <i class="fas fa-plus"></i> New prompt library
+                </button>
+            </div>
+        </div>
+
+        <div class="text-center text-muted mb-3" x-show="promptLibrariesLoading">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+            <span class="ms-2">Loading prompt libraries…</span>
+        </div>
+
+        <template x-if="!promptLibrariesLoading && promptLibraries.length === 0">
+            <div class="alert alert-info">
+                No prompt libraries yet. Create one to reuse validation prompts across environments.
+            </div>
+        </template>
+
+        <div class="row g-3" x-show="!promptLibrariesLoading && promptLibraries.length > 0">
+            <template x-for="lib in promptLibraries" :key="lib.filename">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <div>
+                                <h6 class="card-title mb-1" x-text="lib.display_name"></h6>
+                                <p class="card-text text-muted mb-2">
+                                    <code x-text="lib.relative_path"></code>
+                                </p>
+                            </div>
+                            <div class="text-muted small mb-3">
+                                <span x-text="`${lib.prompt_count} prompt(s)`"></span>
+                                <span class="mx-2">·</span>
+                                <span x-text="formatLibraryTimestamp(lib.updated_at)"></span>
+                            </div>
+                            <div class="mt-auto d-flex justify-content-end">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-primary"
+                                        @click="openPromptLibraryModal(lib)">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div><!-- /card-body -->
+    </div><!-- /card -->
+
+        <!-- Caption Filter Editor Modal -->
+        <div x-cloak x-show="filterEditor.open" class="environment-modal-backdrop" @keydown.escape.window="closeFilterEditor()" x-transition.opacity>
+            <div class="modal-dialog modal-lg" @click.stop>
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-filter"></i>
+                        <span x-text="filterEditor.mode === 'edit' ? 'Edit Caption Filter' : 'New Caption Filter'"></span>
+                    </h5>
+                    <button type="button" class="btn-close" aria-label="Close" @click="closeFilterEditor()"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Name</label>
+                            <input type="text" class="form-control" x-model="filterEditor.name"
+                                   :readonly="filterEditor.mode === 'edit'">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Display Label <span class="text-muted">(optional)</span></label>
+                            <input type="text" class="form-control" x-model="filterEditor.label">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" rows="2" x-model="filterEditor.description"
+                                      placeholder="Explain when to use this filter list"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Filter Rules</label>
+                            <textarea class="form-control font-monospace" rows="6"
+                                      x-model="filterEditor.entriesText"
+                                      placeholder="One rule per line. Supports plain strings, regex, or sed-style replacements."></textarea>
+                            <div class="form-text">
+                                Examples: <code>arafed</code>, <code>^remove this prefix</code>, <code>s/find/replace/</code>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Test Sample</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" x-model="filterEditor.testInput"
+                                       placeholder="Paste a caption to preview the filter output">
+                                <button class="btn btn-outline-primary" type="button"
+                                        @click="testCaptionFilter()" :disabled="filterEditor.testing">
+                                    <span x-show="!filterEditor.testing"><i class="fas fa-vial"></i> Test</span>
+                                    <span x-show="filterEditor.testing"><i class="fas fa-spinner fa-spin"></i></span>
+                                </button>
+                            </div>
+                            <div class="mt-2" x-show="filterEditor.testResult !== null">
+                                <label class="form-label">Result</label>
+                                <div class="card bg-dark-subtle">
+                                    <div class="card-body">
+                                        <code x-text="filterEditor.testResult"></code>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @click="closeFilterEditor()">Cancel</button>
+                    <button type="button" class="btn btn-primary" @click="saveCaptionFilter()">
+                        <i class="fas fa-save"></i>
+                        <span x-text="filterEditor.mode === 'edit' ? 'Save Changes' : 'Create Filter'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    <!-- LyCORIS Editor Modal -->
+    <div
+        x-cloak
+        x-show="lycorisEditor.open"
+        x-ref="lycorisModal"
+        data-lycoris-modal
+        class="environment-modal-backdrop lycoris-modal-backdrop"
+        @keydown.escape.window="closeLycorisEditor()"
+        x-transition.opacity>
+        <div class="modal-dialog modal-lg" @click.stop>
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-1">
+                        <i class="fas fa-brain"></i>
+                        LyCORIS Configuration Editor
+                    </h5>
+                    <p class="text-muted small mb-0" x-text="lycorisEditorContextLabel()"></p>
+                </div>
+                <button type="button" class="btn-close" aria-label="Close" @click="closeLycorisEditor()"></button>
+            </div>
+            <form @submit.prevent="saveLycorisConfig()">
+                <div class="modal-body" style="overscroll-behavior: contain;">
+                    <div x-show="lycorisEditor.loading" class="text-center py-4">
+                        <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+                        <p class="mt-2 text-muted">Loading configuration...</p>
+                    </div>
+
+                    <div x-show="!lycorisEditor.loading">
+                        <div class="mb-4" x-show="lycorisMetadataLoading" x-cloak>
+                            <div class="alert alert-info py-2 px-3 small d-flex align-items-center gap-2 mb-0">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <span>Loading LyCORIS metadata…</span>
+                            </div>
+                        </div>
+
+                        <!-- Algorithm Selection -->
+                        <div class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-0">Algorithm</h6>
+                                    <small class="text-muted">Choose the base LyCORIS variant</small>
+                                </div>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        @click="lycorisCollapsedSections.algorithm = !lycorisCollapsedSections.algorithm"
+                                        :aria-expanded="!lycorisCollapsedSections.algorithm">
+                                    <i class="fas"
+                                       :class="lycorisCollapsedSections.algorithm ? 'fa-chevron-down' : 'fa-chevron-up'"></i>
+                                </button>
+                            </div>
+                            <div class="card-body" x-show="!lycorisCollapsedSections.algorithm" x-cloak>
+                                <label class="form-label">Algorithm</label>
+                                <select class="form-select" x-model="lycorisConfig.algo" @change="!lycorisEditor.loading && updateAlgorithmDefaults()">
+                                    <template x-if="!lycorisMetadata">
+                                        <option value="">Loading algorithms…</option>
+                                    </template>
+                                    <template x-for="algo in lycorisMetadata?.algorithms || []" :key="algo.name">
+                                        <option :value="algo.name" x-text="algo.name.toUpperCase()"></option>
+                                    </template>
+                                </select>
+                                <div class="alert alert-secondary mt-3 mb-0" x-show="currentLycorisAlgorithm()" x-cloak>
+                                    <h6 class="mb-1" x-text="currentLycorisAlgorithm()?.name?.toUpperCase()"></h6>
+                                    <p class="mb-1" x-text="currentLycorisAlgorithm()?.description"></p>
+                                    <p class="mb-0 text-muted small" x-show="currentLycorisAlgorithm()?.notes"
+                                       x-text="currentLycorisAlgorithm()?.notes"></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Core Parameters -->
+                        <div class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-0">Core Parameters</h6>
+                                    <small class="text-muted">Essential settings for all algorithms</small>
+                                </div>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        @click="lycorisCollapsedSections.core = !lycorisCollapsedSections.core"
+                                        :aria-expanded="!lycorisCollapsedSections.core">
+                                    <i class="fas"
+                                       :class="lycorisCollapsedSections.core ? 'fa-chevron-down' : 'fa-chevron-up'"></i>
+                                </button>
+                            </div>
+                            <div class="card-body" x-show="!lycorisCollapsedSections.core" x-cloak>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Multiplier</label>
+                                        <input type="number" class="form-control" x-model.number="lycorisConfig.multiplier"
+                                               step="0.1" min="0" required>
+                                        <small class="form-text text-muted">Global strength multiplier applied to all weights (typically 1.0)</small>
+                                    </div>
+                                    <div class="col-md-4" x-show="lycorisConfig.algo !== 'ia3'">
+                                        <label class="form-label">Linear Dimension</label>
+                                        <input type="number" class="form-control" x-model.number="lycorisConfig.linear_dim"
+                                               min="1" :required="lycorisConfig.algo !== 'ia3'">
+                                        <small class="form-text text-muted">Rank of decomposition (higher = more capacity, larger file)</small>
+                                    </div>
+                                    <div class="col-md-4" x-show="['lora', 'loha', 'lokr', 'dylora'].includes(lycorisConfig.algo)">
+                                        <label class="form-label">Linear Alpha</label>
+                                        <input type="number" class="form-control" x-model.number="lycorisConfig.linear_alpha"
+                                               min="0">
+                                        <small class="form-text text-muted">Scaling factor (merge ratio = alpha/dim, affects learning rate)</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Algorithm-Specific Parameters -->
+                        <div class="card mb-4" x-show="lycorisConfig.algo === 'lokr' || lycorisConfig.algo === 'dylora'" x-cloak>
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-0">Algorithm-Specific Parameters</h6>
+                                    <small class="text-muted">Additional options for LoKr and DyLoRA</small>
+                                </div>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        @click="lycorisCollapsedSections.algoSpecific = !lycorisCollapsedSections.algoSpecific"
+                                        :aria-expanded="!lycorisCollapsedSections.algoSpecific">
+                                    <i class="fas"
+                                       :class="lycorisCollapsedSections.algoSpecific ? 'fa-chevron-down' : 'fa-chevron-up'"></i>
+                                </button>
+                            </div>
+                            <div class="card-body" x-show="!lycorisCollapsedSections.algoSpecific" x-cloak>
+                                <div class="row g-3">
+                                    <div class="col-md-6" x-show="lycorisConfig.algo === 'lokr'">
+                                        <label class="form-label">Factor</label>
+                                        <input type="number" class="form-control" x-model.number="lycorisConfig.factor"
+                                               min="1">
+                                        <small class="form-text text-muted">Kronecker factorization (larger factor = smaller model)</small>
+                                    </div>
+                                    <div class="col-md-6" x-show="lycorisConfig.algo === 'dylora'">
+                                        <label class="form-label">Block Size</label>
+                                        <input type="number" class="form-control" x-model.number="lycorisConfig.block_size"
+                                               min="1">
+                                        <small class="form-text text-muted">Number of rows/columns updated per step (higher = faster convergence, less flexibility)</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Preset Selection -->
+                        <div class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div>
+                                    <h6 class="mb-0">Preset Selection</h6>
+                                    <small class="text-muted">Apply curated defaults and metadata</small>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                            @click="applyLycorisPreset()" :disabled="!lycorisPresetSelection">
+                                        <i class="fas fa-sync"></i> Apply Preset
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-secondary"
+                                            @click="lycorisCollapsedSections.presets = !lycorisCollapsedSections.presets"
+                                            :aria-expanded="!lycorisCollapsedSections.presets">
+                                        <i class="fas"
+                                           :class="lycorisCollapsedSections.presets ? 'fa-chevron-down' : 'fa-chevron-up'"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body" x-show="!lycorisCollapsedSections.presets" x-cloak>
+                                <label class="form-label">Built-in Presets</label>
+                                <select class="form-select form-select-sm mb-2" x-model="lycorisPresetSelection">
+                                    <option value="">Custom selection</option>
+                                    <template x-for="preset in lycorisMetadata?.presets || []" :key="preset.name">
+                                        <option :value="preset.name" x-text="preset.name"></option>
+                                    </template>
+                                </select>
+                                <small class="text-muted d-block">Applying a preset replaces the target lists and overrides.</small>
+                            </div>
+                        </div>
+
+                        <!-- Preset Target Lists -->
+                        <div class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-0">Target Lists</h6>
+                                    <small class="text-muted">Specify which modules and layers to target</small>
+                                </div>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        @click="lycorisCollapsedSections.targets = !lycorisCollapsedSections.targets"
+                                        :aria-expanded="!lycorisCollapsedSections.targets">
+                                    <i class="fas"
+                                       :class="lycorisCollapsedSections.targets ? 'fa-chevron-down' : 'fa-chevron-up'"></i>
+                                </button>
+                            </div>
+                            <div class="card-body" x-show="!lycorisCollapsedSections.targets" x-cloak>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Target Modules</label>
+                                        <textarea class="form-control form-control-sm" rows="3"
+                                                  x-model="lycorisPresetLists.target_module"
+                                                  @change="updatePresetListFromText('target_module')"></textarea>
+                                        <small class="form-text text-muted">Module types to target (e.g., Attention, Linear). Suggestions: <span x-text="renderLycorisSuggestions('target_module')"></span></small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Target Names</label>
+                                        <textarea class="form-control form-control-sm" rows="3"
+                                                  x-model="lycorisPresetLists.target_name"
+                                                  @change="updatePresetListFromText('target_name')"></textarea>
+                                        <small class="form-text text-muted">Specific layer names to target. Suggestions: <span x-text="renderLycorisSuggestions('target_name')"></span></small>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">Exclude Names</label>
+                                        <textarea class="form-control form-control-sm" rows="2"
+                                                  x-model="lycorisPresetLists.exclude_name"
+                                                  @change="updatePresetListFromText('exclude_name')"></textarea>
+                                        <small class="form-text text-muted">Layer names to exclude from training (comma-separated)</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Module Overrides -->
+                        <div class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div>
+                                    <h6 class="mb-0">Module Overrides</h6>
+                                    <small class="text-muted">Apply different algorithms to specific modules</small>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" @click="addLycorisOverride('module')">
+                                        <i class="fas fa-plus"></i> Add Module Override
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-secondary"
+                                            @click="lycorisCollapsedSections.moduleOverrides = !lycorisCollapsedSections.moduleOverrides"
+                                            :aria-expanded="!lycorisCollapsedSections.moduleOverrides">
+                                        <i class="fas"
+                                           :class="lycorisCollapsedSections.moduleOverrides ? 'fa-chevron-down' : 'fa-chevron-up'"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body" x-show="!lycorisCollapsedSections.moduleOverrides" x-cloak>
+                                <template x-for="(override, index) in lycorisModuleOverrides" :key="`module-${index}`">
+                                    <div class="border rounded p-3 mb-3 position-relative">
+                                        <button type="button" class="btn btn-link text-danger btn-sm position-absolute top-0 end-0 mt-2 me-2"
+                                                @click="removeLycorisOverride('module', index)"
+                                                title="Remove Override">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                        <div class="row g-2 align-items-end">
+                                            <div class="col-md-6">
+                                                <label class="form-label">Module name</label>
+                                                <input type="text" class="form-control form-control-sm"
+                                                       x-model="override.key"
+                                                       placeholder="Attention, FeedForward, ...">
+                                                <small class="form-text text-muted">Module class name to override (e.g., Attention)</small>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">Algorithm override</label>
+                                                <select class="form-select form-select-sm" x-model="override.algo">
+                                                    <option value="">Inherit primary algorithm</option>
+                                                    <template x-for="algo in lycorisMetadata?.algorithms || []" :key="`module-${index}-${algo.name}`">
+                                                        <option :value="algo.name" x-text="algo.name.toUpperCase()"></option>
+                                                    </template>
+                                                </select>
+                                                <small class="form-text text-muted">Use different algorithm for this module type</small>
+                                            </div>
+                                        </div>
+                                        <div class="mt-3">
+                                            <label class="form-label">Options</label>
+                                            <template x-for="(option, optIndex) in override.options" :key="`module-${index}-opt-${optIndex}`">
+                                                <div class="d-flex gap-2 align-items-center mb-2">
+                                                    <input type="text" class="form-control form-control-sm flex-grow-1"
+                                                           x-model="option.key" placeholder="Option key (e.g. factor)"
+                                                           style="min-width: 0;">
+                                                    <input type="text" class="form-control form-control-sm flex-grow-1"
+                                                           x-model="option.value" placeholder="Value"
+                                                           style="min-width: 0;">
+                                                    <button type="button" class="btn btn-link text-danger btn-sm p-1 flex-shrink-0"
+                                                            @click="removeLycorisOption('module', index, optIndex)"
+                                                            title="Remove Option">
+                                                        <i class="fas fa-minus-circle"></i>
+                                                    </button>
+                                                </div>
+                                            </template>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                                    @click="addLycorisOption('module', index)">
+                                                <i class="fas fa-plus"></i> Add Option
+                                            </button>
+                                            <small class="d-block text-muted mt-2">Algorithm-specific options (e.g., factor, block_size) for this module type</small>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- Name Overrides -->
+                        <div class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div>
+                                    <h6 class="mb-0">Name Overrides</h6>
+                                    <small class="text-muted">Apply different algorithms to specific layer names</small>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" @click="addLycorisOverride('name')">
+                                        <i class="fas fa-plus"></i> Add Name Override
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-secondary"
+                                            @click="lycorisCollapsedSections.nameOverrides = !lycorisCollapsedSections.nameOverrides"
+                                            :aria-expanded="!lycorisCollapsedSections.nameOverrides">
+                                        <i class="fas"
+                                           :class="lycorisCollapsedSections.nameOverrides ? 'fa-chevron-down' : 'fa-chevron-up'"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body" x-show="!lycorisCollapsedSections.nameOverrides" x-cloak>
+                                <template x-for="(override, index) in lycorisNameOverrides" :key="`name-${index}`">
+                                    <div class="border rounded p-3 mb-3 position-relative">
+                                        <button type="button" class="btn btn-link text-danger btn-sm position-absolute top-0 end-0 mt-2 me-2"
+                                                @click="removeLycorisOverride('name', index)"
+                                                title="Remove Override">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                        <div class="row g-2 align-items-end">
+                                            <div class="col-md-6">
+                                                <label class="form-label">Layer name</label>
+                                                <input type="text" class="form-control form-control-sm"
+                                                       x-model="override.key"
+                                                       placeholder="e.g. attn1.to_q">
+                                                <small class="form-text text-muted">Specific layer path to override (e.g., attn1.to_q)</small>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">Algorithm override</label>
+                                                <select class="form-select form-select-sm" x-model="override.algo">
+                                                    <option value="">Inherit primary algorithm</option>
+                                                    <template x-for="algo in lycorisMetadata?.algorithms || []" :key="`name-${index}-${algo.name}`">
+                                                        <option :value="algo.name" x-text="algo.name.toUpperCase()"></option>
+                                                    </template>
+                                                </select>
+                                                <small class="form-text text-muted">Use different algorithm for this specific layer</small>
+                                            </div>
+                                        </div>
+                                        <div class="mt-3">
+                                            <label class="form-label">Options</label>
+                                            <template x-for="(option, optIndex) in override.options" :key="`name-${index}-opt-${optIndex}`">
+                                                <div class="d-flex gap-2 align-items-center mb-2">
+                                                    <input type="text" class="form-control form-control-sm flex-grow-1"
+                                                           x-model="option.key" placeholder="Option key"
+                                                           style="min-width: 0;">
+                                                    <input type="text" class="form-control form-control-sm flex-grow-1"
+                                                           x-model="option.value" placeholder="Value"
+                                                           style="min-width: 0;">
+                                                    <button type="button" class="btn btn-link text-danger btn-sm p-1 flex-shrink-0"
+                                                            @click="removeLycorisOption('name', index, optIndex)"
+                                                            title="Remove Option">
+                                                        <i class="fas fa-minus-circle"></i>
+                                                    </button>
+                                                </div>
+                                            </template>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                                    @click="addLycorisOption('name', index)">
+                                                <i class="fas fa-plus"></i> Add Option
+                                            </button>
+                                            <small class="d-block text-muted mt-2">Algorithm-specific options (e.g., factor, block_size) for this layer</small>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- JSON Preview -->
+                        <div class="card mb-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-0">Configuration Preview</h6>
+                                    <small class="text-muted">Review the generated JSON configuration</small>
+                                </div>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        @click="lycorisCollapsedSections.preview = !lycorisCollapsedSections.preview"
+                                        :aria-expanded="!lycorisCollapsedSections.preview">
+                                    <i class="fas"
+                                       :class="lycorisCollapsedSections.preview ? 'fa-chevron-down' : 'fa-chevron-up'"></i>
+                                </button>
+                            </div>
+                            <div class="card-body" x-show="!lycorisCollapsedSections.preview" x-cloak>
+                                <textarea class="form-control font-monospace small" rows="8" readonly
+                                          :value="getLycorisConfigJSON()"
+                                          style="background-color: rgba(0,0,0,0.2);"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @click="closeLycorisEditor()">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary" :disabled="lycorisEditor.loading">
+                        <span x-show="!lycorisEditor.loading"><i class="fas fa-save"></i> Save Configuration</span>
+                        <span x-show="lycorisEditor.loading"><i class="fas fa-spinner fa-spin"></i> Saving...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create Environment Modal -->
+    <div x-cloak x-show="createEnvironmentModal" class="environment-modal-backdrop" @keydown.escape.window="closeCreateEnvironmentModal()" x-transition.opacity>
+        <div class="modal-dialog" @click.stop>
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-plus-circle"></i> Create Environment</h5>
+                <button type="button" class="btn-close" aria-label="Close" @click="closeCreateEnvironmentModal()"></button>
+            </div>
+            <div x-data="createEnvironmentFormComponent({ autoLoad: false })"
+                 x-ref="createEnvironmentForm"
+                 @environment-created="handleEnvironmentCreated($event.detail)"
+                 @environment-form-cancel="closeCreateEnvironmentModal()">
+                <form @submit.prevent="submit">
+                    <div class="modal-body">
+                        <template x-if="loadingInitialData">
+                            <div class="alert alert-info d-flex align-items-center gap-2">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <span>Loading model families and examples...</span>
+                            </div>
+                        </template>
+                        <div :class="loadingInitialData ? 'opacity-50 pointer-events-none' : ''">
+                            {% include "partials/create_environment_form_fields.html" %}
+                        </div>
+                        <template x-if="error">
+                            <div class="alert alert-danger mt-3 mb-0 py-2 px-3" x-text="error"></div>
+                        </template>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" @click="$dispatch('environment-form-cancel')"
+                                :disabled="submitting">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary" :disabled="submitting || loadingInitialData">
+                            <span x-show="!submitting"><i class="fas fa-check"></i> Create</span>
+                            <span x-show="submitting"><i class="fas fa-spinner fa-spin"></i> Creating...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Dataloader Modal -->
+    <div x-cloak x-show="dataloaderModal.open" class="environment-modal-backdrop" @keydown.escape.window="closeCreateDataloaderModal()" x-transition.opacity>
+        <div class="modal-dialog" @click.stop>
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-database"></i> Create Dataloader</h5>
+                <button type="button" class="btn-close" aria-label="Close" @click="closeCreateDataloaderModal()"></button>
+            </div>
+            <form @submit.prevent="createEnvironmentDataloader()">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Environment</label>
+                        <input type="text" class="form-control" :value="dataloaderModal.environment" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Dataloader Path</label>
+                        <input type="text"
+                               class="form-control"
+                               :value="dataloaderModal.path"
+                               @input="dataloaderModal.path = $event.target.value">
+                        <small class="text-muted">Relative to configs directory. Leave empty to use the default location.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @click="closeCreateDataloaderModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" :disabled="dataloaderModal.loading">
+                        <span x-show="!dataloaderModal.loading"><i class="fas fa-check"></i> Create</span>
+                        <span x-show="dataloaderModal.loading"><i class="fas fa-spinner fa-spin"></i> Creating...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Git History Modal -->
+    <div x-cloak x-show="gitHistoryModal.open" class="environment-modal-backdrop" @keydown.escape.window="closeHistoryModal()" x-transition.opacity>
+        <div class="modal-dialog modal-xl" @click.stop>
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-history me-2"></i>
+                    Version history
+                    <span x-text="gitHistoryModal.target ? `(${gitHistoryModal.target})` : ''"></span>
+                </h5>
+                <button type="button" class="btn-close" aria-label="Close" @click="closeHistoryModal()"></button>
+            </div>
+            <div class="modal-body">
+                <template x-if="gitHistoryModal.error">
+                    <div class="alert alert-danger" x-text="gitHistoryModal.error"></div>
+                </template>
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong>Commits</strong>
+                            <button class="btn btn-sm btn-outline-secondary" type="button" @click="openHistoryModal(gitHistoryModal.target)">
+                                <i class="fas fa-sync" :class="{ 'fa-spin': gitHistoryModal.loading }"></i>
+                            </button>
+                        </div>
+                        <div class="list-group history-list" style="max-height: 360px; overflow-y: auto;">
+                            <template x-if="gitHistoryModal.commits.length === 0">
+                                <div class="text-muted small px-2">No commits found for this path.</div>
+                            </template>
+                            <template x-for="commit in gitHistoryModal.commits" :key="commit.commit">
+                                <button type="button"
+                                        class="list-group-item list-group-item-action"
+                                        @click="loadDiffForCommit(commit.commit)">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="fw-semibold" x-text="commit.abbrev"></span>
+                                        <small class="text-muted" x-text="commit.timestamp ? new Date(commit.timestamp * 1000).toLocaleString() : ''"></small>
+                                    </div>
+                                    <div class="small" x-text="commit.subject"></div>
+                                    <div class="text-muted small" x-text="commit.author"></div>
+                                    <div class="d-flex justify-content-end gap-2 mt-1">
+                                        <button type="button" class="btn btn-xs btn-outline-primary" @click.stop="restoreCommit(commit.commit)">
+                                            <i class="fas fa-undo"></i> Restore
+                                        </button>
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong>Diff preview</strong>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" @click="loadDiffForCommit(null)">
+                                    Working copy
+                                </button>
+                                <button type="button" class="btn btn-outline-primary" @click="snapshotConfig(gitHistoryModal.target)">
+                                    Snapshot
+                                </button>
+                            </div>
+                        </div>
+                        <template x-if="gitHistoryModal.diff && gitHistoryModal.diff.diff">
+                            <pre class="bg-dark text-light p-3 rounded" style="max-height: 420px; overflow: auto;"
+                                 x-text="gitHistoryModal.diff.diff"></pre>
+                        </template>
+                        <template x-if="!gitHistoryModal.diff || !gitHistoryModal.diff.diff">
+                            <div class="text-muted">Select a commit to view changes.</div>
+                        </template>
+                        <template x-if="gitHistoryModal.diff && gitHistoryModal.diff.truncated">
+                            <div class="alert alert-warning mt-2 mb-0">Diff truncated for size.</div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" @click="closeHistoryModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+    </div>
+
+
+<!-- End tab fragment -->
+</div>
+
+<style>
+/* Environments tab inherits card styling from trainer-core.css */
+
+.config-card {
+    /* Background and border now inherited from unified theme */
+    transition: all 0.3s ease;
+}
+
+.config-card.selected {
+    border-color: #38bdf8;
+    background: rgba(56, 189, 248, 0.1);
+}
+
+.template-card {
+    background: rgba(102, 126, 234, 0.1);
+    border: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+.template-card:hover {
+    background: rgba(102, 126, 234, 0.15);
+}
+
+.caption-filter-card {
+    background: rgba(32, 36, 50, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.caption-filter-card code {
+    font-size: 0.85rem;
+}
+
+[x-cloak] { display: none !important; }
+
+.environment-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1050;
+    padding: 1.5rem;
+    pointer-events: auto;
+}
+
+.environment-modal-backdrop .modal-dialog {
+    background: #1c1f2e;
+    border-radius: 0.75rem;
+    width: 100%;
+    max-width: 520px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    pointer-events: auto;
+}
+
+.environment-modal-backdrop .modal-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.environment-modal-backdrop .modal-title {
+    margin: 0;
+    font-size: 1.1rem;
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+}
+
+.environment-modal-backdrop .modal-body {
+    padding: 1.25rem;
+}
+
+.environment-modal-backdrop .modal-footer {
+    padding: 1rem 1.25rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+}
+
+.environment-modal-backdrop .btn-close {
+    background: none;
+    border: 0;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 1.1rem;
+}
+
+.environment-modal-backdrop .btn-close:hover {
+    color: #fff;
+}
+
+.lycoris-modal-backdrop .modal-dialog {
+    max-width: 880px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.lycoris-modal-backdrop form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.lycoris-modal-backdrop .modal-header {
+    flex-shrink: 0;
+}
+
+.lycoris-modal-backdrop .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1.25rem;
+    min-height: 0;
+}
+
+.lycoris-modal-backdrop .modal-footer {
+    flex-shrink: 0;
+}
+
+.lycoris-modal-backdrop .card {
+    background: rgba(18, 22, 35, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lycoris-modal-backdrop .card-header {
+    padding: 1rem 1.25rem;
+}
+
+.lycoris-modal-backdrop .card-header > div {
+    padding-top: 0.3em;
+    padding-bottom: 0.3em;
+}
+
+.lycoris-modal-backdrop textarea,
+.lycoris-modal-backdrop input,
+.lycoris-modal-backdrop select {
+    background-color: rgba(15, 18, 29, 0.8);
+    border-color: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary, #f8fafc);
+}
+
+.lycoris-modal-backdrop textarea:focus,
+.lycoris-modal-backdrop input:focus,
+.lycoris-modal-backdrop select:focus {
+    border-color: #38bdf8;
+    box-shadow: none;
+}
+
+@media (max-width: 768px) {
+    .lycoris-modal-backdrop .modal-dialog {
+        max-width: 95vw;
+        max-height: 95vh;
+    }
+}
+</style>
