@@ -1,0 +1,223 @@
+# PyUI Framework — Python Frontend Framework (No HTML, No CSS, No JavaScript)
+
+**PyUI** is a **Python-first frontend framework** that allows developers to build **modern, responsive web user interfaces using only Python**.
+
+With PyUI, you can design complete web frontends **without writing HTML, CSS, or JavaScript**.
+All UI logic, layout, styling, and interactions are defined in Python.
+
+
+
+## Keywords (for PyPI SEO)
+
+Python frontend framework, Python UI framework, Python web UI, frontend without JavaScript, frontend using Python, Python web components, Python alternative to React, Python UI library
+
+
+
+## Why PyUI?
+
+Frontend development usually requires:
+
+* HTML for structure
+* CSS for styling
+* JavaScript for logic
+
+**PyUI removes this complexity.**
+
+✔ Single-language development (Python only)
+✔ Built-in styling and layout system
+✔ Component-based architecture
+✔ CLI-powered build & serve workflow
+✔ Generates standard static web files
+
+If you know Python, **you can build frontend UI immediately**.
+
+
+
+## Installation
+
+```bash
+pip install pyui-framework
+```
+
+Requires **Python 3.9+**
+
+
+
+## Quick Start Example
+
+Create a file `app.py`:
+
+```python
+from pyui.core.page import Page
+from pyui.core.layout import Column
+from pyui.core.text import Text
+from pyui.core.component import Button
+
+page = Page(
+    Column(
+        Text("Hello PyUI"),
+        Button("Click Me")
+    ),
+    title="My PyUI App"
+)
+
+page.build()
+```
+
+Build and serve:
+
+```bash
+pyui build
+pyui serve
+```
+
+Open in browser:
+
+👉 [http://localhost:8000](http://localhost:8000)
+
+
+
+## Core Features
+
+### 🧩 Component-Based UI
+
+* Declarative Python components
+* Clean and readable UI definitions
+* Easy to extend and customize
+
+### 📐 Layout System
+
+* Column & Row layouts
+* Responsive 12-column Grid
+* Cards with elevation levels
+* Navbar and containers
+
+### 🎨 Built-in Styling
+
+* Predefined CSS system
+* Button variants (`primary`, `secondary`, `danger`)
+* Text sizes (`sm`, `md`, `lg`)
+* Light & Dark theme support
+* No manual CSS required
+
+### ⚡ Event Handling
+
+* Python-based event callbacks
+* Button click handlers
+* Form interactions
+
+### 🔁 State Management
+
+Reactive state using Python:
+
+```python
+from pyui.core.state import State
+
+count = State(0)
+```
+
+State updates automatically reflect in the UI.
+
+
+
+## CLI Commands
+
+PyUI includes a built-in command line interface:
+
+```bash
+pyui build   # Build UI into dist/
+pyui serve   # Serve UI locally
+```
+
+This makes PyUI suitable for:
+
+* Rapid prototyping
+* Internal tools
+* Demos & hackathons
+* Learning frontend concepts using Python
+
+
+
+## Output
+
+PyUI generates **standard static web assets**:
+
+```
+dist/
+├── index.html
+├── style.css
+└── script.js
+```
+
+These files can be:
+
+* Hosted anywhere
+* Deployed on static servers
+* Shared easily
+
+
+
+## Who Should Use PyUI?
+
+* Python developers
+* Backend engineers
+* Students & beginners
+* Data science engineers
+* Hackathon participants
+* Anyone who wants frontend without JavaScript
+
+
+
+## Design Philosophy
+
+* Python is the UI language
+* Minimal API surface
+* Predictable behavior
+* No hidden magic
+* Framework-managed CSS & JS
+
+PyUI focuses on **clarity, simplicity, and developer productivity**.
+
+
+
+## Project Status
+
+* Stable core
+* Actively developed
+* API may evolve
+* Open to contributions
+
+
+
+## Roadmap
+
+* Advanced state reactivity
+* Client-side routing (SPA-style)
+* Hot reload for development
+* Component documentation site
+* Theme & component marketplace
+
+
+
+## License
+
+MIT License
+Free to use, modify, and distribute.
+
+
+
+## Author
+
+Developed by **Jyotika Jayani**
+
+
+
+## Final Note
+
+PyUI is **not a replacement for React or Flutter**.
+It is a **Python-native approach to frontend development**.
+
+If you can write Python, **you can build real web interfaces**.
+
+
+
