@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+
+"""Module containing the imode class and the command line interface."""
+from typing import Optional
+import shutil
+from pathlib import PurePath
+from biobb_common.tools import file_utils as fu
+from biobb_common.generic.biobb_object import BiobbObject
+from biobb_common.tools.file_utils import launchlogger
+
+
+class ImodImode(BiobbObject):
+    """
+    | biobb_flexdyn imod_imode
+    | Wrapper of the imode tool
+    | Compute the normal modes of a macromolecule using the imode tool from the iMODS package.
+
+    Args:
+        input_pdb_path (str): Input PDB file. File type: input. `Sample file <https://github.com/bioexcel/biobb_flexdyn/raw/master/biobb_flexdyn/test/data/flexdyn/structure.pdb>`_. Accepted formats: pdb (edam:format_1476).
+        output_dat_path (str): Output dat with normal modes. File type: output. `Sample file <https://github.com/bioexcel/biobb_flexdyn/raw/master/biobb_flexdyn/test/reference/flexdyn/imod_imode_evecs.dat>`_. Accepted formats: dat (edam:format_1637), txt (edam:format_2330).
+        properties (dict - Python dictionary object containing the tool parameters, not input/output files):
+            * **cg** (*int*) - (2) Coarse-Grained model. Values: 0 (CA), 1 (C5), 2 (Heavy atoms).
+            * **remove_tmp** (*bool*) - (True) [WF property] Remove temporal files.
+            * **restart** (*bool*) - (False) [WF property] Do not execute if output files exist.
+            * **sandbox_path** (*str*) - ("./") [WF property] Parent path to the sandbox directory.
+
+    Examples:
+        This is a use example of how to use the building block from Python::
+
+            from biobb_flexdyn.flexdyn.imod_imode import imod_imode
+            prop = {
+                'cg' : 2
+            }
+            imod_imode(   input_pdb_path='/path/to/structure.pdb',
+                    output_dat_path='/path/to/output_evecs.dat',
+                    properties=prop)
+
+    Info:
+        * wrapped_software:
+            * name: iMODS
+            * version: >=1.0.4
+            * license: other
+        * ontology:
+            * name: EDAM
+            * schema: http://edamontology.org/EDAM.owl
+
+    """
+
+    def __init__(self, input_pdb_path: str, output_dat_path: str,
+                 properties: Optional[dict] = None, **kwargs) -> None:
+
+        properties = properties or {}
+
+        # Call parent class constructor
+        super().__init__(properties)
+        self.locals_var_dict = locals().copy()
+
+        # Input/Output files
+        self.io_dict = {
+            'in': {'input_pdb_path': input_pdb_path},
+            'out': {'output_dat_path': output_dat_path}
+        }
+
+        # Properties specific for BB
+        self.properties = properties
+        self.binary_path = properties.get('binary_path', 'imode_gcc')
+
+        self.cg = properties.get('cg', 2)
+
+        # Check the properties
+        self.check_properties(properties)
+        self.check_arguments()
+
+    @launchlogger
+    def launch(self):
+        """Launches the execution of the FlexDyn iMOD imode module."""
+
+        # Setup Biobb
+        if self.check_restart():
+            return 0
+        # self.stage_files()
+
+        # Manually creating a Sandbox to avoid issues with input parameters buffer overflow:
+        #   Long strings defining a file path makes Fortran or C compiled programs crash if the string
+        #   declared is shorter than the input parameter path (string) length.
+        #   Generating a temporary folder and working inside this folder (sandbox) fixes this problem.
+        #   The problem was found in Galaxy executions, launching Singularity containers (May 2023).
+
+        # Creating temporary folder
+        tmp_folder = fu.create_unique_dir()
+        fu.log('Creating %s temporary folder' % tmp_folder, self.out_log)
+
+        shutil.copy2(self.io_dict["in"]["input_pdb_path"], tmp_folder)
+
+        # Output temporary file
+        # out_file_prefix = Path(self.stage_io_dict.get("unique_dir", "")).joinpath("imods_evecs")
+        # out_file = Path(self.stage_io_dict.get("unique_dir", "")).joinpath("imods_evecs_ic.evec")
+        out_file_prefix = "imods_evecs"  # Needed as imod is appending the _ic.evec extension
+        out_file = "imods_evecs_ic.evec"
+
+        # Command line
+        # imode_gcc  1ake_backbone.pdb -m 0 -o patata.evec
+        # self.cmd = [self.binary_path,
+        #             str(Path(self.stage_io_dict["in"]["input_pdb_path"]).relative_to(Path.cwd())),
+        #             "-o", str(out_file_prefix),
+        #             "-m", str(self.cg)
+        #             ]
+
+        self.cmd = ['cd', tmp_folder, ';',
+                    self.binary_path,
+                    PurePath(self.io_dict["in"]["input_pdb_path"]).name,
+                    '-o', out_file_prefix,
+                    '-m', str(self.cg)
+                    ]
+
+        # Run Biobb block
+        self.run_biobb()
+
+        # Copying generated output file to the final (user-given) file name
+        # shutil.copy2(out_file, self.stage_io_dict["out"]["output_dat_path"])
+
+        # Copy outputs from temporary folder to output path
+        shutil.copy2(PurePath(tmp_folder).joinpath(out_file), PurePath(self.io_dict["out"]["output_dat_path"]))
+
+        # Copy files to host
+        # self.copy_to_host()
+
+        # remove temporary folder(s)
+        self.tmp_files.append(tmp_folder)
+        self.remove_tmp_files()
+
+        self.check_arguments(output_files_created=True, raise_exception=False)
+
+        return self.return_code
+
+
+def imod_imode(input_pdb_path: str, output_dat_path: str,
+               properties: Optional[dict] = None, **kwargs) -> int:
+    """Create :class:`ImodImode <flexdyn.imod_imode.ImodImode>`flexdyn.imod_imode.ImodImode class and
+    execute :meth:`launch() <flexdyn.imod_imode.ImodImode.launch>` method"""
+    return ImodImode(**dict(locals())).launch()
+
+
+imod_imode.__doc__ = ImodImode.__doc__
+main = ImodImode.get_main(imod_imode, "Compute the normal modes of a macromolecule using the imode tool from the iMODS package.")
+
+if __name__ == '__main__':
+    main()
