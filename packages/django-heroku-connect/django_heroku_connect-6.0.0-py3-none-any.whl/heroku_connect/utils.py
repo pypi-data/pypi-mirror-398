@@ -1,0 +1,422 @@
+"""Utility methods for Django Heroku Connect."""
+
+import os
+from enum import Enum, unique
+from functools import lru_cache
+
+import requests
+from django.db import DEFAULT_DB_ALIAS, connections
+from django.utils import timezone
+from psycopg2.extensions import AsIs
+from psycopg2.extras import HstoreAdapter
+
+from heroku_connect.conf import settings
+
+HEROKU_REQUEST_TIMEOUT = 30
+
+
+class ConnectionStates:
+    IDLE = "IDLE"
+    POLLING_DB_CHANGES = "POLLING_DB_CHANGES"
+    IMPORT_CONFIGURATION = "IMPORT_CONFIGURATION"
+    BUSY = "BUSY"
+    NEED_AUTHENTICATION = "NEED_AUTHENTICATION"
+    INACTIVE_ORG = "INACTIVE_ORG"
+    PAUSED = "PAUSED"
+
+    OK_STATES = (
+        IDLE,
+        POLLING_DB_CHANGES,
+        IMPORT_CONFIGURATION,
+        BUSY,
+    )
+
+
+@unique
+class MappingState(str, Enum):
+    # https://devcenter.heroku.com/articles/mapping-states-reference#list-of-mapping-states
+    DATA_SYNCED = "DATA_SYNCED"
+    INITIAL = "INITIAL"
+    RESYNC = "RESYNC"
+    RELOAD_TABLE = "RELOAD_TABLE"
+    SCHEMA_CHANGED = "SCHEMA_CHANGED"
+    POLLING_SF_CHANGES = "POLLING_SF_CHANGES"
+    POLLING_SF_BULK = "POLLING_SF_BULK"
+    POLLING_SF_FOR_DELETES = "POLLING_SF_FOR_DELETES"
+    WAIT_BULK_LOAD = "WAIT_BULK_LOAD"
+    LOADING_BULK_JOB = "LOADING_BULK_JOB"
+    RESOLVE_EXTERNAL_IDS = "RESOLVE_EXTERNAL_IDS"
+    BULK_LOAD_ERROR = "BULK_LOAD_ERROR"
+    WAIT_BULK_UPDATE = "WAIT_BULK_UPDATE"
+    APPLYING_BULK_UPDATE = "APPLYING_BULK_UPDATE"
+    POLL_EXTERNAL_IDS = "POLL_EXTERNAL_IDS"
+    RECOVERY = "RECOVERY"
+    ABORTED = "ABORTED"
+    SYSTEM_ERROR = "SYSTEM_ERROR"
+    DB_UNAVAILABLE = "DB_UNAVAILABLE"
+    BAD_CONFIG = "BAD_CONFIG"
+    SYNC_REMOVED = "SYNC_REMOVED"
+    INACTIVE_ORG = "INACTIVE_ORG"
+    UNAUTHORIZED = "UNAUTHORIZED"
+
+
+OK_MAPPING_STATES = (
+    MappingState.DATA_SYNCED,
+    MappingState.RESYNC,
+    MappingState.RELOAD_TABLE,
+    MappingState.POLLING_SF_CHANGES,
+    MappingState.POLLING_SF_BULK,
+    MappingState.POLLING_SF_FOR_DELETES,
+    MappingState.WAIT_BULK_LOAD,
+    MappingState.LOADING_BULK_JOB,
+    MappingState.RESOLVE_EXTERNAL_IDS,
+    MappingState.WAIT_BULK_UPDATE,
+    MappingState.APPLYING_BULK_UPDATE,
+    MappingState.POLL_EXTERNAL_IDS,
+    MappingState.ABORTED,
+)
+
+# mapping states that mean that the sync is not working, but will typically resolve
+# itself
+TEMPORARY_ERROR_MAPPING_STATES = (
+    MappingState.INITIAL,
+    MappingState.SCHEMA_CHANGED,
+    MappingState.RECOVERY,
+)
+
+# mapping states that are permanent errors
+ERROR_MAPPING_STATES = (
+    MappingState.BULK_LOAD_ERROR,
+    MappingState.SYSTEM_ERROR,
+    MappingState.DB_UNAVAILABLE,
+    MappingState.BAD_CONFIG,
+    MappingState.SYNC_REMOVED,
+    MappingState.INACTIVE_ORG,
+    MappingState.UNAUTHORIZED,
+)
+
+
+class WriteAlgorithm(Enum):
+    MERGE_WRITES = 1
+    ORDERED_WRITES = 2
+
+
+def _write_algorithm_from_connection_info(info):
+    if info.get("features", {}).get("poll_db_no_merge", False):
+        return WriteAlgorithm.ORDERED_WRITES
+    else:
+        return WriteAlgorithm.MERGE_WRITES
+
+
+def get_mapping(version=1, exported_at=None, app_name=None):
+    """
+    Return Heroku Connect mapping for the entire project.
+
+    Args:
+    ----
+        version (int): Version of the Heroku Connect mapping, default: ``1``.
+        exported_at (datetime.datetime): Time the export was created, default is
+            ``now()``.
+        app_name (str): Name of Heroku application associated with Heroku Connect the
+            add-on.
+
+    Returns:
+    -------
+        dict: Heroku Connect mapping.
+
+    Note:
+    ----
+        The version does not need to be incremented. Exports from the Heroku Connect
+        website will always have the version number ``1``.
+
+    """
+    if exported_at is None:
+        exported_at = timezone.now()
+    app_name = app_name or settings.HEROKU_CONNECT_APP_NAME
+    return {
+        "version": version,
+        "connection": {
+            "organization_id": settings.HEROKU_CONNECT_ORGANIZATION_ID,
+            "app_name": app_name,
+            "exported_at": exported_at.isoformat(),
+        },
+        "mappings": [
+            model.get_heroku_connect_mapping() for model in get_heroku_connect_models()
+        ],
+    }
+
+
+def get_heroku_connect_models():
+    """
+    Return all registered Heroku Connect Models.
+
+    Returns
+    -------
+        (Iterator):
+            All registered models that are subclasses of `.HerokuConnectModel`.
+            Abstract models are excluded, since they are not registered.
+
+    """
+    from django.apps import apps
+
+    apps.check_models_ready()
+    from heroku_connect.db.models import HerokuConnectModel
+
+    return (
+        model
+        for models in apps.all_models.values()
+        for model in models.values()
+        if issubclass(model, HerokuConnectModel) and not model._meta.managed
+    )
+
+
+@lru_cache(maxsize=128)
+def get_connected_model_for_table_name(table_name):
+    """
+    Return a connected model's table name (which read and written to by
+    Heroku Connect).
+    """
+    for connected_model in get_heroku_connect_models():
+        if connected_model.get_heroku_connect_table_name() == table_name:
+            return connected_model
+    raise LookupError(f"No connected model found for table {table_name!r}")
+
+
+_SCHEMA_EXISTS_QUERY = """
+SELECT exists(
+  SELECT schema_name
+   FROM information_schema.schemata
+    WHERE schema_name = %s
+    );
+"""
+
+
+def create_heroku_connect_schema(using=DEFAULT_DB_ALIAS):
+    """
+    Create Heroku Connect schema.
+
+    Note:
+    ----
+        This function is only meant to be used for local development.
+        In a production environment the schema will be created by
+        Heroku Connect.
+
+    Args:
+    ----
+        using (str): Alias for database connection.
+
+    Returns:
+    -------
+        bool: ``True`` if the schema was created, ``False`` if the
+            schema already exists.
+
+    """
+    connection = connections[using]
+
+    with connection.cursor() as cursor:
+        cursor.execute(_SCHEMA_EXISTS_QUERY, [settings.HEROKU_CONNECT_SCHEMA])
+        schema_exists = cursor.fetchone()[0]
+        if schema_exists:
+            return False
+
+        cursor.execute("CREATE SCHEMA %s;", [AsIs(settings.HEROKU_CONNECT_SCHEMA)])
+
+    with connection.schema_editor() as editor:
+        for model in get_heroku_connect_models():
+            editor.create_model(model)
+
+        # Needs PostgreSQL and database superuser privileges (which is the case on
+        # Heroku):
+        editor.execute('CREATE EXTENSION IF NOT EXISTS "hstore";')
+
+        from heroku_connect.models import TriggerLog, TriggerLogArchive
+
+        for cls in [TriggerLog, TriggerLogArchive]:
+            editor.create_model(cls)
+    return True
+
+
+def _get_authorization_headers():
+    return {"Authorization": f"Bearer {settings.HEROKU_AUTH_TOKEN}"}
+
+
+def get_connections(app):
+    """
+    Return all Heroku Connect connections setup with the given application.
+
+    For more details check the link -
+    https://devcenter.heroku.com/articles/heroku-connect-api#step-4-retrieve-the-new-connection-s-id
+
+    Sample response from the API call is below::
+
+        {
+            "count": 1,
+            "results":[{
+                "id": "<connection_id>",
+                "name": "<app_name>",
+                "resource_name": "<resource_name>",
+                …
+            }],
+            …
+        }
+
+    Args:
+    ----
+        app (str): Heroku application name.
+
+    Returns:
+    -------
+        List[dict]: List of all Heroku Connect connections associated with the Heroku
+            application.
+
+    Raises:
+    ------
+        requests.HTTPError: If an error occurred when accessing the connections API.
+        ValueError: If response is not a valid JSON.
+
+    """
+    payload = {"app": app}
+    url = os.path.join(settings.HEROKU_CONNECT_API_ENDPOINT, "connections")
+    response = requests.get(
+        url,
+        timeout=HEROKU_REQUEST_TIMEOUT,
+        params=payload,
+        headers=_get_authorization_headers(),
+    )
+    response.raise_for_status()
+    return response.json()["results"]
+
+
+def get_all_connections_write_modes(app):
+    return {
+        info["id"]: _write_algorithm_from_connection_info(info)
+        for info in get_connections(app)
+    }
+
+
+def get_connection(connection_id, deep=False):
+    """
+    Get Heroku Connection connection information.
+
+    For more details check the link -
+    https://devcenter.heroku.com/articles/heroku-connect-api#step-8-monitor-the-connection-and-mapping-status
+
+    Sample response from API call is below::
+
+        {
+            "id": "<connection_id>",
+            "name": "<app_name>",
+            "resource_name": "<resource_name>",
+            "schema_name": "salesforce",
+            "db_key": "DATABASE_URL",
+            "state": "IDLE",
+            "mappings":[
+                {
+                    "id": "<mapping_id>",
+                    "object_name": "Account",
+                    "state": "SCHEMA_CHANGED",
+                    …
+                },
+                {
+                    "id": "<mapping_id>",
+                    "object_name": "Contact",
+                    "state": "SCHEMA_CHANGED",
+                    …
+                },
+                …
+            ]
+            …
+        }
+
+    Args:
+    ----
+        connection_id (str): ID for Heroku Connect's connection.
+        deep (bool): Return information about the connection’s mappings,
+            in addition to the connection itself. Defaults to ``False``.
+
+    Returns:
+    -------
+        dict: Heroku Connection connection information.
+
+    Raises:
+    ------
+        requests.HTTPError: If an error occurred when accessing the connection detail
+            API.
+        ValueError: If response is not a valid JSON.
+
+    """
+    url = os.path.join(
+        settings.HEROKU_CONNECT_API_ENDPOINT, "connections", connection_id
+    )
+    payload = {"deep": deep}
+    response = requests.get(
+        url,
+        timeout=HEROKU_REQUEST_TIMEOUT,
+        params=payload,
+        headers=_get_authorization_headers(),
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def get_connection_write_mode(connection_id):
+    return _write_algorithm_from_connection_info(get_connection(connection_id))
+
+
+@lru_cache
+def get_unique_connection_write_mode(app_name=None):
+    app_name = app_name or settings.HEROKU_CONNECT_APP_NAME
+    (mode,) = set(get_all_connections_write_modes(app_name).values())
+
+    return mode
+
+
+def import_mapping(connection_id, mapping):
+    """
+    Import Heroku Connection mapping for given connection.
+
+    Args:
+    ----
+        connection_id (str): Heroku Connection connection ID.
+        mapping (dict): Heroku Connect mapping.
+
+    Raises:
+    ------
+        requests.HTTPError: If an error occurs uploading the mapping.
+        ValueError: If the mapping is not JSON serializable.
+
+    """
+    url = os.path.join(
+        settings.HEROKU_CONNECT_API_ENDPOINT,
+        "connections",
+        connection_id,
+        "actions",
+        "import",
+    )
+
+    response = requests.post(
+        url=url,
+        json=mapping,
+        headers=_get_authorization_headers(),
+        timeout=HEROKU_REQUEST_TIMEOUT,
+    )
+    response.raise_for_status()
+
+
+def link_connection_to_account(app):
+    """
+    Link the connection to your Heroku user account.
+
+    https://devcenter.heroku.com/articles/heroku-connect-api#step-3-link-the-new-add-on-to-your-heroku-user-account
+    """
+    url = os.path.join(
+        settings.HEROKU_CONNECT_API_ENDPOINT, "users", "me", "apps", app, "auth"
+    )
+    response = requests.post(
+        url=url, timeout=HEROKU_REQUEST_TIMEOUT, headers=_get_authorization_headers()
+    )
+    response.raise_for_status()
+
+
+def hstore_text_to_dict(text):
+    return HstoreAdapter.parse(text, None)
