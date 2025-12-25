@@ -1,0 +1,185 @@
+[build-system]
+requires = ["setuptools>=80.8", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zecmf"
+version = "0.1.23"
+description = "A framework for building microservices in Python"
+authors = [
+    {name = "Hendrik Buchwald", email = "hb@zecure.org"},
+]
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "flask==3.1.2",
+    "flask-restx==1.3.2",
+    "flask-sqlalchemy==3.1.1",
+    "flask-migrate==4.1.0",
+    "flask-jwt-extended==4.7.1",
+    "jsonschema==4.25.1",
+    "pyjwt[crypto]==2.10.1",
+    "werkzeug==3.1.4",
+    "sqlalchemy==2.0.44",
+    "click==8.3.1",
+    "celery==5.6.0",
+    "python-dotenv==1.1.0",
+    "requests==2.32.5",
+    "flask-cors==6.0.1",
+    "jinja2==3.1.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.4.2",
+    "pytest-cov==6.3.0",
+    "ruff==0.14.7",
+    "mypy==1.19.0",
+    "types-Flask-Migrate==4.1.0.20250112",
+    "types-requests==2.32.0.20250515",
+    "types-Flask-Cors==4.0.0.20240106",
+    "types-jsonschema==4.25.1.20251009",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+preview = true
+unfixable = []
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "C",   # flake8-comprehensions
+    "B",   # flake8-bugbear
+    "W",   # pycodestyle warnings
+    "D",   # pydocstyle
+    "N",   # flake8-naming
+    "COM", # flake8-commas
+    "S",   # flake8-bandit
+    "BLE", # flake8-blind-except
+    "A",   # flake8-builtins
+    "PT",  # flake8-pytest-style
+    "SIM", # flake8-simplify
+    "TD",  # flake8-todos
+    "PD",  # pandas-vet
+    "PL",  # pylint
+    "NPY", # numpy
+    "RUF", # ruff-specific rules
+    "ANN", # flake8-annotations
+    "TCH", # flake8-type-checking
+    "TRY", # flake8-try-except-raise
+]
+ignore = [
+    "COM812",  # Missing trailing comma
+    "D203",    # One blank line before class docstring
+    "D211",    # No blank lines before class docstring
+    "D213",    # Multi-line docstring summary should start at the second line
+    "S105",    # Possible hardcoded password
+    "S106",    # Possible hardcoded password
+    "PLR6301", # Method could be a function - common in API endpoints
+    "E501",    # Line too long
+    "TRY003",  # Avoid specifying long messages outside exception class
+    "PLR0913", # Too many arguments in function definition
+    "PLR0917", # Too many positional arguments
+    "S110",    # try-except-pass detected, consider logging the exception
+    "BLE001",  # Do not catch blind exception
+    "PLR0904", # Too many public methods
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = [
+    "ANN001",   # Missing type annotation for function argument
+    "ANN101",   # Missing type annotation for self in method
+    "ANN201",   # Missing return type annotation for public function
+    "ANN204",   # Missing return type annotation for special method
+    "S101",     # Use of assert detected
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["zecmf"]
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder"
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+exclude = "build/"
+
+# Module resolution settings
+namespace_packages = true
+implicit_reexport = true
+follow_imports = "silent"
+
+# Type checking strictness
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+disallow_subclassing_any = false
+disallow_any_unimported = false
+disallow_any_generics = false
+
+# Error reporting settings
+no_implicit_optional = true
+strict_optional = true
+warn_redundant_casts = true
+warn_no_return = true
+warn_return_any = false  # Don't warn about returning Any
+warn_unused_ignores = false  # Allow necessary type ignores
+
+[[tool.mypy.overrides]]
+module = "celery.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "flask_restx.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "flask_sqlalchemy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "zecmf.models.*"
+# SQLAlchemy models have dynamic attributes that mypy can't understand
+disable_error_code = ["name-defined", "attr-defined"]
+
+[[tool.mypy.overrides]]
+module = "zecmf.api.*"
+# SQLAlchemy query expressions have complex typing
+disable_error_code = ["arg-type", "call-overload", "union-attr", "attr-defined"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+# Test files can have relaxed typing rules for SQLAlchemy queries
+disable_error_code = ["arg-type", "call-overload", "union-attr", "attr-defined"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = ["Test*"]
+addopts = "--import-mode=importlib"
