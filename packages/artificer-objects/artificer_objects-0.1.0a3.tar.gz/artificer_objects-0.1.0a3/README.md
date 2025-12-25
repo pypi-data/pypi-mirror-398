@@ -1,0 +1,68 @@
+# artificer-objects
+
+Object store framework for MCP (Model Context Protocol) servers. Define typed object stores that agents can read, write, and query.
+
+## Installation
+
+```bash
+pip install artificer-objects
+```
+
+## Usage
+
+Subclass `Object` and implement the CRUD methods:
+
+```python
+from pathlib import Path
+from pydantic import BaseModel
+from fastmcp import FastMCP
+from artificer.objects import Object
+
+class Note(BaseModel):
+    title: str
+    content: str
+
+class NotesStore(Object):
+    model = Note
+
+    def __init__(self, path: str):
+        self.path = Path(path)
+        self.path.mkdir(parents=True, exist_ok=True)
+
+    def read(self, name: str) -> Note:
+        return Note.model_validate_json((self.path / f"{name}.json").read_text())
+
+    def write(self, name: str, data: Note) -> None:
+        (self.path / f"{name}.json").write_text(data.model_dump_json())
+
+    def delete(self, name: str) -> None:
+        (self.path / f"{name}.json").unlink()
+
+    def exists(self, name: str) -> bool:
+        return (self.path / f"{name}.json").exists()
+
+    def list_objects(self) -> list[str]:
+        return [f.stem for f in self.path.glob("*.json")]
+
+# Register with MCP server
+mcp = FastMCP()
+NotesStore.register(mcp, NotesStore("/tmp/notes"), default=True)
+mcp.run()
+```
+
+This exposes MCP tools: `read_object`, `write_object`, `delete_object`, `exists_object`, `list_objects`, `list_object_types`, `get_object_schema`.
+
+## CLI Integration
+
+Integrates with `artificer-cli` for command-line access:
+
+```bash
+artificer objects list
+artificer objects read myobj
+artificer objects write myobj '{"title": "Hello", "content": "World"}'
+artificer objects delete myobj
+```
+
+## License
+
+MIT
