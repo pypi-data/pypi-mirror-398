@@ -1,0 +1,150 @@
+# MassGen Configuration: Read Media Tool - Multi-Backend Test
+#
+# Tests the read_media tool across different backends to verify:
+# - Native multimodal support (images in tool results)
+# - Fallback to understand_* tools for non-MM models
+#
+# Usage:
+#   # Test Claude with image (native MM)
+#   uv run python -m massgen.cli --config massgen/configs/tools/custom_tools/multimodal_tools/read_media_test.yaml --agent claude_image "Describe this image in detail."
+#
+#   # Test Gemini with image (native MM)
+#   uv run python -m massgen.cli --config massgen/configs/tools/custom_tools/multimodal_tools/read_media_test.yaml --agent gemini_image "What do you see in this image?"
+#
+#   # Test Gemini with audio (native MM)
+#   uv run python -m massgen.cli --config massgen/configs/tools/custom_tools/multimodal_tools/read_media_test.yaml --agent gemini_audio "Please transcribe and summarize this audio."
+#
+#   # Test Gemini with video (native MM)
+#   uv run python -m massgen.cli --config massgen/configs/tools/custom_tools/multimodal_tools/read_media_test.yaml --agent gemini_video "Describe what happens in this video."
+#
+#   # Test OpenAI with image (native MM)
+#   uv run python -m massgen.cli --config massgen/configs/tools/custom_tools/multimodal_tools/read_media_test.yaml --agent openai_image "Analyze this image."
+#
+#   # Test Grok with image (native MM via OpenAI-compatible API)
+#   uv run python -m massgen.cli --config massgen/configs/tools/custom_tools/multimodal_tools/read_media_test.yaml --agent grok_image "What is in this image?"
+
+agents:
+  # # =============================================================================
+  # # Claude - Image (Native MM Support)
+  # # =============================================================================
+  # - id: "claude_image"
+  #   backend:
+  #     type: "claude"
+  #     model: "claude-sonnet-4-5"
+  #     cwd: "workspace_claude"
+  #     custom_tools:
+  #       - name: ["read_media"]
+  #         category: "multimodal"
+  #         path: "massgen/tool/_multimodal_tools/read_media.py"
+  #         function: ["read_media"]
+
+  # =============================================================================
+  # Gemini - Image (Native MM Support)
+  # =============================================================================
+  # - id: "gemini_image"
+  #   backend:
+  #     type: "gemini"
+  #     model: "gemini-3-flash-preview"
+  #     cwd: "workspace_gemini"
+  #     custom_tools:
+  #       - name: ["read_media"]
+  #         category: "multimodal"
+  #         path: "massgen/tool/_multimodal_tools/read_media.py"
+  #         function: ["read_media"]
+
+  # # =============================================================================
+  # # Gemini - Audio (Native MM Support)
+  # # =============================================================================
+  # - id: "gemini_audio"
+  #   backend:
+  #     type: "gemini"
+  #     model: "gemini-3-flash-preview"
+  #     cwd: "workspace_gemini_audio"
+  #     custom_tools:
+  #       - name: ["read_media"]
+  #         category: "multimodal"
+  #         path: "massgen/tool/_multimodal_tools/read_media.py"
+  #         function: ["read_media"]
+
+  # # =============================================================================
+  # # Gemini - Video (Native MM Support)
+  # # =============================================================================
+  # - id: "gemini_video"
+  #   backend:
+  #     type: "gemini"
+  #     model: "gemini-3-flash-preview"
+  #     cwd: "workspace_gemini_video"
+  #     custom_tools:
+  #       - name: ["read_media"]
+  #         category: "multimodal"
+  #         path: "massgen/tool/_multimodal_tools/read_media.py"
+  #         function: ["read_media"]
+
+  # # =============================================================================
+  # # OpenAI - Image (Native MM Support via gpt-4o)
+  # # =============================================================================
+  # - id: "openai_image"
+  #   backend:
+  #     type: "openai"
+  #     model: "gpt-4.1"
+  #     cwd: "workspace_openai"
+  #     custom_tools:
+  #       - name: ["read_media"]
+  #         category: "multimodal"
+  #         path: "massgen/tool/_multimodal_tools/read_media.py"
+  #         function: ["read_media"]
+
+  # # =============================================================================
+  # # Grok - Image (Native MM Support via OpenAI-compatible API)
+  # # =============================================================================
+  - id: "grok_image"
+    backend:
+      type: "grok"
+      model: "grok-4-1-fast-reasoning"
+      cwd: "workspace_grok"
+      custom_tools:
+        - name: ["read_media"]
+          category: "multimodal"
+          path: "massgen/tool/_multimodal_tools/read_media.py"
+          function: ["read_media"]
+
+  # # =============================================================================
+  # # Claude - Audio (Fallback to understand_audio)
+  # # Tests that audio falls back correctly since Claude doesn't support native audio
+  # # =============================================================================
+  # - id: "claude_audio_fallback"
+  #   backend:
+  #     type: "claude"
+  #     model: "claude-sonnet-4-5"
+  #     cwd: "workspace_claude_audio"
+  #     custom_tools:
+  #       - name: ["read_media"]
+  #         category: "multimodal"
+  #         path: "massgen/tool/_multimodal_tools/read_media.py"
+  #         function: ["read_media"]
+  #   system_message: |
+  #     You are an AI assistant with audio understanding capabilities.
+
+  #     Use the read_media tool to analyze audio files.
+  #     Note: For audio, this will use external API transcription since Claude
+  #     doesn't natively support audio in context.
+
+  #     When asked about an audio file, use read_media to get a transcription/analysis.
+
+orchestrator:
+  snapshot_storage: "snapshots"
+  agent_temporary_workspace: "temp_workspaces"
+  context_paths:
+    # Image resource
+    - path: "massgen/configs/resources/v0.1.3-example/multimodality.jpg"
+      permission: "read"
+    # Audio resource
+    - path: "massgen/configs/resources/v0.1.3-example/Sherlock_Holmes.mp3"
+      permission: "read"
+    # Video resource
+    - path: "massgen/configs/resources/v0.1.3-example/oppenheimer_trailer_1920.mp4"
+      permission: "read"
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true

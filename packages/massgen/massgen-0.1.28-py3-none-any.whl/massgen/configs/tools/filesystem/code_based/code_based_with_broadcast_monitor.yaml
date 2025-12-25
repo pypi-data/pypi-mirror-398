@@ -1,0 +1,108 @@
+# Example: Code-Based Tools with Broadcast Monitoring
+#
+# This config combines code-based tools (CodeAct paradigm) with broadcast monitoring
+# to test if human feedback and monitoring can improve agent collaboration.
+#
+# Run with:
+# uv run massgen --automation \
+#   --config massgen/configs/tools/filesystem/code_based/code_based_with_broadcast_monitor.yaml \
+#   "Create a website about Ada Lovelace"
+
+agents:
+  - id: "agent_a"
+    backend:
+      type: "openai"
+      model: "gpt-5-mini"
+      cwd: "workspace1"
+
+      # Enable code-based tools (CodeAct paradigm)
+      enable_code_based_tools: true
+      exclude_file_operation_mcps: true
+      enable_mcp_command_line: true
+
+      # Command line execution
+      command_line_execution_mode: "docker"
+      command_line_docker_network_mode: "bridge"
+
+      # Pass API keys to Docker
+      command_line_docker_credentials:
+        env_file: ".env"
+        env_vars_from_file:
+          - "OPENAI_API_KEY"
+          - "GOOGLE_API_KEY"
+          - "GEMINI_API_KEY"
+
+      # Shared tools directory
+      shared_tools_directory: "shared_tools"
+
+      # Auto-discover custom tools
+      auto_discover_custom_tools: true
+
+      # Exclude specific tools
+      exclude_custom_tools:
+        - "_claude_computer_use"
+        - "_gemini_computer_use"
+        - "_browser_automation"
+
+  - id: "agent_b"
+    backend:
+      type: "claude_code"
+      model: "claude-sonnet-4-5-20250929"
+      cwd: "workspace2"
+
+      # Enable code-based tools (CodeAct paradigm)
+      enable_code_based_tools: true
+      exclude_file_operation_mcps: true
+      enable_mcp_command_line: true
+
+      # Command line execution
+      command_line_execution_mode: "docker"
+      command_line_docker_network_mode: "bridge"
+
+      # Pass API keys to Docker
+      command_line_docker_credentials:
+        env_file: ".env"
+        env_vars_from_file:
+          - "OPENAI_API_KEY"
+          - "GOOGLE_API_KEY"
+          - "GEMINI_API_KEY"
+
+      # Shared tools directory
+      shared_tools_directory: "shared_tools"
+
+      # Auto-discover custom tools
+      auto_discover_custom_tools: true
+
+      # Exclude specific tools
+      exclude_custom_tools:
+        - "_claude_computer_use"
+        - "_gemini_computer_use"
+        - "_browser_automation"
+
+orchestrator:
+  snapshot_storage: "snapshots"
+  agent_temporary_workspace: "temp_workspaces"
+
+  coordination:
+    # Enable agent-to-human broadcasting (agents can ask human + other agents)
+    broadcast: "human"
+    broadcast_sensitivity: "medium"
+    broadcast_timeout: 120
+
+    # Enable the monitor to inject reminders
+    enable_monitor: true
+    monitor_model: "gpt-4.1-nano"
+
+    # Enable skills system
+    use_skills: true
+
+    # Enable planning
+    enable_agent_task_planning: true
+    task_planning_filesystem_mode: true
+
+    # Enable filesystem memory mode
+    enable_memory_filesystem_mode: true
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true
