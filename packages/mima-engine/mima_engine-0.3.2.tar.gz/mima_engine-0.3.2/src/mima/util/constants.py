@@ -1,0 +1,55 @@
+# Tile dimensions
+WIDTH: int = int(256 * 1)  # TODO: remove
+HEIGHT: int = int(144 * 1)  # TODO: remove
+TILE_WIDTH: int = 16
+TILE_HEIGHT: int = TILE_WIDTH
+DEFAULT_SPRITE_WIDTH: int = TILE_WIDTH
+DEFAULT_SPRITE_HEIGHT: int = TILE_HEIGHT
+UI_HIGHT: int = 1  # TODO: remove
+
+# Map transition
+MOVE_MAP_DURATION: float = 1.0
+MAP_TRANSITION_DURATION_FACTOR: float = 0.75
+ONEWAY_ACTIVATION_DELAY: float = 0.075
+ONEWAY_SPEED_BOOST: float = 2.5
+
+# Gamepad
+AXIS_DEADZONE: float = 0.25
+AXIS_ACTIVATION: float = 0.5
+
+# Touchscreen
+TOUCH_ACTIVATION: float = 0.001
+SINGLE_TAP_MIN: float = 0.2
+SINGLE_TAP_MAX: float = 1.0
+DOUBLE_TAP_SPEED: float = 0.2
+
+# Font
+BIG_FONT_NAME: str = "pixel-font"
+BIG_FONT_WIDTH: int = 6
+BIG_FONT_HEIGHT: int = 8
+SMALL_FONT_NAME: str = "pixel-font-small"
+SMALL_FONT_WIDTH: int = 4
+SMALL_FONT_HEIGHT: int = 5
+
+# Dynamics
+DEFAULT_GRAPHIC_TIMER_STANDING: float = 0.5
+DEFAULT_GRAPHIC_TIMER_WALKING: float = 0.15
+DEFAULT_GRAPHIC_TIMER_DAMAGED: float = 0.075
+DEFAULT_GRAPHIC_TIMER_DEAD: float = 0.25
+DEFAULT_GRAPHIC_TIMER: float = 0.5
+ATTRIBUTE_TIMER: float = 0.25
+DEFAULT_KNOCK_SPEED: float = 6.0
+
+# Gameplay
+ABYSS_DAMAGE: int = 1
+PLAYER_BASE_HEALTH: int = 30
+PLAYER_BASE_SPEED: float = 4.5
+PLAYER_BASE_RUN_SPEED: float = 6.0
+
+# Dialog
+DIALOG_WIDTH: float = 14.0
+DIALOG_HEIGHT: float = 3.0
+DIALOG_CHARS_PER_LINE: int = 36
+DIALOG_N_LINES: int = 4
+
+SAVE_FILE_NAME = "savegame"
