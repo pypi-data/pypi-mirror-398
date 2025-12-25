@@ -1,0 +1,816 @@
+Metadata-Version: 2.4
+Name: sanice
+Version: 1.0.10
+Summary: Biblioteca fluente para Data Science ágil (ETL, AutoML e Plotting).
+Home-page: https://github.com/wSanice/sanice
+Author: wSanice
+Author-email: wansanice@proton.me
+Project-URL: Homepage, https://github.com/wSanice/sanice
+Project-URL: Source, https://github.com/wSanice/sanice
+Project-URL: Funding, https://github.com/sponsors/wSanice
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.21.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: matplotlib>=3.7.0
+Requires-Dist: seaborn>=0.12.0
+Requires-Dist: scikit-learn>=1.2.0
+Requires-Dist: joblib>=1.2.0
+Requires-Dist: openpyxl>=3.1.0
+Requires-Dist: pyarrow>=11.0.0
+Requires-Dist: sqlalchemy>=2.0.0
+Requires-Dist: unidecode>=1.3.0
+Provides-Extra: api
+Requires-Dist: fastapi>=0.95.0; extra == "api"
+Requires-Dist: uvicorn>=0.22.0; extra == "api"
+Requires-Dist: pydantic>=1.10.0; extra == "api"
+Provides-Extra: db
+Requires-Dist: pymongo; extra == "db"
+Requires-Dist: psycopg2-binary; extra == "db"
+Requires-Dist: mysqlclient; extra == "db"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: twine; extra == "dev"
+Requires-Dist: wheel; extra == "dev"
+Requires-Dist: pytest-mock; extra == "dev"
+Requires-Dist: coverage; extra == "dev"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: project-url
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+<div align="center">
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/wSanice/sanice/refs/heads/main/assets/sanice.png" alt="Sanice Banner" width="100%"/>
+</p>
+
+> (Sistema Automatizado de Normalização, Inteligência Computacional e Estatística)<br>
+> (System for Automated Normalization, Intelligence, Computation, and Statistics)
+
+
+
+![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
+![License](https://img.shields.io/badge/license-Apache%202.0-blue)
+![Status](https://img.shields.io/badge/status-stable-brightgreen)
+
+[🇺🇸 English](#-english) | [🇧🇷 Português](#-português) | [🇨🇳 &nbsp; 🇮🇳 &nbsp;Multi-language](#-Multilanguage)
+
+</div>
+
+---
+<details>
+<summary><b>v1.0.10: AutoML Tournament & Clean Logs</b></summary>
+<br>
+
+This version introduces the **"Model Tournament"** to the `auto_ml` command. Instead of training a single algorithm (Random Forest), Sanice now puts three competitors in the arena and automatically selects the best one.
+
+#### AutoML 2.0: The Tournament (Linear vs Forest vs Gradient)
+In previous versions, Sanice relied solely on **Random Forest**. While robust, it is not always the optimal choice. Version v1.0.10 silently trains and compares:
+
+1.  **Linear/Logistic Regression:** Extremely fast and lightweight. Wins when data follows simple trends and allows extrapolation.
+2.  **Random Forest:** The "jack of all trades". Wins on noisy and non-linear data.
+3.  **Gradient Boosting:** The "specialist". Usually wins in accuracy by iteratively correcting errors from previous trees (the basis of XGBoost).
+
+**Why is this better?**
+* **Higher Accuracy:** Gradient Boosting often outperforms Random Forest on tabular data.
+* **Lighter Models:** If a Linear model wins, the final `.pkl` file size is drastically reduced (KB vs MB).
+* **Extrapolation:** Random Forest cannot predict values outside the range seen during training. The Linear model can, making the system more versatile.
+
+#### 🔇 Sober & Professional Logs
+We removed excessive emojis and cleaned up the terminal output.
+* The system now strictly respects `.configure_logs("silent")`.
+* Standardized messages with tags: `[AUTO-ML]`, `[RESULT]`, `[ERROR]`.
+
+**How to update:**
+`pip install sanice --upgrade`
+</details>
+
+<a name="-english"></a>
+## 🇺🇸 English
+
+**Sanice** is a fluent Python wrapper designed to accelerate Data Science workflows. It abstracts the complexity of Pandas, Scikit-Learn, and FastAPI into a method-chaining interface, allowing you to focus on business logic rather than syntax.
+
+### Installation
+
+**Standard Installation (Data Science Core):**
+```bash
+pip install sanice
+```
+### Full Installation (Recommended): Includes API support (FastAPI) and Database drivers (Mongo/Postgres)
+```bash
+pip install "sanice[api,db]"
+```
+### CLI Helper
+You can verify installed commands directly from your terminal without opening Python:
+
+```bash
+sanice help    # 🇺🇸 English
+sanice bangzhu # 🇨🇳 Chinese
+sanice madad   # 🇮🇳 Hindi
+```
+
+### Smart Optimization (v1.0.9+)
+
+Enable `smart_run` to automatically detect dates and compress memory usage by converting repetitive text to categories.
+
+```python
+from sanice import Sanice
+
+# Activates Auto-Date & Memory Optimization
+app = Sanice("large_dataset.csv", smart_run=True)
+```
+
+## Log Configuration Levels
+
+The `configurar_logs()` method allows controlling the verbosity of log messages generated by the framework, optimizing the output for your system.
+
+| Level | Command | Description | Log Constant (Value) |
+| :--- | :--- | :--- | :--- |
+|**Silent** | `"silent"` | Silences **EVERYTHING**. Ideal for production, ensuring `stdout` is pure JSON. | `logging.CRITICAL + 1` (Greater than 50)|
+|**Error** | `"error"` | Shows only **severe error** messages. | `logging.ERROR` (40)|
+|**Warn** | `"warn"` | Shows **warning/caution** messages and errors. | `logging.WARNING` (30)|
+|**Info** | `"info"` | (Default) Shows all **operational** messages (including INFO and WARN). | `logging.INFO` (20)|
+|**Debug** | `"debug"` | Shows **detailed** messages for debugging and all higher levels. | `logging.DEBUG` (10)|
+
+---
+
+### Note
+
+The **Silent** level is particularly useful because it silences all informational messages (INFO, WARN) that might clutter the console, leaving it clean, especially if the expected output is only structured data.
+
+```python
+import logging
+from sanice import Sanice
+
+# SCENARIO: PRODUCTION DATA PIPELINE
+# Goal: Load data from SQL, clean it, train a simple model, and export the CLEANED
+# data to MongoDB. The console must show NO Sanice messages, only the final output.
+
+# 1. Initialize Sanice and set the logging level to SILENT.
+# This ensures that all framework messages (INFO, WARN) are suppressed.
+app = Sanice.from_sql(
+    url_connection="postgresql://prod_user:***@db-server/analytics_db",
+    query="SELECT * FROM raw_transactions WHERE created_at >= '2025-01-01'"
+)
+app.configurar_logs("silent") # Crucial line for muting framework output
+
+# 2. Execute a complex data pipeline.
+# No intermediate messages will be printed to the console during these steps.
+(app
+    .fix_columns()
+    .transform("transaction_amount", "money")
+    .handle_outliers(["transaction_amount"])
+    .auto_ml(
+        target="is_fraud",
+        type="classification",
+        save_path="fraud_model_v1.pkl"
+    )
+    # The .export_mongo() method is assumed to handle the clean data export.
+    .export_mongo(
+        uri="mongodb://localhost:27017",
+        database="analytics_db",
+        collection="clean_transactions"
+    )
+)
+
+# If the pipeline runs successfully in silent mode, the console output will be clean,
+# meaning the framework will not print "Starting AutoML..." or "Data exported successfully...".
+
+# If we needed to confirm the execution with an explicit, controlled message:
+print("INFO: Data pipeline finished and cleaned transactions were exported to MongoDB.")
+```
+
+### ⚡ Quick Start
+
+**How to turn a dirty CSV into a deployed AI model in minutes.**
+
+```python
+from sanice import Sanice
+
+(Sanice("raw_data.csv")
+    .fix_columns()                    # Standardize names to snake_case
+    .transform("price", "money")      # Cleans money format ("$ 1,000.00" -> 1000.0)
+    .drop_nulls()                     # Removes empty rows
+    .create_column("total", "price * qty")
+    .handle_outliers("total")         # Removes statistical anomalies (IQR)
+    .auto_ml(                         # Trains Random Forest & saves model
+        target="sold", 
+        type="classification", 
+        save_path="my_model.pkl"
+    )
+    .serve_api()                      # Deploys a REST API on localhost:8000
+)
+```
+
+#### Snippets & Command Reference
+
+Here is the complete list of available methods organized by category.
+
+### 1. Cleaning and ETL (Internationalization Engine)
+
+Sanice's cleaning engine has been expanded to support global and production scenarios, consolidating complex tasks into simple commands.
+
+| Command | Description |
+| :--- | :--- |
+| `app.fix_columns()` | Converts column names to `snake_case`, including **automatic accent removal** (`á`, `ç`) and special characters (e.g., "Copáibaçuã" -> "copaibacua"). |
+| `app.transform(col, rule)` | Applies **international currency cleaning** and text standardization logic: `'MONEY'`, `'NUMBERS'`, `'EMAIL'`, `'UPPER'`, `'LOWER'`, etc. |
+| `app.remove_nulls(strategy, val)` | Strategy: `'drop'` or `'fill'` (default `0` if not specified). |
+| `app.clean_text([cols])` | Removes extra spaces and converts text to Title Case. |
+| `app.convert_date(col, fmt)` | Converts a string column to datetime objects. |
+
+>  **New Use Cases and Control:**
+> * **Column Standardization:** Accent removal eliminates errors in SQL queries and code references.
+> * **Currency Control:** Sanice sets the default currency based on the instance's language (e.g., `lang="en"` assumes **USD**; `lang="pt"` assumes **BRL**).
+> * **Global Monetary Conversion:** Fast conversion of international currency columns (R$, $, ¥) to float before calculations.
+
+**Application Example (Internationalization Pipeline):**
+
+```python
+# Setup: Instantiating Sanice in English (assuming default currency USD)
+app = Sanice("global_sales.csv", lang="en")
+
+# Cleaning and Column Standardization (including accents)
+(app.fix_columns()                      # Ex: "Venda Mês Jan" -> "venda_mes_jan"
+    .clean_text(["client_name"])         # Alias for limpar_texto
+    .transform("unit_price", "MONEY")    # Assumes USD (Default 'en')
+    .transform("shipping_date", "DATE") # Alias for converter_data (Date rule exists in transform)
+)
+
+# Currency Override Usage (Override)
+# If you want to clean a Chinese Yuan (CNY) column in a PT app:
+app_pt = Sanice("data.csv", lang="pt", currency="CNY")
+app_pt.transform("import_value", "MONEY")
+```
+
+### 2. Data Manipulation
+| Command | Description |
+| :--- | :--- |
+| `app.create_column(name, logic)` | Creates a column using a string expression or lambda. |
+| `app.filter(query)` | Filters rows using SQL-like syntax (e.g., `"age > 18"`). |
+| `app.sort(col, ascending)` | Sorts the dataset by a specific column. |
+| `app.join(other_df, keys, how)` | Merges two datasets (Left, Right, Inner, Outer). |
+| `app.group([cols], val, op)` | Groups data and calculates sum, mean, or count. |
+| `app.pivot_table(idx, col, val)` | Creates a Pivot Table from the data. |
+
+> **Use Cases:**
+> * Feature Engineering (e.g., creating "average ticket" or "days since last purchase").
+> * Merging "Sales" and "Customers" tables to enrich the dataset (VLOOKUP/JOIN).
+> * Customer segmentation for specific marketing campaigns.
+
+**Application Example:**
+```python
+# Total Sales Analysis by Region
+(Sanice("sales.csv")
+    .filter("status == 'Completed'")
+    .create_column("revenue", "price * quantity")
+    .group(
+        cols=["region", "category"], 
+        value_col="revenue", 
+        operation="sum"
+    )
+    .sort("revenue", ascending=False)
+)
+```
+### 3. Database Integration (SQL & NoSQL) v1.0.9+
+You can verify installation with `pip install "sanice[db]"` to enable these features.
+
+| Command | Description |
+| :--- | :--- |
+| `Sanice.from_sql(url, query)` | **Factory Method:** Initializes Sanice directly from a SQL query. |
+| `app.export_mongo(uri, db, col)`| Exports the current dataframe to a MongoDB collection. |
+| `app.export_sql(url, table)` | Exports to SQL databases (Postgres, MySQL, SQLite). |
+
+**Example: Reading from Postgres and Saving to MongoDB**
+```python
+from sanice import Sanice
+
+# 1. Read from SQL (PostgreSQL)
+app = Sanice.from_sql(
+    url_conexao="postgresql://user:pass@localhost/mydb",
+    query="SELECT * FROM raw_sales"
+)
+
+# 2. Clean & Export to NoSQL (MongoDB)
+(app
+    .drop_nulls()
+    .export_mongo(
+        uri="mongodb://localhost:27017",
+        database="analytics_db",
+        collection="clean_sales"
+    )
+)
+```
+
+### 4. Analytics & Visualization
+| Command | Description |
+| :--- | :--- |
+| `app.describe()` | Displays mean, std, min, max, and percentiles. |
+| `app.correlation_matrix()` | Plots a heatmap of correlations between numeric vars. |
+| `app.handle_outliers([cols])` | Removes outliers automatically using the IQR method. |
+| `app.plot(type, x, y, hue)` | Plots charts: `'bar'`, `'line'`, `'scatter'`, `'hist'`, `'box'`. |
+
+> **Use Cases:**
+> * Exploratory Data Analysis (EDA) to understand data profiles before modeling.
+> * Visual identification of variables that influence the target result (correlation).
+> * Detection and removal of anomalies (e.g., negative ages or exorbitant prices).
+
+**Application Example:**
+```python
+# Rapid Dataset Diagnosis
+(Sanice("biological_data.csv")
+    .describe()
+    .handle_outliers(["age", "glucose"]) # Remove anomalies
+    .correlation_matrix()                # Shows influence factors
+    .plot("scatter", x="age", y="glucose", hue="diagnosis")
+)
+```
+
+### 5. AI & Machine Learning
+| Command | Description |
+| :--- | :--- |
+| `app.scale(method)` | Normalizes data using `'minmax'` or `'standard'` scaler. |
+| `app.auto_ml(target, type, path)` | **AutoML Tournament:** trains 3 models (Linear, RF, Gradient), selects the best one, and saves. |
+| `app.load_ai(path)` | Loads a pre-trained `.pkl` model into memory. |
+| `app.predict(output_col)` | Generates predictions using the loaded model. |
+
+> **Use Cases:**
+> * **High-precision modeling:** Sanice automatically finds the best algorithm for your data (Linear vs Ensemble).
+> * Quick creation of baselines to validate business hypotheses.
+> * Churn Prediction (Classification) or Demand Forecasting (Regression).
+
+**Application Example:**
+```python
+# Training with Tournament (Sanice compares models automatically)
+(Sanice("telecom_churn.csv")
+    .scale("minmax")
+    .auto_ml(target="churn", type="classification", save_path="my_ai.pkl")
+)
+
+# Console Output:
+# [AUTO-ML] Evaluating 3 models (Linear, RF, Gradient)...
+# [RESULT] Best model: GradientBoosting | Accuracy: 0.9450
+
+# ... In another script, loading and predicting:
+(Sanice("new_customers.csv")
+    .load_ai("my_ai.pkl")
+    .predict(output_col="churn_prob")
+)
+```
+
+### 6. Export & Deployment
+| Command | Description |
+| :--- | :--- |
+| `app.save(path)` | Exports data to `.csv`, `.xlsx`, or `.parquet`. |
+| `app.export_sql(url, table)` | Pushes the dataframe to a SQL database. |
+| `app.serve_api()` | Starts a FastAPI server to serve predictions. |
+
+> **Use Cases:**
+> * Exporting treated data (Bronze -> Silver) to BI tools like Power BI or Tableau.
+> * Instant creation of AI microservices for Mobile or Web App integration.
+> * Persistence of clean data into relational databases (PostgreSQL/MySQL).
+
+**Application Example:**
+```python
+# Final Pipeline: Clean -> Save Parquet -> Deploy API
+(Sanice("raw_data.csv")
+    .fix_columns()
+    .auto_ml("target", "regression", "model.pkl")
+    .save("clean_data.parquet")   # Data Backup
+    .serve_api()                  # API Online at http://localhost:8000
+)
+```
+
+#### License
+
+This project is licensed under the Apache License, Version 2.0. See the [LICENSE](https://www.apache.org/licenses/LICENSE-2.0)  for details.
+
+<br>
+
+---
+
+<details>
+<summary><b>v1.0.10: Torneio AutoML & Logs Limpos</b></summary>
+<br>
+
+Esta versão introduz o **"Torneio de Modelos"** no comando `auto_ml`. Agora, o Sanice não treina apenas um algoritmo, mas coloca três modleos para competir e escolhe automaticamente o melhor.
+
+#### AutoML 2.0: O Torneio (Linear vs Forest vs Gradient)
+Nas versões anteriores, o Sanice usava apenas **Random Forest**. Embora robusto, ele nem sempre é a melhor escolha. A versão v1.0.10 treina e compara silenciosamente:
+
+1.  **Linear/Logistic Regression:** Extremamente rápido e leve. Vence quando os dados têm tendências simples e permite extrapolação.
+2.  **Random Forest:** O "pau pra toda obra". Vence em dados ruidosos e não-lineares.
+3.  **Gradient Boosting:** O "especialista". Geralmente vence em precisão, corrigindo os erros das árvores anteriores (base do XGBoost).
+
+**Por que isso é melhor?**
+* **Maior Precisão:** O Gradient Boosting frequentemente supera o Random Forest em dados tabulares.
+* **Modelos Mais Leves:** Se o modelo Linear vencer, o arquivo final `.pkl` será drasticamente menor (KB vs MB).
+* **Extrapolação:** O Random Forest não consegue prever valores fora do intervalo que viu no treino (ex: preços mais altos que o histórico). O modelo Linear consegue.
+
+#### 🔇 Logs Sóbrios e Profissionais
+Removemos emojis excessivos e limpamos a saída do terminal.
+* O sistema agora respeita estritamente o modo `.configurar_logs("silent")`.
+* Mensagens padronizadas com tags `[AUTO-ML]`, `[RESULTADO]`, `[ERRO]`.
+
+**Como atualizar:**
+`pip install sanice --upgrade`
+</details>
+
+<a name="-português"></a>
+## 🇧🇷 Português
+
+**Sanice** é um wrapper Python fluido projetado para acelerar fluxos de trabalho de Data Science. Ele abstrai a complexidade do Pandas, Scikit-Learn e FastAPI em uma interface de encadeamento de métodos (method-chaining), permitindo que você foque na lógica de negócios em vez da sintaxe.
+
+### Instalação
+
+**Instalação Padrão (Núcleo Data Science):**
+```bash
+pip install sanice
+```
+### Instalação Completa (Recomendada): Inclui suporte a API (FastAPI) e drivers de Banco de Dados (Mongo/Postgres)
+```bash
+pip install "sanice[api,db]"
+```
+
+
+### Ajuda no Terminal (CLI)
+
+Você pode verificar os comandos disponíveis direto do seu terminal, sem abrir o Python:
+
+```bash
+sanice ajuda   # 🇧🇷 Português
+```
+
+### Otimização Inteligente (v1.0.9+)
+
+
+Ative o `smart_run` para detectar datas automaticamente e comprimir o uso de memória convertendo texto repetitivo em categorias.
+
+
+```python
+from sanice import Sanice
+
+# Ativa Auto-Data e Otimização de Memória
+app = Sanice("dados_gigantes.csv", smart_run=True)
+
+```
+### Lei de Uso de Importação (Novo Padrão)
+
+Para simplificar o setup, todas as dependências essenciais do Sanice são re-exportadas a partir de uma **única linha de importação**, eliminando a necessidade de importar Pandas, NumPy, etc., separadamente.
+
+| Ferramenta | Alias | Propósito |
+| :---: | :---: | :--- |
+| **Sanice** | `Sanice` | Classe principal do framework. |
+| **Pandas/NumPy** | `pd`, `np` | Manipulação e matemática de dados. |
+| **Visualização** | `plt`, `sns` | Gráficos (Matplotlib e Seaborn). |
+| **Serialização** | `joblib` | Salvar e carregar modelos de ML. |
+| **SQL** | `sqlalchemy` | Criação de engines de banco de dados. |
+
+**Linha de Importação Padrão:**
+
+```python
+from sanice import Sanice, pd, np, plt, sns, joblib, sqlalchemy
+```
+
+## Níveis de Configuração de Logs
+
+O método `configurar_logs()` permite controlar a verbosidade das mensagens de log geradas pelo framework, otimizando a saída para o seu sistema.
+
+| Nível | Comando | Descrição | Constante de Log (Valor) |
+| :--- | :--- | :--- |:--- |
+|**Silent** | `"silent"` | Silencia **TUDO**. Ideal para produção, garantindo que o `stdout` seja JSON puro. | `logging.CRITICAL + 1` (Maior que 50)|
+|**Error** | `"error"` | Mostra apenas mensagens de **erro grave**. | `logging.ERROR` (40)|
+|**Warn** | `"warn"` |Mostra mensagens de **alerta/cuidado** e erros. |`logging.WARNING` (30)|
+|**Info** | `"info"` | (Padrão) Mostra todas as mensagens **operacionais** (incluindo INFO e WARN). | `logging.INFO` (20)|
+|**Debug** |	`"debug"`	| Mostra mensagens **detalhadas** para depuração e tudo superior. |	`logging.DEBUG` (10)|
+
+---
+
+### Observação
+
+O nível **Silent** é particularmente útil, pois silencia todas as mensagens informativas (INFO, WARN) que poderiam poluir o console, deixando-o limpo, especialmente se a saída esperada for apenas dados estruturados.
+
+```python
+import logging
+from sanice import Sanice
+
+#CENÁRIO: PIPELINE DE DADOS EM PRODUÇÃO
+# Objetivo: Carregar dados de um SQL, limpar, treinar um modelo simples e exportar
+# os dados LIMPOS para o MongoDB. O console NÃO deve mostrar nenhuma mensagem do Sanice.
+
+# 1. Inicializa o Sanice e configura o nível de log para SILENCIOSO.
+# Isso garante que todas as mensagens do framework (INFO, WARN) sejam suprimidas.
+app = Sanice.de_sql(
+    url_conexao="postgresql://user_prod:***@servidor-db/banco_analytics",
+    query="SELECT * FROM transacoes_brutas WHERE data_criacao >= '2025-01-01'"
+)
+app.configurar_logs("silent") # Linha crucial para silenciar a saída do framework
+
+# 2. Executa um pipeline de dados complexo.
+# Nenhuma mensagem intermediária será impressa no console durante estas etapas.
+(app
+    .corrigir_colunas()
+    .transformar("valor_transacao", "dinheiro")
+    .tratar_outliers(["valor_transacao"])
+    .auto_ml(
+        alvo="e_fraude",
+        tipo="classificacao",
+        salvar_modelo="modelo_fraude_v1.pkl"
+    )
+    # O método .exportar_mongo() é o responsável pela exportação dos dados limpos.
+    .exportar_mongo(
+        uri="mongodb://localhost:27017",
+        database="analytics_db",
+        collection="transacoes_limpas"
+    )
+)
+
+# Se o pipeline for executado com sucesso no modo silencioso, a saída do console será limpa.
+# Se precisarmos confirmar a execução com uma mensagem explícita e controlada:
+print("INFO: Pipeline de dados finalizado e transações limpas exportadas para o MongoDB.")
+```
+
+
+### ⚡ Início Rápido
+
+**Como transformar um CSV sujo em um modelo de IA em produção em minutos.**
+
+```python
+
+from sanice import Sanice
+
+(Sanice("raw_data.csv")
+    .corrigir_colunas()               # Padroniza nomes para snake_case
+    .transformar("price", "dinheiro") # Limpa formato monetário ("R$ 1.000,00" -> 1000.0)
+    .remover_nulos()                  # Remove linhas vazias
+    .criar_coluna("total", "price * qty")
+    .tratar_outliers("total")         # Remove anomalias estatísticas (IQR)
+    .auto_ml(                         # Treina Random Forest & salva modelo
+        alvo="sold", 
+        tipo="classificacao", 
+        salvar_modelo="my_model.pkl"
+    )
+    .servir_api()                     # Sobe uma API REST em localhost:8000
+)
+```
+
+### Snippets e Referência de Comandos
+
+Aqui está a lista completa de métodos disponíveis organizados por categoria.
+
+### 1. Limpeza e ETL (Engine de Internacionalização)
+
+O motor de limpeza do Sanice foi expandido para suportar cenários globais e de produção, consolidando tarefas complexas em comandos simples.
+
+| Comando | Descrição |
+| :--- | :--- |
+| `app.corrigir_colunas()` | Converte nomes de colunas para `snake_case`, incluindo **remoção automática de acentos** (`á`, `ç`) e caracteres especiais (Ex: "Copáibaçuã" -> "copaibacua"). |
+| `app.transformar(col, rule)` | Aplica lógica de **limpeza de moeda internacional** e padronização de texto: `'DINHEIRO'`, `'NUMEROS'`, `'EMAIL'`, `'UPPER'`, `'LOWER'`, etc. |
+| `app.remover_nulos(strategy, val)` | Estratégia: `'apagar'` (drop) ou `'preencher'` (fill, padrão `0` se não especificado). |
+| `app.limpar_texto([cols])` | Remove espaços extras e converte texto para Title Case. |
+| `app.converter_data(col, fmt)` | Converte uma coluna de string para objetos datetime. |
+
+> **Novos Casos de Uso e Controle:**
+> * **Padronização de Colunas:** A remoção de acentos elimina erros em consultas SQL e referências em código.
+> * **Controle de Moedas:** O Sanice define a moeda padrão com base no idioma da instância (Ex: `lang="en"` assume **USD**; `lang="pt"` assume **BRL**).
+> * **Conversão Monetária Global:** Uso rápido de colunas de moeda internacional (R$, $, ¥) para float antes de cálculos.
+
+**Exemplo de Aplicação (Pipeline de Internacionalização):**
+
+```python
+# Setup: Instanciando Sanice em Inglês (assumindo moeda padrão USD)
+app = Sanice("global_sales.csv", lang="en")
+
+# Limpeza e Padronização de Colunas (incluindo acentos)
+(app.corrigir_colunas()             # Ex: "Venda Mês Jan" -> "venda_mes_jan"
+    .limpar_texto(["nome_cliente"])
+    .transformar("preco_unitario", "MONEY")  # Assumirá USD (Padrão 'en')
+    .transformar("data_envio", "DATE")
+)
+
+# Uso de Moeda Sobrescrita (Override)
+# Se você quiser limpar uma coluna de Yuan Chinês (CNY) em um app PT:
+app_pt = Sanice("dados.csv", lang="pt", currency="CNY")
+app_pt.transformar("valor_importacao", "MONEY")
+```
+
+### 2. Manipulação de Dados
+| Comando | Descrição |
+| :--- | :--- |
+| `app.criar_coluna(name, logic)` | Cria uma coluna usando expressão string ou lambda. |
+| `app.filtrar(query)` | Filtra linhas usando sintaxe estilo SQL (ex: `"age > 18"`). |
+| `app.ordenar(col, ascending)` | Ordena o dataset por uma coluna específica. |
+| `app.unir(other_df, keys, how)` | Une dois datasets (Left, Right, Inner, Outer). |
+| `app.agrupar([cols], val, op)` | Agrupa dados e calcula soma, média ou contagem. |
+| `app.tabela_dinamica(idx, col, val)` | Cria uma Tabela Dinâmica a partir dos dados. |
+
+> **Casos de Uso:**
+> * Criação de Features (Feature Engineering) como "ticket médio" ou "dias desde a última compra".
+> * Unificação de tabelas de "Vendas" e "Clientes" para enriquecer o dataset (VLOOKUP/JOIN).
+> * Segmentação de base de clientes para campanhas de marketing específicas.
+
+**Exemplo de Aplicação:**
+```python
+# Análise de Vendas Totais por Região
+(Sanice("vendas.csv")
+    .filtrar("status == 'Concluido'")
+    .criar_coluna("faturamento", "preco * quantidade")
+    .agrupar(
+        cols=["regiao", "categoria"], 
+        value_col="faturamento", 
+        operacao="soma"
+    )
+    .ordenar("faturamento", ascendente=False)
+)
+```
+
+### 3. Integração com Banco de Dados (SQL & NoSQL) v1.0.9+
+
+Instale com `pip install "sanice[db]"` para habilitar estas funções.
+
+
+| Comando | Descrição |
+| :--- | :--- |
+| `Sanice.de_sql(url, query)` | **Método Fábrica:** Inicia o Sanice direto de uma consulta SQL. |
+| `app.exportar_mongo(uri, db, col)`| Exporta o dataframe atual para uma coleção MongoDB. |
+| `app.exportar_sql(url, tabela)` | Exporta para bancos SQL (Postgres, MySQL, SQLite). |
+
+**Exemplo: Lendo do Postgres e Salvando no MongoDB**
+
+```python
+
+from sanice import Sanice
+
+# 1. Ler do SQL (PostgreSQL)
+app = Sanice.de_sql(
+    url_conexao="postgresql://user:senha@localhost/meubanco", 
+    query="SELECT * FROM vendas_brutas"
+)
+
+# 2. Limpar e Exportar para NoSQL (MongoDB)
+(app
+    .remover_nulos()
+    .exportar_mongo(
+        uri="mongodb://localhost:27017",
+        database="analytics_db",
+        collection="vendas_limpas"
+    )
+)
+
+```
+
+### 4. Análise e Visualização
+| Comando | Descrição |
+| :--- | :--- |
+| `app.resumo_estatistico()` | Exibe média, desvio padrão, min, max e percentis. |
+| `app.matriz_correlacao()` | Plota um mapa de calor das correlações entre vars numéricas. |
+| `app.tratar_outliers([cols])` | Remove outliers automaticamente usando o método IQR. |
+| `app.plotar(type, x, y, hue)` | Plota gráficos: `'bar'`, `'line'`, `'scatter'`, `'hist'`, `'box'`. |
+
+> **Casos de Uso:**
+> * Análise Exploratória de Dados (EDA) para entender o perfil dos dados antes da modelagem.
+> * Identificação visual de variáveis que influenciam o resultado desejado (correlação).
+> * Detecção e remoção de anomalias (ex: idades negativas ou preços exorbitantes).
+
+**Exemplo de Aplicação:**
+```python
+# Diagnóstico rápido de dataset
+(Sanice("dados_biologicos.csv")
+    .resumo_estatistico()
+    .tratar_outliers(["idade", "glicose"]) # Remove anomalias
+    .matriz_correlacao()                   # Mostra o que influencia o que
+    .plotar("scatter", x="idade", y="glicose", hue="diagnostico")
+)
+```
+
+### 5. IA e Machine Learning
+| Comando | Descrição |
+| :--- | :--- |
+| `app.escalonar(metodo)` | Normaliza dados usando escalonador `'minmax'` ou `'standard'`. |
+| `app.auto_ml(alvo, tipo, caminho)` | **Torneio AutoML:** treina 3 modelos (Linear, RF, Gradient), seleciona o melhor e salva. |
+| `app.carregar_ia(caminho)` | Carrega um modelo `.pkl` pré-treinado na memória. |
+| `app.prever(coluna_saida)` | Gera previsões usando o modelo carregado. |
+
+> **Casos de Uso:**
+> * **Modelagem de alta precisão:** O Sanice encontra automaticamente o melhor algoritmo para seus dados (Linear vs Ensemble).
+> * Criação rápida de *baselines* (modelos de referência) para validar hipóteses.
+> * Previsão de Churn (Classificação) ou Previsão de Demanda (Regressão).
+
+**Exemplo de Aplicação:**
+```python
+# Treinamento com Torneio (Sanice compara modelos automaticamente)
+(Sanice("telecom_churn.csv")
+    .escalonar("minmax")
+    .auto_ml(alvo="churn", tipo="classificacao", salvar_modelo="minha_ia.pkl")
+)
+
+# Saída do Console:
+# [AUTO-ML] Avaliando 3 modelos (Linear, RF, Gradient)...
+# [RESULTADO] Melhor modelo: GradientBoosting | Acurácia: 0.9450
+
+# ... Em outro script, carregando e prevendo:
+(Sanice("novos_clientes.csv")
+    .carregar_ia("minha_ia.pkl")
+    .prever(nome_coluna_saida="prob_churn")
+)
+```
+
+### 6. Exportação e Deploy
+| Comando | Descrição |
+| :--- | :--- |
+| `app.salvar(path)` | Exporta dados para `.csv`, `.xlsx` ou `.parquet`. |
+| `app.exportar_sql(url, table)` | Envia o dataframe para um banco de dados SQL. |
+| `app.servir_api()` | Inicia um servidor FastAPI para servir previsões. |
+
+> **Casos de Uso:**
+> * Exportação de dados tratados para ferramentas de BI como Power BI.
+> * Criação instantânea de microserviços de IA para integração com Apps.
+> * Persistência de dados limpos em bancos relacionais (PostgreSQL/MySQL).
+
+**Exemplo de Aplicação:**
+```python
+# Pipeline final: Limpa -> Salva Parquet -> Vira API
+(Sanice("dados_brutos.csv")
+    .corrigir_colunas()
+    .auto_ml("target", "regressao", "modelo.pkl")
+    .salvar("dados_limpos.parquet") # Backup dos dados
+    .servir_api()                   # API Online em http://localhost:8000
+)
+```
+
+---
+<a name="-Multilanguage"></a>
+### Multi-language Support / Suporte Multilíngue
+
+Sanice is designed for global people. You can call methods in English, Portuguese, Chinese, or Hindi. <br>
+*O Sanice foi projetado para equipes globais. Você pode chamar métodos em Inglês, Português, Chinês ou Hindi.*
+
+<details>
+<summary><b>CLICK HERE to see the full Command Translation Table / CLIQUE AQUI para ver a Tabela de Tradução</b></summary>
+<br>
+
+| 🇧🇷 PT-BR (Original) | 🇺🇸 English | 🇨🇳 Chinese (中文) | 🇮🇳 Hindi (Hinglish) |
+| :--- | :--- | :--- | :--- |
+| `corrigir_colunas` | `fix_columns` | `修正列名` | `column_sudhare` |
+| `limpar_texto` | `clean_text` | `清洗文本` | `text_safai` |
+| `remover_nulos` | `remove_nulls` | `移除空值` | `null_hataye` |
+| `converter_data` | `convert_date` | `转换日期` | `date_badlo` |
+| `criar_coluna` | `create_column` | `创建列` | `column_banaye` |
+| `filtrar` | `filter_data` | `过滤数据` | `filter_kare` |
+| `ordenar` | `sort_data` | `排序数据` | `sort_kare` |
+| `unir` | `join_data` | `合并数据` | `jode` |
+| `plotar` | `plot_chart` | `绘制图表` | `graph_banaye` |
+| `resumo_estatistico` | `stats_summary` | `统计摘要` | `stats_dekhe` |
+| `salvar` | `save_file` | `保存文件` | `save_kare` |
+| `auto_ml` | `train_automl` | `自动训练` | `automl_kare` |
+| `carregar_ia` | `load_ai` | `加载模型` | `ai_load_kare` |
+| `prever` | `predict` | `预测` | `bhavishya_bataye` |
+| `ver` | `view` | `查看` | `dekhe` |
+| `ajuda` | `help` | `帮助` | `madad` |
+| `agrupar` | `group_by` | `分组` | `samuh_banaye` |
+| `tabela_dinamica` | `pivot_table` | `透视表` | `pivot_table` |
+| `exportar_sql` | `export_sql` | `导出SQL` | `sql_export` |
+| `matriz_correlacao` | `correlation_matrix` | `相关矩阵` | `sambandh_matrix` |
+| `tratar_outliers` | `handle_outliers` | `处理异常值` | `outliers_hataye` |
+| `escalonar` | `scale_data` | `数据缩放` | `scale_kare` |
+| `servir_api` | `serve_api` | `启动API` | `api_chalu_kare` |
+| `transformar` | `transform` | `数据转换` | `badlav_kare` |
+| `Sanice.de_sql` | `Sanice.from_sql` | `Sanice.从SQL` | `Sanice.sql_se` |
+| `exportar_mongo` | `export_mongo` | `导出Mongo` | `mongo_bheje` |
+| `configurar_logs` | `configure_logs` | `配置日志` | `log_set_kare` |
+| `selecionar_colunas` | `select_columns` | `选择列` | `columns_chunne` |
+| `pegar_dataframe` | `get_dataframe` | `获取数据` | `data_lo` |
+
+</details>
+
+#### Licença
+
+Este projeto está licenciado sob a Apache License, Version 2.0. Consulte a [LICENSE](https://www.apache.org/licenses/LICENSE-2.0)  para obter detalhes.
+
+<div align="right">
+    <a href="#sanice">⬆️ Back to Top</a>
+</div>
+
+<br><br>
+
+<p align="center">
+  <i>"Blind faith is the tool of monsters and fools. Analyze the data."</i>
+</p>
+
+---
+Desenvolvido por **wSanice**.
