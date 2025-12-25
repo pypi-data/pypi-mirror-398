@@ -1,0 +1,165 @@
+Metadata-Version: 2.3
+Name: pyview-web
+Version: 0.8.0a1
+Summary: LiveView in Python
+Keywords: web,api,LiveView
+Author: Larry Ogrodnek
+Author-email: Larry Ogrodnek <ogrodnek@gmail.com>
+License: MIT
+Classifier: Intended Audience :: Information Technology
+Classifier: Intended Audience :: System Administrators
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python
+Classifier: Topic :: Internet
+Classifier: Topic :: Software Development :: Libraries :: Application Frameworks
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development
+Classifier: Typing :: Typed
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Web Environment
+Classifier: Framework :: AsyncIO
+Classifier: Framework :: Pydantic
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Internet :: WWW/HTTP :: HTTP Servers
+Classifier: Topic :: Internet :: WWW/HTTP
+Requires-Dist: starlette>=0.50.0,<0.51
+Requires-Dist: wsproto>=1.3.0,<2
+Requires-Dist: apscheduler>=3.11.0,<4
+Requires-Dist: markupsafe>=3.0.2,<4
+Requires-Dist: itsdangerous>=2.2.0,<3
+Requires-Dist: pydantic>=2.11,<3
+Requires-Dist: click>=8.1.7,<9
+Requires-Python: >=3.11, <3.15
+Project-URL: Homepage, https://pyview.rocks
+Project-URL: Repository, https://github.com/ogrodnek/pyview
+Description-Content-Type: text/markdown
+
+<img src="https://pyview.rocks/images/pyview_logo_512.png" width="128px" align="right" />
+
+# PyView
+
+> A Python implementation of Phoenix LiveView
+
+PyView enables dynamic, real-time web apps, using server-rendered HTML.
+
+**Source Code**: <a href="https://github.com/ogrodnek/pyview" target="_blank">https://github.com/ogrodnek/pyview</a>
+
+# Installation
+
+`pip install pyview-web`
+
+## Quickstart
+
+There's a [cookiecutter](https://github.com/cookiecutter/cookiecutter) template available
+
+```
+cookiecutter gh:ogrodnek/pyview-cookiecutter
+```
+
+# Live Examples
+
+[https://examples.pyview.rocks/](https://examples.pyview.rocks/)
+
+## Other Examples
+
+- [pyview AI chat](https://github.com/pyview/pyview-example-ai-chat)
+- [pyview auth example](https://github.com/pyview/pyview-example-auth) (using [authlib](https://docs.authlib.org/en/latest/))
+
+## Simple Counter
+
+[See it live!](https://examples.pyview.rocks/count)
+
+count.py:
+
+```python
+from pyview import LiveView, LiveViewSocket
+from typing import TypedDict
+
+
+class CountContext(TypedDict):
+    count: int
+
+
+class CountLiveView(LiveView[CountContext]):
+    async def mount(self, socket: LiveViewSocket[CountContext], _session):
+        socket.context = {"count": 0}
+
+    async def handle_event(self, event, payload, socket: LiveViewSocket[CountContext]):
+        if event == "decrement":
+            socket.context["count"] -= 1
+
+        if event == "increment":
+            socket.context["count"] += 1
+
+    async def handle_params(self, url, params, socket: LiveViewSocket[CountContext]):
+        if "c" in params:
+            socket.context["count"] = int(params["c"][0])
+```
+
+count.html:
+
+```html
+<div>
+  <h1>Count is {{count}}</h1>
+  <button phx-click="decrement">-</button>
+  <button phx-click="increment">+</button>
+</div>
+```
+
+# Acknowledgements
+
+- Obviously this project wouldn't exist without [Phoenix LiveView](https://github.com/phoenixframework/phoenix_live_view), which is a wonderful paradigm and implementation. Besides using their ideas, we also directly use the LiveView JavaScript code.
+- Thanks to [Donnie Flood](https://github.com/floodfx) for the encouragement, inspiration, help, and even pull requests to get this project started! Check out [LiveViewJS](https://github.com/floodfx/liveviewjs) for a TypeScript implementation of LiveView (that's much more mature than this one!)
+
+- Thanks to [Darren Mulholland](https://github.com/dmulholl) for both his [Let's Build a Template Language](https://www.dmulholl.com/lets-build/a-template-language.html) tutorial, as well as his [ibis template engine](https://github.com/dmulholl/ibis), which he very generously released into the public domain, and forms the basis of templating in PyView.
+
+## Additional Thanks
+
+- We're using the [pubsub implementation from flet](https://github.com/flet-dev/flet)
+- PyView is built on top of [Starlette](https://www.starlette.io/).
+
+# Status
+
+PyView is in the very early stages of active development. Please check it out and give feedback! Note that the API is likely to change, and there are many features that are not yet implemented.
+
+# Running the included Examples
+
+## Setup
+
+```
+uv sync
+```
+
+## Running
+
+```
+uv run uvicorn examples.app:app --reload
+```
+
+Then go to http://localhost:8000/
+
+### uv Install
+
+```
+brew install uv
+```
+
+or
+
+```
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+(see https://docs.astral.sh/uv/getting-started/installation/ for more details)
+
+# License
+
+PyView is licensed under the [MIT License](LICENSE).
