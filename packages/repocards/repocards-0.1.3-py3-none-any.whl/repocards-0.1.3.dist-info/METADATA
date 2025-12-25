@@ -1,0 +1,456 @@
+Metadata-Version: 2.4
+Name: repocards
+Version: 0.1.3
+Summary: Evidence-based repository summarizer that generates comprehensive documentation cards from any GitHub or GitLab project.
+Author-email: Quentin Chappuis <quentin.chappuis@epfl.ch>
+License: MIT
+Project-URL: Homepage, https://github.com/qchapp/repocards
+Project-URL: Repository, https://github.com/qchapp/repocards
+Project-URL: Issues, https://github.com/qchapp/repocards/issues
+Keywords: github,documentation,analysis,repository,automation
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Documentation
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.31
+Requires-Dist: pydantic>=2.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: typer>=0.12
+Requires-Dist: python-dotenv
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Dynamic: license-file
+
+# RepoCards
+
+**Evidence-based repository summarizer** that works on *any* GitHub or GitLab project.
+
+RepoCards automatically analyzes GitHub and GitLab repositories and generates comprehensive documentation cards in both **Markdown** and **JSON** formats. Perfect for understanding new projects, building developer tools, or creating automated documentation systems.
+
+---
+
+## Quick Start
+
+### Installation
+
+```bash
+pip install repocards
+```
+
+### Basic Usage
+
+#### Command Line
+
+Analyze any GitHub or GitLab repository:
+
+```bash
+repocards summarize https://github.com/owner/repo
+repocards summarize https://gitlab.com/owner/repo
+```
+
+Save outputs to files:
+
+```bash
+repocards summarize https://github.com/owner/repo --out-dir _out
+# Creates: _out/card.md and _out/card.json
+```
+
+Customize output filenames:
+
+```bash
+repocards summarize https://github.com/owner/repo --out-dir _out --out-stem myproject
+# Creates: _out/myproject.md and _out/myproject.json
+```
+
+#### Python API
+
+Use programmatically in your code:
+
+```python
+import repocards
+
+# Get markdown string
+markdown = repocards.get_repo_info("https://github.com/owner/repo")
+
+# GitLab repository
+markdown = repocards.get_repo_info("https://gitlab.com/owner/repo")
+
+# Get pydantic object
+card = repocards.get_repo_info("https://github.com/owner/repo", mode="pydantic")
+print(card.title)
+
+# Private repository with token
+markdown = repocards.get_repo_info(
+    "https://github.com/owner/private-repo",
+    github_token="ghp_..."
+)
+
+# Save to files
+path = repocards.get_repo_info(
+    "https://github.com/owner/repo",
+    mode="markdown_file",
+    out_dir="./output"
+)
+```
+
+### Authentication
+
+For private repositories or to avoid rate limits:
+
+```bash
+# Set environment variables
+export GITHUB_TOKEN='ghp_...'          # For GitHub
+export GITLAB_TOKEN='glpat-...'        # For GitLab
+```
+
+Or pass tokens directly:
+
+```python
+# GitHub
+card = repocards.get_repo_info("https://github.com/owner/repo", github_token="ghp_...")
+
+# GitLab
+card = repocards.get_repo_info("https://gitlab.com/owner/repo", gitlab_token="glpat-...")
+```
+
+### Command Options
+
+- `--out-dir PATH` – Target directory for output files (auto-creates if needed)
+- `--out-stem NAME` – Base filename without extension (e.g., `myproject` → `myproject.md` + `myproject.json`)
+- `--out-md PATH` – Exact path for Markdown output
+- `--out-json PATH` – Exact path for JSON output
+- `--max-files N` – Maximum number of files to fetch (default: 160)
+
+### Example Output
+
+Want to see what RepoCards generates? Check out these example outputs:
+
+- 📄 **[Markdown Example](examples/qchapp_lungs-segmentation.md)** - Full RepoCard in Markdown format
+- 📋 **[JSON Example](examples/qchapp_lungs-segmentation.json)** - Structured JSON output
+
+These examples show a real analysis of a Python deep-learning project, demonstrating:
+- Automatic detection of CLI/API capabilities
+- Python code snippet extraction
+- Model weights and dataset link discovery
+- Imaging-specific signal detection
+
+---
+
+## What RepoCards Extracts
+
+RepoCards analyzes your repository and automatically extracts:
+
+### 📊 **Quick Facts**
+- Primary programming languages and their usage
+- Detected ecosystems (Python, Node.js, CMake, etc.)
+- License and topics
+
+### 🔧 **Capabilities**
+- **Package names** extracted from installation commands
+- **Entry points** (CLI commands defined in manifests)
+- **API/CLI availability** detection
+- **Dockerfile presence** and containerization support
+- **OS support** inferred from commands (Linux/macOS/Windows)
+- **Model weights and dataset links** (for ML projects)
+
+### 📝 **Commands by Category**
+Auto-discovered shell commands organized by:
+- **Install** – Package managers and dependencies
+- **Setup** – Environment configuration
+- **Build** – Compilation and build steps
+- **Run** – Execution commands
+- **Test** – Testing frameworks
+- **Lint** – Code quality tools
+
+All commands are categorized by OS (Linux/macOS/Windows/Generic) with source attribution.
+
+### 🚀 **Canonical Quickstart**
+Auto-generated step-by-step quickstart guide per OS, intelligently selecting the most relevant commands from documentation and CI workflows.
+
+### 🔗 **Additional Information**
+- Overview from README
+- Python API usage examples
+- Helpful links (documentation, wikis, releases)
+- Notable files and directories
+- Imaging-specific signals (for medical/scientific imaging projects)
+
+---
+
+## Output Format
+
+### Markdown Card
+
+The generated Markdown file includes:
+- Repository metadata (license, topics, languages)
+- Overview extracted from README
+- Quick facts about languages and ecosystems
+- Capability facts (packages, entry points, OS support, etc.)
+- Canonical quickstart commands organized by OS
+- Python API examples (if found)
+- Helpful links with source attribution
+- Notable files and directories
+
+### JSON Card Structure
+
+```jsonc
+{
+  "repo_url": "https://github.com/owner/repo",
+  "ref": "main",
+  "title": "owner/repo",
+  "meta": {
+    "license": "MIT",
+    "topics": ["python", "data-science"],
+    "languages": {"Python": 50000, "JavaScript": 10000}
+  },
+  "markdown": "...", // Full markdown content
+  "extras": {
+    "ecosystems": ["python", "node"],
+    "capabilities": {
+      "entrypoints": ["myapp = mypackage.cli:main"],
+      "provides_api": true,
+      "provides_cli": true,
+      "dockerfile_present": true,
+      "package_names": ["numpy", "pandas"],
+      "os_support": ["linux", "macos"],
+      "model_weight_links": ["https://huggingface.co/..."],
+      "dataset_links": ["https://zenodo.org/..."],
+      "buckets_by_os": {
+        "install": {
+          "linux": [{"cmd": "apt install...", "source": ".github/..."}],
+          "macos": [...],
+          "windows": [...],
+          "generic": [...]
+        },
+        "build": {...},
+        "run": {...},
+        "test": {...},
+        "lint": {...}
+      }
+    },
+    "quickstart": {
+      "linux": [{"cmd": "pip install .", "source": "README.md"}],
+      "macos": [...],
+      "windows": [...],
+      "generic": [...]
+    },
+    "imaging": {
+      "imaging_score": 0.80,
+      "python_libs": ["pydicom", "nibabel"],
+      "file_types": [".dcm", ".nii"],
+      "tasks": ["segmentation", "registration"],
+      "modalities": ["CT", "MRI"]
+    }
+  }
+}
+```
+
+> **Note:** All commands and links include **provenance** (source file path) for transparency.
+
+---
+
+## Programmatic Usage
+
+### Simple API
+
+RepoCards provides a simple API for programmatic access:
+
+```python
+import repocards
+
+# Get markdown string (default) - token auto-loaded from .env
+markdown = repocards.get_repo_info("https://github.com/owner/repo")
+print(markdown)
+
+# Get JSON string
+json_str = repocards.get_repo_info("https://github.com/owner/repo", mode="json")
+
+# Get pydantic object for structured access
+card = repocards.get_repo_info("https://github.com/owner/repo", mode="pydantic")
+print(card.title)
+print(card.meta["license"])
+print(card.extras["ecosystems"])
+
+# Write to markdown file
+path = repocards.get_repo_info(
+    "https://github.com/owner/repo",
+    mode="markdown_file",
+    out_dir="./output"
+)
+print(f"Wrote to: {path}")
+
+# Write to JSON file
+path = repocards.get_repo_info(
+    "https://github.com/owner/repo",
+    mode="json_file",
+    out_dir="./output"
+)
+print(f"Wrote to: {path}")
+
+# Control file fetching limit
+card = repocards.get_repo_info(
+    "https://github.com/owner/repo",
+    mode="pydantic",
+    max_files=100
+)
+```
+
+#### Available Modes
+
+| Mode | Returns | Description |
+|------|---------|-------------|
+| `"markdown"` | `str` | Markdown content (default) |
+| `"json"` | `str` | JSON string |
+| `"pydantic"` | `RepoCard` | Pydantic model object |
+| `"markdown_file"` | `str` | Writes file, returns path |
+| `"json_file"` | `str` | Writes file, returns path |
+
+#### GitHub Authentication
+
+**Authentication is automatic!** Just create a `.env` file in your project root:
+
+```bash
+# .env file
+GITHUB_TOKEN=ghp_your_token_here
+```
+
+The token is automatically loaded from `.env` or environment variables.
+
+**Rate Limits:**
+- **Without token:** 60 requests/hour
+- **With token:** 5,000 requests/hour
+
+**Get a GitHub token:**
+1. Go to https://github.com/settings/tokens
+2. Generate a new token (classic) with `repo` scope
+3. Add it to your `.env` file
+
+**Alternative: Export as environment variable**
+```bash
+export GITHUB_TOKEN="ghp_your_token_here"
+```
+
+---
+
+## How It Works
+
+### Intelligent File Selection
+
+RepoCards fetches a **curated subset** of repository files:
+- Documentation (README, docs/, etc.)
+- Package manifests (pyproject.toml, package.json, CMakeLists.txt, etc.)
+- CI workflows (.github/workflows/)
+- Example scripts and demos
+- Docker configurations
+
+This selective approach keeps analysis fast while gathering comprehensive information.
+
+### Command Harvesting
+
+Commands are extracted from:
+- **Fenced shell blocks** in Markdown (```bash, ```sh, etc.)
+- **Shell prompts** ($-prefixed lines in documentation)
+- **CI workflows** (run: steps in GitHub Actions)
+
+### OS Classification
+
+Commands are automatically classified by operating system:
+- **Linux**: apt, dnf, pacman package managers
+- **macOS**: brew, CMake OSX flags
+- **Windows**: choco, winget, msbuild, PowerShell
+- **Generic**: Cross-platform commands
+
+### Package Name Extraction
+
+Intelligently parses installation commands to extract package names:
+- Filters out `-r requirements.txt` and similar flags
+- Removes URLs, local paths, and version specifiers
+- Strips extras (e.g., `package[dev]` → `package`)
+
+### Python Code Detection
+
+Extracts Python API examples from fenced code blocks:
+- Validates code contains real Python (imports/definitions/calls)
+- Limits to relevant, instructive snippets
+- Filters out empty or trivial examples
+
+### Domain-Specific Analysis
+
+**Imaging Analyzer** (optional, gated by relevance):
+- Detects medical/scientific imaging projects
+- Identifies Python libraries (pydicom, nibabel, SimpleITK, etc.)
+- Recognizes file formats (.dcm, .nii, .mha, etc.)
+- Classifies tasks (segmentation, registration, etc.)
+- Identifies modalities (MRI, CT, PET, etc.)
+
+---
+
+## Development Setup
+
+Clone and install in editable mode:
+
+```bash
+git clone https://github.com/qchapp/repocards
+cd repocards
+pip install -e .
+```
+
+Run tests:
+
+```bash
+pytest tests/
+```
+
+---
+
+## Design Philosophy
+
+### General-Purpose
+Works on any GitHub repository without per-project configuration or YAML rules.
+
+### Evidence-Based
+Every extracted command and fact includes source file attribution. No invented or assumed information.
+
+### Agent-Ready
+Structured JSON output with machine-readable facts enables:
+- Automated documentation systems
+- Developer tools and IDE integrations
+- AI agents that need to understand codebases
+- Repository analysis pipelines
+
+### Reliable
+- Verbatim commands from actual documentation
+- No hallucination or inference beyond what's in the repository
+- Clear provenance for all extracted information
+
+---
+
+## Use Cases
+
+- **📚 Documentation Generation**: Automatically create comprehensive repo cards
+- **🤖 AI/Agent Tools**: Provide structured repository information to AI systems
+- **🔍 Code Discovery**: Quickly understand unfamiliar projects
+- **📊 Repository Analysis**: Batch analyze multiple repositories
+- **🛠️ Developer Tooling**: Build IDE extensions or CLI tools that need repo metadata
+- **🏥 Domain Analysis**: Identify imaging, ML, or other domain-specific projects
+
+---
+
+## License
+
+MIT
+
+---
+
+## Contributing
+
+Contributions welcome! Please feel free to submit issues or pull requests.
