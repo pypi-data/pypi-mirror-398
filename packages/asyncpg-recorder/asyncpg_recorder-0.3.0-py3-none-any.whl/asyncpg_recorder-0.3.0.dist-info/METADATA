@@ -1,0 +1,118 @@
+Metadata-Version: 2.4
+Name: asyncpg-recorder
+Version: 0.3.0
+Summary: Automatically mock your Postgres interactions to simplify and speed up testing
+Author: HeiGIT ohsome team
+Author-email: HeiGIT ohsome team <ohsome@heigit.org>
+License-Expression: LGPL-3.0-only
+License-File: COPYING
+License-File: COPYING.LESSER
+Classifier: Framework :: Pytest
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Software Development :: Testing
+Requires-Dist: asyncpg>=0.30.0
+Requires-Dist: testcontainers>=4.9.1
+Requires-Python: >=3.11, <3.14
+Project-URL: Changelog, https://github.com/GIScience/asyncpg-recorder/blob/main/CHANGELOG.md
+Project-URL: Documentation, https://github.com/GIScience/asyncpg-recorder/blob/main/README.md
+Project-URL: Homepage, https://ohsome.org/
+Project-URL: Issues, https://github.com/GIScience/asyncpg-recorder/issues
+Project-URL: Repository, https://github.com/GIScience/asyncpg-recorder
+Description-Content-Type: text/markdown
+
+# Asyncpg Recorder
+
+[![Build Status](https://jenkins.heigit.org/buildStatus/icon?job=asyncpg-recorder/main)](https://jenkins.heigit.org/job/asyncpg-recorder/job/main/)
+[![Sonarcloud Status](https://sonarcloud.io/api/project_badges/measure?project=asyncpg-recorder&metric=alert_status)](https://sonarcloud.io/dashboard?id=asyncpg-recorder)
+[![PyPI - Version](https://img.shields.io/pypi/v/asyncpg-recorder)](https://pypi.org/project/asyncpg-recorder/)
+[![LICENSE](https://img.shields.io/github/license/GIScience/asyncpg-recorder)](COPYING)
+[![status: active](https://github.com/GIScience/badges/raw/master/status/active.svg)](https://github.com/GIScience/badges#active)
+
+## Installation
+
+```bash
+uv add asyncpg-recorder
+```
+
+## Usage
+
+```python
+import asyncpg
+from asyncpg_recorder import use_cassette
+
+
+async def query():
+    con = await asyncpg.connect(DSN)
+    res = await con.fetch("SELECT NOW();")
+    await con.close()
+    return res
+
+
+@use_cassette
+def test_select_now_replay():
+    query()
+```
+
+When using pytest parametrized fixtures put the `@use_cassette` decorator on the test function not the fixture:
+
+```python
+import asyncpg
+from asyncpg_recorder import use_cassette
+import pytest
+import pytest_asyncio
+
+
+@pytest_asyncio.fixture(params=[False, True])
+async def param(request):
+    return request.param
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("param")
+@use_cassette
+async def test_parametrized_fixtures(path):
+    async def query():
+      con = await asyncpg.connect(DSN)
+      res = await con.fetch("SELECT NOW();")
+      await con.close()
+      return res
+
+    await select_version()
+```
+
+If you want to save the cassettes in a specific directory, set the variable cassettes-dir in your pyproject.toml.
+The path should be relative to pyproject.toml.
+
+```toml
+[tool.asyncpg-recorder]
+"cassettes-dir"="tests/cassettes"
+```
+
+## Development
+
+### Tests
+
+```bash
+uv run pre-commit install
+uv run pytest
+```
+
+### Release
+
+This project uses [SemVer](https://semver.org/).
+
+To make a new release run `./scripts/release.sh <version number>`.
+
+
+## Limitation
+
+- Works only with pytest
+- Depends on [testcontainers](https://testcontainers-python.readthedocs.io/)
+  - Testcontainers is used to boot up a temporary Postgres instance to which asyncpg will be connected.
+  - This slows test suite down.
