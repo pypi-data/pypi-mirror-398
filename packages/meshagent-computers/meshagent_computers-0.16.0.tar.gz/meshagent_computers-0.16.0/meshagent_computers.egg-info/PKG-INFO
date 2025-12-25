@@ -1,0 +1,69 @@
+Metadata-Version: 2.4
+Name: meshagent-computers
+Version: 0.16.0
+Summary: Computer Building Blocks for Meshagent
+License-Expression: Apache-2.0
+Project-URL: Documentation, https://docs.meshagent.com
+Project-URL: Website, https://www.meshagent.com
+Project-URL: Source, https://www.meshagent.com
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pytest~=8.4
+Requires-Dist: pytest-asyncio~=0.26
+Requires-Dist: openai~=2.6.0
+Requires-Dist: meshagent-api~=0.16.0
+Requires-Dist: meshagent-agents~=0.16.0
+Requires-Dist: meshagent-tools~=0.16.0
+Requires-Dist: playwright~=1.51
+Requires-Dist: browserbase~=1.2
+Requires-Dist: scrapybara~=2.4
+Requires-Dist: pillow~=11.3.0
+Requires-Dist: python-dotenv~=1.1.1
+Dynamic: license-file
+
+# [Meshagent](https://www.meshagent.com)
+
+## MeshAgent Computers
+
+The ``meshagent.computers`` package defines abstractions for controlling browsers and operating systems and providing these abilities to agents. 
+
+### ComputerAgent
+The ComputerAgent in `meshagent-computers` extends the ``ChatBot`` with support for using browsers and computers. The computer agent will periodically send screenshots to participants on the thread using the MeshAgent messaging protocol, by sending a message of the type "computer_screen" and an attachment that contains a binary screenshot. 
+
+```Python Python
+from meshagent.api import RequiredToolkit
+from meshagent.openai import OpenAIResponsesAdapter
+from meshagent.computers import ComputerAgent, BrowserbaseBrowser, Operator
+from meshagent.api.services import ServiceHost
+
+service = ServiceHost()
+
+@service.path("/computeragent")
+class BrowserbaseAgent(ComputerAgent):
+    def __init__(self):
+        super().__init__(
+            name="meshagent.browser",
+            title="browser agent",
+            description="a task runner that can use a browser",
+            requires=[RequiredToolkit(name="ui", tools=[])],
+            llm_adapter=OpenAIResponsesAdapter(
+                model="computer-use-preview",
+                response_options={"reasoning": {"generate_summary": "concise"}, "truncation": "auto"},
+            ),
+            labels=["tasks", "computers"],
+            computer_cls=BrowserbaseBrowser,
+            operator_cls=Operator
+        )
+
+asyncio.run(service.run())
+```
+
+---
+### Learn more about MeshAgent on our website or check out the docs for additional examples!
+
+**Website**: [www.meshagent.com](https://www.meshagent.com/)
+
+**Documentation**: [docs.meshagent.com](https://docs.meshagent.com/)
+
+---
