@@ -1,0 +1,110 @@
+# HN Book Extractor
+[![PyPI version](https://badge.fury.io/py/hnbookextractor.svg)](https://badge.fury.io/py/hnbookextractor)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/hnbookextractor)](https://pepy.tech/project/hnbookextractor)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+HN Book Extractor is a Python package designed to analyze user-submitted text from Hacker News discussions and extract a structured list of books mentioned in the year 2025. It utilizes language models to intelligently recognize book titles, authors, and publication years within unstructured comments or posts, providing a clear, formatted summary of all referenced books.
+
+This tool is ideal for content creators, researchers, and enthusiasts who need to quickly compile relevant book lists from large discussion datasets without the need for manual effort.
+
+## Features
+
+-   Extracts book titles, authors, and publication years from unstructured text.
+-   Specifically targets books mentioned in the year 2025.
+-   Leverages language models for accurate recognition of book information.
+-   Outputs a structured list of extracted books.
+
+## Installation
+
+```bash
+pip install hnbookextractor
+```
+
+## Usage
+
+The `hnbookextractor` function takes user input text and returns a list of extracted book information.
+
+```python
+from hnbookextractor import hnbookextractor
+
+user_text = """
+I recently read 'Project Hail Mary' by Andy Weir, published in 2021, and it was fantastic.
+Someone in another thread mentioned 'The Three-Body Problem' by Cixin Liu, which I plan to read next.
+Looking forward to 'Dune' by Frank Herbert, though that's an older classic.
+Has anyone read any new sci-fi books released in 2025? I heard 'Hyperion' by Dan Simmons is getting a sequel.
+"""
+
+books = hnbookextractor(user_input=user_text)
+print(books)
+```
+
+## Parameters
+
+The `hnbookextractor` function accepts the following parameters:
+
+*   `user_input` (str): The raw text input from Hacker News discussions to analyze.
+*   `api_key` (Optional[str]): Your LLM7 API key. If not provided, the package will attempt to use the `LLM7_API_KEY` environment variable.
+*   `llm` (Optional[BaseChatModel]): An optional Langchain-compatible chat model instance. If not provided, a default `ChatLLM7` instance will be used.
+
+## LLM Configuration
+
+By default, the package uses `ChatLLM7` from `langchain_llm7`.
+
+### Using a Different LLM
+
+You can provide your own Langchain LLM instance to the `hnbookextractor` function if you prefer to use other models.
+
+**Example with OpenAI:**
+
+```python
+from langchain_openai import ChatOpenAI
+from hnbookextractor import hnbookextractor
+
+llm = ChatOpenAI(api_key="YOUR_OPENAI_API_KEY")
+response = hnbookextractor(user_input="...", llm=llm)
+```
+
+**Example with Anthropic:**
+
+```python
+from langchain_anthropic import ChatAnthropic
+from hnbookextractor import hnbookextractor
+
+llm = ChatAnthropic(api_key="YOUR_ANTHROPIC_API_KEY")
+response = hnbookextractor(user_input="...", llm=llm)
+```
+
+**Example with Google Generative AI:**
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from hnbookextractor import hnbookextractor
+
+llm = ChatGoogleGenerativeAI(api_key="YOUR_GOOGLE_API_KEY")
+response = hnbookextractor(user_input="...", llm=llm)
+```
+
+### LLM7 API Key
+
+The default rate limits for the LLM7 free tier are generally sufficient for most users. If you require higher rate limits for LLM7, you can provide your own API key either by setting the `LLM7_API_KEY` environment variable or by passing it directly to the `hnbookextractor` function.
+
+You can obtain a free API key by registering at [https://token.llm7.io/](https://token.llm7.io/).
+
+## Contributing
+
+Please report any issues or suggest improvements on the GitHub repository.
+
+## License
+
+[MIT License] (Specify your license here if different)
+
+## Author
+
+*   **Eugene Evstafev** - [hi@eugene.plus](mailto:hi@eugene.plus)
+*   **GitHub Nickname:** chigwell
+
+## GitHub Repository
+
+[https://github.com/chigwell/hnbookextractor](https://github.com/chigwell/hnbookextractor)
