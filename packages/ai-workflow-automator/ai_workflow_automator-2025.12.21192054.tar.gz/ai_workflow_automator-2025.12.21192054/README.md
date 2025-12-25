@@ -1,0 +1,93 @@
+# AI Workflow Automator
+[![PyPI version](https://badge.fury.io/py/ai-workflow-automator.svg)](https://badge.fury.io/py/ai-workflow-automator)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/ai-workflow-automator)](https://pepy.tech/project/ai-workflow-automator)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A Python package that helps users design and automate AI-driven data pipelines by converting natural language instructions into structured, executable workflow configurations.
+
+## Overview
+
+The AI Workflow Automator enables users to describe their desired data processing or AI workflow in plain English, and automatically converts it into a structured format that can be integrated with serverless AI and data processing tools. This allows non-technical users to create complex workflows without deep technical knowledge, focusing on the "what" rather than the "how."
+
+## Installation
+
+```bash
+pip install ai_workflow_automator
+```
+
+## Usage
+
+```python
+from ai_workflow_automator import ai_workflow_automator
+
+# Basic usage with default LLM7 model
+user_input = "Create a workflow that processes customer data, runs sentiment analysis, and stores results in a database"
+result = ai_workflow_automator(user_input=user_input)
+print(result)
+```
+
+## Parameters
+
+- `user_input` (str): The natural language description of the desired workflow
+- `llm` (Optional[BaseChatModel]): A LangChain LLM instance (defaults to ChatLLM7)
+- `api_key` (Optional[str]): API key for LLM7 (if using default model)
+
+## Using Different LLM Providers
+
+You can use any LangChain-compatible LLM by passing it to the function:
+
+### OpenAI
+```python
+from langchain_openai import ChatOpenAI
+from ai_workflow_automator import ai_workflow_automator
+
+llm = ChatOpenAI()
+response = ai_workflow_automator(user_input="your workflow description", llm=llm)
+```
+
+### Anthropic
+```python
+from langchain_anthropic import ChatAnthropic
+from ai_workflow_automator import ai_workflow_automator
+
+llm = ChatAnthropic()
+response = ai_workflow_automator(user_input="your workflow description", llm=llm)
+```
+
+### Google Generative AI
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from ai_workflow_automator import ai_workflow_automator
+
+llm = ChatGoogleGenerativeAI()
+response = ai_workflow_automator(user_input="your workflow description", llm=llm)
+```
+
+## Default LLM Configuration
+
+By default, the package uses ChatLLM7 from [langchain-llm7](https://pypi.org/project/langchain-llm7/). The free tier rate limits sufficient for most use cases. For higher rate limits:
+
+1. Set environment variable: `export LLM7_API_KEY="your_api_key"`
+2. Or pass directly: `ai_workflow_automator(..., api_key="your_api_key")`
+
+Get a free API key at: https://token.llm7.io/
+
+## Error Handling
+
+The function will raise a `RuntimeError` if the LLM call fails or the output doesn't match the expected format.
+
+## Dependencies
+
+- llmatch-messages
+- langchain-core
+- langchain-llm7 (optional, for default LLM)
+
+## Contributing
+
+Issues and contributions welcome at: https://github.com/chigwell/ai-workflow-automator
+
+## Author
+
+Eugene Evstafev (hi@euegne.plus)
