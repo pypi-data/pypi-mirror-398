@@ -1,0 +1,233 @@
+Metadata-Version: 2.4
+Name: easy-start-chanjet
+Version: 0.1.4
+Summary: easy-start-chanjet 是一个为畅捷通中科华博系统提供集成接口的Python开发包，旨在简化与畅捷通中科华博API的交互过程，提供便捷的HTTP和WebService调用方式。
+Home-page: https://gitee.com/guolei19850528/easy_start_chanjet
+Author: guolei
+Author-email: 174000902@qq.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: httpx
+Requires-Dist: beautifulsoup4
+Requires-Dist: lxml
+Requires-Dist: html5lib
+Requires-Dist: xmltodict
+Requires-Dist: arrow
+Requires-Dist: jsonschema
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# easy_start_chanjet
+
+## 项目简介
+
+easy_start_chanjet 是一个简化畅捷通中科华博接口调用的Python项目，提供了HTTP和WebService两种通信方式的封装，方便开发者快速集成畅捷通中科华博的相关功能。
+
+## 项目结构
+
+    ├── easy_start_chanjet/
+    │   ├── zkhb/
+    │   │   ├── http.py
+    │   │   ├── webservice.py
+    │   ├── __init__.py
+    ├── requirements.txt
+    ├── README.md
+    ├── LICENSE
+
+## 安装
+
+### 使用pip安装
+
+```bash
+pip install -e .
+```
+
+### 依赖项
+
+项目依赖以下Python库：
+
+- httpx: 用于HTTP请求（支持同步和异步）
+- jsonschema: 用于验证API响应的JSON结构
+- xmltodict: 用于XML与字典之间的转换
+- BeautifulSoup4: 用于解析XML格式的响应
+
+可以通过以下命令安装所有依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+## 核心功能
+
+### HTTP模块 (http.py)
+
+HTTP模块提供了与畅捷通中科华博API交互的HTTP请求功能，主要用于获取实际支付项目列表。
+
+#### 主要方法
+
+1. **get_actual_payment_item_list** - 同步获取实际支付项目列表
+2. **async_get_actual_payment_item_list** - 异步获取实际支付项目列表
+
+#### 参数说明
+
+- `client`: 可选的HTTP客户端实例
+- `validate_json_schema`: JSON Schema验证规则
+- `params`: 请求参数，如RmNo（房间号）
+
+#### 返回值
+
+- `is_valid`: JSON Schema验证结果（布尔值）
+- `payment_list`: 实际支付项目列表
+- `response`: httpx.Response对象
+
+### WebService模块 (webservice.py)
+
+WebService模块提供了与畅捷通中科华博WebService API交互的功能，包括生成支付项目查询SQL语句和获取数据集。
+
+#### 主要方法
+
+1. **get_query_actual_payment_item_list_sql** - 生成查询实际支付项目列表的SQL语句
+2. **get_data_set** - 同步调用WebService API获取数据集
+3. **async_get_data_set** - 异步调用WebService API获取数据集
+
+#### 参数说明
+
+- `client`: 可选的HTTP客户端实例
+- `column_str`: 自定义查询列
+- `condition_str`: 自定义查询条件
+- `order_by_str`: 自定义排序方式
+- `data`: WebService请求数据，如strsql（SQL查询语句）
+
+#### 返回值
+
+- `results`: 解析后的数据列表
+- `response`: httpx.Response对象
+
+## 使用示例
+
+### HTTP模块示例
+
+```python
+from easy_start_chanjet.zkhb.http import Api
+
+# 初始化API客户端
+api = Api(base_url="http://127.0.0.1/")
+
+# 同步调用接口获取实际支付项目列表
+is_valid, payment_list, response = api.get_actual_payment_item_list(
+    params={
+        "RmNo": "房间号"  # 指定房间号
+    }
+)
+
+# 打印结果
+print(f"响应验证结果: {is_valid}")
+print(f"获取到的支付项目数量: {len(payment_list)}")
+print(f"第一个支付项目: {payment_list[0] if payment_list else '无'}")
+```
+
+### WebService模块示例
+
+```python
+from easy_start_chanjet.zkhb.webservice import Api
+
+# 初始化API客户端
+api = Api(base_url="http://127.0.0.1/")
+
+# 生成查询实际支付项目的SQL语句
+sql = api.get_query_actual_payment_item_list_sql()
+
+# 同步调用WebService接口获取数据集
+results, response = api.get_data_set(
+    data={
+        "sql": "select top 10 * from chargeMasterList;"  # SQL查询语句
+    }
+)
+
+# 打印结果
+print(f"获取到的数据集数量: {len(results)}")
+print(f"第一个数据集: {results[0] if results else '无'}")
+```
+
+### 异步调用示例
+
+```python
+import asyncio
+from easy_start_chanjet.zkhb.http import Api
+from easy_start_chanjet.zkhb.webservice import Api as WsApi
+
+
+async def main():
+    # HTTP异步调用示例
+    http_api = Api(base_url="http://127.0.0.1/")
+    is_valid, payment_list, response = await http_api.async_get_actual_payment_item_list(
+        params={"RmNo": "房间号"}
+    )
+    print(f"HTTP异步调用 - 支付项目数量: {len(payment_list)}")
+
+    # WebService异步调用示例
+    ws_api = WsApi(base_url="http://127.0.0.1/")
+    results, response = await ws_api.async_get_data_set(
+        data={"sql": "select top 10 * from chargeMasterList;"}
+    )
+    print(f"WebService异步调用 - 数据集数量: {len(results)}")
+
+
+# 运行异步函数
+asyncio.run(main())
+```
+
+## 配置选项
+
+### 客户端配置
+
+- `timeout`: 请求超时时间，默认120秒
+- `verify`: 是否验证SSL证书，默认False
+- `base_url`: API基础URL
+
+可以通过以下方式配置客户端：
+
+```python
+from easy_start_chanjet.zkhb.http import Api
+
+# 方式1：初始化时配置
+api = Api(base_url="https://example.com/api")
+
+# 方式2：创建客户端时配置
+client = api.client(timeout=60, verify=True)
+
+# 方式3：调用方法时配置
+is_valid, payment_list, response = api.get_actual_payment_item_list(
+    client=client,
+    params={"RmNo": "房间号"}
+)
+```
+
+## 注意事项
+
+1. 默认情况下禁用SSL证书验证，生产环境建议启用
+2. 所有接口支持同步和异步调用，异步调用需要Python 3.7+
+3. HTTP模块会验证响应的JSON结构，确保数据格式正确
+4. WebService模块会将响应XML转换为字典格式，方便处理
+5. 长时间运行的应用建议使用异步客户端以提高性能
+
+## 许可证
+
+[MIT License](LICENSE)
+
+## 作者
+
+- 郭磊（174000902@qq.com）
+- 项目地址：[https://gitee.com/guolei19850528/easy_start_chanjet](https://gitee.com/guolei19850528/easy_start_chanjet)
