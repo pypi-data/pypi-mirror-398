@@ -1,0 +1,146 @@
+# Quantitative Portfolio Machine Learning Library
+
+_Viacheslav Buchkov_ \
+ETH Zürich
+
+**Keywords**: quant; quantitative finance; portfolio management; machine learning; reinforcement learning.
+
+## Install
+
+```
+pip install quant-pml
+```
+
+
+## How To Run A Backtest
+
+```
+from quant_pml.config.trading_config import TradingConfig
+from quant_pml.config.russell_3000_experiment_config import Russell3000ExperimentConfig
+from quant_pml.hedge.market_futures_hedge import MarketFuturesHedge
+from quant_pml.runner import build_backtest
+from quant_pml.strategies.factors.momentum import Momentum
+
+# Specify the model hyperparameters
+REBAL_FREQ = "D" # Rebalance frequency (Month End)
+QUANTILE = 0.1 # Sorted portfolio quantile
+MODE = "long_short" # Trading mode
+
+# Specify the trading configurations
+trading_config = TradingConfig(
+    broker_fee=0, # Broker commission in decimals
+    bid_ask_spread=0, # Bid-ask spread in decimals
+    total_exposure=1, # Budget constraint
+    max_exposure=None, # Maximum weight constraint
+    min_exposure=None, # Minimum weight constraint
+    trading_lag_days=1, # Trading Lag
+)
+
+# Create a strategy with logic for weights selection
+strategy = Momentum(
+    mode=MODE,
+    quantile=QUANTILE,
+)
+
+# Initialize the hedger (can be set to `None` if no hedging is required)
+hedger = MarketFuturesHedge(market_name="spx")
+
+# Build the backtest pipeline
+preprocessor, runner = build_backtest(
+    experiment_config=Russell3000ExperimentConfig(),
+    trading_config=trading_config,
+    rebal_freq=REBAL_FREQ,
+)
+
+# Run the backtest
+res = runner(
+    feature_processor=preprocessor,
+    strategy=strategy,
+    hedger=hedger,
+)
+```
+
+## How To Create A New Strategy
+
+```
+import pandas as pd
+from quant_pml.strategies.base_strategy import BaseStrategy
+from quant_pml.strategies.optimization_data import TrainingData, PredictionData
+
+
+# Create a blueprint for your strategy
+class NewStrategy(BaseStrategy):
+    def __init__(self) -> None:
+        super().__init__()
+        
+        # Store the data across time, if needed
+
+    def _fit(self, training_data: TrainingData) -> None:
+        # Specify here your fitting logic
+        pass
+
+    def _get_weights(self, prediction_data: PredictionData, weights_: pd.DataFrame) -> pd.DataFrame:
+        # Specify here your prediction logic
+        
+        # Update the weights DataFrame by modifying the respective columns of stock_ids
+        return weights_
+```
+
+## How To Create A New Covariance Estimator
+
+```
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+from quant_pml.strategies.optimization_data import PredictionData, TrainingData
+from quant_pml.cov_estimators.base_cov_estimator import BaseCovEstimator
+
+
+class NewCovEstimator(BaseCovEstimator):
+    def __init__(self) -> None:
+        super().__init__()
+
+        self._fitted_cov = None
+
+    def _fit(self, training_data: TrainingData) -> None:
+        # Specify here your fitting logic (e.g., store a historical covmat)
+        ...
+
+    def _predict(self, prediction_data: PredictionData) -> pd.DataFrame:
+        # Specify here your prediction logic (e.g., get a stored estimate)
+        ...
+```
+
+## How To Create A New Data-Driven Covariance Estimator
+
+```
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+from quant_pml.cov_estimators.rl.base_rl_estimator import BaseRLCovEstimator
+
+
+class NewRLCovEstimator(BaseRLCovEstimator):
+    def __init__(self, shrinkage_type: str, window_size: int | None = None) -> None:
+        super().__init__(shrinkage_type=shrinkage_type, window_size=window_size)
+
+    def _fit_shrinkage(
+        self, features: pd.DataFrame, shrinkage_target: pd.Series
+    ) -> None:
+        # Specify here your model (might be classical ML / RL / etc.)
+        self.model = ...
+        self.model.fit(X=features, y=shrinkage_target)
+
+    def _predict_shrinkage(self, features: pd.DataFrame) -> float:
+        pred = self.model.predict(features).item()
+
+        return pred
+```
