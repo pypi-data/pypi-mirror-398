@@ -1,0 +1,267 @@
+Metadata-Version: 2.4
+Name: cbuild
+Version: 0.1.108
+Summary: A tool like Nuitka and PyInstaller for packaging Python applications
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: toml
+Dynamic: license-file
+
+# BuildTool
+
+BuildTool是一个类似于Nuitka和PyInstaller的Python应用打包工具，它提供了简单易用的命令行接口和配置文件支持，让你可以轻松地将Python脚本打包成可执行文件。
+
+## 功能特点
+
+- 支持PyInstaller和Nuitka两种打包方式
+- 通过配置文件灵活设置打包参数
+- 自动生成默认配置文件
+- 支持单文件和多文件打包
+- 支持自定义图标、数据文件和模块
+- 支持Windows系统的UAC管理员权限设置
+- 支持为Nuitka和PyInstaller添加自定义参数
+- 支持配置输出文件名
+- 支持布尔值控制控制台显示模式
+
+## 安装方法
+
+### 开发模式安装
+
+```bash
+cd buildtool
+pip install -e .
+```
+
+### 生产环境安装
+
+```bash
+pip install buildtool
+```
+
+## 基本用法
+
+### 命令行选项
+
+```bash
+buildtool [OPTIONS]
+```
+
+选项：
+
+- `-p, --pyinstaller`：使用PyInstaller进行打包
+- `-n, --nuitka`：使用Nuitka进行打包
+- `--clean`：在打包前清理输出目录（无短参数）
+- `-d, --dry-run`：仅打印命令，不实际执行打包
+- `-v, --verbose`：显示完整命令（用于调试）
+- `-m, --main-script`：指定要打包的主脚本文件（临时覆盖配置文件中的设置）
+- `-D, --output-dir`：指定输出目录
+- `-f, --build-filename`：指定输出文件名
+
+### Windows特定命令行选项
+
+- `-c, --console`：在Windows系统上显示控制台窗口（临时覆盖配置文件中的设置）
+- `-w, --noconsole`：在Windows系统上隐藏控制台窗口（临时覆盖配置文件中的设置）
+- `-a, --uac`：在Windows系统上请求管理员权限运行（临时覆盖配置文件中的设置）
+
+### 示例
+
+使用PyInstaller打包：
+
+```bash
+buildtool -p
+```
+
+使用Nuitka打包：
+
+```bash
+buildtool -n
+```
+
+先清理输出目录再使用PyInstaller打包：
+
+```bash
+buildtool --clean -p
+```
+
+使用短参数组合：
+
+```bash
+buildtool -p -d -v -m my_script.py
+```
+
+在Windows上隐藏控制台并请求管理员权限：
+
+```bash
+buildtool -p -w -a
+```
+
+## 配置文件
+
+首次运行BuildTool时，会自动生成`buildtool.toml`配置文件。你可以根据需要修改这个文件来调整打包参数。
+
+### 配置文件结构
+
+配置文件采用TOML格式，包含以下主要部分：
+
+#### 通用配置
+
+```toml
+[general]
+# 要打包的主脚本文件路径（相对或绝对路径）
+main_script = "main.py"
+# 输出目录路径，打包后的文件将放在这个目录中
+output_dir = "dist"
+# 输出文件名配置，如果未配置、为空或无效名称，则使用原脚本定义的命名方式
+build_filename = ""
+# Python优化级别，0表示不优化，1表示基本优化，2表示完全优化
+optimize_level = 2
+# 日志级别：DEBUG, INFO, WARNING, ERROR
+log_level = "INFO"
+```
+
+#### 打包配置
+
+```toml
+[packaging]
+# 是否生成单文件可执行文件
+use_single_file = true
+# 是否移除调试符号
+remove_debug_symbols = true
+# 是否跟随导入
+follow_imports = true
+# 是否使用链接时优化（Link Time Optimization）
+use_lto = true
+# 是否使用UPX压缩可执行文件
+use_upx = false
+```
+
+#### 资源配置
+
+```toml
+[resources]
+# 应用图标路径（仅Windows系统支持.ico格式）
+app_icon = ""
+# 要添加的数据文件列表，格式：[["src", "dst"], ...]
+add_data = []
+# UPX工具的目录路径
+upx_dir = "D:/upx"
+# UPX压缩时要排除的文件列表
+upx_exclude = ["vcruntime140.dll"]
+# 要显式包含的额外模块列表
+include_modules = []
+```
+
+#### 排除模块
+
+```toml
+exclude_modules = [
+    "pyinstaller",    # 排除PyInstaller
+    "pyqt6-tools",    # 排除PyQt6工具
+    "tkinter",        # 排除Tkinter
+    "pip-tools",      # 排除pip工具
+    "nuitka",         # 排除Nuitka
+    "test",           # 排除测试模块
+    "tests",          # 排除测试模块
+    "__pycache__",    # 排除缓存文件
+    "setuptools",     # 排除setuptools
+    "pkg_resources",  # 排除pkg_resources
+    "distutils",      # 排除distutils
+    "build",          # 排除build模块
+    "compile",        # 排除compile模块
+    "buildtool"       # 排除buildtool
+]
+```
+
+#### Windows配置
+
+```toml
+[windows]
+# 控制台模式设置（true - 显示控制台, false - 隐藏控制台）
+# 如果未配置、为空或无效值，则默认显示控制台
+console_mode = true
+# 是否需要管理员权限
+uac_admin = false
+```
+
+#### Nuitka 特定配置
+
+```toml
+[nuitka]
+# 是否使用Clang编译器（仅Nuitka支持）
+use_clang = true
+# 是否使用最新的MSVC编译器（仅Windows系统和Nuitka支持）
+use_latest_msvc = true
+# 启用的Nuitka插件列表
+# 所有可用插件列表及描述:
+# - anti-bloat: 从广泛使用的库模块源代码中移除不必要的导入
+# - data-files: 包含由包配置文件指定的数据文件
+# - delvewheel: 在独立模式下支持使用'delvewheel'的包
+# - dill-compat: 支持'dill'包和'cloudpickle'兼容性
+# - dll-files: 包含包配置文件指定的DLL文件
+# - enum-compat: Python2和'enum'包所需
+# - eventlet: 支持包含'eventlet'依赖及其对'dns'包猴子补丁的需求
+# - gevent: 'gevent'包所需
+# - gi: 支持GI包类型库依赖
+# - glfw: 在独立模式下支持'OpenGL' (PyOpenGL)和'glfw'包
+# - implicit-imports: 按照包配置文件提供包的隐式导入
+# - kivy: 'kivy'包所需
+# - matplotlib: 'matplotlib'模块所需
+# - multiprocessing: Python的'multiprocessing'模块所需
+# - no-qt: 禁用所有Qt绑定的包含
+# - options-nanny: 根据包配置文件告知用户潜在问题
+# - pbr-compat: 在独立模式下'pbr'包所需
+# - pkg-resources: 'pkg_resources'的解决方法
+# - playwright: 'playwright'包所需
+# - pmw-freezer: 'Pmw'包所需
+# - pyqt5: PyQt5包所需
+# - pyqt6: PyQt6包在独立模式下所需
+# - pyside2: PySide2包所需
+# - pyside6: PySide2包在独立模式下所需
+# - pywebview: 'webview'包(pywebview on PyPI)所需
+# - spacy: 'spacy'包所需
+# - tk-inter: Python的Tk模块所需
+# - transformers: 为transformers包提供隐式导入
+# - upx: 自动使用UPX压缩创建的二进制文件
+# 示例: plugins = ["multiprocessing", "tk-inter", "pyqt5", "matplotlib", "data-files"]
+plugins = []
+# Nuitka自定义参数列表，可以添加本工具未支持的Nuitka参数
+# 示例: custom_args = ["--enable-plugin=qml", "--include-plugin-directory=path/to/plugin"]
+custom_args = []
+```
+
+#### PyInstaller 特定配置
+
+```toml
+[pyinstaller]
+# PyInstaller自定义参数列表，可以添加本工具未支持的PyInstaller参数
+# 示例: custom_args = ["--console", "--noupx", "--add-binary=path/to/binary:."]
+custom_args = []
+```
+
+## 自定义配置
+
+你可以根据自己的需求修改`buildtool.toml`文件中的配置项。例如，要更改输出目录和添加数据文件：
+
+```toml
+[general]
+main_script = "main.py"
+output_dir = "my_app_dist"
+
+[resources]
+add_data = [
+    ("assets", "assets"),
+    ("config.json", ".")
+]
+```
+
+## 注意事项
+
+1. 确保已经安装了要使用的打包工具（PyInstaller或Nuitka）
+2. 对于复杂的Python应用，可能需要手动调整配置文件中的`include_modules`和`exclude_modules`选项
+3. 在Windows系统上，使用UAC管理员权限需要在配置文件中设置`windows.uac_admin = true`
+4. 首次运行会自动生成配置文件，你可以根据需要进行修改
+
+## 许可证
+
+MIT License
