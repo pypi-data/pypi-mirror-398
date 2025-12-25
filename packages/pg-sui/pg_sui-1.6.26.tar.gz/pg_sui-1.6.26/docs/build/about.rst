@@ -1,0 +1,83 @@
+About PG-SUI
+============
+
+**PG-SUI**: Population Genomic Supervised & Unsupervised Imputation
+
+PG-SUI Philosophy
+-----------------
+
+PG-SUI is a Python 3 toolkit for imputing missing genotypes in population genomic SNP matrices using **deterministic**, **unsupervised**, and **supervised** approaches. PG-SUI integrates with `SNPio <https://snpio.readthedocs.io/en/latest/>__` for I/O (file input/ output) and encoding, emphasizes robust handling of class imbalance, and follows a logical design with easy-to-use configurations and presets, optional **YAML** configs, and a consistent **instantiate → fit() → transform()** workflow. Unsupervised deep models build on representation learning and generative modeling ideas (Hinton & Salakhutdinov, 2006; Kingma & Welling, 2013; Scholz et al., 2005; Gashler et al., 2016).
+
+Key Design (at a glance)
+------------------------
+
+- **Typed configs**: each imputer uses a ``*Config`` dataclass (e.g., ``VAEConfig``, ``NLPCAConfig``, ``UBPConfig``) with presets (``fast``, ``balanced``, ``thorough``).
+- **Workflow**: pass a SNPio ``GenotypeData`` at construction → ``fit()`` → ``transform()`` (no arguments).
+- **Overrides**: presets ⇢ YAML (optional) ⇢ explicit overrides via dot-keys; CLI mirrors the same precedence.
+- **CLI overrides**: ``pg-sui`` exposes ``--sim-strategy``, ``--sim-prop``, and ``--disable-simulate-missing`` so you can globally control missing-data simulation per run without editing YAML (``--disable-simulate-missing`` is for supervised/deterministic runs; unsupervised models require simulated masking).
+- **Evaluation**: macro-F1 and macro-PR with zygosity-aware summaries to address genomic class imbalance.
+- **Plotting**: confusion matrices, PR curves, and imputation accuracy stratified by MAF bins.
+- **Hyperparameter tuning**: built-in support for automated hyperparameter optimization with flexible search spaces.
+- **Reproducibility**: random seeds for data splits, model initialization, and training procedures.
+- **Extensibility**: base classes for unsupervised and supervised imputers make it easy to implement new models.
+- **Documentation**: detailed usage instructions, API references, and developer guides.
+
+Unsupervised Imputation Methods
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Unsupervised models in PG-SUI are purpose-built for genomic data:
+
+- **Variational Autoencoder (VAE)** (Kingma & Welling, 2013) — latent probabilistic modeling with KL (Kullback-Leibler) regularization.
+- **Autoencoder** (Hinton & Salakhutdinov, 2006) — standard encoder-decoder reconstruction, without using a latent distribution.
+- **Non-linear PCA (NLPCA)** (Scholz et al., 2005) — decoder-style network with latent optimization.
+- **Unsupervised Backpropagation (UBP)** (Gashler et al., 2016) — joint training of latent vectors and decoder weights.
+
+These models learn structure from observed entries and then infer true missing genotypes:
+
+1. **Train on observed values**: real missings are masked; simulated masking is required for unsupervised evaluation and training.
+2. **Predict true missings**: after training, the model predicts the masked cells to yield a complete matrix.
+
+Detailed Unsupervised Deep Learning Imputation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- **Autoencoder**: compresses loci into a low-dimensional embedding and reconstructs the 0/1/2 matrix through a decoder (Hinton & Salakhutdinov, 2006).
+- **VAE**: learns (i.e., encodes) a distribution over the latent space (mean/variance), sampling latents during training for a regularized decoder (Kingma & Welling, 2013).
+- **NLPCA**: initializes reduced-dimensional inputs and iteratively refines them by minimizing reconstruction loss on observed entries (Scholz et al., 2005).
+- **UBP**: three-phase training that alternates/refines latent vectors and MLP weights for improved imputation on sparse, imbalanced data (Gashler et al., 2016).
+
+Supervised Imputation Methods
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Supervised baselines frame imputation as multiclass genotype prediction per locus using tree-based models:
+
+- **Random Forest** (``ImputeRandomForest``)
+- **Histogram-based Gradient Boosting** (``ImputeHistGradientBoosting``)
+
+These models learn from observed genotypes to predict missing states and can be tuned with the same Optuna-driven machinery as the unsupervised models. They provide strong, interpretable comparisons alongside the deep models.
+
+Deterministic (Non-ML) Methods
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Deterministic baselines are simple, quick baselines that impute missing genotypes without machine learning (ML):
+
+- **Per-population mode per SNP** (population-aware majority class per site; when a population map, or popmap, is available).
+- **Overall mode per SNP** (overall majority class per site).
+- **Reference-allele fill** (fills missing bases with REF genotype only).
+
+Why Choose PG-SUI?
+^^^^^^^^^^^^^^^^^^
+
+PG-SUI combines classical baselines with modern unsupervised and supervised learners tailored to population genomics. The API is **consistent**, **extensible**, and **reproducible** (typed configs, presets, seeds), with evaluation and plotting designed for **class-imbalanced** diploid/haploid data. Users can select quick deterministic baselines, interpretable supervised trees, or higher-capacity unsupervised neural models depending on data scale and goals.
+
+References
+----------
+
+Chawla, N. V., Bowyer, K. W., Hall, L. O., & Kegelmeyer, W. P. (2002). SMOTE: Synthetic Minority Over-sampling Technique. *Journal of Artificial Intelligence Research*, 16, 321-357.
+
+Gashler, M. S., Smith, M. R., Morris, R., & Martinez, T. (2016). Missing value imputation with unsupervised backpropagation. *Computational Intelligence*, 32(2), 196-215.
+
+Hinton, G. E., & Salakhutdinov, R. R. (2006). Reducing the dimensionality of data with neural networks. *Science*, 313(5786), 504-507.
+
+Kingma, D. P., & Welling, M. (2013). Auto-Encoding Variational Bayes. *arXiv preprint* arXiv:1312.6114.
+
+Scholz, M., Kaplan, F., Guy, C. L., Kopka, J., & Selbig, J. (2005). Non-linear PCA: a missing data approach. *Bioinformatics*, 21(20), 3887-3895.
