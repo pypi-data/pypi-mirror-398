@@ -1,0 +1,3 @@
+SCOUT_CUSTOM_FUNCTION_CONTENT_TYPE = "scout/custom function"
+
+__all__ = ["SCOUT_CUSTOM_FUNCTION_CONTENT_TYPE"]

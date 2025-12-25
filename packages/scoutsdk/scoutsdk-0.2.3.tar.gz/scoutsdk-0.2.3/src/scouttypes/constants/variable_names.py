@@ -1,0 +1,11 @@
+from enum import StrEnum
+
+
+class VariableNames(StrEnum):
+    SCOUT_API_URL = "SCOUT_API_URL"
+    SCOUT_API_ACCESS_TOKEN = "SCOUT_API_ACCESS_TOKEN"
+    SCOUT_ASSISTANT_ID = "SCOUT_ASSISTANT_ID"
+    SCOUT_CONVERSATION_ID = "SCOUT_CONVERSATION_ID"
+
+
+__all__ = ["VariableNames"]
