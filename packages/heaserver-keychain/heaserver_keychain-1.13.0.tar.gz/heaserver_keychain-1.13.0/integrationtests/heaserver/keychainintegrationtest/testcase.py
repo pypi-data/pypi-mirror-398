@@ -1,0 +1,111 @@
+"""
+Creates a test case class for use with the unittest library that is built into Python.
+"""
+
+from heaserver.service.testcase.microservicetestcase import get_test_case_cls_default
+from heaserver.service.testcase.dockermongo import MockDockerMongoManager
+from heaserver.keychain import service
+from heaobject.user import NONE_USER
+from heaserver.service.testcase.expectedvalues import Action
+
+db_store = {
+    service.MONGODB_CREDENTIALS_COLLECTION: [{
+        'id': '666f6f2d6261722d71757578',
+        'instance_id': 'heaobject.keychain.Credentials^666f6f2d6261722d71757578',
+        'created': '2022-05-17T00:00:00+00:00',
+        'derived_by': None,
+        'derived_from': [],
+        'description': None,
+        'display_name': 'Reximus',
+        'invites': [],
+        'modified': '2022-05-17T00:00:00+00:00',
+        'name': 'reximus',
+        'owner': NONE_USER,
+        'shares': [],
+        'source': None,
+        'source_detail': None,
+        'type': 'heaobject.keychain.Credentials',
+        'account': None,
+        'where': None,
+        'password': None,
+        'type_display_name': 'Credentials',
+        'role': None
+    },
+        {
+            'id': '0123456789ab0123456789ab',
+            'instance_id': 'heaobject.keychain.Credentials^0123456789ab0123456789ab',
+            'created': '2022-05-17T00:00:00+00:00',
+            'derived_by': None,
+            'derived_from': [],
+            'description': None,
+            'display_name': 'Luximus',
+            'invites': [],
+            'modified': '2022-05-17T00:00:00+00:00',
+            'name': 'luximus',
+            'owner': NONE_USER,
+            'shares': [],
+            'source': None,
+            'source_detail': None,
+            'type': 'heaobject.keychain.Credentials',
+            'account': None,
+            'where': None,
+            'password': None,
+            'type_display_name': 'Credentials',
+            'role': None
+        }]}
+
+TestCase = get_test_case_cls_default(coll=service.MONGODB_CREDENTIALS_COLLECTION,
+                                     href='http://localhost:8080/credentials/',
+                                     wstl_package=service.__package__,
+                                     db_manager_cls=MockDockerMongoManager,
+                                     fixtures=db_store,
+                                     get_actions=[Action(name='heaserver-keychain-credentials-get-properties',
+                                                         rel=['hea-context-menu', 'hea-properties'],
+                                                         itemif='type=="heaobject.keychain.Credentials"'),
+                                                  Action(name='heaserver-keychain-awscredentials-get-properties',
+                                                         rel=['hea-context-menu', 'hea-properties'],
+                                                         itemif='type=="heaobject.keychain.AWSCredentials"'),
+                                                  # Action(name='heaserver-keychain-credentials-open-choices',
+                                                  #        url='http://localhost:8080/credentials/{id}/opener',
+                                                  #        rel=['hea-context-menu', 'hea-opener-choices']),
+                                                  # Action(name='heaserver-keychain-credentials-duplicate',
+                                                  #        url='http://localhost:8080/credentials/{id}/duplicator',
+                                                  #        rel=['hea-context-menu', 'hea-dynamic-standard', 'hea-icon-duplicator']),
+                                                  Action(name='heaserver-keychain-credentials-get-self',
+                                                             url='http://localhost:8080/credentials/{id}',
+                                                             rel=['self']),
+                                                  Action(name='heaserver-keychain-awscredentials-get-cli-credentials-file',
+                                                             url='http://localhost:8080/credentials/{id}/awsclicredentialsfile',
+                                                             rel=['hea-dynamic-clipboard', 'hea-retrieve-clipboard-icon', 'hea-context-menu'],
+                                                             itemif='type=="heaobject.keychain.AWSCredentials"'),
+                                                  Action(name='heaserver-keychain-get-generate-awscredential',
+                                                         url='http://localhost:8080/credentials/{id}/managedawscredential',
+                                                         rel=['hea-dynamic-clipboard', 'hea-generate-clipboard-icon', 'hea-context-menu'],
+                                                         itemif='type=="heaobject.keychain.AWSCredentials"')
+                                                  ],
+                                     get_all_actions=[Action(name='heaserver-keychain-credentials-get-properties',
+                                                             rel=['hea-context-menu', 'hea-properties'],
+                                                             itemif='type=="heaobject.keychain.Credentials"'),
+                                                      Action(name='heaserver-keychain-awscredentials-get-properties',
+                                                             rel=['hea-context-menu', 'hea-properties'],
+                                                             itemif='type=="heaobject.keychain.AWSCredentials"'),
+                                                      # Action(name='heaserver-keychain-credentials-open-choices',
+                                                      #        url='http://localhost:8080/credentials/{id}/opener',
+                                                      #        rel=['hea-context-menu', 'hea-opener-choices']),
+                                                      # Action(name='heaserver-keychain-credentials-duplicate',
+                                                      #        url='http://localhost:8080/credentials/{id}/duplicator',
+                                                      #        rel=['hea-context-menu', 'hea-dynamic-standard', 'hea-icon-duplicator']),
+                                                      Action(name='heaserver-keychain-credentials-get-self',
+                                                             url='http://localhost:8080/credentials/{id}',
+                                                             rel=['self']),
+                                                      Action(name='heaserver-keychain-awscredentials-get-cli-credentials-file',
+                                                             url='http://localhost:8080/credentials/{id}/awsclicredentialsfile',
+                                                             rel=['hea-dynamic-clipboard', 'hea-retrieve-clipboard-icon', 'hea-context-menu'],
+                                                             itemif='type=="heaobject.keychain.AWSCredentials"'),
+                                                      Action(name='heaserver-keychain-get-generate-awscredential',
+                                                             url='http://localhost:8080/credentials/{id}/managedawscredential',
+                                                             rel=['hea-dynamic-clipboard', 'hea-generate-clipboard-icon', 'hea-context-menu'],
+                                                             itemif='type=="heaobject.keychain.AWSCredentials"')
+                                                      ],
+                                     #duplicate_action_name='heaserver-keychain-credentials-duplicate-form'
+                                     )
