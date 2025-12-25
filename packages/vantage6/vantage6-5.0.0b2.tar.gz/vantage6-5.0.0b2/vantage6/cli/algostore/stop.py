@@ -1,0 +1,60 @@
+import click
+
+from vantage6.common import info
+from vantage6.common.globals import InstanceType
+
+from vantage6.cli.common.stop import execute_stop, helm_uninstall
+from vantage6.cli.globals import DEFAULT_API_SERVICE_SYSTEM_FOLDERS, InfraComponentName
+from vantage6.cli.k8s_config import KubernetesConfig
+
+
+@click.command()
+@click.option("-n", "--name", default=None, help="Configuration name")
+@click.option("--context", default=None, help="Kubernetes context to use")
+@click.option("--namespace", default=None, help="Kubernetes namespace to use")
+@click.option(
+    "--system",
+    "system_folders",
+    flag_value=True,
+    default=DEFAULT_API_SERVICE_SYSTEM_FOLDERS,
+    help="Search for configuration in system folders instead of user folders. "
+    "This is the default.",
+)
+@click.option(
+    "--user",
+    "system_folders",
+    flag_value=False,
+    help="Search for configuration in the user folders instead of system folders.",
+)
+@click.option("--sandbox/--no-sandbox", "sandbox", default=False)
+@click.option("--all", "all_stores", flag_value=True, help="Stop all algorithm stores")
+def cli_algo_store_stop(
+    name: str,
+    context: str,
+    namespace: str,
+    system_folders: bool,
+    all_stores: bool,
+    sandbox: bool,
+):
+    """
+    Stop one or all running algorithm store(s).
+    """
+    execute_stop(
+        stop_function=_stop_store,
+        instance_type=InstanceType.ALGORITHM_STORE,
+        infra_component=InfraComponentName.ALGORITHM_STORE,
+        stop_all=all_stores,
+        to_stop=name,
+        namespace=namespace,
+        context=context,
+        system_folders=system_folders,
+        is_sandbox=sandbox,
+    )
+
+
+def _stop_store(store_name: str, k8s_config: KubernetesConfig) -> None:
+    info(f"Stopping store {store_name}...")
+
+    helm_uninstall(release_name=store_name, k8s_config=k8s_config)
+
+    info(f"Store {store_name} stopped successfully.")

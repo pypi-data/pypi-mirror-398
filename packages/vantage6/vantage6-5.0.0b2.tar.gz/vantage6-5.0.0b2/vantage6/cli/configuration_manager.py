@@ -1,0 +1,277 @@
+from pathlib import Path
+from typing import Self
+
+from schema import And, Use
+
+from vantage6.common.configuration_manager import Configuration, ConfigurationManager
+
+from vantage6.cli.globals import (
+    ALGO_STORE_TEMPLATE_FILE,
+    AUTH_TEMPLATE_FILE,
+    HQ_TEMPLATE_FILE,
+    NODE_TEMPLATE_FILE,
+)
+
+LOGGING_VALIDATORS = {
+    "level": And(
+        Use(str), lambda lvl: lvl in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+    ),
+    "use_console": Use(bool),
+    "backup_count": And(Use(int), lambda n: n > 0),
+    "max_size": And(Use(int), lambda b: b > 16),
+    "format": Use(str),
+    "datefmt": Use(str),
+}
+
+
+class HQConfiguration(Configuration):
+    """Stores the HQ's configuration and defines a set of HQ-specific validators."""
+
+    # TODO: explore how to validate helm values.yaml files, see issue 2105
+    VALIDATORS = {}
+
+
+class AlgorithmStoreConfiguration(Configuration):
+    """
+    Stores the algorithm store's configuration and defines a set of algorithm
+    store-specific validators.
+    """
+
+    VALIDATORS = {}
+
+
+class NodeConfiguration(Configuration):
+    """
+    Stores the node's configuration and defines a set of node-specific
+    validators.
+    """
+
+    # TODO perhaps we can remove these classes and do validation of the configuration
+    # file more easily with helm values.yaml checks.
+    VALIDATORS = {
+        # # TODO enable validators for node. To see if it works, use v6 node list
+        # "node": {
+        #     "hq_url": Use(str),
+        #     "port": Or(Use(int), None),
+        #     "task_dir": Use(str),
+        #     # TODO: remove `dict` validation from databases
+        #     "api_path": Use(str),
+        #     "logging": LOGGING_VALIDATORS,
+        #     "encryption": {"enabled": bool, Optional("private_key"): Use(str)},
+        #     Optional("node_extra_env"): dict,
+        #     Optional("node_extra_mounts"): [str],
+        #     Optional("node_extra_hosts"): dict,
+        #     Optional("share_algorithm_logs"): Use(bool),
+        # }
+    }
+
+
+class AuthConfiguration(Configuration):
+    VALIDATORS = {}
+
+
+class TestConfiguration(Configuration):
+    VALIDATORS = {}
+
+
+class NodeConfigurationManager(ConfigurationManager):
+    """
+    Maintains the node's configuration.
+
+    Parameters
+    ----------
+    name : str
+        Name of the configuration file.
+    """
+
+    def __init__(self, name: str, is_sandbox: bool = False, *args, **kwargs) -> None:
+        super().__init__(conf_class=NodeConfiguration, name=name, is_sandbox=is_sandbox)
+
+    @classmethod
+    def from_file(cls, path: Path | str, is_sandbox: bool = False) -> Self:
+        """
+        Create a new instance of the NodeConfigurationManager from a
+        configuration file.
+
+        Parameters
+        ----------
+        path : str | Path
+            Path to the configuration file.
+
+        Returns
+        -------
+        NodeConfigurationManager
+            A new instance of the NodeConfigurationManager.
+        """
+        return super().from_file(
+            path, conf_class=NodeConfiguration, is_sandbox=is_sandbox
+        )
+
+    def get_config_template(self) -> str:
+        """
+        Get the configuration template for the node.
+        """
+        return super()._get_config_template(NODE_TEMPLATE_FILE)
+
+
+class HQConfigurationManager(ConfigurationManager):
+    """
+    Maintains the HQ's configuration.
+
+    Parameters
+    ----------
+    name : str
+        Name of the configuration file.
+    """
+
+    def __init__(self, name: str, is_sandbox: bool = False, *args, **kwargs) -> None:
+        super().__init__(conf_class=HQConfiguration, name=name, is_sandbox=is_sandbox)
+
+    @classmethod
+    def from_file(cls, path: Path | str, is_sandbox: bool = False) -> Self:
+        """
+        Create a new instance of the HQConfigurationManager from a
+        configuration file.
+
+        Parameters
+        ----------
+        path : str | Path
+            Path to the configuration file.
+
+        Returns
+        -------
+        HQConfigurationManager
+            A new instance of the HQConfigurationManager.
+        """
+        return super().from_file(
+            path, conf_class=HQConfiguration, is_sandbox=is_sandbox
+        )
+
+    def get_config_template(self) -> str:
+        """
+        Get the configuration template for the HQ.
+
+        Returns
+        -------
+        str
+            The configuration template for the HQ.
+        """
+        return super()._get_config_template(HQ_TEMPLATE_FILE)
+
+
+class AlgorithmStoreConfigurationManager(ConfigurationManager):
+    """
+    Maintains the algorithm store's configuration.
+
+    Parameters
+    ----------
+    name : str
+        Name of the configuration file.
+    """
+
+    def __init__(self, name: str, is_sandbox: bool = False, *args, **kwargs) -> None:
+        super().__init__(
+            conf_class=AlgorithmStoreConfiguration, name=name, is_sandbox=is_sandbox
+        )
+
+    @classmethod
+    def from_file(cls, path: Path | str, is_sandbox: bool = False) -> Self:
+        """
+        Create a new instance of the AlgorithmStoreConfigurationManager from a
+        configuration file.
+
+        Parameters
+        ----------
+        path : str | Path
+            Path to the configuration file.
+
+        Returns
+        -------
+        AlgorithmStoreConfigurationManager
+            A new instance of the AlgorithmStoreConfigurationManager.
+        """
+        return super().from_file(
+            path, conf_class=AlgorithmStoreConfiguration, is_sandbox=is_sandbox
+        )
+
+    def get_config_template(self) -> str:
+        """
+        Get the configuration template for the algorithm store.
+
+        Returns
+        -------
+        str
+            The configuration template for the algorithm store.
+        """
+        return super()._get_config_template(ALGO_STORE_TEMPLATE_FILE)
+
+
+class AuthConfigurationManager(ConfigurationManager):
+    """
+    Maintains the auth's configuration.
+
+    Parameters
+    ----------
+    name : str
+        Name of the configuration file.
+    is_sandbox : bool, optional
+        Whether the configuration is a sandbox configuration, by default False
+    """
+
+    def __init__(self, name, is_sandbox: bool = False, *args, **kwargs):
+        super().__init__(conf_class=AuthConfiguration, name=name, is_sandbox=is_sandbox)
+
+    @classmethod
+    def from_file(cls, path: Path | str, is_sandbox: bool = False) -> Self:
+        """
+        Create a new instance of the AuthConfigurationManager from a
+        configuration file.
+
+        Parameters
+        ----------
+        path : str | Path
+            Path to the configuration file.
+        is_sandbox : bool, optional
+            Whether the configuration is a sandbox configuration, by default False
+
+        Returns
+        -------
+        AuthConfigurationManager
+            A new instance of the AuthConfigurationManager.
+        """
+        return super().from_file(
+            path, conf_class=AuthConfiguration, is_sandbox=is_sandbox
+        )
+
+    def get_config_template(self) -> str:
+        """
+        Get the configuration template for the auth.
+        """
+        return super()._get_config_template(AUTH_TEMPLATE_FILE)
+
+
+class TestingConfigurationManager(ConfigurationManager):
+    def __init__(self, name, *args, **kwargs):
+        super().__init__(conf_class=TestConfiguration, name=name)
+
+    @classmethod
+    def from_file(cls, path: Path | str, is_sandbox: bool = False) -> Self:
+        """
+        Create a new instance of the TestingConfigurationManager from a
+        configuration file.
+
+        Parameters
+        ----------
+        path : str | Path
+            Path to the configuration file.
+        is_sandbox : bool, optional
+            Whether the configuration is a sandbox configuration, by default False
+
+        Returns
+        -------
+        TestingConfigurationManager
+            A new instance of the TestingConfigurationManager.
+        """
+        return super().from_file(
+            path, conf_class=TestConfiguration, is_sandbox=is_sandbox
+        )
