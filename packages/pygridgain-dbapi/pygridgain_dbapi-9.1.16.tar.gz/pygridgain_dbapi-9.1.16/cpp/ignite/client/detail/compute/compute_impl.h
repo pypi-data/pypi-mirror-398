@@ -1,0 +1,104 @@
+/*
+ *  Copyright (C) GridGain Systems. All Rights Reserved.
+ *  _________        _____ __________________        _____
+ *  __  ____/___________(_)______  /__  ____/______ ____(_)_______
+ *  _  / __  __  ___/__  / _  __  / _  / __  _  __ `/__  / __  __ \
+ *  / /_/ /  _  /    _  /  / /_/ /  / /_/ /  / /_/ / _  /  _  / / /
+ *  \____/   /_/     /_/   \_,__/   \____/   \__,_/  /_/   /_/ /_/
+ */
+
+#pragma once
+
+#include "ignite/client/compute/job_descriptor.h"
+#include "ignite/client/compute/job_execution.h"
+#include "ignite/client/detail/cluster_connection.h"
+#include "ignite/client/detail/table/tables_impl.h"
+#include "ignite/client/network/cluster_node.h"
+#include "ignite/common/binary_object.h"
+#include "ignite/common/ignite_result.h"
+
+#include <memory>
+#include <set>
+#include <utility>
+
+namespace ignite::detail {
+class colocated_job_target;
+
+/**
+ * Ignite Compute implementation.
+ */
+class compute_impl : public std::enable_shared_from_this<compute_impl> {
+    friend class ignite_client;
+
+public:
+    /**
+     * Constructor.
+     *
+     * @param connection Connection.
+     */
+    explicit compute_impl(std::shared_ptr<cluster_connection> connection, std::shared_ptr<tables_impl> tables)
+        : m_connection(std::move(connection))
+        , m_tables(std::move(tables)) {}
+
+    /**
+     * Submits a compute job represented by the given class for an execution on one of the specified nodes
+     * asynchronously. If the node leaves the cluster, it will be restarted on one of the candidate nodes.
+     *
+     * @param nodes Candidate node to use for the job execution.
+     * @param descriptor Descriptor.
+     * @param arg Job argument.
+     * @param callback A callback called on operation completion with job execution result.
+     */
+    void submit_to_nodes(const std::set<cluster_node> &nodes, std::shared_ptr<job_descriptor> descriptor,
+        const binary_object &arg, ignite_callback<job_execution> callback);
+
+    /**
+     * Submits a compute job represented by the given class for an execution on one of the nodes where the given key is
+     * located.
+     *
+     * @param target Target.
+     * @param descriptor Descriptor.
+     * @param arg Job argument.
+     * @param callback A callback called on operation completion with job execution result.
+     */
+    void submit_colocated_async(const colocated_job_target &target, std::shared_ptr<job_descriptor> descriptor,
+        const binary_object &arg, ignite_callback<job_execution> callback);
+
+    /**
+     * Gets the job execution state. Can be @c nullopt if the job state no longer exists due to exceeding the
+     * retention time limit.
+     *
+     * @param id Job ID.
+     * @param callback Callback to be called when the operation is complete. Contains the job state. Can be @c nullopt
+     *  if the job state no longer exists due to exceeding the retention time limit.
+     */
+    void get_state_async(uuid id, ignite_callback<std::optional<job_state>> callback);
+
+    /**
+     * Cancels the job execution.
+     *
+     * @param id Job ID.
+     * @param callback Callback to be called when the operation is complete. Contains cancel result.
+     */
+    void cancel_async(uuid id, ignite_callback<job_execution::operation_result> callback);
+
+    /**
+     * Changes the job priority. After priority change the job will be the last in the queue of jobs with the same
+     * priority.
+     *
+     * @param id Job ID.
+     * @param priority New priority.
+     * @param callback Callback to be called when the operation is complete. Contains operation result.
+     */
+    void change_priority_async(
+        uuid id, std::int32_t priority, ignite_callback<job_execution::operation_result> callback);
+
+private:
+    /** Cluster connection. */
+    std::shared_ptr<cluster_connection> m_connection;
+
+    /** Tables. */
+    std::shared_ptr<tables_impl> m_tables;
+};
+
+} // namespace ignite::detail

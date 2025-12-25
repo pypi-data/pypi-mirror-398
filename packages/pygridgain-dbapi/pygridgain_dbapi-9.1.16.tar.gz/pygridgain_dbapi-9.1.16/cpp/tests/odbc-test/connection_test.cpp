@@ -1,0 +1,101 @@
+/*
+ *  Copyright (C) GridGain Systems. All Rights Reserved.
+ *  _________        _____ __________________        _____
+ *  __  ____/___________(_)______  /__  ____/______ ____(_)_______
+ *  _  / __  __  ___/__  / _  __  / _  / __  _  __ `/__  / __  __ \
+ *  / /_/ /  _  /    _  /  / /_/ /  / /_/ /  / /_/ / _  /  _  / / /
+ *  \____/   /_/     /_/   \_,__/   \____/   \__,_/  /_/   /_/ /_/
+ */
+
+#include "odbc_suite.h"
+
+#include <gmock/gmock-matchers.h>
+#include <gtest/gtest.h>
+
+#include <regex>
+#include <string>
+
+using namespace ignite;
+
+/**
+ * Test suite.
+ */
+class connection_test : public odbc_suite {};
+
+TEST_F(connection_test, dbms_version) {
+    EXPECT_NO_THROW(odbc_connect_throw(get_basic_connection_string()));
+
+    SQLCHAR buffer[ODBC_BUFFER_SIZE];
+    SQLSMALLINT resLen = 0;
+
+    SQLRETURN ret = SQLGetInfo(m_conn, SQL_DBMS_VER, buffer, ODBC_BUFFER_SIZE, &resLen);
+
+    if (!SQL_SUCCEEDED(ret))
+        FAIL() << (get_odbc_error_message(SQL_HANDLE_DBC, m_conn));
+
+    // Format: XX.XX.XXXX PATCH PRE_RELEASE
+    EXPECT_TRUE(std::regex_match(
+        std::string(reinterpret_cast<char *>(buffer)), std::regex(R"((\d\d\.\d\d\.\d\d\d\d)(\s\d+)?(\s[a-zA-Z]+)?)")));
+}
+
+TEST_F(connection_test, dbms_cluster_name) {
+    EXPECT_NO_THROW(odbc_connect_throw(get_basic_connection_string()));
+
+    SQLCHAR buffer[ODBC_BUFFER_SIZE];
+    SQLSMALLINT resLen = 0;
+
+    SQLRETURN ret = SQLGetInfo(m_conn, SQL_SERVER_NAME, buffer, ODBC_BUFFER_SIZE, &resLen);
+
+    if (!SQL_SUCCEEDED(ret))
+        FAIL() << (get_odbc_error_message(SQL_HANDLE_DBC, m_conn));
+
+    // Test cluster name: see PlatformTestNodeRunner.
+    EXPECT_EQ(std::string("cluster"), std::string(reinterpret_cast<char *>(buffer)));
+}
+
+TEST_F(connection_test, timezone_passed) {
+    EXPECT_NO_THROW(odbc_connect_throw(get_basic_connection_string() + "timezone=UTC+5;"));
+    auto ret = exec_query("SELECT CURRENT_TIMESTAMP::VARCHAR");
+    ODBC_FAIL_ON_ERROR(ret, SQL_HANDLE_STMT, m_statement);
+
+    SQLCHAR buffer[1024];
+    SQLLEN column_len = sizeof(buffer);
+
+    ret = SQLBindCol(m_statement, 1, SQL_C_CHAR, &buffer, column_len, &column_len);
+    ODBC_FAIL_ON_ERROR(ret, SQL_HANDLE_STMT, m_statement);
+
+    ret = SQLFetch(m_statement);
+    ODBC_FAIL_ON_ERROR(ret, SQL_HANDLE_STMT, m_statement);
+
+    ASSERT_GT(column_len, 0);
+    ASSERT_LT(column_len, 1024);
+    std::string ts0((char *) buffer, column_len);
+    odbc_clean_up();
+
+    EXPECT_NO_THROW(odbc_connect_throw(get_basic_connection_string() + "timezone=UTC-8;"));
+    ret = exec_query("SELECT CURRENT_TIMESTAMP::VARCHAR");
+    ODBC_FAIL_ON_ERROR(ret, SQL_HANDLE_STMT, m_statement);
+
+    ret = SQLBindCol(m_statement, 1, SQL_C_CHAR, &buffer, column_len, &column_len);
+    ODBC_FAIL_ON_ERROR(ret, SQL_HANDLE_STMT, m_statement);
+
+    ret = SQLFetch(m_statement);
+    ODBC_FAIL_ON_ERROR(ret, SQL_HANDLE_STMT, m_statement);
+
+    ASSERT_GT(column_len, 0);
+    ASSERT_LT(column_len, 1024);
+    std::string ts1((char *) buffer, column_len);
+    odbc_clean_up();
+
+    EXPECT_NE(ts0, ts1);
+}
+
+TEST_F(connection_test, heartbeat_on_disconnected) {
+    using namespace std::chrono_literals;
+    EXPECT_NO_THROW(odbc_connect_throw(get_basic_connection_string(2s)));
+
+    odbc_disconnect();
+
+    // Wait for at least one heartbeat to ensure we do not crash on disconnected connection.
+    std::this_thread::sleep_for(3s);
+}

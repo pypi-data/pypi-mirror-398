@@ -1,0 +1,128 @@
+/*
+ *  Copyright (C) GridGain Systems. All Rights Reserved.
+ *  _________        _____ __________________        _____
+ *  __  ____/___________(_)______  /__  ____/______ ____(_)_______
+ *  _  / __  __  ___/__  / _  __  / _  / __  _  __ `/__  / __  __ \
+ *  / /_/ /  _  /    _  /  / /_/ /  / /_/ /  / /_/ / _  /  _  / / /
+ *  \____/   /_/     /_/   \_,__/   \____/   \__,_/  /_/   /_/ /_/
+ */
+
+#include "ignite_runner_suite.h"
+
+#include "ignite/client/ignite_client.h"
+#include "ignite/client/ignite_client_configuration.h"
+
+#include <gmock/gmock-matchers.h>
+#include <gtest/gtest.h>
+
+#include <chrono>
+
+using namespace ignite;
+
+#define TEST_TABLE_NAME "public.column_order_test"
+
+/**
+ * Test suite.
+ */
+class column_order_test : public ignite_runner_suite {
+protected:
+    static const constexpr std::int32_t test_records = 10;
+
+    static void SetUpTestSuite() {
+        ignite_client_configuration cfg{get_node_addrs()};
+        cfg.set_logger(get_logger());
+        auto client = ignite_client::start(cfg, std::chrono::seconds(30));
+
+        client.get_sql().execute(nullptr, nullptr, {"DROP TABLE IF EXISTS " TEST_TABLE_NAME}, {});
+
+        client.get_sql().execute(nullptr, nullptr,
+            {"CREATE TABLE " TEST_TABLE_NAME "(VAL1 VARCHAR, KEY1 INT, VAL2 BIGINT, KEY2 VARCHAR, PRIMARY KEY(KEY2, "
+             "KEY1))"},
+            {});
+
+        for (std::int32_t i = 0; i < test_records; ++i) {
+            auto stri = std::to_string(i);
+            client.get_sql().execute(nullptr, nullptr, {"INSERT INTO " TEST_TABLE_NAME " VALUES(?, ?, ?, ?)"},
+                {"test val " + stri, std::int32_t(i), std::int64_t(i * 2), "test key " + stri});
+        }
+    }
+
+    static void TearDownTestSuite() {
+        ignite_client_configuration cfg{get_node_addrs()};
+        cfg.set_logger(get_logger());
+        auto client = ignite_client::start(cfg, std::chrono::seconds(30));
+
+        client.get_sql().execute(nullptr, nullptr, {"DROP TABLE IF EXISTS " TEST_TABLE_NAME}, {});
+    }
+
+    void SetUp() override {
+        ignite_client_configuration cfg{get_node_addrs()};
+        cfg.set_logger(get_logger());
+
+        m_client = ignite_client::start(cfg, std::chrono::seconds(30));
+        auto table = m_client.get_tables().get_table(qualified_name::parse(TEST_TABLE_NAME));
+        ASSERT_TRUE(table.has_value());
+
+        m_table = std::move(*table);
+    }
+
+    void TearDown() override {
+        // remove all
+    }
+
+    /** Ignite client. */
+    ignite_client m_client;
+
+    /** Test table. */
+    table m_table;
+};
+
+ignite_tuple make_test_key_tuple(std::int32_t index) {
+    return {{"KEY1", std::int32_t(index)}, {"KEY2", "test key " + std::to_string(index)}};
+}
+
+ignite_tuple make_test_full_tuple(std::int32_t index) {
+    auto stri = std::to_string(index);
+    return {{"KEY1", std::int32_t(index)}, {"KEY2", "test key " + stri}, {"VAL1", "test val " + stri},
+        {"VAL2", std::int64_t(index * 2)}};
+}
+
+void check_test_tuple(const ignite_tuple &tuple, std::int32_t index, bool key_only) {
+    ASSERT_EQ(key_only ? 2 : 4, tuple.column_count());
+
+    auto ref = make_test_full_tuple(index);
+    EXPECT_EQ(ref.get("KEY1").get<std::int32_t>(), tuple.get("KEY1").get<std::int32_t>());
+    EXPECT_EQ(ref.get("KEY2").get<std::string>(), tuple.get("KEY2").get<std::string>());
+
+    if (!key_only) {
+        EXPECT_EQ(ref.get("VAL1").get<std::string>(), tuple.get("VAL1").get<std::string>());
+        EXPECT_EQ(ref.get("VAL2").get<std::int64_t>(), tuple.get("VAL2").get<std::int64_t>());
+    }
+}
+
+TEST_F(column_order_test, test_key_columns_nondefault_ordering_get) {
+    auto tuple_view = m_table.get_record_binary_view();
+
+    for (std::int32_t i = 0; i < test_records; ++i) {
+        auto res = tuple_view.get(nullptr, make_test_key_tuple(i));
+
+        ASSERT_TRUE(res.has_value());
+        check_test_tuple(*res, i, false);
+    }
+}
+
+TEST_F(column_order_test, test_key_columns_nondefault_ordering_put_get_remove) {
+    auto tuple_view = m_table.get_record_binary_view();
+
+    tuple_view.upsert(nullptr, make_test_full_tuple(13));
+
+    auto res = tuple_view.get(nullptr, make_test_key_tuple(13));
+    ASSERT_TRUE(res.has_value());
+    check_test_tuple(*res, 13, false);
+
+    bool removed = tuple_view.remove(nullptr, make_test_key_tuple(13));
+    ASSERT_TRUE(removed);
+
+    res = tuple_view.get(nullptr, make_test_key_tuple(13));
+    ASSERT_FALSE(res.has_value());
+}

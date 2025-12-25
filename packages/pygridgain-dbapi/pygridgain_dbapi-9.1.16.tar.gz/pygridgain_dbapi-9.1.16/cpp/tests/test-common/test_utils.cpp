@@ -1,0 +1,159 @@
+/*
+ *  Copyright (C) GridGain Systems. All Rights Reserved.
+ *  _________        _____ __________________        _____
+ *  __  ____/___________(_)______  /__  ____/______ ____(_)_______
+ *  _  / __  __  ___/__  / _  __  / _  / __  _  __ `/__  / __  __ \
+ *  / /_/ /  _  /    _  /  / /_/ /  / /_/ /  / /_/ / _  /  _  / / /
+ *  \____/   /_/     /_/   \_,__/   \____/   \__,_/  /_/   /_/ /_/
+ */
+
+#include "ignite_runner.h"
+#include "test_utils.h"
+
+#include <ignite/client/ignite_client.h>
+#include "ignite/common/detail/utils.h"
+
+#include <filesystem>
+#include <functional>
+#include <iostream>
+#include <thread>
+#include <random>
+
+namespace ignite {
+
+
+/**
+ * Checks if the path looks like binary release home directory.
+ * Internally checks for presence of core library.
+ * @return @c true if the path looks like binary release home directory.
+ */
+bool looks_like_binary_release_home(const std::filesystem::path &path) {
+    std::filesystem::path core_lib_path = path / "libs";
+    if (!is_directory(core_lib_path))
+        return false;
+
+    auto iter = std::filesystem::directory_iterator{core_lib_path};
+    return std::any_of(iter, std::filesystem::end(iter), [](auto entry) {
+        const std::filesystem::path &entry_path = entry.path();
+        if (entry_path.extension() != "jar")
+            return false;
+
+        std::string stem = entry_path.stem().string();
+        return stem.find("ignite-core") == 0;
+    });
+}
+
+/**
+ * Checks if the path looks like source release home directory.
+ * Internally checks for presence of core source directory.
+ * @return @c true if the path looks like binary release home directory.
+ */
+bool looks_like_source_release_home(const std::filesystem::path &path) {
+    std::filesystem::path core_source_path =
+        path / "modules" / "core" / "src" / "main" / "java" / "org" / "apache" / "ignite";
+
+    return std::filesystem::is_directory(core_source_path);
+}
+
+std::string resolve_ignite_home(const std::string &path) {
+    std::error_code error;
+
+    std::filesystem::path home = std::filesystem::canonical(path, error);
+    if (!error && std::filesystem::is_directory(path))
+        return home.string();
+
+    auto env = detail::get_env("IGNITE_HOME");
+    if (env) {
+        home = std::filesystem::canonical(env.value(), error);
+        if (!error && std::filesystem::is_directory(home))
+            return home.string();
+    }
+
+    home = std::filesystem::current_path();
+    while (!home.empty() && home.has_relative_path()) {
+        if (looks_like_binary_release_home(home) || looks_like_source_release_home(home))
+            return home.string();
+
+        home = home.parent_path();
+    }
+    return home.string();
+}
+
+std::filesystem::path resolve_test_dir() {
+    auto home = resolve_ignite_home();
+    if (home.empty())
+        throw ignite_error("Can not resolve Ignite Home");
+
+    std::filesystem::path home_path(home);
+    auto test_path = home_path / "modules" / "platforms" / "cpp" / "tests";
+    if (std::filesystem::is_directory(test_path))
+        return test_path;
+
+    throw ignite_error("Can not find a 'tests' directory in the current Ignite Home: " + home);
+}
+
+std::filesystem::path resolve_temp_dir(std::string_view subDir, std::string_view prefix) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 15);
+
+    std::stringstream ss;
+
+    if (!prefix.empty()) {
+        ss << prefix << "_";
+    }
+
+
+    for (int i = 0; i < 16; ++i) {
+        int num = dis(gen);
+
+        if (num <= 9) {
+            ss << num;
+        } else {
+            ss << static_cast<char>('a' + (num - 10));
+        }
+    }
+
+    auto path = std::filesystem::temp_directory_path();
+
+    if (!subDir.empty()) {
+        path /= subDir;
+    }
+
+    return path / ss.str();
+}
+
+bool check_test_node_connectable(std::chrono::seconds timeout) {
+    try {
+        ensure_node_connectable(timeout);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+void ensure_node_connectable(std::chrono::seconds timeout) {
+    for (auto &addr : ignite_runner::get_node_addrs()) {
+        auto client = ignite_client::start({addr}, timeout);
+    }
+}
+
+bool wait_for_condition(std::chrono::seconds timeout, const std::function<bool()> &predicate) {
+    auto start_time = std::chrono::steady_clock::now();
+    do {
+        bool success;
+        try {
+            success = predicate();
+        } catch (...) {
+            success = false;
+        }
+
+        if (success)
+            return true;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    } while ((std::chrono::steady_clock::now() - start_time) < timeout);
+    return false;
+}
+
+} // namespace ignite

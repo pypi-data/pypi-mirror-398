@@ -1,0 +1,389 @@
+/*
+ *  Copyright (C) GridGain Systems. All Rights Reserved.
+ *  _________        _____ __________________        _____
+ *  __  ____/___________(_)______  /__  ____/______ ____(_)_______
+ *  _  / __  __  ___/__  / _  __  / _  / __  _  __ `/__  / __  __ \
+ *  / /_/ /  _  /    _  /  / /_/ /  / /_/ /  / /_/ / _  /  _  / / /
+ *  \____/   /_/     /_/   \_,__/   \____/   \__,_/  /_/   /_/ /_/
+ */
+
+// THIS IS AUTO-GENERATED FILE. DO NOT EDIT.
+
+#pragma once
+
+#include <cstdint>
+
+namespace ignite {
+
+namespace error {
+
+using underlying_t = std::uint32_t;
+
+static inline const std::uint32_t group_shift = 16;
+
+// Error groups codes.
+enum class group : underlying_t {
+    CMN = 0x1,
+    TBL = 0x2,
+    CLIENT = 0x3,
+    SQL = 0x4,
+    META = 0x5,
+    IDX = 0x6,
+    TX = 0x7,
+    REP = 0x8,
+    STORAGE = 0x9,
+    DISTRZONES = 0xa,
+    NETWORK = 0xb,
+    NODECFG = 0xc,
+    CODEDEPLOY = 0xd,
+    GC = 0xe,
+    AUTHENTICATION = 0xf,
+    COMPUTE = 0x10,
+    CATALOG = 0x11,
+    PLACEMENTDRIVER = 0x12,
+    WORKERS = 0x13,
+    RECOVERY = 0x14,
+    EMBEDDED = 0x15,
+    MARSHALLING = 0x16,
+    REST = 0x17,
+    COMMONCFG = 0x18,
+    RBAC = 0x3e9,
+    SECURITY = 0x3ea,
+    LDAP = 0x3eb,
+    NODEKEYMGMT = 0x3ec,
+    JWT = 0x3ed,
+    SNAPSHOTS = 0x3ee,
+    DCR = 0x3ef,
+    ENCRYPTION = 0x3f0,
+    LICENSE = 0x3f1,
+    CACHESTORE = 0x3f2,
+    MEMQUOTA = 0x3f3,
+    PITR = 0x3f4,
+    CACHE = 0x3f5,
+    SECONDARY_STORAGE = 0x3f6,
+    CONTINUOUSQUERY = 0x3f7,
+    CDC = 0x3f8
+};
+
+inline group get_group_by_error_code(const underlying_t code) {
+    return group(code >> group_shift);
+}
+
+// Error codes.
+enum class code : underlying_t {
+    // Common group. Group code: 1
+    NODE_STOPPING = 0x10001,
+    COMPONENT_NOT_STARTED = 0x10002,
+    ILLEGAL_ARGUMENT = 0x10003,
+    SSL_CONFIGURATION = 0x10004,
+    NODE_LEFT = 0x10005,
+    CURSOR_ALREADY_CLOSED = 0x10006,
+    RESOURCE_CLOSING = 0x10007,
+    USER_OBJECT_SERIALIZATION = 0x10008,
+    NULLABLE_VALUE = 0x10009,
+    UNSUPPORTED_TABLE_BASED_REPLICATION = 0x1000a,
+    INTERNAL = 0x1ffff,
+
+    // Table group. Group code: 2
+    TABLE_ALREADY_EXISTS = 0x20001,
+    TABLE_NOT_FOUND = 0x20002,
+    COLUMN_ALREADY_EXISTS = 0x20003,
+    COLUMN_NOT_FOUND = 0x20004,
+    SCHEMA_VERSION_MISMATCH = 0x20005,
+    UNSUPPORTED_PARTITION_TYPE = 0x20006,
+
+    // Client group. Group code: 3
+    CONNECTION = 0x30001,
+    PROTOCOL = 0x30002,
+    PROTOCOL_COMPATIBILITY = 0x30003,
+    TABLE_ID_NOT_FOUND = 0x30004,
+    CONFIGURATION = 0x30005,
+    CLUSTER_ID_MISMATCH = 0x30006,
+    CLIENT_SSL_CONFIGURATION = 0x30007,
+    HANDSHAKE_HEADER = 0x30008,
+    SERVER_TO_CLIENT_REQUEST = 0x30009,
+    RESOURCE_NOT_FOUND = 0x3000a,
+    OPERATION_TIMEOUT = 0x3000b,
+
+    // Sql group. Group code: 4
+    QUERY_NO_RESULT_SET = 0x40001,
+    SCHEMA_NOT_FOUND = 0x40002,
+    STMT_PARSE = 0x40003,
+    STMT_VALIDATION = 0x40004,
+    CONSTRAINT_VIOLATION = 0x40005,
+    EXECUTION_CANCELLED = 0x40006,
+    RUNTIME = 0x40007,
+    MAPPING = 0x40008,
+    TX_CONTROL_INSIDE_EXTERNAL_TX = 0x40009,
+
+    // MetaStorage group. Group code: 5
+    STARTING_STORAGE = 0x50001,
+    RESTORING_STORAGE = 0x50002,
+    COMPACTION = 0x50003,
+    OP_EXECUTION = 0x50004,
+    OP_EXECUTION_TIMEOUT = 0x50005,
+    COMPACTED = 0x50006,
+    DIVERGED = 0x50007,
+
+    // Index group. Group code: 6
+    INDEX_NOT_FOUND = 0x60001,
+    INDEX_ALREADY_EXISTS = 0x60002,
+
+    // Transactions group. Group code: 7
+    TX_STATE_STORAGE = 0x70001,
+    TX_STATE_STORAGE_STOPPED = 0x70002,
+    TX_UNEXPECTED_STATE = 0x70003,
+    ACQUIRE_LOCK = 0x70004,
+    ACQUIRE_LOCK_TIMEOUT = 0x70005,
+    TX_COMMIT = 0x70006,
+    TX_ROLLBACK = 0x70007,
+    TX_FAILED_READ_WRITE_OPERATION = 0x70008,
+    TX_STATE_STORAGE_REBALANCE = 0x70009,
+    TX_READ_ONLY_TOO_OLD = 0x7000a,
+    TX_INCOMPATIBLE_SCHEMA = 0x7000b,
+    TX_PRIMARY_REPLICA_EXPIRED = 0x7000c,
+    TX_ALREADY_FINISHED = 0x7000d,
+    TX_STALE_OPERATION = 0x7000e,
+    TX_STALE_READ_ONLY_OPERATION = 0x7000f,
+    TX_ALREADY_FINISHED_WITH_TIMEOUT = 0x70010,
+    TX_DELAYED_ACK = 0x70011,
+
+    // Replicator group. Group code: 8
+    REPLICA_COMMON = 0x80001,
+    REPLICA_IS_ALREADY_STARTED = 0x80002,
+    REPLICA_TIMEOUT = 0x80003,
+    REPLICA_UNSUPPORTED_REQUEST = 0x80004,
+    REPLICA_UNAVAILABLE = 0x80005,
+    REPLICA_MISS = 0x80006,
+    CURSOR_CLOSE = 0x80007,
+    REPLICA_STOPPING = 0x80008,
+    GROUP_OVERLOADED = 0x80009,
+
+    // Storage group. Group code: 9
+    INDEX_NOT_BUILT = 0x90001,
+    STORAGE_CORRUPTED = 0x90002,
+
+    // DistributionZones group. Group code: 10
+    ZONE_NOT_FOUND = 0xa0001,
+    EMPTY_DATA_NODES = 0xa0002,
+
+    // Network group. Group code: 11
+    UNRESOLVABLE_CONSISTENT_ID = 0xb0001,
+    BIND = 0xb0002,
+    FILE_TRANSFER = 0xb0003,
+    FILE_VALIDATION = 0xb0004,
+    RECIPIENT_LEFT = 0xb0005,
+    ADDRESS_UNRESOLVED = 0xb0006,
+    PORT_IN_USE [[deprecated("PORT_IN_USE is deprecated. Use BIND instead.")]] = BIND,
+
+    // NodeConfiguration group. Group code: 12
+    CONFIG_READ = 0xc0001,
+    CONFIG_FILE_CREATE = 0xc0002,
+    CONFIG_WRITE = 0xc0003,
+    CONFIG_PARSE = 0xc0004,
+    JOIN_DENIED = 0xc0005,
+
+    // CodeDeployment group. Group code: 13
+    UNIT_NOT_FOUND = 0xd0001,
+    UNIT_ALREADY_EXISTS = 0xd0002,
+    UNIT_CONTENT_READ = 0xd0003,
+    UNIT_UNAVAILABLE = 0xd0004,
+    UNIT_ZIP = 0xd0005,
+    UNIT_WRITE = 0xd0006,
+
+    // GarbageCollector group. Group code: 14
+    CLOSED = 0xe0001,
+
+    // Authentication group. Group code: 15
+    UNSUPPORTED_AUTHENTICATION_TYPE = 0xf0001,
+    INVALID_CREDENTIALS = 0xf0002,
+    BASIC_PROVIDER = 0xf0003,
+
+    // Compute group. Group code: 16
+    CLASS_PATH = 0x100001,
+    CLASS_LOADER = 0x100002,
+    CLASS_INITIALIZATION = 0x100003,
+    QUEUE_OVERFLOW = 0x100004,
+    COMPUTE_JOB_STATUS_TRANSITION = 0x100005,
+    CANCELLING = 0x100006,
+    RESULT_NOT_FOUND = 0x100007,
+    FAIL_TO_GET_JOB_STATE = 0x100008,
+    COMPUTE_JOB_FAILED = 0x100009,
+    PRIMARY_REPLICA_RESOLVE = 0x10000a,
+    CHANGE_JOB_PRIORITY = 0x10000b,
+    NODE_NOT_FOUND = 0x10000c,
+    MARSHALLING_TYPE_MISMATCH = 0x10000d,
+    COMPUTE_JOB_CANCELLED = 0x10000e,
+    COMPUTE_PLATFORM_EXECUTOR = 0x10000f,
+
+    // Catalog group. Group code: 17
+    VALIDATION = 0x110001,
+
+    // PlacementDriver group. Group code: 18
+    PRIMARY_REPLICA_AWAIT_TIMEOUT = 0x120001,
+    PRIMARY_REPLICA_AWAIT = 0x120002,
+    EMPTY_ASSIGNMENTS = 0x120003,
+
+    // CriticalWorkers group. Group code: 19
+    SYSTEM_WORKER_BLOCKED = 0x130001,
+    SYSTEM_CRITICAL_OPERATION_TIMEOUT = 0x130002,
+
+    // DisasterRecovery group. Group code: 20
+    ILLEGAL_PARTITION_ID = 0x140001,
+    NODES_NOT_FOUND = 0x140002,
+    PARTITION_STATE = 0x140003,
+    CLUSTER_NOT_IDLE = 0x140004,
+    NOT_ENOUGH_ALIVE_NODES = 0x140005,
+    ILLEGAL_NODES_SET = 0x140006,
+    REQUEST_FORWARD = 0x140007,
+
+    // Embedded group. Group code: 21
+    CLUSTER_NOT_INITIALIZED = 0x150001,
+    CLUSTER_INIT_FAILED = 0x150002,
+    NODE_NOT_STARTED = 0x150003,
+    NODE_START = 0x150004,
+
+    // Marshalling group. Group code: 22
+    COMMON = 0x160001,
+    UNSUPPORTED_OBJECT_TYPE = 0x160002,
+    UNMARSHALLING = 0x160003,
+
+    // Rest group. Group code: 23
+    CLUSTER_NOT_INIT = 0x170001,
+
+    // CommonConfiguration group. Group code: 24
+    CONFIGURATION_APPLY = 0x180001,
+    CONFIGURATION_PARSE = 0x180002,
+    CONFIGURATION_VALIDATION = 0x180003,
+
+    // Rbac group. Group code: 1001
+    COMMON_RBAC = 0x3e90001,
+    USER_NOT_FOUND = 0x3e90002,
+    USER_VALIDATION = 0x3e90003,
+    USER_ALREADY_EXISTS = 0x3e90004,
+    USER_UPDATE = 0x3e90005,
+    USER_ASSIGNMENT_EXISTS = 0x3e90006,
+    ROLE_NOT_FOUND = 0x3e90007,
+    ROLE_ALREADY_EXISTS = 0x3e90008,
+    ROLE_VALIDATION = 0x3e90009,
+    ROLE_ASSIGNMENT_NOT_FOUND = 0x3e9000a,
+    ROLE_ASSIGNMENT_EXISTS = 0x3e9000b,
+    ROLE_GRANTED = 0x3e9000c,
+    ILLEGAL_PRIVILEGE = 0x3e9000d,
+    ILLEGAL_PRIVILEGE_SELECTOR = 0x3e9000e,
+    AUTHORIZATION_FAILED = 0x3e9000f,
+    SYSTEM_USER_MODIFICATION = 0x3e90010,
+
+    // Security group. Group code: 1002
+    COMMON_SECURITY = 0x3ea0001,
+    SECURITY_CONTEXT_NOT_SET = 0x3ea0002,
+    FAIL_TO_GET_JOB_OWNER = 0x3ea0003,
+
+    // Ldap group. Group code: 1003
+    COMMON_LDAP = 0x3eb0001,
+    LDAP_CLIENT_INIT = 0x3eb0002,
+    LDAP_SEARCH_REQUEST = 0x3eb0003,
+    LDAP_USER_NOT_FOUND = 0x3eb0004,
+
+    // NodeKeyManagement group. Group code: 1004
+    KEY_DECODING = 0x3ec0001,
+    KEY_EXPIRED = 0x3ec0002,
+    KEY_GENERATION = 0x3ec0003,
+    KEY_STORE = 0x3ec0004,
+    KEY_SER_DE = 0x3ec0005,
+    KEY_VALIDATION = 0x3ec0006,
+
+    // Jwt group. Group code: 1005
+    JWT_VALIDATION = 0x3ed0001,
+    JWT_SER_DE = 0x3ed0002,
+
+    // Snapshots group. Group code: 1006
+    SNAPSHOT = 0x3ee0001,
+    SNAPSHOT_CANCELED = 0x3ee0002,
+    SNAPSHOT_ILLEGAL_ARGUMENT = 0x3ee0003,
+    SNAPSHOT_NOT_FOUND = 0x3ee0004,
+    SNAPSHOT_META_NOT_FOUND = 0x3ee0005,
+    SNAPSHOT_OPERATION_NOT_FOUND = 0x3ee0006,
+    SNAPSHOT_TABLES_NOT_FOUND = 0x3ee0007,
+    SNAPSHOT_URI_NOT_FOUND = 0x3ee0008,
+    SNAPSHOT_ENCRYPTION_PROVIDER_NOT_FOUND = 0x3ee0009,
+    SNAPSHOT_REPLICA_TIMEOUT = 0x3ee000a,
+
+    // DataCenterReplication group. Group code: 1007
+    DCR = 0x3ef0001,
+    REPLICATION_CREATE = 0x3ef0002,
+    REPLICATION_STARTUP = 0x3ef0003,
+    RUNNING_REPLICATION_REMOVE = 0x3ef0004,
+    INCOMPATIBLE_SCHEMAS = 0x3ef0005,
+    REPLICATION_STOP = 0x3ef0006,
+    SOURCE_TABLE_NOT_EXIST = 0x3ef0007,
+    REPLICATION_STARTUP_SAME_TABLE = 0x3ef0008,
+    REPLICATION_NOT_FOUND = 0x3ef0009,
+    REPLICATION_ALREADY_EXISTS = 0x3ef000a,
+    SOURCE_TABLES_NOT_DEFINED = 0x3ef000b,
+    REPLICATION_TO_SELF = 0x3ef000c,
+
+    // Encryption group. Group code: 1008
+    KEY_PROVIDER_NOT_FOUND = 0x3f00001,
+    INVALID_KEY_PROVIDER_CONFIGURATION = 0x3f00002,
+    CANNOT_INIT_KEY_PROVIDER = 0x3f00003,
+    DATA_ENCRYPTION_KEY_NOT_FOUND = 0x3f00004,
+    AWS_KMS_COMMON = 0x3f00005,
+    AWS_KMS_KEY_NOT_FOUND = 0x3f00006,
+    AWS_KMS_KEY_DISABLED = 0x3f00007,
+
+    // License group. Group code: 1009
+    COMMON_LICENSE = 0x3f10001,
+    MISSING_LICENSE = 0x3f10002,
+    INVALID_SIGNATURE = 0x3f10003,
+    MISSING_REQUIRED_FEATURES = 0x3f10004,
+    INVALID_BLOCKED_LICENSES_LIST = 0x3f10005,
+
+    // CacheStore group. Group code: 1010
+    CACHE_STORE_CONFIG = 0x3f20001,
+    CACHE_STORE_ACCESS = 0x3f20002,
+
+    // MemoryQuota group. Group code: 1011
+    SPILLING = 0x3f30001,
+    DISK_QUOTA_EXCEEDED = 0x3f30002,
+    STATEMENT_MEMORY_QUOTA_EXCEEDED = 0x3f30003,
+    SQL_OUT_OF_MEMORY = 0x3f30004,
+
+    // PointInTimeRecovery group. Group code: 1012
+    PITR = 0x3f40001,
+    PITR_CANCELED = 0x3f40002,
+
+    // Cache group. Group code: 1013
+    TX_INCOMPATIBLE_OPERATION = 0x3f50001,
+
+    // SecondaryStorage group. Group code: 1014
+    SECONDARY_STORAGE_REPLICATION_FAILURE = 0x3f60001,
+    SECONDARY_STORAGE_REPLICATION_MANAGER_STARTUP = 0x3f60002,
+    SECONDARY_STORAGE_BRIDGE_STARTUP = 0x3f60003,
+    SECONDARY_STORAGE_NOT_INITIALIZED = 0x3f60004,
+    SECONDARY_STORAGE_WRITE = 0x3f60005,
+    SECONDARY_STORAGE_READ = 0x3f60006,
+
+    // ContinuousQuery group. Group code: 1015
+    WATERMARK_TOO_OLD = 0x3f70001,
+    WATERMARK_TOO_OLD_TABLE_DOES_NOT_EXIST = 0x3f70002,
+
+    // Cdc group. Group code: 1016
+    COMMON_CDC = 0x3f80001,
+    CDC_INTERNAL = 0x3f80002,
+    CDC_VALIDATION = 0x3f80003,
+    CDC_SINK_INIT = 0x3f80004,
+    CDC_REPLICATION_START = 0x3f80005,
+    CDC_REPLICATION_STOP = 0x3f80006,
+    CDC_SINK_ALREADY_EXISTS = 0x3f80007,
+    CDC_SOURCE_ALREADY_EXISTS = 0x3f80008,
+    CDC_SOURCE_NOT_FOUND = 0x3f80009,
+    CDC_SINK_NOT_FOUND = 0x3f8000a,
+    CDC_REPLICATION_NOT_FOUND = 0x3f8000b,
+    CDC_REPLICATION_ALREADY_EXISTS = 0x3f8000c,
+    CDC_DISABLED = 0x3f8000d
+};
+
+} // namespace error
+
+} // namespace ignite

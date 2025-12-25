@@ -1,0 +1,111 @@
+/*
+ *  Copyright (C) GridGain Systems. All Rights Reserved.
+ *  _________        _____ __________________        _____
+ *  __  ____/___________(_)______  /__  ____/______ ____(_)_______
+ *  _  / __  __  ___/__  / _  __  / _  / __  _  __ `/__  / __  __ \
+ *  / /_/ /  _  /    _  /  / /_/ /  / /_/ /  / /_/ / _  /  _  / / /
+ *  \____/   /_/     /_/   \_,__/   \____/   \__,_/  /_/   /_/ /_/
+ */
+
+#pragma once
+
+#include "cmd_process.h"
+#include "test_utils.h"
+
+#include "ignite/common/detail/utils.h"
+
+#include <chrono>
+#include <string_view>
+
+namespace ignite {
+
+/**
+ * Represents ignite_runner process.
+ *
+ * ignite_runner is started from the command line. It is recommended to re-use
+ * the same ignite_runner as much as possible to make tests as quick as possible.
+ */
+class ignite_runner {
+public:
+    static std::vector<std::string> SINGLE_NODE_ADDR;
+    static std::vector<std::string> NODE_ADDRS;
+    static std::vector<std::string> SSL_NODE_ADDRS;
+    static std::vector<std::string> SSL_NODE_CA_ADDRS;
+    static std::vector<std::string> COMPATIBILITY_NODE_ADDRS;
+    inline static bool COMPATIBILITY_MODE = false;
+    inline static std::string COMPATIBILITY_VERSION;
+
+    ignite_runner() = default;
+
+    /**
+     *
+     * @param version If present then should start server of that particular version otherwise current version.
+     */
+    ignite_runner(std::string_view version);
+
+    /**
+     * Destructor.
+     */
+    ~ignite_runner() { stop(); }
+
+    /**
+     * Start node.
+     */
+    void start();
+
+    /**
+     * Stop node.
+     */
+    void stop();
+
+    /**
+     * Join a node process.
+     *
+     * @param timeout Timeout.
+     */
+    void join(std::chrono::milliseconds timeout);
+
+    /**
+     * Check whether tests run in single node mode.
+     *
+     * @return @c true if tests run in single node mode.
+     */
+    static bool single_node_mode() { return ignite::detail::get_env("IGNITE_CPP_TESTS_USE_SINGLE_NODE").has_value(); }
+
+    /**
+     * Get node addresses to use for tests.
+     *
+     * @return Addresses.
+     */
+    static std::vector<std::string> get_node_addrs() {
+        if (COMPATIBILITY_MODE) {
+            return COMPATIBILITY_NODE_ADDRS;
+        }
+
+        if (single_node_mode())
+            return SINGLE_NODE_ADDR;
+
+        return NODE_ADDRS;
+    }
+
+    /**
+     * Get node addresses to use for tests.
+     *
+     * @return Addresses.
+     */
+    static std::vector<std::string> get_ssl_node_addrs() { return SSL_NODE_ADDRS; }
+
+    /**
+     * Get node addresses to use for tests.
+     *
+     * @return Addresses.
+     */
+    static std::vector<std::string> get_ssl_node_ca_addrs() { return SSL_NODE_CA_ADDRS; }
+
+private:
+    /** Underlying process. */
+    std::unique_ptr<CmdProcess> m_process;
+    std::optional<std::string> m_version = std::nullopt;
+};
+
+} // namespace ignite
