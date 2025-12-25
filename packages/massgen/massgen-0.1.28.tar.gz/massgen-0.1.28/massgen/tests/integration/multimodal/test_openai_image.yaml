@@ -1,0 +1,31 @@
+# MassGen Integration Test: OpenAI Image Multimodal
+# Tests read_media tool with OpenAI GPT-4o for native image processing
+#
+# Expected: Model should correctly identify "multimodality" infographic from HelpfulProfessor.com
+
+agents:
+  - id: "openai_image"
+    backend:
+      type: "openai"
+      model: "gpt-4o"
+      cwd: "workspace_openai"
+      custom_tools:
+        - name: ["read_media"]
+          category: "multimodal"
+          path: "massgen/tool/_multimodal_tools/read_media.py"
+          function: ["read_media"]
+    system_message: |
+      You are an AI assistant with vision capabilities.
+      Use the read_media tool to read and analyze images.
+      When asked about an image, use read_media to load it, then describe what you see.
+
+orchestrator:
+  snapshot_storage: "snapshots"
+  agent_temporary_workspace: "temp_workspaces"
+  context_paths:
+    - path: "massgen/configs/resources/v0.1.3-example/multimodality.jpg"
+      permission: "read"
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true

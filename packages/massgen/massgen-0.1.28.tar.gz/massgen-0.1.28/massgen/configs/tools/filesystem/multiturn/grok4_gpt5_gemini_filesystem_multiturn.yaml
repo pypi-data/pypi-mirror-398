@@ -1,0 +1,56 @@
+# Multi-Turn Filesystem Configuration Example
+#
+# This configuration enables agents to build upon previous work across multiple conversation turns.
+#
+# Key Features:
+# - context_paths: Gives agents access to your project files
+#   - Use "." for current directory to work directly in your project
+#   - Files are read-only during coordination, writable by final agent
+#
+# Example usage:
+# massgen --config @examples/tools/filesystem/multiturn_grok4_gpt5_gemini_filesystem_multiturn
+#
+# Or with uv tool:
+# uv tool run massgen --config tools/filesystem/multiturn/grok4_gpt5_gemini_filesystem_multiturn.yaml
+
+agents:
+  - id: "agent_a"
+    backend:
+      type: "grok"
+      model: "grok-4-fast-reasoning"  # "grok-code-fast-1"
+      cwd: "workspace1"
+
+  - id: "agent_b"
+    backend:
+      type: "openai"
+      model: "gpt-5-mini"
+      text:
+        verbosity: "medium"
+      reasoning:
+        effort: "medium"
+        summary: "auto"
+      cwd: "workspace2"
+
+  - id: "agent_c"
+    backend:
+      type: "gemini"
+      model: "gemini-2.5-pro"
+      cwd: "workspace3"
+
+orchestrator:
+    snapshot_storage: "snapshots"  # Directory to store workspace snapshots
+    agent_temporary_workspace: "temp_workspaces"  # Directory for temporary agent workspaces
+
+    # Context paths - give agents access to your project files
+    # Tip: Use "." to automatically work in current directory
+    context_paths:
+      - path: "."  # Current directory (where you run massgen)
+        permission: "write"  # Allow final agent to create/modify files
+        # Optional: Add protected_paths to prevent accidental modifications
+        # protected_paths:
+        #   - ".env"
+        #   - "config.json"
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true

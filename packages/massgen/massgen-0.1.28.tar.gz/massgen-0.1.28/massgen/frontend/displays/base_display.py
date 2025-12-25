@@ -1,0 +1,157 @@
+# -*- coding: utf-8 -*-
+"""
+Base Display Interface for MassGen Coordination
+
+Defines the interface that all display implementations must follow.
+"""
+
+from abc import ABC, abstractmethod
+from typing import List, Optional
+
+
+class BaseDisplay(ABC):
+    """Abstract base class for MassGen coordination displays."""
+
+    def __init__(self, agent_ids: List[str], **kwargs):
+        """Initialize display with agent IDs and configuration."""
+        self.agent_ids = agent_ids
+        self.agent_outputs = {agent_id: [] for agent_id in agent_ids}
+        self.agent_status = {agent_id: "waiting" for agent_id in agent_ids}
+        self.orchestrator_events = []
+        self.config = kwargs
+
+    @abstractmethod
+    def initialize(self, question: str, log_filename: Optional[str] = None):
+        """Initialize the display with question and optional log file."""
+
+    @abstractmethod
+    def update_agent_content(self, agent_id: str, content: str, content_type: str = "thinking"):
+        """Update content for a specific agent.
+
+        Args:
+            agent_id: The agent whose content to update
+            content: The content to add/update
+            content_type: Type of content ("thinking", "tool", "status")
+        """
+
+    @abstractmethod
+    def update_agent_status(self, agent_id: str, status: str):
+        """Update status for a specific agent.
+
+        Args:
+            agent_id: The agent whose status to update
+            status: New status ("waiting", "working", "completed")
+        """
+
+    @abstractmethod
+    def add_orchestrator_event(self, event: str):
+        """Add an orchestrator coordination event.
+
+        Args:
+            event: The coordination event message
+        """
+
+    @abstractmethod
+    def show_final_answer(self, answer: str, vote_results=None, selected_agent=None):
+        """Display the final coordinated answer.
+
+        Args:
+            answer: The final coordinated answer
+            vote_results: Dictionary of vote results (optional)
+            selected_agent: The selected agent (optional)
+        """
+
+    @abstractmethod
+    def show_post_evaluation_content(self, content: str, agent_id: str):
+        """Display post-evaluation streaming content.
+
+        Args:
+            content: Post-evaluation content from the agent
+            agent_id: The agent performing the evaluation
+        """
+
+    @abstractmethod
+    def show_restart_banner(self, reason: str, instructions: str, attempt: int, max_attempts: int):
+        """Display restart decision banner.
+
+        Args:
+            reason: Why the restart was triggered
+            instructions: Instructions for the next attempt
+            attempt: Next attempt number
+            max_attempts: Maximum attempts allowed
+        """
+
+    @abstractmethod
+    def show_restart_context_panel(self, reason: str, instructions: str):
+        """Display restart context panel at top of UI (for attempt 2+).
+
+        Args:
+            reason: Why the previous attempt restarted
+            instructions: Instructions for this attempt
+        """
+
+    @abstractmethod
+    def cleanup(self):
+        """Clean up display resources."""
+
+    def get_agent_content(self, agent_id: str) -> List[str]:
+        """Get all content for a specific agent."""
+        return self.agent_outputs.get(agent_id, [])
+
+    def get_agent_status(self, agent_id: str) -> str:
+        """Get current status for a specific agent."""
+        return self.agent_status.get(agent_id, "unknown")
+
+    def get_orchestrator_events(self) -> List[str]:
+        """Get all orchestrator events."""
+        return self.orchestrator_events.copy()
+
+    def process_reasoning_content(self, chunk_type: str, content: str, source: str) -> str:
+        """Process reasoning content and add prefixes as needed.
+
+        Args:
+            chunk_type: Type of the chunk (e.g., "reasoning_summary")
+            content: The content to process
+            source: The source agent/component
+
+        Returns:
+            Processed content with prefix if needed
+        """
+        if chunk_type == "reasoning":
+            # Track if we're in an active reasoning for this source
+            reasoning_active_key = f"_reasoning_active_{source}"
+
+            if not hasattr(self, reasoning_active_key) or not getattr(self, reasoning_active_key, False):
+                # Start of new reasoning - add prefix and mark as active
+                setattr(self, reasoning_active_key, True)
+                return f"🧠 [Reasoning Started]\n{content}\n"
+            else:
+                # Continuing existing reasoning - no prefix
+                return content
+
+        elif chunk_type == "reasoning_done":
+            # End of reasoning - reset flag
+            reasoning_active_key = f"_reasoning_active_{source}"
+            if hasattr(self, reasoning_active_key):
+                setattr(self, reasoning_active_key, False)
+            return "\n🧠 [Reasoning Complete]\n"
+
+        elif chunk_type == "reasoning_summary":
+            # Track if we're in an active summary for this source
+            summary_active_key = f"_summary_active_{source}"
+
+            if not hasattr(self, summary_active_key) or not getattr(self, summary_active_key, False):
+                # Start of new summary - add prefix and mark as active
+                setattr(self, summary_active_key, True)
+                return f"📋 [Reasoning Summary]\n{content}\n"
+            else:
+                # Continuing existing summary - no prefix
+                return content
+
+        elif chunk_type == "reasoning_summary_done":
+            # End of reasoning summary - reset flag
+            summary_active_key = f"_summary_active_{source}"
+            if hasattr(self, summary_active_key):
+                setattr(self, summary_active_key, False)
+
+        return content

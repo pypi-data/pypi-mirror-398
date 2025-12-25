@@ -1,0 +1,77 @@
+# MassGen Configuration: Computer Use - Docker Environment
+#
+# This configuration uses a Docker container for OS-level automation.
+#
+# Usage:
+#   massgen --config @examples/tools/custom_tools/computer_use_docker_example "Open calculator and compute 123 + 456"
+#
+# Prerequisites:
+#   1. Set OPENAI_API_KEY in your .env file
+#   2. Docker installed and running
+#   3. Docker container will be automatically created on first run
+#      (or manually: ./scripts/setup_docker_cua.sh)
+#
+# Note: MassGen will automatically setup the Computer Use Docker container
+#       when you first run this config. The container includes:
+#       - Ubuntu 22.04 with Xfce desktop
+#       - X11 virtual display on :99
+#       - xdotool for GUI automation
+#       - Firefox and Chromium browsers
+#       - scrot for screenshots
+
+agents:
+  - id: "docker_automation_agent"
+    backend:
+      type: "openai"
+      model: "computer-use-preview"
+      custom_tools:
+        - name: ["computer_use"]
+          category: "automation"
+          path: "massgen/tool/_computer_use/computer_use_tool.py"
+          function: ["computer_use"]
+          # Default parameters for Docker environment
+          default_params:
+            environment: "linux"
+            display_width: 1280
+            display_height: 800
+            max_iterations: 25
+            include_reasoning: true
+            model: "computer-use-preview"
+            environment_config:
+              container_name: "cua-container"
+              display: ":99"
+        - name: ["understand_image"]
+          category: "multimodal"
+          path: "massgen/tool/_multimodal_tools/understand_image.py"
+          function: ["understand_image"]
+
+    system_message: |
+      You are a computer automation specialist with access to the computer_use tool.
+
+      You can control a virtual Ubuntu environment running in Docker to:
+      - Launch and use desktop applications
+      - Perform file operations
+      - Execute system-level tasks
+      - Automate GUI interactions
+
+      The environment includes:
+      - Ubuntu 22.04 desktop (Xfce)
+      - Firefox browser
+      - Standard desktop applications
+      - X11 display system
+
+      When using the computer_use tool:
+      1. Tasks are executed in a sandboxed Docker container
+      2. You have full desktop access via xdotool commands
+      3. Screenshots are captured after each action
+      4. Be specific about coordinates when clicking
+
+      Best practices:
+      - Allow time for applications to launch
+      - Use wait actions between steps
+      - Verify GUI elements are visible before clicking
+      - Consider screen resolution (1280x800)
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true

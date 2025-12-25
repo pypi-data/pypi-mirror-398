@@ -1,0 +1,54 @@
+# MassGen Configuration: Media Generation with Backend Configuration
+#
+# This config demonstrates how to configure preferred backends and models
+# for image, video, and audio generation at the orchestrator level.
+#
+# Usage:
+# uv run python -m massgen.cli --config massgen/configs/tools/custom_tools/multimodal_tools/generation_with_backend_config.yaml "Generate an image of a sunset over mountains, then describe it"
+#
+# All agents will use Google Imagen for image generation (as configured below).
+
+orchestrator:
+  snapshot_storage: "snapshots"
+  agent_temporary_workspace: "temp_workspaces"
+
+  # Enable multimodal tools for all agents
+  enable_multimodal_tools: true
+
+  # Configure preferred backends for each generation type (applies to all agents)
+  # These override auto-selection based on API key availability
+  #
+  # Available backends per type:
+  #   - image: "google" (Imagen), "openai" (DALL-E/GPT-image), "openrouter"
+  #   - video: "google" (Veo), "openai" (Sora)
+  #   - audio: "openai" (TTS)
+  image_generation_backend: "openai"
+  video_generation_backend: "openai"
+  audio_generation_backend: "openai"
+
+  # Optionally specify exact models (overrides defaults)
+  # image_generation_model: "imagen-3.0-generate-002"
+  # video_generation_model: "veo-2.0-generate-001"
+  # audio_generation_model: "gpt-4o-mini-tts"
+
+agents:
+  - id: "media_agent"
+    backend:
+      type: "openai"
+      model: "gpt-4o"
+      text:
+        verbosity: "medium"
+      cwd: "workspace_media"  # Working directory for generated files
+      # Inherits enable_multimodal_tools and generation backends from orchestrator
+
+  # Example: Override orchestrator defaults for a specific agent
+  # - id: "openai_only_agent"
+  #   backend:
+  #     type: "openai"
+  #     model: "gpt-4o"
+  #     cwd: "workspace_openai"
+  #     image_generation_backend: "openai"  # Override to use OpenAI instead of Google
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true

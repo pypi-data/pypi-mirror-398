@@ -1,0 +1,32 @@
+# MassGen Integration Test: OpenAI Video Multimodal
+# Tests read_media tool with OpenAI for video processing
+# Falls back to understand_video → frame extraction + GPT-4.1 vision
+#
+# Expected: Model should correctly describe Oppenheimer trailer content
+
+agents:
+  - id: "openai_video"
+    backend:
+      type: "openai"
+      model: "gpt-5.1"
+      cwd: "workspace_openai_video"
+      custom_tools:
+        - name: ["read_media"]
+          category: "multimodal"
+          path: "massgen/tool/_multimodal_tools/read_media.py"
+          function: ["read_media"]
+    system_message: |
+      You are an AI assistant with video processing capabilities.
+      Use the read_media tool to analyze videos by examining key frames.
+      When asked about a video, use read_media to process it, then describe what you observe.
+
+orchestrator:
+  snapshot_storage: "snapshots"
+  agent_temporary_workspace: "temp_workspaces"
+  context_paths:
+    - path: "massgen/configs/resources/v0.1.3-example/oppenheimer_trailer_1920.mp4"
+      permission: "read"
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true

@@ -1,0 +1,31 @@
+# MassGen Integration Test: Claude Image Multimodal
+# Tests read_media tool with Claude for native image processing
+#
+# Expected: Model should correctly identify "multimodality" infographic from HelpfulProfessor.com
+
+agents:
+  - id: "claude_image"
+    backend:
+      type: "claude"
+      model: "claude-sonnet-4-5"
+      cwd: "workspace_claude"
+      custom_tools:
+        - name: ["read_media"]
+          category: "multimodal"
+          path: "massgen/tool/_multimodal_tools/read_media.py"
+          function: ["read_media"]
+    system_message: |
+      You are an AI assistant with multimodal capabilities.
+      Use the read_media tool to read and analyze media files (images, audio, video).
+      When asked about a media file, use read_media to load it, then describe what you observe.
+
+orchestrator:
+  snapshot_storage: "snapshots"
+  agent_temporary_workspace: "temp_workspaces"
+  context_paths:
+    - path: "massgen/configs/resources/v0.1.3-example/multimodality.jpg"
+      permission: "read"
+
+ui:
+  display_type: "rich_terminal"
+  logging_enabled: true
