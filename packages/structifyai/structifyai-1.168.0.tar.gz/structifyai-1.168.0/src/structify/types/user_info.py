@@ -1,0 +1,62 @@
+# File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+
+from typing import List, Optional
+from datetime import datetime
+from typing_extensions import Literal
+
+from .._models import BaseModel
+
+__all__ = ["UserInfo"]
+
+
+class UserInfo(BaseModel):
+    completed_onboarding: bool
+
+    credits_remaining: int
+
+    credits_used: int
+
+    feature_flags: List[
+        Literal[
+            "functional_test",
+            "pdf_parsing",
+            "boredm_construction_model",
+            "generic_suspicious_queue",
+            "new_use_case_preview",
+            "bedrock_codegen",
+            "cerebras_codegen",
+            "gemini25pro",
+            "claude_sonnet4",
+            "none",
+        ]
+    ]
+
+    full_name: str
+
+    is_developer: bool
+
+    permissions: List[Literal["labeler", "qa_labeler", "debug", "human_llm", "none"]]
+
+    user_id: str
+
+    user_type: Literal["admin", "public", "end_user"]
+
+    username: str
+
+    company_description: Optional[str] = None
+
+    company_name: Optional[str] = None
+
+    job_title: Optional[str] = None
+
+    last_selected_team_id: Optional[str] = None
+
+    linkedin_url: Optional[str] = None
+
+    onboarding_session_id: Optional[str] = None
+
+    slack_user_id: Optional[str] = None
+
+    slack_username: Optional[str] = None
+
+    survey_completed_at: Optional[datetime] = None

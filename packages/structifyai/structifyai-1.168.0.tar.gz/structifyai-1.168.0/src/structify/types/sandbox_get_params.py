@@ -1,0 +1,13 @@
+# File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+
+from __future__ import annotations
+
+from typing import Optional
+from typing_extensions import TypedDict
+
+__all__ = ["SandboxGetParams"]
+
+
+class SandboxGetParams(TypedDict, total=False):
+    modal_control_service_url_override: Optional[str]
+    """Override URL for the modal control service (for testing/development)"""
