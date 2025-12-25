@@ -1,0 +1,113 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://claimhawk.com/schemas/cudag/test_record.schema.json",
+  "title": "CUDAG Test Record",
+  "description": "Schema for test case records in test/test.json",
+  "type": "object",
+  "required": ["test_id", "screenshot", "prompt", "expected_action", "tolerance", "metadata"],
+  "properties": {
+    "test_id": {
+      "type": "string",
+      "description": "Unique identifier for this test case",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "screenshot": {
+      "type": "string",
+      "description": "Relative path to screenshot from test directory (e.g., 'images/test_00001.png')",
+      "pattern": "^images/[^/]+\\.(jpg|jpeg|png)$"
+    },
+    "prompt": {
+      "type": "string",
+      "description": "Human instruction prompt",
+      "minLength": 1
+    },
+    "expected_action": {
+      "type": "object",
+      "required": ["name", "arguments"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Tool name",
+          "const": "computer_use"
+        },
+        "arguments": {
+          "type": "object",
+          "required": ["action"],
+          "properties": {
+            "action": {
+              "type": "string",
+              "description": "Action type",
+              "enum": ["left_click", "right_click", "double_click", "scroll", "type", "key"]
+            },
+            "coordinate": {
+              "type": "array",
+              "description": "Click coordinates [x, y] in RU units (0-1000)",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "text": {
+              "type": "string",
+              "description": "Text to type (for type action)"
+            },
+            "direction": {
+              "type": "string",
+              "description": "Scroll direction",
+              "enum": ["up", "down", "left", "right"]
+            },
+            "amount": {
+              "type": "integer",
+              "description": "Scroll amount in pixels"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "tolerance": {
+      "type": "array",
+      "description": "Allowed coordinate tolerance [tol_x, tol_y] in RU units",
+      "items": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["task_type"],
+      "properties": {
+        "task_type": {
+          "type": "string",
+          "description": "Task type identifier"
+        },
+        "real_coords": {
+          "type": ["array", "null"],
+          "description": "Original pixel coordinates [x, y]",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "image_size": {
+          "type": "array",
+          "description": "Image dimensions [width, height]",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

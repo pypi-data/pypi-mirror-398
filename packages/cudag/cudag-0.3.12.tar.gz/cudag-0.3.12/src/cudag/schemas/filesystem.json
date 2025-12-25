@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://claimhawk.com/schemas/cudag/filesystem.json",
+  "title": "CUDAG Dataset Filesystem Structure",
+  "description": "Defines the required filesystem structure for CUDAG datasets",
+  "filesystem": {
+    "root": {
+      "description": "Dataset root directory (e.g., datasets/calendar--mike--20251203_123456)",
+      "required_files": [
+        {
+          "name": "config.json",
+          "description": "Generation configuration and metadata"
+        },
+        {
+          "name": "data.jsonl",
+          "description": "All training samples (JSONL format)"
+        },
+        {
+          "name": "train.jsonl",
+          "description": "Training split samples (JSONL format)"
+        },
+        {
+          "name": "val.jsonl",
+          "description": "Validation split samples (JSONL format)"
+        }
+      ],
+      "optional_files": [
+        {
+          "name": "held_out.jsonl",
+          "description": "Held-out samples for evaluation (JSONL format)"
+        }
+      ],
+      "required_directories": [
+        {
+          "name": "images",
+          "description": "Training images directory",
+          "contents": "*.jpg or *.png files referenced by train.jsonl/val.jsonl"
+        },
+        {
+          "name": "test",
+          "description": "Test cases directory"
+        }
+      ]
+    },
+    "test": {
+      "description": "Test directory structure (dataset_root/test/)",
+      "required_files": [
+        {
+          "name": "test.json",
+          "description": "Test case definitions (JSON array)"
+        }
+      ],
+      "required_directories": [
+        {
+          "name": "images",
+          "description": "Test screenshot images",
+          "contents": "*.png files referenced by test.json"
+        }
+      ],
+      "optional_directories": [
+        {
+          "name": "annotated",
+          "description": "Annotated test images with crosshairs and tool call output",
+          "contents": "*_annotated.png files"
+        }
+      ]
+    }
+  },
+  "naming_conventions": {
+    "dataset_directory": {
+      "pattern": "{prefix}--{user}--{timestamp}",
+      "example": "calendar--mike--20251203_123456"
+    },
+    "training_images": {
+      "pattern": "{dataset_name}_{index:05d}.{ext}",
+      "example": "calendar_00001.jpg"
+    },
+    "test_images": {
+      "pattern": "{prefix}_{index:05d}.png",
+      "example": "test_00001.png"
+    }
+  },
+  "constraints": [
+    "All image paths in JSONL/JSON files must be relative to their parent directory",
+    "Training images are relative to dataset root (e.g., 'images/sample.jpg')",
+    "Test screenshots are relative to test directory (e.g., 'images/test.png')",
+    "Coordinates in training data use RU (Resolution Units) normalized to [0, 1000]",
+    "Test tolerance values are in RU units"
+  ]
+}
