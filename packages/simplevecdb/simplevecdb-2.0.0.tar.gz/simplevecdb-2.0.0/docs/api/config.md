@@ -1,0 +1,3 @@
+# Configuration API
+
+::: simplevecdb.config
