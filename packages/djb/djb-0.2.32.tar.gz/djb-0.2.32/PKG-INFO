@@ -1,0 +1,490 @@
+Metadata-Version: 2.4
+Name: djb
+Version: 0.2.32
+Summary: Django + Bun deployment platform
+Author: kajicom
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/kajicom/djb
+Project-URL: Repository, https://github.com/kajicom/djb
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: django>=6.0.0
+Requires-Dist: click>=8.1.8
+Requires-Dist: cryptography>=44.0.0
+Requires-Dist: pyyaml>=6.0.2
+Requires-Dist: requests>=2.32.0
+Requires-Dist: attrs>=25.4.0
+Dynamic: license-file
+
+# djb - Django + Bun Platform
+
+<a href="https://github.com/kajicom/djb">
+  <img src="./docs/djb.svg" alt="djb mascot" width="300px" align="right">
+</a>
+
+`djb` is a deployment platform for Django applications with frontend tooling (Bun). It provides utilities for secrets management, deployment, and development workflows.
+
+djb structure:
+
+```
+djb/
+├── src/djb/
+│   ├── __init__.py      # Package entry point (exports logging, config)
+│   ├── types.py         # Core types (Mode, Target enums)
+│   ├── cli/             # Command-line interface
+│   │   ├── djb.py       # Main CLI entry point
+│   │   ├── init.py      # Environment initialization
+│   │   ├── secrets.py   # Secrets management commands
+│   │   ├── deploy.py    # Heroku deployment
+│   │   ├── health.py    # Health checks (lint, typecheck, test)
+│   │   ├── db.py        # Database operations
+│   │   └── ...          # More subcommands
+│   ├── config/          # Configuration system
+│   │   ├── __init__.py  # Public API (config, configure, DjbConfig)
+│   │   ├── config.py    # DjbConfig class and lazy loader
+│   │   └── fields.py    # Config field definitions
+│   ├── core/            # Core utilities
+│   │   ├── __init__.py  # Public API (exceptions, logging)
+│   │   ├── exceptions.py# Exception hierarchy
+│   │   └── logging.py   # Logging with colored output
+│   ├── secrets/         # Encrypted secrets management
+│   │   ├── __init__.py  # Public API exports
+│   │   ├── core.py      # SOPS encryption/decryption
+│   │   └── gpg.py       # GPG key protection
+│   └── testing/         # Reusable test utilities
+│       └── __init__.py  # pytest hooks and fixtures
+└── pyproject.toml
+```
+
+## Installation
+
+If you don't have uv installed yet:
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Install djb as a dependency in your project:
+
+```bash
+# Add djb to your project
+uv add djb
+
+# Verify djb is available
+djb --help
+```
+
+For local development of djb alongside your project:
+
+```bash
+# Clone djb into your project as a subdirectory
+git clone https://github.com/kajicom/djb
+
+# Install in editable mode
+djb editable-djb
+```
+
+## Configuration
+
+djb uses a layered configuration system with four global settings:
+
+| Setting      | CLI Flag         | Env Var            | Config Key     | Default                       |
+|--------------|------------------|--------------------|----------------|-------------------------------|
+| Project Name | `--project-name` | `DJB_PROJECT_NAME` | `project_name` | `pyproject.toml` project.name |
+| Mode         | `--mode`         | `DJB_MODE`         | `mode`         | `development`                 |
+| Target       | `--target`       | `DJB_TARGET`       | `target`       | `heroku`                      |
+| Project Dir  | `--project-dir`  | `DJB_PROJECT_DIR`  | `project_dir`  | Current directory             |
+
+**Resolution priority** (highest to lowest):
+1. CLI flag
+2. Environment variable
+3. `.djb/local.yaml` (user overrides)
+4. `.djb/project.yaml` (shared)
+5. Default value
+
+### Modes
+
+- `development` - Local development (default)
+- `staging` - Staging environment
+- `production` - Production deployment
+
+Mode affects which secrets are loaded during deployment and triggers safety guards:
+
+```bash
+# Deploy with production mode (recommended)
+djb --mode production deploy heroku
+
+# Mode persists to config when explicitly set
+djb --mode production deploy heroku  # Saves mode=production
+djb deploy heroku                    # Uses saved production mode
+```
+
+### Configuration Files
+
+Configuration is stored in two files:
+
+`.djb/local.yaml` (user-specific, gitignored):
+```yaml
+name: Your Name
+email: you@example.com
+mode: production
+```
+
+`.djb/project.yaml` (shared, committed):
+```yaml
+project_name: myapp
+hostname: example.com
+target: heroku
+seed_command: myapp.cli.seed:seed
+```
+
+Run `djb init` to set up configuration interactively.
+
+## Features
+
+### Initialization
+
+One-command setup for development environment:
+
+```bash
+# Full initialization
+djb init
+
+# Initialize with options
+djb init --skip-brew          # Skip Homebrew dependencies
+djb init --skip-frontend      # Skip frontend setup
+djb init --skip-secrets       # Skip secrets initialization
+djb init --project-root /path # Specify project directory
+```
+
+This installs:
+- System dependencies via Homebrew (age, SOPS, PostgreSQL, GDAL, Bun)
+- Python dependencies (`uv sync`)
+- Frontend dependencies (`bun install`)
+- Encrypted secrets management
+
+### Secrets Management
+
+Age + SOPS encrypted secrets for secure configuration:
+
+```bash
+# Initialize project (creates .age/keys.txt, secrets, and config)
+djb init
+
+# Edit environment secrets
+djb secrets edit dev
+djb secrets edit production
+
+# View secrets
+djb secrets view dev
+djb secrets list
+
+# Backup private key to clipboard (store in password manager!)
+djb secrets export-key | pbcopy
+```
+
+Each project has its own encryption key stored in `.age/keys.txt`.
+Make sure to back up your key securely. If lost, you won't be able to decrypt existing secrets.
+Copy your private Age key to the clipboard:
+```bash
+djb secrets export-key | pbcopy
+```
+
+**Documentation**: See [docs/SECRETS_GUIDE.md](../docs/SECRETS_GUIDE.md)
+
+#### How Secrets Encryption Works
+
+djb uses a layered encryption approach:
+
+1. **Age encryption** encrypts the actual secrets (SOPS files)
+2. **GPG encryption** protects the Age private key at rest
+3. **SOPS** provides multi-recipient encryption for team collaboration
+
+The encryption flow:
+- Your Age private key is GPG-encrypted at `.age/keys.txt.gpg`
+- When you run `djb secrets edit`, the key is temporarily decrypted
+- SOPS uses your Age key to decrypt/encrypt the secrets file
+- The Age key is immediately re-encrypted when done
+
+#### Manual Recovery Operations
+
+If djb commands fail, you can use these manual recovery operations:
+
+**Decrypt age key manually:**
+```bash
+gpg --decrypt .age/keys.txt.gpg > .age/keys.txt
+# Now you can use the plaintext key with SOPS
+```
+
+**Encrypt age key manually:**
+```bash
+gpg --encrypt --recipient your@email.com --armor --output .age/keys.txt.gpg .age/keys.txt
+rm .age/keys.txt
+```
+
+**Decrypt SOPS secrets manually:**
+```bash
+SOPS_AGE_KEY_FILE=.age/keys.txt sops --decrypt secrets/dev.yaml
+```
+
+**Encrypt/edit SOPS secrets manually:**
+```bash
+SOPS_AGE_KEY_FILE=.age/keys.txt sops secrets/dev.yaml
+```
+
+#### Emergency Recovery
+
+**Lost age key:**
+If you've lost your age private key and don't have a backup, the encrypted secrets are unrecoverable. Prevention:
+1. Store your age key in a password manager immediately after generation
+2. Use `djb secrets export-key | pbcopy` to copy it to clipboard for backup
+
+**Corrupt .sops.yaml:**
+1. Check git history: `git log -p secrets/.sops.yaml`
+2. Restore from git: `git checkout HEAD~1 -- secrets/.sops.yaml`
+3. Or regenerate with: `djb secrets rotate`
+
+**GPG agent not responding:**
+If GPG prompts hang or fail:
+```bash
+gpgconf --kill gpg-agent
+gpgconf --launch gpg-agent
+```
+
+#### Team Member Onboarding
+
+When a new team member joins:
+1. They run `djb init` to generate their own age keypair
+2. Their public key is added to `secrets/.sops.yaml`
+3. An existing team member runs `djb secrets rotate` to re-encrypt project secrets
+4. The new member can now decrypt staging/production secrets
+
+When a team member leaves:
+1. Remove their public key from `secrets/.sops.yaml`
+2. Run `djb secrets rotate` to re-encrypt with remaining keys
+3. Consider rotating any secrets they had access to
+
+### Health Checks
+
+Run linting, type checking, and tests for your project:
+
+```bash
+# Run all health checks (lint + typecheck + tests with coverage)
+djb health
+
+# Run specific checks
+djb health lint             # Run linting (black for backend, bun lint for frontend)
+djb health lint --fix       # Auto-fix lint issues
+djb health typecheck        # Run type checking (pyright for backend, tsc for frontend)
+djb health test             # Run tests (pytest for backend, bun test for frontend)
+djb health e2e              # Run E2E tests (pytest --run-e2e)
+
+# Scope to backend or frontend only
+djb health --backend        # Backend checks only
+djb health --frontend       # Frontend checks only
+djb health --backend typecheck  # Backend type checking only
+```
+
+**Code Coverage**: Tests run with coverage enabled by default. Coverage reports show which lines are missing test coverage:
+
+```bash
+# Run tests with coverage (default)
+djb health test
+
+# Disable coverage for faster test runs
+djb health test --no-cov
+```
+
+Coverage configuration is in `pyproject.toml` under `[tool.coverage.*]` sections. HTML reports are generated in `htmlcov/`.
+
+**Editable Mode Awareness**: When djb is installed in editable mode (e.g., during development), health checks automatically run for both the djb package and the host project. When running from inside the djb directory, only djb is checked (host project is skipped).
+
+### Deployment
+
+Heroku deployment with frontend builds, secrets sync, and migrations:
+
+```bash
+# Deploy to Heroku (uses project_name from config)
+djb deploy heroku
+
+# Deploy in production mode (recommended)
+djb --mode production deploy heroku
+
+# Or specify app explicitly
+djb deploy heroku --app myapp
+
+# Deploy with options
+djb deploy heroku --local-build --skip-secrets
+
+# Configure Heroku app (buildpacks, postgres, git remote)
+djb deploy heroku setup
+
+# Revert to previous deployment
+djb deploy heroku revert
+
+# Revert to specific commit
+djb deploy heroku revert abc1234
+```
+
+**Project Name**: The Heroku app name is determined from:
+1. `--app` CLI option
+2. `project_name` in `.djb/project.yaml`
+3. `project.name` in `pyproject.toml`
+
+Run `djb init` to configure your project name.
+
+## Usage
+
+### Command Line
+
+Run djb commands directly:
+
+```bash
+djb <command>
+```
+
+### Python API
+
+Import djb modules directly in Python code:
+
+```python
+from djb.secrets import load_secrets, load_secrets_for_mode
+from djb.types import Mode
+
+# Load secrets by environment name
+secrets = load_secrets("production")
+api_key = secrets['api_keys']['stripe']
+
+# Load secrets by Mode enum (recommended for CLI integration)
+secrets = load_secrets_for_mode(Mode.PRODUCTION)
+
+# Get project name from config
+from djb import config
+
+project = config.project_name
+```
+
+## Development
+
+### Running Tests
+
+```bash
+# Unit tests
+uv run pytest
+
+# E2E tests (requires GPG, age, SOPS, PostgreSQL)
+uv run pytest --run-e2e tests/e2e/
+
+# Specific E2E test file
+uv run pytest --run-e2e tests/e2e/test_secrets.py -v
+
+# Only E2E tests (skip unit tests)
+uv run pytest --only-e2e
+```
+
+**Prerequisites for E2E tests:**
+- GPG: `brew install gnupg`
+- age: `brew install age`
+- SOPS: `brew install sops`
+- PostgreSQL: `brew install postgresql@17`
+
+### Adding New Commands
+
+1. Create a new subcommand module in `djb/cli/`
+2. Define your Click command group
+3. Register it in `djb/cli/djb.py`:
+
+```python
+from djb.cli.mycommand import mycommand
+
+djb_cli.add_command(mycommand)
+```
+
+4. **Add E2E tests** in `tests/e2e/test_mycommand.py`
+
+### Adding New Features
+
+1. Implement the feature in an appropriate module under `djb/`
+2. Export public API in `djb/__init__.py` if needed
+3. Add CLI commands if applicable
+4. **Add E2E tests** for CLI commands
+5. Update documentation
+
+### E2E Test Guidelines
+
+E2E tests live in `tests/e2e/` and use the `@pytest.mark.e2e_skipped_by_default` marker:
+
+```python
+import pytest
+
+pytestmark = pytest.mark.e2e_skipped_by_default  # Mark all tests in module as e2e
+
+def test_my_command(runner, isolated_project):
+    result = runner.invoke(djb_cli, ["my-command"])
+    assert result.exit_code == 0
+```
+
+**Key principles:**
+- Use real tools (GPG, age, SOPS, PostgreSQL)
+- Mock cloud services (Heroku, PyPI)
+- Isolate test environment using tool-specific flags (e.g., `GNUPGHOME`, `SOPS_AGE_KEY_FILE`)
+- Use `tmp_path` for all file operations
+- Ensure error-safe encryption handling (always cleanup plaintext on failure)
+
+See `tests/e2e/conftest.py` for shared fixtures and `tests/e2e/utils.py` for utilities.
+
+## Architecture Decisions
+
+### Why Integrated Development
+
+djb can be embedded within projects as a subdirectory and installed in editable mode.
+This allows:
+
+1. Rapid iteration on both the platform and application
+2. Project-specific customization
+3. Simplified dependency management during development
+
+For production deployments, djb is installed from PyPI.
+
+## Future Plans
+
+Planned djb features:
+
+- [x] Environment initialization - `djb init`
+- [x] Deployment commands (Heroku) - `djb deploy heroku`, `djb deploy heroku revert`
+- [x] Heroku setup - `djb deploy heroku setup` (buildpacks, postgres, git remote)
+- [x] Project name auto-detection from config and pyproject.toml
+- [x] Global configuration (mode, target, project_name)
+- [x] Deployment guards (warns if not in production mode)
+- [x] Mode-based secrets loading
+- [x] Git hooks setup via `djb init` (pre-commit hook for editable djb check)
+- [x] Multi-recipient secret encryption
+- [x] Secret rotation automation
+- [ ] Deployment commands (Kubernetes)
+- [ ] Development server management
+- [ ] Database migration utilities
+- [ ] Environment variable syncing
+
+## References
+
+- [Secrets Guide](../docs/SECRETS_GUIDE.md) - User guide for secrets management
+- [Age Encryption](https://age-encryption.org/) - Encryption specification
+- [Click](https://click.palletsprojects.com/) - CLI framework
+
+## License
+
+djb is licensed under the MIT License.
+
+## Mascot Attribution
+
+The djb mascot (dj_bun) was created for this project and is distributed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/deed.en).
+
+<br>
+
+---
+/**dj_bun**: playin' dev and deploy since 1984 🎶
