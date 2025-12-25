@@ -1,0 +1,252 @@
+Metadata-Version: 2.4
+Name: mups
+Version: 0.1.2
+Summary: Multi Use PipelineS: reproducible job templates for Python projects
+Author: Alex Mihnev
+Project-URL: Repository, https://gitlab.com/mhnv/mups
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: license-file
+
+```text
+███╗   ███╗    ██╗   ██╗    ██████╗     ███████╗
+████╗ ████║    ██║   ██║    ██╔══██╗    ██╔════╝
+██╔████╔██║    ██║   ██║    ██████╔╝    ███████╗
+██║╚██╔╝██║    ██║   ██║    ██╔═══╝     ╚════██║
+██║ ╚═╝ ██║    ╚██████╔╝    ██║         ███████║
+╚═╝     ╚═╝     ╚═════╝     ╚═╝         ╚══════╝
+            [ Multi Use PipelineS ]
+```
+
+**mups** (Multi Use PipelineS) is a small utility that turns any ordinary project
+folder into a **reproducible job template**.
+
+# What is this about? 
+
+> Maybe you’re a scientist or an engineer with a handful of Python scripts you keep tweaking.  
+> You want to run experiments, try variations, or prototype ideas without turning your project folder into a pile of half-finished runs and scripts scripts like _final.py_, _final2.py_, and _final_revised.py_.
+>
+> That’s where mups comes in. It sits in the gap between an idea and a commit.
+> 
+> One command turns your project into a small, clean pipeline: every time you launch it, mups creates a fresh timestamped job folder, copies your code into it, captures your settings, sets up (or links) the environment, and executes the run inside that isolated snapshot.  
+> Each job is reproducible, self-contained, and safe to archive or share.
+
+> You can even choose how tightly a job depends on the template:  
+> some jobs use lightweight links to save space, some copy only what’s needed, and others bundle everything to remain fully portable across machines.
+
+> It’s made for people who want to stay close to the code—no container gymnastics, no heavyweight tooling—and who don’t want boilerplate or setup work getting in the way of their ideas.
+
+> Have a look at this relevant discussion: 
+> https://news.ycombinator.com/item?id=45790061
+
+## Explaining visually
+
+```text
+myproject/
+├── main.py
+├── ...
+├── data/
+│   └── raw.csv
+└── anything_else.py
+
+        │ python -m mups (a.k.a "mupsification")
+        ▼
+
+myproject/
+├── main.py
+├── ...
+├── data/               <- try out a new function parameter
+│   └── raw.csv
+├── anything_else.py
+├── conf.py     (NEW!)  <- tweak settings before each run
+├── reqs.txt    (NEW!)
+├── boot.py     (NEW!)
+├── README.md   (NEW!)
+├── venv.sh     (NEW!/OPTIONAL)
+└──  ...
+
+        │ run boot.py
+        ▼
+
+myproject/
+├── ...
+└── jobs/
+    └── 2025-01-20-14-38-21-desc/
+        ├── main.py      (COPIED)
+        ├── ...          (COPIED/LINKED)
+        ├── data/        (COPIED/LINKED)
+        │   └── ...      (COPIED/LINKED)
+        ├── conf.py      (COPIED)
+        ├── reqs.txt     (COPIED)
+        ├── README.md    (NEW!)
+        ├── venv.sh      (COPIED/OPTIONAL)
+        └── .venv/       (COPIED/LINKED/RECREATED/etc)
+
+        │ Commit, Repeat, Send, Discard, etc 
+        ▼ (or run boot again with different settings!)
+
+```
+
+Once a folder is “mups-ified”, every execution of `boot.py` creates a new,
+timestamped job directory containing:
+
+- a full snapshot of your code
+- a copy of `conf.py`
+- a copy of `reqs.txt`
+- an optional `.venv` depending on configuration
+- a job-specific README
+- and then runs `main.py` inside that job
+
+Each job folder is self-contained, portable, and reproducible.
+
+This is useful when:
+- You want reproducible runs without needing Docker.
+- You want each job run isolated from future edits.
+- You want to ship computations to another machine.
+- You want clean provenance for papers, pipelines, or reports.
+
+Docker can still wrap the whole thing if you need it, but it’s optional.
+
+Another advantage: **You don't need the mups package after mupsifying the template dir!**
+That's right. No extra packages, no extra dependencies. Run once then rely on boot.py.
+
+---
+
+## Installation
+
+mups is on PyPI:
+
+    pip install mups
+
+...or SSH install directly from GitLab:
+
+    pip install git+ssh://git@gitlab.com/mhnv/mups.git
+    pip install -e .
+
+After installation, the command:
+
+    python -m mups
+
+runs the generator. Importing mups in Python scripts does nothing currently.
+
+---
+
+## What the generator does
+
+When you run `python -m mups` inside any project folder, it creates:
+
+- `boot.py` – the launcher that creates job directories and runs `main.py`
+- `conf.py` – configuration (ENV_MODE, JOB_DESCRIPTION, INCLUDE/EXCLUDE)
+- `reqs.txt` – pinned Python version + your dependencies
+- `venv.sh` – helper script for environment recreation on another machine
+- `README.md` – instructions for using that folder as a job template
+
+If these files already exist, they are left untouched (with warnings), except
+`boot.py`, which refuses to overwrite to keep you from nuking your project.
+
+This turns your folder into a template.
+
+From then on, you run:
+
+    python boot.py
+
+to produce jobs.
+
+---
+
+## How jobs work
+
+Each call to `boot.py`:
+
+1. Creates a timestamped folder under `jobs/`
+2. Copies your project into it (with INCLUDE/EXCLUDE filters applied)
+3. Always copies `main.py`
+4. Never copies `boot.py`
+5. Copies `conf.py`, `reqs.txt`, and `venv.sh`
+6. Handles `.venv` according to `ENV_MODE`
+7. Writes a job-specific README
+8. Runs `main.py` inside the job
+
+Jobs are isolated snapshots. Editing your template folder afterwards does not
+affect previous jobs.
+
+---
+
+## ENV_MODE options
+
+new_venv  
+    Creates a fresh `.venv` inside each job and installs packages from `reqs.txt`.
+
+copy_parent  
+    Copies the template folder’s `.venv` into the job.
+
+link_parent  
+    Symlinks the template `.venv` into the job.
+
+deferred_venv  
+    Does not create `.venv`. Ships `venv.sh` so another machine can recreate it later.
+
+All modes validate Python versions if specified in `reqs.txt`.
+
+---
+
+## INCLUDE / EXCLUDE rules
+
+Only one may be used at a time.
+
+INCLUDE  
+    Only listed names are copied, plus: main.py, conf.py, reqs.txt, venv.sh.
+
+EXCLUDE  
+    Everything except listed names is copied, plus the same mandatory set.
+
+Rules that cannot be overridden:
+
+- main.py is always copied  
+- boot.py is never copied  
+- parent README is never copied (jobs get their own)
+
+---
+
+## Minimum project structure
+
+Your project folder must contain:
+
+- main.py (entry point)
+- whatever supporting modules you need
+
+Everything else is optional.
+
+---
+
+## Typical workflow
+
+1. Create a new project folder  
+2. Add main.py and your code  
+3. Run:
+
+        python -m mups
+
+4. Adjust conf.py  
+5. Run:
+
+        python boot.py
+
+6. A new job appears under jobs/ and immediately runs main.py.
+
+---
+
+## More features in the pipeline
+
+- The ability to specify not only files but specific sub-modules to copy (so you don't have to ship your entire code-base)
+---
+
+## Why this exists
+
+Some people want reproducibility but refuse to touch Docker. Others need
+snapshot-per-run behavior for research, pipelines, HPC clusters, or publication
+supplements. mups is a tiny, boring solution that does exactly that without
+teaching you a container ecosystem.
+
+If it saves one person from “but it worked on my machine”, it has done its job.
