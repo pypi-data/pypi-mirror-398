@@ -1,0 +1,409 @@
+# Instagram OSINT Tool
+
+[![Python Version](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.1.2-orange.svg)](https://github.com/sudo-junaiddev/fork-InstagramOSINT/instagram-osint)
+
+A powerful, modern Instagram OSINT (Open Source Intelligence) tool for profile analysis and data collection. Built with Python 3 and designed for security researchers, investigators, and data analysts.
+
+## ✨ Features
+
+- **Profile Analysis** - Extract comprehensive profile information
+- **Post Scraping** - Download posts with metadata and pagination support
+- **Engagement Statistics** - Calculate engagement rates and analytics
+- **Batch Processing** - Process multiple accounts simultaneously
+- **Data Export** - Save data in structured JSON format
+- **Media Downloads** - Download profile pictures and post images
+- **Modern APIs** - Uses Instagram's internal REST and GraphQL APIs
+- **Rate Limiting** - Built-in protection against API throttling
+- **Beautiful CLI** - Colorful, intuitive command-line interface
+
+## Table of Contents
+
+- [Installation](#-installation)
+- [Quick Start](#-quick-start)
+- [Documentation](#-documentation)
+- [CLI Usage](#-cli-usage)
+- [Python API Usage](#-python-api-usage)
+- [Examples](#-examples)
+- [Features Overview](#-features-overview)
+- [Legal & Ethics](#-legal--ethics)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+## Installation
+
+### Prerequisites
+
+- Python 3.7 or higher
+- pip (Python package manager)
+
+### Method 1: Install from Source (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/sudo-junaiddev/fork-InstagramOSINT/instagram-osint.git
+cd instagram-osint
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install the package
+pip install -e .
+```
+
+### Method 2: Direct Installation
+
+```bash
+pip install instagram-osint
+```
+
+### Verify Installation
+
+```bash
+igosint --help
+```
+
+## ⚡ Quick Start
+
+### Basic Profile Analysis
+
+```bash
+# View profile information
+igosint instagram
+
+# Download everything (profile + posts + images)
+igosint instagram -a
+
+# Scrape specific number of posts
+igosint instagram -P -m 50
+```
+
+### Python API
+
+```python
+from instagram_osint import InstagramOSINT
+
+# Initialize scraper
+scraper = InstagramOSINT("instagram")
+
+# Access profile data
+print(f"Followers: {scraper['follower_count']}")
+print(f"Following: {scraper['following_count']}")
+
+# Scrape posts
+posts = scraper.scrape_posts(max_posts=50)
+```
+
+## Documentation
+
+Comprehensive documentation is available in the `docs/` directory:
+
+- **[CLI Documentation](docs/cli.md)** - Complete command-line interface guide
+- **[API Documentation](docs/api.md)** - Python API reference and examples
+- **[Main Documentation](docs/README.md)** - Detailed usage guide and tutorials
+
+## CLI Usage
+
+### Basic Commands
+
+```bash
+# Display profile information
+igosint username
+
+# Save profile data to JSON
+igosint username -s
+
+# Download profile picture
+igosint username -d
+
+# Scrape posts
+igosint username -P
+
+# Download post images
+igosint username -P -D
+```
+
+### Advanced Commands
+
+```bash
+# Complete data collection
+igosint username -a
+
+# Scrape with statistics
+igosint username -P --stats
+
+# Batch processing from file
+igosint dummy --batch usernames.txt -a
+
+# Custom output directory
+igosint username -o /path/to/output -a
+
+# JSON output only
+igosint username --json-only > profile.json
+```
+
+See [CLI Documentation](docs/cli.md) for complete reference.
+
+## 🐍 Python API Usage
+
+### Basic Example
+
+```python
+from instagram_osint import InstagramOSINT
+
+# Create scraper instance
+scraper = InstagramOSINT("username")
+
+# Check if profile was found
+if scraper.profile_data:
+    # Display profile information
+    scraper.print_profile_data()
+
+    # Save data
+    scraper.save_data()
+
+    # Download profile picture
+    scraper.download_profile_picture()
+```
+
+### Advanced Example
+
+```python
+from instagram_osint import InstagramOSINT
+
+# Initialize scraper
+scraper = InstagramOSINT("username")
+
+# Scrape posts with pagination
+posts = scraper.scrape_posts(max_posts=100)
+
+# Save posts data
+scraper.save_posts(posts)
+
+# Download post images
+scraper.download_posts(posts, "output/posts")
+
+# Access individual post data
+for post in posts:
+    print(f"Post URL: {post['url']}")
+    print(f"Likes: {post['likes']}")
+    print(f"Comments: {post['comments']}")
+```
+
+See [API Documentation](docs/api.md) for complete reference.
+
+## Examples
+
+### Example 1: Profile Intelligence Gathering
+
+```python
+from instagram_osint import InstagramOSINT
+
+# Target profile
+scraper = InstagramOSINT("target_username")
+
+# Collect all data
+scraper.save_data()
+scraper.download_profile_picture()
+
+# Get engagement metrics
+if not scraper.profile_data.get("is_private"):
+    posts = scraper.scrape_posts(max_posts=50)
+
+    # Calculate statistics
+    avg_likes = sum(p['likes'] for p in posts) / len(posts)
+    print(f"Average engagement: {avg_likes:.0f} likes")
+```
+
+### Example 2: Competitor Analysis
+
+```python
+from instagram_osint import InstagramOSINT
+
+competitors = ["competitor1", "competitor2", "competitor3"]
+
+for username in competitors:
+    scraper = InstagramOSINT(username)
+
+    if scraper.profile_data:
+        print(f"\n{username}:")
+        print(f"  Followers: {scraper['follower_count']:,}")
+        print(f"  Posts: {scraper['post_count']:,}")
+
+        # Save for later analysis
+        scraper.save_data(f"analysis/{username}")
+```
+
+### Example 3: Batch Processing
+
+```bash
+# Create usernames.txt
+echo -e "instagram\nnatgeo\nnasa" > usernames.txt
+
+# Process all accounts
+igosint dummy --batch usernames.txt -a --stats
+```
+
+## Features Overview
+
+### Profile Data Extraction
+
+- Username and full name
+- Biography and external URL
+- Follower/following counts
+- Post count
+- Profile picture (HD quality)
+- Verification status
+- Business account information
+- Private/public status
+
+### Post Analysis
+
+- Post URLs and IDs
+- Captions and hashtags
+- Like and comment counts
+- Timestamps
+- Location data
+- Media URLs (images/videos)
+- Accessibility captions
+
+### Statistics & Analytics
+
+- Average engagement rates
+- Top performing posts
+- Like/comment ratios
+- Follower engagement percentage
+- Post frequency analysis
+
+### Export Formats
+
+- JSON (structured data)
+- Images (JPG format)
+- Batch reports
+
+## Legal & Ethics
+
+### Important Notice
+
+This tool is designed for **legitimate OSINT and research purposes only**. Users must:
+
+- ✅ Comply with Instagram's Terms of Service
+- ✅ Respect user privacy and data protection laws
+- ✅ Only collect publicly available information
+- ✅ Use data ethically and responsibly
+- ❌ Not use for harassment, stalking, or malicious purposes
+- ❌ Not violate any applicable laws or regulations
+
+### Disclaimer
+
+The authors and contributors are not responsible for any misuse of this tool. By using this software, you agree to use it responsibly and in accordance with all applicable laws and regulations.
+
+### Rate Limiting
+This tool implements rate limiting to:
+
+- Follow Instagram's API guidelines
+- Prevent account blocking
+- Ensure sustainable usage
+
+## 🛠️ Development
+
+### Project Structure
+
+```
+instagram-osint/
+├── instagram_osint/
+│   ├── __init__.py           -> Package initialization
+│   ├── instagram_osint.py    -> Core scraper
+│   └── cli.py                -> CLI interface
+├── docs/
+│   ├── README.md             -> Main documentation
+│   ├── cli.md                -> CLI reference
+│   └── api.md                -> API reference
+├── examples/
+│   ├── basic_usage.py
+│   └── batch_processing.py
+├── tests/
+│   └── test_scraper.py
+├── setup.py
+├── requirements.txt
+└── README.md
+```
+
+### Running Tests
+
+```bash
+# Install test dependencies
+pip install pytest
+
+# Run tests
+pytest tests/
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please follow these guidelines:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Development Guidelines
+
+- Follow PEP 8 style guide
+- Add tests for new features
+- Update documentation
+- Use type hints where applicable
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 👨‍💻 Author
+
+**Junaid**
+
+- Website: [abujuni.dev](https://abujuni.dev)
+- GitHub: [@sudo-junaiddev](https://github.com/sudo-junaiddev/fork-InstagramOSINT)
+- Email: contact@abujuni.dev
+
+## 🙏 Acknowledgments
+
+- Original script by [sc1341](https://0xd33r.com)
+- Open source contributors
+
+## Support
+
+- 📧 Email: contact@abujuni.dev
+- 🐛 Issues: [GitHub Issues](https://github.com/sudo-junaiddev/fork-InstagramOSINT/instagram-osint/issues)
+- 💬 Discussions: [GitHub Discussions](https://github.com/sudo-junaiddev/fork-InstagramOSINT/instagram-osint/discussions)
+
+## Changelog
+
+### Version 1.1.2 (Current)
+
+- ✨ Complete rewrite with modern Instagram APIs
+- 🚀 CLI interface with argparse
+- 📊 Engagement statistics
+- 🔄 Batch processing support
+- 💾 Structured JSON exports
+- 🛡️ Advanced rate limiting
+- 📖 Comprehensive documentation
+
+### Version 1.0
+
+- Initial release
+- Basic HTML parsing
+- Profile scraping
+
+## ⭐ Star History
+
+If you find this tool useful, please consider giving it a star on GitHub!
+
+---
+
+**Made with ❤️ by [Junaid](https://abujuni.dev)**
+
+_For educational and research purposes only_
