@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Check version consistency
+        run: |
+          PYPROJECT_VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          INIT_VERSION=$(grep '^__version__ = ' sidemantic/__init__.py | sed 's/__version__ = "\(.*\)"/\1/')
+          if [ "$PYPROJECT_VERSION" != "$INIT_VERSION" ]; then
+            echo "Version mismatch: pyproject.toml=$PYPROJECT_VERSION, __init__.py=$INIT_VERSION"
+            exit 1
+          fi
+          echo "Version check passed: $PYPROJECT_VERSION"
+
+      - name: Run ruff check
+        run: uv run ruff check . --exclude docs/_extensions --exclude sidemantic-duckdb/extension-ci-tools --exclude sidemantic-duckdb/scripts --exclude sidemantic-duckdb/duckdb
+
+      - name: Run ruff format check
+        run: uv run ruff format --check . --exclude docs/_extensions --exclude sidemantic-duckdb/extension-ci-tools --exclude sidemantic-duckdb/scripts --exclude sidemantic-duckdb/duckdb
+
+      - name: Run tests
+        run: uv run pytest -v --cov=sidemantic --cov-report=term-missing
+
+      - name: Check JSON Schema is up to date
+        run: |
+          uv run python scripts/generate_schema.py
+          if ! git diff --exit-code sidemantic-schema.json docs/schema.json; then
+            echo "JSON Schema is out of date. Run 'uv run python scripts/generate_schema.py' and commit the changes."
+            exit 1
+          fi
+
+  check-rust-changes:
+    name: Check Rust/DuckDB changes
+    runs-on: ubuntu-latest
+    outputs:
+      rust_changed: ${{ steps.changes.outputs.rust }}
+      duckdb_changed: ${{ steps.changes.outputs.duckdb }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            rust:
+              - 'sidemantic-rs/**'
+            duckdb:
+              - 'sidemantic-duckdb/**'
+              - 'sidemantic-rs/**'
+
+  rust:
+    name: Rust (sidemantic-rs)
+    needs: check-rust-changes
+    if: needs.check-rust-changes.outputs.rust_changed == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sidemantic-rs
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sidemantic-rs
+
+      - name: Run cargo fmt check
+        run: cargo fmt --check
+
+      - name: Run cargo clippy
+        run: cargo clippy -- -D warnings
+
+      - name: Run cargo test
+        run: cargo test
+
+  duckdb-extension:
+    name: DuckDB Extension
+    needs: check-rust-changes
+    if: needs.check-rust-changes.outputs.duckdb_changed == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GEN: ninja
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone DuckDB dependencies
+        working-directory: sidemantic-duckdb
+        run: |
+          # These are listed as submodules in .gitmodules but aren't tracked properly
+          # Clone them directly at the commits the extension was built against
+          rm -rf duckdb extension-ci-tools
+          git clone --depth 1 --branch v1.4.2 https://github.com/duckdb/duckdb.git duckdb
+          git clone --depth 1 --branch v1.4.2 https://github.com/duckdb/extension-ci-tools.git extension-ci-tools
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sidemantic-rs
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Build Rust library
+        working-directory: sidemantic-rs
+        run: cargo build --release
+
+      - name: Build DuckDB extension
+        working-directory: sidemantic-duckdb
+        run: make
+
+      - name: Run extension tests
+        working-directory: sidemantic-duckdb
+        run: make test

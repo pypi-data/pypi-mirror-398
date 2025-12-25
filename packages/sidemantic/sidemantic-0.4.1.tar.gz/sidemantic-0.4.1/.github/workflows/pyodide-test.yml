@@ -1,0 +1,100 @@
+name: Pyodide Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-pyodide:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build sidemantic wheel
+        run: uv build
+
+      - name: Install Pyodide and dependencies
+        run: npm install pyodide glob
+
+      - name: Test sidemantic in Pyodide
+        run: |
+          cat > test_pyodide.mjs << 'EOF'
+          import { loadPyodide } from 'pyodide';
+          import { readFileSync } from 'fs';
+          import { globSync } from 'glob';
+
+          async function main() {
+            const pyodide = await loadPyodide();
+
+            console.log('Loading Pyodide packages (pydantic has compatible typing-extensions)...');
+            await pyodide.loadPackage(['micropip', 'pydantic', 'pyyaml', 'jinja2']);
+
+            // Find the built wheel
+            const wheels = globSync('dist/*.whl');
+            if (wheels.length === 0) {
+              throw new Error('No wheel file found in dist/');
+            }
+            const wheelPath = wheels[0];
+            console.log(`Installing local wheel: ${wheelPath}`);
+
+            // Load wheel into Pyodide virtual filesystem
+            const wheelData = readFileSync(wheelPath);
+            const wheelName = wheelPath.split('/').pop();
+            pyodide.FS.writeFile(`/tmp/${wheelName}`, wheelData);
+
+            console.log('Installing missing deps and sidemantic...');
+            await pyodide.runPythonAsync(`
+              import micropip
+              # Install missing pure-Python deps
+              await micropip.install(['sqlglot', 'lkml', 'inflect'], deps=False)
+              # Install sidemantic from local wheel without deps
+              await micropip.install('emfs:/tmp/` + wheelName + `', deps=False)
+            `);
+
+            console.log('Testing basic imports...');
+            await pyodide.runPythonAsync(`
+              from sidemantic import Model, Dimension, Metric, Relationship
+              from sidemantic.core.semantic_graph import SemanticGraph
+              print('✓ Core imports successful')
+
+              # Test creating a model (doesn't need duckdb)
+              model = Model(
+                  name="test",
+                  table="test_table",
+                  primary_key="id",
+                  dimensions=[
+                      Dimension(name="name", type="categorical", sql="name")
+                  ],
+                  metrics=[
+                      Metric(name="count", agg="count")
+                  ],
+                  relationships=[
+                      Relationship(name="other", type="many_to_one", foreign_key="other_id")
+                  ]
+              )
+              print('✓ Model creation successful')
+
+              # Test semantic graph (doesn't need duckdb)
+              graph = SemanticGraph()
+              graph.add_model(model)
+              print('✓ SemanticGraph successful')
+
+              print('All Pyodide imports and basic operations work!')
+            `);
+          }
+
+          main().catch(err => {
+            console.error(err);
+            process.exit(1);
+          });
+          EOF
+          node test_pyodide.mjs
