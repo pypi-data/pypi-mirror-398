@@ -1,0 +1,48 @@
+version: 2
+
+models:
+  - name: lineage_nodes
+    description: Lineage nodes, selected from normalized query logs
+    meta:
+      montecarlo:
+        field_health:
+          - table: analytics:prod_lineage.lineage_nodes
+            timestamp_field: created
+
+    columns:
+      - name: account_id
+        tests:
+          - not_null
+      - name: resource_id
+        tests:
+          - not_null
+      - name: node_id
+        tests:
+          - unique
+          - not_null
+      - name: canonical_name
+        tests:
+          - not_null
+
+  - name: lineage_edges_mapped
+    description:
+      Lineage edges, with source_node_id/destination_node_id mapping applied.
+    columns:
+      - name: source_node_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('lineage_nodes_all')
+              field: node_id
+      - name: destination_node_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('lineage_nodes_all')
+              field: node_id
+      - name: query_log_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('lineage_query_logs')
+              field: query_log_id

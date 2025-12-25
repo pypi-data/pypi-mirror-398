@@ -1,0 +1,137 @@
+version: 2.1
+
+deploy_filter: &deploy_filter
+  # YAML reference for tag based filtering on deployments
+  filters:
+    tags:
+      only: /^v.*/
+    branches:
+      ignore: /.*/
+
+test_steps: &test_steps
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            pip install -U pip
+            pip install virtualenv==20.26.1
+      - run:
+          name: Run unit tests and linter
+          command: |
+            make install-with-tests-and-lint
+            make install-with-end-user-tests
+
+jobs:
+  run-test-3-8:
+    docker:
+      - image: python:3.8
+    <<: *test_steps
+
+  run-test-3-9:
+    docker:
+      - image: python:3.9
+    <<: *test_steps
+
+  run-test-3-10:
+    docker:
+      - image: python:3.10
+    <<: *test_steps
+
+  run-test-3-11:
+    docker:
+      - image: python:3.11
+    <<: *test_steps
+
+  run-test-3-12:
+    docker:
+      - image: python:3.12
+    <<: *test_steps
+
+  deploy:
+    docker:
+      - image: python:3.8.6
+
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            pip install -U pip
+            pip install virtualenv==20.26.1
+      - run:
+          name: Deploy to PyPI
+          command: make distribute
+
+  publish-docs:
+    docker:
+      - image: python:3.12.4
+
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            apt-get update -y
+            apt-get install -yq build-essential zip less python3-sphinx python3-distutils
+            pip install -U pip
+            pip install virtualenv
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            ./aws/install
+            aws --version
+      - run:
+          name: Publish docs and invalidate the cloudfront cache
+          command: make publish-docs
+
+workflows:
+  version: 2
+
+  build:
+    jobs:
+      - run-test-3-8
+      - run-test-3-9
+      - run-test-3-10
+      - run-test-3-11
+      - run-test-3-12
+      - publish-docs:
+          # The CLI doesn't follow a dev/main pattern, so this job allows explicitly publishing to https://clidocs.dev.getmontecarlo.com/
+          name: publish-docs-dev
+          context: aws-dev
+          requires:
+            - run-test-3-8
+            - run-test-3-9
+            - run-test-3-10
+            - run-test-3-11
+            - run-test-3-12
+          filters:
+            branches:
+              only:
+                - dev
+
+  deploy:
+    jobs:
+      - run-test-3-8:
+          <<: *deploy_filter
+      - run-test-3-9:
+          <<: *deploy_filter
+      - run-test-3-10:
+          <<: *deploy_filter
+      - run-test-3-11:
+          <<: *deploy_filter
+      - run-test-3-12:
+          <<: *deploy_filter
+      - deploy:
+          requires:
+            - run-test-3-8
+            - run-test-3-9
+            - run-test-3-10
+            - run-test-3-11
+            - run-test-3-12
+          <<: *deploy_filter
+      - publish-docs:
+          name: publish-docs-prod
+          context: aws-prod
+          requires:
+            - deploy
+          <<: *deploy_filter

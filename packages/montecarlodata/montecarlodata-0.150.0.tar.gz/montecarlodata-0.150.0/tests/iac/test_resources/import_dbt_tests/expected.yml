@@ -1,0 +1,124 @@
+montecarlo:
+  custom_sql:
+  - name: test.analytics.assert_not_null_recent_metrics_resource_id
+    description: test.analytics.assert_not_null_recent_metrics_resource_id
+    sql: |
+      SELECT
+          *
+      FROM
+          personal.dbt_bneville.recent_metrics
+      WHERE
+          resource_id IS NULL AND
+          metric != 'total_views'
+    schedule:
+      type: fixed
+      start_time: '2020-01-01T00:00:00+00:00'
+      interval_minutes: 720
+    comparisons:
+    - type: threshold
+      operator: GT
+      threshold_value: 0
+  - name: test.analytics.not_null_recent_metrics_metric.c04a9c17fd
+    description: test.analytics.not_null_recent_metrics_metric.c04a9c17fd
+    sql: |
+      select metric
+      from personal.dbt_bneville.recent_metrics
+      where metric is null
+    schedule:
+      type: fixed
+      start_time: '2020-01-01T00:00:00+00:00'
+      interval_minutes: 720
+    comparisons:
+    - type: threshold
+      operator: GT
+      threshold_value: 0
+  - name: test.analytics.unique_table_field_metrics_multi_key.14e928c2e4
+    description: test.analytics.unique_table_field_metrics_multi_key.14e928c2e4
+    sql: |
+      select
+          multi_key as unique_field,
+          count(*) as n_records
+
+      from personal.dbt_bneville.table_field_metrics
+      where multi_key is not null
+      group by multi_key
+      having count(*) > 1
+    schedule:
+      type: fixed
+      start_time: '2020-01-01T00:00:00+00:00'
+      interval_minutes: 720
+    comparisons:
+    - type: threshold
+      operator: GT
+      threshold_value: 0
+  - name: test.analytics.accepted_values_table_cleanup_suggestions_cleanup_suggestion__keep__consider_refreshing__consider_cleanup__unknown.11f2373fbf
+    description: test.analytics.accepted_values_table_cleanup_suggestions_cleanup_suggestion__keep__consider_refreshing__consider_cleanup__unknown.11f2373fbf
+    sql: |
+      with all_values as (
+
+          select
+              cleanup_suggestion as value_field,
+              count(*) as n_records
+
+          from personal.dbt_bneville.table_cleanup_suggestions
+          group by cleanup_suggestion
+
+      )
+
+      select *
+      from all_values
+      where value_field not in (
+          'keep','consider_refreshing','consider_cleanup','unknown'
+      )
+    schedule:
+      type: fixed
+      start_time: '2020-01-01T00:00:00+00:00'
+      interval_minutes: 720
+    comparisons:
+    - type: threshold
+      operator: GT
+      threshold_value: 0
+  - name: test.analytics.relationships_events_warehouse_id__warehouse_id__ref_warehouse_.f5a78a47bc
+    description: test.analytics.relationships_events_warehouse_id__warehouse_id__ref_warehouse_.f5a78a47bc
+    sql: |
+      with child as (
+          select warehouse_id as from_field
+          from personal.dbt_bneville_stage.events
+          where warehouse_id is not null
+      ),
+
+      parent as (
+          select warehouse_id as to_field
+          from personal.dbt_bneville_stage.warehouse
+      )
+
+      select
+          from_field
+
+      from child
+      left join parent
+          on child.from_field = parent.to_field
+
+      where parent.to_field is null
+    schedule:
+      type: fixed
+      start_time: '2020-01-01T00:00:00+00:00'
+      interval_minutes: 720
+    comparisons:
+    - type: threshold
+      operator: GT
+      threshold_value: 0
+  - name: test.analytics.not_null_table_field_metrics_multi_key.d0aff7b018
+    description: test.analytics.not_null_table_field_metrics_multi_key.d0aff7b018
+    sql: |
+      select multi_key
+      from personal.dbt_bneville.table_field_metrics
+      where multi_key is null
+    schedule:
+      type: fixed
+      start_time: '2020-01-01T00:00:00+00:00'
+      interval_minutes: 720
+    comparisons:
+    - type: threshold
+      operator: GT
+      threshold_value: 0

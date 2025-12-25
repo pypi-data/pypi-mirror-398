@@ -1,0 +1,29 @@
+version: 2
+
+models:
+  - name: abc
+    description: A test table
+    columns:
+      - name: account_id
+        tests:
+          - not_null
+    meta:
+      montecarlo:
+        field_health:
+          - table: '[[ ref("abc") ]]'
+        freshness:
+          - tables:
+              - "[[ ref('abc') ]]"
+              - "[[ ref('client_hub') ]]"
+            freshness_threshold: 30
+            schedule:
+                type: fixed
+                interval_minutes: 30
+                start_time: "2021-07-27T19:51:00"
+        custom_sql:
+          - sql: 'select * from [[ref("abc")]] a join [[ ref("client_hub") ]] b on a.id = b.id'
+            sampling_sql: 'select * from [[ref("customer_360")]]'
+            variables:
+              foo:
+                - "bar [[ ref('abc') ]]"
+            notes: '{{query_result:link, connection_type}}'
