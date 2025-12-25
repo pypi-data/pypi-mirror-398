@@ -1,0 +1,159 @@
+Metadata-Version: 2.4
+Name: data-wise-gov-stats-mcp-server
+Version: 1.0.0
+Summary: Gov Stats MCP Server - 提供中国国家统计局数据查询的 MCP 服务
+Project-URL: Homepage, https://github.com/datawisecenter/gov-stats-mcp-server
+Project-URL: Repository, https://github.com/datawisecenter/gov-stats-mcp-server
+Project-URL: Documentation, https://github.com/datawisecenter/gov-stats-mcp-server#readme
+Author-email: DataWiseCenter <contact@datawisecenter.com>
+License: MIT
+License-File: LICENSE
+Keywords: china,cnstats,fastmcp,gov,mcp,statistics,stats
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Requires-Dist: cn-stats>=0.1.0
+Requires-Dist: fastmcp>=2.14.1
+Provides-Extra: dev
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Gov Stats MCP Server
+
+提供中国国家统计局数据查询的 MCP 服务。
+
+## 功能特性
+
+- 🔍 查询国家统计局各类经济指标数据
+- 📊 支持价格指数、工业数据、宏观经济等多类指标
+- 🌍 支持全国、分省、分城市数据查询
+- 📅 支持月度、季度、年度数据
+- 🚀 批量查询支持
+
+## 安装
+
+```bash
+pip install data-wise-gov-stats-mcp-server
+```
+
+## 使用方法
+
+### 作为 MCP 服务器运行
+
+```bash
+uvx data-wise-gov-stats-mcp-server
+```
+
+### 在 Kiro 中配置
+
+在 `.kiro/settings/mcp.json` 中添加：
+
+```json
+{
+  "mcpServers": {
+    "gov-stats": {
+      "command": "uvx",
+      "args": ["data-wise-gov-stats-mcp-server"]
+    }
+  }
+}
+```
+
+## 可用工具
+
+### 1. query_stats - 查询统计数据
+
+查询单个指标的统计数据。
+
+**参数：**
+- `zbcode` (必需): 指标代码，如 "A010101"
+- `datestr` (必需): 查询日期
+  - 月度: YYYYMM (如 "202401")
+  - 季度: YYYYQ1-4 (如 "2024Q1")
+  - 年度: YYYY (如 "2024")
+- `dbcode` (可选): 数据库代码，默认 "hgyd" (宏观月度数据)
+- `regcode` (可选): 地区代码，如 "110000" (北京市)
+
+**示例：**
+```json
+{
+  "zbcode": "A010101",
+  "datestr": "202401",
+  "dbcode": "hgyd"
+}
+```
+
+### 2. batch_query_stats - 批量查询
+
+批量查询多个指标数据（最多100个）。
+
+**参数：**
+- `queries`: 查询参数列表
+
+**示例：**
+```json
+{
+  "queries": [
+    {"zbcode": "A010101", "datestr": "202401"},
+    {"zbcode": "A0D0101", "datestr": "202401"}
+  ]
+}
+```
+
+### 3. list_indicators - 列出指标
+
+列出所有可用的指标代码及其描述。
+
+### 4. list_dbcodes - 列出数据库代码
+
+列出所有可用的数据库代码及其描述。
+
+### 5. list_regions - 列出地区代码
+
+列出所有可用的地区代码及其名称。
+
+## 常用指标代码
+
+### 价格指数
+- `A010101`: 全国居民消费价格分类指数(上年同月=100)
+- `A010801`: 工业生产者出厂价格指数(上年同月=100)
+
+### 宏观经济
+- `A0D0101`: 货币供应量(M2)
+- `A0D0103`: 货币供应量(M1)
+- `A0D0105`: 货币供应量(M0)
+
+### 工业数据
+- `A020101`: 工业增加值增长速度
+- `A020201`: 按经济类型分工业增加值增长速度
+
+## 数据库代码
+
+- `hgyd`: 宏观月度数据
+- `hgjd`: 宏观季度数据
+- `hgnd`: 宏观年度数据
+- `fsyd`: 分省月度数据
+- `fsjd`: 分省季度数据
+- `fsnd`: 分省年度数据
+- `csyd`: 城市月度数据
+- `csjd`: 城市季度数据
+- `csnd`: 城市年度数据
+
+## 依赖
+
+- fastmcp >= 2.14.1
+- cnstats >= 1.0.0
+
+## 许可证
+
+MIT License
