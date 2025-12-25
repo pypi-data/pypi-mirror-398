@@ -1,0 +1,52 @@
+# Python Simple Menu Manager V. 0.0.2
+
+
+## Purpose
+
+This project was created so that I could have a relieable, simple, lightweight menu manager for use in CLI based tools.
+
+
+## Installation 
+
+To install simply run  
+`pip install simple_menu_manager`
+
+
+## Usage
+
+This package allows for a reactive menu management experience without multiple added packages (apart from this of course).
+
+The menu manager will always return the associated number based on the options submitted, starting at "1" for the first option.  
+The exit/return condition will always return "0".
+
+#### Usage Example
+```python
+from simple_menu_manager import simple_menu
+
+
+simple_menu.menu_handler(
+    message="Choose an option:",
+    options=[
+        "Option 1",
+        "Option 2",
+        "Option 3",
+        "Option 4",
+        "Option 5",
+        "Option 6",
+        "Option 7",
+        "Option 8",
+        "Option 9",
+        "Option 10"
+    ],
+    return_message='Exit',
+    menu_type='default') 
+```
+
+- ___message___ - The message that appears above the menu, such as "Choose an option:".
+- ___options___ - The selectable options, associated numbers added automatically.
+- ___return_message___ - The text associated with the exit command, useally "Exit", "Cancel", "Return", or similar. __(Optional, defaults to "Exit")__
+- ___menu_type___ - The type of menu utilized, available options; __(Optional, defaults to "default")__
+    - "_default_" - Auto selects based on what options are avaible for imoprt.
+    - "_curses_" - Leverages curses for an interactive menu.
+    - "_standard_" - Uses only standard parts of the Python library.
+
