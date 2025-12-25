@@ -1,0 +1,526 @@
+Metadata-Version: 2.4
+Name: plane-compose
+Version: 0.2.0
+Summary: Project as Code framework for Plane - Define and sync projects declaratively with YAML
+Project-URL: Homepage, https://github.com/makeplane/compose
+Project-URL: Documentation, https://github.com/makeplane/compose/tree/main/docs
+Project-URL: Repository, https://github.com/makeplane/compose
+Project-URL: Bug Tracker, https://github.com/makeplane/compose/issues
+Project-URL: Source Code, https://github.com/makeplane/compose
+Author-email: "Plane Software, Inc." <hello@plane.so>
+Maintainer-email: "Plane Software, Inc." <hello@plane.so>
+License: AGPL-3.0-or-later
+License-File: LICENSE.txt
+Keywords: automation,cli,devops,infrastructure-as-code,issue-tracking,plane,project-management,workflow,yaml
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Build Tools
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Requires-Dist: cel-python>=0.4.0
+Requires-Dist: httpx>=0.25.0
+Requires-Dist: plane-sdk>=0.1.10
+Requires-Dist: pydantic-settings>=2.0.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: typer[all]>=0.9.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+#  Plane Compose
+
+> **Project as Code framework for Plane** - Define projects, schemas, and work items in YAML. Sync bidirectionally. Version control everything.
+
+A powerful, production-ready project as code framework for managing [Plane](https://plane.so) projects locally. Think "Terraform for project management" with declarative workflows, state tracking, and collaborative features.
+
+## ✨ Features
+
+### Core Capabilities
+- **Local-first workflow** - Define everything in YAML, version control with Git
+- **Bidirectional sync** - Push to Plane, pull from Plane
+- **Auto-create projects** - Projects created automatically during schema push
+- **Rich schema management** - Work item types with custom properties, workflows, labels
+- **Intelligent sync** - Content-based change detection, no duplicate creates
+- **Secure authentication** - API keys stored securely
+- **Beautiful output** - Rich terminal UI with progress indicators
+
+### Advanced Features
+- **Declarative mode** (`plane apply`) - Domain-scoped single source of truth
+- **Collaborative mode** (`plane push`) - Additive-only, team-friendly
+- **Rate limiting** - Built-in 50 req/min throttling, respects API limits
+- **State tracking** - Terraform-style `.plane/state.json` for change detection
+- **Stable IDs** - User-defined IDs or content hashing for reliable tracking
+- **Status monitoring** - Real-time sync status and rate limit stats
+- **Debug mode** - Comprehensive logging and error handling
+- **Project cloning** - Clone entire projects with schema and work items  
+
+## Installation
+
+### Using pipx (Recommended)
+
+```bash
+pipx install plane-compose
+```
+
+### From source
+
+```bash
+git clone https://github.com/makeplane/compose.git
+cd compose
+pipx install -e .
+```
+
+### Upgrading
+
+```bash
+pipx upgrade plane-compose
+```
+
+## 🚀 Quick Start
+
+### Starting from Scratch
+
+```bash
+# 1. Install globally
+pipx install plane-compose
+
+# 2. Initialize a new project
+plane init my-project
+
+# 3. Authenticate with Plane
+plane auth login
+# Enter API key from: https://app.plane.so/<workspace-slug>/settings/account/api-tokens/
+
+# 4. Configure your workspace
+cd my-project
+vim plane.yaml  # Set your workspace name
+
+# 5. Push schema (creates project in Plane)
+plane schema push
+
+# 6. Add work items
+vim work/inbox.yaml
+
+# 7. Push work items
+plane push
+```
+
+### Cloning Existing Project
+
+```bash
+# 1. Clone project by UUID
+plane clone abc-123-def-456 --workspace my-workspace
+
+# 2. Navigate to project
+cd <project-name>
+
+# 3. Check what was pulled
+cat .plane/remote/items.yaml
+
+# 4. Make changes and push
+vim work/inbox.yaml
+plane push
+```
+
+## Complete Workflow
+
+### 1. Initialize Project
+```bash
+plane init my-project --workspace myteam --project API
+```
+
+This creates:
+```
+my-project/
+├── plane.yaml              # Project configuration
+├── schema/
+│   ├── types.yaml          # Work item types (task, bug, etc.)
+│   ├── workflows.yaml      # State machines
+│   └── labels.yaml         # Label definitions
+├── work/
+│   └── inbox.yaml          # Work items to create
+└── .plane/
+    └── state.json          # Sync state (auto-managed)
+```
+
+### 2. Authenticate
+```bash
+plane auth login
+# Enter your API key from: https://app.plane.so/<workspace-slug>/settings/account/api-tokens/
+```
+
+Check auth status:
+```bash
+plane auth whoami
+```
+
+### 3. Customize Schema (Optional)
+Edit the schema files to match your workflow:
+- `schema/types.yaml` - Define work item types
+- `schema/workflows.yaml` - Define states and transitions
+- `schema/labels.yaml` - Define labels
+
+### 4. Push Schema
+```bash
+plane schema push
+```
+
+This will:
+1. Create the project in Plane (if it doesn't exist)
+2. Create work item types
+3. Create states
+4. Create labels
+5. Update `plane.yaml` with project UUID
+
+### 5. Add Work Items
+Edit `work/inbox.yaml`:
+```yaml
+# With stable IDs (recommended)
+- id: "auth-oauth"
+  title: Implement user authentication
+  type: task
+  priority: high
+  labels: [backend, feature]
+  state: todo
+  description: Add OAuth2 authentication
+  assignee: dev@example.com
+  watchers:
+    - pm@example.com
+    - qa@example.com
+  
+- id: "bug-login-css"
+  title: Fix login button CSS
+  type: bug
+  priority: medium
+  labels: [frontend, bug]
+  state: backlog
+```
+
+### 6. Push Work Items
+```bash
+# Preview what will be pushed
+plane push --dry-run
+
+# Push to Plane
+plane push
+
+# Or use sync (schema + work items together)
+plane sync
+```
+
+### 7. Check Status & Rate Limits
+```bash
+# Show sync status
+plane status
+
+# Show rate limit stats
+plane rate stats
+```
+
+## 📚 Commands
+
+### Project Management
+- `plane init [path]` - Initialize new project structure locally
+- `plane status` - Show current sync status
+- `plane clone <uuid>` - Clone existing project from Plane by UUID
+
+### Authentication
+- `plane auth login` - Authenticate with API key
+- `plane auth whoami` - Show current user info
+- `plane auth logout` - Remove stored credentials
+
+### Schema Management
+- `plane schema validate` - Validate local schema files
+- `plane schema push` - Create/update project schema in Plane
+- `plane schema push --dry-run` - Preview schema changes
+
+### Work Items - Collaborative Mode
+- `plane push` - Push new/updated work items (additive only)
+- `plane push --dry-run` - Preview what will be pushed
+- `plane push --force` - Push without confirmation
+- `plane pull` - Pull work items from Plane to `.plane/remote/items.yaml`
+- `plane sync` - Run `schema push` + `push` together
+
+### Work Items - Declarative Mode
+- `plane apply` - Declarative sync with delete support (scope-based)
+- `plane apply --dry-run` - Preview creates/updates/deletes
+- `plane apply --force` - Apply without confirmation
+
+### Monitoring
+- `plane rate stats` - Show rate limit statistics
+- `plane rate reset` - Reset rate limit statistics
+
+### Global Options
+- `--verbose` / `-v` - Enable verbose output
+- `--debug` - Enable debug logging (saves to `~/.config/plane-cli/plane.log`)
+
+## Project Structure
+
+### plane.yaml
+```yaml
+workspace: myteam
+project:
+  key: API  # Short key or UUID
+  name: API Project
+
+defaults:
+  type: task
+  workflow: standard
+```
+
+### schema/types.yaml
+```yaml
+task:
+  description: A single unit of work
+  workflow: standard
+  fields:
+    - name: title
+      type: string
+      required: true
+    - name: priority
+      type: enum
+      options: [none, low, medium, high, urgent]
+```
+
+### schema/workflows.yaml
+```yaml
+standard:
+  states:
+    - name: backlog
+      group: unstarted
+      color: "#858585"
+    - name: in_progress
+      group: started
+      color: "#f59e0b"
+    - name: done
+      group: completed
+      color: "#22c55e"
+  initial: backlog
+  terminal: [done]
+```
+
+### schema/labels.yaml
+```yaml
+groups:
+  area:
+    color: "#3b82f6"
+    labels:
+      - name: frontend
+      - name: backend
+```
+
+### work/inbox.yaml
+```yaml
+- title: Work item title
+  type: task
+  priority: high
+  labels: [backend, feature]
+  state: todo
+  description: Optional description
+```
+
+## ⚙️ Configuration
+
+### API Key
+Get your API key from: https://app.plane.so/<workspace-slug>/settings/account/api-tokens/
+
+Stored securely at: `~/.config/plane-compose/credentials`
+
+### Workspace
+Find your workspace slug in the Plane URL: `https://app.plane.so/{workspace}`
+
+### Environment Variables
+
+All settings can be customized via environment variables:
+
+```bash
+# API Configuration
+export PLANE_API_URL="https://api.plane.so"
+export PLANE_API_TIMEOUT=30
+
+# Rate Limiting
+export PLANE_RATE_LIMIT_PER_MINUTE=50
+
+# Debugging
+export PLANE_DEBUG=true
+export PLANE_VERBOSE=true
+export PLANE_LOG_TO_FILE=true
+```
+
+### plane.yaml Options
+
+```yaml
+workspace: my-workspace
+project:
+  key: PROJ           # User-defined short key
+  uuid: abc-123       # Auto-added after schema push
+  name: My Project
+
+defaults:
+  type: task
+  workflow: standard
+
+# Optional: Declarative scope for 'plane apply'
+apply_scope:
+  labels: ["automated"]
+  assignee: "bot@example.com"
+  id_prefix: "AUTO-"
+```
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**Authentication Failed (401)**
+```bash
+plane auth logout
+plane auth login
+```
+
+**Permission Denied (403)**
+- Verify you're a member/admin of the workspace
+- Check with workspace administrator
+- Try: `plane auth whoami`
+
+**Project Not Found (404)**
+```bash
+# Remove stale UUID from plane.yaml
+vim plane.yaml  # Delete uuid line
+
+# Recreate/find project
+plane schema push
+```
+
+**Rate Limit Exceeded (429)**
+```bash
+# Check rate limit status
+plane rate stats
+
+# Wait and retry, or reduce rate:
+export PLANE_RATE_LIMIT_PER_MINUTE=30
+plane push
+```
+
+**Duplicate Work Items**
+```yaml
+# Always use stable IDs:
+- id: "unique-identifier"
+  title: "My task"
+```
+
+**State Corruption**
+```bash
+# Backup and reset state
+cp .plane/state.json .plane/state.json.backup
+rm .plane/state.json
+plane pull
+```
+
+**Debug Mode**
+```bash
+# Enable verbose logging
+plane --debug push
+
+# View logs
+tail -f ~/.config/plane-compose/plane.log
+```
+
+For more help, see [`docs/troubleshooting.md`](docs/troubleshooting.md)
+
+## 🛠️ Development
+
+```bash
+# Clone repository
+git clone https://github.com/makeplane/compose.git
+cd compose
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install in development mode with dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+pytest --cov=planecompose --cov-report=html
+
+# Format code
+black src/ tests/
+
+# Lint
+ruff check src/
+
+# Type check
+mypy src/planecompose/
+```
+
+### Architecture
+
+Plane Compose follows clean architecture principles:
+
+```
+src/planecompose/
+├── cli/          # CLI commands (presentation layer)
+├── backend/      # Backend abstraction (data access layer)
+├── core/         # Domain models (Pydantic)
+├── sync/         # Business logic (sync orchestration)
+├── diff/         # Change detection
+├── parser/       # YAML parsing
+├── utils/        # Utilities (rate limiting, logging)
+├── config/       # Configuration management
+└── exceptions.py # Custom exception hierarchy
+```
+
+See [`docs/architecture.md`](docs/architecture.md) and [`docs/development.md`](docs/development.md) for more details.
+
+## License
+
+AGPLv3 License - see LICENSE.txt file for details.
+
+## 📖 Documentation
+
+- [Architecture Guide](docs/architecture.md) - System design and principles
+- [Development Guide](docs/development.md) - Contributing and development
+- [Examples](docs/examples.md) - Common workflows and patterns
+- [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
+
+## 🔗 Links
+
+- [Plane](https://plane.so) - Main website
+- [Plane API Documentation](https://docs.plane.so/api) - API reference
+- [Plane Python SDK](https://github.com/makeplane/plane-python-sdk) - Official SDK
+- [GitHub Repository](https://github.com/makeplane/compose) - Source code
+- [Issue Tracker](https://github.com/makeplane/compose/issues) - Report bugs
+
+## 📄 License
+
+AGPLv3 License - see [LICENSE.txt](LICENSE.txt) file for details.
+
+## 🙏 Acknowledgments
+
+- Built with [Typer](https://typer.tiangolo.com/) for CLI
+- [Rich](https://rich.readthedocs.io/) for beautiful terminal output
+- [Pydantic](https://docs.pydantic.dev/) for data validation
+- [Plane SDK](https://github.com/makeplane/plane-python-sdk) for API access
+
+---
+
+**Made with ❤️ for the Plane community**
+
+*Contributions welcome! See [docs/development.md](docs/development.md) for guidelines.*
