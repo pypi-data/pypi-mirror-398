@@ -1,0 +1,63 @@
+from __future__ import annotations
+from ..Base import *
+from ..Proxy import *
+from .AcadDimension import AcadDimension
+
+
+
+class AcadDimDiametric(AcadDimension):
+    def __init__(self, obj) -> None: super().__init__(obj)
+
+    AltRoundDistance: float = proxy_property(float,'AltRoundDistance',AccessMode.ReadWrite)
+    AltSuppressLeadingZeros: bool = proxy_property(bool,'AltSuppressLeadingZeros',AccessMode.ReadWrite)
+    AltSuppressTrailingZeros: bool = proxy_property(bool,'AltSuppressTrailingZeros',AccessMode.ReadWrite)
+    AltSuppressZeroFeet: bool = proxy_property(bool,'AltSuppressZeroFeet',AccessMode.ReadWrite)
+    AltSuppressZeroInches: bool = proxy_property(bool,'AltSuppressZeroInches',AccessMode.ReadWrite)
+    AltTextPrefix: str = proxy_property(str,'AltTextPrefix',AccessMode.ReadWrite)
+    AltTextSuffix: str = proxy_property(str,'AltTextSuffix',AccessMode.ReadWrite)
+    AltTolerancePrecision: AcDimPrecision = proxy_property('AcDimPrecision','AltTolerancePrecision',AccessMode.ReadWrite)
+    AltToleranceSuppressLeadingZeros: bool = proxy_property(bool,'AltToleranceSuppressLeadingZeros',AccessMode.ReadWrite)
+    AltToleranceSuppressTrailingZeros: bool = proxy_property(bool,'AltToleranceSuppressTrailingZeros',AccessMode.ReadWrite)
+    AltToleranceSuppressZeroFeet: bool = proxy_property(bool,'AltToleranceSuppressZeroFeet',AccessMode.ReadWrite)
+    AltToleranceSuppressZeroInches: bool = proxy_property(bool,'AltToleranceSuppressZeroInches',AccessMode.ReadWrite)
+    AltUnits: bool = proxy_property(bool,'AltUnits',AccessMode.ReadWrite)
+    AltUnitsFormat: AcDimUnits = proxy_property('AcDimUnits','AltUnitsFormat',AccessMode.ReadWrite)
+    AltUnitsPrecision: AcDimPrecision = proxy_property('AcDimPrecision','AltUnitsPrecision',AccessMode.ReadWrite)
+    AltUnitsScale: float = proxy_property(float,'AltUnitsScale',AccessMode.ReadWrite)
+    Arrowhead1Block: str = proxy_property(str,'Arrowhead1Block',AccessMode.ReadWrite)
+    Arrowhead1Type: AcDimArrowheadType = proxy_property('AcDimArrowheadType','Arrowhead1Type',AccessMode.ReadWrite)
+    Arrowhead2Block: str = proxy_property(str,'Arrowhead2Block',AccessMode.ReadWrite)
+    Arrowhead2Type: AcDimArrowheadType = proxy_property('AcDimArrowheadType','Arrowhead2Type',AccessMode.ReadWrite)
+    ArrowheadSize: int = proxy_property(int,'ArrowheadSize',AccessMode.ReadWrite)
+    CenterMarkSize: float = proxy_property(float,'CenterMarkSize',AccessMode.ReadWrite)
+    CenterType: AcDimCenterType = proxy_property('AcDimCenterType','CenterType',AccessMode.ReadWrite)
+    DimConstrDesc: str = proxy_property(str,'DimConstrDesc',AccessMode.ReadWrite)
+    DimConstrExpression: str = proxy_property(str,'DimConstrExpression',AccessMode.ReadWrite)
+    DimConstrForm: bool = proxy_property(bool,'DimConstrForm',AccessMode.ReadWrite)
+    DimConstrName: str = proxy_property(str,'DimConstrName',AccessMode.ReadWrite)
+    DimConstrReference: bool = proxy_property(bool,'DimConstrReference',AccessMode.ReadWrite)
+    DimConstrValue: str = proxy_property(str,'DimConstrValue',AccessMode.ReadWrite)
+    DimensionLineColor: AcColor = proxy_property('AcColor','DimensionLineColor',AccessMode.ReadWrite)
+    DimensionLinetype: str = proxy_property(str,'DimensionLinetype',AccessMode.ReadWrite)
+    DimensionLineWeight: AcLineWeight = proxy_property('AcLineWeight','DimensionLineWeight',AccessMode.ReadWrite)
+    DimLine1Suppress: bool = proxy_property(bool,'DimLine1Suppress',AccessMode.ReadWrite)
+    DimLine2Suppress: bool = proxy_property(bool,'DimLine2Suppress',AccessMode.ReadWrite)
+    Fit: AcDimFit = proxy_property('AcDimFit','Fit',AccessMode.ReadWrite)
+    ForceLineInside: bool = proxy_property(bool,'ForceLineInside',AccessMode.ReadWrite)
+    FractionFormat: AcDimFractionType = proxy_property('AcDimFractionType','FractionFormat',AccessMode.ReadWrite)
+    LeaderLength: float = proxy_property(float,'LeaderLength',AccessMode.ReadWrite)
+    LinearScaleFactor: float = proxy_property(float,'LinearScaleFactor',AccessMode.ReadWrite)
+    Measurement: float = proxy_property(float,'Measurement',AccessMode.ReadOnly)
+    PrimaryUnitsPrecision: AcDimPrecision = proxy_property('AcDimPrecision','PrimaryUnitsPrecision',AccessMode.ReadWrite)
+    RoundDistance: float = proxy_property(float,'RoundDistance',AccessMode.ReadWrite)
+    SuppressZeroFeet: bool = proxy_property(bool,'SuppressZeroFeet',AccessMode.ReadWrite)
+    SuppressZeroInches: bool = proxy_property(bool,'SuppressZeroInches',AccessMode.ReadWrite)
+    TextInside: bool = proxy_property(bool,'TextInside',AccessMode.ReadWrite)
+    TextInsideAlign: bool = proxy_property(bool,'TextInsideAlign',AccessMode.ReadWrite)
+    TextOutsideAlign: bool = proxy_property(bool,'TextOutsideAlign',AccessMode.ReadWrite)
+    ToleranceSuppressZeroFeet: bool = proxy_property(bool,'ToleranceSuppressZeroFeet',AccessMode.ReadWrite)
+    ToleranceSuppressZeroInches: bool = proxy_property(bool,'ToleranceSuppressZeroInches',AccessMode.ReadWrite)
+    UnitsFormat: AcDimLUnits = proxy_property('AcDimLUnits','UnitsFormat',AccessMode.ReadWrite)
+
+    def Copy(self) -> AcadDimDiametric:
+        return AcadDimDiametric(self._obj.Copy())

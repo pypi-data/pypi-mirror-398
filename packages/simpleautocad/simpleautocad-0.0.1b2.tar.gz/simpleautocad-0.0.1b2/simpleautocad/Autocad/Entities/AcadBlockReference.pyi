@@ -1,0 +1,29 @@
+from ..Base import *
+from ..Proxy import *
+from ..AcadEntity import AcadEntity as AcadEntity
+
+class AcadBlockReference(AcadEntity):
+    def __init__(self, obj) -> None: ...
+    EffectiveName: str
+    HasAttributes: bool
+    InsertionPoint: PyGePoint3d
+    InsUnits: str
+    InsUnitsFactor: float
+    IsDynamicBlock: bool
+    Name: bool
+    Normal: PyGeVector3d
+    Rotation: float
+    XEffectiveScaleFactor: float
+    XScaleFactor: float
+    YEffectiveScaleFactor: float
+    YScaleFactor: float
+    ZEffectiveScaleFactor: float
+    ZScaleFactor: float
+    def ConvertToAnonymousBlock(self) -> None: ...
+    def ConvertToStaticBlock(self, newBlockName: str) -> None: ...
+    def Copy(self) -> AcadBlockReference: ...
+    def Explode(self) -> vObjectArray: ...
+    def GetAttributes(self) -> vObjectArray[AcadAttributeReference]: ...
+    def GetConstantAttributes(self) -> vObjectArray[AcadAttribute]: ...
+    def GetDynamicBlockProperties(self) -> vObjectArray[AcadDynamicBlockReferenceProperty]: ...
+    def ResetBlock(self) -> None: ...
