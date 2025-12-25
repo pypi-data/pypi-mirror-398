@@ -1,0 +1,90 @@
+name: Checks
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+      actions: read
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: check_changes
+        with:
+          filters: |
+            relevant:
+              - '**/*.py'
+              - '**/*.sh'
+              - '**/*.json'
+              - '**/*.html'
+              - '**/*.toml'
+              - '**/*.lock'
+              - 'tests/**/*.yaml'
+              - '.python-version'
+              - '.Dockerfile'
+      
+      - name: Skip message
+        if: ${{ !(steps.check_changes.outputs.relevant == 'true') }}
+        run: echo "Skipping Python checks - no relevant changes detected"
+
+
+      - name: Setup project
+        if: steps.check_changes.outputs.relevant == 'true'
+        uses: ./.github/actions/setup
+
+      - name: Run linting
+        if: steps.check_changes.outputs.relevant == 'true'
+        uses: astral-sh/ruff-action@57714a7c8a2e59f32539362ba31877a1957dded1 # v3.5.1
+        with: 
+          args: check --fix
+      
+      - name: Run formatting
+        if: steps.check_changes.outputs.relevant == 'true'
+        uses: astral-sh/ruff-action@57714a7c8a2e59f32539362ba31877a1957dded1 # v3.5.1
+        with: 
+          args: format
+    
+      - name: Type checking
+        if: steps.check_changes.outputs.relevant == 'true'
+        uses: jakebailey/pyright-action@6cabc0f01c4994be48fd45cd9dbacdd6e1ee6e5e
+        with:
+          project: pyproject.toml
+          python-path: .venv/bin/python
+          extra-args: amati 
+
+      - name: Testing
+        if: steps.check_changes.outputs.relevant == 'true'
+        run: uv run pytest -m"not external" --cov
+
+      - name: Doctests
+        if: steps.check_changes.outputs.relevant == 'true'
+        run: uv run pytest --doctest-modules amati/
+
+      - name: Coverage comment
+        if: steps.check_changes.outputs.relevant == 'true'
+        id: coverage_comment
+        uses: py-cov-action/python-coverage-comment-action@e8c1e02ffe59ae892340db188ba8ad7386c9ad12 # v3
+        with:
+          GITHUB_TOKEN: ${{ secrets.BOT_COMMENT_TOKEN }}
+        continue-on-error: true
+
+      - name: Store Pull Request comment to be posted
+        if: steps.check_changes.outputs.relevant == 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: python-coverage-comment-action
+          path: python-coverage-comment-action.txt
