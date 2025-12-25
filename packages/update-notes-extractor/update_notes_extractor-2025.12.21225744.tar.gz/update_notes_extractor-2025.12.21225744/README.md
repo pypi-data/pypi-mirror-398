@@ -1,0 +1,114 @@
+# Update Notes Extractor
+[![PyPI version](https://badge.fury.io/py/update-notes-extractor.svg)](https://badge.fury.io/py/update-notes-extractor)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/update-notes-extractor)](https://pepy.tech/project/update-notes-extractor)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+A Python package designed to extract and structure release notes from software update announcements. This tool parses raw text input about software releases and formats key details such as version numbers, new features, bug fixes, and compatibility information.
+
+## Features
+
+- Extracts structured release notes from raw text
+- Supports custom LLM integration
+- Focuses on technical software updates
+- Avoids sensitive or non-technical content
+
+## Installation
+
+```bash
+pip install update_notes_extractor
+```
+
+## Usage
+
+### Basic Usage
+
+```python
+from update_notes_extractor import update_notes_extractor
+
+user_input = "Your software update announcement text here"
+response = update_notes_extractor(user_input)
+print(response)
+```
+
+### Using a Custom LLM
+
+You can use any LLM compatible with LangChain. Here are examples with different LLMs:
+
+#### Using OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from update_notes_extractor import update_notes_extractor
+
+llm = ChatOpenAI()
+response = update_notes_extractor(user_input, llm=llm)
+print(response)
+```
+
+#### Using Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from update_notes_extractor import update_notes_extractor
+
+llm = ChatAnthropic()
+response = update_notes_extractor(user_input, llm=llm)
+print(response)
+```
+
+#### Using Google
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from update_notes_extractor import update_notes_extractor
+
+llm = ChatGoogleGenerativeAI()
+response = update_notes_extractor(user_input, llm=llm)
+print(response)
+```
+
+### Using LLM7 API Key
+
+By default, the package uses the `ChatLLM7` from `langchain_llm7`. You can pass your own API key via an environment variable or directly in the function call.
+
+#### Using Environment Variable
+
+```python
+import os
+from update_notes_extractor import update_notes_extractor
+
+os.environ["LLM7_API_KEY"] = "your_api_key"
+response = update_notes_extractor(user_input)
+print(response)
+```
+
+#### Directly Passing API Key
+
+```python
+from update_notes_extractor import update_notes_extractor
+
+response = update_notes_extractor(user_input, api_key="your_api_key")
+print(response)
+```
+
+## Parameters
+
+- `user_input` (str): The user input text to process.
+- `llm` (Optional[BaseChatModel]): The LangChain LLM instance to use. If not provided, the default `ChatLLM7` will be used.
+- `api_key` (Optional[str]): The API key for LLM7. If not provided, the environment variable `LLM7_API_KEY` will be used.
+
+## Rate Limits
+
+The default rate limits for LLM7 free tier are sufficient for most use cases of this package. If you need higher rate limits, you can get a free API key by registering at [LLM7](https://token.llm7.io/).
+
+## Issues
+
+If you encounter any issues, please report them on the [GitHub issues page](https://github.com/chigwell/update-notes-extractor/issues).
+
+## Author
+
+- **Eugene Evstafev**
+- **Email**: hi@eugene.plus
+- **GitHub**: [chigwell](https://github.com/chigwell)
