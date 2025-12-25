@@ -1,0 +1,166 @@
+# Nexus Governance 🛡️
+
+**The `sudo` command for AI Agents.**
+
+Nexus is a high-performance, local governance layer for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io). It intercepts tool calls, fingerprints them, and enforces human-in-the-loop (HITL) approval before any critical code executes.
+
+Threat model (in plain English):
+
+- Agents can propose actions.
+- Humans approve risky actions.
+- Nexus prevents unsafe concurrency + records decisions.
+
+---
+
+## 📋 Table of Contents
+
+- [Why Nexus?](#why-nexus)
+- [Live Demo](#live-demo-try-it-yourself)
+- [Installation](#installation)
+- [Quickstart](#quickstart)
+- [Architecture](#architecture)
+- [License](#license)
+
+---
+
+## Why Nexus?
+
+You wouldn't let a junior intern run `DROP TABLE`, deploy firmware, or rotate secrets without review. **Why let an LLM?**
+
+- **🔒 Atomic Safety:** Prevents race conditions. If three agents try to deploy to the same server simultaneously, Nexus serializes approvals per `(tool, target)` (configurable), so competing deploys can't interleave.
+- **🔑 Secret-Agnostic Approvals:** Nexus "scrubs" sensitive data (API keys, tokens) before hashing. If your API key rotates, the approval fingerprint remains valid.
+- **🚀 Local-first:** Runs in-process; no external service required (SQLite state store).
+- **🖥️ Built-in TUI (Approval console):** Includes a terminal-based dashboard to monitor and approve requests in real-time.
+- **🫆 Fingerprinting:** Every tool call becomes a deterministic fingerprint (scrubbed + hashed) so approvals are reusable and safe.
+- **🧾 Audit trail:** Every request + decision is recorded with timestamps and actor identity (operator / process, where available).
+
+---
+
+## Live Demo: Try it yourself
+
+Experience the governance flow in 60 seconds.
+
+### 1. Run the simulation
+
+Included in `examples/demo.py` is a script that simulates two agents:
+
+- **The Intern:** Has no permissions.
+- **The Admin:** Has permissions, but calls a "Critical" tool.
+
+```bash
+uv run examples/demo.py
+
+```
+
+**What you will see:**
+
+1. ⛔ **Intern:** Immediately blocked (`ACCESS DENIED`).
+2. ✋ **Admin:** Blocked by Nexus policy. Returns a JSON object:
+
+```json
+{
+  "nexus": {
+    "status": "PENDING",
+    "instruction": "retry_same_call"
+  }
+}
+```
+
+### 2. The "Sudo" Moment
+
+Open a new terminal and launch the governance dashboard:
+
+```bash
+nexus
+
+```
+
+You will see the pending request for `deploy_firmware`.
+
+1. Select the request.
+2. Press **A** to Approve.
+
+### 3. Re-run the simulation
+
+Go back to your first terminal and run the script again:
+
+```bash
+uv run examples/demo.py
+
+```
+
+**What you will see:**
+
+- 🎉 **Admin:** The exact same call now succeeds!
+  > `[SYSTEM] ✅ Deployment verified and complete.`
+
+---
+
+## Installation
+
+```bash
+# Via pip
+pip install nexus-governance
+
+# Via uv (Recommended)
+uv add nexus-governance
+
+```
+
+---
+
+## Quickstart
+
+Here is how to protect your own MCP tools.
+
+```python
+from mcp.server.fastmcp import FastMCP
+from nexus.adapter import NexusAdapter, NexusEngine
+
+# 1. Initialize Engine & MCP
+engine = NexusEngine(db_path="nexus.db")
+mcp = FastMCP("CriticalOps")
+
+# 2. Bind the Adapter
+nexus = NexusAdapter(mcp, engine)
+
+# 3. Define a Protected Tool
+@nexus.tool(danger="critical")
+async def deploy_firmware(version: str, target: str):
+    # ✋ This code will NOT run until a human approves it.
+    print(f"Deploying {version} to {target}...")
+    return "Success"
+
+if __name__ == "__main__":
+    mcp.run()
+
+```
+
+### The Agent Experience
+
+When an agent calls this tool, it receives a **PENDING** signal instead of a result. It is instructed to wait or retry, preventing hallucinated success. For critical tools, Nexus encourages idempotent operations or target-scoped locks.
+
+---
+
+## Architecture
+
+- **`nexus.core`**: The kernel. Handles SQLite locking, state machine transitions, and fingerprint logic.
+- **`nexus.adapter`**: The integration layer. Currently supports `mcp.server.fastmcp`.
+- **`nexus.cli`**: The Textual-based TUI for monitoring and approvals.
+
+Nexus sits between the MCP server and tool handlers — tools are only exposed via the adapter, making bypass impossible without code changes.
+
+Additional adapters (non-MCP runtimes, remote agents) can be added without changing the core engine.
+
+### How Fingerprinting Works
+
+Nexus generates a deterministic hash for every tool call.
+
+1. **Scrubbing:** It detects arguments that look like secrets (e.g., `sk-proj-...`) and replaces them with `<REDACTED>`.
+2. **Stability:** `deploy(key="A")` and `deploy(key="B")` generate the **same fingerprint**. You approve the **_action_**, not the **_credential_**.
+
+---
+
+## License
+
+MIT © [Zishan Neno](https://github.com/zishanneno)
