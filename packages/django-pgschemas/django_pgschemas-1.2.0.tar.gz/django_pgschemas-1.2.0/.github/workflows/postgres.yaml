@@ -1,0 +1,46 @@
+name: postgres
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+    paths:
+      - pyproject.toml
+      - uv.lock
+      - "**.py"
+
+jobs:
+  postgres-version:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        postgres-version: [14, 15, 16, 17, 18]
+        psycopg-version: ["psycopg", "psycopg2"]
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres-version }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sandbox
+        ports:
+          - 5432:5432
+        options: --name postgres --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - name: Install Dependencies
+        run: uv sync --group dev
+      - name: Install psycopg specific version ${{ matrix.psycopg-version }}
+        run: uv pip install ${{ matrix.psycopg-version }}
+      - name: Run Tests
+        run: uv run pytest sandbox/tests

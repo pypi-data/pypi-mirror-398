@@ -1,0 +1,31 @@
+name: linters
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+    paths:
+      - pyproject.toml
+      - uv.lock
+      - "**.py"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12" # lowest python supported
+      - name: Install Dependencies
+        run: uv sync --group dev --group psycopg
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+      - name: Run mypy
+        run: uv run mypy .
