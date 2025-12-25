@@ -1,0 +1,208 @@
+Metadata-Version: 2.4
+Name: ai-Abridge
+Version: 1.0.0
+Summary: A pure AI model bridge - transparent, native SDK, multi-vendor support.
+License-Expression: MIT
+Keywords: ai,batch,gemini,kimi,llm,openai,qwen
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.9
+Requires-Dist: dashscope>=1.0.0
+Requires-Dist: google-genai>=1.0.0
+Requires-Dist: openai>=1.0.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: typer>=0.9.0
+Description-Content-Type: text/markdown
+
+# AI Bridge 🌉
+
+**纯净的 AI 模型桥接库** - 透明、原生 SDK、多厂商支持、无主观侵入。
+
+AI Bridge (aib) 是一个统一的 Python 接口，用于调用各大主流 AI 厂商（Gemini, Kimi, Qwen, OpenAI）的原生能力。它的核心理念是 **"透明桥接"**：我们只做搬运工，不做任何加工，让用户直接获得大模型的原始返回和错误信息。
+
+## 🌟 核心特性
+
+- **多厂商支持**: 
+  - **Google Gemini**: 支持 Gemini 2.0 Flash/Pro 等全系模型
+  - **Moonshot Kimi**: 支持 moonshot-v1 系列
+  - **Aliyun Qwen**: 支持 Qwen-Plus/Turbo/Max 及 VL 视觉大模型
+  - **OpenAI**: 支持 GPT-4o/3.5 等及兼容接口
+
+- **透明桥接 (Transparent Bridge)**: 
+  - 🛡️ **无主观处理**: 不拦截错误，不吞噬异常，不修改响应内容。
+  - 📦 **原生对象**: 返回包含原始 SDK 响应对象的 `Response`，方便高级用户调试。
+  - ⚡ **原生 SDK**: 底层直接调用官方 SDK (`google-genai`, `openai`, `dashscope`)，确保能力零损耗。
+
+- **强大的文件处理**: 
+  - 📂 **Native File API**: 优先使用厂商原生 File API 上传文件（支持 PDF/视频/音频），而非粗暴的 Base64 转换。
+  - 🖼️ **多模态支持**: 完美支持视觉问答、文档分析等场景。
+
+- **独家功能**:
+  - 🚀 **Batch API**: 集成 Qwen 和 Gemini 的批量处理接口，成本降低 50%。
+  - ⏱️ **超时控制**: 支持全局或单次请求的 Timeout 设置。
+  - 🔌 **中转站支持**: 完美支持自定义 `base_url`，适配各类 API 代理。
+
+## 📦 安装
+
+```bash
+pip install ai-bridge
+```
+
+## 🚀 快速开始
+
+### 1. SDK 使用是
+
+```python
+from aib import AIBridge
+
+# 初始化 (自动读取环境变量或配置，也可以显式传入)
+bridge = AIBridge(
+    vendor="gemini", 
+    api_key="YOUR_API_KEY", 
+    model="gemini-2.0-flash",
+    timeout=60  # 60秒超时
+)
+
+# 简单对话
+response = bridge.chat("你好，请介绍一下你自己")
+print(response.content)
+
+# 带文件的多模态对话 (自动处理文件上传)
+response = bridge.chat(
+    prompt="请总结这份文档主要讲了什么，并分析第二张图表",
+    files=["./report.pdf", "./chart.png"]
+)
+print(response.content)
+
+# 查看 Token 消耗
+print(f"Token 使用: {response.usage.total_tokens}")
+```
+
+### 2. CLI 命令行使用
+
+AI Bridge 提供了一个强大的命令行工具 `ab`。
+
+```bash
+# 简单对话 (默认使用 gemini)
+ab chat "你好！"
+
+# 指定厂商和模型
+ab chat "写首诗" -v kimi -m moonshot-v1-8k
+
+# 带文件分析
+ab chat "解释这个代码截图" -v gemini -f error.png
+
+# 带超时设置 (60秒)
+ab chat "生成长文章..." -v openai --timeout 60
+
+# 查看 Token 使用情况
+ab chat "计算..." -v qwen --usage
+
+# 使用自定义中转站
+ab chat "Hello" -v openai --base-url "https://api.proxy.com/v1"
+```
+
+## ⚙️ 配置指南
+
+你可以通过 **YAML 配置文件** 或 **环境变量** 来管理 API Key 和默认设置。
+
+### 方式一：配置文件 (推荐)
+
+创建 `~/.aib/config.yaml` 或当前目录下的 `config.yaml`：
+
+```yaml
+# 默认使用的厂商
+default_vendor: gemini
+
+# 可选：全局超时时间 (秒)
+timeout: 60
+
+vendors:
+  gemini:
+    api_key: "AIzaSy..."
+    model: "gemini-2.0-flash"
+    timeout: 120  # 厂商特定超时，覆盖全局
+  
+  kimi:
+    api_key: "sk-..."
+    model: "moonshot-v1-auto"
+  
+  qwen:
+    api_key: "sk-..."
+    model: "qwen-plus"
+  
+  openai:
+    api_key: "sk-..."
+    model: "gpt-4o"
+    base_url: "https://api.openai.com/v1"  # 支持自定义代理地址
+```
+
+### 方式二：环境变量
+
+```bash
+export AIB_DEFAULT_VENDOR="gemini"
+
+# API Key
+export AIB_GEMINI_API_KEY="AIza..."
+export AIB_KIMI_API_KEY="sk-..."
+export AIB_QWEN_API_KEY="sk-..."
+export AIB_OPENAI_API_KEY="sk-..."
+
+# 自定义 Base URL (中转站)
+export AIB_OPENAI_BASE_URL="https://api.proxy.com/v1"
+
+# 超时设置
+export AIB_GEMINI_TIMEOUT="120"
+```
+
+## 💡 进阶功能
+
+### 批量处理 (Batch API)
+
+对于不着急（24小时内完成）的大批量任务，使用 Batch API 可节省 **50% 成本**。目前支持 Qwen 和 Gemini。
+
+```python
+from aib.batch import QwenBatchManager
+
+manager = QwenBatchManager(api_key="sk-...")
+
+# 提交批量任务
+job = manager.submit(
+    requests=[
+        {"prompt": "分析用户评论: ..."},
+        {"prompt": "翻译这段话: ..."},
+        # ... 上千条请求
+    ],
+    model="qwen-plus"
+)
+print(f"任务已提交，ID: {job.id}")
+
+# ... 等待一段时间后 ...
+
+# 获取结果
+results = manager.get_results(job.id)
+for prompt_id, result in results.items():
+    print(f"{prompt_id}: {result}")
+```
+
+### 错误处理
+
+遵循透明原则，如果 API 调用失败，库会直接抛出厂商 SDK 的原始异常，而非通用的封装异常。这有助于你根据具体错误码（如 `rate_limit_exceeded`）进行精确处理。
+
+```python
+try:
+    bridge.chat("...")
+except Exception as e:
+    # 这里的 e 是 openai.APIError / google.api_core.exceptions.GoogleAPICallError 等原始异常
+    print(f"API 调用失败: {e}")
+```
+
+## 📄 License
+
+MIT License
