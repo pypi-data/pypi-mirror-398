@@ -1,0 +1,196 @@
+{% extends "app_layout_well.html" %}
+
+{% block head_extra %}
+<script type="text/javascript" src="/static/echarts.min.js"></script>
+{% endblock %}
+
+{% block header_title %}
+{{ title }} - Salinity
+{% endblock %}
+
+{% block title %}
+Salinity - {{ title }}
+{% endblock %}
+
+{% block well_content %}
+
+    <p>Back to <a href="/app/well_summary?dh_no={{ well.dh_no }}&env={{ env }}">well summary</a></p>
+
+    <form>
+        <input type="hidden" name="dh_no" value="{{ well.dh_no }}" />
+        <b>Filter data:</b>
+    <br />
+        <input type="checkbox" name="ignore_anomalous" id="ignore_anomalous" value="1" {% if ignore_anomalous %}checked{% endif %} />
+            <label for="ignore_anomalous">Ignore anomalous_ind = Y</label>
+    <br />
+        <label>Keep only measured_during</label>
+            <input type="text" name="keep_measured_during" value="{{ keep_measured_during }}" />  - (e.g. M for monitoring), Separate codes with commas.
+    <br />
+        <label>Keep only extract_method</label>
+            <input type="text" name="keep_extract_method" value="{{ keep_extract_method }}" />  - (e.g. PUMP,AIRL for pumped and airlifted samples). Separate codes with commas.
+    <br />
+        <!-- <label>Parameter:</label>
+        <input type="text" name="param" value="{{ param }}" /> (dtw, swl, or rswl)
+    <br> -->
+        <label>SA Geodata environment:</label>
+        <input type="text" name="env" value="{{ env }}" /> (prod, test, dev)
+    <br>
+        
+        <button type="submit" formaction="/app/well_salinity">
+            Reload
+        </button>
+    </form>
+
+    <div id="sal_chart" style="width: 1200px; height: 500px;"></div>
+
+    {{ table|safe }}
+
+<script type="text/javascript">
+// Dynamic Width (Build Regex)
+const wrap = (s, w) => s.replace(
+    new RegExp(`(?![^\\n]{1,${w}}$)([^\\n]{1,${w}})\\s`, 'g'), '$1<br />'
+);
+
+var salChartDom = document.getElementById('sal_chart');
+var salChart = echarts.init(salChartDom);
+var salOption;
+
+var salData = [
+{{ sal_js_dataset|safe }}
+];
+
+salOption = {
+    animation: false,
+    dataset: {
+        source: salData,
+        dimensions: [
+            'collected_date',
+            'ec', 
+            'tds',
+            'anomalous_ind',
+            'measured_during',
+            'extract_method',
+            'depth_from',
+            'comments'
+        ]
+    },
+    tooltip: {
+        trigger: 'item',
+        axisPointer: {
+            type: 'cross',
+            crossStyle: {
+                color: '#999'
+            }
+        },
+        formatter: function (params, ticket, callback) {
+            console.log(params);
+            p = params;
+            var dateLabel = new Date(p.data[0]).toLocaleDateString("en-GB");
+            label = '<span style="font-size: 0.9em;"><b>' + dateLabel + '</b><br />';
+            console.log({
+                'p': p,
+                'dateLabel': dateLabel
+            });
+            for (i = 1; i < p.data.length; i++) {
+                valueLabel = p.data[i];
+                console.log({
+                    'i': i,
+                    'valueLabel': valueLabel,
+                    'typeof valueLabel': typeof valueLabel,
+                    'p.data[i]': p.data[i]
+                });
+                if (typeof valueLabel !== "undefined") {
+                    fieldName = p.dimensionNames[i];
+                    valueLabel = valueLabel.toString();
+                    console.log({
+                        'fieldName': fieldName,
+                        'valueLabel.length': valueLabel.length,
+                    });
+                    if (valueLabel.length > 0) {
+                        if (fieldName == 'comments') {
+                            valueLabel = wrap(valueLabel, 40);
+                        }
+                        label += fieldName + ': <b>' + valueLabel + '</b><br />';
+                        console.log({
+                            'label': label
+                        });
+                    }
+                }
+            }
+            return label + '</span>';
+        }
+    },
+    toolbox: {
+        show: true,
+        feature: {
+            dataZoom: { 
+                show: true,
+                filterMode: 'none'
+            },
+            restore: { show: true },
+            saveAsImage: { show: true }
+        }
+    },
+    xAxis: {
+        type: 'time'
+    },
+    yAxis: [
+        {
+            type: 'value',
+            scale: true,
+            name: 'EC (uS/cm @ 25C)'
+        },
+        {
+            type: 'value',
+            scale: true,
+            name: 'TDS (mg/L)'
+        }
+    ],  
+    dataZoom: [
+        {
+            type: 'inside',
+            start: 0,
+            end: 100
+        },
+        {
+            start: 100,
+            end: 100
+        }
+    ],
+    legend: {
+        orient: 'horizontal',
+        selected: {
+            'EC': true,
+            'TDS': true
+        }
+    },
+    series: [
+        {
+            name: 'EC',
+            type: 'line',
+            symbol: 'circle',
+            symbolSize: 10,
+            encode: {
+                x: 'collected_date',
+                y: 'ec'
+            }
+        },
+        {
+            name: 'TDS',
+            type: 'line',
+            symbol: 'circle',
+            symbolSize: 10,
+            encode: {
+                x: 'collected_date',
+                y: 'tds'
+            },
+            yAxisIndex: 1
+        }
+    ]
+};
+
+salOption && salChart.setOption(salOption);
+
+</script>
+
+{% endblock %}

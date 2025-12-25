@@ -1,0 +1,133 @@
+{% extends "app_layout_well.html" %}
+
+{% block head_extra %}
+<script type="text/javascript" src="/static/echarts.min.js"></script>
+{% endblock %}
+
+{% block header_title %}
+{{ title }} - Well extraction/injection
+{% endblock %}
+
+{% block title %}
+Well extraction/injection - {{ title }}
+{% endblock %}
+
+{% block well_content %}
+
+
+    <p>Back to <a href="/app/well_summary?dh_no={{ well.dh_no }}&env={{ env }}">well summary</a></p>
+
+    <div id="usage_chart" style="width: 900px; height: 400px;"></div>
+
+    <br />
+    
+    <h2>Usage - extraction</h2>
+    {{ usage_table|safe }}
+
+<script type="text/javascript">
+const wrap = (s, w) => s.replace(
+    new RegExp(`(?![^\\n]{1,${w}}$)([^\\n]{1,${w}})\\s`, 'g'), '$1<br />'
+);
+        
+var usageChartDom = document.getElementById('usage_chart');
+var usageChart = echarts.init(usageChartDom);
+var usageOption;
+
+var usageData = [
+{{ usage_js_dataset|safe }}
+];
+
+usageOption = {
+    dataset: {
+        source: usageData, 
+        dimensions: [
+            '{{ usage_year_col }}',
+            'effective_kl'
+        ]
+    },
+    tooltip: {
+        trigger: 'item',
+        axisPointer: {
+            type: 'cross',
+            crossStyle: {
+                color: '#999'
+            }
+        },
+        formatter: function (params, ticket, callback) {
+            p = params;
+            {% if usage_year_col == 'financial_year' %}
+            var fy0 = p.data[0] - 1;
+            var dateLabel = 'FY' + fy0 + '-' + p.data[0] % 100;
+            {% else %}
+            var dateLabel = p.data[0];
+            {% endif %}
+            label = '<span style="font-size: 0.9em;"><b>' + dateLabel + '</b><br />';
+            
+            for (i = 1; i < p.data.length; i++) {
+                valueLabel = p.data[i];
+                if (typeof valueLabel !== "undefined") {
+                    fieldName = p.dimensionNames[i];
+                    valueLabel = valueLabel.toString();
+                    if (valueLabel.length > 0) {
+                        if (fieldName == 'comments') {
+                            valueLabel = wrap(valueLabel, 40);
+                        }
+                        label += fieldName + ': <b>' + valueLabel + '</b><br />';
+                    }
+                }
+            }
+            return label + '</span>';
+        }
+    },
+    toolbox: {
+        feature: {
+            dataZoom: { 
+                show: true,
+                filterMode: 'none'
+            },
+            restore: { show: true },
+            saveAsImage: { show: true }
+        }
+    },
+    xAxis: {
+        type: 'time'
+    },
+    yAxis: [
+        {
+            type: 'value',
+            scale: true,
+            name: 'Volume (kL)'
+        }
+    ],  
+    dataZoom: [
+        {
+            type: 'inside',
+            start: 0,
+            end: 100
+        },
+        {
+            start: 100,
+            end: 100
+        }
+    ],
+    legend: {
+        orient: 'horizontal'
+    },
+    animation: false,
+    series: [
+        {
+            name: 'Effective volume extracted',
+            type: 'bar',
+            encode: {
+                x: '{{ usage_year_col }}',
+                y: 'effective_kl'
+            }
+        }
+    ]
+};
+
+usageOption && usageChart.setOption(usageOption);
+
+</script>
+
+{% endblock %}

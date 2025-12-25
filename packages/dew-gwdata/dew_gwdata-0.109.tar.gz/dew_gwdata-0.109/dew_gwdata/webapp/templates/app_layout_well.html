@@ -1,0 +1,144 @@
+{% extends "app_layout.html" %}
+
+{% block header_title %}
+    {{ title }}    
+{% endblock %}
+
+{% block title %}
+    {{ title }}    
+{% endblock %}
+
+{% block navbar %}
+
+{{ super() }}
+	{% include "app_navbar_wells_dropdown.html" %}
+    <div class="dropdown">
+        <button class="dropdown-button-links">
+            {{ well.title }} <i class="fa fa-caret-down"></i>
+        </button>
+  		<div class="dropdown-content">
+			<a href="/app/well_summary?dh_no={{ well.dh_no }}&env={{ env }}" class="dropdown-item">Well summary</a>
+			<a href="/app/well_construction?dh_no={{ well.dh_no }}&env={{ env }}" class="dropdown-item">Well construction</a>
+			<a href="/app/well_drillhole_logs?dh_no={{ well.dh_no }}&env={{ env }}" class="dropdown-item">Drillhole logs</a>
+			<a href="/app/well_combined_water_level?dh_no={{ well.dh_no }}&env={{ env }}" class="dropdown-item">Combined water levels</a>
+			<a href="/app/well_manual_water_level?dh_no={{ well.dh_no }}&env={{ env }}" class="dropdown-item">Manual water levels</a>
+			<a href="/app/well_logger_water_level?dh_no={{ well.dh_no }}&env={{ env }}" class="dropdown-item">Logger water levels</a>
+			<a href="/app/well_salinity?dh_no={{ well.dh_no }}&env={{ env }}" class="dropdown-item">Salinity</a>
+			<a href="/app/well_extraction_injection?dh_no={{ well.dh_no }}&env={{ env }}" class="dropdown-item">Extraction/injection data</a>
+			<a href="/app/well_drillhole_images?dh_no={{ well.dh_no }}&env={{ env }}&inline=1&new_tab=1" class="dropdown-item">Drillhole images (photos)</a>
+			<a href="/app/well_drillhole_document_images?dh_no={{ well.dh_no }}&env={{ env }}&inline=1&new_tab=1" class="dropdown-item">Drillhole document images</a>
+			<a href="/app/well_geophysical_logs?dh_no={{ well.dh_no }}&env={{ env }}" class="dropdown-item">Geophysical logs</a>
+			<a href="https://www.waterconnect.sa.gov.au/Systems/GD/Pages/Details.aspx?DHNO={{ well.dh_no }}" class="dropdown-item">
+				Groundwater Data <img src="/static/external-link.svg" width="14px" height="14px" />
+			</a>
+			<a href="https://water.data.sa.gov.au/Data/Location/Summary/Location/{{ well.unit_hyphen }}/Interval/Latest" class="dropdown-item">
+				AQ Web Portal <img src="/static/external-link.svg" width="14px" height="14px" />
+			</a>
+			<a href="https://minerals.sarig.sa.gov.au/Details.aspx?DRILLHOLE_NO={{ well.dh_no }}" class="dropdown-item">
+				SARIG <img src="/static/external-link.svg" width="14px" height="14px" />
+			</a>
+  		</div>
+	</div>
+	<div class="dropdown" id="csv-downloads">
+		<button class="dropdown-button-downloads">
+			ZIP downloads for a single well<i class="fa fa-caret-down"></i>
+		</button>
+		<div class="dropdown-content">
+			<a href="/api/drillhole_images?dh_no={{ well.dh_no }}&env={{ env }}&format=csv" class="dropdown-item">SAGD: Photos</a>
+			<a href="/api/drillhole_docimages?dh_no={{ well.dh_no }}&env={{ env }}&format=csv" class="dropdown-item">SAGD: Drillhole document images</a>
+			<a href="/api/drillhole_geophysical_log_files?dh_no={{ well.dh_no }}&env={{ env }}&format=csv" class="dropdown-item">Gtslogs: Geophysical log data files</a>
+			
+		</div>
+	</div>
+{% endblock %}
+
+{% block content %}
+
+<button type="button" class="collapsible-query-form-button">Open query/filter/sort form >>></button>
+
+<div class="collapsible-query-form" id="collapsible-query-form">
+    <p>
+        <form action="/app/wells_summary">
+            <b>Search:</b>
+            <div class="floating-block">
+				<input type="hidden" name="idq" value="{{ well.unit_hyphen }}" />
+                <p class="form">
+                    <label>Search for wells within this distance:</label>
+                    <br>
+                    <input type="number" name="idq_distance" step=0.01 value=""/> km (use 0 to disable)
+                </p>
+            </div>
+            <br />
+            {% include "app_forms_wells_filter.html" %}
+            <br>
+            <b>Sort:</b>
+            <br />
+            <div class="floating-block">
+                <p class="form">
+                    <label>Sort by:</label>
+                    <select name="sort">
+                        <option value="unit_long">Unit number</option>
+                        <option value="dh_no">Drillhole number</option>
+                        <option value="obs_no">Obswell ID</option>
+                        <option value="dh_name">Drillhole name</option>
+                        <option value="orig_drilled_date">Original drilled date</option>
+                        <option value="orig_drilled_depth">Original drilled depth</option>
+                        <option value="purpose">Purpose</option>
+                        <option value="owner">Owner</option>
+                        <option value="latest_swl">Latest SWL</option>
+                        <option value="latest_tds">Latest TDS</option>
+                        <option value="latest_status">Latest status</option>
+                        <option value="latest_cased_to">Latest cased depth</option>
+                        <option value="aquifer">Aquifer</option>
+                    </select>
+                </p>
+                <p class="form">
+                    <label>Sort order:</label>
+                    <select name="order">
+                        <option value="ascending">Ascending</option>
+                        <option value="descending">Descending</option>
+                    </select>
+                </p>
+            </div>
+            <input type="hidden" name="env" value="{{ env }}" />
+            <br>
+            <input type="reset">
+            <button type="submit">
+                Submit
+            </button>
+            
+        </form>
+	</p>
+</div>
+
+{% block well_content %}
+{% endblock %}
+
+<script>
+    var coll = document.getElementsByClassName("collapsible-query-form-button");
+    var form_content = document.getElementById("collapsible-query-form");
+    var i;
+
+    for (i = 0; i < coll.length; i++) {
+    coll[i].addEventListener("click", function() {
+        this.classList.toggle("active");
+        var content = this.nextElementSibling;
+        if (content.style.display === "flex") {
+        content.style.display = "none";
+        } else {
+        content.style.display = "flex";
+        }
+    });
+    }
+
+    if (false) {
+        if (form_content.style.display === "flex") {
+            form_content.style.display = "none";
+        } else {
+            form_content.style.display = "flex";
+        }
+    }
+
+</script>
+
+{% endblock %}

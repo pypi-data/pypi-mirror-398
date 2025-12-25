@@ -1,0 +1,5 @@
+@ECHO OFF
+C:
+CD\
+CD LAS
+DIR/P/O

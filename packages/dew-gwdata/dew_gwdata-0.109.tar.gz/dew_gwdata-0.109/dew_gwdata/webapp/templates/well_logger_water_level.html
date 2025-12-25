@@ -1,0 +1,206 @@
+{% extends "app_layout_well.html" %}
+
+{% block head_extra %}
+<script type="text/javascript" src="/static/echarts.min.js"></script>
+{% endblock %}
+
+{% block header_title %}
+{{ title }} - Logger water levels
+{% endblock %}
+
+{% block title %}
+Logger water levels - {{ title }}
+{% endblock %}
+
+{% block well_content %}
+
+
+    <p>Back to <a href="/app/well_summary?dh_no={{ well.dh_no }}&env={{ env }}">well summary</a></p>
+
+    <p>
+        <form>
+            <input type="hidden" name="dh_no" value="{{ well.dh_no }}" />
+            <label>Parameter:</label>
+            <input type="text" name="param" value="{{ param }}" /> (dtw, swl, or rswl)
+        <br>
+            <label>Start:</label>
+            <input type="date" name="start" value="{{ start }}" /> (clear field to use earliest measurement)
+        <br>
+            <label>Finish:</label>
+            <input type="date" name="finish" value="{{ finish }}" /> (clear field to use latest measurement)
+        <br>
+            <label>Frequency:</label>
+            <input type="text" name="freq" value="{{ freq }}" /> (e.g. 1H, 6H, 5d, 7d - interpolatation or downsampling will be done as needed)
+        <br>
+            <label>Keep grades:</label>
+            <input type="text" name="keep_grades" value="{{ keep_grades }}" /> (1 = telemetered, 10 = out of range, 15 = unusable, 20 = fair, 30 = good)
+        <br>
+            <label>max_gap_days</label>
+            <input type="number" name="max_gap_days" value="{{ max_gap_days }}" /> (split dataset on gaps greater than max_gap_days)
+        <br>
+            <label>SA Geodata environment:</label>
+            <input type="text" name="env" value="{{ env }}" /> (prod, test, dev)
+        <br>
+            <label>AQTS environment:</label>
+            <input type="text" name="aqts_env" value="{{ aqts_env }}" /> (prod, test, dev)
+        <br>
+            <button type="submit" formaction="/app/well_logger_water_level">
+                Reload
+            </button>
+        </form>
+    </p>
+
+    <div id="wl_chart" style="width: 1200px; height: 500px;"></div>
+
+    <br />
+
+    <h2>Logger dataset details and download links</h2>
+
+    <p><a href="{{ download_url }}">Download entire dataset as CSV</a></p>
+
+    {{ dsets_table|safe }}
+
+<script type="text/javascript">
+const wrap = (s, w) => s.replace(
+    new RegExp(`(?![^\\n]{1,${w}}$)([^\\n]{1,${w}})\\s`, 'g'), '$1<br />'
+);
+        
+var wlChartDom = document.getElementById('wl_chart');
+var wlChart = echarts.init(wlChartDom);
+var wlOption;
+
+var wlData = [
+{{ chart_data|safe }}
+];
+
+const dateFormatter = new Intl.DateTimeFormat('en-GB', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false // Use 24-hour format
+});
+
+wlOption = {
+    dataset: {
+        source: wlData, 
+        dimensions: [
+            'obs_date',
+            '{{ param }}',
+            'grade',
+            // 'anomalous_ind',
+            // 'pumping_ind',
+            // 'artesian_ind',
+            // 'measured_during',
+            // 'pressure',
+            // 'sip',
+            // 'sit',
+            // 'temperature',
+            // 'comments',
+            // 'datasource'
+        ]
+    },
+    tooltip: {
+        trigger: 'item',
+        axisPointer: {
+            type: 'cross',
+            crossStyle: {
+                color: '#999'
+            }
+        },
+        formatter: function (params, ticket, callback) {
+            // console.log(params);
+            p = params;
+            // var dateLabel = new Date(p.data[0]).toLocaleDateString("en-GB");
+            var dateLabel = dateFormatter.format(new Date(p.data[0]));
+            label = '<span style="font-size: 0.9em;"><b>' + dateLabel + '</b><br />';
+            // console.log({
+            //     'p': p,
+            //     'dateLabel': dateLabel
+            // });
+            for (i = 1; i < p.data.length; i++) {
+                valueLabel = p.data[i];
+                // console.log({
+                //     'i': i,
+                //     'valueLabel': valueLabel,
+                //     'typeof valueLabel': typeof valueLabel,
+                //     'p.data[i]': p.data[i]
+                // });
+                if (typeof valueLabel !== "undefined") {
+                    fieldName = p.dimensionNames[i];
+                    valueLabel = valueLabel.toString();
+                    // console.log({
+                    //     'fieldName': fieldName,
+                    //     'valueLabel.length': valueLabel.length,
+                    // });
+                    if (valueLabel.length > 0) {
+                        if (fieldName == 'comments') {
+                            valueLabel = wrap(valueLabel, 40);
+                        }
+                        label += fieldName + ': <b>' + valueLabel + '</b><br />';
+                        // console.log({
+                        //     'label': label
+                        // });
+                    }
+                }
+            }
+            return label + '</span>';
+        }
+    },
+    toolbox: {
+        feature: {
+            dataZoom: { 
+                show: true,
+                filterMode: 'none'
+            },
+            restore: { show: true },
+            saveAsImage: { show: true }
+        }
+    },
+    xAxis: {
+        type: 'time'
+    },
+    yAxis: [
+        {
+            type: 'value',
+            scale: true,
+            name: {% if param == 'rswl' %}'Elevation'{% else %}'Depth'{% endif %},
+            inverse: {% if param == 'rswl' %}false{% else %}true{% endif %}
+        }
+    ],  
+    dataZoom: [
+        {
+            type: 'inside',
+            start: 0,
+            end: 100
+        },
+        {
+            start: 100,
+            end: 100
+        }
+    ],
+    legend: {
+        orient: 'horizontal'
+    },
+    animation: false,
+    series: [
+        {
+            name: '{{ param }}',
+            type: 'line',
+            symbol: 'circle',
+            symbolSize: 3,
+            encode: {
+                x: 'obs_date',
+                y: '{{ param }}'
+            }
+        } {{ trend_js|safe }}
+    ]
+};
+
+wlOption && wlChart.setOption(wlOption);
+
+</script>
+
+{% endblock %}

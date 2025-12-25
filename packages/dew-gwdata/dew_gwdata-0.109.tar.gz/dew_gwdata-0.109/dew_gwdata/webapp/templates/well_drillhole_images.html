@@ -1,0 +1,70 @@
+{% extends "app_layout_well.html" %}
+
+{% block header_title %}
+{{ title }} - Drillhole images (photos)
+{% endblock %}
+
+{% block title %}
+Drillhole images (photos) - {{ title }}
+{% endblock %}
+
+{% block well_content %}
+
+
+    <p>Back to <a href="/app/well_summary?dh_no={{ well.dh_no }}&env={{ env }}">well summary</a></p>
+
+    <h2>{{ images|length }} images found - 
+
+    {% if width > 700 %}
+    reload as <a href="/app/well_drillhole_images?dh_no={{ well.dh_no }}&env={{ env }}&width=500&inline={{ inline }}&new_tab={{ new_tab }}&env={{ env }}">thumbnails</a></h2>
+    {% elif width < 700 %}
+    reload as <a href="/app/well_drillhole_images?dh_no={{ well.dh_no }}&env={{ env }}&width=1200&inline={{ inline }}&new_tab={{ new_tab }}&env={{ env }}">full size images</a></h2>
+    {% endif %}
+    <p>Or specify the size: 
+        <form action="/app/well_drillhole_images">
+            <input type="hidden" name="dh_no" value="{{ well.dh_no }}" />
+            <input type="hidden" name="env" value="{{ env }}" />
+
+            <label>Image width</label> 
+            <input type="number" name="width" value="{{ width }}" />
+
+            <label>Image height</label> 
+            <input type="number" name="height" value="{{ height }}" />
+
+            When clicking on an image: 
+
+            <input type="checkbox" name="inline" value="1" {% if inline %}checked{% endif %} />
+            <label>Open inside the browser</label>
+
+            <input type="checkbox" name="new_tab" value="1" {% if new_tab %}checked{% endif %}  />
+            <label>Open in a new tab</label>
+
+            <button type="submit">
+                Submit
+            </button>
+        </form>
+    </p>
+    {% for im in images %}
+        <div class="floating-block">
+            <p style="margin-top: 2px; margin-bottom: 10px; line-height: 1.5em;"">
+                {{ im['pretty_date'] }} 
+                {% if im['photographer'] %} 
+                <br />Photographer: {{ im['photographer'] }} 
+                {% endif %}
+                {% if im['direction'] %}
+                <br />Direction: {{ im['direction'] }} 
+                {% endif %}
+                {% if im['title'] %}
+                <br /><b>{{ im['title'] }}</b>
+                {% endif %}
+                <br />
+                Created: {{ im['created_by'] }} on {{ im['creation_date'] }}
+            </p>
+            <a href="/api/drillhole_image?image_no={{ im.image_no }}&inline={{ inline }}&env={{ env }}" target="{{ target }}">
+                <img src="/api/drillhole_image?image_no={{ im.image_no }}&width={{ width }}&height={{ height }}&env={{ env }}" 
+                    class="w3-border w3-padding"/>
+            </a>
+        </div>
+    {% endfor %}
+
+{% endblock %}

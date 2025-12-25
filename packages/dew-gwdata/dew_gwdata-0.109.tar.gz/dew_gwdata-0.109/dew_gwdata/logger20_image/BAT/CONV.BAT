@@ -1,0 +1,9 @@
+@ECHO OFF
+CD\
+rem APPEND C:\LOGGER20
+SET LOGCHARTS=C:\LOGGER20\CHARTS
+SET LOGMACROS=C:\LOGGER20\MACROS
+cd C:\logger20\projects\phil
+copy backup.ini logger.ini
+CONVERT
+

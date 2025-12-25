@@ -1,0 +1,4 @@
+CLS
+c:
+CD\
+Q AUTOEXEC.BAT

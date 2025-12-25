@@ -1,0 +1,205 @@
+{% extends "app_layout.html" %}
+
+{% block header_title %}
+    {{ title }}    
+{% endblock %}
+
+{% block title %}
+    <a id="top">{{ title }}</a>
+{% endblock %}
+
+{% block navbar %}
+
+{{ super() }}
+
+{% include "app_navbar_wells_dropdown.html" %}
+
+{% endblock %}
+
+{% block content %}
+
+<p><a href="#queries-for-other-systems">Skip down to queries for other systems</a></p>
+
+<button type="button" class="collapsible-query-form-button">Open query/filter/sort form >>></button>
+
+<div class="collapsible-query-form" id="collapsible-query-form">
+    <p>
+        <form action="/app/{{ redirect_to }}">
+            {% block wells_form_content %}
+
+            <b>Search:</b>
+            <p>Use any of the light blue outlined boxes in this "Search" section to run a search for wells. Only the first box that has search terms
+                entered is used; subsequent boxes are ignored. If you want to refine the results of a search, use the "Filter" section
+                below.
+            </p>
+            <div class="floating-block">
+                <p class="form">
+                    <label>Well identifiers:</label> <br />
+                    <input type="text" name="idq" value="{{ query.idq }}">
+                    <br>This box will work for a handful of wells. If you are trying
+                    <br>to search for more than a few, please use the 
+                    <br>"Search for multiple wells" box on the <a href="/app">homepage</a>,
+                    <br>as it can handle text with hundreds or more of well IDs in it.
+                </p>
+                <p class="form">
+                    <input type="checkbox" name="idq_unit_no" id="idq_unit_no" value="1" checked />
+                    <label for="idq_unit_no">Find unit numbers</label>
+                </p>
+                <p class="form">
+                    <input type="checkbox" name="idq_obs_no" id="idq_obs_no" value="1" checked />
+                    <label for="idq_obs_no">Find observation well IDs</label>
+                </p>   
+                <p class="form">
+                    <input type="checkbox" name="idq_dh_no" id="idq_dh_no" value="1" />
+                    <label for="idq_dh_no">Find drillhole numbers</label>
+                </p>
+                <p class="form">
+                    <label>Include wells within this distance:</label>
+                    <br>
+                    <input type="number" name="idq_distance" step=0.01 value="{{ query.idq_distance }}"/> km (use 0 to disable)
+                </p>
+            </div>
+            <div class="floating-block">
+                <p class="form"></p>
+                    <label>Group code:</label>
+                    <input type="text" name="group_code" value="{{ query.group_code }}" /> 
+                </p>
+                <p class="form">
+                    <label>SWL statuses:</label>
+                    <input type="text" name="swl_status" value="{{ query.swl_status }}" /> - comma-separated list of either C, H, or N 
+                    <br>(Use "C,H,N" to select all values if you want to filter with a different field)
+                </p>
+                <p class="form">
+                    <label>SWL frequencies:</label>
+                    <input type="text" name="swl_freq" value="{{ query.swl_freq }}" /> - comma-separated list of frequencies.
+                    <br>(To select all use "1,2,3,4,6,12,24,R,S" )
+                </p>
+                <p class="form">
+                    <label>Combine SWL & TDS queries with:</label>
+                    <input type="text" name="swl_tds_combine" value="{{ query.swl_tds_combine }}" /> (AND, OR)
+                </p>
+                <p class="form">
+                    <label>TDS statuses:</label>
+                    <input type="text" name="tds_status" value="{{ query.tds_status }}" /> - as above
+                </p>
+                <p class="form">
+                    <label>TDS frequencies:</label>
+                    <input type="text" name="tds_freq" value="{{ query.tds_freq }}" /> - as above
+                </p>
+                <p class="form"></p>
+                    <label>Filter by comment field:</label>
+                    <input type="text" name="filter_group_comment" value="{{ query.filter_group_comment }}" /> - use * to match anything
+                </p>
+            </div>
+            
+            <div class="floating-block">
+                <p class="form">
+                    <label>Salinity records created on:</label>
+                    <input type="date" name="salinity_creation_date" value="{{ query.salinity_creation_date }}" />
+                </p>
+                <p class="form">
+                    <label>Salinity records created by:</label>
+                    <input type="text" name="salinity_created_by" value="{{ query.salinity_created_by }}" /> (Use % to match anything)
+                </p>
+            </div>
+            <div class="floating-block">
+                <p class="form">
+                    <label>Drillhole name containing:</label>
+                    <input type="text" name="name_fragment" value="{{ query.name_fragment }}" />
+                </p>
+            </div>
+            <div class="floating-block">
+                <p class="form">
+                    <label>Aquifer monitored code:</label>
+                    <input type="text" name="aq_mon" value="{{ query.aq_mon }}" />
+                </p>
+                <p class="form">(Must match exactly e.g. "Qpcb" will not match "Qpch+TpQau")
+                </p>
+            </div>
+            <div class="floating-block">
+                <p class="form">
+                    <label>Aquifer code:</label>
+                    <input type="text" name="aquifer_code" value="{{ query.aquifer_code }}" /> ("Tbw" will also match "Qpcb+Tbw")
+                </p>
+                <p class="form">
+                    <input type="checkbox" name="include_historical_aquifers" id="include_historical_aquifers" value="1" {% if query.include_historical_aquifers %}checked{% endif %} />
+                    <label for="include_historical_aquifers">Include historical aquifer designations</label>
+                </p>
+            </div>
+            <div class="floating-block">
+                <p class="form">
+                    <label>Completion date from:</label>
+                    <input type="text" name="completion_date_from" value="{{ query.completion_date_from }}" />
+                </p>
+                <p class="form">
+                    <label>Completion date to:</label>
+                    <input type="text" name="completion_date_to" value="{{ query.completion_date_to }}" />
+                </p>
+                <p>This only considers construction events and ignores survey events.</p>
+            </div>
+            <div class="floating-block">
+                <p class="form">
+                    <label>Special URL string:</label>
+                    <input type="text" name="url_str" value="{{ query.url_str }}" />
+                </p>
+            </div>
+            <div class="floating-block">
+                <p class="form">
+                    <label>Arbitrary SQL (with "drillhole_no" column):</label> <br />
+                    <textarea name="sql" rows="1" cols="30">{{ query.sql }}</textarea>
+                </p>
+            </div>
+            <br />
+            {% include "app_forms_wells_filter.html" %}
+            {% include "app_forms_wells_sort.html" %}
+            <input type="hidden" name="env" value="{{ env }}" />
+            <br>
+
+            {% endblock %}
+            <input type="reset">
+            <button type="submit">
+                Submit
+            </button>
+            
+        </form>
+    </p>
+</div>
+
+{% block wells_content %}
+{% endblock %}
+
+<div>
+    <h2 id="queries-for-other-systems">Queries for other systems</h2>
+    <p><a href="#top">Return to the top of this page</a></p>
+    <h3>EGIS layer definition query (ArcGIS / QGIS)</h3>
+    <p>{{ egis_layer_definition_query }}</p>
+</div>
+
+<script>
+    var coll = document.getElementsByClassName("collapsible-query-form-button");
+    var form_content = document.getElementById("collapsible-query-form");
+    var i;
+
+    for (i = 0; i < coll.length; i++) {
+    coll[i].addEventListener("click", function() {
+        this.classList.toggle("active");
+        var content = this.nextElementSibling;
+        if (content.style.display === "flex") {
+        content.style.display = "none";
+        } else {
+        content.style.display = "flex";
+        }
+    });
+    }
+
+    if ({{ wells|length }} < 1) {
+        if (form_content.style.display === "flex") {
+            form_content.style.display = "none";
+        } else {
+            form_content.style.display = "flex";
+        }
+    }
+
+</script>
+
+{% endblock %}

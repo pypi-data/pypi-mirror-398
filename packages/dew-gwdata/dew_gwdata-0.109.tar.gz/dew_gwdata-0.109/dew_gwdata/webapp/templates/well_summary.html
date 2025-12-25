@@ -1,0 +1,490 @@
+{% extends "app_layout_well.html" %}
+
+{% block head_extra %}
+<script type="text/javascript" src="/static/echarts.min.js"></script>
+{% endblock %}
+
+{% block header_title %}
+{{ title }} - Well summary
+{% endblock %}
+
+{% block title %}
+Well summary - {{ title }}
+{% endblock %}
+
+{% block well_content %}
+
+    <div class="row">
+        <div class="col-1">
+            <h2>Summary</h2>
+            {{ well_table|safe }}
+        </div>
+        <div class="col-2">
+            <div style="width: 450px; height: 300px; display: inline-block; text-align: center;">
+                <div id="wl_chart" style="width: 450px; height: 300px; display: inline-block;"></div>
+                <br />{{ wl_chart_from }} - {{ wl_chart_to }}
+            </div>
+            <div style="width: 450px; height: 300px; display: inline-block; text-align: center;">
+                <div id="sal_chart" style="width: 450px; height: 300px; display: inline-block;"></div>
+                <br />{{ sal_chart_from }} - {{ sal_chart_to }}
+            </div>
+            <div style="width: 450px; height: 300px; display: inline-block; text-align: center;">
+                <div id="usage_chart" style="width: 450px; height: 300px; display: inline-block;"></div>
+            </div>
+
+            {% if aqmon|length > 0 %}
+            <h2>Aquifers monitored</h2>
+            {{ aqmon_table|safe }}
+            {% endif %}
+
+            {% if const|length > 0 %}
+            <h2><a href="/app/well_construction?dh_no={{ well['dh_no'] }}&env={{ env }}">Construction</a></h2>
+            {{ const_table|safe }}
+            {% endif %}
+
+            {% if notes|length > 0 %}
+            <h2>Notes</h2>
+            {{ notes_table|safe }}
+            {% endif %}
+
+            {% if status|length > 0 %}
+            <h2>Status codes</h2>
+            {{ status_table|safe }}
+            {% endif %}
+            
+            {% if groups|length > 0 %}
+            <!-- <h2><a href="/app/wells_monitoring_networks_groups?dh_no={{ well['dh_no'] }}&env={{ env }}">Monitoring networks / drillhole groups</a></h2> -->
+            <h2>Monitoring networks / drillhole groups</h2>
+            {{ groups_table|safe }}
+            {% endif %}
+
+            {% if elev|length > 0 %}
+            <h2>Elevation</h2>
+            {{ elev_table|safe }}
+            {% endif %}
+
+            {% if files|length > 0 %}
+            <h2>Files</h2>
+            {{ files_table|safe }}
+            {% endif %}
+
+            {% if geophyslogs|length > 0 %}
+            <h2><a href="/app/well_geophysical_logs?dh_no={{ well['dh_no'] }}&env={{ env }}">Geophysical logs</a></h2>
+            {{ geophyslogs_table|safe }}
+            {% endif %}
+
+            {% if refs|length > 0 %}
+            <h2>References to publications on <a href="https://sarigbasis.pir.sa.gov.au/WebtopEw/ws/samref/sarig1/cat0/MSearch">SAMREF</a> (Old) / <a href="https://catalog.sarig.sa.gov.au/">SARIG Catalogue</a> (New)</h2>
+            {{ refs_table|safe }}
+            {% endif %}
+            
+        </div>
+    </div>
+
+<script type="text/javascript">
+
+const wrap = (s, w) => s.replace(
+    new RegExp(`(?![^\\n]{1,${w}}$)([^\\n]{1,${w}})\\s`, 'g'), '$1<br />'
+);
+        
+var wlChartDom = document.getElementById('wl_chart');
+var wlChart = echarts.init(wlChartDom);
+var wlOption;
+
+var wlData = [
+{{ wl_js_dataset|safe }}
+];
+
+wlOption = {
+    dataset: {
+        source: wlData, 
+        dimensions: [
+            'obs_date',
+            'dtw', 
+            'swl',
+            'rswl',
+            'anomalous_ind',
+            'pumping_ind',
+            'artesian_ind',
+            'measured_during',
+            'pressure',
+            'sip',
+            'sit',
+            'temperature',
+            'comments',
+            'datasource'
+        ]
+    },
+    tooltip: {
+        trigger: 'item',
+        confine: true,
+        axisPointer: {
+            type: 'cross',
+            crossStyle: {
+                color: '#999'
+            }
+        },
+        formatter: function (params, ticket, callback) {
+            console.log(params);
+            p = params;
+            var dateLabel = new Date(p.data[0]).toLocaleDateString("en-GB");
+            label = '<span style="font-size: 0.9em;"><b>' + dateLabel + '</b><br />';
+            console.log({
+                'p': p,
+                'dateLabel': dateLabel
+            });
+            for (i = 1; i < p.data.length; i++) {
+                valueLabel = p.data[i];
+                console.log({
+                    'i': i,
+                    'valueLabel': valueLabel,
+                    'typeof valueLabel': typeof valueLabel,
+                    'p.data[i]': p.data[i]
+                });
+                if (typeof valueLabel !== "undefined") {
+                    fieldName = p.dimensionNames[i];
+                    valueLabel = valueLabel.toString();
+                    console.log({
+                        'fieldName': fieldName,
+                        'valueLabel.length': valueLabel.length,
+                    });
+                    if (valueLabel.length > 0) {
+                        if (fieldName == 'comments') {
+                            valueLabel = wrap(valueLabel, 40);
+                        }
+                        label += fieldName + ': <b>' + valueLabel + '</b><br />';
+                        console.log({
+                            'label': label
+                        });
+                    }
+                }
+            }
+            return label + '</span>';
+        }
+    },
+    toolbox: {
+        feature: {
+            restore: { show: true },
+            saveAsImage: { show: true }
+        }
+    },
+    xAxis: {
+        type: 'time'
+    },
+    yAxis: [
+        {
+            type: 'value',
+            scale: true,
+            name: 'Depth',
+            inverse: true
+        },
+        {
+            type: 'value',
+            scale: true,
+            name: 'Elevation'
+        }
+    ],  
+    dataZoom: [
+        {
+            type: 'slider',
+            filterMode: 'none',
+            labelFormatter: function (value, valueStr) {
+                date = new Date(value);
+                day = date.getDay();
+                month = date.getMonth();
+                year = date.getFullYear();
+                shortYear = year.toString().substring(2, 4);
+                return day + '/' + month + '/' + shortYear;
+            }
+        }
+    ],
+    legend: {
+        orient: 'horizontal',
+        selected: {
+            'DTW': false,
+            'SWL': true,
+            'RSWL': true
+        }
+    },
+    animation: false,
+    series: [
+        {
+            name: 'DTW',
+            type: 'line',
+            symbol: 'triangle',
+            symbolSize: 5,
+            encode: {
+                x: 'obs_date',
+                y: 'dtw'
+            }
+        },
+        {
+            name: 'SWL',
+            type: 'line',
+            symbol: 'diamond',
+            symbolSize: 5,
+            encode: {
+                x: 'obs_date',
+                y: 'swl'
+            },
+        },
+        {
+            name: 'RSWL',
+            type: 'line',
+            symbol: 'rect',
+            symbolSize: 5,
+            encode: {
+                x: 'obs_date',
+                y: 'rswl'
+            },
+            yAxisIndex: 1
+        }
+    ]
+};
+
+wlOption && wlChart.setOption(wlOption);
+
+var salChartDom = document.getElementById('sal_chart');
+var salChart = echarts.init(salChartDom);
+var salOption;
+
+var salData = [
+{{ sal_js_dataset|safe }}
+];
+
+salOption = {
+    animation: false,
+    dataset: {
+        source: salData,
+        dimensions: [
+            'collected_date',
+            'ec', 
+            'tds',
+            'anomalous_ind',
+            'measured_during',
+            'extract_method',
+            'depth_from',
+            'comments'
+        ]
+    },
+    tooltip: {
+        trigger: 'item',
+        confine: true,
+        axisPointer: {
+            type: 'cross',
+            crossStyle: {
+                color: '#999'
+            }
+        },
+        formatter: function (params, ticket, callback) {
+            console.log(params);
+            p = params;
+            var dateLabel = new Date(p.data[0]).toLocaleDateString("en-GB");
+            label = '<span style="font-size: 0.9em;"><b>' + dateLabel + '</b><br />';
+            console.log({
+                'p': p,
+                'dateLabel': dateLabel
+            });
+            for (i = 1; i < p.data.length; i++) {
+                valueLabel = p.data[i];
+                console.log({
+                    'i': i,
+                    'valueLabel': valueLabel,
+                    'typeof valueLabel': typeof valueLabel,
+                    'p.data[i]': p.data[i]
+                });
+                if (typeof valueLabel !== "undefined") {
+                    fieldName = p.dimensionNames[i];
+                    valueLabel = valueLabel.toString();
+                    console.log({
+                        'fieldName': fieldName,
+                        'valueLabel.length': valueLabel.length,
+                    });
+                    if (valueLabel.length > 0) {
+                        if (fieldName == 'comments') {
+                            valueLabel = wrap(valueLabel, 40);
+                        }
+                        label += fieldName + ': <b>' + valueLabel + '</b><br />';
+                        console.log({
+                            'label': label
+                        });
+                    }
+                }
+            }
+            return label + '</span>';
+        }
+    },
+    toolbox: {
+        show: true,
+        feature: {
+            restore: { show: true },
+            saveAsImage: { show: true }
+        }
+    },
+    xAxis: {
+        type: 'time'
+    },
+    yAxis: [
+        {
+            type: 'value',
+            scale: true,
+            name: 'EC (uS/cm @ 25C)'
+        },
+        {
+            type: 'value',
+            scale: true,
+            name: 'TDS (mg/L)'
+        }
+    ],  
+    dataZoom: [
+        {
+            type: 'slider',
+            filterMode: 'none',
+            xAxisIndex: [0],
+            labelFormatter: function (value, valueStr) {
+                date = new Date(value);
+                day = date.getDay();
+                month = date.getMonth();
+                year = date.getFullYear();
+                shortYear = year.toString().substring(2, 4);
+                return day + '/' + month + '/' + shortYear;
+            }
+        }
+    ],
+    legend: {
+        orient: 'horizontal',
+        selected: {
+            'EC': true,
+            'TDS': true
+        }
+    },
+    series: [
+        {
+            name: 'EC',
+            type: 'line',
+            symbol: 'circle',
+            symbolSize: 8,
+            encode: {
+                x: 'collected_date',
+                y: 'ec'
+            }
+        },
+        {
+            name: 'TDS',
+            type: 'line',
+            symbol: 'circle',
+            symbolSize: 8,
+            encode: {
+                x: 'collected_date',
+                y: 'tds'
+            },
+            yAxisIndex: 1
+        }
+    ]
+};
+
+salOption && salChart.setOption(salOption);
+
+var usageChartDom = document.getElementById('usage_chart');
+var usageChart = echarts.init(usageChartDom);
+var usageOption;
+
+var usageData = [
+{{ usage_js_dataset|safe }}
+];
+
+usageOption = {
+    dataset: {
+        source: usageData, 
+        dimensions: [
+            '{{ usage_year_col }}',
+            'effective_kl'
+        ]
+    },
+    tooltip: {
+        trigger: 'item',
+        axisPointer: {
+            type: 'cross',
+            crossStyle: {
+                color: '#999'
+            }
+        },
+        formatter: function (params, ticket, callback) {
+            p = params;
+            {% if usage_year_col == 'financial_year' %}
+            var fy0 = p.data[0] - 1;
+            var dateLabel = 'FY' + fy0 + '-' + p.data[0] % 100;
+            {% else %}
+            var dateLabel = p.data[0];
+            {% endif %}
+            label = '<span style="font-size: 0.9em;"><b>' + dateLabel + '</b><br />';
+            
+            for (i = 1; i < p.data.length; i++) {
+                valueLabel = p.data[i];
+                if (typeof valueLabel !== "undefined") {
+                    fieldName = p.dimensionNames[i];
+                    valueLabel = valueLabel.toString();
+                    if (valueLabel.length > 0) {
+                        if (fieldName == 'comments') {
+                            valueLabel = wrap(valueLabel, 40);
+                        }
+                        label += fieldName + ': <b>' + valueLabel + '</b><br />';
+                    }
+                }
+            }
+            return label + '</span>';
+        }
+    },
+    toolbox: {
+        feature: {
+            dataZoom: { 
+                show: true,
+                filterMode: 'none'
+            },
+            restore: { show: true },
+            saveAsImage: { show: true }
+        }
+    },
+    xAxis: {
+        type: 'time'
+    },
+    yAxis: [
+        {
+            type: 'value',
+            scale: true,
+            name: 'Volume (kL)'
+        }
+    ],  
+    dataZoom: [
+        {
+            type: 'inside',
+            start: 0,
+            end: 100
+        },
+        {
+            start: 100,
+            end: 100
+        }
+    ],
+    legend: {
+        orient: 'horizontal'
+    },
+    animation: false,
+    series: [
+        {
+            name: 'Effective volume extracted',
+            type: 'bar',
+            encode: {
+                x: '{{ usage_year_col }}',
+                y: 'effective_kl'
+            }
+        }
+    ]
+};
+
+usageOption && usageChart.setOption(usageOption);
+
+</script>
+    
+
+{% endblock %}

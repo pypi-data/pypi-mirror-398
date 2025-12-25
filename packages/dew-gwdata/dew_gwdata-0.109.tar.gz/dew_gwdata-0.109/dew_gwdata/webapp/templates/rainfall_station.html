@@ -1,0 +1,452 @@
+{% extends "app_layout.html" %}
+
+{% block head_extra %}
+<script type="text/javascript" src="/static/echarts.min.js"></script>
+{% endblock %}
+
+{% block header_title %}
+{{ title }} - Rainfall station
+{% endblock %}
+
+{% block title %}
+Rainfall station - {{ title }}
+{% endblock %}
+
+{% block content %}
+
+<p>
+    <form>
+        <div class="floating-block">
+            <p class="form">
+                <label>Station ID:</label>
+                <input type="text" name="station_id" value="{{ query.station_id }}"/>
+            </p>
+        </div>
+        <div class="floating-block">
+            <p class="form"></p>
+                <label>Station name:</label>
+                <input type="text" name="station_name" value="{{ query.station_name }}" /> 
+                <br />
+            </p>
+        </div>
+        <div class="floating-block">
+            <p class="form"></p>
+                <label>Average period start:</label>
+                <input type="text" name="avg_pd_start" value="{{ avg_pd_start }}" /> 
+                <br />
+            </p>
+            <p class="form"></p>
+                <label>Average period end:</label>
+                <input type="text" name="avg_pd_end" value="{{ avg_pd_end }}" /> 
+                <br />
+            </p>
+        </div>
+        <br>
+        <input type="reset">
+        <button type="submit" formaction="/app/rainfall_station">
+            Load
+        </button>
+    </form>
+</p>
+
+    <p>{{ message }}</p>
+
+    {{ site_table|safe }}
+    
+    <p>Annual statistics over period {{ avg_pd_start_label }} to {{ avg_pd_end_label }}:</p>
+    
+    {{ annual_stats_table|safe }}
+
+    <p></p>
+        
+    <div id="calendar_chart" style="width: 1000px; height: 500px;"></div>   
+
+    <p>Monthly statistics over period {{ avg_monthly_pd_start_label }} to {{ avg_monthly_pd_end_label }}</p>
+
+    {{ monthly_stats_table|safe }}
+
+    <p></p>
+
+    <div id="monthly_chart" style="width: 1000px; height: 500px;"></div>   
+
+<script type="text/javascript">
+const wrap = (s, w) => s.replace(
+    new RegExp(`(?![^\\n]{1,${w}}$)([^\\n]{1,${w}})\\s`, 'g'), '$1<br />'
+);
+
+var calendarData = [
+{{ calendar_js_dataset|safe }}
+];        
+
+var calendarChartDom = document.getElementById('calendar_chart');
+var calendarChart = echarts.init(calendarChartDom);
+
+var calendarChartOption;
+
+calendarChartOption = {
+    dataset: {
+        source: calendarData, 
+        dimensions: [
+            'year', 'total', "observed", "deaccumulated", "interpolated", 'mean', 'pct5', 'pct95'
+        ]
+    },
+    tooltip: {
+        trigger: 'item',
+        axisPointer: {
+            type: 'cross',
+            crossStyle: {
+                color: '#999'
+            }
+        },
+        formatter: function (params, ticket, callback) {
+            p = params;
+            var dateLabel = p.data[0];
+            label = '<span style="font-size: 0.9em;"><b>' + dateLabel + '';
+            label += ' - Total ' + Math.round(p.value[1] + p.value[2] + p.value[3]) + '</b>' +  '<br />';
+            for (i = 1; i < p.data.length; i++) {
+                valueLabel = p.data[i];
+                if (typeof valueLabel !== "undefined") {
+                    fieldName = p.dimensionNames[i];
+                    valueLabel = Math.round(valueLabel).toString();
+                    if ((fieldName == 'mean') | (fieldName == 'pct5') | (fieldName == 'pct95')) {
+                        //
+                    } else if (valueLabel.length > 0) {
+                        if (fieldName == 'comments') {
+                            valueLabel = wrap(valueLabel, 40);
+                        }
+                        label += fieldName + ': <b>' + valueLabel + '</b><br />';
+                    }
+                }
+            }
+            return label + '</span>';
+        }
+    },
+    toolbox: {
+        feature: {
+            dataZoom: { 
+                show: true,
+                filterMode: 'none'
+            },
+            restore: { show: true },
+            saveAsImage: { show: true }
+        }
+    },
+    xAxis: {
+        type: 'category'
+    },
+    yAxis: [
+        {
+            type: 'value',
+            scale: true,
+            name: 'Rainfall'
+        }
+    ],  
+    dataZoom: [
+        {
+            type: 'inside',
+            start: 0,
+            end: 100
+        },
+        {
+            start: 100,
+            end: 100
+        }
+    ],
+    animation: false,
+    legend: {
+        orient: 'horizontal',
+        selected: {
+            'Total': false,
+            'Observed': true,
+            'Deaccumulated': true,
+            'Interpolated': true,
+            'Mean': true,
+            '5th percentile': false,
+            '95th percentile': false
+        }
+    },
+    series: [
+        {
+            name: 'Total',
+            type: 'bar',
+            encode: {
+                x: 'year',
+                y: 'total'
+            },
+            color: 'dodgerblue'
+        },
+        {
+            name: 'Observed',
+            type: 'bar',
+            stack: 'rainfall',
+            encode: {
+                x: 'year',
+                y: 'observed'
+            },
+            color: 'dodgerblue'
+        },
+        {
+            name: 'Deaccumulated',
+            type: 'bar',
+            stack: 'rainfall',
+            encode: {
+                x: 'year',
+                y: 'deaccumulated'
+            },
+            color: 'deepskyblue'
+        },
+        {
+            name: 'Interpolated',
+            type: 'bar',
+            stack: 'rainfall',
+            encode: {
+                x: 'year',
+                y: 'interpolated'
+            },
+            color: 'plum'
+        },
+        {
+            name: 'Mean',
+            type: 'line',
+            encode: {
+                x: 'year',
+                y: 'mean'
+            },
+            showSymbol: false,
+            lineStyle: {
+                normal: {
+                    color: 'grey',
+                    width: 1,
+                    type: 'solid'
+                }
+            }
+        },
+        {
+            name: '5th percentile',
+            type: 'line',
+            encode: {
+                x: 'year',
+                y: 'pct5'
+            },
+            showSymbol: false,
+            lineStyle: {
+                normal: {
+                    color: 'black',
+                    width: 1,
+                    type: 'dotted'
+                }
+            }
+        },
+        {
+            name: '95th percentile',
+            type: 'line',
+            encode: {
+                x: 'year',
+                y: 'pct95'
+            },
+            showSymbol: false,
+            lineStyle: {
+                normal: {
+                    color: 'black',
+                    width: 1,
+                    type: 'dashed'
+                }
+            }
+        }
+    ]
+};
+
+calendarChartOption && calendarChart.setOption(calendarChartOption);
+
+
+var monthlyData = [
+{{ monthly_js_dataset|safe }}
+];        
+
+var monthlyChartDom = document.getElementById('monthly_chart');
+var monthlyChart = echarts.init(monthlyChartDom);
+
+var monthlyChartOption;
+
+monthlyChartOption = {
+    dataset: {
+        source: monthlyData, 
+        dimensions: [
+            'year',
+            'month',
+            'year_month',
+            'total',
+            'mean',
+            'pct5',
+            'pct25',
+            'pct75',
+            'pct95',
+        ]
+    },
+    tooltip: {
+        trigger: 'item',
+        axisPointer: {
+            type: 'cross',
+            crossStyle: {
+                color: '#999'
+            }
+        },
+        formatter: function (params, ticket, callback) {
+            p = params;
+            var dateLabel = p.data[2];
+            label = '<span style="font-size: 0.9em;"><b>' + dateLabel + '';
+            label += ' - ' + Math.round(p.value[3], 1) + ' mm</b>' +  '<br />';
+            for (i = 1; i < p.data.length; i++) {
+                valueLabel = p.data[i];
+                if (typeof valueLabel !== "undefined") {
+                    fieldName = p.dimensionNames[i];
+                    if ((fieldName == 'mean') | (fieldName == 'pct25') |(fieldName == 'pct75') |(fieldName == 'pct5') | (fieldName == 'pct95')) {
+                        valueLabel = Math.round(valueLabel, 1).toString();
+                        label += fieldName + ': <b>' + valueLabel + '</b><br />';
+                    }
+                }
+            }
+            return label + '</span>';
+        }
+    },
+    toolbox: {
+        feature: {
+            dataZoom: { 
+                show: true,
+                filterMode: 'none'
+            },
+            restore: { show: true },
+            saveAsImage: { show: true }
+        }
+    },
+    xAxis: {
+        type: 'category'
+    },
+    yAxis: [
+        {
+            type: 'value',
+            scale: true,
+            name: 'Rainfall'
+        }
+    ],  
+    dataZoom: [
+        {
+            type: 'inside',
+            start: {{ 100 - pct_2_years }},
+            end: 100
+        },
+        {
+            start: 100,
+            end: 100
+        }
+    ],
+    animation: false,
+    legend: {
+        orient: 'horizontal',
+        selected: {
+            'Total': true,
+            'Mean': true,
+            '5th percentile': false,
+            '25th percentile': false,
+            '75th percentile': false,
+            '95th percentile': false,
+        }
+    },
+    series: [
+        {
+            name: 'Total',
+            type: 'bar',
+            encode: {
+                x: 'year_month',
+                y: 'total'
+            },
+            color: 'dodgerblue'
+        },
+        {
+            name: 'Mean',
+            type: 'line',
+            encode: {
+                x: 'year_month',
+                y: 'mean'
+            },
+            showSymbol: false,
+            lineStyle: {
+                normal: {
+                    color: 'black',
+                    width: 1,
+                    type: 'solid'
+                }
+            }
+        },
+        {
+            name: '5th percentile',
+            type: 'line',
+            encode: {
+                x: 'year_month',
+                y: 'pct5'
+            },
+            showSymbol: false,
+            lineStyle: {
+                normal: {
+                    color: 'grey',
+                    width: 0.8,
+                    type: 'dashed'
+                }
+            }
+        },
+        {
+            name: '25th percentile',
+            type: 'line',
+            encode: {
+                x: 'year_month',
+                y: 'pct25'
+            },
+            showSymbol: false,
+            lineStyle: {
+                normal: {
+                    color: 'black',
+                    width: 1,
+                    type: 'dashed'
+                }
+            }
+        },
+        {
+            name: '75th percentile',
+            type: 'line',
+            encode: {
+                x: 'year_month',
+                y: 'pct75'
+            },
+            showSymbol: false,
+            lineStyle: {
+                normal: {
+                    color: 'black',
+                    width: 1,
+                    type: 'dashed'
+                }
+            }
+        },
+        {
+            name: '95th percentile',
+            type: 'line',
+            encode: {
+                x: 'year_month',
+                y: 'pct95'
+            },
+            showSymbol: false,
+            lineStyle: {
+                normal: {
+                    color: 'grey',
+                    width: 0.8,
+                    type: 'dashed'
+                }
+            }
+        }
+    ]
+};
+
+monthlyChartOption && monthlyChart.setOption(monthlyChartOption);
+
+</script>
+
+{% endblock %}
