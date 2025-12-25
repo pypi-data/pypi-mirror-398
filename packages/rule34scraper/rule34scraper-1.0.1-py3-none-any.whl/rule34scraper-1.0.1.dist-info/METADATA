@@ -1,0 +1,124 @@
+Metadata-Version: 2.4
+Name: rule34scraper
+Version: 1.0.1
+Summary: A fast Python API wrapper for rule34 image board
+Project-URL: Homepage, https://github.com/whatimdoingwithmylife-sudo/rule34wrapper
+Project-URL: Repository, https://github.com/whatimdoingwithmylife-sudo/rule34wrapper
+Author: whatimdoingwithmylife-sudo
+License-Expression: MIT
+License-File: LICENSE
+Keywords: api,imageboard,scraper,wrapper
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.9
+Requires-Dist: httpx>=0.24.0
+Requires-Dist: selectolax>=0.3.0
+Provides-Extra: dev
+Requires-Dist: pytest-asyncio>=0.21; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# rule34scraper
+
+A fast Python API wrapper for booru-style image boards using selectolax (Lexbor engine).
+
+## Installation
+
+```bash
+pip install rule34scraper
+```
+
+## Usage
+
+### Basic Usage
+
+```python
+from rule34scraper import R34Client
+
+with R34Client() as client:
+    # Search posts by tags
+    posts, tags = client.get_posts(tags="landscape", page=1)
+    
+    for post in posts:
+        print(f"ID: {post.id}, Score: {post.score}, Rating: {post.rating}")
+    
+    # Get post details
+    details = client.get_post_details(posts[0].id)
+    print(f"Image: {details.image_url}")
+    print(f"Size: {details.width}x{details.height}")
+    
+    # Download image
+    client.download_post(details, directory="downloads/")
+```
+
+### Custom Base URL
+
+```python
+from rule34scraper import R34Client
+
+# Use a different booru site
+client = R34Client(
+    base_url="https://example.com/index.php",
+    posts_per_page=42,
+    timeout=60.0,
+)
+
+# Custom headers
+client = R34Client(
+    base_url="https://example.com/index.php",
+    headers={"Cookie": "session=abc123"},
+)
+```
+
+### Async Client
+
+```python
+import asyncio
+from rule34scraper import AsyncR34Client
+
+async def main():
+    async with AsyncR34Client() as client:
+        posts, tags = await client.get_posts(tags="portrait", page=1)
+        details = await client.get_post_details(posts[0].id)
+        print(f"Image: {details.image_url}")
+
+asyncio.run(main())
+```
+
+### User Profiles
+
+```python
+with R34Client() as client:
+    profile = client.get_user_profile("username")
+    print(f"User: {profile.username} (ID: {profile.id})")
+    print(f"Level: {profile.level}")
+    print(f"Posts: {profile.post_count}")
+    print(f"Favorites: {profile.favorite_count}")
+```
+
+## Models
+
+- `Post` - Thumbnail entry from search results
+- `PostDetails` - Full post metadata (image URL, dimensions, tags, comments)
+- `Tag` - Tag with name, count, and type
+- `PostComment` - User comment on a post
+- `UserProfile` - User profile with stats and recent posts
+
+## Configuration Options
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `base_url` | str | `https://rule34.xxx/index.php` | Base URL for the API |
+| `timeout` | float | 30.0 | Request timeout in seconds |
+| `posts_per_page` | int | 42 | Posts per page for pagination |
+| `headers` | dict | Browser-like headers | Custom HTTP headers |
+
+## License
+
+MIT
