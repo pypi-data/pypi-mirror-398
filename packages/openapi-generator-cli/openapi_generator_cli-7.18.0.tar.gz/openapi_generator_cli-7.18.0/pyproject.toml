@@ -1,0 +1,102 @@
+[build-system]
+build-backend = "hatchling.build"
+requires = [ "hatchling" ]
+
+[project]
+name = "openapi-generator-cli"
+version = "7.18.0"
+description = "CLI for openapi generator"
+readme = "README.md"
+keywords = [
+  "cli",
+  "generator",
+  "openapi",
+]
+license = { text = "APACHE 2.0" }
+authors = [ { name = "OpenAPI Generator community", email = "team@openapitools.org" } ]
+requires-python = ">=3.10,<4"
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "Typing :: Typed",
+]
+dependencies = [  ]
+
+optional-dependencies.jdk4py = [ "jdk4py>=21.0.4.1,<22; python_version>='3.10'" ]
+urls.Documentation = "https://github.com/OpenAPITools/openapi-generator#3---usage"
+urls.Homepage = "https://openapi-generator.tech"
+urls.Repository = "https://github.com/OpenAPITools/openapi-generator"
+scripts.openapi-generator-cli = "openapi_generator_cli:cli"
+
+[dependency-groups]
+dev = [
+  "mypy>=0.991,<1.15",
+  "natsort>=8.4,<9",
+  "pre-commit>=2.20,<5",
+  "pytest>=7.2.2,<9",
+  "pytest-cov>=6",
+  "taskipy>=1.10.3,<2",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "openapi_generator_cli",
+]
+artifacts = [
+  "openapi_generator_cli/openapi-generator.jar",
+]
+
+[tool.hatch.build.targets.wheel]
+include = [
+  "openapi_generator_cli",
+]
+artifacts = [
+  "openapi_generator_cli/openapi-generator.jar",
+]
+
+[tool.ruff]
+line-length = 120
+format.indent-style = "space"
+format.quote-style = "double"
+lint.select = [
+  "ALL",
+]
+lint.ignore = [
+  "D211", # No blank lines allowed before class docstring
+  "D213", # Multi-line docstring summary should start at the second line
+]
+lint.per-file-ignores."publish.py" = [
+  "D",
+  "S603", # `subprocess` call: check for execution of untrusted input
+  "T201", # `print` found
+]
+lint.per-file-ignores."tests/*" = [
+  "D",
+  "S101", # Use of `assert` detected
+]
+lint.pydocstyle.convention = "google"
+
+[tool.mypy]
+pretty = true
+python_version = "3.9"
+show_error_codes = true
+strict = true
+
+[tool.uv]
+default-groups = [ "dev" ]
+
+[tool.taskipy.tasks]
+download-latest-jar = "DOWNLOAD_LATEST_ONLY=1 task publish"
+test = "pytest"
+"test:ci" = "pytest --junitxml=pytest.xml --cov=openapi_generator_cli --cov-report=xml:coverage.xml"
+test-unpublished-versions = "DRYRUN=1 task publish"
+lint = "pre-commit run -a"
+publish = "python publish.py"
+profile = "python -m cProfile"
