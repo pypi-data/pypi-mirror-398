@@ -1,0 +1,48 @@
+# =============================================================================
+# Bug Triage Automation
+# =============================================================================
+# Automatically categorize and route new bugs based on labels.
+#
+# This is a YAML-only automation (no script needed).
+# =============================================================================
+
+name: Bug triage
+description: Automatically triage new bugs based on labels
+
+on: work_item.created
+
+when:
+  type: bug
+
+do:
+  # Critical bugs get immediate attention
+  - when: labels contains "critical"
+    set: { priority: urgent, state: in_progress }
+    assign: oncall@example.com
+    notify:
+      channel: "#critical"
+      message: "🚨 Critical bug: ${{ title }}"
+  
+  # Security issues need special handling
+  - when: labels contains "security"
+    set: { priority: urgent }
+    add_label: security-review
+    notify:
+      channel: "#security"
+      message: "🔒 Security issue: ${{ title }}"
+  
+  # Frontend bugs go to frontend team
+  - when: labels contains "frontend"
+    set: { priority: high }
+    assign: frontend-lead@example.com
+  
+  # Backend bugs go to backend team
+  - when: labels contains "backend"
+    set: { priority: high }
+    assign: backend-lead@example.com
+  
+  # Everything else goes to backlog
+  - otherwise: true
+    set: { state: backlog }
+    add_label: needs-triage
+

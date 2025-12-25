@@ -1,0 +1,47 @@
+# =============================================================================
+# Auto-Assignment Automation
+# =============================================================================
+# Automatically assign work items to team leads based on labels.
+# =============================================================================
+
+name: Auto-assign by team
+description: Route unassigned items to the right team lead
+
+on: work_item.created
+
+when:
+  type: [bug, task, feature]
+  assignee: null
+
+do:
+  # Frontend team
+  - when: "labels contains_any: [frontend, ui, css, react]"
+    assign: frontend-lead@example.com
+    add_label: team-frontend
+    comment: "📋 Auto-assigned to Frontend team"
+  
+  # Backend team
+  - when: "labels contains_any: [backend, api, database, server]"
+    assign: backend-lead@example.com
+    add_label: team-backend
+    comment: "📋 Auto-assigned to Backend team"
+  
+  # DevOps team
+  - when: "labels contains_any: [devops, infra, deploy, ci-cd]"
+    assign: devops-lead@example.com
+    add_label: team-devops
+    comment: "📋 Auto-assigned to DevOps team"
+  
+  # Mobile team
+  - when: "labels contains_any: [mobile, ios, android, react-native]"
+    assign: mobile-lead@example.com
+    add_label: team-mobile
+    comment: "📋 Auto-assigned to Mobile team"
+  
+  # No team match - needs routing
+  - otherwise: true
+    add_label: needs-routing
+    notify:
+      channel: "#triage"
+      message: "⚠️ Unrouted item needs assignment: ${{ title }}"
+
