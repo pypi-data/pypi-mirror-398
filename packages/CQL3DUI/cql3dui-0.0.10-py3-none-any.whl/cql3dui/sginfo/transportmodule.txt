@@ -1,0 +1,270 @@
+***************************************************************
+**
+**  BEGIN TRANSPORT MODULE INPUT..... "TDTR" ROUTINES
+**  namelist trsetup
+**
+***************************************************************
+**
+**  A radial diffusion and pinch operator is available as a means
+**    for simulating energy and particle transport.  There are two
+**    methods for integration of the resulting 3D 
+**    Fokker-Planck equation:
+**    (1)a splitting scheme which alternates between implicit in time
+**    solutions of the velocity space equations and the radial equation,
+**    and,
+**    (2) an alternating- direction- implicit method which alternates
+**    between  solving the velocity space equation implicitly with an
+**    explicit radial term, and the radial equation implicitly
+**    with an explicit velocity space term.
+**    (3) soln_method='it3drv', as descibed above......
+**
+**  transp="enabled" allows for transport calculations,
+**          (lrzdiff.ne."disabled", i.e. lrz=lrzmax, for cql3d)
+**        ="disabled" excludes transport
+**          default: "disabled"
+**
+**  nontran:  time-step at which transport is turned on (default=0)
+**  nofftran: time-step at which transport is turned off(default=10000)
+**
+**
+**  adimeth="disabled", with soln_method='direct', 
+**           then use splitting scheme (default).
+**         ="enabled", the use ADI method.
+**           [BH_070525: As I presently understand, this ADI option has
+**                       not worked for years.   It might be useful
+**                       to go over it again.  I use the splitting
+**                       algorithm, and expect to use fully-implicit,
+**                       iterative 3D solution when it becomes available.
+**                       BH100608: soln_method='it3drv' now available.]
+**
+**  nonadi=Value of time step at which radial transport starts.
+**         (Applicable for adimeth="enabled")
+**         default: 5
+**
+**  difus_type(k)="specify" (default), then specify according
+**                       to difusr,difus_rshape,difus_vshape below.
+**                       Superceded for difus_io=drrin or drrdrin (below).
+**            ="neo_smpl", use ion neoclassical diffusion coeffs,
+**                         constant in velocity space, as given
+**                         in subroutine tdrmshst
+**            ="neo_plus", use ion neoclassical diffusion coeffs,
+**                         as above "new_smpl" choice,
+**                         PLUS drr (below) as in "specify" case.
+**            ="neo_trap", use ion neoclassical diffusion coeffs which
+**                         are constant in trapped region of velocity
+**                         space, but sqrt(R/r) larger than "neo_smpl"
+**                         case.
+**            ="neo_trpp", use ion neoclassical diffusion coeffs,
+**                         as in "neo_trap" case,
+**                         PLUS drr (below) as in "specify" case.
+**
+**  difus_io(k) option enables read/write of radial diffusion and/or pinch
+**              velocity terms from/to a NetCDF file, for general species k.
+**              Thus, can create
+**              the diffusion coeffs in cql3d using the various
+**              difus_type(k) options, output them to a .nc file, thus
+**              creating a template for an input file, or 
+**              test the io system by reading in the previously
+**              output coefficients.  Alternatively, create the diffusion
+**              coeff file with an external program, read it in.
+**              Coefficients are on the native theta,vel,radial grids
+**              in the code.
+**              When reading in data (difus_io(k)="drrin" or "drrdrin", then
+**              the read in coefficients supercede the above difus_type 
+**              settings.
+**  difus_io(k)="disabled" (default), then no read/write diffusion
+**                          coeffs from/to a file.
+**             ="drrout", then output the d_rr(i,j,k,l=1,lrz) and related
+**                        data to a .nc netCDF file (units: cm**2/sec)
+**             ="drrdrout", then also add d_r (i,j,k,l=1.lrz) pinch vel 
+**                          term to the .nc file. (units: cm/sec)
+**             ="drrin", then read d_rr(,,,) from a file, and apply at each
+**                       time step.
+**             ="drrdrin", then in addition to d_rr, read d_r(,,,).
+**             Presently, there is no time-dependence enabled for the
+**             read in or output coeff file.  In cql3d, d_rr is specied
+**             independent of time step; however the pinch term d_r is 
+**             calculated at each time step.  For "drrdrout" the
+**             output pinch term is for the last time step.  For "drrdrin",
+**             the same pinch term will be used for all time steps,
+**             and pinch is set equal to "disabled".
+**
+**             For ngen.gt.1 cases, those species with 
+**             difus_io(k).ne."disabled" must be the lower (first) 
+**             k species, and have the same settin as difus_io(1).
+**
+**  difus_io_file=character*256 name/path of .nc file to read or write.
+**            ="mnemonic", then the &setup0 namelist variable is used to
+**              generate the file name mnemonic//"_difus_io.nc"
+**                                             [//=concatenate sign]
+**            =any name other than "mnemonic", then that name is used
+**             for the NetCDF file. Include the .nc .
+**             (default: "drrin.nc")    
+**  
+**  difus_io_drrscale(1:ndifus_io_t,k) and 
+**  difus_io_drscale(1:ndifus_io_t,k) specify time-dependent scale
+**      factors of drr and dr, respectively, for difus_io(k)="drrin"
+**      and "drrdrin" cases (only difus_io_drrscale applied for drrin case).
+**      k=1,ngen.
+**  difus_io_t(1:ndifus_io_t)=time array  
+**  ndifus_io_t=length of the relevant scale factor arrays (indep of k).
+**      Defaults: ndifus_io_t=0, and difus_io_drrscale(,)/
+**                difus_io_drscale(,)=1.,difus_io_t()=0.
+**    The scaling is implemented by specifying the array
+**    variables difus_io_drrscale() and difus_io_drscale() at a 
+**    sequence of ndifus_io_t corresponding times, specified through
+**    the variable difus_io_t() (seconds).
+**    Interpolation of the scale factors between time points is linear.   
+**    If simulation time becomes greater than 
+**    difus_io_t(ndifus_io_t), 
+**    then scaling continues at the corresponding last scaling.
+**    ndifus_io_t =0 gives no scaling.
+**    (ndifus_io_t must be .le. the parameter nbctimea, presently =101).
+**
+**  difusr is the central radial diffusion coefficient.
+**     Units are: cm**2/sec 
+**     default: 1.e4
+**
+**  difus_rshape(1:7) specifies scaling with radius:  
+**     With cn denoting difus_rshape(n):n=1,7,
+**     (c1 +c2*(rho/radmin)**c3)**c4 *(n_e/n_e0)**c5 
+**                *(T_e/T_e0)**c6 *(Zeff/Zeff_0)**c7
+**     The Maxwellian values are used for n_e and T_e, unless
+**     colmodl=1, in which case self-consistent values are used.
+**     defaults: c1=1.0,c2=3.0,c3=3.0,c4=1.0,c5=-1.0,c6=0.0,c7=0.0
+**               (Corresponding to previous nominal spatial profile.).
+**     NOTE: 050921, appears previous radial dependence specification
+**                   was not properly implemented, giving constant
+**                   radial dependence of the diffusion in cases
+**                   where diffusion was independent of velocity.
+**                   In this case, present comparable settings are
+**                   c1=1.0, c2=0.0 ,c[3-7]=arbitrary [BH].
+**  difus_rshape(8) specifies additional drr radial shape which
+**     is constant to normalized radius difus_rshape(8), then
+**     decreases to zero as 0.5*(1.+cos(2*pi*rho/(0.1*difus_rshape(8)))).
+**     This could be used for added diffusion due to sawteeth.
+**     With difus_rshape(1:2)=0., it will be the only added diffusion.
+**     default: difus_rshape(8)=0.0    
+**  
+**  difus_vshape(1:4) specifies scaling with velocity:  
+**     With cn denoting difus_vshape(n),
+**     |vpar/vth(k,l=1)|**c1 /[1.+l_autocorr/lambda_mfp]**c2
+**                 *(vprp/vth(k,l=1))**c3 /gamma**c4.
+**     The l=1 "central" value of vth are used for normalization
+**     of vpar and vprpr, for electrons or ions.
+**     The autocorrelation length is taken to be pi*qsafety*radmaj.
+**     The relativistic factor gives a heuristic cutoff of the
+**     transport at high energy, e.g.,  due to drift orbit effects. 
+**     defaults: c1=0.0,c2=0.0,c3=0.0,c4=0.0,
+**               (gives previous constant in velocity space coeff).
+**     [For Rechester and Rosenbluth-type diffusion due to small
+**      stochastic magnetic field perturbations, c1=1.,c2=1.,c3=0.,c4=0.
+**      The c2=1. term gives a collisional reduction of the 
+**      collisionless(c1=1. term) diffusion, also in R&R.]
+**
+**  difin(ryain): Defines the radial diffusion profile using a set of
+**     points at r=ryain in a similar way as tein, etc. 
+**     If sum(abs(difin))>0, then this option is used instead 
+**     of the profile from difus_rshape(1-7).
+**     The difin profile is also multiplied by difusr.
+**     The additional contribution from difus_rshape(8) is still added.
+**     It is used in the file tdtrdfus.f.
+**     It is useful since a good pragmatic definition is 
+**     D(r) = D0 * chie(r), with chie profile from power balance
+**     and D0~0.2 (as tested on TCV for example).
+**  
+**  pinch: specifies options available to maintain the density
+**     profile in the presence of radial transport by a radial
+**     pinch velocity.  Various cases correspond to whether
+**     the radial diffusion term d_rr and/or the pinch
+**     velocity d_r are velocity dependent.
+**     A Newton-Raphson iteration for d_r is available (soln_method
+**     .ne.'it3drv') increasing the ability to maintain the density
+**      profile for splitting method soln or radial transport eqns,
+**     and is generally recommended (see "n" appended variables below).
+**  pinch is only set up for ngen=1, at the present.  The target
+**     density profile is the 1st Maxwellian species of electrons
+**     or ions, depending on which species is being transported.
+**     It is not difficult to extend it to multiple species.
+**     Modifications in trtravct.f are required.
+**     The specifics on pinch are:
+**     
+**  pinch="simple", velocity independent d_rr and d_r.
+**        i.e., they depend only on plasma radius.
+**        Non-cirular geometry effects are ignored.  
+**        The pinch  velocity is computed to preserve the
+**        initial density of the electron Maxwellian species
+**        (but modified by advectr, as below).  
+**        Relaxation or Newton-Raphson is not used.
+**       ="case1", the advective coeff and the 
+**        radial diffusion coeff are velocity independent.
+**        Includes geometry+relaxation, not included in "simple".
+**       ="case2", the advective coeff is indep of
+**        velocity but the radial diffusion coeff can be
+**        velocity dependent (as specified by difus_vshape).
+**       ="case3",  we assume that the advective coeff has the same
+**        velocity dependence as the radial diffusion coeff, i.e.,
+**        d_r=adv(l)*d_rr. (d_rr vel shape specified by difus_vshape.)
+**  "n" appended to the above options above (i.e., pinch=
+**     "simplen", "case1n", or "case2n"), or, "case3n"
+**     then,
+**     the density is further maintained  by adjusting the radial
+**     velocity at each time step using a Newton-Raphson interation
+**     to obtain the velocity which keeps the density at the target,
+**     i.e., at the initial density profile.
+**     In general, the Newton techniques seems best, and adds
+**     little computer time to the runs.
+**    Default: pinch="disabled":  Radial advection term is 0.
+**      (unless difus_io(1)="drrdrin").
+**      (May also work with multiple species, but  
+**       hasn't been tried: BH020304).
+**       pinch="disabled" is also appropriate setting if difus_io(1)=
+**       "drrdrin", but if not, it will be reset to "disabled".
+**  
+**
+**  relaxden=relaxation coefficient for pinch term towards initial
+**           electron density profile. 
+**          =1., gives relaxation in one time step; smaller values
+**              under-relax the density.  (default: 1.)
+**           Prior to 091209, values of .le.1/dtreff were required.
+**           Adding the 1/dtreff factor into the eqn==> use
+**           relaxden as described above, i.e., .lt. but ~1. 
+**
+**  advectr=1., (default) is multiplier of the radial pinch velocity.
+**         =0., gives zero radial pinch term. 
+**
+**
+**  relaxtsp="enabled", then average distribution functions over 
+**    previous time steps, before taking next velocity time step 
+**    (adimeth="enabled").
+**    default: "disabled"
+**
+**  {meshy, which is in namelist "setup" affects the radial diffusion.
+**          "free" ==> theta meshes on flux surfaces independent
+**                     of each other (not appropriate for 
+**                     transp="enabled")
+**           fixed_y=> theta meshes are same on each flux surface,
+**                     giving radial diffusion at constant theta.
+**           fixed_mu=>theta meshes on each flux surface chosen to
+**                     give radial diffusion at constant magnetic moment
+**                     mu.  (Most appropriate for transport due to
+**                     low freq. perturbations).}
+** 
+**  PLOTTING OPTIONS FOR RADIAL TRANSP
+**
+**  pltdrr="enabled" means plot contours of Drr == d_rr(i,j,k,lr)
+**      in momentum 2D space (v_par,v_perp) [normalized by vnorm or c]
+**      at time steps selected by nplot=*,
+**      and such that n.ge.nontran .and. n.le.nofftran
+**    ="first" plot contours (black lines), only if n=nontran
+**      (or first time the subr.pltmain is called at n.ge.nontran)
+**    Also, options to plot with colors :
+**    ="color" means plot contours of the Drr in color,
+**      at time steps selected by nplot=*,
+**      and such that n.ge.nontran .and. n.le.nofftran
+**    ="first_cl" plot contours in color, only if n=nontran
+**      (or first time the subr.pltmain is called at n.ge.nontran)
+**    default: pltdrr="first"            Added: YuP[2021-08]
+**         
+**
+**************************************************************

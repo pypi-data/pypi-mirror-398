@@ -1,0 +1,162 @@
+**********************************************************************
+**
+**  D.C. ELECTRIC FIELD TERM
+**
+**********************************************************************
+**
+**  efswtch is a switch for the method for specifying the toroidal
+**    electric field:
+**    ="method1" ==> direct specification of the electric field
+**                   by elecfld, eoved, or time-independent 
+**                   elecin (with iproelec="spline"),or time-dependent
+**                   profiles (with iproelec="prbola-t" or "spline-t"),
+**                   elecc, elecb, npwrelec, mpwrelec. (default)
+**    ="method2" ==> Direct (Method1) used for efield up until
+**                   time step noncntrl.
+**                   Then relax electric field so current converges towards
+**                   specified time-dependent values of flux surface
+**                   averaged parallel current (xjc,xjb,
+**                   npwrxj,mpwrxj,totcrt).
+**    ="method3" ==> Direct (Method1) used for efield up until 
+**                   time step noncntrl
+**                   Then relax electric field so current tends towards
+**                   current obtained with specified elec. field up
+**                   to the time step noncntrl.
+**    ="method4" ==> relax electric field so current converges towards
+**                   specified time-dependent values of parallel current
+**                    (xjc,xjb,npwrxj,mpwrxj,totcrt).  (I.E. as in "method2").
+**                   Initial electric field determined through spitzer
+**                   conductivity.
+**                   Presently setting this up for specified radial
+**                   profile of parallel current at min B point.
+**                   Could add specification of toroidal or poloidal
+**                   current fairly easily (BH, 020227).
+**    ="method5" ==> relax electric field so current converges towards
+**                   EQDSK specified parallel current (mu_0*J_parallel=
+**                   mu_0*R*(B_phi/|B|)*dp/dpsi+|B|*dF/dpsi).
+**                   J_parallel is given the sign of I_plasma in the EQDSK.
+**                   Initial electric field determined through spitzer
+**                   conductivity. Should also set efflag="parallel";
+**                   otherwise could have problems if B_phi changes
+**                   sign as in an RFP.
+**                   (Needs eqmod="enabled". Code checked for
+**                   eqsource="eqdsk" setting, but not others.)
+**
+**  efswtchn="neo_hh" is switch to turn on an alternative calculation
+**    of plasma current density from the code, to be used with above
+**    convergence to prescribed values according to method2==>method5 
+**    The calc'd current density, to be compared with the target
+**    current density,  will be the sum of Hinton and Haseltine 
+**    neoclassical contribution  (eta_neoclassical*elecfld) and runaway 
+**    current from the electron distribution.
+**    This option is provided in order to more accurately calculated current
+**    in higher collisionality cases (such as in the cold plasma after
+**    pellet injection or after disruption) in which the thermal particles
+**    may be collisional but the tail electrons remain in the low-
+**    collisionality banana regime.
+**    (default="disabled").
+**
+**  curr_edge=An linear wedge of current varying from 0. at r/a=0.8
+**            to curr_edge at r/a=1.0, which may be added to the
+**            eqdsk obtained current density (efswtch="method5").
+**            This is parallel current density at the min B flux surface pt.
+**            Units are Amps/cm**2.  Default: curr_edge=0.
+**            Might be useful for transport runs. 
+**    
+**  efiter="enabled" gives up to nefitera (a code parameter,  
+**            presently 10) iterations for the electric field used 
+**            AT EACH TIME STEP,  to achieve the target current within 
+**            fractional accuracy currerr (nml below).  For
+**            each iteration, the electric field is reset to
+**            a new value according to the efrelax1, and
+**            the Fokker-Planck equation for the time step is
+**            re-solved.  "enabled" doesn't make sense for 
+**            efswtch="method1".   (default="enabled".)
+**
+**  efrelax1=relaxation for efiter procedure. (default=0.5).
+**                   
+**  currerr=fractional accuracy for efiter="enabled" algorithm.
+**          (default=0.1)
+**
+**  efrelax= relaxation parameter used in efswtch.ne."method1" or
+**           efiter="enabled".
+**           (efld ==> efld*( 1.-efrelax*(curr-currxj)/max(|curr|,|currxj|) ), 
+**                     where currxj is the parallel flux surface area average 
+**                     target current density). 
+**                    ([2020-04-03] For "method4", this is generalized 
+**                     using the new namelist variable efrelax_exp, see below.)
+**            (See efield.f file).    
+**            (default=0.5)
+** 
+**  efrelax_exp= power in a generalized procedure for relaxation of E field,
+**            added in [2020-04-03].
+**            The generalized procedure is 
+**            elecfld==> elecfld*(1.-efrelax*sign(djrel*currxj)*
+                                  |djrel|**efrelax_exp)
+**            where djrel= (curr-currxj) / max(|curr|,|currxj|)
+**            Presently this generalized procedure is only available for 
+**            efswtch="method4", but could be extended to other "method#".
+**            Default value is efrelax_exp=1.d0, which gives
+**            the original procedure. (See efield.f file).
+**            Recommended alternative value: efrelax_exp=0.5
+**            which gives a faster convergence to the target current,
+**            although sometimes produces "jiggles" in E(t).
+**            
+**
+**  noncntrl= time step at which current control is turned on,
+**            for efswtch.eq."method2" and "method3".
+**            (default: noncntrl=0).
+**
+**  elecfld(l_) is the (Ohmic) electric field (volts/cm) vs flux surface
+**              for machine="toroidal". Electric field values
+**              are evaluated on each flux surface at the major radius
+**              of the magnetic axis, and field varies on a flux
+**              surface like 1/R.  That is E(R,Z)=elecfld(l_)*Rmag/R.
+**    See input variable reden for lrz=1 and lrz > 1 cases.
+**    Powers for "parabolic" profiles given by npwrelec,mpwrelec.
+**    default: elecfld(0:1)=0.
+**
+**  efflag  ="toroidal", elecfld in code is in toroidal direction.
+**          ="parallel", elecfld in code is parallel to magnetic field.
+**           For "parallel" case, code is set up only for cqlpmod='disabled'.
+**           default: "toroidal"          
+**
+**  iproelec="spline", then set elecfld using splines of
+**            elecin(1:njena) (in manner of enein,...). 
+**          ="parabola", set elecfld using elecfld(0),elecfld(1),
+**           npwrelec,mpwrelec.               default: iproelec="parabola".
+**          ="prbola-t" or "spline-t", time-dependent profiles
+**
+**  elecin(1:njena)=spline input at the ryain, of electric field (volts/cm),
+**                  evaluated at major radius of the magnetic axis.
+**  elecin_t(1:njena,1:nbctime)=spline input at the ryain (volts/cm) at
+**    times bctime(1:nbctime), for iproelec="spline-t" 
+**
+**  elecscal=scale factor for elecin spline input (default=1.0).
+**
+**  npwrelec,mpwrelec are parameters of parabolic electric field with
+**    iproelec="parabola", or time-dependent elecc,elecb above ("prbola-t").
+**
+**  eoved is the value of E/E-Dreicer. If eoved .le. 0 then the
+**    d.c. electric field is determined from the value of
+**    elecfld (above). If eoved .gt. 0, then elecfld is determined
+**    from eoved by calculation. Used for runaway calculations
+**    in general. Works for lrz .ge. 1.   If .gt.1, should use .ge.4,
+**    since density/temperature are splined.
+**    default:eoved=-.01
+**    If lbdry(kelec).eq."fixed" and eoved.gt.0, then elecfld
+**      is set through eoved only at time step n=0.  This avoids
+**      variation of elecfld due to variation of E-Dreicer as
+**      the electron density changes.
+**    E-Driecer = m_e nu_0 v_Te / (2*charge), v_Te=sqrt(T_e/m_e),
+**     nu_0 = 4 pi n_e charge**4 ln(lambda)/(m_e**2 v_Te**3)
+**     (E-Dreicer as in Wiley and Choi, PF,p. 2193(1980) and Kulsrud et al.,
+**        PRL (1973))
+**
+**  nonel and noffel are the on and off cycles for the electric field term
+**    default: nonel=0; noffel=100000
+**
+**  Time-dependent profiles specified as above
+**
+**     
+**********************************************************************

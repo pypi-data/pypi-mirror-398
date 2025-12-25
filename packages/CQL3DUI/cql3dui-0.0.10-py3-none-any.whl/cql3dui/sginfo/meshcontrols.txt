@@ -1,0 +1,176 @@
+**************************************************************
+**
+**  MESH CONTROLS
+**
+**************************************************************
+**
+**  jx is the number speed mesh points. 
+**    Speed also means momentum/rest mass for relativistic calcs.
+**    default: jx=300  (in aindflt.f).
+**    The basic speed mesh runs from 0. to xmax=1.0.
+**
+**  iy is the number of theta mesh points. Must be even number.
+**    default: iy=200  (in aindflt.f).
+**    The y (theta) mesh is symmetric about pi/2.
+**    For urfmod.ne."disabled", iy.gt.255 not allowed with 
+**      the storage scheme for ilim1,ilim2,....[BH070418: relaxed now?]
+**    (Have had difficulty constructing a mesh iy as small as 30, 
+**     and meshy.eq."fixed_y".)
+**    The positive theta dirn (i.e., v_parallel) has positive component
+**       in the positive toroidal direction (counter-clockwise, looking
+**       from the top).
+**    In some transport settings (transp=.ne."disabled"), the number
+**       of theta (y) mesh points may reduce as a function of radius.
+**       The y points can also be stacked up around the trapped-passing
+**       boundary.   Thus, the y array is two dimensional, y(pitch,rho).
+**
+**  lz is the number of poloidal (or field line mesh points). Bounce-
+**    averages are computed over this mesh. 
+**    default: lz=40 (If cqlpmod.eq."enabled", lz is set equal to lsmax)
+**
+**  vnorm is the velocity normalization constant (cm/sec).
+**    For relativistic calculations, vnorm is the maximum momentum/unit
+**    rest mass on the mesh.
+**    default: vnorm is set through enorm (below).
+**    Note that in plots, the variable vnorm is printed as "unorm",
+**    to be consistent with meaning of "u" as 
+**    the relativ.moment/rest.mass.
+**
+**  enorm is the energy corresponding to the velocity normalization
+**    constant; if kenorm corresponds to a species index, that
+**    species determines vnorm through enorm, superseding vnorm. (kev).
+**    For relativistic electrons, E=(gamma-1)*m*c**2=(gamma-1)*511. keV.
+**                                gamma**2=1+(u/c)**2
+**                                u=momentum-per-electron-rest-mass.
+**    default: enorm=200., kenorm=1
+**
+**  tandem="enabled" facilitates the use of both ions and electrons
+**    as general species. The mesh extends to a speed (momentum)
+**    represented by an electron energy of enorme. However, the
+**    majority of the mesh points are dedicated to a region of
+**    velocity space which adequately represents ions with a
+**    energy less than enormi. The ion species selected for this
+**    treatment is the first general ion species listed. Most
+**    of the plots are fixed so that the ion contributions are visible
+**    and not squeezed into the first 1% of the plot.
+**    tandem="disabled" disengages this option.
+**    default: tandem="disabled"
+**
+**  enorme,enormi are analogues to enorm for tandem="enabled"
+**    enorme corresponds to the top of the electron mesh,
+**    enormi corresponds to the top of the ion mesh.
+**    [defaults: enorme=enorm, enormi=enorm]
+**
+**  relativ="enabled" means the quasi-relativistic calculation and
+**    mesh are activated.  Best for fusion plasmas.
+**         ="fully" give fully relativistic calc.   Has some limitations
+**           in maximum order Legendre polynomial to be used in
+**           expansion for FP coefficients (mx, below, .le.3, or so).
+**           See CompX report CompX-2009-1_Fully-Rel.pdf.
+**    default: relativ="enabled"
+**
+**  xfac is the velocity mesh spacing parameter.
+**    xfac=1. ==> uniform mesh;
+**    xfac<1. ==> geometric mesh with greater mesh resolution at x=0;
+**    xfac>1. ==> greater resolution at xmax.
+**    xfac<0. ==> xpctlwr,xpctmdl,xlwr,xmdl must be input.
+**    xfac<0. ==> the momentum (velocity) mesh contains three regions:
+**    The region [0,xlwr] will have jx*xpctlwr evenly spaced 
+**    mesh points.
+**    The region [xlwr,xmdl] will have xpctmdl*jx mesh points.
+**    The region [xmdl,xmax] will have the balance of the jx 
+**    mesh points.
+**    default: xfac=1.
+**    (xfac,xpctlwr,xlwr,xpctmdl,xmdl are reset appropriately, if 
+**     tandem="enabled").
+**
+**  tfac is the theta mesh spacing parameter.
+**    tfac=1 ==> uniform mesh except in the vicinity of the
+**      pass/trapped boundary region. See tbnd below.
+**    tfac<1. ==> geometric mesh with points packed closer at p/t bndry.
+**    tfac>1. ==> geometric mesh with points packed closer 0., pi, 
+**    and pi/2.
+**    default: tfac=1.
+**  tfac=-1.  ==>Appropriate for radial transport, transp="enabled"
+**    calculations.   This will give uniform theta mesh at each 
+**    radius.   There will be slight adjustments near t-p bndry
+**    at each radius, but no addition of extra points bounding the
+**    trapped-passing boundary, as for tfac.gt.0. case.
+**    If tfac.gt.0. and transp="enabled" and soln_method.ne."direct"
+**    then tfac is reset to -1. at beginning of run.
+**    
+**    If tfac negative and .ne.-1, then mesh adjusted according to 
+**    positive tfac above, with abs(tfac) values.  No added pts near t-p.
+**  There is also a tfac.lt.0./cqlpmod="enabled" option (see below).
+**
+**  yreset="enabled" means pack extra theta mesh points in some
+**    specified (below) region.
+**    default:yreset="disabled"
+**    [Not working at present, and if "enabled" will be reset to
+**     "disabled" in ainsetva.f, for lrz>1.] 
+**
+**  numby is the number of packed theta mesh points
+**    numby should be significantly less than iy/2 (or resolution
+**    will be to coarse in the rest of pitch angle space).
+**    Recall that the y (theta) mesh is symmetric about pi/2.
+**    Only used if yreset="enabled".
+**    default: numby=20
+**
+**  ylower and yupper specify the radian spread of the packed region
+**    below pi/2. Avoid allowing [ylower,yupper] to include the p/t
+**    boundary region [y(itl-1),y(itl+1)].
+**    This option is automatically disabled if lrz > 1.
+**    Only used if yreset="enabled".
+**
+**  tfacz is the field line coordinate (z) mesh spacing parameter.
+**    default: tfacz=1.
+**    tfacz is not operational for eqsym="none", in which case the z-mesh
+**    is uniform on either side of the max-|B| point on the flux surface.
+**
+**  tbnd(1:lrorsa) is the width (in radians) of the passing/trapped boundary 
+**    layer. There is usually no reason to change the default value.
+**    If necessary the program may reset this value at some
+**    flux surfaces.
+**    default: tbnd(1)=.002, tbnd(2:lrorsa)=0.
+**
+**  rfacz is the radial mesh spacing parameter. The minimum value of
+**    the mesh can be pre-specified (see roveram below). Otherwise
+**    rfacz works like xfac for xfac > 0.
+**    default:rfacz=.7
+**
+**  roveram determines the value of r/radmin = rya(1) by setting
+**    rya(1)=roveram.   It works in conjunction with
+**    rfacz above. If roveram < 1.e-8, the minimum flux surface is
+**    determined internally with no user control. This option is
+**    useful for keeping the innermost flux surface away from the
+**    magnetic axis.
+**    default: roveram=1.e-8
+**
+**  rzset="enabled" allows the user to specify the entire radial
+**    rya mesh as an array of values r(l)/radmin where r(l) is the
+**    radial coordinate and radmin in this case takes on
+**    the meaning of the radial coodinate at the LCFS.
+**    ="disabled", mesh follows rfacz directive, above.
+**    default: rzset="disabled"
+**
+**  rya(l),l=1,lrzmax is the normalized radial mesh referred to above in
+**    the rzset description. The user specifies rya(1)=.02, rya(2)=.05,...
+**    rya(23)=.95, for instance, if lrzmax=23
+**    Thus rya(l)=r(l)/radmin, and rya is a code array.
+**    (Note: rya is dimensioned rya(0:lrza+1), so need to specify
+**    first namelist input value explicitly as rya(1)=....).
+**
+**  radcoord="sqtorflx" (default) use normalized radial coordinate (that is,
+**           flux surface label) proportional to sqrt of toroidal flux.
+**           [Presently, radial diffusion eqn is only set up for this value
+**            of radcoord.  Additional choices below are for no radial 
+**            transport.]
+**          ="sqarea" square root of flux surface area,
+**          ="sqvol" square root of flux surface volume,
+**          ="rminmax" 0.5*(max. major radius - 
+**                          min. major radius) of flux surface
+**          "polflx"  normalized poloidal flux from magnetic
+**                    axis to last closed flux surface (LCFS).
+**          "sqpolflx"  normalized square root of poloidal flux function.
+**
+*********************************************************

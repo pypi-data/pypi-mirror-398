@@ -1,0 +1,107 @@
+**************************************************************
+**
+**  RF HEATING AND CURRENT DRIVE INPUT FROM INPUT DIFF COEFFS
+**  namelist rfsetup
+**************************************************************
+**
+**  
+**  rdcmod="format1" or "aorsa", then read in externally calculated
+**    velocity space diffusion coefficient D_u0u0 in cgs units.  This
+**    is a bounce-averaged coeff giving diffusion in 
+**    momentum-per-mass coordinates: u0=x*vnorm, where x is
+**    the code normalized momentum-per-mass coordinate and pitch
+**    angle theta0.  The u0,theta0 are at minimum-|B| on a flux 
+**    surface.
+**
+**    "format1" is data formatted according to AORSA convention:
+**    Data is given on a regular grid of u_par0 and u_perp0, 
+**    with upar0: -unorm,+unorm, uperp0: 0,unorm.
+**    (Velocity unorm, here, is specified in the file, and may
+**    be different from cql3d vnorm (specified through enorm).
+**    (for relativistic cases, unorm refers to momentum-per-rest-mass.)
+**    If unorm in the file is less than cql3d vnorm, then the
+**    diffusion coeffs above unorm will be set =0. on the cql3d grid.) 
+**    Data is read in from file du0u0_input, with format shown
+**    in subroutine rd_diff_coeff.
+**
+**    The read in data is interpolated onto the code
+**    momentum-per-mass grid.
+**    ===>  Presently, the rdcmod radial grid IS TAKEN TO   <====
+**    ===>  BE THE SAME as specified rya(1:lrz) for cql3d.  <====
+**    Except, if data is given on twice as many flux surfaces as
+**    specified by lrz, then the data set is reduced by omitting
+**    data for every second flux surface.
+**
+**   Multi-file "aorsa"/"format1" set up. Can input multiple diffusion
+**     coeff files and ql diffuse separate or
+**     the same general species depending on setting of
+**     nrdcspecies(1:nrdc).  [BH110608]
+**    
+**   nrdc=number of "aorsa"/"format1" files to be read (must be .le.
+**     parameter nrdca, presently set = 10). Default nrdc=1 (gives backwards 
+**     compatibility); that is, the default input file is named du0u0_input.
+**     It is assumed that the velocity and radial grids 
+**     are the same in each of the input diff coeff files.
+**   
+**   rdcfile(1:nrdc)=file path for each file (up to 256 characters).
+**             default: rdcfile(1)=du0u0_input, rdcfile(2:nrdca)="notset"
+**   
+**   nrdcspecies(1:nrdc)=general species index to which the respective
+**     diffusion coefficient files are applied.
+**     Default: nrdcspecies(1:nrdca)=1
+**   
+**   rdcscale(1:nrdc)=scaling of each of the diffusion coefficient files.
+**     Default: rdcscale(1:nrdca)=1.
+**           If nrdc=1 and namelist rdcscale(1).ne.1., then use this value.
+**           However, if nrdc=1 and rdcscale(1).eq.1.(e.g., the default)
+**           then set rdcscale(1)=pwrscale(1).
+**           (This maintains backwards compatibility.)
+**
+**   rdcmod="format2" reads in velocity space diffusion coefficient 
+**    from files du0u0_grid and du0u0_rnnn, where nnn=[001-n_psi], 
+**    and n_psi is number of radii given in du0u0_grid.  Thus,
+**    the set of velocity-space diffusion coeffs are given in a
+**    separate file for each radius, as provided by the DC diffusion
+**    coefficient code.   Formats are otherwise
+**    similar to "format1".  Note restriction re rya()!
+**    Presently not set up for multiple radial sets of diffusion coefficient
+**    files (as in rdcmod="format1" case, but this feature can readily be 
+**    added if there is a need,  BH180507).
+**
+**    default:  rdcmod="disabled"
+**
+**  plturfb (in namelist section setup, see plot controls above) gives
+**    plots of urfb diff coeff.
+**
+**  rdc_netcdf=ne."disabled", then
+**    rdcb,etc.,  written into a netcdf file mnemonic//'_nn_rdc.nc', 
+**    where nn=number of diffusion coefficient input file.
+**          ="one", or "enabled", write first set of diff coeff
+**            to mnemonic//'_rdc.1.nc'
+**          ="all", write mnemonic//'_rdc.n.nc', n=1:nrdc
+**          (default="all")
+**    The rdcb, rdcc, rdce, rdcf are on the cql3d vel space grid.
+**    Amount of output affected according to netcdfshort='long_urf'.
+**
+**  pwrscale(1) [from urf section of code, presently used to
+**               scale input value of diffusion coeffs, but
+**               can be superceded by rdcscale(1),
+**               (above) for rdcmod="format1"]
+**
+**  rdc_upar_sign=+1. to maintain u_par sign convention of du0u0_input,
+**                -1., to reverse order.   This should be used for DC
+**                when the toroidal mag field is negative(clockwise),
+**                since upar in DC is pos in dirn of B-field,
+**                but in cql3d, upar is positive when in toroidal dirn.
+**                (default=+1.)
+**
+**  rdc_clipping='enabled' for clipping of diffusion coefficient spikes
+**               which sometimes occur near the trapped-transiting bndry.
+**               Clipping is according to "Running Median Filters and 
+**               a General Despiker", John R. Evans, Bull. Seismological
+**               Soc. Amer. (1982).  Efficacy of the method has been
+**		 investigated with python plotting script
+**               plot_DC_multiR_format_cqlf.py.
+**               default='disabled', for backwards compatibility.
+**
+************************************************************************
