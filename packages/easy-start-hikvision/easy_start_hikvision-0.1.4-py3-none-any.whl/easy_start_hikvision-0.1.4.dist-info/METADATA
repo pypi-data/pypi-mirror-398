@@ -1,0 +1,276 @@
+Metadata-Version: 2.4
+Name: easy-start-hikvision
+Version: 0.1.4
+Summary: 一个用于海康威视 ISecureCenter 平台集成的 Python 包，提供简洁易用的 API 接口。
+Home-page: https://gitee.com/guolei19850528/easy_start_hikvision
+Author: guolei
+Author-email: 174000902@qq.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: httpx
+Requires-Dist: jsonschema
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# easy_start_hikvision
+
+一个用于海康威视 ISecureCenter 平台集成的 Python 包，提供简洁易用的 API 接口，支持同步和异步请求方式。
+
+## 功能特性
+
+- **安全交互**：实现 HMAC-SHA256 签名算法，确保 API 请求的安全性和完整性
+- **同步/异步支持**：所有 API 方法均提供同步和异步版本，满足不同场景需求
+- **自动请求头构建**：自动生成符合 ISecureCenter API 规范的请求头
+- **灵活的客户端配置**：支持自定义 HTTP 客户端参数，如超时时间、连接池等
+- **响应验证**：使用 JSON Schema 验证 API 响应结构，确保数据格式正确
+- **可复用客户端**：支持复用 HTTP 客户端以提高性能
+
+## 安装方法
+
+### 使用pip安装
+
+```bash
+pip install easy-start-hikvision
+```
+
+### 源码安装
+
+```bash
+# 克隆项目
+git clone https://gitee.com/guolei19850528/easy_start_hikvision.git
+
+# 进入项目目录
+cd easy_start_hikvision
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 安装包
+pip install -e .
+```
+
+## 快速开始
+
+### 基本使用示例
+
+#### 同步请求
+
+```python
+from easy_start_hikvision.isc import ISecureCenter
+
+# 创建 ISecureCenter 客户端实例
+isc_client = ISecureCenter(
+    host="https://your-isc-server.com:443",
+    ak="your_access_key",
+    sk="your_secret_key"
+)
+
+# 发送同步 API 请求
+success, data, response = isc_client.request(
+    url="/api/parking/info",
+    json={"parkingId": "123456"}
+)
+
+# 处理响应
+if success:
+    print("请求成功！")
+    print(f"返回数据: {data}")
+else:
+    print("请求失败！")
+    print(f"错误信息: {data}")
+    print(f"状态码: {response.status_code}")
+```
+
+#### 异步请求
+
+```python
+import asyncio
+from easy_start_hikvision.isc import ISecureCenter
+
+async def main():
+    # 创建 ISecureCenter 客户端实例
+    isc_client = ISecureCenter(
+        host="https://your-isc-server.com:443",
+        ak="your_access_key",
+        sk="your_secret_key"
+    )
+    
+    # 发送异步 API 请求
+    success, data, response = await isc_client.async_request(
+        url="/api/parking/info",
+        json={"parkingId": "123456"}
+    )
+    
+    # 处理响应
+    if success:
+        print("请求成功！")
+        print(f"返回数据: {data}")
+    else:
+        print("请求失败！")
+        print(f"错误信息: {data}")
+        print(f"状态码: {response.status_code}")
+
+# 运行异步函数
+asyncio.run(main())
+```
+
+### 复用 HTTP 客户端
+
+```python
+from easy_start_hikvision.isc import ISecureCenter
+
+# 创建 ISecureCenter 客户端实例
+isc_client = ISecureCenter(
+    host="https://your-isc-server.com:443",
+    ak="your_access_key",
+    sk="your_secret_key"
+)
+
+# 创建可复用的 HTTP 客户端
+client = isc_client.client(timeout=60)  # 自定义超时时间
+
+try:
+    # 发送第一个请求
+    success1, data1, response1 = isc_client.request(
+        client=client,
+        url="/api/parking/info",
+        json={"parkingId": "123456"}
+    )
+    
+    # 发送第二个请求（复用同一个客户端）
+    success2, data2, response2 = isc_client.request(
+        client=client,
+        url="/api/parking/vehicle/list",
+        json={"parkingId": "123456", "page": 1, "size": 10}
+    )
+    
+    # 处理响应...
+    
+finally:
+    # 关闭客户端
+    client.close()
+```
+
+## API 文档
+
+### ISecureCenter 类
+
+```python
+class ISecureCenter(host: str = "", ak: str = "", sk: str = "")
+```
+
+- **参数**:
+  - `host` (str): API 服务器地址，例如 "https://example.com:443"
+  - `ak` (str): 访问密钥 Access Key
+  - `sk` (str): 密钥 Secret Key
+
+- **核心方法**:
+
+  #### timestamp()
+  生成当前时间戳（毫秒）
+  
+  - **返回**:
+    - `int`: 当前时间戳（毫秒）
+
+  #### nonce()
+  生成随机的 UUID 字符串
+  
+  - **返回**:
+    - `str`: 随机的 UUID 字符串（无连字符）
+
+  #### signature(string: str = "")
+  生成请求签名
+  
+  - **参数**:
+    - `string` (str): 需要签名的字符串
+    
+  - **返回**:
+    - `str`: 生成的签名（Base64 编码的 HMAC-SHA256 哈希值）
+
+  #### headers(method: str = "POST", path: str = "", headers: dict = {})
+  生成符合 ISecureCenter API 规范的请求头
+  
+  - **参数**:
+    - `method` (str): HTTP 请求方法，默认 POST
+    - `path` (str): 请求路径
+    - `headers` (dict): 额外的请求头
+    
+  - **返回**:
+    - `dict`: 完整的请求头字典
+
+  #### client(**kwargs)
+  创建配置好的同步 HTTP 客户端
+  
+  - **参数**:
+    - `**kwargs`: 传递给 httpx.Client 的额外参数
+    
+  - **返回**:
+    - `httpx.Client`: 配置好的同步 HTTP 客户端
+
+  #### async_client(**kwargs)
+  创建配置好的异步 HTTP 客户端
+  
+  - **参数**:
+    - `**kwargs`: 传递给 httpx.AsyncClient 的额外参数
+    
+  - **返回**:
+    - `httpx.AsyncClient`: 配置好的异步 HTTP 客户端
+
+  #### request(client=None, validate_json_schema=None, **kwargs)
+  发送同步 API 请求，并验证响应格式
+  
+  - **参数**:
+    - `client` (httpx.Client): 可选的 HTTP 客户端
+    - `validate_json_schema` (dict): 可选的 JSON schema 验证规则
+    - `**kwargs`: 传递给 client.request 的额外参数
+    
+  - **返回**:
+    - `tuple`: (请求是否成功, 响应 JSON 数据, 原始响应对象)
+
+  #### async_request(client=None, validate_json_schema=None, **kwargs)
+  发送异步 API 请求，并验证响应格式
+  
+  - **参数**:
+    - `client` (httpx.AsyncClient): 可选的异步 HTTP 客户端
+    - `validate_json_schema` (dict): 可选的 JSON schema 验证规则
+    - `**kwargs`: 传递给 client.request 的额外参数
+    
+  - **返回**:
+    - `tuple`: (请求是否成功, 响应 JSON 数据, 原始响应对象)
+
+## 依赖项
+
+- **httpx**: 用于发送 HTTP 请求，支持同步和异步
+- **jsonschema**: 用于验证 API 响应的 JSON 格式
+
+### 项目结构
+```
+easy_start_hikvision/
+├── easy_start_hikvision/
+│   ├── __init__.py
+│   ├── isc.py
+├── requirements.txt
+├── README.md
+```
+
+## 许可证
+
+本项目采用MIT许可证，详见LICENSE文件。
+
+## 作者信息
+
+- **作者**: guolei
+- **邮箱**: 174000902@qq.com
+- **项目地址**: https://gitee.com/guolei19850528/easy_start_hikvision
