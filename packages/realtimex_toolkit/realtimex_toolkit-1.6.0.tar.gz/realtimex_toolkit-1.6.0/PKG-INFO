@@ -1,0 +1,232 @@
+Metadata-Version: 2.4
+Name: realtimex_toolkit
+Version: 1.6.0
+Summary: Lightweight internal utilities for LLM provider configuration and credential management
+Author: RealtimeX Team
+License: Proprietary
+Requires-Python: >=3.11
+Requires-Dist: aiohttp>=3.9.0
+Requires-Dist: cryptography==44.0.3
+Requires-Dist: pydantic>=2.5.0
+Requires-Dist: python-dotenv>=1.1.1
+Requires-Dist: tenacity>=8.2.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.11.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'dev'
+Requires-Dist: pytest-cov>=5.0.0; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.6.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# RealtimeX Internal Utilities
+
+Lightweight internal library providing utilities for LLM provider configuration and credential management across RealtimeX internal services.
+
+## Installation
+
+```bash
+# Using uv (recommended) for local development
+uv pip install -e /path/to/realtimex-toolkit
+
+# Using pip from PyPI
+pip install realtimex_toolkit
+```
+
+## Quick Start
+
+### Agent Flow Management
+
+Work with agent flow data. `get_flow_variable` now supports dotted paths for nested structures, safe defaults, and fetching the full payload.
+
+```python
+import json
+
+from realtimex_toolkit import (
+    get_agent_id,
+    get_flow_variable,
+    get_workspace_data_dir,
+    get_workspace_slug,
+)
+
+# Access nested variables using dotted notation
+user_email = get_flow_variable("user.email")
+print(user_email)  # "example@example.com"
+
+# Provide defaults for missing keys
+theme = get_flow_variable("user.theme", "light")
+print(theme)  # "light"
+
+# Get the entire payload when you need to inspect everything
+variables = get_flow_variable()
+print(json.dumps(variables))  # {"time":"12:40:28 PM", ...}
+
+# Get workspace slug (falls back to default when not running inside a flow)
+workspace_slug = get_workspace_slug(default_value="workspace-test")
+print(workspace_slug)  # "workspace-test" when default is used; otherwise current workspace slug
+
+# Get current agent id (falls back to default when not present)
+agent_id = get_agent_id(default_value="agent-test")
+print(agent_id)  # "agent-test" when default is used; otherwise current agent id
+
+# Get workspace data directory (creates it if needed)
+workspace_data_dir = get_workspace_data_dir(default_workspace_slug=workspace_slug)
+print(workspace_data_dir)  # e.g., ~/.realtimex.ai/Resources/server/storage/working-data/<slug>
+```
+
+### Agent Memory & Skills (Workspace)
+
+Save workspace-scoped Deep Agent memory and skills under `~/.realtimex.ai/Resources/agent-skills/workspaces/{workspace_slug}/{agent_id}/`.
+
+```python
+from realtimex_toolkit import save_agent_memory, save_agent_skill
+
+# Overwrite workspace agent.md
+path = save_agent_memory("workspace-slug", "agent-id", "# New memory")
+# path -> ~/.realtimex.ai/Resources/agent-skills/workspaces/workspace-slug/agent-id/agent.md
+
+# Append to agent.md
+save_agent_memory("workspace-slug", "agent-id", "- Added preference", mode="append")
+
+# Overwrite SKILL.md for a skill
+skill_path = save_agent_skill(
+    "workspace-slug",
+    "agent-id",
+    "web-research",
+    "---\nname: web-research\ndescription: Web research workflow\n---\nSteps...",
+)
+# skill_path -> ~/.realtimex.ai/Resources/agent-skills/workspaces/workspace-slug/agent-id/skills/web-research/SKILL.md
+
+# Append to SKILL.md
+save_agent_skill("workspace-slug", "agent-id", "web-research", "More notes", mode="append")
+```
+
+### Gmail MCP Email Lookup
+
+Retrieve the configured Gmail email address for your MCP server using MCP proxy credentials.
+
+```python
+from realtimex_toolkit import get_gmail_email
+
+email = get_gmail_email()
+print(email)  # e.g., user@example.com
+```
+
+### Schedule Agent Flow Execution
+
+Insert or update scheduled runs in the existing SQLite store (`~/.realtimex.ai/Resources/server/storage/realtimex.db`, table `agent_flow_schedule_runs`).
+
+```python
+import json
+from realtimex_toolkit import schedule_agent_flow_run, update_agent_flow_run
+
+rowid = schedule_agent_flow_run(
+    flow_uuid="123e4567-e89b-12d3-a456-426614174000",
+    interval_config={"datetime": "2025-12-17T08:54:00.0000z"},
+    flow_name="weekly-report",
+    metadata={"priority": "low"},
+)
+print(f"Scheduled with rowid={rowid}")
+
+# Update an existing schedule by id
+updated_rows = update_agent_flow_run(
+    schedule_id=rowid,
+    flow_name="weekly-report-updated",
+    metadata={"priority": "high"},
+    active=True,
+)
+print(f"Updated rows: {updated_rows}")
+```
+
+### Credential Management
+
+Retrieve encrypted credentials from the RealtimeX app backend and decrypt them for use across RealtimeX ecosystem services.
+
+```python
+from realtimex_toolkit import get_credential
+
+# Simplest usage - just the credential ID
+# Connects to local RealtimeX backend (http://localhost:3001) by default
+credential = get_credential("credential-id")
+print(credential["payload"])  # {"name": "API_KEY", "value": "secret-value"}
+
+# With API key for authenticated requests
+credential = get_credential("credential-id", api_key="service-api-key")
+
+# With custom backend URL (for non-default configurations)
+credential = get_credential(
+    "credential-id",
+    api_key="service-api-key",
+    base_url="http://custom-host:3001"  # Override default localhost:3001
+)
+
+# For long-running services, use CredentialManager directly
+from realtimex_toolkit import CredentialManager
+
+# Connects to http://localhost:3001 by default
+manager = CredentialManager(api_key="service-api-key")
+try:
+    bundle = manager.get("credential-id")
+    # Credentials are cached automatically
+    bundle_again = manager.get("credential-id")  # Returns cached
+
+    # Force refresh from backend
+    fresh_bundle = manager.get("credential-id", force_refresh=True)
+finally:
+    manager.close()
+```
+
+**Configuration:**
+- `base_url`: Base URL of the RealtimeX app backend (default: `http://localhost:3001`)
+- `api_key`: Authentication token for backend API requests (optional)
+- Credentials are encrypted using AES-256-CBC and decrypted using keys from `~/.realtimex.ai/Resources/server/.env.development`
+
+**Return shape (`get_credential`):**
+
+```python
+{
+    "credential_id": str,
+    "name": str,
+    "credential_type": str,
+    "payload": dict[str, str],
+    "metadata": dict | None,
+    "updated_at": str | None,
+}
+```
+
+## Supported LLM Providers
+
+- **Major Providers**: OpenAI, Anthropic, Azure OpenAI
+- **Cloud AI**: Google Gemini, AWS Bedrock
+- **Alternative APIs**: Groq, Cohere, Mistral, Perplexity
+- **Open Source Aggregators**: Open Router, Together AI, Fireworks AI
+- **Emerging**: DeepSeek, xAI, Novita
+- **Local Deployment**: Ollama, LocalAI, LM Studio, KoboldCPP
+- **Custom**: Generic OpenAI, LiteLLM, Nvidia NIM, Hugging Face
+
+## Development
+
+```bash
+# Install with dev dependencies
+uv pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run type checking
+mypy src/realtimex_toolkit
+
+# Format & lint
+ruff check src/realtimex_toolkit tests
+ruff format src/realtimex_toolkit tests
+```
+
+## Architecture
+
+- **`realtimex_toolkit.llm`**: LLM provider configuration utilities
+- **`realtimex_toolkit.credentials`**: Secure credential retrieval and decryption
+- **`realtimex_toolkit.api`**: HTTP client with retry logic and error mapping
+- **`realtimex_toolkit.utils`**: Internal utilities (path resolution, logging)
+
+## License
+
+Proprietary - Internal use only
