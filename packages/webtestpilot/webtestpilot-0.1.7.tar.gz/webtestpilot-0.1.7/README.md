@@ -1,0 +1,119 @@
+# WebTestpilot
+
+WebTestPilot is an LLM-driven automated web testing framework for end-to-end browser testing.
+
+This directory contains the core source code of WebTestPilot for development and maintenance.
+- `pytest-webtestpilot`: A pytest plugin that integrates WebTestPilot with pytest。
+
+## Installation
+
+If you want to use WebTestPilot in your own projects, install it from PyPI:
+
+```bash
+pip install webtestpilot
+```
+
+WebTestPilot also provides an official pytest plugin for running test cases via [pytest](https://docs.pytest.org/en/stable/).
+
+```bash
+pip install pytest-webtestpilot
+```
+
+Below is a minimal working example demonstrating how to use WebTestPilot directly on top of Playwright.
+
+```python
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+from webtestpilot import WebTestPilot, Config, Session, Step
+
+# WebTestPilot is built on top of Playwright
+with sync_playwright() as p:
+    # Users can:
+    # 1. Connect to an existing managed or remote browser
+    # 2. Enable tracing, video, or screenshots at the browser context level
+    # 3. Reuse an authenticated browser session
+    # ...
+    browser = p.chromium.launch()
+    context = browser.new_context()
+    page = context.new_page()
+
+    page.goto("https://example.com")
+
+    # Load WebTestPilot configuration
+    config = Config.load(Path("./src/config.yaml"))
+
+    # Create a test session bound to the Playwright page
+    session = Session(page=page, config=config)
+
+    # Define test steps in natural language
+    steps = [
+        Step(
+            action="Click the login button",
+            expectation="The dashboard page is displayed",
+        ),
+        Step(
+            action="Click the profile icon",
+            expectation="The user profile menu appears",
+        ),
+    ]
+
+    # Run the test steps
+    WebTestPilot.run(
+        session=session,
+        steps=steps,
+        assertion=False,  # enable to verify expectations
+    )
+```
+
+## Development
+
+This section is only required if you are developing or modifying WebTestPilot itself.
+
+### Prerequisites
+
+Before starting, make sure you have:
+
+* **`uv` package manager**
+
+    We use `uv` to manage Python dependencies and run commands in a clean, reproducible environment.
+
+    Installation guide: [https://docs.astral.sh/uv/getting-started/installation/](https://docs.astral.sh/uv/getting-started/installation/)
+
+### Setup
+
+1. **Clone the repository.**
+
+2. **Set Up the Python Environment.**
+    ```bash
+    cd ./webtestpilot
+    # Installs all dependencies
+    uv sync
+    # Prepares code used for model interaction and reasoning.
+    uv run baml-cli generate --from ./webtestpilot/baml_src
+    ```
+
+3. **Configure Environment Variables.**
+
+    We use a `.env` file to store configuration values and secrets (such as API keys).
+
+    Create your own copy:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Then open `.env` and edit the following fields:
+
+    ```bash
+    # URL of the GUI grounding model (OpenAI-compatible API)
+    GUI_GROUNDING_MODEL_BASE_URL="http://localhost:8000/v1"
+
+    # Name of the GUI grounding model (HuggingFace format)
+    GUI_GROUNDING_MODEL_NAME="inclusionAI/UI-Venus-Ground-7B"
+
+    # URL for OpenAI-compatible LLM API
+    OPENAI_BASE_URL="https://api.key77qiqi.com/v1"
+
+    # Your API key (ask from the course staff)
+    OPENAI_API_KEY=""
+    ```
