@@ -1,0 +1,117 @@
+name: Prepare release
+
+on:
+  push:
+    branches:
+      - 'release_alpha'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  increment_version_and_pr:
+      runs-on: ubuntu-latest
+
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+          with:
+            fetch-depth: 0
+
+        - name: Set up Python
+          uses: actions/setup-python@v6
+          with:
+            python-version: '3.x'
+
+        - name: Install TOML library
+          run: |
+            python -m pip install --upgrade pip
+            pip install pyproject-parser
+            pip install requests
+
+        - name: Increment version in pyproject.toml
+          id: increment_version
+          run: |
+            python - << 'PYCODE'
+            import requests
+            from pathlib import Path
+            from pyproject_parser import PyProject
+            from packaging.version import Version
+
+            def get_latest_published_version(package: str) -> Version:
+                url = f"https://pypi.org/pypi/{package}/json"
+                resp = requests.get(url, timeout=5)
+                resp.raise_for_status()
+                data = resp.json()
+                versions = list(data["releases"].keys())
+                versions.sort(key=Version, reverse=True)
+                return Version(versions[0]) if len(versions) else None
+
+            def increment_version(current_version: Version, pre: str = "a") -> str:
+                if not current_version:
+                    return Version(f"0.0.0{pre}{0}")
+                elif current_version.pre and current_version.pre[0] == pre:
+                    return Version(f"{current_version.base_version}{current_version.pre[0]}{current_version.pre[1] + 1}")
+                else:
+                    return Version(f"{current_version.base_version}{pre}0")
+
+            toml_file = Path("pyproject.toml")
+            pyproject = PyProject.load(toml_file)
+            latest_published_version = get_latest_published_version("arches-component-lab")
+            pyproject.project["version"] = increment_version(latest_published_version, "a")
+            pyproject.dump(toml_file)
+            print(f"::set-output name=new_version::{pyproject.project["version"]}")
+            PYCODE
+
+        - name: Configure git
+          run: |
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        - name: Commit version update
+          run: |
+            git status
+            if git diff --quiet; then
+              echo "No changes to commit."
+              exit 0
+            fi
+            git add pyproject.toml
+            git commit -m "Increment version to ${{ steps.increment_version.outputs.new_version }}"
+            git push
+
+        - name: Install GitHub CLI
+          run: |
+            type -p gh >/dev/null 2>&1 || {
+              curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+              sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+              echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+              sudo apt-get update
+              sudo apt-get install -y gh
+            }
+
+        - name: Create pull request
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          run: |
+            BASE_BRANCH=${{ github.event.repository.default_branch }}
+            HEAD_BRANCH="${GITHUB_REF_NAME}"
+
+            existing_pr=$(gh pr list \
+              --head "$HEAD_BRANCH" \
+              --base "$BASE_BRANCH" \
+              --state open \
+              --json number \
+              --jq '.[0].number' || true)
+
+            if [ -n "$existing_pr" ]; then
+              echo "PR #$existing_pr already exists for $HEAD_BRANCH -> $BASE_BRANCH"
+              exit 0
+            fi
+
+            gh auth setup-git
+            gh pr create \
+              --base "$BASE_BRANCH" \
+              --head "$HEAD_BRANCH" \
+              --title "on merge: pypi release prep for version ${{ steps.increment_version.outputs.new_version }}" \
+              --body "Automated release preparation. PyPI release will be deployed on merge"
