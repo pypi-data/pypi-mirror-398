@@ -1,0 +1,131 @@
+{% extends "layout/product-section.html" %}
+{% set additional_page_args={'region_code': region_code} %}
+{% set active_page = "datasets" %}
+
+{% block title %}{{ super() }} region{% endblock %}
+
+{% block head %}
+    {{ super() }}
+    <style>
+        #region-map {
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 200px;
+            width: 66%;
+        }
+
+        .map-container {
+            padding-right: 75%;
+            min-height: calc(200px - 60px);
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="panel relative map-container">
+
+        <div id="region-map"></div>
+        <h1><strong>{{ product_region_info.region_label(region_code) }}</strong> {{ product_args_label }}</h1>
+
+        {% if datasets %}
+            <!-- The total count is only recorded for the whole time period.
+                 Cannot show it when a month/day is chosen -->
+            {% if not year %}
+            <p>
+                {{ product_region_info.region(region_code).count }} total
+                dataset{% if datasets | length > 1 %}s{% endif %}
+            </p>
+            {% endif %}
+        {% else %}
+            <p>No datasets.</p>
+        {% endif %}
+
+        <div>
+            <a href="{{ url_for('pages.region_geojson', region_code=region_code, **product_args) }}"
+                class="badge">
+                GeoJSON
+                <i class="fa-solid fa-file-text" aria-hidden="true"></i>
+            </a>
+        </div>
+    </div>
+    <div class="panel odd overflowable">
+        {% if datasets %}
+
+            {% if previous_page_url %}
+                <p>
+                    <a href="{{ previous_page_url }}" class="muted">
+                        <i class="fa-solid fa-arrow-circle-left" aria-hidden="true"></i>
+                        Previous
+                    </a>
+                </p>
+            {% endif %}
+
+            <table class="data-table">
+                {% for dataset in datasets %}
+                    <tr class="search-result collapse-when-small">
+                        <td>{{ dataset | metadata_center_time | printable_time }}</td>
+                        <td>
+                            <a href="{{ url_for('dataset.dataset_page', id_=dataset.id) }}">{{ dataset | printable_dataset }}</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </table>
+
+            {% if next_page_url %}
+                <p>
+                    <a href="{{ next_page_url }}" class="muted">
+                        Next
+                        <i class="fa-solid fa-arrow-circle-right" aria-hidden="true"></i>
+                    </a>
+                </p>
+            {% endif %}
+        {% endif %}
+        {{ back_to_product_overview }}
+    </div>
+{% endblock %}
+
+
+{% block body_footer %}
+    {{ super() }}
+
+    <script type="application/javascript">
+
+        const osm_carto_light = L.tileLayer(
+            "//cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png",
+            {
+                maxZoom: 7,
+                attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors,' +
+                ' &copy; <a href="https://cartodb.com/attributions">CartoDB</a>'
+            }
+        );
+
+        const dataset_data = L.geoJson({{ product_region_info.region(region_code).footprint_geojson | torapidjson }},
+            {
+                interactive: false,
+                style: function (feature) {
+                    return {
+                        color: "#1d81a7",
+                        fill: true,
+                        fillColor: "#1d81a7",
+                        opacity: 0.8,
+                        weight: 2,
+                        clickable: false
+                    };
+                }
+            });
+        const map = L.map("region-map", {
+            zoom: 3,
+            center: [-26.2756326, 134.9387844],
+            layers: [osm_carto_light, dataset_data],
+            zoomControl: false,
+            attributionControl: false,
+            scrollWheelZoom: false
+        });
+        L.control.zoom({position: "bottomright"}).addTo(map);
+        map.fitBounds(dataset_data.getBounds(), {animate: false, maxZoom: 5});
+
+        window.MAP = map;
+    </script>
+
+{% endblock %}

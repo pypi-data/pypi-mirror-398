@@ -1,0 +1,218 @@
+[project]
+name = "datacube-explorer"
+dynamic = ["version"]
+description = "Web-based exploration of Open Data Cube collections"
+authors = [
+    {name = "Geoscience Australia", email = "earth.observation@ga.gov.au"},
+]
+dependencies = [
+    "Flask-Caching",
+    "cachetools",
+    # Tests fail with "ValueError: I/O operation on closed file" with Click
+    # 8.2.0 and later.
+    "click<8.2.0",
+    "datacube[postgres]>=1.9.10,<1.10.0",
+    "eodatasets3>=1.9",
+    "fiona>=1.10.0",
+    "flask",
+    "flask-cors",
+    "flask-themer>=1.4.3",
+    "geoalchemy2>=0.8",
+    "geographiclib",
+    "jinja2",
+    "markupsafe",
+    "odc-geo",
+    "orjson>=3",
+    "psycopg[c]",
+    "pygeofilter>=0.2.2",
+    "pyorbital",
+    "pyproj",
+    "pystac",
+    "sentry-sdk[flask]",
+    "shapely",
+    "simplekml",
+    "sqlalchemy>=1.4",
+    "structlog>=20.2.0",
+]
+requires-python = ">=3.10"
+readme = "README.md"
+license = "Apache-2.0"
+classifiers = [
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.urls]
+Homepage = "https://github.com/opendatacube/datacube-explorer"
+"Bug Reports" = "https://github.com/opendatacube/datacube-explorer/issues"
+Source = "https://github.com/opendatacube/datacube-explorer"
+
+[dependency-groups]
+doc = [
+    "autodocsumm",
+    "beautifulsoup4",
+    "nbsphinx",
+    "pydata-sphinx-theme",
+    "sphinx>=8.1.3,<9.0; python_version<'3.11'",
+    "sphinx>=8.2.3,<9.0; python_version>='3.11'",
+    "sphinx-autodoc-typehints",
+    "sphinx-click",
+    "sphinx-tabs",
+]
+dev = [
+    "datacube-explorer[deployment,test]",
+    {include-group = "doc"}
+]
+
+[project.optional-dependencies]
+deployment = [
+    # Performance.
+    "bottleneck",
+    "ciso8601",
+    # The default run.sh and docs use gunicorn+meinheld
+    "gevent",
+    "gunicorn>=22.0.0",
+    "setproctitle",
+    # Monitoring.
+    "blinker",
+    "prometheus-flask-exporter",
+]
+test = [
+    "datacube-explorer[deployment]",
+    "blinker",
+    "boltons",
+    "deepdiff",
+    "docker",
+    "docutils",
+    "jsonschema >= 4.18",
+    "lxml_html_clean",
+    "mypy",
+    "pre-commit",
+    "prometheus-flask-exporter",
+    "pytest",
+    "pytest-benchmark",
+    "pytest-cov",
+    "ruff",
+    "selectolax",
+    "types-cachetools",
+    "types-docker",
+    "types-pyyaml"
+]
+
+[project.scripts]
+cubedash-gen = "cubedash.generate:cli"
+cubedash-page-test = "cubedash.warmup:cli"
+cubedash-run = "cubedash.run:cli"
+cubedash-view = "cubedash.summary.show:cli"
+
+[build-system]
+requires = ["setuptools>=69", "setuptools_scm[toml]>=8"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+exclude = ["integration_tests"]
+include = ["cubedash*"]
+
+[tool.setuptools_scm]
+write_to = "cubedash/_version.py"
+
+[tool.coverage.run]
+branch = true
+omit = [
+    "cubedash/_version.py",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    # From coverage manual (https://coverage.readthedocs.io/en/latest/excluding.html).
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+
+    # OUR EXCEPTIONS:
+    "except ImportError:",
+    "pytest.fail\\(", # Parameter checks in pytest.
+    "raise TypeError\\(", # "Impossible" errors.
+]
+precision = 2
+
+[tool.mypy]
+python_version = "3.10"
+allow_redefinition = true
+check_untyped_defs = true
+enable_error_code = ["explicit-override"]
+ignore_missing_imports = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+# FIXME: Long term goal to enable the next line.
+# disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+addopts = "--doctest-modules"
+console_output_style = "times"
+testpaths = ["cubedash", "integration_tests"]
+norecursedirs = [".*", "build", "dist", ".git", "tmp*", ".jj"]
+filterwarnings = [
+    "ignore::FutureWarning",
+    "ignore:datetime.datetime.utcnow*:DeprecationWarning:botocore.*",
+    "ignore:.*numpy.ndarray size changed.*:"
+]
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "A",  # Don't shadow built-ins
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "E",  # pycodestyle
+    "EXE",  # Shebangs+Executable permisssions should match
+    "F",  # pyflakes
+    "FLY", # flynt
+    "G",  # Use logging formatter, not manual string concat
+    "I",  # Auto-sort imports
+    "ICN",  # Use standard import names, like np for numpy
+    "N",  # pep8-naming
+    "NPY",  # Numpy
+    "RET", # flake8-ret
+    "RUF", # Ruff-specific rules
+    "S",  # flake8-bandit
+    "SIM", # flake8-simplify
+    "T10", # flake8-debugger
+    "UP",  # pyupgrade
+    "W",  # pycodestyle warnings
+]
+ignore = [
+    "S101", # Many asserts are used for type checking.
+    # FIXME: re-enable these rules.
+    "B905",
+    "S310",
+    "S608",
+    "SIM115",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The file deliberately doesn't put the import at the top, and we can't avoid global overrides
+"docs/conf.py" = ["E402", "A001", "EXE001"]
+# FIXME: remove these ignores
+"cubedash/_stac.py" = ["B023"]
+"cubedash/warmup.py" = ["B023"]
+"cubedash/generate.py" = ["RUF002"]
+"cubedash/summary/_summarise.py" = ["C416"]
+
+# Matching old behaviour: We auto-format with the smaller line default
+# ...  but only enforce line length to be under this larger 120 limit.
+[tool.ruff.lint.pycodestyle]
+max-line-length = 120

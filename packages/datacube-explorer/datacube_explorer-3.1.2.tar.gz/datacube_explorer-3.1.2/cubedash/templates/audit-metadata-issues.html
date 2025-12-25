@@ -1,0 +1,154 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Datasets audit{% endblock %}
+
+{% block head %}
+    {{ super() }}
+    <style type="text/css">
+        .bad {
+            color: #cc9424;
+        }
+
+        .data-table tr:hover {
+            background-color: #f0f0f0;
+        }
+    </style>
+{% endblock %}
+{% block panel %}
+
+{% endblock %}
+{% block content %}
+    <div class="panel highlight">
+        <h2 class="followed lonesome">Datasets Metadata Issues
+            {%- if sentry_public_dsn and sentry_public_args.environment %} ({{ sentry_public_args.environment }})
+            {%- endif -%}
+        </h2>
+        <div class="header-follow">{{ products_summarised|length }} products with summaries.
+            {{ (products_missing | length) or 'None' }} without{% if products_missing %}:{% else %}.{% endif %}
+            {% for name in products_missing %}
+                {{ name | product_link }}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    <div class="panel">
+        {% if spatial_quality_stats %}
+            <table class="data-table unavailable-metadata" id="missing-metadata">
+                <thead id="metadata-audit-table-thead">
+                <th>Product</th>
+                <th class="missing" onclick="showRow(this, 'footprint')">
+                    Missing footprint <i class="filter-icon fa-solid fa-filter"></i>
+                </th>
+                <th class="missing" onclick="showRow(this, 'srid')">Missing CRS <i class="filter-icon fa-solid fa-filter"></i></th>
+                <th class="feature" onclick="showRow(this, 'region')"
+                    title="Product has neither a grid specification, nor platform-specific regions (eg. Landsat WRS path rows)">
+                    Missing Regions <i class="filter-icon fa-solid fa-filter"></i>
+                </th>
+                <th class="feature" onclick="showRow(this, 'dsize')">Missing Dataset Size <i class="filter-icon fa-solid fa-filter"></i></th>
+                </thead>
+                {% for stat in spatial_quality_stats | sort(attribute='product.name') %}
+                    <tr class="search-result missing-result" data-missing-footprint="{{ stat.missing_footprint }}"
+                    data-missing-srid="{{ stat.missing_srid }}" data-missing-region="{{ (stat.count - stat.has_region)}}" data-missing-dsize="{{ (stat.count - stat.has_file_size) }}">
+                        <td>{{ stat.product.name | product_link }}</td>
+                        <td title="{{ stat.missing_footprint }} of {{ stat.count }} missing footprint"
+                            class="missing-footprint">
+                            {{ stat.missing_footprint | percent(stat.count) }}
+                        </td>
+                        <td title="{{ stat.missing_srid }} of {{ stat.count }} missing CRS"
+                            class="missing-srid">
+                            {{ stat.missing_srid | percent(stat.count) }}
+                        </td>
+                        <td title="{{ stat.count - stat.has_region }} of {{ stat.count }} without region specification"
+                            class="missing-region">
+                            {{ (stat.count - stat.has_region) | percent(stat.count) }}
+                        </td>
+                        <td title="{{ stat.count - stat.has_file_size }} of {{ stat.count }} without size_bytes field"
+                            class="missing-dsize">
+                            {{ (stat.count - stat.has_file_size) | percent(stat.count) }}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <span class="primary-error">Spatial quality view not populated</span>
+        {% endif %}
+    </div>
+    <div class="panel odd" id="largest-footprint-size">
+        {% if spatial_quality_stats %}
+            <h3>
+                Largest footprint size
+                {{ hanchor('largest-footprints') }}
+            </h3>
+            Measured from binary storage. JSON/Metadata representation is much larger.
+            <table class="data-table footprint-size">
+                <thead>
+                <th>Product</th>
+                <th>Avg. Footprint size</th>
+                </thead>
+                {% for stat in spatial_quality_stats | sort(attribute='avg_footprint_bytes', reverse=True) | batch(15) | first %}
+                    <tr class="search-result">
+                        <td>{{ stat.product.name | product_link }}</td>
+
+                        {% if stat.footprint_size %}
+                            {% set avg_footprint_size=stat.footprint_size / stat.count %}
+                            <td class="size-value {% if avg_footprint_size > 400 %}bad{% endif %}">
+                                {{ avg_footprint_size | printable_data_size }}
+                            </td>
+                        {% else %}
+                            <td></td>
+                        {% endif %}
+                    </tr>
+                {% endfor %}
+            </table>
+        {% endif %}
+    </div>
+
+    <div class="panel" id="query-timings">
+    {% if product_timings_iter %}
+            <h3>Day query speed</h3>
+            <p>Extremely slow queries usually indicate a misconfigured index for the product.</p>
+            <ul>
+                {% for timing in product_timings_iter %}
+                    <li>
+                        <strong>{{ timing.name | product_link }}</strong>
+                        <span {% if timing.time_seconds and timing.time_seconds > 0.8 %}class="bad"{% endif %}>
+                        {% if timing.time_seconds %}
+                            {{ (timing.time_seconds * 1000) | int }}ms
+                        {% else %}
+                            (empty product)
+                        {% endif %}
+                    </span>
+                    </li>
+                {% endfor %}
+            </ul>
+    {% else %}
+            <a href="{{ url_for('audit.datasets_metadata_page', timings=True) }}#query-timings">
+                <i class="fa fa-cogs" aria-hidden="true"></i>
+                View query timings</a> (very slow)
+    {% endif %}
+    </div>
+<script>
+    function objToggle(obj){
+        document.querySelectorAll('.filter-icon').forEach(function(icon){
+            if(icon != obj.firstElementChild)
+            {
+                icon.classList.remove('fa-square-check');
+                icon.classList.add('fa-filter');
+            }
+
+        });
+        obj.firstElementChild.classList.toggle('fa-filter');
+        obj.firstElementChild.classList.toggle('fa-square-check');
+    }
+
+    function showRow(obj, type) {
+        filter_con = obj.firstElementChild.classList.contains('fa-filter');
+        document.querySelectorAll(".missing-result").forEach(function(row){
+            row.style.visibility = "visible";
+            if (row.getAttribute(`data-missing-${type}`)== '0' && filter_con){
+                row.style.visibility = "collapse";
+            }
+        });
+        objToggle(obj);
+    }
+</script>
+{% endblock %}
