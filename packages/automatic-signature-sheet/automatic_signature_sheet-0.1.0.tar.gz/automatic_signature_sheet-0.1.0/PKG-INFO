@@ -1,0 +1,110 @@
+Metadata-Version: 2.4
+Name: automatic-signature-sheet
+Version: 0.1.0
+Summary: A tool to automate printing signature sheets.
+License-Expression: MIT
+License-File: LICENSE
+Keywords: signature,latex
+Author: Yoann Piétri
+Author-email: Yoann.Pietri@lip6.fr
+Requires-Python: >=3.13
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Dist: jinja2 (>=3.1.6,<4.0.0)
+Project-URL: Repository, https://github.com/nanoy42/yass
+Description-Content-Type: text/markdown
+
+# Yoann's Automatic Signature Sheet (YASS)
+
+I am an associate professor at Sorbonne Université (France), and it is not uncommon that I have to print signature sheet (for exams or mandatory sessions).
+
+At my disposal: the Moodle tool, where I can download a list of the students in several format (.ods, .csv, .pdf, etc...). Until recently, I was using libreoffice calc with the .ods file and reformatting it. But this was not the most efficient: first because the operations were always the same (add borders, add blank space, adjust column width to use full width of the page, etc...) and not automatized, and second, because it has happened several times that libreoffice just bugged and was printing blank pdf pages (although the information was still here).
+
+Hence, I decided to code a small tool that would take a list of students/people as a (csv) input and output a pdf file for the signature, using LaTeX. The process is fully automated and can be used with a command-line interface that is described later.
+
+## Installation
+
+Yass may be installed from the PyPi repository:
+
+```basb
+pip install automatic-signature-sheet
+```
+
+## Examples
+
+Examples can be found in the [examples folder](./examples).
+
+## Templates
+
+YASS is shipped with 3 templates:
+
+* `default.tex` which has 4 columns: last name, first name, id and signature (empty).
+* `rank.tex` which has 5 columns: last name, first name, id, rank (empty) and signature (empty).
+* `no-id.tex` which has 3 columns: last name, first name and signature (empty).
+
+## Command line interface
+
+The command line interface allows for a simple use of the tool. In its simplest form, the CLI can be used as follows:
+
+```bash
+yass file.csv
+```
+
+By default, this will output the generated file to file.pdf. If the file already exists, yass will prevent the generation unless the `-f/--force` flag is passed. It is also possible to change the output filename with the `-o/--output` flag:
+
+```bash
+yass file.csv -o output.pdf
+```
+
+The title of the signature sheet can be changed with `-t/--title`,
+
+```bash
+yass file.csv -t "Some exam"
+```
+
+The vertical size of the signature (defaults to 50pt) can be changed with the `-s/--size` flag. Note that the unit may not be omitted.
+
+The template can be changed with the `-T/--template` flag.
+
+```bash
+yass file.csv -T rank.tex
+```
+
+It is possible to force yass to use the same order in the CSV file (and not perform sorting on the last name) by providing the `--no-sort` flag.
+
+Finally, the user may use `-i/--ignore-lines`, `--first-name-column`, `--last-name-column` and `--person-id-column` to change which column is used in the CSV.
+
+Here is the documentation of the command line
+
+```bash
+usage: yass [-h] [--version] [-t TITLE] [-s SIZE] [-f] [--no-sort] [-i IGNORE_LINES] [--first-name-column FIRST_NAME_COLUMN] [--last-name-column LAST_NAME_COLUMN] [--person-id-column PERSON_ID_COLUMN]
+            [-T {default.tex,no-id.tex,rank.tex}] [-o OUTPUT]
+            filename
+
+positional arguments:
+  filename
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+  -t, --title TITLE     Title of the signature sheet
+  -s, --size SIZE       Size, in pt, of the signature box (default 50pt). Unit may not be omitted.
+  -f, --force           Force the generation of the file even if the output file exists.
+  --no-sort             Prevent sorting using the alphabetical order on the last name.
+  -i, --ignore-lines IGNORE_LINES
+                        Number of lines to ignore in the CSV (header(s)). Default: 1.
+  --first-name-column FIRST_NAME_COLUMN
+                        Column of the first name. Default: 0.
+  --last-name-column LAST_NAME_COLUMN
+                        Column of the last name. Default: 1.
+  --person-id-column PERSON_ID_COLUMN
+                        Column of the person id.. Use a negative value to ignore person id. Default: 2.
+  -T, --template {default.tex,no-id.tex,rank.tex}
+                        LaTeX template to use. Default: default.tex
+  -o, --output OUTPUT   Force the output name. Default: input name with .pdf
+```
+
+## License
+
+This software is released under the MIT license. For more details, check the LICENSE file or visit [https://opensource.org/licenses/MIT](https://opensource.org/licenses/MIT).
