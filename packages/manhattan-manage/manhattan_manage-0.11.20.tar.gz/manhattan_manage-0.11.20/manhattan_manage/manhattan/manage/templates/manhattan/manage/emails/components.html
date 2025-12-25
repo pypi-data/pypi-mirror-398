@@ -1,0 +1,278 @@
+{#
+    Email components
+    --
+    A set of useful helper macros that can be used inside of an email template
+    to layout the content.
+--------------------------------------------------------------------------------
+{%- import "../components/email.html" as _email -%}
+--------------------------------------------------------------------------------
+#}
+
+
+{#
+    Spacer
+    --
+    A table with a set height against it, used to emulate vertical margin
+    between 2 elements. By standard, the height of the spacer is 20px, but the
+    macro can be passed a `type` value which can be used to modify this height:
+
+    `small` - Small height spacer
+    `large` - Large height spacer
+    `mobile-compact` - Standard height spacer, but small in mobile devices
+
+    The macro also accepts a custom `class` attribute.
+--------------------------------------------------------------------------------
+{{ _email.spacer(type='large') }}
+--------------------------------------------------------------------------------
+#}
+{% macro spacer(type=None, class=None) %}
+    <table
+        class="
+            vert-spacer
+            {% if type in ['small', 'large', 'mobile-compact'] %}
+                {{ 'vert-spacer--' + type  }}
+            {% elif type == 'divider' %}
+                vert-spacer--large
+            {% endif %}
+            {{ class if class }}
+        ">
+        <tr><td></td></tr>
+    </table>
+{% endmacro %}
+
+
+{#
+    Divider
+    --
+    A horizontal rule used to divide sections of content within the main body of
+    the email. The macro accepts a custom `class` attribute.
+--------------------------------------------------------------------------------
+{{ _email.divider() }}
+--------------------------------------------------------------------------------
+#}
+{% macro divider(class=None) %}
+    <table class="divider  {{ class if class }}">
+        <tr><td class="divider__top"></td></tr>
+        <tr><td class="divider__bottom"></td></tr>
+    </table>
+{% endmacro %}
+
+
+{#
+    Buttons
+    --
+    A container used for wrapping one or more button macros within a table,
+    spacing them appropriately. If you only have one button, you can pass the
+    `buttons` macro everything you would pass the `button` macro. This includes
+    `text`, `url`, and `class`, and these would then be used to create a single
+    button within the table.
+--------------------------------------------------------------------------------
+{{ _email.buttons('My button', url='/some-url') }}
+--------------------------------------------------------------------------------
+    Alternatively, if you have more than one button, you can use a caller.
+--------------------------------------------------------------------------------
+{%- call _email.buttons() -%}
+    {{ _email.button('Button one', url='/some-url-1') }}
+    {{ _email.button('Button two', url='/some-url-2') }}
+{%- endcall -%}
+--------------------------------------------------------------------------------
+#}
+{% macro buttons(text, url, class=None) %}
+    <table>
+        <tr>
+            <td class="btns">
+                {% if caller %}
+                    {{ caller() }}
+                {% elif text and url %}
+                    {{ button(text, url, class) }}
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+{% endmacro %}
+
+
+{#
+    Button
+    --
+    A single pre-formatted button using an `<a>` tag. Must be passed `text` and
+    `url` but can also be passed a custom `class` attribute.
+--------------------------------------------------------------------------------
+{{ _email.button('My button', url='/some-url') }}
+--------------------------------------------------------------------------------
+#}
+{% macro button(text, url, class=None) %}
+    <a class="btn  {{ class if class }}" href="{{ url }}">
+        {{ text }}
+    </a>
+{% endmacro %}
+
+
+{#
+    Content
+    --
+    A container used to wrap around the different types of content blocks
+    (i.e. box and list). Although the content wrapper is not required, it is
+    recommended so that standard formatted styles are not applied to the content
+    block. The macro can optionally be passed `heading_text` which will insert a
+    pre-formatted `h2` at the top of the content block. It can also be passed a
+    custom `class` attribute.
+--------------------------------------------------------------------------------
+{%- call _email.content(heading_text='My heading') -%}
+    ...
+{%- endcall -%}
+--------------------------------------------------------------------------------
+#}
+{% macro content(heading_text=None, class=None) %}
+    <table class="content  {{ class if class }}">
+        <tr>
+            <td>
+                {% if heading_text %}
+                    {{ content_heading(heading_text) }}
+                {% endif %}
+
+                {{ caller() }}
+            </td>
+        </tr>
+    </table>
+{% endmacro %}
+
+
+{#
+    Content heading
+    --
+    The `content_heading` can be used within the `content` macro. It is a
+    pre-formatted heading used at the top of the `content` macro. Must be passed
+    a `text` attribute. It can also be passed a custom `class` attribute.
+--------------------------------------------------------------------------------
+{{ _email.content_heading('My heading') }}
+--------------------------------------------------------------------------------
+#}
+{% macro content_heading(text, class=None) %}
+    <h2 class="content__heading  {{ class if class }}">
+        {{ text }}
+    </h2>
+{% endmacro %}
+
+
+{#
+    Content box
+    --
+    The `content_box` can be used within the `content` macro. It is a container
+    with a coloured background against it used to highlight a block of text
+    content. The text content can be passed using the `text` attribute like so:
+--------------------------------------------------------------------------------
+{{ _email.content_box(text='Some text') }}
+--------------------------------------------------------------------------------
+    By default any text passed is marked as safe, allowing you to pass HTML, but
+    you can overide this behaviour by setting `make_safe` to `False`.
+    If you don't want to pass the text as a parameter you can alternatively use
+    a caller like so:
+--------------------------------------------------------------------------------
+{%- call _email.content_box() -%}
+    ...
+{%- endcall -%}
+--------------------------------------------------------------------------------
+    It can also be passed a custom `class` attribute.
+#}
+{% macro content_box(text=None, make_safe=True, class=None) %}
+    <table class="[ content__box ]  [ content-box ]  {{ class if class }}">
+        <tr><td class="content-box__top" colspan="3"></td></tr>
+
+        <tr>
+            <td class="content-box__left"></td>
+
+            <td class="[ content-box__mid ]  [ formatted ]">
+                {%- if caller -%}
+                    {{ caller() }}
+                {%- elif text -%}
+                    {{ text }}
+                {%- endif -%}
+            </td>
+
+            <td class="content-box__right"></td>
+        </tr>
+
+        <tr><td class="content-box__bottom" colspan="3"></td></tr>
+    </table>
+{% endmacro %}
+
+
+{#
+    Content list
+    --
+    The `content_list` can be used within the `content` macro. It is a container
+    used to wrap a list of `content_rows` to layout data in a standard tabular
+    format. The macro can be passed a custom `class` attribute.
+--------------------------------------------------------------------------------
+{%- call _email.content_list() -%}
+    ...
+{%- endcall -%}
+--------------------------------------------------------------------------------
+#}
+{% macro content_list(class=None) %}
+    <table class="[ content__list ]  [ content-list ]  {{ class if class }}">
+        {{ caller() }}
+    </table>
+{% endmacro %}
+
+
+{#
+    Content list row
+    --
+    The `content_row` should be used within the `content_list` macro. Each row
+    consists of three columns. A label, a spacer, and a value. You can
+    optionally pass `label_text` and `text` to the macro in order to set a label
+    and value for the row like so:
+--------------------------------------------------------------------------------
+{{ _email.content_row(text='Some text') }}
+--------------------------------------------------------------------------------
+    If no `label_text` is passed, the value column is given a `colspan` of 3 to
+    make it full width, the label and spacer columns are then hidden. By default
+    the `label_text` and `text` values are marked as safe allowing you to pass
+    HTML, however you can overide this by setting `make_safe` to `False`.
+    Alternatively, if you do not wish to pass `text` as a parameter, you can
+    instead use a caller like so:
+--------------------------------------------------------------------------------
+{%- call _email.content_row(label_text='My label') -%}
+    ...
+{%- endcall -%}
+--------------------------------------------------------------------------------
+    The macro can also be passed a custom `class` attribute.
+#}
+{% macro content_row(label_text=None, text=None, class=None) %}
+    <tr class="content-list__row  {{ class if class }}">
+        {% if label_text %}
+            <th class="content-list__label">
+                {{ label_text }}
+            </th>
+
+            <td class="content-list__spacer"></td>
+        {% endif %}
+
+        <td
+            class="content-list__value"
+            {% if not label_text %} colspan="3"{% endif %}
+            >
+            <table class="content-list-value">
+                <tr><td class="content-list-value__top" colspan="3"></td></tr>
+
+                <tr>
+                    <td class="content-list-value__left"></td>
+
+                    <td class="[ content-list-value__mid ]  [ formatted ]">
+                        {%- if caller -%}
+                            {{ caller() }}
+                        {%- elif text -%}
+                            {{ text }}
+                        {%- endif -%}
+                    </td>
+
+                    <td class="content-list-value__right"></td>
+                </tr>
+
+                <tr><td class="content-list-value__bottom" colspan="3"></td></tr>
+            </table>
+        </td>
+    </tr>
+{% endmacro %}

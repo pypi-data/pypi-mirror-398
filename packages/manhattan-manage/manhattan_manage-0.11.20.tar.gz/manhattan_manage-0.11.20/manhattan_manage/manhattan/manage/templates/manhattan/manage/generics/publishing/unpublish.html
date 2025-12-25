@@ -1,0 +1,76 @@
+{#
+    Unpublish
+    --
+    A base template used to render a generic unpublish page which renders a form
+    and form button asking the user to confirm their unpublish request. The form
+    contains a single hidden field which contains the `_id` and `name` of the
+    document passed to the page. If you want to overide either of these, you can
+    either overide the entire `main` block and build the form yourself, or you
+    can set `hidden_fields` and/or `buttons` to overide them individually. If
+    you need to add any interactive form fields to the publish form, you can add
+    set a `fields` block which will overide a block at the top of the fieldset.
+    There is a confirmation note added to the form, which can overwritten by
+    setting a `note` block in your local template.
+--------------------------------------------------------------------------------
+{%- extends "/delete.html" -%}
+
+{%- block hidden_fields -%}
+    <input
+        type="hidden"
+        name="item"
+        value="{{ item._id }}"
+        >
+{%- endblock -%}
+
+{%- block fields -%}
+    ...
+{%- endblock -%}
+
+{%- block buttons -%}
+    {{ _form.button('Confirm publish') }}
+    {{ _form.button('Cancel', url='/some-url') }}
+{%- endblock -%}
+
+{%- block note -%}
+    Please confirm you wish to unpublish this {{ manage_config.name}}.
+    Doing so will remove the associated page from the website.
+{%- endblock -%}
+--------------------------------------------------------------------------------
+#}
+
+{%- extends "manage/base.html" -%}
+
+{%- import "manhattan/manage/components/boxes.html" as _boxes -%}
+{%- import "manhattan/manage/components/form.html" as _form with context -%}
+
+{%- block main -%}
+    {%- call _boxes.box() -%}
+        {%- call _form.form() -%}
+            {%- block hidden_fields -%}
+                <input
+                    type="hidden"
+                    name="{{ manage_config.var_name }}"
+                    value="{{ request.args.get(manage_config.var_name) }}"
+                    >
+            {%- endblock -%}
+
+            {%- call _form.fieldset() -%}
+                {%- block fields -%}{%- endblock -%}
+
+                {%- call _form.buttons() -%}
+                    {%- block buttons -%}
+                        {{ _form.button('Confirm unpublish') }}
+                    {%- endblock -%}
+
+                    <p class="[ mh-form__note ]  [ large-text ]">
+                        {%- block note -%}
+                            Please confirm you wish to unpublish this
+                            {{ manage_config.name}}. Doing so will remove
+                            the associated page from the website.
+                        {%- endblock -%}
+                    </p>
+                {%- endcall -%}
+            {%- endcall -%}
+        {%- endcall -%}
+    {%- endcall -%}
+{%- endblock -%}

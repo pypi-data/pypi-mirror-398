@@ -1,0 +1,565 @@
+{#
+    Results
+    --
+    These macros are designed for handling the listing/results pages and the
+    different formats that the content can be listed. They should be called like
+    so:
+--------------------------------------------------------------------------------
+{%- import "macros/results.html" as _results -%}
+
+{{ _results.filter(form) }}
+
+{{ _results.list(
+    form,
+    page,
+    headings=headings,
+    columns=columns,
+    action=decor.result_action
+    ) }}
+
+{{ _results.paging(form, paginator, page) }}
+--------------------------------------------------------------------------------
+    The `list` macro accepts a `headings` and `columns` value. These should
+    be provided as macros containing a list of the headings/data columns like
+    so:
+--------------------------------------------------------------------------------
+{% macro headings() %}
+    {{ _results.heading('Heading 1') }}
+    {{ _results.heading('Heading 2', sort_with='heading_2') }}
+    ...
+{% endmacro %}
+
+{% macro columns(item) %}
+    {{ _results.column(item.item_1) }}
+    {{ _results.column(item.item_2) }}
+    ...
+{% endmacro %}
+--------------------------------------------------------------------------------
+    The values `form` and `page` must be passed. The `form` value is used to set
+    the current sorted column. The `page` value is used to loop through and
+    display each of the items, using the `columns` macro for each row. You can
+    also pass through an `action` value. This allows you to set `data-mh-url`
+    URL against the row (tr) which can then be made linkable using JS.
+#}
+
+{%- import "manhattan/manage/components/form.html" as _form with context -%}
+
+{#
+    Filter
+    --
+    A search form used to filter the results of a list page. The filter form
+    requires that you pass a `form` value. This is used to generate the list of
+    form filters. Everything passed to the filter macro is passed to and applied
+    to the form macro inside it.
+--------------------------------------------------------------------------------
+{{ _results.filter(form) }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.
+--------------------------------------------------------------------------------
+{{ _results.filter(
+    form=form,
+    action='/some-url',
+    method='POST',
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro filter(form, action=None, method='GET', class=None) %}
+    {%- set class = '
+        [ mh-filter ]
+        [ mh-form--reverse-optional  mh-form--fixed-btns-disabled ]
+        ' + ('  ' + class if class else '')
+    -%}
+
+    {%- call _form.form(
+        form,
+        action=action,
+        method=method,
+        class=class,
+        **kwargs
+        ) -%}
+
+        {#
+            Filter fields
+            --
+            Loop through all form fields provided and show them
+            appropriately unless they are the q field, page field, or
+            within the advanced filters field. Also, we convert the sort_by
+            field to a hidden field as ordering is achieved with javascript.
+        #}
+        {%- for field in form if not field.name in [
+            'q',
+            'page',
+            'filters'
+        ] -%}
+            {%- if field.name in ['per_page', 'sort_by'] -%}
+                <input
+                    name="{{ field.name }}"
+                    type="hidden"
+                    value="{{ field.data }}"
+                    >
+            {%- elif _form.field_types[field.type] != 'hidden' -%}
+                {{ _form.field(field, class='mh-filter__field') }}
+            {%- endif -%}
+        {%- endfor -%}
+
+        {%- if form.filters and form.filters._inline -%}
+            {%- for field in form.filters -%}
+                {%- if _form.field_types[field.type] == 'hidden' -%}
+                    {{ _form.input(field) }}
+                {% else %}
+                    {{ _form.field(field, class='mh-filter__field') }}
+                {% endif %}
+            {%- endfor -%}
+        {%- endif -%}
+
+        {#
+            Common field class
+            --
+            The last field in the filter can contain the q field, the search
+            button, and advanced filter dropdown. Given this, we need to format
+            it differently depending on whether or not these exist. This is done
+            by setting different classes against the common field.
+        #}
+        {%- set common_class =
+            'mh-filter__common'
+            + (' mh-filter__common--has-q' if form.q else '')
+            + (' mh-filter__common--has-adv-filter' if (form.filters and not form.filters._inline) else '')
+        -%}
+
+        {%- call _form.field(class=common_class) -%}
+
+            {#
+                Keyword field
+                --
+                If there is a `q` field in the filter, it is manually inserted
+                into the common field next to the search button.
+            #}
+            {%- if form.q -%}
+                {{ _form.control(form.q) }}
+            {%- endif -%}
+
+            {#
+                Search button
+                --
+                Only show the search button if there are fields that are not
+                a hidden field or not in the excluded list.
+            #}
+            {%- if form._info.show_search_button -%}
+                <button class="mh-filter__search-btn" type="submit">
+                    <span class="mh-filter__search-btn-text">Search</span>
+                </button>
+            {%- endif -%}
+
+            {#
+                Advanced filter
+                --
+                If used, an advanced filter button appears to the right of
+                the search field allowing the user to toggle the filter form
+                in a dropdown.
+            #}
+            {%- if form.filters and not form.filters._inline -%}
+                {{ advanced_filter(form) }}
+            {%- endif -%}
+        {%- endcall -%}
+    {%- endcall -%}
+{% endmacro %}
+
+{% macro advanced_filter(form) %}
+    <div class="[ mh-filter__adv ]  [ mh-filter-adv ]">
+        <span class="mh-filter-adv__handle">
+            <span class="mh-filter-adv__handle-text">
+                Filter
+
+                {%- if form._info.filters_applied -%}
+                    <span class="mh-filter-adv__handle-badge"></span>
+                {%- endif -%}
+            </span>
+        </span>
+
+        <div class="mh-filter-adv__rel">
+            <div class="mh-filter-adv__fields">
+                {%- call _form.fieldset('Advanced filter') -%}
+                    <div class="mh-filter-adv__close"></div>
+
+                    {%- for field in form.filters -%}
+                        {%- if _form.field_types[field.type] == 'hidden' -%}
+                            {{ _form.input(field) }}
+                        {%- else -%}
+                            {{ _form.field(field, required=true) }}
+                        {%- endif -%}
+                    {%- endfor -%}
+
+                    {#
+                        Advanced filter button(s)
+                        --
+                        If there are filters applied a clear button is added to
+                        the form allowing the user to reset the form.
+                    #}
+                    {%- if form._info.filters_applied -%}
+                        {%- call _form.buttons() -%}
+                            {{ _form.button('Update') }}
+
+                            {{ _form.button(
+                                'Clear',
+                                class='mh-btn--grey',
+                                url=(form._info.reset_url or request.base_url)
+                            ) }}
+                        {%- endcall -%}
+                    {%- else -%}
+                        {{ _form.button('Update') }}
+                    {%- endif -%}
+                {%- endcall -%}
+            </div>
+        </div>
+    </div>
+{% endmacro %}
+
+{#
+    Default columns
+    --
+    A list of data columns shown within a table row. This macro is used in
+    conjunction with the `list` macro as a default list of columns for every
+    item in `page.items`. The macro can simply be overwritten in the local
+    template with data custom to that page like so:
+--------------------------------------------------------------------------------
+{% macro columns(item) -%}
+    {{ column(item.name) }}
+    {{ column(item.location) }}
+    {{ column(item.date) }}
+    ...
+{%- endmacro %}
+--------------------------------------------------------------------------------
+#}
+{% macro columns(item) %}
+    {{ column(item.__str__()) }}
+{% endmacro %}
+
+{#
+    List
+    --
+    The `list` macro provides an easy way of displaying data in a tabular
+    format. You must pass `form` and `page` to the macro. The `form` value is
+    used to set the `data-mh-sorted-by` attribute against the table if there is
+    a form filter and a `sort_by` field in the filter. This can then be used to
+    re-set the order of the listing using Javascript. The `page` value is used
+    to loop through all of the items on the page using `page.items`. By default
+    the table does not have any headings, and a row containing a single column
+    is used for every item. However, you can overide this behaviour in the local
+    template like so:
+--------------------------------------------------------------------------------
+{% macro headings() -%}
+    {{ _results.heading('Heading 1') }}
+    {{ _results.heading('Heading 2', sort_with='heading_2') }}
+    ...
+{%- endmacro %}
+
+{% macro columns(item) -%}
+    {{ _results.column(item.item_1) }}
+    {{ _results.column(item.item_2) }}
+    ...
+{%- endmacro %}
+
+{{ _results.list(
+    form,
+    page,
+    headings=headings,
+    columns=columns,
+    action=decor.result_action
+) }}
+--------------------------------------------------------------------------------
+    If you want to add a link to each table row you can optionally pass an
+    `action` value. As we can't set the individual links for each row, `item` is
+    passed to the `action` value in order to generate a `data-mh-url` attribute
+    against the row, which can then be made linkable using JS. As standard you
+    can also pass `class` to apply a custom class style to the containing list
+    element. You can also pass any other HTML attribute using keyword arguments
+    and these will be applied to the container.
+--------------------------------------------------------------------------------
+{{ _results.list(
+    form=form,
+    page=page,
+    headings=headings,
+    columns=columns,
+    action=decor.result_action,
+    fallback_text='No results',
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro list(
+    form,
+    page,
+    headings=None,
+    columns=columns,
+    action=None,
+    fallback_text='No results',
+    class=None
+    ) %}
+
+    <div
+        class="mh-list{{ ' ' + class if class }}"
+
+        {% if form and form.sort_by %}
+            data-mh-sorted-by="{{ form.sort_by.data }}"
+        {% endif %}
+
+        {{ kwargs|xmlattr }}
+        >
+        <div class="mh-list__table">
+            <table>
+                {% if headings and page.items %}
+                    <thead>
+                        <tr>
+                            {{ headings() }}
+                        </tr>
+                    </thead>
+                {% endif %}
+
+                <tbody>
+                    {%- for item in page.items -%}
+                        {% set action_link = None or (action(item) if action) %}
+
+                        <tr
+                            {% if action_link and action_link.exists and action_link.allowed %}
+                                data-mh-url="{{ action_link.url }}"
+                            {% endif %}
+                            >
+                            {{- columns(item) -}}
+                        </tr>
+                    {% else %}
+                        <tr class="mh-list__empty"><td>{{ fallback_text }}</td></tr>
+                    {%- endfor -%}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endmacro %}
+
+{#
+    Heading
+    --
+    A table heading (th) cell element. should be positioned at the top of the
+    table inside of a thead element. Pass `text` through to set the text value
+    shown for the heading. You can also pass a `sort_with` value to set what
+    value this column is sorted by.
+--------------------------------------------------------------------------------
+{{ _results.heading('My heading', sort_with='my_heading') }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.
+--------------------------------------------------------------------------------
+{{ _results.heading(
+    text='My heading',
+    sort_with='my_heading',
+    make_safe=False,
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro heading(text=None, sort_with=None, class=None) -%}
+    <th
+        {% if class %}class="{{ class }}"{% endif %}
+        {% if sort_with %}data-mh-sort-with="{{ sort_with }}"{% endif %}
+        {{ kwargs|xmlattr }}
+        >
+        <div class="th__wrap">
+            {% if caller %}
+                {{ caller() }}
+            {% else %}
+                {{ text }}
+            {% endif %}
+        </div>
+    </th>
+{%- endmacro %}
+
+{#
+    Column
+    --
+    A table data (td) cell element. You can pass a `text` value through and the
+    macro will try to determine what has been passed and display it in the most
+    appropriate way possible. For example, if a list is passed, it will return a
+    comma separated string. If nothing is passed, or a false/None value is
+    passed, it will return `--`, however this fallback value can be overwritten
+    by passing what you would prefer it to read as `fallback_text`. If you are
+    not setting a URL against the row, then you can optionally send `url`
+    through here. This will wrap the value in an <a> tag.
+--------------------------------------------------------------------------------
+{{ _results.column('My value', url='/my-url', fallback_text='Read more...') }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.
+--------------------------------------------------------------------------------
+{{ _results.column(
+    text='My value',
+    url='/my-url',
+    fallback_text='Read more...',
+    make_safe=False,
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro column(
+    text,
+    url=None,
+    fallback_text='--',
+    class=None
+    ) -%}
+    <td
+        {% if class %}class="{{ class }}"{% endif %}
+        {{ kwargs|xmlattr }}
+        >
+        {%- if caller -%}
+            {{ caller() }}
+        {%- elif text -%}
+            {{ ('<a href="' + url + '">')|safe if url }}
+                {%- if text is iterable and not text is string -%}
+                    {%- for t in text -%}
+                        {{ t }}
+                        {%- if not loop.last %}, {% endif -%}
+                    {%- endfor -%}
+                {%- else -%}
+                    {{ text }}
+                {%- endif -%}
+            {{ '</a>'|safe if url }}
+        {%- else -%}
+            {{ fallback_text }}
+        {%- endif -%}
+    </td>
+{% endmacro%}
+
+{#
+    Paging
+    --
+    Navigation buttons and jump to form which allow the user to navigate through
+    a list using paging. The paging macro requires `form`, `page`, and
+    `paginator`.
+--------------------------------------------------------------------------------
+    {{ _results.paging(form, paginator, page) }}
+--------------------------------------------------------------------------------
+#}
+{% macro paging(form, paginator, page) %}
+    {% set params = form._info.paging_params %}
+    {% set query_string = form._info.paging_query_string %}
+
+    <nav class="[ mh-list__paging ]  [ mh-paging ]">
+
+        {#
+            Paging navigation
+            --
+            Next and Previous links that allow the user to navigate between the
+            pages of items. Each link needs to ensure it passes any parameters
+            that have already been set against the page to filter the results.
+        #}
+        <div class="mh-paging__steps">
+            <a
+                {% if page.prev -%}
+                    class="[ mh-paging__steps-btn ]"
+                    href="?page={{ page.prev }}{{ '&' + query_string if query_string }}"
+                {%- else -%}
+                    class="[ mh-paging__steps-btn  mh-paging__steps-btn--disabled ]"
+                {%- endif %}
+                >
+                <span class="mh-paging__steps-btn-text">Prev</span>
+            </a>
+
+            <span class="mh-paging__steps-number">
+                Page {{ '{0:,}'.format(page.number) }}
+                of {{ '{0:,}'.format(paginator.page_count) }}
+            </span>
+
+            <a
+                {% if page.next -%}
+                    class="[ mh-paging__steps-btn ]"
+                    href="?page={{ page.next }}{{ '&' + query_string if query_string }}"
+                {%- else -%}
+                    class="[ mh-paging__steps-btn  mh-paging__steps-btn--disabled ]"
+                {%- endif %}
+                >
+                <span class="mh-paging__steps-btn-text">Next</span>
+            </a>
+        </div>
+
+        {#
+            Jump-to form
+            --
+            A form that allows the user to enter a page number to quickly jump
+            to a particular page of the results listed. The jump-to form loops
+            through the `form` and generates hidden fields for each of
+            the different form fields so that any filters set are retained when
+            the user jumps to a new page.
+        #}
+        {% call _form.form(form=None, method='GET', class='mh-paging__jump') %}
+            <span class="mh-paging__jump-results">
+                {{ '{0:,}'.format(paginator.item_count) }} result
+                {%- if paginator.item_count != 1 %}s{% endif %}
+            </span>
+
+            {%- for field in form|list + form.filters|list if not field.name in [
+                'page',
+                'per_page',
+                'filters'
+            ] -%}
+                {%- if _form.field_types[field.type] == 'ticks' -%}
+                    {%- for value in (params.get(field.name) or []) -%}
+                        <input
+                            type="hidden"
+                            name="{{ field.name }}"
+                            value="{{ value }}"
+                            >
+                    {%- endfor -%}
+                {%- else -%}
+                    {%- if params.get(field.name) -%}
+                        <input
+                            type="hidden"
+                            name="{{ field.name }}"
+                            value="{{
+                                params[field.name][0]
+                                if params[field.name] is iterable and params[field.name] is not string
+                                else params[field.name]
+                            }}"
+                            >
+                    {%- endif -%}
+                {%- endif -%}
+            {%- endfor -%}
+
+            {% if form.per_page %}
+                <select
+                    name="per_page"
+                    class="mh-paging__per-page-field"
+                >
+                    {% for choice in form.per_page.choices %}
+                        <option
+                            value="{{ choice[0] }}"
+                            {% if form.per_page.data == choice[0] %}selected{% endif %}
+                        >
+                            {{ choice[1] }}
+                        </option>
+                    {% endfor %}
+                </select>
+            {% endif %}
+
+            {{ _form.input(
+                form.page,
+                class='[ mh-paging__jump-field ]  [ mh-field__text mh-field__text--small ]',
+                value='',
+                **{
+                    'min': '1',
+                    'max': paginator.page_count,
+                    'placeholder': 'Jump to',
+                    'type': 'number'
+                }
+            ) }}
+
+            {{ _form.button('Go', class='[ mh-paging__jump-btn ]  [ mh-btn--small ]') }}
+        {% endcall %}
+    </nav>
+{% endmacro %}

@@ -1,0 +1,496 @@
+{#
+    Heading
+    --
+    This macro is designed for building the different components contained
+    within heading group at the top of the main area. This includes the primary
+    heading, page actions, secondary heading, and tabs. By default all data
+    required to render out the different components of the heading group should
+    be obtained from `decor`, however if you need to, it is possible to overide
+    each part in your local template. The heading component can be called like
+    so:
+--------------------------------------------------------------------------------
+{%- import "macros/heading.html" as _heading -%}
+
+{% block heading %}
+    {{ _heading.heading(
+        primary=_heading.primary(primary_heading),
+        secondary=_heading.secondary(secondary_heading),
+        actions=_heading.actions(decor.actions),
+        tabs=_heading.tabs(decor.tabs)
+    ) }}
+{%- endblock %}
+--------------------------------------------------------------------------------
+    The primary heading and secondary heading can both be ovewritten easily. If
+    you simply want to replace the text displayed and nothing else in the
+    heading component, the best way to do so is to simply set `primary_heading`
+    or `secondary_heading` in your local template like so:
+--------------------------------------------------------------------------------
+{% set primary_heading = 'My heading' %}
+{% set secondary_heading = 'My sub heading' %}
+--------------------------------------------------------------------------------
+    If you need to overide anything else in the heading component, then you will
+    need to overide the whole component and pass it new macros where applicable.
+
+    It is also possible to use the `heading` macro in other places in the admin
+    UI. For example, if you want to add a heading to a box macro you can. This
+    gives you the option to add a headings, actions, or tabs local to a specific
+    area of the page.
+--------------------------------------------------------------------------------
+{{ _heading.heading(primary=_heading.primary(text='My heading')) }}
+--------------------------------------------------------------------------------
+#}
+
+{#
+    Primary heading
+    --
+    A macro for building the main heading for the page, positioned to the left
+    of page actions at the top of the page. The macro must be passed `text`. By
+    default, the text should be obtained from `decor.title`, however if you want
+    to simply replace the text shown in the heading, you can do so by either
+    overwriting the `primary_heading` variable in your local template or by
+    overwriting the heading macro and passing it new text using the existing
+    `_heading.primary` macro like so:
+--------------------------------------------------------------------------------
+{% set primary_heading = 'My heading' %}
+--------------------------------------------------------------------------------
+{% block heading %}
+    {{ _heading.heading(
+        primary=_heading.primary('My heading'),
+        secondary=_heading.secondary(secondary_heading),
+        actions=_heading.actions(decor.actions),
+        tabs=_heading.tabs(decor.tabs)
+    ) }}
+{%- endblock %}
+--------------------------------------------------------------------------------
+Alternatively, if you want to overide the entire primary heading element you can
+send the heading macro an entirely new macro for it to use like so:
+--------------------------------------------------------------------------------
+{% block heading %}
+    {% macro heading_primary() -%}
+        ...
+    {%- endmacro %}
+
+    {{ _heading.heading(
+        primary=heading_primary(),
+        secondary=_heading.secondary(secondary_heading),
+        actions=_heading.actions(decor.actions),
+        tabs=_heading.tabs(decor.tabs)
+    ) }}
+{%- endblock %}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    heading element. You can also pass `type` to set the heading type that you
+    want to use. This can be `h1`, `h2`, or `h3`.
+--------------------------------------------------------------------------------
+#}
+{% macro primary(text, type='h1', class=None) -%}
+    {% set type = type if type in ['h1', 'h2', 'h3'] else 'h1' %}
+
+    <{{ type }} class="mh-heading__primary{{ ' ' + class if class }}">
+        {{- text -}}
+    </{{ type }}>
+{%- endmacro %}
+
+{#
+    Secondary heading
+    --
+    A macro for building the sub heading of the page, positioned under the
+    primary heading and page actions. The macro must be passed `text`. By
+    default, the text should be obtained from `decor.sub_heading`, however if
+    you want to simply replace the text shown in the heading, you can do so by
+    either overwriting the `secondary_heading` variable in your local template
+    or by overwriting the heading macro and passing it new text using the
+    existing `_heading.secondary` macro like so:
+--------------------------------------------------------------------------------
+{% set secondary_heading = 'My heading' %}
+--------------------------------------------------------------------------------
+{% block heading %}
+    {{ _heading.heading(
+        primary=_heading.primary(primary_heading),
+        secondary=_heading.secondary('My sub heading'),
+        actions=_heading.actions(decor.actions),
+        tabs=_heading.tabs(decor.tabs)
+    ) }}
+{%- endblock %}
+--------------------------------------------------------------------------------
+Alternatively, if you want to overide the entire secondary heading element you
+can send the heading macro an entirely new macro for it to use like so:
+--------------------------------------------------------------------------------
+{% block heading %}
+    {% macro secondary_heading() -%}
+        ...
+    {%- endmacro %}
+
+    {{ _heading.heading(
+        primary=_heading.primary(primary_heading),
+        secondary=secondary_heading(),
+        actions=_heading.actions(decor.actions),
+        tabs=_heading.tabs(decor.tabs)
+    ) }}
+{%- endblock %}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    heading element. You can also pass `type` to set the heading type that you
+    want to use. This can be `h2` or `h3`.
+--------------------------------------------------------------------------------
+#}
+{% macro secondary(text, type='h2', class=None) -%}
+    {% set type = type if type in ['h2', 'h3'] else 'h2' %}
+
+    <{{ type }} class="mh-heading__secondary{{ ' ' + class if class }}">
+        {{- text -}}
+    </{{ type }}>
+{%- endmacro %}
+
+{#
+    Actions
+    --
+    A macro used to show actions relating to the current page. Actions are
+    positioned in the top right hand side of the page on desktop, and pinned to
+    the bottom of the screen on mobile. On desktop, by default, we limit the
+    number of visible macros initially shown on the page to 3. This is due to
+    limited screen space alongside the primary heading. However, if more than 3
+    actions are provided, the other actions will appear in a dropdown list next
+    to the first 3. This default number of `visible_actions` can be set in the
+    `_settings.scss` file. By default, the list actions should be obtained from
+    `decor`, however if you want to overide them, you can do so by sending a new
+    macro through as the `list` parameter like so:
+--------------------------------------------------------------------------------
+{% block heading %}
+    {% macro actions_list() -%}
+        {{ _heading.action('Action 1', url='/some-url-1') }}
+        {{ _heading.action('Action 2', url='/some-url-2') }}
+        {{ _heading.action('Action 3') }}
+        ...
+    {%- endmacro %}
+
+    {{ _heading.heading(
+        primary=_heading.primary(primary_heading),
+        secondary=heading.secondary(secondary_heading),
+        actions=_heading.actions(actions_list(), count=3),
+        tabs=_heading.tabs(decor.tabs)
+    ) }}
+{%- endblock %}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element.
+--------------------------------------------------------------------------------
+#}
+{% macro actions(list=None, class=None, count=None) -%}
+    {% if list and (list.children or list is string) %}
+        {% if not count and list.children %}
+            {% set count = list.children|length %}
+        {% endif %}
+        <div
+            class="
+                [ mh-heading__actions ]
+                [ mh-actions mh-actions--{{ count }} ]
+                {{ class if class }}
+                "
+            >
+            <div class="mh-actions__list">
+                {% if list.children %}
+                    {% for item in list.children -%}
+                        {%- set url = None  -%}
+                        {%- if item.endpoint and item.query.allowed -%}
+                            {%- set url = item.query.url -%}
+                        {%- elif item.fixed_url -%}
+                            {%- set url = item.fixed_url -%}
+                        {%- endif -%}
+
+                        {{ action(
+                            item.label ,
+                            url=url,
+                            children=item.children,
+                            **item.data
+                        ) }}
+                    {%- endfor %}
+                {% else %}
+                    {{ list }}
+                {% endif %}
+            </div>
+
+            <div class="mh-actions__handle">
+                <div class="mh-actions__handle-dots"></div>
+            </div>
+        </div>
+    {% endif %}
+{%- endmacro %}
+
+{#
+    Action
+    --
+    A macro used to build a single action button within an action list. The
+    macro requires that you pass it a `text` value. Although it is not required,
+    you should also pass `url` through. If you do not however, it will show the
+    action button as disabled. You can also pass `target`, which applies the
+    target attribute with the value passed. You can also pass a list of child
+    NavItems to generate a sub-actions menu for the action.
+--------------------------------------------------------------------------------
+{{ _heading.action('Action', url='/some-url') }}
+--------------------------------------------------------------------------------
+{{ _heading.action('Action') }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.
+--------------------------------------------------------------------------------
+{{ _heading.action(
+    text='Action',
+    url='/some-url',
+    target='_blank',
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro action(text, url=None, children=None, class=None) -%}
+    {% if children %}
+        <div
+            class="
+                mh-actions__link
+                mh-actions__link--has-sub-actions
+                {{ class if class }}
+            "
+            {{ kwargs|xmlattr }}
+            >
+            <span class="mh-actions__link-text">
+                {{- text -}}
+            </span>
+            {% if children %}
+                <div class="mh-sub-actions">
+                    {% for sub_item in children -%}
+                        {%- set sub_item_url = None  -%}
+                        {%- if sub_item.endpoint and sub_item.query.allowed -%}
+                            {%- set sub_item_url = sub_item.query.url -%}
+                        {%- elif sub_item.fixed_url -%}
+                            {%- set sub_item_url = sub_item.fixed_url -%}
+                        {%- endif -%}
+
+                        {{ sub_action(
+                            sub_item.label,
+                            url=sub_item_url,
+                            **sub_item.data
+                        ) }}
+                    {%- endfor %}
+                </div>
+            {% endif %}
+        </div>
+    {% else %}
+        <a
+            class="
+                mh-actions__link
+                {{ class if class }}
+                {{ 'mh-actions__link--disabled' if not url }}
+            "
+            {% if url %}href="{{ url }}"{% endif %}
+            {% if target %}target="{{ target }}"{% endif %}
+            {{ kwargs|xmlattr }}
+            >
+            <span class="mh-actions__link-text">
+                {{- text -}}
+            </span>
+        </a>
+    {% endif %}
+{%- endmacro %}
+
+{#
+    Sub-actions
+    --
+    A macro used to build a single sub action within an sub-action list. The
+    macro requires that you pass it a `text` value. Although it is not required,
+    you should also pass `url` through. If you do not however, it will show the
+    sub action as disabled. You can also pass `target`, which applies the
+    target attribute with the value passed.
+--------------------------------------------------------------------------------
+{{ _heading.sub_action('Action', url='/some-url') }}
+--------------------------------------------------------------------------------
+{{ _heading.sub_action('Action') }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.
+--------------------------------------------------------------------------------
+{{ _heading.sub_action(
+    text='Sub-action',
+    url='/some-url',
+    target='_blank',
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro sub_action(text, url=None, class=None) -%}
+    <a
+        class="
+            mh-sub-actions__link
+            {{ class if class }}
+            {{ 'mh-sub-actions__link--disabled' if not url }}
+        "
+
+        {% if url %}href="{{ url }}"{% endif %}
+        {% if target %}target="{{ target }}"{% endif %}
+        {{ kwargs|xmlattr }}
+        >
+        <span class="mh-sub-actions__link-text">
+            {{- text -}}
+        </span>
+    </a>
+{%- endmacro %}
+
+{#
+    Tabs
+    --
+    A macro used to show a list of tabs which allow the user to navigate to
+    different pages within the same admin section. Tabs are positioned at the
+    top of the page underneath the main heading(s). By default, the tabs list
+    should be obtained from `decor.tabs`, however if you want to overide them, you
+    can do so by sending a new macro through as the `list` parameter like so:
+--------------------------------------------------------------------------------
+{% block heading %}
+    {% macro tabs_list() -%}
+        {{ _heading.tab('Tab 1', url='/some-url-1') }}
+        {{ _heading.tab('Tab 2', url='/some-url-2') }}
+        {{ _heading.tab('Tab 3') }}
+        ...
+    {%- endmacro %}
+
+    {{ _heading.heading(
+        primary=_heading.primary(primary_heading),
+        secondary=heading.secondary(secondary_heading),
+        actions=_heading.actions(decor.actions),
+        tabs=_heading.tabs(tabs_list())
+    ) }}
+{%- endblock %}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element.
+--------------------------------------------------------------------------------
+#}
+{% macro tabs(list=None, class=None) -%}
+    {% if list and list.children %}
+        <div
+            class="
+                [ mh-heading__tabs ]
+                [ mh-tabs ]
+                {{ class if class }}
+                "
+            >
+            {% for item in list.children -%}
+                {%- set text = item.label -%}
+
+                {%- set url = None  -%}
+                {%- if item.endpoint and item.query.allowed -%}
+                    {%- set url = item.query.url -%}
+                {%- endif -%}
+
+                {%- set active = item.is_active -%}
+
+                {{ tab(text, url, active, **item.data) }}
+            {%- endfor %}
+        </div>
+    {% endif %}
+{%- endmacro %}
+
+{#
+    Tab
+    --
+    A macro used to build a single tab link within a list of tabs. The macro
+    requires that you pass it a `text` value. Although it is not required, you
+    should also pass `url` through. If you do not however, it will show the tab
+    as disabled.
+--------------------------------------------------------------------------------
+{{ _heading.tab('Tab', url='/some-url') }}
+--------------------------------------------------------------------------------
+{{ _heading.tab('Tab') }}
+--------------------------------------------------------------------------------
+    You can set this tab as active by setting `active` as `True`. This will add
+    a highlight to the tab, indicating that this tab is currently active.
+--------------------------------------------------------------------------------
+{{ _heading.tab('Tab', url='/some-url', active=True) }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.
+--------------------------------------------------------------------------------
+{{ _heading.tab(
+    text='Tab',
+    url='/some-url',
+    active=True,
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro tab(text, url=None, active=None, class=None) -%}
+    <a
+        class="
+            mh-tabs__tab
+            {{ class if class }}
+            {{ 'mh-tabs__tab--disabled' if not url }}
+            {{ 'mh-tabs__tab--active' if active }}
+        "
+
+        {% if url %}href="{{ url }}"{% endif %}
+        {{ kwargs|xmlattr }}
+        >
+        <span class="mh-tabs__tab-text">
+            {{- text -}}
+        </span>
+    </a>
+{%- endmacro %}
+
+{#
+    Heading
+    --
+    The main heading macro used to contain all of the different heading
+    components including primary heading, secondary heading, actions, and tabs.
+    By default the heading macro is called in the `base.html` template and uses
+    `decor` to build each component, however you can overide each aspect of the
+    heading by initially overiding the `heading` block in your local template,
+    and then calling the heading macro passing different macros/values to it
+    like so:
+--------------------------------------------------------------------------------
+{% block heading %}
+    {{ _heading.heading(
+        primary=_heading.primary(primary_heading),
+        secondary=_heading.secondary(secondary_heading),
+        actions=_heading.actions(decor.actions),
+        tabs=_heading.tabs(decor.tabs)
+    ) }}
+{%- endblock %}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element.
+--------------------------------------------------------------------------------
+#}
+{% macro heading(
+    primary=None,
+    secondary=None,
+    actions=None,
+    tabs=None,
+    class=None
+    ) -%}
+    {% if primary or actions or secondary or tabs %}
+        <div class="mh-heading{{ ' ' + class if class }}">
+            {% if primary or actions %}
+                <div class="mh-heading__upper">
+                    {% if primary %}
+                        {{ primary }}
+                    {% endif %}
+
+                    {% if actions %}
+                        {{ actions }}
+                    {% endif %}
+                </div>
+            {% endif %}
+
+            {% if secondary %}
+                {{ secondary }}
+            {% endif %}
+
+            {% if tabs %}
+                {{ tabs }}
+            {% endif %}
+        </div>
+    {% endif %}
+{% endmacro %}

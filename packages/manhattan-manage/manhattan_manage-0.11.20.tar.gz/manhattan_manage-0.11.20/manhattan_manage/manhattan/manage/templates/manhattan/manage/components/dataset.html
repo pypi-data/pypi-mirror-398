@@ -1,0 +1,464 @@
+{#
+    Dataset
+    --
+    These macros are designed for handling the layout of content/data from a
+    single result on a view page. The macros combined can be called like so:
+--------------------------------------------------------------------------------
+{%- import "macros/dataset.html" as _dataset -%}
+
+{% call _dataset.set('My heading') -%}
+    {{ _dataset.row('Label 1', 'Value 1') }}
+    {{ _dataset.row('Label 1', 'Value 2') }}
+
+    {% call _dataset.row() -%}
+        {{ _dataset.column('Label 3a', 'Value 3a') }}
+        {{ _dataset.column('Label 3b', 'Value 3b') }}
+        ...
+    {%- endcall %}
+
+    {% call _dataset.row() -%}
+        {% call _dataset.column() -%}
+            {{ _dataset.label('Label 4') }}
+            {{ _dataset.value('Value 4') }}
+        {%- endcall %}
+    {%- endcall %}
+
+    {% call _dataset.row() -%}
+        {% call _dataset.column() -%}
+            {% call _dataset.label() -%}
+                Label 5
+            {%- endcall %}
+
+            {% call _dataset.value() -%}
+                Value 5
+            {%- endcall %}
+        {%- endcall %}
+    {%- endcall %}
+
+    ...
+{%- endcall %}
+--------------------------------------------------------------------------------
+    These macros are designed to be as simple as possible, whilst allowing the
+    flexibility in the templates to write as much or as little code as needed.
+    So for example, if you have a single row of data with only one column needed
+    in the row, you don't need to call the column within the row, you can simply
+    provide the column data to the row macro, and it will build the column for
+    you. This structure flows down in this way all the way from the top (set)
+    macros to the bottom (label/value) macros.
+#}
+
+{#
+    Set
+    --
+    A macro used to build the container for the dataset. This is the top level
+    macro and is primarily used to wrap multiple rows of data but can be used to
+    display a single row/column of data if required. You can optionally pass a
+    `heading_text` value, which will render a heading at the top of the dataset.
+    This macro can be called like so:
+--------------------------------------------------------------------------------
+{% call _dataset.set('My heading') -%}
+    ...
+{%- endcall %}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container. You can use this same
+    approach to pass HTML attributes to the `head` and `heading` macros.
+--------------------------------------------------------------------------------
+{% call _dataset.set(
+    'My heading',
+    class='some-class',
+    head_attrs={'data-some-attribute': 'Some value'},
+    heading_attrs={'data-some-attribute': 'Some value'},
+    **{'data-some-attribute': 'Some value'}
+    ) -%}
+    ...
+{%- endcall %}
+--------------------------------------------------------------------------------
+#}
+{% macro set(
+    heading_text=None,
+    class=None,
+    head_attrs=None,
+    heading_attrs=None
+    ) -%}
+
+    {%- set head_attrs = head_attrs or {} -%}
+    {%- set heading_attrs = heading_attrs or {} -%}
+
+    <div
+        class="mh-dataset{{ ' ' + class if class }}"
+        {{ kwargs|xmlattr }}
+        >
+        {% if heading_text %}
+            {{ head(
+                heading_text=heading_text,
+                heading_attrs=heading_attrs,
+                **head_attrs
+            ) }}
+        {% endif %}
+
+        {{ caller() }}
+    </div>
+{%- endmacro %}
+
+{#
+    Head
+    --
+    A macro used to show a heading (and any other header content) at the top of
+    a dataset component. If you simply want to show a heading, you can
+    pass the `heading_text` value, which will render a heading element inside
+    the head. This macro can be called like so:
+--------------------------------------------------------------------------------
+{% call _dataset.head() -%}
+    ...
+{%- endcall %}
+--------------------------------------------------------------------------------
+{{ _dataset.head('My heading') }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container. You can use this same
+    approach to pass HTML attributes to the `heading` macro.
+--------------------------------------------------------------------------------
+{{ _dataset.head(
+    'My heading',
+    class='some-class',
+    heading_attrs={'data-some-attribute': 'Some value'},
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro head(heading_text=None, class=None, heading_attrs=None) -%}
+    {%- set heading_attrs = heading_attrs or {} -%}
+
+    <div
+        class="mh-dataset__head{{ ' ' + class if class }}"
+        {{ kwargs|xmlattr }}
+        >
+        {%- if caller -%}
+            {{ caller() }}
+        {%- elif heading_text -%}
+            {{ heading(text=heading_text, **heading_attrs) }}
+        {%- endif -%}
+    </div>
+{%- endmacro %}
+
+{#
+    Heading
+    --
+    A macro used in correlation with the head macro to render a heading at the
+    top of the dataset. It requires that you pass a `text` value which is used
+    for the text in the heading. This macro can be called like so:
+--------------------------------------------------------------------------------
+{{ _dataset.heading('My heading') }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.
+--------------------------------------------------------------------------------
+{{ _dataset.heading(
+    'My heading',
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro heading(text=None, class=None) -%}
+    <h3
+        class="mh-dataset__heading{{ ' ' + class if class }}"
+        {{ kwargs|xmlattr }}
+        >
+        {%- if caller -%}
+            {{ caller() }}
+        {%- elif text -%}
+            {{ text }}
+        {%- endif -%}
+    </h3>
+{%- endmacro %}
+
+{#
+    Row
+    --
+    A macro used to build a row of column data within a dataset. If there is
+    only one column of data needed in this row, you can optionally pass
+    `label_text`, `text`, `url`, and `type`, which, if no caller has been
+    provided, will act as though you have passed these values to a column macro
+    within the `row` and will render a single column of data within the row. You
+    can also optionally pass a `fallback_text` value, which is used if no `text`
+    value is passed, though this defaults to '--'. This macro can be called like
+    so:
+--------------------------------------------------------------------------------
+{% call _dataset.row() -%}
+    ...
+{%- endcall %}
+--------------------------------------------------------------------------------
+{{ _dataset.row('Label', 'Value') }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container. You can use this same
+    approach to pass HTML attributes to the `column`, `label`, and `value`
+    macros.
+--------------------------------------------------------------------------------
+{{ _dataset.row(
+    label_text='Label',
+    text='Value',
+    url='/some-url'
+    fallback_text='--',
+    class='some-class',
+    column_attrs={'data-some-attribute': 'Some value'},
+    label_attrs={'data-some-attribute': 'Some value'},
+    value_attrs={'data-some-attribute': 'Some value'},
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro row(
+    label_text=None,
+    text=None,
+    url=None,
+    type=None,
+    fallback_text='--',
+    class=None,
+    url_target=None,
+    column_attrs=None,
+    label_attrs=None,
+    value_attrs=None
+    ) -%}
+
+    {%- set column_attrs = column_attrs or {} -%}
+    {%- set label_attrs = label_attrs or {} -%}
+    {%- set value_attrs = value_attrs or {} -%}
+
+    <div
+        class="mh-dataset__row{{ ' ' + class if class }}"
+        {{ kwargs|xmlattr }}
+        >
+        {%- if caller -%}
+            {{ caller() }}
+        {%- else -%}
+            {{ column(
+                label_text=label_text,
+                text=text,
+                url=url,
+                type=type,
+                fallback_text=fallback_text,
+                url_target=url_target,
+                label_attrs=label_attrs,
+                value_attrs=value_attrs,
+                **column_attrs
+            ) }}
+        {%- endif -%}
+    </div>
+{%- endmacro %}
+
+{#
+    Column
+    --
+    A macro used to build a single column of data in a row within a dataset.
+    You can optionally pass `label_text`, `text`, `url`, and `type`, which, if
+    no caller has been provided, will render the `label` and `value` macros with
+    those values provided. You can also optionally pass a `fallback_text` value,
+    which is used if no `text` value is provided, though this defaults to '--'.
+    This macro can be called like so:
+--------------------------------------------------------------------------------
+{% call _dataset.column() -%}
+    ...
+{%- endcall %}
+--------------------------------------------------------------------------------
+{{ _dataset.column('Label', 'Value') }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container. You can use this same
+    approach to pass HTML attributes to the `label` and `value` macros.
+--------------------------------------------------------------------------------
+{{ _dataset.column(
+    label_text='Label',
+    text='Value',
+    url='/some-url',
+    fallback_text='--',
+    class='some-class',
+    label_attrs={'data-some-attribute': 'Some value'},
+    value_attrs={'data-some-attribute': 'Some value'},
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro column(
+    label_text=None,
+    text=None,
+    url=None,
+    type=None,
+    fallback_text='--',
+    class=None,
+    url_target=None,
+    label_attrs=None,
+    value_attrs=None
+    ) -%}
+
+    {%- set label_attrs = label_attrs or {} -%}
+    {%- set value_attrs = value_attrs or {} -%}
+
+    <div
+        class="mh-dataset__column{{ ' ' + class if class }}"
+        {{ kwargs|xmlattr }}
+        >
+        {%- if caller -%}
+            {{ caller() }}
+        {%- else -%}
+            {% if label_text %}
+                {{ label(text=label_text, **label_attrs) }}
+            {% endif %}
+
+            {{ value(
+                text=text,
+                url=url,
+                type=type,
+                fallback_text=fallback_text,
+                url_target=url_target,
+                **value_attrs
+            ) }}
+        {%- endif -%}
+    </div>
+{%- endmacro %}
+
+{#
+    Label
+    --
+    A macro used to put a name to the ajacent value within a dataset column. You
+    can optionally pass a `text` value, which, if no caller has been provided,
+    will render the label component with that text. The `text` value is assumed
+    safe, but you can pass `make_safe=False` to overide this. This macro can be
+    called like so:
+--------------------------------------------------------------------------------
+{% call _dataset.label() -%}
+    Label
+{%- endcall %}
+--------------------------------------------------------------------------------
+{{ _dataset.label('Label') }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.
+--------------------------------------------------------------------------------
+{{ _dataset.label(
+    text='Label',
+    make_safe=False,
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro label(text=None, class=None) -%}
+    <div
+        class="mh-dataset__label{{ ' ' + class if class }}"
+        {{ kwargs|xmlattr }}
+        >
+        {%- if caller -%}
+            {{ caller() }}
+        {%- elif text -%}
+            {{ text }}
+        {%- endif -%}
+    </div>
+{%- endmacro %}
+
+{#
+    Value
+    --
+    A macro used to display an item value in a consistent format within a
+    dataset column. You can optionally pass `text`, `url`, and `type`, which,
+    if no caller has been provided, will render the value component with those
+    values applied. With regards to the `type` value, there are currently 2
+    types supported - `image` and `map`. If no type is passed the component will
+    render whatever is sent through for `text`. If `image` is set for `type`,
+    the macro will render an `img` tag with the `text` value applied as the
+    `src` attribute. If `map` is set for `type`, the macro will render a custom
+    map component. The map co-ordinates, `[lat, lon]`, should then be sent
+    through using the `text` value. These co-ordinates can then be used to
+    render a map with JS.  `text` value is assumed safe, but you can pass
+    `make_safe=False` to overide this. You can also optionally pass a
+    `fallback_text` value, which is used if no `text` value is passed, though
+    this defaults to '--'. This macro can be called like so:
+--------------------------------------------------------------------------------
+{% call _dataset.value() -%}
+    Value
+{%- endcall %}
+--------------------------------------------------------------------------------
+{{ _dataset.value('Value') }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.
+--------------------------------------------------------------------------------
+{{ _dataset.value(
+    text='Value',
+    url='some-url',
+    type='map',
+    fallback_text='--',
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro value(
+    text,
+    url=None,
+    type=None,
+    fallback_text='--',
+    class=None,
+    url_target=None
+    ) -%}
+
+    <div
+        class="
+            mh-dataset__{{ type if type else 'value' }}
+            {{ class if class }}
+        "
+
+        {% if type == 'image' -%}
+            style="background-image: url('{{ text }}');"
+        {%- endif %}
+
+        {{ kwargs|xmlattr }}
+        >
+        {%- if caller -%}
+            {{ caller() }}
+        {%- elif text and type == 'map' -%}
+            <div class="mh-dataset__map-push"></div>
+
+            <div class="mh-dataset__map-frame">
+                {{- text -}}
+            </div>
+        {%- elif text -%}
+            {%- if url -%}
+                <a
+                    href="{{ url }}"
+                    {% if url_target %}target="{{ url_target }}"{% endif %}
+                >
+            {%- endif -%}
+                {%- if type == 'image' -%}
+                    <img
+                        alt=""
+                        class="mh-dataset__image-elm"
+                        src="{{ text }}"
+                        >
+                {% else %}
+                    {%- if text.__len__ and not text is string -%}
+                        {%- for t in text -%}
+                            {{ t }}
+                            {%- if not loop.last %}, {% endif -%}
+                        {%- endfor -%}
+                    {%- else -%}
+                        {{ text }}
+                    {%- endif -%}
+                {%- endif -%}
+
+            {%- if url -%}</a>{%- endif -%}
+
+        {%- else -%}
+            {{ fallback_text }}
+        {%- endif -%}
+    </div>
+{%- endmacro %}

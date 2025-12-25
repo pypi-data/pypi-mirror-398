@@ -1,0 +1,207 @@
+{#
+    Defaults
+    --
+    The `project_name` value is used for the logo and at the end of the page
+    `<title>`. The `language` value is set against the `<html>` tag as the
+    `lang` attribute. By default the title and sub heading are obtained from
+    `decor`. However, to make it easy to overide the text for both headings from
+    the local template, we set global variables `primary_heading` and
+    `secondary_heading`.
+#}
+{%- set project_name = config.PROJECT_NAME or 'Manhattan' -%}
+{%- set language = config.LOCALE or 'en' -%}
+{%- set primary_heading = primary_heading or decor.title -%}
+{%- set secondary_heading = secondary_heading or decor.sub_heading -%}
+
+{#
+    Macro imports
+    --
+    To reduce the number of unnecessary imports, we only import here what is
+    needed for the `base.html`. All other imports should be made in the local
+    templates where they are needed.
+#}
+{%- import "manhattan/manage/components/nav.html" as _nav -%}
+{%- import "manhattan/manage/components/heading.html" as _heading -%}
+{%- import "manhattan/manage/components/breadcrumb.html" as _breadcrumb -%}
+
+<!DOCTYPE HTML>
+<html lang="{{ language }}">
+    <head>
+
+        {#
+            Title
+            --
+            The title is set using the `primary_heading` variable (set above).
+            The `project_name` is also pulled in at the end of the title. You
+            can modify the title by either setting the `primary_heading` or
+            replacing the `title`/`full_title` block in your local template.
+        #}
+        <title>
+            {%- block full_title -%}
+                {% block title %}{{ primary_heading }}{% endblock %}
+                {% if project_name %} | {{ project_name }}{% endif %}
+            {%- endblock -%}
+        </title>
+
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <meta name="HandheldFriendly" content="true">
+        <meta name="MobileOptimized" content="320">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+        {%- block base_css -%}
+        <link
+            rel="stylesheet"
+            type="text/css"
+            href="{{ get_static_asset('/manage.css') }}"
+            >
+        {%- endblock -%}
+
+        {#
+            Head end
+            --
+            A block that can be used to pull in any additional CSS, JS, or meta
+            data to the bottom of the `<head>` tag on a single page.
+        #}
+        {%- block head_end -%}{%- endblock -%}
+    </head>
+
+    <body
+        class="
+            mh-body  mh-body--no-transitions
+            {% if decor.actions.children -%}
+                mh-body--has-actions
+            {%- endif %}
+            {% block page_class %}{% endblock %}
+        "
+        {% block body_attr -%}{%- endblock %}
+        >
+        {%- block page -%}
+            <div class="mh-frame{% if open_user_nav %} mh-frame--user-nav-open{% endif %}">
+                <div class="mh-frame__inner">
+                    <nav class="[ mh-frame__nav ]  [ mh-nav ]">
+                        {#
+                            Logo
+                            --
+                            The logo for your project/website. The logo path can
+                            be set in the _settings.scss file. The
+                            `project_name` is set at the top of this file.
+                        #}
+                        {% block logo %}
+                            <div class="[ mh-nav__logo ]  [ mh-logo ]">
+                                {%- if get_dashboard_url -%}
+                                    <a
+                                        href="{{ get_dashboard_url() }}"
+                                        class="mh-logo__image"
+                                        >
+                                        <span class="mh-logo__label">
+                                            {{- project_name -}}
+                                        </span>
+                                    </a>
+                                {%- else -%}
+                                    <span class="mh-logo__image">
+                                        <span class="mh-logo__label">
+                                            {{- project_name -}}
+                                        </span>
+                                    </span>
+                                {%- endif -%}
+                            </div>
+                        {% endblock %}
+
+                        {#
+                            Prime nav
+                            --
+                            Primary navigation for the admin UI. Containing
+                            navigation that is specific to your project.
+                        #}
+                        {%- block prime_nav -%}
+                        {%- endblock -%}
+
+                        {#
+                            User nav
+                            --
+                            Secondary navigation for the admin UI. Containing
+                            navigation that is specific to the user account or
+                            for managing the admin UI.
+                        #}
+                        {%- block user_nav -%}
+                        {%- endblock -%}
+                    </nav>
+
+                    <section class="[ mh-frame__main ]  [ mh-main ]">
+                        <div class="mh-main__inner">
+
+                            {#
+                                Heading
+                                --
+                                An element at the top of the main which contains
+                                the primary heading, secondary heading, list of
+                                page actions, and tabs.
+                            #}
+                            {%- block heading -%}
+                                {{ _heading.heading(
+                                    primary=_heading.primary(primary_heading),
+                                    secondary=_heading.secondary(secondary_heading),
+                                    actions=_heading.actions(decor.actions),
+                                    tabs=_heading.tabs(decor.tabs)
+                                ) }}
+                            {%- endblock -%}
+
+                            <div class="mh-main__content" data-mh-main-content>
+
+                                {#
+                                    Message flashes
+                                    --
+                                    Any success, error, and message alerts are
+                                    shown at the top of the content area.
+                                #}
+                                {%- with messages = get_flashed_messages(with_categories=true) -%}
+                                    {%- if messages -%}
+                                        {%- for category, message in messages -%}
+                                            <div class="[ mh-main__flash ]  [ mh-flash  mh-flash--{{ category }} ]">
+                                                {{- message -}}
+                                            </div>
+                                        {%- endfor -%}
+                                    {%- endif -%}
+                                {%- endwith -%}
+
+                                {#
+                                    Breadcrumb
+                                    --
+                                    A list of links showing the path the user
+                                    has taken to get to the current page.
+                                #}
+                                {%- block breadcrumb -%}
+                                    {{ _breadcrumb.breadcrumb(
+                                        _breadcrumb.list(decor.breadcrumbs.children)
+                                    ) }}
+                                {%- endblock -%}
+
+                                {#
+                                    Main
+                                    --
+                                    The main wrapper for content on the page.
+                                    This is where all `main__box` and `main__row`
+                                    elements should be inserted.
+                                #}
+                                {%- block main -%}{%- endblock -%}
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        {%- endblock -%}
+
+        {%- block base_js -%}
+            <script src="{{ get_static_asset('/manage.js') }}"></script>
+        {%- endblock -%}
+
+        {#
+            Body end
+            --
+            A block that can be used to pull in any additional JS or HTML to the
+            bottom of the `<body>` tag on a single page.
+        #}
+        {%- block body_end -%}{%- endblock -%}
+    </body>
+</html>

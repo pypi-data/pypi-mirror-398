@@ -1,0 +1,588 @@
+{#
+    Form
+    --
+    These macros are designed for building forms. They should be called like so:
+--------------------------------------------------------------------------------
+{%- import "macros/form.html" as _form with context -%}
+
+{% call _form.form(form) %}
+    {% call _form.fieldset('My legend 1') %}
+        {{ _form.field(form.field1) }}
+        {{ _form.field(form.field2) }}
+    {% endcall %}
+
+    {% call _form.fieldset('My legend 2') %}
+        {% call _form.aside() %}
+            <p>This text describes how the fields in this fieldset work.</p>
+        {% endcall %}
+
+        {% call _form.field() %}
+            {{ _form.control(form.field3a) }}
+            {{ _form.control(form.field3b) }}
+        {% endcall %}
+
+        {{ _form.field(form.field4) }}
+    {% endcall %}
+
+    {% call _form.buttons() %}
+        {{ _form.button('Save') }}
+        {{ _form.button('Cancel', url='/some-url') }}
+    {% endcall %}
+{% endcall %}
+--------------------------------------------------------------------------------
+#}
+
+
+{#
+    Field types
+    --
+    A list of the different type of fields that are accepted and the associated
+    name they are given for formatting. There are currently 5 different form
+    field styles - text, select, textarea, tick, ticks, and hidden. If a field
+    type isn't listed below, it is assumed to be a `text` field. If you create
+    another form type, it should be added to the list below and given an
+    appropriate type.
+#}
+{% set field_types = {
+    'AssetField':            'asset',
+    'BooleanField':          'tick',
+    'CheckboxField':         'ticks',
+    'DateField':             'text',
+    'DocumentCheckboxField': 'ticks',
+    'DocumentSelectField':   'select',
+    'FloatField':            'text',
+    'HiddenField':           'hidden',
+    'JSONField':             'hidden',
+    'ImageField':            'asset',
+    'ImageSetField':         'asset',
+    'IntegerField':          'text',
+    'DateTimeField':         'formfield',
+    'LatLonField':           'formfield',
+    'PasswordField':         'text',
+    'PriceField':            'text',
+    'RadioField':            'ticks',
+    'ReCAPTCHAField':        'captcha',
+    'SelectField':           'select',
+    'SlugField':             'text',
+    'StringField':           'text',
+    'StringListField':       'textarea',
+    'TextField':             'text',
+    'TimeField':             'text',
+    'TextAreaField':         'textarea',
+    'YesNoField':            'ticks',
+    '_Option':               'tick'
+} %}
+
+{#
+    Form
+    --
+    The main containing form element. Unless an action is provided, the form
+    macro will try to obtain the action from the current URL using
+    `request.full_path` (if it exists). Form methods are assumed to be `POST`
+    unless a `method` is provided. The macro will loop through `form` and insert
+    all `hidden` field types (see field_types) into the top of the form and so
+    these do not need to be included manually when the macro is called.
+--------------------------------------------------------------------------------
+{% call _form.form(form) %}
+    ...
+{% endcall %}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.
+--------------------------------------------------------------------------------
+{% call _form.form(
+    form=form,
+    action='/some-url',
+    method='POST',
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+    ) %}
+    ...
+{% endcall %}
+--------------------------------------------------------------------------------
+#}
+{% macro form(form, action=None, method='POST', class=None) -%}
+    {% if action == None %}
+        {%- set args = request.view_args or {} -%}
+        {%- set _ = args.update(request.args or {}) -%}
+        {%- set action = url_for(request.endpoint, **args) -%}
+    {% endif %}
+
+    <form
+        action="{{ action }}"
+        class="mh-form  {{ class if class }}"
+        method="{{ method }}"
+        {{ kwargs|xmlattr }}
+        >
+
+        {#
+            If the HTTP method is CSRF protected then add the current CSRF
+            token as a hidden field to the form.
+        #}
+        {%-
+            if csrf_token
+            and config.CSRF_METHODS
+            and method in config.CSRF_METHODS
+        -%}
+            <input
+                name="csrf_token"
+                type="hidden"
+                value="{{ csrf_token() }}"
+                >
+        {%- endif -%}
+
+        {%- if form -%}
+            {%- for item in form if field_types[item.type] == 'hidden' -%}
+                {{ input(item) }}
+            {%- endfor -%}
+        {%- endif -%}
+
+        {{ caller() }}
+    </form>
+{%- endmacro %}
+
+{#
+    Fieldset
+    --
+    A fieldset element containing multiple form fields. The fieldset macro is not
+    required as part of the form construction, but can be used to improve the
+    visual appearance of a form. It allows you to break up the form fields into
+    different sections, optionally providing each section with a legend.
+--------------------------------------------------------------------------------
+{% call _form.fieldset('My legend') %}
+    ...
+{% endcall %}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container. You can use this same
+    approach to pass HTML attributes to the `legend` macros.
+--------------------------------------------------------------------------------
+{% call _form.fieldset(
+    legend_text='My legend',
+    class='some-class',
+    legend_attrs={'data-some-attribute': 'Some value'},
+    **{'data-some-attribute': 'Some value'}
+    ) %}
+    ...
+{% endcall %}
+--------------------------------------------------------------------------------
+#}
+{% macro fieldset(legend_text=None, class=None, legend_attrs=None) -%}
+    {%- set legend_attrs = legend_attrs or {} -%}
+
+    <fieldset
+        class="mh-form__fieldset  {{ class if class }}"
+        {{ kwargs|xmlattr }}
+        >
+        {%- if legend_text -%}
+            {{ legend(text=legend_text, **legend_attrs) }}
+        {% endif %}
+
+        {{ caller() }}
+    </fieldset>
+{%- endmacro %}
+
+{#
+    Legend
+    --
+    A legend element inserted into the top of a `fieldset` macro.
+--------------------------------------------------------------------------------
+{{ _form.legend('My legend') }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.
+--------------------------------------------------------------------------------
+{{ _form.legend(
+    text='My legend',
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro legend(text, class=None) -%}
+    <legend
+        class="mh-form__legend  {{ class if class }}"
+        {{ kwargs|xmlattr }}
+        >
+        {{ text }}
+    </legend>
+{%- endmacro %}
+
+{#
+    Aside
+    --
+    A block of HTML used to describe the functionality of it's adjacent fields.
+    In order to use this macro correctly it should be inserted at the top of the
+    form or fieldset macro.
+--------------------------------------------------------------------------------
+{% call _form.aside() %}
+    ...
+{% endcall %}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.
+--------------------------------------------------------------------------------
+{% call _form.aside(
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+    ) %}
+    ...
+{% endcall %}
+--------------------------------------------------------------------------------
+#}
+{% macro aside(class=None) -%}
+    <div
+        class="[ mh-form__aside ]  [ mh-formatted ]  {{ class if class }}"
+        {{ kwargs|xmlattr }}
+        >
+        {{ caller() }}
+    </div>
+{%- endmacro %}
+
+{#
+    Note
+    --
+    A note within the form.
+#}
+{% macro note(class=None) -%}
+    <div class="[ mh-form__note ]  {{ class if class }}" {{ kwargs|xmlattr }}>
+        {{ caller() }}
+    </div>
+{%- endmacro %}
+
+{#
+    Field
+    --
+    A containing element used to group one or more `control` macros together on
+    a single row. If there is no caller provided when this macro is called,
+    a `field` parameter must be passed. This is then used to render the
+    `control` macro with the WTForms field information provided. Alternatively,
+    multiple controls can be inserted using a caller. These will then appear
+    side by side within the field container.
+--------------------------------------------------------------------------------
+{% call _form.field() %}
+    ...
+{% endcall %}
+--------------------------------------------------------------------------------
+{{ _form.field(form.field1) }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container. You can use this same
+    approach to pass HTML attributes to the `control`, `label`, and `input`
+    macros.
+--------------------------------------------------------------------------------
+{{ _form.field(
+    field=form.field1
+    class='some-class',
+    control_attrs={'data-some-attribute': 'Some value'},
+    label_attrs={'data-some-attribute': 'Some value'},
+    input_attrs={'data-some-attribute': 'Some value'},
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro field(
+    field,
+    class=None,
+    input_attrs=None,
+    label_attrs=None,
+    control_attrs=None
+    ) -%}
+
+    {%- set input_attrs = input_attrs or {} -%}
+    {%- set label_attrs = label_attrs or {} -%}
+    {%- set control_attrs = control_attrs or {} -%}
+
+    <div
+        class="[ mh-form__field ]  [ mh-field ]  {{ class if class }}"
+        {{ kwargs|xmlattr }}
+        >
+        {%- if caller -%}
+            {{ caller() }}
+        {%- elif field_types[field.type] == 'formfield' %}
+            {% for sub_field in field %}
+                {{ control(sub_field) }}
+            {% endfor %}
+        {%- else -%}
+            {{ control(
+                field,
+                input_attrs=input_attrs,
+                label_attrs=label_attrs,
+                **control_attrs
+            ) }}
+        {%- endif -%}
+    </div>
+{%- endmacro %}
+
+{#
+    Control
+    --
+    A containing element used to group a single `input` macro. If there is no
+    caller provided when this macro is called, a `field` parameter must be
+    passed. This is then used to render the `input` macro and `label` macro (if
+    applicable) with the WTForms field information provided. Labels are omitted
+    from controls when the field type is a `tick`.
+--------------------------------------------------------------------------------
+{% call _form.control() %}
+    {{ _form.input(form.field1) }}
+{% endcall %}
+--------------------------------------------------------------------------------
+{{ _form.control(form.field1) }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container. You can use this same
+    approach to pass HTML attributes to the `label` and `input` macros.
+--------------------------------------------------------------------------------
+{{ _form.control(
+    field=form.field1
+    class='some-class',
+    label_attrs={'data-some-attribute': 'Some value'},
+    input_attrs={'data-some-attribute': 'Some value'},
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro control(
+    field,
+    class=None,
+    input_attrs=None,
+    label_attrs=None
+    ) -%}
+
+    {%- set input_attrs = input_attrs or {} -%}
+    {%- set label_attrs = label_attrs or {} -%}
+
+    <div
+        class="
+            mh-field__control
+            {{ 'mh-field__control--error' if field and field.errors }}
+            {{ 'mh-field__control--label-above' if field and field_types[field.type] in ['ticks', 'asset'] }}
+            {{ class if class }}
+        "
+
+        {{ kwargs|xmlattr }}
+        >
+        {%- if caller -%}
+            {{ caller() }}
+        {%- else -%}
+            {%- if not field_types[field.type] in ['tick', 'captcha'] -%}
+                {{ label(field, **label_attrs) }}
+            {%- endif -%}
+
+            {{ input(field, label_attrs=label_attrs, **input_attrs) }}
+        {%- endif -%}
+    </div>
+{%- endmacro %}
+
+{#
+    Label
+    --
+    A label element used for all form fields. You can optionally pass a string
+    value through as `text` to overide the text in the label.
+--------------------------------------------------------------------------------
+{{ _form.label(form.field1) }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.
+--------------------------------------------------------------------------------
+{{ _form.label(
+    field=form.field1,
+    text='Some label',
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro label(field, text=None, class=None) -%}
+    {%- set _class = 'mh-field__label' -%}
+
+    {%- if not field.flags.required -%}
+        {%- set _class = _class + ' ' + 'mh-field__label--optional' -%}
+    {%- endif -%}
+
+    {%- if class -%}
+        {%- set _class = _class + ' ' + class -%}
+    {%- endif -%}
+
+    {%- set _text = label_text(field, text=text) -%}
+
+    {{ field.label(text=_text, class=_class, **kwargs) }}
+{%- endmacro %}
+
+{#
+    Label text
+    --
+    To provide more control over the `label` element, an element containing the
+    label text is inserted into the label.
+--------------------------------------------------------------------------------
+{% call _form.label() %}
+    {{ _form.label-text(form.field1.text) }}
+{% endcall %}
+--------------------------------------------------------------------------------
+#}
+{% macro label_text(field, text=None) -%}
+    <span class="mh-field__label-text">{{ text if text else field.label.text }}</span>
+
+    {%- if field.errors and field_types[field.type] in ['tick', 'ticks'] -%}
+        {{ error(field) }}
+    {%- endif -%}
+{%- endmacro %}
+
+{#
+    Input
+    --
+    A macro used to choose the appropriate way to render a standard WTforms
+    form field element.
+--------------------------------------------------------------------------------
+{{ _form.input(form.field1) }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container. You can use this same
+    approach to pass HTML attributes to the `label` macro (where applicable).
+--------------------------------------------------------------------------------
+{{ _form.input(
+    field=form.field1,
+    class='some-class',
+    label_attrs={'data-some-attribute': 'Some value'},
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro input(field, class=None, label_attrs=None) -%}
+    {%- set label_attrs = label_attrs or {} -%}
+
+    {%- set _type = field_types[field.type] -%}
+
+    {%- set _class = 'mh-field__' + _type if _type else 'text' -%}
+    {%- set _class = _class + ' ' + class if class else _class -%}
+
+    {%- if field.errors and 'data-field-error' not in kwargs -%}
+        {%- set _error = kwargs.update({'data-field-error': true}) -%}
+    {%- endif -%}
+
+    {%- if _type == 'tick' -%}
+        <div class="{{ _class }}">
+            {{ field(class="mh-field__tick-input", **kwargs) }}
+            {{ label(field, **label_attrs) }}
+        </div>
+    {%- elif _type == 'ticks' -%}
+        <div class="{{ _class }}">
+            {%- for option in field -%}
+                {{ input(option, **kwargs) }}
+            {%- endfor -%}
+        </div>
+    {%- else -%}
+        {{ field(class=_class, **kwargs) }}
+    {%- endif -%}
+
+    {%- if not _type in ['tick', 'ticks', 'hidden'] -%}
+        {{ error(field) }}
+    {%- endif -%}
+{%- endmacro %}
+
+{#
+    Error
+    --
+    An error message shown against the form field when it has an error. All
+    fields (excluding tick fields) have the error shown next to the input
+    element. Tick fields have the error shown as part of the field
+    label instead.
+--------------------------------------------------------------------------------
+{{ _form.error(form.field1) }}
+--------------------------------------------------------------------------------
+#}
+{% macro error(field) -%}
+    {%- if field.errors -%}
+        <span class="mh-field__error"><span class="mh-field__error-text">
+            {{- ' '.join(field.errors) -}}
+        </span><span class="mh-field__error-icon"></span></span>
+    {%- endif -%}
+{%- endmacro %}
+
+{#
+    Buttons
+    --
+    A containing element used for one or more button elements. If the form only
+    has one button, then you can add it using the `buttons` macro. If you need
+    more than one button, you can use the `button` macro to include any number
+    of buttons in a row.
+--------------------------------------------------------------------------------
+{{ _form.buttons('Save') }}
+--------------------------------------------------------------------------------
+{% call _form.buttons() %}
+    ...
+{% endcall %}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container. You can use this same
+    approach to pass HTML attributes to the `button` macro.
+--------------------------------------------------------------------------------
+{{ _form.buttons(
+    button_text='Save',
+    class='some-class',
+    button_attrs={'data-some-attribute': 'Some value'},
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro buttons(button_text=None, class=None, button_attrs=None) -%}
+    {%- set button_attrs = button_attrs or {} -%}
+
+    <div
+        class="[ mh-form__field ]  [ mh-field  mh-field--btns ]  {{ class if class }}"
+        {{ kwargs|xmlattr }}
+        >
+        {%- if caller -%}
+            {{ caller() }}
+        {%- else -%}
+            {{ button(button_text, **button_attrs) }}
+        {%- endif -%}
+    </div>
+{%- endmacro %}
+
+{#
+    Button
+    --
+    A single button element. If you wish to use an `<a>` tag instead of a
+    `<button>` tag you can pass a `url` value.
+--------------------------------------------------------------------------------
+{{ _form.button('Save') }}
+{{ _form.button('Cancel', url='#') }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.
+--------------------------------------------------------------------------------
+{{ _form.buttons(
+    text='Save',
+    url='some-url',
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro button(text='Save', url=None, class=None) -%}
+    {% set _tag_name = 'a' if url else 'button' %}
+
+    {%- if url and 'href' not in kwargs -%}
+        {%- set _url = kwargs.update({'href': url}) -%}
+    {%- endif -%}
+
+    <{{ _tag_name }}
+        class="[ mh-field__btn ]  [ mh-btn ]  {{ class if class }}"
+        {{ kwargs|xmlattr }}
+        >
+        {%- if text -%}
+            <span class="[ mh-field__btn-text ]  [ mh-btn__text ]">{{ text }}</span>
+        {%- endif -%}
+    </{{ _tag_name }}>
+{%- endmacro %}

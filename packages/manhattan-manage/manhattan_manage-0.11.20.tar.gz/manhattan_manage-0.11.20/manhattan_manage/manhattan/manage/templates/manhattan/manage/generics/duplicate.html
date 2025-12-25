@@ -1,0 +1,78 @@
+{#
+    Duplicate
+    --
+    A base template used to render a generic single form page. The template
+    assumes that the form object has been passed to the page as `form` and that
+    the form is submitting as a post request to the page it is on. The form is
+    built by looping through each form field in a single fieldset. If you would
+    like to customise the layout/format of form fields you can do so in 2 ways.
+    If you only need a single fieldset, you can overide the `fields` block like
+    so:
+--------------------------------------------------------------------------------
+{%- extends "/duplicate.html" -%}
+
+{%- block fields -%}
+    {{ _form.legend('My heading') }}
+    {{ _form.field(form.field1) }}
+    {{ _form.field(form.field2) }}
+    {{ _form.field(form.field3) }}
+    {{ _form.field(form.field4) }}
+    ...
+{%- endblock -%}
+--------------------------------------------------------------------------------
+    Alternatively, if you would like to break the form down into multiple
+    fieldsets, you will need to overide the `fieldsets` block like so:
+--------------------------------------------------------------------------------
+{%- extends "/duplicate.html" -%}
+
+{%- block fieldsets -%}
+    {%- call _form.fieldset('My heading 1') -%}
+        {{ _form.field(form.field1) }}
+        {{ _form.field(form.field2) }}
+    {%- endcall -%}
+
+    {%- call _form.fieldset('My heading 2') -%}
+        {{ _form.field(form.field3) }}
+        {{ _form.field(form.field4) }}
+    {%- endcall -%}
+
+    ...
+{%- endblock -%}
+--------------------------------------------------------------------------------
+    By default it also adds a single submission button at the bottom of the form
+    with a label of "Save". This can be overwritten like so:
+--------------------------------------------------------------------------------
+{%- block buttons -%}
+    {{ _form.button('Save') }}
+    {{ _form.button('Cancel', 'some-url', class='mh-btn--grey') }}
+    ...
+{%- endblock -%}
+--------------------------------------------------------------------------------
+#}
+
+{%- extends "manage/base.html" -%}
+
+{%- import "manhattan/manage/components/boxes.html" as _boxes -%}
+{%- import "manhattan/manage/components/form.html" as _form with context -%}
+
+{%- block main -%}
+    {%- call _boxes.box() -%}
+        {% call _form.form(form, class='mh-form--primary') -%}
+            {%- block fieldsets -%}
+                {%- call _form.fieldset() -%}
+                    {%- block fields -%}
+                        {%- for field in form -%}
+                            {{ _form.field(field) }}
+                        {%- endfor -%}
+                    {%- endblock -%}
+                {%- endcall -%}
+            {%- endblock -%}
+
+            {%- call _form.buttons() -%}
+                {%- block buttons -%}
+                    {{ _form.button('Save') }}
+                {%- endblock -%}
+            {%- endcall -%}
+        {%- endcall -%}
+    {%- endcall -%}
+{%- endblock -%}

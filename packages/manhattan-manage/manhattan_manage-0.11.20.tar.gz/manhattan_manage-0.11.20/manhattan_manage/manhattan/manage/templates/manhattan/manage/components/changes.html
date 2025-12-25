@@ -1,0 +1,63 @@
+{#
+    Changes
+    --
+    This macro is used to render change details in a documents change log
+    entry.
+--------------------------------------------------------------------------------
+{%- import "components/changes.html" as _changes -%}
+    {% call _results.column() %}
+        {{ _changes.changes(item.details) }}
+    {% endcall %}
+{%- endblock %}
+--------------------------------------------------------------------------------
+#}
+
+{% macro changes(entry) -%}
+    {% if entry %}
+        <div class="changelog-entry">
+            {% for change_type, change_details in entry.items() %}
+                {% if change_type == 'note' %}
+                    <div class="change change--note">
+                        {{ change_details }}
+                    </div>
+                {% elif change_type == 'additions' %}
+                    {% for field, value in change_details.items() %}
+                        <div class="change change--add">
+                            <div class="change__field">{{ field }}</div>
+                            <div class="change__values">
+                                <div class="change__value change__value--new">
+                                    {{ value }}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% elif change_type == 'updates' %}
+                    {% for field, values in change_details.items() %}
+                        <div class="change change--update">
+                            <div class="change__field">{{ field }}</div>
+                            <div class="change__values">
+                                <div class="change__value change__value--original">
+                                    {{ values[0] }}
+                                </div>
+                                <div class="change__value change__value--new">
+                                    {{ values[1] }}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% elif change_type == 'deletions' %}
+                    {% for field, value in change_details.items() %}
+                        <div class="change change--delete">
+                            <div class="change__field">{{ field }}</div>
+                            <div class="change__values">
+                                <div class="change__value change__value--original">
+                                    {{ value }}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% endif %}
+{%- endmacro %}

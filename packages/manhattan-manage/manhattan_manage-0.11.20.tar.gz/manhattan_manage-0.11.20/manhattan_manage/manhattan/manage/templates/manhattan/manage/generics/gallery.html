@@ -1,0 +1,55 @@
+{#
+    Gallery
+    --
+    A base a template for managing a gallery of files and/or images against a
+    document.
+
+--------------------------------------------------------------------------------
+{%- extends "/gallery.html" -%}
+
+--------------------------------------------------------------------------------
+#}
+
+{%- extends "manage/base.html" -%}
+
+{%- import "manhattan/manage/components/boxes.html" as _boxes -%}
+{%- import "manhattan/manage/components/form.html" as _form -%}
+
+{%- block main -%}
+    {%- call _boxes.box() -%}
+
+        <form method="POST" class="mh-form  mh-form--primary">
+            {#
+                If the HTTP method is CSRF protected then add the current CSRF
+                token as a hidden field to the form.
+            #}
+            {%- if csrf_token -%}
+                <input
+                    name="csrf_token"
+                    type="hidden"
+                    value="{{ csrf_token() }}"
+                    >
+            {%- endif -%}
+
+            <input
+                type="hidden"
+                name="{{ gallery_field }}"
+                value='{{ assets_json_type|tojson }}'
+                data-mh-gallery
+                data-mh-gallery--blueprint="{{ request.blueprint }}"
+                {% if gallery_render_kw %}
+                    {% for key, value in gallery_render_kw.items() %}
+                        {{ key }}="{{ value }}"
+                    {% endfor %}
+                {% endif %}
+                >
+
+            {%- call _form.buttons() -%}
+                {%- block buttons -%}
+                    {{ _form.button('Save') }}
+                {%- endblock -%}
+            {%- endcall -%}
+        </form>
+
+    {%- endcall -%}
+{%- endblock -%}

@@ -1,0 +1,65 @@
+{#
+    Order
+    --
+    A base template used to render a generic order page.
+
+    By default the information displayed for an orderable item is based on the
+    conversion of the item to a string, but this can be modified by defining a
+    `orderable` macro in the extended template.
+--------------------------------------------------------------------------------
+{%- extends "/list.html" -%}
+
+{% macro orderable(item) -%}
+    <div class="mh-orderable__item" data-id="{{ item._id }}">
+        ...
+    </div>
+{%- endmacro %}
+--------------------------------------------------------------------------------
+#}
+
+{%- extends "manage/base.html" -%}
+
+{%- import "manhattan/manage/components/boxes.html" as _boxes -%}
+{%- import "manhattan/manage/components/form.html" as _form -%}
+
+{% macro _default_orderable(item) -%}
+    <div class="mh-orderable__item" data-id="{{ item._id }}">
+        {{ item }}
+    </div>
+{%- endmacro %}
+
+{%- block main -%}
+    {%- call _boxes.box() -%}
+
+        <form method="POST">
+            {#
+                If the HTTP method is CSRF protected then add the current CSRF
+                token as a hidden field to the form.
+            #}
+            {%- if csrf_token -%}
+                <input
+                    name="csrf_token"
+                    type="hidden"
+                    value="{{ csrf_token() }}"
+                    >
+            {%- endif -%}
+
+            <input
+                type="hidden"
+                name="ordered_ids"
+                value='{{ get_context()[manage_config.var_name + "_ids"]|tojson }}'
+                >
+            <div class="mh-orderable">
+                {% set orderable = orderable if orderable else _default_orderable %}
+                {%- for item in get_context()[manage_config.var_name_plural] -%}
+                    {{- orderable(item) -}}
+                {% endfor %}
+            </div>
+
+            {% call _form.buttons() %}
+                {{ _form.button('Apply') }}
+            {% endcall %}
+        </form>
+
+    {%- endcall -%}
+{%- endblock -%}

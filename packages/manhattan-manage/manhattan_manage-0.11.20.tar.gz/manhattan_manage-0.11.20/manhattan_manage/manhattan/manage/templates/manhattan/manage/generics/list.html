@@ -1,0 +1,47 @@
+{#
+    List
+    --
+    A base template used to render a generic listing/results page. The template
+    assumes that the `form` object, `page` object, and `decor` object are passed
+    to the page. Using this information it will render a filter form (top), a
+    results listings (middle), and paging controls (bottom). The results listing
+    is very limited by default so it is always recommended that you overide the
+    results listed. You can do this by creating a `headings` macro and `columns`
+    macro like so:
+--------------------------------------------------------------------------------
+{%- extends "/list.html" -%}
+
+{% macro headings() -%}
+    {{ _results.heading('Heading 1') }}
+    {{ _results.heading('Heading 2', sort_with='heading_2') }}
+    ...
+{%- endmacro %}
+
+{% macro columns(item) -%}
+    {{ _results.column(item.item_1) }}
+    {{ _results.column(item.item_2) }}
+    ...
+{%- endmacro %}
+--------------------------------------------------------------------------------
+#}
+
+{%- extends "manage/base.html" -%}
+
+{%- import "manhattan/manage/components/boxes.html" as _boxes -%}
+{%- import "manhattan/manage/components/results.html" as _results with context -%}
+
+{%- block main -%}
+    {%- call _boxes.box() -%}
+        {{ _results.filter(form) }}
+
+        {{ _results.list(
+            form,
+            page,
+            headings=headings if headings,
+            columns=columns if columns else _results.columns,
+            action=decor.results_action
+        ) }}
+
+        {{ _results.paging(form, paginator, page) }}
+    {%- endcall -%}
+{%- endblock -%}

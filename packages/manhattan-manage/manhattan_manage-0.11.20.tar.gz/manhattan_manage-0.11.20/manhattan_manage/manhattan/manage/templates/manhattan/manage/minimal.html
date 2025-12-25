@@ -1,0 +1,92 @@
+{#
+    Minimal
+    --
+    A base template which largely replaces the standard base template, primarily
+    used for frontage pages before the user has logged into the admin. For
+    example this includes the sign-in and reset password pages. To pass content
+    to this page, simply replace the `main` block similar to how you would with
+    the standard `base.html` template. If you have any secondary content, you
+    can also pass a `footer` block. Any content passed to this will appear under
+    the `main` darker content area. By default a primary heading is set using
+    the `project_name` variable and a secondary heading set using the
+    `primary_heading` variable. You can overide either of these variables in
+    your local template or optionally overide the entire `header` block to
+    replace or remove the header.
+--------------------------------------------------------------------------------
+{% extends "manhattan/manage/minimal.html" %}
+
+{% block main -%}
+    ...
+{%- endblock %}
+
+{% block footer -%}
+    ...
+{%- endblock %}
+--------------------------------------------------------------------------------
+#}
+
+{% extends "manhattan/manage/base.html" %}
+
+{%- block head_end -%}
+
+    {#
+        Prevent the referrer data being leaked from minimal pages (important
+        for pages such as 'accept invite' and 'set new password').
+    #}
+    <meta name="referrer" content="no-referrer">
+    <meta name="referrer" content="none">
+
+    {{ super() }}
+{%- endblock -%}
+
+{% block page %}
+    <div class="mh-minimal">
+        <div class="mh-minimal__center">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="[ mh-minimal__flash ]  [ mh-flash  mh-flash--{{ category }} ]">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <div class="mh-minimal__box">
+                {% block header -%}
+                    {% if project_name or primary_heading %}
+                        <div class="mh-minimal__header">
+                            {% if project_name %}
+                                <h1 class="mh-minimal__heading">
+                                    {{ project_name }}
+                                </h1>
+                            {% endif %}
+
+                            {% if primary_heading %}
+                                <h2 class="mh-minimal__sub-heading">
+                                    {{ primary_heading }}
+                                </h2>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {%- endblock %}
+
+                <div class="[ mh-minimal__content ]  [ mh-formatted ]">
+                    {% block main %}{% endblock %}
+                </div>
+
+                {% if self.footer() != '' %}
+                    <div class="[ mh-minimal__footer ]  [ mh-formatted ]">
+                        {% block footer %}{% endblock %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="mh-minimal__logo">
+            <div class="mh-minimal__logo-image">
+                <div class="mh-minimal__logo-push"></div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

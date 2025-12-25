@@ -1,0 +1,64 @@
+{#
+    View
+    --
+    A base template used to render a generic view page which alphabetically
+    lists all of the possible values from the object provided to the page in
+    rows of 3 inside of a `dataset` macro. You can simply overide the `main`
+    block and layout the data content if you would like to change the layout
+    yourself. See example layout below:
+--------------------------------------------------------------------------------
+{%- extends "/view.html" -%}
+
+{% block main -%}
+    {% call _boxes.row() -%}
+        {% call _boxes.box() -%}
+            {% call _dataset.set('Data set 1') -%}
+                {{ _dataset.row('Item 1', document.item_1) }}
+                {{ _dataset.row('Item 2', document.item_2) }}
+            {%- endcall %}
+        {%- endcall %}
+
+        {% call _boxes.box() -%}
+            {% call _dataset.set('Data set 2') -%}
+                {{ _dataset.row('Item 3', document.item_3) }}
+                {{ _dataset.row('Item 4', document.item_4) }}
+            {%- endcall %}
+        {%- endcall %}
+    {%- endcall %}
+
+    {% call _boxes.box() -%}
+        {% call _dataset.set('Data set 3') -%}
+            {{ _dataset.row('Item 5', document.item_5) }}
+            {{ _dataset.row('Item 6', document.item_6) }}
+            ...
+        {%- endcall %}
+    {%- endcall %}
+
+    ...
+{%- endblock %}
+--------------------------------------------------------------------------------
+#}
+
+{%- extends "manage/base.html" -%}
+
+{%- import "manhattan/manage/components/boxes.html" as _boxes -%}
+{%- import "manhattan/manage/components/dataset.html" as _dataset -%}
+
+{%- block main -%}
+    {%- call _boxes.box() -%}
+        {%- call _dataset.set(manage_config.var_name|capitalize|replace('_', ' ')) -%}
+            {%- set document = context()[manage_config.var_name] -%}
+
+            {%- for row in document._fields|sort|batch(3, '') -%}
+                {%- call _dataset.row() -%}
+                    {%- for field in row -%}
+                        {{ _dataset.column(
+                            label_text=field|capitalize|replace('_', ' '),
+                            text=document[field]
+                        ) }}
+                    {%- endfor -%}
+                {%- endcall -%}
+            {%- endfor -%}
+        {%- endcall -%}
+    {%- endcall -%}
+{%- endblock -%}

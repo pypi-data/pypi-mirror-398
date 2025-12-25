@@ -1,0 +1,125 @@
+{#
+    Breadcrumb
+    --
+    This macro is used to render a breadcrumb of links showing the user how they
+    got to the current page and links to go back. It is pulled into the base
+    template at the top of the main content area using
+    `decor.breadcrumbs.children`. If you want to set the breadcrumb from your
+    local template instead of relying on `decor`, you can do so by overwriting
+    the `breadcrumb` block and creating a new macro for the list of links like
+    so:
+--------------------------------------------------------------------------------
+{%- import "macros/breadcrumb.html" as _breadcrumb -%}
+
+{% block breadcrumb -%}
+    {% macro list(items=None) -%}
+        {{ _breadcrumb.link('Page 1', '/page-1', divider='|') }}
+        {{ _breadcrumb.link('Page 2', '/page-2') }}
+        {{ _breadcrumb.link('Page 3') }}
+        ...
+    {%- endmacro %}
+
+    {{ _breadcrumb.breadcrumb(list()) }}
+{%- endblock %}
+--------------------------------------------------------------------------------
+#}
+
+{#
+    Breadcrumb
+    --
+    A macro used for building the outer container for the breadcrumb element.
+    It contains a link which takes the user back to the previous page that they
+    were viewing. It requires that you pass `breadcrumbs` through to it. This
+    macro should contain the list of breadcrumb links.
+--------------------------------------------------------------------------------
+{{ _breadcrumb.breadcrumb(_breadcrumb.list()) }}
+--------------------------------------------------------------------------------
+#}
+{% macro breadcrumb(breadcrumbs) -%}
+    <div class="mh-breadcrumb">
+        <a
+            class="mh-breadcrumb__link  mh-breadcrumb__link--back"
+            href="javascript:history.back()"
+            >Back</a>
+
+        {{ breadcrumbs }}
+    </div>
+{%- endmacro %}
+
+{#
+    List
+    --
+    A macro used to loop through and render a list of breadcrumb items provided
+    by `decor.breadcrumbs.children`. It requires that a list of `items` is
+    provided.
+--------------------------------------------------------------------------------
+{{ _breadcrumb.list(decor.breadcrumbs.children) }}
+--------------------------------------------------------------------------------
+#}
+{% macro list(items) -%}
+    {% for item in items -%}
+        {%- set text = item.label -%}
+
+        {%- set url = None  -%}
+        {%- if item.endpoint and item.query.allowed -%}
+            {%- set url = item.query.url -%}
+        {%- elif item.fixed_url -%}
+            {%- set url = item.fixed_url -%}
+        {%- endif -%}
+
+        {%- if loop.first -%}
+            {{ link(text, url, divider='|', target=item.data.target, **kwargs) }}
+        {%- else -%}
+            {{ link(text, url, target=item.data.target, **kwargs) }}
+        {%- endif -%}
+    {%- endfor %}
+{%- endmacro %}
+
+{#
+    Link
+    --
+    A macro used for rendering a link/item within the breadcrumb. It requires
+    that you pass it text. You can optionally pass a URL. A divider is added for
+    every breadcrumb link. It defaults to using '>' but you can overide this or
+    remove it altogether by passing `divider`. You can also pass `target`, which
+    applies the target attribute with the value passed.
+--------------------------------------------------------------------------------
+{{ _breadcrumb.link('Page 1', '/page-1') }}
+--------------------------------------------------------------------------------
+    As standard you can also pass `class` to apply a custom class style to the
+    containing element. You can also pass any other HTML attribute using keyword
+    arguments and these will be applied to the container.:
+--------------------------------------------------------------------------------
+{{ _breadcrumb.link(
+    text='Page 1',
+    url='some-url',
+    divider='|',
+    target='_blank',
+    class='some-class',
+    **{'data-some-attribute': 'Some value'}
+) }}
+--------------------------------------------------------------------------------
+#}
+{% macro link(
+    text,
+    url=None,
+    divider='>',
+    target=None,
+    class=None
+    ) -%}
+    {% if divider %}
+        <span class="mh-breadcrumb__divider">{{ divider }}</span>
+    {% endif %}
+
+    <a
+        class="
+            {{- 'mh-breadcrumb__link' if url else 'mh-breadcrumb__item' -}}
+            {{- ' ' + class if class -}}
+            "
+        {% if url %}href="{{ url }}"{% endif %}
+        {% if target %}target="{{ target }}"{% endif %}
+        {{ kwargs|xmlattr }}
+        >
+        {{- text -}}
+    </a>
+{%- endmacro %}
