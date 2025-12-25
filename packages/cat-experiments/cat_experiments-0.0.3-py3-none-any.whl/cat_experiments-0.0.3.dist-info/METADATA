@@ -1,0 +1,315 @@
+Metadata-Version: 2.4
+Name: cat-experiments
+Version: 0.0.3
+Summary: Standalone evaluation engine for LLM applications
+Author-email: CAT Cafe Team <team@cat-cafe.dev>
+License: Apache-2.0
+License-File: LICENSE
+Keywords: ai,evaluation,llm,testing
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Testing
+Requires-Python: >=3.12
+Requires-Dist: typing-extensions>=4.5.0
+Provides-Extra: cat-cafe
+Requires-Dist: cat-cafe-client>=0.0.3; extra == 'cat-cafe'
+Provides-Extra: phoenix
+Requires-Dist: arize-phoenix-client>=1.22.0; extra == 'phoenix'
+Provides-Extra: tracing
+Requires-Dist: opentelemetry-api>=1.36.0; extra == 'tracing'
+Requires-Dist: opentelemetry-exporter-otlp-proto-http>=1.36.0; extra == 'tracing'
+Requires-Dist: opentelemetry-sdk>=1.36.0; extra == 'tracing'
+Description-Content-Type: text/markdown
+
+# cat-experiments
+
+Agnostic experiment runner for LLM applications that you can take to any server stack.
+
+![Cat Experiments](cat_experiments_small.png)
+
+Most experiment frameworks are glued to a specific hosted platform, forcing you to swap libraries when you switch servers. `cat-experiments` keeps the core experiment loop (data model, runner, evaluators) identical whether you are running locally or wiring into Phoenix, CAT Cafe, or another backend. That gives teams a common starting point for new projects while still letting them plug into whichever server platform fits the deployment.
+
+A flexible, DataFrame-compatible evaluation system that runs locally by default and plugs into common server infrastructures like CAT Cafe or Phoenix when you need them.
+
+## Features
+
+- **Flexible Data Models**: Support any dataset structure with dictionary-based input/output
+- **Deterministic Preview Runs**: Limit execution to an exact number of examples with `preview_examples` and `preview_seed`
+- **Explicit Repetitions**: Run each example multiple times and track repetition metadata end-to-end
+- **Comprehensive Evaluators**: Built-in evaluators for tool call correctness and more
+- **Modern Python**: Targets Python 3.12+ with modern typing features
+- **Async Support**: Full async/await support for evaluation pipelines
+- **Tool Call Evaluation**: Advanced matching algorithms for tool call correctness
+
+## Install
+
+```bash
+# from PyPI
+pip install cat-experiments              # core package
+pip install "cat-experiments[cat-cafe]"  # add extras for CAT Cafe examples
+pip install "cat-experiments[phoenix]"   # add extras for Phoenix examples
+```
+
+## Build and Run an Experiment
+
+The flow mirrors the Phoenix “Run Experiments” tutorial: load data, write a task, attach evaluators, and run. Use `preview_examples` while iterating, then lift it for full runs.
+
+```python
+from cat.experiments import (
+    DatasetExample,
+    ExperimentConfig,
+    ExperimentRunner,
+    EvaluationContext,
+    EvaluationMetric,
+    basic_tool_correctness_evaluator,
+)
+
+# 1) Shape your dataset
+dataset = [
+    DatasetExample(
+        input={"question": "How do I reset my password?"},
+        output={"answer": "Visit the reset page and follow the emailed verification link."},
+        metadata={"category": "support"},
+    ),
+]
+
+# 2) Implement the system under test (sync or async)
+def task(example: DatasetExample) -> dict[str, str]:
+    return {"answer": example.input["question"].upper()}
+
+# 3) Add evaluators (use built-ins or custom)
+def exact_match(context: EvaluationContext) -> EvaluationMetric:
+    expected = context.output.get("answer")
+    actual = context.actual_output.get("answer")
+    score = float(expected == actual)
+    return EvaluationMetric(
+        name="exact_match",
+        score=score,
+        label="match" if score == 1 else "mismatch",
+        metadata={"expected": expected, "actual": actual},
+    )
+
+# 4) Configure and run
+runner = ExperimentRunner()  # swap in build_local_runner() or build_phoenix_runner() as needed
+summary = runner.run(
+    dataset=dataset,
+    task=task,
+    evaluators=[exact_match, basic_tool_correctness_evaluator],
+    config=ExperimentConfig(
+        name="Support Q&A smoke test",
+        description="Walkthrough of the core experiment loop.",
+        preview_examples=1,  # deterministic subset for quick debugging
+        repetitions=2,       # run each example multiple times
+    ),
+)
+
+print(summary.total_examples)           # => 2 example runs (1 example × 2 repetitions)
+print(summary.average_scores["exact_match"])
+```
+
+Lower-level APIs let you drive the pipeline with explicit `(example, repetition)` pairs:
+
+```python
+from cat.experiments import TestCase, generate, evaluate
+
+runs = [TestCase(example=dataset[0], repetition_number=1)]
+contexts = generate(runs, task)
+results = evaluate(contexts, [exact_match])
+```
+
+## CAT Cafe Integration
+
+`examples/cat_cafe_experiment_example.py` mirrors the Phoenix flow but targets CAT Cafe:
+
+1. Connect with `cat-cafe-client` (env `CAT_BASE_URL` and optional auth)
+2. Load or create a dataset (`CAT_DATASET` defaults to `cat-experiments-support-demo`)
+3. Convert dataset rows to `DatasetExample`
+4. Define the task + evaluators
+5. Stream runs to CAT Cafe via `CatCafeExperimentListener`
+
+```bash
+export CAT_BASE_URL=http://localhost:8000
+export CAT_DATASET=cat-experiments-support-demo
+uv run examples/cat_cafe_experiment_example.py
+```
+
+To resume only unfinished work in CAT Cafe, use the evaluation/resume helpers inside the example script (or wire them yourself with `CatCafeEvaluationCoordinator`).
+
+## Phoenix Integration
+
+`examples/phoenix_experiment_example.py` reproduces the Phoenix “Run Experiments” tutorial using cat-experiments while staying offline-friendly:
+
+1. Connect with `phoenix-client` (env vars like `PHOENIX_BASE_URL`, `PHOENIX_API_KEY`)
+2. Load or create a dataset (`CAT_EVALS_DATASET` defaults to `support-ticket-demo`)
+3. Convert Phoenix examples to `DatasetExample`
+4. Define the task + evaluators
+5. Stream runs back to Phoenix via `PhoenixExperimentListener`
+
+```bash
+uv run examples/phoenix_experiment_example.py
+
+# Resume unfinished Phoenix experiment without re-running completed work
+uv run examples/phoenix_experiment_example.py --resume exp_123
+```
+
+The important hooks if you are wiring this yourself:
+
+```python
+from cat.experiments.runner_builders import build_phoenix_runner
+from cat.experiments.adapters.phoenix import PhoenixResumeCoordinator
+
+runner = build_phoenix_runner(client=phoenix_client)
+summary = runner.run(dataset=examples, task=task, evaluators=[exact_match], config=config)
+
+coordinator = PhoenixResumeCoordinator(phoenix_client)
+coordinator.resume_task_runs(experiment_id="exp_123", task=task, evaluators=[exact_match], runner=runner)
+```
+
+### Runner Builders
+
+If you prefer not to wire listeners manually, use the builder helpers:
+
+```python
+from cat.experiments import (
+    build_local_runner,
+    build_phoenix_runner,
+    build_cat_cafe_runner,
+)
+
+local_runner = build_local_runner()
+cat_runner = build_cat_cafe_runner()
+phoenix_runner = build_phoenix_runner()
+```
+
+Each factory returns an `ExperimentRunner` with the matching adapter configured plus the local
+storage adapter, so you can immediately call `runner.run(...)` without additional plumbing.
+
+### Resume Cached Experiments
+
+When runs are cached locally, you can resume unfinished repetitions without touching Phoenix or
+CAT Cafe:
+
+```python
+from cat.experiments.adapters import LocalCacheResumeCoordinator
+
+coordinator = LocalCacheResumeCoordinator()
+plan = coordinator.build_task_resume_plan("exp_123")
+
+if plan.has_work:
+    coordinator.resume_task_runs(
+        experiment_id="exp_123",
+        task=test_function,
+        evaluators=[my_evaluator],
+    )
+```
+
+The local storage adapter captures `config.json`, `examples.jsonl`, and `runs.jsonl` per experiment so the
+resume coordinator can replay only the pending `(example, repetition)` pairs.
+
+For an end-to-end walkthrough that stays entirely on disk, run the local storage example:
+
+```bash
+uv run examples/local_storage_evaluator_example.py
+```
+
+It writes runs via `LocalStorageExperimentListener`, then uses `LocalEvaluationCoordinator` plus
+`ExperimentRunner.rerun_evaluators()` to append a new evaluator without re-running the task phase.
+
+### Re-run Evaluators Later
+
+To mirror Phoenix's "persist first, evaluate later" flow, both the local cache and CAT Cafe adapters
+now expose evaluation coordinators that rehydrate recorded runs before executing new evaluators.
+
+```python
+from cat.experiments import ExperimentRunner
+from cat.experiments.adapters import (
+    LocalEvaluationCoordinator,
+    CatCafeEvaluationCoordinator,
+    PhoenixEvaluationCoordinator,
+)
+from cat.cafe.client import CATCafeClient
+from phoenix.client import Client as PhoenixClient
+
+local_eval = LocalEvaluationCoordinator()
+local_eval.run_evaluators(
+    experiment_id="exp_123",
+    evaluators=[accuracy_evaluator, safety_check],
+)
+local_plan = local_eval.fetch_experiment("exp_123")  # inspect cached runs without re-running
+
+cat_eval = CatCafeEvaluationCoordinator(CATCafeClient())
+cat_eval.run_evaluators(
+    experiment_id="exp_456",
+    evaluators=[hallucination_score],
+)
+
+plan = cat_eval.fetch_experiment(experiment_id="exp_456")  # plan.results holds recorded runs
+
+runner = ExperimentRunner()
+runner.rerun_evaluators(
+    experiment_id="exp_123",
+    evaluators=[latency_grade],
+    backend=local_eval,
+)
+
+phoenix_eval = PhoenixEvaluationCoordinator(PhoenixClient())
+phoenix_eval.run_evaluators(
+    experiment_id="exp_789",
+    evaluators=[cost_score],
+)
+fetched = phoenix_eval.fetch_experiment("exp_789")  # includes config/examples/results/summary
+```
+
+`LocalEvaluationCoordinator` updates the cached `runs.jsonl` with the new metrics, while
+`CatCafeEvaluationCoordinator` automatically resubmits the enriched results to CAT Cafe so the UI can
+display the added evaluators without rerunning any tasks. `ExperimentRunner.rerun_evaluators` centralizes
+the evaluate-only flow so you can plug in any backend that knows how to fetch/persist runs.
+
+## Core Components
+
+- `DatasetExample` – Flexible dataset storage
+- `TestCase` – Execution plan objects that pair an example with a `repetition_number` before running
+- `EvaluationContext` – Rich evaluation context with tool call support
+- `EvaluationMetric` – Structured evaluation results
+- `generate()` / `evaluate()` – Core evaluation pipeline functions
+- `ExperimentRunner` / `AsyncExperimentRunner` – High-level orchestration with preview + repetition controls
+- Built-in evaluators for common evaluation tasks
+
+## Architecture
+
+This package is designed to be standalone and framework-agnostic, focusing purely on evaluation logic without server dependencies.
+
+## Tracing & Instrumentation
+
+Cat-evals ships OpenTelemetry helpers (install with `pip install cat-experiments[tracing]`)
+such as `capture_agent_trace()` and
+`ExperimentTraceCapture`, but they **do not** activate OpenInference instrumentors for
+you. Configure any instrumentation you need (for example
+`openinference.instrumentation.openai.OpenAIInstrumentor().instrument()`) before entering
+the capture context:
+
+```python
+from openinference.instrumentation.openai import OpenAIInstrumentor
+from cat.experiments.tracing import capture_experiment_trace
+
+OpenAIInstrumentor().instrument()
+
+with capture_experiment_trace(example_id="ex-1", experiment_id="exp-123") as (root_span, capture):
+    ...
+```
+
+This keeps cat-experiments lightweight while ensuring clients stay in control of which SDKs are
+instrumented.
+
+### Enabling the OTEL run observer
+
+Tracing is now wired through a generic observer plugin system. After installing the
+`tracing` extra, importing `cat.experiments.tracing` automatically registers the OTEL
+observer so tool calls and trace identifiers are captured for each run.
+
+You can build your own observers by implementing `cat.experiments.observers.RunObserver`
+and calling `register_observer()`.
