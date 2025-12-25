@@ -1,0 +1,131 @@
+/* Tooltips - ensure they appear above sidebar and other elements */
+.tooltip::before,
+.tooltip::after {
+    z-index: 1000;
+}
+
+/* Sidebar inputs - remove focus outline (DaisyUI 5 uses outline + outline-offset) */
+#sidebar .input:focus,
+#sidebar .input:focus-within,
+#sidebar .select:focus {
+    outline: none;
+    outline-offset: 0;
+}
+
+/* Editors (Monaco) - wrapper makes it resizable */
+.editor-wrapper {
+    resize: vertical;
+    overflow: hidden;
+    min-height: 150px;
+}
+
+.editor-wrapper .yaml-editor,
+.editor-wrapper .env-editor,
+.editor-wrapper .yaml-viewer {
+    height: 100%;
+    border: 1px solid oklch(var(--bc) / 0.2);
+    border-radius: 0.5rem;
+}
+
+.editor-wrapper.yaml-wrapper { height: 400px; }
+.editor-wrapper.env-wrapper { height: 250px; }
+.editor-wrapper.viewer-wrapper { height: 300px; }
+
+/* Terminal - no custom CSS needed, using h-full class in HTML */
+
+/* Prevent save button resize when text changes */
+#save-btn, #save-config-btn {
+    min-width: 5rem;
+}
+
+/* Rainbow hover effect for headers */
+.rainbow-hover {
+    transition: color 0.3s;
+}
+
+.rainbow-hover:hover {
+    background: linear-gradient(
+        90deg,
+        #e07070,
+        #e0a070,
+        #d0d070,
+        #70c080,
+        #7090d0,
+        #9080b0,
+        #b080a0,
+        #e07070
+    );
+    background-size: 16em 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: rainbow 4s linear infinite;
+}
+
+@keyframes rainbow {
+    to {
+        background-position: 16em center;
+    }
+}
+
+/* Command palette FAB - rainbow glow effect */
+@property --cmd-pos { syntax: "<number>"; inherits: true; initial-value: 100; }
+@property --cmd-blur { syntax: "<number>"; inherits: true; initial-value: 10; }
+@property --cmd-scale { syntax: "<number>"; inherits: true; initial-value: 1; }
+@property --cmd-opacity { syntax: "<number>"; inherits: true; initial-value: 0.3; }
+
+#cmd-fab {
+    --g: linear-gradient(to right, #fff, #fff, #0ff, #00f, #8000ff, #e066a3, #f00, #ff0, #bfff80, #fff, #fff);
+    all: unset;
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 50;
+    cursor: pointer;
+    transform: scale(var(--cmd-scale));
+    transition: --cmd-pos 3s, --cmd-blur 0.3s, --cmd-opacity 0.3s, --cmd-scale 0.2s cubic-bezier(.76,-.25,.51,1.13);
+}
+
+.cmd-fab-inner {
+    display: block;
+    padding: 0.6em 1em;
+    background: #1d232a;
+    border-radius: 8px;
+    font-size: 14px;
+    position: relative;
+}
+
+.cmd-fab-inner > span {
+    background: var(--g) no-repeat calc(var(--cmd-pos) * 1%) 0 / 900%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 0.15ch;
+    font-weight: 600;
+}
+
+.cmd-fab-inner::before, .cmd-fab-inner::after {
+    content: "";
+    position: absolute;
+    border-radius: 8px;
+}
+
+.cmd-fab-inner::before {
+    inset: -1.5px;
+    background: var(--g) no-repeat calc(var(--cmd-pos) * 1%) 0 / 900%;
+    border-radius: 9px;
+    z-index: -1;
+    opacity: var(--cmd-opacity);
+}
+
+.cmd-fab-inner::after {
+    inset: 0;
+    background: #000;
+    transform: translateY(10px);
+    z-index: -2;
+    filter: blur(calc(var(--cmd-blur) * 1px));
+}
+
+#cmd-fab:hover { --cmd-scale: 1.05; --cmd-pos: 0; --cmd-blur: 30; --cmd-opacity: 1; }
+#cmd-fab:hover .cmd-fab-inner::after { background: var(--g); opacity: 0.3; }
+#cmd-fab:active { --cmd-scale: 0.98; --cmd-blur: 15; }
