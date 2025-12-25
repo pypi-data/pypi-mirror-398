@@ -1,0 +1,68 @@
+{% extends "app_layout.html" %}
+
+{% block header_title %}
+{{ details.aquifer_code }} - {{ details.hydro_subunit_desc }} - Aquifer unit
+{% endblock %}
+
+{% block title %}
+Aquifer unit - {{ details.aquifer_code }} - {{ details.hydro_subunit_desc }}
+{% endblock %}
+
+{% block content %}
+
+<p>
+    <form>
+        Use "%" to search for all values. Use "%" in both fields, for example, to show all aquifer units in SA Geodata.<br>
+        <label>Aquifer code:</label>
+        <input type="text" name="aquifer_code" value="{{ aquifer_code }}" /> e.g. "Qpcb", "Thg%", or "%conf%". Use the % to match other text, so "Thg%" matches both Gambier Limestone and all members. "%conf%" matches e.g. Ty(conf)
+    <br>
+        <label>Aquifer name:</label>
+        <input type="text" name="aquifer_name" value="{{ aquifer_name }}" /> case-insensitive. Use % to match missing text e.g. "%T1%" to match all aquifer codes with "T1" in their name.
+    <br>
+        <label>SA Geodata environment:</label>
+        <input type="text" name="env" value="{{ env }}" /> (prod, test, dev)
+    <br>
+        <button type="submit" formaction="/app/aquifer_units">
+            Reload
+        </button>
+    </form>
+</p>
+
+<div class="row">
+    <div class="col-1">
+        {{ details_table|safe }}
+    </div>
+    <div class="col-2">
+        <h2>Other aquifers as part of the same linked stratigraphic unit</h2>
+        {{ other_aq_table|safe }}
+
+        <h2>Aquifer monitored code</h2>
+        <p>Find wells which have {{ details.aquifer_code }} as the <a href="/app/wells_summary?aq_mon={{ aquifer_code_encoded }}&env={{ env }}">exact current aquifer monitored</a> code - excludes completions across multiple aquifers</p>
+        <p>Find wells which have {{ details.aquifer_code }} <a href="/app/wells_summary?aquifer_code={{ aquifer_code_encoded }}&env={{ env }}">within the current aquifer monitored</a> code - INCLUDES wells screened across multiple aquifers</p>
+        <p>Find wells which have {{ details.aquifer_code }} <a href="/app/wells_summary?aquifer_code={{ aquifer_code_encoded }}&include_historical_aquifers=1&env={{ env }}">within a current or past aquifer monitored</a> code - including completions across multiple aquifers</p>
+
+        <h2>Related files from P:\Projects_GW\State\Groundwater_Toolbox\Aquifer_Database</h2>
+        {{ reports_table|safe }}
+
+    </div>
+</div>
+
+
+
+
+<div class="row">
+    <div class="col-1">
+        
+    </div>
+    <div class="col-2">
+
+        {% if aq|length > 0 %}
+        <h2>Linked aquifer codes:</h2>
+        
+        {{ aq_table|safe }}
+        {% endif %}
+
+        
+    </div>
+
+{% endblock %}

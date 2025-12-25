@@ -1,0 +1,231 @@
+{% extends "app_layout_well.html" %}
+
+{% block head_extra %}
+<script type="text/javascript" src="/static/echarts.min.js"></script>
+{% endblock %}
+
+{% block header_title %}
+{{ title }} - Manual water levels
+{% endblock %}
+
+{% block title %}
+Manual water levels - {{ title }}
+{% endblock %}
+
+{% block well_find_extra %}
+<input type="hidden" name="ignore_anomalous" value="{% if ignore_anomalous %}1{% else %}0{% endif %}" />
+<input type="hidden" name="ignore_pumping" value="{% if ignore_pumping %}1{% else %}0{% endif %}" />
+<input type="hidden" name="keep_measured_during" value="{{ keep_measured_during }}" />
+<input type="hidden" name="trend_param" value="{{ trend_param }}" />
+<input type="hidden" name="trend_period" value="{{ trend_period }}" />
+{% endblock %}
+
+{% block well_content %}
+
+
+    <p>Back to <a href="/app/well_summary?dh_no={{ well.dh_no }}&env={{ env }}">well summary</a></p>
+
+    <p>
+        <form>
+            <input type="hidden" name="dh_no" value="{{ well.dh_no }}" />
+            <b>Filter data:</b>
+        <br />
+            <input type="checkbox" name="ignore_anomalous" id="ignore_anomalous" value="1" {% if ignore_anomalous %}checked{% endif %} />
+                <label for="ignore_anomalous">Ignore anomalous_ind = Y</label>
+        <br />
+            <input type="checkbox" name="ignore_pumping" id="ignore_pumping" value="1" {% if ignore_pumping %}checked{% endif %} />
+                <label for="ignore_pumping">Ignore pumping_ind = Y</label>
+        <br />
+            <label>Keep only measured during</label>
+                <input type="text" name="keep_measured_during" value="{{ keep_measured_during }}" />  - keep only those records with measured during listed here (e.g. M for monitoring)
+        <br />
+            <label>Trendline parameter:</label>
+            <input type="text" name="trend_param" value="{{ trend_param }}" /> (dtw, swl, or rswl)
+        <br>
+            <label>Trendline period:</label>
+            <input type="text" name="trend_period" value="{{ trend_period }}" /> e.g. 2010-2020
+        <br>
+            <label>SA Geodata environment:</label>
+            <input type="text" name="env" value="{{ env }}" /> (prod, test, dev)
+        <br>
+            
+            <button type="submit" formaction="/app/well_manual_water_level">
+                Reload
+            </button>
+        </form>
+    </p>
+    {% if not trend is false %}
+    <span style='color:red'>Linear trend from {{ trend_period }} is {{ trend.slope_word_wl }} at {{ (trend.slope_yr * 100)|round(2) }} cm/y</span>
+    {% endif %}
+    <div id="wl_chart" style="width: 1200px; height: 500px;"></div>
+
+    <br />
+    
+
+    {{ table|safe }}
+
+<script type="text/javascript">
+const wrap = (s, w) => s.replace(
+    new RegExp(`(?![^\\n]{1,${w}}$)([^\\n]{1,${w}})\\s`, 'g'), '$1<br />'
+);
+        
+var wlChartDom = document.getElementById('wl_chart');
+var wlChart = echarts.init(wlChartDom);
+var wlOption;
+
+var wlData = [
+{{ wl_js_dataset|safe }}
+];
+
+wlOption = {
+    dataset: {
+        source: wlData, 
+        dimensions: [
+            'obs_date',
+            'dtw', 
+            'swl',
+            'rswl',
+            'anomalous_ind',
+            'pumping_ind',
+            'artesian_ind',
+            'measured_during',
+            'pressure',
+            'sip',
+            'sit',
+            'temperature',
+            'comments',
+            'datasource'
+        ]
+    },
+    tooltip: {
+        trigger: 'item',
+        axisPointer: {
+            type: 'cross',
+            crossStyle: {
+                color: '#999'
+            }
+        },
+        formatter: function (params, ticket, callback) {
+            console.log(params);
+            p = params;
+            var dateLabel = new Date(p.data[0]).toLocaleDateString("en-GB");
+            label = '<span style="font-size: 0.9em;"><b>' + dateLabel + '</b><br />';
+            console.log({
+                'p': p,
+                'dateLabel': dateLabel
+            });
+            for (i = 1; i < p.data.length; i++) {
+                valueLabel = p.data[i];
+                console.log({
+                    'i': i,
+                    'valueLabel': valueLabel,
+                    'typeof valueLabel': typeof valueLabel,
+                    'p.data[i]': p.data[i]
+                });
+                if (typeof valueLabel !== "undefined") {
+                    fieldName = p.dimensionNames[i];
+                    valueLabel = valueLabel.toString();
+                    console.log({
+                        'fieldName': fieldName,
+                        'valueLabel.length': valueLabel.length,
+                    });
+                    if (valueLabel.length > 0) {
+                        if (fieldName == 'comments') {
+                            valueLabel = wrap(valueLabel, 40);
+                        }
+                        label += fieldName + ': <b>' + valueLabel + '</b><br />';
+                        console.log({
+                            'label': label
+                        });
+                    }
+                }
+            }
+            return label + '</span>';
+        }
+    },
+    toolbox: {
+        feature: {
+            dataZoom: { 
+                show: true,
+                filterMode: 'none'
+            },
+            restore: { show: true },
+            saveAsImage: { show: true }
+        }
+    },
+    xAxis: {
+        type: 'time'
+    },
+    yAxis: [
+        {
+            type: 'value',
+            scale: true,
+            name: 'Depth',
+            inverse: true
+        },
+        {
+            type: 'value',
+            scale: true,
+            name: 'Elevation'
+        }
+    ],  
+    dataZoom: [
+        {
+            type: 'inside',
+            start: 0,
+            end: 100
+        },
+        {
+            start: 100,
+            end: 100
+        }
+    ],
+    legend: {
+        orient: 'horizontal',
+        selected: {
+            'DTW': {% if trend_param == 'dtw' %}true{% else %}false{% endif %},
+            'SWL': {% if trend_param != 'swl' and trend_param != "" %}false{% else %}true{% endif %},
+            'RSWL': {% if trend_param == 'rswl' %}true{% else %}false{% endif %}
+        }
+    },
+    animation: false,
+    series: [
+        {
+            name: 'DTW',
+            type: 'line',
+            symbol: 'triangle',
+            symbolSize: 10,
+            encode: {
+                x: 'obs_date',
+                y: 'dtw'
+            }
+        },
+        {
+            name: 'SWL',
+            type: 'line',
+            symbol: 'diamond',
+            symbolSize: 10,
+            encode: {
+                x: 'obs_date',
+                y: 'swl'
+            },
+        },
+        {
+            name: 'RSWL',
+            type: 'line',
+            symbol: 'rect',
+            symbolSize: 10,
+            encode: {
+                x: 'obs_date',
+                y: 'rswl'
+            },
+            yAxisIndex: 1
+        } {{ trend_js|safe }}
+    ]
+};
+
+wlOption && wlChart.setOption(wlOption);
+
+</script>
+
+{% endblock %}
