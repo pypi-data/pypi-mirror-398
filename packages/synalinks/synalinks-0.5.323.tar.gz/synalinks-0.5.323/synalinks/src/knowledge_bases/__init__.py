@@ -1,0 +1,1 @@
+from synalinks.src.knowledge_bases.knowledge_base import KnowledgeBase
