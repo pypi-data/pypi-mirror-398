@@ -1,0 +1,152 @@
+Metadata-Version: 2.4
+Name: sport-evo-summary
+Version: 2025.12.21182358
+Summary: A new package that transforms unstructured text about sports evolution into a structured summary. Users input text describing changes in a sport, and the package returns a standardized breakdown of ke
+Author-email: sport-evo-summary <hi@eugene.plus>
+License: MIT
+Project-URL: Homepage, https://github.com/chigwell/sport-evo-summary
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: langchain-llm7>=0.0.0
+Requires-Dist: llmatch-messages>=0.0.0
+Requires-Dist: langchain-core>=0.3.0
+
+# sport‑evo‑summary
+[![PyPI version](https://badge.fury.io/py/sport-evo-summary.svg)](https://badge.fury.io/py/sport-evo-summary)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/sport-evo-summary)](https://pepy.tech/project/sport-evo-summary)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**sport‑evo‑summary** is a lightweight Python package that transforms unstructured text about sports evolution into a standardized, structured summary.  
+It pulls out key aspects such as rules, equipment, culture, and performance metrics, enabling sports analysts, journalists, and enthusiasts to quickly identify and compare the most significant shifts in a sport’s landscape.
+
+---
+
+## Installation
+
+```bash
+pip install sport_evo_summary
+```
+
+---
+
+## Quick Start
+
+```python
+from sport_evo_summary import sport_evo_summary
+
+# Your raw text about a sport’s evolution
+user_input = """
+Over the last decade, soccer has introduced VAR to reduce errors in officiating.
+Players now use lighter, aerodynamic boots which enhance speed,
+and the game’s pace has increased by an average of 15% compared to ten years ago.
+"""
+
+# Call the function (uses the default LLM7 if no `llm` or `api_key` provided)
+summary = sport_evo_summary(user_input)
+
+print(summary)
+# Example output: ["RULES: VAR implementation", "EQUIPMENT: Aerodynamic boots", "PERFORMANCE: 15% faster pace"]
+```
+
+---
+
+## Advanced Usage
+
+### Using Your Own LLM
+
+`sport_evo_summary` accepts a `BaseChatModel` instance from LangChain.  
+This lets you plug in any LLM you prefer, such as OpenAI, Anthropic, or Google.
+
+#### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from sport_evo_summary import sport_evo_summary
+
+llm = ChatOpenAI()
+response = sport_evo_summary(user_input, llm=llm)
+```
+
+#### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from sport_evo_summary import sport_evo_summary
+
+llm = ChatAnthropic()
+response = sport_evo_summary(user_input, llm=llm)
+```
+
+#### Google Generative AI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from sport_evo_summary import sport_evo_summary
+
+llm = ChatGoogleGenerativeAI()
+response = sport_evo_summary(user_input, llm=llm)
+```
+
+### Using a Custom LLM7 API Key
+
+By default, the package uses `ChatLLM7` from the `langchain_llm7` module, with rate limits from the free tier.  
+If you need higher limits, pass your own key via the `api_key` argument or set the `LLM7_API_KEY` environment variable.
+
+```python
+# via argument
+response = sport_evo_summary(user_input, api_key="YOUR_API_KEY")
+
+# or via environment variable
+import os
+os.environ["LLM7_API_KEY"] = "YOUR_API_KEY"
+response = sport_evo_summary(user_input)
+```
+
+You can get a free key at <https://token.llm7.io/>
+
+---
+
+## Function Signature
+
+```python
+sport_evo_summary(
+    user_input: str,
+    api_key: Optional[str] = None,
+    llm: Optional[BaseChatModel] = None
+) -> List[str]
+```
+
+| Parameter | Type                    | Description                                                     |
+|-----------|-------------------------|-----------------------------------------------------------------|
+| `user_input` | `str`   | Raw text describing changes in a sport.                          |
+| `llm` | `Optional[BaseChatModel]` | Your own LangChain LLM instance. If omitted, the default `ChatLLM7` is used. |
+| `api_key` | `Optional[str]`           | LLM7 API key for authentication. Set it via the environment variable if not provided. |
+
+---
+
+## Internals
+
+* Uses the `llmatch` helper to filter the LLM’s response by a pre‑defined regex pattern (`pattern` from `.prompts`).  
+* The `system_prompt` and `human_prompt` guide the model to produce a concise, structured list.  
+* Returns a `List[str]` of extracted data entries.
+
+---
+
+## Contribution & Issues
+
+If you encounter bugs or have feature requests, please open an issue on GitHub:  
+<https://github.com/chigwell/sport-evo-summary/issues>
+
+---
+
+## Author
+
+- **Eugene Evstafev**  
+- Email: hi@euegne.plus  
+- GitHub: [chigwell](https://github.com/chigwell)
+
+---
+
+Happy analyzing! 🚀
