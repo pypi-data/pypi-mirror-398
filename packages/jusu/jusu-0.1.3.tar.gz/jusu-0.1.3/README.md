@@ -1,0 +1,166 @@
+JUSU
+====
+
+JUSU is a lightweight, beginner-friendly Python framework developed and maintained by **Francis Jusu**. It is designed to make building styled and accessible websites or small web apps fast and enjoyable through a concise, readable API for HTML and CSS generation.
+
+About this project
+
+JUSU (by **Francis Jusu**) enables developers to author complex, component-driven web pages entirely in Python. It excels at creating well-structured static and dynamic pages with programmatic control over HTML, CSS, and optional FastAPI-based backend features. Key strengths include: clear, beginner-friendly APIs, a compact StyleSheet system, and seamless bundling/export utilities that produce ready-to-serve artifacts.
+
+What it's good at
+
+- Building component-based HTML/CSS driven sites quickly using pure Python
+- Producing reusable bundle artifacts (HTML + CSS, optional ZIP) for deployment
+- Integrating lightweight backend behavior with FastAPI (auth, sessions, middleware)
+- Providing privacy-focused helpers and well-tested utilities that reduce developer friction
+
+When to extend
+
+For large-scale, heavy-traffic applications you may want to pair JUSU with specialized tooling (ESBuild/Vite for large JS apps, production-grade reverse proxies, and database migration strategies) — JUSU provides a clean foundation and integration points to make that straightforward.
+
+**Highlights & Capabilities**
+
+- **Beginner-focused, readable API** for composing HTML elements and nesting content without verbose templates.
+- **Minimal dependencies & pragmatic defaults**, making it ideal for quick prototypes as well as lightweight production sites.
+- **Optional FastAPI integration** (auth helpers, session middleware, and convenient dependencies) for building small web backends.
+- **Bundling & CLI tools** to export standalone HTML/CSS bundles and optional ZIP artifacts for simple deployments.
+- **Firebase helpers & storage utilities** for secure server-side integrations when needed.
+- **Privacy-first and well-tested** — includes middleware and utilities for safe defaults and good test coverage.
+
+Quick usage:
+
+Quick usage:
+
+```python
+from JUSU import Div, H1, P, Button, Img
+
+page = Div(
+	H1("Welcome to JUSU"),
+	P("A tiny HTML builder."),
+	Button("Click me", onclick="alert('Hello')", cls="btn"),
+	Img(src="https://via.placeholder.com/150", alt="demo"),
+	cls="container"
+)
+page.render_to_file("jusu_demo.html")
+```
+
+Run tests:
+
+```bash
+python -m pytest
+```
+
+Install:
+
+```bash
+pip install -e .
+```
+
+License: MIT
+
+**Course:** A beginner-friendly course (text + interactive notebooks) is available in the `course/` directory — authored by **Francis Jusu**.
+
+
+## Bundling & CLI
+
+- `Tag.bundle(...)` / `Tag.bundle_export(...)` — produce an HTML file and CSS file (and optionally a ZIP archive) for a component.
+- `jusu bundle` (CLI) — bundle a component by import path (see `docs/bundling.md`).
+
+FastAPI example
+
+A minimal FastAPI example is available at `examples/fastapi_app.py`. Install the optional web extras and run:
+
+```bash
+pip install -e .[web]
+uvicorn examples.fastapi_app:app.app --reload
+```
+
+Auth & DB example
+
+A small auth example backed by `sqlmodel` is available at `examples/auth_db_app.py`. Install the extras and run:
+
+```bash
+pip install -e .[web,auth,db]
+python examples/auth_db_app.py
+```
+
+Password hashing
+
+By default JUSU prefers `passlib[bcrypt]` for password hashing when available; the library falls back to a legacy SHA256+salt method only when `passlib` is not installed. Install the `auth` extras to get `passlib`:
+
+```bash
+pip install -e .[auth]
+```
+
+Alembic init & revision helpers
+
+You can bootstrap an Alembic environment with the CLI:
+
+```bash
+jusu migrate --init
+```
+
+Create a new revision (autogenerate when possible):
+
+```bash
+jusu migrate --create -m "add users"
+```
+
+Firebase support
+
+JUSU includes an optional admin SDK wrapper at `JUSU/firebase.py` for server-side Firebase usage (ID token verification and Firestore client). Security notes:
+
+- **Do not** commit service account JSON to source control. Use `GOOGLE_APPLICATION_CREDENTIALS` or other secure methods to provide credentials.
+- Use the Admin SDK only on trusted servers; never embed admin credentials into public code or client apps.
+
+Install the optional extras and see `tests/test_firebase.py` for a mocked example:
+
+```bash
+pip install -e .[firebase]
+```
+
+---
+
+## Privacy-first: do not store users' product data 🔒
+
+JUSU encourages a privacy-first default: avoid storing users' product or purchase data on the server. Recommended patterns:
+
+- **Direct client uploads using presigned URLs:** the server issues short-lived presigned upload credentials and does not persist the uploaded content; see `JUSU.storage.generate_s3_presigned_post`.
+- **Redirect to a provider or third-party uploader:** send the user to a trusted upload widget or flow so their data never touches your servers.
+- **Client-side storage/export:** provide a download/export option so users keep their own copies locally.
+
+Use `StripProductDataMiddleware` (in `JUSU.privacy`) to automatically strip or block product fields from incoming JSON payloads. Default behavior is to *strip* product fields and add response header `X-Product-Data-Removed: 1`.
+
+If you must retain a reference to an uploaded object, store only non-sensitive metadata (provider, object key, URL, timestamp) and never store raw product content or PII unless you have explicit, documented consent.
+
+NPM assets
+
+A minimal npm package `jusu-assets` is available in this repository (under `package_assets/`) containing optional CSS and tiny JS helpers. See `docs/npm.md` for instructions on running a local dry-run and publishing to npm.
+
+Publish to TestPyPI (recommended first):
+
+1. Create an account on https://test.pypi.org/ and generate an API token.
+2. Set the API token as environment variables, for example (Powershell):
+
+```powershell
+$Env:TWINE_USERNAME = "__token__"
+$Env:TWINE_PASSWORD = "pypi-AgENdGVzdC..."
+```
+
+3. Build and upload to TestPyPI:
+
+```powershell
+python -m build -o dist
+python -m twine check dist/*
+python -m twine upload --repository testpypi dist/*
+```
+
+Publish to PyPI (after verifying TestPyPI):
+
+```powershell
+python -m twine upload dist/*
+```
+
+If you prefer to specify the username and token directly instead of environment variables, pass `--username` and `--password` to `twine upload`, but environment variables are more secure.
+
+# JUSU
