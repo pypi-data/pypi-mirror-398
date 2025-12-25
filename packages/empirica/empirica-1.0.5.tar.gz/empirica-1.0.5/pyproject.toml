@@ -1,0 +1,228 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "empirica"
+version = "1.0.5"
+description = "Genuine AI epistemic self-assessment framework - Universal interface for single AI tracking"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    {name = "Empirica Team"}
+]
+keywords = ["ai", "llm", "epistemic", "self-assessment", "metacognition", "calibration"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    # Core data validation and settings
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "sqlalchemy>=2.0",
+    
+    # Configuration and file handling
+    "pyyaml>=6.0",              # Required for config/profile loading
+    "aiofiles>=23.0",
+    "jsonschema>=4.0",          # Required for config validation
+    
+    # HTTP and networking
+    "httpx>=0.24",
+    "requests>=2.31.0",         # Required for API adapters
+    
+    # Security and cryptography
+    "cryptography>=41.0",       # Required for AI identity and checkpoint signing
+
+    # Optional but commonly used
+    "anthropic>=0.39.0",        # Anthropic SDK for adapters
+    "tiktoken>=0.5.0",          # Token counting utilities
+    "rich>=13.0",                # REQUIRED: The TUI/Visuals won't work without this
+    "google-generativeai>=0.5",  # REQUIRED: For Gemini 3 / Pro access
+    "typer>=0.9",                # REQUIRED: If your CLI uses Typer (highly likely)
+]
+
+[project.optional-dependencies]
+# API and Dashboard features
+api = [
+    "flask>=3.0",
+    "flask-cors>=4.0",
+    "fastapi>=0.104",
+    "uvicorn>=0.24",
+]
+
+# Vector search features
+vector = [
+    "qdrant-client>=1.7",
+]
+
+# Vision/OCR features (experimental)
+vision = [
+    "pytesseract>=0.3",
+    "pillow>=10.0",
+    "opencv-contrib-python>=4.8",
+]
+
+# MCP server support
+mcp = [
+    "mcp>=1.0.0",
+]
+
+# All optional features
+all = [
+    "empirica[api,vector,vision,mcp]",
+]
+
+test = [
+    "pytest>=7.4",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.1",
+    "pytest-mock>=3.11",
+    "dirty-equals>=0.7",
+]
+lint = [
+    "ruff>=0.1.0",
+]
+typecheck = [
+    "pyright>=1.1.330",
+]
+dev = [
+    "empirica[test,lint,typecheck]",
+]
+
+[project.scripts]
+empirica = "empirica.cli.cli_core:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["empirica*", "mcp_local*"]
+exclude = ["tests*", "_archive*", "_dev*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+python_classes = ["Test*"]
+asyncio_mode = "auto"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "-ra",
+    "--cov=empirica",
+    "--cov=mcp_local",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html",
+    "--cov-report=json",
+]
+markers = [
+    "integration: Integration tests (deselect with '-m \"not integration\"')",
+    "integrity: Framework integrity tests (core principle validation)",
+    "slow: Slow running tests",
+    "requires_mcp: Tests that require MCP server",
+]
+
+[tool.coverage.run]
+source = ["empirica", "mcp_local"]
+omit = [
+    "tests/*",
+    "_archive/*",
+    "_dev/*",
+    "*/conftest.py",
+    "*/__init__.py",
+]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+exclude_lines = [
+    "pragma: no cover",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+    "@overload",
+]
+show_missing = true
+skip_covered = false
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+include = [
+    "empirica/**/*.py",
+    "mcp_local/**/*.py",
+    "tests/**/*.py",
+]
+exclude = [
+    "_archive",
+    "_dev",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+]
+
+[tool.ruff.lint]
+extend-select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "C90", # mccabe complexity
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific rules
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "E741",  # ambiguous variable name
+    "B008",  # function call in argument defaults
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.isort]
+known-first-party = ["empirica", "mcp_local"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["S101"]  # allow assert in tests
+"__init__.py" = ["F401"]  # allow unused imports in __init__
+
+[tool.pyright]
+include = ["empirica", "mcp_local", "tests"]
+exclude = [
+    "_archive",
+    "_dev",
+    ".venv",
+    "venv",
+    "**/__pycache__",
+]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportUnusedImport = true
+reportUnusedClass = true
+reportUnusedFunction = true
+reportDuplicateImport = true
+strictListInference = true
+strictDictionaryInference = true
+
+[tool.pyright.defineConstant]
+TESTING = true
