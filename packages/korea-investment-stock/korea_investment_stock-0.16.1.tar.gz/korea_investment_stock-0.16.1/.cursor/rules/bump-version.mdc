@@ -1,0 +1,338 @@
+---
+alwaysApply: false
+---
+
+# 버전 업그레이드 자동 결정 규칙
+
+## 개요
+Feature 브랜치의 커밋 내용과 파일 수정량을 분석하여 자동으로 버전 업그레이드 타입(major, minor, patch)을 결정합니다.
+
+## 버전 업그레이드 분석 절차
+
+### 1. 변경사항 분석
+버전을 업그레이드하기 전에 다음 명령어로 변경사항을 분석합니다:
+
+```bash
+# 최근 커밋 확인
+git log main..HEAD --oneline
+
+# 코드 변경량 확인
+git diff main --stat
+
+# 파일별 상세 변경 내용
+git diff main --name-status
+```
+
+### 2. 버전 결정 기준
+
+#### MAJOR (Breaking Changes) - X.0.0
+다음 중 하나라도 해당하면 major 버전 업그레이드:
+- **API 호환성 깨짐**: 기존 public 메서드 삭제 또는 시그니처 변경
+- **대규모 구조 변경**: 1000줄 이상의 코드 변경 + 10개 이상의 파일 삭제/이동
+- **커밋 메시지에 BREAKING CHANGE 포함**
+- **주요 의존성 변경**: Python 최소 버전 변경, 핵심 패키지 교체
+
+#### MINOR (New Features) - 0.X.0
+다음 중 하나라도 해당하면 minor 버전 업그레이드:
+- **새로운 기능 추가**: 새로운 public 메서드/클래스 추가
+- **중간 규모 변경**: 500-1000줄의 코드 변경
+- **새로운 통합**: 새로운 API 지원, 새로운 마켓 지원
+- **커밋 메시지에 feat: 또는 feature: 포함**
+- **새로운 파일 추가**: 5개 이상의 새로운 모듈/파일
+
+#### PATCH (Bug Fixes) - 0.0.X
+다음에 해당하면 patch 버전 업그레이드:
+- **버그 수정**: 기존 기능의 오류 수정
+- **소규모 변경**: 500줄 미만의 코드 변경
+- **문서 업데이트**: README, 주석, docstring 변경
+- **성능 개선**: 기능 변경 없는 최적화
+- **커밋 메시지에 fix:, docs:, chore:, perf: 포함**
+
+### 3. 자동 분석 예시
+
+```bash
+# 변경사항 통계 분석
+ADDED_LINES=$(git diff main --numstat | awk '{ added += $1 } END { print added }')
+DELETED_LINES=$(git diff main --numstat | awk '{ deleted += $2 } END { print deleted }')
+TOTAL_CHANGES=$((ADDED_LINES + DELETED_LINES))
+FILES_CHANGED=$(git diff main --name-only | wc -l)
+
+# 새로운 파일 수 계산
+NEW_FILES=$(git diff main --name-status | grep '^A' | wc -l)
+
+# 삭제된 파일 수 계산
+DELETED_FILES=$(git diff main --name-status | grep '^D' | wc -l)
+
+# Breaking change 확인
+BREAKING_CHANGES=$(git log main..HEAD --grep="BREAKING CHANGE" --oneline | wc -l)
+
+# Feature 커밋 확인
+FEATURE_COMMITS=$(git log main..HEAD --oneline | grep -E "^[a-f0-9]+ (feat|feature):" | wc -l)
+```
+
+### 4. 실행 절차
+
+1. **현재 버전 확인**
+   ```bash
+   grep 'version =' pyproject.toml
+   ```
+
+2. **변경사항 분석 및 버전 타입 결정**
+   - Breaking changes 있음 → `bump2version major`
+   - 새로운 기능 추가 → `bump2version minor`
+   - 버그 수정/소규모 변경 → `bump2version patch`
+
+3. **버전 업그레이드 실행**
+   ```bash
+   source .venv/bin/activate && bump2version [major|minor|patch]
+   ```
+
+4. **변경사항 확인**
+   ```bash
+   git diff --cached
+   ```
+
+### 5. 실제 적용 예시
+
+**현재 브랜치 분석 (feat/#33-oversee-api):**
+- 코드 변경량: +3,692줄, -2,438줄 (총 6,130줄)
+- 파일 변경: 128개 파일
+- 주요 기능: 미국 주식 통합 인터페이스 구현
+- API 문서 추가: 3개의 새로운 API 문서
+- 결정: **MINOR** (새로운 기능 추가, API 확장)
+
+## 주의사항
+
+1. **수동 검증 필수**: 자동 분석 결과를 반드시 수동으로 검증
+2. **CHANGELOG 업데이트**: 버전 업그레이드 전에 CHANGELOG.md 업데이트
+3. **테스트 통과 확인**: 모든 테스트가 통과하는지 확인
+4. **커밋 메시지 규칙**: Conventional Commits 형식 사용 권장
+   - feat: 새로운 기능
+   - fix: 버그 수정
+   - docs: 문서 변경
+   - refactor: 코드 리팩토링
+   - test: 테스트 추가/수정
+   - chore: 빌드/설정 변경
+
+## 자동화 스크립트 예시
+
+```bash
+#!/bin/bash
+# analyze_version_bump.sh
+
+# 색상 정의
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo "🔍 버전 업그레이드 분석 시작..."
+
+# 변경사항 통계
+ADDED=$(git diff main --numstat | awk '{ added += $1 } END { print added }')
+DELETED=$(git diff main --numstat | awk '{ deleted += $2 } END { print deleted }')
+TOTAL=$((ADDED + DELETED))
+FILES=$(git diff main --name-only | wc -l)
+NEW_FILES=$(git diff main --name-status | grep '^A' | wc -l)
+
+# 커밋 분석
+BREAKING=$(git log main..HEAD --grep="BREAKING CHANGE" --oneline | wc -l)
+FEATURES=$(git log main..HEAD --oneline | grep -E "feat:|feature:" | wc -l)
+FIXES=$(git log main..HEAD --oneline | grep -E "fix:|bugfix:" | wc -l)
+
+echo -e "\n📊 변경사항 통계:"
+echo -e "  - 추가된 줄: ${GREEN}+${ADDED}${NC}"
+echo -e "  - 삭제된 줄: ${RED}-${DELETED}${NC}"
+echo -e "  - 총 변경량: ${YELLOW}${TOTAL}줄${NC}"
+echo -e "  - 변경된 파일: ${FILES}개"
+echo -e "  - 새 파일: ${NEW_FILES}개"
+
+echo -e "\n📝 커밋 분석:"
+echo -e "  - Breaking Changes: ${BREAKING}개"
+echo -e "  - Features: ${FEATURES}개"
+echo -e "  - Fixes: ${FIXES}개"
+
+# 버전 결정
+if [ $BREAKING -gt 0 ]; then
+    VERSION_TYPE="major"
+    echo -e "\n🚨 추천: ${RED}MAJOR${NC} 버전 업그레이드"
+elif [ $FEATURES -gt 0 ] || [ $TOTAL -gt 500 ] || [ $NEW_FILES -gt 5 ]; then
+    VERSION_TYPE="minor"
+    echo -e "\n✨ 추천: ${YELLOW}MINOR${NC} 버전 업그레이드"
+else
+    VERSION_TYPE="patch"
+    echo -e "\n🔧 추천: ${GREEN}PATCH${NC} 버전 업그레이드"
+fi
+
+echo -e "\n실행 명령어: ${GREEN}bump2version $VERSION_TYPE${NC}"
+```
+
+이 규칙을 사용하면 feature 브랜치의 변경사항을 체계적으로 분석하여 적절한 버전 업그레이드 타입을 결정할 수 있습니다.
+
+# 버전 업그레이드 자동 결정 규칙
+
+## 개요
+Feature 브랜치의 커밋 내용과 파일 수정량을 분석하여 자동으로 버전 업그레이드 타입(major, minor, patch)을 결정합니다.
+
+## 버전 업그레이드 분석 절차
+
+### 1. 변경사항 분석
+버전을 업그레이드하기 전에 다음 명령어로 변경사항을 분석합니다:
+
+```bash
+# 최근 커밋 확인
+git log main..HEAD --oneline
+
+# 코드 변경량 확인
+git diff main --stat
+
+# 파일별 상세 변경 내용
+git diff main --name-status
+```
+
+### 2. 버전 결정 기준
+
+#### MAJOR (Breaking Changes) - X.0.0
+다음 중 하나라도 해당하면 major 버전 업그레이드:
+- **API 호환성 깨짐**: 기존 public 메서드 삭제 또는 시그니처 변경
+- **대규모 구조 변경**: 1000줄 이상의 코드 변경 + 10개 이상의 파일 삭제/이동
+- **커밋 메시지에 BREAKING CHANGE 포함**
+- **주요 의존성 변경**: Python 최소 버전 변경, 핵심 패키지 교체
+
+#### MINOR (New Features) - 0.X.0
+다음 중 하나라도 해당하면 minor 버전 업그레이드:
+- **새로운 기능 추가**: 새로운 public 메서드/클래스 추가
+- **중간 규모 변경**: 500-1000줄의 코드 변경
+- **새로운 통합**: 새로운 API 지원, 새로운 마켓 지원
+- **커밋 메시지에 feat: 또는 feature: 포함**
+- **새로운 파일 추가**: 5개 이상의 새로운 모듈/파일
+
+#### PATCH (Bug Fixes) - 0.0.X
+다음에 해당하면 patch 버전 업그레이드:
+- **버그 수정**: 기존 기능의 오류 수정
+- **소규모 변경**: 500줄 미만의 코드 변경
+- **문서 업데이트**: README, 주석, docstring 변경
+- **성능 개선**: 기능 변경 없는 최적화
+- **커밋 메시지에 fix:, docs:, chore:, perf: 포함**
+
+### 3. 자동 분석 예시
+
+```bash
+# 변경사항 통계 분석
+ADDED_LINES=$(git diff main --numstat | awk '{ added += $1 } END { print added }')
+DELETED_LINES=$(git diff main --numstat | awk '{ deleted += $2 } END { print deleted }')
+TOTAL_CHANGES=$((ADDED_LINES + DELETED_LINES))
+FILES_CHANGED=$(git diff main --name-only | wc -l)
+
+# 새로운 파일 수 계산
+NEW_FILES=$(git diff main --name-status | grep '^A' | wc -l)
+
+# 삭제된 파일 수 계산
+DELETED_FILES=$(git diff main --name-status | grep '^D' | wc -l)
+
+# Breaking change 확인
+BREAKING_CHANGES=$(git log main..HEAD --grep="BREAKING CHANGE" --oneline | wc -l)
+
+# Feature 커밋 확인
+FEATURE_COMMITS=$(git log main..HEAD --oneline | grep -E "^[a-f0-9]+ (feat|feature):" | wc -l)
+```
+
+### 4. 실행 절차
+
+1. **현재 버전 확인**
+   ```bash
+   grep 'version =' pyproject.toml
+   ```
+
+2. **변경사항 분석 및 버전 타입 결정**
+   - Breaking changes 있음 → `bump2version major`
+   - 새로운 기능 추가 → `bump2version minor`
+   - 버그 수정/소규모 변경 → `bump2version patch`
+
+3. **버전 업그레이드 실행**
+   ```bash
+   source .venv/bin/activate && bump2version [major|minor|patch]
+   ```
+
+4. **변경사항 확인**
+   ```bash
+   git diff --cached
+   ```
+
+### 5. 실제 적용 예시
+
+**현재 브랜치 분석 (feat/#33-oversee-api):**
+- 코드 변경량: +3,692줄, -2,438줄 (총 6,130줄)
+- 파일 변경: 128개 파일
+- 주요 기능: 미국 주식 통합 인터페이스 구현
+- API 문서 추가: 3개의 새로운 API 문서
+- 결정: **MINOR** (새로운 기능 추가, API 확장)
+
+## 주의사항
+
+1. **수동 검증 필수**: 자동 분석 결과를 반드시 수동으로 검증
+2. **CHANGELOG 업데이트**: 버전 업그레이드 전에 CHANGELOG.md 업데이트
+3. **테스트 통과 확인**: 모든 테스트가 통과하는지 확인
+4. **커밋 메시지 규칙**: Conventional Commits 형식 사용 권장
+   - feat: 새로운 기능
+   - fix: 버그 수정
+   - docs: 문서 변경
+   - refactor: 코드 리팩토링
+   - test: 테스트 추가/수정
+   - chore: 빌드/설정 변경
+
+## 자동화 스크립트 예시
+
+```bash
+#!/bin/bash
+# analyze_version_bump.sh
+
+# 색상 정의
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo "🔍 버전 업그레이드 분석 시작..."
+
+# 변경사항 통계
+ADDED=$(git diff main --numstat | awk '{ added += $1 } END { print added }')
+DELETED=$(git diff main --numstat | awk '{ deleted += $2 } END { print deleted }')
+TOTAL=$((ADDED + DELETED))
+FILES=$(git diff main --name-only | wc -l)
+NEW_FILES=$(git diff main --name-status | grep '^A' | wc -l)
+
+# 커밋 분석
+BREAKING=$(git log main..HEAD --grep="BREAKING CHANGE" --oneline | wc -l)
+FEATURES=$(git log main..HEAD --oneline | grep -E "feat:|feature:" | wc -l)
+FIXES=$(git log main..HEAD --oneline | grep -E "fix:|bugfix:" | wc -l)
+
+echo -e "\n📊 변경사항 통계:"
+echo -e "  - 추가된 줄: ${GREEN}+${ADDED}${NC}"
+echo -e "  - 삭제된 줄: ${RED}-${DELETED}${NC}"
+echo -e "  - 총 변경량: ${YELLOW}${TOTAL}줄${NC}"
+echo -e "  - 변경된 파일: ${FILES}개"
+echo -e "  - 새 파일: ${NEW_FILES}개"
+
+echo -e "\n📝 커밋 분석:"
+echo -e "  - Breaking Changes: ${BREAKING}개"
+echo -e "  - Features: ${FEATURES}개"
+echo -e "  - Fixes: ${FIXES}개"
+
+# 버전 결정
+if [ $BREAKING -gt 0 ]; then
+    VERSION_TYPE="major"
+    echo -e "\n🚨 추천: ${RED}MAJOR${NC} 버전 업그레이드"
+elif [ $FEATURES -gt 0 ] || [ $TOTAL -gt 500 ] || [ $NEW_FILES -gt 5 ]; then
+    VERSION_TYPE="minor"
+    echo -e "\n✨ 추천: ${YELLOW}MINOR${NC} 버전 업그레이드"
+else
+    VERSION_TYPE="patch"
+    echo -e "\n🔧 추천: ${GREEN}PATCH${NC} 버전 업그레이드"
+fi
+
+echo -e "\n실행 명령어: ${GREEN}bump2version $VERSION_TYPE${NC}"
+```
+
+이 규칙을 사용하면 feature 브랜치의 변경사항을 체계적으로 분석하여 적절한 버전 업그레이드 타입을 결정할 수 있습니다.
+

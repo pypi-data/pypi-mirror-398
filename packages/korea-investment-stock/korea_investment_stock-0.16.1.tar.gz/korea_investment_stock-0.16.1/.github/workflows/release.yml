@@ -1,0 +1,44 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version bump type'
+        required: false
+        default: 'minor'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    uses: kenshin579/actions/.github/workflows/release.yml@main
+    with:
+      version_type: ${{ inputs.version_type }}
+      create_release: false
+    secrets: inherit
+
+  pypi:
+    needs: release
+    if: ${{ always() && needs.release.result == 'success' }}
+    permissions:
+      contents: write
+    uses: kenshin579/actions/.github/workflows/pypi-publish.yml@main
+    with:
+      python_version: '3.12'
+      run_tests: true
+      test_command: |
+        pytest korea_investment_stock/ -v \
+          --ignore=korea_investment_stock/test_korea_investment_stock.py \
+          --ignore=korea_investment_stock/test_integration_us_stocks.py \
+          --ignore=korea_investment_stock/cache/test_cached_integration.py \
+          --ignore=korea_investment_stock/tests/test_integration_investor.py \
+          -k "not (Redis or redis_storage or TestTokenStorageIntegration)"
+      tag_name: ${{ needs.release.outputs.new_version }}
+    secrets:
+      PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}

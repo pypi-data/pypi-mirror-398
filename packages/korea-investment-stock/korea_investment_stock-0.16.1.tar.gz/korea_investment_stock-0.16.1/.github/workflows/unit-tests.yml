@@ -1,0 +1,26 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main, master]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  test:
+    uses: kenshin579/actions/.github/workflows/unit-test-python.yml@main
+    with:
+      python_version: '3.12'
+      test_path: 'korea_investment_stock/'
+      run_unit_tests: true
+      run_integration_tests: true
+      unit_test_args: >-
+        -m "not integration"
+        --ignore=korea_investment_stock/test_korea_investment_stock.py
+        --ignore=korea_investment_stock/test_integration_us_stocks.py
+        --ignore=korea_investment_stock/cache/test_cached_integration.py
+        -k "not (Redis or redis_storage or TestTokenStorageIntegration)"
+      integration_test_args: '-m integration'
+      coverage_enabled: true
+      coverage_package: 'korea_investment_stock'
+      install_extras: 'dev,redis'
+      post_comment: true
