@@ -1,0 +1,103 @@
+"""
+Project Embed Command - Build Qdrant indices from docs + project memory.
+"""
+from __future__ import annotations
+import os
+import json
+import logging
+from typing import List, Dict
+
+from ..cli_utils import handle_cli_error
+
+logger = logging.getLogger(__name__)
+
+
+def _load_semantic_index(root: str) -> Dict:
+    """Load semantic index (per-project, with graceful fallback)"""
+    from empirica.config.semantic_index_loader import load_semantic_index
+    index = load_semantic_index(root)
+    return index or {}
+
+
+def _read_file(path: str) -> str:
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except Exception:
+        return ""
+
+
+def handle_project_embed_command(args):
+    try:
+        from empirica.core.qdrant.vector_store import init_collections, upsert_docs, upsert_memory
+        from empirica.data.session_database import SessionDatabase
+
+        project_id = args.project_id
+        root = os.getcwd()
+
+        init_collections(project_id)
+
+        # Prepare docs from semantic index
+        idx = _load_semantic_index(root)
+        docs_cfg = idx.get('index', {})
+        docs_to_upsert: List[Dict] = []
+        did = 1
+        for relpath, meta in docs_cfg.items():
+            doc_path = os.path.join(root, 'docs', relpath.split('docs/')[-1]) if not relpath.startswith('docs/') else os.path.join(root, relpath)
+            text = _read_file(doc_path)
+            docs_to_upsert.append({
+                'id': did,
+                'text': text,
+                'metadata': {
+                    'doc_path': relpath,
+                    'tags': meta.get('tags', []),
+                    'concepts': meta.get('concepts', []),
+                    'questions': meta.get('questions', []),
+                    'use_cases': meta.get('use_cases', []),
+                }
+            })
+            did += 1
+        upsert_docs(project_id, docs_to_upsert)
+
+        # Prepare memory from DB
+        db = SessionDatabase()
+        findings = db.get_project_findings(project_id)
+        unknowns = db.get_project_unknowns(project_id)
+        # mistakes: join via sessions already built into breadcrumbs; simple select here
+        cur = db.conn.cursor()
+        cur.execute("""
+            SELECT m.id, m.mistake, m.prevention
+            FROM mistakes_made m
+            JOIN sessions s ON m.session_id = s.session_id
+            WHERE s.project_id = ?
+            ORDER BY m.created_timestamp DESC
+        """, (project_id,))
+        mistakes = [dict(row) for row in cur.fetchall()]
+        db.close()
+
+        mem_items: List[Dict] = []
+        mid = 1_000_000
+        for f in findings:
+            mem_items.append({'id': mid, 'text': f.get('finding', ''), 'type': 'finding'})
+            mid += 1
+        for u in unknowns:
+            mem_items.append({'id': mid, 'text': u.get('unknown', ''), 'type': 'unknown'})
+            mid += 1
+        for m in mistakes:
+            text = f"{m.get('mistake','')} Prevention: {m.get('prevention','')}"
+            mem_items.append({'id': mid, 'text': text, 'type': 'mistake'})
+            mid += 1
+
+        upsert_memory(project_id, mem_items)
+
+        if getattr(args, 'output', 'default') == 'json':
+            print(json.dumps({'ok': True, 'docs': len(docs_to_upsert), 'memory': len(mem_items)}, indent=2))
+        else:
+            print(f"✅ Embedded docs: {len(docs_to_upsert)} | memory items: {len(mem_items)}")
+
+        # Note: Skills are structured metadata (project_skills/*.yaml), not vectors
+        # They are referenced by project-bootstrap via tags and id lookup, not semantic search
+        return {'docs': len(docs_to_upsert), 'memory': len(mem_items)}
+    except Exception as e:
+        handle_cli_error(e, "Project embed", getattr(args, 'verbose', False))
+        return None

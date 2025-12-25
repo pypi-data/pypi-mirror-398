@@ -1,0 +1,320 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Empirica Persona Profile Schema",
+  "description": "Formal schema for AI persona configuration in multi-persona epistemic intelligence",
+  "type": "object",
+  "required": ["persona_id", "name", "version", "epistemic_config", "signing_identity"],
+
+  "properties": {
+    "persona_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]+$",
+      "description": "Unique identifier (e.g., 'security_expert_v1')",
+      "examples": ["security_expert", "ux_specialist", "performance_optimizer"]
+    },
+
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Human-readable persona name",
+      "examples": ["Security Expert", "UX Specialist"]
+    },
+
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version (major.minor.patch)",
+      "examples": ["1.0.0", "2.1.3"]
+    },
+
+    "signing_identity": {
+      "type": "object",
+      "required": ["user_id", "identity_name", "public_key"],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "description": "User who owns this persona identity",
+          "examples": ["david", "alice"]
+        },
+        "identity_name": {
+          "type": "string",
+          "description": "Identity name for signing (links to Phase 2 AIIdentity)",
+          "examples": ["security_expert", "code_reviewer"]
+        },
+        "public_key": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Ed25519 public key (64 hex chars)"
+        },
+        "reputation_score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 0.5,
+          "description": "Reputation based on past performance"
+        }
+      }
+    },
+
+    "epistemic_config": {
+      "type": "object",
+      "required": ["priors", "thresholds", "weights", "focus_domains"],
+      "description": "Epistemic configuration for this persona",
+
+      "properties": {
+        "priors": {
+          "type": "object",
+          "description": "Initial epistemic state (13 vectors, 0.0-1.0)",
+          "required": ["engagement", "know", "do", "context", "clarity",
+                      "coherence", "signal", "density", "state", "change",
+                      "completion", "impact", "uncertainty"],
+          "properties": {
+            "engagement": {"$ref": "#/definitions/epistemic_vector"},
+            "know": {"$ref": "#/definitions/epistemic_vector"},
+            "do": {"$ref": "#/definitions/epistemic_vector"},
+            "context": {"$ref": "#/definitions/epistemic_vector"},
+            "clarity": {"$ref": "#/definitions/epistemic_vector"},
+            "coherence": {"$ref": "#/definitions/epistemic_vector"},
+            "signal": {"$ref": "#/definitions/epistemic_vector"},
+            "density": {"$ref": "#/definitions/epistemic_vector"},
+            "state": {"$ref": "#/definitions/epistemic_vector"},
+            "change": {"$ref": "#/definitions/epistemic_vector"},
+            "completion": {"$ref": "#/definitions/epistemic_vector"},
+            "impact": {"$ref": "#/definitions/epistemic_vector"},
+            "uncertainty": {"$ref": "#/definitions/epistemic_vector"}
+          }
+        },
+
+        "thresholds": {
+          "type": "object",
+          "description": "Decision thresholds for CASCADE phases",
+          "properties": {
+            "uncertainty_trigger": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "default": 0.4,
+              "description": "INVESTIGATE if uncertainty > this (lower = more cautious)"
+            },
+            "confidence_to_proceed": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "default": 0.75,
+              "description": "CHECK passes if confidence >= this (higher = more thorough)"
+            },
+            "signal_quality_min": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "default": 0.6,
+              "description": "Minimum signal quality required"
+            },
+            "engagement_gate": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "default": 0.6,
+              "description": "Minimum engagement to proceed (gate vector)"
+            }
+          }
+        },
+
+        "weights": {
+          "type": "object",
+          "description": "Tier weights for composite confidence (must sum to 1.0)",
+          "required": ["foundation", "comprehension", "execution", "engagement"],
+          "properties": {
+            "foundation": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "description": "Weight for KNOW/DO/CONTEXT vectors"
+            },
+            "comprehension": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "description": "Weight for CLARITY/COHERENCE/SIGNAL/DENSITY"
+            },
+            "execution": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "description": "Weight for STATE/CHANGE/COMPLETION/IMPACT"
+            },
+            "engagement": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "description": "Weight for ENGAGEMENT vector"
+            }
+          }
+        },
+
+        "focus_domains": {
+          "type": "array",
+          "description": "Areas of expertise/focus for this persona",
+          "items": {"type": "string"},
+          "minItems": 1,
+          "examples": [["security", "authentication", "encryption"],
+                      ["usability", "accessibility", "user_flow"]]
+        }
+      }
+    },
+
+    "capabilities": {
+      "type": "object",
+      "description": "What this persona can/should do",
+      "properties": {
+        "can_spawn_subpersonas": {
+          "type": "boolean",
+          "default": false,
+          "description": "Can this persona spawn sub-personas?"
+        },
+        "can_call_external_tools": {
+          "type": "boolean",
+          "default": true,
+          "description": "Can call APIs, databases, etc."
+        },
+        "can_modify_code": {
+          "type": "boolean",
+          "default": true,
+          "description": "Can write/edit code"
+        },
+        "can_read_files": {
+          "type": "boolean",
+          "default": true
+        },
+        "requires_human_approval": {
+          "type": "boolean",
+          "default": false,
+          "description": "Sentinel must get human approval before ACT phase"
+        },
+        "max_investigation_depth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 5,
+          "description": "Maximum investigation rounds"
+        },
+        "restricted_operations": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Operations this persona cannot perform",
+          "examples": [["delete_files", "commit_to_main", "deploy_production"]]
+        }
+      }
+    },
+
+    "sentinel_config": {
+      "type": "object",
+      "description": "How Sentinel should manage this persona",
+      "properties": {
+        "reporting_frequency": {
+          "type": "string",
+          "enum": ["per_phase", "per_round", "on_completion", "realtime"],
+          "default": "per_phase",
+          "description": "When persona reports to Sentinel"
+        },
+        "escalation_triggers": {
+          "type": "array",
+          "description": "Conditions that trigger Sentinel intervention",
+          "items": {
+            "type": "object",
+            "required": ["condition", "action"],
+            "properties": {
+              "condition": {
+                "type": "string",
+                "description": "Condition expression (e.g., 'uncertainty > 0.8')"
+              },
+              "action": {
+                "type": "string",
+                "enum": ["notify", "pause", "handoff", "escalate", "terminate"],
+                "description": "Sentinel action when condition met"
+              },
+              "priority": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "critical"],
+                "default": "medium"
+              }
+            }
+          }
+        },
+        "timeout_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 480,
+          "default": 60,
+          "description": "Max execution time before Sentinel intervenes"
+        },
+        "max_cost_usd": {
+          "type": "number",
+          "minimum": 0,
+          "default": 10.0,
+          "description": "Max cost (API calls) before Sentinel pauses"
+        },
+        "requires_sentinel_approval_before_act": {
+          "type": "boolean",
+          "default": false,
+          "description": "Must Sentinel approve before ACT phase?"
+        }
+      }
+    },
+
+    "metadata": {
+      "type": "object",
+      "description": "Metadata about this persona",
+      "properties": {
+        "created_by": {
+          "type": ["string", "null"],
+          "description": "Who created this persona"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When persona was created"
+        },
+        "modified_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last modification timestamp"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "description": "Human-readable description of persona purpose"
+        },
+        "tags": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Tags for categorization",
+          "examples": [["security", "expert"], ["ux", "beginner"]]
+        },
+        "parent_persona": {
+          "type": ["string", "null"],
+          "description": "Parent persona ID if derived"
+        },
+        "derived_from": {
+          "type": ["string", "null"],
+          "description": "Template this persona was created from"
+        },
+        "verified_sessions": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Number of successful verified sessions"
+        }
+      }
+    }
+  },
+
+  "definitions": {
+    "epistemic_vector": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Epistemic vector value on [0.0, 1.0] scale"
+    }
+  }
+}

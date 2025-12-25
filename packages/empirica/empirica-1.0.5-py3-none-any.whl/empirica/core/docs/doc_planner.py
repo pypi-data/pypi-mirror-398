@@ -1,0 +1,146 @@
+"""
+Doc Planner - computes documentation completeness and suggests updates
+based on project epistemic memory (findings/unknowns/mistakes) and
+semantic index (docs/SEMANTIC_INDEX.yaml).
+"""
+from __future__ import annotations
+import os
+import json
+from typing import Dict, List, Optional, Tuple
+
+
+def _load_yaml(path: str) -> Dict:
+    try:
+        import yaml  # type: ignore
+    except Exception:  # pragma: no cover
+        raise RuntimeError("pyyaml is required to use doc planner")
+    with open(path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f) or {}
+
+
+def _load_semantic_index(root: str) -> Dict[str, Dict]:
+    """Load semantic index (per-project, with graceful fallback)"""
+    from empirica.config.semantic_index_loader import load_semantic_index
+    index = load_semantic_index(root)
+    if not index:
+        return {}
+    return index.get('index', {}) or {}
+
+
+def _find_cli_reference(root: str) -> Optional[str]:
+    ref_dir = os.path.join(root, 'docs', 'reference')
+    if not os.path.isdir(ref_dir):
+        return None
+    for name in os.listdir(ref_dir):
+        if name.lower().startswith('cli_commands') or 'cli' in name.lower():
+            return os.path.join('docs', 'reference', name)
+    return None
+
+
+def compute_doc_plan(project_id: str, session_id: Optional[str] = None, goal_id: Optional[str] = None) -> Dict:
+    """
+    Heuristic planner that:
+    - Loads semantic index
+    - Loads project memory (findings/unknowns/mistakes)
+    - Computes a rough completeness score
+    - Suggests doc updates (paths + reasons)
+    """
+    from empirica.data.session_database import SessionDatabase
+
+    root = os.getcwd()
+    index = _load_semantic_index(root)
+
+    db = SessionDatabase()
+    # Memory
+    findings = db.get_project_findings(project_id)
+    unknowns = db.get_project_unknowns(project_id)
+    # mistakes via join
+    cur = db.conn.cursor()
+    cur.execute(
+        """
+        SELECT m.id, m.mistake, m.prevention
+        FROM mistakes_made m
+        JOIN sessions s ON m.session_id = s.session_id
+        WHERE s.project_id = ?
+        ORDER BY m.created_timestamp DESC
+        """,
+        (project_id,),
+    )
+    mistakes = [dict(row) for row in cur.fetchall()]
+
+    # Basic metrics
+    num_findings = len(findings)
+    num_unknowns = len(unknowns)
+    num_mistakes = len(mistakes)
+
+    # Very simple scoring: encourage mapping memory to docs
+    # Start from 0.6, penalize if lots of items likely need docs
+    score = 0.6
+    if num_findings > 5:
+        score -= 0.1
+    if num_unknowns > 3:
+        score -= 0.1
+    if num_mistakes > 2:
+        score -= 0.1
+    score = max(0.0, min(1.0, score))
+
+    suggestions: List[Dict] = []
+    # Helpers to add suggestions if indexed doc exists
+    def _suggest_if_present(rel: str, reason: str) -> None:
+        if rel in index:
+            suggestions.append({
+                'doc_path': rel,
+                'reason': reason,
+                'tags': index[rel].get('tags', []),
+            })
+
+    # Suggest core docs based on memory state
+    if num_mistakes:
+        # Troubleshooting doc
+        for rel, meta in index.items():
+            tags = [t.lower() for t in meta.get('tags', [])]
+            if 'troubleshooting' in tags:
+                _suggest_if_present(rel, f"{num_mistakes} mistakes logged → add prevention guidance")
+                break
+    if num_unknowns:
+        # Investigation system doc
+        for rel, meta in index.items():
+            tags = [t.lower() for t in meta.get('tags', [])]
+            if 'investigation' in tags or 'unknowns' in tags:
+                _suggest_if_present(rel, f"{num_unknowns} unresolved unknowns → add resolution patterns or notes")
+                break
+    if num_findings:
+        # Project-level tracking doc (breadcrumbs / memory)
+        for rel, meta in index.items():
+            tags = [t.lower() for t in meta.get('tags', [])]
+            if 'project' in tags or 'bootstrap' in tags or 'breadcrumbs' in tags:
+                _suggest_if_present(rel, f"{num_findings} findings → update knowledge sections")
+                break
+
+    # Suggest CLI reference if we detect new CLI (project-search/embed exist in codebase)
+    cli_ref = _find_cli_reference(root)
+    if cli_ref and not any(s['doc_path'] == cli_ref for s in suggestions):
+        suggestions.append({'doc_path': cli_ref, 'reason': "New CLI (project-embed, project-search) → add usage examples", 'tags': ['cli', 'reference']})
+
+    # Also include any reference docs explicitly added to project
+    cur.execute(
+        """
+        SELECT doc_path, doc_type, description
+        FROM project_reference_docs
+        WHERE project_id = ?
+        ORDER BY created_timestamp DESC
+        """,
+        (project_id,),
+    )
+    refdocs = [dict(row) for row in cur.fetchall()]
+    db.close()
+
+    plan = {
+        'doc_completeness_score': round(score, 2),
+        'suggested_updates': suggestions,
+        'unmapped_findings': [f.get('finding') for f in findings[:10]],
+        'resolved_unknowns_missing_docs': [u.get('unknown') for u in unknowns if u.get('is_resolved')][:10],
+        'mistakes_missing_prevention_docs': [m.get('mistake') for m in mistakes if not m.get('prevention')][:10],
+        'reference_docs': refdocs,
+    }
+    return plan

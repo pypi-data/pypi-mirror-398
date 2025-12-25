@@ -1,0 +1,171 @@
+# =============================================================================
+# EMPIRICA CONFIDENCE WEIGHTS CONFIGURATION
+# =============================================================================
+#
+# Purpose: Define configurable weights for combining epistemic vectors
+# Usage: Loaded by GitEnhancedReflexLogger for confidence calculations
+# 
+# Architecture: Part of MCO (Meta-Agent Configuration Object)
+#   - Personas: config/mco/personas.yaml
+#   - CASCADE styles: config/mco/cascade_styles.yaml
+#   - Protocols: config/mco/protocols.yaml
+#   - Model profiles: config/mco/model_profiles.yaml
+#   - Feedback loops: config/mco/feedback_loops.yaml
+#   - Confidence weights (this file): config/mco/confidence_weights.yaml
+
+metadata:
+  version: "1.0.0"
+  last_updated: "2025-12-06"
+  author: "Empirica Framework"
+  description: "Configurable weights for epistemic vector aggregation"
+
+# =============================================================================
+# FOUNDATIONAL CONFIDENCE CALCULATION WEIGHTS
+# =============================================================================
+
+# Foundation confidence = weighted average of Tier 0 vectors
+# Represents: Can I do this? (Knowledge, Capability, Context)
+foundation_confidence_weights:
+  know: 0.40                    # Domain knowledge (fundamental)
+  do: 0.30                      # Execution capability (important)
+  context: 0.30                 # Environmental validity (important)
+  # Total: 1.0
+
+# Comprehension confidence = weighted average of Tier 1 vectors  
+# Represents: Do I understand the request? (Comprehension of task)
+comprehension_confidence_weights:
+  clarity: 0.30                 # Semantic understanding
+  coherence: 0.30               # Context consistency  
+  signal: 0.20                  # Priority identification
+  density: 0.20                 # Inverted cognitive load (higher density = lower confidence)
+  # Total: 1.0
+  # Note: density is inverted: (1.0 - density_score) to maintain consistency
+
+# Execution confidence = average of Tier 2 vectors
+# Represents: Am I doing this correctly? (Execution awareness)
+execution_confidence_weights:
+  state: 0.25                   # Environment mapping (25% importance)
+  change: 0.25                  # Modification tracking (25% importance) 
+  completion: 0.25              # Completion proximity (25% importance)
+  impact: 0.25                  # Consequence understanding (25% importance)
+  # Total: 1.0 (equal weights for execution vectors)
+
+# Overall confidence = weighted combination of all tiers + engagement
+overall_confidence_weights:
+  foundation: 0.35              # Foundation: 35% weight (most important)
+  comprehension: 0.25           # Comprehension: 25% weight
+  execution: 0.25               # Execution: 25% weight  
+  engagement: 0.15              # Engagement: 15% weight (prerequisite)
+  # Total: 1.0
+
+# Meta-state vector phase indicators
+# For dashboard visualization - shows which phase is active
+meta_state_phase_weights:
+  preflight: 1.0                # Active phase gets 1.0, others get 0.0
+  think: 0.0
+  plan: 0.0
+  investigate: 0.0
+  check: 1.0                    # Will be set to 1.0 if in check phase
+  act: 0.0
+  postflight: 1.0               # Will be set to 1.0 if in postflight phase
+  default: 0.0                  # Default inactive state
+
+# =============================================================================
+# DYNAMIC WEIGHT ADJUSTMENT PROFILES
+# =============================================================================
+
+# Per-model adjustments (based on observed calibration patterns)
+model_weight_adjustments:
+  claude_sonnet:
+    # Sonnet profile adjustments - more conservative
+    foundation_weights:
+      know: 0.35                # Slightly reduce knowledge weight
+      do: 0.35                  # Slightly increase capability weight
+      context: 0.30             # Keep context weight
+    
+    comprehension_weights:
+      clarity: 0.32             # Slightly increase clarity importance
+      coherence: 0.28           # Slightly decrease coherence importance
+      signal: 0.20
+      density: 0.20
+    
+    overall_weights:
+      foundation: 0.30          # Reduce foundation weight
+      comprehension: 0.30       # Increase comprehension weight
+      execution: 0.25
+      engagement: 0.15
+
+  claude_haiku:
+    # Haiku profile adjustments - account for overconfidence
+    foundation_weights:
+      know: 0.30                # Reduce knowledge weight (account for overconfidence)
+      do: 0.40                  # Increase capability weight (balance)
+      context: 0.30
+    
+    comprehension_weights:
+      clarity: 0.25             # Reduce clarity weight
+      coherence: 0.35           # Increase coherence weight (verify understanding)
+      signal: 0.20
+      density: 0.20
+    
+    overall_weights:
+      foundation: 0.40          # Increase foundation weight (account for overconfidence)
+      comprehension: 0.20       # Reduce comprehension weight
+      execution: 0.25
+      engagement: 0.15
+
+  gpt4:
+    # GPT-4 profile adjustments - account for observed patterns
+    foundation_weights:
+      know: 0.38
+      do: 0.32
+      context: 0.30
+    
+    comprehension_weights:
+      clarity: 0.30
+      coherence: 0.30
+      signal: 0.20
+      density: 0.20
+    
+    overall_weights:
+      foundation: 0.35
+      comprehension: 0.25
+      execution: 0.25
+      engagement: 0.15
+
+  # Generic profile for unknown models
+  default:
+    # Use base weights as defined above
+    foundation_weights: {}
+    comprehension_weights: {}
+    execution_weights: {}
+    overall_weights: {}
+
+# =============================================================================
+# WEIGHT VALIDATION RULES
+# =============================================================================
+
+validation_rules:
+  - "Foundation weights must sum to 1.0"
+  - "Comprehension weights must sum to 1.0" 
+  - "Overall weights must sum to 1.0"
+  - "All weights must be between 0.0 and 1.0"
+  - "Comprehension density must be inverted: (1.0 - density)"
+
+# =============================================================================
+# EXAMPLES OF USAGE
+# =============================================================================
+#
+# Foundation Confidence Calculation:
+#   foundation = (vectors['know'] * 0.40) + (vectors['do'] * 0.30) + (vectors['context'] * 0.30)
+#
+# Comprehension Confidence Calculation:
+#   comprehension = (vectors['clarity'] * 0.30) + (vectors['coherence'] * 0.30) +
+#                   (vectors['signal'] * 0.20) + ((1.0 - vectors['density']) * 0.20)
+#
+# Overall Confidence Calculation:
+#   overall = (foundation * 0.35) + (comprehension * 0.25) + 
+#             (execution * 0.25) + (vectors['engagement'] * 0.15)
+#
+# Note: Density is inverted because higher density = cognitive overload = lower confidence
+# The higher the density (information intensity), the more difficult it is to extract signal
