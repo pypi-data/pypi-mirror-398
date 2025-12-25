@@ -1,0 +1,241 @@
+# winidjango
+
+<!-- tooling -->
+[![pyrig](https://img.shields.io/badge/built%20with-pyrig-3776AB?logo=buildkite&logoColor=black)](https://github.com/Winipedia/pyrig)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Container](https://img.shields.io/badge/Container-Podman-A23CD6?logo=podman&logoColor=grey&colorA=0D1F3F&colorB=A23CD6)](https://podman.io/)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://pre-commit.com/)
+[![MkDocs](https://img.shields.io/badge/MkDocs-Documentation-326CE5?logo=mkdocs&logoColor=white)](https://www.mkdocs.org/)
+<!-- code-quality -->
+[![ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![ty](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ty/main/assets/badge/v0.json)](https://github.com/astral-sh/ty)[![mypy](https://img.shields.io/badge/type%20checked-mypy-039dfc.svg)](https://mypy-lang.org/)
+[![security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
+[![pytest](https://img.shields.io/badge/tested%20with-pytest-46a2f1.svg?logo=pytest)](https://pytest.org/)
+[![codecov](https://codecov.io/gh/Winipedia/winidjango/branch/main/graph/badge.svg)](https://codecov.io/gh/Winipedia/winidjango)
+<!-- package-info -->
+[![PyPI](https://img.shields.io/pypi/v/winidjango?logo=pypi&logoColor=white)](https://pypi.org/project/winidjango/)
+[![Python](https://img.shields.io/badge/python-3.12|3.13|3.14-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/github/license/Winipedia/winidjango)](https://github.com/Winipedia/winidjango/blob/main/LICENSE)
+<!-- ci/cd -->
+[![CI](https://img.shields.io/github/actions/workflow/status/Winipedia/winidjango/health_check.yaml?label=CI&logo=github)](https://github.com/Winipedia/winidjango/actions/workflows/health_check.yaml)
+[![CD](https://img.shields.io/github/actions/workflow/status/Winipedia/winidjango/release.yaml?label=CD&logo=github)](https://github.com/Winipedia/winidjango/actions/workflows/release.yaml)
+<!-- documentation -->
+[![Documentation](https://img.shields.io/badge/Docs-GitHub%20Pages-black?style=for-the-badge&logo=github&logoColor=white)](https://Winipedia.github.io/winidjango)
+
+---
+
+> A utils package for django
+
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Documentation](#documentation)
+- [Requirements](#requirements)
+- [Development](#development)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Features
+
+### 🚀 High-Performance Bulk Operations
+- **Multithreaded Processing**: Parallel execution of database operations for maximum speed
+- **Automatic Chunking**: Configurable batch sizes (default: 1000) for memory-efficient processing
+- **Transaction Safety**: Atomic operations with intelligent transaction management
+- **Dependency Resolution**: Automatic topological sorting for foreign key relationships
+
+### 🛠️ Database Utilities
+- **Bulk Create/Update/Delete**: Process thousands of records efficiently
+- **Deletion Simulation**: Preview cascade effects before executing destructive operations
+- **Bulk Comparison**: Detect differences between datasets with field-level hashing
+- **Raw SQL Execution**: Safe parameter binding with automatic cursor management
+
+### 📦 Model Utilities
+- **BaseModel**: Abstract base with `created_at`, `updated_at`, and type-safe `meta` property
+- **Topological Sorting**: Automatic dependency ordering for model operations
+- **Field Introspection**: Type-safe utilities for working with model fields
+
+### 🎯 Management Command Framework
+- **ABCBaseCommand**: Template method pattern with automatic logging
+- **ImportDataBaseCommand**: Structured data import with Polars integration
+- **Built-in Arguments**: Standard options for dry-run, batch size, threading, and more
+- **Type Safety**: Full type hints with abstract method enforcement
+
+## Installation
+
+```bash
+pip install winidjango
+```
+
+Or using `uv`:
+
+```bash
+uv add winidjango
+```
+
+## Quick Start
+
+### Bulk Operations
+
+```python
+from winidjango.src.db.bulk import bulk_create_in_steps
+
+# Create 10,000 records in batches of 1000
+authors = [Author(name=f"Author {i}") for i in range(10000)]
+created = bulk_create_in_steps(Author, authors, step=1000)
+```
+
+### Automatic Dependency Resolution
+
+```python
+from winidjango.src.db.bulk import bulk_create_bulks_in_steps
+
+# Create related models in correct order automatically
+results = bulk_create_bulks_in_steps({
+    Author: authors,
+    Book: books,      # Created after Author
+    Review: reviews,  # Created after Book
+})
+```
+
+### Deletion Simulation
+
+```python
+from winidjango.src.db.bulk import simulate_bulk_deletion
+
+# Preview what would be deleted
+deletion_preview = simulate_bulk_deletion(Author, authors_to_delete)
+print(f"Would delete {len(deletion_preview[Author])} authors")
+print(f"Would cascade delete {len(deletion_preview[Book])} books")
+```
+
+### Custom Management Command
+
+```python
+from winidjango.src.commands.base.base import ABCBaseCommand
+from argparse import ArgumentParser
+
+class MyCommand(ABCBaseCommand):
+    def add_command_arguments(self, parser: ArgumentParser) -> None:
+        parser.add_argument('--input-file', type=str, required=True)
+
+    def handle_command(self) -> None:
+        input_file = self.get_option('input_file')
+        dry_run = self.get_option('dry_run')  # Built-in
+
+        if dry_run:
+            self.stdout.write('Dry run mode')
+
+        # Your logic here
+```
+
+### Data Import Command
+
+```python
+from winidjango.src.commands.import_data import ImportDataBaseCommand
+import polars as pl
+
+class ImportUsersCommand(ImportDataBaseCommand):
+    def handle_import(self) -> pl.DataFrame:
+        return pl.read_csv("users.csv")
+
+    def get_cleaning_df_cls(self) -> type[CleaningDF]:
+        return MyCleaningDF
+
+    def get_bulks_by_model(self, df: pl.DataFrame) -> dict[type[Model], Iterable[Model]]:
+        users = [User(name=row["name"]) for row in df.iter_rows(named=True)]
+        return {User: users}
+```
+
+## Documentation
+
+Comprehensive documentation is available in the [`docs/`](docs/) directory:
+
+- **[Database Utilities](docs/db.md)** - Bulk operations, model utilities, and SQL helpers
+- **[Management Commands](docs/commands.md)** - Command framework and data import patterns
+- **[API Reference](docs/index.md)** - Complete API documentation
+
+## Requirements
+
+- **Python**: 3.12+
+- **Django**: Compatible with modern Django versions
+- **Dependencies**:
+  - `django`
+  - `django-stubs-ext`
+  - `winiutils`
+
+## Development
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/Winipedia/winidjango.git
+cd winidjango
+
+# Install dependencies
+uv sync
+
+# Install pre-commit hooks
+pre-commit install
+```
+
+### Code Quality
+
+This project uses:
+- **mypy**: Strict type checking
+- **ruff**: Linting and formatting
+- **bandit**: Security analysis
+- **pytest**: Testing framework
+
+```bash
+# Run type checking
+mypy .
+
+# Run linting
+ruff check .
+
+# Run security checks
+bandit -r winidjango
+
+# Format code
+ruff format .
+```
+
+## Testing
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=winidjango
+
+# Run specific test file
+pytest tests/test_winidjango/test_src/test_db/test_bulk.py
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Built with [pyrig](https://github.com/Winipedia/pyrig) - Python project scaffolding tool
+- Integrates with [winiutils](https://github.com/Winipedia/winiutils) - General Python utilities
+
+---
