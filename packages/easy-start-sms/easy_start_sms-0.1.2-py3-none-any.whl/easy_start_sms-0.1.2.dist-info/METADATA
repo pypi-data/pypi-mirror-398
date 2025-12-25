@@ -1,0 +1,261 @@
+Metadata-Version: 2.4
+Name: easy-start-sms
+Version: 0.1.2
+Summary: easy_start_sms 是一个用于短信集成的 Python 包，旨在简化常见的短信操作，如发送短信等。该包提供了直观的 API，支持 httpx 库。
+Home-page: https://gitee.com/guolei19850528/easy_start_sms
+Author: guolei
+Author-email: 174000902@qq.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: httpx
+Requires-Dist: jsonschema
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# easy_start_sms
+
+## 项目简介
+
+easy_start_sms 是一个用于短信集成的 Python 包，旨在简化与微网通联短信平台的交互操作，提供了直观的 API，支持同步和异步两种发送方式，自动处理签名生成、请求参数构建和响应解析，让短信发送变得简单易用。
+
+## 项目结构
+
+
+
+## 安装
+
+### 使用pip安装
+
+```bash
+pip install -U easy_start_sms
+```
+
+### 依赖项
+
+项目依赖以下Python库：
+- httpx: 用于HTTP请求（支持同步和异步）
+- jsonschema: 用于验证API响应的JSON结构
+
+可以通过以下命令安装所有依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+## 核心功能
+
+### 微网通联短信模块 (lmobile.py)
+
+lmobile模块提供了与微网通联短信平台API交互的功能，支持同步和异步发送短信，自动处理签名生成和响应验证。
+
+#### 主要类
+
+1. **Sender** - 微网通联短信发送客户端类
+
+#### 主要方法
+
+1. **send_sms** - 同步发送短信
+2. **async_send_sms** - 异步发送短信
+
+## 使用示例
+
+### 同步发送短信
+
+```python
+from easy_start_sms.lmobile import Sender
+
+# 初始化短信发送客户端
+sender = Sender(
+    account_id="dljtwy00",
+    password="g07KjuLN1",
+    product_id=1012808
+)
+
+# 发送短信（支持单个或多个手机号码，用逗号分隔）
+success, response_json, response = sender.send_sms(
+    phone_nos="15210720528,18910415280",
+    content="【你的签名】测试通知短信 2023-10-01 12:00:00"
+)
+
+# 输出结果
+print(f"发送状态: {'成功' if success else '失败'}")
+print(f"响应数据: {response_json}")
+print(f"响应状态码: {response.status_code}")
+```
+
+### 异步发送短信
+
+```python
+import asyncio
+from easy_start_sms.lmobile import Sender
+
+async def send_async_sms():
+    # 初始化短信发送客户端
+    sender = Sender(
+        account_id="dljtwy00",
+        password="g07KjuLN1",
+        product_id=1012808
+    )
+
+    # 异步发送短信
+    success, response_json, response = await sender.async_send_sms(
+        phone_nos="15210720528",
+        content="【你的签名】异步测试通知短信 2023-10-01 12:00:00"
+    )
+
+    # 输出结果
+    print(f"发送状态: {'成功' if success else '失败'}")
+    print(f"响应数据: {response_json}")
+    print(f"响应状态码: {response.status_code}")
+
+# 运行异步函数
+asyncio.run(send_async_sms())
+```
+
+## API文档
+
+### Sender类
+
+#### 初始化参数
+
+```python
+Sender(
+    base_url: str = "https://api.51welink.com/",
+    account_id: str = "",
+    password: str = "",
+    product_id: Union[int, str] = 0,
+    smms_encrypt_key: str = "SMmsEncryptKey"
+)
+```
+
+- **base_url**: API基础URL，默认使用微网通联短信平台地址
+- **account_id**: 账号ID，用于API认证
+- **password**: 账号密码，用于生成认证签名
+- **product_id**: 产品ID，标识短信业务类型
+- **smms_encrypt_key**: 加密密钥，用于密码加密
+
+#### 同步发送短信方法
+
+```python
+send_sms(
+    client: httpx.Client = None,
+    validate_json_schema: dict = {
+        "type": "object",
+        "properties": {
+            "Result": {"type": "string", "const": "succ"},
+        },
+        "required": ["Result"]
+    },
+    phone_nos: str = "",
+    content: str = "",
+    **kwargs
+)
+```
+
+- **client**: 可选的HTTP客户端实例，如果不提供则自动创建
+- **validate_json_schema**: JSON Schema 校验规则，用于验证API响应
+- **phone_nos**: 手机号码，多个号码用逗号分隔
+- **content**: 短信内容
+- **kwargs**: 传递给request方法的额外参数
+
+**返回值**:
+- `tuple`: (发送结果, 响应JSON, 响应对象)
+  - 发送结果: bool，True表示发送成功，False表示失败
+  - 响应JSON: dict，API返回的JSON数据
+  - 响应对象: httpx.Response，原始响应对象
+
+#### 异步发送短信方法
+
+```python
+async_send_sms(
+    client: httpx.AsyncClient = None,
+    validate_json_schema: dict = {
+        "type": "object",
+        "properties": {
+            "Result": {"type": "string", "const": "succ"},
+        },
+        "required": ["Result"]
+    },
+    phone_nos: str = "",
+    content: str = "",
+    **kwargs
+)
+```
+
+参数与同步方法相同，但支持异步操作。
+
+## 测试
+
+项目包含了完整的测试用例，可以通过以下命令运行：
+
+```bash
+python test_lmobile.py
+```
+
+测试用例包括：
+- 同步发送短信测试
+- 异步发送短信测试
+
+## 配置选项
+
+### 自定义HTTP客户端
+
+您可以自定义HTTP客户端的配置：
+
+```python
+# 同步客户端
+client = sender.client(timeout=30, verify=False)
+
+# 异步客户端
+async_client = sender.async_client(timeout=30, verify=False)
+```
+
+### 自定义响应验证规则
+
+您可以自定义JSON Schema验证规则：
+
+```python
+custom_schema = {
+    "type": "object",
+    "properties": {
+        "Result": {"type": "string"},
+        "Message": {"type": "string"},
+    },
+    "required": ["Result", "Message"]
+}
+
+success, response_json, response = sender.send_sms(
+    phone_nos="15210720528",
+    content="测试短信",
+    validate_json_schema=custom_schema
+)
+```
+
+## 注意事项
+
+1. 请确保您有有效的微网通联短信平台账号和密码
+2. 短信内容需要包含签名（如【你的签名】）
+3. 批量发送时，手机号码用逗号分隔
+4. 默认超时时间为120秒，您可以根据需要调整
+5. 异步发送需要Python 3.7+版本支持
+
+## 许可证
+
+MIT License
+
+## 作者
+
+- 郭磊（174000902@qq.com）
+- 项目地址：[https://gitee.com/guolei19850528/easy_start_sms](https://gitee.com/guolei19850528/easy_start_sms)
