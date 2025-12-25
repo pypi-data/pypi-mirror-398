@@ -1,0 +1,157 @@
+# root folder where the source and output folders belong
+base_data_folder: "."
+debug: false
+labels: [bird, cat, false-positive, hedgehog, insect, leporidae, mustelid, possum,
+  rodent, wallaby]
+previews_colour_map: custom_colormap.dat
+verbose: false
+use_opt_flow: false
+worker_threads: 1
+build:
+  banned_clips: null
+ # number of frames each segment should be
+  segment_length: 25
+
+  # number of seconds each segment should be spaced apart
+  segment_spacing: 1
+
+  segment_min_avg_mass: 10
+  # read all files in here of type .list and parsre each line as clipid to be used
+  #  in test set
+  test_clips_folder: training-testclips
+classify:
+  # socket used for classifier service
+  service_socket: "/etc/cacophony/classifier"
+  #cache buffer frame to disk reducing memory usage
+  cache_to_disk: false
+  # Writes metadata to standard out instead of a file with extension .txt
+  meta_to_stdout: false
+  models:
+  - id: 2
+    ignored_tags: []
+    model_file: <path to model>/saved_model.pb
+    model_weights: null
+    name: Inc3
+    tag_scores: {default: 0}
+    thumbnail_model: false
+    wallaby: false
+  # Create a MP4 preview after classification of recording.  Options are "none", "raw", "classified", "tracking"
+  # See extract:preview for details on each option.
+  preview: tracking
+load:
+  cache_to_disk: false
+  # odnt think this is used or safe (TO BE TESTED OR REMOVED GP)
+  enable_compression: false
+  high_quality_optical_flow: false
+  include_filtered_channel: true
+  preview: null
+  # precidence of tags (lower first)
+  tag_precedence: {bad track: 2, bird: 0, cat: 0, default: 3, dog: 0, false-positive: 0,
+    hedgehog: 0, human: 0, insect: 0, kiwi: 0, leporidae: 0, mustelid: 0, other: 1,
+    part: 2, pest: 0, possum: 0, rodent: 0, unidentified: 1, wallaby: 0}
+  # dont add any tracks with these tags
+  excluded_tags: [untagged, dog, unidentified, hard, multi, moving, bird-kiwi, for_grant,
+    missclassified, other, part, poor tracking]
+tracking:
+  defaults:
+    min_dimension: 0
+    # The minimum width or height a region must be to be considered
+    # 10 for ir
+
+    areas_of_interest: {cropped_regions_strategy: cautious, min_mass: 4.0, pixel_variance: 2.0}
+    dilation_pixels: 2
+    edge_pixels: 1
+    # this hsould be 0 for IR
+    enable_track_output: true
+    filters: {min_duration_secs: 1.0, moving_vel_thresh: 4, track_min_delta: 1.0, track_min_mass: 2.0,
+      track_min_offset: 4.0, track_overlap_ratio: 0.5}
+    frame_padding: 4
+    # 10 for IR
+    high_quality_optical_flow: false
+    max_blank_percent: 30
+    max_mass_std_percent: 0.55
+    max_jitter: 20
+    max_tracks: 10
+    min_moving_frames: 2
+    min_tag_confidence: 0.6
+    motion:
+        #if set to True Temp_thresh is calculated based on the minimum background temperature
+        #of the preview, or whole clip depending on cptv type
+        dynamic_thresh: True
+        camera_thresholds:
+          lepton3:
+            camera_model: "lepton3"
+            # Default temperature threshold require for tracking
+            temp_thresh: 2900
+            # Minimum raw temperature difference between background and track
+            background_thresh: 20
+            # Min/Max temperature threshold value to use if dynamic threshold is true
+            max_temp_thresh: null
+            min_temp_thresh: null
+            default: True
+          # discard tracks that do not have enough delta within the window (i.e. pixels that change a lot)
+            track_min_delta: 1.0
+            track_max_delta: 150
+          lepton35:
+            camera_model: "lepton3.5"
+            temp_thresh: 28000
+            background_thresh: 90
+            max_temp_thresh: null
+            min_temp_thresh: null
+            # discard tracks that do not have enough delta within the window (i.e. pixels that change a lot)
+            track_min_delta: 1.0
+            track_max_delta: 150
+  thermal:
+    # same as defaults
+  IR:
+    # defaults except for
+    areas_of_interest: {cropped_regions_strategy: cautious, min_mass: 50, pixel_variance: 50 }
+
+    min_tracks: null
+    min_dimension: 10 #IR
+    frame_padding: 10 #IR
+    edge_pixels: 0 #ir
+    motion:
+        #if set to True Temp_thresh is calculated based on the minimum background temperature
+        #of the preview, or whole clip depending on cptv type
+        dynamic_thresh: True
+        camera_thresholds:
+          ir:
+            camera_model: "ir"
+            # Default temperature threshold require for tracking
+            temp_thresh: None
+            # Minimum raw temperature difference between background and track
+            background_thresh: 15
+            # Min/Max temperature threshold value to use if dynamic threshold is true
+            max_temp_thresh: null
+            min_temp_thresh: null
+            default: True
+          # discard tracks that do not have enough delta within the window (i.e. pixels that change a lot)
+            track_min_delta: 1.0
+            track_max_delta: 150
+train:
+  epochs: 3
+  tfrecords: True
+  type: "thermal"
+  hyper_params:
+    batch_size: 32
+    dense_sizes: []
+    # dropout used between dense layers (when transfer learning)
+    dropout: 0.3
+    frame_size: 32
+    keep_edge: true
+    label_smoothing: 0.1
+    learning_rate: 0.001
+    learning_rate_decay: 1.0
+    model_name: inceptionv3
+    segment_type: ALL_RANDOM
+    shuffle: true
+    square_width: 5
+    red_type: thermal_tiled
+    blue_type: filtered_tiled
+    green_type: filtered_tiled
+    use_segments: true
+  label_probabilities: {bird: 20, cat: 5, false-positive: 1, hedgehog: 20, human: 1,
+    insect: 1, leporidae: 5, mustelid: 5, possum: 20, rodent: 20, vehicle: 1, wallaby: 5}
+
+  train_dir: train

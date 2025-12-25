@@ -1,0 +1,38 @@
+#!/bin/bash
+
+set -e
+
+if [[ ! -d _release ]]; then
+    echo "Please run from the project root"
+    exit 1
+fi
+
+version=$1
+if [[ "$version" == "" ]]; then
+    echo "Please supply a version"
+    exit 1
+fi
+
+# Strip leading "v" (if present)
+version=${version/#v/}
+
+src=`pwd`
+rm -rf dist
+mkdir dist
+
+echo "copying source to dist directory ..."
+ls | grep -v dist | xargs cp -t dist -r
+cd dist
+rm -rf *.pex _release
+find -name __pycache__ | xargs rm -rf
+
+echo "building .pex..."
+pex --python python3 -D . -r requirements.txt -o classifier-pipeline.pex
+echo "pex build completed."
+
+cd "$src"
+
+echo "building deb package..."
+# Generate a nfpm.yaml with the right version.
+perl -p -e "s/^version:.+/version: \"$version\"/" _release/nfpm.yaml > dist/nfpm.yaml
+nfpm pkg --config=dist/nfpm.yaml --target="dist/classifier-pipeline_${version}_amd64.deb"
