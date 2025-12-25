@@ -1,0 +1,35 @@
+"""Input panel component for composing and sending messages."""
+
+from textual.app import ComposeResult
+from textual.containers import Container, Horizontal
+from textual.widgets import Button, Input
+
+from a2a_handler.common import get_logger
+
+logger = get_logger(__name__)
+
+
+class InputPanel(Container):
+    """Panel for message input."""
+
+    ALLOW_MAXIMIZE = False
+
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="input-row"):
+            yield Input(placeholder="Type your message...", id="message-input")
+            yield Button("SEND", id="send-btn")
+
+    def on_mount(self) -> None:
+        self.query_one("#send-btn", Button).can_focus = False
+        logger.debug("Input panel mounted")
+
+    def get_message(self) -> str:
+        """Get and clear the current message input."""
+        message_input = self.query_one("#message-input", Input)
+        message_text = message_input.value.strip()
+        message_input.value = ""
+        return message_text
+
+    def focus_input(self) -> None:
+        """Focus the message input field."""
+        self.query_one("#message-input", Input).focus()
