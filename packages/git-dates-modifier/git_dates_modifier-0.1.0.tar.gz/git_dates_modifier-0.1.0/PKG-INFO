@@ -1,0 +1,121 @@
+Metadata-Version: 2.4
+Name: git-dates-modifier
+Version: 0.1.0
+Summary: Interactively rewrite Git commit author and committer dates.
+Author: xissium
+License: The MIT License (MIT)
+        Copyright © 2025 xissium
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+Project-URL: Homepage, https://github.com/xissium/git-dates-modifier
+Project-URL: Repository, https://github.com/xissium/git-dates-modifier
+Keywords: git,history,commit,date,git-filter-repo
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: git-filter-repo
+Dynamic: license-file
+
+[English](https://github.com/xissium/git-dates-modifier/blob/main/README.md) | [中文](https://github.com/xissium/git-dates-modifier/blob/main/README.zh.md)
+
+# Git Dates Modifier
+
+## 📌 Overview
+Git Dates Modifier, a Python script to rewrite commit dates (author date and committer date) selectively based on commit message matching. It supports separate modification of AuthorDate and CommitterDate for each matched commit.
+
+## ✨ Features
+- Read the repository commit history and display AuthorDate and CommitterDate.
+- Interactively specify new Author and/or Committer dates for each commit.
+- Support using `now` to set the date to the current time.
+- Preview planned changes before rewriting history.
+- Uses `git-filter-repo` for safe and flexible history rewriting.
+
+## ⚠️ Important Warning
+**This script rewrites Git history**. Rewriting history will change commit SHAs and can cause problems for collaborators or any public branches. Make a backup and ensure you understand the consequences before running the script. Prefer using this on local branches or repositories where you can force-push and coordinate with other contributors.
+
+## 🧩 Prerequisites
+1. Python 3.8+ (or a Python 3.x environment).
+2. `git` available on your PATH.
+3. `git-filter-repo` Python package installed. Install with:
+
+    ```bash
+    pip install git-filter-repo
+    ```
+
+## 🛠 Installation / Setup
+
+### Option 1: Install from PyPI (Recommended)
+Install from PyPI, for example, using pip:
+
+```bash
+pip install git-dates-modifier
+```
+
+After installation, run it inside any git repository:
+
+```bash
+git-dates-modifier
+```
+
+> Make sure the installation path of `pip` is included in your `PATH`.
+
+### Option 2: Run from source
+Copy the [script](git_dates_modifier/main.py) and place the script at the root of your git repository.
+
+Ensure the script is executable or run it with Python. The script checks for a `.git` folder in the current working directory and will fail if not executed from a repo root.
+
+## ▶️ Usage
+Run the script from your repository root:
+
+```bash
+git-dates-modifier
+```
+
+The script will:
+1. Read commits (in chronological order).
+2. Prompt you for new **Author Date** and **Committer Date** for each commit.
+    - Press Enter to keep the original date.
+    - Enter `now` to use the current time.
+    - Use a date/time string in the format: `YYYY-MM-DD HH:MM:SS` (example: `2025-10-24 11:22:33`).
+3. Build a mapping of commit messages → date changes.
+4. Show a preview of planned changes.
+5. Ask for confirmation before executing `git-filter-repo` to rewrite history.
+
+### Example prompt responses
+- To skip changes for a commit: press Enter at both prompts.
+- To update only the Author date: supply value only for the Author prompt.
+- To set both dates to now: enter `now` at both prompts.
+
+## 🧯 Safety & Troubleshooting
+- **Backup first**: create a clone or branch backup: `git clone --mirror . /path/to/backup` or `git branch backup-YYYYMMDD`
+- If `git-filter-repo` is missing, the script exits with a helpful instruction to install it.
+- If the script fails during `git-filter-repo`, the error will be printed. Investigate the message and restore from your backup if necessary.
+- The script uses exact message matching. If multiple commits share the same message body, they will receive the same changes.
+
+## 📤 After Rewriting
+Verify the new dates locally:
+
+```bash
+git log --format=fuller --date=iso
+```
+
+When ready to publish the rewritten history, force-push (with caution):
+
+```bash
+git push --force --all
+```
+
+Coordinate with any collaborators to avoid conflicts.
+
+## 🌐 Encoding & Timezones
+- Input date strings should be in `YYYY-MM-DD HH:MM:SS` format. The script tries to parse that and append the local timezone offset.
+- `now` sets the date to the current local time and includes the local timezone offset.
+
+## 📄 License
+
+This project is licensed under the terms described in the [LICENSE](LICENSE) file.
