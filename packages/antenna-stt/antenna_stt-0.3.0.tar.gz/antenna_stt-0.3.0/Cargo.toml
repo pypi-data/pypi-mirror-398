@@ -1,0 +1,111 @@
+[package]
+name = "antenna"
+version = "0.3.0"
+edition = "2021"
+readme = "README.md"
+
+[lib]
+name = "antenna"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+cuda = ["candle-core/cuda", "candle-nn/cuda", "candle-transformers/cuda"]
+server = [
+    "tokio/full",  # Enables all tokio features (we have rt-multi-thread by default)
+    "axum",
+    "axum-extra",
+    "tower",
+    "tower-http/cors",
+    "tower-http/trace",
+    "dashmap",
+    "tokio-stream",
+    "futures",
+    "tracing-subscriber",
+]
+# Triton Inference Server backend (for production cloud deployments)
+triton = ["server", "tonic", "prost", "bytes"]
+# WebRTC support for browser-based real-time audio
+webrtc = ["server", "dep:webrtc", "bytes"]
+
+# ML Backend Features
+# ONNX Runtime backend (for Wav2Vec2, Conformer, and cross-platform inference)
+onnx = ["dep:ort"]
+# ONNX with TensorRT execution provider (NVIDIA GPU optimization)
+onnx-tensorrt = ["onnx", "ort/tensorrt"]
+# ONNX with CUDA execution provider
+onnx-cuda = ["onnx", "ort/cuda"]
+# CTranslate2 backend (4x faster Whisper inference)
+ctranslate2 = ["dep:ct2rs"]
+# sherpa-rs backend (Conformer, Zipformer, Paraformer models)
+sherpa = ["dep:sherpa-rs"]
+# parakeet-rs backend (NVIDIA Parakeet FastConformer)
+parakeet = ["dep:parakeet-rs"]
+# Metal GPU support (macOS)
+metal = ["candle-core/metal", "candle-nn/metal", "candle-transformers/metal"]
+
+[[bin]]
+name = "antenna-server"
+path = "src/bin/antenna_server.rs"
+required-features = ["server"]
+
+[dependencies]
+pyo3 = { version = "0.27", features = ["extension-module"] }
+pyo3-async-runtimes = { version = "0.27", features = ["tokio-runtime"] }
+numpy = "0.27"
+hound = "3.5"
+rubato = "0.15"
+thiserror = "1.0"
+anyhow = "1.0"
+symphonia = { version = "0.5", features = ["all"] }
+
+# Async runtime for Python async API (always enabled)
+tokio = { version = "1.0", features = ["rt-multi-thread"] }
+
+# ML dependencies for Whisper (using git for CUDA 13 support)
+candle-core = { git = "https://github.com/huggingface/candle", branch = "main" }
+candle-nn = { git = "https://github.com/huggingface/candle", branch = "main" }
+candle-transformers = { git = "https://github.com/huggingface/candle", branch = "main" }
+hf-hub = "0.4"
+tokenizers = "0.20"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+byteorder = "1.5"
+tracing = "0.1"
+glob = "0.3"
+
+# Server dependencies (optional, enabled by "server" feature)
+# Note: tokio base is always enabled for async Python API; server feature adds full tokio
+axum = { version = "0.8", features = ["ws"], optional = true }
+axum-extra = { version = "0.10", features = ["typed-header"], optional = true }
+tower = { version = "0.5", optional = true }
+tower-http = { version = "0.6", optional = true }
+dashmap = { version = "6.0", optional = true }
+tokio-stream = { version = "0.1", optional = true }
+futures = { version = "0.3", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+async-trait = "0.1"
+parking_lot = "0.12"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Triton gRPC client (optional, enabled by "triton" feature)
+tonic = { version = "0.12", optional = true }
+prost = { version = "0.13", optional = true }
+bytes = { version = "1.0", optional = true }
+
+# WebRTC dependencies (optional, enabled by "webrtc" feature)
+webrtc = { version = "0.11", optional = true }
+
+# ML Backend dependencies (optional)
+# ONNX Runtime for cross-platform inference
+ort = { version = "2.0.0-rc.10", optional = true, default-features = false, features = ["download-binaries", "std"] }
+# CTranslate2 for optimized Whisper (4x faster)
+ct2rs = { version = "0.9", optional = true }
+# sherpa-rs for Conformer/Zipformer models
+sherpa-rs = { version = "0.1", optional = true }
+# parakeet-rs for NVIDIA Parakeet models
+parakeet-rs = { version = "0.1", optional = true }
+
+[dev-dependencies]
+pyo3 = { version = "0.27", features = ["auto-initialize"] }
+
