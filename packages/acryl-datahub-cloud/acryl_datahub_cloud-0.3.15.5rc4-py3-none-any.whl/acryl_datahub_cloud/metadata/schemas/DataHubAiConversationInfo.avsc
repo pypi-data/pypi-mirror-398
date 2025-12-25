@@ -1,0 +1,198 @@
+{
+  "type": "record",
+  "Aspect": {
+    "name": "dataHubAiConversationInfo"
+  },
+  "name": "DataHubAiConversationInfo",
+  "namespace": "com.linkedin.pegasus2avro.conversation",
+  "fields": [
+    {
+      "type": [
+        "null",
+        "string"
+      ],
+      "name": "title",
+      "default": null,
+      "doc": "Optional title for the conversation. "
+    },
+    {
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "DataHubAiConversationMessage",
+          "namespace": "com.linkedin.pegasus2avro.conversation",
+          "fields": [
+            {
+              "type": {
+                "type": "enum",
+                "name": "DataHubAiConversationMessageType",
+                "namespace": "com.linkedin.pegasus2avro.conversation",
+                "symbols": [
+                  "TEXT",
+                  "TOOL_CALL",
+                  "TOOL_RESULT",
+                  "THINKING"
+                ]
+              },
+              "name": "type",
+              "doc": "The type of message"
+            },
+            {
+              "type": "long",
+              "name": "time",
+              "doc": "Timestamp in milliseconds"
+            },
+            {
+              "type": {
+                "type": "record",
+                "name": "DataHubAiConversationActor",
+                "namespace": "com.linkedin.pegasus2avro.conversation",
+                "fields": [
+                  {
+                    "type": {
+                      "type": "enum",
+                      "symbolDocs": {
+                        "AGENT": "An agent initiated message. ",
+                        "USER": "A user initiated message. "
+                      },
+                      "name": "DataHubAiConversationActorType",
+                      "namespace": "com.linkedin.pegasus2avro.conversation",
+                      "symbols": [
+                        "USER",
+                        "AGENT"
+                      ]
+                    },
+                    "name": "type",
+                    "doc": "The type of actor "
+                  },
+                  {
+                    "Relationship": {
+                      "entityTypes": [
+                        "corpuser",
+                        "corpGroup"
+                      ],
+                      "name": "AuthoredBy"
+                    },
+                    "java": {
+                      "class": "com.linkedin.pegasus2avro.common.urn.Urn"
+                    },
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "name": "actor",
+                    "default": null,
+                    "doc": "The actor that has sent the message.\nRequired if type is not AGENT.",
+                    "Urn": "Urn",
+                    "entityTypes": [
+                      "corpuser",
+                      "corpGroup"
+                    ]
+                  }
+                ]
+              },
+              "name": "actor",
+              "doc": "Messages in the conversation"
+            },
+            {
+              "type": {
+                "type": "record",
+                "name": "DataHubAiConversationMessageContent",
+                "namespace": "com.linkedin.pegasus2avro.conversation",
+                "fields": [
+                  {
+                    "type": "string",
+                    "name": "text",
+                    "doc": "Raw message text"
+                  }
+                ],
+                "doc": "Conversation message content info "
+              },
+              "name": "content",
+              "doc": "The contents of the message. "
+            }
+          ],
+          "doc": "Conversation info "
+        }
+      },
+      "name": "messages",
+      "doc": "Messages in the conversation"
+    },
+    {
+      "Searchable": {
+        "/actor": {
+          "fieldName": "creator",
+          "fieldType": "URN"
+        },
+        "/time": {
+          "fieldName": "createdAt",
+          "fieldType": "DATETIME"
+        }
+      },
+      "type": {
+        "type": "record",
+        "name": "AuditStamp",
+        "namespace": "com.linkedin.pegasus2avro.common",
+        "fields": [
+          {
+            "type": "long",
+            "name": "time",
+            "doc": "When did the resource/association/sub-resource move into the specific lifecycle stage represented by this AuditEvent."
+          },
+          {
+            "java": {
+              "class": "com.linkedin.pegasus2avro.common.urn.Urn"
+            },
+            "type": "string",
+            "name": "actor",
+            "doc": "The entity (e.g. a member URN) which will be credited for moving the resource/association/sub-resource into the specific lifecycle stage. It is also the one used to authorize the change.",
+            "Urn": "Urn"
+          },
+          {
+            "java": {
+              "class": "com.linkedin.pegasus2avro.common.urn.Urn"
+            },
+            "type": [
+              "null",
+              "string"
+            ],
+            "name": "impersonator",
+            "default": null,
+            "doc": "The entity (e.g. a service URN) which performs the change on behalf of the Actor and must be authorized to act as the Actor.",
+            "Urn": "Urn"
+          },
+          {
+            "type": [
+              "null",
+              "string"
+            ],
+            "name": "message",
+            "default": null,
+            "doc": "Additional context around how DataHub was informed of the particular change. For example: was the change created by an automated process, or manually."
+          }
+        ],
+        "doc": "Data captured on a resource/association/sub-resource level giving insight into when that resource/association/sub-resource moved into a particular lifecycle stage, and who acted to move it into that specific lifecycle stage."
+      },
+      "name": "created",
+      "doc": "The time and actor who initiated the conversation"
+    },
+    {
+      "type": {
+        "type": "enum",
+        "symbolDocs": {
+          "DATAHUB_UI": "Chat session originated in DataHub UI "
+        },
+        "name": "DataHubAiConversationOriginType",
+        "namespace": "com.linkedin.pegasus2avro.conversation",
+        "symbols": [
+          "DATAHUB_UI"
+        ]
+      },
+      "name": "originType",
+      "default": "DATAHUB_UI",
+      "doc": "Origin type for the chat session"
+    }
+  ],
+  "doc": "Conversation info "
+}
