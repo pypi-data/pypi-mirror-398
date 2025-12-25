@@ -1,0 +1,284 @@
+"""Common dependencies for FastAPI routes.
+
+This module provides reusable dependency functions that can be injected
+into route handlers using FastAPI's Depends mechanism.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from fastapi import Depends, HTTPException, status
+from fastapi.requests import Request
+
+from ..services.cache_service import cache_response
+from ..services.config_store import ConfigStore
+from ..services.field_registry_wrapper import lazy_field_registry
+from ..services.field_service import FieldFormat, FieldService
+from ..services.webui_state import WebUIStateStore
+from ..utils.assets import get_asset_version
+
+logger = logging.getLogger(__name__)
+
+
+# Shared service instances
+_field_service = FieldService()
+
+
+# Cache for config data and webui defaults
+@cache_response(ttl_seconds=60)
+def _load_active_config_cached() -> Dict[str, Any]:
+    """Load active configuration with caching."""
+    try:
+        defaults = WebUIStateStore().load_defaults()
+        if defaults.configs_dir:
+            expanded_dir = Path(defaults.configs_dir).expanduser()
+            config_store = ConfigStore(config_dir=expanded_dir)
+        else:
+            config_store = ConfigStore()
+    except Exception:
+        config_store = ConfigStore()
+
+    active_config = config_store.get_active_config()
+
+    if active_config is None:
+        return {}
+
+    # Ensure active_config is a string
+    if not isinstance(active_config, str):
+        logger.error(f"Invalid active_config type: {type(active_config)}, expected string")
+        return {}
+
+    # Validate config name doesn't contain path separators
+    if "/" in active_config or "\\" in active_config:
+        logger.error(f"Invalid config name contains path separator: {active_config}")
+        return {}
+
+    try:
+        data, _metadata = config_store.load_config(active_config)
+
+        # For backward compatibility, merge nested "config" sections if present.
+        if isinstance(data, dict):
+            config_section = data.get("config")
+            if isinstance(config_section, dict):
+                merged = config_section.copy()
+                for key, value in data.items():
+                    if key == "config":
+                        continue
+                    merged.setdefault(key, value)
+                return merged
+        return data if isinstance(data, dict) else {}
+    except FileNotFoundError as exc:
+        logger.warning(f"Active config '{active_config}' not found: {exc}")
+        return {}
+    except Exception as exc:
+        logger.error(f"Error loading config '{active_config}': {exc}")
+        return {}
+
+
+async def get_config_data() -> Dict[str, Any]:
+    """FastAPI dependency to get active configuration data.
+
+    Returns:
+        Dict containing the active configuration data
+    """
+    return _load_active_config_cached()
+
+
+async def get_webui_defaults() -> Dict[str, Any]:
+    """FastAPI dependency to get WebUI default settings.
+
+    Returns:
+        Dict with configs_dir and output_dir defaults
+    """
+    webui_defaults: Dict[str, str]
+    try:
+        state_store = WebUIStateStore()
+        bundle = state_store.get_defaults_bundle()
+        resolved = bundle["resolved"]
+        asset_version = resolved.get("asset_version") or get_asset_version()
+
+        webui_defaults = {
+            "configs_dir": resolved.get("configs_dir", "Not configured"),
+            "output_dir": resolved.get("output_dir", "Not configured"),
+            "theme": resolved.get("theme", "dark"),
+            "event_polling_interval": resolved.get("event_polling_interval", 5),
+            "event_stream_enabled": resolved.get("event_stream_enabled", True),
+            "asset_version": asset_version,
+            "git_mirror_enabled": resolved.get("git_mirror_enabled", False),
+            "git_auto_commit": resolved.get("git_auto_commit", False),
+            "git_require_clean": resolved.get("git_require_clean", False),
+            "git_include_untracked": resolved.get("git_include_untracked", False),
+            "git_push_on_snapshot": resolved.get("git_push_on_snapshot", False),
+            "git_remote": resolved.get("git_remote"),
+            "git_branch": resolved.get("git_branch"),
+            "sync_onboarding_defaults": resolved.get("sync_onboarding_defaults", False),
+            "onboarding_sync_opt_out": resolved.get("onboarding_sync_opt_out", []),
+        }
+    except Exception as e:
+        logger.error(f"Error loading WebUI defaults: {e}")
+        webui_defaults = {
+            "configs_dir": "Not configured",
+            "output_dir": "Not configured",
+            "theme": "dark",
+            "event_polling_interval": 5,
+            "event_stream_enabled": True,
+            "asset_version": get_asset_version(),
+        }
+
+    return webui_defaults
+
+
+async def get_field_registry():
+    """FastAPI dependency to get the field registry.
+
+    Returns:
+        The lazy field registry instance
+
+    Raises:
+        HTTPException: If field registry is not available
+    """
+    if lazy_field_registry._registry is None:
+        lazy_field_registry._get_registry()
+
+    if lazy_field_registry._registry is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Field registry is not available. Please check server logs.",
+        )
+
+    return lazy_field_registry
+
+
+def get_config_value(config_data: Dict[str, Any], key: str, default: Any = "") -> Any:
+    """Get a configuration value with fallback to default.
+
+    Args:
+        config_data: Configuration dictionary
+        key: Key to look up
+        default: Default value if key not found
+
+    Returns:
+        The configuration value or default
+    """
+    if not config_data:
+        return default
+
+    # Support nested keys with dot notation
+    keys = key.split(".")
+    value = config_data
+
+    try:
+        for k in keys:
+            if isinstance(value, dict):
+                value = value.get(k)
+                if value is None:
+                    return default
+            else:
+                return default
+        return value if value is not None else default
+    except Exception:
+        return default
+
+
+@dataclass
+class TabRenderData:
+    """Prepared data required to render a trainer tab."""
+
+    fields: List[Dict[str, Any]]
+    config_values: Dict[str, Any]
+    sections: Optional[List[Dict[str, Any]]]
+    raw_config: Dict[str, Any]
+    webui_defaults: Dict[str, Any]
+
+
+async def get_tab_render_data(
+    tab_name: str,
+    field_registry=Depends(get_field_registry),
+    config_data: Dict[str, Any] = Depends(get_config_data),
+    webui_defaults: Dict[str, Any] = Depends(get_webui_defaults),
+) -> TabRenderData:
+    """Prepare template-ready data for a trainer tab."""
+
+    try:
+        tab_fields = field_registry.get_fields_for_tab(tab_name)
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.error("Failed to pull fields for tab %s: %s", tab_name, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Unable to load fields for tab '{tab_name}'"
+        ) from exc
+
+    config_values = _field_service.prepare_tab_field_values(
+        tab_name=tab_name,
+        config_data=config_data,
+        webui_defaults=webui_defaults,
+    )
+
+    template_fields, sections = _field_service.build_template_tab(
+        tab_name=tab_name,
+        config_values=config_values,
+        raw_config=config_data,
+    )
+
+    return TabRenderData(
+        fields=template_fields,
+        config_values=config_values,
+        sections=sections or None,
+        raw_config=config_data,
+        webui_defaults=webui_defaults,
+    )
+
+
+# Request context dependencies
+async def get_request_id(request: Request) -> str:
+    """Get or generate a request ID for correlation.
+
+    Args:
+        request: FastAPI request object
+
+    Returns:
+        Request ID string
+    """
+    request_id = request.headers.get("X-Request-ID")
+    if not request_id:
+        import uuid
+
+        request_id = str(uuid.uuid4())
+    return request_id
+
+
+async def get_htmx_request(request: Request) -> bool:
+    """Check if the request is from HTMX.
+
+    Args:
+        request: FastAPI request object
+
+    Returns:
+        True if HTMX request, False otherwise
+    """
+    return request.headers.get("HX-Request") == "true"
+
+
+async def get_config_store() -> ConfigStore:
+    """FastAPI dependency to get cached ConfigStore instance.
+
+    Returns:
+        ConfigStore instance (singleton with caching)
+    """
+    try:
+        from pathlib import Path
+
+        from simpletuner.simpletuner_sdk.server.services.webui_state import WebUIStateStore
+
+        defaults = WebUIStateStore().load_defaults()
+        if defaults.configs_dir:
+            expanded_dir = Path(defaults.configs_dir).expanduser()
+            return ConfigStore(config_dir=expanded_dir)
+    except Exception:
+        pass
+
+    return ConfigStore()  # Fallback to default resolution

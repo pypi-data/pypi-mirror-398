@@ -1,0 +1,383 @@
+<!-- Dataloader Configuration Section -->
+<script src="/static/js/dataloader-section-component.js?v={{ asset_version|default('20241206') }}"></script>
+<script>
+(() => {
+    if (window.dataloaderSectionComponent) {
+        return;
+    }
+    const src = '/static/js/dataloader-section-component.js?v={{ asset_version|default('20241206') }}';
+    try {
+        const request = new XMLHttpRequest();
+        request.open('GET', src, false);
+        request.send(null);
+        if (request.status >= 200 && request.status < 300 && request.responseText) {
+            Function(request.responseText)();
+        } else {
+            console.error('Failed to load dataloader section component script', request.status, request.statusText);
+        }
+    } catch (error) {
+        console.error('Error loading dataloader section component script', error);
+    }
+})();
+</script>
+
+<div id="dataloaderSection" data-builder="alpine" x-data="dataloaderSectionComponent()"
+     x-init="(() => {
+        init();
+
+        const notifyStoreReady = () => {
+            onStoreReady();
+            $el.dispatchEvent(new CustomEvent('store-ready'));
+        };
+
+        if (Alpine.store('trainer')) {
+            notifyStoreReady();
+        }
+
+        // Check periodically if the store becomes available
+        const checkStore = setInterval(() => {
+            if (Alpine.store('trainer')) {
+                clearInterval(checkStore);
+                notifyStoreReady();
+            }
+        }, 100);
+        // Stop checking after 5 seconds
+        setTimeout(() => clearInterval(checkStore), 5000);
+
+        // Listen for environment changes
+        const handleEnvironmentChange = async (event) => {
+            console.log('Environment changed to:', event.detail.environment);
+            const trainer = Alpine.store('trainer');
+            if (trainer && trainer.loadDatasetsAfterEnvironmentChange) {
+                // Reload datasets for the new environment
+                await trainer.loadDatasetsAfterEnvironmentChange();
+            }
+        };
+
+        window.addEventListener('environment-changed', handleEnvironmentChange);
+
+        const handleCaptionFiltersUpdated = () => {
+            syncCaptionFilterSelections();
+        };
+        window.addEventListener('caption-filters-updated', handleCaptionFiltersUpdated);
+
+        // Listen for config-saved events to reload dataset builder
+        const handleConfigSaved = async () => {
+            console.log('Config saved, reloading dataset builder');
+            const trainer = Alpine.store('trainer');
+            if (trainer && trainer.loadDatasetsAfterEnvironmentChange) {
+                await trainer.loadDatasetsAfterEnvironmentChange();
+            }
+        };
+        window.addEventListener('config-saved', handleConfigSaved);
+
+        // Clean up event listener when component is destroyed
+        $el.addEventListener('x-destroy', () => {
+            window.removeEventListener('environment-changed', handleEnvironmentChange);
+            window.removeEventListener('caption-filters-updated', handleCaptionFiltersUpdated);
+            window.removeEventListener('config-saved', handleConfigSaved);
+            if (this._dangerModeHandler) {
+                window.removeEventListener('trainer-danger-mode-changed', this._dangerModeHandler);
+                delete this._dangerModeHandler;
+            }
+            if (window.dataloaderSectionComponentInstance === this) {
+                delete window.dataloaderSectionComponentInstance;
+            }
+        });
+     })()">
+
+    <!-- Loading State -->
+    <div x-show="!storeReady" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading dataset builder...</span>
+        </div>
+        <p class="mt-3 text-muted">Initializing dataset builder...</p>
+    </div>
+
+    <!-- Main Content (shown when store is ready) -->
+    <div x-show="storeReady">
+        <!-- Mode Switcher -->
+        <div class="mode-switcher mb-3">
+            <button type="button" class="btn"
+                    :class="{ 'active': dataLoaderMode === 'builder' }"
+                    @click="switchDataLoaderMode('builder')"
+                    :disabled="!storeReady">
+                <i class="fas fa-tools"></i> Builder Mode
+            </button>
+            <button type="button" class="btn"
+                    :class="{ 'active': dataLoaderMode === 'json' }"
+                    @click="switchDataLoaderMode('json')"
+                    :disabled="!storeReady">
+                <i class="fas fa-code"></i> JSON Mode
+            </button>
+        </div>
+
+    <!-- Builder Mode -->
+    <template x-if="dataLoaderMode === 'builder'">
+    <div>
+        <!-- Presets -->
+        <div class="preset-container mb-4">
+            <h6 class="subsection-title">Quick Start Presets</h6>
+            <div class="preset-grid">
+                <button type="button" class="preset-btn" data-preset="simple-local" @click="loadPreset('simple-local')" :disabled="!storeReady">
+                    <div class="preset-name">Simple Local</div>
+                    <div class="preset-description">Basic local image training setup</div>
+                </button>
+                <button type="button" class="preset-btn" data-preset="aws-with-local-cache" @click="loadPreset('aws-with-local-cache')" :disabled="!storeReady">
+                    <div class="preset-name">AWS with Local Cache</div>
+                    <div class="preset-description">Cloud storage with fast local caching</div>
+                </button>
+                <button type="button" class="preset-btn" data-preset="video-training"
+                        @click="loadPreset('video-training')"
+                        :disabled="!storeReady || !isVideoModel"
+                        :title="isVideoModel ? 'Load video training preset' : 'Video training is only available for video models'">
+                    <div class="preset-name">Video Training</div>
+                    <div class="preset-description">Configuration for video model training</div>
+                </button>
+                <button type="button" class="preset-btn" data-preset="controlnet-training" @click="loadPreset('controlnet-training')"
+                        :disabled="!storeReady || !conditioningSupported"
+                        :title="conditioningSupported ? 'Load control-focused preset' : 'Active model does not support conditioning features'">
+                    <div class="preset-name">ControlNet Training</div>
+                    <div class="preset-description">Setup with conditioning generation</div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Dataset Builder Header: Search and View Toggle -->
+        <div class="dataset-builder-header mb-3" x-show="!datasetsLoading && datasets.length > 0">
+            <!-- Dataset Search -->
+            <div class="dataset-search">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text"
+                           class="form-control"
+                           x-model="datasetSearchQuery"
+                           placeholder="Search datasets...">
+                    <button type="button" class="btn btn-outline-secondary"
+                            x-show="datasetSearchQuery"
+                            @click="clearDatasetSearch()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Parameter Filter -->
+            <div class="parameter-filter">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="fas fa-filter"></i></span>
+                    <input type="text"
+                           class="form-control"
+                           x-model="parameterFilterQuery"
+                           placeholder="Filter options...">
+                    <button type="button" class="btn btn-outline-secondary"
+                            x-show="parameterFilterQuery"
+                            @click="clearParameterFilter()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- View Toggle -->
+            <div class="view-toggle btn-group btn-group-sm">
+                <button type="button" class="btn"
+                        :class="viewMode === 'list' ? 'btn-primary' : 'btn-outline-secondary'"
+                        @click="setViewMode('list')"
+                        title="List view">
+                    <i class="fas fa-list"></i>
+                </button>
+                <button type="button" class="btn"
+                        :class="viewMode === 'cards' ? 'btn-primary' : 'btn-outline-secondary'"
+                        @click="setViewMode('cards')"
+                        title="Grid view">
+                    <i class="fas fa-th-large"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Add Dataset Buttons -->
+        <div class="mb-4" x-show="!datasetsLoading">
+            <h6 class="subsection-title">Add Dataset Manually</h6>
+            <p class="text-muted small mb-3">Configure individual datasets with custom settings. For guided setup, use the Dataset Wizard above.</p>
+            <div class="add-dataset-container">
+                <button type="button" class="add-dataset-btn" @click="addDataset('image')" x-show="!isAudioModel">
+                    <i class="fas fa-plus"></i> 🖼️ Add Image Dataset
+                </button>
+                <button type="button" class="add-dataset-btn"
+                        @click="onAddDatasetClick('video')"
+                        :disabled="!storeReady"
+                        :title="isVideoModel ? 'Add a video dataset' : 'Add a video dataset (advanced users only)'"
+                        x-show="!isAudioModel">
+                    <i class="fas fa-plus"></i> 🎬 Add Video Dataset
+                </button>
+                <button type="button" class="add-dataset-btn" @click="addDataset('audio')" x-show="isAudioModel">
+                    <i class="fas fa-plus"></i> 🎵 Add Audio Dataset
+                </button>
+                <button type="button" class="add-dataset-btn" @click="addDataset('text_embeds')">
+                    <i class="fas fa-plus"></i> 💾 Add Text Embeds
+                </button>
+                <button type="button" class="add-dataset-btn" @click="addDataset('image_embeds')">
+                    <i class="fas fa-plus"></i> 💾 Add Image Embeds
+                </button>
+                <button type="button" class="add-dataset-btn"
+                        @click="addDataset('conditioning')"
+                        :disabled="!conditioningSupported"
+                        :title="conditioningSupported ? 'Add a conditioning dataset' : 'No supported model features for conditioning'">
+                    <i class="fas fa-plus"></i> 🎨 Add Conditioning
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div x-show="datasetsLoading" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading datasets...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading dataset configuration...</p>
+        </div>
+
+        <!-- Dataset List -->
+        <div class="dataset-list" x-show="!datasetsLoading">
+            <div class="alert alert-warning align-items-start gap-2 mb-3"
+                 x-bind:class="{ 'd-flex': requiresStrictI2VDatasets && videoDatasetCount === 0 }"
+                 x-show="requiresStrictI2VDatasets && videoDatasetCount === 0"
+                 x-cloak>
+                <i class="fas fa-exclamation-triangle mt-1"></i>
+                <div>
+                    <strong>Video datasets required.</strong>
+                    <div class="mb-0">
+                        Strict image-to-video flavours need at least one video dataset to supply frame sequences.
+                        Add a video dataset alongside any image data sources.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search results info -->
+            <div x-show="datasetSearchQuery && filteredDatasets.length !== datasets.length"
+                 class="alert alert-info small py-2 mb-3">
+                <i class="fas fa-filter"></i>
+                Showing <span x-text="filteredDatasets.length"></span> of <span x-text="datasets.length"></span> datasets
+                <button type="button" class="btn btn-link btn-sm p-0 ms-2" @click="clearDatasetSearch()">Clear filter</button>
+            </div>
+
+            <!-- Parameter filter active notice -->
+            <div x-show="parameterFilterQuery"
+                 class="alert alert-secondary small py-2 mb-3" x-cloak>
+                <i class="fas fa-eye-slash"></i>
+                Filtering options by "<span x-text="parameterFilterQuery"></span>" — some fields may be hidden
+                <button type="button" class="btn btn-link btn-sm p-0 ms-2" @click="clearParameterFilter()">Show all</button>
+            </div>
+
+            <!-- Validation Error Banner -->
+            <div x-show="loadValidationErrors && loadValidationErrors.length > 0" class="alert alert-danger mb-3" x-cloak>
+                <div class="d-flex align-items-start">
+                    <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
+                    <div class="flex-grow-1">
+                        <strong>Configuration Issues Detected</strong>
+                        <p class="mb-2 small">The dataset configuration has validation errors that should be fixed:</p>
+                        <ul class="mb-0 small">
+                            <template x-for="(error, idx) in loadValidationErrors" :key="idx">
+                                <li>
+                                    <span class="badge" :class="error.level === 'error' ? 'bg-danger' : (error.level === 'warning' ? 'bg-warning text-dark' : 'bg-info')" x-text="error.level"></span>
+                                    <strong x-text="error.field"></strong>: <span x-text="error.message"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- List View -->
+            <div class="dataset-list-view" x-show="viewMode === 'list'">
+                <template x-for="(dataset, index) in filteredDatasets" :key="dataset._uiKey || dataset.id || index">
+                    {% include 'components/dataloader/dataset_list_item.html' %}
+                </template>
+            </div>
+
+            <!-- Grid/Card View -->
+            <div class="dataset-grid-view" x-show="viewMode === 'cards'">
+                <template x-for="(dataset, index) in filteredDatasets" :key="dataset._uiKey || dataset.id || index">
+                    {% include 'components/dataloader/dataset_grid_card.html' %}
+                </template>
+            </div>
+
+            <div x-show="datasets.length === 0" class="text-center text-muted py-4">
+                <i class="fas fa-database mb-2" style="font-size: 2rem;"></i>
+                <p>No datasets configured. Add a dataset to get started.</p>
+            </div>
+
+            <div x-show="datasets.length > 0 && filteredDatasets.length === 0" class="text-center text-muted py-4">
+                <i class="fas fa-search mb-2" style="font-size: 2rem;"></i>
+                <p>No datasets match your search.</p>
+            </div>
+        </div>
+
+        <!-- Dataset Modal (for card view) -->
+        {% include 'components/dataloader/dataset_modal.html' %}
+
+        <!-- Save Buttons -->
+        <div class="mt-3 d-flex gap-2">
+            <button type="button" class="btn"
+                    :class="{'btn-warning': hasUnsavedChanges, 'btn-primary': !hasUnsavedChanges}"
+                    @click="saveDatasets()">
+                <i class="fas fa-save"></i>
+                <span x-text="hasUnsavedChanges ? 'Save Dataset Configuration (unsaved changes)' : 'Save Dataset Configuration'"></span>
+                <span x-show="hasUnsavedChanges" class="badge bg-danger ms-2">
+                    <i class="fas fa-exclamation-circle"></i> Unsaved
+                </span>
+            </button>
+            <button type="button" class="btn btn-outline-secondary"
+                    @click="if (Alpine.store('trainer')) { Alpine.store('trainer').showSaveDialog = true; }"
+                    title="Save with backup option">
+                <i class="fas fa-cog"></i> Save Options
+            </button>
+        </div>
+    </div>
+    </template>
+
+    <!-- JSON Mode -->
+    <template x-if="dataLoaderMode === 'json'">
+    <div>
+        <div class="json-editor-container">
+            <div class="json-actions">
+                <button type="button" class="btn btn-secondary" @click="if (trainer.dataLoaderJson) { trainer.dataLoaderJson = JSON.stringify(JSON.parse(trainer.dataLoaderJson), null, 2) }">
+                    <i class="fas fa-magic"></i> Format
+                </button>
+                <button type="button" class="btn btn-primary" @click="switchDataLoaderMode('builder')">
+                    <i class="fas fa-file-import"></i> Import to Builder
+                </button>
+                <button type="button" class="btn"
+                        :class="{'btn-warning': hasUnsavedChanges, 'btn-success': !hasUnsavedChanges}"
+                        @click="saveJsonDatasets()">
+                    <i class="fas fa-save"></i>
+                    <span x-text="hasUnsavedChanges ? 'Apply & Save JSON (unsaved changes)' : 'Apply & Save JSON'"></span>
+                    <span x-show="hasUnsavedChanges" class="badge bg-danger ms-2">
+                        <i class="fas fa-exclamation-circle"></i> Unsaved
+                    </span>
+                </button>
+            </div>
+            <div class="form-group">
+                <textarea
+                    class="form-control json-editor"
+                    x-model="dataLoaderJson"
+                    @input="markAsUnsaved()"
+                    rows="20"
+                    placeholder='[
+  {
+    "id": "training-images",
+    "type": "local",
+    "dataset_type": "image",
+    "instance_data_dir": "/path/to/images",
+    "resolution": 1024,
+    "resolution_type": "pixel_area",
+    "caption_strategy": "textfile",
+    "cache_dir_vae": "cache/vae",
+    "repeats": 0
+  }
+]'></textarea>
+            </div>
+        </div>
+    </div>
+    </template>
+    </div><!-- End of main content wrapper -->
+
+</div>
