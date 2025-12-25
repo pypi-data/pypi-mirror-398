@@ -1,0 +1,98 @@
+
+from acex.plugins.neds.core import RendererBase
+from typing import Any, Dict, Optional
+from pathlib import Path
+
+from jinja2 import Environment, FileSystemLoader
+from .filters import cidr_to_addrmask
+
+
+class CiscoIOSCLIRenderer(RendererBase):
+
+    def _load_template_file(self) -> str:
+        """Load a Jinja2 template file."""
+        template_name = "template.j2"
+        path = Path(__file__).parent
+        env = Environment(loader=FileSystemLoader(path))
+        env.filters["cidr_to_addrmask"] = cidr_to_addrmask
+        template = env.get_template(template_name)
+        return template
+
+    def render(self, logical_node: Dict[str, Any], asset) -> Any:
+        """Render the configuration model for Cisco IOS CLI devices."""
+
+        configuration = logical_node.configuration
+
+        # Give the NED a chance to pre-process the config before rendering
+        processed_config = self.pre_process(configuration, asset)
+        template = self._load_template_file()
+        return template.render(configuration=processed_config)
+
+    def pre_process(self, configuration, asset) -> Dict[str, Any]:
+        """Pre-process the configuration model before rendering j2."""
+        configuration = self.physical_interface_names(configuration, asset)
+        self.add_vrf_to_intefaces(configuration)
+        return configuration
+
+    def add_vrf_to_intefaces(self, config):
+        """
+        Loops all network_instances and add vrf definition to 
+        referenced interfaces
+        """
+        vrfs = config["network_instances"]
+        for vrf_name, vrf in vrfs.items():
+            if vrf["name"]["value"] == "global":
+                ...
+            else:
+                for _,interface in vrf["interfaces"].items():
+                    ref_path = interface["metadata"]["ref_path"]
+                    intf = config["interfaces"][ref_path.split('.')[1]]
+                    intf["vrf"] = vrf["name"]["value"]
+
+    def physical_interface_names(self, configuration, asset) -> None:
+        """Assign physical interface names based on asset data."""
+
+        for _,intf in configuration.get("interfaces", {}).items():
+            if intf["metadata"]["type"] == "ethernetCsmacd":
+                index = intf["index"]["value"]
+                speed = intf.get("speed", {}).get("value") or 1000000 # Default to gig
+                intf_prefix = self.get_port_prefix(asset.os, speed)
+                intf_suffix = self.get_port_suffix(asset.hardware_model, index)
+                intf["name"] = f"{intf_prefix}{intf_suffix}"
+        return configuration
+
+    def get_port_prefix(self, os:str, speed:int) -> Optional[str]:
+        PREFIX_MAP = {
+            "cisco_ios": {
+                1000000: "GigabitEthernet",
+            },
+            "cisco_iosxe": {
+                1000000: "GigabitEthernet",
+            },
+            "cisco_iosxr": {
+                1000000: "GigabitEthernet",
+            },
+            "cisco_nxos": {
+                1000000: "Ethernet",
+            },
+        }
+        return PREFIX_MAP.get(os, {}).get(speed) or "UnknownIfPrefix"
+
+
+    def get_port_suffix(self, hardware_model:str, index:int) -> Optional[str]:
+        max_index = 0
+        suffix_string = ""
+
+        # TODO: Utöka med fler modeller
+        match hardware_model:
+            case "C9300-48":
+                max_index = 48
+
+        # TODO: Fungerar upp till max port, förutsätter sen att man är 
+        # på en modul, stöd för en modul eftersom vi inte vet maxportar på
+        # tilläggsmodulen.
+        if index < max_index:
+            suffix_string = f"1/0/{index+1}"
+        elif index > max_index:
+            suffix_string = f"1/1/{index - max_index + 1}"
+        return suffix_string
