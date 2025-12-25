@@ -1,0 +1,91 @@
+[project]
+name = "uniprot-mcp-fastmcp"
+version = "0.1.1"
+description = "Model Context Protocol server that surfaces UniProtKB data as MCP resources, tools, and prompts."
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Jose Duarte", email = "josepipe0909@gmail.com" }
+]
+keywords = ["mcp", "uniprot", "bioinformatics", "llm", "agent"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.28.1",
+    "mcp[cli]>=1.19.0",
+    "pydantic>=2.12.3",
+    "starlette>=0.48.0",
+    "tenacity>=9.1.2",
+    "uvicorn>=0.38.0",
+    "prometheus-client>=0.20.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/fastmcp-me/uniprot-mcp#readme"
+Repository = "https://github.com/fastmcp-me/uniprot-mcp.git"
+Issues = "https://github.com/fastmcp-me/uniprot-mcp/issues"
+[project.scripts]
+uniprot-mcp = "uniprot_mcp.server:main"
+uniprot-mcp-http = "uniprot_mcp.__main__:run_http"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=4.1.0",
+    "anyio[trio]>=4.4.0",
+    "vcrpy>=7.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "B",
+    "UP",
+]
+ignore = ["B008"]  # Allow function call defaults for MCP decorators
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = ["src"]
+plugins = []
+disallow_subclassing_any = false
+
+[[tool.mypy.overrides]]
+module = ["mcp.*", "httpx.*", "httpx", "pydantic", "tenacity", "vcrpy", "starlette.*", "uvicorn"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uniprot_mcp"]

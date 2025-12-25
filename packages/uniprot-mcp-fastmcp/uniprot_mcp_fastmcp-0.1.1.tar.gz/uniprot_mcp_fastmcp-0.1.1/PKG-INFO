@@ -1,0 +1,341 @@
+Metadata-Version: 2.4
+Name: uniprot-mcp-fastmcp
+Version: 0.1.1
+Summary: Model Context Protocol server that surfaces UniProtKB data as MCP resources, tools, and prompts.
+Author-email: Jose Duarte <josepipe0909@gmail.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/fastmcp-me/uniprot-mcp#readme
+Project-URL: Repository, https://github.com/fastmcp-me/uniprot-mcp.git
+Project-URL: Issues, https://github.com/fastmcp-me/uniprot-mcp/issues
+Keywords: mcp,uniprot,bioinformatics,llm,agent
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Bio-Informatics
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: mcp[cli]>=1.19.0
+Requires-Dist: pydantic>=2.12.3
+Requires-Dist: starlette>=0.48.0
+Requires-Dist: tenacity>=9.1.2
+Requires-Dist: uvicorn>=0.38.0
+Requires-Dist: prometheus-client>=0.20.0
+Dynamic: license-file
+
+[![Add to Cursor](https://fastmcp.me/badges/cursor_dark.svg)](https://fastmcp.me/MCP/Details/1464/uniprot)
+[![Add to VS Code](https://fastmcp.me/badges/vscode_dark.svg)](https://fastmcp.me/MCP/Details/1464/uniprot)
+[![Add to Claude](https://fastmcp.me/badges/claude_dark.svg)](https://fastmcp.me/MCP/Details/1464/uniprot)
+[![Add to ChatGPT](https://fastmcp.me/badges/chatgpt_dark.svg)](https://fastmcp.me/MCP/Details/1464/uniprot)
+[![Add to Codex](https://fastmcp.me/badges/codex_dark.svg)](https://fastmcp.me/MCP/Details/1464/uniprot)
+[![Add to Gemini](https://fastmcp.me/badges/gemini_dark.svg)](https://fastmcp.me/MCP/Details/1464/uniprot)
+
+# UniProt MCP Server
+
+<!-- mcp-name: io.github.josefdc/uniprot-mcp -->
+
+[![PyPI version](https://img.shields.io/pypi/v/uniprot-mcp.svg)](https://pypi.org/project/uniprot-mcp/)
+[![Python versions](https://img.shields.io/pypi/pyversions/uniprot-mcp.svg)](https://pypi.org/project/uniprot-mcp/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![MCP Registry](https://img.shields.io/badge/MCP-Registry-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=uniprot-mcp)
+
+A Model Context Protocol (MCP) server that provides seamless access to [UniProtKB](https://www.uniprot.org/) protein data. Query protein entries, sequences, Gene Ontology annotations, and perform ID mappings through a typed, resilient interface designed for LLM agents.
+
+<a href="https://glama.ai/mcp/servers/@josefdc/Uniprot-MCP">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@josefdc/Uniprot-MCP/badge" alt="UniProt Server MCP server" />
+</a>
+
+## ✨ Features
+
+- **🔌 Dual Transport**: Stdio for local development and Streamable HTTP for remote deployments
+- **📊 Rich Data Access**: Fetch complete protein entries with sequences, features, GO annotations, cross-references, and taxonomy
+- **🔍 Advanced Search**: Full-text search with filtering by review status, organism, keywords, and more
+- **🔄 ID Mapping**: Convert between 200+ database identifier types with progress tracking
+- **🛡️ Production Ready**: Automatic retries with exponential backoff, CORS support, Prometheus metrics
+- **📝 Typed Responses**: Structured Pydantic models ensure data consistency
+- **🎯 MCP Primitives**: Resources, tools, and prompts designed for agent workflows
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+pip install uniprot-mcp
+```
+
+### Run the Server
+
+**Local development (stdio)**:
+```bash
+uniprot-mcp
+```
+
+**Remote deployment (HTTP)**:
+```bash
+uniprot-mcp-http --host 0.0.0.0 --port 8000
+```
+
+The HTTP server provides:
+- MCP endpoint: `http://localhost:8000/mcp`
+- Health check: `http://localhost:8000/healthz`
+- Metrics: `http://localhost:8000/metrics` (Prometheus format)
+
+### Test with MCP Inspector
+
+```bash
+npx @modelcontextprotocol/inspector uniprot-mcp
+```
+
+
+## 📚 MCP Primitives
+
+### Resources
+
+Access static or dynamic data through URI patterns:
+
+| URI | Description |
+|-----|-------------|
+| `uniprot://uniprotkb/{accession}` | Raw UniProtKB entry JSON for any accession |
+| `uniprot://help/search` | Documentation for search query syntax |
+
+### Tools
+
+Execute actions and retrieve typed data:
+
+| Tool | Parameters | Returns | Description |
+|------|-----------|---------|-------------|
+| `fetch_entry` | `accession`, `fields?` | `Entry` | Fetch complete protein entry with all annotations |
+| `get_sequence` | `accession` | `Sequence` | Get protein sequence with length and metadata |
+| `search_uniprot` | `query`, `size`, `reviewed_only`, `fields?`, `sort?`, `include_isoform` | `SearchHit[]` | Full-text search with advanced filtering |
+| `map_ids` | `from_db`, `to_db`, `ids` | `MappingResult` | Convert identifiers between 200+ databases |
+| `fetch_entry_flatfile` | `accession`, `version`, `format` | `string` | Retrieve historical entry versions (txt/fasta) |
+
+**Progress tracking**: `map_ids` reports progress (0.0 → 1.0) for long-running jobs.
+
+### Prompts
+
+Pre-built templates for common workflows:
+
+- **Summarize Protein**: Generate a structured summary from a UniProt accession, including organism, function, GO terms, and notable features.
+
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `UNIPROT_ENABLE_FIELDS` | unset | Request minimal field subsets to reduce payload size |
+| `UNIPROT_LOG_LEVEL` | `info` | Logging level: `debug`, `info`, `warning`, `error` |
+| `UNIPROT_LOG_FORMAT` | `plain` | Log format: `plain` or `json` |
+| `UNIPROT_MAX_CONCURRENCY` | `8` | Max concurrent UniProt API requests |
+| `MCP_HTTP_HOST` | `0.0.0.0` | HTTP server bind address |
+| `MCP_HTTP_PORT` | `8000` | HTTP server port |
+| `MCP_HTTP_LOG_LEVEL` | `info` | Uvicorn log level |
+| `MCP_HTTP_RELOAD` | `0` | Enable auto-reload: `1` or `true` |
+| `MCP_CORS_ALLOW_ORIGINS` | `*` | CORS allowed origins (comma-separated) |
+| `MCP_CORS_ALLOW_METHODS` | `GET,POST,DELETE` | CORS allowed methods |
+| `MCP_CORS_ALLOW_HEADERS` | `*` | CORS allowed headers |
+
+### CLI Flags
+
+```bash
+# HTTP server flags
+uniprot-mcp-http --host 127.0.0.1 --port 9000 --log-level debug --reload
+```
+
+## 📖 Usage Examples
+
+### Fetching a Protein Entry
+
+```python
+# Using MCP client
+result = await session.call_tool("fetch_entry", {
+    "accession": "P12345"
+})
+
+# Returns structured Entry with:
+# - primaryAccession, protein names, organism
+# - sequence (length, mass, sequence string)
+# - features (domains, modifications, variants)
+# - GO annotations (biological process, molecular function, cellular component)
+# - cross-references to other databases
+```
+
+### Searching for Proteins
+
+```python
+# Search reviewed human proteins
+result = await session.call_tool("search_uniprot", {
+    "query": "kinase AND organism_id:9606",
+    "size": 50,
+    "reviewed_only": True,
+    "sort": "annotation_score"
+})
+
+# Returns list of SearchHit objects with accessions and scores
+```
+
+### Mapping Identifiers
+
+```python
+# Convert UniProt IDs to PDB structures
+result = await session.call_tool("map_ids", {
+    "from_db": "UniProtKB_AC-ID",
+    "to_db": "PDB",
+    "ids": ["P12345", "Q9Y6K9"]
+})
+
+# Returns MappingResult with successful and failed mappings
+```
+
+## 🛠️ Development
+
+### Prerequisites
+
+- Python 3.11 or 3.12
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/josefdc/Uniprot-MCP.git
+cd Uniprot-MCP
+
+# Install dependencies
+uv sync --group dev
+
+# Install development tools
+uv tool install ruff
+uv tool install mypy
+```
+
+### Running Tests
+
+```bash
+# Run all tests with coverage
+uv run pytest --maxfail=1 --cov=uniprot_mcp --cov-report=term-missing
+
+# Run specific test file
+uv run pytest tests/unit/test_parsers.py -v
+
+# Run integration tests only
+uv run pytest tests/integration/ -v
+```
+
+### Code Quality
+
+```bash
+# Lint
+uv tool run ruff check .
+
+# Format
+uv tool run ruff format .
+
+# Type check
+uv tool run mypy src
+
+# Run all checks
+uv tool run ruff check . && \
+uv tool run ruff format --check . && \
+uv tool run mypy src && \
+uv run pytest
+```
+
+### Local Development Server
+
+```bash
+# Stdio server
+uv run uniprot-mcp
+
+# HTTP server with auto-reload
+uv run python -m uvicorn uniprot_mcp.http_app:app --reload --host 127.0.0.1 --port 8000
+```
+
+
+## 🏗️ Architecture
+
+```
+src/uniprot_mcp/
+├── adapters/           # UniProt REST API client and response parsers
+│   ├── uniprot_client.py  # HTTP client with retry logic
+│   └── parsers.py         # Transform UniProt JSON → Pydantic models
+├── models/
+│   └── domain.py       # Typed data models (Entry, Sequence, etc.)
+├── server.py           # MCP stdio server (FastMCP)
+├── http_app.py         # MCP HTTP server (Starlette + CORS)
+├── prompts.py          # MCP prompt templates
+└── obs.py              # Observability (logging, metrics)
+
+tests/
+├── unit/               # Unit tests for parsers, models, tools
+├── integration/        # End-to-end tests with VCR fixtures
+└── fixtures/           # Test data (UniProt JSON responses)
+```
+
+## 📦 Publishing
+
+This server is published to:
+- **PyPI**: [uniprot-mcp](https://pypi.org/project/uniprot-mcp/)
+- **MCP Registry**: [io.github.josefdc/uniprot-mcp](https://registry.modelcontextprotocol.io/v0/servers?search=uniprot-mcp)
+
+### Building and Publishing
+
+```bash
+# Build distribution packages
+uv build
+
+# Publish to PyPI (requires token)
+uv publish --token pypi-YOUR_TOKEN
+
+# Publish to MCP Registry (requires GitHub auth)
+mcp-publisher login github
+mcp-publisher publish
+```
+
+See [docs/registry.md](docs/registry.md) for detailed registry publishing instructions.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+
+1. Read our [Contributing Guidelines](CONTRIBUTING.md)
+2. Follow our [Code of Conduct](CODE_OF_CONDUCT.md)
+3. Check the [Security Policy](SECURITY.md) for vulnerability reporting
+4. Review the [Changelog](CHANGELOG.md) for recent changes
+
+Quick start for contributors:
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes with tests
+4. Run quality checks: `uv tool run ruff check . && uv tool run mypy src && uv run pytest`
+5. Commit using [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, etc.)
+6. Push and open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- **UniProt Consortium**: For providing comprehensive, high-quality protein data through their REST API
+- **Anthropic**: For the Model Context Protocol specification and Python SDK
+- **Community**: For feedback, bug reports, and contributions
+
+## 🔗 Links
+
+- **Documentation**: [GitHub Repository](https://github.com/josefdc/Uniprot-MCP)
+- **UniProt API**: [REST API Documentation](https://www.uniprot.org/help/api)
+- **MCP Specification**: [Model Context Protocol](https://modelcontextprotocol.io/)
+- **Issues & Support**: [GitHub Issues](https://github.com/josefdc/Uniprot-MCP/issues)
+
+## ⚠️ Disclaimer
+
+This is an independent project and is not officially affiliated with or endorsed by the UniProt Consortium. Please review UniProt's [terms of use](https://www.uniprot.org/help/license) when using their data.
+
+---
+
+**Built with ❤️ for the bioinformatics and AI communities**
