@@ -1,0 +1,81 @@
+*******************************************************
+**
+**  SOURCE CONTROLS FOR KNOCK-ONS (electrons)
+**  namelist sousetup
+*******************************************************
+**
+**  knockon.ne."disabled", gives source of "knock-on" electrons
+ 
+**    ="fpld_dsk" also writes disk file "fpld_dsk" with source*dtr 
+**                for test of source (see sourceko.f and finit.f),
+**                then exits.
+**    ="fpld_ds1" also writes disk file "fpld_dsk1" with source*dtr
+**                PLUS f(i,j,1,1) (no-renormalization), 
+**                for test of source (see sourceko.f and finit.f),
+**                and another file "fpld_dsk2" containing only f,
+**                then exits.
+**  komodel="mr", Marshall Rosenbluth mode, with primary electrons
+**                approximated by pitch-angle averaged distribution,
+**                and source directly from MR expression, averaged
+**                over pitch angle and interpolated on to code u,theta grid,
+**                as suggested by SCChiu.
+**                Presently, this is the only choice, so komodel has
+**                no effect (bh: 980501).
+**  nonko=the on cycle for the source.
+**  noffko=the off cycle for the source.
+**  isoucof=0(mode for lower cutoff of source, per bh), 
+**          .ne.0 (based on ucrit, per sc). (default=0)
+**    Per bh:
+**      soffvte=if positive, a factor (times v_thermal_e) for velocity below 
+**          which the knockon source is set to zero (to avoid double
+**          counting of FP and knockon collisions).
+**         =if negative, factor is abs(soffvte)*sqrt(E_c/E)*v_thermal_e,
+**            where E_c=2*E_Dreicer (see Fuchs et al, Phys. Fl. 29, 2931 
+**            (1986).
+**          (default: soffvte=3.0)
+**  isoucof==1:
+**    Per sc:
+**      soffvte=(.gt.0.)a minimum value for source cutoff and defn. of runaways
+**            given as a factor of vthe(lr_)/vnorm.
+**            (.le.0) then faccof*ucrit is used for cutoff. See sourceko.f.
+**      faccof= factor times ucrit for cutoff. (default=1.)  (sc)
+**      (Should combine bh and sc methods for cutoff).
+**  soffpr=a factor which is multiplied by the above source cutoff velocity 
+**         (from soffvte or faccof) giving absolute value of the parallel  
+**         momentum-per-mass below which the primary electron distribution 
+**         for the knockon process is set equal to zero. 
+**c  nkorfn=.ne.1, refined the theta grid calc of the knockon source.
+**c         It is the number of theta mesh points between the theta
+**c         grid points at which the knockon source is calculated.
+**c         (default: nkorfn=1).  Evidently, no longer used [BH071012].
+**  flemodel="pol" or "fsa" to invoke poloidally dependent, or flux
+**           surface average calc of the parallel distribution, 
+**           respectively, for plotting purposes (pltprppr).
+**           (For knockon.ne."disabled", only a pitch angle averaged
+**           reduced distn is used, and plotting of this is presently
+**           "disabled" (bh: 980501).
+**  jfl=number of grid points in parallel (reduced) distribution function
+**      (Hard-wired to jx, for knockon.ne."disabled")
+**      
+**  xlfac=parallel velocity mesh spacing factor
+**    (Not used if knockon="enabled", in which case the parallel
+**     mesh is same as the x-mesh.)
+**    xlfac=1. ==> uniform mesh;
+**    xlfac<1. ==> geometric mesh with greater mesh resolution at x=0;
+**    xlfac>1. ==> greater resolution at xmax.
+**    xlfac<0. ==> xpctmdl,xpctlwr,xmdl,xlwr must be input.
+**    xlfac<0. ==> the momentum (velocity) mesh contains three regions:
+**    The region +/-[0,xllwr] will have jfl*xlpctlwr evenly spaced 
+**    mesh points.
+**    The region +/-[xllwr,xlmdl] will have xlpctmdl*jfl mesh points.
+**    The region +/-[xlmdl,xmax] will have the balance of the jfl points.
+**    default: xlfac=1.
+**   For knock-on source:
+**    Need to have nso.ne.0 to turn it on.  nsou is as for the
+**    analytic sources. Need soucoord="disabled" to turn
+**    off above analytic sources, when nso.ne.0. 
+**    pltso controls plotting.  
+**    Also need nonso(1,1) and noffso(1,1) set so source 
+**      goes on.
+**
+**************************************************************

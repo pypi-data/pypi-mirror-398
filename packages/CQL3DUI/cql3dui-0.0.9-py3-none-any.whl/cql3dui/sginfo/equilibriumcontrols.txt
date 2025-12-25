@@ -1,0 +1,209 @@
+**************************************************************
+**
+**  MAGNETIC GEOMETRY INPUT FOR "EQ" ROUTINES
+**  namelist eqsetup
+**************************************************************
+**
+**  eqmod="enabled" means the code assumes that the flux surface geometry
+**    is general, through eqsource . Integrations are then performed
+**    to determine the flux surfaces and the local magnetic field. The
+**    input variable psimodel is overwritten and set equal to "spline".
+**    default: ="disabled".   (lrzmax can be .ge.1).
+**    ="disabled", then analytic model available, specified by
+**                 rboxdst rbox zbox radmaj radmin bth and btor
+**
+**  Presently (June, '02) the input equilibria are up-down symmetrized
+**  in the code by several methods, as defined by eqsym, below.
+**  These are all kluges.
+**  The code is not presently set up for non-up/down-symmetric equilibria.
+**  (But, implemented non-up-down symmetric eqdsk, BH, Oct'09).
+**
+**  eqsym= Specifies the manner of up/down symmetrization.
+**          "none", to be used for no-symmetrization, 
+**                  when it becomes available (BH:Oct'09).
+**                  Only valid for eqmod.eq."enabled",eqsource="eqdsk".
+**                  Must have taunew='enabled'.
+**                  Note:  Still require in eqdsk that ymideqd, up-down 
+**                         mid-point of the z-mesh, is equal to 0.
+**          "average", up-down-symmetrization by averaging psi-values
+**             above and below z=0 plane. 
+**             (Only possibility until June,'02).
+**          "avg_zmag", up-down-symmetrization by averaging psi-values
+**             above and below z=zmag plane.  zmag is given in the
+**             equilibrium data, the z-value of the magnetic axis.
+**             Then vertically shift data so zmag is zero, and similarly
+**             adjust RF and diagnostics (X-ray) and NBI source.
+**          "top", up-down-symmetrization by reflecting psi in the plane
+**             above zmag to z.lt.zmag.  Then vertically shift 
+**             data so zmag is zero, and similarly
+**             adjust RF and diagnostics (X-ray) and NBI source. 
+**          "bottom", up-down-symmetrization by reflecting psi in the 
+**             plane below zmag to z.gt.zmag.  Then vertically shift 
+**             data so zmag is zero, and similarly
+**             adjust RF and diagnostics (X-ray) and NBI source.
+**       default: eqsym="average" 
+**
+**  eqsource controls the equilibrium disk file source
+**    default: eqsource="eqdsk"  (when eqmod="enabled")
+**  eqsource="eqdsk" indicates an eqdsk file is to be read in. An eqdsk
+**    file is a standard equilibrium code output file. See, for instance,
+**    GA Tech report GA-A18036 by Helton and Bernard. Input variables
+**    rboxdst rbox zbox radmaj radmin bth and btor are reset from eqdsk
+**    data. This file, which must reside on the user's disk space, is
+**    named eqdsk by default but can be reset using eqdskin below.
+**  eqsource="topeol"  indicates the existence of a disk file called
+**    topeol which is the output from a Culham equilibrium code. This
+**    is not a standard choice for eqsource.
+**  eqsource="ellipse"  while eqmod="enabled" generates elliptical cross-
+**    section flux surfaces; this option requires, in addition, that
+**    that input variables ellptcty, eqmodel, eqpower, fpsimodl, and rmag
+**    be set. The limiter position is assumed to be located at (R,Z)=
+**    (rmag,radmin). radmin is the minor radius.
+**    This is a fragile option, used only for the original debug
+**    and is not recommended for use in general.
+**    default: eqsource="eqdsk"
+**  eqsource="tsc" implies that the code will utilize a file generated
+**    by the Princeton (S. Jardin) TSC transport code...this file
+**    provides more than magnetic geometry information. Density and
+**    temperature profiles for species are also provided by this
+**    file. This file is called 'tscinp'. (Must have lrzmax.gt.1).  
+**  eqsource="miller"    !New option added in 2020
+**    Analytically defined equilibrium, D-shape. 
+**    REF: R.L. Miller et al., "Noncircular, finite aspect ratio, local
+**    equilibrium model", Phys. Plasmas, Vol. 5, No. 4, April 1998,
+**    See Eqs.36-37.  
+**    All related namelist variables start with "eq_miller_" prefix.
+**    Set in cqlinput: 
+**     eq_miller_rmag= ! Magnetic axis: major radius coord [cm]
+**     eq_miller_zmag= ! Magnetic axis: vertical coord [cm]
+**     eq_miller_btor= !Tor field at Geom. center of LCFS [Gauss], with sign.
+**       !Note: the sign of eq_miller_btor will be saved 
+**       ! as bsign variable (stored in comm.h)
+**     eq_miller_radmin= ! Plasma minor radius [cm]
+**     eq_miller_cursign=![+1. or -1.] Sign of Plasma Current in phi-direction,  
+**       ! will be saved and used as cursign variable. 
+**     eq_miller_psimag= ! Pol.flux at magn.axis [cgs] Set as positive.
+**     eq_miller_psilim= ! Pol.flux at LCFS: Set smaller than psimag.
+**     eq_miller_psi_n=  ! n and m powers for PSI(r) profile as in 
+**     eq_miller_psi_m=  !  PSI(r)= psilim+(psimag-psilim)*(1-(r/a)^n)^m
+**     eq_miller_deltaedge= ! Triangularity of LCFS (at r=radmin)[e.g., 0.4]
+**     eq_miller_kappa=  ! Vertical elongation (const for all surfaces).
+**     eq_miller_drr0= ! dR0/dr [e.g., -0.3]. We assume Shafr.shift=-drr0*r 
+**    The equations for the (Rs,Zs) coordinates that define flux surfaces
+**    can be found in subr. eq_miller(), see these lines:
+**    Rs= rmag + drr0*r + r*dcos(tpbs)  !we assume Shafr.shift=-drr0*r
+**    Zs= zmag + akappa*r*sint ! Vertical coord [cm] along magnetic surface
+**    Other related values:  
+**    Set eqsym='none' ! The only option for "miller" equilibrium. 
+**    Also use  eqmod='enabled' for "miller" equilibrium case.
+**
+**  For file-based eqsource, set:
+**  
+**  eqdskin= character*512 name of input eqdsk file.  Default="eqdsk".
+**
+**  bsign=Multiplier of toroidal B-field terms read from eqdsk(btor,f,ff'),
+**    and of the total B-field plus sign of npar in URFREAD_ input files.  
+**    This is a  fix of neg. B-field problems in the URF routine
+**    and possible elsewhere.  See urfread_.f (BobH, 980611). 
+**    This is only for eqsource="eqdsk", btor.lt.0.  (default: bsign=1.0)
+**
+**  eqdskalt="enabled" means that once the current is computed
+**    it is utilized to compute p' and ff'. These quantities are
+**    then used to update the "eqdsk" file if eqmod="eqdsk".
+**    eqdskalt="disabled"
+**
+**  povdelp determines the flux surface at which the calculation
+**    takes place if rovera < 0. The value of psi (poloidal flux
+**    coordinate) chosen is psi=psimag-(psimag-psilim)*povdelp.
+**    psimag is psi at the magnetic axis; psilim is psi at the limiter.
+**    In this code psimag.gt.psilim.
+**    0. .le. povdelp .le. 1.
+**    default:povdelp=.2
+**
+**  ellptcty is the ellipticity of the contours for eqsource="ellipse".
+**    =0 gives circles.
+**    ---> 1 give ellipses increasingly high in the Z direction.
+**      default: =0
+**
+**  rmag gives the R position of the magnetic axis for eqsource="ellipse"
+**    default: 100. (cm)
+**
+**  eqmodel chooses a model for the value of the poloidal flux function
+**    on the flux surface generated by use of option eqsource="ellipse":
+**    psi(R,Z)=factor*E**eqpower where
+**    E=sqrt(Z**2+(R-rmag)**2/(1.-ellptcty**2)).
+**    The factor is determined from the choice of bth.
+**    default: eqmodel="power"
+**    No other models currently exist (4/15/88).
+**
+**  eqpower is described just above.
+**    default: eqpower=1.
+**
+**  fpsimodl="constant" means the f=R*btor is independent of psi.
+**    This is the only model currently available for eqsource="ellipse".
+**
+**  rbox and zbox define the R length and the Z height of the
+**    computational domain where the equilibrium is determined and
+**    psi(R,Z) is defined.
+**    It need be set only if eqsource="ellipse"
+**    default:rbox=zbox=100
+**
+**  rboxdst is the value of R defining the inside edge of the box
+**    They need be set only if eqsource="ellipse"
+**    (above).
+**    default: rboxdst=50.
+**
+**  atol and rtol are the absolute and relative accuracies demanded
+**    of the LSODE orbit integrating routine.
+**    A coupled pair of O.D.E's are solved to determine the
+**    field line orbit.
+**    default; both are 1.e-8
+**
+**  For the LSODE O.D.E. solver we specify:
+**   methflag=10 for nonstiff Adams method (no Jacobian used).
+**           =21 for stiff (BDF) method, user supplied Jacobian.
+**               (Jacobian supplied in subroutine eqjac)
+**           =22 for stiff method, internally generated Jacobian.
+**    default:10
+**
+**  nconteqn(integer), and
+**  nconteq(character*8)  play roles 
+**    in interfacing between the input magnetic
+**    configuration and the chosen flux surfaces where the 
+**    Fokker-Plancking will take place. In order to select the flux
+**    surface psi associated with a choice of rovera, an interpolation
+**    is done with respect to an array of flux surface values eqpsi(l).
+**    If nconteq.ne."psigrid", then
+**    (integer) nconteqn .le. nconteqa generates an array 
+**    eqpsi(l) evenly spaced in psi.
+**  nconteq="psigrid" generates an array evenly spaced at R values in
+**    the the midplane corresponding to the eqdsk from the magnetic
+**    axis to the plasma edge.  The value of
+**    nconteqn is calculated.  (For a 33x65 grid, a typical number
+**    is found to be 12).
+**    Old defaults: "psigrid" (previously highly recommended operating mode,
+**                         although not sure why, BH990909),
+**                        BH131001: NOT RECOMMENDED.  The
+**                        nconteqn value generated by this method
+**                        is roughly the number of R points in the
+**                        eqdsk between the mag axis and psilim,
+**                        which may be much too small for accurate
+**                        binning in nfreya.
+**    NEW Recommendation (as of 131001): 
+**                        nconteq="disabled", nconteqn=40 or 50.
+**               nconteqn=0
+**    NEW defaults: (BH, as of 171211)
+**      nconteq="disabled"
+**      nconteqn=50  [If nconteq="psigrid", code will stop and user will
+**                    be forced to reset
+**                    psigrid="disabled", or reset nconteqn=0
+**                    in cqlinput.]
+**
+**  lfield  is the number of poloidal
+**    points at which the O.D.E. integrator returns values for
+**    R(s) and Z(s), where s parameterizes the contour.
+**    default: lfield=250 (note: lfielda is not used anymore).
+**
+**   END "EQ" MODULE INPUT
+**
+**************************************************************

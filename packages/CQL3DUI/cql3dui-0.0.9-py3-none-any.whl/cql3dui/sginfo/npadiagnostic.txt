@@ -1,0 +1,151 @@
+***************************************************************
+**
+**  NEUTRAL PARTICLE (npa)  DIAGNOSTIC
+**  
+***************************************************************
+**
+**  npa_diag="enabled" means that the diagnostic will be utilized.
+**           See Cql3d_npa_memo_1.pdf, CQL3D_npa_memo_2.pdf. These
+**           reference the SXR description, TCV_sxr_CompX-2000-2.pdf.
+**           See NPA_discussion_050826.eml for informal notes.
+**           NPA spectra are added to the .nc file at the first
+**           and last steps.
+**          "ncdf_all" same as "enabled" except spectra for all
+**            time steps is stored in the netCDF file (rather than
+*             just the first and last time steps).
+**           default: npa_diag="disabled"
+**
+**  NB: NPA presently assuming up-down symmetry in tdnpa0.
+**      Fairly easy to generalize, as required [BH120328].
+**
+**  A right-hand cartesian x,y,z-coordinate system is assumed,
+**  with the z-axis along the symmetry axis of the toroidal
+**  device.
+**
+**  Toroidal geometry with circular or non-circular flux surfaces 
+**  is assumed (depending on eqmod namelist variable).
+**  The detector is assumed to be located outside the plasma,
+**    and without loss of generality, to be in the x-z 
+**    plane (y=0.).
+**  Detector location is specified by either
+**    (a) rd_npa(1:nv_npa),thetd_npa(1:nv_npa):  minor radius (cms)
+**                   measured from the magnetic axis, and poloidal
+**                   angle(degs) measured from the x-axis in right-hand
+**                   sense about the negative y-axis
+**                   (defaults: rd_npa(:)=100., thetd_npa(:)=0.).
+**       or, if the first elements of either of the following 
+**       two inputs is .ne.0., use:
+**    (b) x_npa(1:nv_npa),z_npa(1:nv_npa): the x,z-location (cms) of 
+**                   the detector. (defaults: x_npa(:)=0., z_npa(:)=0.)
+**
+**  nv_npa=number of viewing cords.
+**          Must be .le. nva (in param.h).
+**
+**  Detector viewing coords are specified by two angles,
+**    (in the manner of the GENRAY and TORAY ray tracing codes):
+**    thet1_npa(1:nv_npa)=polar angle measured from the z-axis (degs).
+**                (90. deg is horizontal).  default: 90.
+**    thet2_npa(1:nv_npa)=toroidal angle of the viewing coord,
+**          measured from the x-z plane (y=0.) in right-hand-sense
+**          with respect to the z-axis direction (degs).
+**          (0. is in +R major radius dirn, 
+**           180. is in -R major radius direction.)  default: 180.
+**    We have detector direction vector x,y,z-components:
+**          detec_x=sin(thet1_npa)*cos(thet2_npa)
+**          detec_y=sin(thet1_npa)*sin(thet2_npa)
+**          detec_z=cos(thet1_npa)
+**          
+**  nen_npa=number of energies at which spectral values calculated,
+**          for each sightline. (default =1)
+**          Must be .le. nena (presently set to 30, in param.h).
+**
+**  enmin_npa,enmax_npa=minimum,maximum energy in the 
+**              calculated spectra(keV). (defaults: 5., 50.)
+**
+**  m_npa [DEFUNCT] is the order of the highest polynomial used 
+**     in the Legendre expansion for computing NPA spectra 
+**     (.le. mxa in param.h).   default: m_npa=3
+**     DEFUNCT [BH, 100521]:  No expansion of ion distribution is
+**     used, since the CX cross-section is taken in the limit that
+**     the ion energy is much greater than neutral energy, i.e.,
+**     zero neutral temperature.
+**
+**  atten_npa="enabled", normal calculation of attenuation of 
+**            charge exchange neutrals by reionization by e or i
+**            impact.  [Could add other processes.]   (default).
+**            "disabled", for numerical testing purposes.
+**
+**  fds_npa= specifies the step size along the viewing cord, as a 
+**     fraction of the average radial width of each radial bin 
+**     (0.2 is a reasonable value).
+**
+**  nnspec=fast ion species number, corresponding to the NPA neutral 
+**         density species.  The NPA signal is derived
+**         by neutralization (CX or recombination) from ion general 
+**         species nnspec. Species are numbered as described above
+**         for kspeci and related comments.
+**         default:  nnspec=1
+**
+**  ipronn= "disabled", zero neutral density profile ("default")
+**          "exp", specify normalized neutral density profile
+**                   as exp( -(1.-rya(l))*radmin/ennl),  default
+**          "spline", specify neutral density profile
+**                   by values ennin(1:njene,:) at values of radius
+**                   ryain(l)  (r/a)  l=1,njene (the x coordinate),
+**                   as given above for enein.  njenn must be equal
+**                   to njene, at this time, and is not a nml variable.
+**          "spline-t", time-dependent profiles (see description of ennin_t)
+**                   In this case, the profiles can be calc-ed 
+*                    self-consistently by transport codes 
+*                    and saved into data files (see read_ennprofile_times).
+**      ipronn is a single, character*8 value.
+**      ipronn has been extended to apply to up to npaproca NPA-related
+**      processes [BH,20100720], below.  That is, it controls all
+**      npaproc input density profiles. Presently, parameter npaproca=5.
+**
+**  npaproc=number of NPA processes to be considered.  Default=1
+**          [If only want "cxh" and "radrecom" processes, still
+**           need to set this number = 5]
+**
+**     Below, ennl,ennb,ennin,npa_process dimensioned to 
+**     npaproc.le.npaproca.
+**
+**  npa_process(1:npaproc)=  Processes considered giving neutral
+**                           NPA particles (set each of following in
+**                           given array position): [default="notset"]
+**                           (1)"cxh" gives CX of FI with hydrogenic
+**                               neutral specified by 1st density 
+**                               profile, ennl(1)/ennb(1) or ennin(:,1).
+**                           (2)"cxb4" gives CX of FI with Boron+4 with
+**                               2nd density profile, ennl(2)/ennb(2)
+**                               or ennin(:,2).
+**                           (3)"cxhe' CX of FI with He (not implmtd)
+**                           (4)"cxc" CX of FI with C (not implmtd)
+**                           (5)"radrecom" radiative recombination of
+**                              FI with electrons (implmtd)
+**                           [defaults: npa_process(1)="cxh", 
+**                                   npa_process(2:npaproca)="notset"]
+**                           Following densities are used, with storage
+**                           in corresponding npaproc location, e.g., 
+**                           ennin(*,1) for "cxh",
+**                           ennin(*,5) for "radrecom" process.
+**
+**  ennl(1:npaproc)=scale length (cms), for ipronn="exp". 
+**                  default: ennl()=5.
+**  ennb(1:npaproc)=boundary value of neutral density (/cm**3), used for
+**       normalization of above ipronn specified profiles.
+**       Neutral density outside plasma may be taken equal to this.
+**       default: ennb()=1.e10
+**
+**  ennin(1:njene,1:npaproc) = neutral density (/cm**3) profiles for
+**       up to npaproca NPA-related processes.  Set values corresponding
+**       to set values of npa_process().  default:  ennin(:,:)=0.0
+**
+**  ennscal(1:npaproc)= Scale factors for the above ennl/ennb or ennin
+**       density profiles.  ennscal(i) scales ennl(i)/ennb(i), 
+**       or ennin(*,i) profiles.  Default values = 1.0.
+**
+**  
+** 
+**
+***************************************************************

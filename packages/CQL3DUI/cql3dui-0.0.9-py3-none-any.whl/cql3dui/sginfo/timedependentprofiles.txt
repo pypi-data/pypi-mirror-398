@@ -1,0 +1,189 @@
+**************************************************************
+**
+**  TIME-DEPENDENT PROFILES
+**
+***************************************************************
+**
+**  Time-dependent profiles are implemented either by specifying
+**    (A) central and edge values for parabolic-type profiles
+**    as a function of time, or as (B) a series of spline
+**    profiles as described at time-dependent splines, below.
+**
+**  (A) central and edge values for parabolic-type profiles
+**  =======================================================
+**    nbctime > 0, and profile designator (iprone, etc.) is "prbola-t"
+**    The exponents of the profiles are fixed in time,
+**    and are those used elsewhere in the code.
+**
+**    BH131029:  Presently, it does not appear their is backward
+**               compatability with iprone='parabola', nbctime.gt.0.
+**               Need to fix this.
+**    
+**  Two methods are implemented for specification of the time-
+**    dependent parabolic profiles, according to tmdmeth="method1"
+**    or "method2".
+**  tmdmeth="method1", then specify central and edge values at a
+**            sequence of times, bctime(1:nbctime), as given below.
+**         ="method2"  give central and edge values at only
+**            two times bctime(1:2).  The edge and central
+**            values are constant up to bctime(1), vary as
+**            y=y2+((y1-y2)/2.)*(1.+cos((t-t1)/(t2-t1)) up to 
+**            time bctime(2), and then constant.  y1 and y2
+**            are given by redenc(1:2), and so on.
+**            (default="method1")
+**
+**  nbctime=number of times at which profile data given.
+**     Set nbctime=0 for no time-dependent profiles, else
+**     specify time dependent profiles.  (default=0)
+**
+**  bctime(1:nbctime)=times at which data given (seconds).
+**    (default= 0, 1., 2., ..., float(nbctimea-1))
+**    If code time .lt. bctime(1), use bctime(1) profiles.
+**    If code time .gt. bctime(nbctime), use bctime(nbctime) profiles.
+**
+**  bctshift=time shift of bctime(array), to facilitate the present
+**    configuration of cql3d which starts each run at time=0, even
+**    for restarts.  Can lookup previous end time(s) in the time()
+**    varaible of the  previous .nc o/p file.  Future work should 
+**    enable time to be continuous, with restart.  (default=0.d0)
+**
+**  bctimescal=scale factor for bctime, for convenience of stretching
+**    background plasma time variation.  Applied after any bctshift.
+**    (default: bctime_scale=1.d0)
+**
+**  Setting central values =0. at the first time step
+**    turns off profile generation through this namelist variable.
+**    (default is all central and edge values =0.)
+**    BH131029:  Looking over profiles.f, this option does not appear
+**               to be implemented.
+**
+**  redenc(1:nbctime,k), redenb(1:nbctime,k) central and edge values
+**    for each species k (cm**-3).  The powers of the parabola are
+**    given by npwr(0), mpwr(0) as above, and are time-independent.
+**    NOTE: for time-dependent density profiles, most sensible cases will
+**        use lbdry="scale". 
+**    With time dependent density and lbdry="scale", density is added
+**      to achieve specified density, at either the local (in time and
+**      position) temperature, or at the input value of
+**      temperature as specified by temp_den.
+**  temp_den=0., use local in time and radius temperature for added density.
+**           .ne.0., then use this as temperature of added density (keV).
+**           (default= 0.0).
+**  tempc(1:nbctime,k), tempb(1:nbctime,k) central and edge values
+**    for each species k (keV).  npwr(1:ntotal), mpwr(1:ntotal ) 
+**    as for temp( ,k).
+**  zeffc(1:nbctime),zeffb(1:nbctime), with real*8 npwrzeff,mpwrzeff,
+**    specify zeff profiles as described above.
+**  NOTE: if using this option (i.e., zeffc(1).ne.0.), need to have 
+**        iprozeff="prbola-t"  (see iprozeff above).
+**        Also, can specify two maxwellian ion species,  one
+**        with high enough Z, or the code will will add a second
+**        ion species with Z=50.
+**  elecc(1:nbctime),elecb(1:nbctime), with real*8 npwrelec,mpwrelec
+**    specify electric field profiles, unless current profile
+**    control is enabled (volts/cm).  See below, D.C. ELECTRIC FIELD TERM.
+**  vphic,vphib,npwrvphi,mpwrvphi similarly, specify toroidal rot (cm/sec).
+**
+**  Parallel Current profile (rather than specified electric field) gives
+**    electric field if efswtch.eq."method2" or "method4", and
+**    (xjc(1).ne.0., or totcrt.ne.0.):
+**  xjc(1:nbctime),xjb(1:nbctime),npwrxj(real),mpwrxj(real) specify 
+**    target current density profiles.  
+**    If the following totcrt=0., but xjc(1).ne.0., 
+**    then these profiles are absolute (amps/cm**2).  
+**    If totcrt(1).ne.0, then these give the current density profile,
+**      normalized to totcrt total plasma current. 
+**  totcrt(1:nbctime) .ne.0., then total plasma current is specified
+**    (amps) according to a profile given by xjc,xjb,npwrxj,mpwrxj.
+**  NOTE: if using this option (i.e., xjc(1).ne.0.), need to have 
+**        iprocur="prbola-t" (default = 'disabled').
+**        (However, iprocur is not in ZOW version of cql3d.) (Now it is? Needs testing)
+**
+**  (B) a series of spline profiles
+**  ===============================
+**  nbctime > 0, and the respective profile indicators (iprone, etc)
+**    must be set to "spline-t", as appropriate.
+**    Must have tmdmeth="method1".  Not set up for above "method2" case.
+**    A series of radial profiles specified at the ryain(1:nprone)
+**    are given corresponding to times bctime(1:nbctime).
+**    Default values for the *_t inputs below are 0.0d0.
+**  enein_t(1:njene,1:ntotal,1:nbctime) input as series of density
+**    profiles.   If using iprozeff = "prbola-t" or "spline-t", densities
+**    are set up as described with iprozeff and izeff namelist input.
+**    Can scale profiles with enescal.
+**    If time-dependent spline ion densities, assume 1st in species,
+**    at least.
+**  tein_t(1:njene,1:nbctime) input as series of Te profiles (keV).
+**    Can scale profiles with tescal.
+**  tiin_t(1:njene,1:nbctime) input as series of Ti profiles (keV).
+**    Applies to all ion temperatures, although coding can be readily
+**    adjusted for individual species if needed.
+**    Can scale profiles with tiscal.
+**  zeffin_t(1:njene,1:nbctime) input as series of Zeff profiles.
+**     Used if iprozeff.eq."spline-t".
+**  vphiplin_t  (1:njene,1:nbctime) input as series of toroidal
+**     rotation profiles (cm/sec).
+**  elecin_t(1:njene,1:nbctime) input as series of Tor. E-field
+**     profiles unless current profile control is enabled (volts/cm).
+**     See efswtch="method1".
+**  ennin_t(1:njenea,1:nbctimea,1:npaproca)  input as a series of
+**     neutral density profiles (cm^-3), impurities, etc.
+**     Used if ipronn='spline-t'.
+**     This array can be used for calculations of ion losses due to 
+**     Charge-eXchange with neutrals, but this feature is not implemented
+**     in the ZOW cql3d. 
+**     Also can be used for NPA diagnostics (npa_diag.ne."disabled"). 
+**     Can be scaled with ennscal.
+**     First index is the radial grid index, second is time-points index
+**     (use  nbctime=1 and bctime(1)=0.0  for a steady-state profile).
+**     Third index corresponds to type of CX (up to npaproc=5 for NPA).
+**     The values of ennin_t can be specified in cqlinput, 
+**     or can be read from data file. To do this, specify in cqlinput:
+**       read_ennprofile_times='enabled',
+**       nennprofile_files= [specify number of data files to be read]
+**       Also, for the array ennprofile_files(1:nennprofile_files), 
+**       specify names of data files. 
+**       The files should be in text form, with 1st and 2nd line
+**       being headings containing description of data,
+**       followed by two columns with data: 1st column is rho_sqpolflx
+**       and 2nd column is profile of neutral density [cm^-3].
+**       The data is read and processed by 
+**       subroutine read_convert(filename,a_new): 
+**       1. Read data from files containing rho-coordinate and profile 
+**       of neutral density (or other profile, in general/future devel).
+**       The name of the file is given by the input 'filename'.
+**       The files should be in text form, with 1st and 2nd line
+**       being headings containing description of data,
+**       followed by two columns with data: 1st column is rho_sqpolflx
+**       and 2nd column is profile of neutral density [cm^-3] 
+**       (or other profile, in general/future development).
+**       2. Convert the rho_sqpolflx coordinate from file into "working"
+**       rho_radcoord coordinate, which type is specified by radcoord.
+**       The size of rho_radcoord is same as that of rho_sqpolflx.
+**       3. Interpolate rho_radcoord into rho_new of size=njene
+**       and also interpolate original density profile  
+**       into the new profile a_new of size=njene.
+**       The array a_new(njene) is the output of subroutine. 
+**       It will be put into array (for each time index itme):
+**       ennin_t(1:njene,itme,1)= a_new(1:njene)  
+**       The last index (=1) is for neutrals (H or D). 
+**       Higher indices (2,3,4,5) will be used for setting profiles of
+**       other neutrals or impurities (not ready as of May, 2013). 
+**
+**
+**  Parallel Current profile (rather than specified electric field) gives
+**    electric field if efswtch.eq."method2" or "method4", and
+**    (xjin_t(1).ne.0., or totcrt.ne.0.):
+**  xjin_t(1:njene,1:nbctime) specifies target current density profiles.
+**    If the following totcrt(1)=0., but xjin_t(1).ne.0., 
+**    then these profiles are absolute (amps/cm**2).  
+**    If totcrt(1).ne.0, then these give the current density profile,
+**      normalized to totcrt() total plasma current. 
+**  totcrt(1:nbctime) .ne.0., then total plasma current is specified (amps)
+**    according to a profile given by xjin_t.
+**  NOTE: if using this option (i.e., xjin_t(1).ne.0.), need to have 
+**        iprocur="spline-t"  (default='disabled').
+**  
+**  
+**
+**************************************************************
