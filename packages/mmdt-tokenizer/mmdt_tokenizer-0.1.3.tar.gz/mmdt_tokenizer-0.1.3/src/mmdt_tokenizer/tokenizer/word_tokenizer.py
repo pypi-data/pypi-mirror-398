@@ -1,0 +1,61 @@
+import pandas as pd
+from typing import List, Union, Optional
+
+from ..utils.data_utils import standardize_text_input
+from ..utils.csv_utils import save_tokens_to_csv, save_tags_to_csv
+
+from .syllable_tokenizer import MyanmarSyllableTokenizer
+from ..rule_segmenter.engine import rule_segment
+from ..rule_segmenter.collapse import collapse_to_phrase_chunks
+
+
+def get_syllabus_from_tokenizer(tokenizer: MyanmarSyllableTokenizer):
+    """Adapter: returns callable get_syllabus(text) -> List[str]."""
+    def get_syllabus(text: str) -> List[str]:
+        lists = tokenizer.tokenize(text, return_list=True)
+        if not lists:
+            return []
+        return lists[0] if isinstance(lists[0], list) else lists
+    return get_syllabus
+
+class MyanmarWordTokenizer:
+    """Word-level tokenizer using syllable segmentation + rule-based segmentation."""
+
+    def __init__(self, protect_pattern :bool = True):
+        
+        self.protect_pattern:bool = protect_pattern
+        self.syllable_tokenizer = MyanmarSyllableTokenizer()
+        self._get_syllabus = get_syllabus_from_tokenizer(self.syllable_tokenizer)
+
+    def tokenize(
+        self,
+        texts: Union[str, List[str], pd.Series, pd.DataFrame],
+        return_list=True,
+        separator=" ",
+        save_csv: Optional[str] = None,
+        save_tag: Optional[str] = None,
+        conll_style=True,
+        column: Optional[str] = None,
+    ):
+        
+        series = standardize_text_input(texts, column)
+        token_tag_pairs = series.apply(self._tokenize_one).tolist()
+        
+        ner_tokens, all_tokens = collapse_to_phrase_chunks(token_tag_pairs)
+        
+        if save_csv:
+            save_tokens_to_csv(all_tokens, save_csv, conll_style)
+
+        if save_tag:
+            save_tags_to_csv(token_tag_pairs, save_tag.replace(".csv","_raw.csv"))
+            save_tags_to_csv(ner_tokens, save_tag.replace(".csv","_collapsed.csv"))
+    
+
+        return all_tokens if return_list else [separator.join(toks) for toks in all_tokens]
+    
+    def _tokenize_one(self, text: str):
+        token_tag_paris = rule_segment(text, self.protect_pattern, get_syllabus=self._get_syllabus)
+        
+        return token_tag_paris
+
+
