@@ -1,0 +1,504 @@
+"""Importer for CoNLL-U files."""
+
+import operator
+import typing as t
+from collections import defaultdict
+from dataclasses import dataclass
+from pathlib import Path
+
+import conllu
+import conllu.exceptions
+import sparv.api
+from sparv.api import Config, Output, Source, SourceFilename, SourceStructure, SourceStructureParser, Text, importer
+
+logger = sparv.api.get_logger(__name__)
+
+CONLLU_EXTENSION_NAME: str = "conllu"
+CONLLU_EXTENSION: str = f".{CONLLU_EXTENSION_NAME}"
+TRACKING_ISSUE_EMPTY_NODE: str = "https://github.com/spraakbanken/sparv-sbx-conllu/issues/14"
+TRACKING_ISSUE_MULTIWORD: str = "https://github.com/spraakbanken/sparv-sbx-conllu/issues/15"
+
+
+class XMLStructure(SourceStructureParser):
+    """Class to get and store XML structure."""
+
+    @staticmethod
+    def setup() -> dict:
+        """Return setup wizard."""
+        return {
+            "type": "select",
+            "name": "scan_conllu",
+            "message": "What type of scan do you want to do?",
+            "choices": [
+                {
+                    "name": "Scan ALL my files, since markup may differ between them "
+                    "(this might take some time if the corpus is big).",
+                    "value": "all",
+                },
+                {
+                    "name": "Scan ONE of my files at random. All files contain the same markup, so scanning "
+                    "one is enough.",
+                    "value": "one",
+                },
+            ],
+        }
+
+    def get_annotations(self, corpus_config: dict) -> list[str]:  # noqa: ARG002
+        """Get, store and return XML structure.
+
+        Returns:
+            List of elements and attributes in the XML file.
+        """
+        if self.annotations is None:
+            elements: set[str] = set()
+            conllu_files = self.source_dir.glob("**/*.conllu")
+            if self.answers.get("scan_xml") == "all":
+                for conllu_file in conllu_files:
+                    elements = elements.union(analyze_conllu(conllu_file))
+            else:
+                elements = analyze_conllu(next(conllu_files))
+
+            self.annotations = sorted(elements)  # type: ignore[assignment]
+        return t.cast(list[str], self.annotations)
+
+
+@importer(
+    "Import CoNLL-U files",
+    file_extension=CONLLU_EXTENSION_NAME,
+    outputs=["text", "document", "sentence", "token", Config("sbx_conllu.import_attributes")],
+    config=[
+        Config(
+            "sbx_conllu.import_attributes",
+            ["text"],
+            description="List of attributes that is needed for other analysis.",
+            datatype=list[str],
+        )
+    ],
+    text_annotation="text",
+)
+def parse(
+    filename: SourceFilename = SourceFilename(),
+    source_dir: Source = Source(),
+    # out_sentence: Output = Output("sbx_conllu.sentence", cls="sentence"),
+) -> None:
+    """Import text from CoNLL-U files."""
+    parser = SparvCoNLLUParser(source_dir)
+    parser.parse(filename)
+    # raise SparvErrorMessage(f"The CoNLL-U input file could not be parsed. Error: {e!s}") from None
+    parser.save()
+
+
+class _Instance(t.TypedDict):
+    name: str
+    start: tuple[int, int]
+    end: tuple[int, int]
+    attrs: dict[str, t.Any]
+
+
+class _Element(t.TypedDict):
+    attrs: set[str]
+    elements: list[_Instance]
+
+
+@dataclass
+class _ParseOptions:
+    start_pos: int
+    end_pos: int
+    is_start: bool
+
+
+@dataclass
+class _Subpos:
+    start: int
+    end: int
+
+
+# TEXT_SUBPOS.start should always be smallest
+# and all others should have lower values than
+# there included structures
+# TEXT_SUBPOS.end should always be greatest
+# and all others should have higher values than
+# there included structures
+TEXT_SUBPOS: _Subpos = _Subpos(start=0, end=5)
+DOCUMENT_SUBPOS: _Subpos = _Subpos(start=1, end=4)
+PARAGRAPH_SUBPOS: _Subpos = _Subpos(start=2, end=3)
+SENTENCE_SUBPOS: _Subpos = _Subpos(start=3, end=2)
+PARAGRAPH_IN_SENTENCE_SUBPOS: _Subpos = _Subpos(start=4, end=1)
+TOKEN_SUBPOS: _Subpos = _Subpos(start=5, end=0)
+
+
+class SparvCoNLLUParser:
+    """CoNLL-U parser class for parsing CoNLL-U files."""
+
+    def __init__(self, source_dir: Source) -> None:
+        """Initialize the parser.
+
+        Args:
+            source_dir: where the files are placed.
+        """
+        self.source_dir = source_dir
+        self.file: SourceFilename | None = None
+        self.sentences: list[str] = []
+        self.data: dict[str, _Element] = defaultdict(
+            lambda: {"attrs": set(), "elements": []}
+        )  # Metadata collected during parsing
+        self.warnings: dict[str, int] = defaultdict(int)
+
+    def parse(self, file: SourceFilename) -> None:
+        """Parse CoNLL-U file."""
+        logger.debug("parsing filename='%s'", file)
+        self.file = file
+        source_file = self.source_dir.get_path(self.file, CONLLU_EXTENSION)
+
+        opts = _ParseOptions(start_pos=0, end_pos=0, is_start=True)
+
+        with source_file.open(encoding="utf-8") as fp:
+            for sentence in conllu.parse_incr(fp):
+                opts = self._parse_sentence(sentence, opts, source_file=source_file)
+
+        if self.data["paragraph"]["elements"]:
+            self._close_span("paragraph", opts.end_pos - 1, PARAGRAPH_SUBPOS)
+
+        if self.data["document"]["elements"]:
+            self._close_span("document", opts.end_pos - 1, DOCUMENT_SUBPOS)
+
+    def _parse_sentence(self, sentence: conllu.TokenList, opts: _ParseOptions, source_file: Path) -> _ParseOptions:
+        document_attrs = {}
+        paragraph_attrs = {}
+        sentence_attrs = {}
+        for key, value in sentence.metadata.items():
+            if key.startswith("newdoc"):
+                doc_key = key[(len("newdoc") + 1) :]
+                document_attrs[doc_key] = value
+            elif key.startswith("newpar"):
+                par_key = key[(len("newpar") + 1) :]
+                paragraph_attrs[par_key] = value
+            elif key != "text":
+                sentence_attrs[key] = value
+
+        if opts.is_start or document_attrs:
+            if self.data["document"]["elements"]:
+                self._close_span("document", opts.end_pos - 1, DOCUMENT_SUBPOS)
+            self._open_span("document", opts.start_pos, document_attrs, DOCUMENT_SUBPOS)
+        opts.is_start = False
+
+        if paragraph_attrs:
+            if self.data["paragraph"]["elements"]:
+                self._close_span("paragraph", opts.end_pos - 1, PARAGRAPH_SUBPOS)
+            self._open_span("paragraph", opts.start_pos, paragraph_attrs, PARAGRAPH_SUBPOS)
+
+        sentence_meta_text: str | None = sentence.metadata.get("text")
+
+        self._open_span("sentence", opts.start_pos, sentence_attrs, SENTENCE_SUBPOS)
+
+        next_id = 0
+        sentence_form_text = ""
+
+        token_start = opts.start_pos
+        paragraph_in_sentence: _Instance | None = None
+
+        for token in sentence:
+            id_: int | tuple[int, str, int] = token["id"]
+            form: str = token["form"]
+            if isinstance(id_, tuple) and id_[1] == ".":
+                logger.warning(
+                    "Skipping empty node (id='%s', form='%s') in %s. Tracking issue: %s",
+                    _fmt_id(id_),
+                    form,
+                    source_file,
+                    TRACKING_ISSUE_EMPTY_NODE,
+                )
+                self.warnings["empty node"] += 1
+                continue
+            if isinstance(id_, tuple):
+                next_id = id_[2]
+            elif id_ > next_id:
+                pass
+            else:
+                # TODO: handle skipped token, see https://github.com/spraakbanken/sparv-sbx-conllu/issues/15
+                logger.warning(
+                    "Skipping token (id='%s', form='%s') inside multiword token in %s. Tracking issue: %s",
+                    _fmt_id(id_),
+                    form,
+                    source_file,
+                    TRACKING_ISSUE_MULTIWORD,
+                )
+                self.warnings["multiword"] += 1
+                continue
+            misc: dict[str, str] | None = token.get("misc")
+            if misc and misc.get("NewPar") == "Yes":
+                if paragraph_in_sentence is not None:
+                    paragraph_in_sentence["end"] = (token_start, PARAGRAPH_IN_SENTENCE_SUBPOS.end)
+                    self.data["paragraph"]["elements"].append(paragraph_in_sentence)
+                    logger.debug(
+                        "added paragraph with start=%s, end=%s",
+                        paragraph_in_sentence["start"],
+                        paragraph_in_sentence["end"],
+                    )
+                paragraph_in_sentence = {
+                    "name": "paragraph",
+                    "start": (token_start, PARAGRAPH_IN_SENTENCE_SUBPOS.start),
+                    "end": (token_start, PARAGRAPH_IN_SENTENCE_SUBPOS.end),
+                    "attrs": {},
+                }
+            space = "" if misc and misc.get("SpaceAfter") == "No" else " "
+            if sentence_meta_text is None:
+                sentence_form_text += f"{form}{space}"
+            token_attrs = {"id": _fmt_id(id_)}
+            if isinstance(id_, tuple):
+                next_token = _find_root(id_, sentence)
+                if next_token is None:
+                    if token.get("head") is not None:
+                        logger.error(
+                            "Failed to find root in subtree inside multiword '%s' in source file '%s'",
+                            _fmt_id(id_),
+                            source_file,
+                        )
+                    _fill_token_attrs(token_attrs, token)
+                else:
+                    logger.warning(
+                        "Merging token %s with %s, taking attributes from %s. Tracking issue: %s",
+                        _fmt_id(id_),
+                        _fmt_id(next_token["id"]),
+                        _fmt_id(next_token["id"]),
+                        TRACKING_ISSUE_MULTIWORD,
+                    )
+                    token_attrs["id"] = _fmt_id(next_token["id"])
+                    _fill_token_attrs(token_attrs, next_token)
+            else:
+                _fill_token_attrs(token_attrs, token)
+            if misc := token.get("misc"):
+                misc_str = "|".join(f"{key}={value}" for key, value in misc.items())
+                if misc_str:
+                    token_attrs["misc_ud"] = f"|{misc_str}|"
+            token_end = token_start + len(form)
+            self._add_span("token", token_start, token_end, token_attrs, TOKEN_SUBPOS)
+
+            token_start = token_end + len(space)
+
+        if paragraph_in_sentence is not None:
+            paragraph_in_sentence["end"] = (token_start, PARAGRAPH_IN_SENTENCE_SUBPOS.end)
+            self.data["paragraph"]["elements"].append(paragraph_in_sentence)
+            logger.debug(
+                "added paragraph with start=%s, end=%s",
+                paragraph_in_sentence["start"],
+                paragraph_in_sentence["end"],
+            )
+        sentence_text = sentence_meta_text or sentence_form_text
+        self.sentences.append(sentence_text)
+        logger.debug("sentence_text=%s", sentence_text)
+        sentence_length = len(sentence_text)
+        opts.end_pos += sentence_length
+        # update opts.end_pos for sentence
+        self._close_span("sentence", opts.end_pos, SENTENCE_SUBPOS, id_key="sent_id")
+        # handle whitespace between sentences
+        opts.end_pos += 1
+        opts.start_pos = opts.end_pos
+        return opts
+
+    def save(self) -> None:
+        """Save text data and annotation files to disk."""
+        if self.file is None:
+            raise RuntimeError("file is None. This shouldn't happen")
+        file: str = self.file
+        logger.info("saving data parsed from filename='%s'", file)
+
+        logger.debug("writing text from filename=%s", file)
+        text = " ".join(self.sentences)
+        Text(file).write(text)
+
+        logger.debug("writing text spans from filename=%s", file)
+        full_element = "text"
+        spans = [((0, TEXT_SUBPOS.start), (len(text), TEXT_SUBPOS.end))]
+        Output(full_element, source_file=file).write(spans)
+
+        structure: list[str] = ["text", "sentence"]
+        for element_name, element in self.data.items():
+            spans = []
+            attributes: dict[str, list[t.Any]] = {attr: [] for attr in element["attrs"]}
+            for instance in element["elements"]:
+                spans.append((instance["start"], instance["end"]))
+                for attr in attributes:  # noqa: PLC0206
+                    attributes[attr].append(instance["attrs"].get(attr, ""))
+
+            full_element = f"{element_name}"
+            structure.append(full_element)
+
+            # Sort spans and annotations by span position (required by Sparv)
+            if attributes and spans:
+                attr_names, attr_values = list(zip(*attributes.items(), strict=True))
+                spans, *attr_values = list(  # type:ignore[assignment]
+                    zip(*sorted(zip(spans, *attr_values, strict=True), key=operator.itemgetter(0)), strict=True)
+                )
+                attributes = dict(zip(attr_names, attr_values, strict=True))  # type: ignore[arg-type]
+            else:
+                spans.sort()
+            logger.debug("writing %s spans from filename=%s", full_element, file)
+            Output(full_element, source_file=file).write(spans)
+
+            for attr, attr_values in attributes.items():
+                full_attr = f"{full_element}:{attr}"
+                logger.debug("writing %s values (%d values) from filename=%s", full_attr, len(attr_values), file)
+                Output(full_attr, source_file=file).write(attr_values)
+                structure.append(full_attr)
+
+        logger.debug("writing source structure from filename=%s", file)
+        # Save list of all elements and attributes to a file (needed for export)
+        structure.sort()
+        SourceStructure(file).write(structure)
+        # log warnings statistics
+        if self.warnings:
+            total_warnings = sum(self.warnings.values())
+            logger.warning(
+                "The source file '%s' triggered %d warnings; %d for empty nodes, %d for multiword tokens",
+                file,
+                total_warnings,
+                self.warnings["empty node"],
+                self.warnings["multiword"],
+            )
+            for warning_class, tracking_issue in [
+                ("empty node", TRACKING_ISSUE_EMPTY_NODE),
+                ("multiword", TRACKING_ISSUE_MULTIWORD),
+            ]:
+                if self.warnings[warning_class]:
+                    logger.warning("Tracking issue for '%s': %s", warning_class, tracking_issue)
+
+    def _add_span(
+        self, name: str, start: int, end: int, attrs: dict[str, str], subpos: _Subpos, id_key: str = "id"
+    ) -> None:
+        self._open_span(name, start, attrs, subpos)
+        if start == end:
+            # log this in _close_span instead
+            return
+
+        self._close_span(name, end, subpos, id_key)
+
+    def _open_span(self, name: str, start: int, attrs: dict[str, str], subpos: _Subpos) -> None:
+        self.data[name]["attrs"].update(attrs.keys())
+        self.data[name]["elements"].append(
+            {
+                "name": name,
+                "start": (start, subpos.start),
+                "end": (start, subpos.end),
+                "attrs": attrs,
+            }
+        )
+
+    def _close_span(self, name: str, end_pos: int, subpos: _Subpos, id_key: str = "id") -> None:
+        new_end_pos = (end_pos, subpos.end)
+        self.data[name]["elements"][-1]["end"] = new_end_pos
+        logger.debug(
+            "added %s %s=%s start=%s, end=%s",
+            name,
+            id_key,
+            self.data[name]["elements"][-1]["attrs"].get(id_key, "<NO ID>"),
+            self.data[name]["elements"][-1]["start"],
+            new_end_pos,
+        )
+
+
+def _fmt_id(id_: int | tuple[int, str, int]) -> str:
+    if isinstance(id_, int):
+        return f"{id_}"
+    return f"{id_[0]}{id_[1]}{id_[2]}"
+
+
+def _fill_token_attrs(token_attrs: dict, token: conllu.Token) -> None:
+    if lemma := token.get("lemma"):
+        token_attrs["baseform_ud"] = "" if lemma == "_" else lemma
+    if upos := token.get("upos"):
+        token_attrs["pos_ud"] = "" if upos == "_" else upos
+    if xpos := token.get("xpos"):
+        token_attrs["xpos"] = xpos
+    if feats := token.get("feats"):
+        feats_str = "|".join(f"{feat}={value}" for feat, value in feats.items())
+        token_attrs["feats_ud"] = f"|{feats_str}|" if feats_str else "|"
+    head = token.get("head")
+    if head is not None:
+        token_attrs["dephead_ud"] = head
+    if deprel := token.get("deprel"):
+        token_attrs["deprel_ud"] = "" if deprel == "_" else deprel
+    if deps := token.get("deps"):
+        deps_str = "|".join(f"{dep}={rel}" for dep, rel in deps)
+        if deps_str:
+            token_attrs["deps_ud"] = f"|{deps_str}|"
+
+
+def _find_root(id_: tuple[int, str, int], sentence: conllu.TokenList) -> conllu.Token | None:
+    try:
+        token_tree = sentence.to_tree()
+    except conllu.exceptions.ParseException:
+        return None
+    i = id_[0]
+    root = None
+    for i in range(id_[0], id_[2] + 1):
+        tt = _find_node(token_tree, i)
+        if root is None:
+            root = tt
+        elif tt is not None:
+            for x in range(id_[0], i):
+                if _tree_contains(tt, x):
+                    root = tt
+
+    return root.token if root is not None else None
+
+
+def _tree_contains(token_tree: conllu.TokenTree, id_: int) -> bool:
+    return _find_node(token_tree, id_) is not None
+
+
+def _find_node(token_tree: conllu.TokenTree, id_: int) -> conllu.TokenTree | None:
+    # print(f"")
+    if token_tree.token.get("id") == id_:
+        return token_tree
+    for child in token_tree.children:
+        if res := _find_node(child, id_):
+            return res
+    return None
+
+
+def analyze_conllu(source_file: Path) -> set[str]:
+    """Analyze an XML file and return a list of elements and attributes.
+
+    Args:
+        source_file: The XML file to analyze.
+
+    Returns:
+        A set of elements and attributes found in the XML file.
+    """
+    elements = {"text", "token", "sentence", "document"}
+
+    with source_file.open(encoding="utf-8") as fp:
+        for sentence in conllu.parse_incr(fp):
+            for attr in sentence.metadata:
+                if attr.startswith("sent_"):
+                    elements.add(f"sentence:{attr}")
+                elif attr.startswith("newpar"):
+                    elements.add("paragraph")
+                    attr_name = attr.split()[1]
+                    elements.add(f"paragraph:{attr_name}")
+                elif attr.startswith("newdoc"):
+                    elements.add("document")
+                    attr_name = attr.split()[1]
+                    elements.add(f"document:{attr_name}")
+            for token in sentence:
+                if (lemma := token.get("lemma")) and lemma != "_":
+                    elements.add("token:baseform_ud")
+                if (upos := token.get("upos")) and upos != "_":
+                    elements.add("token:pos_ud")
+                if token.get("xpos"):
+                    elements.add("token:xpos")
+                if token.get("feats"):
+                    elements.add("token:feats_ud")
+                if token.get("head"):
+                    elements.add("token:dephead_ud")
+                if (deprel := token.get("deprel")) and deprel != "_":
+                    elements.add("token:deprel_ud")
+                if token.get("deps"):
+                    elements.add("token:deps_ud")
+                if misc := token.get("misc"):
+                    if misc.get("NewPar") == "Yes":
+                        elements.add("paragraph")
+                    elements.add("token:misc_ud")
+
+    return elements
