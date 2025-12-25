@@ -1,0 +1,3 @@
+"""
+.. include:: ../../docs/api.md
+"""
