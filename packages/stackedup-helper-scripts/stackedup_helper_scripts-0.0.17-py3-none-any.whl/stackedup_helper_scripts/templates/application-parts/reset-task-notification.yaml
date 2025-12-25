@@ -1,0 +1,131 @@
+---
+Transform: AWS::Serverless-2016-10-31
+Description: OMBU / Application / Reset Task Notification
+
+# The reset-task-notification stack will create an AWS EventBridge
+# listener for ECS _reset task updates. When an ECS _reset task update
+# is detected it will trigger an AWS Lambda function to notifiy the user via
+# AWS SNS about the change.
+
+Parameters:
+
+  ApplicationName:
+    Description: The name of the application.
+    Type: String
+
+  EnvironmentType:
+    Description: The application environment.
+    Type: String
+
+  ClusterName:
+    Description: The name of the ECS Cluster that hosts the service.
+    Type: String
+
+  NotificationArn:
+    Description: The ARN of the SNS topic to send notifications to.
+    Type: String
+
+  LogRetention:
+    Description: How long to keep logs for in days.
+    Default: 30
+    Type: Number
+
+Resources:
+
+  ResetTaskNotificationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-AllowLogging"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:\
+                          log-group:/aws/lambda/*"
+        - PolicyName: !Sub "${AWS::StackName}-DescribeTask"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeTaskDefinition
+                Resource: '*'
+        - PolicyName: !Sub "${AWS::StackName}-AllowECSDescribeSerivce"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:DescribeTaskDefinition
+                Resource:
+                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:\
+                          service/${ClusterName}/*"
+        - PolicyName: !Sub "${EnvironmentType}-SNSTopic"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref NotificationArn
+
+  ResetTaskNotificationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ResetTaskNotification}"
+      RetentionInDays: !Ref LogRetention
+
+  ResetTaskNotification:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../scripts/reset_task_notification
+      Handler: reset_task_notification.handler
+      Role: !GetAtt ResetTaskNotificationRole.Arn
+      Runtime: python3.12
+      Timeout: 600
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
+      Description: Send message about running reset task.
+      Environment:
+        Variables:
+          APP: !Ref ApplicationName
+          TASK_NAME: Reset Task
+          ENVIRONMENT_TYPE: !Ref EnvironmentType
+          TOPIC_ARN: !Ref NotificationArn
+      Events:
+        CloudFormationEvent:
+          Type: CloudWatchEvent
+          Properties:
+            Pattern:
+              detail:
+                desiredStatus:
+                  - RUNNING
+                lastStatus:
+                  - PENDING
+                group:
+                  - !Sub "family:${ApplicationName}_${EnvironmentType}_reset"
+              detail-type:
+                - ECS Task State Change
+              source:
+                - aws.ecs
+
+Outputs:
+
+  LogGroup:
+    Description: The CloudWatch log group.
+    Value: !Ref ResetTaskNotificationLogGroup

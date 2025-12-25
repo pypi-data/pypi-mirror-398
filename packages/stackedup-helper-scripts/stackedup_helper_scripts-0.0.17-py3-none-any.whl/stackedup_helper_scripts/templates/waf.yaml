@@ -1,0 +1,381 @@
+---
+Description: OMBU / WAF
+
+Parameters:
+
+  ApplicationName:
+    Description: The name of the application.
+    Type: String
+
+  EnvironmentType:
+    Description: The application environment.
+    Type: String
+
+  LoadBalancerArn:
+    Description: The load balancer ARN that the WAF should be attached to.
+    Type: String
+
+  Scope:
+    Description: Specify wether WAF shall be used.
+    Default: REGIONAL
+    Type: String
+    AllowedValues:
+      - REGIONAL
+      - CLOUDFRONT
+
+  AllowListArn:
+    Description: ARN of the allow list IP Set.
+    Default: ''
+    Type: String
+
+  BlockListArn:
+    Description: ARN of the block list IP Set.
+    Default: ''
+    Type: String
+
+  CustomRuleGroupArn:
+    Description: ARN of the Custom Rule Group.
+    Default: ''
+    Type: String
+
+  RateLimit:
+    Description: >
+      The maximum number of requests from a single IP address that are
+      allowed in a five-minute period.
+    Default: 100
+    Type: Number
+    MinValue: 10
+    MaxValue: 2000000000
+
+  RateLimitEvaluationWindow:
+    Description: >
+      The maximum number of requests from a single IP address that are
+      allowed in a five-minute period.
+    Default: 300
+    Type: Number
+    MinValue: 60
+    MaxValue: 600
+    AllowedValues:
+      - 60
+      - 120
+      - 300
+      - 600
+
+  RateLimitEffect:
+    Description: Block or count requests that exceed the rate limit.
+    Default: Block
+    Type: String
+    AllowedValues:
+      - Disable
+      - Block
+      - Count
+
+  BotControlEffect:
+    Description: Block or count requests from bots
+    Default: Block
+    Type: String
+    AllowedValues:
+      - Disable
+      - Block
+      - Count
+
+  HasCommonRuleSet:
+    Description: Turn on AWSManagedRulesCommonRuleSet.
+    Default: true
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  HasSQLiRuleSet:
+    Description: Turn on AWSManagedRulesSQLiRuleSet.
+    Default: true
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  HasBadInputsRuleSet:
+    Description: Turn on AWSManagedRulesKnownBadInputsRuleSet.
+    Default: true
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  HasLinuxRuleSet:
+    Description: Turn on AWSManagedRulesLinuxRuleSet.
+    Default: true
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  HasLogging:
+    Description: Turn on Logging.
+    Default: false
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  LogRetention:
+    Description: How long to keep logs for in days.
+    Default: 30
+    Type: Number
+
+Conditions:
+
+  HasAllowList: !Not [!Equals [!Ref AllowListArn, '']]
+  HasBlockList: !Not [!Equals [!Ref BlockListArn, '']]
+  HasCustomRuleGroup: !Not [!Equals [!Ref CustomRuleGroupArn, '']]
+  EnableRateLimit: !Not [!Equals [!Ref RateLimitEffect, 'Disable']]
+  BlockRateLimit: !Equals [!Ref RateLimitEffect, 'Block']
+  EnableBotControl: !Not [!Equals [!Ref BotControlEffect, 'Disable']]
+  BlockBotControl: !Equals [!Ref BotControlEffect, 'Block']
+  HasCommonRuleSet: !Equals [!Ref HasCommonRuleSet, true]
+  HasSQLiRuleSet: !Equals [!Ref HasSQLiRuleSet, true]
+  HasBadInputsRuleSet: !Equals [!Ref HasBadInputsRuleSet, true]
+  HasLinuxRuleSet: !Equals [!Ref HasLinuxRuleSet, true]
+  HasLogging: !Equals [!Ref HasLogging, true]
+
+Resources:
+
+  CloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: HasLogging
+    Properties:
+      LogGroupName: !Sub "aws-waf-logs-${AWS::StackName}-blocked-requests"
+      RetentionInDays: !Ref LogRetention
+
+  WebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub "${ApplicationName}-${EnvironmentType}-waf"
+      Scope: !Ref Scope
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        CloudWatchMetricsEnabled: true
+        SampledRequestsEnabled: true
+        MetricName: !Ref AWS::StackName
+      Rules:
+        # Allow list
+        - !If
+          - HasAllowList
+          - Name: AllowIPList
+            Priority: 1
+            Statement:
+              IPSetReferenceStatement:
+                Arn: !Ref AllowListArn
+            Action:
+              Allow: {}
+            VisibilityConfig:
+              SampledRequestsEnabled: true
+              CloudWatchMetricsEnabled: true
+              MetricName: AllowIPList
+          - !Ref AWS::NoValue
+
+        # Block list
+        - !If
+          - HasBlockList
+          - Name: BlockIPList
+            Priority: 2
+            Statement:
+              IPSetReferenceStatement:
+                Arn: !Ref BlockListArn
+            Action:
+              Block: {}
+            VisibilityConfig:
+              SampledRequestsEnabled: true
+              CloudWatchMetricsEnabled: true
+              MetricName: BlockIPList
+          - !Ref AWS::NoValue
+
+        # Custom Rule Group
+        - !If
+          - HasCustomRuleGroup
+          - Name: CustomRuleGroup
+            Priority: 3
+            Statement:
+              RuleGroupReferenceStatement:
+                Arn: !Ref CustomRuleGroupArn
+            OverrideAction:
+              None: {}
+            VisibilityConfig:
+              SampledRequestsEnabled: true
+              CloudWatchMetricsEnabled: true
+              MetricName: CustomRuleGroup
+          - !Ref AWS::NoValue
+
+        # Rate limit
+        - !If
+          - EnableRateLimit
+          - Name: RateLimit
+            Priority: 4
+            Statement:
+              RateBasedStatement:
+                Limit: !Ref RateLimit
+                EvaluationWindowSec: !Ref RateLimitEvaluationWindow
+                AggregateKeyType: IP
+            Action: !If
+              - BlockRateLimit
+              - Challenge: {}
+              - Count: {}
+            VisibilityConfig:
+              SampledRequestsEnabled: true
+              CloudWatchMetricsEnabled: true
+              MetricName: RateLimitIP
+          - !Ref AWS::NoValue
+
+        # AWS Bot Control
+        - !If
+          - EnableBotControl
+          - Name: AWSBotControl
+            Priority: 10
+            OverrideAction: !If
+              - BlockBotControl
+              - None: {}
+              - Count: {}
+            Statement:
+              ManagedRuleGroupStatement:
+                VendorName: AWS
+                Name: AWSManagedRulesBotControlRuleSet
+                ManagedRuleGroupConfigs:
+                  - AWSManagedRulesBotControlRuleSet:
+                      InspectionLevel: COMMON
+                RuleActionOverrides:
+                  - Name: CategorySeo
+                    ActionToUse:
+                      Allow: {}
+                  - Name: CategoryMonitoring
+                    ActionToUse:
+                      Allow: {}
+                  - Name: CategorySearchEngine
+                    ActionToUse:
+                      Allow: {}
+            VisibilityConfig:
+              SampledRequestsEnabled: true
+              CloudWatchMetricsEnabled: true
+              MetricName: AWSBotControl
+          - !Ref AWS::NoValue
+
+        # Common Rule Set
+        - !If
+          - HasCommonRuleSet
+          - Name: AWS-AWSManagedRulesCommonRuleSet
+            Priority: 11
+            Statement:
+              ManagedRuleGroupStatement:
+                VendorName: AWS
+                Name: AWSManagedRulesCommonRuleSet
+                RuleActionOverrides:
+                  - Name: CrossSiteScripting_BODY
+                    ActionToUse:
+                      Allow: {}
+                  - Name: SizeRestrictions_BODY
+                    ActionToUse:
+                      Allow: {}
+                  - Name: EC2MetaDataSSRF_BODY
+                    ActionToUse:
+                      Allow: {}
+                  - Name: GenericLFI_BODY
+                    ActionToUse:
+                      Allow: {}
+            OverrideAction:
+              None: {}
+            VisibilityConfig:
+              SampledRequestsEnabled: true
+              CloudWatchMetricsEnabled: true
+              MetricName: AWS-AWSManagedRulesCommonRuleSet
+          - !Ref AWS::NoValue
+
+        # SQLi Rule Set
+        - !If
+          - HasSQLiRuleSet
+          - Name: AWS-AWSManagedRulesSQLiRuleSet
+            Priority: 12
+            Statement:
+              ManagedRuleGroupStatement:
+                VendorName: AWS
+                Name: AWSManagedRulesSQLiRuleSet
+                RuleActionOverrides:
+                  - Name: SQLi_BODY
+                    ActionToUse:
+                      Captcha: {}
+            OverrideAction:
+              None: {}
+            VisibilityConfig:
+              SampledRequestsEnabled: true
+              CloudWatchMetricsEnabled: true
+              MetricName: AWS-AWSManagedRulesSQLiRuleSet
+          - !Ref AWS::NoValue
+
+        # Known Bad Inputs Rule Set
+        - !If
+          - HasBadInputsRuleSet
+          - Name: AWS-AWSManagedRulesKnownBadInputsRuleSet
+            Priority: 13
+            Statement:
+              ManagedRuleGroupStatement:
+                VendorName: AWS
+                Name: AWSManagedRulesKnownBadInputsRuleSet
+            OverrideAction:
+              None: {}
+            VisibilityConfig:
+              SampledRequestsEnabled: true
+              CloudWatchMetricsEnabled: true
+              MetricName: AWS-AWSManagedRulesKnownBadInputsRuleSet
+          - !Ref AWS::NoValue
+
+        # Linux Rule Set
+        - !If
+          - HasLinuxRuleSet
+          - Name: AWS-AWSManagedRulesLinuxRuleSet
+            Priority: 14
+            Statement:
+              ManagedRuleGroupStatement:
+                VendorName: AWS
+                Name: AWSManagedRulesLinuxRuleSet
+            OverrideAction:
+              None: {}
+            VisibilityConfig:
+              SampledRequestsEnabled: true
+              CloudWatchMetricsEnabled: true
+              MetricName: AWS-AWSManagedRulesLinuxRuleSet
+          - !Ref AWS::NoValue
+
+  WebACLAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    Properties:
+      ResourceArn: !Ref LoadBalancerArn
+      WebACLArn: !GetAtt WebACL.Arn
+
+  WebACLLogging:
+    Type: AWS::WAFv2::LoggingConfiguration
+    Condition: HasLogging
+    Properties:
+      ResourceArn: !GetAtt WebACL.Arn
+      LogDestinationConfigs:
+        - !GetAtt CloudWatchLogsGroup.Arn
+      LoggingFilter:
+        DefaultBehavior: DROP
+        Filters:
+          - Behavior: KEEP
+            Conditions:
+              - ActionCondition:
+                  Action: BLOCK
+              - LabelNameCondition:
+                  LabelName: blocked-requests
+            Requirement: MEETS_ANY
+
+Outputs:
+
+  WAFArn:
+    Description: The WAF ARN.
+    Value: !GetAtt WebACL.Arn
+
+  LogGroup:
+    Condition: HasLogging
+    Description: The CloudWatch log group for the WAF.
+    Value: !Ref CloudWatchLogsGroup

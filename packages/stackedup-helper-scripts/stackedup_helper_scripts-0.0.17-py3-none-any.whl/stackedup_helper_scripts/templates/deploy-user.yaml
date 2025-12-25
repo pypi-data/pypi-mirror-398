@@ -1,0 +1,80 @@
+---
+Description: OMBU / Deploy User
+
+# The deploy-user stack will create a IAM role that allows Github to assume
+# roles via an OIDC Provider.
+
+Parameters:
+
+  ApplicationName:
+    Description: The name of the application.
+    Type: String
+
+  EnvironmentType:
+    Description: The application environment.
+    Type: String
+
+  GithubOidc:
+    Description: GithubOidc identity Arn.
+    Type: String
+
+  GithubRepository:
+    Description: Github repository that the user can deploy from.
+    Type: String
+
+  ERCRepository:
+    Description: ECR Repository that this deploy user has access to.
+    Type: String
+
+Resources:
+
+  DeployUserRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRoleWithWebIdentity
+            Principal:
+              Federated: !Ref GithubOidc
+            Condition:
+              ForAllValues:StringLike:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub:
+                  !Sub "repo:${GithubRepository}:*"
+
+  DeployUserPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: Allow-Github-Push
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+            Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:\
+                            repository/${ERCRepository}"
+      Roles:
+        - !Ref DeployUserRole
+
+Outputs:
+
+  DeployAccessRepo:
+    Description: The repo this key has access to.
+    Value: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:\
+                 repository/${ERCRepository}"
+
+  DeployUserRole:
+    Description: Role ARN for DeployUser.
+    Value: !GetAtt DeployUserRole.Arn

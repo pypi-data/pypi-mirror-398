@@ -1,0 +1,73 @@
+---
+Description: OMBU Cluster / Filesystem
+
+Parameters:
+
+  SecurityGroup:
+    Description: Select the EFS security group.
+    Type: AWS::EC2::SecurityGroup::Id
+
+  Subnets:
+    Description: The subnets to expose mountpoints for the filesystem.
+    Type: List<AWS::EC2::Subnet::Id>
+
+  SubnetCount:
+    Description: The number of subnets the filesystem will support.
+    Type: Number
+
+Conditions:
+
+  TwoSubnets: !Or [!Equals [!Ref SubnetCount, 2], !Equals [!Ref SubnetCount, 3]]
+  ThreeSubnets: !Equals [!Ref SubnetCount, 3]
+
+Resources:
+
+  ElasticFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: true
+      FileSystemTags:
+        - Key: Name
+          Value: !Join ['', ['Shared Volume / ', !Ref 'AWS::StackName']]
+      PerformanceMode: generalPurpose
+
+  ElasticFileSystemMountTarget1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref ElasticFileSystem
+      SecurityGroups:
+        - !Ref SecurityGroup
+      SubnetId: !Select [0, !Ref Subnets]
+
+  ElasticFileSystemMountTarget2:
+    Type: AWS::EFS::MountTarget
+    Condition: TwoSubnets
+    Properties:
+      FileSystemId: !Ref ElasticFileSystem
+      SecurityGroups:
+        - !Ref SecurityGroup
+      SubnetId: !Select [1, !Ref Subnets]
+
+  ElasticFileSystemMountTarget3:
+    Type: AWS::EFS::MountTarget
+    Condition: ThreeSubnets
+    Properties:
+      FileSystemId: !Ref ElasticFileSystem
+      SecurityGroups:
+        - !Ref SecurityGroup
+      SubnetId: !Select [2, !Ref Subnets]
+
+Outputs:
+
+  ElasticFileSystemId:
+    Value: !Ref ElasticFileSystem
+
+  FileSystemDnsName:
+    Description: DNS name for the EFS file system.
+    Value: !Join
+      - '.'
+      - - !Ref ElasticFileSystem
+        - 'efs'
+        - !Ref AWS::Region
+        - 'amazonaws'
+        - 'com'

@@ -1,0 +1,244 @@
+---
+Transform: AWS::Serverless-2016-10-31
+Description: OMBU / Notifications
+
+# The notification stack will create a SNS topic which notification can be sent
+# to various Subscriptions. Current subscriptions created are a lambda for
+# sending emails and one to a Slack webhook.
+
+Parameters:
+
+  ApplicationName:
+    Description: The name of the application.
+    Type: String
+
+  EnvironmentType:
+    Description: The application environment.
+    Type: String
+
+  EmailSender:
+    Description: If using email notifications the from address.
+    Type: String
+    Default: ''
+
+  EmailRecipients:
+    Description: >
+      If using email notifications, the comma-delimted recipient addresses.
+    Type: String
+    Default: ''
+
+  EmailSESIdentity:
+    Description: The ARN of the identity used to send email.
+    Type: String
+    Default: ''
+
+  HasEmail:
+    Description: Turn on and off email notifications.
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+  HasSlack:
+    Description: Turn on and off slack notifications.
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+  LogRetention:
+    Description: How long to keep logs for in days.
+    Default: 30
+    Type: Number
+
+Conditions:
+
+  HasEmail: !Equals [!Ref HasEmail, true]
+  HasSlack: !Equals [!Ref HasSlack, true]
+
+Resources:
+
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${AWS::StackName} Notifications Topic"
+
+  TopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Sid: !Sub "${AWS::StackName}-AllowAccessToTopic"
+            Principal:
+              AWS: '*'
+            Action: sns:Publish
+            Resource: !Ref Topic
+            Condition:
+              StringEquals:
+                AWS:SourceOwner: !Ref AWS::AccountId
+      Topics:
+        - !Ref Topic
+
+  EmailNotificationRole:
+    Type: AWS::IAM::Role
+    Condition: HasEmail
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-AllowSendingEmail"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                Resource: !Ref EmailSESIdentity
+        - PolicyName: !Sub "${AWS::StackName}-AllowLogging"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:\
+                          log-group:/aws/lambda/*"
+
+  EmailNotificationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: HasEmail
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${EmailNotification}"
+      RetentionInDays: !Ref LogRetention
+
+  EmailNotificationPermission:
+    Type: AWS::Lambda::Permission
+    Condition: HasEmail
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt EmailNotification.Arn
+      Principal: sns.amazonaws.com
+
+  EmailNotification:
+    Type: AWS::Serverless::Function
+    Condition: HasEmail
+    Properties:
+      CodeUri: ../scripts/email_notification
+      Handler: email_notification.handler
+      Role: !GetAtt EmailNotificationRole.Arn
+      Runtime: python3.12
+      Timeout: 30
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
+      Description: Send message via Email.
+      Environment:
+        Variables:
+          EMAIL_SENDER: !Ref EmailSender
+          EMAIL_RECIPIENT: !Ref EmailRecipients
+
+  EmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasEmail
+    Properties:
+      Protocol: lambda
+      Endpoint: !GetAtt EmailNotification.Arn
+      TopicArn: !Ref Topic
+
+  SlackNotificationRole:
+    Type: AWS::IAM::Role
+    Condition: HasSlack
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-AllowLogging"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:\
+                          log-group:/aws/lambda/*"
+        - PolicyName: !Sub "${AWS::StackName}-AccessToSecretsKey"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - secretsmanager:GetSecretValue
+                  - kms:Decrypt
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:\
+                          parameter/${ApplicationName}/${EnvironmentType}/\
+                          slack_uri"
+
+  SlackNotificationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: HasSlack
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${SlackNotification}"
+      RetentionInDays: !Ref LogRetention
+
+  SlackNotificationPermission:
+    Type: AWS::Lambda::Permission
+    Condition: HasSlack
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt SlackNotification.Arn
+      Principal: sns.amazonaws.com
+
+  SlackNotification:
+    Type: AWS::Serverless::Function
+    Condition: HasSlack
+    Properties:
+      CodeUri: ../scripts/slack_notification
+      Handler: slack_notification.handler
+      Role: !GetAtt SlackNotificationRole.Arn
+      Runtime: python3.12
+      Timeout: 600
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
+      Description: Send message via slack.
+      Environment:
+        Variables:
+          SLACK_URI_PARAMETER:
+            !Sub "/${ApplicationName}/${EnvironmentType}/slack_uri"
+
+  SlackSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasSlack
+    Properties:
+      Protocol: lambda
+      Endpoint: !GetAtt SlackNotification.Arn
+      TopicArn: !Ref Topic
+
+Outputs:
+
+  TopicArn:
+    Description: The ARN of the alert topic.
+    Value: !Ref Topic

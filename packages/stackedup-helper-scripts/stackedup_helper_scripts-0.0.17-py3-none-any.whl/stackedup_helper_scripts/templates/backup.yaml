@@ -1,0 +1,66 @@
+---
+Description: OMBU Cluster / ECS Cluster / S3 Backups
+
+# A backup script to copy files from an EFS mount to S3 bucket. Runs on a
+# schedule in an ECS cluster.
+
+Parameters:
+
+  ImageTag:
+    Description: The container image tag to deploy.
+    Default: v1.0.0
+    Type: String
+
+  ApplicationName:
+    Description: The name of the application.
+    Default: ombu
+    Type: String
+
+  EnvironmentType:
+    Description: The application environment.
+    Default: production
+    Type: String
+
+  ClusterStack:
+    Description: |
+      The name of the CloudFormation stack that provides the underlying
+      resources for the application.
+    Type: String
+
+  BackupFilePath:
+    Description: The path to backup.
+    Type: String
+
+  ExcludePaths:
+    Description: A comma delimited list of the paths to exclude from backup.
+    Default: ''
+    Type: String
+
+  BackupExpirationDays:
+    Description: The number of days after which backup objects are deleted.
+    Type: Number
+
+Resources:
+
+  Backup:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: backup-parts/scheduled-task.yaml
+      Parameters:
+        ImageTag: !Ref ImageTag
+        ApplicationName: !Ref ApplicationName
+        EnvironmentType: !Ref EnvironmentType
+        ClusterStack: !Ref ClusterStack
+        BackupFilePath: !Ref BackupFilePath
+        ExcludePaths: !Ref ExcludePaths
+        BackupExpirationDays: !Ref BackupExpirationDays
+
+Outputs:
+
+  BackupBucket:
+    Description: The name of the S3 bucket.
+    Value: !GetAtt Backup.Outputs.BackupBucket
+
+  LogGroup:
+    Description: The CloudWatch log group for task runs.
+    Value: !GetAtt Backup.Outputs.LogGroup

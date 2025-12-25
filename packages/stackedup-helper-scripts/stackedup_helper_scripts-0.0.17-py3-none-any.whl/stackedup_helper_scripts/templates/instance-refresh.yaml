@@ -1,0 +1,639 @@
+---
+Transform: AWS::Serverless-2016-10-31
+Description: OMBU Cluster / Cluster / Instance Refresh
+
+# When launching an ECS cluster, EC2 instances use the recommended AMI provided
+# by AWS via the "recommended/image_id" parameter. As AWS releases platform
+# updates—including security and performance improvements—this parameter is
+# updated to point to the latest AMI.
+
+# This stack sets up an EventBridge rule to regularly check for newer
+# recommended AMIs and, when detected, initiates a replacement of the
+# existing AMI.
+
+Parameters:
+
+  ApplicationName:
+    Description: The name of the application.
+    Type: String
+
+  EnvironmentType:
+    Description: The application environment.
+    Type: String
+
+  ClusterStack:
+    Description: The stack name that define the cluster.
+    Type: String
+
+  CloudFormationBucket:
+    Description: The S3 bucket for the cloudformation yaml files.
+    Type: String
+
+  ECSStack:
+    Description: The ECS stack name that define the cluster.
+    Type: String
+
+  AutoScalingGroupName:
+    Description: The auto scale group name.
+    Type: String
+
+  Arch:
+    Description: Which architecture is the cluster.
+    Default: x86_64
+    Type: String
+
+  Platform:
+    Description: Which platform OS is the cluster.
+    Default: amazon-linux-2023
+    Type: String
+
+  ScheduleExpression:
+    Description: The UTC time that EventBridge will run the refresh lambda.
+    Default: '0 9 * * ? *'
+    Type: String
+
+  EcsLogicalResourceId:
+    Description: Logical resource ID of the ECS cluster nested stack.
+    Default: ECS
+    Type: String
+
+  HasECSAutoRefresh:
+    Description: Turn on an Event Bridge scheduled job to refresh.
+    Default: true
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  NotificationArn:
+    Description: The ARN of the SNS topic to send notifications to for messages.
+    Type: String
+
+  LogRetention:
+    Description: How long to keep logs for in days.
+    Default: 30
+    Type: Number
+
+  HasAlarms:
+    Description: Turn on error lambda alarms for compliance.
+    Default: false
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  AlarmEmailEndpoint:
+    Description: Email address to receive alarm notifications.
+    Default: analytics+lambdaalarm@ombuweb.com
+    Type: String
+
+  ErrorThreshold:
+    Description: The threshold for Lambda function errors to trigger the alarm.
+    Default: 1
+    Type: Number
+
+  EvaluationPeriods:
+    Description: >
+      The number of periods over which data is compared to the threshold.
+    Default: 1
+    Type: Number
+
+  Period:
+    Description: The period in seconds over which the statistic is applied.
+    Default: 60
+    Type: Number
+
+Conditions:
+
+  HasECSAutoRefresh: !Equals [!Ref HasECSAutoRefresh, true]
+  HasAlarms: !Equals [!Ref HasAlarms, true]
+  HasECSAutoRefreshAlarms:
+    Fn::And:
+      - Condition: HasECSAutoRefresh
+      - Condition: HasAlarms
+
+Resources:
+
+  LambdaErrorAlarmTopic:
+    Type: AWS::SNS::Topic
+    Condition: HasAlarms
+    Properties:
+      DisplayName: Lambda Error Alarms
+      TopicName: !Sub "${AWS::StackName}-LambdaErrorAlarms"
+
+  LambdaErrorAlarmSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlarms
+    Properties:
+      Protocol: email
+      Endpoint: !Ref AlarmEmailEndpoint
+      TopicArn: !Ref LambdaErrorAlarmTopic
+
+  InstanceRefreshRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-AllowLogging"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:\
+                          log-group:/aws/lambda/*"
+        - PolicyName: !Sub "${AWS::StackName}-Autoscaling"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - autoscaling:PutScheduledUpdateGroupAction
+                  - autoscaling:DescribeAutoScalingGroups
+                  - autoscaling:DescribeInstanceRefreshes
+                  - autoscaling:StartInstanceRefresh
+                  - ec2:RunInstances
+                  # Needs role to execute deploying EC2 instances
+                  - iam:PassRole
+                Resource: '*'
+        - PolicyName: !Sub "${AWS::StackName}-SNSTopic"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref NotificationArn
+
+  InstanceRefreshGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${InstanceRefresh}"
+      RetentionInDays: !Ref LogRetention
+
+  InstanceRefresh:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../scripts/instance_refresh
+      Handler: instance_refresh.handler
+      Role: !GetAtt InstanceRefreshRole.Arn
+      Runtime: python3.12
+      Timeout: 600
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
+      Description: Start and instance refresh on an autoscale group.
+      Environment:
+        Variables:
+          PROJECT: !Ref ApplicationName
+          ENVIRONMENT_TYPE: !Ref EnvironmentType
+          AUTO_SCALING_GROUP_NAME: !Ref AutoScalingGroupName
+          TOPIC_ARN: !Ref NotificationArn
+
+  InstanceRefreshErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasAlarms
+    Properties:
+      AlarmName: !Sub "${InstanceRefresh}-ErrorAlarm"
+      AlarmDescription: Alarm for Lambda function errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: !Ref Period
+      EvaluationPeriods: !Ref EvaluationPeriods
+      Threshold: !Ref ErrorThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InstanceRefresh
+      AlarmActions:
+        - !Ref LambdaErrorAlarmTopic
+      OKActions:
+        - !Ref LambdaErrorAlarmTopic
+
+  InstanceRefreshNotificationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-AllowLogging"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:\
+                          log-group:/aws/lambda/*"
+        - PolicyName: !Sub "${AWS::StackName}-SNSTopic"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref NotificationArn
+
+  InstanceRefreshNotificationGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${InstanceRefreshNotification}"
+      RetentionInDays: !Ref LogRetention
+
+  InstanceRefreshNotification:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../scripts/instance_refresh
+      Handler: instance_refresh_notification.handler
+      Role: !GetAtt InstanceRefreshNotificationRole.Arn
+      Runtime: python3.12
+      Timeout: 600
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
+      Description: Notify when the instance refresh finishes or fails.
+      Environment:
+        Variables:
+          PROJECT: !Ref ApplicationName
+          ENVIRONMENT_TYPE: !Ref EnvironmentType
+          AUTO_SCALING_GROUP_NAME: !Ref AutoScalingGroupName
+          TOPIC_ARN: !Ref NotificationArn
+      Events:
+        AutoScaleEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              detail:
+                AutoScalingGroupName: [!Ref AutoScalingGroupName]
+              detail-type: [
+                EC2 Auto Scaling Instance Refresh Succeeded,
+                EC2 Auto Scaling Instance Refresh Failed
+              ]
+              source: [aws.autoscaling]
+
+  InstanceRefreshNotificationErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasAlarms
+    Properties:
+      AlarmName: !Sub "${InstanceRefreshNotification}-ErrorAlarm"
+      AlarmDescription: Alarm for Lambda function errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: !Ref Period
+      EvaluationPeriods: !Ref EvaluationPeriods
+      Threshold: !Ref ErrorThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InstanceRefreshNotification
+      AlarmActions:
+        - !Ref LambdaErrorAlarmTopic
+      OKActions:
+        - !Ref LambdaErrorAlarmTopic
+
+  InstanceAMIRefreshRole:
+    Type: AWS::IAM::Role
+    Condition: HasECSAutoRefresh
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-AllowLogging"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:\
+                          log-group:/aws/lambda/*"
+        - PolicyName: !Sub "${AWS::StackName}-CloudformationUpdate"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:Describe*
+                  - cloudformation:Detect*
+                  - cloudformation:UpdateStack
+                  - cloudformation:CreateChangeSet
+                  - ec2:Describe*
+                  - ec2:CreateLaunchTemplateVersion
+                  - ec2:GetLaunchTemplateData
+                  - ec2:ModifyLaunchTemplate
+                  - ec2:RunInstances
+                  - ec2:CreateTags
+                  - iam:GetInstanceProfile
+                  - iam:PassRole
+                  - iam:GetRole
+                  - autoscaling:Describe*
+                  - autoscaling:Get*
+                  - autoscaling:SuspendProcesses
+                  - autoscaling:UpdateAutoScalingGroup
+                  - autoscaling:CreateLaunchConfiguration
+                  - autoscaling:ResumeProcesses
+                  - autoscaling:DeleteLaunchConfiguration
+                  - autoscaling:TerminateInstanceInAutoScalingGroup
+                  - autoscaling:SetDesiredCapacity
+                  - ecs:DescribeClusters
+                Resource: '*'
+        - PolicyName: !Sub "${AWS::StackName}-CloudformationBucket"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub "arn:aws:s3:::${CloudFormationBucket}/*"
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub "arn:aws:s3:::${CloudFormationBucket}"
+        - PolicyName: !Sub "${AWS::StackName}-CloudformationDelete"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Deny
+                Action:
+                  - cloudformation:DeleteStack
+                Resource: '*'
+        - PolicyName: !Sub "${AWS::StackName}-ECSImages"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeImages
+                Resource: '*'
+        - PolicyName: !Sub "${AWS::StackName}-AMIInfo"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameters
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}::parameter/aws/\
+                                service/ecs/optimized-ami/*"
+        - PolicyName: !Sub ${AWS::StackName}-AccessToSecretsKey
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "ssm:GetParameter"
+                  - "ssm:GetParameters"
+                  - "secretsmanager:GetSecretValue"
+                  - "kms:Decrypt"
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:\
+                          parameter/${ApplicationName}/${EnvironmentType}/*"
+        - PolicyName: !Sub "${AWS::StackName}-SNSTopic"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref NotificationArn
+
+  InstanceAMIRefreshGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: HasECSAutoRefresh
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${InstanceAMIRefresh}"
+      RetentionInDays: !Ref LogRetention
+
+  InstanceAMIRefresh:
+    Type: AWS::Serverless::Function
+    Condition: HasECSAutoRefresh
+    Properties:
+      CodeUri: ../scripts/instance_refresh
+      Handler: instance_ami_refresh.handler
+      Role: !GetAtt InstanceAMIRefreshRole.Arn
+      Runtime: python3.12
+      Timeout: 600
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
+      Description: Look for new AMI and refresh instances via cloudformation.
+      Environment:
+        Variables:
+          PROJECT: !Ref ApplicationName
+          ENVIRONMENT_TYPE: !Ref EnvironmentType
+          STACK: !Ref ClusterStack
+          TOPIC_ARN: !Ref NotificationArn
+          ARCH: !Ref Arch
+          PLATFORM: !Ref Platform
+          ECS_LOGICAL_RESOURCE_ID: !Ref EcsLogicalResourceId
+
+  InstanceAMIRefreshErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasECSAutoRefreshAlarms
+    Properties:
+      AlarmName: !Sub "${InstanceAMIRefresh}-ErrorAlarm"
+      AlarmDescription: Alarm for Lambda function errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: !Ref Period
+      EvaluationPeriods: !Ref EvaluationPeriods
+      Threshold: !Ref ErrorThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InstanceAMIRefresh
+      AlarmActions:
+        - !Ref LambdaErrorAlarmTopic
+      OKActions:
+        - !Ref LambdaErrorAlarmTopic
+
+  InstanceAMIRefreshAsyncConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Condition: HasECSAutoRefresh
+    Properties:
+      FunctionName: !Ref InstanceAMIRefresh
+      MaximumRetryAttempts: 0
+      Qualifier: $LATEST
+
+  ScheduledInstanceAMIRefresh:
+    Type: AWS::Events::Rule
+    Condition: HasECSAutoRefresh
+    Properties:
+      Description: Runs the AMI check and starts refresh if there is a new AMI.
+      State: ENABLED
+      ScheduleExpression: !Sub "cron(${ScheduleExpression})"
+      Targets:
+        - Id: instance-ami-refresh-task
+          Arn:
+            Fn::GetAtt:
+              - InstanceAMIRefresh
+              - Arn
+
+  ScheduledInstanceAMIRefreshPermission:
+    Type: AWS::Lambda::Permission
+    Condition: HasECSAutoRefresh
+    Properties:
+      FunctionName: !Ref InstanceAMIRefresh
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+          - ScheduledInstanceAMIRefresh
+          - Arn
+
+  InstanceAMIRefreshNotificationRole:
+    Type: AWS::IAM::Role
+    Condition: HasECSAutoRefresh
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-AllowLogging"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:\
+                          log-group:/aws/lambda/*"
+        - PolicyName: !Sub "${AWS::StackName}-SNSTopic"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref NotificationArn
+
+  InstanceAMIRefreshNotificationGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: HasECSAutoRefresh
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${InstanceAMIRefreshNotification}"
+      RetentionInDays: !Ref LogRetention
+
+  InstanceAMIRefreshNotification:
+    Type: AWS::Serverless::Function
+    Condition: HasECSAutoRefresh
+    Properties:
+      CodeUri: ../scripts/instance_refresh
+      Handler: instance_ami_refresh_notification.handler
+      Role: !GetAtt InstanceAMIRefreshNotificationRole.Arn
+      Runtime: python3.12
+      Timeout: 600
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
+      Description: Notify when the instance ami refresh finishes or fails.
+      Environment:
+        Variables:
+          PROJECT: !Ref ApplicationName
+          ENVIRONMENT_TYPE: !Ref EnvironmentType
+          STACK: !Ref ClusterStack
+          TOPIC_ARN: !Ref NotificationArn
+      Events:
+        AutoScaleEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              resources: [!Ref ECSStack]
+              detail-type: [CloudFormation Stack Status Change]
+              source: [aws.cloudformation]
+              detail:
+                status-details:
+                  status: [
+                    ROLLBACK_COMPLETE,
+                    ROLLBACK_FAILED,
+                    UPDATE_COMPLETE,
+                    UPDATE_FAILED,
+                    UPDATE_ROLLBACK_COMPLETE,
+                    UPDATE_ROLLBACK_FAILED
+                  ]
+
+  InstanceAMIRefreshNotificationErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasECSAutoRefreshAlarms
+    Properties:
+      AlarmName: !Sub "${InstanceAMIRefreshNotification}-ErrorAlarm"
+      AlarmDescription: Alarm for Lambda function errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: !Ref Period
+      EvaluationPeriods: !Ref EvaluationPeriods
+      Threshold: !Ref ErrorThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InstanceAMIRefreshNotification
+      AlarmActions:
+        - !Ref LambdaErrorAlarmTopic
+      OKActions:
+        - !Ref LambdaErrorAlarmTopic
+
+Outputs:
+
+  ServiceArn:
+    Description: The service lambda ARN for cli.
+    Value: !Ref InstanceRefresh
+
+  InstanceRefreshGroup:
+    Description: The CloudWatch log group for instance refresh lambda.
+    Value: !Ref InstanceRefreshGroup
+
+  InstanceRefreshNotificationGroup:
+    Description: The CloudWatch log group for instance refresh notification.
+    Value: !Ref InstanceRefreshNotificationGroup
+
+  InstanceAMIRefreshGroup:
+    Condition: HasECSAutoRefresh
+    Description: The CloudWatch log group for instance AMI refresh.
+    Value: !Ref InstanceAMIRefreshGroup
+
+  InstanceAMIRefreshNotificationGroup:
+    Condition: HasECSAutoRefresh
+    Description: The CloudWatch log group for instance AMI refresh notification.
+    Value: !Ref InstanceAMIRefreshNotificationGroup

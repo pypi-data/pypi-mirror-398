@@ -1,0 +1,73 @@
+---
+Description: OMBU / WAF / IP Sets
+
+Parameters:
+
+  ApplicationName:
+    Description: The name of the application.
+    Type: String
+
+  EnvironmentType:
+    Description: The application environment.
+    Type: String
+
+  Scope:
+    Description: Specify wether WAF shall be used.
+    Default: REGIONAL
+    Type: String
+    AllowedValues:
+      - REGIONAL
+      - CLOUDFRONT
+
+  HasAllowList:
+    Description: Turn on a rule for an explicit allow list.
+    Default: true
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  HasBlockList:
+    Description: Turn on a rule for an explicit block list.
+    Default: false
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+Conditions:
+
+  HasAllowList: !Equals [!Ref HasAllowList, true]
+  HasBlockList: !Equals [!Ref HasBlockList, true]
+
+Resources:
+
+  AllowIPSet:
+    Type: AWS::WAFv2::IPSet
+    Condition: HasAllowList
+    Properties:
+      Addresses: []
+      IPAddressVersion: IPV4
+      Name: !Sub "${ApplicationName}-${EnvironmentType}-waf-ipset-ipv4-allow"
+      Scope: !Ref Scope
+
+  BlockIPSet:
+    Type: AWS::WAFv2::IPSet
+    Condition: HasBlockList
+    Properties:
+      Addresses: []
+      IPAddressVersion: IPV4
+      Name: !Sub "${ApplicationName}-${EnvironmentType}-waf-ipset-ipv4-block"
+      Scope: !Ref Scope
+
+Outputs:
+
+  AllowIPSetArn:
+    Condition: HasAllowList
+    Description: The Allow IPSet ARN.
+    Value: !GetAtt AllowIPSet.Arn
+
+  BlockIPSetArn:
+    Condition: HasBlockList
+    Description: The Block IPSet ARN.
+    Value: !GetAtt BlockIPSet.Arn

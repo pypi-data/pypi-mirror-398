@@ -1,0 +1,144 @@
+---
+Transform: AWS::Serverless-2016-10-31
+Description: OMBU / Application / Deploy Pipeline
+
+# The web-deploy-pipeline stack will create an AWS EventBridge
+# listener for detecting when an image tagged latest is sent to ECR.
+# When a new latest image is detected it will trigger an AWS Lambda function to
+# force a new deployment of the ECS service and notifiy the user via AWS SNS
+# about the change.
+
+Parameters:
+
+  ApplicationName:
+    Description: The name of the application.
+    Type: String
+
+  EnvironmentType:
+    Description: The application environment.
+    Type: String
+
+  RepositoryName:
+    Description: The repository to watch.
+    Type: String
+
+  ClusterName:
+    Description: The name of the ECS Cluster that hosts the service.
+    Type: String
+
+  ServiceName:
+    Description: The name the ECS service to deploy.
+    Type: String
+
+  ServiceNameArn:
+    Description: The ARN the ECS service to deploy.
+    Type: String
+
+  ServiceFriendlyName:
+    Description: Freindly name of the ECS service to deploy.
+    Default: Web
+    Type: String
+
+  ImageTag:
+    Description: The container image tag to watch.
+    Type: String
+
+  NotificationArn:
+    Description: The ARN of the SNS topic to send notifications to.
+    Type: String
+
+  LogRetention:
+    Description: How long to keep logs for in days.
+    Default: 30
+    Type: Number
+
+Resources:
+
+  ForceDeployOnLatestRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-AllowLogging"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:\
+                          log-group:/aws/lambda/*"
+        - PolicyName: !Sub "${AWS::StackName}-AllowECSServiceUpdate"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:UpdateService
+                  - ecs:DescribeServices
+                Resource:
+                  - !Ref ServiceNameArn
+        - PolicyName: !Sub "${AWS::StackName}-SNSTopic"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref NotificationArn
+
+  ForceDeployOnLatestLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ForceDeployOnLatest}"
+      RetentionInDays: !Ref LogRetention
+
+  ForceDeployOnLatest:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../scripts/web_deploy
+      Handler: web_deploy.handler
+      Role: !GetAtt ForceDeployOnLatestRole.Arn
+      Runtime: python3.12
+      Timeout: 600
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
+      Description: Deploy lastest an environment automatically if configured.
+      Environment:
+        Variables:
+          APP: !Ref ApplicationName
+          CLUSTER: !Ref ClusterName
+          SERVICE: !Ref ServiceName
+          SERVICE_ARN: !Ref ServiceNameArn
+          SERVICE_FRIENDLY_NAME: !Ref ServiceFriendlyName
+          ENVIRONMENT_TYPE: !Ref EnvironmentType
+          CURRENT_TAG: !Ref ImageTag
+          TOPIC_ARN: !Ref NotificationArn
+      Events:
+        ECREvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              detail:
+                action-type: [PUSH]
+                repository-name: [!Ref RepositoryName]
+                result: [SUCCESS]
+                image-tag: [latest]
+              detail-type: [ECR Image Action]
+              source: [aws.ecr]
+
+Outputs:
+
+  LogGroup:
+    Description: The CloudWatch log group.
+    Value: !Ref ForceDeployOnLatestLogGroup

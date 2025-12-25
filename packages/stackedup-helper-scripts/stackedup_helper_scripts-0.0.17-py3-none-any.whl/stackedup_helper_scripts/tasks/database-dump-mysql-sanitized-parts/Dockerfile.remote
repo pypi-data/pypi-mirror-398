@@ -1,0 +1,31 @@
+FROM python:3.12.10-alpine3.22
+
+LABEL maintainer="OMBU"
+
+ARG BUILD_SHA=""
+
+# Set TZ.
+RUN apk add --no-cache tzdata && \
+  ln -s /usr/share/zoneinfo/America/Los_Angeles /etc/localtime
+ENV TZ="America/Los_Angeles"
+
+RUN apk update && \
+    apk add --no-cache aws-cli && \
+    apk add --no-cache mariadb-connector-c-dev mariadb-client mariadb-dev && \
+    apk add --no-cache gzip && \
+    apk add --no-cache python3 && \
+    apk add --no-cache build-base && \
+    apk add --no-cache musl
+
+COPY database-dump.sh /tmp
+COPY sanitizer /tmp/code
+
+RUN chmod +x /tmp/database-dump.sh && \
+  pip install --no-cache-dir wheel setuptools pip && \
+  pip install --no-cache-dir -r /tmp/code/requirements.txt
+
+WORKDIR /tmp
+
+RUN echo $BUILD_SHA > /tmp/GIT_SHA
+
+CMD ["./database-dump.sh"]

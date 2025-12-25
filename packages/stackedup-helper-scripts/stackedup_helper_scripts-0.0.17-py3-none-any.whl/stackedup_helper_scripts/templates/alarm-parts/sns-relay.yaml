@@ -1,0 +1,184 @@
+---
+Transform: AWS::Serverless-2016-10-31
+Description: OMBU Alarms / SNS Relay
+
+Parameters:
+
+  NotificationArn:
+    Description: The ARN of the SNS topic to send notifications to.
+    Type: String
+
+  LogRetention:
+    Description: How long to keep logs for in days.
+    Default: 30
+    Type: Number
+
+  HasLambdaAlarms:
+    Description: Turn on error lambda alarms for compliance.
+    Default: false
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+  AlarmEmailEndpoint:
+    Description: Email address to receive alarm notifications.
+    Default: analytics+lambdaalarm@ombuweb.com
+    Type: String
+
+  ErrorThreshold:
+    Description: The threshold for Lambda function errors to trigger the alarm.
+    Default: 1
+    Type: Number
+
+  EvaluationPeriods:
+    Description: >
+      The number of periods over which data is compared to the threshold.
+    Default: 1
+    Type: Number
+
+  Period:
+    Description: The period in seconds over which the statistic is applied.
+    Default: 60
+    Type: Number
+
+Conditions:
+
+  HasLambdaAlarms: !Equals [!Ref HasLambdaAlarms, true]
+
+Resources:
+
+  LambdaErrorAlarmTopic:
+    Type: AWS::SNS::Topic
+    Condition: HasLambdaAlarms
+    Properties:
+      DisplayName: Lambda Error Alarms
+      TopicName: !Sub "${AWS::StackName}-LambdaErrorAlarms"
+
+  LambdaErrorAlarmSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasLambdaAlarms
+    Properties:
+      Protocol: email
+      Endpoint: !Ref AlarmEmailEndpoint
+      TopicArn: !Ref LambdaErrorAlarmTopic
+
+  SNSRelayTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName:
+        !Sub "${AWS::StackName}-sns-relay-topic"
+
+  SNSRelayFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-AllowLogging"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:\
+                          log-group:/aws/lambda/*"
+        - PolicyName: !Sub "${AWS::StackName}-SNSTopic"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref NotificationArn
+        - PolicyName: !Sub "${AWS::StackName}-GetAlarmData"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:DescribeAlarms
+                Resource: "*"
+
+  SNSRelay:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../scripts/sns_relay
+      Handler: sns_relay.handler
+      Role: !GetAtt SNSRelayFunctionRole.Arn
+      Runtime: python3.12
+      Timeout: 600
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
+      Description: >
+        Reformat a cloudwatch alarm and relay the message for delivery.
+      Environment:
+        Variables:
+          TOPIC_ARN: !Ref NotificationArn
+
+  SNSRelayErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasLambdaAlarms
+    Properties:
+      AlarmName: !Sub "${SNSRelay}-ErrorAlarm"
+      AlarmDescription: Alarm for Lambda function errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: !Ref Period
+      EvaluationPeriods: !Ref EvaluationPeriods
+      Threshold: !Ref ErrorThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref SNSRelay
+      AlarmActions:
+        - !Ref LambdaErrorAlarmTopic
+      OKActions:
+        - !Ref LambdaErrorAlarmTopic
+
+  SNSRelayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${SNSRelay}
+      RetentionInDays: !Ref LogRetention
+
+  SNSRelaySubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn: !Ref SNSRelayTopic
+      Endpoint: !GetAtt SNSRelay.Arn
+
+  SNSRelayInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SNSRelay
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref SNSRelayTopic
+
+Outputs:
+
+  RelaySNSTopicArn:
+    Description: SNS Topic ARN for relaying alarm notifications.
+    Value: !Ref SNSRelayTopic
+
+  LambdaFunctionName:
+    Description: Lambda function name
+    Value: !Ref SNSRelay
+
+  LambdaFunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt SNSRelay.Arn

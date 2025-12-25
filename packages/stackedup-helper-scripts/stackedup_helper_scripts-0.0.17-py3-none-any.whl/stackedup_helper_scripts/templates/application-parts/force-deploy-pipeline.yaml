@@ -1,0 +1,129 @@
+---
+Transform: AWS::Serverless-2016-10-31
+Description: OMBU / Application / Force New Deploy Pipeline
+
+# The force-deploy-pipeline stack will force a new deployment of the ECS
+# service and notifiy the user via AWS SNS about the change.
+
+Parameters:
+
+  ApplicationName:
+    Description: The name of the application.
+    Type: String
+
+  EnvironmentType:
+    Description: The application environment.
+    Type: String
+
+  ClusterName:
+    Description: The name of the ECS Cluster that hosts the service.
+    Type: String
+
+  ServiceName:
+    Description: The name the ECS service to deploy.
+    Type: String
+
+  ServiceNameArn:
+    Description: The ARN the ECS service to deploy.
+    Type: String
+
+  ServiceFriendlyName:
+    Description: Freindly name of the ECS service to deploy.
+    Default: Web
+    Type: String
+
+  ImageTag:
+    Description: The current container image tag.
+    Type: String
+
+  NotificationArn:
+    Description: The ARN of the SNS topic to send notifications to.
+    Type: String
+
+  LogRetention:
+    Description: How long to keep logs for in days.
+    Default: 30
+    Type: Number
+
+Resources:
+
+  ForceNewDeployOnLatestRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-AllowLogging"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:\
+                          log-group:/aws/lambda/*"
+        - PolicyName: !Sub "${AWS::StackName}-AllowECSServiceUpdate"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:UpdateService
+                  - ecs:DescribeServices
+                Resource:
+                  - !Ref ServiceNameArn
+        - PolicyName: !Sub "${AWS::StackName}-SNSTopic"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref NotificationArn
+
+  ForceNewDeployOnLatestLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ForceNewDeployOnLatest}"
+      RetentionInDays: !Ref LogRetention
+
+  ForceNewDeployOnLatest:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../scripts/force_deploy
+      Handler: force_deploy.handler
+      Role: !GetAtt ForceNewDeployOnLatestRole.Arn
+      Runtime: python3.12
+      Timeout: 600
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
+      Description: Deploy a new version of the site in an environment.
+      Environment:
+        Variables:
+          APP: !Ref ApplicationName
+          CLUSTER: !Ref ClusterName
+          SERVICE: !Ref ServiceName
+          SERVICE_ARN: !Ref ServiceNameArn
+          SERVICE_FRIENDLY_NAME: !Ref ServiceFriendlyName
+          ENVIRONMENT_TYPE: !Ref EnvironmentType
+          CURRENT_TAG: !Ref ImageTag
+          TOPIC_ARN: !Ref NotificationArn
+
+Outputs:
+
+  ServiceArn:
+    Description: The ARN the lambda function.
+    Value: !Ref ForceNewDeployOnLatest
+
+  LogGroup:
+    Description: The CloudWatch log group.
+    Value: !Ref ForceNewDeployOnLatestLogGroup
