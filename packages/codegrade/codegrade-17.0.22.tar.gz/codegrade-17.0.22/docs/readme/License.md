@@ -1,0 +1,1 @@
+The library is licensed under AGPL-3.0-only or BSD-3-Clause-Clear.
