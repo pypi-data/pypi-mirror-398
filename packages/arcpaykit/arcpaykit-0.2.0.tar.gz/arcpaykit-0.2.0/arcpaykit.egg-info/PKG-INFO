@@ -1,0 +1,261 @@
+Metadata-Version: 2.4
+Name: arcpaykit
+Version: 0.2.0
+Summary: Official ArcPay Python SDK for accepting stablecoin payments
+Home-page: https://github.com/arcpay/gateway
+Author: ArcPay
+Author-email: ArcPay <support@arcpaykit.com>
+License: MIT
+Project-URL: Documentation, https://docs.arcpaykit.com
+Project-URL: Source, https://github.com/arcpay/gateway
+Project-URL: Tracker, https://github.com/arcpay/gateway/issues
+Keywords: payments,web3,stablecoin,arcpay,blockchain,cryptocurrency
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Office/Business :: Financial
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.31.0
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# arcpaykit
+
+Official ArcPay Python SDK for accepting stablecoin payments.
+
+## Installation
+
+```bash
+pip install arcpaykit
+```
+
+## Quick Start
+
+Get started in 5 minutes:
+
+```python
+from arcpaykit import ArcPay
+
+# Initialize the client
+arcpay = ArcPay("your-api-key")
+
+# Create a payment (happy path - recommended)
+payment = arcpay.payments.create(
+    amount="100.00",
+    currency="USDC",
+    description="Payment for order #123",
+    customer_email="customer@example.com"
+)
+
+# Redirect customer to checkout
+print(payment["checkout_url"])  # https://pay.arcpaykit.com/checkout/pay_...
+
+# That's it! ArcPay handles:
+# - Merchant wallet (uses your default)
+# - Test/live mode (inferred from API key)
+# - Payment chain (inferred automatically)
+# - Settlement currency (defaults to USDC)
+```
+
+**No need to configure:**
+- ❌ Merchant wallet (uses your default)
+- ❌ Test/live mode (inferred from API key: `sk_arc_test_` vs `sk_arc_live_`)
+- ❌ Payment chain ID (inferred automatically)
+- ❌ Settlement currency (defaults to USDC)
+
+For advanced use cases, see `payments.create_advanced()` below.
+
+## API Reference
+
+### ArcPay
+
+Main SDK class.
+
+#### Constructor
+
+```python
+ArcPay(api_key: str, base_url: str = "https://pay.arcpaykit.com")
+```
+
+- `api_key`: Your ArcPay API key
+- `base_url`: Optional base URL (defaults to `https://pay.arcpaykit.com`)
+
+### Payments
+
+#### `create(...) -> dict`
+
+Create a new payment (happy path - recommended for most users).
+
+**Most users should use this method.** It only requires essential fields. All advanced fields are inferred automatically.
+
+**Parameters:**
+- `amount` (str, required): Payment amount (e.g., "100.00")
+- `currency` (str, optional): Payment currency (default: "USDC")
+- `description` (str, optional): Payment description
+- `customer_email` (str, optional): Customer email address
+
+**Example:**
+```python
+payment = arcpay.payments.create(
+    amount="100.00",
+    currency="USDC",
+    description="Order #123",
+    customer_email="customer@example.com"
+)
+```
+
+#### `create_advanced(...) -> dict`
+
+Create a new payment with full control (advanced users only).
+
+**Most users should use `payments.create()` instead.** This method allows full control over all payment parameters.
+
+**Parameters:**
+- `amount` (str, required): Payment amount (e.g., "100.00")
+- `merchant_wallet` (str, optional): Merchant wallet address (uses default if not provided)
+- `currency` (str, optional): Payment currency (default: "USDC")
+- `settlement_currency` (str, optional): Settlement currency ("USDC" or "EURC")
+- `payment_asset` (str, optional): Specific asset identifier
+- `payment_chain_id` (int, optional): Chain ID for payment
+- `conversion_path` (str, optional): Conversion path JSON string
+- `estimated_fees` (str, optional): Estimated fees
+- `description` (str, optional): Payment description
+- `customer_email` (str, optional): Customer email address
+- `expires_in_minutes` (int, optional): Expiration time in minutes
+- `is_test` (bool, optional): Test mode flag (inferred from API key if not provided)
+- `gas_sponsored` (bool, optional): Gas sponsorship preference
+
+**Returns:**
+```python
+{
+    "id": "pay_...",
+    "status": "pending",
+    "checkout_url": "https://pay.arcpaykit.com/checkout/pay_...",
+    "amount": 100.00,
+    "currency": "USDC",
+    "merchantWallet": "0x...",
+    "expiresAt": "2024-...",
+    "createdAt": "2024-..."
+}
+```
+
+#### `retrieve(payment_id: str) -> dict`
+
+Retrieve a payment by ID.
+
+#### `submit_tx(...) -> dict`
+
+Submit a transaction hash for a payment.
+
+**Parameters:**
+- `payment_id` (str, required): Payment ID
+- `tx_hash` (str, required): Transaction hash
+- `payer_wallet` (str, required): Payer wallet address
+- `customer_email` (str, optional): Customer email
+- `customer_name` (str, optional): Customer name
+- `gas_sponsored` (bool, optional): Gas sponsorship preference
+
+#### `confirm(...) -> dict`
+
+Confirm a payment (legacy endpoint).
+
+#### `fail(payment_id: str, reason: str = None) -> dict`
+
+Mark a payment as failed.
+
+#### `expire(payment_id: str) -> dict`
+
+Expire a payment.
+
+## Examples
+
+### Create and Track a Payment
+
+```python
+from arcpaykit import ArcPay
+import os
+
+# Initialize with API key from environment
+arcpay = ArcPay(os.getenv("ARCPAY_API_KEY"))
+
+# Create payment (simple - recommended)
+payment = arcpay.payments.create(
+    amount="50.00",
+    currency="USDC",
+    description="Monthly subscription",
+    customer_email="customer@example.com"
+)
+
+print(f"Payment created: {payment['id']}")
+print(f"Checkout URL: {payment['checkout_url']}")
+
+# Redirect customer (in your web framework)
+# return redirect(payment['checkout_url'])
+
+# Later, check payment status
+status = arcpay.payments.retrieve(payment["id"])
+print(f"Payment status: {status['status']}")
+```
+
+### Advanced Payment Creation
+
+For full control over payment parameters:
+
+```python
+payment = arcpay.payments.create_advanced(
+    amount="50.00",
+    merchant_wallet="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
+    currency="USDC",
+    settlement_currency="EURC",
+    payment_asset="USDC_BASE",
+    payment_chain_id=8453,
+    description="Monthly subscription",
+    customer_email="customer@example.com",
+    expires_in_minutes=30,
+    is_test=False,
+    gas_sponsored=True
+)
+```
+
+### Using Custom Base URL
+
+```python
+arcpay = ArcPay(
+    "your-api-key",
+    base_url="https://staging.arcpaykit.com"
+)
+```
+
+### Error Handling
+
+The SDK raises `ArcPayError` for failed requests:
+
+```python
+from arcpaykit import ArcPay, ArcPayError
+
+try:
+    payment = arcpay.payments.create(...)
+except ArcPayError as e:
+    print(f"Payment creation failed: {e}")
+```
+
+## REST API
+
+The SDK is a thin wrapper around the ArcPay REST API. You can also use the REST API directly if needed. See the [ArcPay API documentation](https://docs.arcpaykit.com) for more details.
+
+## License
+
+MIT
+
