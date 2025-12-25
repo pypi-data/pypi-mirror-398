@@ -1,0 +1,120 @@
+Metadata-Version: 2.4
+Name: language-detection-nlp
+Version: 0.0.0
+Summary: Tiny examples and utilities for language detection
+Home-page: https://github.com/swaranika27nath-spec/language-detection-nlp
+Author: (your name)
+License: MIT
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: license-file
+
+[![CI](https://github.com/swaranika27nath-spec/language-detection-nlp/actions/workflows/ci.yml/badge.svg)](https://github.com/swaranika27nath-spec/language-detection-nlp/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/language-detection-nlp.svg)](https://pypi.org/project/language-detection-nlp/)
+[![Lint](https://github.com/swaranika27nath-spec/language-detection-nlp/actions/workflows/lint.yml/badge.svg)](https://github.com/swaranika27nath-spec/language-detection-nlp/actions/workflows/lint.yml)
+
+# language-detection-nlp
+
+Small examples and utilities for simple language detection tasks. The repository contains:
+
+- A tiny wrapper using `langdetect` in `src/langdetector/`.
+- An example sklearn-based detector in `examples/language_detection.py` (toy dataset).
+- Tests in `tests/` that exercise the `langdetector` package.
+
+Quick start
+
+1. Create and activate a virtual environment (optional):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+2. Install dependencies:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+3. Install the package (editable) so `langdetector` imports work:
+
+```bash
+python3 -m pip install -e .
+```
+
+Run tests
+
+```bash
+python3 -m pytest -q
+```
+
+Run the sklearn example
+
+```bash
+python3 examples/language_detection.py
+```
+
+Run the langdetect CLI
+
+```bash
+python3 -m langdetector.cli --text "This is a test"
+```
+
+Notes
+
+- The sklearn example uses a toy dataset for demonstration. For production tasks, use larger labeled corpora and proper preprocessing.
+- Consider using `pycountry` or similar to map language codes to full names if needed.
+
+
+# Sample data - sentences with their language labels
+texts = [
+    "Hello, how are you?",         # English
+    "What is your name?",          # English
+    "Bonjour, comment ça va?",     # French
+    "Quel est ton nom?",           # French
+    "Hola, ¿cómo estás?",          # Spanish
+    "¿Cuál es tu nombre?",         # Spanish
+    "Hallo, wie geht's dir?",      # German
+    "Wie heißt du?",               # German
+    "Ciao, come stai?",            # Italian
+    "Come ti chiami?",             # Italian
+]
+labels = [
+    "English",
+    "English",
+    "French",
+    "French",
+    "Spanish",
+    "Spanish",
+    "German",
+    "German",
+    "Italian",
+    "Italian"
+]
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(texts, labels, test_size=0.3, random_state=42)
+
+# Feature extraction
+vectorizer = TfidfVectorizer()
+X_train_vec = vectorizer.fit_transform(X_train)
+X_test_vec = vectorizer.transform(X_test)
+
+# Train classifier
+model = MultinomialNB()
+model.fit(X_train_vec, y_train)
+
+# Test accuracy
+y_pred = model.predict(X_test_vec)
+accuracy = accuracy_score(y_test, y_pred)
+print(f"Language detection accuracy: {accuracy:.2f}")
+
+# Optional: Predict language for new sentences
+sample_sentences = ["Wie geht es Ihnen?", "Good morning!", "¿Dónde está la estación?"]
+sample_vec = vectorizer.transform(sample_sentences)
+predictions = model.predict(sample_vec)
+for i, sentence in enumerate(sample_sentences):
+    print(f"'{sentence}' predicted as: {predictions[i]}")
