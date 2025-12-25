@@ -1,0 +1,220 @@
+{
+  "schema": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string"
+        },
+        "customer": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "first_name": {
+              "type": "string"
+            },
+            "last_name": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "phone": {
+              "type": "string"
+            },
+            "address": {
+              "type": "object",
+              "properties": {
+                "street": {
+                  "type": "string"
+                },
+                "city": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "zip": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "street",
+                "city",
+                "state",
+                "zip"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "address"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sku": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "quantity": {
+                "type": "integer"
+              },
+              "unit_price": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "sku",
+              "name",
+              "quantity",
+              "unit_price"
+            ]
+          },
+          "minItems": 1
+        },
+        "subtotal": {
+          "type": "number"
+        },
+        "tax_rate": {
+          "type": "number"
+        },
+        "tax_amount": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "total": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "shipped_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "order_id",
+        "customer",
+        "items",
+        "subtotal",
+        "tax_rate",
+        "tax_amount",
+        "total",
+        "status",
+        "created_at",
+        "updated_at",
+        "shipped_at"
+      ]
+    }
+  },
+  "data_types": {
+    "order_id": "string",
+    "customer": "object",
+    "customer.id": "string",
+    "customer.first_name": "string",
+    "customer.last_name": "string",
+    "customer.email": "string (email)",
+    "customer.phone": "string (phone number)",
+    "customer.address": "object",
+    "customer.address.street": "string",
+    "customer.address.city": "string",
+    "customer.address.state": "string (US state code)",
+    "customer.address.zip": "string (postal code)",
+    "items": "array",
+    "items[].sku": "string",
+    "items[].name": "string",
+    "items[].quantity": "integer",
+    "items[].unit_price": "number (currency)",
+    "subtotal": "number (currency)",
+    "tax_rate": "number (decimal fraction)",
+    "tax_amount": "number (currency) or null",
+    "total": "number (currency)",
+    "status": "string (order status)",
+    "created_at": "string (ISO 8601 timestamp UTC)",
+    "updated_at": "string (ISO 8601 timestamp UTC)",
+    "shipped_at": "string (ISO 8601 timestamp UTC) or null"
+  },
+  "business_rules": [
+    "Top-level structure is an array of order objects; each order must have a non-empty items array.",
+    "order_id appears to follow a consistent prefix + year + sequence pattern and should be unique per order.",
+    "customer.id appears to be an internal customer identifier (consistent prefix + numeric suffix).",
+    "Each item requires sku, name, integer quantity >= 1, and unit_price >= 0.",
+    "subtotal should equal the sum over items of (quantity * unit_price), rounded to typical currency precision (2 decimal places).",
+    "tax_amount is derived: tax_amount \u2248 round(subtotal * tax_rate, 2). tax_rate is a decimal fraction (0 <= tax_rate <= 1).",
+    "total should equal subtotal + tax_amount (rounded to currency precision).",
+    "created_at, updated_at, shipped_at timestamps use ISO 8601 UTC format. created_at <= updated_at.",
+    "If status is 'processing', shipped_at is expected to be null. If status is 'shipped' or 'delivered', shipped_at is expected to be a non-null timestamp (usually >= created_at).",
+    "status is an enumerated string (examples observed: 'processing', 'shipped', 'delivered'); additional statuses may exist but values should be from a controlled set.",
+    "address contains standard mailing fields (street, city, state (US 2-letter), zip (5-digit)); zip stored as string to preserve leading zeros.",
+    "Monetary fields (unit_price, subtotal, tax_amount, total) are stored as numbers with two-decimal currency precision.",
+    "Timestamps are consistent to second resolution and include a timezone designator (Z for UTC)."
+  ],
+  "pii_fields": [
+    "customer.first_name",
+    "customer.last_name",
+    "customer.email",
+    "customer.phone",
+    "customer.address.street",
+    "customer.address.city",
+    "customer.address.state",
+    "customer.address.zip",
+    "customer.id"
+  ],
+  "patterns": {
+    "order_id": "Prefix 'ORD-' followed by 4-digit year then hyphen then numeric sequence (e.g., ORD-YYYY-NNNNN).",
+    "customer.id": "Prefix 'CUST-' followed by numeric identifier (e.g., CUST-####).",
+    "email": "Standard email format local@domain.tld",
+    "phone": "International-style with '+' country code, separators (e.g., +1-###-###-####) \u2014 E.164-compatible when digits-only.",
+    "state": "Two-letter US state code (uppercase).",
+    "zip": "Five-digit numeric postal code stored as string.",
+    "sku": "Uppercase alphanumeric tokens with hyphens and optional numbers/letters (e.g., PRODUCT-123-XL).",
+    "timestamps": "ISO 8601 combined date and time in UTC with 'Z' timezone designator (YYYY-MM-DDThh:mm:ssZ).",
+    "currency_numbers": "Decimal numbers with two fractional digits (e.g., ###.##).",
+    "tax_rate": "Decimal fraction typically between 0 and 1 (e.g., 0.0825).",
+    "status": "Lowercase single-word status codes from a small controlled vocabulary (e.g., processing, shipped, delivered)."
+  },
+  "example_formats": {
+    "order_id": "ORD-YYYY-NNNNN (e.g., 'ORD-2025-00001' format; do not use real values)",
+    "customer.id": "CUST-NNNN (e.g., 'CUST-1234')",
+    "customer.first_name": "Given name as plain string (no punctuation required)",
+    "customer.last_name": "Family name as plain string",
+    "customer.email": "user@domain.tld (standard email format)",
+    "customer.phone": "+<country>-<area>-<prefix>-<line> or E.164 digits-only (e.g., +1-555-123-4567)",
+    "customer.address.street": "Street address line (may include unit/suite info)",
+    "customer.address.city": "City name string",
+    "customer.address.state": "Two-letter US state code (e.g., 'CA')",
+    "customer.address.zip": "5-digit string (e.g., '01234')",
+    "items[].sku": "Uppercase-alphanumeric-with-hyphens (e.g., 'PROD-XL-100')",
+    "items[].name": "Product display name string",
+    "items[].quantity": "Integer >= 1",
+    "items[].unit_price": "Decimal with two fraction digits (currency), e.g., 199.99",
+    "subtotal/tax_amount/total": "Decimal currency values with two fraction digits (e.g., 1234.56)",
+    "tax_rate": "Decimal fraction (e.g., 0.0825 representing 8.25%)",
+    "status": "One of controlled values: e.g., 'processing', 'shipped', 'delivered'",
+    "created_at/updated_at/shipped_at": "ISO 8601 UTC timestamp with Z (e.g., 2025-01-15T13:45:30Z); shipped_at may be null"
+  }
+}
