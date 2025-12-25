@@ -1,0 +1,115 @@
+Metadata-Version: 2.4
+Name: tracktolib
+Version: 0.64.0
+Summary: Utility library for python
+Keywords: utility
+Author-email: julien.brayere@tracktor.fr
+License-Expression: MIT
+Classifier: Operating System :: OS Independent
+Requires-Dist: fastapi>=0.103.2 ; extra == 'api'
+Requires-Dist: pydantic>=2 ; extra == 'api'
+Requires-Dist: httpx>=0.25.0 ; extra == 'http'
+Requires-Dist: python-json-logger>=3.2.1 ; extra == 'logs'
+Requires-Dist: niquests>=3.15.2 ; extra == 'notion'
+Requires-Dist: asyncpg>=0.27.0 ; extra == 'pg'
+Requires-Dist: rich>=13.6.0 ; extra == 'pg'
+Requires-Dist: psycopg>=3.1.12 ; extra == 'pg-sync'
+Requires-Dist: aiobotocore>=2.9.0 ; extra == 's3'
+Requires-Dist: minio>=7.2.0 ; extra == 's3-minio'
+Requires-Dist: pycryptodome>=3.20.0 ; extra == 's3-minio'
+Requires-Dist: deepdiff>=8.1.0 ; extra == 'tests'
+Requires-Python: >=3.12, <4.0
+Provides-Extra: api
+Provides-Extra: http
+Provides-Extra: logs
+Provides-Extra: notion
+Provides-Extra: pg
+Provides-Extra: pg-sync
+Provides-Extra: s3
+Provides-Extra: s3-minio
+Provides-Extra: tests
+Description-Content-Type: text/markdown
+
+# Tracktolib
+
+[![Python versions](https://img.shields.io/pypi/pyversions/tracktolib)](https://pypi.python.org/pypi/tracktolib)
+[![Latest PyPI version](https://img.shields.io/pypi/v/tracktolib?logo=pypi)](https://pypi.python.org/pypi/tracktolib)
+[![CircleCI](https://circleci.com/gh/Tracktor/tracktolib/tree/master.svg?style=shield)](https://app.circleci.com/pipelines/github/Tracktor/tracktolib?branch=master)
+
+Utility library for python
+
+# Installation
+
+Just run:
+
+```bash
+uv add tracktolib@latest 
+```
+
+# Utilities
+
+- **log**
+
+Utility functions for logging.
+
+```python
+import logging
+from tracktolib.logs import init_logging
+
+logger = logging.getLogger()
+formatter, stream_handler = init_logging(logger, 'json', version='0.0.1')
+```
+
+- **pg**
+
+Utility functions for [asyncpg](https://github.com/MagicStack/asyncpg)
+
+- **pg-sync**
+
+Utility functions based on psycopg such as `fetch_one`, `insert_many`, `fetch_count` ...
+
+To use the functions, create a `Connection` using psycopg: `conn = psycopg2.connect()`
+
+*fetch_one*
+
+```python
+from tracktolib.pg.pg_sync import (
+    insert_many, fetch_one, fetch_count, fetch_all
+)
+
+data = [
+    {'foo': 'bar', 'value': 1},
+    {'foo': 'baz', 'value': 2}
+]
+insert_many(conn, 'public.test', data)  # Will insert the 2 dict
+query = 'SELECT foo from public.test order by value asc'
+value = fetch_one(conn, query, required=True)  # Will return {'foo': 'bar'}, raise an error is not found
+assert fetch_count(conn, 'public.test') == 2
+query = 'SELECT * from public.test order by value asc'
+assert fetch_all(conn, query) == data
+
+```
+
+- **tests**
+
+Utility functions for testing
+
+- **s3-minio**
+
+Utility functions for [minio](https://min.io/docs/minio/linux/developers/python/API.html)
+
+- **s3**
+
+Utility functions for [aiobotocore](https://github.com/aio-libs/aiobotocore)
+
+- **logs**
+
+Utility functions to initialize the logging formatting and streams
+
+- **http**
+
+Utility functions using [httpx](https://www.python-httpx.org/)
+
+- **api**
+
+Utility functions using [fastapi](https://fastapi.tiangolo.com/)
