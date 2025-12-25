@@ -1,0 +1,167 @@
+{#
+  Session Template Base
+  
+  This template generates the active session document that agents see.
+  It combines context, quick reference, and session-specific content.
+  
+  Required context:
+    - project_name: Project name
+    - workflow_name: Workflow ID
+    - agent_id: Active agent ID
+    - agent_role: Agent role title
+    - context_file: Path to context index
+    - timestamp: Session start time
+  
+  Optional context:
+    - checkpoint: Checkpoint info (if one follows this agent)
+    - logging_policy: Logging requirements
+    - enforcement: Enforcement settings
+#}
+---
+session_type: agent_active
+project_name: {{ project_name }}
+workflow_name: {{ workflow_name }}
+agent_id: {{ agent_id }}
+agent_role: {{ agent_role }}
+context_file: {{ context_file | default('agent_context/' ~ workflow_name ~ '_context_index.md') }}
+log_file: agent_log/exchange_log.md
+timestamp: {{ timestamp | default('') }}
+cli_commands:
+  - "agentic status"
+  - "agentic decision --title '...' --rationale '...'"
+  - "agentic handoff --to {{ next_agent_id | default('NEXT') }} --artifacts '...'"
+---
+
+# ACTIVE SESSION — {{ agent_id }}
+
+> **EPHEMERAL** — Write artifacts to `artifacts/`, logs to `agent_log/`
+> Agent: **{{ agent_role }}** | Workflow: **{{ workflow_display_name | default(workflow_name | capitalize) }}**
+
+{% if checkpoint %}
+{% include '_partials/checkpoint_warning.j2' %}
+{% endif %}
+
+<!-- LAYER 1 START -->
+## Quick Reference
+
+| Resource | Path |
+|----------|------|
+| **Project Index** | `project_index.md` |
+| **Context File** | `{{ context_file | default('agent_context/' ~ workflow_name ~ '_context_index.md') }}` |
+| **Exchange Log** | `agent_log/exchange_log.md` |
+| **CLI Reference** | `docs/CLI_REFERENCE.md` |
+
+{% block cli_quick_ref %}
+### CLI Quick Commands
+
+```bash
+# Check session status
+agentic status
+
+# Log a decision
+agentic decision --title "..." --rationale "..."
+
+# Complete handoff
+agentic handoff --to {{ next_agent_id | default('NEXT') }} --artifacts "file1.md,file2.md"
+```
+{% endblock %}
+
+{% block protocol %}
+## Session Protocol
+
+{% if workflow and workflow.steps %}
+{% for step in workflow.steps %}
+{{ loop.index }}. {{ step }}
+{% endfor %}
+{% else %}
+1. Review context file and upstream artifacts
+2. Execute agent responsibilities
+3. Produce required artifacts
+4. Log decisions and assumptions
+5. Complete handoff to next agent
+{% endif %}
+{% endblock %}
+
+<!-- LAYER 1 END -->
+
+---
+
+<!-- LAYER 2: AGENT PERSONA — Injected from agent file -->
+{% block agent_persona %}
+## Agent Context
+
+| Property | Value |
+|----------|-------|
+| **Agent ID** | `{{ agent_id }}` |
+| **Role** | {{ agent_role }} |
+| **Type** | {{ agent_type | default('core') }} |
+| **Purpose** | {{ purpose | default('See agent file for details') }} |
+
+{% if responsibilities %}
+### Key Responsibilities
+
+{% for responsibility in responsibilities %}
+- {{ responsibility }}
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+---
+
+---
+
+<!-- LAYER 3: SESSION SCRATCHPAD -->
+{% block scratchpad %}
+## Session Scratchpad
+
+**Current Task:**
+- [ ] Read context file and upstream artifacts
+- [ ] Execute phase workflow
+- [ ] Produce required artifacts
+- [ ] Log decisions and assumptions
+
+**Session Started:** {{ timestamp | default('(set by CLI)') }}
+
+{% if handoff_note %}
+**Handoff Notes from {{ previous_agent | default('Previous Agent') }}:**
+{{ handoff_note }}
+{% endif %}
+
+{% if recent_decisions %}
+**Recent Decisions:**
+{% for decision in recent_decisions %}
+- **{{ decision.title }}** ({{ decision.agent | default('Unknown') }}): {{ decision.rationale | truncate(100) }}
+{% endfor %}
+{% endif %}
+
+**Notes:**
+- 
+{% endblock %}
+
+{% block session_checklist %}
+## Session Checklist
+
+{% if logging_policy %}
+### Logging Requirements
+
+{% if logging_policy.require_decision_log %}
+- [ ] Decision log entries recorded
+{% endif %}
+{% if logging_policy.require_assumption_log %}
+- [ ] Assumptions documented
+{% endif %}
+{% if logging_policy.require_artifact_tracking %}
+- [ ] Artifacts tracked in context index
+{% endif %}
+{% if logging_policy.require_handoff_log %}
+- [ ] Handoff logged with artifacts
+{% endif %}
+{% else %}
+- [ ] Decision log entries recorded
+- [ ] Assumptions documented  
+- [ ] Artifacts produced and tracked
+- [ ] Handoff completed
+{% endif %}
+{% endblock %}
+
+{% include '_partials/governance_footer.j2' %}

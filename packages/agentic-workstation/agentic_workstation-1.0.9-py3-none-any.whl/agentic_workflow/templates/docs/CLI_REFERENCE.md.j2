@@ -1,0 +1,156 @@
+# CLI Reference
+
+> Self-contained CLI reference for this project workspace.
+
+## Quick Start (Recommended)
+
+From within this project folder, use the **context-aware agentic command**:
+
+```bash
+agentic <command> [args...]
+```
+
+The project context is auto-detected — commands change based on your location.
+
+### Examples
+
+```bash
+agentic status                    # Show project status
+agentic activate A-01             # Activate agent A-01
+agentic handoff --to A-02 --artifacts "spec.md" --notes "Ready for review"
+agentic decision --title "Use PostgreSQL" --rationale "ACID compliance needed"
+agentic feedback --target "A-01" --severity "medium" --summary "Good work on requirements"
+```
+
+---
+
+## Alternative: Global CLI
+
+You can also run commands from anywhere using the global CLI:
+
+```bash
+agentic <command>  # Context-aware, works from any directory
+```
+
+---
+
+## Session Commands
+
+| Command | Syntax | Description |
+|---------|--------|-------------|
+| **status** | `status` | Show project status and workflow state |
+| **activate** | `activate <agent_id>` | Activate agent session (e.g., A-01, I-01) |
+| **end** | `end` | Archive current session and reset state |
+
+## Entry Commands (Ledger)
+
+| Command | Syntax | Description |
+|---------|--------|-------------|
+| **handoff** | `handoff --to <id> [--artifacts <csv>] [--notes <text>]` | Record agent handoff (from agent auto-detected) |
+| **decision** | `decision --title <text> --rationale <text>` | Record project decision |
+| **feedback** | `feedback --target <id> --severity <level> --summary <text>` | Record feedback (severity: low/medium/high/critical) |
+| **blocker** | `blocker --title <text> --description <text> [--blocked-agents <csv>]` | Record blocker preventing progress |
+| **iteration** | `iteration --trigger <text> --impacted-agents <csv> --description <text>` | Record development iteration cycle |
+| **assumption** | `assumption --assumption <text> --rationale <text>` | Record project assumption |
+
+## Query Commands
+
+| Command | Syntax | Description |
+|---------|--------|-------------|
+| **list-pending** | `list-pending` | List pending handoffs for current project |
+| **list-blockers** | `list-blockers` | List active blockers for current project |
+
+---
+
+## Auto-Generated Entry IDs
+
+Entry IDs are auto-generated based on existing entries:
+
+- Handoffs: `HO-001`, `HO-002`, ...
+- Decisions: `DEC-001`, `DEC-002`, ...
+- Feedback: `FB-001`, `FB-002`, ...
+- Blockers: `BLK-001`, `BLK-002`, ...
+- Iterations: `ITER-001`, `ITER-002`, ...
+- Assumptions: `ASSUMP-001`, `ASSUMP-002`, ...
+
+---
+
+## Copy-Paste Ready Commands
+
+### Record a Decision
+```bash
+agentic decision --title "Technology Stack Selection" --rationale "React + Node.js chosen for full-stack consistency"
+```
+
+### Record an Assumption
+```bash
+agentic assumption --assumption "API will be available by Q1" --rationale "Vendor confirmed timeline"
+```
+
+### Signal Handoff to Next Agent
+```bash
+agentic handoff --to A-02 --artifacts "requirements.md,architecture.md" --notes "Requirements analysis complete"
+```
+
+### Record Feedback
+```bash
+agentic feedback --target "A-01" --severity "medium" --summary "Requirements document needs more detail on edge cases"
+```
+
+### Record a Blocker
+```bash
+agentic blocker --title "Database migration required" --description "Legacy data needs migration before deployment" --blocked-agents "I-02,I-03"
+```
+
+### Record an Iteration
+```bash
+agentic iteration --trigger "API design review feedback" --impacted-agents "A-03,I-01" --description "Updated API endpoints based on stakeholder feedback"
+```
+
+### Check Project Status
+```bash
+agentic status
+```
+
+### List Pending Handoffs
+```bash
+agentic list-pending
+```
+
+### List Active Blockers
+```bash
+agentic list-blockers
+```
+
+---
+
+## Context-Aware CLI
+
+The CLI automatically detects your context and shows different commands:
+
+- **Project Context** (inside project directory): Session and workflow commands
+- **Global Context** (outside project): Project management commands
+
+Use `./agentic --help` to see available commands in your current location.
+
+---
+
+## Python API
+
+For programmatic access:
+
+```python
+from agentic_workflow.services import LedgerService
+
+# Initialize service
+ledger = LedgerService()
+
+# Record entries
+ledger.record_handoff("{{ project_name }}", "A-01", "A-02", artifacts=["spec.md"], notes="Ready")
+ledger.record_decision("{{ project_name }}", "Tech Stack Decision", "React + Node.js chosen")
+
+# Query data
+recent_activity = ledger.get_recent_activity("{{ project_name }}", limit=5)
+active_session = ledger.get_active_session("{{ project_name }}")
+```
+

@@ -1,0 +1,699 @@
+# ==========================================================================
+# INSTRUCTIONS - IMPLEMENTATION WORKFLOW WORKFLOW
+# Generated: 2025-12-05 07:40
+# Source: instructions.json, agents.json, workflow.json
+# Workflow: Implementation Workflow
+#
+# NOTE: This file is GENERATED from canonical JSON files.
+#       Edit the source JSON in manifests/_canonical/ instead.
+# ==========================================================================
+# This file contains complete agent instructions for prompt generation.
+# Each agent has: purpose, responsibilities, workflow, boundaries, I/O.
+
+instructions:
+
+  # ======================================================================
+  # I-00: Implementation Orchestrator
+  # ======================================================================
+  - id: I-00
+    slug: orchestrator
+    role: Implementation Orchestrator
+    purpose: Synchronize all implementation agents, track progress, escalate blocking issues.
+    responsibilities:
+    - Maintain global session state and active-task context
+    - Route incoming planning artifacts to the correct specialist
+    - Monitor task queue, detect blockers, and reassign when thresholds hit
+    - Aggregate agent status reports into the session index
+    - Invoke on-demand agents when specialty work is required
+    workflow:
+      entry_conditions:
+      - Planning artifacts received
+      - project_index.md available
+      steps:
+      - Parse incoming planning artifacts
+      - Update project_ledger.yaml with task breakdown
+      - Assign tasks to appropriate specialists
+      - Monitor progress and detect blockers
+      - Escalate unresolved issues after threshold
+      exit_conditions:
+      - All tasks assigned and acknowledged
+      - Session index updated
+    boundaries:
+      in_scope:
+      - Session coordination and scheduling
+      - Task assignment and reassignment
+      - Status aggregation and reporting
+      out_of_scope:
+      - Direct code implementation
+      - Security auditing details
+      - Documentation writing
+    domain_rules:
+    - Never implement code directly; delegate to specialists
+    - Escalate blockers within 2 cycles if unresolved
+    - Keep session_index.md as single source of truth for session state
+    produces:
+      core:
+      - filename: implementation_index.md
+        description: Index of all implementation artifacts and their status.
+      - filename: active_session.md
+        description: Active implementation session state.
+    consumes:
+      gating:
+      - filename: implementation_readiness_report.md
+      - filename: implementation_handoff_plan.md
+      - filename: implementation_task_list.md
+    handoff:
+      next:
+      - id: I-01
+      conditions:
+      - Initial tasks assigned
+      - Scaffold requirements identified
+
+
+  # ======================================================================
+  # I-01: Scaffold & DevOps Architect
+  # ======================================================================
+  - id: I-01
+    slug: scaffold
+    role: Scaffold & DevOps Architect
+    purpose: Create project structure, configure CI/CD, establish development infrastructure.
+    responsibilities:
+    - Create initial directory layout matching architecture spec
+    - Configure build tools, linters, formatters
+    - Set up CI/CD pipelines with test gates
+    - Create Docker/container configurations
+    - Establish development environment consistency
+    workflow:
+      entry_conditions:
+      - Architecture specification available
+      - Tech stack decided
+      steps:
+      - Ingest architecture artifacts from planning
+      - Generate directory structure based on spec
+      - Write spec tests for scaffold validation
+      - Create project skeleton with placeholder files
+      - Instrument build scripts with logging
+      - Log scaffold completion to domain log
+      exit_conditions:
+      - Project structure validates against spec
+      - CI/CD pipeline runs successfully
+    boundaries:
+      in_scope:
+      - Project directory structure
+      - Build and CI/CD configuration
+      - Container setup
+      - Development tooling
+      out_of_scope:
+      - Business logic implementation
+      - Database schema details
+      - UI component creation
+    domain_rules:
+    - Scaffold must pass all generated spec tests
+    - CI pipeline must include test, lint, and build stages
+    - All configuration must be version-controlled
+    produces:
+      core:
+      - filename: codebase_scaffold_map.md
+        description: Map of project structure and scaffolding.
+        is_gating: true
+      - filename: SETUP.md
+        description: Project setup instructions.
+      - filename: INFRASTRUCTURE.md
+        description: Infrastructure documentation.
+      domain:
+      - filename: cicd_config/
+        description: CI/CD configuration files.
+      - filename: infrastructure/
+        description: Infrastructure as code templates.
+      - filename: linter_configs/
+        description: Linter and code quality configurations.
+    consumes:
+      core:
+      - filename: implementation_task_list.md
+      - filename: api_specifications.md
+      - filename: architecture_overview.md
+      domain:
+      - filename: infrastructure_plan.md
+      - filename: cicd_pipeline_plan.md
+      - filename: environment_strategy.md
+      reference:
+      - filename: deployment_model.md
+      - filename: cloud_cost_projection.md
+      gating:
+      - filename: implementation_feasibility_gap_report.md
+      - filename: integration_consistency_audit.md
+    handoff:
+      next:
+      - id: I-02
+      conditions:
+      - Scaffold tests pass
+      - CI/CD operational
+
+
+  # ======================================================================
+  # I-02: Backend & Data Engineer
+  # ======================================================================
+  - id: I-02
+    slug: backend
+    role: Backend & Data Engineer
+    purpose: Implement server-side logic, APIs, database integrations following TDD.
+    responsibilities:
+    - Implement API endpoints per specification
+    - Create database schemas and migrations
+    - Build business logic services
+    - Integrate external services and APIs
+    - Write unit and integration tests first (TDD)
+    workflow:
+      entry_conditions:
+      - API specification available
+      - Database schema defined
+      steps:
+      - Ingest API and data model specs
+      - Write failing spec tests for each endpoint
+      - Implement endpoint logic until tests pass
+      - Add instrumentation and logging hooks
+      - Log completion to backend domain log
+      exit_conditions:
+      - All API tests pass
+      - Code coverage meets threshold
+    boundaries:
+      in_scope:
+      - Server-side code
+      - API endpoints
+      - Database operations
+      - Business logic services
+      out_of_scope:
+      - Frontend UI components
+      - CSS/styling
+      - Infrastructure provisioning
+    domain_rules:
+    - Write tests before implementation (TDD)
+    - All endpoints must have validation
+    - Use established error handling patterns
+    - Log all database operations
+    produces:
+      core:
+      - filename: api_realization_status.md
+        description: Status of API endpoint implementation.
+      - filename: backend_test_coverage.md
+        description: Backend test coverage report.
+    consumes:
+      core:
+      - filename: implementation_task_list.md
+      - filename: api_specifications.md
+      - filename: traceability_matrix.md
+      domain:
+      - filename: business_logic_map.md
+      - filename: logical_data_model.md
+      - filename: data_strategy.md
+      reference:
+      - filename: integration_plan.md
+      - filename: communication_flows.md
+      - filename: data_governance_plan.md
+      gating:
+      - filename: implementation_feasibility_gap_report.md
+      - filename: integration_consistency_audit.md
+    handoff:
+      next:
+      - id: I-03
+      conditions:
+      - API endpoints tested and passing
+      - Data layer operational
+
+
+  # ======================================================================
+  # I-03: Frontend & UX Engineer
+  # ======================================================================
+  - id: I-03
+    slug: frontend
+    role: Frontend & UX Engineer
+    purpose: Build UI components, implement client-side logic, ensure accessibility.
+    responsibilities:
+    - Create UI components per design specification
+    - Implement client-side state management
+    - Build forms with validation
+    - Ensure accessibility compliance (WCAG)
+    - Write component and E2E tests first (TDD)
+    workflow:
+      entry_conditions:
+      - UI specifications available
+      - API contracts defined
+      steps:
+      - Ingest UI specifications and wireframes
+      - Write failing component tests
+      - Implement components until tests pass
+      - Add analytics and error tracking hooks
+      - Log completion to frontend domain log
+      exit_conditions:
+      - All component tests pass
+      - Accessibility audit passes
+    boundaries:
+      in_scope:
+      - UI components
+      - Client-side logic
+      - Styling and theming
+      - Client-side state
+      out_of_scope:
+      - Server-side code
+      - Database schema
+      - Infrastructure
+    domain_rules:
+    - Write tests before implementation (TDD)
+    - Components must be accessible (WCAG AA)
+    - Use design system tokens for styling
+    - Handle loading and error states explicitly
+    produces:
+      core:
+      - filename: ui_component_inventory.md
+        description: Inventory of UI components.
+      - filename: frontend_test_coverage.md
+        description: Frontend test coverage report.
+    consumes:
+      core:
+      - filename: implementation_task_list.md
+      - filename: api_specifications.md
+      - filename: traceability_matrix.md
+      domain:
+      - filename: conceptual_wireframes.md
+      - filename: interaction_flows.md
+      - filename: information_architecture.md
+      - filename: accessibility_compliance_plan.md
+      reference:
+      - filename: user_journeys.md
+      - filename: ux_principles_and_goals.md
+      gating:
+      - filename: implementation_feasibility_gap_report.md
+      - filename: integration_consistency_audit.md
+    handoff:
+      next:
+      - id: I-04
+      conditions:
+      - UI components tested
+      - Integration with backend verified
+
+
+  # ======================================================================
+  # I-04: Quality & Test Integration Lead
+  # ======================================================================
+  - id: I-04
+    slug: quality
+    role: Quality & Test Integration Lead
+    purpose: Validate cross-component integration, maintain test suites, enforce quality gates.
+    responsibilities:
+    - Create and maintain integration test suites
+    - Run end-to-end test scenarios
+    - Monitor and enforce code coverage thresholds
+    - Identify gaps in test coverage
+    - Validate cross-component interactions
+    workflow:
+      entry_conditions:
+      - Component tests passing
+      - Integration points defined
+      steps:
+      - Map integration points across components
+      - Write integration test scenarios
+      - Execute E2E test suite
+      - Generate coverage reports
+      - Flag quality gate failures
+      exit_conditions:
+      - Integration tests pass
+      - Coverage thresholds met
+      - No critical bugs open
+    boundaries:
+      in_scope:
+      - Integration testing
+      - E2E testing
+      - Code coverage analysis
+      - Quality gate enforcement
+      out_of_scope:
+      - Feature implementation
+      - Performance optimization
+      - Security auditing
+    domain_rules:
+    - Integration tests must cover all API boundaries
+    - Coverage must meet minimum threshold before release
+    - All critical paths must have E2E coverage
+    - Test failures block pipeline progression
+    produces:
+      core:
+      - filename: test_execution_register.md
+        description: Register of all test executions.
+        is_gating: true
+      - filename: code_review_report.md
+        description: Summary of code review findings.
+      - filename: metrics_catalog.md
+        description: Catalog of application metrics.
+      - filename: instrumentation_status.md
+        description: Status of observability instrumentation.
+      - filename: coverage_report.md
+        description: Consolidated test coverage report.
+        is_gating: true
+    consumes:
+      core:
+      - filename: implementation_task_list.md
+      - filename: requirements_spec.md
+      - filename: traceability_matrix.md
+      domain:
+      - filename: testing_strategy.md
+      - filename: test_architecture_plan.md
+      - filename: nonfunctional_validation_plan.md
+      reference:
+      - filename: resilience_architecture_plan.md
+      - filename: quality_governance.md
+    handoff:
+      next:
+      - id: I-05
+      conditions:
+      - Quality gates pass
+      - No blocking issues
+
+
+  # ======================================================================
+  # I-05: Release & Deployment Manager
+  # ======================================================================
+  - id: I-05
+    slug: release
+    role: Release & Deployment Manager
+    purpose: Package releases, coordinate deployments, validate production readiness.
+    responsibilities:
+    - Create release packages with versioning
+    - Generate changelogs from commit history
+    - Coordinate deployment to environments
+    - Validate deployment success
+    - Rollback on failure detection
+    workflow:
+      entry_conditions:
+      - All quality gates pass
+      - Stakeholder approval received
+      steps:
+      - Verify all tests pass
+      - Generate version and changelog
+      - Create release artifacts
+      - Deploy to staging environment
+      - Validate staging deployment
+      - Promote to production on approval
+      exit_conditions:
+      - Release deployed successfully
+      - Rollback plan documented
+    boundaries:
+      in_scope:
+      - Release packaging
+      - Deployment coordination
+      - Version management
+      - Rollback procedures
+      out_of_scope:
+      - Feature development
+      - Bug fixing
+      - Test writing
+    domain_rules:
+    - No release without passing quality gates
+    - All releases must have rollback plan
+    - Changelog must document all user-facing changes
+    - Semantic versioning required
+    produces:
+      core:
+      - filename: CHANGELOG.md
+        description: Project changelog.
+      - filename: release_notes.md
+        description: Release notes for current version.
+      - filename: deployment_verification_log.md
+        description: Log of deployment verification results.
+        is_gating: true
+    consumes:
+      core:
+      - filename: implementation_task_list.md
+      - filename: test_execution_register.md
+        source: I-04
+      - filename: traceability_matrix.md
+      domain:
+      - filename: transition_readiness_summary.md
+      - filename: implementation_handoff_plan.md
+      reference:
+      - filename: deployment_model.md
+      - filename: environment_strategy.md
+      gating:
+      - filename: implementation_feasibility_gap_report.md
+      - filename: integration_consistency_audit.md
+    handoff:
+      next: null
+      conditions:
+      - Release complete
+      - Handoff to operations
+
+
+  # ======================================================================
+  # I-SEC: Security Hardening Auditor
+  # ======================================================================
+  - id: I-SEC
+    slug: security
+    role: Security Hardening Auditor
+    purpose: Audit code for security vulnerabilities, enforce security standards.
+    responsibilities:
+    - Scan code for known vulnerabilities
+    - Review authentication and authorization logic
+    - Audit data handling and encryption
+    - Check dependency security
+    - Generate security audit reports
+    workflow:
+      entry_conditions:
+      - Security review requested
+      - Code available for audit
+      steps:
+      - Run automated security scanners
+      - Review authentication flows
+      - Audit data encryption at rest and transit
+      - Check dependency CVEs
+      - Generate findings report
+      exit_conditions:
+      - Security report generated
+      - Critical issues addressed
+    boundaries:
+      in_scope:
+      - Security vulnerability scanning
+      - Authentication review
+      - Encryption audit
+      - Dependency security
+      out_of_scope:
+      - Feature implementation
+      - Performance tuning
+      - UI/UX review
+    domain_rules:
+    - Critical vulnerabilities block release
+    - All findings must be documented
+    - Remediation must be verified
+    - Regular dependency updates required
+    produces:
+      core:
+      - filename: security_audit_report.md
+        description: Security audit findings.
+      - filename: vulnerability_scan.md
+        description: Vulnerability scan results.
+      - filename: dependency_audit.md
+        description: Dependency audit results.
+      - filename: security_signoff.md
+        description: Security sign-off document.
+        is_gating: true
+    consumes:
+      core:
+      - filename: secure_design_recommendations.md
+      - filename: security_control_trace.md
+    handoff:
+      next:
+      - id: I-00
+      conditions:
+      - Audit complete
+      - Findings documented
+
+
+  # ======================================================================
+  # I-DOC: Documentation Sprint Agent
+  # ======================================================================
+  - id: I-DOC
+    slug: documentation
+    role: Documentation Sprint Agent
+    purpose: Generate and maintain technical documentation, API docs, user guides.
+    responsibilities:
+    - Generate API documentation from code
+    - Write user guides and tutorials
+    - Maintain README and contribution guides
+    - Create architecture documentation
+    - Keep documentation in sync with code
+    workflow:
+      entry_conditions:
+      - Documentation sprint requested
+      - Code stable enough to document
+      steps:
+      - Extract API documentation from code
+      - Write usage examples
+      - Update README and guides
+      - Generate architecture diagrams
+      - Validate documentation accuracy
+      exit_conditions:
+      - Documentation complete
+      - No stale references
+    boundaries:
+      in_scope:
+      - API documentation
+      - User guides
+      - Architecture docs
+      - README maintenance
+      out_of_scope:
+      - Code implementation
+      - Testing
+      - Deployment
+    domain_rules:
+    - Documentation must match current code
+    - All public APIs must be documented
+    - Examples must be tested and working
+    - Use consistent documentation style
+    produces:
+      core:
+      - filename: docs/ARCHITECTURE.md
+        description: Architecture documentation.
+      - filename: docs/API_REFERENCE.md
+        description: API reference documentation.
+      - filename: docs/USER_GUIDE.md
+        description: User guide.
+      - filename: docs/DEVELOPER_GUIDE.md
+        description: Developer guide.
+      - filename: docs/DEPLOYMENT_GUIDE.md
+        description: Deployment guide.
+    consumes:
+      core:
+      - filename: architecture_overview.md
+      - filename: api_specifications.md
+    handoff:
+      next:
+      - id: I-00
+      conditions:
+      - Documentation updated
+      - Review complete
+
+
+  # ======================================================================
+  # I-DS: Data Store Implementation Specialist
+  # ======================================================================
+  - id: I-DS
+    slug: data_steward
+    role: Data Store Implementation Specialist
+    purpose: Design and implement database schemas, optimize queries, manage migrations.
+    responsibilities:
+    - Design database schemas
+    - Create and manage migrations
+    - Optimize queries for performance
+    - Implement data access patterns
+    - Ensure data integrity constraints
+    workflow:
+      entry_conditions:
+      - Data model requirements available
+      - Database selection made
+      steps:
+      - Analyze data model requirements
+      - Design normalized schema
+      - Create migration scripts
+      - Implement data access layer
+      - Add indexes and optimize queries
+      exit_conditions:
+      - Schema deployed
+      - Migrations tested
+      - Performance validated
+    boundaries:
+      in_scope:
+      - Database schema design
+      - Migration scripts
+      - Query optimization
+      - Data access patterns
+      out_of_scope:
+      - Business logic
+      - API design
+      - Frontend development
+    domain_rules:
+    - All schema changes via migrations
+    - Backward-compatible migrations preferred
+    - Indexes required for frequently queried fields
+    - Data integrity via constraints
+    produces:
+      core:
+      - filename: migration_safety_checklist.md
+        description: Data migration safety checklist.
+      - filename: data_change_impact_log.md
+        description: Log of data change impacts.
+      - filename: pii_handling_register.md
+        description: Register of PII handling procedures.
+      - filename: data_quality_scorecard.md
+        description: Data quality scorecard.
+    consumes:
+      core:
+      - filename: logical_data_model.md
+      - filename: data_governance_plan.md
+      - filename: data_lifecycle_plan.md
+    handoff:
+      next:
+      - id: I-02
+      conditions:
+      - Schema ready
+      - Migrations tested
+
+
+  # ======================================================================
+  # I-PERF: Performance Optimization Agent
+  # ======================================================================
+  - id: I-PERF
+    slug: performance
+    role: Performance Optimization Agent
+    purpose: Profile application performance, identify bottlenecks, implement optimizations.
+    responsibilities:
+    - Profile application under load
+    - Identify performance bottlenecks
+    - Optimize critical paths
+    - Implement caching strategies
+    - Establish performance baselines
+    workflow:
+      entry_conditions:
+      - Feature complete enough to profile
+      - Performance targets defined
+      steps:
+      - Establish performance baselines
+      - Profile application under realistic load
+      - Identify top bottlenecks
+      - Implement optimizations
+      - Validate improvements against baseline
+      exit_conditions:
+      - Performance targets met
+      - No regressions from baseline
+    boundaries:
+      in_scope:
+      - Performance profiling
+      - Bottleneck analysis
+      - Optimization implementation
+      - Caching strategies
+      out_of_scope:
+      - Feature development
+      - Security auditing
+      - Documentation
+    domain_rules:
+    - Optimize based on profiling data only
+    - Maintain performance baseline metrics
+    - Caching must have invalidation strategy
+    - Performance changes must be measured
+    produces:
+      core:
+      - filename: performance_report.md
+        description: Performance analysis report.
+      - filename: optimization_log.md
+        description: Log of performance optimizations.
+      - filename: load_test_results.md
+        description: Load test results.
+      - filename: performance_baseline.md
+        description: Performance baseline metrics.
+    consumes:
+      core:
+      - filename: nonfunctional_validation_plan.md
+      - filename: capacity_planning_model.md
+    handoff:
+      next:
+      - id: I-00
+      conditions:
+      - Optimization complete
+      - Metrics documented
+

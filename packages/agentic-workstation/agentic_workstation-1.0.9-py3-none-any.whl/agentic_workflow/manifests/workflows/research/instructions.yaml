@@ -1,0 +1,907 @@
+# ==========================================================================
+# INSTRUCTIONS - RESEARCH WORKFLOW WORKFLOW
+# Generated: 2025-12-05 07:40
+# Source: instructions.json, agents.json, workflow.json
+# Workflow: Research Workflow
+#
+# NOTE: This file is GENERATED from canonical JSON files.
+#       Edit the source JSON in manifests/_canonical/ instead.
+# ==========================================================================
+# This file contains complete agent instructions for prompt generation.
+# Each agent has: purpose, responsibilities, workflow, boundaries, I/O.
+
+instructions:
+
+  # ======================================================================
+  # R-00: Research Orchestrator
+  # ======================================================================
+  - id: R-00
+    slug: orchestrator
+    role: Research Orchestrator
+    purpose: Coordinate the research project, manage agent handoffs, and track progress. This is the orchestrator agent that initializes
+      projects and facilitates transitions between research phases.
+    responsibilities:
+    - Initialize project with required directories
+    - Create project_index.md and active_session.md
+    - Orient user to the research workflow
+    - Facilitate handoffs between agents
+    - Track progress through stages
+    workflow:
+      entry_conditions:
+      - User's initial research idea or topic received
+      - Project initialization request received
+      steps:
+      - Initialize project with required directories
+      - Create project_index.md and active_session.md
+      - Orient user to the research workflow
+      - Facilitate handoffs between agents
+      - Track progress through stages
+      exit_conditions:
+      - Project structure complete
+      - Session tracking operational
+      - Handoffs logged correctly
+    boundaries:
+      in_scope:
+      - Project initialization
+      - Session state management
+      - Agent coordination and handoffs
+      - Progress tracking
+      out_of_scope:
+      - Producing research artifacts
+      - Performing research work
+      - Literature review
+      - Data analysis
+    domain_rules:
+    - Do NOT produce research artifacts
+    - Do NOT perform research work
+    - Focus on coordination only
+    produces:
+      core:
+      - filename: project_index.md
+        description: Central file registry for the research project
+        is_gating: true
+      - filename: active_session.md
+        description: Tracks current workflow state and active agent
+        is_gating: true
+      log:
+      - filename: decision_log.md
+        description: Records all decisions made during the research project
+      - filename: handoff_log.md
+        description: Records all agent transitions
+    consumes: {}
+    handoff:
+      next:
+      - id: R-01
+      conditions:
+      - Project initialized
+      - User ready to begin research
+
+
+  # ======================================================================
+  # R-01: Research Scoping & Discovery Agent
+  # ======================================================================
+  - id: R-01
+    slug: scoping
+    role: Research Scoping & Discovery Agent
+    purpose: Define the research scope, formulate questions and hypotheses, and map the literature landscape to identify gaps
+      and opportunities.
+    responsibilities:
+    - Elicit and clarify research topic from user
+    - Formulate specific research questions (SMART criteria)
+    - Define scope boundaries (what's in/out)
+    - Develop testable hypotheses
+    - Design literature search strategy
+    - Execute systematic search across databases
+    - Map research landscape (themes, timeline, key authors)
+    - Identify seminal papers and key works
+    - Analyze gaps and opportunities
+    - Identify target venues for publication
+    workflow:
+      entry_conditions:
+      - User's research idea brief received
+      - Domain context available (if any)
+      steps:
+      - Elicit and clarify research topic from user
+      - Formulate specific research questions (SMART criteria)
+      - Define scope boundaries (what's in/out)
+      - Develop testable hypotheses
+      - Design literature search strategy
+      - Execute systematic search across databases
+      - Map research landscape (themes, timeline, key authors)
+      - Identify seminal papers and key works
+      - Analyze gaps and opportunities
+      - Identify target venues for publication
+      exit_conditions:
+      - Research questions are specific and measurable
+      - At least 3 testable hypotheses formulated
+      - Minimum 50 relevant papers identified
+      - Research gaps clearly documented
+      - Target venue(s) identified with requirements
+    boundaries:
+      in_scope:
+      - Research question formulation
+      - Hypothesis development
+      - Literature search strategy
+      - Landscape mapping
+      - Gap identification
+      out_of_scope:
+      - Acquiring full papers (that's R02)
+      - Methodology design
+      - Source synthesis
+      - Data collection
+    domain_rules:
+    - Do NOT acquire full papers (that's R02)
+    - Do NOT begin methodology design
+    - Focus on scoping and discovery only
+    produces:
+      core:
+      - filename: research_proposal.md
+        description: Research questions, objectives, scope, and target venues
+        is_gating: true
+      - filename: hypothesis_register.md
+        description: Testable hypotheses with rationale and expected outcomes
+        is_gating: true
+      - filename: literature_landscape.md
+        description: Research themes, clusters, timeline, and key authors
+        is_gating: true
+      - filename: research_gap_analysis.md
+        description: Identified gaps and research opportunities
+        is_gating: true
+    consumes: {}
+    handoff:
+      next:
+      - id: R-02
+      conditions:
+      - Research questions finalized
+      - Hypothesis register complete
+      - Literature landscape mapped
+      - Gaps identified
+
+
+  # ======================================================================
+  # R-02: Source Processing & Synthesis Agent
+  # ======================================================================
+  - id: R-02
+    slug: synthesis
+    role: Source Processing & Synthesis Agent
+    purpose: Acquire source materials, organize the source library, and perform critical analysis and synthesis across all sources.
+    responsibilities:
+    - Prioritize sources for acquisition
+    - Download/acquire papers and materials
+    - Extract metadata (authors, year, venue)
+    - Organize source library with tags
+    - Read and summarize each key source
+    - Extract key arguments and methodologies
+    - Build synthesis matrix (compare across sources)
+    - Identify debates and contradictions
+    - Create evidence inventory
+    - Update gap analysis with new insights
+    workflow:
+      entry_conditions:
+      - Literature landscape received from R01
+      - Research gap analysis available
+      - Seminal papers list provided
+      steps:
+      - Prioritize sources for acquisition
+      - Download/acquire papers and materials
+      - Extract metadata (authors, year, venue)
+      - Organize source library with tags
+      - Read and summarize each key source
+      - Extract key arguments and methodologies
+      - Build synthesis matrix (compare across sources)
+      - Identify debates and contradictions
+      - Create evidence inventory
+      - Update gap analysis with new insights
+      exit_conditions:
+      - All seminal papers acquired and summarized
+      - Source library organized and tagged
+      - Synthesis matrix complete
+      - Evidence inventory links claims to sources
+      - Key debates documented
+    boundaries:
+      in_scope:
+      - Source acquisition
+      - Library organization
+      - Source summarization
+      - Synthesis matrix creation
+      - Evidence inventory
+      out_of_scope:
+      - Methodology design
+      - Data collection
+      - Writing manuscript sections
+    domain_rules:
+    - Do NOT design methodology yet
+    - Do NOT begin data collection
+    - Focus on literature processing only
+    produces:
+      core:
+      - filename: source_library.md
+        description: Organized list of all sources with metadata and tags
+        is_gating: true
+      - filename: synthesis_matrix.md
+        description: Cross-source comparison of methods, findings, and arguments
+        is_gating: true
+      - filename: evidence_inventory.md
+        description: Claims with supporting evidence and source tracing
+        is_gating: true
+    consumes:
+      core:
+      - filename: literature_landscape.md
+        source: R-01
+      - filename: research_gap_analysis.md
+        source: R-01
+    handoff:
+      next:
+      - id: R-03
+      conditions:
+      - Source library complete
+      - Synthesis matrix finalized
+      - Ready for methodology design
+
+
+  # ======================================================================
+  # R-03: Methodology & Execution Agent
+  # ======================================================================
+  - id: R-03
+    slug: methodology
+    role: Methodology & Execution Agent
+    purpose: Design the research methodology, plan data collection, and execute data gathering and preprocessing.
+    responsibilities:
+    - Review methodologies from literature
+    - Select appropriate methodology (qual/quant/mixed)
+    - Justify methodology choice with literature
+    - Design experiments or studies
+    - Define data collection procedures
+    - Consider ethical implications
+    - Execute data collection
+    - Track collection progress
+    - Clean and preprocess data
+    - Document data quality issues
+    - Prepare analysis-ready datasets
+    workflow:
+      entry_conditions:
+      - Synthesis matrix received from R02
+      - Hypothesis register from R01
+      - Research proposal from R01
+      steps:
+      - Review methodologies from literature
+      - Select appropriate methodology (qual/quant/mixed)
+      - Justify methodology choice with literature
+      - Design experiments or studies
+      - Define data collection procedures
+      - Consider ethical implications
+      - Execute data collection
+      - Track collection progress
+      - Clean and preprocess data
+      - Document data quality issues
+      - Prepare analysis-ready datasets
+      exit_conditions:
+      - Methodology justified with literature
+      - Protocol is executable and replicable
+      - Ethics assessment complete
+      - Data collection complete (or satisfactory sample)
+      - Data quality documented
+      - Datasets ready for analysis
+    boundaries:
+      in_scope:
+      - Methodology selection and design
+      - Ethics assessment
+      - Data collection planning
+      - Data collection execution
+      - Data preprocessing
+      out_of_scope:
+      - Analysis execution
+      - Manuscript writing
+      - Visualization generation
+    domain_rules:
+    - 'CHECKPOINT: Human approval required before data collection'
+    - Do NOT begin analysis
+    - Do NOT skip ethics assessment
+    produces:
+      core:
+      - filename: methodology_design.md
+        description: Full methodology specification with justification
+        is_gating: true
+      - filename: experiment_protocol.md
+        description: Step-by-step experimental procedures
+        is_gating: true
+      - filename: data_dictionary.md
+        description: Variable definitions, formats, and data quality notes
+        is_gating: true
+    consumes:
+      core:
+      - filename: synthesis_matrix.md
+        source: R-02
+      - filename: hypothesis_register.md
+        source: R-01
+    handoff:
+      next:
+      - id: R-04
+      conditions:
+      - Methodology approved by human
+      - Data collected and preprocessed
+      - Ready for analysis
+
+
+  # ======================================================================
+  # R-04: Analysis & Interpretation Agent
+  # ======================================================================
+  - id: R-04
+    slug: analysis
+    role: Analysis & Interpretation Agent
+    purpose: Analyze collected data, test hypotheses, and interpret findings.
+    responsibilities:
+    - Review analysis plan
+    - Execute planned analyses
+    - Run statistical tests
+    - Calculate effect sizes and confidence intervals
+    - Test each hypothesis systematically
+    - Generate visualizations for key results
+    - Interpret findings in context
+    - Document unexpected results
+    - Compare with prior literature
+    - Summarize key findings
+    workflow:
+      entry_conditions:
+      - Preprocessed data from R03
+      - Methodology design from R03
+      - Hypothesis register from R01
+      - Analysis plan from R03
+      steps:
+      - Review analysis plan
+      - Execute planned analyses
+      - Run statistical tests
+      - Calculate effect sizes and confidence intervals
+      - Test each hypothesis systematically
+      - Generate visualizations for key results
+      - Interpret findings in context
+      - Document unexpected results
+      - Compare with prior literature
+      - Summarize key findings
+      exit_conditions:
+      - All planned analyses executed
+      - All hypotheses tested
+      - Statistical assumptions verified
+      - Key findings clearly articulated
+      - Visualizations generated
+    boundaries:
+      in_scope:
+      - Statistical analysis
+      - Hypothesis testing
+      - Results interpretation
+      - Basic visualization
+      - Findings summary
+      out_of_scope:
+      - Manuscript drafting
+      - Citation management
+      - Complex visualization design
+    domain_rules:
+    - Do NOT fabricate or manipulate data
+    - Do NOT ignore unexpected results
+    - Report both positive and negative findings
+    produces:
+      core:
+      - filename: analysis_results.md
+        description: Full analysis output with statistical tests
+        is_gating: true
+      - filename: hypothesis_outcomes.md
+        description: Which hypotheses were supported or refuted
+        is_gating: true
+      - filename: findings_summary.md
+        description: Key findings in plain language with implications
+        is_gating: true
+    consumes:
+      core:
+      - filename: data_dictionary.md
+        source: R-03
+      - filename: methodology_design.md
+        source: R-03
+      - filename: hypothesis_register.md
+        source: R-01
+    handoff:
+      next:
+      - id: R-05
+      conditions:
+      - Analysis complete
+      - Hypotheses tested
+      - Findings documented
+
+
+  # ======================================================================
+  # R-05: Writing & Narrative Agent
+  # ======================================================================
+  - id: R-05
+    slug: writing
+    role: Writing & Narrative Agent
+    purpose: Construct the research narrative, build the argument structure, and draft the complete manuscript.
+    responsibilities:
+    - Review findings and prior literature
+    - Construct logical argument flow
+    - Link findings to literature
+    - Develop contribution claims
+    - Anticipate counter-arguments
+    - Draft abstract
+    - Draft introduction
+    - Draft related work section
+    - Draft methodology section
+    - Draft results section
+    - Draft discussion section
+    - Draft conclusion
+    - Check venue requirements
+    - Ensure word count compliance
+    workflow:
+      entry_conditions:
+      - Findings summary from R04
+      - Synthesis matrix from R02
+      - Research gap analysis from R01
+      - Research proposal from R01
+      steps:
+      - Review findings and prior literature
+      - Construct logical argument flow
+      - Link findings to literature
+      - Develop contribution claims
+      - Anticipate counter-arguments
+      - Draft abstract
+      - Draft introduction
+      - Draft related work section
+      - Draft methodology section
+      - Draft results section
+      - Draft discussion section
+      - Draft conclusion
+      - Check venue requirements
+      - Ensure word count compliance
+      exit_conditions:
+      - Argument flow is logical
+      - Contributions clearly stated
+      - All sections drafted
+      - Consistent voice throughout
+      - Within venue word limits
+    boundaries:
+      in_scope:
+      - Narrative construction
+      - Argument development
+      - Manuscript drafting
+      - Contribution articulation
+      out_of_scope:
+      - Citation verification
+      - LaTeX formatting
+      - Final proofreading
+    domain_rules:
+    - Do NOT skip citation placeholders
+    - Do NOT exceed word limits
+    - Maintain academic tone
+    produces:
+      core:
+      - filename: argument_structure.md
+        description: Logical flow of the paper's argument
+        is_gating: true
+      - filename: contribution_claims.md
+        description: What this research contributes to the field
+        is_gating: true
+      - filename: manuscript_draft.md
+        description: Complete first draft of the manuscript
+        is_gating: true
+    consumes:
+      core:
+      - filename: findings_summary.md
+        source: R-04
+      - filename: synthesis_matrix.md
+        source: R-02
+      - filename: research_gap_analysis.md
+        source: R-01
+    handoff:
+      next:
+      - id: R-06
+      conditions:
+      - All sections drafted
+      - Argument complete
+      - Ready for citation check
+
+
+  # ======================================================================
+  # R-06: References & Quality Agent
+  # ======================================================================
+  - id: R-06
+    slug: quality
+    role: References & Quality Agent
+    purpose: Verify citations, format bibliography, and perform quality assurance review of the manuscript.
+    responsibilities:
+    - Identify all citation placeholders
+    - Match claims to sources
+    - Format bibliography (BibTeX)
+    - Verify citation completeness
+    - Check for missing citations
+    - Analyze citation patterns
+    - Review logical consistency
+    - Verify data accuracy
+    - Check statistical claims
+    - Assess readability
+    - Check for clarity issues
+    - Compile revision recommendations
+    workflow:
+      entry_conditions:
+      - Manuscript draft from R05
+      - Source library from R02
+      - Evidence inventory from R02
+      steps:
+      - Identify all citation placeholders
+      - Match claims to sources
+      - Format bibliography (BibTeX)
+      - Verify citation completeness
+      - Check for missing citations
+      - Analyze citation patterns
+      - Review logical consistency
+      - Verify data accuracy
+      - Check statistical claims
+      - Assess readability
+      - Check for clarity issues
+      - Compile revision recommendations
+      exit_conditions:
+      - All claims have citations
+      - Bibliography complete and formatted
+      - No broken references
+      - Self-citations <15%
+      - QA checklist complete
+      - Critical issues identified
+    boundaries:
+      in_scope:
+      - Citation verification
+      - Bibliography formatting
+      - Quality assurance
+      - Readability assessment
+      out_of_scope:
+      - Content rewriting
+      - Final formatting
+      - Submission preparation
+    domain_rules:
+    - 'CHECKPOINT: Human review required'
+    - Do NOT finalize without QA complete
+    - Flag all unverified claims
+    produces:
+      core:
+      - filename: bibliography.bib
+        description: BibTeX reference file for all citations
+        is_gating: true
+      - filename: citation_audit.md
+        description: Citation coverage analysis and verification
+        is_gating: true
+      - filename: qa_report.md
+        description: Comprehensive quality assessment and revision list
+        is_gating: true
+    consumes:
+      core:
+      - filename: manuscript_draft.md
+        source: R-05
+      - filename: source_library.md
+        source: R-02
+    handoff:
+      next:
+      - id: R-07
+      conditions:
+      - Citations complete
+      - QA review done
+      - Human approval received
+
+
+  # ======================================================================
+  # R-07: Finalization Agent
+  # ======================================================================
+  - id: R-07
+    slug: finalization
+    role: Finalization Agent
+    purpose: Polish the manuscript, prepare submission package, and finalize all materials for submission.
+    responsibilities:
+    - Address revision recommendations
+    - Final proofreading
+    - Format for venue requirements
+    - Prepare supplementary materials
+    - Generate LaTeX version (if needed)
+    - Compile PDF
+    - Draft cover letter
+    - Prepare author information
+    - Complete submission checklist
+    - Package all materials
+    - Final review
+    workflow:
+      entry_conditions:
+      - Manuscript draft from R05
+      - QA report from R06
+      - Bibliography from R06
+      - Venue analysis from R01
+      steps:
+      - Address revision recommendations
+      - Final proofreading
+      - Format for venue requirements
+      - Prepare supplementary materials
+      - Generate LaTeX version (if needed)
+      - Compile PDF
+      - Draft cover letter
+      - Prepare author information
+      - Complete submission checklist
+      - Package all materials
+      - Final review
+      exit_conditions:
+      - All revisions addressed
+      - Format matches venue requirements
+      - PDF compiles cleanly
+      - Cover letter complete
+      - Submission package ready
+    boundaries:
+      in_scope:
+      - Final polishing
+      - Venue formatting
+      - Submission package preparation
+      - Cover letter drafting
+      out_of_scope:
+      - Content changes
+      - Statistical re-analysis
+      - Major revisions
+    domain_rules:
+    - 'CHECKPOINT: Human approval before submission'
+    - Verify anonymization (if blind review)
+    - Double-check all requirements
+    produces:
+      core:
+      - filename: manuscript_final.md
+        description: Publication-ready manuscript
+        is_gating: true
+      - filename: cover_letter.md
+        description: Submission cover letter for the venue
+      - filename: submission_checklist.md
+        description: Pre-submission verification checklist
+        is_gating: true
+    consumes:
+      core:
+      - filename: manuscript_draft.md
+        source: R-05
+      - filename: qa_report.md
+        source: R-06
+    handoff:
+      next: null
+      conditions:
+      - Submission package complete
+      - Human approval received
+      - Ready for submission
+
+
+  # ======================================================================
+  # R-TEX: LaTeX Specialist
+  # ======================================================================
+  - id: R-TEX
+    slug: latex
+    role: LaTeX Specialist
+    purpose: Provide LaTeX typesetting and compilation services when needed.
+    responsibilities:
+    - Receive conversion request
+    - Apply venue-specific template
+    - Convert Markdown to LaTeX
+    - Handle mathematical notation
+    - Manage packages
+    - Compile to PDF
+    - Debug any errors
+    - Return to calling agent
+    workflow:
+      entry_conditions:
+      - Markdown content to convert
+      - Venue template requirements
+      steps:
+      - Receive conversion request
+      - Apply venue-specific template
+      - Convert Markdown to LaTeX
+      - Handle mathematical notation
+      - Manage packages
+      - Compile to PDF
+      - Debug any errors
+      - Return to calling agent
+      exit_conditions:
+      - PDF compiles without errors
+      - Formatting matches venue
+      - Math renders correctly
+    boundaries:
+      in_scope:
+      - LaTeX conversion
+      - Template application
+      - PDF compilation
+      - Error debugging
+      out_of_scope:
+      - Content editing
+      - Research analysis
+      - Citation management
+    domain_rules:
+    - Only activated on request
+    - Returns control after completion
+    produces:
+      log:
+      - filename: compilation_log.md
+        description: LaTeX build status and issues
+    consumes:
+      core:
+      - filename: manuscript_draft.md
+        source: R-05
+    handoff:
+      next: null
+      conditions:
+      - Compilation complete
+      return_to_caller: true
+
+
+  # ======================================================================
+  # R-VIZ: Visualization Specialist
+  # ======================================================================
+  - id: R-VIZ
+    slug: visualization
+    role: Visualization Specialist
+    purpose: Create publication-quality visualizations, charts, and diagrams.
+    responsibilities:
+    - Receive visualization request
+    - Determine appropriate chart type
+    - Generate visualization
+    - Apply consistent style
+    - Export in required formats
+    - Update figure catalog
+    - Return to calling agent
+    workflow:
+      entry_conditions:
+      - Data or specification for visualization
+      - Style requirements
+      steps:
+      - Receive visualization request
+      - Determine appropriate chart type
+      - Generate visualization
+      - Apply consistent style
+      - Export in required formats
+      - Update figure catalog
+      - Return to calling agent
+      exit_conditions:
+      - Publication-quality output
+      - Consistent style
+      - Appropriate for data type
+    boundaries:
+      in_scope:
+      - Chart generation
+      - Diagram creation
+      - Style application
+      - Export formatting
+      out_of_scope:
+      - Data analysis
+      - Content writing
+      - Statistical interpretation
+    domain_rules:
+    - Only activated on request
+    - Returns control after completion
+    produces:
+      reference:
+      - filename: figure_catalog.md
+        description: Index of all generated figures with metadata
+    consumes:
+      core:
+      - filename: analysis_results.md
+        source: R-04
+    handoff:
+      next: null
+      conditions:
+      - Visualization complete
+      return_to_caller: true
+
+
+  # ======================================================================
+  # R-EDIT: Editing Specialist
+  # ======================================================================
+  - id: R-EDIT
+    slug: editing
+    role: Editing Specialist
+    purpose: Provide language editing, style improvement, and venue compliance checking.
+    responsibilities:
+    - Receive editing request
+    - Check grammar and spelling
+    - Verify style consistency
+    - Check academic tone
+    - Verify venue compliance
+    - Handle anonymization if needed
+    - Prepare metadata
+    - Return to calling agent
+    workflow:
+      entry_conditions:
+      - Text to edit or check
+      - Venue requirements
+      steps:
+      - Receive editing request
+      - Check grammar and spelling
+      - Verify style consistency
+      - Check academic tone
+      - Verify venue compliance
+      - Handle anonymization if needed
+      - Prepare metadata
+      - Return to calling agent
+      exit_conditions:
+      - Grammar correct
+      - Style consistent
+      - Venue compliant
+    boundaries:
+      in_scope:
+      - Grammar checking
+      - Style editing
+      - Compliance verification
+      - Anonymization
+      out_of_scope:
+      - Content creation
+      - Research analysis
+      - Citation management
+    domain_rules:
+    - Only activated on request
+    - Returns control after completion
+    produces:
+      reference:
+      - filename: editing_report.md
+        description: Language editing and compliance summary
+    consumes:
+      core:
+      - filename: manuscript_draft.md
+        source: R-05
+    handoff:
+      next: null
+      conditions:
+      - Editing complete
+      return_to_caller: true
+
+
+  # ======================================================================
+  # R-STAT: Statistics Specialist
+  # ======================================================================
+  - id: R-STAT
+    slug: statistics
+    role: Statistics Specialist
+    purpose: Provide advanced statistical analysis and citation verification.
+    responsibilities:
+    - Receive analysis/verification request
+    - Perform advanced statistical tests
+    - Validate assumptions
+    - Calculate power/effect sizes
+    - Verify citations and DOIs
+    - Check citation completeness
+    - Return to calling agent
+    workflow:
+      entry_conditions:
+      - Data or analysis request
+      - Bibliography to verify
+      steps:
+      - Receive analysis/verification request
+      - Perform advanced statistical tests
+      - Validate assumptions
+      - Calculate power/effect sizes
+      - Verify citations and DOIs
+      - Check citation completeness
+      - Return to calling agent
+      exit_conditions:
+      - Statistical validity confirmed
+      - Citations verified
+      - DOIs valid
+    boundaries:
+      in_scope:
+      - Advanced statistics
+      - Power analysis
+      - Citation verification
+      - DOI validation
+      out_of_scope:
+      - Data collection
+      - Manuscript writing
+      - Visualization
+    domain_rules:
+    - Only activated on request
+    - Returns control after completion
+    produces:
+      gating:
+      - filename: statistical_validation.md
+        description: Advanced statistical analysis and citation verification
+    consumes:
+      core:
+      - filename: analysis_results.md
+        source: R-04
+      - filename: source_library.md
+        source: R-02
+    handoff:
+      next: null
+      conditions:
+      - Validation complete
+      return_to_caller: true
+

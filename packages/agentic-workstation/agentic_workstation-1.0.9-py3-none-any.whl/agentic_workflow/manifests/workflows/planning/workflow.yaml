@@ -1,0 +1,262 @@
+# ==========================================================================
+# PLANNING WORKFLOW WORKFLOW
+# Generated: 2025-12-05 07:40
+# Source: workflow.json, agents.json
+# Workflow: Planning Workflow
+#
+# NOTE: This file is GENERATED from canonical JSON files.
+#       Edit the source JSON in manifests/_canonical/ instead.
+# ==========================================================================
+# --- Workflow Metadata ---
+name: planning
+workflow_id: planning
+display_name: Planning Workflow
+version: 1.0.0
+description: 'Comprehensive software project planning workflow.
+
+  15 agents cover orchestrator, requirements, architecture, security, infrastructure,
+
+  data, API, UX, dev workflow, QA, product, SRE, transition, and audit.
+
+  '
+
+# --- Agent Summary (derived) --------------------------------------------
+agent_summary:
+  total_agents: 15
+  total_artifacts: 77
+  agent_counts:
+    orchestrator: 1
+    core: 12
+    gating: 2
+  pipeline_order:
+  - A-00
+  - A-01
+  - A-02
+  - A-03
+  - A-04
+  - A-05
+  - A-06
+  - A-07
+  - A-08
+  - A-09
+  - A-10
+  - A-11
+  - A-12
+  - A-13
+  - A-14
+  parallel_groups: []
+  checkpoints:
+  - after_agent: A-02
+    type: human
+    prompt: Architecture review complete. Approve to proceed to security review?
+    gating: strict
+    required_artifacts:
+    - architecture_overview.md
+    - design.md
+    required_logs:
+    - decision
+    bypass_policy:
+      allowed_roles:
+      - A-03
+      - A-00
+      requires_approval: true
+      approval_count: 1
+      audit_fields:
+      - reason
+      - by
+      - timestamp
+    owner: A-02
+    validation_command: ./workflow validate-checkpoint --after-agent A-02 --artifacts architecture_overview.md,design.md
+    timeout_seconds: 30
+  - after_agent: A-12
+    type: human
+    prompt: Transition audit complete. Approve for implementation handoff?
+    gating: strict
+    required_artifacts:
+    - transition_plan.md
+    required_logs:
+    - decision
+    - handoff
+    bypass_policy:
+      allowed_roles:
+      - A-13
+      - A-00
+      requires_approval: true
+      approval_count: 1
+      audit_fields:
+      - reason
+      - by
+      - timestamp
+    owner: A-12
+    validation_command: ./workflow validate-checkpoint --after-agent A-12 --artifacts transition_plan.md
+    timeout_seconds: 30
+  - after_agent: A-13
+    type: gate
+    condition: all_critical_gaps_addressed
+    prompt: Final audit complete. Ready for implementation?
+    gating: strict
+    required_artifacts:
+    - final_audit_report.md
+    required_logs:
+    - decision
+    - assumption
+    bypass_policy:
+      allowed_roles:
+      - A-14
+      - A-00
+      requires_approval: true
+      approval_count: 2
+      audit_fields:
+      - reason
+      - by
+      - timestamp
+    owner: A-13
+    validation_command: ./workflow validate-checkpoint --after-agent A-13 --artifact final_audit_report.md
+    timeout_seconds: 60
+
+# --- Pipeline Configuration ---------------------------------------------
+pipeline:
+  order:
+  - A-00
+  - A-01
+  - A-02
+  - A-03
+  - A-04
+  - A-05
+  - A-06
+  - A-07
+  - A-08
+  - A-09
+  - A-10
+  - A-11
+  - A-12
+  - A-13
+  - A-14
+  allow_skip: false
+  allow_parallel: false
+
+# --- Directory Structure ------------------------------------------------
+# Used by scaffold scripts for project initialization
+directories:
+  root: projects/{project_name}/
+  artifacts: artifacts/
+  agent_files: agent_files/
+  agent_context: agent_context/
+  agent_log: agent_log/
+  docs: docs/
+  input: input/
+  package: package/
+  templates: templates/planning/
+
+# --- Checkpoints --------------------------------------------------------
+checkpoints:
+- after_agent: A-02
+  type: human
+  prompt: Architecture review complete. Approve to proceed to security review?
+  gating: strict
+  required_artifacts:
+  - architecture_overview.md
+  - design.md
+  required_logs:
+  - decision
+  bypass_policy:
+    allowed_roles:
+    - A-03
+    - A-00
+    requires_approval: true
+    approval_count: 1
+    audit_fields:
+    - reason
+    - by
+    - timestamp
+  owner: A-02
+  validation_command: ./workflow validate-checkpoint --after-agent A-02 --artifacts architecture_overview.md,design.md
+  timeout_seconds: 30
+- after_agent: A-12
+  type: human
+  prompt: Transition audit complete. Approve for implementation handoff?
+  gating: strict
+  required_artifacts:
+  - transition_plan.md
+  required_logs:
+  - decision
+  - handoff
+  bypass_policy:
+    allowed_roles:
+    - A-13
+    - A-00
+    requires_approval: true
+    approval_count: 1
+    audit_fields:
+    - reason
+    - by
+    - timestamp
+  owner: A-12
+  validation_command: ./workflow validate-checkpoint --after-agent A-12 --artifacts transition_plan.md
+  timeout_seconds: 30
+- after_agent: A-13
+  type: gate
+  condition: all_critical_gaps_addressed
+  prompt: Final audit complete. Ready for implementation?
+  gating: strict
+  required_artifacts:
+  - final_audit_report.md
+  required_logs:
+  - decision
+  - assumption
+  bypass_policy:
+    allowed_roles:
+    - A-14
+    - A-00
+    requires_approval: true
+    approval_count: 2
+    audit_fields:
+    - reason
+    - by
+    - timestamp
+  owner: A-13
+  validation_command: ./workflow validate-checkpoint --after-agent A-13 --artifact final_audit_report.md
+  timeout_seconds: 60
+
+# --- Global Rules -------------------------------------------------------
+globals:
+  output_requirements:
+  - Markdown only; clear headings; concise tables/diagrams (Mermaid where visual clarity helps).
+  - No implementation code.
+  - Filenames must match artifact registry.
+  non_overlap_rules:
+  - Output is concise, technical, and deterministic.
+  - Avoid implementation details or writing code.
+  - Do not design UI, user-facing flows or product features unless explicitly scoped.
+  - Do not assume technologies not justified by constraints.
+  log_schema:
+  - 'Log File: (See `log_file` in frontmatter)'
+  - 'Entry Types: INTAKE | QUESTION | DECISION | ASSUMP | GAP | RISK'
+  - 'Schema: `timestamp | entry_type | ref_ids | summary | status/outcome`'
+  context_rules:
+  - 'Rehydration: On startup, READ `global_log_file` (project status) → READ `context_file` (local state) → READ `exchange_log.md`
+    (upstream handoffs).'
+  - 'Gating: Do NOT proceed if upstream HANDOFF is missing in `exchange_log.md`.'
+  - 'Checkpointing: UPDATE `context_file` immediately after every significant step.'
+  logging_policy:
+    require_session_log: true
+    require_decision_log: true
+    require_assumption_log: true
+    require_handoff_log: true
+    require_artifact_tracking: true
+  enforcement:
+    checkpoint_gating: strict
+    handoff_gating: strict
+
+# --- CLI Configuration --------------------------------------------------
+cli:
+  extra_commands: []
+  examples:
+  - command: ./workflow status
+    description: Show project status
+  - command: ./workflow activate A01
+    description: Activate agent A01
+  - command: ./workflow handoff --from A01 --to A02 --artifacts "spec.md"
+    description: Signal handoff
+  - command: ./workflow decision --title "Use PostgreSQL" --rationale "ACID compliance"
+    description: Record decision

@@ -1,0 +1,204 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Instructions manifest schema",
+  "description": "Agent behavioral instructions including workflow steps, boundaries, and domain rules. Ownership derived from artifacts.json.",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "workflow_id": {
+      "type": "string",
+      "description": "The workflow this instructions file belongs to"
+    },
+    "instructions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "slug", "purpose"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Z]{1,2}-[A-Z0-9]{2,6}$",
+            "description": "Must match an agent ID in agents.json"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$",
+            "description": "Agent slug for cross-reference validation (required)"
+          },
+          "role": {
+            "type": "string",
+            "description": "Agent role for cross-reference validation"
+          },
+          "purpose": {
+            "type": "string",
+            "description": "What the agent achieves and its boundaries"
+          },
+          "responsibilities": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Specific duties this agent performs"
+          },
+          "workflow": {
+            "type": "object",
+            "description": "Agent-specific workflow execution details",
+            "properties": {
+              "entry_conditions": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Prerequisites before agent can start"
+              },
+              "steps": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Ordered execution steps"
+              },
+              "exit_conditions": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Requirements before handoff"
+              },
+              "checkpoint": {
+                "type": "object",
+                "description": "Human approval configuration if needed",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["human", "gate", "validation"],
+                    "description": "Checkpoint type: human=manual review, gate=artifact exists, validation=automated tests"
+                  },
+                  "prompt": { "type": "string" }
+                },
+                "additionalProperties": false
+              },
+              "cycle": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "description": "Reference to a cycle defined in workflow.json cycles"
+                  },
+                  {
+                    "type": "object",
+                    "description": "Inline cycle definition",
+                    "properties": {
+                      "name": { "type": "string" },
+                      "steps": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    },
+                    "required": ["name", "steps"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "boundaries": {
+            "type": "object",
+            "description": "Explicit scope boundaries",
+            "properties": {
+              "in_scope": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "What this agent is responsible for"
+              },
+              "out_of_scope": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "What this agent should NOT do"
+              }
+            },
+            "additionalProperties": false
+          },
+          "handoff": {
+            "type": "object",
+            "description": "Structured handoff details (optional). Use `next` (array) or `null`; include `required_artifacts`, `required_logs`, and optional `notes`.",
+            "examples": [
+              { "next": null },
+              {
+                "next": [ { "id": "A-06", "role": "Implementation Lead", "stage": "development" } ],
+                "required_artifacts": ["design.md"],
+                "required_logs": ["decision"],
+                "conditions": ["ready_for_implementation"],
+                "notes": "Handoff to implementation when design is approved by architecture review."
+              }
+            ],
+            "properties": {
+              "next": {
+                "oneOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[A-Z]{1,2}-[A-Z0-9]{2,6}$",
+                          "description": "Agent ID (e.g. A-02)"
+                        },
+                        "role": { "type": "string" },
+                        "stage": { "type": "string" }
+                      },
+                      "required": ["id"],
+                      "additionalProperties": false
+                    }
+                  },
+                  { "type": "null" }
+                ],
+                "description": "Next agent(s) in sequence as structured list, or null if terminal"
+              },
+              "conditions": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Conditions for handoff to proceed"
+              },
+              "required_artifacts": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Artifact IDs or globs required for handoff"
+              },
+              "required_logs": {
+                "type": "array",
+                "items": { "type": "string", "enum": ["decision","assumption","session","handoff"] },
+                "description": "Log types required before handoff"
+              },
+              "notes": { "type": "string", "description": "Free-text notes or legacy HANDOFF lines" },
+              "return_to_caller": {
+                "type": "boolean",
+                "description": "When true, indicates control should be returned to the calling agent that invoked this agent (explicit terminal). Use with `next: null`."
+              }
+            },
+            "additionalProperties": false
+            ,
+            "allOf": [
+              {
+                "if": {
+                  "properties": { "return_to_caller": { "const": true } },
+                  "required": ["return_to_caller"]
+                },
+                "then": {
+                  "properties": {
+                    "next": { "type": "null" }
+                  }
+                }
+              }
+            ]
+          },
+          "domain_rules": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Domain-specific rules and conventions"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Additional instruction-specific data"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["instructions"],
+  "additionalProperties": false
+}

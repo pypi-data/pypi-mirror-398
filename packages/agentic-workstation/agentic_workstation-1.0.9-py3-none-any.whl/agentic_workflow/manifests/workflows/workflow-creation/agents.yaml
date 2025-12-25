@@ -1,0 +1,364 @@
+# ==========================================================================
+# AGENTS - WORKFLOW CREATION WORKFLOW WORKFLOW
+# Generated: 2025-12-05 07:40
+# Source: agents.json, artifacts.json, instructions.json
+# Workflow: Workflow Creation Workflow
+#
+# NOTE: This file is GENERATED from canonical JSON files.
+#       Edit the source JSON in manifests/_canonical/ instead.
+# ==========================================================================
+agents:
+
+  # ======================================================================
+  # W-00: Workflow Creation Guide
+  # ======================================================================
+  - id: W-00
+    slug: guide
+    role: Workflow Creation Guide
+    agent_type: orchestrator
+    purpose: Orient users to the workflow creation process and prepare them for Phase 01 (Domain Analysis).
+    key_responsibilities:
+    - Welcome user and explain the 8-phase workflow creation process
+    - Ask what kind of workflow they want to create
+    - Explain waterfall model - each phase completes before next
+    - Preview the deliverables they'll create
+    - Confirm user is ready to begin with Phase 01
+    produces:
+      core:
+      - filename: project_index.md
+        description: Central project index and file registry
+        is_gating: true
+      - filename: active_session.md
+        description: Tracks current workflow state and active agent
+        is_gating: true
+    consumes: {}
+    handoff:
+      next:
+      - id: W-01
+      conditions:
+      - User confirms understanding
+      - User has workflow concept
+
+
+  # ======================================================================
+  # W-01: Domain Analysis Agent
+  # ======================================================================
+  - id: W-01
+    slug: analysis
+    role: Domain Analysis Agent
+    agent_type: core
+    purpose: Guide user through comprehensive domain analysis to understand the workflow's purpose, phases, and constraints.
+    key_responsibilities:
+    - 'Ask: What is the purpose of this workflow?'
+    - 'Ask: Who will use this workflow?'
+    - 'Ask: What are the major phases or stages?'
+    - 'For each phase, ask: What is the input? What is the output?'
+    - 'Ask: Where should human review happen?'
+    produces:
+      core:
+      - filename: domain_notes.md
+        description: Comprehensive domain analysis with purpose, phases, and constraints
+        is_gating: true
+      - filename: phase_list.md
+        description: Ordered list of workflow phases with inputs and outputs
+        is_gating: true
+      gating:
+      - filename: gate_definitions.md
+        description: Quality gates and human review checkpoints
+        is_gating: true
+    consumes: {}
+    handoff:
+      next:
+      - id: W-02
+      conditions:
+      - domain_notes.md complete
+      - phase_list.md complete
+      - gate_definitions.md complete
+      - Human approves domain analysis
+
+
+  # ======================================================================
+  # W-02: Structure Setup Agent
+  # ======================================================================
+  - id: W-02
+    slug: structure
+    role: Structure Setup Agent
+    agent_type: core
+    purpose: Create the workflow package skeleton with directory structure and stub files.
+    key_responsibilities:
+    - Determine workflow name (lowercase, hyphenated)
+    - Create workflow.yaml with metadata from domain notes
+    - Define stages based on phase groupings
+    - Add checkpoints from gate_definitions.md
+    - Create directory structure
+    produces:
+      core:
+      - filename: workflow_yaml_draft.md
+        description: Draft of workflow.yaml with metadata, stages, and checkpoints
+        is_gating: true
+      reference:
+      - filename: structure_checklist.md
+        description: Checklist of created files and directories
+    consumes:
+      core:
+      - filename: domain_notes.md
+        source: W-01
+      - filename: phase_list.md
+        source: W-01
+      gating:
+      - filename: gate_definitions.md
+        source: W-01
+    handoff:
+      next:
+      - id: W-03
+      conditions:
+      - workflow_yaml_draft.md complete
+      - structure_checklist.md verified
+      - list-workflows shows new workflow
+
+
+  # ======================================================================
+  # W-03: Agent Definition Agent
+  # ======================================================================
+  - id: W-03
+    slug: agents
+    role: Agent Definition Agent
+    agent_type: core
+    purpose: Design and define all agents with their roles, artifacts, and handoff relationships.
+    key_responsibilities:
+    - Start with W00 guide agent (produces system files only)
+    - For each phase in phase_list.md, define an agent
+    - 'For each agent, determine: ID, name, slug, role'
+    - Write concise description (2-3 sentences)
+    - List produces files (actual filenames, not artifact_ids)
+    produces:
+      core:
+      - filename: agents_yaml_draft.md
+        description: Complete agents.yaml content with produces/consumes
+        is_gating: true
+      reference:
+      - filename: handoff_flow.md
+        description: Visual diagram and description of agent handoff sequence
+    consumes:
+      core:
+      - filename: domain_notes.md
+        source: W-01
+      - filename: phase_list.md
+        source: W-01
+      - filename: workflow_yaml_draft.md
+        source: W-02
+    handoff:
+      next:
+      - id: W-04
+      conditions:
+      - agents_yaml_draft.md complete
+      - handoff_flow.md complete
+      - All phases have agents
+
+
+  # ======================================================================
+  # W-04: Artifact Design Agent
+  # ======================================================================
+  - id: W-04
+    slug: artifacts
+    role: Artifact Design Agent
+    agent_type: core
+    purpose: Define all artifacts with their metadata, categories, and ownership mapping.
+    key_responsibilities:
+    - List all unique filenames from agents produces/consumes
+    - Add system artifacts (active_session.md, project_index.md)
+    - 'For each artifact, define: artifact_id, name, filename, description'
+    - Assign category (planning, design, testing, documentation, governance)
+    - Determine if template is needed
+    produces:
+      core:
+      - filename: artifacts_yaml_draft.md
+        description: Complete artifacts.yaml content with ownership
+        is_gating: true
+      reference:
+      - filename: artifact_ownership_map.md
+        description: Matrix showing which agent produces/consumes each artifact
+    consumes:
+      core:
+      - filename: agents_yaml_draft.md
+        source: W-03
+      reference:
+      - filename: handoff_flow.md
+        source: W-03
+    handoff:
+      next:
+      - id: W-05
+      conditions:
+      - artifacts_yaml_draft.md complete
+      - artifact_ownership_map.md complete
+      - Human approves definitions
+
+
+  # ======================================================================
+  # W-05: Instruction Writing Agent
+  # ======================================================================
+  - id: W-05
+    slug: instructions
+    role: Instruction Writing Agent
+    agent_type: core
+    purpose: Write detailed per-agent instructions with process steps, quality criteria, and constraints.
+    key_responsibilities:
+    - Choose instruction format (Research or Planning style)
+    - For each agent, write purpose paragraph
+    - List process steps (numbered, action-oriented)
+    - Define quality criteria (measurable)
+    - List constraints (what NOT to do)
+    produces:
+      core:
+      - filename: instructions_yaml_draft.md
+        description: Complete instructions.yaml with per-agent guidance
+        is_gating: true
+      gating:
+      - filename: governance_md_draft.md
+        description: Draft governance.md with rules and constraints
+    consumes:
+      core:
+      - filename: agents_yaml_draft.md
+        source: W-03
+      - filename: artifacts_yaml_draft.md
+        source: W-04
+      - filename: domain_notes.md
+        source: W-01
+    handoff:
+      next:
+      - id: W-06
+      conditions:
+      - instructions_yaml_draft.md complete
+      - governance_md_draft.md complete
+      - All agents covered
+
+
+  # ======================================================================
+  # W-06: Template Creation Agent
+  # ======================================================================
+  - id: W-06
+    slug: templates
+    role: Template Creation Agent
+    agent_type: core
+    purpose: Create prompt templates using mustache syntax for agent file generation.
+    key_responsibilities:
+    - Create agent_header.md.j2 with YAML frontmatter
+    - Create agent_body.md.j2 with content sections
+    - 'Use Jinja2 syntax: {{ variable }} (recommended whitespace)'
+    - 'Include: Mandate, Artifact Ownership, Domain Instructions'
+    - Add workflow-specific sections if needed
+    produces:
+      core:
+      - filename: agent_header_tpl.md
+        description: agent_header.md.j2 content with YAML frontmatter
+        is_gating: true
+      - filename: agent_body_tpl.md
+        description: agent_body.md.j2 content with sections
+        is_gating: true
+      reference:
+      - filename: template_test_output.md
+        description: Sample generated agent to verify template substitution
+        is_gating: true
+    consumes:
+      core:
+      - filename: instructions_yaml_draft.md
+        source: W-05
+      - filename: agents_yaml_draft.md
+        source: W-03
+    handoff:
+      next:
+      - id: W-07
+      conditions:
+      - agent_header_tpl.md complete
+      - agent_body_tpl.md complete
+      - template_test_output.md shows correct substitution
+
+
+  # ======================================================================
+  # W-07: Testing Agent
+  # ======================================================================
+  - id: W-07
+    slug: testing
+    role: Testing Agent
+    agent_type: gating
+    purpose: Validate the complete workflow through systematic testing of all components.
+    key_responsibilities:
+    - 'Run: python3 -m scripts.cli.workflow list-workflows'
+    - 'Run: python3 -m scripts.validation.validate_agents'
+    - 'Run: python3 -m scripts.generation.generate_agents --workflow <name>'
+    - 'Create test project: workflow init test_<name> --workflow <name> --description "Test project for <name>"'
+    - Verify agent files generated correctly
+    produces:
+      gating:
+      - filename: validation_report.md
+        description: Results of all validation checks
+        is_gating: true
+      reference:
+      - filename: test_results.md
+        description: Detailed test project walkthrough results
+        is_gating: true
+    consumes:
+      core:
+      - filename: workflow_yaml_draft.md
+        source: W-02
+      - filename: agents_yaml_draft.md
+        source: W-03
+      - filename: artifacts_yaml_draft.md
+        source: W-04
+      - filename: instructions_yaml_draft.md
+        source: W-05
+      - filename: agent_header_tpl.md
+        source: W-06
+      - filename: agent_body_tpl.md
+        source: W-06
+    handoff:
+      next:
+      - id: W-08
+      conditions:
+      - validation_report.md shows all pass
+      - test_results.md complete
+      - Human approves for documentation
+
+
+  # ======================================================================
+  # W-08: Documentation Agent
+  # ======================================================================
+  - id: W-08
+    slug: documentation
+    role: Documentation Agent
+    agent_type: core
+    purpose: Create user documentation and finalize the workflow package for version control.
+    key_responsibilities:
+    - Create README.md for the workflow
+    - 'Include: Quick Start, Agents table, Stages, Artifacts'
+    - Update manifests/README.md with new workflow
+    - Generate global agent files
+    - Run final verification
+    produces:
+      reference:
+      - filename: workflow_readme.md
+        description: README.md content for the new workflow
+      - filename: commit_message.md
+        description: Suggested git commit message for the new workflow
+      gating:
+      - filename: final_checklist.md
+        description: Final verification checklist before commit
+        is_gating: true
+    consumes:
+      gating:
+      - filename: validation_report.md
+        source: W-07
+      core:
+      - filename: domain_notes.md
+        source: W-01
+      - filename: agents_yaml_draft.md
+        source: W-03
+      - filename: artifacts_yaml_draft.md
+        source: W-04
+    handoff:
+      next: null
+      conditions:
+      - workflow_readme.md complete
+      - final_checklist.md all passed
+      - Ready for git commit
+
