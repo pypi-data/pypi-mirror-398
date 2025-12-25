@@ -1,0 +1,151 @@
+name: Fast Build Wheels
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_wheels:
+        description: 'Test wheels after building'
+        type: boolean
+        default: false
+  # release:
+  #   types: [published]
+  # push:
+  #   tags:
+  #     - "v*"
+
+jobs:
+  build_sdist:
+    name: Build sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build sdist
+        run: pipx run build --sdist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-sdist
+          path: dist/*.tar.gz
+
+  build_wheels:
+    name: Wheels ${{ matrix.os }} ${{ matrix.archs }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64
+          - os: ubuntu-latest
+            archs: x86_64
+          # macOS Apple Silicon (native on macos-14)
+          - os: macos-14
+            archs: arm64
+          # Windows x86_64
+          # - os: windows-latest
+          #   archs: AMD64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3.3.0
+        env:
+          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
+          CIBW_SKIP: "*-win32 *-manylinux_i686 *-musllinux_* pp*"
+          CIBW_ARCHS: ${{ matrix.archs }}
+          # Skip tests - optional test job runs separately
+          CIBW_TEST_SKIP: "*"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-${{ matrix.os }}-${{ matrix.archs }}
+          path: ./wheelhouse/*.whl
+
+  collect_wheels:
+    name: Collect all wheels
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cibw-*
+          path: dist
+          merge-multiple: true
+
+      - name: List collected files
+        run: ls -la dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hola-graph-dist
+          path: dist/
+
+  test_wheels:
+    name: Test ${{ matrix.os }} py${{ matrix.python }}
+    needs: build_wheels
+    if: inputs.test_wheels
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Test a subset of builds for speed
+          - os: ubuntu-latest
+            python: "3.11"
+            artifact: cibw-wheels-ubuntu-latest-x86_64
+          - os: ubuntu-latest
+            python: "3.13"
+            artifact: cibw-wheels-ubuntu-latest-x86_64
+          # - os: macos-13
+          #   python: "3.11"
+          #   artifact: cibw-wheels-macos-13-x86_64
+          - os: macos-14
+            python: "3.11"
+            artifact: cibw-wheels-macos-14-arm64
+          # - os: windows-latest
+          #   python: "3.11"
+          #   artifact: cibw-wheels-windows-latest-AMD64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: wheelhouse
+
+      - name: Install wheel and test dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest networkx matplotlib
+          python -m pip install hola-graph --no-index --find-links wheelhouse
+
+      - name: Run tests
+        # Override pythonpath to use installed wheel, not src/
+        run: pytest tests -v --ignore=tests/test_examples.py -o "pythonpath="
+
+  upload_pypi:
+    name: Upload to PyPI
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    environment:
+      name: pypi
+      url: https://pypi.org/p/hola-graph
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cibw-*
+          path: dist
+          merge-multiple: true
+
+      - uses: pypa/gh-action-pypi-publish@release/v1

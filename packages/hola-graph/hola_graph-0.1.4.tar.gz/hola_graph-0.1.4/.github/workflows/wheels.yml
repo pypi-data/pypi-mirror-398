@@ -1,0 +1,81 @@
+name: Build Wheels
+
+on: [workflow_dispatch]
+  # workflow_dispatch:
+  # release:
+  #   types: [published]
+  # push:
+  #   tags:
+  #     - "v*"
+
+jobs:
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build sdist
+        run: pipx run build --sdist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-sdist
+          path: dist/*.tar.gz
+
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows disabled: adaptagrams uses deprecated C++ features (mem_fun, bind2nd)
+        # that were removed in C++17, which MSVC 2022 defaults to
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3.3.0
+        env:
+          # Build for Python 3.9-3.13
+          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
+          # Skip 32-bit builds, musllinux, and PyPy
+          CIBW_SKIP: "*-manylinux_i686 *-musllinux_* pp*"
+          # macOS: build for both Intel and Apple Silicon
+          CIBW_ARCHS_MACOS: "x86_64 arm64"
+          # Linux: build for x86_64
+          CIBW_ARCHS_LINUX: "x86_64"
+          # Install test dependencies and run tests
+          CIBW_TEST_REQUIRES: "pytest"
+          CIBW_TEST_EXTRAS: "all"
+          # Override pythonpath to test installed wheel, not src/
+          CIBW_TEST_COMMAND: "pytest {project}/tests -v --ignore={project}/tests/test_examples.py -o pythonpath="
+          # Skip testing on cross-compiled builds
+          CIBW_TEST_SKIP: "*-macosx_arm64 *-macosx_universal2:arm64"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
+          path: ./wheelhouse/*.whl
+
+  upload_pypi:
+    name: Upload to PyPI
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    environment:
+      name: pypi
+      url: https://pypi.org/p/hola-graph
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cibw-*
+          path: dist
+          merge-multiple: true
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
