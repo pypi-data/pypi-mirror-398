@@ -1,0 +1,136 @@
+Metadata-Version: 2.4
+Name: vectome
+Version: 0.0.6
+Summary: Deterministic vectorization of genomes.
+Author-email: Eachan Johnson <eachan.johnson@crick.ac.uk>
+License: MIT License
+        
+        Copyright (c) [year] [fullname]
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+Project-URL: Homepage, https://github.com/scbirlab/vectome
+Project-URL: Bug Tracker, https://github.com/scbirlab/vectome/issues
+Keywords: template
+Classifier: Development Status :: 3 - Alpha
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3 :: Only
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: bioino
+Requires-Dist: carabiner-tools>=0.0.4
+Requires-Dist: joblib
+Requires-Dist: numpy
+Requires-Dist: platformdirs>=4.4.0
+Requires-Dist: pyyaml
+Requires-Dist: requests
+Requires-Dist: sourmash
+Requires-Dist: tqdm
+Provides-Extra: all
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: flake8; extra == "dev"
+Dynamic: license-file
+
+# 🧬 vectome
+
+![GitHub Workflow Status (with branch)](https://img.shields.io/github/actions/workflow/status/scbirlab/vectome/python-test.yml)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/vectome)
+![PyPI](https://img.shields.io/pypi/v/vectome)
+
+**vectome** is a python package for deterministic vectorization of genomes. 
+
+- [Installation](#installation)
+- [Command-line interface](#command-line-interface)
+- [Issues, problems, suggestions](#issues-problems-suggestions)
+- [Documentation](#documentation)
+
+## Installation
+
+### The easy way
+
+You can install the precompiled version directly using `pip`.
+
+```bash
+$ pip install vectome
+```
+
+### From source
+
+Clone the repository, then `cd` into it. Then run:
+
+```bash
+$ pip install -e .
+```
+
+## Command-line interface
+
+**vectome** has a command-line interface. 
+
+```bash
+$ vectome --help
+```
+
+You can generate vector embeddings by species / strain name or taxon ID.
+
+```bash
+$ vectome embed <(printf "Mycobacterium tuberculosis\n83333\nEscherichia coli CFT073")
+```
+
+The resulting vectors are based on MinHash sketches from [sourmash](), then folded into a 4096-vector using
+the CountSketch method. You can make a shorter vector using e.g. `-n 1024`.
+
+You can also deterministically project into a dense vector.
+
+```bash
+$ vectome embed <(printf "Mycobacterium tuberculosis H37Rv") --projection 16
+```
+
+Change the seed with e.g. `--seed 0`.
+
+If you need a more interpretable vector, you can generate one based on Jaccard distances to
+landmark species.
+
+```bash
+$ vectome embed <(printf "Mycobacterium tuberculosis H37Rv") --method landmark
+```
+
+Several landmark groups are available. You can set the group with `--group 0`, and 
+get information about each one with `vectome info`.
+
+```bash
+$ vectome info
+vectome version 0.0.1:
+        group-0: {'landmarks': 113, 'manifest file': '.../vectome/vectome/data/landmarks/group-0/manifest.json', 'built': True}
+        group-1: {'landmarks': 4, 'manifest file': '.../vectome/vectome/data/landmarks/group-1/manifest.json', 'built': True}
+        group-2: {'landmarks': 1, 'manifest file': '.../vectome/vectome/data/landmarks/group-2/manifest.json', 'built': False}
+        meta: {'cache location': '.../vectome/vectome/data/landmarks', 'cache exists': True}
+```
+
+## Issues, problems, suggestions
+
+Add to the [issue tracker](https://www.github.com/scbirlab/vectome/issues).
+
+## Documentation
+
+(To come at [ReadTheDocs](https://vectome.readthedocs.org).)
