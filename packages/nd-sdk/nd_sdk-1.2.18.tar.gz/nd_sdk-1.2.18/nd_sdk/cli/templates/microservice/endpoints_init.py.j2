@@ -1,0 +1,33 @@
+"""
+API Router registration for {{ config.project.name }}
+"""
+
+{% if web_framework == 'flask' %}
+from flask import Flask
+{% for endpoint in endpoints %}
+from .{{ endpoint.name }} import blueprint as {{ endpoint.name }}_blueprint
+{% endfor %}
+
+def register_routers(app: Flask):
+    """Register all Flask blueprints"""
+
+    {% for endpoint in endpoints %}
+    app.register_blueprint({{ endpoint.name }}_blueprint)
+    {% endfor %}
+
+{% else %}
+from fastapi import APIRouter
+{% for endpoint in endpoints %}
+from .{{ endpoint.name }} import router as {{ endpoint.name }}_router
+{% endfor %}
+
+def register_routers(app):
+    """Register all endpoint routers"""
+
+    {% for endpoint in endpoints %}
+    app.include_router(
+        {{ endpoint.name }}_router,
+        tags=["{{ endpoint.name }}"]
+    )
+    {% endfor %}
+{% endif %}

@@ -1,0 +1,2 @@
+class SDKException(Exception):
+    pass

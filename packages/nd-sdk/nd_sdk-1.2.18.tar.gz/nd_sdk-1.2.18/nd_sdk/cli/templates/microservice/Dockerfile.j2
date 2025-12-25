@@ -1,0 +1,28 @@
+FROM python:{{ config.python.version }}
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Pre-install commands
+{% for cmd in config.python.pre_install_commands %}
+RUN {{ cmd }}
+{% endfor %}
+
+# Install python packages
+{% for pkg in config.python.packages %}
+RUN pip install {{ pkg }}
+{% endfor %}
+
+# Copy application
+COPY . /app/
+
+# Expose port
+EXPOSE 80
+
+ENTRYPOINT ["/bin/sh", "-c"]
+
+# Run application
+CMD ["gunicorn --timeout 0 --workers 2 --bind 0.0.0.0:80 main:app"]

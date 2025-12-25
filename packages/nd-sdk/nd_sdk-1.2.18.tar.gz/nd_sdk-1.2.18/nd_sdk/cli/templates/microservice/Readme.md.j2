@@ -1,0 +1,145 @@
+# {{ project_name | camel_case}}
+
+{{ config.project.description }}
+
+## Features
+
+- Built with **ND-SDK** framework
+- **{{ config.modules.web_framework | upper }}** web framework
+{% if config.modules.observability.enabled %}
+- Integrated observability (logging, tracing, metrics)
+{% endif %}
+{% if config.modules.caching.enabled %}
+- Redis caching support
+{% endif %}
+- Production-ready structure
+- Docker support
+
+## API Endpoints
+
+{% for endpoint in config.endpoints %}
+### {{ endpoint.name | upper }}
+
+- **Method**: `{{ endpoint.method }}`
+- **Path**: `{{ endpoint.path }}`
+- **Description**: {{ endpoint.description }}
+
+{% if endpoint.params %}
+**Parameters**:
+{% for param in endpoint.params %}
+- `{{ param.name }}` ({{ param.type }}): {% if param.required %}Required{% else %}Optional{% endif %}
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.9+
+- Redis (if caching is enabled)
+
+### Installation
+
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\\Scripts\\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Configuration
+
+Edit `config/config.yaml` to configure your application settings.
+
+### Auto-initialization (ND-SDK)
+
+This project uses `nd_sdk.initialize_sdk()` during startup to automatically initialize SDK components (logger, cache, storage, tracer, and metrics) based on environment variables. The generated `main.py` already calls `initialize_sdk()` before creating the application.
+
+Important environment variables:
+
+- `WEB_FRAMEWORK`: `flask` or `fastapi` (defaults to `flask`)
+- `SERVICE_NAME`: Service name used by observability (default: `unknown-service`)
+- `LOG_PROVIDER`: Logging provider (`std`, `cloudwatch`, `otel`) - default: `std`
+- `LOG_LEVEL`: Log level (e.g., `INFO`)
+- `CACHE_PROVIDER`: Cache provider (`redis`/`memory`) - default: `redis`
+- `CACHE_HOST`, `CACHE_PORT`: Redis connection details
+- `STORAGE_ENABLED`: `true`/`false` to enable storage initialization
+- `EXCEPTION_HANDLER_PROVIDER`: Exception handler provider name
+- `OTEL_ENABLED`: `true`/`false` to enable OpenTelemetry initialization
+
+You can also initialize SDK components programmatically by calling `nd_sdk.initialize_sdk()` with `components` or `force` flags.
+
+### Running the Application
+
+```bash
+# Development mode
+python main.py
+
+# Or with uvicorn directly
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Example: Setting environment variables (Linux / macOS)
+
+```bash
+export SERVICE_NAME="{{ project_name }}"
+export WEB_FRAMEWORK={{ config.modules.web_framework }}
+export CACHE_PROVIDER=redis
+export CACHE_HOST=localhost
+export CACHE_PORT=6379
+export OTEL_ENABLED=true
+```
+
+### Example: Windows (cmd.exe)
+
+```bat
+set SERVICE_NAME={{ project_name }}
+set WEB_FRAMEWORK={{ config.modules.web_framework }}
+set CACHE_PROVIDER=redis
+set CACHE_HOST=localhost
+set CACHE_PORT=6379
+set OTEL_ENABLED=true
+```
+
+### Running with Docker
+
+```bash
+# Build image
+docker build -t {{ project_name }} .
+
+# Run container (pass env vars)
+docker run -p 8000:8000 -e SERVICE_NAME={{ project_name }} -e WEB_FRAMEWORK={{ config.modules.web_framework }} {{ project_name }}
+```
+
+## Project Structure
+
+```
+{{ project_name }}/
+├── main.py                 # Application entry point
+├── requirements.txt        # Python dependencies
+├── Dockerfile             # Docker configuration
+├── config/
+│   └── config.yaml        # Application configuration
+├── app/
+│   ├── config.py          # Configuration loader
+│   ├── dependencies.py    # FastAPI dependencies
+│   ├── models/            # Pydantic models
+│   ├── endpoints/         # API endpoints
+│   ├── services/          # Business logic
+│   └── utils/             # Utility functions
+└── tests/
+    ├── unit/              # Unit tests
+    └── integration/       # Integration tests
+```
+
+## Development
+
+### Running Tests
+
+```bash
+pytest tests/
+```

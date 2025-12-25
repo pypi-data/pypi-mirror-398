@@ -1,0 +1,36 @@
+"""
+Configuration loader for {{ config.project.name }}
+"""
+
+import yaml
+from pathlib import Path
+from typing import Dict, Any
+
+def load_config() -> Dict[str, Any]:
+    """Load configuration from YAML file"""
+
+    config_path = Path(__file__).parent.parent / 'config' / 'config.yaml'
+
+    if not config_path.exists():
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+
+    return config
+
+
+def get_config_value(key: str, default: Any = None) -> Any:
+    """Get a specific configuration value"""
+    config = load_config()
+
+    keys = key.split('.')
+    value = config
+
+    for k in keys:
+        if isinstance(value, dict):
+            value = value.get(k, default)
+        else:
+            return default
+
+    return value
