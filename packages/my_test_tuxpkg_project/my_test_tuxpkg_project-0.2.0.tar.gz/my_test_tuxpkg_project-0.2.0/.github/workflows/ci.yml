@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  ci-image-debian:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push Debian image
+        run: |
+          docker build -t ${{ env.REGISTRY }}/${{ github.repository }}:ci-debian -f Dockerfile.ci-debian .
+          docker push ${{ env.REGISTRY }}/${{ github.repository }}:ci-debian
+
+  ci-image-fedora:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push Fedora image
+        run: |
+          docker build -t ${{ env.REGISTRY }}/${{ github.repository }}:ci-fedora -f Dockerfile.ci-fedora .
+          docker push ${{ env.REGISTRY }}/${{ github.repository }}:ci-fedora
+
+  tuxpkg:
+    needs: [ci-image-debian, ci-image-fedora]
+    uses: roxell/tuxpkg/.github/workflows/tuxpkg.yml@main
+    with:
+      tuxpkg_project: my-test-tuxpkg-project
+      ci_image_debian: ghcr.io/${{ github.repository }}:ci-debian
+      ci_image_fedora: ghcr.io/${{ github.repository }}:ci-fedora
+    secrets: inherit
+
+  pages:
+    if: ${{ github.ref_type == 'tag' }}
+    needs: tuxpkg
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download repository
+        uses: actions/download-artifact@v4
+        with:
+          name: repository
+          path: public/packages
+      - name: Create index
+        run: echo "SOON" > public/index.html
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
