@@ -1,0 +1,204 @@
+# xlog
+
+A flexible and structured logging library for Python with support for multiple outputs, formats, and async processing.
+
+## Features
+
+- **Structured Events** - Log with context, tags, metrics, and metadata
+- **Multiple Formats** - JSON, Text, ColorJSON, ColorText
+- **Multiple Outputs** - Console, files, custom sinks
+- **Async Processing** - Non-blocking event handling
+- **Type Safe** - Full protocol support for extensibility
+
+## Installation
+
+```bash
+pip install -e .
+```
+
+## Quick Start
+
+```python
+from xlog import LogStream, FileGroup
+
+# Simple console logging
+stream = LogStream(name="app", level="INFO")
+stream.log("Application started")
+
+# Log with context
+stream.log(
+    "User login",
+    level="INFO",
+    context={"user_id": "123", "ip": "192.168.1.1"}
+)
+
+# Add file output
+file_group = FileGroup(path="./logs", name="app", async_=True)
+stream.add_group(file_group)
+stream.log("This goes to console and file")
+file_group.close()
+```
+
+## Core Components
+
+### Events
+Create structured log events:
+
+```python
+from xlog import Log, Procs
+
+# Log event
+event = Log(
+    message="Request processed",
+    level="INFO",
+    code=200,
+    context={"user": "alice"},
+    metrics={"duration_ms": "45"}
+)
+
+# Subprocess event
+import subprocess
+result = subprocess.run(["echo", "hello"], capture_output=True)
+proc_event = Procs(proc=result)
+```
+
+### Streams
+Distribute events to multiple destinations:
+
+```python
+from xlog import LogStream, LogGroup, FileGroup
+
+# Create stream with multiple outputs
+memory_group = LogGroup(name="memory", store=True)
+file_group = FileGroup(path="./logs", name="app")
+
+stream = LogStream(
+    name="app",
+    level="INFO",
+    groups=[memory_group, file_group]
+)
+```
+
+### Formatters
+Choose output format:
+
+```python
+from xlog import Json, Text, ColorJson, ColorText, LogStream
+
+# JSON format
+stream = LogStream(name="app", format=Json(indent=2))
+
+# Colored text for console
+stream = LogStream(name="app", format=ColorText())
+```
+
+### Groups (Sinks)
+Process and store events:
+
+```python
+from xlog import LogGroup, FileGroup
+
+# In-memory storage
+group = LogGroup(name="memory", store=True, async_=False)
+
+# File storage with async processing
+group = FileGroup(
+    path="./logs",
+    name="app",
+    async_=True,
+    max_queue=1000
+)
+```
+
+## Real-World Examples
+
+### Web Application Logging
+
+```python
+from xlog import LogStream, FileGroup, ColorText
+
+access_log = FileGroup(path="./logs", name="access", async_=True)
+error_log = FileGroup(path="./logs", name="error", async_=True)
+
+access_stream = LogStream(
+    name="access",
+    level="INFO",
+    format=ColorText(),
+    groups=[access_log]
+)
+
+access_stream.log(
+    "GET /api/users 200",
+    level="INFO",
+    code=200,
+    context={"user_id": "123", "ip": "192.168.1.1"},
+    metrics={"response_time_ms": "45"}
+)
+```
+
+### Data Pipeline Logging
+
+```python
+from xlog import LogStream, FileGroup
+
+pipeline = LogStream(
+    name="etl-pipeline",
+    groups=[FileGroup(path="./logs", name="pipeline")]
+)
+
+pipeline.log("Extract started", context={"source": "database"})
+pipeline.log("Transform completed", metrics={"records": "1000"})
+pipeline.log("Load finished", context={"target": "warehouse"})
+```
+
+### Microservice Tracing
+
+```python
+from xlog import LogStream
+import uuid
+
+stream = LogStream(name="order-service", level="INFO")
+
+correlation_id = str(uuid.uuid4())
+
+stream.log(
+    "Processing order",
+    context={
+        "correlation_id": correlation_id,
+        "order_id": "ORD-123"
+    }
+)
+
+stream.log(
+    "Calling payment-service",
+    context={
+        "correlation_id": correlation_id,
+        "target_service": "payment-service"
+    }
+)
+```
+
+## More Examples
+
+See the [`examples/`](examples/) directory for complete working examples:
+
+- `example_basic_logging.py` - Getting started
+- `example_file_logging.py` - File output
+- `example_formatters.py` - All formatters
+- `example_web_application.py` - HTTP logging
+- `example_data_pipeline.py` - ETL pipeline
+- `example_microservice.py` - Distributed tracing
+- `example_monitoring.py` - System monitoring
+
+## Documentation
+
+Each module includes comprehensive docstrings:
+
+```python
+from xlog import LogStream
+help(LogStream)
+```
+
+## License
+
+MIT
