@@ -1,0 +1,45 @@
+from __future__ import annotations
+
+__all__ = ["IsSensor"]
+
+
+import asyncio
+import pathlib
+from typing import Any
+
+import yaqd_core
+
+
+class IsSensor(yaqd_core.IsDaemon):
+    def __init__(
+        self, name: str, config: dict[str, Any], config_filepath: pathlib.Path
+    ):
+        super().__init__(name, config, config_filepath)
+        self._measured: dict = dict()  # values must be numbers or arrays
+        self._channel_names: list[str] = []
+        self._channel_units: dict[str, str] = dict()
+        self._channel_shapes: dict[str, tuple[int, ...]] = dict()
+        self._measurement_id = 0
+        self._measured["measurement_id"] = self._measurement_id
+
+    def get_channel_names(self):
+        """Get current channel names."""
+        return self._channel_names
+
+    def get_channel_shapes(self):
+        """Get channel shapes."""
+        # as default behavior, assume all channels are scalars
+        if self._channel_shapes:
+            return self._channel_shapes
+        return {k: () for k in self._channel_names}
+
+    def get_channel_units(self):
+        """Get channel units."""
+        return self._channel_units
+
+    def get_measured(self) -> dict:
+        assert "measurement_id" in self._measured
+        return self._measured
+
+    def get_measurement_id(self) -> int:
+        return int(self._measured["measurement_id"])
