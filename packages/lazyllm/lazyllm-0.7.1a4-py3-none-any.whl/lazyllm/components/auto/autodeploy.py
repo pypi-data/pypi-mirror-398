@@ -1,0 +1,118 @@
+# flake8: noqa: C901
+import lazyllm
+import math
+import shutil
+import functools
+import re
+from lazyllm import launchers, deploy, LazyLLMLaunchersBase, config
+from ..deploy.base import LazyLLMDeployBase
+from .dependencies.requirements import requirements
+from .auto_helper import get_model_name, check_requirements
+from ..deploy.stable_diffusion.stable_diffusion3 import StableDiffusionDeploy
+from ..deploy.speech_to_text.sense_voice import SenseVoiceDeploy
+from ..deploy.text_to_speech import TTSDeploy
+from ..deploy.ocr.pp_ocr import OCRDeploy
+from ..utils.downloader import ModelManager
+from typing import Optional
+
+
+@functools.lru_cache
+def check_cmd(framework):
+    framework_mapping = dict(mindie='mindieservice_daemon')
+    return bool(shutil.which(framework_mapping.get(framework, framework)))
+
+
+class AutoDeploy(LazyLLMDeployBase):
+    """This class is a subclass of ``LazyLLMDeployBase`` that automatically selects the appropriate inference framework and parameters based on the input arguments for inference with large language models.
+
+Specifically, based on the input ``base_model`` parameters, ``max_token_num``, the type and number of GPUs in ``launcher``, this class can automatically select the appropriate inference framework (such as ``Lightllm`` or ``Vllm``) and the required parameters.
+
+Args:
+    base_model (str): The base model for fine-tuning, which is required to be the name or the path to the base model. Used to provide base model information.
+    source (lazyllm.config['model_source']): Specifies the model download source. This can be configured by setting the environment variable ``LAZYLLM_MODEL_SOURCE``.
+    trust_remote_code (bool): Whether to allow loading of model code from remote servers, default is ``True``.
+    launcher (lazyllm.launcher): The launcher for fine-tuning, default is ``launchers.remote(ngpus=1)``.
+    stream (bool): Whether the response is streaming, default is ``False``.
+    type (str): Type parameter, default is ``None``, which corresponds to the ``llm`` type. Additionally, the ``embed`` type is also supported.
+    max_token_num (int): The maximum token length for the input fine-tuning model, default is ``1024``.
+    launcher (lazyllm.launcher): The launcher for fine-tuning, default is ``launchers.remote(ngpus=1)``.
+    kw: Keyword arguments used to update default training parameters. Note that whether additional keyword arguments can be specified depends on the framework inferred by LazyLLM, so it is recommended to set them carefully.
+
+
+Examples:
+    >>> from lazyllm import deploy
+    >>> deploy.auto('internlm2-chat-7b')
+    <lazyllm.llm.deploy type=Lightllm> 
+    """
+    @staticmethod
+    def _get_embed_deployer(launcher, type, kw):
+        launcher = launcher or launchers.remote(ngpus=1)
+        kw['model_type'] = type
+        if lazyllm.config['default_embedding_engine'].lower() in ('transformers', 'flagembedding') \
+            or kw.get('embed_type')=='sparse' or not check_requirements('infinity_emb'):
+            return deploy.Rerank if type == 'rerank' else deploy.Embedding, launcher, kw
+        else:
+            return deploy.InfinityRerank if type == 'rerank' else deploy.Infinity, launcher, kw
+
+    @classmethod
+    def get_deployer(cls, base_model: str, source: Optional[str] = None, trust_remote_code: bool = True,
+                     launcher: Optional[LazyLLMLaunchersBase] = None, type: Optional[str] = None,
+                     log_path: Optional[str] = None, **kw):
+        """Get corresponding deployer class based on model type.
+
+Automatically detects model type and returns the most suitable deployer class, 
+launcher and configuration parameters.
+
+Args:
+    base_model (str): Base model name or path.
+    source (Optional[str], optional): Model source.
+    trust_remote_code (bool, optional): Whether to trust remote code.
+    launcher (Optional[LazyLLMLaunchersBase], optional): Launcher instance.
+    type (Optional[str], optional): Model type.
+    log_path (Optional[str], optional): Log file path.
+    **kw: Other configuration parameters.
+
+**Returns:**
+
+- Tuple: Returns (deployer class, launcher, configuration parameters dict) triple.
+"""
+        model_name = get_model_name(base_model)
+        kw['log_path'], kw['trust_remote_code'] = log_path, trust_remote_code
+        if not type:
+            type = ModelManager.get_model_type(model_name)
+
+        if type in ('embed', 'cross_modal_embed', 'rerank'):
+            return AutoDeploy._get_embed_deployer(launcher, type, kw)
+        elif type == 'sd':
+            return StableDiffusionDeploy, launcher or launchers.remote(ngpus=1), kw
+        elif type == 'stt':
+            return SenseVoiceDeploy, launcher or launchers.remote(ngpus=1), kw
+        elif type == 'tts':
+            return TTSDeploy.get_deploy_cls(model_name), launcher or launchers.remote(ngpus=1), kw
+        elif type == 'vlm':
+            return deploy.LMDeploy, launcher or launchers.remote(ngpus=1), kw
+        elif type == 'ocr':
+            return OCRDeploy, launcher or launchers.remote(ngpus=1), kw
+
+        if not launcher:
+            match = re.search(r'(\d+)[bB]', model_name)
+            size = int(match.group(1)) if match else 0
+            size = (size * 2) if 'awq' not in model_name.lower() else (size / 1.5)
+            ngpus = (1 << (math.ceil(size * 2 * 0.6 / config['gpu_memory']) - 1).bit_length())
+            launcher = launchers.remote(ngpus = ngpus)
+
+        for deploy_cls in ['vllm', 'lightllm', 'lmdeploy', 'mindie']:
+            if check_cmd(deploy_cls) or check_requirements(requirements.get(deploy_cls)):
+                deploy_cls = getattr(deploy, deploy_cls)
+                return deploy_cls, launcher, kw
+        return deploy.auto, launcher, kw
+
+    def __new__(cls, base_model, source=lazyllm.config['model_source'], trust_remote_code=True,
+                launcher=None, type=None, log_path=None, **kw):
+        deploy_cls, launcher, kw = __class__.get_deployer(
+            base_model=base_model, source=source, trust_remote_code=trust_remote_code,
+            launcher=launcher, type=type, log_path=log_path, **kw)
+        return deploy_cls(launcher=launcher, **kw)
+
+
+config.add('gpu_memory', int, 80, 'GPU_MEMORY', description='The memory of the GPU.')
