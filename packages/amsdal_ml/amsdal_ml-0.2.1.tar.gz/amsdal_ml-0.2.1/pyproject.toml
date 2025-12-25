@@ -1,0 +1,159 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["amsdal_ml"]
+include = [
+  "amsdal_ml/py.typed",
+]
+
+[project]
+name = "amsdal_ml"
+dynamic = ["version"]
+description = "amsdal_ml plugin for AMSDAL Framework"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "amsdal>=0.5.6",
+    "amsdal_cli>=0.5.7",
+    "aiohttp==3.12.15",
+    "amsdal_data>=0.5.9",
+    "amsdal_models>=0.5.9",
+    "amsdal_utils>=0.5.4",
+    "openai==1.100.2",
+    "pydantic~=2.12",
+    "pydantic-settings~=2.12",
+    "pymupdf>=1.24.10",
+    "mcp>=0.1",
+]
+
+[dependency-groups]
+dev = [
+    "amsdal-glue-connections[async-sqlite,postgres-binary]",
+    "coverage[toml]>=7.10",
+    "deptry>=0.23.1",
+    "mypy>=1.17.0",
+    "ruff>=0.12.4",
+    "pytest==8.4.1",
+    "pytest-mock==3.14.1",
+    "pytest-asyncio==1.1.0",
+    "pipdeptree>=2.28.0",
+    "pipreqs>=0.5.0",
+    "pandas-stubs>=2.3.2.250827",
+    "types-PyYAML>=6.0.12.20250915",
+    "types-Pygments>=2.19.0.20250809",
+    "types-colorama>=0.4.15.20250801",
+    "types-decorator>=5.2.0.20250324",
+    "types-jsonschema>=4.25.1.20250822",
+    "types-pexpect>=4.9.0.20250916",
+    "types-pytz>=2025.2.0.20250809",
+    "types-docutils>=0.22.0.20250919",
+
+]
+
+[tool.hatch.version]
+path = "amsdal_ml/__about__.py"
+
+[tool.hatch.envs.default]
+installer = "uv"
+path = ".venv"
+
+[tool.hatch.envs.default.scripts]
+sync = "uv sync --group dev"
+lock = "uv lock"
+lock-upgrade = "uv lock --upgrade"
+test = "pytest {args:tests}"
+test-cov = "coverage run --source=amsdal_ml -m pytest {args:tests}"
+cov-report = [
+    "- coverage combine",
+    "coverage report",
+]
+cov = [
+    "test-cov",
+    "cov-report",
+]
+typing = "uv run mypy {args:amsdal_ml/ tests}"
+style = [
+    "uv run ruff check {args:.}",
+]
+fmt = [
+    "uv run ruff check --fix {args:.}",
+    "uv run ruff format {args:.}",
+    "style",
+]
+all = [
+    "style",
+    "typing",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+exclude = [
+    "amsdal_ml/migrations",
+]
+
+[tool.ruff.lint]
+select = [
+    "A",
+    "ARG",
+    "B",
+    "C",
+    "DTZ",
+    "E",
+    "EM",
+    "F",
+    "FBT",
+    "I",
+    "ICN",
+    "ISC",
+    "N",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+    "Q",
+    "RUF",
+    "S",
+    "T",
+    "TID",
+    "UP",
+    "W",
+    "YTT",
+]
+ignore = [
+    # Allow non-abstract empty methods in abstract base classes
+    "B027",
+    # Allow boolean positional values in function calls, like `dict.get(... True)`
+    "FBT003",
+    # Ignore checks for possible passwords
+    "S105", "S106", "S107",
+    # Ignore complexity
+    "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+    "A005",
+    "PLC0415",
+    "RUF100",
+    "UP045",
+    "Q000",
+    "Q003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "ARG002", "T201"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint.isort]
+force-single-line = true
+order-by-type = true
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true

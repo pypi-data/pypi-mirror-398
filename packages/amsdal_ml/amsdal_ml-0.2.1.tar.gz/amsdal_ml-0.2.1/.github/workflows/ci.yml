@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  license-check:
+    name: License check
+    runs-on: self-hosted
+    steps:
+      - name: Reset permissions
+        run: |
+          sudo chown -R $(id -u):$(id -g) .
+      - uses: actions/checkout@v5
+
+      - name: Python install
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: License check
+        run: |
+          pip install toml
+          python license_check.py
+
+  test-lint:
+    name: Run tests and check style (Python ${{ matrix.python-version }}, ${{ matrix.database-backend }})
+    needs: [license-check]
+    runs-on: self-hosted
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+        database-backend: ["sqlite", "postgres"]
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: example
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PYTHON: ${{ matrix.python-version }}
+      DEPS: yes
+      _TYPER_FORCE_DISABLE_TERMINAL: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: szenius/set-timezone@v2.0
+        with:
+          timezoneLinux: "EEST"
+
+      - name: Set up python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Hatch and UV setup
+        run: |
+          pip install --upgrade uv hatch==1.14.2
+          hatch env prune
+          hatch env create
+          hatch run sync
+
+      - name: Run style checks
+        if: always() && matrix.database-backend == 'sqlite'
+        run: hatch run all
+
+      - name: Run tests
+        if: always()
+        run: hatch run cov tests/ -- --database_backend=${{ matrix.database-backend }}

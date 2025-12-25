@@ -1,0 +1,275 @@
+# AMSDAL ML
+
+[![CI](https://github.com/amsdal/amsdal_ml/actions/workflows/ci.yml/badge.svg)](https://github.com/amsdal/amsdal_ml/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+
+Machine learning plugin for the AMSDAL Framework, providing embeddings, vector search, semantic retrieval, and AI agents with support for OpenAI models.
+
+## Features
+
+- **Vector Embeddings**: Generate and store embeddings for any AMSDAL model with automatic chunking
+- **Semantic Search**: Query your data using natural language with tag-based filtering
+- **AI Agents**: Build Q&A systems with streaming support and citation tracking
+- **Async-First**: Optimized for high-performance async operations
+- **MCP Integration**: Expose and consume tools via Model Context Protocol (stdio/HTTP)
+- **File Attachments**: Process and embed documents with built-in loaders
+- **Extensible**: Abstract base classes for custom models, retrievers, and ingesters
+
+## Installation
+
+```bash
+pip install amsdal-ml
+```
+
+### Requirements
+
+- Python 3.11 or higher
+- AMSDAL Framework 0.5.6+
+- OpenAI API key (for default implementations)
+
+## Quick Start
+
+### 1. Configuration
+
+Create a `.env` file in your project root:
+
+```env
+OPENAI_API_KEY=sk-your-api-key-here
+async_mode=true
+ml_model_class=amsdal_ml.ml_models.openai_model.OpenAIModel
+ml_retriever_class=amsdal_ml.ml_retrievers.openai_retriever.OpenAIRetriever
+ml_ingesting_class=amsdal_ml.ml_ingesting.openai_ingesting.OpenAIIngesting
+```
+
+Create a `config.yml` for AMSDAL connections:
+
+```yaml
+application_name: my-ml-app
+async_mode: true
+connections:
+  - name: sqlite_state
+    backend: sqlite-state-async
+    credentials:
+      - db_path: ./warehouse/state.sqlite3
+      - check_same_thread: false
+  - name: lock
+    backend: amsdal_data.lock.implementations.thread_lock.ThreadLock
+resources_config:
+  repository:
+    default: sqlite_state
+  lock: lock
+```
+
+### 2. Generate Embeddings
+
+```python
+from amsdal_ml.ml_ingesting.openai_ingesting import OpenAIIngesting
+from amsdal_ml.ml_config import ml_config
+
+# Initialize ingesting
+ingester = OpenAIIngesting(
+    model=MyModel,
+    embedding_field='embedding',
+)
+
+# Generate embeddings for an instance
+instance = MyModel(content='Your text here')
+embeddings = await ingester.agenerate_embeddings(instance)
+await ingester.asave(embeddings, instance)
+```
+
+### 3. Semantic Search
+
+```python
+from amsdal_ml.ml_retrievers.openai_retriever import OpenAIRetriever
+
+retriever = OpenAIRetriever()
+
+# Search for relevant content
+results = await retriever.asimilarity_search(
+    query='What is machine learning?',
+    k=5,
+    include_tags=['documentation']
+)
+
+for chunk in results:
+    print(f'{chunk.object_class}:{chunk.object_id} - {chunk.raw_text}')
+```
+
+### 4. Build an AI Agent
+
+```python
+from amsdal_ml.agents.default_qa_agent import DefaultQAAgent
+
+agent = DefaultQAAgent()
+
+# Ask questions
+output = await agent.arun('Explain vector embeddings')
+print(output.answer)
+print(f'Used tools: {output.used_tools}')
+
+# Stream responses
+async for chunk in agent.astream('What is semantic search?'):
+    print(chunk, end='', flush=True)
+```
+
+### 5. Functional Calling Agent with Python Tools
+
+```python
+from amsdal_ml.agents.functional_calling_agent import FunctionalCallingAgent
+from amsdal_ml.agents.python_tool import PythonTool
+from amsdal_ml.ml_models.openai_model import OpenAIModel
+
+llm = OpenAIModel()
+agent = FunctionalCallingAgent(model=llm, tools=[search_tool, render_tool])
+result = await agent.arun(user_query="Find products with price > 100", history=[])
+```
+
+### 6. Natural Language Query Retriever
+
+```python
+from amsdal_ml.ml_retrievers.query_retriever import NLQueryRetriever
+
+retriever = NLQueryRetriever(llm=llm, queryset=Product.objects.all())
+documents = await retriever.invoke("Show me red products", limit=10)
+```
+
+### 7. Document Ingestion Pipeline
+
+```python
+from amsdal_ml.ml_ingesting import ModelIngester
+from amsdal_ml.ml_ingesting.pipeline import DefaultIngestionPipeline
+from amsdal_ml.ml_ingesting.loaders.pdf_loader import PdfLoader
+from amsdal_ml.ml_ingesting.processors.text_cleaner import TextCleaner
+from amsdal_ml.ml_ingesting.splitters.token_splitter import TokenSplitter
+from amsdal_ml.ml_ingesting.embedders.openai_embedder import OpenAIEmbedder
+from amsdal_ml.ml_ingesting.stores.embedding_data import EmbeddingDataStore
+
+pipeline = DefaultIngestionPipeline(
+    loader=PdfLoader(),  # Uses pymupdf for PDF processing
+    cleaner=TextCleaner(),
+    splitter=TokenSplitter(max_tokens=800, overlap_tokens=80),
+    embedder=OpenAIEmbedder(),
+    store=EmbeddingDataStore(),
+)
+
+ingester = ModelIngester(
+    pipeline=pipeline,
+    base_tags=["document"],
+    base_metadata={"source": "pdf"},
+)
+```
+
+## Architecture
+
+### Core Components
+
+- **`MLModel`**: Abstract interface for LLM inference (invoke, stream, with attachments)
+- **`MLIngesting`**: Generate text and embeddings from data objects with chunking
+- **`MLRetriever`**: Semantic similarity search with tag-based filtering
+- **`Agent`**: Q&A and task-oriented agents with streaming and citations
+- **`EmbeddingModel`**: Database model storing 1536-dimensional vectors linked to source objects
+- **`PythonTool`**: Tool for executing Python functions within agents
+- **`FunctionalCallingAgent`**: Agent specialized in functional calling with configurable tools
+- **`NLQueryRetriever`**: Retriever for natural language queries on AMSDAL querysets
+- **`DefaultIngestionPipeline`**: Pipeline for document ingestion including loader, cleaner, splitter, embedder, and store
+- **`ModelIngester`**: High-level ingester for processing models with customizable pipelines and metadata
+- **`PdfLoader`**: Document loader using pymupdf for PDF processing
+- **`TextCleaner`**: Processor for cleaning and normalizing text
+- **`TokenSplitter`**: Splitter for dividing text into chunks based on token count
+- **`OpenAIEmbedder`**: Embedder for generating embeddings via OpenAI API
+- **`EmbeddingDataStore`**: Store for saving embedding data linked to source objects
+- **MCP Server/Client**: Expose retrievers as tools or consume external MCP services
+
+### Configuration
+
+All settings are managed via `MLConfig` in `.env`:
+
+```env
+# Model Configuration
+llm_model_name=gpt-4o
+llm_temperature=0.0
+embed_model_name=text-embedding-3-small
+
+# Chunking Parameters
+embed_max_depth=2
+embed_max_chunks=10
+embed_max_tokens_per_chunk=800
+
+# Retrieval Settings
+retriever_default_k=8
+```
+
+## Development
+
+### Setup
+
+```bash
+# Install dependencies
+pip install --upgrade uv hatch==1.14.2
+hatch env create
+hatch run sync
+```
+
+### Testing
+
+```bash
+# Run all tests with coverage
+hatch run cov
+
+# Run specific tests
+hatch run test tests/test_openai_model.py
+
+# Watch mode
+pytest tests/ -v
+```
+
+### Code Quality
+
+```bash
+# Run all checks (style + typing)
+hatch run all
+
+# Format code
+hatch run fmt
+
+# Type checking
+hatch run typing
+```
+
+### AMSDAL CLI
+
+```bash
+# Generate a new model
+amsdal generate model MyModel --format py
+
+# Generate property
+amsdal generate property --model MyModel embedding_field
+
+# Generate transaction
+amsdal generate transaction ProcessEmbeddings
+
+# Generate hook
+amsdal generate hook --model MyModel on_create
+```
+
+## MCP Server
+
+Run the retriever as an MCP server for integration with Claude Desktop or other MCP clients:
+
+```bash
+python -m amsdal_ml.mcp_server.server_retriever_stdio \
+  --amsdal-config "$(echo '{"async_mode": true, ...}' | base64)"
+```
+
+The server exposes a `search` tool for semantic search in your knowledge base.
+
+## License
+
+See `amsdal_ml/Third-Party Materials - AMSDAL Dependencies - License Notices.md` for dependency licenses.
+
+## Links
+
+- [AMSDAL Framework](https://github.com/amsdal/amsdal)
+- [Documentation](https://docs.amsdal.com)
+- [Issue Tracker](https://github.com/amsdal/amsdal_ml/issues)
