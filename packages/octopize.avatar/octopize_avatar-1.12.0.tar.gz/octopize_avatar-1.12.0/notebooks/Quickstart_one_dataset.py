@@ -1,0 +1,79 @@
+# ---
+# jupyter:
+#   jupytext:
+#     text_representation:
+#       extension: .py
+#       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.17.2
+# ---
+
+# %% [markdown]
+# # Quickstart - Avatarization with one table
+
+# %% [markdown]
+# ## Connection
+
+# %%
+# This is the main file for the Avatar tutorial.
+import os
+
+from avatars.manager import Manager
+
+# The following are not necessary to run avatar but are used in this tutorial
+
+username = os.environ.get("AVATAR_USERNAME", "")
+password = os.environ.get("AVATAR_PASSWORD", "")
+
+# %%
+manager = Manager()  # or manager = Manager(base_url=https://your-server.com)
+# Authenticate with the server
+manager.authenticate(username, password)
+
+# %% [markdown]
+# ## Launching an avatarization
+
+# %%
+# The runner is the object that will be used to upload data to the server and run the avatarization
+runner = manager.create_runner(set_name="test_wbcd")
+# You can then find the result of the avatarization in the web with the set_name
+# Then you need to upload the data to the server
+runner.add_table("wbcd", "../fixtures/wbcd.csv")
+# Choose the parameters for the avatarization
+
+# %%
+# Get recommendations for the parameters
+runner.advise_parameters()
+runner.print_parameters()
+
+# %%
+# Run the pipeline with avatarization, privacy and signal metrics and report
+runner.run()
+
+# %% [markdown]
+# ## Retrieve avatars
+
+# %%
+# Print the results
+print("Avatar data :")
+runner.shuffled("wbcd").head()
+
+# %% [markdown]
+# ## Retrieve privacy metrics
+
+# %%
+for key, value in runner.privacy_metrics("wbcd")[0].items():
+    print(f"{key}: {value}")
+
+# %% [markdown]
+# ## Retrieve signal metrics
+
+# %%
+for key, value in runner.signal_metrics("wbcd")[0].items():
+    print(f"{key}: {value}")
+
+# %% [markdown]
+# ## Retrieving the avatarization report
+
+# %%
+runner.download_report("my_report.pdf")

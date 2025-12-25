@@ -1,0 +1,88 @@
+kind: AvatarSchema
+metadata:
+  name: schema
+spec:
+  tables:
+    - name: iris
+      data:
+        volume: input
+        file: iris.csv
+---
+kind: AvatarSchema
+metadata:
+  name: schema_avatarized
+spec:
+  tables:
+    - name: iris
+      avatars_data:
+        auto: true
+  schema_ref: schema
+---
+kind: AvatarParameters
+metadata:
+  name: standard
+spec:
+  schema: schema
+  avatarization:
+    iris:
+      k: 30
+      ncp: 4
+      use_categorical_reduction: true
+      column_weights:
+        variety: 3
+      exclude_variables:
+        variable_names:
+          - variety
+        replacement_strategy: coordinate_similarity
+      imputation:
+        method: mean
+        k: null
+        training_fraction: null
+  results:
+    volume: output
+    path: standard
+---
+kind: AvatarPrivacyMetricsParameters
+metadata:
+  name: privacy_metrics
+spec:
+  schema: schema_avatarized
+  avatarization_ref: standard
+  privacy_metrics:
+    iris:
+      ncp: 4
+      use_categorical_reduction: true
+      imputation:
+        method: mean
+        k: null
+        training_fraction: null
+  results:
+    volume: output
+    path: privacy_metrics
+---
+kind: AvatarSignalMetricsParameters
+metadata:
+  name: signal_metrics
+spec:
+  schema: schema_avatarized
+  avatarization_ref: standard
+  signal_metrics:
+    iris:
+      ncp: 4
+      use_categorical_reduction: true
+      imputation:
+        method: mean
+        k: null
+        training_fraction: null
+  results:
+    volume: output
+    path: signal_metrics
+---
+kind: AvatarReportParameters
+metadata:
+  name: report
+spec:
+  report_type: basic
+  results:
+    volume: output
+    path: report

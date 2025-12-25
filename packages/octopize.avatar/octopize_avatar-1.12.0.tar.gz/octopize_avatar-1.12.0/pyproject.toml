@@ -1,0 +1,103 @@
+[project]
+name = "octopize.avatar"
+version = "1.12.0"
+description = "Python client for Octopize's avatar API"
+authors = [{ name = "Octopize", email = "pypi-octopize@octopize.io" }]
+license = "Apache-2.0"
+packages = [{ include = "avatars" }]
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [
+    "fsspec>=2024.12.0",
+    "httpx>=0.28.1",
+    "ipython>=9.2.0",
+    "pydantic>=2.10.4",
+    "pydantic-settings>=2.7.0",
+    "pyyaml>=6.0.2",
+    "s3fs>=2024.12.0",
+    "structlog>=24.4.0",
+    "tenacity>=9.0.0",
+    "toolz>=1.0.0",
+    "typer>=0.15.1",
+    # Pinned to prevent this error:
+    # aiobotocore minimal version and botocore version pinned to avoid this error:
+    # Revise on a regular basis
+    # https://github.com/aio-libs/aiobotocore/issues/1414
+    "aiobotocore <=2.22.0",
+    "botocore <=1.40.17",
+    "pandas>=2.3.1",
+    "octopize-avatar-yaml==0.1.27",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.14.0",
+    "jupytext>=1.17.0",
+    "pytest>=8.3.5",
+    "ruff>=0.8.4",
+    "pandas-stubs>=2.2.2.240807",
+    "types-pyyaml>=6.0.12.20240917",
+    "types-jmespath>=1.0.2.20240106",
+    "types-seaborn>=0.13.2.20250516",
+    "polyfactory>=2.20.0",
+    "pytest>=8.3.5",
+    "pytest-cov>=6.1.1",
+    "pandas>=2.2.3",
+    "matplotlib>=3.10.1",
+    "furo>=2024.8.6",
+    "sphinx-multiversion>=0.2.4",
+    "autodoc-pydantic>=2.2.0",
+    "pandoc>=2.4",
+    "nbconvert>=7.16.6",
+]
+notebook = [
+    "ipykernel>=6.29.5",
+    "jupyter>=1.1.1",
+    "matplotlib>=3.10.1",
+    "numpy>=2.2.4",
+    "pandas>=2.2.3",
+    "seaborn>=0.13.2",
+]
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.mypy]
+ignore_missing_imports = true
+plugins = ['pydantic.mypy']
+
+[tool.ruff]
+extend = "../../ruff.toml"
+
+[tool.ruff.lint.extend-per-file-ignores]
+# Allow prints and longer lines in notebooks - START
+"notebooks/*Tutorial*" = ["T20", "E501"]
+"notebooks/*Quickstart*" = ["T20", "E501"]
+# Allow prints in notebooks - END
+
+[tool.pytest.ini_options]
+addopts = [
+    # Recommended by pytest
+    # https://docs.pytest.org/en/stable/explanation/goodpractices.html#tests-outside-application-code
+    "--import-mode=importlib",
+]
+# Recommended by pytest
+pythonpath = "src"
+filterwarnings = [
+    "error",
+    "ignore:datetime.datetime.utcnow:DeprecationWarning:botocore",
+    # Remove once https://github.com/mwaskom/seaborn/issues/3804 has been releases (seaborn >0.13.2)
+    "ignore:vert.* bool will be deprecated in a future version:PendingDeprecationWarning:seaborn",
+
+]
+
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/avatars"]
