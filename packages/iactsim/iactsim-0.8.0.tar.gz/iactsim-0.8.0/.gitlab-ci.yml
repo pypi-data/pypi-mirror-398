@@ -1,0 +1,185 @@
+# Copyright (C) 2024- Davide Mollica <davide.mollica@inaf.it>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This file is part of iactsim.
+#
+# iactsim is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# iactsim is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with iactsim.  If not, see <https://www.gnu.org/licenses/>.
+
+variables:
+  GIT_DEPTH: 0
+
+stages:
+  - install
+  - test
+  - benchmark
+  - build
+  - deploy_test
+  - deploy
+
+image: $CI_REGISTRY_IMAGE/iactsim-devel-cuda12.6-ubuntu24.04:v0.0.2
+
+cache:
+  key:
+    files:
+      # Use pyproject.toml to determine if use cache
+      - pyproject.toml
+  paths:
+    - venv/ 
+  policy: pull-push
+
+install:
+  stage: install
+  script:
+    - nvidia-smi
+    - which gcc
+    - gcc --version
+    - g++ --version
+    - cmake --version
+    - which python3
+    - python3 -V
+    - python3 -m venv venv
+    - source venv/bin/activate
+    - python3 -m pip install . -v
+    - pip install cupy-cuda12x pytest-benchmark
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure: false
+
+test:
+  stage: test
+  needs: [install]
+  before_script:
+    - source venv/bin/activate
+    - pip install pytest pytest-cov
+  script:
+    - coverage run --source=iactsim -m pytest tests/ --junitxml="pytest_result.xml"
+    - coverage report
+    - coverage xml -o coverage_py.xml
+    - coverage html -d coverage_py
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    paths:
+      - coverage_py/
+      - coverage_py.xml
+      - pytest_result.xml
+    when: always
+    reports:
+      junit: pytest_result.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage_py.xml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure: false
+
+benchmark_regression:
+  stage: benchmark
+  needs: [install]
+  script:
+    # Benchmark the last release
+    - git fetch origin main
+    - git checkout origin/main
+    - python3 -m venv venv_main
+    - source venv_main/bin/activate
+    - pip install . -v
+    - pip install cupy-cuda12x pytest-benchmark pygal
+    - pytest tests/performance/ --benchmark-json=baseline.json
+    - deactivate
+
+    # Benchmark the current branch and compare with origin/main
+    - source venv/bin/activate
+    - pip install pygal
+    - pytest tests/performance --benchmark-json=current.json --benchmark-compare=baseline.json --benchmark-compare-fail=min:10% --benchmark-histogram=benchmark_comparison
+    
+  artifacts:
+    paths:
+      - baseline.json
+      - current.json
+      - benchmark_comparison.svg
+    when: always
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+pages:
+  stage: deploy
+  needs: 
+    - install
+    - job: test
+      artifacts: true
+    - job: benchmark_regression
+      artifacts: true
+  before_script:
+    - apt-get update
+    - apt-get install pandoc -y
+    - source venv/bin/activate
+    - python3 -m pip install sphinx nbsphinx sphinx_toolbox sphinx_rtd_theme vtk myst-nb
+  script:
+    - make -C doc html
+    - mkdir public
+    - mv doc/build/html/* public/
+    - mv coverage_py public/
+    - cp baseline.json public/benchmarks.json
+    - mv benchmark_comparison.svg public/comparison_performance_graph.svg
+    - cp current.json public/benchmarks.json
+  artifacts:
+    paths:
+      - public
+    when: always
+  
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+build_package:
+  stage: build
+  before_script: []
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends pipx
+    # Build ONLY the sdist
+    - pipx run build --sdist --outdir dist
+    - echo "Contents of dist/ after sdist build:"
+    - ls -l dist/
+    - pipx run twine check dist/*
+  artifacts:
+    paths:
+      - dist/
+  rules:
+    - if: '$CI_COMMIT_TAG'
+
+deploy_to_testpypi:
+  stage: deploy_test
+  needs: [build_package]
+  before_script: []
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends pipx
+    - pipx ensurepath
+    - TWINE_USERNAME=__token__ TWINE_PASSWORD=$TEST_PYPI_API_TOKEN pipx run twine upload --skip-existing --verbose --repository-url https://test.pypi.org/legacy/ dist/*
+  dependencies:
+    - build_package
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      allow_failure: false
+
+deploy_to_pypi:
+  stage: deploy
+  needs: [build_package]
+  before_script: []
+  script:
+    - apt-get update && apt-get install -y pipx
+    - TWINE_USERNAME=__token__ TWINE_PASSWORD=$PYPI_API_TOKEN pipx run twine upload --verbose dist/*
+  dependencies:
+    - build_package
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      when: manual
+      allow_failure: false

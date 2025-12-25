@@ -1,0 +1,100 @@
+# Copyright (C) 2024- Davide Mollica <davide.mollica@inaf.it>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This file is part of iactsim.
+#
+# iactsim is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# iactsim is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with iactsim.  If not, see <https://www.gnu.org/licenses/>.
+
+[build-system]
+requires = [
+    "scikit-build-core",
+    "pybind11",
+    "setuptools_scm[toml]>=8.0",
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "iactsim"
+description = "Imaging Atmospheric Cherenkov Telescopes simulation"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Davide Mollica", email = "davide.mollica@inaf.it" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: C++",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Environment :: GPU :: NVIDIA CUDA :: 12",
+    "Topic :: Software Development",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Operating System :: Unix",
+]
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "tabulate",
+    "tqdm>=4.64.1",
+    "ipython>=9",
+    "PyYAML",
+]
+
+dynamic = ["version"]
+
+[project.urls]
+repository = "https://gitlab.com/davide.mollica/iactsim"
+documentation = "https://iact-sim-49dba6.gitlab.io/"
+bug_reports = "https://gitlab.com/davide.mollica/iactsim/-/issues/new"
+
+
+[project.scripts]
+configure_conda_env = "iactsim.utils:_configure_conda_env"
+
+[tool.scikit-build]
+cmake.source-dir = "src/iactxx" # directory containing the main CMakeLists.txt for the C++ extension
+cmake.args = [
+    "-DCMAKE_BUILD_TYPE=Release",     # Build in Release mode (Debug/Release)
+    "-DPYBIND11_FINDPYTHON=ON",       # Help pybind11 find Python correctly
+    "-DCMAKE_VERBOSE_MAKEFILE=ON",
+    "-DUSE_ZLIBNG=ON",
+]
+wheel.license-files = ["LICENSES/*"]
+build-dir = "build/{wheel_tag}"
+
+install.strip = false
+
+wheel.packages = ["src/iactsim"] # copy the contents of src/iactsim into the final wheel
+
+#########################
+## Dynamic versioning
+
+metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
+sdist.include = [
+    "src/iactsim/_version.py",
+    "**/*.exe",
+]
+
+[tool.setuptools_scm]
+version_file = "src/iactsim/_version.py"
+tag_regex = '^v(\d+\.\d+\.\d+)(?:-.*)?$' # strip non-standard suffixes starting with "-"
+
+# To avoid rebuild the C++ part every time
+#
+# pip install scikit-build-core pybind11 "setuptools_scm[toml]>=8.0" cmake ninja
+# python -m pip install --no-build-isolation -e .
