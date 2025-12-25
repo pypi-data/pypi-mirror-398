@@ -1,0 +1,636 @@
+# SPDX-License-Identifier: Apache-2.0.
+# Copyright (c) 2024 - 2025 Waldiez and contributors.
+"""Generates the main() and call_main() functions."""
+
+# pylint: disable=no-self-use,unused-argument,line-too-long
+# flake8: noqa: E501
+
+from ..core import get_comment
+from .utils.common import main_doc_string
+
+
+class ExecutionGenerator:
+    """Generate the main function and its calling block for flow exporter."""
+
+    @staticmethod
+    def generate(
+        content: str,
+        is_async: bool,
+        for_notebook: bool,
+        cache_seed: int | None,
+        after_run: str,
+        skip_logging: bool,
+    ) -> str:
+        """Generate the complete flow script content.
+
+        Parameters
+        ----------
+        content : str
+            The content of the chats to be included in the main function.
+        is_async : bool
+            Whether to generate async content.
+        for_notebook : bool
+            Whether the export is intended for a notebook environment.
+        cache_seed : str | int | None
+            The cache seed to use for flow chat if any.
+        after_run : str, optional
+            Additional content to add after the main chat execution,
+            by default ""
+        skip_logging : bool, optional
+            Whether to skip logging setup, by default False
+
+        Returns
+        -------
+        str
+            The complete flow script content.
+        """
+        main_function = ExecutionGenerator.generate_main_function(
+            content=content,
+            is_async=is_async,
+            cache_seed=cache_seed,
+            after_run=after_run,
+            for_notebook=for_notebook,
+            skip_logging=skip_logging,
+        )
+        call_main_function = ExecutionGenerator.generate_call_main_function(
+            is_async=is_async,
+            for_notebook=for_notebook,
+        )
+        if not for_notebook:
+            execution_block = ExecutionGenerator.generate_execution_block(
+                is_async=is_async,
+            )
+        else:
+            execution_block = ""
+        return (
+            "\n".join([main_function, call_main_function, execution_block])
+            + "\n"
+        )
+
+    @staticmethod
+    def generate_store_results(is_async: bool) -> str:
+        """Generate the part that writes the results to results.json.
+
+        Parameters
+        ----------
+        is_async : bool
+            Whether the flow is async or not.
+
+        Returns
+        -------
+        str
+            The part that generates the code to store the results.
+        """
+        content: str = "async " if is_async else ""
+        tab = "    "
+        content += (
+            "def store_results(result_dicts: list[dict[str, Any]]) -> None:\n"
+        )
+        content += f'{tab}"""Store the results to results.json.\n'
+        content += f"{tab}Parameters\n"
+        content += f"{tab}----------\n"
+        content += f"{tab}result_dicts : list[dict[str, Any]]\n"
+        content += f"{tab}{tab}The list of the results.\n"
+        content += f'{tab}"""\n'
+        content += f"{tab}try:\n"
+        if is_async:
+            content += f'{tab}{tab}async with aiofiles.open("results.json", "w", encoding="utf-8", newline="\\n") as file:\n'
+            content += f"{tab}{tab}{tab}await file.write(json.dumps({{'results': result_dicts}}, indent=4, ensure_ascii=False))\n"
+        else:
+            content += f'{tab}{tab}with open("results.json", "w", encoding="utf-8", newline="\\n") as file:\n'
+            content += f"{tab}{tab}{tab}file.write(json.dumps({{'results': result_dicts}}, indent=4, ensure_ascii=False))\n"
+        content += f"{tab}except BaseException:  # pylint: disable=broad-exception-caught\n"
+        content += f"{tab}{tab}pass\n"
+        return content
+
+    @staticmethod
+    def generate_store_error(is_async: bool) -> str:
+        """Generate the part that writes an error to error.json.
+
+        Parameters
+        ----------
+        is_async : bool
+            Whether the flow is async or not.
+
+        Returns
+        -------
+        str
+            The content for writing the error to file.
+        """
+        content = "\nasync " if is_async else "\n"
+        content += '''def store_error(exc: BaseException | None = None) -> None:
+    """Store the error in error.json.
+
+    Parameters
+    ----------
+    exc : BaseException | None
+        The exception we got if any.
+    """
+    reason = "Event handler stopped processing" if not exc else traceback.format_exc()
+    try:'''
+        if is_async:
+            content += """
+        async with aiofiles.open("error.json", "w", encoding="utf-8", newline="\\n") as file:
+            await file.write(json.dumps({"error": reason}))"""
+        else:
+            content += """
+        with open("error.json", "w", encoding="utf-8", newline="\\n") as file:
+            file.write(json.dumps({"error": reason}))"""
+        content += """
+    except BaseException: # pylint: disable=broad-exception-caught
+        pass
+"""
+
+        return content
+
+    @staticmethod
+    def _generate_get_agent_by_name() -> str:
+        """Generate the function to get an agent by its name."""
+        return '''
+def _get_agent_by_name(agents: list[ConversableAgent], agent_name: str) -> tuple[int, ConversableAgent | None]:
+    """Get an agent by its name."""
+    for ind,agent in enumerate(agents):
+        if agent.name == agent_name:
+            return ind, agent
+    return -1, None
+'''
+
+    @staticmethod
+    def _generate_handle_resume_group_pattern() -> str:
+        """Generate the function to handle the detected pattern for resuming a group chat."""
+        return '''
+def _handle_resume_group_pattern(detected_pattern: Pattern, state_messages: list[dict[str, Any]]) -> None:
+    """Handle detected pattern for resuming a group chat."""
+    # pylint: disable=broad-exception-caught,too-many-try-statements
+    try:
+        _pattern_type = getattr(detected_pattern.__class__, "__name__", None)
+    except BaseException:
+        return
+    if _pattern_type == "RoundRobinPattern" and state_messages:
+        last_message = state_messages[-1]
+        if not last_message or not isinstance(last_message, dict):
+            return
+        last_agent_name = last_message.get("name", "")
+        if not last_agent_name:
+            return
+        try:
+            idx, last_agent = _get_agent_by_name(detected_pattern.agents,last_agent_name)
+            if last_agent and len(detected_pattern.agents)>=(idx + 1):
+                detected_pattern.agents.append(detected_pattern.user_agent)
+                detected_pattern.initial_agent = detected_pattern.agents[idx+1]
+                detected_pattern.user_agent = detected_pattern.agents[idx]
+                # fmt: off
+                new_agent_order_list = detected_pattern.agents[idx+1:] + detected_pattern.agents[:idx]
+                # fmt: on
+                detected_pattern.agents = new_agent_order_list
+        except BaseException:
+            pass
+
+'''
+
+    @staticmethod
+    def _generate_sync_prepare_resume() -> str:
+        """Generate the function to prepare resuming a chat.
+
+        Parameters
+        ----------
+        is_async : bool
+            Whether to generate async content
+
+        Returns
+        -------
+        str
+            The complete function content.
+        """
+        content = ExecutionGenerator._generate_get_agent_by_name()
+        content += ExecutionGenerator._generate_handle_resume_group_pattern()
+        content += '''
+def _prepare_resume(state_json: str | Path | None = None) -> None:
+    """Prepare resuming a chat from state.json.
+
+    state.json format:
+        {
+            "messages": [{"content": "..", "role": "...", "name": "..."}],
+            "context_variables": {"key1": "value1", "key2": 4, "key3": [], "key4": {"other": "key"}}
+        }
+    metadata.json format:
+        {
+            "type": "group",
+            "group": {  # one of:
+                "pattern" : "<pattern_name>",
+                "manager" : "<manager_name>",
+            }
+        }
+
+    Parameters
+    ----------
+    state_json : str | Path | None
+        The path to state.json to load previous state.
+    """
+    # pylint: disable=broad-exception-caught,too-many-try-statements,global-statement
+    global __INITIAL_MSG__
+    if not state_json or not Path(state_json).is_file():
+        return
+    metadata_json = str(state_json).replace("state.json", "metadata.json")
+    if not metadata_json or not Path(metadata_json).is_file():
+        return
+    try:
+        with open(metadata_json, "r", encoding="utf-8") as f:
+            _metadata_dict = json.load(f)
+    except BaseException:
+        return
+    if not _metadata_dict or not isinstance(_metadata_dict, dict):
+        return
+    _state_chat_type = _metadata_dict.get("type", "")
+    if _state_chat_type != "group":
+        # only resume group chats
+        return
+    _state_group_details = _metadata_dict.get("group", {})
+    if not _state_group_details or not isinstance(_state_group_details, dict):
+        return
+    # either pattern or manager
+    _state_group_pattern = _state_group_details.get("pattern", "")
+    _state_group_manager = _state_group_details.get("manager", "")
+    if not _state_group_pattern and not _state_group_manager:
+        return
+    try:
+        with open(state_json, "r", encoding="utf-8") as f:
+            _state_dict = json.load(f)
+    except BaseException:
+        return
+    if not _state_dict or not isinstance(_state_dict, dict):
+        return
+    _state_messages = _state_dict.get("messages", [])
+    _detected_pattern = None
+    if _state_group_pattern and isinstance(_state_group_pattern, str):
+        _detected_pattern = __GROUP__["patterns"].get(_state_group_pattern, None)
+        if _detected_pattern:
+            _state_context_variables = _state_dict.get("context_variables", {})
+            if _state_context_variables and isinstance(_state_context_variables, dict):
+                _new_context_variables = _detected_pattern.context_variables.data.copy()
+                _new_context_variables.update(_state_context_variables)
+                _detected_pattern.context_variables = ContextVariables(
+                    data=_new_context_variables
+                )
+        if _state_messages and isinstance(_state_messages, list):
+            __INITIAL_MSG__ = _state_messages
+    elif _state_group_manager and isinstance(_state_group_manager, str):
+        _known_group_manager = __AGENTS__.get(_state_group_manager, None)
+        if _known_group_manager and hasattr(_known_group_manager, "groupchat"):
+            if _state_messages and isinstance(_state_messages, list):
+                _known_group_manager.groupchat.messages = _state_messages
+        else:
+            _detected_pattern = __GROUP__["patterns"].get(f"{_state_group_manager}_pattern")
+            if _detected_pattern:
+                _state_context_variables = _state_dict.get("context_variables", {})
+                if _state_context_variables and isinstance(_state_context_variables, dict):
+                    _new_context_variables = _detected_pattern.context_variables.data.copy()
+                    _new_context_variables.update(_state_context_variables)
+                    _detected_pattern.context_variables = ContextVariables(
+                        data=_new_context_variables
+                    )
+            if _state_messages and isinstance(_state_messages, list):
+                __INITIAL_MSG__ = _state_messages
+    if _detected_pattern and _state_messages and isinstance(_state_messages, list):
+        _handle_resume_group_pattern(_detected_pattern, _state_messages)
+'''
+        return content
+
+    @staticmethod
+    def _generate_async_prepare_resume() -> str:
+        """Generate the function to prepare resuming a chat (async)."""
+        content = ExecutionGenerator._generate_get_agent_by_name()
+        content += ExecutionGenerator._generate_handle_resume_group_pattern()
+        content += '''
+async def _prepare_resume(state_json: str | Path | None = None) -> None:
+    """Prepare resuming a chat from state.json.
+
+    state.json format:
+        {
+            "messages": [{"content": "..", "role": "...", "name": "..."}],
+            "context_variables": {"key1": "value1", "key2": 4, "key3": [], "key4": {"other": "key"}}
+        }
+    metadata.json format:
+        {
+            "type": "group",
+            "group": {  # one of:
+                "pattern" : "<pattern_name>",
+                "manager" : "<manager_name>",
+            }
+        }
+
+    Parameters
+    ----------
+    state_json : str | Path | None
+        The path to state.json to load previous state.
+    """
+    global __INITIAL_MSG__
+    # pylint: disable=broad-exception-caught,too-many-try-statements
+    if not state_json or not Path(state_json).is_file():
+        return
+    metadata_json = str(state_json).replace("state.json", "metadata.json")
+    if not metadata_json or not Path(metadata_json).is_file():
+        return
+    try:
+        async with aiofiles.open(metadata_json, "r", encoding="utf-8") as f:
+            f_data = await f.read()
+            _metadata_dict = json.loads(f_data)
+    except BaseException:
+        return
+    if not _metadata_dict or not isinstance(_metadata_dict, dict):
+        return
+    _state_chat_type = _metadata_dict.get("type", "")
+    if _state_chat_type != "group":
+        # only resume group chats
+        return
+    _state_group_details = _metadata_dict.get("group", {})
+    if not _state_group_details or not isinstance(_state_group_details, dict):
+        return
+    # either pattern or manager
+    _state_group_pattern = _state_group_details.get("pattern", "")
+    _state_group_manager = _state_group_details.get("manager", "")
+    if not _state_group_pattern and not _state_group_manager:
+        return
+    try:
+        async with aiofiles.open(state_json, "r", encoding="utf-8") as f:
+            f_data = await f.read()
+            _state_dict = json.loads(f_data)
+    except BaseException:
+        return
+    if not _state_dict or not isinstance(_state_dict, dict):
+        return
+    _state_messages = _state_dict.get("context_variables", [])
+    _detected_pattern = None
+    if _state_group_pattern and isinstance(_state_group_pattern, str):
+        _detected_pattern = __GROUP__["patterns"].get(_state_group_pattern, None)
+        if _detected_pattern:
+            _state_context_variables = _state_dict.get("context_variables", {})
+            if _state_context_variables and isinstance(_state_context_variables, dict):
+                _detected_pattern.context_variables = ContextVariables(data=_state_context_variables)
+        if _state_messages and isinstance(_state_messages, list):
+            __INITIAL_MSG__ = _state_messages
+    elif _state_group_manager and isinstance(_state_group_manager, str):
+        _known_group_manager = __AGENTS__.get(_state_group_manager, None)
+        if _known_group_manager and hasattr(_known_group_manager, "groupchat"):
+            if _state_messages and isinstance(_state_messages, list):
+                _known_group_manager.groupchat.messages = _state_messages
+        else:
+            _detected_pattern = __GROUP__["patterns"].get(f"{_state_group_manager}_pattern")
+            if _detected_pattern:
+                _state_context_variables = _state_dict.get("context_variables", {})
+                if _state_context_variables and isinstance(_state_context_variables, dict):
+                    _detected_pattern.context_variables = ContextVariables(
+                        data=_state_context_variables
+                    )
+            if _state_messages and isinstance(_state_messages, list):
+                __INITIAL_MSG__ = _state_messages
+    if _detected_pattern and _state_messages and isinstance(_state_messages, list):
+        _handle_resume_group_pattern(_detected_pattern, _state_messages)
+'''
+        return content
+
+    @staticmethod
+    def generate_prepare_resume(is_async: bool) -> str:
+        """Generate the function to prepare resuming a chat.
+
+        Parameters
+        ----------
+        is_async : bool
+            Whether to generate async content
+
+        Returns
+        -------
+        str
+            The complete function content.
+        """
+        if is_async:
+            return ExecutionGenerator._generate_async_prepare_resume()
+        return ExecutionGenerator._generate_sync_prepare_resume()
+
+    @staticmethod
+    def generate_main_function(
+        content: str,
+        is_async: bool,
+        cache_seed: int | None,
+        after_run: str,
+        for_notebook: bool,
+        skip_logging: bool,
+    ) -> str:
+        """Generate the main function for the flow script.
+
+        Parameters
+        ----------
+        content : str
+            The content of the chats to be included in the main function.
+        is_async : bool
+            Whether to generate async content
+        cache_seed : str | int | None
+            The cache seed to use for flow chat if any
+        after_run : str
+            Additional content to add after the main chat execution.
+        for_notebook : bool
+            Whether the export is intended for a notebook environment.
+        skip_logging : bool, optional
+            Whether to skip logging setup, by default False
+
+        Returns
+        -------
+        str
+            The complete main function content.
+        """
+        if content.startswith("\n"):
+            content = content[1:]
+        flow_content = "\n\n"
+        comment = get_comment(
+            "Start chatting",
+            for_notebook=for_notebook,
+        )
+        flow_content += f"{comment}\n"
+        if is_async:
+            flow_content += "async "
+        on_event_arg = "on_event: Callable[[BaseEvent, list[ConversableAgent]], bool] | None = None"
+        if is_async:
+            on_event_arg = (
+                "on_event: "
+                "Callable[[BaseEvent, list[ConversableAgent]], Coroutine[None, None, bool]]"
+                " | None = None"
+            )
+        resume_arg = "state_json : str | Path | None = None"
+        return_type_hint = "list[dict[str, Any]]"
+        flow_content += (
+            "def main(\n"
+            f"    {on_event_arg},"
+            "\n"
+            f"    {resume_arg}"
+            "\n"
+            f") -> {return_type_hint}:"
+            "\n"
+        )
+        flow_content += f"    {main_doc_string()}\n"
+        flow_content += "    if state_json:\n"
+        if is_async:
+            flow_content += "        await _prepare_resume(state_json)\n"
+        else:
+            flow_content += "        _prepare_resume(state_json)\n"
+        if not is_async:
+            flow_content += "    results: list[RunResponseProtocol] | RunResponseProtocol = []\n"
+        else:
+            flow_content += "    results: list[AsyncRunResponseProtocol] | AsyncRunResponseProtocol = []\n"
+        flow_content += "    result_dicts: list[dict[str, Any]] = []\n"
+        flow_content += "    a_pause_event = asyncio.Event()\n"
+        flow_content += "    a_pause_event.set()\n"
+        flow_content += "    pause_event = threading.Event()\n"
+        flow_content += "    pause_event.set()\n"
+        space = "    "
+        if cache_seed is not None:
+            # noinspection SqlDialectInspection
+            flow_content += (
+                f"    with Cache.disk(cache_seed={cache_seed}) as cache:\n"
+            )
+            space = f"{space}    "
+        else:
+            flow_content += (
+                '    if Path(".cache").is_dir():\n'
+                '        shutil.rmtree(".cache", ignore_errors=True)\n'
+            )
+        flow_content += f"{content}" + "\n"
+        if not skip_logging:
+            flow_content += ExecutionGenerator._get_stop_logging_call(
+                space, is_async
+            )
+        flow_content += "\n"
+        if after_run:
+            flow_content += after_run + "\n"
+        if cache_seed is not None:
+            space = space[4:]
+        flow_content += ExecutionGenerator._get_store_results_call(
+            space, is_async
+        )
+        flow_content += f"{space}return result_dicts\n"
+        return flow_content
+
+    @staticmethod
+    def _get_stop_logging_call(space: str, is_async: bool) -> str:
+        """Get stop logging call."""
+        if is_async:
+            return f"{space}await stop_logging()"
+        return f"{space}stop_logging()"
+
+    @staticmethod
+    def _get_store_results_call(space: str, is_async: bool) -> str:
+        """Get store results call."""
+        if is_async:
+            return f"{space}await store_results(result_dicts)\n"
+        return f"{space}store_results(result_dicts)\n"
+
+    @staticmethod
+    def generate_call_main_function(is_async: bool, for_notebook: bool) -> str:
+        """Generate the call_main function for the flow script.
+
+        Parameters
+        ----------
+        is_async : bool
+            Whether to generate async content
+        for_notebook : bool
+            Whether the export is intended for a notebook environment.
+
+        Returns
+        -------
+        str
+            The complete call_main function content.
+        """
+        content = "\n"
+        tab = "    "
+        if for_notebook:
+            if is_async:
+                return "# %%\nawait main()\n"
+            return "# %%\nmain()\n"
+        return_type_hint = "list[dict[str, Any]]"
+        if is_async:
+            content += "async def call_main() -> None:\n"
+        else:
+            content += "def call_main() -> None:\n"
+        content += f'{tab}"""Run the main function and print the results."""\n'
+        content += f"{tab}state_json: str | Path | None = None\n"
+        content += f'{tab}if "--state" in sys.argv:\n'
+        content += f'{tab}{tab}entry_index = sys.argv.index("--state")\n'
+        content += f"{tab}{tab}if entry_index + 1 < len(sys.argv):\n"
+        content += (
+            f"{tab}{tab}{tab}state_location = Path(sys.argv[entry_index + 1])\n"
+        )
+        content += f"{tab}{tab}{tab}if state_location.resolve().exists():\n"
+        content += f"{tab}{tab}{tab}{tab}state_json = state_location\n"
+        content += f"{tab}results: {return_type_hint} = "
+        if is_async:
+            content += "await "
+        content += "main(None, state_json=state_json)\n"
+        content += f"{tab}print(json.dumps(results, default=str, indent=2, ensure_ascii=False))\n"
+        return content
+
+    @staticmethod
+    def generate_execution_block(is_async: bool) -> str:
+        """Generate the execution block for the main function.
+
+        Parameters
+        ----------
+        is_async : bool
+            Whether to generate async content
+
+        Returns
+        -------
+        str
+            The complete if __name__ == "__main__": block content
+        """
+        comment = get_comment(
+            "Let's go!",
+            for_notebook=False,
+        )
+        content = 'if __name__ == "__main__":\n'
+        content += f"    {comment}"
+        if is_async:
+            content += "    anyio.run(call_main)\n"
+        else:
+            content += "    call_main()\n"
+        return content
+
+
+def get_result_dicts_string(space: str, is_async: bool) -> str:
+    """Get the result dicts string.
+
+    Parameters
+    ----------
+    space : str
+        The space string to use for indentation.
+    is_async : bool
+        Whether the function is asynchronous.
+
+    Returns
+    -------
+    str
+        The result dicts string.
+    """
+    flow_content = f"{space}for index, result in enumerate(results):\n"
+    if not is_async:
+        flow_content += f"{space}    result_dict = {{\n"
+        flow_content += f"{space}        'index': index,\n"
+        flow_content += f"{space}        'messages': result.messages,\n"
+        flow_content += f"{space}        'summary': result.summary,\n"
+        flow_content += f"{space}        'cost': result.cost.model_dump(mode='json', fallback=str) if result.cost else None,\n"
+        flow_content += f"{space}        'context_variables': result.context_variables.model_dump(mode='json', fallback=str) if result.context_variables else None,\n"
+        flow_content += f"{space}        'last_speaker': result.last_speaker,\n"
+        flow_content += f"{space}        'uuid': str(result.uuid),\n"
+        flow_content += f"{space}    }}\n"
+    else:
+        flow_content += f"{space}    result_dict = {{\n"
+        flow_content += f"{space}        'index': index,\n"
+        flow_content += f"{space}        'messages': await result.messages,\n"
+        flow_content += f"{space}        'summary': await result.summary,\n"
+        flow_content += f"{space}        'cost': (await result.cost).model_dump(mode='json', fallback=str) if await result.cost else None,\n"
+        flow_content += f"{space}        'context_variables': (await result.context_variables).model_dump(mode='json', fallback=str) if await result.context_variables else None,\n"
+        flow_content += (
+            f"{space}        'last_speaker': await result.last_speaker,\n"
+        )
+        flow_content += f"{space}        'uuid': str(result.uuid),\n"
+        flow_content += f"{space}    }}\n"
+    flow_content += f"{space}    result_dicts.append(result_dict)\n"
+    return flow_content
