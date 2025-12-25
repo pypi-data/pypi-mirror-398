@@ -1,0 +1,53 @@
+# aiogram-smart-messages
+
+**Smart message renderer for Aiogram** with:
+
+- JSON-based messages
+- Inline and reply keyboard builder
+- Async and sync message rendering
+- Customizable error logging and decorators
+
+## Installation
+
+```bash
+pip install aiogram-smart-messages
+```
+
+## Usage
+
+### Importing modules
+
+```python
+from aiogram_smart_messages.builder import KeyboardBuilder
+from aiogram_smart_messages.loader import load_message_json
+from aiogram_smart_messages.renderer.bot_messages import SmartMessageRenderer
+from aiogram_smart_messages.decorators import with_error_logging
+from aiogram_smart_messages.logger import get_logger
+```
+
+### Using the logger
+
+```python
+logger = get_logger("my_bot")
+logger.info("This is an info message")
+```
+
+### Using the error logging decorator
+
+```python
+@with_error_logging(logger=logger, fallback=None, error_label="SMART_MESSAGE_ERROR")
+async def send_welcome(engine, message):
+    await SmartMessageRenderer.send(
+        engine=engine,
+        source=message,
+        role="user",
+        namespace="my_bot",
+        menu_file="welcome",
+        block_key="main",
+        lang="en",
+    )
+```
+
+## License
+
+MIT License © 2025 Kriva
