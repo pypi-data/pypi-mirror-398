@@ -1,0 +1,175 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tensor-truth"
+version = "0.1.13"
+description = "Local RAG pipeline for fixing LLM hallucinations using high-precision documentation indexing."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Relja Ljubobratovic", email = "ljubobratovic.relja@gmail.com" },
+]
+keywords = ["rag", "deepseek", "ollama", "pytorch", "llm", "local-ai"]
+
+dependencies = [
+    # --- Dependency Stabilization ---
+    # Narrowing these specific libraries prevents the massive backtracking
+    "transformers>=4.40.0,<4.47.0",
+    "tokenizers>=0.19.0,<0.21.0",
+    "huggingface-hub[hf_xet,inference]>=0.23.0,<1.0.0",
+    "sentence-transformers>=3.0.0",
+    "llama_parse>=0.5.0,<0.6.55",
+    "llama_cloud_services>=0.6.0,<0.6.55",
+
+    # --- Orchestration & RAG ---
+    "llama-index>=0.10.0",
+    "llama-index-core",
+    "llama-index-llms-ollama",
+    "llama-index-embeddings-huggingface",
+    "llama-index-vector-stores-chroma",
+    "llama-index-readers-file",
+
+    # --- Vector Database ---
+    "chromadb>=1.3.5",
+
+    # --- ML / Embeddings (GPU Support) ---
+    # WARNING: Torch defaults to CPU on pip install.
+    # Ensure your venv has the CUDA version installed.
+    "torch>=2.9",
+    "psutil",     # For system memory detection
+
+    # --- Web App ---
+    "streamlit",
+
+    # --- Utilities ---
+    "requests", # Ollama API & downloads
+    "aiohttp",  # Async HTTP for better UI responsiveness
+
+    # --- PDF Processing (session documents) ---
+    "pymupdf4llm", # PDF to markdown conversion (required for session PDFs)
+    "marker-pdf",  # Advanced PDF conversion with math support
+    "tqdm",        # Progress bars for PDF processing
+]
+
+[project.scripts]
+tensor-truth = "tensortruth.cli:main"
+tensor-truth-docs = "tensortruth.cli:scrape_docs"
+tensor-truth-build = "tensortruth.cli:build_db"
+
+[project.optional-dependencies]
+# Documentation and paper scraping tools (tensor-truth-docs)
+# Note: PDF processing deps (pymupdf4llm, marker-pdf, tqdm) are now in core dependencies
+# because they're required for session PDF upload feature in the main app
+docs = [
+    "beautifulsoup4",
+    "markdownify",
+    "sphobjinv",      # Sphinx inventory parsing
+    "arxiv",          # ArXiv API client (for paper fetching)
+]
+
+# Development and testing dependencies
+dev = [
+    # Documentation/paper scraping tools
+    "tensor-truth[docs]",
+
+    # Testing Framework
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+
+    # Property-based Testing
+    "hypothesis>=6.82.0",
+
+    # Code Quality
+    "black>=25.12.0",
+    "isort>=7.0.0",
+    "flake8>=7.3.0",
+    "mypy>=1.4.0",
+
+    # Coverage Reporting
+    "coverage[toml]>=7.2.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"] # Tells python that your code lives in 'src/'
+
+[tool.setuptools.package-data]
+tensortruth = ["media/*.css", "media/*.png"]
+
+[tool.deptry.per_rule_ignores]
+# Ignore DEP002 for CLI tools and test framework (not imported in src/, used in tests/ or via CLI)
+DEP002 = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis",
+    "black",
+    "mypy",
+    "isort",
+    "coverage",
+]
+
+# Tool Configurations
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.pytest.ini_options]
+# Test discovery patterns
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Directories to search for tests
+testpaths = ["tests"]
+
+# Add src to Python path
+pythonpath = ["src"]
+
+# Asyncio configuration
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+# Markers for categorizing tests
+markers = [
+    "unit: Unit tests (fast, isolated)",
+    "integration: Integration tests (moderate speed, local resources)",
+    "e2e: End-to-end tests (slow, full system)",
+    "slow: Tests that take significant time",
+    "requires_gpu: Tests requiring CUDA/MPS",
+    "requires_ollama: Tests requiring Ollama server",
+    "requires_network: Tests requiring internet connection",
+]
+
+# Output options
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--disable-warnings",
+    "--color=yes",
+    "-ra",
+]
+
+[tool.coverage.run]
+source = ["src/tensortruth"]
+omit = ["*/tests/*", "*/venv/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
