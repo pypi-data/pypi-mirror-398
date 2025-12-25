@@ -1,0 +1,232 @@
+# HEA Server Organization
+[Research Informatics Shared Resource](https://risr.hci.utah.edu), [Huntsman Cancer Institute](https://hci.utah.edu),
+Salt Lake City, UT
+
+The HEA Server Organization is a service for managing organization information for research laboratories and other research groups.
+
+
+## Version 1.12.0
+* Bumped heaserver version to 1.48.0.
+* Added support for encrypted Mongo and RabbitMQ passwords.
+
+## Version 1.11.0
+* Bumped heaserver version to 1.45.1.
+* New startup.py module to initialize logging before importing any third-party libraries.
+* New optional -e/--env command-line argument for setting the runtime environment (development, staging, or
+  production). Logging is now configured based on this setting, unless the older -l/--logging argument is provided. The
+  default value is development.
+* Logs are now scrubbed.
+* Added log files to .gitignore.
+
+## Version 1.10.10
+* Fixed an issue where updating an organization caused the organization to acquire collaborators from another
+  organization.
+
+## Version 1.10.9
+* Log when this service receives a collaborator update message.
+
+## Version 1.10.8
+* Improved reliability of changing organization user access.
+* Improved reliability of getting an organization's volumes.
+
+## Version 1.10.7
+* Removed old collaborator_ids attribute from member card template.
+* Bumped heaserver version to 1.43.3.
+
+## Version 1.10.6
+* Bumped heaserver version to 1.43.0.
+* Updated collaborator changing code for changes to Volume attributes.
+
+## Version 1.10.5
+* Bumped heaserver version to 1.41.2 to address issue getting AWS account-level collaborator info.
+
+## Version 1.10.4
+* Bumped heaobject version to 1.31.2 to address bug deleting collaborator info. The legacy collaborator info held no
+  account information, which made accurately tracking collaborators with access to multiple accounts in an
+  organization impossible. Now that the heaobject.organization.Organization class associates an account with each
+  collaboration record, this is fixed, but handling of legacy data without the account information remains imperfect.
+  In particular, if this microservice receives a collaborator removal event from the message broker, and there is
+  a legacy collaboration record for that user, the legacy record will be deleted even though the user may still have
+  collaborator access to the organizations' other accounts. New collaborator records will be correctly added and
+  removed. For now, if you believe the organization's listing of collaborators is incorrect due to legacy collaborator
+  information, use the account properties for a full accounting of users with collaborator access to it. This remaining
+  issue with legacy data will be resolved in a future release.
+
+## Version 1.10.3
+* Bumped heaobject version to 1.31.1 to address bug deleting legacy collaborator info.
+
+## Version 1.10.2
+* Prevent "All collaborators must be removed from an account before removing it from the organization" error when
+  updating an organization with collaborators with no associated account.
+
+## Version 1.10.1
+* Write a type property for organization collaborators in the organization properties template.
+
+## Version 1.10.0
+* Bumped heaserver version to 1.41.1.
+* Added new collaborator info to endpoints.
+
+## Version 1.9.2
+* Bumped heaserver to 1.37.1.
+
+## Version 1.9.1
+* Bumped heaserver to 1.36.2.
+
+## Version 1.9.0
+* Bumped heaserver to 1.35.0.
+* Use new sort logic from heaserver 1.35.
+* Added sort-related query parameters to OpenAPI specs.
+* Fixed import statements in run-swaggerui.py.
+
+## Version 1.8.1
+* Bumped heaserver version to 1.32.2 to correct a potential issue causing the microservice to fail to send messages to
+  the message broker.
+
+## Version 1.8.0
+* We now mark organizations with the new hea-container and hea-self-container rel values.
+* Renamed the organizations/{id}/awsaccounts endpoint organizations/{id}/accounts, since that's what it was actually
+  doing, and organizations are agnostic of the account type. The link from organization to account was updated to
+  reflect this change.
+
+## Version 1.7.2
+* Bumped heaserver version to 1.30.0.
+* Removed duplicate user_shares and group_shares fields in the organization property metadata.
+
+## Version 1.7.1
+* Bumped heaserver version to 1.28.1.
+
+## Version 1.7.0
+* Added group permissions support.
+
+## Version 1.6.2
+* Call the correct URL for removing a user from a group.
+
+## Version 1.6.1
+* new links for org collection+json
+
+## Version 1.6.0
+* New /organizations/{id}/recentlyaccessed endpoint.
+
+## Version 1.5.5
+* Added support for python 3.12.
+
+## Version 1.5.4
+* Fixed potential hang when listing an organization's accounts.
+
+## Version 1.5.3
+* No user-visible changes. Updated to interoperate with heaserver-keychain 1.5.0.
+
+## Version 1.5.2
+* Caching optimizations.
+
+## Version 1.5.1
+* Invalidate cache when receiving collaborator changes from the message queue.
+
+## Version 1.5.0
+* Added collaborator_ids attribute. The collaborator_ids attribute is altered via message queue messages.
+
+## Version 1.4.9
+* Attempt to relink Credentials objects with their corresponding Volumes when saving an Organization.
+
+## Version 1.4.8
+* Handle case where user who is an organization admin, manager, member, or PI has been deleted from keycloak.
+* Omit system users from the membership editor form.
+
+## Version 1.4.7
+* Fixed issue causing volumes and credentials for a new PI not to be created.
+
+## Version 1.4.6
+* Fixed issue creating new credentials objects without a role when a user is added to an organization.
+
+## Version 1.4.5
+* Fixed crash when reusing an existing volume and credentials when a user's organization membership has changed.
+
+## Version 1.4.4
+* Return 400 status code when the user lacks permission to update permissions for an organization (those errors were ignored previously).
+* Corrected permissions checking for organization managers and members.
+
+## Version 1.4.3
+* Send the account ids and group id fields when submitting the members editor form.
+
+## Version 1.4.2
+* Corrected heaobject.organization.Organization permissions.
+
+## Version 1.4.1
+* Generate the correct name attribute for heaobject.keychain.AWSCredentials objects.
+
+## Version 1.4.0
+* Changing organization members, managers, admins, and PI now changes the users' volumes and credentials objects to
+match.
+* The admin, manager, and member lists now omit system users.
+
+## Version 1.3.0
+* Display type display name in properties card, and return the type display name from GET calls.
+
+## Version 1.2.0
+* Improved performance accessing an organization's AWS accounts.
+* heaobject.organization.Organization objects now have an accounts attribute that mirrors the contents of the existing
+aws_account_ids attribute and will support other heaobject.account.Account subclasses in the future.
+
+## Version 1.1.0
+* Pass desktop object permissions back to clients.
+
+## Version 1.0.2
+* Improved performance.
+
+## Version 1.0.1
+* Improved performance.
+
+## Version 1
+Initial release.
+
+## Runtime requirements
+* Python 3.10, 3.11, or 3.12.
+
+## Development environment
+
+### Build requirements
+* Any development environment is fine.
+* On Windows, you also will need:
+    * Build Tools for Visual Studio 2019, found at https://visualstudio.microsoft.com/downloads/. Select the C++ tools.
+    * git, found at https://git-scm.com/download/win.
+* On Mac, Xcode or the command line developer tools is required, found in the Apple Store app.
+* Python 3.10, 3.11, or 3.12: Download and install Python from https://www.python.org, and select the options to install
+for all users and add Python to your environment variables. The install for all users option will help keep you from
+accidentally installing packages into your Python installation's site-packages directory instead of to your virtualenv
+environment, described below.
+* Create a virtualenv environment using the `python -m venv <venv_directory>` command, substituting `<venv_directory>`
+with the directory name of your virtual environment. Run `source <venv_directory>/bin/activate` (or `<venv_directory>/Scripts/activate` on Windows) to activate the virtual
+environment. You will need to activate the virtualenv every time before starting work, or your IDE may be able to do
+this for you automatically. **Note that PyCharm will do this for you, but you have to create a new Terminal panel
+after you newly configure a project with your virtualenv.**
+* From the project's root directory, and using the activated virtualenv, run
+  `pip install -r requirements_dev.txt`. **Do NOT run `python setup.py develop`. It will break your environment.**
+
+### Running tests
+Run tests with the `pytest` command from the project root directory. To improve performance, run tests in multiple
+processes with `pytest -n auto`.
+
+### Running integration tests
+* Install Docker
+* On Windows, install pywin32 version >= 223 from https://github.com/mhammond/pywin32/releases. In your venv, make sure that
+`include-system-site-packages` is set to `true`.
+
+### Trying out the APIs
+This microservice has Swagger3/OpenAPI support so that you can quickly test the APIs in a web browser. Do the following:
+* Install Docker, if it is not installed already.
+* Run the `run-swaggerui.py` file in your terminal. This file contains some test objects that are loaded into a MongoDB
+  Docker container.
+* Go to `http://127.0.0.1:8080/docs` in your web browser.
+
+Once `run-swaggerui.py` is running, you can also access the APIs via `curl` or other tool. For example, in Windows
+PowerShell, execute:
+```
+Invoke-RestMethod -Uri http://localhost:8080/organizations/ -Method GET -Headers @{'accept' = 'application/json'}`
+```
+In MacOS or Linux, the equivalent command is:
+```
+curl -X GET http://localhost:8080/organizations/ -H 'accept: application/json'
+```
+
+### Packaging and releasing this project
+See the [RELEASING.md](RELEASING.md) file for details.
