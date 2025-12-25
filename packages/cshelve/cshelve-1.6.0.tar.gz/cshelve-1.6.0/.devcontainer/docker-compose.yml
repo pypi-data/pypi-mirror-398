@@ -1,0 +1,49 @@
+services:
+  azurite:
+    build:
+      context: ..
+      dockerfile: ./.devcontainer/Dockerfile.azurite
+    ports:
+      - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"
+
+  sftp-password:
+    image: atmoz/sftp:alpine
+    command: cshelve:cloud-shelve:::upload
+
+  sftp-ssh:
+    image: atmoz/sftp:alpine
+    command: cshelve::1000::upload
+    volumes:
+      - ../tests/configurations/sftp/ssh_keys/ssh_host_rsa_key.pub:/home/cshelve/.ssh/keys/ssh_host_rsa_key.pub:ro
+
+  cshelve:
+    user: "1000:1000"
+    build:
+      context: ..
+      dockerfile: ./.devcontainer/Dockerfile
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      # Forwards the local Docker socket to the container.
+      - /var/run/docker.sock:/var/run/docker-host.sock
+      # Update this to wherever you want VS Code to mount the folder of your project
+      - ..:/workspaces/package:cached
+
+    depends_on:
+      - azurite
+      - motoserver
+      - sftp-password
+      - sftp-ssh
+
+    command: sleep infinity
+
+  motoserver:
+    image: motoserver/moto:latest
+    ports:
+      - "9000:9000"
+    environment:
+      - MOTO_PORT=9000

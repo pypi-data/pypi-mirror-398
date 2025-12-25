@@ -1,0 +1,176 @@
+# Quality assurance workflow.
+#
+# Performances
+# For each push on the main branch, the performance tests are run on all supported OS and Python versions.
+# An Azure storage account simulator is used to limit the network impact on the tests.
+# The results are stored in the Azure storage account.
+#
+# Examples
+# Run examples in the CI to ensure that the project is working as expected.
+
+name: Quality
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  WHEEL: cshelve-1.6.0-py3-none-any.whl
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.9"]
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    environment: azure
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install the project
+      run: uv build
+
+    - name: Upload the package
+      uses: actions/upload-artifact@v4
+      with:
+        name: cshelve-${{ github.sha }}
+        path: dist/*.whl
+        retention-days: 10
+        if-no-files-found: error
+        overwrite: false
+
+
+  examples:
+    needs: build
+
+    strategy:
+      matrix:
+        # Examples do not run on Windows.
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+      max-parallel: 1
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    environment: azure
+
+    steps:
+    # An Azure storage account is used for reality.
+    - name: 'Az CLI login'
+      uses: azure/login@v1
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download the wheel.
+      uses: actions/download-artifact@v4
+      with:
+        name: cshelve-${{ github.sha }}
+        path: performances/dist
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install package.
+      working-directory: performances
+      run: |
+        pip install ./dist/${{ env.WHEEL }}[azure-blob,aws-s3]
+
+    - name: Run asterix-and-obelix-database
+      working-directory: examples/asterix-and-obelix-database
+      run: |
+        bash run-test.sh
+      env:
+        AWS_KEY_ID: ${{ secrets.AWS_ENVIRONMENT_KEY }}
+        AWS_KEY_SECRET: ${{ secrets.AWS_ENVIRONMENT_SECRET }}
+
+    - name: Run asterix-and-obelix-friends
+      working-directory: examples/asterix-and-obelix-friends
+      run: |
+        bash run-test.sh
+      env:
+        AWS_KEY_ID: ${{ secrets.AWS_ENVIRONMENT_KEY }}
+        AWS_KEY_SECRET: ${{ secrets.AWS_ENVIRONMENT_SECRET }}
+
+
+  performance-tests:
+    needs: build
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    environment: azure
+
+    steps:
+    # An Azure storage account is used to keep results.
+    - name: 'Az CLI login'
+      uses: azure/login@v1
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    # Azurite needs nodejs.
+    # Using Azurite limit the impact of the network on the performance tests.
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 18
+
+    - name: Install Azureit to emulate Azure Storage Account locally.
+      run: |
+        npm install -g azurite
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download the wheel.
+      uses: actions/download-artifact@v4
+      with:
+        name: cshelve-${{ github.sha }}
+        path: performances/dist
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install package.
+      working-directory: performances
+      run: |
+        pip install ./dist/${{ env.WHEEL }}[azure-blob]
+
+    - name: Run performances tests
+      working-directory: performances
+      run: |
+        # Start Azureit.
+        azurite --silent --location c:\azurite --debug c:\azurite\debug.log &
+        # Run performance tests.
+        python main.py production.results.ini ${{ matrix.os }} ${{ matrix.python-version }} ${{ github.sha }}
+      env:
+        # Local connection string for Azurite.
+        AZURE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+        ENCRYPTION_KEY: "Sixteen byte key"
