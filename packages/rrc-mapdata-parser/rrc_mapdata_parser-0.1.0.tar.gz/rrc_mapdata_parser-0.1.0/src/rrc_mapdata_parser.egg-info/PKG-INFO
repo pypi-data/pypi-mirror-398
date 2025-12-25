@@ -1,0 +1,173 @@
+Metadata-Version: 2.4
+Name: rrc-mapdata-parser
+Version: 0.1.0
+Summary: Python module to ingest and process Texas Railroad Commission (RRC) Digital Map Information from .zip archives
+Author-email: Marcus Salinas <marcus@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/jippylong12/rrc-mapdata-parser
+Project-URL: Repository, https://github.com/jippylong12/rrc-mapdata-parser
+Project-URL: Issues, https://github.com/jippylong12/rrc-mapdata-parser/issues
+Keywords: rrc,gis,shapefile,texas,oil,gas,wells,railroad-commission,petroleum
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: GIS
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pyshp>=2.3.0
+Requires-Dist: dbfread>=2.0.7
+Requires-Dist: shapely>=2.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: build; extra == "dev"
+Requires-Dist: twine; extra == "dev"
+Dynamic: license-file
+
+# RRC Mapdata Parser
+
+A Python module to ingest and process Texas Railroad Commission (RRC) Digital Map Information directly from exported `.zip` archives.
+
+## Overview
+
+This package processes ESRI Shapefile collections from RRC GIS exports. Currently focused on **Wells** layer with planned expansion to:
+
+| Layer | Status | Description |
+|-------|--------|-------------|
+| **Wells** | ✅ Implemented | Surface, Bottom, and Arc features |
+| Base | 🚧 Planned | Airports, Cities, Roads, etc. |
+| Surveys | 🚧 Planned | Lines, Polygons, Bay tracts |
+| Pipelines | 🚧 Planned | Abandoned, Liquid, Gas |
+
+## Installation
+
+```bash
+pip install rrc-mapdata-parser
+```
+
+For development:
+
+```bash
+pip install -e ".[dev]"
+```
+
+## Usage
+
+### Main Parser Class (Recommended)
+
+```python
+from rrc_mapdata_parser import RRCMapdataParser
+
+# Create parser instance
+parser = RRCMapdataParser(convert_values=True)
+
+# Parse a zip file
+result = parser.parse("well329.zip")
+
+# Access wells data
+wells = result.wells
+print(f"County FIPS: {result.fips}")
+print(f"Surface wells: {wells.surface_count}")
+print(f"Bottom holes: {wells.bottom_count}")
+print(f"Arcs: {wells.arc_count}")
+
+# Iterate over surface wells
+for well in wells.surface:
+    print(f"API: {well.get('api12')}, Type: {well.get('SYMNUM')}")
+
+# Find a specific well by API
+well = wells.get_well_by_api("423290001234")
+```
+
+### Processing Multiple Files
+
+```python
+parser = RRCMapdataParser()
+
+# Process multiple counties
+for result in parser.parse_many(["well329.zip", "well307.zip"]):
+    print(f"Processed {result.fips}: {result.wells.surface_count} wells")
+```
+
+### Low-Level Functions
+
+```python
+from rrc_mapdata_parser import ingest_zip, parse_shapefile
+
+# Direct ingestion
+result = ingest_zip("well329.zip", convert_values=True)
+
+# Direct shapefile parsing
+records = parse_shapefile("well329s.shp", convert_values=True)
+```
+
+## Wells Layer Data
+
+### Layer Types
+
+| Pattern | Layer Type | Description |
+|---------|------------|-------------|
+| `well<fips>s.*` | Surface | Surface well point locations |
+| `well<fips>b.*` | Bottom | Bottom hole point locations |
+| `well<fips>l.*` | Arc | Lines connecting surface to bottom |
+
+### Primary Keys
+- `APINUM` - 12-digit API number (includes state code 42)
+- `API10` - 10-digit API number
+- `API` - 8-digit API number
+
+### Coordinates
+All coordinates maintain double-precision (DOUBLE 18, 8):
+- `LAT27`, `LONG27` - NAD27 datum
+- `LAT83`, `LONG83` - NAD83 datum
+
+### Relational Fields
+- `SURFACE_ID` - Links to surface well points
+- `BOTTOM_ID` - Links to bottom hole points
+
+### Code Conversion
+
+With `convert_values=True`, numeric codes become readable text:
+
+| Field | Example Code | Converted Value |
+|-------|--------------|-----------------|
+| SYMNUM | 4 | "Oil Well" |
+| SYMNUM | 5 | "Gas Well" |
+| SYMNUM | 11 | "Injection/Disposal Well" |
+| RELIAB | 20 | "WELLBORE Distances" |
+| RELIAB | 45 | "Field Inspection by RRC personnel" |
+
+## Technical Specifications
+
+| Property | Value |
+|----------|-------|
+| Coordinate System | Geographic (Decimal Degrees) |
+| Default Datum | NAD27 |
+| Character Encoding | ISO-8859-1 |
+| Storage Overhead | 1.5x - 2x of compressed size |
+
+## Testing
+
+```bash
+# Run tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=src/rrc_mapdata_parser
+```
+
+Place sample data at `tests/data/well329.zip` for integration tests.
+
+## License
+
+MIT License
+
