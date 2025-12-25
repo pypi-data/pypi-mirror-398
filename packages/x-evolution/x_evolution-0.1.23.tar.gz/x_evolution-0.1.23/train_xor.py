@@ -1,0 +1,57 @@
+import torch
+from torch import tensor
+import torch.nn.functional as F
+from torch.optim.lr_scheduler import LambdaLR
+
+# model
+
+from torch import nn
+
+model = nn.Sequential(
+    nn.Linear(2, 16),
+    nn.ReLU(),
+    nn.Linear(16, 2)
+).half()
+
+batch_size = 128
+
+# fitness as inverse of loss
+
+from x_evolution import EvoStrategy
+
+def loss_xor(model):
+    device = next(model.parameters()).device
+
+    data = torch.randint(0, 2, (batch_size, 2))
+    labels = data[:, 0] ^ data[:, 1]
+
+    data, labels = tuple(t.to(device) for t in (data, labels))
+
+    with torch.no_grad():
+        logits = model(data.half())
+        loss = F.cross_entropy(logits, labels)
+
+    return -loss
+
+# evo
+
+evo_strat = EvoStrategy(
+    model,
+    environment = loss_xor,
+    noise_population_size = 100,
+    noise_low_rank = 1,
+    num_generations = 100_000,
+    learning_rate = 1e-1,
+    noise_scale = 1e-1,
+    noise_scale_clamp_range = (5e-2, 2e-1),
+    learned_noise_scale = True,
+    noise_scale_learning_rate = 5e-4,
+    use_scheduler = True,
+    scheduler_klass = LambdaLR,
+    scheduler_kwargs = dict(lr_lambda = lambda step: min(1., step / 10.)),
+    use_sigma_scheduler = True,
+    sigma_scheduler_klass = LambdaLR,
+    sigma_scheduler_kwargs = dict(lr_lambda = lambda step: min(1., step / 10.))
+)
+
+evo_strat()
