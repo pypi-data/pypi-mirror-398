@@ -1,0 +1,374 @@
+**********************************************************************
+**
+** PLOT, netCDF (AND PRINT) CONTROLS
+**
+**********************************************************************
+**
+**  Plotted output goes to file "mnemonic".ps
+**
+**  nchec is the # of time steps between sampling of data
+**    for time plots (for example energy(k) vs. time).
+**    default: nchec=1
+**
+**  pltd controls the plotting of the distributions:
+**    pltd="df" plot f(n+1)-f(n); f(n+1)
+**     (or "df_color" to plot in color) 
+**    pltd="enabled"  plot f(n+1)
+**     (or "color" to plot in color)
+**    pltd="disabled" do nothing.
+**    default: pltd="enabled"
+**
+**  pltlim,pltlimm control plotting of velocity dependent quantities
+**    over a sub-portion of the mesh, and the form of the
+**    independent (velocity-like) variable:
+**    pltlim= "disabled",  plots versus x (u/vnorm) from
+**                    x=0. to 1. (default:pltlim="disabled",pltlimm=1.)
+**            "x",    plot 1d and 2d plots versus x 
+**                    from 0. to pltlimm.
+**            "u/c",  plot 1d and 2d plots versus u/c
+**                    from 0. to pltlimm.
+**            "energy", plot 1d and 2d plots verus energy (kev)
+**                    from 0. to pltlimm (kev).
+**
+**  contrmin is the (normalized) smallest contour for contour plots
+**    Contours span approximately contrmin orders of magnitude.
+**    default: contrmin=1.e-12
+**
+**  constr is the (normalized) smallest streamline for the steady
+**    state phase flow plot.
+**    default:1.e-3  
+**
+**  ncont is the number of contours for contour plots
+**    default: ncont=25
+**
+**    Other control of contour plots [see subr.pltcont(k,pltcase,tt_,itype)]
+**    (these are hardwired, for now; see specific calls of pltcont())
+**    Input itype, to identify what is plotted:
+**    ! itype=1 for plots of f(),
+**    !      =2 for df
+**    !      =3 for source
+**    !      =4 for urfb
+**    !      =5 for vlfb
+**    !      =6 for vlhb
+**    !      =7 for rdcb
+**    !      =8 for loss region (from pltlosc)
+**    k is species index.
+**    pltcase=1: geometric progression of plot contours,
+**    pltcase>1: contours equispaced for max at temp(k,lr_).
+**      (pltcase=2 is used for plots of f())
+**    pltcase=0: equispaced, lin.scale from dmin to dmax [2023-03-09]
+**    tt_ is contour plot heading.
+** 
+**  pltvecc="enabled" means vector flux plot for collisions is desired,
+**    ="disabled" - not required. similarly for pltvece(electric field),
+**    pltvecrf(RF field), pltvecal (sum of all fields).
+**    It is necessary to use pltvecal=.ne."disabled", in order to get
+**    the other vector plots in this category.
+**    default: all "disabled"
+**
+**    veclnth=normalized maximum vector length for vector flux plots.
+**      1.0=mesh scale size
+**      default: veclnth=1.0
+**
+**    ipxy=number of perp velocities, for which vectors plotted.
+**       (default: min(51,iy)).  Can be set lower.
+**    jpxy=number of parallel velocities for which vectors are plotted.
+**       (default: min(101,jx+1)).  Can be set lower.
+**
+**
+**  pltend ="enabled" means time plots for density
+**    energy, conservation constant, current as well as plots of
+**    the local current J(v) and the local RF power prf(v) are
+**    desired.
+**    = "notplts" means time plots are excluded.
+**    = "last" is like notplots if n .lt. nstop and is like "enabled"
+**      if n=nstop.
+**    = "tplts" means exclude J(v) and prf(v) plots.
+**    = "disabled" means plot none of the above.
+**    default: "enabled"
+**
+**  pltrst="enabled" means plot plasma resistivity and
+**     related quantities vs. time if electrons are a general species.
+**    default: pltrst="enabled"
+**
+**  pltvflu = "enabled" means plot normalized velocity flux (integrated
+**    over theta) This gives runaway rates.
+**    default: pltvflu="disabled"
+**
+**  pltra = "enabled" means plot runaway revelant output (<f>_theta) and
+**             also PRINT some data to runaway.out.
+**    default: pltra="disabled"
+**
+**  pltpowe = "enabled" means plot power vs time for physical energy
+**    sources and sinks.
+**    = "last" means do the plots only if n=nstop.
+**    default: pltpowe="disabled"
+**
+**  pltfvs = "enabled" means plot f vs. v for some select values of theta
+**           (at parallel, trapped-passing, perpendicular, anti-parallel,
+**            and a pitch-angle averaged f with sin(theta0) factor).
+**    default: pltfvs="disabled"
+**
+**  pltfofv = "enabled" means calculate f integrated over pitch angle, 
+**    weighted by v_par*tau_bounce/int(ds/psi), versus u. (default="disabled")
+**
+**  pltprpp= "enabled" means plot reduced distribution f-parallel
+**    default: pltprpp="disabled"
+**  xprpmax=max perp velocity used in calc of f-parallel, normalized to vnorm.
+**    (Also affects Besedin "knock-on" calculation; see below).
+**    (Used for tandem.ne."enabled" and xprpmax.ne.1.0, only).
+**    default: 1.
+**
+**  pltdn = "enabled" means plot density vs. poloidal angle for
+**    various energy bins below (up to parameter negyrga bins)
+**    default: pltdn="disabled"
+**
+**  [eegy(j=1:negyrg,1,k,lr_),eegy(j=1:negyrg,2,k,lr_)] define the 
+**    energy bins (Kev) over which
+**    the density is integrated for pltdn="enabled" (j'th bin
+**    and k'th species) on the lr_'th radial flux surface
+**    The bin associated with j=negyrga (negyrga=3 a parameter set in
+**    source code) is reserved for energy bin [0,enorm].
+**    For ease of input:
+**    if lrzmax.gt.1 and the lr_=2 values are 0., then
+**    the corresonding lr_=1 values will be duplicated to the
+**    lr_=2,lrzmax values.
+**  negyrg=number of energy bins.  If negyrg=0, no effect.
+**    If negyrg=1, only obtain result for integration from 0 to enorm.
+**    Evidently, if negyrg>1, then have to define eegy(,1:2,,) on all
+**    FP'd flux surfaces.
+**    (default: negyrg=0).
+**
+**  pltsig="enabled", then when sigmamod="enabled" give plots
+**    of radial distribution of fusion power, and time-dependent
+**    plots of total fusion reaction rates.
+**    default: pltsig="enabled"
+**
+**  pltstrm = "enabled" - plot streamlines of the steady state flow.
+**    default: pltstrm="disabled"
+**
+****Following pltflux option still needs conversion to PGPLOT****
+****BH030829
+**  pltflux = .ne."disabled" - plot velocity and theta components of the
+**     momentum-space flux, for several component terms: 
+**     pltflux1(1:7) = controls which fluxes are plotted:
+**     pltflux1(1)=1. ==> sum of fluxes
+**              2         collisions
+**              3         parallel electric field
+**              4         rf
+**              5         synchrotron
+**              6         Bremssstrahlung (+ phenomenological energy loss)
+**              7         Krook operator slowing down
+**     (default: pltflux1(1:6)=1., pltflux1(7)=0.)
+**
+**  pltinput="enabled" means print out the input values
+**  pltinput="describe" means print out entire input-deck [defunct].
+**    default: pltinput="enabled"
+**
+**  nrskip is a nonnegative integer. Given a Fokker-Planck'd flux surface
+**    label "l", if ((l-1)/nrskip)*nrskip=l-1, then all the plots
+**    described above controlled by the plt... namelist directives will
+**    be plotted out for that flux surface. If nrskip=0, then the user
+**    has the power to designate the flux surfaces for which the plots
+**    are desired. See irzplt (below).
+**    default: nrskip=5
+**
+** irzplt(i) is an array of length lrorsa. This variable is operative
+**    if nrskip=0.       If irzplt(i)=l for some i, the FP'd
+**    flux surface "l" will designate a flux surface for which
+**    plots are desired, and the plt... directives above will be obeyed.
+**    If irzplt(i)=0 for any i, irzplt(i) will be ignored.
+**
+**  plt3d="enabled" allows plotting of quantities (energy, current, etc)
+**    as a function of normalized radius or normalized psi (see pltvs
+**    below).
+**    plt3d="enabled"
+**
+**  pltvs="rho" (normalized radius, see above)
+**  pltvs="psi"
+**    default: pltvs="rho"
+**
+**  pltrdc=.ne."disabled", then
+**    rdcb diffusion coeffs are plotted for all flux surfaces.
+**          ="one", or "enabled", plots first of nrdc diff coeff sets.
+**          ="all", plot all diff coeff sets, 1:nrdc.
+**          ="onecolor" Same as "one" but color plots.
+**          ="allcolor" Same as "all" but color plots.
+**          (default="all")
+**
+**  plturfb.ne."disabled" give plotting of QL B coefficient when
+**          urfmod.ne."disabled" or rdcmod="enabled"
+**          default:  plturfb="enabled"
+**          ![2018-02-07] New: plturfb='color' for color contour plots.
+**
+**  pltrays='enabled'  (ACTUALLY, not presently namelist, but automatic
+**                     when urfmod.eq.'enabled')
+**          rays will be plotted over cross-sectional view (R,Z)
+**          for urfmod.ne.'disabled' case.
+**          default:  pltrays='enabled'
+**
+**  nplt3d(1:nplota) gives time steps for plotting of quantities
+**      versus the radial variable.  
+**      (Also for plots of UrfB if plturfb.ne."disabled".)
+**    For such time steps,
+**    and plt3d="enabled", the quantity/radius plots will appear.
+**    default: nplt3d(1:nplota)=-10000
+**    Also gives print out (tdoutput) for these steps.
+**
+**  idskf.ne."disabled", then at final time step,
+**    print out meshes and distributions 
+**    (((f(i,j,k,l),i=1,iy),j=1,jx),l=1,lrors), 
+**    for each species k, to file named by contents of idskf.
+**    idskf is declared character*8, so don't used longer filename.
+**    ***Deactivated graph op as redundant, BH 000506***
+*                        to file "graph  (see dsk_gr.f).
+**    Also, print out more complete data to file idskf 
+**    (see dskout.f): namelist, plasma profiles, meshes and
+**    distributions. 
+**    Note:  file name idskf should be quoted: "...".
+**
+**  idskrf.ne."disabled", then at final time step, 
+**    print out namelist, meshes, and
+**    urf quasilinear diffusion coefficients to file idskrf.
+**    idskrf is declared character*8, so don't use longer filename.
+**    Note:  file name idskfrf should be quoted: "...".
+**
+**
+**  netcdfnm.ne."disabled", then create a netCDF output file
+**    named according to the character*256 variable mnemonic//'.nc'
+**    of code data (velocity and spatial arrays, equilibrium, 
+**    plasma parameters, electric field, final distribution
+**    function...,) to be used with auxiliary processing such as IDL
+**    or python/matplotlib.
+**    if urfmod.ne."disabled", then also write a netCDF file
+**    mnemonic//'_rf.nc' containing ray data and the urfb QL coeff.
+**    [But, see further qualifications according to netcdfshort.]
+**    Note: // is the concatenation operator for character data.
+**    (default: netcdfnm="disabled").
+**
+**  netcdfshort="enabled", flag to make shorter mnemonic//'.nc' 
+**             and mnemonic//'_rf.nc'(if urfmod.ne."disabled")
+**             and mnemonic//'_rdc.n.nc'(if urfmod.ne."disabled")  
+**             netcdf files, omitting standard f(i,j,k,l) and
+**             urfb/rdcb QL coeff at last time step.  
+**             ="longer_f", i.e., not short, gives f at every
+**                          time step (and urfb at last time step).
+**                         NB: Presently (181023) code not set up for
+**                             restart with this setting.
+**             ="lngshrtf" (added in 2018) Save f at selected time steps
+**                         only; The steps are set by specifying nplot()
+**                         values in cqlinput.  The values of time
+**                         are recorded into 'time_select' array 
+**                         in the nc file.
+**                         NB: Presently (181023) code not set up for
+**                             restart with this setting.
+**             ="longer_b", i.e., not short, give urfb coeff at
+**                          every time step (and f at last time step).
+**             ="long_jp", i.e., not short, give specific rf
+**                          power pwrrf(u,r) and current currv(u,r)
+**                          at each step (else only at last time step).
+**                          YuP[2020-04-07]: Also added (for this option)
+**                          saving favr_thet0(u,r) array, which is the value
+**                          of INTEGR{f*2pi*sin(theta0)dtheta0} /4pi
+**                          (Distr function at midplane averaged over pitch angle).
+**             ='long_urf", urfa,urfb,urfc,urfd,urfe,urff into
+**                          _rf.nc file at last time step;
+**                          simularly for rdcb,rdcc,rdce,rdcf,
+**                          into files _rdc.n.nc, n=1:nrdc.
+**                          Otherwise, like netcdfshort="disabled".
+**             default="disabled"
+**
+**  netcdfvecc=.ne."disabled" .and. .ne."x-theta", then at time step 
+**    nstop, ouput to a netcdf file (mnemonic//'_flux_1.nc') the 
+**    xpar,xperp components of the vector of velocity space fluxes 
+**    due to collisions, on a normalized xpar,xperp momentum mesh 
+**    also specified in the netcdf file.
+**    (default: netcdfvecc="disabled")
+**  netcdfvecc="x-theta", gives the u,theta-components of the velocity
+**    space flux due to collisions on the code x0,theta0 grid
+*     specified in the corresponding mnemonic//'.nc' file.
+**    
+**  netcdfvece, Similarly for electric field (mnemonic//'_flux_2.nc'),
+**  netcdfvecrf, Similarly for RF field  (mnemonic//'_flux_3.nc'), 
+**  netcdfvecal, Similarly for (sum of fields) (mnemonic//'_flux_4.nc').
+**    default: all "disabled"
+**  NOTE:  All four above netcdfvecXX setting should either by
+**         "disabled" or have the same setting.
+**  netcdfvecs="irzplt", then ouput netcdfvec data only at the
+**                       radii designated by irzplt.
+**            ="all",  then output netcdfvec data at all FP'd surfaces.
+**            (default: "all")
+**
+**    ipxy=number of perpendicular velocities for netcdfvec o/p.
+**       (default: min(51,iy)).
+**    jpxy=number of parallel velocities.
+**       (default: min(101,jx+1)).
+**    ipxy and jpxy are the same variables as for pltvecal, etc.
+**
+**  f4d_out="enabled", then at time step nstop output the 2D velocity
+**    distribution on a R,Z spatial grid, that is, output a 4D 
+**    distribution function into a netCDF file, menmonic//'f4d.nc'.
+**  f4d_out="tavg", then output time averaged 4D distribution
+**    function.  Must also specify namelist tavg="enabled" and
+**    associated time interval to avg over.
+**
+**    The f4d grids are presently specified as equispaced on the
+**    following intervals:
+**      Major radius grid from min to max points on outer plasma contour
+**      Axial Z-grid from min to max points on outer plasma contour
+**      Velocity grid from 0 to vnorm, normalized to vnorm, i.e., [0,1]
+**      Pitch angle grid in [0,pi]
+**  Grid dimensions are given by the namelist variables, respectively,
+**  nr_f4d,nz_f4d,nv_f4d,nt_f4d.
+**  The distributions are the LOCAL distributions, as calculated
+**    according to the namelist ndeltarho=enabled.
+**
+**  tavg="enabled", then create a time avg distribution and output
+**    it to the mnemonic.nc file in place of the final distn f (if
+**    also have f4d_out="tavg").
+**    Also, calculate NPA based on the avg distn, if f4d_out="tavg".
+**    [default: "disabled"].
+**
+**  tavg1[1:ntavga]/tavg2[1:ntavga]= time interval (secs) of averaging,
+**     for tavg=enabled. ntavga is parameter (presently =16) giving
+**     the number of intervals over which the time avg is formed,
+**     tavg(1) to tavg(2), etc., if not both zero. [default values: 0.d0]
+**       
+**
+
+**  f3d_out="enabled", then at time step nstop
+**    write 3D distribution, f3d==f(pol.angle,vpar,mu) at fixed rho,
+**    to data file.
+**    Original purpose: To be used by COGENT, as a boundary condition 
+**    at specified rho (flux surface). Work with Ron Cohen, Mikhail Dorf.
+**    See subr. f3dwrite for details [YuP August 2013].
+**    In cqlinput, specify these values:
+**    npol_f3d is poloidal-angle grid size,
+**    nvpar_f3d, nmu_f3d are (vpar,mu) grid sizes
+**    (All grids are equispaced).
+**    f3d_rho is the coupling rho 
+**    (in the same meaning as rovera(), 
+**    and according to definition of radcoord ).
+**    If not specified, the default values are
+**    npol_f3d=20
+**    nvpar_f3d=200
+**    nmu_f3d=100 ! number of grid points in mu=0.5*m*Vperp^2/B
+**    f3d_rho=0.5d0 ! f3d is saved at this rho value
+**    The data is saved into file cql3d_f3d.txt, 
+**    including explanation of units, in the file heading.
+**    It will contain:
+**    f(pol.angle,vpar,mu) at fixed rho==f3d_rho, 
+**    also corresponding grids, and magnetic field B(pol.angle_grid).
+**    Grids and distr.function are expressed  
+**    in mks units and normalized by ref.values.
+**    Example for magnetic field: [Tesla]/units_B
+**    Example for f: [m^-3 (m/s)^-3]/ref_distfunc
+**    Also, additional info is saved into cql3d_cogent_units.txt,
+**    which is useful for setting an input file for COGENT.
+**    It will contain the definition of 
+**    units_B, ref_v, ref_mu, ref_distfunc, etc.
+**    (These normalization units are "hard-wired" in subr.f3dwrite.)
+**    Also, additional data is saved into cql3d_f3d_taub.txt,
+**    which contains tau_bounce [sec] over (ipol,ivpar,imu) grid,
+**    same grid that is used for the f3d distribution.
+**    Default value: f3d_out="disabled"

@@ -1,0 +1,148 @@
+**************************************************************
+**
+**   NAMELIST &setup0  SECTION
+**
+*************************************************************
+** 
+**  mnemonic is the run designator...to help keep track of runs. 
+**    for example: mnemonic="wy01"
+**    mnemonic is dimensioned a48, 
+**                       i.e., ok for up to 48 characters.
+**    Used as prefix to output PS and netCDF files.
+**    default: mnemonic="mnemonic"
+**
+**  ioutput(1)  [After 2020-10-21]
+**    ioutput(1)=0  means the printout to screen is reduced to a minimum,
+**                  leaving namelist printout, warning messages,
+**                  and physics-related values used or computed by code.
+**    ioutput(1)=1  The above, and more printout - 
+**                  values of arrays for diagnostic purpose.
+**    ioutput(1)=2 (or .ge.2) The above, and even more diagnostic printout.
+**                  (default value ioutput(1)=0).
+**  ioutput(2)=0 ! No usage at present [2020]
+**    default: ioutput(1:2)=0  NOTE: Old cqlinput files could have 
+**                                   ioutput.ne.0.
+**
+**  iuser ="name" of user or "number" of user (no present use).
+**
+**  ibox="box ***" where *** is user's box number (no present use).
+**
+**  Parameters are set in param.h giving maximum dimensions
+**    of variables used in the code.  The code may be run
+**    with dimensions which are less than the input parameters,
+**    as specified below by namelist variables lrz, lrzmax,
+**    ls, lsmax, (and others,) as specified below.
+**
+**    The parameter machinea specifies the size of integer words:
+**       (=1, for 8 byte integers, =2, for 4 byte integers).
+**
+**  lrz is the number of radial flux surfaces in the computational
+**    grid on which Fokker-Planck equation is solved.
+**
+**  lrzdiff="enabled", compute distribution functions on subset
+**    of the flux surfaces considered. 
+**    This system was setup to reduce computational time, when
+**    only interested in few of the FP surfaces, but want to specify
+**    the radial profile of background species on a more refined lrzmax
+**    grid.  (default="disabled")
+**
+**  lrzmax is number of flux surfaces, including any not FP'd.
+**    lrzmax=1, then this gives single flux surface runs with no input
+**           of profiles
+**    lrzmax.ge.4 uses input profiles of density, etc.
+**    (lrzmax=2,3 to be avoided, and problems with some cubic splines.)
+**    lrzmax is set =lrz, if lrzdiff.ne."enabled"
+**
+**  lrindx(1:lrz)=indices of flux surfaces where the FP'ing is
+**    performed.
+**    (if lrz=lrzmax, i.e., all flux surfaces are to be FP'ed, 
+**    then it is unnecessary to specify lrzmax, lrindx, and lrzdiff).
+**  
+**  noplots="enabled1" inhibits all plots.
+**    default: noplots="disabled" 
+**    [="enabled" inhibits old unimplemented graflib plots, and was
+**     necessary for code to run, but now all old graflib replaced.
+**     so it should have same effect as "disabled", BH and YuP, 120122]
+**    noplots="enabled1"  can be useful to load the code without 
+**    a pgplot library.
+**    The -Wl,-noinhibit-exec gnu loader (ld) option exists in gfortran
+**    which enables loading of the code in the presence of unsatisfied
+**    externals.  With noplots='enabled', the references to pgplot
+**    routines in the code will be avoided.  Similar options exist
+**    for several other compiler groups.
+**
+**  lnwidth=line-width attribute for plotting; affects lines, graph
+**          markers, and text.  Specified in units of 0.005 in, and
+**          must be an integer.  [default=3]
+**          [Smaller value may work better for vector plots.]
+**          Conversion from .ps to .pdf using ps2pdf improves the plot.
+**
+**
+**  nmlstout="enabled", prints namelists to stdout
+**           "trnscrib", transcribes the cqlinput nml file to stdout
+**            else,   suppress this output.
+**            default:  nmlstout="trnscrib"
+**
+**  special_calls="enabled", then code makes system calls to find
+**                name of system and pwd, for output.   This is not
+**                allowed on some systems.
+**               ="external", then files uname_output and pwd_output
+**                are used to printout.  These many be created with
+**                an external script containing
+**                uname -a > uname_output
+**                pwd > pwd_output
+**               ="disabled", then no system calls and no reference
+**                to uname_output and pwd_output files.
+**                This gets around lack of some special functions,
+**                e.g., second(), with some compilers.
+**               default="enabled"
+**
+**  nlwritf="enabled"  saves the distribution function at the end of 
+**               the run (in file distrfunc).   default="disabled"
+**         ="ncdfdist", don't write distn function into text file
+**               distrfunc, since can use mnemonic.nc save of f.
+**               This file also contains much additional data, some
+**               of which is needed with some restart options.
+**               Text distrfunc will contain only namelist and profiles
+**               at the end of the run.
+**               Don't use netcdfshort.ne."disabled", if going to 
+**               use nlrestrt.
+**  nlrestrt="enabled" reads the initial distribution function in 
+**               text file 'distrfunc'.           default="disabled"
+**               The general restart idea is that only data from end
+**               of the previous run which is not specified in the
+**               continuing namelist file, needs to be restored.
+**          ="ncdfdist" reads the distribution function from a
+**               netcdf file, 'distrfunc.nc'.  This file can be
+**               the mnemonic.nc file from a previous run.
+**               The text file 'distrfunc' is still needed  (NOT as of 110201), 
+**               but only for reading namelist from &setup and others (except %setup0),
+**               ensuring compatibility of grids, etc.  (Can change
+**               mnemonic in &setup0.)
+**               Reading of text distrfunc for nlrestrt='ncdfdist' or
+**               'ncregrid' discontinued (BH110201).
+**               BH181023: If ampfmod="enabled" then also read in prior 
+**               ending value of elecfld().
+**               BH+YuP191029: If iprozeff='curr_fit', then also restore 
+**               prior ending value of the zeff profile.
+**          ='ncregrid', same as 'ncdfdist', except the momentum-per-
+**               mass grid can be reset from that used in distrfunc.nc,
+**               by changing enorm, jx and xfac (only enabled changes
+**               presently, not iy or lrz) in cqlinput.  If enorm/vnorm
+**               is increased, the distrn for distrfunc.nc is extrapolated
+**               linearly in ln(f) versus v(mom-per-mass).  Portions of the 
+**               distn fnctn in distrfunc.nc within the bounds of the
+**               new x() grid specified by the namelist input are 
+**               interpolated onto the new grid. The FSA density of the
+**               new code distribution is maintained equal to the
+**               restart distribution function in the .nc file.
+**               enorm/vnorm can be either increased or decreased from
+**               the value in the distrfunc.nc file.
+**               Reading of distrfunc text file for nlrestrt='ncdfdist' or
+**               'ncregrid' discontinued (BH110201).
+**               BH181023: If ampfmod="enabled" then also read in prior 
+**               ending value of elecfld().
+**           NB: The nlrestrt option is presently (181023) setup only
+**               for a single general species (ngen=1).
+**
+************************************************************************

@@ -1,0 +1,317 @@
+************************************************************************
+**
+**    BEGIN URF MODULE INPUT
+**    namelist rfsetup
+**
+************************************************************************
+**
+**  urfmod.ne."disabled" means utilize the module for LH/EC/FW  excitation,
+**    utilizing data ray tracing.  EC includes EBW. Must have iy.le.255.
+**    default: urfmod="disabled"
+**
+**  Diffusion coefficents for up to nmodsa (parameter, presently = 155) 
+**    wave types(rftype, defn'd below) may be simultaneously treated 
+**    with damping from several harmonics from each wave type.  The sum
+**    of the number of harmonics (including the 0th) of the wave types
+**    must be .le.nmodsa.
+**
+**  In the cql3d source (not namelist, but for programming considerations):
+**    mrf= number of rf "types" (and is determined from rftype(), below).
+**         Each rf type is read in from one of mrf RF data files.
+**         Different frequency waves must be read in as separate types. 
+**    mrfn= number of rf "modes" (sum over mrf of the nharms())
+**          It is required that mrfn.le.nmodsa, nmodsa being a 
+**          parameter set in param.h.
+**    krfn(1:mrfn)=  wave type index (in 1:mrf) for each rf mode
+**          Thus nrfspecies(krfn(1:mrfn)) gives species index to which
+**          a mode is applied.  See nrfspecies() nml input below.
+**
+**  The wave types (old, less general, deprecated input method) are 
+**    indicated by:
+**    ech="enabled" (default="disabled")
+**    fw="enabled"   (default="disabled")
+**    lh="enabled"   (default="disabled")
+**    (If none of lh, ech, or fw are enabled, then urfmod will be
+**     reset to "disabled", except as more recently specified in the
+**     following paragraph.)  Alternatively, if urfmod="disabled" then
+**     calculations as in this section are turned off.)
+**     Each wave type can have a different wave frequency, however
+**     can have only one wave frequency for each wave type.
+**
+**  Alternatively, wave types can be input as rftype(1:mrf).
+**    [This is the more general, preferred input method for wave types.]
+**    Wave ray tracing data for each wave type is specified through a
+**    file format designator rfread, and file name rffile(1:mrf),
+**    as given below.
+**    The method can be used for inputing ray data for the same wave
+**    mode but at a different frequency, using a separate rffile.
+**    [Only put ray data for one wave frequency in each rffile.]
+**    The rftype(1:mrf) namelist input is a generalization of the above
+**    ech/fw/lh method;  the older method is retained for backward
+**    compatibility of namelist input.
+**  rftype(i,i=1:mrf): Input values for each i, are "ec",
+**    "fw", or "lh"  [==>> NOTE: not "ech" <<==].
+**    Only set consecutive values to be used, starting at rftype(1).
+**    Default of rftype(1:nmodsa)="notset".
+**    Note: different values of i=1,mrf can have same designator rftype.
+**    This could be used for two fw sets of data at different frequencies.
+**    Each frequency would have its own rffile() ray data set.
+**
+**  The code will not handle mixed use of ech/fw/lh and rftype() type of
+**    input.  That is, either use the ech/fw/lh OR the rftype()
+**    specification with ech/fw/lh='disabled'.
+**
+**  Ray data for the above wave types is input in files,
+**    either in text or netcdf format, as specified by variable rfread:
+**  rfread="text", then all input ray data from ascii files named 
+**                rayech, if ech="enabled"
+**                rayfw,  if fw="enabled"
+**                raylh,  if lh="enabled"
+**        ="netcdf", then there are more options for naming netcdf input
+**                  files,a s given by rffile(1:mrf)
+**        (default="text" for backward compatibility, but
+**         more usual since about 2000 is "netcdf")
+**  rffile(1:mrf)=names of input netcdf files (e.g., from genray or toray)
+**    Default values for up to first three of rffile(1:nmodsa)=
+**    "rayech.nc","rayfw.nc","raylh.nc".
+**    If rrfile(1)="mnemonic", then the value of the &setup0 namelist 
+**                 variable mnemonic is used to generate the rffile() names:
+**                 rffile(1)=mnemonic//"_rf.nc"  [//=concatenate sign]
+**                       (2)=mnemonic//"_rf.1.nc"
+**                       (3)=mnemonic//"_rf.2.nc"
+**                       ETC.
+**                 This option is designed so that ray data will be
+**                 output into the same file as it is read in from.
+**                 The output file will contain updated data, and
+**                 file proliferation will be reduced.
+**    If rffile(1)=any name other than "mnemonic", then that name is
+**                 used for the netcdf input file.  Set the corresponding
+**                 rffile(2:mrf) if .gt.1 wave types are used.
+**                 [User has to ensure that data files correspond
+**                  to the order of the enabled subset of the rffile()=
+**                  ech,fw,lh namelist variables above; for example,
+**                  if only fw and lh are enabled, rffile(1) would
+**                  give fw data, rffile(2) would give lh data.]
+**
+**  Note:  it is possible to apply the identical ray data files to
+**         separate plasma species (for ngen.ge.2 cases), by entering
+**         the identical path specs for sucessive rffile() entries.
+**         The code detects the files have identical path specs and
+**         directs the wave interaction to be with specified species
+**         as given below in corresponding nrfspecies(1:mrf).
+**         Wave damping for this repeated rffile data is computed by
+**         summing both over the specified harmonics and over the species.
+**
+**  nharms(i=1,mrf).gt.0, then for each ray type calculate damping 
+**            for harmonics nharm1(i) to nharm1(i)+(nharms(i)-1),
+**            rather than according to nharm in the ray data file.
+**            This is preferred input method.  
+**        =0, then use harmonic number given in raylh, rayech, 
+**            or rayfw, etc., files. The number of harmonics will be 1.
+**            This input method is depracated.
+**
+**  nharm1(i=1,mrf)=lowest harmonic in the series for each wave type
+**                  (default=0).
+**
+**  nrfspecies(i=1,mrf)=general species which each wave type is
+**                      applied to.  default: nrfspecies(1:nmodsa)=1
+**
+**  Following call_ech/call_lh/call_fw not presently fully implemented.
+**    [BH060314].
+**  call_lh="enabled" means that CQL3D will call and utilize the Brambilla
+**    ray tracing code (xbr).  ="disabled" means that the ray tracing code
+**    will not be called, but that CQL3D will still expect the presence
+**    of a raylh file (output from Brambilla code)
+**    default: call_lh="disabled"
+**
+**  call_ech="enabled", call and utilize Toray code (toray). 
+**          ="disabled", then still may get data from rayech file.
+**
+**  call_fw="enabled", call and utilize Brambilla code (xbr) for
+**    fast waves. (Since polarizations come from the ray data file
+**    this option can also be used for lh.
+**
+**  plturfb (described under plot controls above) gives plots 
+**    of urfb diff coeff.
+**
+**  pwrscale(1:mrf)=scale factor to be applied to the power entering
+**    the plasma as given in the ray data files, applied to each of
+**    wave types used.
+**
+**  pwrscale1(),urftime(nurftime),nurftime:
+**  Time-dependent scaling of power is achieved with an additional
+**    multiplier of the pwrscale(1:mrf), above. This is implemented 
+**    by specifying the array variable pwrscale1() at a sequence
+**    of nurftime corresponding times, specified through in the 
+**    variable urftime() (seconds).
+**    Interpolation of pwrscale1 between time points is linear.   
+**    If simulation time becomes greater than urftime(nurftime), 
+**    then power scaling continues at the value pwrscale1(nurftime).
+**    nurftime =0 gives no pwrscale1 scaling.
+**    (nurftime must be .le. the parameter nbctimea, presently =101).
+**
+**    nurftime=0 is default.
+**    pwrscale1(1:nbctimea) defaulted to 1.
+**    urftime(1:nbctimea) defaulted to 0.
+**
+**
+**  Setting central values =0. at the first time step
+**    turns off profile generation through these namelist variable.
+**    (default is all central and edge values =0.)
+**
+**
+**  urfmult= multiplier of quasilinear diffusion coefficients
+**           and damping calc in urf calcs.  (for test purposes).
+**           default: urfmult=1.0
+**
+**  wdscale(1:nmodsa)=scale factor for n_parallel-width of rays,
+**    applied to wdnpar, when read in from ray data file.
+**
+**  N.B.: Previous 2 variables, pwrscale and wdscale, will modify
+**  ray data if it is output, as specified below by urfwrray="enabled". 
+**
+**  nbssltbl=the number of elements initially in the Bessel table.
+**
+**  nondamp= damping turned on in urf module, for n.ge.nondamp.
+**           (The QL diffusion coeffs are calculated and used in the FP
+**            equation, but the rays are not damped, until n.ge.nondamp.
+**            This has been used for certain code diagnostic cases.)
+**    Default: nondamp=0
+**
+**
+**  The following namelist control variables are used to determine the
+**    sequence of operations in the urf module:
+**    nrfstep1, nrfstep2, nrfpwr, nrfitr1, nrfitr2, nrfitr3, urfncoef.
+**    The purpose of these controls is to permit a "soft" turn-on
+**    of the RF, avoiding formation of pathalogical distributions
+**    during startup of the RF. In many situations, it is not
+**    necessary to tune this process: just turn on full power.
+**
+**   nurf=A counter in the urf control subroutine urfchief,
+**   nurf=the number of calls to urfchief which have resulted in
+**        calculation or recalculation of the diffusion coefficients.
+**        This variable will be incremented each time
+**        n/integer(urfncoef*ncoef)*integer(urfncoef*ncoef).eq.n.
+**        Generally, there is a solution of the FP eqn after each
+**        call to urfchief.
+**                                                  
+**   The sequence of actions (as a function of 
+**   increasing nurf.ge.0 at each call) is given by the following steps
+**   (after each diffusion coeff calc, control returns to the calling
+**    subroutine):
+**   1. For nurf=0, calc or read ray data for nrfstep1 spatial steps 
+**      along the ray.
+**   2. Calc. damping of ray data, and then resulting quasilinear
+**      diffusion coeffs, using a fraction of the input power
+**      = (1/2)**nrfpwr.
+**      return.
+**   3. Repeat step 2 for next nrfpwr calls, but with fractional input
+**      power (1/2)**(nrfpwr-1), (1/2)**(nrfpwr-2),.... (1/2)**0. 
+**      (This step is a no-op if nrfpwr=0). 
+**   4. Iterate step 2 with full input power for next nrfitr1 calls.
+**      (This step is a no-op if nrfitr1=0.  Usually want .gt.(nstop-nonrf)). 
+**   5. Extend extendable rays by nrfstep2 steps.
+**   6. Re-calc damping from ray data and then quasilinear diffusion 
+**      coeffs.  Iterate this step nrfitr2 additional calls.
+**   7. Steps 5 and 6 are carried out nrfitr3 times. 
+** 
+**   Thus choose 
+**        nstop= 
+**        (nrfpwr+1+nrfitr1+nrfitr3*(nrfitr2+1))*integer[urfncoef*ncoef]
+**   if the above sequence is to be completed.
+**   Default values:  nrfstep1=100, nrfstep2=50
+**                    nrfpowr=3
+**                    nrfitr1=1, nrfitr2=1, nrfitr3=2
+**                    urfncoef=1.0                             
+**  
+**
+**  scaleurf="enabled" means rescale the contribution to urfb (the 
+**      diffusion coefficient so that a particular ray does not 
+**      "overdamp" on a  given flux surface volume. Note in the limit 
+**      that the number of flux surfaces goes to infinity, 
+**      overdamping would not happen. Here by invoking 
+**      this option, we seek to override the possibility that
+**      more power may be deposited by a ray than is actually in it,
+**      due to the coarse grid. We recommend using this option.
+**      default: scaleurf="enabled"
+**
+**  iurfcoll(1:mrf)="enabled" means add the collisional absorption of
+**            the ray ....this information is passed in the ray data file
+**            in variable salphac.
+**       ="damp_out", then the damping coefficient along the ray 
+**                    in the poloidal plane is written into the salphac
+**                    (collisional absorption coeff) in the RF netcdf 
+**                    file and (if urfwrray="enabled", 
+**                    into the rayXXX ray data file).
+**                    This is for code diagnostics (comparison of ray
+**                    tracing damping coef with cql3d damping coeff).
+**        NOTE:  In cases where the SAME wave is applied to
+**               multiple general species (with nrfspecies, below),
+**               usually will want this variable "enabled" only once.
+**        default(1:mrf):"disabled"
+**
+**  iurfl(1:mrf)="enabled", means include the additional linear absorption
+**                    from the ray data file [in ray data variable salphal]
+**                    is added to the calculated damping or power
+**                    flowing along the ray.  
+**                    This may be used, for example, to add linear ion 
+**                    damping calculated in the ray tracing code to 
+**                    cql3d electron damping calculated in a cql3d
+**                    electron simulation, or visa versa.
+**        NOTE: In present GENRAY setup, it is always the electron linear
+**              damping, see this line in GENRAY:
+**              salphal(is)=2.d0*ckvipl_e ! electron damping coefficient.
+**              It can be changed in future, to add linear damping on ions.
+**        NOTE:  In cases where the SAME wave is applied to
+**               multiple general species (with nrfspecies, below),
+**               usually will want this variable "enabled" only once.
+**        default(1:mrf):"disabled"
+**
+**
+**   ieqbrurf designates the source of equilibrium data to be used by xbr.
+**       Appropriate values are: 
+**       ieqbrulh=0, to use Brambilla analytic "equilibria",
+**               =3, to use standard eqdsk input.
+**               =4, to use extended eqdsk, including density, and
+**                   temperature profiles,...
+**       If eqsource="tsc", ieqbrulh is reset to = 4.
+**
+**  urfdmp="secondd" means utilize the "second derivative" damping
+**      diagnostic in computing the damping due to each ray as
+**      it moves through the plasma. If urfdmp .ne. "secondd" the 
+**      diagnostic uses an integration by parts technique to compute
+**      the damping. We highly recommend "secondd" because convergence
+**      of the FP solution for distn F and the QL modification of F
+**      is determined by agreement between the sum of the damping of 
+**      all rays and the absorbed power as computed from dF/dt. This 
+**      latter diagnostic utilizes the "second derivative" approach so
+**      consistency demands "secondd" for the rays.
+**        default:"secondd"
+**
+**      If ndeltarho='enabled' then "secondd" option not implemented,
+**        only urfdmp='firstd', calculating damping including an 
+**        integration by parts removing the 2nd derivative in the
+**        calculation with (df/dt)_ql, is implemented.  In a test
+**        case with ndeltarho='disabled', the urfdmp='firstd' and
+**        'second' results were quite close [BH110617]. 
+**
+**  urfrstrt="enabled"  => Option to "do not update delpwr power flowing 
+**     along the ray".
+**     For convergence studies with previously calculated ray data files...
+**     (default="disabled")
+**
+**  urfwrray="enabled", then re-write ray data into ray data file
+**            at end of run.   (default="disabled")
+**            [BH120325:  Presently only able to write to the rayech,
+**                        raylh, or rayfw text files.  Codes needs
+**                        updating for write to .nc files and for new
+**                        rftype()/rffile() data specification system.
+**          ="krf_op", then output the rf mode ("krfx-xx") files.
+**          ="enbl+krf", then both re-write ray data into ray data file
+**                       and output the "krfx-xx" files.
+**          BH191201: Updated ray data is written in to netcdf output file
+**                    mnemonic_krfnnn.nc, where nnn= "wave type" number
+**                    at the last time step.
+**                    
+**
+***************************************************************

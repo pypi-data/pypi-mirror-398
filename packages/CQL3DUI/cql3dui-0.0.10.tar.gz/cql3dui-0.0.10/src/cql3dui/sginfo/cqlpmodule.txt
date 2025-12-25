@@ -1,0 +1,187 @@
+***************************************************************
+**
+**  BEGIN PARALLEL TRANSPORT MODULE INPUT..... "WP" ROUTINES
+**   (CQLP CODE (CQL_PARALLEL))
+**  
+**  A new option, cqlpmod="enabled", has been introduced which in
+**  effect makes up for a new code CQLP. This code solves the FP equations
+**  keeping the variation along the magnetic field and thus without bounce
+**  averaging. The dimensions are thus (u, theta, s), where s is distance
+**  along the magnetic field line. In practice, one had only to change
+**  the spatial dimension to be s instead of rho in the CQL3D case, and
+**  to remove the bounce-averaging. This is why most of the arrays used
+**  for CQL3D are used for CQLP, with the index l running over the s-mesh
+**  instead of the radial-mesh. The following additional input parameters have
+**  been introduced:
+**  
+**  In first namelist &setup0:
+**  
+**    cqlpmod:  "enabled" run CQLP (default: "disabled")
+**    lsmax:    number of mesh points along s
+**    ls:       number of s-mesh points for which the FP eq. is solved
+**    lsdiff:   "enabled" allows for ls.ne.lsmax
+**    lsindx(0:ls): list of the ls indices at which the FP eq. is solved
+**    nlwritf:  ="enabled"  saves the distribution function at the end of 
+**               the run (in file distrfunc).   default="disabled"
+**    nlrestrt: ="enabled" reads the initial distribution function in 
+**               file distrfunc.                default="disabled"
+**    BH070414:  Variables nlwritf and nlrestrt have been changed from
+**               logical to character*8.  Might need to adjust old NL.
+**    
+**  In namelist &setup:
+**  
+**    denpar:   density along s, defined in the same way as reden
+**
+**    temppar:  temperature along s, defined in the same way as temp
+**
+**    symtrap:  ="enabled" (default) assumes trapped region symmetric and solves
+**              only for itl.le.i.le.iyh, and not for iyh+1.le.i.le.itu.
+**              ="disabled" solves for all i in [1,iy]
+**              For CQL3D, symtrap can be either but normally should be "enabled"
+**              For CQLP, symtrap has to be "disabled" (set in ainsetva)
+**    
+**    tfac:     same as before, except add the option for tfac<0, with meshy="fixed_mu"
+**    epsthet:  which constructs the theta mesh such that at each s position, we
+**              have: y(iyh_(l),l)=pi/2-epsthet. Then distributes the rest of the
+**              points. Default is epsthet=0.1
+**    
+**    ngauss,nlagran:
+**              Determines how the integral over theta for computing the Legendre
+**              coefficients is done:
+**                 ngauss=0: old method: assumes f cst over [th(i),th(i+1)] and
+**                                       integrates analytically the rest
+**                 ngauss.ne.0: integrates using a ngauss-point formula on each
+**                              sub-interval and interpolates the value of f at
+**                              the Gauss-point using a nlagran-point Lagrange
+**                              interpolation.
+**    oldiag:   ="enabled" (default) uses old way of computing moments of f in
+**              diaggnde subroutine (for reden, curr,..)
+**              ="disabled" decompose f with Legendre polynomial as is done for
+**              computing the collision operator.
+**  
+**    lbdry0:   ="enabled" changes matrix construction such that f is unique
+**              at u=0. (default: enabled)
+**
+**    nummods:  Determines numerical scheme used to solve the spatial time-step
+**              Following are the comments in subroutine wptramu,wptrafx:
+**
+**     0. The parameter nummods determines the numerical model used to solve
+**        the equation along s. nummods is divided into classes of multiple
+**        of 10: numclas=nummods/10 =>   nummods=[0,9]; [10,19]; [20,29] ...
+**        numclas = 0: normal case
+**                  1: assumes up/down symmetric case and periodic condition
+**                     but compute equil. parameters on top half cross-section
+**                     on ls/2+1 points and then copy the rest in sub. wploweq
+**                     Otherwise, same as numclas=0 with sbdry="periodic"
+**                  [YuP: it seems numclas>1 is not applicable in the code]
+**        In each class, nummods is divided into two groups:
+**           mod(nummods,10) < 5: 2-D FP velocity equ. solved on nodal s points
+**                           > 4: velocity eq. solved at s+1/2
+**        Then, in these two groups one has the following options, 
+**        with numindx=mod(mod(nummods,10),5)=0,1,2,3 or 4, we have:
+**          If numindx = 0,1: use backward diff. scheme + bound. cond at l=1
+**                         2: "  back/forward depending on sign(cos(theta))
+**                         3: " forward diff. + bound cond at l=ls
+**                         4: " centered diff. + bound. cond. at l=1
+**        Note: if sbdry="periodic" there might not be any extra boundary
+**              conditions imposed (see wpbdry)
+**        Default is nummods=1. Recommended 13 or 14, see comments by YuP below.
+**        [YuP: From tests, nummods=10 gives exactly same results as nummods=11]
+**        [YuP: For advection-dominated cases (low-collis; starnue<0.1) nummods=11,12,13
+**         are the best options, but for higher collisionality (starnue>0.1),
+**         those options give non-conservation of density and energy,
+**         and visible dip or peak defect in distr. func. at v~0; 
+**         so, for starnue>0.1, nummods=14 is best.]
+**        [YuP: From theory of ADI methods,
+**         the upwind differencing, in the direction of advection term,
+**         helps to reduce odd-even (in s) oscillations, common for ADI when
+**         advection term dominates over diffusion (collision) term.
+**         For centered differencing (i.e. nummods=14),
+**         in case of advection-dominated FPE, the refined s-grid 
+**         helps to reduce odd-even oscillations; i.e., increase ls.] 
+**              
+**    lmidvel:  =0 (default) assumes velocity source term computed at s-nodes
+**              =1 assumes velsou(l)=source term at l+1/2
+**
+**    laddbnd:  =1 (default) extra boundary conditions are imposed for the
+**                 s-time-step, when sbdry="periodic"
+**              =0 No extra boundary conditions (if sbdry="periodic")
+**
+**    sbdry:    ="bounded" (default) assumes bounded s interval
+**              ="zeroslop" same as bounded, but impose zero df/ds at edges
+**              ="periodic" assumes s is periodic (ex: on flux surface)
+**
+**    eseswtch: ="enabled", calculate nonlocal electrostatic electric
+**               field to obtain constant electron flux with
+**               sbdry="periodic", 
+**               using Kupfer et al (PoP, 1995) method.
+**               efswtch re-set "disabled", for now (until further
+**               work/investigation of this functionality).
+**              ="disabled" (default).
+**
+**    elpar0: coefficient of E_parallel(electrostatic)
+**            default=0.
+**
+**    nkconro(): Gives indices of species which contribute to charge
+**               density in Poisson equation
+**
+**    In namelist trsetup:
+**
+**    adimeth, nonadi: same as before, ADI method needed
+**
+**    nontran:  time-step at which transport is turned on (default=0)
+**    nofftran: time-step at which transport is turned off(default=10000)
+**
+**    relaxtsp: ="enabled" define f_n+1 = 0.5*(f_n+1/2 + f_n+1) for
+**                n in [nonavgf,nofavgf] 
+**              ="disabled" keeps f_n+1 as determined after s-step
+**                [YuP: "enabled" shows good stability]
+**
+**    nonelpr,noffelpr: time-steps in between which the parallel electric 
+**                      field due to Poisson eq. is calculated.
+**                      (This method not appreciably checked out, OS990315).
+**
+**    scheck:  Checking wp. See wpcheck.f
+**             default="enabled"
+**
+**
+**    To run CQLP, from a cqlinput file which was running CQL with a
+**    DC electric field, here are the changes which should be made
+**    (solving on flux surface => periodic)
+**      
+**    in first namelist setup:
+**      cqlpmod="enabled",
+**      lrz=1,lrzmax=(previous value of lrz),
+**      lrzdiff="enabled", lrindx(1)=(desired radial position),
+**      ls=20,lsmax=20
+**
+**    in second namelist setup:
+**      symtrap="disabled",
+**      nummods=14,
+**      sbdry="periodic",
+**      meshy="fixed_mu",
+**      tfac=-0.5,
+**      iy=80,jx=80,
+**      denpar(1,0)=   ,
+**      denpar(1,1)=   ,
+**      denpar(2,0)=   ,
+**      denpar(2,1)=   ,
+**      denpar(3,0)=   ,
+**      denpar(3,1)=   ,
+**      temppar(1,0)=   ,
+**      temppar(1,1)=   ,
+**      temppar(2,0)=   ,
+**      temppar(2,1)=   ,
+**      temppar(3,0)=   ,
+**      temppar(3,1)=   ,
+**
+**    in namelist trsetup:
+**
+**      transp="enabled",
+**      adimeth="enabled",nonadi=0,
+**      nontran=0,
+**      relaxtsp="enabled",
+**      nonavgf=5, nofavgf=10,
+**      
+**              
+***************************************************************

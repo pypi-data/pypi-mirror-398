@@ -1,0 +1,174 @@
+**************************************************************
+**
+**  COLLISIONAL INPUT
+**
+***************************************************************
+**
+**  ncoef is the frequency of computation of collisional coefficients.
+**    We use "n" as a time step (or cycle) designator.
+**    If mod(n,ncoef)=1 or n=1, then compute the coefficients.
+**    default: ncoef=1
+**
+**  mx is the highest order polynomial used in
+**    Legendre expansion of distribution and potentials for
+**    purposes of computing the collisional coefficients.
+**    default: mx=3 (in aindflt.f)
+**
+**  colmodl selects the collision model:
+**  ===> NOTE:  The default value is colmodl=1 <===
+**              Be careful to specify the value you want in cqlinput:
+**              colmodl=3 is the common setting.
+**  colmodl=0 means fully nonlinear self-collisional coefficients for
+**    the general species and with the background species specified
+**    in the namelist input).  Applied power can give continual energy
+**    growth (in absence of collisional losses with other species,
+**    or other losses such as radiation or radial transport).
+**    The self-collisions conserve energy perfectly, 
+**    in the limit of small grid spacing.
+**    Only include background species for which it is desired to
+**    include general species collsions on the background Maxwellians.
+**    Thus for colmodl=0, normally, do not include a background 
+**    species for the (possible multiple) general species.
+**  colmodl=1 means only contributions from background included
+**    in the Fokker Planck collision term.
+**  colmodl=2 means only contributions from the general species are
+**    included (background ignored).
+**  colmodl=3 is like colmodl=0 but the p0 component (0'th order
+**    Legendre polynomial) from the general species is ignored.
+**    Instead, a background Maxwellian of the same species is set up
+**    at a fixed density and temperature which effectively
+**    supplies the p0 component for the general species. The effect
+**    of this "standard" treatment is that momentum and particles
+**    are conserved by the like-particle collision operator, but
+**    the background Maxwellian of specified density and temperature
+**    act like a heat sink, and stabilizes the Fokker-Planck'd 
+**    distribution against thermal runaway.
+**        This option (colmodl=3) can be useful for runaway electron 
+**    and resistivity calculations.  Unlike the colmodl=0 case, 
+**    which keeps accurate track of momentum
+**    transfer but would allow the distribution to run away in a tau_e
+**    time or so, this option keeps the bulk at the background
+**    electron temperature, but still calculates momentum transfer
+**    accurately. 
+**        Use of colmodl=1 keeps the bulk from running away but
+**    the momentum computed from the solution f will be wrong. 
+**    colmodl=1 is the technique employed in the past by many codes
+**    to compute DC electric field driven electron runaway rates.
+**        Clearly, the colmodl=3 option is a kluge, and it does not
+**    guarantee a positive definite operator. Thus if the bulk stays
+**    cold but the distribution tail gets excited, the p1 component
+**    might dominate the p0 component, and the velocity diffusion
+**    coefficient cbl could become negative. Caveat emptor!
+**        Note that the p0 component referred to above applies
+**    to the contribution from a Maxwellian species at a fixed
+**    temperature of the same type. For electron runaway calculations
+**    or other calculations with colmodl=3,
+**    one would have both general species electrons and background
+**    electrons. The colmodl=3 option would "see" the contribution
+**    from the background electrons as the p0'th component and the
+**    other components would come from the general species electrons.
+**  colmodl=4.....(undocumented and unsupported option)
+**    default: colmodl=1
+**
+**  kfield(k)="enabled" means that species "k" is included as a field
+**    (background) species in the calculation of the collision integral
+**    coefficients.  kfield(k)="disabled" means it is excluded.
+**    Usually, the background species are in the namelist data, in order
+**    to be used as field particles in the collision operator, and 
+**    thus will want to be included.
+**    default: kfield(k)="enabled"
+**
+**  cfp_integrals='enabled' [Option added in 2020-07]
+**    This option specifies how certain integrals are computed
+**    which are used in subr. cfpcoefn.
+**    These integrals describe contribution to BA coll. coeffs
+**    from collisions of general species with the background 
+**    Maxwellian species; the integrals only depend on mass
+**    and local temperature of Maxwellian species.
+**    Instead of calculating them over and over again
+**    [as it was done originally; now accessed 
+**    with cfp_integrals='disabled'], 
+**    calculate them as a table over temperature grid 
+**    and then reuse them by matching a local T
+**    with the nearest values in the T-grid
+**    [accessed with cfp_integrals='enabled'].
+**    These integrals are updated if the temp() of 
+**    the Maxwellian species is changed in time. 
+**    Maxwellian species also include impurity ions 
+**    with all ionization states [see description for 
+**    namelist variable imp_depos_method].
+**    This option can give some speedup in case of high-Z impurity.
+**    Default is 'disabled' for backward compatibility. 
+**
+**  gamaset .gt. 0. means that all Coulomb logarithms are set to
+**    gamaset. gamaset=0. means that the log is computed internally.
+**    default: gamaset=0. **However, need to use gamaset.ne.0 for ion
+**                        **general species.  This needs attention.
+**  !YuP[2020-06-23] New option:
+**  gamaset=-1.  means: use NRL definitions for gama(kk,k). 
+**
+**  gamafac = "enabled", then for electrons as (only) general species, 
+**    multiply the Coulomb logarithms (e-e and e-i) in the
+**    collision FP coefficients by and energy dependence as follows:
+**     The energy dependent Coulomb log will be
+**       alog(flamcql + min(sqrt(gamma-1),1)*(flamrp-flamcql)),
+**       where flamcql is the argument of cql e-e Coulomb log,
+**       and flamrp is the argument of the Rosenbluth-Putvinski
+**       (Nucl. Fus. 1997) high energy electron Coulomb log.
+**       The sqrt(gamma-1)-factor is chosen in accord with
+**       the energy factor in the the CQL Coulomb log
+**       (cf., Killeen et al. book.  The CQL Coulomb log
+**       reduces to the NRL, Te.gt.10eV expression).  
+**       This factor becomes significant at electron energies 
+**       of order of greater than me*c**2.
+**
+**  qsineut = "enabled" or "maxwel" forces background electron density to
+**    evolve to maintain quasi-neutrality in time. The midplane line
+**    density of the electrons will equal the sum of the midplane line
+**    densities of all the ionic species for qsineut="enabled".
+**    For qsineut="maxwel" the sum is over background ions only.
+**    Note that this option will not
+**    apply if general species electrons are present. Use of this option
+**    precludes use of locquas="enabled" below.
+**    default: qsinuet="disabled"
+**
+**  locquas="enabled" means that if (1) electrons are not a general species
+**    and (2) if qsineut="disabled" (above) then the background electrons are
+**    not treated exactly as Maxwellians for purposes of computing their
+**    contribution to the collision integral. Rather, they are assumed
+**    to be local Maxwellians (at z along the orbit) with a density that
+**    maintains local quasineutrality at z with all the ionic
+**    species. A true Maxwellian is constant in density as a
+**    function of z.
+**    If locquas="disabled", this option does not apply.
+**    default: "disabled"
+**
+**  trapmod="enabled", modifies the magnetic well on each flux surface
+**    by transforming B/B_min ==>    B/B_min - trapredc*(B/B_min-1.),
+**    where B is the magnetic field as a function of poloidal angle,
+**    B_min is the minimum value on the flux surface.
+**  trapredc is the fraction by which the magnetic well is reduced.
+**    Thus, trapredc=0. gives no reduction.
+**    trapredc=1. gives complete reduction, i.e., constant B (no well).
+**    This option is to help in a heuristic evaluation of the
+**    effect of trapping.
+**    Have had problems with the theta mesh for trapredc.gt.0.99
+**                                       (BobH, 981018). 
+**    default: trapmod="disabled"
+**  trapredc= fractional reduction in magnetic well on each flux surface.
+**    default: trapredc=0.
+**
+**  scatmod="enabled" modifies the collisional "pitch angle scattering"
+**    F coefficient, according to scatfrac, below. 
+**    Setting mx=0 gives zero value to the 
+**    collisional C, D, and E coefficients (the Rosenbluth g and h
+**    functions become independent of pitch angle).  F is the only
+**    remaining coefficient of a pitch angle derivative term.
+**    F is multiplied by scatfrac, thus scatfrac=0. shuts off
+**    the collisional scattering.
+**    (default: scatmod="disabled").
+**  scatfrac= multiplier of collisional C,E,F coeff, for testing purposes.
+*     Also applied to rf coefficients.
+**    (default: scatfrac=1.  Also, reset to 1. if scatmod.eq."disabled:).
+**
+********************************************************************

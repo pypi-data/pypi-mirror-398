@@ -1,0 +1,100 @@
+# CQL3DUI
+
+**A simple user-interface for the Bounce-Averaged Fokker-Planck code CQL3D.**
+
+**Author:** Matthew Poulos (CompX)
+**Email:** poulos@compxco.com
+
+---
+
+## Overview
+
+**CQL3DUI** is a simple Python/Tkinter-based GUI for the Fortran-based code CQL3D. The interface allows users to:
+
+1.  **Import, export, view, and edit** `cqlinput` files (Fortran namelists).
+2.  **Compile, load and run** CQL3D executables.
+3.  **Plot and visualize** the resulting output (NetCDF) from CQL3D.
+
+Detailed information and documentation on CQL3D can be found at:
+* [GitHub Repository](https://github.com/compxco/cql3d)
+* [CompX Website](https://www.compxco.com/cql3d.html)
+
+---
+
+## Installation
+
+To install CQL3DUI, open a terminal and run:
+
+```bash
+pip install cql3dui
+```
+
+To run CQL3DUI, simply type:
+
+```bash
+cqlui
+```
+
+---
+
+## Compiling CQL3D
+
+**Prerequisite:** You must have NetCDF, PGPLOT, and gfortran downloaded and installed.
+
+Click the button labeled **Compile CQL3D** located in the lower left corner of the UI. A new interface called **CQL3D Compiler** will pop up. The interface will attempt to automatically detect the necessary NetCDF library and PGPLOT path. It will indicate if these files are successfully found in the Compilation Output.
+Click the button **GENERATE MAKEFILE & COMPILE** and the UI will automatically create a makefile and attemt to compile CQL3D using gfortran. A message box will appear indicating successful compilation. Once CQL3D is successfully compiled, exit the **CQL3D Compiler** interface to return to the main UI.
+
+*Optional:* To load a pre-compiled CQL3D executable, click the button labeled **Load Exec.**
+
+
+---
+
+## Running Example Tests
+
+A set of example tests are provided in the package contents. On initial startup, the UI will automatically load with the namelist for Test 1.0 loaded and will automatically point to the correct auxiliary file folder to run all of the provided test cases.
+
+---
+
+## Workflow
+
+### 1. Import, View, and Edit Namelists
+
+To import a test case, click the **Import Namelist** button in the top left of the UI and select any of the test files.
+
+**Editing Features:**
+* **Navigation:** Use the GUI tabs to navigate through the file.
+* **Documentation:** Click on any variable to highlight it within the `cqlinput_help` documentation (displayed in the right panel).
+* **Tooltips:** Hover the cursor over any namelist variable to see a short description.
+* **Export:** Click **Export Namelist** to save the variables currently in the UI to a `cqlinput` (fortran namelist) file.
+
+**Keyboard Shortcuts:**
+
+| Shortcut | Action |
+| :--- | :--- |
+| **`Up` / `Down`** | Move between variables in the left panel. |
+| **`Ctrl` + `Left` / `Right`** | Move between GUI tabs (Windows/Linux). |
+| **`Cmd` + `Left` / `Right`** | Move between GUI tabs (macOS). |
+| **`Shift` + `Left` / `Right`** | Move between instances of the highlighted variable in the help documentation. |
+
+### 2. Run CQL3D
+
+Click the **Run CQL3D** button. 
+
+* A `runs` folder is created in the current directory where the ui was launched from.
+* A subfolder labeled by the date and time is created inside `runs`.
+* The current namelist variables are saved to a `cqlinput` file inside that subfolder.
+* **File Linking:** The code checks if auxiliary files (`eqdsk`, `rffile`, etc.) are required.
+    * It looks in the chosen auxiliary file folder for these files
+    * If found, it creates symbolic links in the newly created run folder to the required files.
+* A separate thread is launched to execute CQL3D.
+* After completion, a window pops up showing the output and any errors.
+
+### 3. Plot and Visualize Output
+
+Once CQL3D has successfully completed:
+
+1.  Click the **Plot Results** button (lower right).
+2.  By default, the UI loads the NetCDF (`.nc`) file from the last successful run.
+3.  *Optional:* If no `.nc` file exists or you wish to view a different run, click **Load .nc file** (top left) in the plotting interface.
+4.  Navigate through the various options to visualize the physics results.
+5.  Press the left/right arrow keys in the 2D velocity-space contours to cycle through flux surfaces.
