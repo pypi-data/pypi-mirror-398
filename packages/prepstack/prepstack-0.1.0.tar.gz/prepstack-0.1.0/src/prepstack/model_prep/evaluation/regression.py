@@ -1,0 +1,18 @@
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import numpy as np
+
+def regression_metrics(y_true, y_pred, guidance="on"):
+    metrics = {
+        "MAE": mean_absolute_error(y_true, y_pred),
+        "RMSE": np.sqrt(mean_squared_error(y_true, y_pred)),
+        "R2": r2_score(y_true, y_pred),
+    }
+
+    if guidance == "on":
+        print("📉 Regression Metrics")
+        for k, v in metrics.items():
+            print(f" • {k}: {v:.4f}")
+
+        print("💡 Tip: RMSE penalizes large errors more")
+
+    return metrics
