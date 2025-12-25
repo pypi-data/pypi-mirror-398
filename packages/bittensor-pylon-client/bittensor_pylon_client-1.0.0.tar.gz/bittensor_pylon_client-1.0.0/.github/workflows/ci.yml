@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+    tags:
+      - 'client-v*'
+      - 'service-v*'
+  pull_request:
+
+env:
+  TAG_VERSION: "v1-latest"
+  DOCKER_REPO_NAME: "backenddevelopersltd/bittensor-pylon"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup python env
+        uses: ./.github/actions/setup-python-env
+        with:
+          python-version: '3.12'
+
+      - name: Run linting checks with nox
+        run: nox -s lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup python env
+        uses: ./.github/actions/setup-python-env
+        with:
+          python-version: '3.12'
+
+      - name: Create dotenv file
+        run: cp ./pylon_client/service/envs/test_env.template .env
+
+      - name: Run unit tests with nox
+        env:
+          PYLON_DOCKER_IMAGE_NAME: ${{ env.DOCKER_REPO_NAME }}:${{ env.TAG_VERSION }}
+        run: nox -s test
+
