@@ -1,0 +1,271 @@
+# Test Data Generator
+
+A deterministic test data generator that creates consistent, repeatable test data from JSON schemas. Perfect for writing reliable tests that produce the same results every time.
+
+## Features
+
+- ✨ **Deterministic Generation** - Same seed always produces identical data
+- 📝 **Flexible Input** - Accept schemas as file paths, JSON strings, or Python dicts
+- 🎯 **Type-Rich** - Support for strings, integers, floats, booleans, dates, emails, and UUIDs
+- 🔧 **Constraint Support** - Min/max ranges, enums, and length constraints
+- 🧪 **Testing-First** - Built specifically for creating consistent test fixtures
+- 🚀 **Zero Dependencies** - Uses only Python standard library (except dev tools)
+
+## Installation
+
+```bash
+pip install test-data-generator
+```
+
+## Quick Start
+
+```python
+from test_data_generator import generate_test_data
+
+# Define your schema
+schema = {
+    "fields": {
+        "user_id": {"type": "uuid"},
+        "username": {
+            "type": "string",
+            "constraints": {"min": 5, "max": 15}
+        },
+        "email": {"type": "email"},
+        "age": {
+            "type": "integer",
+            "constraints": {"min": 18, "max": 100}
+        },
+        "active": {"type": "boolean"}
+    }
+}
+
+# Generate test data
+data = generate_test_data(schema, count=10, seed=42)
+
+# Same seed = same data every time!
+data1 = generate_test_data(schema, count=5, seed=42)
+data2 = generate_test_data(schema, count=5, seed=42)
+assert data1 == data2  # ✓ Always true
+```
+
+## Schema Format
+
+Schemas define the structure and constraints for generated data:
+
+```json
+{
+  "fields": {
+    "field_name": {
+      "type": "<type>",
+      "constraints": {
+        "min": 0,
+        "max": 100,
+        "enum": ["value1", "value2"],
+        "format": "iso"
+      }
+    }
+  }
+}
+```
+
+### Supported Types
+
+- **`string`** - Random alphanumeric strings
+- **`integer`** - Random integers
+- **`float`** - Random floating-point numbers
+- **`boolean`** - Random true/false values
+- **`date`** - ISO format dates (2024-01-15)
+- **`email`** - Valid email addresses
+- **`uuid`** - UUID v4 identifiers
+
+### Constraints
+
+| Constraint | Applies To                   | Description                                 |
+| ---------- | ---------------------------- | ------------------------------------------- |
+| `min`      | string, integer, float, date | Minimum value or length                     |
+| `max`      | string, integer, float, date | Maximum value or length                     |
+| `enum`     | all types                    | Pick from a fixed set of values             |
+| `format`   | date                         | Date format: "iso" (default) or "timestamp" |
+
+## Usage Examples
+
+### 1. Using a Dictionary Schema
+
+```python
+from test_data_generator import generate_test_data
+
+schema = {
+    "fields": {
+        "name": {"type": "string"},
+        "score": {"type": "integer", "constraints": {"min": 0, "max": 100}}
+    }
+}
+
+data = generate_test_data(schema, count=5, seed=42)
+```
+
+### 2. Using a JSON String
+
+```python
+schema_json = '''
+{
+    "fields": {
+        "status": {
+            "type": "string",
+            "constraints": {"enum": ["active", "inactive", "pending"]}
+        }
+    }
+}
+'''
+
+data = generate_test_data(schema_json, count=10)
+```
+
+### 3. Using a File Path
+
+Create `user_schema.json`:
+
+```json
+{
+  "fields": {
+    "user_id": { "type": "uuid" },
+    "email": { "type": "email" },
+    "created_at": { "type": "date" }
+  }
+}
+```
+
+Then use it:
+
+```python
+data = generate_test_data("user_schema.json", count=20, seed=123)
+```
+
+### 4. Advanced: Using DataGenerator Class
+
+For more control, use the `DataGenerator` class directly:
+
+```python
+from test_data_generator import DataGenerator
+
+schema = {
+    "fields": {
+        "value": {"type": "integer"}
+    }
+}
+
+generator = DataGenerator(schema, seed=42)
+
+# Generate batch 1
+batch1 = generator.generate(5)
+
+# Reset to regenerate same data
+generator.reset_seed()
+batch2 = generator.generate(5)
+
+assert batch1 == batch2  # Same data again
+
+# Or use a different seed
+generator.reset_seed(seed=99)
+batch3 = generator.generate(5)
+
+assert batch1 != batch3  # Different data
+```
+
+## Testing with Deterministic Data
+
+The key benefit is writing tests with predictable data:
+
+```python
+import pytest
+from test_data_generator import generate_test_data
+
+@pytest.fixture
+def test_users():
+    """Generate consistent test users for every test run."""
+    schema = {
+        "fields": {
+            "user_id": {"type": "uuid"},
+            "email": {"type": "email"},
+            "age": {"type": "integer", "constraints": {"min": 18, "max": 65}}
+        }
+    }
+    return generate_test_data(schema, count=10, seed=42)
+
+def test_user_filtering(test_users):
+    # test_users will be the SAME every time this test runs
+    assert len(test_users) == 10
+    # Write assertions based on the known deterministic data
+```
+
+## Complex Schema Example
+
+```python
+schema = {
+    "fields": {
+        "order_id": {"type": "uuid"},
+        "customer_email": {"type": "email"},
+        "order_date": {
+            "type": "date",
+            "constraints": {
+                "min": "2024-01-01",
+                "max": "2024-12-31"
+            }
+        },
+        "status": {
+            "type": "string",
+            "constraints": {
+                "enum": ["pending", "shipped", "delivered", "cancelled"]
+            }
+        },
+        "total": {
+            "type": "float",
+            "constraints": {"min": 10.0, "max": 5000.0}
+        },
+        "is_priority": {"type": "boolean"}
+    }
+}
+
+orders = generate_test_data(schema, count=100, seed=42)
+```
+
+## Development
+
+```bash
+# Install in development mode
+pip install -e .
+
+# Run tests
+pytest tests/ -v
+
+# Run linter
+ruff check src/
+```
+
+## Requirements
+
+- Python 3.14+
+- No runtime dependencies (pure stdlib)
+- Dev dependencies: pytest, ruff
+
+## Architecture
+
+- **`load_schema.py`** - Schema loading from files/strings
+- **`schema.py`** - Schema validation and utilities
+- **`generators.py`** - Type-specific value generators
+- **`generator.py`** - Core DataGenerator class with seeding
+- **`__init__.py`** - Public API: `generate_test_data()` function
+
+## Why Deterministic?
+
+Deterministic test data generation ensures:
+
+- ✓ Tests are reproducible across different machines
+- ✓ Failed tests can be debugged with the exact same data
+- ✓ CI/CD pipelines get consistent results
+- ✓ Team members see identical test behavior
+- ✓ Easier to reason about test failures
+
+## License
+
+MIT License
