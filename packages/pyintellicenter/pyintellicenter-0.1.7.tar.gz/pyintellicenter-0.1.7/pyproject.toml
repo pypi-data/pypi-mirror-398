@@ -1,0 +1,126 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyintellicenter"
+version = "0.1.7"
+description = "Python library for Pentair IntelliCenter pool control systems"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.13"
+authors = [
+    { name = "joyfulhouse", email = "joyfulhouse@users.noreply.github.com" }
+]
+keywords = [
+    "pentair",
+    "intellicenter",
+    "pool",
+    "automation",
+    "home-assistant",
+    "asyncio",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Home Automation",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Framework :: AsyncIO",
+    "Typing :: Typed",
+]
+dependencies = [
+    "orjson>=3.10.0",
+    "websockets>=15.0",
+    "zeroconf>=0.136.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.1",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.6",
+    "mypy>=1.18.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/joyfulhouse/pyintellicenter"
+Documentation = "https://github.com/joyfulhouse/pyintellicenter#readme"
+Repository = "https://github.com/joyfulhouse/pyintellicenter.git"
+Issues = "https://github.com/joyfulhouse/pyintellicenter/issues"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pyintellicenter"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # bugbear (common bugs and design issues)
+    "C4",     # comprehensions
+    "UP",     # pyupgrade (modern Python syntax)
+    "ARG",    # unused arguments
+    "SIM",    # simplify
+    "TCH",    # type-checking imports
+    "BLE",    # blind except
+    "LOG",    # logging best practices
+    "G",      # logging format (lazy logging)
+    "ASYNC",  # async best practices
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG"]  # Unused arguments OK in tests (fixtures)
+"src/pyintellicenter/controller.py" = ["ARG002"]  # Callback signatures have required unused args
+
+[tool.ruff.lint.isort]
+known-first-party = ["pyintellicenter"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+strict_optional = true
+no_implicit_optional = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["src/pyintellicenter"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+[dependency-groups]
+dev = [
+    "python-dotenv>=1.2.1",
+]
