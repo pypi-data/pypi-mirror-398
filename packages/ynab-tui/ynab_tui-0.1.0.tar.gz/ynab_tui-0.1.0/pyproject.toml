@@ -1,0 +1,107 @@
+[project]
+name = "ynab-tui"
+version = "0.1.0"
+description = "YNAB transaction categorizer with Amazon order matching"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Stephan Esterhuizen"}
+]
+keywords = ["ynab", "budget", "amazon", "categorization", "tui", "terminal"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial",
+    "Typing :: Typed",
+]
+dependencies = [
+    "ynab>=1.9.0",
+    "amazon-orders>=1.0.0",
+    "textual>=1.0.0",
+    "rich>=13.0.0",
+    "click>=8.0.0",
+    "tomli>=2.0.0",
+    "tqdm>=4.66.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.5.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+]
+
+[project.scripts]
+ynab-tui = "ynab_tui.main:main"
+
+[project.urls]
+Repository = "https://github.com/esterhui/ynab-tui"
+Issues = "https://github.com/esterhui/ynab-tui/issues"
+Changelog = "https://github.com/esterhui/ynab-tui/blob/main/CHANGELOG.md"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]  # Allow long lines in docstrings/prompts
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["E402"]  # Allow late imports in tests
+
+[tool.uv]
+override-dependencies = [
+    "pillow>=10.0.0",  # Override amazoncaptcha's pinned version
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["ynab_tui"]
+omit = [
+    "ynab_tui/mock_data/*",
+    "ynab_tui/clients/ynab_client.py",
+    "ynab_tui/clients/amazon_client.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_ignores = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+strict_equality = true
+warn_redundant_casts = true
+exclude = ["tests/", "tests-old/", "ynab_tui/mock_data/"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ynab_tui"]
