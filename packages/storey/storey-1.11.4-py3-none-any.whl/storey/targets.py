@@ -1,0 +1,1461 @@
+# Copyright 2020 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import asyncio
+import copy
+import csv
+import datetime
+import hashlib
+import json
+import os
+import queue
+import random
+import re
+import traceback
+import uuid
+from io import StringIO
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple, Union
+from urllib.parse import urlparse
+
+import pandas as pd
+import pyarrow
+import v3io_frames as frames
+import xxhash
+
+from . import Driver
+from .dtypes import (
+    Event,
+    TDEngineTypeError,
+    TDEngineValueError,
+    V3ioError,
+    _TDEngineField,
+)
+from .flow import Flow, _Batching, _split_path, _termination_obj
+from .table import Table, _PersistJob
+from .utils import stringify_key, url_to_file_system, wrap_event_for_serialization
+
+if TYPE_CHECKING:
+    import taosws
+
+
+class _Writer:
+    def __init__(
+        self,
+        columns: Union[str, List[Union[str, Tuple[str, str]]], None],
+        infer_columns_from_data: Optional[bool],
+        index_cols: Union[str, List[Union[str, Tuple[str, str]]], None] = None,
+        partition_cols: Union[str, List[str], None] = None,
+        time_field: Union[None, str, int] = None,
+        time_format: Optional[str] = None,
+        retain_dict: bool = False,
+        storage_options: Optional[dict] = None,
+    ):
+        self._infer_columns_from_data = infer_columns_from_data
+        self._metadata_columns = {}
+        self._metadata_index_columns = {}
+        self._rename_columns = {}
+        self._rename_index_columns = {}
+        columns = [columns] if isinstance(columns, str) else columns
+        index_cols = [index_cols] if isinstance(index_cols, str) else index_cols
+        self._retain_dict = retain_dict
+        self._storage_options = storage_options
+
+        self._field_extractor = lambda event_body, field_name: event_body.get(field_name)
+        self._write_missing_fields = False
+
+        def parse_notation(columns, metadata_columns, rename_columns):
+            result = []
+            if columns:
+                for col in columns:
+                    if col.startswith("$"):
+                        col = col[1:]
+                        metadata_columns[col] = col
+                    elif "=$" in col:
+                        col, metadata_attr = col.split("=$", maxsplit=1)
+                        metadata_columns[col] = metadata_attr
+                    elif "=" in col:
+                        col, rename_from = col.split("=", maxsplit=1)
+                        rename_columns[col] = rename_from
+                    result.append(col)
+            return result
+
+        def unzip_cols(columns):
+            column_types = []
+            if columns and isinstance(columns[0], Tuple):
+                columns_no_types = []
+                for column in columns:
+                    name, column_type = column
+                    columns_no_types.append(name)
+                    column_types.append(column_type)
+            else:
+                columns_no_types = columns
+            return columns_no_types, column_types
+
+        columns_no_types, column_types = unzip_cols(columns)
+        index_cols_no_types, index_cols_types = unzip_cols(index_cols)
+
+        self._initial_columns = parse_notation(columns_no_types, self._metadata_columns, self._rename_columns)
+        self._initial_index_cols = parse_notation(
+            index_cols_no_types,
+            self._metadata_index_columns,
+            self._rename_index_columns,
+        )
+        self._column_types = column_types
+        self._index_column_types = index_cols_types
+
+        if column_types:
+            fields = []
+            for i in range(len(column_types)):
+                type_name = column_types[i]
+                typ = self._type_string_to_pyarrow_type[type_name]
+                name = self._initial_columns[i]
+                if partition_cols and name in partition_cols:
+                    continue
+                field = pyarrow.field(name, typ, True)
+                fields.append(field)
+            for i in range(len(index_cols_types)):
+                index_column = index_cols_no_types[i]
+                type_name = index_cols_types[i]
+                typ = self._type_string_to_pyarrow_type[type_name]
+                field = pyarrow.field(index_column, typ, True)
+                fields.append(field)
+            self._schema = pyarrow.schema(fields)
+        else:
+            self._schema = None
+
+        if isinstance(partition_cols, str):
+            partition_cols = [partition_cols]
+        self._partition_cols = partition_cols
+
+        if partition_cols is not None and index_cols is not None:
+            cols_both_partition_and_index = set(partition_cols).intersection(set(index_cols))
+            if cols_both_partition_and_index:
+                raise ValueError(
+                    f"The following columns are used both for partitioning and indexing, which is not allowed: "
+                    f"{list(cols_both_partition_and_index)}"
+                )
+
+        self._time_field = time_field
+        self._time_format = time_format
+
+    _type_string_to_pyarrow_type = {
+        "str": pyarrow.string(),
+        "int8": pyarrow.int8(),
+        "int16": pyarrow.int16(),
+        "int32": pyarrow.int32(),
+        "int64": pyarrow.int64(),
+        "uint8": pyarrow.uint8(),
+        "uint16": pyarrow.uint16(),
+        "uint32": pyarrow.uint32(),
+        "uint64": pyarrow.uint64(),
+        "int": pyarrow.int64(),
+        "float16": pyarrow.float16(),
+        "float32": pyarrow.float32(),
+        "float": pyarrow.float64(),
+        "bool": pyarrow.bool_(),
+        "datetime": pyarrow.timestamp("ns"),
+    }
+
+    def _init(self):
+        self._columns = copy.copy(self._initial_columns)
+        self._col_to_index = {}
+        for index, col in enumerate(self._columns):
+            self._col_to_index[col] = index
+        self._index_cols = copy.copy(self._initial_index_cols)
+        self._init_partition_col_indices()
+        self._still_need_to_infer_columns = self._infer_columns_from_data
+
+    def _init_partition_col_indices(self):
+        self._partition_col_to_index = {}
+        self._partition_col_indices = []
+        self._non_partition_columns = self._columns
+
+        self._non_partition_column_types = self._column_types
+        if self._partition_cols is not None and self._columns is not None:
+            self._non_partition_columns = []
+            self._non_partition_column_types = []
+            for index, col in enumerate(self._columns):
+                if col in self._partition_cols:
+                    self._partition_col_to_index[col] = index
+                    self._partition_col_indices.append(index)
+                else:
+                    self._non_partition_columns.append(col)
+                    if self._column_types:
+                        self._non_partition_column_types.append(self._column_types[index])
+
+    def _get_event_time(self, event):
+        event_time = event.processing_time
+        time_field = self._time_field
+        if time_field is not None and time_field != "":
+            if not isinstance(event.body, (dict, list)):
+                raise TypeError(f"Writer supports only events of type dict or list, got {type(event.body).__name__}")
+            if isinstance(event.body, list) and isinstance(time_field, str):
+                time_field = self._col_to_index[time_field]
+            event_time = event.body[time_field]
+            if isinstance(event_time, str):
+                if self._time_format:
+                    event_time = datetime.datetime.strptime(event_time, self._time_format)
+                else:
+                    event_time = datetime.datetime.fromisoformat(event_time)
+                event.body[time_field] = event_time
+            elif isinstance(event_time, int):
+                event_time = datetime.datetime.fromtimestamp(event_time)
+                event.body[time_field] = event_time
+        return event_time
+
+    def _path_from_event(self, event):
+        event_time = self._get_event_time(event)
+        res = "/"
+        for col in self._partition_cols:
+            hash_into = 0
+            if isinstance(col, tuple):
+                col, hash_into = col
+            if col == "$key":
+                val = event.key
+                if isinstance(val, list):
+                    val = ".".join(map(str, val))
+            elif col == "$date":
+                val = f"{event_time.year:02}-{event_time.month:02}-{event_time.day:02}"
+            elif col == "$year":
+                val = f"{event_time.year:02}"
+            elif col == "$month":
+                val = f"{event_time.month:02}"
+            elif col == "$day":
+                val = f"{event_time.day:02}"
+            elif col == "$hour":
+                val = f"{event_time.hour:02}"
+            elif col == "$minute":
+                val = f"{event_time.minute:02}"
+            elif col == "$second":
+                val = f"{event_time.second:02}"
+            else:
+                if isinstance(event.body, list):
+                    val = event.body[self._partition_col_to_index[col]]
+                else:
+                    val = event.body[col]
+
+            if col.startswith("$"):
+                col = col[1:]
+
+            if hash_into:
+                col = f"hash{hash_into}_{col}"
+                if isinstance(val, list):
+                    val = ".".join(map(str, val))
+                else:
+                    val = str(val)
+                sha1 = hashlib.sha1()
+                sha1.update(val.encode("utf8"))
+                val = int(sha1.hexdigest(), 16) % hash_into
+
+            res += f"{col}={val}/"
+        return res
+
+    def _get_column_data_from_dict(self, new_data, event, columns, columns_types, metadata_columns, rename_columns):
+        if columns:
+            for index, column in enumerate(columns):
+                if column in metadata_columns:
+                    metadata_attr = metadata_columns[column]
+                    new_value = getattr(event, metadata_attr)
+                elif column in rename_columns:
+                    new_value = self._field_extractor(event.body, rename_columns[column])
+                else:
+                    new_value = self._field_extractor(event.body, column)
+
+                if new_value is None and not self._write_missing_fields:
+                    continue
+
+                if columns_types:
+                    column_type = columns_types[index]
+                    if column_type == "datetime":
+                        if isinstance(new_value, str):
+                            new_value = datetime.datetime.fromisoformat(new_value)
+                        elif isinstance(new_value, int):
+                            new_value = datetime.datetime.utcfromtimestamp(new_value)
+
+                if isinstance(new_data, list):
+                    new_data.append(new_value)
+                else:
+                    new_data[column] = new_value
+        elif isinstance(new_data, dict):
+            for column in metadata_columns:
+                metadata_attr = metadata_columns[column]
+                value = getattr(event, metadata_attr)
+                new_data[column] = value
+
+    @staticmethod
+    def _get_column_data_from_list(new_data, event, original_data, columns, metadata_columns):
+        data_cursor = 0
+        for column in columns:
+            if column in metadata_columns:
+                metadata_attr = metadata_columns[column]
+                new_value = getattr(event, metadata_attr)
+                new_data.append(new_value)
+            else:
+                new_data.append(original_data[data_cursor])
+                data_cursor += 1
+        return data_cursor
+
+    def _event_to_writer_entry(self, event):
+        data = event.body
+        if isinstance(data, dict):
+            if self._still_need_to_infer_columns:
+                self._columns.extend(data.keys() - self._index_cols)
+                self._columns.sort()
+                self._still_need_to_infer_columns = False
+                self._init_partition_col_indices()
+            data = {} if self._retain_dict else []
+            self._get_column_data_from_dict(
+                data,
+                event,
+                self._index_cols,
+                self._index_column_types,
+                self._metadata_index_columns,
+                self._rename_index_columns,
+            )
+            self._get_column_data_from_dict(
+                data,
+                event,
+                self._non_partition_columns,
+                self._non_partition_column_types,
+                self._metadata_columns,
+                self._rename_columns,
+            )
+            if not self._non_partition_columns:
+                if not isinstance(data, dict) or not isinstance(event.body, dict):
+                    raise ValueError(
+                        "List data type is only supported when columns is provided or infer_columns_from_data is True"
+                    )
+                data.update(event.body)
+        elif isinstance(data, list):
+            for index in self._partition_col_indices:
+                del data[index]
+            if self._still_need_to_infer_columns:
+                raise TypeError(
+                    "Cannot infer_columns_from_data when event type is list. Inference is only possible from dict."
+                )
+            sub_metadata = bool(self._columns) and bool(self._metadata_columns)
+            sub_index_metadata = bool(self._index_cols) and bool(self._metadata_index_columns)
+            if sub_metadata or sub_index_metadata:
+                data = []
+                cursor = self._get_column_data_from_list(
+                    data,
+                    event,
+                    event.body,
+                    self._index_cols,
+                    self._metadata_index_columns,
+                )
+                self._get_column_data_from_list(
+                    data,
+                    event,
+                    event.body[cursor:],
+                    self._columns,
+                    self._metadata_columns,
+                )
+        elif self._columns:
+            raise TypeError("Writer supports only events of type dict or list.")
+        return data
+
+
+class _V3ioCSVDialect(csv.Dialect):
+    """Describe a dialect based on excel dialect but with '\n' line terminator"""
+
+    delimiter = ","
+    quotechar = '"'
+    doublequote = True
+    skipinitialspace = False
+    lineterminator = "\n"
+    quoting = csv.QUOTE_MINIMAL
+
+
+class CSVTarget(_Batching, _Writer):
+    """Writes events to a CSV file.
+
+    :param path: path where CSV file will be written.
+    :param columns: Fields to be written to CSV. Will be written as the file header if write_header is True. Will be
+        extracted from events when an event is a dictionary (lists will be written as is). Use = notation for renaming
+        fields (e.g. write_this=event_field). Use $ notation to refer to metadata ($key, event_time=$time). Optional.
+        Defaults to None (will be inferred if event is dictionary).
+    :param header: Whether to write the columns as a CSV header.
+    :param infer_columns_from_data: Whether to infer columns from the first event, when events are dictionaries. If
+        True, columns will be inferred from data and used in place of explicit columns list if none was provided, or
+        appended to the provided list. If columns is not provided, infer_columns_from_data=True is implied. Optional.
+        Default to False if columns is provided, True otherwise.
+    :param name: Name of this step, as it should appear in logs. Defaults to class name (CSVTarget).
+    :type name: string
+    :param max_events: Maximum number of events to write at a time. If None (default), all events will be written on
+        flow termination, or after flush_after_seconds (if flush_after_seconds is set).
+    :type max_events: int
+    :param flush_after_seconds: Maximum number of seconds to hold events before they are written. If None (default), all
+        events will be written on flow termination, or after max_events are accumulated (if max_events is set).
+    :type flush_after_seconds: int
+    :param key: batching will be done by key
+    :type key: str or Event
+    :param storage_options: Extra options that make sense for a particular storage connection, e.g. host, port,
+        username, password, etc., if using a URL that will be parsed by fsspec, e.g., starting
+        "s3://”, "gcs://”. Optional.
+    :type storage_options: dict
+    """
+
+    def __init__(
+        self,
+        path: str,
+        columns: Optional[List[str]] = None,
+        header: bool = False,
+        infer_columns_from_data: Optional[bool] = None,
+        max_events: int = 128,
+        flush_after_seconds: int = 3,
+        **kwargs,
+    ):
+        if not columns:
+            infer_columns_from_data = True
+
+        _Batching.__init__(
+            self,
+            max_events=max_events,
+            flush_after_seconds=flush_after_seconds,
+            **kwargs,
+        )
+        _Writer.__init__(
+            self,
+            columns,
+            infer_columns_from_data,
+            storage_options=kwargs.get("storage_options"),
+        )
+
+        self._path = path
+        self._write_header = header
+
+        self._field_extractor = lambda event_body, field_name: event_body.get(field_name, "")
+        self._write_missing_fields = True
+
+    def _init(self):
+        _Batching._init(self)
+        _Writer._init(self)
+        self._blocking_io_loop_future = None
+        self._data_buffer = queue.Queue(1024)
+        self._blocking_io_loop_failed = False
+
+    def _blocking_io_loop(self):
+        try:
+            got_first_event = False
+            fs, file_path = url_to_file_system(self._path, self._storage_options)
+            dirname = os.path.dirname(file_path)
+            file_exists = False
+            if dirname and not fs.exists(dirname):
+                fs.makedirs(dirname, exist_ok=True)
+            elif fs.exists(file_path):
+                file_exists = True
+
+            while True:
+                batch = self._data_buffer.get()
+                if batch is _termination_obj:
+                    break
+                with fs.open(file_path, mode="a") as f:
+                    csv_writer = csv.writer(f, _V3ioCSVDialect())
+                    for data in batch:
+                        if not got_first_event:
+                            if not self._columns and self._write_header:
+                                raise ValueError(
+                                    "columns must be defined when header is True and events type is not dictionary"
+                                )
+                            if self._write_header and not file_exists:
+                                csv_writer.writerow(self._columns)
+                            got_first_event = True
+                        csv_writer.writerow(data)
+        except BaseException as ex:
+            self._blocking_io_loop_failed = True
+            if not self._data_buffer.empty():
+                self._data_buffer.get()
+            raise ex
+
+    def _event_to_batch_entry(self, event):
+        writer_entry = self._event_to_writer_entry(event)
+        if not isinstance(writer_entry, list):
+            raise TypeError(f"CSV writer does not support event body of type {type(event.body)}.")
+        return writer_entry
+
+    async def _terminate(self):
+        if self._blocking_io_loop_future:
+            asyncio.get_running_loop().run_in_executor(None, lambda: self._data_buffer.put(_termination_obj))
+            await self._blocking_io_loop_future
+
+    async def _emit(self, batch, batch_key, batch_time, batch_events, last_event_time=None):
+        if not self._blocking_io_loop_future:
+            self._blocking_io_loop_future = asyncio.get_running_loop().run_in_executor(None, self._blocking_io_loop)
+
+        if self._blocking_io_loop_failed:
+            await self._blocking_io_loop_future
+        else:
+            await asyncio.get_running_loop().run_in_executor(None, lambda: self._data_buffer.put(batch))
+
+
+class ParquetTarget(_Batching, _Writer):
+    """Writes incoming events to parquet files.
+
+    :param path: Output path. Can be either a file or directory. This parameter is forwarded as-is to
+        pandas.DataFrame.to_parquet().
+    :param index_cols: Index columns for writing the data. Use = notation for renaming fields (e.g.
+        write_this=event_field). Use $ notation to refer to metadata ($key, event_time=$time).If None (default), no
+        index is set.
+    :param columns: Fields to be written to parquet. Will be extracted from events when an event is a dictionary
+        (lists will be written as is). Use = notation for renaming fields (e.g. write_this=event_field).
+        Use $ notation to refer to metadata ($key, event_time=$time). Can be a list of (name, type) tuples in order to
+        set the schema explicitly, e.g. ('my_field', 'str'). Supported types: str, int32, int, float32, float, bool,
+        datetime. Optional. Defaults to None (will be inferred if event is dictionary).
+    :param infer_columns_from_data: Whether to infer columns from the first event, when events are dictionaries.
+        If True, columns will be inferred from data and used in place of explicit columns list if none was provided, or
+        appended to the provided list. If columns were not provided and infer_columns_from_data=False, PyArrow will
+        infer the schema per file written, which may cause the schemas to differ between files (e.g. if a column is all
+        null in one file but not in another). Optional. Defaults to False.
+    :param partition_cols: Columns by which to partition the data into directories. The following metadata columns are
+        also supported: $key, $date (e.g. 2020-02-09), $year, $month, $day, $hour, $minute, $second. A column may be
+        specified as a tuple, such as ('$key', 64), which means partitioning by the event key hashed into 64 partitions.
+        If None (the default), the data will only be partitioned if the path ends in .parquet or .pq. Otherwise, it will
+        be partitioned by key/year/month/day/hour, where the key is hashed into 256 buckets.
+    :param time_field: Column to use for time partitioning, if applicable.
+    :param time_format: If time_field is provided, and the expected value type is str rather than datetime, time strings
+        will be parsed according to this format. If not provided, they will be parsed in accordance with ISO-8601.
+    :param max_events: Maximum number of events to write at a time. If None (default), all events will be written on
+        flow termination, or after flush_after_seconds (if flush_after_seconds is set).
+    :type max_events: int
+    :param flush_after_seconds: Maximum number of seconds to hold events before they are written. If None (default), all
+        events will be written on flow termination, or after max_events are accumulated (if max_events is set).
+    :type flush_after_seconds: int
+    :param storage_options: Extra options that make sense for a particular storage connection, e.g. host, port,
+        username, password, etc., if using a URL that will be parsed by fsspec, e.g., starting
+        "s3://”, "gcs://”. Optional.
+    :param single_file: If True, all the partitioned data will be written to a single file named target.parquet in
+        the specified path. If False (the default), each batch will be written to a separate file with a random uuid.
+    :type storage_options: dict
+    """
+
+    def __init__(
+        self,
+        path: str,
+        index_cols: Union[str, Union[List[str], List[Tuple[str, str]]], None] = None,
+        columns: Union[str, Union[List[str], List[Tuple[str, str]]], None] = None,
+        partition_cols: Union[str, Union[List[str], List[Tuple[str, int]]], None] = None,
+        time_field: Union[None, str, int] = None,
+        time_format: Optional[str] = None,
+        infer_columns_from_data: Optional[bool] = None,
+        max_events: Optional[int] = None,
+        flush_after_seconds: Union[int, float, None] = None,
+        single_file: Optional[bool] = None,
+        **kwargs,
+    ):
+        self._single_file_mode = False
+        if isinstance(partition_cols, str):
+            partition_cols = [partition_cols]
+        if partition_cols is None:
+            if path.endswith(".parquet") or path.endswith(".pq"):
+                self._single_file_mode = True
+            else:
+                partition_cols = [("$key", 256), "$year", "$month", "$day", "$hour"]
+        else:
+            self._single_file_mode = single_file or False
+            kwargs["partition_cols"] = partition_cols
+
+        if self._single_file_mode and not partition_cols:
+            max_events = None
+            flush_after_seconds = None
+
+        kwargs["path"] = path
+        if not self._single_file_mode and path.endswith("/"):
+            path = path[:-1]
+        if index_cols is not None:
+            kwargs["index_cols"] = index_cols
+        if columns is not None:
+            kwargs["columns"] = columns
+        if infer_columns_from_data is not None:
+            kwargs["infer_columns_from_data"] = infer_columns_from_data
+
+        storage_options = kwargs.get("storage_options")
+        self._file_system, self._path = url_to_file_system(path, storage_options)
+        self._full_path = path
+
+        path_from_event = self._path_from_event if partition_cols else None
+
+        _Batching.__init__(
+            self,
+            max_events=max_events,
+            flush_after_seconds=flush_after_seconds,
+            key_field=path_from_event,
+            **kwargs,
+        )
+        _Writer.__init__(
+            self,
+            columns,
+            infer_columns_from_data,
+            index_cols,
+            partition_cols,
+            time_field,
+            time_format,
+            retain_dict=True,
+            storage_options=storage_options,
+        )
+
+        self._field_extractor = lambda event_body, field_name: event_body.get(field_name)
+        self._write_missing_fields = True
+        self._mlrun_callback = kwargs.get("update_last_written")
+        self._last_written_event = None
+
+    def _init(self):
+        _Batching._init(self)
+        _Writer._init(self)
+
+    def _event_to_batch_entry(self, event):
+        return self._event_to_writer_entry(event)
+
+    async def _emit(self, batch, batch_key, batch_time, batch_events, last_event_time=None):
+        df_columns = []
+        if self._non_partition_columns:
+            if self._index_cols:
+                df_columns.extend(self._index_cols)
+            df_columns.extend(self._non_partition_columns)
+        if not df_columns:
+            df_columns = None
+        df = pd.DataFrame(batch, columns=df_columns)
+        if self._index_cols:
+            df.set_index(self._index_cols, inplace=True)
+        dir_path = os.path.dirname(self._path) if self._single_file_mode else self._path
+        if self._partition_cols:
+            dir_path = f"{dir_path}{batch_key}"
+        else:
+            dir_path += "/"
+        if dir_path and not self._file_system.exists(dir_path):
+            self._file_system.makedirs(dir_path, exist_ok=True)
+        if self._single_file_mode:
+            file_path = f"{dir_path}target.parquet" if self._partition_cols else self._path
+        else:
+            file_path = f"{dir_path}{uuid.uuid4()}.parquet"
+        # Remove nanosecs from timestamp columns & index
+        for name, _ in df.items():
+            if str(df[name].dtype) == "datetime64[ns]":
+                # Need to explicitly reduce the granularity to avoid getting a data loss error from pandas
+                df[name] = df[name].astype("datetime64[us]")
+            # If column type is a datetime or if it's a string but the column is listed as a datetime in the schema.
+            # Note that a partitioning column will not appear in the schema and will not be converted.
+            if (
+                pd.core.dtypes.common.is_datetime64_dtype(df[name])
+                or pd.core.dtypes.common.is_string_dtype(df[name])
+                and self._schema
+                and name in self._schema.names
+                and isinstance(self._schema.field(name).type, pyarrow.TimestampType)
+            ):
+                try:
+                    df[name] = pd.to_datetime(df[name])
+                except ValueError as ex:
+                    if str(ex) == "Tz-aware datetime.datetime cannot be converted to datetime64 unless utc=True":
+                        df[name] = pd.to_datetime(df[name], utc=True)
+                    else:
+                        raise ex
+        if pd.core.dtypes.common.is_datetime64_dtype(df.index) or isinstance(df.index.dtype, pd.DatetimeTZDtype):
+            df.index = df.index.floor("u")
+        with self._file_system.open(file_path, "wb") as file:
+            kwargs = {}
+            if self._schema is not None:
+                kwargs["schema"] = self._schema
+            # version set for pyspark compatibility, and is needed as of pyarrow 13 due to timestamp incompatibility
+            df.to_parquet(path=file, index=bool(self._index_cols), version="2.4", **kwargs)
+            if not self._last_written_event or last_event_time > self._last_written_event:
+                self._last_written_event = last_event_time
+
+    async def _terminate(self):
+        if self._mlrun_callback:
+            if self._last_written_event:
+                self._mlrun_callback(self._full_path, self._last_written_event)
+            else:
+                # min is a special case that indicates to mlrun that nothing was written
+                self._mlrun_callback(self._full_path, datetime.datetime.min)
+
+
+class TSDBTarget(_Batching, _Writer):
+    """Writes incoming events to TSDB table.
+
+    :param path: Path to TSDB table.
+    :param time_col: Name of the time column.
+    :param time_format: If time_col is a string column, and its format is not compatible with ISO-8601, use this
+        parameter to determine the expected format.
+    :param columns: List of column names to be passed to the DataFrame constructor. Use = notation for renaming fields
+        (e.g. write_this=event_field). Use $ notation to refer to metadata ($key, event_time=$time).
+    :param infer_columns_from_data: Whether to infer columns from the first event, when events are dictionaries. If
+        True, columns will be inferred from data and used in place of explicit columns list if none was provided, or
+        appended to the provided list. If header is True and columns is not provided, infer_columns_from_data=True is
+        implied. Optional. Default to False if columns is provided, True otherwise.
+    :param index_cols: List of column names to be used for metric labels.
+    :param v3io_frames: Frames service url.
+    :param access_key: Access key to the system.
+    :param container: Container name for this TSDB table.
+    :param rate: TSDB table sample rate.
+    :param aggr: Server-side aggregations for this TSDB table (e.g. 'sum,count').
+    :param aggr_granularity: Granularity of server-side aggregations for this TSDB table (e.g. '1h').
+    :param frames_client: Frames instance. Allows usage of an existing frames client.
+    :param max_events: Maximum number of events to write at a time. If None (default), all events will be written on
+        flow termination, or after flush_after_seconds (if flush_after_seconds is set).
+    :type max_events: int
+    :param flush_after_seconds: Maximum number of seconds to hold events before they are written. If None (default), all
+        events will be written on flow termination, or after max_events are accumulated (if max_events is set).
+    :type flush_after_seconds: int
+    :param storage_options: Extra options that make sense for a particular storage connection, e.g. host, port,
+        username, password, etc., if using a URL that will be parsed by fsspec, e.g., starting
+        "s3://”, "gcs://”. Optional
+    :type storage_options: dict
+    """
+
+    def __init__(
+        self,
+        path: str,
+        time_col: str,
+        time_format: Optional[str] = None,
+        columns: Union[str, List[str], None] = None,
+        infer_columns_from_data: Optional[bool] = None,
+        index_cols: Union[str, List[str], None] = None,
+        v3io_frames: Optional[str] = None,
+        access_key: Optional[str] = None,
+        rate: str = "",
+        aggr: str = "",
+        aggr_granularity: Optional[str] = None,
+        frames_client=None,
+        **kwargs,
+    ):
+        kwargs["path"] = path
+        kwargs["time_col"] = time_col
+        if columns is not None:
+            kwargs["columns"] = columns
+        if infer_columns_from_data is not None:
+            kwargs["infer_columns_from_data"] = infer_columns_from_data
+        if index_cols is not None:
+            kwargs["index_cols"] = index_cols
+        if v3io_frames is not None:
+            kwargs["v3io_frames"] = v3io_frames
+        if rate:
+            kwargs["rate"] = rate
+        if aggr:
+            kwargs["aggr"] = aggr
+        if aggr_granularity:
+            kwargs["aggr_granularity"] = aggr_granularity
+        _Batching.__init__(self, **kwargs)
+        new_index_cols = [time_col]
+        if index_cols:
+            if isinstance(index_cols, str):
+                index_cols = [index_cols]
+            new_index_cols.extend(index_cols)
+        self._time_col = time_col
+        self._time_format = time_format
+        _Writer.__init__(self, columns, infer_columns_from_data, index_cols=new_index_cols)
+        parts = urlparse(path)
+        self._path = parts.path
+        container = parts.netloc
+        if not parts.scheme:
+            container, self._path = _split_path(self._path)
+        self._rate = rate
+        self._aggr = aggr
+        self.aggr_granularity = aggr_granularity
+        self._created = False
+        self._frames_client = frames_client or frames.Client(address=v3io_frames, token=access_key, container=container)
+
+    def _init(self):
+        _Batching._init(self)
+        _Writer._init(self)
+
+    def _event_to_batch_entry(self, event):
+        return self._event_to_writer_entry(event)
+
+    async def _emit(self, batch, batch_key, batch_time, batch_events, last_event_time=None):
+        df_columns = []
+        if self._index_cols:
+            df_columns.extend(self._index_cols)
+        df_columns.extend(self._columns)
+        df = pd.DataFrame(batch, columns=df_columns)
+        df[self._time_col] = pd.to_datetime(df[self._time_col], format=self._time_format)
+        df.set_index(keys=self._index_cols, inplace=True)
+        if not self._created and self._rate:
+            self._created = True
+            self._frames_client.create(
+                "tsdb",
+                table=self._path,
+                if_exists=frames.frames_pb2.IGNORE,
+                rate=self._rate,
+                aggregates=self._aggr,
+                aggregation_granularity=self.aggr_granularity or "",
+            )
+        self._frames_client.write("tsdb", self._path, df)
+
+
+class TDEngineTarget(_Batching, _Writer):
+    """Writes incoming events to a TDEngine table.
+
+    :param url: TDEngine Websocket URL. You an either provide a full URL (e.g. taosws://user:password@host:port) or
+                just the host and port (e.g. host:port) and provide the user and password separately.
+    :param time_col: Name of the time column.
+    :param columns: List of column names to be passed to the DataFrame constructor. Use = notation for renaming fields
+        (e.g. write_this=event_field). Use $ notation to refer to metadata ($key, event_time=$time).
+    :param user: Username with which to connect.
+    :param password: Password with which to connect.
+    :param database: Name of the database where events will be written.
+    :param table: Name of the table in the database where events will be written. To set the table dynamically on a
+        per-event basis, use the $ prefix to indicate the field that should be used for the table name, or $$ prefix to
+        indicate the event attribute (e.g. key or path) that should be used.
+    :param table_col: Alternative to the table parameter (exactly one of these must be set). The name of the field
+        in the event body to use for the table, or the name of the event attribute preceded by a dollar sign (e.g.
+        $key or $path).
+    :param supertable: The supertable associated with the writes. Must be specified together with tag_cols or not at
+        all.
+    :param tag_cols: List of column names to be used as tags. Must be specified together with supertable or not at
+        all.
+    :param time_format: If time_col is a string column, and its format is not compatible with ISO-8601, use this
+        parameter to determine the expected format.
+    :param max_events: Maximum number of events to write at a time. If None (default), all events will be written on
+        flow termination, or after flush_after_seconds (if flush_after_seconds is set).
+    :type max_events: int
+    :param flush_after_seconds: Maximum number of seconds to hold events before they are written. If None (default), all
+        events will be written on flow termination, or after max_events are accumulated (if max_events is set).
+    :type flush_after_seconds: int
+    """
+
+    # https://docs.tdengine.com/reference/taos-sql/limit/
+    _DB_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,63}$")
+    _TABLE_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,191}$")
+
+    def __init__(
+        self,
+        url: str,
+        time_col: str,
+        columns: List[str],
+        user: Optional[str] = None,
+        password: Optional[str] = None,
+        database: Optional[str] = None,
+        table: Optional[str] = None,
+        table_col: Optional[str] = None,
+        supertable: Optional[str] = None,
+        tag_cols: Union[str, List[str], None] = None,
+        time_format: Optional[str] = None,
+        **kwargs,
+    ) -> None:
+        if table and table_col:
+            raise ValueError("Cannot set both table and table_col")
+
+        if not table and not table_col:
+            raise ValueError("table or table_col must be set")
+
+        if supertable and not tag_cols:
+            raise ValueError("supertable must be used in conjunction with tag_cols")
+
+        if tag_cols and not supertable:
+            raise ValueError("tag_cols must be used in conjunction with supertable")
+
+        kwargs["url"] = url
+        kwargs["time_col"] = time_col
+        kwargs["columns"] = columns
+        if user:
+            kwargs["user"] = user
+        if password:
+            kwargs["password"] = password
+
+        if database:
+            kwargs["database"] = database
+        if table:
+            kwargs["table"] = table
+        if table_col:
+            kwargs["table_col"] = table_col
+        if supertable:
+            kwargs["supertable"] = supertable
+        if tag_cols:
+            kwargs["tag_cols"] = tag_cols
+        if time_format:
+            kwargs["time_format"] = time_format
+
+        self._table = table
+        self._supertable = supertable
+
+        if table_col:
+            kwargs["key_field"] = table_col
+            if kwargs.get("drop_key_field") is None and table_col not in columns and table_col not in tag_cols:
+                kwargs["drop_key_field"] = True
+
+        _Batching.__init__(self, **kwargs)
+        self._time_col = time_col
+        tag_cols = tag_cols or []
+        _Writer.__init__(
+            self,
+            tag_cols + [time_col] + columns,
+            infer_columns_from_data=False,
+            retain_dict=True,
+            time_field=time_col,
+            time_format=time_format,
+        )
+        self._url = url
+        self._user = user
+        self._password = password
+        self._database = database
+        self._validate_db_and_table_names()
+        self._tdengine_type_to_column_func = self._get_tdengine_type_to_column_func()
+        self._tdengine_type_to_tag_func = self._get_tdengine_type_to_tag_func()
+
+    def _validate_db_and_table_names(self) -> None:
+        """Check the names match their pattern"""
+        if not self._database:
+            raise TDEngineValueError("TDEngine database must be set")
+        if not self._DB_NAME_PATTERN.fullmatch(self._database):
+            raise TDEngineValueError(f"TDEngine database '{self._database}' does not comply with the naming convention")
+
+        for table_name in (self._table, self._supertable):
+            if table_name:
+                if not self._TABLE_NAME_PATTERN.fullmatch(table_name):
+                    raise TDEngineValueError(
+                        f"TDEngine table name '{table_name}' does not comply with the naming convention"
+                    )
+
+    @staticmethod
+    def _get_tdengine_type_to_column_func() -> dict[str, Callable[[list], "taosws.PyColumnView"]]:
+        import taosws
+
+        return {
+            "BINARY": taosws.binary_to_column,
+            "BOOL": taosws.bools_to_column,
+            "DOUBLE": taosws.doubles_to_column,
+            "FLOAT": taosws.floats_to_column,
+            "INT": taosws.ints_to_column,
+            "TIMESTAMP": taosws.millis_timestamps_to_column,
+            "NCHAR": taosws.nchar_to_column,
+            "VARCHAR": taosws.varchar_to_column,
+        }
+
+    @staticmethod
+    def _get_tdengine_type_to_tag_func() -> dict[str, Callable[[Any], "taosws.PyTagView"]]:
+        import taosws
+
+        return {
+            "BOOL": taosws.bool_to_tag,
+            "DOUBLE": taosws.double_to_tag,
+            "FLOAT": taosws.float_to_tag,
+            "INT": taosws.int_to_tag,
+            "JSON": taosws.json_to_tag,
+            "NCHAR": taosws.nchar_to_tag,
+            "TIMESTAMP": taosws.timestamp_to_tag,
+            "VARCHAR": taosws.varchar_to_tag,
+        }
+
+    def _get_table_schema(
+        self, table_name: str
+    ) -> tuple[
+        list[tuple[str, Callable[[Any], "taosws.PyTagView"]]], list[tuple[str, Callable[[list], "taosws.PyColumnView"]]]
+    ]:
+        fields = [_TDEngineField(*raw) for raw in self._connection.query(f"DESCRIBE {table_name};")]
+        tags_schema = []
+        reg_cols_schema = []
+        for field in fields:
+            field_name = field.field
+            field_type = field.field_type
+
+            if field.note == "TAG":
+                if field_type in self._tdengine_type_to_tag_func:
+                    tags_schema.append((field_name, self._tdengine_type_to_tag_func[field_type]))
+                else:
+                    raise TDEngineTypeError(f"Unsupported tag type '{field_type}' of field '{field_name}'")
+            else:
+                if field_type in self._tdengine_type_to_column_func:
+                    reg_cols_schema.append((field_name, self._tdengine_type_to_column_func[field_type]))
+                else:
+                    raise TDEngineTypeError(f"Unsupported column type '{field_type}' of field '{field_name}'")
+
+        return tags_schema, reg_cols_schema
+
+    def _get_db_timestamp_precision_factor(self) -> int:
+        precision_result = self._connection.query(
+            f"SELECT `precision` FROM information_schema.ins_databases WHERE name='{self._database}'"
+        )
+        precision_result_list = list(precision_result)
+        if not precision_result_list:
+            # Should not happen at this point, as we already executed USE database
+            raise TDEngineValueError(f"Database '{self._database}' not found")
+        precision_str = precision_result_list[0][0]
+        exp_factors = {"ms": 3, "us": 6, "ns": 9}
+        exp_factor = exp_factors.get(precision_str)
+        if exp_factor is None:
+            # Should never happen, as the database should be configured with one of the supported precisions.
+            # Might happen if TDengine changes the precision values.
+            raise TDEngineValueError(f"Unsupported timestamp precision '{precision_str}'")
+        return 10**exp_factor
+
+    def _init(self) -> None:
+        import taosws
+
+        _Batching._init(self)
+        _Writer._init(self)
+        if self._url.startswith("taosws://"):
+            self._connection = taosws.connect(self._url)
+        else:
+            self._connection = taosws.connect(url=self._url, user=self._user, password=self._password)
+        self._closeables.append(self._connection)
+        self._connection.execute(f"USE {self._database}")
+
+        self._tags_schema, self._reg_cols_schema = self._get_table_schema(self._table or self._supertable)
+        self._number_of_tags = len(self._tags_schema)
+        self._number_of_reg_cols = len(self._reg_cols_schema)
+        self._sql_template = self._get_sql_template()
+        self._ts_precision_factor = self._get_db_timestamp_precision_factor()
+
+    def _event_to_batch_entry(self, event):
+        return self._event_to_writer_entry(event)
+
+    @staticmethod
+    def _get_params_template(num_param: int) -> str:
+        return f"({','.join(num_param * ['?'])})"
+
+    def _get_sql_template(self) -> str:
+        with StringIO() as sql:
+            sql.write("INSERT INTO ?")
+            if self._supertable:
+                sql.write(f" USING {self._supertable} TAGS {self._get_params_template(self._number_of_tags)}")
+            sql.write(f" VALUES {self._get_params_template(self._number_of_reg_cols)};")
+            return sql.getvalue()
+
+    @staticmethod
+    def _get_tags_from_event(
+        tags_schema: list[tuple[str, Callable[[Any], "taosws.PyTagView"]]], event: dict
+    ) -> list["taosws.PyTagView"]:
+        return [tag_func(event.get(tag_name)) for tag_name, tag_func in tags_schema]
+
+    def _raw_value_to_value(self, value):
+        if isinstance(value, datetime.datetime):
+            return int(value.timestamp() * self._ts_precision_factor)
+        return value
+
+    def _get_batch_values(
+        self, reg_cols_schema: list[tuple[str, Callable[[list], "taosws.PyColumnView"]]], batch: list[dict]
+    ) -> list["taosws.PyColumnView"]:
+        return [
+            col_func([self._raw_value_to_value(event.get(col_name)) for event in batch])
+            for col_name, col_func in reg_cols_schema
+        ]
+
+    async def _emit(self, batch: list[dict], batch_key: str, batch_time, batch_events, last_event_time=None):
+        stmt = self._connection.statement()
+        stmt.prepare(self._sql_template)
+        try:
+            stmt.set_tbname(self._table or batch_key)
+
+            if self._supertable:
+                # take the tags from the first event in the batch
+                stmt.set_tags(self._get_tags_from_event(self._tags_schema, batch[0]))
+
+            stmt.bind_param(self._get_batch_values(self._reg_cols_schema, batch))
+            stmt.add_batch()
+            stmt.execute()
+        finally:
+            stmt.close()
+
+
+class StreamTarget(Flow, _Writer):
+    """Writes all incoming events into a V3IO stream.
+
+    :param storage: Database driver.
+    :param stream_path: Path to the V3IO stream.
+    :param sharding_func: Partition, sharding key field, or function from event to partition or sharding key. Optional.
+        If not set, event key will be used as the sharding key.
+    :param batch_size: Batch size for each write request.
+    :param columns: Fields to be written to stream. Will be extracted from events when an event is a dictionary (other
+        types will be written
+        as is). Use = notation for renaming fields (e.g. write_this=event_field). Use $ notation to refer to metadata
+        ($key, event_time=$time). Optional. Defaults to None (will be inferred if event is dictionary).
+    :param infer_columns_from_data: Whether to infer columns from the first event, when events are dictionaries. If
+        True, columns will be inferred from data and used in place of explicit columns list if none was provided, or
+        appended to the provided list. If header is True and columns is not provided, infer_columns_from_data=True is
+        implied. Optional. Default to False if columns is provided, True otherwise.
+    :param shards: If stream doesn't exist, it will be created with this number of shards. Defaults to 1.
+    :param retention_period_hours: If stream doesn't exist, it will be created with this retention time in hours.
+        Defaults to 24.
+    :param full_event: Enable metadata wrapper for serialized event. Defaults to False.
+    :param storage_options: Extra options that make sense for a particular storage connection, e.g. host, port,
+        username, password, etc., if using a URL that will be parsed by fsspec, e.g., starting
+        "s3://”, "gcs://”. Optional
+    :type storage_options: dict
+    """
+
+    def __init__(
+        self,
+        storage: Driver,
+        stream_path: str,
+        sharding_func: Union[None, int, str, Callable[[Event], Any]] = None,
+        batch_size: int = 8,
+        columns: Optional[List[str]] = None,
+        infer_columns_from_data: Optional[bool] = None,
+        shards: int = 1,
+        retention_period_hours: int = 24,
+        full_event: Optional[bool] = None,
+        **kwargs,
+    ):
+        kwargs["stream_path"] = stream_path
+        kwargs["batch_size"] = batch_size
+        if columns:
+            kwargs["columns"] = columns
+        if infer_columns_from_data:
+            kwargs["infer_columns_from_data"] = infer_columns_from_data
+        Flow.__init__(self, **kwargs)
+        _Writer.__init__(self, columns, infer_columns_from_data, retain_dict=True)
+
+        self._storage = storage
+
+        self._container, self._stream_path = _split_path(stream_path)
+
+        self._sharding_func = None
+        if isinstance(sharding_func, int):
+            self._sharding_func = lambda _: sharding_func
+        elif isinstance(sharding_func, str):
+            self._sharding_func = lambda event: event.body.get(sharding_func, None)
+        elif callable(sharding_func):
+            self._sharding_func = sharding_func
+        elif sharding_func:
+            raise TypeError(f"Expected an int, string, or callable, got {sharding_func} of type {type(sharding_func)}")
+
+        self._batch_size = batch_size
+
+        self._shards = shards
+        self._retention_period_hours = retention_period_hours
+
+        self._full_event = full_event
+
+        self._lazy_init_lock = None
+
+    def _init(self):
+        Flow._init(self)
+        _Writer._init(self)
+        self._initialized = False
+        self._worker_exited = False
+
+    @staticmethod
+    async def _handle_response(request):
+        if request:
+            response = await request
+            if response.output.failed_record_count == 0:
+                return
+            raise V3ioError(f"Failed to put records to V3IO. Got {response.status_code} response: {response.body}")
+
+    def _build_request_put_records(self, shard_id, records):
+        record_list_for_json = []
+        for record in records:
+            if isinstance(record, dict):
+                record = json.dumps(record, default=str).encode("utf-8")
+            record_list_for_json.append({"shard_id": shard_id, "data": record})
+
+        return record_list_for_json
+
+    def _send_batch(self, buffers, in_flight_reqs, buffer_events, in_flight_events, shard_id):
+        buffer = buffers[shard_id]
+        if not buffer:
+            return False
+        buffers[shard_id] = []
+        in_flight_events[shard_id] = buffer_events[shard_id]
+        buffer_events[shard_id] = []
+        request_body = self._build_request_put_records(shard_id, buffer)
+        request = self._storage._put_records(self._container, self._stream_path, request_body)
+        in_flight_reqs[shard_id] = asyncio.get_running_loop().create_task(request)
+        return True
+
+    async def _worker(self):
+        try:
+            buffers = []
+            in_flight_reqs = []
+
+            # We keep the original events before sending and then while in flight, to avoid them being marked as
+            # completed and ready to commit at the source
+            buffer_events = []
+            in_flight_events = []
+
+            for _ in range(self._shards):
+                buffers.append([])
+                buffer_events.append([])
+                in_flight_reqs.append(None)
+                in_flight_events.append(None)
+            while True:
+                event = None
+                try:
+                    request_sent_on_empty_queue = False
+                    if self._q.empty():
+                        for shard_id in range(self._shards):
+                            req = in_flight_reqs[shard_id]
+                            in_flight_reqs[shard_id] = None
+                            await self._handle_response(req)
+                            in_flight_events[shard_id] = None
+                            batch_sent = self._send_batch(
+                                buffers, in_flight_reqs, buffer_events, in_flight_events, shard_id
+                            )
+                            if batch_sent:
+                                request_sent_on_empty_queue = True
+                    if request_sent_on_empty_queue:
+                        continue
+                    event = await self._q.get()
+                    if event is _termination_obj:  # handle outstanding batches and in flight requests on termination
+                        for req in in_flight_reqs:
+                            await self._handle_response(req)
+                        for shard_id in range(self._shards):
+                            self._send_batch(buffers, in_flight_reqs, buffer_events, in_flight_events, shard_id)
+                        for req in in_flight_reqs:
+                            await self._handle_response(req)
+                        break
+                    sharding_func_result = self._sharding_func(event)
+                    if isinstance(sharding_func_result, int):
+                        shard_id = sharding_func_result
+                    else:
+                        h = xxhash.xxh32()
+                        h.update(sharding_func_result)
+                        shard_id = h.intdigest()
+                    shard_id %= self._shards
+                    record = self._event_to_writer_entry(event)
+                    if self._full_event:
+                        record = wrap_event_for_serialization(event, record)
+                    buffers[shard_id].append(record)
+                    buffer_events[shard_id].append(event)
+                    if len(buffers[shard_id]) >= self._batch_size:
+                        if in_flight_reqs[shard_id]:
+                            req = in_flight_reqs[shard_id]
+                            in_flight_reqs[shard_id] = None
+                            await self._handle_response(req)
+                            in_flight_events[shard_id] = None
+                        self._send_batch(buffers, in_flight_reqs, buffer_events, in_flight_events, shard_id)
+                except BaseException as ex:
+                    ex._raised_by_storey_step = self
+                    if self.context and hasattr(self.context, "push_error"):
+                        message = traceback.format_exc()
+                        if self.logger:
+                            self.logger.error(f"Pushing error to error stream: {ex}\n{message}")
+                        self.context.push_error(event, f"{ex}\n{message}", source=self.name)
+                    else:
+                        raise ex
+        finally:
+            self._worker_exited = True
+            await self._storage.close()
+
+    async def _do_lazy_init(self):
+        status_code = await self._storage._create_stream(
+            self._container,
+            self._stream_path,
+            self._shards,
+            self._retention_period_hours,
+        )
+        if status_code == 409:
+            # get actual number of shards (for pre existing stream)
+            response = await self._storage._describe(self._container, self._stream_path)
+            self._shards = response.shard_count
+        elif status_code >= 400:
+            raise ValueError(f"Failed to create stream due to {status_code}: {response.body}")
+        if self._sharding_func is None:
+
+            def f(_):
+                return random.randint(0, self._shards - 1)
+
+            self._sharding_func = f
+
+        self._q = asyncio.queues.Queue(self._batch_size * self._shards)
+        self._worker_awaitable = asyncio.get_running_loop().create_task(self._worker())
+
+    async def _lazy_init(self):
+        # Double-checked locking. Needed because await may yield control and allow for lazy init to be called
+        # pseudo-concurrently. Alternatively, we could set self._initialized to True before awaiting, but that would
+        # be incorrect in case an error is raised.
+        if not self._initialized:
+            if not self._lazy_init_lock:
+                self._lazy_init_lock = asyncio.Lock()
+            async with self._lazy_init_lock:
+                if not self._initialized:
+                    await self._do_lazy_init()
+                    self._initialized = True
+
+    async def _do(self, event):
+        await self._lazy_init()
+
+        if self._worker_exited:
+            await self._worker_awaitable
+            raise AssertionError("StreamTarget worker has already terminated")
+
+        if event is _termination_obj:
+            await self._q.put(_termination_obj)
+            await self._worker_awaitable
+            return await self._do_downstream(_termination_obj)
+        else:
+            await self._q.put(event)
+            if self._worker_exited:
+                await self._worker_awaitable
+
+
+class KafkaTarget(Flow, _Writer):
+    """Writes all incoming events into a Kafka stream.
+
+    :param topic: Kafka topic.
+    :param brokers: List of kafka brokers, each in the form of host:port.
+    :param producer_options: Extra options to be passed as kwargs to kafka.KafkaProducer.
+    :param sharding_func: Partition, sharding key field, or function from event to partition or sharding key. Optional.
+        If not set, event key will be used as the sharding key.
+    :param columns: Fields to be written to topic. Will be extracted from events when an event is a dictionary (other
+        types will be written as is). Use = notation for renaming fields (e.g. write_this=event_field). Use $ notation
+        to refer to metadata ($key, event_time=$time). Optional. Defaults to None (will be inferred if event is
+        dictionary).
+    :param infer_columns_from_data: Whether to infer columns from the first event, when events are dictionaries. If
+        True, columns will be inferred from data and used in place of explicit columns list if none was provided, or
+        appended to the provided list. If header is True and columns is not provided, infer_columns_from_data=True is
+        implied. Optional. Default to False if columns is provided, True otherwise.
+    :param full_event: Enable metadata wrapper for serialized event. Defaults to False.
+    """
+
+    def __init__(
+        self,
+        brokers: Union[str, List[str]],
+        topic: str,
+        producer_options: Optional[dict] = None,
+        sharding_func: Union[None, int, str, Callable[[Event], Any]] = None,
+        columns: Optional[List[str]] = None,
+        infer_columns_from_data: Optional[bool] = None,
+        full_event: Optional[bool] = None,
+        **kwargs,
+    ):
+        if not brokers:
+            raise ValueError("brokers must be defined")
+        if not topic:
+            raise ValueError("topic must be defined")
+
+        self._brokers = brokers
+        self._topic = topic
+        self._producer_options = producer_options
+
+        self._sharding_func = None
+        if isinstance(sharding_func, int):
+            self._sharding_func = lambda _: sharding_func
+        elif isinstance(sharding_func, str):
+            self._sharding_func = lambda event: event.body.get(sharding_func, None)
+        elif callable(sharding_func):
+            self._sharding_func = sharding_func
+        elif sharding_func:
+            raise TypeError(f"Expected an int, string, or callable, got {sharding_func} of type {type(sharding_func)}")
+
+        if columns:
+            kwargs["columns"] = columns
+        if infer_columns_from_data:
+            kwargs["infer_columns_from_data"] = infer_columns_from_data
+        Flow.__init__(self, **kwargs)
+        _Writer.__init__(self, columns, infer_columns_from_data, retain_dict=True)
+
+        self._full_event = full_event
+
+    def _init(self):
+        Flow._init(self)
+        _Writer._init(self)
+        self._initialized = False
+
+    async def _lazy_init(self):
+        from kafka import KafkaProducer
+
+        if not self._initialized:
+            kwargs = self._producer_options or {}
+            self._producer = KafkaProducer(bootstrap_servers=self._brokers, **kwargs)
+            self._initialized = True
+
+    async def _do(self, event):
+        await self._lazy_init()
+
+        if event is _termination_obj:
+            self._producer.flush()
+            self._producer.close()
+            return await self._do_downstream(_termination_obj)
+        else:
+            key = event.key
+            record = self._event_to_writer_entry(event)
+            if self._full_event:
+                record = wrap_event_for_serialization(event, record)
+            record = json.dumps(record, default=str).encode("UTF-8")
+            partition = None
+            if self._sharding_func:
+                sharding_func_result = self._sharding_func(event)
+                if isinstance(sharding_func_result, int):
+                    partition = sharding_func_result
+                else:
+                    key = sharding_func_result
+
+            if key is not None:
+                key = stringify_key(key).encode("UTF-8")
+
+            future = self._producer.send(self._topic, record, key, partition=partition)
+            # Prevent garbage collection of event until persisted to kafka
+            future.add_callback(lambda x: event)
+
+
+class NoSqlTarget(_Writer, Flow):
+    """
+    Persists the data in `table` to its associated storage by key.
+
+    :param table: A Table object or name to persist. If a table name is provided, it will be looked up in the context.
+    :param columns: Fields to be written to the storage. Will be extracted from events when an event is a dictionary
+        (lists will be written as is). Use = notation for renaming fields (e.g. write_this=event_field).
+        Use $ notation to refer to metadata ($key, event_time=$time). Optional. Defaults to None (will be inferred if
+        event is dictionary).
+    :param infer_columns_from_data: Whether to infer columns from the first event, when events are dictionaries. If
+        True, columns will be inferred from data and used in place of explicit columns list if none was provided, or
+        appended to the provided list. If header is True and columns is not provided, infer_columns_from_data=True is
+        implied. Optional. Default to False if columns is provided, True otherwise.
+    :param storage_options: Extra options that make sense for a particular storage connection, e.g. host, port,
+        username, password, etc., if using a URL that will be parsed by fsspec, e.g., starting "s3://”,
+        "gcs://”. Optional.
+    :type storage_options: dict
+    """
+
+    def __init__(
+        self,
+        table: Union[Table, str],
+        columns: Optional[List[Union[str, Tuple[str, str]]]] = None,
+        infer_columns_from_data: Optional[bool] = None,
+        **kwargs,
+    ):
+        kwargs["table"] = table
+        if columns:
+            kwargs["columns"] = columns
+        if infer_columns_from_data:
+            kwargs["infer_columns_from_data"] = infer_columns_from_data
+        Flow.__init__(self, **kwargs)
+        _Writer.__init__(self, columns, infer_columns_from_data, retain_dict=True)
+        self._table = table
+        if isinstance(table, str):
+            if not self.context:
+                raise TypeError("Table can not be string if no context was provided to the step")
+            self._table = self.context.get_table(table)
+
+        self._field_extractor = lambda event_body, field_name: event_body.get(field_name)
+        self._write_missing_fields = False
+
+    def _init(self):
+        Flow._init(self)
+        _Writer._init(self)
+        self._closeables = [self._table]
+
+    async def _handle_completed(self, event, response):
+        await self._do_downstream(event)
+
+    async def _do(self, event):
+        if event is _termination_obj:
+            await self._table._terminate()
+            return await self._do_downstream(_termination_obj)
+
+        if event.key is None:
+            raise ValueError("Event could not be written to table because it has no key")
+
+        key = stringify_key(event.key)
+        if not self._table._flush_interval_secs:
+            data_to_persist = self._event_to_writer_entry(event)
+            await self._table._persist(_PersistJob(key, data_to_persist, self._handle_completed, event))
+        else:
+            data_to_persist = self._event_to_writer_entry(event)
+            async with self._table._get_lock(key):
+                self._table._update_static_attrs(key, data_to_persist)
+                self._table._pending_events.append(event)
+            self._table._init_flush_task()
+            await self._do_downstream(event)
