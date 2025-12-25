@@ -1,0 +1,42 @@
+name: 🔮 CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  merge_group:
+
+jobs:
+  tests-and-quality:
+    runs-on: ubuntu-latest
+    permissions: {}
+    concurrency:
+      group: ${{ github.workflow }}-test-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+      cancel-in-progress: true
+    services:
+      postgres:
+        # Docker Hub image
+        image: postgres
+        # Provide the password for postgres
+        env:
+          POSTGRES_PASSWORD: password
+        # Opens tcp port 5432 on the host and service container
+        ports:
+          - 5432:5432
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: ⏬ Install uv
+        uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 #  v7.1.6
+      - name: ✨ Reformat source files
+        run: uv run ruff format --check
+      - name: ✨ Check source files
+        run: uv run ruff check
+      - name: 🤹 Run tests suite
+        run: uv run pytest
