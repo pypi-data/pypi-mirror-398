@@ -1,0 +1,58 @@
+{#- Governance Footer Partial -#}
+{#- Displays governance rules, domain constraints, and bypass policies -#}
+{#- Note: This partial shows ONLY governance/enforcement info, not domain rules or boundaries -#}
+{#- Domain rules and boundaries are shown in the main body to avoid duplication -#}
+
+{#- Parameters:
+    governance: dict with keys: base_rules, workflow_rules
+    enforcement: dict with keys: mode, checkpoint_gating, handoff_gating
+-#}
+
+---
+
+## Governance & Enforcement
+
+{% if governance and governance.base_rules %}
+### Base Rules
+
+{% for rule in governance.base_rules %}
+- {{ rule }}
+{% endfor %}
+{% else %}
+### Base Rules
+
+- **Read Context First** — Always review context files before starting work
+- **Log Decisions** — Use CLI to record all significant decisions
+- **Log Assumptions** — Document assumptions with reasoning
+- **Produce Artifacts** — Write outputs to designated artifact directories
+- **Complete Handoff** — Use CLI for proper handoff with artifact list
+{% endif %}
+
+{% if governance and governance.workflow_rules %}
+### Workflow Rules
+
+{% for category, rules in governance.workflow_rules.items() %}
+**{{ category | replace('_', ' ') | title }}:**
+{% for rule in rules %}
+- {{ rule }}
+{% endfor %}
+
+{% endfor %}
+{% endif %}
+
+### Enforcement Mode
+
+| Setting | Value |
+|---------|-------|
+| **Mode** | {{ enforcement.mode | default('strict') | upper }} |
+| **Checkpoint Gating** | {{ enforcement.checkpoint_gating | default('strict') }} |
+| **Handoff Gating** | {{ enforcement.handoff_gating | default('strict') }} |
+
+{% set mode = enforcement.mode | default('strict') %}
+{% if mode == 'strict' %}
+> ⚠️ **Strict mode:** All validations enforced. Handoffs blocked until requirements met.
+{% elif mode == 'lenient' %}
+> ℹ️ **Lenient mode:** Warnings shown but not blocking. Review carefully.
+{% else %}
+> ⚡ **No enforcement:** All checks disabled.
+{% endif %}

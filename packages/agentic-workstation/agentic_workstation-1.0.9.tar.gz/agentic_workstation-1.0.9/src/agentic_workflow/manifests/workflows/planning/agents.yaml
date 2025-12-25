@@ -1,0 +1,815 @@
+# ==========================================================================
+# AGENTS - PLANNING WORKFLOW WORKFLOW
+# Generated: 2025-12-05 07:40
+# Source: agents.json, artifacts.json, instructions.json
+# Workflow: Planning Workflow
+#
+# NOTE: This file is GENERATED from canonical JSON files.
+#       Edit the source JSON in manifests/_canonical/ instead.
+# ==========================================================================
+agents:
+
+  # ======================================================================
+  # A-00: Orchestrator & Project Controller
+  # ======================================================================
+  - id: A-00
+    slug: orchestrator
+    role: Orchestrator & Project Controller
+    agent_type: orchestrator
+    purpose: Coordinate and orchestrate the entire planning workflow, managing agent handoffs, tracking progress, and ensuring
+      all planning artifacts are produced in the correct sequence with proper dependencies satisfied. When inputs are unclear
+      or incomplete, escalate focused clarifying questions to the responsible agent or the user; avoid making assumptions.
+    key_responsibilities:
+    - Initialize and manage the planning session
+    - Track agent progress and completion status
+    - Coordinate handoffs between agents
+    - Ensure dependency artifacts exist before agent activation
+    - Maintain workflow state and session logs
+    produces:
+      core:
+      - filename: project_index.md
+        description: Global project index maintained by the Orchestrator.
+      - filename: active_session.md
+        description: Active session / brain file used at runtime by agents.
+    consumes: {}
+    handoff:
+      next:
+      - id: A-01
+      conditions:
+      - Session initialized
+      - Input requirements available
+
+
+  # ======================================================================
+  # A-01: Project Guide & Idea Incubation
+  # ======================================================================
+  - id: A-01
+    slug: incubation
+    role: Project Guide & Idea Incubation
+    agent_type: core
+    purpose: Convert vague, informal ideas (raw statements, pitch decks, problem notes) into a structured seed overview with explicit
+      sections (Problem, Goals, Stakeholders, Constraints) that enables Agent A-02 to extract formal requirements. Do NOT create
+      requirement IDs, architecture, data schemas, API contracts, UX flows, security controls, or implementation choices. When
+      information is ambiguous, request focused clarifying questions from the user rather than making assumptions.
+    key_responsibilities:
+    - Capture and normalize raw ideas into structured seed sections
+    - Identify missing fundamentals (Problem, Stakeholders, Goals, Value propositions)
+    - Surface early constraints as neutral notes (budget, timeline, tech preferences)
+    - Flag ambiguity and record open questions for user clarification
+    - Maintain readiness indicator (LOW/MEDIUM/HIGH) for clarity & completeness
+    produces:
+      core:
+      - filename: project_overview_seed.md
+        description: Initial rough ideas and user intent.
+      log:
+      - filename: idea_evolution_log.md
+        description: Log of idea incubation and refinement.
+    consumes: {}
+    handoff:
+      next:
+      - id: A-02
+      conditions:
+      - Readiness = HIGH
+      - Vision clear
+      - Core problem defined
+
+
+  # ======================================================================
+  # A-02: Planning & Requirements Analyst
+  # ======================================================================
+  - id: A-02
+    slug: planning
+    role: Planning & Requirements Analyst
+    agent_type: core
+    purpose: 'Transform raw project intent into a formally structured planning baseline: overview, categorized requirements, constraints,
+      assumptions, logs, and traceability foundation for downstream architecture. Boundaries: No architecture patterns, no implementation
+      tech selection, no detailed API/Data/UX/Security design.'
+    key_responsibilities:
+    - Extract explicit, testable requirements from unstructured input
+    - Clarify ambiguities with minimal, high-value questions
+    - Categorize and prioritize requirements (MVP vs future) without solutions
+    - Record constraints and assumptions transparently
+    - Initialize traceability with coverage and ownership fields
+    produces:
+      core:
+      - filename: project_overview.md
+        description: High-level summary of project goals, scope, MVP distinction.
+      - filename: requirements_spec.md
+        description: Detailed functional and non-functional requirements.
+      - filename: constraints_and_assumptions.md
+        description: Global constraints and explicit assumptions.
+      - filename: traceability_matrix.md
+        description: Unified requirements and design/test/security/accessibility coverage map.
+      log:
+      - filename: context_log.md
+        description: Log of context and clarification exchanges.
+      - filename: exchange_log.md
+        description: Log of exchanges and decisions during requirements gathering.
+    consumes:
+      core:
+      - filename: project_overview_seed.md
+        source: A-01
+        required: false
+    handoff:
+      next:
+      - id: A-03
+      conditions:
+      - All REQ-FUNC have acceptance criteria
+      - Traceability matrix initialized
+      - No blocking clarifications
+
+
+  # ======================================================================
+  # A-03: Architecture & Technical Design Analyst
+  # ======================================================================
+  - id: A-03
+    slug: architecture
+    role: Architecture & Technical Design Analyst
+    agent_type: core
+    purpose: 'Transform validated planning artifacts into coherent, feasible, scalable architecture: components, interactions,
+      data & flow structure, and trade-off records. Boundaries: No implementation code, no infra provisioning, no detailed security
+      catalogs.'
+    key_responsibilities:
+    - Ingest and interpret planning artifacts
+    - Clarify blocking technical questions
+    - Produce canonical architecture artifacts
+    - Evaluate trade-offs (performance, scalability, consistency, maintainability, cost)
+    - Identify and mitigate SPOFs early
+    produces:
+      core:
+      - filename: architecture_overview.md
+        description: High-level system goals and component boundaries.
+      - filename: system_design.md
+        description: Detailed components and interactions.
+      - filename: component_diagrams.md
+        description: Mermaid component diagrams.
+      - filename: data_flow_overview.md
+        description: Canonical data flow descriptions.
+      - filename: adr_index.md
+        description: Architecture Decision Records registry.
+    consumes:
+      core:
+      - filename: project_overview.md
+        source: A-02
+      - filename: requirements_spec.md
+        source: A-02
+    handoff:
+      next:
+      - id: A-04
+      conditions:
+      - Architecture overview complete
+      - Component boundaries defined
+      - Data flows documented
+
+
+  # ======================================================================
+  # A-04: Security & Compliance Scrutineer
+  # ======================================================================
+  - id: A-04
+    slug: security
+    role: Security & Compliance Scrutineer
+    agent_type: core
+    purpose: 'Assess architecture & planning artifacts for security, privacy, and compliance gaps; produce threat model, control/compliance
+      mappings, privacy considerations, testing & remediation plans. Boundaries: No exploit code, no penetration test execution,
+      no operational tooling deployment.'
+    key_responsibilities:
+    - Perform structured threat modeling (STRIDE)
+    - Identify attack surface (entry points, integrations, privileged pathways)
+    - Classify data sensitivity and privacy obligations
+    - Map regulations to concrete controls; highlight gaps
+    - Recommend actionable secure design patterns
+    produces:
+      core:
+      - filename: security_threat_assessment.md
+        description: Threat model and attack surface analysis.
+      - filename: compliance_requirements.md
+        description: Mapping requirements to regulatory controls.
+      - filename: privacy_policy_considerations.md
+        description: Privacy obligations and data handling constraints.
+      - filename: secure_design_recommendations.md
+        description: Security design guidance and controls.
+    consumes:
+      core:
+      - filename: architecture_overview.md
+        source: A-03
+      - filename: system_design.md
+        source: A-03
+      - filename: data_flow_overview.md
+        source: A-03
+    handoff:
+      next:
+      - id: A-05
+      conditions:
+      - Threat model complete
+      - Controls mapped
+      - No CRITICAL unmitigated risks
+
+
+  # ======================================================================
+  # A-05: Infrastructure & DevOps Planning Architect
+  # ======================================================================
+  - id: A-05
+    slug: infra
+    role: Infrastructure & DevOps Planning Architect
+    agent_type: core
+    purpose: 'Translate architecture & security constraints into conceptual infrastructure, environment, deployment, CI/CD, and
+      cost strategy. Boundaries: No IaC code, no provisioning, no tool configuration.'
+    key_responsibilities:
+    - Define conceptual infrastructure topology and segmentation
+    - Establish environment purpose, isolation, and promotion governance
+    - Design CI/CD conceptual pipeline and quality gates
+    - Select deployment strategy with rollback criteria
+    - Surface reliability and cost trade-offs early
+    produces:
+      core:
+      - filename: infrastructure_plan.md
+        description: Cloud/network/deployment topology planning.
+      - filename: environment_strategy.md
+        description: Environment roles and promotion rules.
+      - filename: cicd_pipeline_plan.md
+        description: CI/CD conceptual pipeline and quality gates.
+      - filename: deployment_model.md
+        description: Chosen deployment and rollout rules.
+      - filename: cloud_cost_projection.md
+        description: Cost drivers and projections.
+    consumes:
+      core:
+      - filename: architecture_overview.md
+        source: A-03
+      - filename: system_design.md
+        source: A-03
+      - filename: security_threat_assessment.md
+        source: A-04
+    handoff:
+      next:
+      - id: A-06
+      conditions:
+      - Infrastructure plan complete
+      - Environment strategy defined
+      - CI/CD pipeline designed
+
+
+  # ======================================================================
+  # A-06: Data Architecture & Storage Planning Specialist
+  # ======================================================================
+  - id: A-06
+    slug: data
+    role: Data Architecture & Storage Planning Specialist
+    agent_type: core
+    purpose: 'Define conceptual data strategy: logical entities, relationships, storage selection rationale, lifecycle & governance
+      aligned with requirements, architecture, security & infrastructure constraints. Boundaries: No physical schema DDL, no ETL
+      implementation, no provisioning.'
+    key_responsibilities:
+    - Model logical entities and relationships with integrity semantics
+    - Select conceptual storage patterns and justify trade-offs
+    - Define lifecycle (retention/archival/purge) aligned to compliance and cost
+    - 'Establish governance: naming, quality metrics, ownership, metadata'
+    - Surface data-related risks and assumptions early
+    produces:
+      core:
+      - filename: data_strategy.md
+        description: Storage strategy and high-level data decisions.
+      - filename: logical_data_model.md
+        description: Entities, relationships, and integrity rules.
+      - filename: storage_strategy.md
+        description: DB selection, partitioning, and replication guidance.
+      - filename: data_lifecycle_plan.md
+        description: Retention, archival, and purge rules.
+      - filename: data_governance_plan.md
+        description: Naming, ownership, and metadata strategy.
+    consumes:
+      core:
+      - filename: requirements_spec.md
+        source: A-02
+      - filename: system_design.md
+        source: A-03
+      - filename: data_flow_overview.md
+        source: A-03
+      - filename: security_threat_assessment.md
+        source: A-04
+    handoff:
+      next:
+      - id: A-07
+      conditions:
+      - Logical data model complete
+      - Storage strategy defined
+      - Data governance documented
+
+
+  # ======================================================================
+  # A-07: API & Integration Planning Specialist
+  # ======================================================================
+  - id: A-07
+    slug: api
+    role: API & Integration Planning Specialist
+    agent_type: core
+    purpose: 'Define conceptual API surface, integration boundaries, communication flows & versioning aligned to architecture,
+      data & security constraints. Boundaries: No implementation code, no machine-readable schemas, no low-level auth config.'
+    key_responsibilities:
+    - Derive endpoint set and interaction patterns
+    - Define integration contracts and fallback logic
+    - Specify versioning and evolution rules
+    - Surface performance and reliability implications early
+    - Maintain API decision audit trail
+    produces:
+      core:
+      - filename: api_specifications.md
+        description: Conceptual API endpoints and behavior.
+      - filename: api_strategy_overview.md
+        description: API lifecycle, versioning, and protocol choices.
+      - filename: integration_plan.md
+        description: External/internal integration contracts and patterns.
+      - filename: communication_flows.md
+        description: Request/response and event sequences.
+    consumes:
+      core:
+      - filename: system_design.md
+        source: A-03
+      - filename: data_strategy.md
+        source: A-06
+      - filename: component_diagrams.md
+        source: A-03
+    handoff:
+      next:
+      - id: A-08
+      conditions:
+      - API specifications complete
+      - Integration plan defined
+      - Versioning strategy documented
+
+
+  # ======================================================================
+  # A-08: UX & Interaction Planning Specialist
+  # ======================================================================
+  - id: A-08
+    slug: ux
+    role: UX & Interaction Planning Specialist
+    agent_type: core
+    purpose: 'Define conceptual UX structures: personas, journeys, information architecture, interaction flows, and conceptual
+      wireframes aligned with requirements, data, API, security, and product priorities. Excludes: Visual design, styling, component
+      library selection, implementation code.'
+    key_responsibilities:
+    - Capture UX goals and constraints
+    - Model personas and roles with accessibility considerations
+    - Define information architecture and navigation hierarchy
+    - Draft user journeys and interaction flows including error states
+    - Provide conceptual wireframes supporting flows
+    produces:
+      core:
+      - filename: ux_principles_and_goals.md
+        description: UX objectives and guiding principles.
+      - filename: information_architecture.md
+        description: UI navigation and grouping.
+      - filename: user_personas_and_roles.md
+        description: Personas and role capability boundaries.
+      - filename: user_journeys.md
+        description: Primary and alternate user journeys.
+      - filename: interaction_flows.md
+        description: Detailed interaction sequences for UX.
+      - filename: conceptual_wireframes.md
+        description: Text-only structural wireframes.
+      - filename: accessibility_compliance_plan.md
+        description: Accessibility criteria and mapping.
+      log:
+      - filename: ux_log.md
+        description: Log of UX decisions and rationale.
+    consumes:
+      core:
+      - filename: project_overview.md
+        source: A-02
+      - filename: requirements_spec.md
+        source: A-02
+      - filename: api_specifications.md
+        source: A-07
+      - filename: data_strategy.md
+        source: A-06
+    handoff:
+      next:
+      - id: A-09
+      conditions:
+      - User journeys complete
+      - Interaction flows defined
+      - Accessibility considerations documented
+
+
+  # ======================================================================
+  # A-09: Developer Workflow & Engineering Standards Planner
+  # ======================================================================
+  - id: A-09
+    slug: devworkflow
+    role: Developer Workflow & Engineering Standards Planner
+    agent_type: core
+    purpose: 'Define planning-level development workflow, engineering standards, conceptual testing strategy, developer tooling
+      expectations, and governance policies. Excludes: CI/CD scripts, test code, tooling install, performance tuning.'
+    key_responsibilities:
+    - Establish branching and release semantics
+    - Define coding, logging, error, documentation, dependency standards
+    - Map conceptual test layers to quality gates
+    - Outline developer tooling/environment principles
+    - Govern maintainability (technical debt, deprecation, lifecycle)
+    produces:
+      core:
+      - filename: development_workflow.md
+        description: Branching, review, and release rules.
+      - filename: engineering_standards.md
+        description: Coding and documentation standards.
+      - filename: testing_strategy.md
+        description: Developer-level testing expectations.
+      - filename: developer_tooling_and_environment.md
+        description: Planning-level tooling and environment conventions.
+      - filename: engineering_governance.md
+        description: Technical debt and lifecycle governance policies.
+      - filename: technology_watchlist.md
+        description: Deprecation risk tracking.
+      log:
+      - filename: dev_workflow_log.md
+        description: Log of developer workflow decisions.
+    consumes:
+      core:
+      - filename: project_overview.md
+        source: A-02
+      - filename: system_design.md
+        source: A-03
+      - filename: api_specifications.md
+        source: A-07
+      - filename: cicd_pipeline_plan.md
+        source: A-05
+      - filename: secure_design_recommendations.md
+        source: A-04
+      - filename: information_architecture.md
+        source: A-08
+        required: false
+    handoff:
+      next:
+      - id: A-10
+      conditions:
+      - Development workflow defined
+      - Engineering standards documented
+      - Testing strategy outlined
+
+
+  # ======================================================================
+  # A-10: QA & Test Strategy Designer
+  # ======================================================================
+  - id: A-10
+    slug: qa
+    role: QA & Test Strategy Designer
+    agent_type: core
+    purpose: 'Define comprehensive, risk-aligned test strategy, architecture, coverage model, prioritization, governance, and
+      non-functional validation. Excludes: Test implementation code, CI config, tool installation, dashboard setup.'
+    key_responsibilities:
+    - Establish test philosophy and scope boundaries
+    - Define coverage model and layering taxonomy
+    - Architect conceptual test stack and isolation boundaries
+    - Prioritize test scenarios via risk scoring
+    - Plan non-functional validation
+    produces:
+      core:
+      - filename: qa_strategy_overview.md
+        description: QA-level testing strategy.
+      - filename: test_coverage_model.md
+        description: Taxonomy mapping requirements to test layers.
+      - filename: test_architecture_plan.md
+        description: Conceptual test stack and isolation boundaries.
+      - filename: test_plan_and_prioritization.md
+        description: Risk-based prioritization and regression gating.
+      - filename: quality_governance.md
+        description: Defect lifecycle and acceptance criteria policies.
+      - filename: nonfunctional_validation_plan.md
+        description: Resilience, performance, security, and accessibility validation.
+      log:
+      - filename: qa_log.md
+        description: Log of QA strategy decisions.
+    consumes:
+      core:
+      - filename: requirements_spec.md
+        source: A-02
+      - filename: system_design.md
+        source: A-03
+      - filename: api_specifications.md
+        source: A-07
+      - filename: information_architecture.md
+        source: A-08
+      - filename: testing_strategy.md
+        source: A-09
+    handoff:
+      next:
+      - id: A-11
+      conditions:
+      - QA strategy complete
+      - Coverage model defined
+      - Non-functional validation planned
+
+
+  # ======================================================================
+  # A-11: Product Alignment & Business Logic Planner
+  # ======================================================================
+  - id: A-11
+    slug: product
+    role: Product Alignment & Business Logic Planner
+    agent_type: core
+    purpose: 'Align technical planning artifacts with product strategy, business value, KPIs, and roadmap sequencing; produce
+      prioritization and business logic mapping. Excludes: Architecture, UX flow creation, API contracts, data schema, test strategy.'
+    key_responsibilities:
+    - Map features to KPIs and measurable outcomes
+    - Prioritize features using transparent scoring
+    - Document domain/business logic boundaries and ownership
+    - Surface cost/complexity vs value trade-offs
+    - Highlight compliance/regulatory impacts
+    produces:
+      core:
+      - filename: product_alignment_report.md
+        description: Mapping features to KPIs and roadmap.
+      - filename: feature_priority_matrix.md
+        description: Prioritized backlog with scoring metadata.
+      - filename: business_logic_map.md
+        description: Canonical domain rules and ownership.
+      log:
+      - filename: product_alignment_log.md
+        description: Log of product alignment decisions.
+    consumes:
+      core:
+      - filename: project_overview.md
+        source: A-02
+      - filename: requirements_spec.md
+        source: A-02
+      - filename: architecture_overview.md
+        source: A-03
+      - filename: system_design.md
+        source: A-03
+      - filename: api_specifications.md
+        source: A-07
+    handoff:
+      next:
+      - id: A-12
+      conditions:
+      - Product alignment complete
+      - Business logic mapped
+      - Priority matrix finalized
+
+
+  # ======================================================================
+  # A-12: SRE, Reliability & Resilience Planning Agent
+  # ======================================================================
+  - id: A-12
+    slug: sre
+    role: SRE, Reliability & Resilience Planning Agent
+    agent_type: core
+    purpose: 'Plan reliability targets (SLI/SLO/SLA), resilience patterns, failure modes, capacity models, and operational readiness
+      artifacts. Excludes: Tooling configuration, live incidents, infrastructure code, monitoring.'
+    key_responsibilities:
+    - Define measurable SLI/SLO targets and error budgets
+    - Model resilience architecture (redundancy, failover, degradation)
+    - Build capacity planning model
+    - Outline runbook planning and escalation (conceptual)
+    - Surface reliability, resilience, and capacity risks
+    produces:
+      core:
+      - filename: sre_readiness_plan.md
+        description: SLI/SLO proposals and operational runbook outlines.
+      - filename: resilience_architecture_plan.md
+        description: Redundancy and failover strategies.
+      - filename: capacity_planning_model.md
+        description: Load curves and scaling headroom.
+      gating:
+      - filename: implementation_readiness_report.md
+        description: Completeness dashboard and readiness metrics.
+        is_gating: true
+      log:
+      - filename: sre_log.md
+        description: Log of SRE and reliability decisions.
+    consumes:
+      core:
+      - filename: architecture_overview.md
+        source: A-03
+      - filename: infrastructure_plan.md
+        source: A-05
+      - filename: data_strategy.md
+        source: A-06
+      - filename: secure_design_recommendations.md
+        source: A-04
+      - filename: requirements_spec.md
+        source: A-02
+        required: false
+      - filename: deployment_model.md
+        source: A-05
+        required: false
+      - filename: cloud_cost_projection.md
+        source: A-05
+        required: false
+      - filename: system_design.md
+        source: A-03
+        required: false
+    handoff:
+      next:
+      - id: A-13
+      conditions:
+      - SRE readiness plan complete
+      - Resilience patterns documented
+      - Capacity model defined
+
+
+  # ======================================================================
+  # A-13: Implementation Transition & Completeness Auditor
+  # ======================================================================
+  - id: A-13
+    slug: transition
+    role: Implementation Transition & Completeness Auditor
+    agent_type: gating
+    purpose: 'Audit planning completeness, quality & closure criteria; produce transition readiness summary and handoff plan enabling
+      implementation start. Excludes: Code scaffolding, infrastructure provisioning, test creation, ADR authorship.'
+    key_responsibilities:
+    - Validate closure status of CRITICAL/HIGH tickets
+    - Reconcile traceability matrix completeness
+    - Audit ADR impact completeness
+    - Summarize residual risks and assign mitigation owners
+    - Produce implementation sequencing guidance
+    produces:
+      core:
+      - filename: transition_readiness_summary.md
+        description: Final readiness audit summary.
+        is_gating: true
+      - filename: implementation_handoff_plan.md
+        description: Sequenced milestones and prerequisites.
+      - filename: specs/backend_spec.md
+        description: Backend implementation specification.
+      - filename: specs/frontend_spec.md
+        description: Frontend implementation specification.
+      - filename: specs/infrastructure_spec.md
+        description: Infrastructure provisioning and deployment spec.
+      - filename: specs/test_spec.md
+        description: Test plan and acceptance criteria.
+      log:
+      - filename: transition_audit_log.md
+        description: Log of transition readiness audit findings.
+    consumes:
+      gating:
+      - filename: implementation_readiness_report.md
+        source: A-12
+      log:
+      - filename: exchange_log.md
+        source: A-02
+      core:
+      - filename: traceability_matrix.md
+        source: A-02
+      - filename: adr_index.md
+        source: A-03
+      - filename: sre_readiness_plan.md
+        source: A-12
+        required: false
+      - filename: resilience_architecture_plan.md
+        source: A-12
+        required: false
+      - filename: capacity_planning_model.md
+        source: A-12
+        required: false
+      - filename: quality_governance.md
+        source: A-10
+        required: false
+      - filename: testing_strategy.md
+        source: A-09
+        required: false
+      - filename: security_control_trace.md
+        required: false
+    handoff:
+      next:
+      - id: A-14
+      conditions:
+      - Transition readiness confirmed
+      - No blocking issues
+      - Implementation handoff plan complete
+
+
+  # ======================================================================
+  # A-14: Implementation Feasibility & Integration Integrity Auditor
+  # ======================================================================
+  - id: A-14
+    slug: audit
+    role: Implementation Feasibility & Integration Integrity Auditor
+    agent_type: gating
+    purpose: 'Deep end-to-end feasibility, integration, logic completeness, and deprecation risk scrutiny across all finalized
+      planning artifacts before implementation. Excludes: Production code, infrastructure provisioning, enforcing changes without
+      confirmation.'
+    key_responsibilities:
+    - Consolidate and correlate all planning artifacts
+    - Detect integration mismatches
+    - Identify incomplete business/domain logic
+    - Surface latent operational/reliability risks
+    - Highlight deprecation or technology window misalignments
+    produces:
+      gating:
+      - filename: implementation_feasibility_gap_report.md
+        description: Consolidated feasibility and gap analysis.
+        is_gating: true
+      - filename: integration_consistency_audit.md
+        description: Cross-artifact contract/interface alignment audit.
+        is_gating: true
+      - filename: logic_completeness_review.md
+        description: Business/domain rule coverage validation.
+        is_gating: true
+      - filename: deprecation_risk_matrix.md
+        description: Aggregated technology deprecation exposure and action windows.
+      log:
+      - filename: implementation_scrutiny_log.md
+        description: Log of implementation feasibility scrutiny.
+    consumes:
+      core:
+      - filename: project_overview.md
+        source: A-02
+      - filename: requirements_spec.md
+        source: A-02
+      - filename: constraints_and_assumptions.md
+        source: A-02
+      - filename: architecture_overview.md
+        source: A-03
+      - filename: system_design.md
+        source: A-03
+      - filename: data_flow_overview.md
+        source: A-03
+      - filename: logical_data_model.md
+        source: A-06
+      - filename: data_strategy.md
+        source: A-06
+      - filename: api_specifications.md
+        source: A-07
+      - filename: integration_plan.md
+        source: A-07
+      - filename: communication_flows.md
+        source: A-07
+      - filename: business_logic_map.md
+        source: A-11
+      - filename: traceability_matrix.md
+        source: A-02
+      - filename: adr_index.md
+        source: A-03
+      - filename: component_diagrams.md
+        source: A-03
+        required: false
+      - filename: secure_design_recommendations.md
+        source: A-04
+        required: false
+      - filename: sre_readiness_plan.md
+        source: A-12
+        required: false
+      - filename: resilience_architecture_plan.md
+        source: A-12
+        required: false
+      - filename: capacity_planning_model.md
+        source: A-12
+        required: false
+      - filename: test_coverage_model.md
+        source: A-10
+        required: false
+      - filename: information_architecture.md
+        source: A-08
+        required: false
+      - filename: interaction_flows.md
+        source: A-08
+        required: false
+      - filename: technology_watchlist.md
+        source: A-09
+        required: false
+      - filename: accessibility_compliance_plan.md
+        source: A-08
+        required: false
+      - filename: implementation_handoff_plan.md
+        source: A-13
+        required: false
+      - filename: transition_readiness_summary.md
+        source: A-13
+        required: false
+      gating:
+      - filename: implementation_readiness_report.md
+        source: A-12
+      log:
+      - filename: exchange_log.md
+        source: A-02
+        required: false
+      - filename: context_log.md
+        source: A-02
+        required: false
+      - filename: ux_log.md
+        source: A-08
+        required: false
+      - filename: dev_workflow_log.md
+        source: A-09
+        required: false
+      - filename: qa_log.md
+        source: A-10
+        required: false
+      - filename: product_alignment_log.md
+        source: A-11
+        required: false
+      - filename: sre_log.md
+        source: A-12
+        required: false
+      - filename: transition_audit_log.md
+        source: A-13
+        required: false
+    handoff:
+      next: null
+      conditions:
+      - All reports complete
+      - No blocking issues
+      - Ready for implementation phase
+

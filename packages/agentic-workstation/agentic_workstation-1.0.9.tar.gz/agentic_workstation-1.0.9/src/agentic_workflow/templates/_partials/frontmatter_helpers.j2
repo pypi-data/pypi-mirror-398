@@ -1,0 +1,54 @@
+{#- Frontmatter Helpers - Macros for generating YAML frontmatter -#}
+
+{#- Generate CLI commands array with actual values -#}
+{% macro cli_commands(agent_id, next_agent_id=None, workflow_name='planning') %}
+cli_commands:
+  - "agentic status"
+  - "agentic decision --title '...' --rationale '...'"
+  - "agentic assumption --assumption '...' --rationale '...'"
+{%- if next_agent_id %}
+  - "agentic handoff --to {{ next_agent_id }} --artifacts '...' --notes '...'"
+{%- else %}
+  - "agentic end"
+{%- endif %}
+{% endmacro %}
+
+{#- Generate standard frontmatter for agents -#}
+{% macro agent_frontmatter(agent, workflow, project_name) %}
+---
+agent_id: {{ agent.id }}
+agent_role: {{ agent.role }}
+agent_type: {{ agent.type }}
+workflow_name: {{ workflow.name }}
+stage: {{ agent.stage | default('unknown') }}
+project_name: {{ project_name }}
+context_file: agent_context/{{ workflow.name }}_context_index.md
+{{ cli_commands(agent.id, agent.next_id, workflow.name) }}
+---
+{% endmacro %}
+
+{#- Generate standard frontmatter for orchestrators -#}
+{% macro orchestrator_frontmatter(orchestrator, workflow, project_name) %}
+---
+agent_id: {{ orchestrator.id }}
+agent_role: {{ orchestrator.role }}
+agent_type: orchestrator
+workflow_name: {{ workflow.name }}
+project_name: {{ project_name }}
+total_agents: {{ workflow.agent_count | default(0) }}
+checkpoints: {{ workflow.checkpoint_count | default(0) }}
+---
+{% endmacro %}
+
+{#- Generate session frontmatter -#}
+{% macro session_frontmatter(agent, workflow, project_name, checkpoint_pending=false) %}
+---
+agent_id: {{ agent.id }}
+agent_role: {{ agent.role }}
+workflow_name: {{ workflow.name }}
+project_name: {{ project_name }}
+context_file: agent_context/{{ workflow.name }}_context_index.md
+checkpoint_pending: {{ checkpoint_pending | lower }}
+{{ cli_commands(agent.id, agent.next_id, workflow.name) }}
+---
+{% endmacro %}

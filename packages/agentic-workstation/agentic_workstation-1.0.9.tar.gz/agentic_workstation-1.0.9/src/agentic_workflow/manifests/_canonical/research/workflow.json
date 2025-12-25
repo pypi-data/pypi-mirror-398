@@ -1,0 +1,161 @@
+{
+  "$schema": "../../_canonical_schemas/workflow.schema.json",
+  "workflow_id": "research",
+  "name": "research",
+  "display_name": "Research Workflow",
+  "version": "1.0.0",
+  "description": "Academic-grade research workflow designed for systematic literature review and knowledge synthesis. A team of research specialists conducts comprehensive analysis across multiple domains to produce structured reports, knowledge maps, and actionable insights with proper methodology and documentation.",
+  "author": "agentic-workflow-os",
+  "created": "2025-11-20",
+  "updated": "2025-12-04",
+  "tags": ["research", "academic", "manuscript", "publication", "evidence-based"],
+  "pipeline": {
+    "order": ["R-00", "R-01", "R-02", "R-03", "R-04", "R-05", "R-06", "R-07"],
+    "on_demand": ["R-TEX", "R-VIZ", "R-EDIT", "R-STAT"],
+    "allow_skip": false,
+    "allow_parallel": false
+  },
+  "stages": [
+    {"id": "IDEATION", "name": "Ideation", "description": "Research question and scope definition", "agents": ["R-01", "R-00"]},
+    {"id": "DISCOVERY", "name": "Discovery & Synthesis", "description": "Literature search, acquisition, and critical analysis", "agents": ["R-02"]},
+    {"id": "METHODOLOGY", "name": "Methodology", "description": "Methodology design and data collection", "agents": ["R-03"]},
+    {"id": "EXECUTION", "name": "Execution", "description": "Data analysis and interpretation", "agents": ["R-04"]},
+    {"id": "WRITING", "name": "Writing", "description": "Manuscript drafting and quality assurance", "agents": ["R-05", "R-06"]},
+    {"id": "FINALIZATION", "name": "Finalization", "description": "Final editing and submission preparation", "agents": ["R-06", "R-07"]}
+  ],
+  "config": {
+    "enforcement": {
+      "mode": "strict",
+      "checkpoint_gating": "strict",
+      "handoff_gating": "strict"
+    },
+    "logging": {
+      "require_session_log": true,
+      "require_decision_log": true,
+      "require_assumption_log": true,
+      "require_handoff_log": true,
+      "require_artifact_tracking": true
+    },
+    "validation": {
+      "run_validation_commands": true,
+      "timeout_seconds": 30
+    },
+    "bypass": {
+      "require_reason": true,
+      "log_bypasses": true
+    }
+  },
+  "display": {
+    "agent_prefix": "R",
+    "agent_id_format": "padded",
+    "orch_id": "R-00",
+    "focus": "research",
+    "base_rules": [
+      "**Source of Truth:** `project_index.md` is your file registry",
+      "**Inputs:** Read from paths listed in `consumes` (frontmatter)",
+      "**Outputs:** Write to paths listed in `produces` (frontmatter)",
+      "**Logging:** See `docs/CLI_REFERENCE.md` for workflow commands",
+      "**Evidence-Based:** All claims require citations or data support"
+    ],
+    "protocol": {
+      "name": "Research Protocol",
+      "steps": [
+        "**On Startup:** Read `project_index.md` → Read context → Check handoffs",
+        "**Gating:** Verify upstream artifacts exist before proceeding",
+        "**Checkpointing:** Update context after significant findings",
+        "**Citation:** Every factual claim needs a citation"
+      ]
+    },
+    "copilot": {
+      "workflow_type": "Research",
+      "tagline": "evidence-based research with citations",
+      "governance_purpose": "Citation standards, data integrity, ethical research",
+      "core_rules": "1. **Evidence-based** — all claims need citations or data\n2. **Markdown only** — all outputs are `.md` files (until compilation)\n3. **Follow frontmatter** — `consumes`/`produces` define I/O\n4. **Gating** — do NOT proceed without upstream HANDOFF\n5. **Checkpoint** — update context after significant findings",
+      "cli_examples": "./workflow status                    # Project status\n./workflow activate R01              # Activate agent\n./workflow invoke R-TEX              # Invoke LaTeX specialist\n./workflow handoff --from R01 --to R02 --artifacts \"research_proposal.md\""
+    }
+  },
+  "directories": {
+    "root": "projects/{project_name}/",
+    "artifacts": "artifacts/",
+    "agent_files": "agent_files/",
+    "agent_context": "agent_context/",
+    "agent_log": "agent_log/",
+    "docs": "docs/",
+    "input": "input/",
+    "package": "package/",
+    "templates": "templates/research/",
+    "manuscript": "output/manuscript/",
+    "data": "output/data/",
+    "sources": "output/sources/",
+    "figures": "output/figures/",
+    "submission": "output/submission/"
+  },
+  "globals": {
+    "output_requirements": [
+      "Evidence-based writing with citations for all claims",
+      "Markdown format with proper academic structure",
+      "All figures/tables must have captions and citations"
+    ],
+    "non_overlap_rules": [
+      "Maintain citation consistency across all outputs",
+      "Do not fabricate or assume data without sources",
+      "Clearly distinguish between findings and interpretations"
+    ],
+    "log_schema": [
+      "Log File: (See `log_file` in frontmatter)",
+      "Entry Types: FINDING | CITATION | METHOD | ANALYSIS | REVIEW",
+      "Schema: `timestamp | entry_type | ref_ids | summary | status/outcome`"
+    ],
+    "context_rules": [
+      "Rehydration: On startup, READ `project_index.md` → READ `context_file` → Check `exchange_log.md`",
+      "Gating: Do NOT proceed if upstream HANDOFF is missing in `exchange_log.md`",
+      "Citation: Every factual claim requires a citation"
+    ]
+  },
+  "checkpoints": [
+    {
+      "after_agent": "R-03",
+      "type": "human",
+      "prompt": "Review methodology before data collection?",
+      "owner": "R-03",
+      "validation_command": "",
+      "timeout_seconds": 30
+    },
+    {
+      "after_agent": "R-06",
+      "type": "human",
+      "prompt": "Review manuscript quality before finalization?",
+      "owner": "R-06",
+      "validation_command": "",
+      "timeout_seconds": 30
+    },
+    {
+      "after_agent": "R-07",
+      "type": "human",
+      "prompt": "Approve submission package?",
+      "owner": "R-07",
+      "validation_command": "",
+      "timeout_seconds": 30
+    }
+  ],
+  "metadata": {
+    "output_directories": {
+      "root": "output",
+      "structure": [
+        "manuscript/",
+        "manuscript/sections/",
+        "manuscript/figures/",
+        "manuscript/tables/",
+        "data/",
+        "data/raw/",
+        "data/processed/",
+        "sources/",
+        "sources/summaries/",
+        "analysis/",
+        "analysis/scripts/",
+        "figures/",
+        "submission/"
+      ]
+    }
+  }
+}
