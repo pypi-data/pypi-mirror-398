@@ -1,0 +1,850 @@
+swagger: "2.0"
+info:
+  title: SharedData API
+  version: "1.0"
+  description: |
+    API for SharedData server providing access to tables, collections, logs, traffic stats, workerpool operations, and more.
+    All endpoints require authentication via an API token unless otherwise stated.
+
+servers:
+  - url: /api
+
+security:
+  - ApiKeyAuth: []
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Custom-Authorization
+  parameters:
+    Token:
+      in: query
+      name: token
+      schema:
+        type: string
+      description: "API Key for authentication. Can also be provided in X-Custom-Authorization or x-api-key header."
+    Tablesubfolder:
+      in: query
+      name: tablesubfolder
+      schema:
+        type: string
+      description: "Optional subfolder within table path"
+    User:
+      in: query
+      name: user
+      schema:
+        type: string
+        default: master
+      description: "User performing request"
+    Keyword:
+      in: query
+      name: keyword
+      schema:
+        type: string
+      description: "Filter by keyword"
+    Page:
+      in: query
+      name: page
+      schema:
+        type: integer
+        default: 1
+    PerPage:
+      in: query
+      name: per_page
+      schema:
+        type: integer
+        default: 0
+    Format:
+      in: query
+      name: format
+      schema:
+        type: string
+        enum: [json, csv, bin, bson]
+      description: "Output format: json/csv/bin/bson. Default is json or bson."
+    Columns:
+      in: query
+      name: columns
+      schema:
+        type: string
+      description: "Comma-separated list of column fields to include"
+    Query:
+      in: query
+      name: query
+      schema:
+        type: string
+      description: "JSON-encoded query filter"
+    Sort:
+      in: query
+      name: sort
+      schema:
+        type: string
+      description: "JSON-encoded sort"
+    Symbols:
+      in: query
+      name: symbols
+      schema:
+        type: string
+      description: "Comma-separated symbols"
+    Portfolios:
+      in: query
+      name: portfolios
+      schema:
+        type: string
+    Tags:
+      in: query
+      name: tags
+      schema:
+        type: string
+    StartDate:
+      in: query
+      name: startdate
+      schema:
+        type: string
+      description: "Start date as string (ISO/Timestamp)"
+    EndDate:
+      in: query
+      name: enddate
+      schema:
+        type: string
+      description: "End date as string (ISO/Timestamp)"
+
+  responses:
+    Unauthorized:
+      description: "Authentication failed"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: unauthorized
+    ServerError:
+      description: "Server error"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+paths:
+
+  /installworker:
+    get:
+      summary: "Generate shell script to install SharedData worker service"
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - in: query
+          name: batchjobs
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: "Shell script"
+          content:
+            text/x-sh:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /heartbeat:
+    get:
+      summary: "Heartbeat check"
+      description: "Returns heartbeat result after a 3 second delay."
+      responses:
+        '200':
+          description: "Server is alive"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  heartbeat:
+                    type: boolean
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      summary: "Heartbeat (POST)"
+      responses:
+        '200':
+          description: "Server is alive"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  heartbeat:
+                    type: boolean
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth:
+    get:
+      summary: "Authenticate"
+      parameters:
+        - $ref: '#/components/parameters/Token'
+      responses:
+        '200':
+          description: "Authenticated"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authenticated:
+                    type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      summary: "Authenticate"
+      requestBody:
+        required: false
+      parameters:
+        - $ref: '#/components/parameters/Token'
+      responses:
+        '200':
+          description: "Authenticated"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authenticated:
+                    type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /traffic_stats:
+    get:
+      summary: "Get aggregated API traffic statistics"
+      responses:
+        '200':
+          description: "Traffic statistics"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_requests:
+                    type: integer
+                  endpoints:
+                    type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /subscribe/table/{database}/{period}/{source}/{tablename}:
+    get:
+      summary: "Subscribe to table, getting new/updated compressed rows"
+      parameters:
+        - in: path
+          name: database
+          required: true
+          schema: {type: string}
+        - in: path
+          name: period
+          required: true
+          schema: {type: string}
+        - in: path
+          name: source
+          required: true
+          schema: {type: string}
+        - in: path
+          name: tablename
+          required: true
+          schema: {type: string}
+        - $ref: '#/components/parameters/Tablesubfolder'
+        - in: query
+          name: lookbacklines
+          schema: { type: integer, default: 1000 }
+        - in: query
+          name: lookbackdate
+          schema: {type: string }
+        - in: query
+          name: mtime
+          schema: {type: string }
+        - in: query
+          name: count
+          schema: {type: integer }
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: "Binary compressed LZ4 bytes from numpy record table"
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '204':
+          description: "No new data available"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /publish/table/{database}/{period}/{source}/{tablename}:
+    get:
+      summary: "Get table metadata (count, mtime)"
+      parameters:
+        - in: path
+          name: database
+          required: true
+          schema: {type: string}
+        - in: path
+          name: period
+          required: true
+          schema: {type: string}
+        - in: path
+          name: source
+          required: true
+          schema: {type: string}
+        - in: path
+          name: tablename
+          required: true
+          schema: {type: string}
+        - $ref: '#/components/parameters/Tablesubfolder'
+        - in: query
+          name: lookbacklines
+          schema: { type: integer }
+        - in: query
+          name: lookbackdate
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Table metadata"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  mtime: { type: string }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      summary: "Upload rows to table (compressed binary)"
+      parameters:
+        - in: path
+          name: database
+          required: true
+          schema: {type: string}
+        - in: path
+          name: period
+          required: true
+          schema: {type: string}
+        - in: path
+          name: source
+          required: true
+          schema: {type: string}
+        - in: path
+          name: tablename
+          required: true
+          schema: {type: string}
+        - $ref: '#/components/parameters/Tablesubfolder'
+      requestBody:
+        description: "LZ4 compressed binary data (numpy record batches)"
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: "Data uploaded successfully"
+        '204':
+          description: "No data processed"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /tables:
+    get:
+      summary: "List available tables"
+      parameters:
+        - $ref: '#/components/parameters/Keyword'
+        - $ref: '#/components/parameters/User'
+      responses:
+        '200':
+          description: "List of table info"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /collections:
+    get:
+      summary: "List collections"
+      parameters:
+        - $ref: '#/components/parameters/Keyword'
+        - $ref: '#/components/parameters/User'
+      responses:
+        '200':
+          description: "List of collection info"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /table/{database}/{period}/{source}/{tablename}:
+    head:
+      summary: "Get table headers"
+      parameters:
+        - in: path
+          name: database
+          required: true
+          schema: {type: string}
+        - in: path
+          name: period
+          required: true
+          schema: {type: string}
+        - in: path
+          name: source
+          required: true
+          schema: {type: string}
+        - in: path
+          name: tablename
+          required: true
+          schema: {type: string}
+        - $ref: '#/components/parameters/Tablesubfolder'
+        - $ref: '#/components/parameters/User'
+      responses:
+        '200':
+          description: "Table header provided as headers"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    get:
+      summary: "Get table data with filtering, pagination and format selection"
+      parameters:
+        - in: path
+          name: database
+          required: true
+          schema: {type: string}
+        - in: path
+          name: period
+          required: true
+          schema: {type: string}
+        - in: path
+          name: source
+          required: true
+          schema: {type: string}
+        - in: path
+          name: tablename
+          required: true
+          schema: {type: string}
+        - $ref: '#/components/parameters/Tablesubfolder'
+        - $ref: '#/components/parameters/StartDate'
+        - $ref: '#/components/parameters/EndDate'
+        - $ref: '#/components/parameters/Symbols'
+        - $ref: '#/components/parameters/Portfolios'
+        - $ref: '#/components/parameters/Tags'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Format'
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/User'
+      responses:
+        '200':
+          description: "Table rows (format varies)"
+          content:
+            application/json:
+              schema:
+                type: object
+            text/csv:
+              schema:
+                type: string
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '204':
+          description: "No results found"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      summary: "Insert data into table (lz4-bson)"
+      parameters:
+        - in: path
+          name: database
+          required: true
+          schema: {type: string}
+        - in: path
+          name: period
+          required: true
+          schema: {type: string}
+        - in: path
+          name: source
+          required: true
+          schema: {type: string}
+        - in: path
+          name: tablename
+          required: true
+          schema: {type: string}
+        - $ref: '#/components/parameters/Tablesubfolder'
+        - in: query
+          name: names
+          schema: {type: string}
+        - in: query
+          name: formats
+          schema: {type: string}
+        - in: query
+          name: size
+          schema: {type: integer}
+        - in: query
+          name: overwrite
+          schema: {type: boolean}
+        - $ref: '#/components/parameters/User'
+        - in: query
+          name: hasindex
+          schema: {type: boolean}
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '201':
+          description: "Created"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      summary: "Delete table"
+      parameters:
+        - in: path
+          name: database
+          required: true
+          schema: {type: string}
+        - in: path
+          name: period
+          required: true
+          schema: {type: string}
+        - in: path
+          name: source
+          required: true
+          schema: {type: string}
+        - in: path
+          name: tablename
+          required: true
+          schema: {type: string}
+        - $ref: '#/components/parameters/Tablesubfolder'
+        - $ref: '#/components/parameters/User'
+      responses:
+        '204':
+          description: "Deleted successfully"
+        '404':
+          description: "Table does not exist"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /collection/{database}/{period}/{source}/{tablename}:
+    head:
+      summary: "Get collection headers (using $sample aggregate)"
+      parameters:
+        - in: path
+          name: database
+          required: true
+          schema: {type: string}
+        - in: path
+          name: period
+          required: true
+          schema: {type: string}
+        - in: path
+          name: source
+          required: true
+          schema: {type: string}
+        - in: path
+          name: tablename
+          required: true
+          schema: {type: string}
+        - $ref: '#/components/parameters/Tablesubfolder'
+        - $ref: '#/components/parameters/User'
+      responses:
+        '200':
+          description: "Collection headers as HTTP headers"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      summary: "Get collection data (bson/json/csv), filter/sort/paginate"
+      parameters:
+        - in: path
+          name: database
+          required: true
+          schema: {type: string}
+        - in: path
+          name: period
+          required: true
+          schema: {type: string}
+        - in: path
+          name: source
+          required: true
+          schema: {type: string}
+        - in: path
+          name: tablename
+          required: true
+          schema: {type: string}
+        - $ref: '#/components/parameters/User'
+        - $ref: '#/components/parameters/Tablesubfolder'
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Columns'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Format'
+      responses:
+        '200':
+          description: "Collection documents (format varies)"
+          content:
+            application/json:
+              schema:
+                type: object
+            text/csv:
+              schema:
+                type: string
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '204':
+          description: "No documents found"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      summary: "Insert documents (lz4+BSON or JSON)"
+      parameters:
+        - in: path
+          name: database
+          required: true
+          schema: {type: string}
+        - in: path
+          name: period
+          required: true
+          schema: {type: string}
+        - in: path
+          name: source
+          required: true
+          schema: {type: string}
+        - in: path
+          name: tablename
+          required: true
+          schema: {type: string}
+        - $ref: '#/components/parameters/Tablesubfolder'
+        - $ref: '#/components/parameters/User'
+        - in: query
+          name: hasindex
+          schema: {type: boolean}
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+      responses:
+        '201':
+          description: "Created"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          description: "Invalid data"
+        '500':
+          $ref: '#/components/responses/ServerError'
+    patch:
+      summary: "Update a document in collection (find_one_and_update)"
+      parameters:
+        - in: path
+          name: database
+          required: true
+          schema: {type: string}
+        - in: path
+          name: period
+          required: true
+          schema: {type: string}
+        - in: path
+          name: source
+          required: true
+          schema: {type: string}
+        - in: path
+          name: tablename
+          required: true
+          schema: {type: string}
+        - $ref: '#/components/parameters/User'
+        - $ref: '#/components/parameters/Tablesubfolder'
+        - in: query
+          name: filter
+          required: true
+          description: "JSON encoded filter for document"
+          schema: {type: string}
+        - in: query
+          name: update
+          required: true
+          description: "JSON encoded update specification"
+          schema: {type: string}
+        - in: query
+          name: sort
+          description: "JSON encoded sort"
+          schema: {type: string}
+      responses:
+        '200':
+          description: "Document updated and returned"
+          content:
+            application/json:
+              schema:
+                type: object
+        '204':
+          description: "No match found"
+        '400':
+          description: "filter or update missing"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      summary: "Delete documents in collection or entire collection"
+      parameters:
+        - in: path
+          name: database
+          required: true
+          schema: {type: string}
+        - in: path
+          name: period
+          required: true
+          schema: {type: string}
+        - in: path
+          name: source
+          required: true
+          schema: {type: string}
+        - in: path
+          name: tablename
+          required: true
+          schema: {type: string}
+        - $ref: '#/components/parameters/User'
+        - $ref: '#/components/parameters/Tablesubfolder'
+        - in: query
+          name: query
+          schema: {type: string}
+      responses:
+        '204':
+          description: "Deleted"
+        '404':
+          description: "Not found"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /logs:
+    post:
+      summary: "Add application logs (lz4-compressed JSON)"
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '201':
+          description: "Log received"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /workerpool:
+    get:
+      summary: "Get jobs (lz4+bson)"
+      parameters:
+        - in: query
+          name: workername
+          required: true
+          schema: { type: string }
+        - in: query
+          name: fetch_jobs
+          schema: { type: integer }
+      responses:
+        '200':
+          description: "BSON array of jobs, lz4-compressed"
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '204':
+          description: "No jobs"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      summary: "Submit job to workerpool (lz4+bson)"
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '201':
+          description: "Job created"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /webhooks:
+    post:
+      summary: "Webhook event ingest (JSON)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Webhook processed"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          description: "Invalid data"
+        '500':
+          $ref: '#/components/responses/ServerError'
