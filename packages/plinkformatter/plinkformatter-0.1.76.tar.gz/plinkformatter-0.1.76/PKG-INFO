@@ -1,0 +1,128 @@
+Metadata-Version: 2.1
+Name: plinkformatter
+Version: 0.1.76
+Summary: 
+Author: nick-sebasco
+Author-email: nicksebasco.jax@gmail.com
+Requires-Python: >=3.9,<4.0
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Dist: joblib (>=1.4.2,<2.0.0)
+Requires-Dist: numpy (>=1.26.4,<2.0.0)
+Requires-Dist: pandas (>=2.2.2,<3.0.0)
+Requires-Dist: pyarrow (>=21.0.0,<22.0.0)
+Requires-Dist: pytest (>=8.2.2,<9.0.0)
+Requires-Dist: scipy (>=1.13.1,<2.0.0)
+Description-Content-Type: text/markdown
+
+# PLINKFORMMATER
+
+This repository is designed to transform genotype data from the Muster SNPs/download endpoint into PLINK-compatible data, which can then be processed by PyLMM. The primary aim is to facilitate genomic data transformation for linear mixed models. This tool should, in theory, also work with GEMMA and other software that consumes standard PLINK file formats, though it has been primarily tested with PyLMM.
+
+## Getting Started
+
+### Prerequisites
+To use this repository, you must have the following dependencies installed:
+
++ Python 3.8 or above
++ PLINK 2.0
++ Poetry
+
+**Install dependencies**:
+```
+poetry install
+```
+
+**Activate virtual environment**:
+```
+poetry shell
+```
+
+**Install PLINK**: 
+
+You can download PLINK from the [official website](https://www.cog-genomics.org/plink/2.0/). Ensure the PLINK executable is in your system's PATH, or you can specify the path to the PLINK binary in your environment settings.
+
+To verify PLINK installation, run:
+```
+plink2 --version
+```
+
+## Tests
+
+To run tests run the following command:
+```
+pytest -s tests
+```
+
+## Publishing to Pypi
+
+0. Update version
+
+```
+poetry version patch
+```
+
+1. Build any changes
+
+```
+poetry build
+```
+
+2. Set the correct PyPI repository URL
+
+```
+poetry config repositories.pypi https://upload.pypi.org/legacy/
+```
+
+3. Set API token
+
+```
+poetry config pypi-token.pypi pypi-YourActualTokenHere
+```
+
+4. Publish
+
+```
+poetry publish
+```
+
+## TODO
+
+### Software decisions
++ [] operating on measure directory is inferior pattern than operating on a list of MeasureInput
+    dataclass objects.  MeasureInputs have a localfile attribute thus they could exist in any folder it wouldn't matter.  this also prevents the need for creating an unecessary measure_id folder.
+
+### Differences from Hao's R code:
++ [o] confirm 40701 results match
++ [o] confirm 45912 results match
+    + [] double check pylmm kinship function is being used?
+    + [x] double check plink version
+    + [x] .pheno matches within error
+    + [o] .kin does not match??
+        Comparing kinship files...
+            Hao kin shape: (838, 838)
+            My  kin shape: (838, 838)
+            max |Δ|      = 0.8028899342158409
+            mean |Δ|     = 0.003146552441518657
+            Frobenius Δ  = 17.949248701353486
+            allclose?    = False (rtol=1e-06, atol=1e-08)
+            Largest discrepancies at (i,j):
+            (623, 633): hao=-0.03728288973450879 mine=0.7656070444813321 Δ=0.8028899342158409
+            (641, 632): hao=0.7656070444813321 mine=-0.03728288973450879 Δ=0.8028899342158409
+            (641, 631): hao=0.7656070444813321 mine=-0.03728288973450879 Δ=0.8028899342158409
+            (640, 633): hao=0.7656070444813321 mine=-0.03728288973450879 Δ=0.8028899342158409
+            (640, 631): hao=0.7656070444813321 mine=-0.03728288973450879 Δ=0.8028899342158409
+            (640, 632): hao=0.7656070444813321 mine=-0.03728288973450879 Δ=0.8028899342158409
+            (620, 633): hao=-0.03728288973450879 mine=0.7656070444813321 Δ=0.8028899342158409
+            (625, 631): hao=-0.03728288973450879 mine=0.7656070444813321 Δ=0.8028899342158409
+            (625, 632): hao=-0.03728288973450879 mine=0.7656070444813321 Δ=0.8028899342158409
+            (625, 633): hao=-0.03728288973450879 mine=0.7656070444813321 Δ=0.8028899342158409
+
++ [x] confirm 45911 results match
++ [x] Sanity check: Are Hao and I using the exact same measure files?
++ [] Sanity check: that I am using same ped & map files, because how are our kinship matrices different if we are using 
+    the same pylmm kinship function?
++ [] Double check that DO pathway still works even with code changes.
