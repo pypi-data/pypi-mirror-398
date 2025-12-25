@@ -1,0 +1,119 @@
+# bookmark-analyzer
+[![PyPI version](https://badge.fury.io/py/bookmark-analyzer.svg)](https://badge.fury.io/py/bookmark-analyzer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/bookmark-analyzer)](https://pepy.tech/project/bookmark-analyzer)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**bookmark-analyzer** is a lightweight Python package that turns unstructured bookmark titles or user‑written descriptions into structured tags, categories, or summaries. It leverages a LLM (by default **ChatLLM7**) to understand the meaning of a bookmark and return machine‑readable metadata, making it far easier to search, filter, and rediscover saved content.
+
+## 🚀 Installation
+
+```bash
+pip install bookmark_analyzer
+```
+
+## 📖 Quick Start
+
+```python
+from bookmark_analyzer import bookmark_analyzer
+
+# Simple usage – the default ChatLLM7 will be used
+tags = bookmark_analyzer(
+    user_input="How to bake a perfect sourdough loaf – an in‑depth guide with photos"
+)
+
+print(tags)   # e.g. ['baking', 'sourdough', 'cooking', 'guide']
+```
+
+### Using Your Own LLM
+
+If you prefer another LangChain‑compatible model (OpenAI, Anthropic, Google, …) just pass the instance:
+
+#### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from bookmark_analyzer import bookmark_analyzer
+
+llm = ChatOpenAI(model="gpt-4o-mini")
+tags = bookmark_analyzer(
+    user_input="Why the 2024 election matters for climate policy",
+    llm=llm,
+)
+print(tags)
+```
+
+#### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from bookmark_analyzer import bookmark_analyzer
+
+llm = ChatAnthropic(model="claude-3-haiku-20240307")
+tags = bookmark_analyzer(
+    user_input="Best practices for micro‑frontends in a large SaaS product",
+    llm=llm,
+)
+print(tags)
+```
+
+#### Google Gemini
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from bookmark_analyzer import bookmark_analyzer
+
+llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+tags = bookmark_analyzer(
+    user_input="Top 10 must‑read sci‑fi novels of the 21st century",
+    llm=llm,
+)
+print(tags)
+```
+
+## 🛠️ Parameters
+
+| Parameter   | Type                         | Description |
+|-------------|------------------------------|-------------|
+| `user_input`| `str`                        | The bookmark title or free‑form description you want to analyze. |
+| `llm`       | `Optional[BaseChatModel]`    | A LangChain chat model. If omitted, the package creates a default `ChatLLM7` instance. |
+| `api_key`   | `Optional[str]`              | API key for **ChatLLM7**. If not supplied, the function looks for `LLM7_API_KEY` in the environment; if still missing, it falls back to a placeholder `"None"` (which will trigger an authentication error from the service). |
+
+## 🔑 API Key for the Default Model
+
+- **ChatLLM7** is the out‑of‑the‑box model used by `bookmark-analyzer`.
+- Free tier rate limits are sufficient for typical personal use.
+- To obtain a free key, register at <https://token.llm7.io/>.
+- You can provide the key either:
+  - Via the environment variable `LLM7_API_KEY`, **or**
+  - Directly when calling the function:
+
+```python
+tags = bookmark_analyzer(
+    user_input="My favorite podcasts about AI",
+    api_key="sk-xxxxxx"
+)
+```
+
+## 📚 How It Works
+
+`bookmark_analyzer` builds a prompt (see the internal `prompts` module) and sends it to the LLM together with a regular‑expression pattern that describes the expected output format. The response is validated against that pattern and the extracted tags are returned as a list of strings.
+
+## 🐞 Issues & Contributions
+
+If you encounter any bugs or have feature requests, please open an issue:
+
+> <https://github.com/chigwell/bookmark-analyzer/issues>
+
+Feel free to fork the repository, submit pull requests, or improve documentation.
+
+## ✍️ Author
+
+**Eugene Evstafev**  
+📧 Email: [hi@euegne.plus](mailto:hi@euegne.plus)  
+🐙 GitHub: [chigwell](https://github.com/chigwell)
+
+---
+
+Happy bookmarking! 🎉
