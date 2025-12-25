@@ -1,0 +1,112 @@
+Metadata-Version: 2.4
+Name: sonnerrise-calendar
+Version: 0.1.0
+Summary: Calendar module for Sonnerrise - track events calendar view
+Author-email: Konstantin Boyandin <developer@boyandin.com>
+License-Expression: MIT
+Requires-Python: >=3.11
+Requires-Dist: pydantic>=2.0
+Requires-Dist: sonnerrise-core>=0.1.0
+Requires-Dist: sonnerrise-tracks>=0.1.0
+Provides-Extra: dev
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# sonnerrise-calendar
+
+Calendar module for the Sonnerrise suite - provides calendar views for track events.
+
+## Features
+
+- Weekly and monthly calendar views of track events
+- List of upcoming events with countdown
+- Toggle event enabled/disabled status
+- Navigate to associated tracks
+- Read-only aggregation of events from tracks
+
+## Installation
+
+```bash
+pip install sonnerrise-calendar
+```
+
+## Usage
+
+### Python API
+
+```python
+from sonnerrise_core import load_config, get_database
+from sonnerrise_calendar import CalendarService
+from datetime import date
+
+config = load_config()
+db = get_database(config)
+
+calendar = CalendarService(db)
+
+# Get weekly view
+week = calendar.get_week_view(date.today())
+for day in week.days:
+    print(f"{day.date}: {len(day.events)} events")
+
+# Get monthly view
+month = calendar.get_month_view(2024, 3)
+for week in month.weeks:
+    for day in week:
+        if day.events:
+            print(f"{day.date}: {[e.description for e in day.events]}")
+
+# Get upcoming events
+upcoming = calendar.get_upcoming_events(days=14)
+for event in upcoming:
+    print(f"In {event.days_until} days: {event.track_title} - {event.description}")
+
+# Toggle event status
+calendar.toggle_event(track_id=1, event_id=5)
+```
+
+### CLI
+
+```bash
+# Show this week's events
+sonnerrise-calendar week
+
+# Show specific week
+sonnerrise-calendar week --date 2024-03-15
+
+# Show this month's events
+sonnerrise-calendar month
+
+# Show specific month
+sonnerrise-calendar month --year 2024 --month 3
+
+# List upcoming events
+sonnerrise-calendar upcoming --days 14
+
+# Today's events
+sonnerrise-calendar today
+
+# Toggle event enabled status
+sonnerrise-calendar toggle 1 5  # track_id event_id
+```
+
+## Calendar Views
+
+### Week View
+Shows all events for a 7-day period starting from Monday of the specified week.
+
+### Month View
+Shows all events organized by weeks for the specified month.
+
+### Upcoming Events
+Lists all enabled future events within the specified number of days, sorted by date.
+
+## Event Information
+
+Each event in the calendar shows:
+- Date and time
+- Track title
+- Event description
+- Days until/since the event
+- Enabled/disabled status
