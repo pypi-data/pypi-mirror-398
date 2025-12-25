@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  pypi-publish:
+    name: Upload release to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/fabra_ai
+    permissions:
+      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
+      contents: write  # Required for creating releases
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Set up Python
+      run: uv python install 3.11
+
+    - name: Verify tag matches pyproject version
+      run: |
+        TAG="${GITHUB_REF_NAME}"
+        PYPROJECT_VERSION="$(uv run python -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")"
+        EXPECTED="v${PYPROJECT_VERSION}"
+        echo "tag=${TAG} expected=${EXPECTED}"
+        if [ "${TAG}" != "${EXPECTED}" ]; then
+          echo "ERROR: Tag ${TAG} does not match pyproject.toml version ${PYPROJECT_VERSION}" >&2
+          exit 1
+        fi
+
+    - name: Run Tests
+      run: |
+        uv venv
+        uv pip install -e ".[dev,ui]"
+        source .venv/bin/activate
+        pytest --ignore=tests/ui
+
+    - name: Build package
+      run: uv run --with build python -m build
+
+    - name: Publish package distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        generate_release_notes: true
+        files: dist/*
