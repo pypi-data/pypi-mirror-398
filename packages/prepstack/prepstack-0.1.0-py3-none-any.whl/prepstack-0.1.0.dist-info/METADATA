@@ -1,0 +1,169 @@
+Metadata-Version: 2.4
+Name: prepstack
+Version: 0.1.0
+Summary: Modular data analysis and ML workflow toolkit
+Author: Ridhisha Tyagi
+Project-URL: Homepage, https://github.com/ridhisha-tyagi/prepstack
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: pandas
+Requires-Dist: numpy
+Requires-Dist: scikit-learn
+Requires-Dist: imbalanced-learn
+
+prepstack
+
+prepstack is a modular data analysis and machine learning workflow toolkit designed to reduce repetitive preprocessing, validation, and experimentation overhead while preserving full transparency and user control.
+
+It provides explicit, composable building blocks for common prepstackl and ML tasks, with optional guidance for interpretability and correctness.
+
+#Design Principles
+
+⦁	Explicit over implicit
+   No hidden transformations or silent assumptions.
+
+⦁	Modular by default
+   Each step is independently callable and testable.
+
+⦁	Guardrails, not automation
+   prepstack highlights risks and inconsistencies without enforcing opinionated pipelines.
+
+⦁	Learning-aware execution
+   Optional guidance explains what is happening and why, without changing results.
+
+⦁	Notebook and production friendly
+   Identical APIs for exploration and deployment.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Installation
+
+pip install prepstack
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Guidance Mode
+
+All functions support a guidance parameter:
+
+guidance="on"   # descriptive output, warnings, suggestions
+guidance="off"  # silent execution
+
+
+This allows prepstack to be used both as a learning aid and as a production utility.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Module Overview
+
+⦁	prepstack.cleaning - Basic data hygiene and structural cleanup
+
+⦁	prepstack.transform - Feature transformation, encoding, scaling, joins, and aggregation
+
+⦁	prepstack.explore - Structured exploratory analysis
+
+⦁	prepstack.model_prep - Validation, feature selection, splitting, and class balancing
+
+⦁	prepstack.model - Model fitting and prediction wrappers
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Example Workflow
+
+import pandas as pd
+
+df = pd.DataFrame({
+    "user_id": range(1, 51),
+    "age": [22,25,30,35,40]*10,
+    "country": ["US","IN","US","UK","IN"]*10,
+    "usage": [5,10,20,30,40]*10,
+    "plan": ["free","free","pro","pro","free"]*10,
+    "churn": [0,0,1,1,0]*10
+})
+
+from prepstack.cleaning import clean_basic
+from prepstack.transform.columns import encoding, scaling, string_ops
+from prepstack.model_prep.feature_selection import combined_feature_selection
+from prepstack.model_prep.splits import stratified_split
+from prepstack.model_prep.class_balance import smote_balance
+from prepstack.model_prep.validation.core import validate_full
+from prepstack.model import fit_model, predict
+from prepstack.model_prep.evaluation import classification_metrics, evaluation_summary
+
+# 1️⃣ CLEAN
+df1 = clean_basic(df, guidance="on")
+
+# 2️⃣ TRANSFORM
+df2 = string_ops.clean_strings(df1, columns=["country", "plan"], guidance="on")
+df3 = df3, encoding_info = encoding.encode_category(
+    df2, 
+    columns=["country", "plan"], 
+    method="onehot", 
+    guidance="on")
+
+df4 = scaling.scale_numeric(
+    df3, 
+    cols=["age", "usage"], 
+    method="standard", 
+    guidance="on")
+
+# 3️⃣ VALIDATE
+validate_full(
+    df4,
+    schema={"age": "float64", "usage": "float64", "churn": "int64"},
+    guidance="on"
+)
+
+# 4️⃣ FEATURE SELECTION
+selected_features = combined_feature_selection(df4, target="churn", guidance="on")
+
+X = df4[selected_features]
+y = df4["churn"]
+
+# 5️⃣ SPLIT
+X_train, X_test, y_train, y_test = stratified_split(
+    df4[selected_features + ["churn"]],
+    target="churn",
+    guidance="on"
+)
+
+# 6️⃣ BALANCE
+Xb, yb = smote_balance(X_train, y_train, guidance="on")
+
+# 7️⃣ MODEL
+model = fit_model(Xb, yb, model_type="logistic", guidance="on")
+
+# 8️⃣ EVALUATE
+preds = predict(model, X_test)
+
+metrics = classification_metrics(y_test, preds, guidance="on")
+
+evaluation_summary(metrics, task="classification", guidance="on")
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Intended Use Cases
+
+⦁	Reusable analytics pipelines
+
+⦁	SaaS / churn / behavioural datasets
+
+⦁	ML experimentation with safety checks
+
+⦁	Analysts transitioning into modeling
+
+⦁	Teams that want consistency without abstraction loss
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Scope & Non-Goals
+
+prepstack does not aim to replace:
+
+⦁	pandas
+
+⦁	scikit-learn
+
+⦁	specialized AutoML frameworks
+
+⦁	Instead, it standardizes the glue logic between them.
