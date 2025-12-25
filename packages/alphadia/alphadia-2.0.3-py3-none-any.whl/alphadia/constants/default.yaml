@@ -1,0 +1,476 @@
+# configuration for the extraction plan
+# version is set dynamically to alphadia.__version__ during config initialization to have it available in the frozen_config.yaml
+version: null
+
+# These values are typically filled via CLI parameters
+workflow_name: null
+output_directory: null
+library_path: null  # the expected type is steered by general.input_library_type
+raw_paths: []
+fasta_paths: []
+quant_directory: null
+
+general:
+
+  # number of threads to use for parallel processing
+  thread_count: 10
+  # Enables separate transfer learning step
+  transfer_step_enabled: false
+
+  # Enables separate MBR step
+  mbr_step_enabled: false
+
+  # === advanced settings ===
+  # whether to reuse previously calculated calibration data
+  reuse_calibration: false
+  # whether to reuse previously calculated quantification data
+  reuse_quant: false
+  # whether to use Astral MS1 feature detection
+  astral_ms1: false
+  # logging verbosity level (DEBUG, INFO, PROGRESS, WARNING, ERROR)
+  log_level: 'INFO'
+  # whether to memory map detector events for improved performance when reading Bruker files
+  mmap_detector_events: false
+  # whether to use GPU acceleration for library prediction and scoring
+  use_gpu: true
+  # whether to save plots to the output folder
+  save_figures: True
+
+  # whether to save the pre-processed input library to the output directory
+  save_library: True
+  # whether to save the flattened library to the output directory
+  save_flat_library: False
+  # type of input library, either 'base' or 'flat'
+  # A 'flat' library can be used 'as is', whereas a 'base' library needs to be processed first.
+  # Using 'flat' here can save some time during startup, which is handy for debugging and single-file runs.
+  input_library_type: base
+
+  # whether to save the output (mbr) library to the output directory
+  save_mbr_library: True
+
+  # if set to a positive integer, it will be used as random state (for reproducibility)
+  # if set to -1, a random state will be generated and printed to the log
+  # if null, no specific setting of random states is performed
+  random_state: null
+
+library_prediction:
+  # Basic parameters
+  # whether to use alphaPeptDeep to predict peptide properties
+  enabled: false
+  # enzyme used for in-silico digest
+  enzyme: trypsin
+  # fixed modifications for in-silico digest
+  # Format: Modification@AminoAcid
+  # Example: Carbamidomethyl@C
+  fixed_modifications: 'Carbamidomethyl@C'
+  # variable modifications for in-silico digest. Semicolon separated list
+  # See https://github.com/MannLabs/alphabase/blob/c99c1ec7eb482745f6dae58a324658d6b6c4abf0/alphabase/constants/const_files/modification.tsv
+  # Format: Modification@AminoAcid
+  # Example: Oxidation@M;Acetyl@Protein_N-term
+  variable_modifications: 'Oxidation@M;Acetyl@Protein_N-term'
+  # maximum number of variable modifications per peptide
+  max_var_mod_num: 2
+  # number of missed cleavages allowed for in-silico digest
+  missed_cleavages: 1
+  # minimum and maximum number of amino acids for generated precursors
+  # (using list format for easier interaction with the GUI)
+  precursor_len:
+    - 7
+    - 35
+  # minimum and maximum charge states for generated precursors
+  precursor_charge:
+    - 2
+    - 4
+  # minimum and maximum m/z values for generated precursors
+  precursor_mz:
+    - 400
+    - 1200
+  # minimum and maximum m/z values for generated fragments
+  fragment_mz:
+    - 200
+    - 2000
+
+  # === advanced settings ===
+  # normalized collision energy for fragment generation
+  nce: 25.0
+
+  # list of fragment types (see alphabase.peptide.fragment.FRAGMENT_TYPES for supported types)
+  # Supported types are: a, b, c, x, y, z, b_modloss, y_modloss, b_H2O, y_H2O, b_NH3, y_NH3, c_lossH, z_addH
+  fragment_types:
+    - 'b'
+    - 'y'
+
+  # maximum charge state for predicted fragments
+  max_fragment_charge: 2
+
+  # instrument types as supported by peptdeep. Leave this as Lumos if you are not 100% sure you know what you are changing
+  instrument: Lumos
+
+  # set path for custom peptdeep model. If set to null, the default model will be used
+  peptdeep_model_path: null
+
+  # set peptdeep model type. Possible values are 'generic', 'phospho', 'digly'
+  # If set to null, the default peptdeep model will be used
+  peptdeep_model_type: 'generic'
+
+# define custom alphabase modifications not part of unimod or alphabase
+# also used for decoy channels
+custom_modifications:
+  # Dimethyl @K channel decoy
+  - name: Dimethyl:d12@K
+    composition: H(-2)2H(8)13C(2)
+
+  # Dimethyl @Any_N-term channel decoy
+  - name: Dimethyl:d12@Any_N-term
+    composition: H(-2)2H(8)13C(2)
+
+  # Dimethyl @Protein_N-term channel decoy
+  - name: Dimethyl:d12@Protein_N-term
+    composition: H(-2)2H(8)13C(2)
+
+  # mTRAQ @K channel decoy
+  - name: mTRAQ:d12@K
+    composition: H(12)C(1)13C(10)15N(2)O(1)
+
+  # mTRAQ @Any_N-term channel decoy
+  - name: mTRAQ:d12@Any_N-term
+    composition: H(12)C(1)13C(14)15N(2)O(1)
+
+  # mTRAQ @Protein_N-term channel decoy
+  - name: mTRAQ:d12@Protein_N-term
+    composition: H(12)C(1)13C(14)15N(2)O(1)
+
+  # SILAC heavy @K channel decoy
+  - name: Label:13C(12)@K
+    composition: C(12)
+
+search:
+  # which backend to be used for the extraction. Current options: python, rust
+  extraction_backend: rust
+  # target ms1 tolerance in ppm
+  target_ms1_tolerance: 5
+  # target ms2 tolerance in ppm
+  target_ms2_tolerance: 10
+  # target retention time tolerance in seconds if value > 1, or a proportion of the total gradient length if 0 < value < 1. A value of <= 0 enables automatic optimization.
+  target_rt_tolerance: 0.0
+  # target ion mobility tolerance in 1/K_0. A value of <= 0 enables automatic optimization.
+  target_mobility_tolerance: 0.0
+
+  # === advanced settings ===
+  # quantification window size in cycles (area calculated from scan_center ± quant_window)
+  quant_window: 3
+  # number of peak group candidates to identify during recalibration
+  target_num_candidates: 3
+  # filter to apply to the channels. If set to "", all channels will be used. Comma-separated channel numbers (e.g. "0,4,8")
+  channel_filter: ""
+
+  # whether to enable fragment competition during FDR control
+  compete_for_fragments: True
+
+  # the number of most intense fragments to use in the selection
+  top_k_fragments_selection: 12
+
+  # the number of most intense fragments to use in the scoring
+  top_k_fragments_scoring: 12
+
+  # the minimum intensity of a fragment to be used in the search
+  min_fragment_intensity: 0.01
+
+  # use a more aggressive peak group score: benefits on max memory and runtime, but a small precursor penalty
+  optimized_peak_group_score: False
+
+  # === python backend only ===
+  # exclude fragments shared between multiple channels
+  exclude_shared_ions: True
+  # quantify all fragments in the quantification window
+  quant_all: True
+  # use experimental XIC correlation features
+  experimental_xic: True
+
+calibration:
+
+  # number of precursors searched and scored per batch
+  batch_size: 1000
+
+  # minimum number of precursors to be found before search parameter optimization begins
+  optimization_lock_target: 1000
+
+  # the maximum number of steps that a given optimizer is permitted to take
+  max_steps: 20
+
+  # the minimum number of steps that a given optimizer must take before it can be said to have converged
+  min_steps: 5
+
+  # the maximum number of times an automatic optimizer can be skipped before it is considered to have converged
+  max_skips: 1
+
+  # the maximum number of fragments with correlation scores exceeding correlation_threshold to use for calibrating fragment mz (i.e. ms2)
+  max_fragments: 5000
+
+  # the correlation threshold for fragments used to calibrate fragment mz (i.e. ms2)
+  min_correlation: 0.7
+
+search_initial:
+  # Number of peak groups identified in the convolution score to classify with target decoy competition
+  num_candidates: 1
+
+  # initial ms1 tolerance in ppm
+  ms1_tolerance: 30
+
+  # initial ms2 tolerance in ppm
+  ms2_tolerance: 30
+
+  # initial ion mobility tolerance in 1/K_0
+  mobility_tolerance: 0.1
+
+  # initial retention time tolerance in seconds if > 1, or a proportion of the total gradient length if < 1
+  rt_tolerance: 0.5
+
+
+# perform non-isobaric multiplexing of any input library
+library_multiplexing:
+  # if true, the library is multiplexed
+  enabled: False
+
+  # if the input library already contains multiplexed channels, the input channel has to be specified.
+  input_channel: 0
+
+  # define channels by their name and how modifications should be translated from the input library to the multiplexed library
+  # channels can be either a number or a string
+  # for every channel, the library gets copied and the modifications are translated according to the mapping
+  # the following example shows how to multiplex mTRAQ to three sample channels and a decoy channel
+  multiplex_mapping: []
+#    - channel_name: 0
+#      modifications:
+#        mTRAQ@K: mTRAQ@K
+#        mTRAQ@Any_N-term: mTRAQ@Any_N-term
+#
+#    - channel_name: 4
+#      modifications:
+#        mTRAQ@K: mTRAQ:13C(3)15N(1)@K
+#        mTRAQ@Any_N-term: mTRAQ:13C(3)15N(1)@Any_N-term
+#
+#    - channel_name: 8
+#      modifications:
+#        mTRAQ@K: mTRAQ:13C(6)15N(2)@K
+#        mTRAQ@Any_N-term: mTRAQ:13C(6)15N(2)@Any_N-term
+#
+#    - channel_name: 12
+#      modifications:
+#        mTRAQ@K: mTRAQ:d12@K
+#        mTRAQ@Any_N-term: mTRAQ:d12@Any_N-term
+
+
+
+
+multiplexing:
+  # enable multiplexing workflow for isobaric labels
+  enabled: False
+  # comma-separated list of target channel numbers for quantification
+  target_channels: '4,8'
+  # channel number designated for decoy precursors
+  decoy_channel: 12
+  # channel number designated as reference for relative quantification
+  reference_channel: 0
+  # whether to enable competitive scoring during FDR control for multiplexed channels
+  competitive_scoring: True
+
+fdr:
+  # FDR cutoff threshold for filtering precursors and protein groups (1% = 0.01)
+  fdr: 0.01
+
+  # what annotation is used for protein inference: "genes" or "proteins"
+  group_level: 'proteins'
+
+  # how are proteins inferred from peptides: "library", "heuristic" or "maximum_parsimony"
+  inference_strategy: "heuristic"
+
+
+  # === advanced settings ===
+  # whether to enable competitive scoring during FDR control
+  competitive_scoring: true
+  # whether to keep decoy PSMs in the final output
+  keep_decoys: false
+  # whether to perform FDR control separately for each channel
+  channel_wise_fdr: false
+
+  # (Experimental)
+  # uses a two-step classifier consisting of a logistic regression and a neural network
+  enable_two_step_classifier: false
+  # maximum number of iterations within .fit_predict() of the two-step classifier
+  two_step_classifier_max_iterations: 5
+  # (Experimental)
+  # optimizes the batch size and learning rate of the neural network
+  enable_nn_hyperparameter_tuning: true
+
+search_output:
+  # Output file format for search results. Can be either "tsv" or "parquet"
+  file_format: "parquet"
+
+  # Whether to perform label-free quantification at the precursor level
+  precursor_level_lfq: True
+  # Whether to perform label-free quantification at the peptide level
+  peptide_level_lfq: True
+  # Save fragment quant matrix for advanced users
+  save_fragment_quant_matrix: False
+
+  # === advanced settings ===
+  # Minimum number of fragments required for quantification
+  min_k_fragments: 12
+  # Minimum correlation required between fragment XICs for quantification
+  min_correlation: 0.9
+  # Number of samples used for quadratic fit in retention time alignment
+  num_samples_quadratic: 50
+  # Minimum number of non-missing values required for quantification
+  min_nonnan: 3
+
+  # LFQ method for quantification ("directlfq" or "quantselect")
+  normalization_method: directlfq
+  # Apply directLFQ normalization when using the directLFQ method (only applies when normalization_method is "directlfq")
+  normalize_directlfq: True
+
+# Configuration for the optimization of search parameters. These parameters should not normally be adjusted and are for the use of experienced users only.
+optimization:
+  # The order in which to perform optimization. Should be a list of lists of parameter names
+  # Example:
+    # order_of_optimization:
+    #   - - "rt_error"
+    #   - - "ms2_error"
+    #   - - "ms1_error"
+    #   - - "mobility_error"
+  # The above means that first rt_error is optimized, then ms2_error, then ms1_error, and finally mobility_error. (Other examples are shown in Python list format rather than YAML format to save space.)
+  # Example: [['ms1_error', 'ms2_error', 'rt_error', 'mobility_error']] means that all parameters are optimized simultaneously.
+  # Example: [["ms2_error"], ["rt_error"], ["ms1_error"], ["mobility_error"]] means that the parameters are optimized sequentially in the order given.
+  # Example: [["rt_error"], ["ms1_error", "ms2_error"]] means that first rt_error is optimized, then ms1_error and ms2_error are optimized simultaneously, and mobility_error is not optimized at all.
+  # If order_of_optimization is null, first all targeted optimizers run simultaneously, then any remaining automatic optimizers run sequentially in the order [["ms2_error"], ["rt_error"], ["ms1_error"], ["mobility_error"]]
+  order_of_optimization: null
+
+  # Parameters for the update rule for each parameter:
+  #   - targeted_update_percentile_range: the percentile interval to use (as a decimal) for targeted optimization
+  #   - targeted_update_factor: the factor by which to multiply the result from the percentile interval for targeted optimization
+  #   - automatic_update_percentile_range: the percentile interval to use (as a decimal) for automatic optimization
+  #   - automatic_update_factor: the factor by which to multiply the result from the percentile interval for automatic optimization
+  #   - try_narrower_values: if True, the optimization will try narrower parameters until a substantial (as determined by maximal_decrease) decrease in the feature used for optimization is observed.
+  #   - maximal_decrease: the maximal decrease of the parameter value before stopping optimization (only relevant if try_narrower_values is True).
+  #     For example, a value of 0.2 indicates up to 20% decrease from the previous parameter is permissible.
+  #   - favour_narrower_optimum: if True, the optimization will not take the value that maximizes the feature used for optimization, but instead the smallest value compatible with the maximum_decrease_from_maximum value.
+  #     This setting can be useful for optimizing parameters for which many parameter values have similar feature values and therefore favouring narrower parameters helps to overcome noise.
+  #   - maximum_decrease_from_maximum: the maximum proportional decrease from the maximum value of the parameter that the designated optimum should have (only relevant if favour_narrower_optimum is True).
+  #     For example, a value of 0.1 indicates that the optimum should be no more than 10% less than the maximum value.
+  ms2_error:
+      targeted_update_percentile_range: 0.95
+      targeted_update_factor: 1.0
+      automatic_update_percentile_range: 0.99
+      automatic_update_factor: 1.1
+      try_narrower_values: True
+      maximal_decrease: 0.5
+      favour_narrower_optimum: False
+      maximum_decrease_from_maximum: 0.1
+  ms1_error:
+      targeted_update_percentile_range: 0.95
+      targeted_update_factor: 1.0
+      automatic_update_percentile_range: 0.99
+      automatic_update_factor: 1.1
+      try_narrower_values: False
+      maximal_decrease: 0.2
+      favour_narrower_optimum: False
+      maximum_decrease_from_maximum: 0.1
+  mobility_error:
+      targeted_update_percentile_range: 0.95
+      targeted_update_factor: 1.0
+      automatic_update_percentile_range: 0.99
+      automatic_update_factor: 1.1
+      try_narrower_values: False
+      maximal_decrease: 0.2
+      favour_narrower_optimum: False
+      maximum_decrease_from_maximum: 0.1
+  rt_error:
+      targeted_update_percentile_range: 0.95
+      targeted_update_factor: 1.0
+      automatic_update_percentile_range: 0.999
+      automatic_update_factor: 1.5
+      try_narrower_values: True
+      maximal_decrease: 0.1
+      favour_narrower_optimum: False
+      maximum_decrease_from_maximum: 0.5
+
+# configuration for the optimization manager
+# initial parameters, will be optimized
+optimization_manager:
+  # full width at half maximum for retention time in seconds (used for peak shape modeling)
+  fwhm_rt: 5
+  # full width at half maximum for ion mobility in 1/K_0 (used for peak shape modeling)
+  fwhm_mobility: 0.01
+  # minimum score threshold for candidate precursors
+  score_cutoff: 0
+
+# This section controls transfer learning
+# currently only the library is created with transfer learning
+transfer_library:
+  # if true, the library is created for transfer learning
+  enabled: False
+
+  # === advanced settings ===
+
+  # list of fragment types (see alphabase.peptide.fragment.FRAGMENT_TYPES for supported types)
+  # Supported types are: a, b, c, x, y, z, b_modloss, y_modloss, b_H2O, y_H2O, b_NH3, y_NH3, c_lossH, z_addH
+  fragment_types: ['b', 'y']
+
+  # maximum charge for fragments
+  max_charge: 2
+
+  # If a given precursor appears multiple times in an experiment,
+  # only the top_k_samples with the highest scores are included in the library
+  top_k_samples: 3
+
+  # (Experimental) Perform advanced rt calibration:
+  # If set to false, retention times will be normalised by the maximum retention time observed in the experiment
+  # If set to true, a combination of maximum normalisation and deviation from the calibration curve will be used
+  norm_delta_max: true
+
+  # use only precursors for ms2 training with a median XIC correlation above this threshold
+  precursor_correlation_cutoff: 0.5
+
+  # include only fragments with a XIC correlation at least 0.75 of the median for all fragments
+  fragment_correlation_ratio: 0.75
+
+transfer_learning:
+
+  # if true, a custom peptdeep model will be created using the transfer learned library
+  enabled: False
+
+  # === advanced settings ===
+
+  # number of precursors per batch
+  batch_size: 2000
+
+  # maximum learning rate per batch
+  # the maximum learning rate will be reached after a warmup phase and decreased using a plateau scheduler
+  max_lr: 0.0001
+
+  # fraction of dataset used for training
+  train_fraction: 0.7
+
+  # fraction of dataset used for validation
+  validation_fraction: 0.2
+
+  # fraction of dataset used for testing
+  test_fraction: 0.1
+
+  # test every n intervals
+  test_interval: 1
+
+  # learning rate patience after which the lr will be halved
+  lr_patience: 3
+
+  # maximum number of epochs
+  epochs: 51
+
+  # number of warmup epochs during which the lr is ramped up
+  warmup_epochs: 5
+
+  # normalised collision energy encoded during training
+  nce: 25
+
+  # instrument type encoded during training
+  instrument: 'Lumos'
