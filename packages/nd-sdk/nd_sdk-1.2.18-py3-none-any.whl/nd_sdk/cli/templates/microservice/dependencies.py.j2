@@ -1,0 +1,27 @@
+"""
+Dependencies for {{ config.project.name }}
+"""
+
+
+{% for endpoint in config.endpoints %}
+from .services.{{ endpoint.name }}_service import {{ endpoint.name | camel_case }}Service
+{% endfor %}
+from nd_sdk import get_initialized_component
+import logging
+
+logger = get_initialized_component('logger') or logging.getLogger(__name__)
+{% if config.modules.caching.enabled %}
+cache_provider = get_initialized_component('cache')
+{% endif %}
+
+_services = {
+{% for endpoint in config.endpoints %}
+    "{{ endpoint.name }}": {{ endpoint.name | camel_case }}Service(),
+{% endfor %}
+}
+
+def get_service(name: str):
+    service = _services.get(name)
+    if not service:
+        raise ValueError(f"Service '{name}' not registered")
+    return service

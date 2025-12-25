@@ -1,0 +1,69 @@
+"""
+Pydantic models for {{ endpoint.name }} endpoint
+"""
+
+from typing import Optional{% if endpoint.params | selectattr('type', 'equalto', 'list') | list %}, List{% endif %}
+
+from pydantic import BaseModel, Field{% if endpoint.params | selectattr('pattern', 'defined') | list %}, field_validator{% endif %}
+
+
+{# ----------------------------------------- #}
+{# Collect non-path request parameters       #}
+{# ----------------------------------------- #}
+{% set request_params = endpoint.params | rejectattr('in', 'equalto', 'path') | list %}
+
+
+class {{ endpoint.name | camel_case }}Request(BaseModel):
+    """Request model for {{ endpoint.name }}"""
+
+{% if request_params %}
+{% for param in request_params %}
+    {{ param.name }}: {% if not param.required %}Optional[{% endif %}{{ param.type }}{% if not param.required %}]{% endif %} = Field(
+{% if param.required %}
+        ...,
+{% elif param.default is defined %}
+        default={{ param.default }},
+{% else %}
+        default=None,
+{% endif %}
+        description="{{ param.description | default('') }}",
+{% if param.min_length is defined %}
+        min_length={{ param.min_length }},
+{% endif %}
+{% if param.max_length is defined %}
+        max_length={{ param.max_length }},
+{% endif %}
+{% if param.min is defined %}
+        ge={{ param.min }},
+{% endif %}
+{% if param.max is defined %}
+        le={{ param.max }},
+{% endif %}
+    )
+{% endfor %}
+{% else %}
+    pass
+{% endif %}
+
+{% for param in request_params %}
+{% if param.pattern is defined %}
+    @field_validator("{{ param.name }}")
+    @classmethod
+    def validate_{{ param.name }}(cls, value: str):
+        import re
+        if value is None:
+            return value
+        if not re.match(r"{{ param.pattern }}", value):
+            raise ValueError("Invalid {{ param.name }} format")
+        return value
+
+{% endif %}
+{% endfor %}
+
+
+class {{ endpoint.name | camel_case }}Response(BaseModel):
+    """Response model for {{ endpoint.name }}"""
+
+    status: str
+    message: str
+    # Add response fields below
