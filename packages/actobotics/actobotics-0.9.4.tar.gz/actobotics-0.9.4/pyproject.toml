@@ -1,0 +1,193 @@
+[build-system]
+requires = ["hatchling>=1.24.2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "actobotics"
+version = "0.9.4"
+description = "Robotics proof-of-execution SDK"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "ACTO Contributors" }]
+keywords = ["robotics", "telemetry", "proof", "verification", "solana", "web3"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+# Core SDK dependencies - for end users
+dependencies = [
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+  "python-json-logger>=2.0.7",
+  "rich>=13.7",
+  "typer>=0.12",
+  "httpx>=0.27",
+  "orjson>=3.10",
+  "blake3>=0.4.1",
+  "pynacl>=1.5.0",
+  "pyjwt>=2.8",
+  "cryptography>=42.0",
+  "tenacity>=8.2",
+  "sqlalchemy>=2.0",  # Local proof registry
+]
+
+[project.urls]
+Homepage = "https://actobotics.net"
+Documentation = "https://api.actobotics.net/dashboard"
+Repository = "https://github.com/actobotics/ACTO"
+Issues = "https://github.com/actobotics/ACTO/issues"
+
+[project.optional-dependencies]
+# Solana blockchain integration
+solana = ["solana>=0.35.1"]
+
+# Redis cache backend
+redis = ["redis>=5.0"]
+
+# PostgreSQL database
+psycopg2 = ["psycopg2-binary>=2.9"]
+
+# MySQL database
+mysql = ["mysqlclient>=2.2"]
+
+# ROS (Robot Operating System) telemetry parsing
+ros = ["rosbag2>=0.24.0", "rclpy>=3.3.0"]
+
+# Protocol Buffer telemetry parsing
+protobuf = ["protobuf>=5.0.0"]
+
+# Parquet/Arrow telemetry parsing
+parquet = ["pyarrow>=15.0.0", "pandas>=2.0.0"]
+
+# HashiCorp Vault secrets management
+vault = ["hvac>=1.2.0"]
+
+# AWS Secrets Manager
+aws = ["boto3>=1.34.0"]
+
+# All security integrations
+security = ["actobotics[vault,aws]"]
+
+# Full SDK with all optional features (for end users)
+full = ["actobotics[solana,redis,ros,protobuf,parquet,security]"]
+
+# Server dependencies - only needed for self-hosted deployments
+server = [
+  "fastapi>=0.112",
+  "uvicorn[standard]>=0.30",
+  "sqlalchemy>=2.0",
+  "alembic>=1.13",
+  "mangum>=0.17.0",
+]
+
+# Development dependencies - for contributors only
+dev = [
+  "actobotics[server]",
+  "pytest>=8.2",
+  "pytest-asyncio>=0.23",
+  "pytest-cov>=5.0",
+  "pytest-xdist>=3.5",
+  "pytest-timeout>=2.2",
+  "hypothesis>=6.100",
+  "locust>=2.24",
+  "bandit>=1.7",
+  "safety>=3.0",
+  "ruff>=0.6.9",
+  "mypy>=1.11",
+  "pre-commit>=3.6",
+  "coverage>=7.5",
+  "build>=1.0",
+  "twine>=5.0",
+]
+
+# Legacy alias - installs everything including dev tools
+all = ["actobotics[full,dev]"]
+
+[project.scripts]
+acto = "acto_cli.main:app"
+
+# ============================================================================
+# BUILD CONFIGURATION
+# ============================================================================
+# Only SDK and CLI are included in the published package.
+# Server code stays in the repo but is NOT distributed via PyPI.
+
+[tool.hatch.build.targets.wheel]
+packages = ["acto", "acto_cli"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "acto_server/",
+  "api/",
+  "data/",
+  "migrations/",
+  "tests/",
+  "examples/",
+  "scripts/",
+  "docs/",
+  ".github/",
+  "Dockerfile",
+  "docker-compose.yml",
+  "vercel.json",
+  "alembic.ini",
+  "pytest.ini",
+  "pyrightconfig.json",
+  "*.sqlite*",
+  "htmlcov/",
+  ".coverage",
+  ".ruff_cache/",
+  "__pycache__/",
+]
+
+# ============================================================================
+# TOOL CONFIGURATION
+# ============================================================================
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["acto", "acto_cli", "acto_server"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/migrations/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "venv", ".venv", "htmlcov", ".git", "migrations"]
+skips = ["B101", "B601"]
