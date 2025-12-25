@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Preview Server Status</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #ebe5fc;
+            min-height: 100vh;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 40px 20px 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .status-ok {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .servers-section {
+            margin-top: 20px;
+        }
+
+        .servers-section h2 {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .server-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .server-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .server-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+
+        .server-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .ref-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: #333;
+            font-family: "Monaco", "Courier New", monospace;
+        }
+
+        .server-port {
+            background: #667eea;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .server-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .detail-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #333;
+            margin-right: 6px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #667eea;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .server-details-section {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .server-details-section summary {
+            cursor: pointer;
+            font-weight: 500;
+            color: #667eea;
+            user-select: none;
+            padding: 8px 0;
+        }
+
+        .server-details-section summary:hover {
+            color: #764ba2;
+        }
+
+        .details-content {
+            margin-top: 12px;
+            padding-left: 12px;
+            border-left: 2px solid #667eea;
+        }
+
+        .detail-section {
+            margin-bottom: 12px;
+        }
+
+        .detail-section-label {
+            font-weight: 600;
+            color: #333;
+            font-size: 12px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .command-display {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px 10px;
+            font-family: "Monaco", "Courier New", monospace;
+            font-size: 12px;
+            color: #333;
+            word-break: break-all;
+            line-height: 1.4;
+        }
+
+        .logs-display {
+            background: #1e1e1e;
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: "Monaco", "Courier New", monospace;
+            font-size: 11px;
+        }
+
+        .log-line {
+            color: #00ff00;
+            margin-bottom: 2px;
+            line-height: 1.3;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .log-line:last-child {
+            margin-bottom: 0;
+        }
+
+        .stream-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .stream-toggle input {
+            display: none;
+        }
+
+        .toggle-slider {
+            width: 40px;
+            height: 22px;
+            background: #ccc;
+            border-radius: 11px;
+            position: relative;
+            transition: background 0.3s ease;
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        .stream-toggle input:checked + .toggle-slider {
+            background: #667eea;
+        }
+
+        .stream-toggle input:checked + .toggle-slider::before {
+            transform: translateX(18px);
+        }
+
+        .header-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        /* Admin config section styles */
+        .config-section {
+            margin-top: 30px;
+            border-top: 1px solid #e9ecef;
+            padding-top: 20px;
+        }
+
+        .config-section summary {
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 16px;
+            color: #333;
+            user-select: none;
+            padding: 8px 0;
+        }
+
+        .config-section summary:hover {
+            color: #667eea;
+        }
+
+        .config-content {
+            margin-top: 15px;
+        }
+
+        .auth-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            max-width: 400px;
+        }
+
+        .auth-form input[type="password"] {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5a6fd6;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-sm {
+            padding: 4px 10px;
+            font-size: 12px;
+        }
+
+        .repos-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .repo-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+        }
+
+        .repo-item.paused {
+            background: #fff3cd;
+            border-color: #ffc107;
+        }
+
+        .repo-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .repo-label {
+            font-weight: 600;
+            font-family: "Monaco", "Courier New", monospace;
+        }
+
+        .repo-path {
+            font-size: 12px;
+            color: #666;
+            word-break: break-all;
+        }
+
+        .repo-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            background: #ffc107;
+            color: #212529;
+            margin-left: 8px;
+        }
+
+        .repo-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .add-repo-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .add-repo-form input[type="text"] {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .add-repo-form input[name="label"] {
+            width: 120px;
+        }
+
+        .add-repo-form input[name="path"] {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .auth-status {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .auth-status.authenticated {
+            color: #28a745;
+        }
+
+        .logout-link {
+            color: #667eea;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Preview Server Status</h1>
+        <p class="subtitle">Git ref-based preview deployments</p>
+        <div class="status-badge status-ok" id="status-badge">Loading...</div>
+
+        <div id="error-container"></div>
+
+        <div class="servers-section">
+            <div class="header-controls">
+                <h2>Running Servers</h2>
+                <label class="stream-toggle">
+                    <input type="checkbox" id="stream-logs-toggle">
+                    <span class="toggle-slider"></span>
+                    Stream logs
+                </label>
+            </div>
+            <div id="servers-list" class="server-list">
+                <div class="empty-state">
+                    <p><span class="spinner"></span></p>
+                    <p>Loading status...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Config section (only shown when admin_api_enabled) -->
+        <div id="config-section" class="config-section" style="display: none;">
+            <details id="config-details">
+                <summary>Configuration</summary>
+                <div class="config-content">
+                    <!-- Auth form (shown when not authenticated) -->
+                    <div id="auth-form-container">
+                        <div class="auth-form">
+                            <input type="password" id="admin-secret-input" placeholder="Admin secret">
+                            <button class="btn btn-primary" onclick="authenticate()">Authenticate</button>
+                        </div>
+                        <div id="auth-error" style="color: #dc3545; font-size: 12px; margin-top: 8px;"></div>
+                    </div>
+
+                    <!-- Admin controls (shown after authentication) -->
+                    <div id="admin-controls" style="display: none;">
+                        <div class="auth-status authenticated">
+                            Authenticated <span class="logout-link" onclick="logout()">(logout)</span>
+                        </div>
+
+                        <h3 style="font-size: 14px; margin-bottom: 10px;">Repositories</h3>
+                        <div id="repos-list" class="repos-list">
+                            <!-- Repos will be rendered here -->
+                        </div>
+
+                        <h3 style="font-size: 14px; margin-bottom: 10px;">Add Repository</h3>
+                        <div class="add-repo-form">
+                            <input type="text" name="label" id="add-repo-label" placeholder="Label">
+                            <input type="text" name="path" id="add-repo-path" placeholder="Path or URL">
+                            <button class="btn btn-success" onclick="addRepo()">Add</button>
+                        </div>
+                        <div id="add-repo-error" style="color: #dc3545; font-size: 12px; margin-top: 8px;"></div>
+                    </div>
+                </div>
+            </details>
+        </div>
+
+    </div>
+
+    <script>
+        async function loadStatus() {
+            try {
+                const response = await fetch('/-/preview-server.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                renderStatus(data);
+            } catch (error) {
+                renderError(error.message);
+            }
+        }
+
+        function renderStatus(data) {
+            // Clear error
+            document.getElementById('error-container').innerHTML = '';
+
+            // Update badge
+            const badge = document.getElementById('status-badge');
+            if (data.status === 'ok') {
+                badge.className = 'status-badge status-ok';
+                badge.textContent = '✓ All systems operational';
+            }
+
+            // Update config section (admin API)
+            updateConfigSection(data);
+
+            // Update servers list
+            const serversList = document.getElementById('servers-list');
+            const servers = data.sub_servers || [];
+
+            if (servers.length === 0) {
+                serversList.innerHTML = `
+                    <div class="empty-state">
+                        <p>No servers running</p>
+                        <p>Access a ref to start a preview: <code>ref.localhost:port</code></p>
+                    </div>
+                `;
+                return;
+            }
+
+            serversList.innerHTML = servers.map(server => {
+                const uptime = formatUptime(server.uptime_seconds);
+                const logsHtml = (server.recent_logs && server.recent_logs.length > 0)
+                    ? [...server.recent_logs].reverse().map(log => `<div class="log-line">${escapeHtml(log)}</div>`).join('')
+                    : '<div class="log-line">No logs available</div>';
+                const logCount = server.recent_logs ? server.recent_logs.length : 0;
+
+                // Calculate initial idle countdown
+                const idleCountdown = Math.max(0, Math.round(server.seconds_until_idle));
+                const idleStatus = idleCountdown > 0
+                    ? `Idle timeout in ${formatUptime(idleCountdown)}`
+                    : 'Will be terminated when idle';
+
+                return `
+                    <div class="server-card" data-ref="${escapeHtml(server.ref)}" data-project="${server.project ? escapeHtml(server.project) : ''}" data-idle-ttl="${server.idle_ttl_seconds}" data-last-request="${server.last_request_seconds_ago}">
+                        <div class="server-header">
+                            <div class="ref-name">${server.project ? escapeHtml(server.project) + ' : ' + escapeHtml(server.ref) : escapeHtml(server.ref)}</div>
+                            <div class="server-port">port ${server.port}</div>
+                        </div>
+                        <div class="server-details">
+                            <div class="detail-item">
+                                <span class="detail-label">PID:</span>
+                                <span>${server.pid}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Uptime:</span>
+                                <span>${uptime}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Restarts:</span>
+                                <span>${server.restart_attempts}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="color: #d32f2f;">Idle Timer:</span>
+                                <span class="idle-countdown" style="font-weight: bold; color: #d32f2f;">${idleStatus}</span>
+                            </div>
+                        </div>
+                        <details class="server-details-section">
+                            <summary>Details & Logs</summary>
+                            <div class="details-content">
+                                <div class="detail-section">
+                                    <div class="detail-section-label">Command:</div>
+                                    <div class="command-display">${escapeHtml(server.command)}</div>
+                                </div>
+                                <div class="detail-section">
+                                    <div class="detail-section-label">Logs (${logCount} lines, up to 100):</div>
+                                    <div class="logs-display">
+                                        ${logsHtml}
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+                `;
+            }).join('');
+
+            // Start updating idle counters every 100ms for smooth countdown
+            updateIdleCounters();
+            setInterval(updateIdleCounters, 2000);
+        }
+
+        function updateIdleCounters() {
+            const cards = document.querySelectorAll('.server-card');
+            cards.forEach(card => {
+                const idleTtl = parseFloat(card.dataset.idleTtl);
+                const lastRequest = parseFloat(card.dataset.lastRequest);
+                const countdownEl = card.querySelector('.idle-countdown');
+
+                if (countdownEl && idleTtl) {
+                    // Increment time since last request
+                    const newLastRequest = lastRequest + 0.1;
+                    const secondsUntilIdle = Math.max(0, idleTtl - newLastRequest);
+
+                    if (secondsUntilIdle > 0) {
+                        countdownEl.textContent = `Idle timeout in ${formatUptime(secondsUntilIdle)}`;
+                        countdownEl.style.color = secondsUntilIdle < 30 ? '#ff6b6b' : '#d32f2f';
+                    } else {
+                        countdownEl.textContent = 'Will be terminated when idle';
+                        countdownEl.style.color = '#999';
+                    }
+
+                    // Update the data attribute for next iteration
+                    card.dataset.lastRequest = newLastRequest;
+                }
+            });
+        }
+
+        function renderError(message) {
+            const container = document.getElementById('error-container');
+            container.innerHTML = `<div class="error">Error loading status: ${escapeHtml(message)}</div>`;
+        }
+
+        function formatUptime(seconds) {
+            if (seconds < 60) return `${Math.floor(seconds)}s`;
+            if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
+            return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Streaming logs functionality
+        let streamingInterval = null;
+
+        async function refreshLogs() {
+            try {
+                const response = await fetch('/-/preview-server.json');
+                if (!response.ok) return;
+                const data = await response.json();
+                updateLogContainers(data.sub_servers || []);
+            } catch (e) {
+                // Silent fail - don't disrupt UI
+            }
+        }
+
+        function updateLogContainers(servers) {
+            servers.forEach(server => {
+                // Find the server card by ref (and project if multi-repo)
+                const serverKey = server.project ? `${server.project}--${server.ref}` : server.ref;
+                const cards = document.querySelectorAll('.server-card');
+
+                cards.forEach(card => {
+                    const cardRef = card.dataset.ref;
+                    const cardProject = card.dataset.project;
+                    const cardKey = cardProject ? `${cardProject}--${cardRef}` : cardRef;
+
+                    if (cardKey === serverKey) {
+                        // Update logs
+                        const logsDisplay = card.querySelector('.logs-display');
+                        if (logsDisplay && server.recent_logs) {
+                            const logCount = server.recent_logs.length;
+                            const logsHtml = logCount > 0
+                                ? [...server.recent_logs].reverse().map(log => `<div class="log-line">${escapeHtml(log)}</div>`).join('')
+                                : '<div class="log-line">No logs available</div>';
+                            logsDisplay.innerHTML = logsHtml;
+
+                            // Update log count label
+                            const logLabel = card.querySelector('.detail-section-label');
+                            if (logLabel && logLabel.textContent.includes('Logs')) {
+                                logLabel.textContent = `Logs (${logCount} lines, up to 100):`;
+                            }
+                        }
+
+                        // Update idle timer data
+                        card.dataset.lastRequest = server.last_request_seconds_ago;
+                    }
+                });
+            });
+        }
+
+        document.getElementById('stream-logs-toggle').addEventListener('change', function(e) {
+            if (e.target.checked) {
+                // Start polling
+                refreshLogs(); // Immediate first refresh
+                streamingInterval = setInterval(refreshLogs, 1000);
+            } else {
+                // Stop polling
+                if (streamingInterval) {
+                    clearInterval(streamingInterval);
+                    streamingInterval = null;
+                }
+            }
+        });
+
+        // Admin API functionality
+        let currentStatusData = null;
+
+        function getStoredSecret() {
+            return localStorage.getItem('adminSecret');
+        }
+
+        function storeSecret(secret) {
+            localStorage.setItem('adminSecret', secret);
+        }
+
+        function clearSecret() {
+            localStorage.removeItem('adminSecret');
+        }
+
+        function initDetailsState() {
+            const details = document.getElementById('config-details');
+            const isOpen = localStorage.getItem('configDetailsOpen') === 'true';
+            if (isOpen) {
+                details.setAttribute('open', '');
+            }
+
+            details.addEventListener('toggle', function() {
+                localStorage.setItem('configDetailsOpen', details.open);
+            });
+        }
+
+        async function authenticate() {
+            const secretInput = document.getElementById('admin-secret-input');
+            const errorEl = document.getElementById('auth-error');
+            const secret = secretInput.value;
+
+            if (!secret) {
+                errorEl.textContent = 'Please enter the admin secret';
+                return;
+            }
+
+            try {
+                const response = await fetch('/-/preview-server/auth-check', {
+                    method: 'POST',
+                    headers: {
+                        'x-api-secret': secret
+                    }
+                });
+                const data = await response.json();
+
+                if (data.ok) {
+                    storeSecret(secret);
+                    errorEl.textContent = '';
+                    secretInput.value = '';
+                    showAdminControls();
+                    renderReposList();
+                } else {
+                    errorEl.textContent = 'Invalid secret';
+                }
+            } catch (e) {
+                errorEl.textContent = 'Authentication failed: ' + e.message;
+            }
+        }
+
+        function logout() {
+            clearSecret();
+            document.getElementById('auth-form-container').style.display = 'block';
+            document.getElementById('admin-controls').style.display = 'none';
+        }
+
+        function showAdminControls() {
+            document.getElementById('auth-form-container').style.display = 'none';
+            document.getElementById('admin-controls').style.display = 'block';
+        }
+
+        function renderReposList() {
+            if (!currentStatusData || !currentStatusData.repos) return;
+
+            const reposList = document.getElementById('repos-list');
+            const repos = currentStatusData.repos;
+
+            if (repos.length === 0) {
+                reposList.innerHTML = '<div style="color: #666; font-size: 14px;">No repositories configured</div>';
+                return;
+            }
+
+            reposList.innerHTML = repos.map(repo => `
+                <div class="repo-item ${repo.paused ? 'paused' : ''}">
+                    <div class="repo-info">
+                        <div class="repo-label">
+                            ${escapeHtml(repo.name)}
+                            ${repo.paused ? '<span class="repo-badge">PAUSED</span>' : ''}
+                        </div>
+                        <div class="repo-path">${escapeHtml(repo.path)}</div>
+                    </div>
+                    <div class="repo-actions">
+                        ${repo.paused
+                            ? `<button class="btn btn-success btn-sm" onclick="resumeRepo('${escapeHtml(repo.name)}')">Resume</button>`
+                            : `<button class="btn btn-warning btn-sm" onclick="pauseRepo('${escapeHtml(repo.name)}')">Pause</button>`
+                        }
+                        <button class="btn btn-danger btn-sm" onclick="removeRepo('${escapeHtml(repo.name)}')">Remove</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function adminApiCall(endpoint, body) {
+            const secret = getStoredSecret();
+            if (!secret) {
+                logout();
+                return null;
+            }
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-secret': secret
+                    },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+
+                if (response.status === 401) {
+                    logout();
+                    return null;
+                }
+
+                return { status: response.status, data };
+            } catch (e) {
+                return { status: 0, error: e.message };
+            }
+        }
+
+        async function addRepo() {
+            const labelInput = document.getElementById('add-repo-label');
+            const pathInput = document.getElementById('add-repo-path');
+            const errorEl = document.getElementById('add-repo-error');
+
+            const label = labelInput.value.trim();
+            const path = pathInput.value.trim();
+
+            if (!label || !path) {
+                errorEl.textContent = 'Both label and path are required';
+                return;
+            }
+
+            const result = await adminApiCall('/-/preview-server/repos/add', { label, path });
+
+            if (!result) return;
+
+            if (result.data.ok) {
+                labelInput.value = '';
+                pathInput.value = '';
+                errorEl.textContent = '';
+                loadStatus(); // Refresh
+            } else {
+                errorEl.textContent = result.data.error || 'Failed to add repo';
+            }
+        }
+
+        async function removeRepo(label) {
+            if (!confirm(`Remove repository "${label}"?`)) return;
+
+            const result = await adminApiCall('/-/preview-server/repos/remove', { label });
+            if (!result) return;
+
+            if (result.data.ok) {
+                loadStatus();
+            } else {
+                alert(result.data.error || 'Failed to remove repo');
+            }
+        }
+
+        async function pauseRepo(label) {
+            const result = await adminApiCall('/-/preview-server/repos/pause', { label });
+            if (!result) return;
+
+            if (result.data.ok) {
+                loadStatus();
+            } else {
+                alert(result.data.error || 'Failed to pause repo');
+            }
+        }
+
+        async function resumeRepo(label) {
+            const result = await adminApiCall('/-/preview-server/repos/resume', { label });
+            if (!result) return;
+
+            if (result.data.ok) {
+                loadStatus();
+            } else {
+                alert(result.data.error || 'Failed to resume repo');
+            }
+        }
+
+        function updateConfigSection(data) {
+            currentStatusData = data;
+            const configSection = document.getElementById('config-section');
+
+            if (data.admin_api_enabled) {
+                configSection.style.display = 'block';
+
+                // Check if already authenticated
+                const secret = getStoredSecret();
+                if (secret) {
+                    // Verify secret is still valid
+                    fetch('/-/preview-server/auth-check', {
+                        method: 'POST',
+                        headers: { 'x-api-secret': secret }
+                    }).then(r => r.json()).then(result => {
+                        if (result.ok) {
+                            showAdminControls();
+                            renderReposList();
+                        } else {
+                            logout();
+                        }
+                    }).catch(() => logout());
+                }
+            } else {
+                configSection.style.display = 'none';
+            }
+        }
+
+        // Initialize details state on page load
+        initDetailsState();
+
+        // Handle Enter key in auth input
+        document.getElementById('admin-secret-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') authenticate();
+        });
+
+        // Handle Enter key in add repo inputs
+        document.getElementById('add-repo-path').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') addRepo();
+        });
+
+        // Load status on page load
+        loadStatus();
+    </script>
+</body>
+</html>
