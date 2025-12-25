@@ -1,0 +1,228 @@
+# ArizonaAI Python SDK
+
+Профессиональная Python-библиотека для взаимодействия с API ArizonaAI.
+
+## Особенности
+
+- 🔄 **Sync/Async** — полная поддержка синхронных и асинхронных операций
+- 📦 **Типизация** — полные type hints и dataclass модели
+- 🔁 **Retry Logic** — автоматические повторы при ошибках
+- 📡 **Streaming** — потоковая передача ответов
+- ⚡ **Модульность** — отдельные API модули (chat, models, user, configs, forum)
+- 🛡️ **Error Handling** — детальные исключения для всех типов ошибок
+
+## Установка
+
+```bash
+pip install arizona_ai_sdk
+```
+
+## Быстрый старт
+
+### Базовое использование
+
+```python
+from arizona_ai_sdk import ArizonaAIClient
+
+client = ArizonaAIClient(api_key="your-api-key")
+
+response = client.ask("Какие правила Arizona RP?")
+print(response)
+```
+
+### Асинхронное использование
+
+```python
+import asyncio
+from arizona_ai_sdk import ArizonaAIClient
+
+async def main():
+    async with ArizonaAIClient(api_key="your-api-key") as client:
+        response = await client.aask(model="arizona-lm-game", message="Расскажи про систему домов")
+        print(response)
+
+asyncio.run(main())
+```
+
+### Работа с сообщениями
+
+```python
+from arizona_ai_sdk import ArizonaAIClient, Message
+
+client = ArizonaAIClient(api_key="your-api-key")
+
+messages = [
+    Message.system("Ты помощник по Arizona RP"),
+    Message.user("Как получить лицензию на оружие?"),
+]
+
+completion = client.chat.completions(
+    messages=messages,
+    model="arizona-lm-game",
+)
+
+print(completion.content)
+```
+
+### Streaming
+
+```python
+from arizona_ai_sdk import ArizonaAIClient
+
+client = ArizonaAIClient(api_key="your-api-key")
+
+response = client.chat.stream(
+    messages="Объясни систему организаций",
+    model="arizona-lm-game",
+    callback=lambda chunk: print(chunk, end="", flush=True)
+)
+```
+
+### Async Streaming
+
+```python
+import asyncio
+from arizona_ai_sdk import ArizonaAIClient
+
+async def main():
+    client = ArizonaAIClient(api_key="your-api-key")
+    
+    async for chunk in client.chat.astream("Расскажи про автосалоны"):
+        print(chunk.content, end="", flush=True)
+    
+    await client.aclose()
+
+asyncio.run(main())
+```
+
+## API Модули
+
+### Chat API
+
+```python
+client.chat.completions(messages, model, temperature, config_id, attachments)
+client.chat.acompletions(...)
+client.chat.stream(messages, callback=...)
+client.chat.astream(messages)
+client.chat.astream_text(messages)
+```
+
+### Models API
+
+```python
+models = client.models.list()
+model = client.models.get("arizona-lm-forum")
+available = client.models.get_available()
+found = client.models.find("gemini")
+```
+
+### User API
+
+```python
+limits = client.user.get_limits()
+is_valid = client.user.validate_token()
+history = client.user.get_history(page=1, per_page=20)
+can_request = client.user.can_make_request()
+```
+
+### Configs API
+
+```python
+configs = client.configs.list(scope="all")
+config = client.configs.find_by_name("My Config")
+```
+
+### Tokens API
+
+```python
+count = client.tokens.count("Привет, мир!", model="arizona-lm-forum")
+print(count.token_count)
+print(count.exceeds_request_limit())
+```
+
+### Forum API
+
+```python
+servers = client.forum.get_servers()
+category = client.forum.get_category(123)
+thread = client.forum.get_thread(456)
+post = client.forum.get_post(789)
+member = client.forum.get_member(111)
+
+threads = client.forum.get_category_threads(123, page=1)
+posts = client.forum.get_thread_posts(456, page=1)
+
+results = client.forum.search_threads("правила", sort="relevance")
+members = client.forum.search_members("Admin")
+```
+
+## Работа с вложениями
+
+```python
+from arizona_ai_sdk import ArizonaAIClient
+from arizona_ai_sdk.utils import file_to_attachment
+
+client = ArizonaAIClient(api_key="your-api-key")
+
+attachment = file_to_attachment("screenshot.png")
+
+response = client.chat.completions(
+    messages="Что на этом скриншоте?",
+    model="gemini-2.5-flash",
+    attachments=[attachment]
+)
+```
+
+## Обработка ошибок
+
+```python
+from arizona_ai_sdk import ArizonaAIClient
+from arizona_ai_sdk.exceptions import (
+    AuthenticationError,
+    RateLimitError,
+    NotFoundError,
+    ValidationError,
+)
+
+client = ArizonaAIClient(api_key="your-api-key")
+
+try:
+    response = client.ask("Вопрос")
+except AuthenticationError:
+    print("Неверный API ключ")
+except RateLimitError as e:
+    print(f"Превышен лимит. Подождите {e.retry_after} секунд")
+except NotFoundError:
+    print("Ресурс не найден")
+except ValidationError as e:
+    print(f"Ошибка валидации: {e.message}")
+```
+
+## Конфигурация
+
+```python
+client = ArizonaAIClient(
+    api_key="your-api-key",
+    base_url="https://arizona-ai.ru",
+    timeout=60.0,
+    max_retries=3,
+    verify_ssl=True,
+    custom_headers={"X-Custom-Header": "value"}
+)
+```
+
+## Модели данных
+
+- `Message` — сообщение чата
+- `ChatCompletion` — ответ на запрос
+- `ChatCompletionChunk` — чанк стриминга
+- `Model` — информация о модели
+- `UserLimits` — лимиты пользователя
+- `TokenValidation` — результат валидации токена
+- `Config` — конфигурация
+- `TokenCount` — подсчёт токенов
+- `ForumThread`, `ForumPost`, `ForumMember` — данные форума
+
+## Лицензия
+
+GPL-2.0 license
