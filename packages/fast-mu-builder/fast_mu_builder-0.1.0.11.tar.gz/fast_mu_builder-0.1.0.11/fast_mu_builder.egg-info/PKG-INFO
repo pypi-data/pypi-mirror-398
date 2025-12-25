@@ -1,0 +1,152 @@
+Metadata-Version: 2.4
+Name: fast-mu-builder
+Version: 0.1.0.11
+Summary: FastAPI Builder with Tortoise ORM support for MU
+Home-page: https://bitbucket.org/external-dev-mzumbe/fast-mu-builder
+Author: Japhary Juma Hamisi
+Author-email: Japhary Juma Hamisi <japharyjuma@gmail.com>, Shija Ntula <abuukauthar13@gmail.com>, Juma Ludanga <ludangajn@gmail.com>
+License: Other License
+Classifier: Programming Language :: Python :: 3
+Classifier: Framework :: FastAPI
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: fastapi==0.116.1
+Requires-Dist: tortoise-orm[asyncpg]==0.20.1
+Requires-Dist: pydantic==2.11.7
+Requires-Dist: httpx==0.28.1
+Requires-Dist: strawberry-graphql[fastapi]==0.278.1
+Requires-Dist: jinja2==3.1.6
+Requires-Dist: pluralize==20240519.3
+Requires-Dist: PyJWT==2.10.1
+Requires-Dist: redis==5.2.1
+Requires-Dist: minio==7.2.16
+Requires-Dist: aiofiles==24.1.0
+Requires-Dist: bullmq==2.15.0
+Requires-Dist: sentry_sdk==2.34.1
+Requires-Dist: cryptography==45.0.6
+Requires-Dist: python-decouple==3.8
+Requires-Dist: celery[redis]==5.5.3
+Requires-Dist: xlsxwriter==3.2.5
+Requires-Dist: fpdf2==2.8.3
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+---
+
+## 🚀 Quick Start
+
+Create FastAPI App for more visit https://fastapi.tiangolo.com/
+
+## ⚙️ Installation
+
+```bash
+
+pip install fast-mu-builder
+```
+
+### 🚀 Setting Up a Custom User Model in FastAPI with Tortoise ORM + FastAPI-Builder
+
+This guide explains how to create a package module for your **User model**, extend it from `AbstractUser`, configure it in Tortoise ORM, and generate GraphQL + migrations.
+
+---
+
+## 📂 Project Structure
+
+```bash
+
+myapp
+  ├── mymodel_package
+  │   ├── __init__.py
+  │   └── models
+  │       └── ..
+  ├── config
+  │   ├── __init__.py
+  │   └── tortoise.py
+  ├── main.py
+  └── ...
+```
+
+
+
+🗄️ 3. Create Tortoise ORM Config
+
+Inside config/tortoise.py:
+```python
+from decouple import config
+
+db_url = f"postgres://{config('DB_USER')}:{config('DB_PASSWORD')}@{config('DB_HOST')}:{config('DB_PORT')}/{config('DB_NAME')}"
+
+TORTOISE_ORM = {
+    "connections": {"default": db_url},
+    "apps": {
+        "models": {
+            "models": [
+                "fast_mu_builder.models",   # built-in models
+                "mymodel_package.models",    # your custom models
+                "aerich.models",             # migration tracking
+            ],
+            "default_connection": "default",
+        },
+    },
+    "use_tz": True,  # Enable timezone-aware datetimes
+    "timezone": "Africa/Dar_es_Salaam",  # Set to EAT (Dar es Salaam)
+}
+```
+
+🔧 4. Generate CRUD APIs via GraphQL
+
+Run the following to scaffold GraphQL CRUD APIs:
+```bash
+# For your custom User model
+graphql gen:crud-api user_management --module-package=mymodel_package.models --model User
+
+# For fast_mu_builder built-in models
+graphql gen:crud-api user_management --module-package=fast_mu_builder.models --model Group,Permission,Headship
+graphql gen:crud-api workflow --module-package=fast_mu_builder.models --model Workflow,WorkflowStep,Transition,Evaluation
+```
+For your Models
+```bash
+# 
+graphql gen:crud-api <module-name> --model Model1,Model2,Model3
+
+# generating graphql schemas with attachments
+
+graphql gen:crud-api <module-name> --model ModelName --with-attachment
+
+# generating graphql schemas with transition
+graphql gen:crud-api <module-name> --model ModelName --with-transition
+```
+
+📦 5. Initialize Aerich (DB migrations)
+```bash
+# Initialize Aerich with your Tortoise ORM config
+aerich init -t config.tortoise.TORTOISE_ORM
+
+# Create initial migration & database tables
+aerich init-db
+```
+
+## 📖 Documentation
+Coming soon...
+
+---
+
+## 🤝 Contributing
+Contributions, issues, and feature requests are welcome!  
+Feel free to check the [issues page](https://github.com/jay-ludanga/fast-backend-builder/issues).
+
+---
+
+## 📜 License
+This project is licensed under the **MIT License**.
+
+
+# Thanks
+
+Thanks for all the contributors that made this library possible,
+also a special mention to Japhary Juma, Shija Ntula and Juma Nassoro.
