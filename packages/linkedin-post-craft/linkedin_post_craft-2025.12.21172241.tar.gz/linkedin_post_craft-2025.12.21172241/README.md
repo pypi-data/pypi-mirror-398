@@ -1,0 +1,107 @@
+# linkedin-post-craft
+[![PyPI version](https://badge.fury.io/py/linkedin-post-craft.svg)](https://badge.fury.io/py/linkedin-post-craft)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/linkedin-post-craft)](https://pepy.tech/project/linkedin-post-craft)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-blue)](https://www.linkedin.com/in/eugene-evstafev-716669181/)
+
+
+**linkedin-post-craft** is a lightweight Python package that generates professional LinkedIn posts from simple user‑provided text.  
+Pick one of five tones (professional, casual, inspirational, analytical, humorous) and let the package craft a LinkedIn‑ready post that follows best practices for engagement and visibility.
+
+## Installation
+
+```bash
+pip install linkedin_post_craft
+```
+
+## Quick Start
+
+```python
+from linkedin_post_craft import linkedin_post_craft
+
+# Simple call – uses the default ChatLLM7 model
+post = linkedin_post_craft(
+    user_input="Just completed a successful product launch that increased revenue by 30%."
+)
+
+print(post)   # → list of generated LinkedIn post strings
+```
+
+## Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `user_input` | `str` | The raw text containing key points, achievements, or ideas you want to turn into a LinkedIn post. |
+| `llm` | `Optional[BaseChatModel]` | A LangChain chat model instance. If omitted, the package creates a `ChatLLM7` instance automatically. |
+| `api_key` | `Optional[str]` | API key for LLM7. If omitted, the package reads `LLM7_API_KEY` from the environment or falls back to an unauthenticated request (subject to rate limits). |
+
+## Using a Custom LLM
+
+You can pass any LangChain‑compatible chat model (OpenAI, Anthropic, Google, etc.):
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+from linkedin_post_craft import linkedin_post_craft
+
+llm = ChatOpenAI(model="gpt-4o-mini")
+post = linkedin_post_craft(user_input="My team just earned a industry award.", llm=llm)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from linkedin_post_craft import linkedin_post_craft
+
+llm = ChatAnthropic(model="claude-3-haiku-20240307")
+post = linkedin_post_craft(user_input="Celebrating 5 years at my company!", llm=llm)
+```
+
+### Google GenAI
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from linkedin_post_craft import linkedin_post_craft
+
+llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+post = linkedin_post_craft(user_input="Excited to share my new certification.", llm=llm)
+```
+
+## Default LLM (LLM7)
+
+If you don’t provide your own model, `linkedin-post-craft` uses **ChatLLM7** from the `langchain_llm7` package:
+
+```python
+from linkedin_post_craft import linkedin_post_craft
+
+post = linkedin_post_craft(
+    user_input="Announcing a partnership with XYZ Corp.",
+    api_key="your_llm7_api_key"   # optional; otherwise reads LLM7_API_KEY env var
+)
+```
+
+You can obtain a free LLM7 API key by registering at https://token.llm7.io/.
+
+The free tier’s rate limits are sufficient for most typical usage. For higher throughput, supply a paid API key via the `api_key` argument or the `LLM7_API_KEY` environment variable.
+
+## Output
+
+The function returns a `List[str]` containing one or more generated LinkedIn posts that match the chosen tone and adhere to LinkedIn’s style guidelines.
+
+## Development & Issues
+
+If you encounter bugs, have feature requests, or want to contribute, please open an issue on GitHub:
+
+https://github.com/chigwell/linkedin-post-craft/issues
+
+## License
+
+This project is licensed under the MIT License.
+
+## Author
+
+**Eugene Evstafev**  
+Email: hi@eugene.plus  
+GitHub: [@chigwell](https://github.com/chigwell)
