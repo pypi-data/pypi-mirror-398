@@ -1,0 +1,255 @@
+import logging
+
+import numpy as np
+
+from treesimulator import save_forest, save_log, save_ltt
+from treesimulator.generator import generate, observed_ltt
+from treesimulator.mtbd_models import Model, CTModel
+
+
+def main():
+    """
+    Entry point for tree/forest generation with a generic MTBD-CT-Skyline model with command-line arguments.
+
+
+    For skyline models, the first model (models[0]) always starts at time 0, and the time points list
+    specifies when to switch to each subsequent model.
+    :return: void
+    """
+    import argparse
+
+    parser = \
+        argparse.ArgumentParser(description="Simulates a tree (or a forest of trees) "
+                                            "for given MTBD-CT-Skyline model parameters. "
+                                            "If a simulation leads to less than --min_tips tips, it is repeated.")
+
+    # Common parameters
+    parser.add_argument('--min_tips', required=True, type=int,
+                        help="minimal number of sampled tips. "
+                             "If --T is not specified (i.e., is infinity), "
+                             "and the tree generation produces a tree with less than --min_tips sampled tips,"
+                             "the tree generation gets automatically restarted, "
+                             "till a tree with at least --min_tips sampled tips is obtained. "
+                             "If --T is specified (and is finite), "
+                             "trees keep being generated and added to the forest "
+                             "till their total sampled tip number reaches at least --min_tips tips.")
+    parser.add_argument('--max_tips', required=False, default=np.inf, type=int,
+                        help="maximal number of sampled tips, by default infinity. "
+                             "If --T is not specified (i.e., is infinity), "
+                             "the tree generation stops when at least --min_tips are sampled, "
+                             "and at most --max_tips are sampled. "
+                             "In practice, a random value between --min_tips (inclusive) and --max_tips (inclusive) "
+                             "is drawn as the target number of sampled tips. "
+                             "However, if the epidemic dies out before reaching that number, "
+                             "the tree is returned if --min_tips sampling target has been reached, "
+                             "otherwise the simulation restarts. "
+                             "If --T is specified (and is finite), each tree generation stops when --T is reached. "
+                             "Trees keep being generated and added to the forest "
+                             "till their total sampled tip number reaches at least --min_tips. "
+                             "If after the last tree addition --max_tips sampling target is exceeded, t"
+                             "he whole forest generation gets restarted.")
+    parser.add_argument('--T', required=False, default=np.inf, type=float,
+                        help="time over which to generate a tree/forest, by default infinity. "
+                             "If --T is not specified (i.e., is infinity), "
+                             "only one tree is generated "
+                             "and its size will be within --min_tips (inclusive) and --max_tips (inclusive) sampled tips. "
+                             "If --T is specified (and is finite), each tree generation stops when --T is reached. "
+                             "Trees keep being generated and added to the forest "
+                             "till their total sampled tip number reaches at least --min_tips. "
+                             "If after the last tree addition --max_tips is exceeded, "
+                             "the whole forest generation gets restarted. "
+                             "Hence, if one needs to generate a single tree over a given time --T, "
+                             "--min_tips should be set to 1 and --max_tips to infinity.")
+
+    # States parameter
+    parser.add_argument('--states', required=True, nargs='+', type=str, help="model states")
+
+    parser.add_argument('--transition_rates', nargs='+', type=float,
+                        help="transition rate matrix, row after row, in the same order as model states, "
+                             "e.g. if a model has 2 states given as --states E I,"
+                             "then here we expect E->E E->I I->E I->I."
+                             "All the transition rate from the state to itself  (e.g., E->E and I->I) must be zero."
+                             "If the Skyline is used, transition rate matrix for the model at the tree root "
+                             "is followed by the transition rate matrix of the next model, etc. "
+                             "For instance, for two models (m1 and m2) with the states E and I, we expect:"
+                             "E->E_m1 E->I_m1 I->E_m1 I->I_m1 E->E_m2 E->I_m2 I->E_m2 I->I_m2.")
+    parser.add_argument('--transmission_rates', nargs='+', type=float,
+                        help="transmission rate matrix, row after row, in the same order as model states, "
+                             "e.g. if a model has 2 states given as --states E I,"
+                             "then here we expect E->E E->I I->E I->I."
+                             "If the Skyline is used, transmission rate matrix for the model at the tree root "
+                             "is followed by the transmission rate matrix of the next model, etc. "
+                             "For instance, for two models (m1 and m2) with the states E and I, we expect:"
+                             "E->E_m1 E->I_m1 I->E_m1 I->I_m1 E->E_m2 E->I_m2 I->E_m2 I->I_m2.")
+    parser.add_argument('--removal_rates', nargs='+', type=float,
+                        help="removal rate array, in the same order as model states, "
+                             "e.g. if a model has 2 states given as --states E I,"
+                             "then here we expect removal(E) removal(I)."
+                             "If the Skyline is used, removal rates for the model at the tree root "
+                             "are followed by the removal rates of the next model, etc. "
+                             "For instance, for two models (m1 and m2) with the states E and I, we expect:"
+                             "removal(E)_m1 removal(I)_m1 removal(E)_m2 removal(I)_m2.")
+    parser.add_argument('--sampling_probabilities', nargs='+', type=float,
+                        help="sampling probability array, in the same order as model states, "
+                             "e.g. if a model has 2 states given as --states E I,"
+                             "then here we expect p(E) p(I)."
+                             "If the Skyline is used, sampling probabilities for the model at the tree root "
+                             "are followed by the sampling probabilities of the next model, etc. "
+                             "For instance, for two models (m1 and m2) with the states E and I, we expect:"
+                             "p(E)_m1 p(I)_m1 p(E)_m2 p(I)_m2.")
+
+
+    parser.add_argument('--skyline_times', nargs='*', type=float,
+                        help="List of time points specifying when to switch from model i to model i+1 in the Skyline."
+                             "Must be sorted in ascending order and contain one less elements "
+                             "than the number of models in the Skyline."
+                             "The first model always starts at time 0.")
+
+    # Contact tracing parameters
+    parser.add_argument('--upsilon', nargs='*', type=float,
+                        help='List of notification probabilities (one per skyline interval). Omit for no contact tracing.')
+    parser.add_argument('--X_C', nargs='*', type=float,
+                        help='List of removal rate speed-ups (X_C times) after being notified, '
+                             'where X_C = 1 means no speed-up. One value per skyline interval should be given. '
+                             'Only used if upsilon is specified.')
+    parser.add_argument('--X_p', nargs='*', type=float,
+                        help='List of sampling probability increases (X_p times) after being notified '
+                             '(X_p = 1 means no increase, X_p >= 1 / p, '
+                             'where p is the sampling probability of the unnotified individual of the same type,'
+                             'means automatic sampling (with probability 1) upon removal.) '
+                             'One value per skyline interval should be given. '
+                             'Only used if upsilon is specified.')
+    parser.add_argument('--max_notified_contacts', required=False, default=1, type=int,
+                        help='Maximum number of notified (most recent) contacts per index case.')
+    parser.add_argument('--notify_at_removal', action='store_true', default=False,
+                        help="allow for contact notification by any person who just got removed (i.e., non-infectious) "
+                             "instead of only sampled ones (default).")
+
+    parser.add_argument('--avg_recipients', nargs='*', type=float,
+                        help='average number of recipients per transmission '
+                             'for each donor state (in the same order as the model states). '
+                             'By default, only one-to-one transmissions are allowed, '
+                             'but if larger numbers are given then one-to-many transmissions become possible.')
+
+    parser.add_argument('--root_state', type=str, default=None,
+                        help='state at the beginning of the root branch(es). '
+                             'By default, one of the model states will be chosen randomly (and independently for each tree) '
+                             'based on the state equilibrium frequencies.')
+
+
+    parser.add_argument('--log', required=False, default=None, type=str, help="output file to log model parameters")
+    parser.add_argument('--nwk', required=True, type=str, help="output sampled tree or forest file")
+    parser.add_argument('--nwk_full', required=False, type=str, default=None,
+                        help="output full transmission tree or forest file")
+    parser.add_argument('--ltt', required=False, default=None, type=str, help="output LTT file")
+    parser.add_argument('-v', '--verbose', action='store_true', default=False, help="describe generation process")
+    parser.add_argument('-s', '--seed', type=int, default=None, help='random seed for reproducibility')
+
+    params = parser.parse_args()
+    logging.getLogger().handlers = []
+    logging.basicConfig(level=logging.DEBUG if params.verbose else logging.INFO,
+                        format='%(message)s', datefmt="%Y-%m-%d %H:%M:%S")
+
+    n_states = len(params.states)
+    if params.skyline_times and len(params.skyline_times) > 0:
+        n_models = len(params.skyline_times) + 1
+    else:
+        n_models = 1
+
+    def reshape(input_list, n_states, n_models):
+        """
+        Reshapes a list of n_states * n_states * n_models into a 3D array of shape (n_states, n_states, n_models),
+        and if a list only contains n_states * n_models values then reshapes it into a 2D array of shape (n_states, n_models).
+
+        :param input_list: the flattened list to reshape, giving row1 for model1, row2 for model1, ..., rowN for model1,
+                           row1 for model2, ..., rowN for modelM
+        :return: 3D array of shape (n_states, n_states, n_models) or 2D array of shape (n_states, n_models) depending on the input
+        """
+        if len(input_list) == n_states * n_models:
+            return np.array(input_list).reshape((n_models, n_states)).T
+        else:
+            return np.array(input_list).reshape(n_models, n_states, n_states).transpose(1, 2, 0)
+    try:
+        transition_rates = reshape(params.transition_rates, n_states, n_models)
+        transmission_rates = reshape(params.transmission_rates, n_states, n_models)
+        removal_rates = reshape(params.removal_rates, n_states, n_models)
+        sampling_probabilities = reshape(params.sampling_probabilities, n_states, n_models)
+    except:
+        raise ValueError(f'Got {n_models - 1} skyline times, and {n_states} states, '
+                         f'hence expecting {n_models} model(s) with {n_states} x {n_states} x {n_models} transition rates, '
+                         f'{n_states} x {n_states} x {n_models} transmission rates, '
+                         f'{n_states} x {n_models} removal rates, '
+                         f'and {n_states} x {n_models} sampling probabilities. '
+                         f'However (at least some of) your inputs do not correspond to these dimensions, '
+                         f'please check them.')
+
+
+    is_ct = params.upsilon
+    if is_ct:
+        if n_models != len(params.upsilon) or n_models != len(params.X_C) or n_models != len(params.X_p):
+            raise ValueError("Contact-tracing parameter lists must have the same length "
+                             f"as the number of models in the skyline ({n_models})")
+
+    if not params.avg_recipients:
+        params.avg_recipients = [1] * n_states
+    is_mult = np.any(np.array(params.avg_recipients) != 1)
+
+    if params.T < np.inf:
+        logging.info('Total time T={}'.format(params.T))
+
+    models = []
+    for i in range(n_models):
+        model = Model(states=params.states,
+                      transmission_rates=transmission_rates[:, :, i],
+                      transition_rates=transition_rates[:, :, i],
+                      removal_rates=removal_rates[:, i], ps=sampling_probabilities[:, i],
+                      n_recipients=params.avg_recipients)
+        if is_ct:
+            model = CTModel(model=model, upsilon=params.upsilon[i], X_C=params.X_C[i], X_p=params.X_p[i])
+        models.append(model)
+        extras = f'\n\tR={model.get_avg_R():g}\n\td={model.get_avg_d():g}' if not is_ct else ''
+        logging.info('{}MTBD{}{} model parameters are:\n'
+                     '\tstates={}\n'
+                     '\ttransition_rates=\n{}\n'
+                     '\ttransmission_rates=\n{}\n'
+                     '\tremoval_rates={}\n'
+                     '\tsampling probabilities={}'
+                     '{}'
+                     '{}{}'
+                     .format('For time interval {}-{},\n'.format(0 if i == 0 else params.skyline_times[i - 1],
+                                                                 params.skyline_times[i] if i < (
+                                                                         n_models - 1) else '...')
+                             if n_models > 1 else '',
+                             '-MULT' if is_mult else '',
+                             '-CT' if is_ct else '',
+                             ', '.join(model.states),
+                             model.transition_rates,
+                             model.transmission_rates,
+                             model.removal_rates,
+                             model.ps,
+                             extras,
+                             '\n\tavg_recipient_numbers={}'.format(params.avg_recipients) if is_mult else '',
+                             '\n\tupsilon={}'.format(model.upsilon) if is_ct else '')
+                     )
+
+    epidemic = generate(models, skyline_times=params.skyline_times, T=params.T,
+                        min_tips=params.min_tips, max_tips=params.max_tips,
+                        max_notified_contacts=params.max_notified_contacts, notify_at_removal=params.notify_at_removal,
+                        root_state=params.root_state,
+                        random_seed=params.seed,
+                        return_LTT=params.ltt is not None,
+                        return_full_forest=params.nwk_full is not None,
+                        return_stats=False)
+
+    save_forest(epidemic.sampled_forest, params.nwk)
+    if params.nwk_full is not None:
+        save_forest(epidemic.full_forest, params.nwk_full, format=3)
+
+    if params.log:
+        save_log(params.log, models, params.skyline_times, epidemic)
+    if params.ltt:
+        save_ltt(epidemic.LTT, observed_ltt(epidemic.sampled_forest, epidemic.T), params.ltt)
+
+
+if '__main__' == __name__:
+    main()
