@@ -1,0 +1,168 @@
+import os
+import re
+import csv
+
+SAMPLES={}
+
+def list_all_files_recursive(directory_path):
+    all_files = []
+    interesting_types = ["fastq","fq","fa","fasta","fna"]
+    pattern = "|".join(interesting_types)
+    for root, _, files in os.walk(directory_path):
+        for file in files:
+            if re.search(pattern, file):
+                all_files.append(os.path.join(root, file))
+    return all_files
+
+if config["input_folder"] != "NA":
+    sorted_list = sorted(list_all_files_recursive(config["input_folder"]))
+    for groupID, groupItems in itertools.groupby(sorted_list, lambda x: os.path.basename(x).split("_R")[0]):
+        #output_lines.append([groupID] + list(groupItems))
+        SAMPLES[groupID] = sorted(list(groupItems))
+elif config["sample_sheet"] != "NA":
+    with open(config["sample_sheet"], 'r') as mysamplesheet:
+        csvreader = csv.reader(mysamplesheet)
+        title = next(csvreader)
+        for row in csvreader:
+            #print(row)
+            key=row[0]
+            SAMPLES[key] = [row[1], row[2]]
+    #except Exception as e: 
+    #    print(e)
+    #    print(f"Format or file error on {config["sample_sheet"]}, please check your input")
+    #print(SAMPLES)
+else:
+    print(f"Error, input must be folder or sample sheet")
+
+def get_fastq1(wildcards):
+    return SAMPLES[wildcards.sample][0]
+
+def get_fastq2(wildcards):
+    return SAMPLES[wildcards.sample][1]
+
+rule all:
+    input: 
+        expand("results/rasusa/{sample}_R1.dedup.fastq", sample=SAMPLES.keys()),
+        expand("results/rasusa/{sample}_R2.dedup.fastq", sample=SAMPLES.keys()),
+        "results/micall/amino.csv"
+
+rule kraken2_classify:
+    input:
+        R1 = get_fastq1,
+        R2 = get_fastq2
+    output:
+        kraken_output = "results/kraken2/{sample}.kraken",
+        kreport_output = "results/kraken2/{sample}.report"
+    params:
+        db = config["kraken2_db"]
+    resources:
+        load=4
+    conda:
+        "envs/kraken2.yaml"
+    shell:
+        """
+        kraken2 --db {params.db} \
+                --paired \
+                --output {output.kraken_output} \
+                --report {output.kreport_output} \
+                {input.R1} {input.R2}
+        """
+
+rule kraken_tools:
+    input:
+        kraken_out = "results/kraken2/{sample}.kraken",
+        kraken_report = "results/kraken2/{sample}.report",
+        R1 = get_fastq1,
+        R2 = get_fastq2
+    output:
+        R1 = "results/kraken_tools/{sample}_R1.hiv.fastq",
+        R2 = "results/kraken_tools/{sample}_R2.hiv.fastq"
+    conda:
+        "envs/kraken2.yaml"
+    shell:
+        """
+        extract_kraken_reads.py \
+        -k {input.kraken_out} \
+        -r {input.kraken_report} \
+        -t 327045 \
+        -s1 {input.R1} \
+        -s2 {input.R2} \
+        -o {output.R1} \
+        -o2 {output.R2} \
+        --include-children \
+        --fastq-output
+        """
+
+rule fastp:
+    input:
+        R1 = "results/kraken_tools/{sample}_R1.hiv.fastq",
+        R2 = "results/kraken_tools/{sample}_R2.hiv.fastq"
+    output:
+        R1 = "results/fastp/{sample}_R1.dedup.fastq",
+        R2 = "results/fastp/{sample}_R2.dedup.fastq"
+    conda:
+        "envs/fastp.yaml"
+    shell:
+        """
+        fastp \
+        -i {input.R1} \
+        -I {input.R2} \
+        -o {output.R1} \
+        -O {output.R2} \
+        --dedup
+        """
+
+rule rasusa:
+    input:
+        R1 = "results/fastp/{sample}_R1.dedup.fastq",
+        R2 = "results/fastp/{sample}_R2.dedup.fastq"
+    output:
+        R1 = "results/rasusa/{sample}_R1.dedup.fastq",
+        R2 = "results/rasusa/{sample}_R2.dedup.fastq",
+        #output_folder = "results/rasusa"
+    conda:
+        "envs/rasusa.yaml"
+    shell:
+        """
+        MAX_SIZE=100
+        R1_size=$(du -m {input.R1} | cut -f1)
+        R2_size=$(du -m {input.R2} | cut -f1)
+
+        if [[ "$R1_size" -gt "$MAX_SIZE" || "$R2_size" -gt "$MAX_SIZE" ]]; then
+            rasusa reads -n 300k {input.R1} {input.R2} -o {output.R1} -o {output.R2}
+        else
+            cp {input.R1} {output.R1}
+            cp {input.R2} {output.R2}
+        fi
+        mkdir -p results/non-empty
+        MIN_SIZE=1
+        R1_size_1=$(du -k {output.R1} | cut -f1)
+        if (( R1_size_1 > MIN_SIZE )); then
+            cp {output.R1} results/non-empty/
+            cp {output.R2} results/non-empty/
+        fi
+        """
+
+rule Micall:
+    input:
+        R1 = expand("results/rasusa/{sample}_R1.dedup.fastq", sample=SAMPLES.keys()),
+        R2 = expand("results/rasusa/{sample}_R2.dedup.fastq", sample=SAMPLES.keys())
+        #Input_folder = "results/rasusa"
+    output:
+        #output_folder = "../micall",
+        animo_file = "results/micall/amino.csv"
+    threads: 50
+    conda:
+        "envs/none.yaml"
+    shell:
+        """
+        docker run  -u "$(id -u):$(id -g)" \
+        --group-add 100\
+        -v $(pwd):/data \
+         cfelab/micall folder \
+        --project HIVB \
+        --skip trim.censor  \
+        --keep_scratch \
+        results/non-empty ../micall \
+        --max_active {threads}
+        """

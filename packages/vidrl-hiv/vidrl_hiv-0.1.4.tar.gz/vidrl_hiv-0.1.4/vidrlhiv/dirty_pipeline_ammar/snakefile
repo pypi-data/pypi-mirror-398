@@ -1,0 +1,150 @@
+from pathlib import Path
+from importlib.resources import files, as_file
+
+include: "rules/common.smk"
+
+OUTDIR = Path(config["outputfolder"])
+SAMPLESHEET = config["samplesheet"]
+DICTREADS = parseSamples(SAMPLESHEET)
+SAMPLES = list(DICTREADS.keys())
+
+package_root = files("vidrlhiv")
+RES = package_root/'dirty_pipeline_ammar'/'resources'
+
+rule all:
+	input:
+		region = OUTDIR / "all.gene.bed",
+		drm = OUTDIR / "all.drm.bed",
+		genome = OUTDIR / "all.genome.bed",
+
+rule qc:
+	input:
+		r1 = get_input_r1,
+		r2 = get_input_r2,
+	output:
+		r1 = OUTDIR / "{sample}" / "{sample}.r1.filtered.fastq.gz",
+		r2 = OUTDIR / "{sample}" / "{sample}.r2.filtered.fastq.gz",
+	threads: 4
+	params:
+		average_quality = 20,
+		min_length = 100,
+		html = OUTDIR / "qc" / "{sample}.qc.html"
+	log: OUTDIR / "log" / "qc" / "{sample}.txt"
+	shell:"""
+	fastp \
+	-i {input.r1} -I {input.r2} \
+	-o {output.r1} -O {output.r2} \
+	--average_qual {params.average_quality} \
+	--length_required {params.min_length} \
+	--thread {threads} \
+	--html {params.html} 2> {log}
+	"""
+
+rule mapping:
+	input:
+		r1 = rules.qc.output.r1,
+		r2 = rules.qc.output.r2,
+		reference = get_ref_fasta,
+	output:
+		bam = OUTDIR / "{sample}" / "{sample}.bam"
+	log: OUTDIR / "log" / "mapping" / "{sample}.ttxt"
+	threads: 5
+	shell:"""
+	minimap2 \
+	-t {threads} \
+	-ax sr {input.reference} \
+	{input.r1} {input.r2} \
+	| samtools view -F 4 -b > {output.bam} 2> {log}
+	"""
+
+rule sort_bam:
+	input:
+		bam = rules.mapping.output.bam,
+	output:
+		bam = OUTDIR / "{sample}" / "{sample}.sorted.bam"
+	threads: 5
+	shell:"""
+	samtools sort {input.bam} -@ {threads} > {output.bam}
+	samtools index {output.bam}
+	"""
+
+rule genome_depth:
+	input:
+		bam = rules.sort_bam.output.bam,
+	output:
+		depth = OUTDIR / "{sample}" / "bygenome" / "{sample}.depth.txt"
+	params:
+		sample = lambda w: w.sample
+	shell:"""
+	samtools depth -aa {input.bam} \
+	| csvtk -t add-header -n chrom,pos,depth \
+	| csvtk -t mutate2 -n "sample"  -e '"{params.sample}"' > {output.depth}
+	"""
+
+rule mosdepth_bed_genes:
+	input:
+		bam=rules.sort_bam.output.bam,
+		bed=RES/'genes.bed'
+	output:
+		OUTDIR / "{sample}" / "bygene" / "{sample}.mosdepth.global.dist.txt",
+		OUTDIR / "{sample}" / "bygene" / "{sample}.mosdepth.region.dist.txt",
+		OUTDIR / "{sample}" / "bygene" / "{sample}.regions.bed.gz",
+		summary=OUTDIR / "{sample}" / "bygene" / "{sample}.mosdepth.summary.txt",  # this named output is required for prefix parsing
+	log:
+		OUTDIR / "log" / "mosdepth" / "{sample}.gene.txt"
+	params:
+		extra="--no-per-base --use-median",
+	threads: 4
+	wrapper:
+		"v5.1.0/bio/mosdepth"
+
+rule mosdepth_bed_drm:
+	input:
+		bam=rules.sort_bam.output.bam,
+		bed=RES/'drm.bed',
+	output:
+		OUTDIR / "{sample}" / "bydrm" / "{sample}.mosdepth.global.dist.txt",
+		OUTDIR / "{sample}" / "bydrm" / "{sample}.mosdepth.region.dist.txt",
+		OUTDIR / "{sample}" / "bydrm" / "{sample}.regions.bed.gz",
+		summary=OUTDIR / "{sample}" / "bydrm" /"{sample}.mosdepth.summary.txt",  # this named output is required for prefix parsing
+	log:
+		OUTDIR / "log" / "mosdepth" / "{sample}.drm.txt"
+	params:
+		extra="--no-per-base --use-median",
+	threads: 4
+	wrapper:
+		"v5.1.0/bio/mosdepth"
+
+rule uncompress_beds:
+	input:
+		drm = OUTDIR / "{sample}" / "bydrm" / "{sample}.regions.bed.gz",
+		gene = OUTDIR / "{sample}" / "bygene" /"{sample}.regions.bed.gz",
+	output:
+		drm = OUTDIR / "{sample}" / "bydrm" / "{sample}.regions.bed",
+		gene = OUTDIR / "{sample}" / "bygene" / "{sample}.regions.bed",
+	params:
+		sample = lambda w: w.sample
+	shell:"""
+	gunzip {input.gene} -d -c \
+	| csvtk -t add-header -n chrom,start,end,gene,depth \
+	| csvtk -t mutate2 -n "sample"  -e '"{params.sample}"' > {output.gene}
+
+	gunzip {input.drm} -d -c \
+	| csvtk -t add-header -n chrom,start,end,gene,depth \
+	| csvtk -t mutate2 -n "sample"  -e '"{params.sample}"' > {output.drm}
+	"""
+
+rule concat_regions_beds:
+	input:
+		drm = expand(OUTDIR / "{sample}" /  "bydrm" / "{sample}.regions.bed", sample=SAMPLES),
+		gene = expand(OUTDIR / "{sample}" /  "bygene" / "{sample}.regions.bed", sample=SAMPLES),
+		genome = expand(OUTDIR / "{sample}" /  "bygenome" / "{sample}.depth.txt", sample=SAMPLES),
+	output:
+		gene = OUTDIR / "all.gene.bed",
+		drm = OUTDIR / "all.drm.bed",
+		genome = OUTDIR / "all.genome.bed",
+	shell:"""
+	csvtk -t concat {input.gene} > {output.gene}
+	csvtk -t concat {input.drm} > {output.drm}
+	csvtk -t concat {input.genome} > {output.genome}
+	"""
