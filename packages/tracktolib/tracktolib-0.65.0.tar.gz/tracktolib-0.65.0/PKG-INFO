@@ -1,0 +1,154 @@
+Metadata-Version: 2.4
+Name: tracktolib
+Version: 0.65.0
+Summary: Utility library for python
+Keywords: utility
+Author-email: julien.brayere@tracktor.fr
+License-Expression: MIT
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Dist: fastapi>=0.103.2 ; extra == 'api'
+Requires-Dist: pydantic>=2 ; extra == 'api'
+Requires-Dist: httpx>=0.25.0 ; extra == 'http'
+Requires-Dist: python-json-logger>=3.2.1 ; extra == 'logs'
+Requires-Dist: niquests>=3.15.2 ; extra == 'notion'
+Requires-Dist: asyncpg>=0.27.0 ; extra == 'pg'
+Requires-Dist: rich>=13.6.0 ; extra == 'pg'
+Requires-Dist: psycopg>=3.1.12 ; extra == 'pg-sync'
+Requires-Dist: aiobotocore>=2.9.0 ; extra == 's3'
+Requires-Dist: minio>=7.2.0 ; extra == 's3-minio'
+Requires-Dist: pycryptodome>=3.20.0 ; extra == 's3-minio'
+Requires-Dist: deepdiff>=8.1.0 ; extra == 'tests'
+Requires-Python: >=3.12, <4.0
+Provides-Extra: api
+Provides-Extra: http
+Provides-Extra: logs
+Provides-Extra: notion
+Provides-Extra: pg
+Provides-Extra: pg-sync
+Provides-Extra: s3
+Provides-Extra: s3-minio
+Provides-Extra: tests
+Description-Content-Type: text/markdown
+
+# Tracktolib
+
+[![Python versions](https://img.shields.io/pypi/pyversions/tracktolib)](https://pypi.python.org/pypi/tracktolib)
+[![Latest PyPI version](https://img.shields.io/pypi/v/tracktolib?logo=pypi)](https://pypi.python.org/pypi/tracktolib)
+[![CircleCI](https://circleci.com/gh/Tracktor/tracktolib/tree/master.svg?style=shield)](https://app.circleci.com/pipelines/github/Tracktor/tracktolib?branch=master)
+
+Utility library for Python 3.12+
+
+## Installation
+
+```bash
+uv add tracktolib
+```
+
+With specific extras:
+
+```bash
+uv add tracktolib[pg,api]
+```
+
+## Modules
+
+### logs
+
+Utility functions to initialize logging formatting and streams.
+
+```python
+import logging
+from tracktolib.logs import init_logging
+
+logger = logging.getLogger()
+formatter, stream_handler = init_logging(logger, 'json', version='0.0.1')
+```
+
+### pg
+
+Async PostgreSQL helpers using [asyncpg](https://github.com/MagicStack/asyncpg).
+
+```bash
+uv add tracktolib[pg]
+```
+
+### pg-sync
+
+Sync PostgreSQL helpers using [psycopg](https://www.psycopg.org/psycopg3/) (v3).
+
+```bash
+uv add tracktolib[pg-sync]
+```
+
+```python
+from psycopg import connect
+from tracktolib.pg_sync import insert_many, fetch_one, fetch_count, fetch_all
+
+conn = connect('postgresql://user:pass@localhost/db')
+
+data = [
+    {'foo': 'bar', 'value': 1},
+    {'foo': 'baz', 'value': 2}
+]
+insert_many(conn, 'public.test', data)
+
+query = 'SELECT foo from public.test order by value asc'
+value = fetch_one(conn, query, required=True)  # {'foo': 'bar'}, raises if not found
+
+assert fetch_count(conn, 'public.test') == 2
+
+query = 'SELECT * from public.test order by value asc'
+assert fetch_all(conn, query) == data
+```
+
+### s3
+
+Async S3 helpers using [aiobotocore](https://github.com/aio-libs/aiobotocore).
+
+```bash
+uv add tracktolib[s3]
+```
+
+### s3-minio
+
+S3 helpers using [minio](https://min.io/docs/minio/linux/developers/python/API.html).
+
+```bash
+uv add tracktolib[s3-minio]
+```
+
+### http
+
+HTTP client helpers using [httpx](https://www.python-httpx.org/).
+
+```bash
+uv add tracktolib[http]
+```
+
+### api
+
+FastAPI utilities using [fastapi](https://fastapi.tiangolo.com/) and [pydantic](https://docs.pydantic.dev/).
+
+```bash
+uv add tracktolib[api]
+```
+
+### notion
+
+Notion API helpers using [niquests](https://github.com/jawah/niquests).
+
+```bash
+uv add tracktolib[notion]
+```
+
+### tests
+
+Testing utilities using [deepdiff](https://github.com/seperman/deepdiff).
+
+```bash
+uv add tracktolib[tests]
+```
