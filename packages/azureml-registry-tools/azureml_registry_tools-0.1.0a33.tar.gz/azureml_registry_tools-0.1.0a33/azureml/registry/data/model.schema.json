@@ -1,0 +1,1196 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Azure ML Model Spec Schema",
+  "description": "Schema for validating Azure ML model specification files",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "description": "URI reference to the JSON schema",
+      "pattern": "^https://azuremlschemas.azureedge.net/latest/model.schema.json",
+      "type": "string"
+    },
+    "name": {
+      "description": "Machine name of the model (must match what's in the API)",
+      "type": "string"
+    },
+    "path": {
+      "description": "Path to the model files",
+      "type": "string"
+    },
+    "properties": {
+      "description": "Model properties",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "languages": {
+          "description": "Not used anymore. Use languages in the tags section",
+          "type": "string"
+        },
+        "datasets": {
+          "description": "Not used anymore. Use training_datasets in the tags section",
+          "type": "string"
+        },
+        "AzureOpenAI-ModelName": {
+          "description": "Name of the Azure OpenAI model name in the cogsvc catalog",
+          "type": "string"
+        },
+        "AzureOpenAI-Version": {
+          "description": "version of the Azure OpenAI model name in the cogsvc catalog",
+          "oneOf": [{ "type": "string" }, { "type": "integer", "minimum": 1 }]
+        },
+        "azureml.copyRegistryFilesToWorkspace": {
+          "description": "Whether registry files are copied to workspace. If false remove the key.",
+          "type": "boolean"
+        },
+        "baseModelWeightsVersion": {
+          "oneOf": [{ "type": "string" }, { "type": "number", "minimum": 1.0 }]
+        },
+        "baseWeightsId": {
+          "type": "string",
+          "enum": [
+            "Meta-Llama-3-8B",
+            "Meta-Llama-3.1-8B",
+            "Meta-Llama-3.1-8B-Instruct"
+          ]
+        },
+        "engineControllerManifestPath": {
+          "description": "Path to the engine controller manifest",
+          "type": "string",
+          "pattern": "^(azureml/|models/|model/)"
+        },
+        "finetune-recommended-sku": {
+          "description": "Skus that can be used for finetune maap",
+          "$ref": "#/definitions/skuListDefinition"
+        },
+        "intellectualPropertyPublisher": {
+          "description": "Intellectual property publisher name",
+          "type": "string"
+        },
+        "SHA": {
+          "description": "SHA hash of the model",
+          "type": "string"
+        },
+        "SharedComputeCapacityEnabled": {
+          "description": "Whether shared compute capacity is enabled",
+          "type": "boolean"
+        },
+        "evaluation-min-sku-spec": {
+          "description": "Minimum SKU specification for evaluation in the format of 'cores|GPUs|RAM(GB)|VRAM(GB)'",
+          "type": "string",
+          "pattern": "^\\d+\\|\\d+\\|\\d+\\|\\d+$",
+          "format": "sku-spec"
+        },
+        "evaluation-recommended-sku": {
+          "description": "Evaluation recommended sku",
+          "$ref": "#/definitions/skuListDefinition"
+        },
+        "finetune-min-sku-spec": {
+          "description": "Minimum SKU specification for finetune in the format of 'cores|GPUs|RAM(GB)|VRAM(GB)'",
+          "type": "string",
+          "pattern": "^\\d+\\|\\d+\\|\\d+\\|\\d+$",
+          "format": "sku-spec"
+        },
+        "inference-min-sku-spec": {
+          "description": "Minimum SKU specification for inference in the format of 'cores|GPUs|RAM(GB)|VRAM(GB)'",
+          "type": "string",
+          "pattern": "^\\d+\\|\\d+\\|\\d+\\|\\d+$",
+          "format": "sku-spec"
+        },
+        "inference-recommended-sku": {
+          "description": "A list of comma separated skus that the client should use to deploy the model",
+          "$ref": "#/definitions/skuListDefinition"
+        },
+        "finetuning-tasks": {
+          "description": "Tasks for which the model can be fine-tuned",
+          "$ref": "#/definitions/finetuningTasksListDefinition"
+        },
+        "model_id": {
+          "description": "Model id",
+          "type": "string",
+          "pattern": "^(https://visionnotebooksdata.blob.core.windows.net)"
+        },
+        "pipeManifestPath": {
+          "description": "Pipe manifest path. Used for OAI models",
+          "type": "string",
+          "pattern": "^(azureml/)"
+        }
+      }
+    },
+    "tags": {
+      "description": "Model tags",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Featured": {
+          "description": "Whether the model is featured",
+          "type": "string",
+          "enum": [""],
+          "format": "exists"
+        },
+        "FinetuneDeprecationDate": {
+          "description": "The date that finetune will be deprecated. Date format yyyy-MM-dd. The deprecation will happen at midnight UTC",
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "format": "date-time"
+        },
+        "FinetuneRetirementDate": {
+          "description": "The date that finetune will be retired. Date format yyyy-MM-dd. The retirement will happen at midnight UTC",
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "format": "date-time"
+        },
+        "InferenceDeprecationDate": {
+          "description": "The date that inference will be deprecated. Date format yyyy-MM-dd. The deprecation will happen at midnight UTC",
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "format": "date-time"
+        },
+        "InferenceLegacyDate": {
+          "description": "The date that inference will become legacy. Date format yyyy-MM-dd. The change will happen at midnight UTC",
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "format": "date-time"
+        },
+        "InferenceRetirementDate": {
+          "description": "The date that inference will be retired. Date format yyyy-MM-dd. The retirement will happen at midnight UTC",
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "format": "date-time"
+        },
+        "Preview": {
+          "description": "Whether the model is in preview. Remove the key if not in preview.",
+          "type": "string",
+          "enum": [""],
+          "format": "exists"
+        },
+        "_aml_system_vanity_registry": {
+          "description": "AML vanity registry",
+          "type": "string",
+          "enum": ["azureml-phi", "azureml-oai-oss-ft", "azureml-meta-ft"]
+        },
+        "author": {
+          "description": "Model provider/author name",
+          "type": "string"
+        },
+        "azureOffers": {
+          "description": "Supported azure offer types as a comma-separated string",
+          "type": "string",
+          "pattern": "^(standard-paygo|RestrictedAccess|PTU|batch-paygo|VM|VM-withSurcharge)(?:\\s*,\\s*(standard-paygo|RestrictedAccess|PTU|batch-paygo|VM|VM-withSurcharge))*$"
+        },
+        "maap-surcharge": {
+          "description": "MaaP Surcharge",
+          "type": "string",
+          "enum": ["true", "false"]
+        },
+        "maap-surcharge-type": {
+          "description": "MaaP Surcharge Type",
+          "type": "string",
+          "pattern": "^(model)(?:\\s*,\\s*(model))*$"
+        },
+        "benchmark": {
+          "description": "Benchmark type",
+          "type": "string",
+          "enum": ["quality", "embeddings"]
+        },
+        "datasets": {
+          "description": "Where data was sourced for training as a comma-separated string",
+          "type": "string",
+          "pattern": "^(Publicly available sources|bookcorpus|wikipedia)(?:\\s*,\\s*(Publicly available sources|bookcorpus|wikipedia))*$"
+        },
+        "deploymentOptions": {
+          "description": "Which types of deployment are supported in the UI",
+          "type": "string",
+          "pattern": "^(ServerlessMaaS|UnifiedEndpointMaaS|MaaP|AOAI|Restricted|MonetizedMaaP)(?:\\s*,\\s*(ServerlessMaaS|UnifiedEndpointMaaS|MaaP|AOAI|Restricted|MonetizedMaaP))*$"
+        },
+        "disable-batch": {
+          "description": "Whether batch processing is disabled",
+          "type": "string",
+          "enum": ["true", "false"]
+        },
+        "disable-maap": {
+          "description": "Whether MAAP is disabled",
+          "type": "string",
+          "enum": ["true", "false"]
+        },
+        "displayName": {
+          "description": "Display name for marketing materials",
+          "type": "string"
+        },
+        "evaluation": {
+          "description": "Reference to evaluation documentation",
+          "type": "string"
+        },
+        "freePlayground": {
+          "description": "Whether the model is available in free playground",
+          "type": "string",
+          "enum": ["true", "false"]
+        },
+        "hiddenlayerscanned": {
+          "description": "If the model has been scanned by hiddenlayer. The value is set to \"\" if scanned, otherwise the key should be removed.",
+          "type": "string",
+          "enum": [""],
+          "format": "exists"
+        },
+        "huggingface_model_id": {
+          "description": "Id of the model in the hugging face catalog",
+          "type": "string",
+          "pattern": "^(databricks/|google/|codellama/|microsoft/)"
+        },
+        "industry": {
+          "description": "The industry for the model",
+          "type": "string",
+          "enum": [
+            "consumer-goods",
+            "health-and-life-sciences",
+            "manufacturing",
+            "mobility",
+            "financial-services"
+          ]
+        },
+        "inputModalities": {
+          "description": "Input modalities supported (e.g., text, image) as a comma-separated string",
+          "type": "string",
+          "pattern": "^(audio|csv|embeddings|image|json|pdf|text|video|code)(?:\\s*,\\s*(audio|csv|embeddings|image|json|pdf|text|video|code))*$"
+        },
+        "inference_supported_envs": {
+          "description": "Supported inference environments",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["ds_mii", "hf", "vllm"]
+          }
+        },
+        "invisibleUntil": {
+          "description": "Date until which the model is invisible",
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{1,6}Z$",
+          "format": "date-time"
+        },
+        "isDirectFromAzure": {
+          "description": "If the model is an Azure Direct model",
+          "type": "string",
+          "enum": ["true"]
+        },
+        "isCustomerInfoRequired": {
+          "description": "This will trigger a customer info form to be shown to the user before they can access the model",
+          "type": "string",
+          "enum": ["true", "false"]
+        },
+        "keywords": {
+          "description": "List of key words as a comma-separated string. Max 3 keywords",
+          "type": "string",
+          "pattern": "^(Agents|Audio|Coding|Conversation|Instruction|Large context|Low latency|Multilingual|Multimodal|Multipurpose|RAG|Reasoning|Summarization|Translation|Understanding|Vision|Atomistic generation)(?:\\s*,\\s*(Agents|Audio|Coding|Conversation|Instruction|Large context|Low latency|Multilingual|Multimodal|Multipurpose|RAG|Reasoning|Summarization|Translation|Understanding|Vision|Atomistic generation)){0,2}$"
+        },
+        "languages": {
+          "description": "Comma-separated list of supported languages (ISO 639-1 language codes)",
+          "type": "string",
+          "pattern": "^(aa|ab|ae|af|ak|am|an|ar|as|av|ay|az|ba|be|bg|bh|bi|bm|bn|bo|br|bs|ca|ce|ch|co|cr|cs|cu|cv|cy|da|de|dv|dz|ee|el|en|eo|es|et|eu|fa|ff|fi|fj|fo|fr|fy|ga|gd|gl|gn|gu|gv|ha|he|hi|ho|hr|ht|hu|hy|hz|ia|id|ie|ig|ii|ik|io|is|it|iu|ja|jv|ka|kg|ki|kj|kk|kl|km|kn|ko|kr|ks|ku|kv|kw|ky|la|lb|lg|li|ln|lo|lt|lu|lv|mg|mh|mi|mk|ml|mn|mr|ms|mt|my|na|nb|nd|ne|ng|nl|nn|no|nr|nv|ny|oc|oj|om|or|os|pa|pi|pl|ps|pt|pt-br|qu|rm|rn|ro|ru|rw|sa|sc|sd|se|sg|si|sk|sl|sm|sn|so|sq|sr|ss|st|su|sv|sw|ta|te|tg|th|ti|tk|tl|tn|to|tr|ts|tt|tw|ty|ug|uk|ur|uz|ve|vi|vo|wa|wo|xh|yi|yo|za|zh|zh-cn|zu)(?:\\s*,\\s*(aa|ab|ae|af|ak|am|an|ar|as|av|ay|az|ba|be|bg|bh|bi|bm|bn|bo|br|bs|ca|ce|ch|co|cr|cs|cu|cv|cy|da|de|dv|dz|ee|el|en|eo|es|et|eu|fa|ff|fi|fj|fo|fr|fy|ga|gd|gl|gn|gu|gv|ha|he|hi|ho|hr|ht|hu|hy|hz|ia|id|ie|ig|ii|ik|io|is|it|iu|ja|jv|ka|kg|ki|kj|kk|kl|km|kn|ko|kr|ks|ku|kv|kw|ky|la|lb|lg|li|ln|lo|lt|lu|lv|mg|mh|mi|mk|ml|mn|mr|ms|mt|my|na|nb|nd|ne|ng|nl|nn|no|nr|nv|ny|oc|oj|om|or|os|pa|pi|pl|ps|pt|pt-br|qu|rm|rn|ro|ru|rw|sa|sc|sd|se|sg|si|sk|sl|sm|sn|so|sq|sr|ss|st|su|sv|sw|ta|te|tg|th|ti|tk|tl|tn|to|tr|ts|tt|tw|ty|ug|uk|ur|uz|ve|vi|vo|wa|wo|xh|yi|yo|za|zh|zh-cn|zu))*$"
+        },
+        "license": {
+          "description": "License type",
+          "type": "string",
+          "enum": [
+            "custom",
+            "other",
+            "llama2",
+            "apache-2.0",
+            "Llama 3.1 Community Licensed",
+            "MIT"
+          ]
+        },
+        "licenseDescription": {
+          "description": "Description of the license terms",
+          "type": "string",
+          "format": "long-string"
+        },
+        "fineTuneOnlyModel": {
+          "description": "Indicates the model is available only for fine-tuning. The model itself is not deployable for inferencing.",
+          "type": "string",
+          "enum": ["true", "false"]
+        },
+        "maas-finetuning": {
+          "description": "Whether MaaS fine-tuning is enabled. True means enabled, if disabled remove the key",
+          "type": "string",
+          "enum": ["True"]
+        },
+        "maas-finetuning-test": {
+          "description": "Used for testing maas-finetuning in INT. Remove the key if false",
+          "type": "string",
+          "enum": ["True"]
+        },
+        "maas-finetuning-deploy-regions": {
+          "description": "Regions where fine-tuned models can be deployed",
+          "items": {
+            "type": "string",
+            "enum": [
+              "eastus2",
+              "eastus",
+              "northcentralus",
+              "westus3",
+              "westus",
+              "southcentralus"
+            ]
+          },
+          "type": "array"
+        },
+        "maas-finetuning-offer": {
+          "description": "Whether MaaS fine-tuning offer is available. Remove tag if unavailable",
+          "type": "string",
+          "enum": ["True"]
+        },
+        "maas-finetuning-regions": {
+          "description": "Regions where fine-tuning is available as a comma-separated string",
+          "type": "string",
+          "pattern": "^(westus3|eastus2|eastus|southcentralus|northcentralus|westus)(?:\\s*,\\s*(westus3|eastus2|eastus|southcentralus|northcentralus|westus))*$"
+        },
+        "maas-inference": {
+          "description": "Whether MaaS inference is enabled. Remove the key if not supported",
+          "type": "string",
+          "enum": ["true"]
+        },
+        "maxOutputTokens": {
+          "description": "Maximum number of output tokens",
+          "type": "integer",
+          "minimum": 1
+        },
+        "model_specific_defaults": {
+          "description": "Model specific defaults",
+          "type": "object"
+        },
+        "modelCapabilities": {
+          "description": "Model capabilities (e.g., agents, assistants) as a comma-separated string",
+          "type": "string",
+          "pattern": "^(agents|agentsV2|assistants|routing|reasoning|reasoning-summary|streaming|tool-calling|function-calling|image-input|fine-tuning)(?:\\s*,\\s*(agents|agentsV2|assistants|routing|reasoning|reasoning-summary|streaming|tool-calling|function-calling|image-input|fine-tuning))*$"
+        },
+        "modelHash": {
+          "description": "Hash of the model",
+          "type": "string"
+        },
+        "notes": {
+          "description": "Reference to notes documentation",
+          "type": "string"
+        },
+        "outputModalities": {
+          "description": "Output modalities supported (e.g., text) as a comma-separated string",
+          "type": "string",
+          "pattern": "^(audio|csv|embeddings|image|json|pdf|text|video|3D-image|robot-action-chunks)(?:\\s*,\\s*(audio|csv|embeddings|image|json|pdf|text|video|3D-image|robot-action-chunks))*$"
+        },
+        "playgroundRateLimitTier": {
+          "description": "Rate limit tier for playground",
+          "type": "string",
+          "enum": ["high", "low", "custom", "embeddings"]
+        },
+        "SharedComputeCapacityEnabled": {
+          "description": "Whether shared compute capacity is enabled. An empty string means enabled. If not enabled remove the key",
+          "type": "string",
+          "enum": [""],
+          "format": "exists"
+        },
+        "summary": {
+          "description": "Brief description of the model",
+          "type": "string",
+          "format": "long-string"
+        },
+        "task": {
+          "description": "Tasks supported by the model as a comma-separated string",
+          "type": "string",
+          "pattern": "^(audio-analysis|audio-classification|audio-generation|automatic-speech-recognition|chat-completion|completions|content-filters|content-safety|conversational-ai|custom-extraction|data-generation|document-analysis|document-ingestion|document-translation|embeddings|face-detection|fill-mask|forecasting|image-analysis|image-classification|image-feature-extraction|image-text-to-text|image-to-image|image-to-text|intelligent-content-processing|intelligent-document-processing|text-pii-extraction|conversation-pii-extraction|document-pii-extraction|detect-language|optical-character-recognition|protein-sequence-generation|protein-structure-prediction|responses|responsible-ai|retrosynthesis-prediction|summarization|text-analysis|text-analytics|text-classification|text-generation|text-to-image|text-to-speech|time-series-forecasting|translation|speech-to-text|speech-translation|video-analysis|video-generation|video-text-to-text|visual-question-answering|zero-shot-classification|zero-shot-image-classification|materials-design|atomistic-modelling|image-to-3D|text-to-3D|3D-generation|task-completion-verification|action-affordance|next-plausible-action-prediction|Structure-Prediction|Genomics|biomolecular-complex-structure-prediction|structure-prediction|protein-folding|web-agent-tasks|gui-grounding|messages|robot-control)(?:\\s*,\\s*(audio-analysis|audio-classification|audio-generation|automatic-speech-recognition|chat-completion|completions|content-filters|content-safety|conversational-ai|custom-extraction|data-generation|document-analysis|document-ingestion|document-translation|embeddings|face-detection|fill-mask|forecasting|image-analysis|image-classification|image-feature-extraction|image-text-to-text|image-to-image|image-to-text|intelligent-content-processing|intelligent-document-processing|optical-character-recognition|protein-sequence-generation|protein-structure-prediction|responses|responsible-ai|summarization|text-analysis|text-analytics|text-classification|text-generation|text-pii-extraction|conversation-pii-extraction|document-pii-extraction|detect-language|text-to-image|text-to-speech|time-series-forecasting|translation|speech-to-text|speech-translation|video-analysis|video-generation|video-text-to-text|visual-question-answering|zero-shot-classification|zero-shot-image-classification|materials-design|atomistic-modelling|image-to-3D|text-to-3D|3D-generation|task-completion-verification|action-affordance|next-plausible-action-prediction|Structure-Prediction|Genomics|biomolecular-complex-structure-prediction|structure-prediction|protein-folding|web-agent-tasks|gui-grounding|messages|robot-control))*$"
+        },
+        "textContextWindow": {
+          "description": "Context window size",
+          "type": "integer",
+          "minimum": 1
+        },
+        "training_datasets": {
+          "description": "A description of the training datasets",
+          "type": "string",
+          "format": "long-string"
+        },
+        "finetune_compute_allow_list": {
+          "description": "List of compute SKUs allowed for finetune with maap as a comma-separated string",
+          "type": "array",
+          "items": { "$ref": "#/definitions/skuEnum" }
+        },
+        "inference_compute_allow_list": {
+          "description": "List of compute SKUs allowed for inference as a comma-separated string",
+          "type": "array",
+          "items": { "$ref": "#/definitions/skuEnum" }
+        },
+        "evaluation_compute_allow_list": {
+          "description": "List of compute SKUs allowed for evaluation",
+          "type": "array",
+          "items": { "$ref": "#/definitions/skuEnum" }
+        },
+        "trainingDataDate": {
+          "description": "Training cutoff date",
+          "type": "string",
+          "pattern": "^(January|February|March|April|May|June|July|August|September|October|November|December)\\s+\\d{4}$",
+          "format": "month-year"
+        },
+        "newNotes": {
+          "description": "Notes for the model. Can be a full string of notes or it can be the name of an md file in the current directory like 'notes.md'",
+          "type": "string"
+        },
+        "inference_environment_asset_id": {
+          "type": "string",
+          "pattern": "azureml://registries/([^/]+)/environments/([^/]+)/versions/([^/]+)"
+        },
+        "boolTag": {
+          "description": "For testing only!!!",
+          "type": "boolean"
+        },
+        "floatTag": {
+          "description": "For testing only!!!",
+          "type": "number"
+        },
+        "inlineTag": {
+          "description": "For testing only!!!",
+          "type": "string"
+        },
+        "intTag": {
+          "description": "For testing only!!!",
+          "type": "integer"
+        },
+        "featureFlags": {
+          "description": "Comma separated list of feature flags for the models to gate usage",
+          "$ref": "#/definitions/featureFlagsListDefinition"
+        },
+        "model_flavor": {
+          "description": "Model flavor identifier (e.g., pytorch, mlflow).",
+          "type": "string"
+        },
+        "lifecycle": {
+          "description": "Lifecycle status",
+          "type": "string",
+          "pattern": "^(Generally available|Public preview)$"
+        },
+        "pricingLink": {
+          "description": "Pricing information link",
+          "type": "string",
+          "pattern": "^https?://.*"
+        },
+        "rateLimit": {
+          "description": "Rate limit details link",
+          "type": "string",
+          "pattern": "^https?://.*"
+        },
+        "supportedRegions": {
+          "description": "Supported regions link",
+          "type": "string",
+          "pattern": "^https?://.*"
+        },
+        "languagesSupported": {
+          "description": "Languages supported link",
+          "type": "string",
+          "pattern": "^https?://.*"
+        }
+      }
+    },
+    "system_metadata": {
+      "type": "object",
+      "description": "Model system metadata",
+      "additionalProperties": false,
+      "properties": {
+        "invisibleUntil": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{1,6}Z$",
+          "description": "Date until which the model is invisible"
+        },
+        "playgroundRateLimitTier": {
+          "type": "string",
+          "description": "Rate limit tier for playground",
+          "enum": [
+            "high",
+            "low",
+            "custom",
+            "embeddings"
+          ]
+        },
+        "publisher": {
+          "type": "string",
+          "description": "Model provider/author name"
+        },
+        "license": {
+          "type": "string",
+          "description": "License type",
+          "enum": [
+            "custom",
+            "other",
+            "llama2",
+            "apache-2.0",
+            "Llama 3.1 Community Licensed",
+            "MIT"
+          ]
+        },
+        "licenseDescription": {
+          "type": "string",
+          "description": "Description of the license terms",
+          "format": "long-string"
+        },
+        "summary": {
+          "type": "string",
+          "description": "Brief description of the model",
+          "format": "long-string"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name for marketing materials"
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/keywordsEnum"
+          },
+          "description": "List of key words. Max 3 keywords"
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(aa|ab|ae|af|ak|am|an|ar|as|av|ay|az|ba|be|bg|bh|bi|bm|bn|bo|br|bs|ca|ce|ch|co|cr|cs|cu|cv|cy|da|de|dv|dz|ee|el|en|eo|es|et|eu|fa|ff|fi|fj|fo|fr|fy|ga|gd|gl|gn|gu|gv|ha|he|hi|ho|hr|ht|hu|hy|hz|ia|id|ie|ig|ii|ik|io|is|it|iu|ja|jv|ka|kg|ki|kj|kk|kl|km|kn|ko|kr|ks|ku|kv|kw|ky|la|lb|lg|li|ln|lo|lt|lu|lv|mg|mh|mi|mk|ml|mn|mr|ms|mt|my|na|nb|nd|ne|ng|nl|nn|no|nr|nv|ny|oc|oj|om|or|os|pa|pi|pl|ps|pt|pt-br|qu|rm|rn|ro|ru|rw|sa|sc|sd|se|sg|si|sk|sl|sm|sn|so|sq|sr|ss|st|su|sv|sw|ta|te|tg|th|ti|tk|tl|tn|to|tr|ts|tt|tw|ty|ug|uk|ur|uz|ve|vi|vo|wa|wo|xh|yi|yo|za|zh|zh-cn|zu)$"
+          },
+          "description": "Supported languages (ISO 639-1 language codes)"
+        },
+        "textContextWindow": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Context window size"
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum number of output tokens"
+        },
+        "inputModalities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/modalitiesEnum"
+          },
+          "description": "Input modalities supported (e.g., text, image, audio)"
+        },
+        "outputModalities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "audio",
+              "csv",
+              "embeddings",
+              "image",
+              "json",
+              "pdf",
+              "text",
+              "video",
+              "3D-image"
+            ]
+          },
+          "description": "Output modalities supported (e.g., text)"
+        },
+        "modelCapabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "agents",
+              "agentsV2",
+              "assistants",
+              "routing",
+              "reasoning",
+              "streaming",
+              "tool-calling",
+              "function-calling",
+              "image-input"
+            ]
+          },
+          "description": "Model capabilities (e.g., agents, assistants)"
+        },
+        "toolsSupported": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "web_search",
+              "file_search",
+              "image_generation",
+              "code_interpreter",
+              "computer_use",
+              "mcp"
+            ]
+          },
+          "description": "Specific tools that the model supports (e.g., web_search, file_search, code_interpreter, computer_use)"
+        },
+        "featuresSupported": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "streaming",
+              "function_calling",
+              "structured_outputs",
+              "fine_tuning",
+              "distillation",
+              "predicted_outputs",
+              "inpainting",
+              "image_input"
+            ]
+          },
+          "description": "Model features and capabilities supported (e.g., streaming, function_calling, structured_outputs)"
+        },
+        "azureOffers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "standard-paygo",
+              "RestrictedAccess",
+              "PTU",
+              "batch-paygo",
+              "VM",
+              "VM-withSurcharge"
+            ]
+          },
+          "description": "Supported azure offer types"
+        },
+        "baseModelWeightsVersion": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number",
+              "minimum": 1.0
+            }
+          ]
+        },
+        "sharedComputeCapacityEnabled": {
+          "type": "boolean",
+          "enum": [true],
+          "description": "Whether shared compute capacity is enabled. Only true values are allowed - remove this field when disabled."
+        },
+        "freePlayground": {
+          "type": "boolean",
+          "description": "Whether the model is available in free playground"
+        },
+        "deploymentOptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "ServerlessMaaS",
+              "UnifiedEndpointMaaS",
+              "MaaP",
+              "AOAI",
+              "Restricted",
+              "MonetizedMaaP"
+            ]
+          },
+          "description": "Which types of deployment are supported in the UI"
+        },
+        "inferenceSupportedEnvs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "ds_mii",
+              "hf",
+              "vllm"
+            ]
+          },
+          "description": "Supported inference environments"
+        },
+        "isDirectFromAzure": {
+          "type": "boolean",
+          "enum": [true],
+          "description": "If the model is an Azure Direct model. Only true values are allowed - remove this field when disabled."
+        },
+        "inferenceEnvironmentAssetId": {
+          "type": "string",
+          "pattern": "azureml://registries/([^/]+)/environments/([^/]+)/versions/([^/]+)"
+        },
+        "modelArchitecture": {
+          "type": "string",
+          "description": "Model architecture type"
+        },
+        "componentVersion": {
+          "type": "string",
+          "description": "Version of the model component"
+        },
+        "modelPath": {
+          "type": "string",
+          "description": "Path to the model files or artifacts"
+        },
+        "aotManifest": {
+          "type": "string",
+          "description": "Ahead-of-time compilation manifest for the model"
+        },
+        "hasDeltaWeights": {
+          "type": "boolean",
+          "description": "Whether the model uses delta weights"
+        },
+        "featured": {
+          "type": "boolean",
+          "description": "Whether the model is featured"
+        },
+        "preview": {
+          "type": "boolean",
+          "description": "Whether the model is in preview"
+        },
+        "benchmark": {
+          "type": "string",
+          "description": "Benchmark type",
+          "enum": [
+            "quality",
+            "embeddings"
+          ]
+        },
+        "datasets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "Publicly available sources",
+              "bookcorpus",
+              "wikipedia"
+            ]
+          },
+          "description": "Where data was sourced for training"
+        },
+        "industry": {
+          "type": "string",
+          "description": "The industry for the model",
+          "enum": [
+            "consumer-goods",
+            "health-and-life-sciences",
+            "manufacturing",
+            "mobility",
+            "financial-services"
+          ]
+        },
+        "trainingDataDate": {
+          "type": "string",
+          "description": "Training cutoff date",
+          "pattern": "^(January|February|March|April|May|June|July|August|September|October|November|December)\\s+\\d{4}$",
+          "format": "month-year"
+        },
+        "evaluation": {
+          "type": "string",
+          "description": "Reference to evaluation documentation"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Reference to notes documentation"
+        },
+        "featureFlags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "OpenAI.EAGatingTier",
+              "OpenAI.EnterpriseTier",
+              "OpenAI.1PGatingTier",
+              "OpenAI.OneVetGatingTier",
+              "OpenAI.1000CUGatingTier",
+              "OpenAI.computer-use-preview",
+              "OpenAI.Preview.202409",
+              "OpenAITest",
+              "AIServices.grok-4-code",
+              "AIServices.grok-4"
+            ]
+          },
+          "description": "List of feature flags for the models to gate usage"
+        },
+        "tasks": {
+          "type": "object",
+          "description": "Tasks that the model can perform",
+          "additionalProperties": false,
+          "properties": {
+            "inferenceTasks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/taskEnum"
+              },
+              "description": "Tasks supported by the model"
+            },
+            "fineTuningTasks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/finetuningTasksEnum"
+              },
+              "description": "Tasks for which the model can be fine-tuned"
+            },
+            "fineTuningMethods": {
+              "type": "array",
+              "description": "Methods for finetuning the model",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "platformCapabilities": {
+          "type": "object",
+          "description": "Platform-specific capabilities and settings",
+          "additionalProperties": false,
+          "properties": {
+            "enableMaap": {
+              "type": "boolean",
+              "description": "Whether MAAP is enabled (inverse of disable-maap)"
+            },
+            "enableBatch": {
+              "type": "boolean",
+              "description": "Whether batch processing is enabled (inverse of disable-batch)"
+            },
+            "maasInference": {
+              "type": "boolean",
+              "description": "Whether MaaS inference is enabled"
+            },
+            "maasFineTuning": {
+              "type": "boolean",
+              "description": "Whether MaaS fine-tuning is enabled"
+            }
+          }
+        },
+        "supportedComputes": {
+          "type": "object",
+          "description": "Compute types supported for different operations",
+          "additionalProperties": false,
+          "properties": {
+            "evaluationComputes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/skuEnum"
+              },
+              "description": "List of compute SKUs allowed for evaluation"
+            },
+            "finetuneComputes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/skuEnum"
+              },
+              "description": "List of compute SKUs allowed for finetune with maap"
+            },
+            "inferenceComputes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/skuEnum"
+              },
+              "description": "List of compute SKUs allowed for inference"
+            }
+          }
+        },
+        "SKU": {
+          "type": "object",
+          "description": "SKU specifications for different operations",
+          "additionalProperties": false,
+          "properties": {
+            "finetuneRecommendedSkus": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/skuEnum"
+              },
+              "description": "Skus that can be used for finetune maap"
+            },
+            "evaluationMinSkuSpec": {
+              "type": "string",
+              "description": "Minimum SKU specification for evaluation in the format of 'cores|GPUs|RAM(GB)|VRAM(GB)'",
+              "pattern": "^\\d+\\|\\d+\\|\\d+\\|\\d+$",
+              "format": "sku-spec"
+            },
+            "evaluationRecommendedSkus": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/skuEnum"
+              },
+              "description": "Evaluation recommended skus"
+            },
+            "finetuneMinSkuSpec": {
+              "type": "string",
+              "description": "Minimum SKU specification for finetune in the format of 'cores|GPUs|RAM(GB)|VRAM(GB)'",
+              "pattern": "^\\d+\\|\\d+\\|\\d+\\|\\d+$",
+              "format": "sku-spec"
+            },
+            "inferenceMinSkuSpec": {
+              "type": "string",
+              "description": "Minimum SKU specification for inference in the format of 'cores|GPUs|RAM(GB)|VRAM(GB)'",
+              "pattern": "^\\d+\\|\\d+\\|\\d+\\|\\d+$",
+              "format": "sku-spec"
+            },
+            "inferenceRecommendedSkus": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/skuEnum"
+              },
+              "description": "A list of skus that the client should use to deploy the model"
+            }
+          }
+        },
+        "maasFinetuning": {
+          "type": "object",
+          "description": "Model-as-a-Service fine-tuning configuration",
+          "additionalProperties": false,
+          "properties": {
+            "maasFinetuningTest": {
+              "type": "boolean",
+              "enum": [true],
+              "description": "Used for testing maas-finetuning in INT. Only true values are allowed - remove this field when disabled."
+            },
+            "maasFinetuningDeployRegions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "eastus2",
+                  "eastus",
+                  "northcentralus",
+                  "westus3",
+                  "westus",
+                  "southcentralus"
+                ]
+              },
+              "description": "Regions where fine-tuned models can be deployed"
+            },
+            "maasFinetuningOffer": {
+              "type": "boolean",
+              "enum": [true],
+              "description": "Whether MaaS fine-tuning offer is available. Only true values are allowed - remove this field when disabled."
+            },
+            "maasFinetuningAzureRegions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "westus3",
+                  "eastus2",
+                  "eastus",
+                  "southcentralus",
+                  "northcentralus",
+                  "westus"
+                ]
+              },
+              "description": "Regions where fine-tuning is available"
+            }
+          }
+        },
+        "deprecation": {
+          "type": "object",
+          "description": "Deprecation and retirement schedule information",
+          "additionalProperties": false,
+          "properties": {
+            "finetuneDeprecationDate": {
+              "type": "string",
+              "description": "The date that finetune will be deprecated. This date-time should be in midnight UTC.",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{1,6}Z$",
+              "format": "date-time"
+            },
+            "finetuneRetirementDate": {
+              "type": "string",
+              "description": "The date that finetune will be retired. This date-time should be in midnight UTC.",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{1,6}Z$",
+              "format": "date-time"
+            },
+            "inferenceDeprecationDate": {
+              "type": "string",
+              "description": "The date that inference will be deprecated. This date-time should be in midnight UTC.",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{1,6}Z$",
+              "format": "date-time"
+            },
+            "inferenceLegacyDate": {
+              "type": "string",
+              "description": "The date that inference will become legacy. This date-time should be in midnight UTC.",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{1,6}Z$",
+              "format": "date-time"
+            },
+            "inferenceRetirementDate": {
+              "type": "string",
+              "description": "The date that inference will be retired. This date-time should be in midnight UTC.",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{1,6}Z$",
+              "format": "date-time"
+            }
+          }
+        }
+      }
+    },
+    "version": {
+      "description": "Model version",
+      "oneOf": [{ "type": "string" }, { "type": "integer", "minimum": 1 }]
+    }
+  },
+  "required": ["$schema", "name", "path", "version"],
+  "definitions": {
+    "skuListDefinition": {
+      "type": "string",
+      "description": "A comma-separated list of valid SKUs with no duplicates",
+      "pattern": "^(Standard_DS3_v2|Standard_NC12s_v3|Standard_NC16as_T4_v3|Standard_NC24ads_A100_v4|Standard_NC24rs_v3|Standard_NC24s_v3|Standard_NC40ads_H100_v5|Standard_NC48ads_A100_v4|Standard_NC4as_T4_v3|Standard_NC64as_T4_v3|Standard_NC6s_v3|Standard_NC80adis_H100_v5|Standard_NC8as_T4_v3|Standard_NC96ads_A100_v4|Standard_ND40rs_v2|Standard_ND96amsr_A100_v4|Standard_ND96amsr_v4|Standard_ND96asr_v4|Standard_ND96isr_H100_v5|Standard_DS12_v2|Standard_DS4_v2|Standard_DS5_v2|Standard_D16a_v4|Standard_D16as_v4|Standard_D32a_v4|Standard_D32as_v4|Standard_D48a_v4|Standard_D48as_v4|Standard_D64a_v4|Standard_D64as_v4|Standard_D8a_v4|Standard_D8as_v4|Standard_D96a_v4|Standard_D96as_v4|Standard_E16s_v3|Standard_E2s_v3|Standard_E32s_v3|Standard_E48s_v3|Standard_E4s_v3|Standard_E64s_v3|Standard_E8s_v3|Standard_F16s_v2|Standard_F32s_v2|Standard_F48s_v2|Standard_F4s_v2|Standard_F64s_v2|Standard_F72s_v2|Standard_F8s_v2|Standard_FX12mds|Standard_FX24mds|Standard_FX36mds|Standard_FX48mds|Standard_FX4mds|Standard_NV12s_v3|Standard_NV24s_v3|Standard_NV48s_v3)(?:\\s*,\\s*(Standard_DS3_v2|Standard_NC12s_v3|Standard_NC16as_T4_v3|Standard_NC24ads_A100_v4|Standard_NC24rs_v3|Standard_NC24s_v3|Standard_NC40ads_H100_v5|Standard_NC48ads_A100_v4|Standard_NC4as_T4_v3|Standard_NC64as_T4_v3|Standard_NC6s_v3|Standard_NC80adis_H100_v5|Standard_NC8as_T4_v3|Standard_NC96ads_A100_v4|Standard_ND40rs_v2|Standard_ND96amsr_A100_v4|Standard_ND96amsr_v4|Standard_ND96asr_v4|Standard_ND96isr_H100_v5|Standard_DS12_v2|Standard_DS4_v2|Standard_DS5_v2|Standard_D16a_v4|Standard_D16as_v4|Standard_D32a_v4|Standard_D32as_v4|Standard_D48a_v4|Standard_D48as_v4|Standard_D64a_v4|Standard_D64as_v4|Standard_D8a_v4|Standard_D8as_v4|Standard_D96a_v4|Standard_D96as_v4|Standard_E16s_v3|Standard_E2s_v3|Standard_E32s_v3|Standard_E48s_v3|Standard_E4s_v3|Standard_E64s_v3|Standard_E8s_v3|Standard_F16s_v2|Standard_F32s_v2|Standard_F48s_v2|Standard_F4s_v2|Standard_F64s_v2|Standard_F72s_v2|Standard_F8s_v2|Standard_FX12mds|Standard_FX24mds|Standard_FX36mds|Standard_FX48mds|Standard_FX4mds|Standard_NV12s_v3|Standard_NV24s_v3|Standard_NV48s_v3))*$"
+    },
+    "skuEnum": {
+      "enum": [
+        "Standard_DS3_v2",
+        "Standard_NC12s_v3",
+        "Standard_NC16as_T4_v3",
+        "Standard_NC24ads_A100_v4",
+        "Standard_NC24rs_v3",
+        "Standard_NC24s_v3",
+        "Standard_NC40ads_H100_v5",
+        "Standard_NC48ads_A100_v4",
+        "Standard_NC4as_T4_v3",
+        "Standard_NC64as_T4_v3",
+        "Standard_NC6s_v3",
+        "Standard_NC80adis_H100_v5",
+        "Standard_NC8as_T4_v3",
+        "Standard_NC96ads_A100_v4",
+        "Standard_ND40rs_v2",
+        "Standard_ND96amsr_A100_v4",
+        "Standard_ND96amsr_v4",
+        "Standard_ND96asr_v4",
+        "Standard_ND96isr_H100_v5",
+        "Standard_DS12_v2",
+        "Standard_DS4_v2",
+        "Standard_DS5_v2",
+        "Standard_D16a_v4",
+        "Standard_D16as_v4",
+        "Standard_D32a_v4",
+        "Standard_D32as_v4",
+        "Standard_D48a_v4",
+        "Standard_D48as_v4",
+        "Standard_D64a_v4",
+        "Standard_D64as_v4",
+        "Standard_D8a_v4",
+        "Standard_D8as_v4",
+        "Standard_D96a_v4",
+        "Standard_D96as_v4",
+        "Standard_E16s_v3",
+        "Standard_E2s_v3",
+        "Standard_E32s_v3",
+        "Standard_E48s_v3",
+        "Standard_E4s_v3",
+        "Standard_E64s_v3",
+        "Standard_E8s_v3",
+        "Standard_F16s_v2",
+        "Standard_F32s_v2",
+        "Standard_F48s_v2",
+        "Standard_F4s_v2",
+        "Standard_F64s_v2",
+        "Standard_F72s_v2",
+        "Standard_F8s_v2",
+        "Standard_FX12mds",
+        "Standard_FX24mds",
+        "Standard_FX36mds",
+        "Standard_FX48mds",
+        "Standard_FX4mds",
+        "Standard_NV12s_v3",
+        "Standard_NV24s_v3",
+        "Standard_NV48s_v3"
+      ]
+    },
+    "taskEnum": {
+      "type": "string",
+      "enum": [
+        "audio-analysis",
+        "audio-generation",
+        "automatic-speech-recognition",
+        "chat-completion",
+        "completions",
+        "content-filters",
+        "content-safety",
+        "conversational-ai",
+        "custom-extraction",
+        "data-generation",
+        "document-analysis",
+        "document-ingestion",
+        "document-translation",
+        "embeddings",
+        "face-detection",
+        "fill-mask",
+        "forecasting",
+        "image-analysis",
+        "image-classification",
+        "image-text-to-text",
+        "image-to-image",
+        "image-to-text",
+        "intelligent-content-processing",
+        "intelligent-document-processing",
+        "optical-character-recognition",
+        "protein-sequence-generation",
+        "protein-structure-prediction",
+        "responses",
+        "responsible-ai",
+        "summarization",
+        "text-analysis",
+        "text-analytics",
+        "text-classification",
+        "text-generation",
+        "text-to-image",
+        "text-to-speech",
+        "translation",
+        "speech-to-text",
+        "speech-translation",
+        "video-analysis",
+        "video-generation",
+        "materials-design",
+        "atomistic-modelling"
+      ]
+    },
+    "finetuningTasksListDefinition": {
+      "type": "string",
+      "description": "A comma-separated list of valid finetuning tasks with no duplicates",
+      "pattern": "^(automatic-speech-recognition|chat|chat-completion|completions|question-answering|speech-to-text|text-analysis|text-classification|text-generation|text-to-speech)(?:\\s*,\\s*(automatic-speech-recognition|chat|chat-completion|completions|question-answering|speech-to-text|text-analysis|text-classification|text-generation|text-to-speech))*$"
+    },
+    "finetuningTasksEnum": {
+      "type": "string",
+      "enum": [
+        "automatic-speech-recognition",
+        "chat",
+        "chat-completion",
+        "completions",
+        "question-answering",
+        "speech-to-text",
+        "text-analysis",
+        "text-classification",
+        "text-generation",
+        "text-to-speech"
+      ]
+    },
+    "keywordsEnum": {
+      "type": "string",
+      "enum": [
+        "Agents",
+        "Audio",
+        "Coding",
+        "Conversation",
+        "Instruction",
+        "Large context",
+        "Low latency",
+        "Multilingual",
+        "Multimodal",
+        "Multipurpose",
+        "RAG",
+        "Reasoning",
+        "Summarization",
+        "Translation",
+        "Understanding",
+        "Vision",
+        "Atomistic generation"
+      ]
+    },
+    "modalitiesEnum": {
+      "type": "string",
+      "enum": [
+        "audio",
+        "csv",
+        "embeddings",
+        "image",
+        "json",
+        "pdf",
+        "text",
+        "video"
+      ]
+    },
+    "featureFlagsListDefinition": {
+      "type": "string",
+      "description": "A comma-separated list of valid feature flags with no duplicates",
+      "pattern": "^(OpenAI\\.EAGatingTier|OpenAI\\.EnterpriseTier|OpenAI\\.1PGatingTier|OpenAI\\.OneVetGatingTier|OpenAI\\.1000CUGatingTier|OpenAI\\.computer-use-preview|OpenAI\\.Preview\\.202409|OpenAITest|AIServices\\.grok-4-code|AIServices\\.grok-4)(?:\\s*,\\s*(OpenAI\\.EAGatingTier|OpenAI\\.EnterpriseTier|OpenAI\\.1PGatingTier|OpenAI\\.OneVetGatingTier|OpenAI\\.1000CUGatingTier|OpenAI\\.computer-use-preview|OpenAI\\.Preview\\.202409|OpenAITest|AIServices\\.grok-4-code|AIServices\\.grok-4))*$"
+    }
+  }
+}
