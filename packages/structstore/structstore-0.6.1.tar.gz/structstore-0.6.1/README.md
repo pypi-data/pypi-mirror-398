@@ -1,0 +1,222 @@
+# StructStore
+
+[![status-badge](https://ci.codeberg.org/api/badges/15689/status.svg)](https://ci.codeberg.org/repos/15689)
+
+Multi-process shared data structures without communication overhead.
+
+Features:
+* Efficiently operate on arbitrary* C++ data structures in shared memory.
+* Seamlessly operate on the same data from Python without writing Python bindings.
+* Directly work on data structures in mmap'ed files.
+* Work in progress! Do not use in productive software (yet).
+
+\* note: See supported types below. STL containers need to be replaced by
+shared memory-compatible ones.
+
+## What?
+
+
+
+## Applications
+
+* Share nested structures and containers between processes without worrying about
+  communication and synchronization.
+* Do performance-critical operations in C++ while controlling parameters and
+  visualizing live results in a Python GUI.
+* Directly create/read/modify large dataset files without (de)serialization.
+* Send program state via network and continue processing elsewhere.
+
+## Usage examples
+
+Create and access fields from C++:
+
+```cpp
+#include <structstore/structstore.hpp>
+namespace stst = structstore;
+
+void example1() {
+    // all fields will reside in shared memory
+    stst::StructStore shdata("/shdata");
+    shdata["num"] = 42;
+    shdata["str"] = "str";
+    shdata["nested"]["flag"] = false;
+    // serialize to a simple text representation:
+    std::cout << "shared data: " << *shdata << std::endl;
+    // lock for atomic updates spanning multiple lines:
+    {
+        auto lock = shdata->write_lock();
+        shdata["str"] = "foo";
+    }
+}
+```
+
+Create and access the same fields from Python at the same time:
+
+```python
+import structstore
+shdata = structstore.StructStore("/shdata")
+shdata.num = 10
+shdata.nested = dict(flag=True)
+# recursively convert to pure Python types:
+print(shdata.nested.deepcopy())
+```
+
+Alternatively, use C++ classes that will reside in shared memory:
+
+```cpp
+struct Sample : public stst::Struct<Sample> {
+    inline static const stst::TypeInfo& type_info = stst::register_type<Sample>("Sample");
+
+    double t = 0.0;
+    uint16_t nums[2];
+    stst::OffsetPtr<double> t_ptr = &t;
+
+    explicit Sample() {
+        store_ref("t", t);
+        store_ref("num1", nums[0]);
+        store_ref("num2", nums[1]);
+        store_ref("t_ptr", t_ptr);
+    }
+
+    Sample& operator=(const Sample& other) {
+        copy_from(other);
+        t_ptr = &t;
+        return *this;
+    }
+};
+
+void example2() {
+    // the same code can be used when running multiple processes
+    stst::StructStore shdata("/shdata1");
+    Sample& sample = shdata["sample"];
+    std::cout << "shared sample: " << sample << std::endl;
+}
+```
+
+If class instances need to reside on the stack or heap
+(or if the above method is undesired due to other reasons),
+use a C++ class that only refers to data in shared memory:
+
+```cpp
+struct Settings {
+    stst::FieldMap& fields;
+
+    int& num = fields["num"] = 5;
+    double& value = fields["value"] = 3.14;
+    bool& flag = fields["flag"] = true;
+    stst::String& str = fields["str"] = "foo";
+
+    explicit Settings(stst::FieldMap& fields) : fields(fields) {}
+};
+
+void example3() {
+    // the same code is used when accessing from multiple processes
+    stst::StructStore shdata("/shdata");
+    stst::FieldMap& settings_fields = shdata["settings"];
+    Settings settings{settings_fields};
+    std::cout << "shared settings: " << settings_fields << std::endl;
+}
+```
+
+Seamlessly operate on the same data from Python at the same time:
+
+```python
+shdata = structstore.StructStore("/shdata1")
+# lock for atomic updates spanning multiple lines:
+with shdata.write_lock():
+    if hasattr(shdata, "sample"):
+        shdata.sample.flag = True
+    shdata.settings = dict(num=6, value=1.414, flag=False, str="foo")
+```
+
+Alternatively, use (data)classes in Python:
+
+```python
+from dataclasses import dataclass
+from typing import List
+
+class Substate:
+    def __init__(self, subnum: int):
+        self.subnum = subnum
+
+@dataclass
+class State:
+    num: int
+    mystr: str
+    flag: bool
+    substate: Substate
+    lst: List[int]
+
+shdata = structstore.StructStore("/shdata2")
+shdata.state = State(5, 'foo', True, Substate(42), [0, 1])
+```
+
+Directly working on mmap'ed files is as easy as setting a flag:
+
+```python [notest]
+shdata = structstore.StructStore("/my/dataset", use_file=True)
+shdata.values[42] += 3.14
+```
+
+Visualize and control data with a Python GUI (powered by the amazing
+[imviz](https://github.com/joruof/imviz) library):
+
+```python [notest]
+import imviz as viz
+
+shdata = structstore.StructStore("/shdata")
+while viz.wait(vsync=True):
+    if viz.begin_window('shared data'):
+        # lock for atomic access
+        with shdata.write_lock()
+            # this automagic visualization takes about 0.5ms per frame
+            viz.autogui(shdata)
+```
+
+Send snapshots of structured date via network (only works if both hosts have
+the same in-memory object representation):
+
+```python
+shdata = structstore.StructStore("/shdata3")
+buf = shdata.to_bytes()
+# now send `buf` using your favorite network library
+```
+
+## Implementation details
+
+Dynamic structures (such as the internal field map and any containers) use a
+custom allocator with a memory block residing next to the StructStore itself.
+Thus, the whole structure including dynamic structures with pointers can be
+mmap'ed by several processes.
+
+## Limitations
+
+* Supported types: int, double, string, bool, list, NumPy float64 vectors,
+  2D NumPy float64 arrays, nested structures, user-defined classes.
+* The shared memory region is limited to a size of 8GB due to 32bit offset pointers.
+* Opening shared memory multiple times from one process (e.g., in separate threads)
+  is currently not supported.
+* All processes working on the same data need to use the same memory layout
+  (same CPU endianness, same StructStore version, same compiler, etc.).
+* Overall, the library is by no means complete and especially lacks documentation.
+
+## Contribution
+
+This is a recreational project developed out of personal interest and needs,
+released in case someone finds it useful. Therefore, currently, feature requests,
+pull requests, and bug reports will probably not be considered.
+Feel free to still create an issue or contact me though, who knows what happens. :)
+
+## License
+
+This library is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License v3.0
+as published by the Free Software Foundation.  See LICENSE file.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU General Lesser Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
