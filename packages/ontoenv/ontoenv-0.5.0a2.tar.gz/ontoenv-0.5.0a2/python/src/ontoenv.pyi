@@ -1,0 +1,133 @@
+from pathlib import Path
+from typing import Optional, List, Union, Tuple
+from rdflib import Graph, Dataset
+
+# Exposed module metadata
+version: str
+
+
+class Ontology:
+    """Read-only view of ontology metadata."""
+
+    @property
+    def id(self) -> str: ...
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def imports(self) -> List[str]: ...
+
+    @property
+    def location(self) -> Optional[str]: ...
+
+    @property
+    def last_updated(self) -> Optional[str]: ...
+
+    @property
+    def version_properties(self) -> dict[str, str]: ...
+
+    @property
+    def namespace_map(self) -> dict[str, str]: ...
+
+    def __repr__(self) -> str: ...
+
+
+class OntoEnv:
+    """Ontology environment for managing ontologies and graphs."""
+
+    def __init__(
+        self,
+        path: Optional[Union[str, Path]] = None,
+        recreate: bool = False,
+        create_or_use_cached: bool = False,
+        read_only: bool = False,
+        search_directories: Optional[List[str]] = None,
+        require_ontology_names: bool = False,
+        strict: bool = False,
+        offline: bool = False,
+        use_cached_ontologies: bool = False,
+        resolution_policy: str = "default",
+        root: str = ".",
+        includes: Optional[List[str]] = None,
+        excludes: Optional[List[str]] = None,
+        include_ontologies: Optional[List[str]] = None,
+        exclude_ontologies: Optional[List[str]] = None,
+        temporary: bool = False,
+        remote_cache_ttl_secs: Optional[int] = None,
+    ) -> None: ...
+
+    def __repr__(self) -> str: ...
+
+    def update(self, all: bool = False) -> None: ...
+
+    def add(
+        self,
+        location: Union[str, Path],
+        overwrite: bool = False,
+        fetch_imports: bool = True,
+        force: bool = False,
+    ) -> str: ...
+
+    def add_no_imports(
+        self,
+        location: Union[str, Path],
+        overwrite: bool = False,
+        force: bool = False,
+    ) -> str: ...
+
+    def get_graph(self, uri: str) -> Graph: ...
+
+    def get_ontology(self, uri: str) -> Ontology: ...
+
+    def get_ontology_names(self) -> List[str]: ...
+
+    def get_importers(self, uri: str) -> List[str]: ...
+
+    def list_closure(self, uri: str, recursion_depth: int = -1) -> List[str]: ...
+
+    def get_closure(
+        self,
+        uri: str,
+        destination_graph: Optional[Graph] = None,
+        rewrite_sh_prefixes: bool = True,
+        remove_owl_imports: bool = True,
+        recursion_depth: int = -1,
+    ) -> Tuple[Graph, List[str]]: ...
+
+    def import_graph(self, destination_graph: Graph, uri: str, recursion_depth: int = ...) -> None: ...
+
+    def import_dependencies(self, graph: Graph, recursion_depth: int = -1, fetch_missing: bool = False) -> List[str]: ...
+
+    def get_dependencies_graph(
+        self,
+        graph: Graph,
+        destination_graph: Optional[Graph] = None,
+        recursion_depth: int = -1,
+        fetch_missing: bool = False,
+        rewrite_sh_prefixes: bool = True,
+        remove_owl_imports: bool = True,
+    ) -> Tuple[Graph, List[str]]: ...
+
+    def to_rdflib_dataset(self) -> Dataset: ...
+
+    def dump(self, includes: Optional[str] = None) -> None: ...
+
+    # Configuration accessors
+    def is_offline(self) -> bool: ...
+    def set_offline(self, offline: bool) -> None: ...
+
+    def is_strict(self) -> bool: ...
+    def set_strict(self, strict: bool) -> None: ...
+
+    def requires_ontology_names(self) -> bool: ...
+    def set_require_ontology_names(self, require: bool) -> None: ...
+
+
+    def resolution_policy(self) -> str: ...
+    def set_resolution_policy(self, policy: str) -> None: ...
+
+    def store_path(self) -> Optional[str]: ...
+
+    def flush(self) -> None: ...
+    def close(self) -> None: ...
