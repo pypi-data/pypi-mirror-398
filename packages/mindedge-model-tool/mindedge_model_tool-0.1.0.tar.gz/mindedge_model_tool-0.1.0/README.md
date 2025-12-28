@@ -1,0 +1,105 @@
+# mindedge-model-tool
+
+`mindedge-model-tool` 是一个命令行工具，用于辅助mindedge的模型开发，例如从 MinIO 服务器下载文件。
+
+## 功能特性
+
+- 通过命令行从 MinIO 服务器下载文件
+- 支持通过配置文件或环境变量设置连接参数
+- 灵活的输出路径配置
+- 支持指定存储桶名称
+
+## 安装
+
+```bash
+# 使用 pip 安装
+pip install mindedge-model-tool
+```
+
+## 使用方法
+
+### 基本用法
+
+```bash
+mindedge-model-tool [OPTIONS] FILE_KEY
+```
+
+### 参数说明
+
+- `FILE_KEY`: MinIO 对象路径，格式：`bucket_name/object_key`
+- `-o, --output`: 本地保存路径（默认为 `./downloaded_file`）
+- `-c, --config`: 配置文件路径（JSON，含 oss.accessKey 等）
+- `-b, --bucket`: MinIO 存储桶名称（默认为 `suanpan`）
+
+### 配置
+
+工具需要通过配置文件或环境变量提供 MinIO 连接信息。
+
+#### 配置文件示例 (config.json)
+
+```json
+{
+  "oss": {
+    "internalEndpoint": "your-minio-server.com:9000",
+    "accessKey": "your-access-key",
+    "accessSecret": "your-access-secret"
+  }
+}
+```
+
+#### 环境变量方式
+
+```bash
+export NODE_CONFIG='{"oss":{"internalEndpoint":"your-minio-server.com:9000","accessKey":"your-access-key","accessSecret":"your-access-secret"}}'
+mindedge-model-tool bucket-name/file-path
+```
+
+### 使用示例
+
+```bash
+# 使用配置文件下载文件
+mindedge-model-tool my-bucket/my-file.txt -c config.json -o ./local-file.txt
+
+# 使用环境变量下载文件
+mindedge-model-tool my-bucket/my-file.txt -o ./local-file.txt
+
+# 指定特定存储桶
+mindedge-model-tool my-file.txt -b another-bucket -c config.json
+```
+
+## 开发
+
+### 本地运行
+
+```bash
+# 克隆项目
+git clone <repository-url>
+
+# 安装依赖
+cd mindedge-model-tool
+pip install -e .
+```
+
+## 发布到 PyPI
+
+要发布新版本到 PyPI，请执行以下步骤：
+
+1. 更新 [pyproject.toml](file:///home/luxu/project/mindedge-model-tool/pyproject.toml) 中的版本号
+2. 运行测试确保一切正常
+3. 使用发布脚本发布：
+
+```bash
+# 运行发布脚本
+./release.sh
+```
+
+发布脚本将：
+- 检查环境和依赖
+- 构建包
+- 询问发布目标（测试PyPI或正式PyPI）
+- 执行发布
+
+## 依赖
+
+- Python >= 3.10
+- minio >= 7.0.0
