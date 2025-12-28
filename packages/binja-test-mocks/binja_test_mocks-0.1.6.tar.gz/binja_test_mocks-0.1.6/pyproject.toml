@@ -1,0 +1,124 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "binja-test-mocks"
+version = "0.1.6"
+description = "Mock Binary Ninja API for testing Binary Ninja plugins without requiring a license"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "mblsha"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Testing :: Mocking",
+]
+requires-python = ">=3.10"
+keywords = ["binary ninja", "testing", "mocks", "reverse engineering"]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/mblsha/binja-test-mocks"
+Repository = "https://github.com/mblsha/binja-test-mocks"
+Issues = "https://github.com/mblsha/binja-test-mocks/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "mypy>=1.0",
+    "pyright>=1.1",
+    "ruff>=0.1",
+    "build>=0.10",
+    "twine>=4.0",
+]
+
+[project.scripts]
+binja-test-runner = "binja_test_mocks.scripts.run_tests:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/binja_test_mocks"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/examples",
+    "/README.md",
+    "/LICENSE",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "mypy>=1.0",
+    "pyright>=1.1",
+    "ruff>=0.1",
+    "build>=0.10",
+    "twine>=4.0",
+]
+
+[tool.coverage.run]
+source = ["binja_test_mocks"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+[tool.mypy]
+mypy_path = "src:src/binja_test_mocks/stubs"
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+strict_optional = true
+exclude = ["src/binja_test_mocks/stubs/", "build/", "dist/"]
+namespace_packages = true
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = "binaryninja.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "binja_test_mocks.*"
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = "binja_test_mocks.scripts.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "example_arch"
+ignore_missing_imports = true
+
+[tool.pyright]
+include = ["src"]
+extraPaths = ["src/binja_test_mocks/stubs"]
+typeCheckingMode = "strict"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "A", "C4", "SIM", "RUF"]
+ignore = ["E501"]  # Line length handled by formatter
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]  # Allow assert in tests
