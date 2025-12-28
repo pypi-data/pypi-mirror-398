@@ -1,0 +1,1 @@
+SEND_FEEDBACK_V1 = "v1/feedback/request/{requestId}"     # POST -> Add feedback to a request associated with a user's execution; note the requestId parameters are returned on every assistant reply.

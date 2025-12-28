@@ -1,0 +1,1 @@
+RERANK_V1 = "/rerank"   # POST -> Reranks a list of document chunks based on a query.

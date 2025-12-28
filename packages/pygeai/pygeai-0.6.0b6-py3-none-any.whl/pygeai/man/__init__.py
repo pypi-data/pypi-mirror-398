@@ -1,0 +1,1 @@
+# This file makes the man directory a Python package 

@@ -1,0 +1,2615 @@
+.\" Man page for geai CLI
+.\" Generated on May 23, 2025
+.TH GEAI 1 "2025-05-23" "Globant Enterprise AI" "GEAI CLI Manual"
+.SH NAME
+geai \- Command Line Interface for Globant Enterprise AI
+.SH SYNOPSIS
+.B geai
+.I command
+.RI [ subcommand ]
+.RI [ --option ]
+.RI [ option-arg ]
+.SH DESCRIPTION
+The
+.B geai
+command-line interface (CLI) interacts with the PyGEAI SDK to manage tasks in Globant Enterprise AI (GEAI), including creating organizations and projects, defining assistants, managing workflows, handling files, and more.
+.PP
+The available commands and their subcommands are described below. For specific options, use:
+.PP
+.nf
+.B geai
+.I command
+.B h
+.fi
+.PP
+or
+.PP
+.nf
+.B geai
+.I command
+.B help
+.fi
+.SS Commands
+The following top-level commands are available:
+.TP
+.B help, h
+Display help text for the specified command.
+.TP
+.B version, v
+Display the version of the GEAI CLI.
+.TP
+.B check-updates, cu
+Search for available updates for the GEAI CLI.
+.TP
+.B configure, config, c
+Set up environment variables required to interact with GEAI.
+.RS
+.TP
+.B --key, -k
+Set the GEAI API key.
+.TP
+.B --url, -u
+Set the GEAI API base URL.
+.TP
+.B --eval-url, --eu
+Set the GEAI API evaluation URL for the evaluation module.
+.TP
+.B --alias, -a
+Set an alias for the settings section.
+.TP
+.B --list, -l
+List available aliases.
+.RE
+.TP
+.B organization, org
+Manage organization endpoints to handle project parameters. See
+.B ORGANIZATION COMMANDS
+for details.
+.TP
+.B assistant, ast
+Manage assistant endpoints to handle assistant parameters. See
+.B ASSISTANT COMMANDS
+for details.
+.TP
+.B rag
+Manage RAG (Retrieval-Augmented Generation) assistant endpoints. See
+.B RAG ASSISTANT COMMANDS
+for details.
+.TP
+.B chat
+Manage chat endpoints to interact with assistants. See
+.B CHAT COMMANDS
+for details.
+.TP
+.B admin, adm
+Manage admin endpoints for internal use. See
+.B ADMIN COMMANDS
+for details.
+.TP
+.B llm
+Retrieve information about providers and models. See
+.B LLM COMMANDS
+for details.
+.TP
+.B files
+Handle file-related operations. See
+.B FILES COMMANDS
+for details.
+.TP
+.B usage-limit, ulim
+Manage usage limits for organizations and projects. See
+.B USAGE LIMIT COMMANDS
+for details.
+.TP
+.B embeddings, emb
+Generate embeddings in GEAI. See
+.B EMBEDDINGS COMMANDS
+for details.
+.TP
+.B feedback, fbk
+Send feedback on assistant responses. See
+.B FEEDBACK COMMANDS
+for details.
+.TP
+.B rerank, rr
+Rerank document chunks based on a query. See
+.B RERANK COMMANDS
+for details.
+.TP
+.B evaluation, eval
+Interact with dataset, plan, and result APIs in the evaluation module. See
+.B EVALUATION COMMANDS
+for details.
+.TP
+.B gam
+Manage GAM authentication endpoints. See
+.B GAM COMMANDS
+for details.
+.TP
+.B secrets, sec
+Handle GEAI secrets. See
+.B SECRETS COMMANDS
+for details.
+.TP
+.B ai-lab, ail
+Interact with AI Lab endpoints. See
+.B AI LAB COMMANDS
+for details.
+.TP
+.B ai-lab-spec, spec
+Load AI Lab components from JSON specifications. See
+.B AI LAB SPEC COMMANDS
+for details.
+.TP
+.B migrate, mig
+Migrate data between organizations and instances. See
+.B MIGRATE COMMANDS
+for details.
+.SH ERROR CODES
+Certain errors include up to %n references specific to the error, denoted as %1, %2, ..., %n.
+.TS
+tab(|);
+l l.
+Error Code|Description
+1|Assistant Not Found
+2|Provider Type Not Found
+3|Request Not Found
+5|Api Key Not Found
+6|Api Token Not Found
+7|Api Token Out Of Scope
+10|Query Text Empty
+20|Bad Input Text
+100|Provider Request Timeout
+150|Provider Unknown Error
+151|Provider Rate Limit
+152|Provider Quota Exceeded
+153|Provider Over Capacity
+154|Quota Exceeded
+401|Unauthorized
+404|Bad Endpoint
+405|Method Not Allowed
+500|Internal Server Error
+1001|Provider Configuration Error
+1010|RAG Not Found
+1101|Search Index Profile Name Not Found
+1102|Request Failed
+2000|Invalid ProjectName
+2001|Invalid OrganizationId
+2002|ProjectName %1 Already Exists In The Organization
+2003|OrganizationName Already Exists
+2004|Organization Not Found
+2005|Project Not Found
+2006|Project Not In Organization
+2007|Name is Empty
+2008|Prompt is Empty
+2009|Invalid Type
+2010|Not Implemented
+2011|Assistant General Error
+2012|Assistant Not Implemented
+2013|Revision Is Empty
+2014|Assistant Revision Not Found
+2015|Assistant Revision Update Error
+2016|AIModel Id For %1 %2
+2017|RAG General Error
+2018|Vector Store Not Found
+2019|Index Profile General Error
+2020|RAG Already Exists
+2021|Document Not Found
+2022|Invalid DocumentId
+2023|Document General Error
+2024|RAG Invalid
+2025|Document Name Not Provided
+2026|Verb Not Supported
+2027|Document Extension Invalid
+2028|Invalid File Size
+2029|Project name already exists
+2030|Assistant name already exists
+2031|Assistant not in Project
+2032|The status value is unexpected
+2041|The assistant specified is of a different type than expected
+3000|Data Analyst APIError: The connection with DataAnalyst Server could not be established
+3003|The assistant is currently being updated and is not yet available
+3004|Error validating metadata: each uploaded file requires related JSON metadata and vice versa
+3005|Error validating metadata: no metadata was found for file 'nameOfFile'
+.TE
+.SH ORGANIZATION COMMANDS
+.SS Synopsis
+.B geai organization
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Manage key components such as organizations and projects.
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B list-assistants
+List assistant information.
+.RS
+.TP
+.B --organization-id, --oid
+UUID of the organization.
+.TP
+.B --project-id, --pid
+UUID of the project.
+.RE
+.TP
+.B list-projects
+List project information.
+.RS
+.TP
+.B --detail, -d
+Level of detail: \fBsummary\fR (default) or \fBfull\fR.
+.TP
+.B --name, -n
+Name of the project.
+.RE
+.TP
+.B get-project
+Get project information.
+.RS
+.TP
+.B --project-id, --pid
+GUID of the project (required).
+.RE
+.TP
+.B create-project
+Create a new project.
+.RS
+.TP
+.B --name, -n
+Name of the new project.
+.TP
+.B --description, -d
+Description of the new project.
+.TP
+.B --email, -e
+Project administrator's email.
+.TP
+.B --subscription-type
+Subscription type: \fBFreemium\fR, \fBDaily\fR, \fBWeekly\fR, \fBMonthly\fR.
+.TP
+.B --usage-unit
+Usage unit: \fBRequests\fR, \fBCost\fR.
+.TP
+.B --soft-limit
+Soft limit for usage (lower threshold).
+.TP
+.B --hard-limit
+Hard limit for usage (upper threshold, must be >= \fBsoft-limit\fR).
+.TP
+.B --renewal-status
+Renewal status: \fBRenewable\fR, \fBNonRenewable\fR. Must be \fBNonRenewable\fR if \fBsubscription-type\fR is \fBFreemium\fR.
+.RE
+.TP
+.B update-project
+Update an existing project.
+.RS
+.TP
+.B --project-id, --pid
+GUID of the project (required).
+.TP
+.B --name, -n
+Name of the project.
+.TP
+.B --description, -d
+Description of the project.
+.RE
+.TP
+.B delete-project
+Delete an existing project.
+.RS
+.TP
+.B --project-id, --pid
+GUID of the project (required).
+.RE
+.TP
+.B get-tokens
+Get project tokens.
+.RS
+.TP
+.B --project-id, --pid
+GUID of the project (required).
+.RE
+.TP
+.B export-request
+Export request data.
+.RS
+.TP
+.B --assistant-name
+Assistant name (optional).
+.TP
+.B --status
+Status (optional).
+.TP
+.B --skip
+Number of entries to skip (integer).
+.TP
+.B --count
+Number of entries to retrieve (integer).
+.RE
+.SS Examples
+.TP
+.B geai organization list-projects
+List available projects for the configured organization.
+.TP
+.B geai organization create-project --name "NewProject" --description "A test project" --email "admin@example.com"
+Create a new project named "NewProject".
+.SH ASSISTANT COMMANDS
+.SS Synopsis
+.B geai assistant
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Manage assistants in GEAI.
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B get-assistant
+Get assistant details.
+.RS
+.TP
+.B --detail, -d
+Level of detail: \fBsummary\fR (default) or \fBfull\fR.
+.TP
+.B --assistant-id, --id
+Assistant ID.
+.RE
+.TP
+.B create-assistant
+Create a new assistant.
+.RS
+.TP
+.B --type, -t
+Type of assistant: \fBtext\fR, \fBchat\fR (required).
+.TP
+.B --name, -n
+Name of the assistant (required).
+.TP
+.B --description, -d
+Description of the assistant.
+.TP
+.B --prompt
+Prompt for the assistant (required).
+.TP
+.B --provider-name, --provider, -p
+Provider to be used.
+.TP
+.B --model-name, -m
+Model name according to the selected provider.
+.TP
+.B --temperature
+Volatility of the assistant (decimal).
+.TP
+.B --max-tokens
+Maximum number of tokens (integer).
+.TP
+.B --wd-title
+Title for welcome data.
+.TP
+.B --wd-description
+Description for welcome data.
+.TP
+.B --wd-feature
+Feature in JSON format (e.g., \fB'{"title": "feature", "description": "Feature desc"}'\fR).
+.TP
+.B --wd-example-prompt
+Example prompt in JSON format (e.g., \fB'{"title": "prompt", "description": "Prompt desc", "prompt_text": "Text"}'\fR).
+.RE
+.TP
+.B update-assistant
+Update an existing assistant.
+.RS
+.TP
+.B --assistant-id, --id
+Assistant ID.
+.TP
+.B --status
+Status: \fB1\fR (Enabled), \fB2\fR (Disabled) (optional).
+.TP
+.B --action
+Action: \fBsave\fR, \fBsaveNewRevision\fR (default), \fBsavePublishNewRevision\fR.
+.TP
+.B --revision-id
+Revision ID (required if \fBaction\fR is \fBsave\fR).
+.TP
+.B --name, -n
+Name of the assistant (required).
+.TP
+.B --description, -d
+Description of the assistant.
+.TP
+.B --prompt
+Prompt for the assistant (required).
+.TP
+.B --provider-name, --provider, -p
+Provider to be used.
+.TP
+.B --model-name, -m
+Model name according to the selected provider.
+.TP
+.B --temperature
+Volatility of the assistant (decimal).
+.TP
+.B --max-tokens
+Maximum number of tokens (integer).
+.TP
+.B --wd-title
+Title for welcome data.
+.TP
+.B --wd-description
+Description for welcome data.
+.TP
+.B --wd-feature
+Feature in JSON format (e.g., \fB'{"title": "feature", "description": "Feature desc"}'\fR).
+.TP
+.B --wd-example-prompt
+Example prompt in JSON format (e.g., \fB'{"title": "prompt", "description": "Prompt desc", "prompt_text": "Text"}'\fR).
+.RE
+.TP
+.B delete-assistant
+Delete an existing assistant.
+.RS
+.TP
+.B --assistant-id, --id
+Assistant ID.
+.RE
+.TP
+.B chat
+Send a chat request to an assistant.
+.RS
+.TP
+.B --name, -n
+Name of the assistant.
+.TP
+.B --messages, --msg
+Chat request data in JSON format (e.g., \fB'[{"role": "user", "content": "Hello"}]'\fR).
+.TP
+.B --revision
+Revision number (integer).
+.TP
+.B --revision-name
+Name of the revision.
+.TP
+.B --variables, --var
+Key/value properties (optional).
+.RE
+.TP
+.B request-status
+Retrieve the status of a request.
+.RS
+.TP
+.B --request-id, --id
+Request ID.
+.RE
+.TP
+.B cancel-request
+Cancel a request.
+.RS
+.TP
+.B --request-id, --id
+Request ID.
+.RE
+.SS Examples
+.TP
+.B geai assistant create-assistant --type chat --name "MyAssistant" --prompt "Hello, how can I help you?"
+Create a new chat assistant named "MyAssistant".
+.TP
+.B geai assistant chat --name "MyAssistant" --messages '[{"role": "user", "content": "Hi"}]'
+Send a chat message to "MyAssistant".
+.SH RAG ASSISTANT COMMANDS
+.SS Synopsis
+.B geai rag
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Manage RAG (Retrieval-Augmented Generation) assistants in GEAI.
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B list-assistants
+List all RAG assistants in a project.
+.TP
+.B get-assistant
+Get a specific RAG assistant.
+.RS
+.TP
+.B --name, -n
+RAG assistant name (required).
+.RE
+.TP
+.B create-assistant
+Create a new RAG assistant.
+.RS
+.TP
+.B --name, -n
+RAG assistant name (required).
+.TP
+.B --description, -d
+Description of the RAG assistant.
+.TP
+.B --template, --tpl
+Name of an existing RAG to base configuration (optional).
+.TP
+.B --history-count, --hc
+History count (integer).
+.TP
+.B --cache, -c
+Cache (boolean).
+.TP
+.B --frequency-penalty, --fp
+Frequency penalty (decimal).
+.TP
+.B --max-tokens, --mt
+Maximum tokens (integer).
+.TP
+.B --model-name, -m
+Model name.
+.TP
+.B -n
+Number (integer).
+.TP
+.B --presence-penalty, --pp
+Presence penalty (decimal).
+.TP
+.B --provider, -p
+Provider.
+.TP
+.B --stream
+Stream (boolean).
+.TP
+.B --temperature, --temp, -t
+Temperature (decimal).
+.TP
+.B --top-p
+Top P (decimal).
+.TP
+.B --llm-type
+LLM type: empty (default) or \fBjson_object\fR.
+.TP
+.B --verbose, -v
+Verbose (boolean).
+.TP
+.B -k
+K (integer).
+.TP
+.B --search-type
+Search type: \fBsimilarity\fR (default) or \fBmmr\fR.
+.TP
+.B --fetch-k, --fk
+Fetch K (number, valid for \fBmmr\fR).
+.TP
+.B --lambda, -l
+Lambda (decimal, valid for \fBmmr\fR).
+.TP
+.B --search-prompt, --sp
+Prompt.
+.TP
+.B --return-source-documents, --rsd
+Return source documents (boolean).
+.TP
+.B --score-threshold, --st
+Score threshold (decimal).
+.TP
+.B --search-template, --stpl
+Template.
+.TP
+.B --retriever-type
+Retriever type: \fBvectorStore\fR, \fBmultiQuery\fR, \fBselfQuery\fR, \fBhyde\fR, \fBcontextualCompression\fR.
+.TP
+.B --retriever-search-type
+Search type: \fBsimilarity\fR, \fBsimilarity_hybrid\fR, \fBsemantic_hybrid\fR (Azure AISearch specific, defaults to \fBsimilarity\fR).
+.TP
+.B --step
+Step: \fBall\fR (default) or \fBdocuments\fR.
+.TP
+.B --retriever-prompt, --rp
+Prompt (not needed for \fBvectorStore\fR).
+.TP
+.B --chunk-overlap
+Overlap size between chunks in the main document.
+.TP
+.B --chunk-size
+Size of each chunk in the main document.
+.TP
+.B --use-parent-document
+Enable parent-child document relationships (boolean).
+.TP
+.B --child-k
+Parameter for child document processing.
+.TP
+.B --child-chunk-size
+Size of each chunk in the child document.
+.TP
+.B --child-chunk-overlap
+Overlap size between chunks in the child document.
+.TP
+.B --wd-title
+Title for welcome data.
+.TP
+.B --wd-description
+Description for welcome data.
+.TP
+.B --wd-feature
+Feature in JSON format (e.g., \fB'{"title": "feature", "description": "Feature desc"}'\fR).
+.TP
+.B --wd-example-prompt
+Example prompt in JSON format (e.g., \fB'{"title": "prompt", "description": "Prompt desc", "prompt_text": "Text"}'\fR).
+.RE
+.TP
+.B update-assistant
+Update an existing RAG assistant.
+.RS
+.TP
+.B --name, -n
+RAG assistant name (required).
+.TP
+.B --status
+Status: \fB1\fR (enabled), \fB0\fR (disabled, default: \fB1\fR).
+.TP
+.B --description, -d
+Description of the RAG assistant.
+.TP
+.B --template, --tpl
+Name of an existing RAG to base configuration (optional).
+.TP
+.B --history-count, --hc
+History count (integer).
+.TP
+.B --cache, -c
+Cache (boolean).
+.TP
+.B --frequency-penalty, --fp
+Frequency penalty (decimal).
+.TP
+.B --max-tokens, --mt
+Maximum tokens (integer).
+.TP
+.B --model-name, -m
+Model name.
+.TP
+.B -n
+Number (integer).
+.TP
+.B --presence-penalty, --pp
+Presence penalty (decimal).
+.TP
+.B --provider, -p
+Provider.
+.TP
+.B --stream
+Stream (boolean).
+.TP
+.B --temperature, --temp, -t
+Temperature (decimal).
+.TP
+.B --top-p
+Top P (decimal).
+.TP
+.B --llm-type
+LLM type: empty (default) or \fBjson_object\fR.
+.TP
+.B --verbose, -v
+Verbose (boolean).
+.TP
+.B -k
+K (integer).
+.TP
+.B --search-type
+Search type: \fBsimilarity\fR (default) or \fBmmr\fR.
+.TP
+.B --fetch-k, --fk
+Fetch K (number, valid for \fBmmr\fR).
+.TP
+.B --lambda, -l
+Lambda (decimal, valid for \fBmmr\fR).
+.TP
+.B --search-prompt, --sp
+Prompt.
+.TP
+.B --return-source-documents, --rsd
+Return source documents (boolean).
+.TP
+.B --score-threshold, --st
+Score threshold (decimal).
+.TP
+.B --search-template, --stpl
+Template.
+.TP
+.B --retriever-type
+Retriever type: \fBvectorStore\fR, \fBmultiQuery\fR, \fBselfQuery\fR, \fBhyde\fR, \fBcontextualCompression\fR.
+.TP
+.B --retriever-search-type
+Search type: \fBsimilarity\fR, \fBsimilarity_hybrid\fR, \fBsemantic_hybrid\fR.
+.TP
+.B --step
+Step: \fBall\fR (default) or \fBdocuments\fR.
+.TP
+.B --retriever-prompt, --rp
+Prompt (not needed for \fBvectorStore\fR).
+.TP
+.B --wd-title
+Title for welcome data.
+.TP
+.B --wd-description
+Description for welcome data.
+.TP
+.B --wd-feature
+Feature in JSON format (e.g., \fB'{"title": "feature", "description": "Feature desc"}'\fR).
+.TP
+.B --wd-example-prompt
+Example prompt in JSON format (e.g., \fB'{"title": "prompt", "description": "Prompt desc", "prompt_text": "Text"}'\fR).
+.RE
+.TP
+.B delete-assistant
+Delete an existing RAG assistant.
+.RS
+.TP
+.B --name, -n
+RAG assistant name (required).
+.RE
+.TP
+.B list-documents
+List documents for a RAG assistant.
+.RS
+.TP
+.B --name, -n
+RAG assistant name (required).
+.TP
+.B --skip, -s
+Number of documents to skip.
+.TP
+.B --count, -c
+Number of documents to return (default: 10).
+.RE
+.TP
+.B delete-all-documents, del-docs
+Delete all documents for a RAG assistant.
+.RS
+.TP
+.B --name, -n
+RAG assistant name (required).
+.RE
+.TP
+.B get-document, get-doc
+Get a document for a RAG assistant.
+.RS
+.TP
+.B --name, -n
+RAG assistant name (required).
+.TP
+.B --document-id, --id
+Document ID (required).
+.RE
+.TP
+.B upload-document, up-doc
+Upload a document for a RAG assistant.
+.RS
+.TP
+.B --name, -n
+RAG assistant name (required).
+.TP
+.B --file-path, -f
+Path to the document file (required).
+.TP
+.B --upload-type, -t
+Upload type: \fBbinary\fR or \fBmultipart\fR (default: \fBmultipart\fR).
+.TP
+.B --metadata, -m
+Document metadata (JSON or file path, for \fBmultipart\fR).
+.TP
+.B --content-type, --ct
+Document content type.
+.RE
+.TP
+.B delete-document, del-doc
+Delete a document by ID for a RAG assistant.
+.RS
+.TP
+.B --name, -n
+RAG assistant name (required).
+.TP
+.B --document-id, --id
+Document ID (required).
+.RE
+.SS Examples
+.TP
+.B geai rag create-assistant --name "MyRAG" --description "RAG for docs" --model-name "gpt-4o"
+Create a new RAG assistant named "MyRAG".
+.TP
+.B geai rag upload-document --name "MyRAG" --file-path "/path/to/doc.pdf"
+Upload a document to "MyRAG".
+.SH CHAT COMMANDS
+.SS Synopsis
+.B geai chat
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Chat with assistants in GEAI.
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B completion, comp
+Get chat completion.
+.RS
+.TP
+.B --model, -m
+Model format: \fBsaia:<assistant_type>:<assistant_name>|<bot_id>\fR.
+.TP
+.B --messages, --msg
+Messages in JSON format (e.g., \fB'[{"role": "user", "content": "Hello"}]'\fR).
+.TP
+.B --stream
+Stream response: \fB0\fR (OFF), \fB1\fR (ON).
+.TP
+.B --temperature, --temp
+Volatility (float, 0-2).
+.TP
+.B --max-tokens
+Maximum tokens (integer).
+.TP
+.B --thread-id
+Conversation UUID (optional).
+.TP
+.B --frequency-penalty
+Penalize token frequency (-2.0 to 2.0, optional).
+.TP
+.B --presence-penalty
+Penalize new tokens (-2.0 to 2.0, optional).
+.TP
+.B --top-p
+Nucleus sampling (float, 0-1, optional).
+.TP
+.B --stop
+Stop sequences (string or JSON array, up to 4, optional).
+.TP
+.B --response-format
+Output format (JSON, optional).
+.TP
+.B --tools
+Tools in JSON array (optional).
+.TP
+.B --tool-choice
+Tool control: \fBnone\fR, \fBauto\fR, or JSON (optional).
+.TP
+.B --logprobs
+Return log probabilities: \fB0\fR (OFF), \fB1\fR (ON, optional).
+.TP
+.B --top-logprobs
+Number of likely tokens (0-20, optional).
+.TP
+.B --seed
+Deterministic sampling seed (integer, optional, in Beta).
+.TP
+.B --stream-options
+Streaming options (JSON, optional).
+.TP
+.B --store
+Store output: \fB0\fR (OFF), \fB1\fR (ON, optional).
+.TP
+.B --metadata
+Metadata (JSON, up to 16 key-value pairs, optional).
+.TP
+.B --user
+End-user identifier (optional).
+.RE
+.TP
+.B iris
+Interactive chat with Iris.
+.TP
+.B agent
+Interactive chat with an agent.
+.RS
+.TP
+.B --agent-name, --name, -n
+Agent name or ID.
+.TP
+.B --gui, -g
+Launch Streamlit GUI: \fB0\fR (OFF), \fB1\fR (ON).
+.RE
+.SS Examples
+.TP
+.B geai chat completion --model "saia:chat:MyAssistant" --messages '[{"role": "user", "content": "Hello"}]'
+Get a chat completion from "MyAssistant".
+.TP
+.B geai chat agent --name "MyAgent" --gui 1
+Launch a GUI chat with "MyAgent".
+.SH ADMIN COMMANDS
+.SS Synopsis
+.B geai admin
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Manage internal admin operations in GEAI.
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B validate-token, vt
+Validate an API token and retrieve organization/project information.
+.TP
+.B list-authorized-organizations, auth-org
+List organizations a user can access.
+.TP
+.B list-authorized-projects, auth-proj
+List projects a user can access in an organization.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID.
+.RE
+.TP
+.B project-visibility, pv
+Check if a GAM user has project visibility.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID.
+.TP
+.B --project, -p
+Project ID.
+.TP
+.B --access-token, --token, --at
+GAM access token.
+.RE
+.TP
+.B project-token, pt
+Get a project's API token.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID.
+.TP
+.B --project, -p
+Project ID.
+.TP
+.B --access-token, --token, --at
+GAM access token.
+.RE
+.SS Examples
+.TP
+.B geai admin validate-token
+Validate the configured API token.
+.TP
+.B geai admin project-token --organization "org-id" --project "proj-id" --access-token "token"
+Get the API token for a project.
+.SH LLM COMMANDS
+.SS Synopsis
+.B geai llm
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Retrieve information about available models and providers in GEAI.
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B list-providers, lp
+Retrieve the list of providers.
+.TP
+.B get-provider, gp
+Retrieve provider data.
+.RS
+.TP
+.B --provider-name, --pn
+LLM provider name (required).
+.RE
+.TP
+.B list-models, lm
+Retrieve provider models.
+.RS
+.TP
+.B --provider-name, --pn
+LLM provider name (required).
+.RE
+.TP
+.B get-model, gm
+Retrieve model data.
+.RS
+.TP
+.B --provider-name, --pn
+LLM provider name (required).
+.TP
+.B --model-name, --mn
+LLM model name.
+.TP
+.B --model-id, --mid
+LLM model ID.
+.RE
+.SS Examples
+.TP
+.B geai llm list-providers
+List all available LLM providers.
+.TP
+.B geai llm get-model --provider-name "openai" --model-name "gpt-4o"
+Get details for the "gpt-4o" model from OpenAI.
+.SH FILES COMMANDS
+.SS Synopsis
+.B geai files
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Manage files in GEAI.
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B upload-file, uf
+Upload a file.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.TP
+.B --project, --proj, -p
+Project ID (required).
+.TP
+.B --file-name, --fn
+File name (optional, defaults to uploaded file name).
+.TP
+.B --file-path, --fp
+File path (required).
+.TP
+.B --folder, -f
+Destination folder (optional, defaults to temporary storage).
+.RE
+.TP
+.B get-file, gf
+Get file data.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.TP
+.B --project, --proj, -p
+Project ID (required).
+.TP
+.B --file-id, --fid
+File ID (required).
+.RE
+.TP
+.B delete-file, df
+Delete file data.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.TP
+.B --project, --proj, -p
+Project ID (required).
+.TP
+.B --file-id, --fid
+File ID (required).
+.RE
+.TP
+.B get-file-content, gfc
+Get file content.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.TP
+.B --project, --proj, -p
+Project ID (required).
+.TP
+.B --file-id, --fid
+File ID (required).
+.RE
+.TP
+.B list-files, lf
+Retrieve file list.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.TP
+.B --project, --proj, -p
+Project ID (required).
+.RE
+.SS Examples
+.TP
+.B geai files upload-file --organization "org-id" --project "proj-id" --file-path "/path/to/file.txt"
+Upload a file to a project.
+.TP
+.B geai files list-files --organization "org-id" --project "proj-id"
+List all files in a project.
+.SH USAGE LIMIT COMMANDS
+.SS Synopsis
+.B geai usage-limit
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Manage usage limits for organizations and projects in GEAI.
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B set-organization-limit, set-org-lim
+Set organization usage limit.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.TP
+.B --subscription-type
+Subscription type: \fBFreemium\fR, \fBDaily\fR, \fBWeekly\fR, \fBMonthly\fR.
+.TP
+.B --usage-unit
+Usage unit: \fBRequests\fR, \fBCost\fR.
+.TP
+.B --soft-limit
+Soft limit for usage (lower threshold).
+.TP
+.B --hard-limit
+Hard limit for usage (upper threshold, must be >= \fBsoft-limit\fR).
+.TP
+.B --renewal-status
+Renewal status: \fBRenewable\fR, \fBNonRenewable\fR. Must be \fBNonRenewable\fR if \fBsubscription-type\fR is \fBFreemium\fR.
+.RE
+.TP
+.B get-latest-organization-limit, get-latest-org-lim
+Get the latest organization usage limit.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.RE
+.TP
+.B get-all-organization-limit, get-all-org-lim
+Get all organization usage limits.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.RE
+.TP
+.B delete-organization-limit, del-org-lim
+Delete an organization usage limit.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.TP
+.B --limit-id, --lid
+Usage limit ID (required).
+.RE
+.TP
+.B update-organization-limit, up-org-lim
+Update an organization usage limit.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.TP
+.B --limit-id, --lid
+Usage limit ID (required).
+.TP
+.B --hard-limit
+Hard limit for usage (upper threshold, must be >= \fBsoft-limit\fR).
+.TP
+.B --soft-limit
+Soft limit for usage (lower threshold).
+.TP
+.B --renewal-status
+Renewal status: \fBRenewable\fR, \fBNonRenewable\fR.
+.RE
+.TP
+.B set-project-limit, set-proj-lim
+Set project usage limit.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.TP
+.B --project, --proj, -p
+Project ID (required).
+.TP
+.B --subscription-type
+Subscription type: \fBFreemium\fR, \fBDaily\fR, \fBWeekly\fR, \fBMonthly\fR.
+.TP
+.B --usage-unit
+Usage unit: \fBRequests\fR, \fBCost\fR.
+.TP
+.B --soft-limit
+Soft limit for usage (lower threshold).
+.TP
+.B --hard-limit
+Hard limit for usage (upper threshold, must be >= \fBsoft-limit\fR).
+.TP
+.B --renewal-status
+Renewal status: \fBRenewable\fR, \fBNonRenewable\fR. Must be \fBNonRenewable\fR if \fBsubscription-type\fR is \fBFreemium\fR.
+.RE
+.TP
+.B get-all-project-limit, get-all-proj-lim
+Get all usage limits for a project.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.TP
+.B --project, --proj, -p
+Project ID (required).
+.RE
+.TP
+.B get-latest-project-limit, get-latest-proj-lim
+Get the latest usage limit for a project.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.TP
+.B --project, --proj, -p
+Project ID (required).
+.RE
+.TP
+.B get-active-project-limit, get-active-proj-lim
+Get the active usage limit for a project.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.TP
+.B --project, --proj, -p
+Project ID (required).
+.RE
+.TP
+.B delete-project-limit, del-proj-lim
+Delete a project usage limit.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.TP
+.B --project, --proj, -p
+Project ID (required).
+.TP
+.B --limit-id, --lid
+Usage limit ID (required).
+.RE
+.TP
+.B update-project-limit, up-proj-lim
+Update a project usage limit.
+.RS
+.TP
+.B --organization, --org, -o
+Organization ID (required).
+.TP
+.B --project, --proj, -p
+Project ID (required).
+.TP
+.B --limit-id, --lid
+Usage limit ID (required).
+.TP
+.B --hard-limit
+Hard limit for usage (upper threshold, must be >= \fBsoft-limit\fR).
+.TP
+.B --soft-limit
+Soft limit for usage (lower threshold).
+.TP
+.B --renewal-status
+Renewal status: \fBRenewable\fR, \fBNonRenewable\fR.
+.RE
+.SS Examples
+.TP
+.B geai usage-limit set-project-limit --organization "org-id" --project "proj-id" --subscription-type Monthly --usage-unit Requests --soft-limit 1000 --hard-limit 2000
+Set a project usage limit.
+.TP
+.B geai usage-limit get-latest-organization-limit --organization "org-id"
+Get the latest usage limit for an organization.
+.SH EMBEDDINGS COMMANDS
+.SS Synopsis
+.B geai embeddings
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Generate embeddings in GEAI.
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B generate, gen
+Generate embeddings.
+.RS
+.TP
+.B --input, -i
+Input to embed (string, multiple inputs allowed).
+.TP
+.B --model, -m
+Provider/model ID.
+.TP
+.B --encoding-format, --enc-for
+Format: \fBfloat\fR (default) or \fBbase64\fR.
+.TP
+.B --dimensions, --dim
+Number of dimensions (integer, optional).
+.TP
+.B --user, -u
+End-user identifier.
+.TP
+.B --input-type, --it
+Input data usage type (optional).
+.TP
+.B --timeout, -t
+API response timeout (seconds, default: 600).
+.TP
+.B --cache
+Cache embeddings: \fB0\fR (False, default), \fB1\fR (True).
+.RE
+.SS Examples
+.TP
+.B geai embeddings generate --input "Sample text" --model "openai/text-embedding-3"
+Generate embeddings for "Sample text".
+.TP
+.B geai embeddings generate --input "Text one" --input "Text two" --model "openai/text-embedding-3"
+Generate embeddings for multiple inputs.
+.SH FEEDBACK COMMANDS
+.SS Synopsis
+.B geai feedback
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Send feedback on assistant responses.
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B send, sf
+Send feedback.
+.RS
+.TP
+.B --request-id, --rid
+Request ID (integer).
+.TP
+.B --origin
+Feedback origin (default: \fBuser-feedback\fR).
+.TP
+.B --answer-score, --ans-score, --score
+Feedback score: \fB1\fR (good), \fB2\fR (bad).
+.TP
+.B --comments
+Feedback comment (optional).
+.RE
+.SS Examples
+.TP
+.B geai feedback send --request-id 123 --answer-score 1 --comments "Great response!"
+Send positive feedback for a request.
+.TP
+.B geai feedback send --request-id 124 --answer-score 2
+Send negative feedback for a request.
+.SH RERANK COMMANDS
+.SS Synopsis
+.B geai rerank
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Rerank document chunks based on a query in GEAI.
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B rerank-chunks, chunks, rc
+Rerank chunks based on a query.
+.RS
+.TP
+.B --query, -q
+Input query (string).
+.TP
+.B --model, -m
+Reranker model: \fBcohere/rerank-v3.5\fR, \fBawsbedrock/cohere.rerank-v3.5\fR, \fBawsbedrock/amazon.rerank-v1\fR.
+.TP
+.B --documents, --doc, -d
+Text chunks (string or array).
+.TP
+.B --top-n
+Number of top results to return (string).
+.RE
+.SS Examples
+.TP
+.B geai rerank rerank-chunks --query "What is AI?" --model "cohere/rerank-v3.5" --documents '["Text 1", "Text 2"]' --top-n 2
+Rerank two document chunks for the query.
+.SH EVALUATION COMMANDS
+.SS Synopsis
+.B geai evaluation
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Interact with dataset, plan, and result APIs in the GEAI evaluation module. Dataset rows have the structure:
+.PP
+.nf
+{
+  "dataSetRowExpectedAnswer": "string",
+  "dataSetRowInput": "string",
+  "dataSetRowContextDocument": "string",
+  "expectedSources": [
+    {
+      "dataSetExpectedSourceId": "UUID",
+      "dataSetExpectedSourceName": "string",
+      "dataSetExpectedSourceValue": "string",
+      "dataSetexpectedSourceExtention": "string"
+    }
+  ],
+  "filterVariables": [
+    {
+      "dataSetMetadataType": "string",
+      "dataSetRowFilterKey": "string",
+      "dataSetRowFilterOperator": "string",
+      "dataSetRowFilterValue": "string",
+      "dataSetRowFilterVarId": "UUID"
+    }
+  ]
+}
+.fi
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B list-datasets, ld
+List all datasets.
+.TP
+.B create-dataset, cd
+Create a dataset.
+.RS
+.TP
+.B --dataset-name, --dn
+Dataset name (string).
+.TP
+.B --dataset-description, --dd
+Dataset description (string).
+.TP
+.B --dataset-type, --dt
+Dataset type (e.g., \fBT\fR for test).
+.TP
+.B --dataset-active, --da
+Dataset active: \fB0\fR (False), \fB1\fR (True).
+.TP
+.B --row, -r
+Row data (JSON).
+.TP
+.B --dataset-file, --df
+JSON file with dataset structure.
+.RE
+.TP
+.B get-dataset, gd
+Get a dataset by ID.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.RE
+.TP
+.B update-dataset, ud
+Update a dataset by ID.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --dataset-name, --dn
+Dataset name (string).
+.TP
+.B --dataset-description, --dd
+Dataset description (string).
+.TP
+.B --dataset-type, --dt
+Dataset type (e.g., \fBT\fR for test).
+.TP
+.B --dataset-active, --da
+Dataset active: \fB0\fR (False), \fB1\fR (True).
+.TP
+.B --row, -r
+Row data (JSON).
+.RE
+.TP
+.B delete-dataset, dd
+Delete a dataset by ID.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.RE
+.TP
+.B create-dataset-row, cdr
+Create a dataset row.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --row, -r
+Row data (JSON).
+.RE
+.TP
+.B list-dataset-rows, ldr
+List dataset rows.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.RE
+.TP
+.B get-dataset-row, gdr
+Get a dataset row.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --row-id, --rid
+Row UUID.
+.RE
+.TP
+.B update-dataset-row, udr
+Update a dataset row.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --row-id, --rid
+Row UUID.
+.TP
+.B --row, -r
+Row data (JSON).
+.RE
+.TP
+.B delete-dataset-row, ddr
+Delete a dataset row.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --row-id, --rid
+Row UUID.
+.RE
+.TP
+.B create-expected-source, ces
+Create a dataset row expected source.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --row-id, --rid
+Row UUID.
+.TP
+.B --name, -n
+Source name (string).
+.TP
+.B --value, -v
+Source value (string).
+.TP
+.B --extension, -e
+Source extension (e.g., \fBtxt\fR, \fBpdf\fR).
+.RE
+.TP
+.B list-expected-sources, les
+List dataset row expected sources.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --row-id, --rid
+Row UUID.
+.RE
+.TP
+.B get-expected-source, ges
+Get a dataset row expected source.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --row-id, --rid
+Row UUID.
+.TP
+.B --expected-source-id, --esid
+Expected source UUID.
+.RE
+.TP
+.B update-expected-source, ues
+Update a dataset row expected source.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --row-id, --rid
+Row UUID.
+.TP
+.B --expected-source-id, --esid
+Expected source UUID.
+.TP
+.B --name, -n
+Source name (string).
+.TP
+.B --value, -v
+Source value (string).
+.TP
+.B --extension, -e
+Source extension (e.g., \fBtxt\fR, \fBpdf\fR).
+.RE
+.TP
+.B delete-expected-source, des
+Delete a dataset row expected source.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --row-id, --rid
+Row UUID.
+.TP
+.B --expected-source-id, --esid
+Expected source UUID.
+.RE
+.TP
+.B create-filter-variable, cfv
+Create a dataset row filter variable.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --row-id, --rid
+Row UUID.
+.TP
+.B --metadata-type, --mt
+Metadata type (e.g., \fBV\fR for variable).
+.TP
+.B --key, -k
+Filter key (string).
+.TP
+.B --value, -v
+Filter value (string).
+.TP
+.B --operator, -o
+Filter operator (e.g., \fB=\fR, \fB!=\fR, \fBcontains\fR).
+.RE
+.TP
+.B list-filter-variables, lfv
+List dataset row filter variables.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --row-id, --rid
+Row UUID.
+.RE
+.TP
+.B get-filter-variable, gfv
+Get a dataset row filter variable.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --row-id, --rid
+Row UUID.
+.TP
+.B --filter-variable-id, --fvid
+Filter variable UUID.
+.RE
+.TP
+.B update-filter-variable, ufv
+Update a dataset row filter variable.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --row-id, --rid
+Row UUID.
+.TP
+.B --filter-variable-id, --fvid
+Filter variable UUID.
+.TP
+.B --metadata-type, --mt
+Metadata type (e.g., \fBV\fR for variable).
+.TP
+.B --key, -k
+Filter key (string).
+.TP
+.B --value, -v
+Filter value (string).
+.TP
+.B --operator, -o
+Filter operator (e.g., \fB=\fR, \fB!=\fR, \fBcontains\fR).
+.RE
+.TP
+.B delete-filter-variable, dfv
+Delete a dataset row filter variable.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --row-id, --rid
+Row UUID.
+.TP
+.B --filter-variable-id, --fvid
+Filter variable UUID.
+.RE
+.TP
+.B upload-dataset-rows, udrf
+Upload dataset rows from a file.
+.RS
+.TP
+.B --dataset-id, --did
+Dataset UUID.
+.TP
+.B --rows-file, --rf
+JSON file with dataset rows.
+.RE
+.TP
+.B list-evaluation-plans, lep
+List all evaluation plans.
+.TP
+.B create-evaluation-plan, cep
+Create an evaluation plan.
+.RS
+.TP
+.B --name, --epn
+Evaluation plan name.
+.TP
+.B --assistant-type, --epat
+Assistant type (e.g., \fBTextPromptAssistant\fR, \fBRAG Assistant\fR).
+.TP
+.B --assistant-id, --epai
+Assistant UUID (optional, required for \fBTextPromptAssistant\fR).
+.TP
+.B --assistant-name, --epan
+Assistant name (optional, required for \fBTextPromptAssistant\fR).
+.TP
+.B --assistant-revision, --epar
+Assistant revision (optional, required for \fBTextPromptAssistant\fR).
+.TP
+.B --profile-name, --eppn
+RAG profile name (optional, required for \fBRAG Assistant\fR).
+.TP
+.B --dataset-id, --did
+Dataset ID (optional).
+.TP
+.B --system-metrics, --sm
+System metrics (JSON array with \fBsystemMetricId\fR and \fBsystemMetricWeight\fR).
+.RE
+.TP
+.B get-evaluation-plan, gep
+Retrieve an evaluation plan by ID.
+.RS
+.TP
+.B --evaluation-plan-id, --epid
+Evaluation plan UUID.
+.RE
+.TP
+.B update-evaluation-plan, uep
+Update an evaluation plan by ID.
+.RS
+.TP
+.B --evaluation-plan-id, --epid
+Evaluation plan UUID.
+.TP
+.B --name, --epn
+Evaluation plan name.
+.TP
+.B --assistant-type, --epat
+Assistant type (e.g., \fBTextPromptAssistant\fR, \fBRAG Assistant\fR).
+.TP
+.B --assistant-id, --epai
+Assistant UUID (optional, required for \fBTextPromptAssistant\fR).
+.TP
+.B --assistant-name, --epan
+Assistant name (optional, required for \fBTextPromptAssistant\fR).
+.TP
+.B --assistant-revision, --epar
+Assistant revision (optional, required for \fBTextPromptAssistant\fR).
+.TP
+.B --profile-name, --eppn
+RAG profile name (optional, required for \fBRAG Assistant\fR).
+.TP
+.B --dataset-id, --did
+Dataset ID (optional).
+.TP
+.B --system-metrics, --sm
+System metrics (JSON array with \fBsystemMetricId\fR and \fBsystemMetricWeight\fR).
+.RE
+.TP
+.B delete-evaluation-plan, dep
+Delete an evaluation plan by ID.
+.RS
+.TP
+.B --evaluation-plan-id, --epid
+Evaluation plan UUID.
+.RE
+.TP
+.B list-evaluation-plan-system-metrics, lepsm
+List system metrics for an evaluation plan.
+.RS
+.TP
+.B --evaluation-plan-id, --epid
+Evaluation plan UUID.
+.RE
+.TP
+.B add-evaluation-plan-system-metric, aepsm
+Add a system metric to an evaluation plan.
+.RS
+.TP
+.B --evaluation-plan-id, --epid
+Evaluation plan UUID.
+.TP
+.B --system-metric-id, --smid
+System metric ID.
+.TP
+.B --system-metric-weight, --smw
+Metric weight (0-1).
+.RE
+.TP
+.B get-evaluation-plan-system-metric, gepsm
+Retrieve a system metric from an evaluation plan.
+.RS
+.TP
+.B --evaluation-plan-id, --epid
+Evaluation plan UUID.
+.TP
+.B --system-metric-id, --smid
+System metric ID.
+.RE
+.TP
+.B update-evaluation-plan-system-metric, uepsm
+Update a system metric in an evaluation plan.
+.RS
+.TP
+.B --evaluation-plan-id, --epid
+Evaluation plan UUID.
+.TP
+.B --system-metric-id, --smid
+System metric ID.
+.TP
+.B --system-metric-weight, --smw
+Metric weight (0-1).
+.RE
+.TP
+.B delete-evaluation-plan-system-metric, depsm
+Delete a system metric from an evaluation plan.
+.RS
+.TP
+.B --evaluation-plan-id, --epid
+Evaluation plan UUID.
+.TP
+.B --system-metric-id, --smid
+System metric ID.
+.RE
+.TP
+.B list-available-system-metrics, lsm
+List all available system metrics.
+.TP
+.B get-system-metrics, gsm
+Retrieve a system metric by ID.
+.RS
+.TP
+.B --system-metric-id, --smid
+System metric ID.
+.RE
+.TP
+.B execute-evaluation-plan, xep
+Execute an evaluation plan.
+.RS
+.TP
+.B --evaluation-plan-id, --epid
+Evaluation plan UUID.
+.RE
+.TP
+.B list-evaluation-results, ler
+List evaluation results for a plan.
+.RS
+.TP
+.B --evaluation-plan-id, --epid
+Evaluation plan UUID.
+.RE
+.TP
+.B get-evaluation-result, ger
+Retrieve an evaluation result by ID.
+.RS
+.TP
+.B --evaluation-result-id, --erid
+Evaluation result UUID.
+.RE
+.SS Examples
+.TP
+.B geai evaluation create-dataset --dataset-name "MyNewDataset" --dataset-description "A dataset for testing" --dataset-type "T" --dataset-active 1 --row '[{"dataSetRowExpectedAnswer": "This is the expected answer", "dataSetRowInput": "What is the capital of France?", "dataSetRowContextDocument": ""}]'
+Create a dataset with one row.
+.TP
+.B geai evaluation execute-evaluation-plan --evaluation-plan-id "plan-uuid"
+Execute an evaluation plan.
+.SH GAM COMMANDS
+.SS Synopsis
+.B geai gam
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Manage GAM authentication mechanisms in GEAI.
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B get-access-token, gat
+Get an access token.
+.RS
+.TP
+.B --client-id, --cid
+Application client ID.
+.TP
+.B --client-secret, --cs
+Application client secret.
+.TP
+.B --grant-type, --gt
+Grant type (default: \fBpassword\fR).
+.TP
+.B --authentication-type-name, --atn
+Authentication type (default: \fBlocal\fR).
+.TP
+.B --scope, -s
+Scope: \fBgam_user_data+gam_user_roles\fR (default: \fBgam_user_data\fR).
+.TP
+.B --username, -u
+Username.
+.TP
+.B --password, -p
+Password.
+.TP
+.B --initial-properties, --ip
+User custom properties (array).
+.TP
+.B --repository, -r
+IDP repository (for multitenant).
+.TP
+.B --request-token-type, --rtt
+Token type: \fBOAuth\fR (default).
+.RE
+.TP
+.B get-user-info, gui
+Get user information.
+.RS
+.TP
+.B --access-token, --at
+Access token.
+.RE
+.TP
+.B refresh-access-token, rat
+Refresh an access token.
+.RS
+.TP
+.B --client-id, --cid
+Application client ID.
+.TP
+.B --client-secret, --cs
+Application client secret.
+.TP
+.B --grant-type, --gt
+Grant type: \fBrefresh_token\fR.
+.TP
+.B --refresh-token, --rt
+Refresh token.
+.RE
+.SS Examples
+.TP
+.B geai gam get-access-token --client-id "client-id" --client-secret "secret" --username "user" --password "pass"
+Obtain an access token.
+.TP
+.B geai gam get-user-info --access-token "token"
+Get user information using an access token.
+.SH SECRETS COMMANDS
+.SS Synopsis
+.B geai secrets
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Handle secrets in GEAI.
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B get-secret, gs
+Retrieve a secret by ID.
+.RS
+.TP
+.B --secret-id, --sid
+Secret ID (required).
+.RE
+.TP
+.B create-secret, cs
+Create a new secret.
+.RS
+.TP
+.B --name, -n
+Secret name (required).
+.TP
+.B --secret-string, -ss
+Secret value (required).
+.TP
+.B --description, -d
+Secret description (optional).
+.RE
+.TP
+.B update-secret, us
+Update an existing secret.
+.RS
+.TP
+.B --secret-id, --sid
+Secret ID (required).
+.TP
+.B --name, -n
+Secret name (required).
+.TP
+.B --secret-string, -ss
+Secret value (required).
+.TP
+.B --description, -d
+Secret description (optional).
+.RE
+.TP
+.B list-secrets, ls
+List secrets with filtering and pagination.
+.RS
+.TP
+.B --name, -n
+Filter by name (optional).
+.TP
+.B --id
+Filter by ID (optional).
+.TP
+.B --start
+Starting index (integer, default: 0).
+.TP
+.B --count
+Number of secrets to return (integer, default: 10).
+.RE
+.SS Examples
+.TP
+.B geai secrets create-secret --name "my-secret" --secret-string "value"
+Create a new secret.
+.TP
+.B geai secrets list-secrets --count 20
+List up to 20 secrets.
+.SH AI LAB COMMANDS
+.SS Synopsis
+.B geai ai-lab
+.I subcommand
+.RI [ --flag ]
+.RI [ flag-arg ]
+.SS Description
+Interact with AI Lab components in GEAI.
+.SS Subcommands
+.TP
+.B help, h
+Display help text.
+.TP
+.B list-agents, la
+List agents.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --status
+Agent status (optional).
+.TP
+.B --start
+Starting index (optional).
+.TP
+.B --count
+Number of agents (optional).
+.TP
+.B --access-scope
+Access scope: \fBpublic\fR, \fBprivate\fR (default: \fBpublic\fR).
+.TP
+.B --allow-drafts
+Include drafts: \fB0\fR (False), \fB1\fR (True, default).
+.TP
+.B --allow-external
+Include external agents: \fB0\fR (False, default), \fB1\fR (True).
+.RE
+.TP
+.B create-agent, ca
+Create an agent.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --name, -n
+Agent name (unique, no \fB:\fR or \fB/\fR).
+.TP
+.B --access-scope, --as
+Access scope: \fBpublic\fR, \fBprivate\fR (default: \fBprivate\fR).
+.TP
+.B --public-name, --pn
+Public name (required for \fBpublic\fR scope).
+.TP
+.B --job-description, --jd
+Agent role description.
+.TP
+.B --avatar-image, --aimg
+Avatar image URL.
+.TP
+.B --description, -d
+Agent purpose description.
+.TP
+.B --agent-data-prompt-instructions, --adp-inst
+Agent instructions.
+.TP
+.B --agent-data-prompt-input, --adp-input
+Prompt input (list of strings).
+.TP
+.B --agent-data-prompt-output, --adp-out
+Prompt output (JSON).
+.TP
+.B --agent-data-prompt-example, --adp-ex
+Prompt example (JSON).
+.TP
+.B --agent-data-llm-max-tokens, --adl-max-tokens
+Max tokens for LLM.
+.TP
+.B --agent-data-llm-timeout, --adl-timeout
+LLM response timeout (seconds).
+.TP
+.B --agent-data-llm-temperature, --adl-temperature
+LLM sampling temperature (0.0-1.0).
+.TP
+.B --agent-data-llm-top-k, --adl-top-k
+Top K sampling (unused).
+.TP
+.B --agent-data-llm-top-p, --adl-top-p
+Top P sampling (unused).
+.TP
+.B --agent-data-model-name, --adm-name
+LLM model name.
+.TP
+.B --agent-data-resource-pools, --adr-pools
+Resource pools (JSON).
+.TP
+.B --automatic-publish, --ap
+Publish after creation: \fB0\fR (draft), \fB1\fR (publish).
+.RE
+.TP
+.B get-agent, ga
+Get an agent.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --agent-id, --aid
+Agent ID.
+.TP
+.B --revision, -r
+Agent revision.
+.TP
+.B --version, -v
+Agent version.
+.TP
+.B --allow-drafts
+Include drafts: \fB0\fR (False), \fB1\fR (True, default).
+.RE
+.TP
+.B create-sharing-link, csl
+Create a sharing link for an agent.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --agent-id, --aid
+Agent ID.
+.RE
+.TP
+.B publish-agent-revision, par
+Publish an agent revision.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --agent-id, --aid
+Agent ID.
+.TP
+.B --revision, -r
+Agent revision.
+.RE
+.TP
+.B delete-agent, da
+Delete an agent.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --agent-id, --aid
+Agent ID.
+.RE
+.TP
+.B update-agent, ua
+Update an agent.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --agent-id, --aid
+Agent ID.
+.TP
+.B --name, -n
+Agent name (optional).
+.TP
+.B --access-scope, --as
+Access scope: \fBpublic\fR, \fBprivate\fR.
+.TP
+.B --public-name, --pn
+Public name (required for \fBpublic\fR scope).
+.TP
+.B --job-description, --jd
+Agent role description.
+.TP
+.B --avatar-image, --aimg
+Avatar image URL.
+.TP
+.B --description, -d
+Agent purpose description.
+.TP
+.B --agent-data-prompt-instructions, --adp-inst
+Agent instructions.
+.TP
+.B --agent-data-prompt-input, --adp-input
+Prompt input (list of strings).
+.TP
+.B --agent-data-prompt-output, --adp-out
+Prompt output (JSON).
+.TP
+.B --agent-data-prompt-example, --adp-ex
+Prompt example (JSON).
+.TP
+.B --agent-data-llm-max-tokens, --adl-max-tokens
+Max tokens for LLM.
+.TP
+.B --agent-data-llm-timeout, --adl-timeout
+LLM response timeout (seconds).
+.TP
+.B --agent-data-llm-temperature, --adl-temperature
+LLM sampling temperature (0.0-1.0).
+.TP
+.B --agent-data-llm-top-k, --adl-top-k
+Top K sampling (unused).
+.TP
+.B --agent-data-llm-top-p, --adl-top-p
+Top P sampling (unused).
+.TP
+.B --agent-data-model-name, --adm-name
+LLM model name.
+.TP
+.B --agent-data-resource-pools, --adr-pools
+Resource pools (JSON).
+.TP
+.B --automatic-publish, --ap
+Publish after update: \fB0\fR (draft), \fB1\fR (publish).
+.TP
+.B --upsert
+Create if not exists: \fB0\fR (update only), \fB1\fR (insert).
+.RE
+.TP
+.B create-tool, ct
+Create a tool.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --name, -n
+Tool name (unique, no \fB:\fR or \fB/\fR).
+.TP
+.B --description, -d
+Tool purpose description.
+.TP
+.B --scope, -s
+Tool scope: \fBbuiltin\fR, \fBexternal\fR, \fBapi\fR.
+.TP
+.B --access-scope, --as
+Access scope: \fBpublic\fR, \fBprivate\fR (default: \fBprivate\fR).
+.TP
+.B --public-name, --pn
+Public name (required for \fBpublic\fR scope).
+.TP
+.B --icon, -i
+Tool icon URL.
+.TP
+.B --open-api, --oa
+OpenAPI specification URL (for \fBapi\fR scope).
+.TP
+.B --open-api-json, --oaj
+OpenAPI specification (JSON, for \fBapi\fR scope).
+.TP
+.B --report-events, --re
+Event reporting: \fBNone\fR, \fBAll\fR, \fBStart\fR, \fBFinish\fR, \fBProgress\fR (default: \fBNone\fR).
+.TP
+.B --parameter, -p
+Tool parameter (JSON).
+.TP
+.B --automatic-publish, --ap
+Publish after creation: \fB0\fR (draft), \fB1\fR (publish).
+.RE
+.TP
+.B list-tools, lt
+List tools.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --id
+Tool ID (optional).
+.TP
+.B --count
+Number of tools (default: 100).
+.TP
+.B --access-scope
+Access scope: \fBpublic\fR, \fBprivate\fR (default: \fBpublic\fR).
+.TP
+.B --allow-drafts
+Include drafts: \fB0\fR (False), \fB1\fR (True, default).
+.TP
+.B --scope
+Tool scope: \fBbuiltin\fR, \fBexternal\fR, \fBapi\fR (default: \fBapi\fR).
+.TP
+.B --allow-external
+Include external tools: \fB0\fR (False), \fB1\fR (True, default).
+.RE
+.TP
+.B get-tool, gt
+Get a tool.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --tool-id, --tid
+Tool ID.
+.TP
+.B --revision, -r
+Tool revision.
+.TP
+.B --version, -v
+Tool version.
+.TP
+.B --allow-drafts
+Include drafts: \fB0\fR (False), \fB1\fR (True, default).
+.RE
+.TP
+.B delete-tool, dt
+Delete a tool.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --tool-id, --tid
+Tool ID.
+.TP
+.B --tool-name, --tname
+Tool name.
+.RE
+.TP
+.B update-tool, ut
+Update a tool.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --tool-id, --tid
+Tool ID.
+.TP
+.B --name, -n
+Tool name (optional).
+.TP
+.B --description, -d
+Tool description.
+.TP
+.B --scope, -s
+Tool scope: \fBbuiltin\fR, \fBexternal\fR, \fBapi\fR.
+.TP
+.B --access-scope, --as
+Access scope: \fBpublic\fR, \fBprivate\fR.
+.TP
+.B --public-name, --pn
+Public name (for \fBpublic\fR scope).
+.TP
+.B --icon, -i
+Tool icon URL.
+.TP
+.B --open-api, --oa
+OpenAPI specification URL.
+.TP
+.B --open-api-json, --oaj
+OpenAPI specification (JSON).
+.TP
+.B --report-events, --re
+Event reporting: \fBNone\fR, \fBAll\fR, \fBStart\fR, \fBFinish\fR, \fBProgress\fR.
+.TP
+.B --parameter, -p
+Tool parameter (JSON).
+.TP
+.B --automatic-publish, --ap
+Publish after update: \fB0\fR (draft), \fB1\fR (publish).
+.TP
+.B --upsert
+Create if not exists: \fB0\fR (update only), \fB1\fR (insert).
+.RE
+.TP
+.B publish-tool-revision, ptr
+Publish a tool revision.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --tool-id, --tid
+Tool ID.
+.TP
+.B --revision, -r
+Tool revision (0 for latest).
+.RE
+.TP
+.B get-parameter, gp
+Get a tool parameter.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --tool-id, --tid
+Tool ID.
+.TP
+.B --tool-public-name, --tpn
+Tool public name.
+.TP
+.B --revision, -r
+Parameter revision (0 for latest).
+.TP
+.B --version, -v
+Parameter version (0 for latest).
+.TP
+.B --allow-drafts
+Include drafts: \fB0\fR (False), \fB1\fR (True, default).
+.RE
+.TP
+.B set-parameter, sp
+Set a tool parameter.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --tool-id, --tid
+Tool ID.
+.TP
+.B --tool-public-name, --tpn
+Tool public name.
+.TP
+.B --parameter, -p
+Tool parameter (JSON).
+.RE
+.TP
+.B list-reasoning-strategies, lrs
+List reasoning strategies.
+.RS
+.TP
+.B --name, -n
+Strategy name (optional).
+.TP
+.B --start
+Starting index (default: 0).
+.TP
+.B --count
+Number of strategies (default: 100).
+.TP
+.B --allow-external
+Include external strategies: \fB0\fR (False), \fB1\fR (True, default).
+.TP
+.B --access-scope
+Access scope: \fBpublic\fR, \fBprivate\fR (default: \fBpublic\fR).
+.RE
+.TP
+.B create-reasoning-strategy, crs
+Create a reasoning strategy.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --name, -n
+Strategy name.
+.TP
+.B --system-prompt, --sp
+System prompt.
+.TP
+.B --access-scope, --as
+Access scope: \fBpublic\fR, \fBprivate\fR (default: \fBpublic\fR).
+.TP
+.B --type, -t
+Strategy type: \fBaddendum\fR (default).
+.TP
+.B --localized-description, --ld
+Localized description (JSON).
+.TP
+.B --automatic-publish, --ap
+Publish after creation: \fB0\fR (draft), \fB1\fR (publish).
+.RE
+.TP
+.B update-reasoning-strategy, urs
+Update a reasoning strategy.
+.RS
+.TP
+.B --project-id, --pid
+Project ID.
+.TP
+.B --reasoning-strategy-id, --rsid
+Strategy ID.
+.TP
+.B --name, -n
+Strategy name (optional).
+.TP
+.B --system-prompt, --sp
+System prompt (optional).
+.TP
+.B --access-scope, --as
+Access scope: \fBpublic\fR, \fBprivate\fR (optional).
+.TP
+.B --type, -t
+Strategy type: \fBaddendum\fR (optional).
+.TP
+.B --localized-description, --ld
+Localized description (JSON, optional).
+.TP
+.B --automatic-publish, --ap
+Publish after update: \fB0\fR (draft), \fB1\fR (publish).
+.RE
+.TP
+.SH SEE ALSO
+.BR pygeai (1)
+.SH AUTHOR
+Written by the GEAI development team.
+.SH COPYRIGHT
+Copyright \(co 2025 GEAI development team.
+This is free software; see the source for copying conditions. There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.

@@ -1,0 +1,1 @@
+STATUS_CHECK_V1 = "/v1/system/status"   # GET -> Health Check SAIA APIs

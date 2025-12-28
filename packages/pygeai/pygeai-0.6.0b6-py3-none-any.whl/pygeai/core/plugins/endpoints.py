@@ -1,0 +1,1 @@
+LIST_ASSISTANTS_PLUGINS_V1 = "v1/plugins"    # GET -> Obtain the list of assistants permitted to access in a particular organization and project.

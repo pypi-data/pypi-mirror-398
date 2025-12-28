@@ -1,0 +1,10 @@
+CREATE_TOOL_V2 = "v2/tools"  # POST -> Create tool
+LIST_TOOLS_V2 = "v2/tools"  # GET -> List tools
+GET_TOOL_V2 = "v2/tools/{toolId}"  # GET -> Get tool data
+DELETE_TOOL_V2 = "v2/tools/{toolId}"  # DELETE -> DELETE tool data
+UPDATE_TOOL_V2 = "v2/tools/{toolId}"  # PUT -> Update tool data
+UPSERT_TOOL_V2 = "v2/tools/{toolId}/upsert"  # PUT -> Update or insert tool data
+PUBLISH_TOOL_REVISION_V2 = "v2/tools/{toolId}/publish-revision"  # POST -> Publish Tool revision
+GET_PARAMETER_V2 = "v2/tools/{toolPublicName}/config"  # GET -> Get tool parameter
+SET_PARAMETER_V2 = "v2/tools/{toolPublicName}/config"  # POST -> Set tool parameter
+EXPORT_TOOL_V2 = "v2/tools/{toolId}/export"  # GET -> Export tool
