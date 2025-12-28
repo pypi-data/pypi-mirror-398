@@ -1,0 +1,405 @@
+// SEA DSL Grammar Definition
+// Based on the TypeScript Ohm-JS reference implementation
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
+in_keyword = @{ ^"in" ~ WHITESPACE+ }
+
+// Program is the top-level entry point
+program = { SOI ~ file_header? ~ declaration* ~ EOI }
+
+// File-level metadata annotations and imports
+file_header = { annotation* ~ import_decl* }
+
+// Import declarations
+import_decl = { ^"import" ~ import_specifier ~ ^"from" ~ string_literal }
+import_specifier = { import_named | import_wildcard }
+import_named = { "{" ~ import_item ~ ("," ~ import_item)* ~ ","? ~ "}" }
+import_item = { identifier ~ (^"as" ~ identifier)? }
+import_wildcard = { "*" ~ ^"as" ~ identifier }
+
+// Export modifier
+export_decl = { ^"export" ~ declaration_inner }
+
+annotation = {
+    "@" ~ annotation_name ~ string_literal
+}
+
+annotation_name = {
+    ^"namespace" | ^"version" | ^"owner" | ^"profile"
+}
+
+// Declarations
+declaration = { export_decl | declaration_inner }
+declaration_inner = { dimension_decl | unit_decl | entity_decl | resource_decl | flow_decl | pattern_decl | role_decl | relation_decl | instance_decl | policy_decl | concept_change_decl | metric_decl | mapping_decl | projection_decl }
+
+// Entity Declaration
+// Syntax: Entity "Name" in domain
+// Syntax: Entity "Name"
+entity_decl = {
+    ^"entity" ~ name ~ (^"v" ~ version)? ~ entity_annotation* ~ (in_keyword ~ identifier)?
+}
+
+entity_annotation = {
+    "@" ~ (
+        (ea_replaces ~ name ~ (^"v" ~ version)?) |
+        (ea_changes ~ string_array)
+    )
+}
+
+ea_replaces = { ^"replaces" }
+ea_changes = { ^"changes" }
+
+// Resource Declaration
+// Syntax: Resource "Name" units in domain
+// Syntax: Resource "Name" in domain
+// Syntax: Resource "Name" units
+// Syntax: Resource "Name"
+resource_decl = {
+    ^"resource" ~ name ~ resource_annotation* ~ (
+        (identifier ~ in_keyword ~ identifier) |  // "units in domain" - most specific first
+        (in_keyword ~ identifier) |               // "in domain" - next most specific
+        ( !declaration_keyword ~ identifier )     // "units" only - least specific last. Must not be a keyword.
+    )?
+}
+
+resource_annotation = {
+    "@" ~ (
+        (ea_replaces ~ name ~ (^"v" ~ version)?) |
+        (ea_changes ~ string_array)
+    )
+}
+
+declaration_keyword = @{
+    (
+        ^"entity" | ^"resource" | ^"flow" | ^"pattern" | ^"role" | ^"relation" |
+        ^"instance" | ^"policy" | ^"conceptchange" | ^"metric" | ^"mapping" |
+        ^"projection" | ^"dimension" | ^"unit" | ^"import" | ^"export"
+    ) ~ !(LETTER | NUMBER | "_")
+}
+
+// Flow Declaration
+// Syntax: Flow "ResourceName" from "EntityA" to "EntityB" quantity 100
+// Syntax: Flow "ResourceName" from "EntityA" to "EntityB"
+flow_decl = {
+    ^"flow" ~ string_literal ~ flow_annotation* ~ ^"from" ~ string_literal ~ ^"to" ~ string_literal ~ (^"quantity" ~ number)?
+}
+
+flow_annotation = {
+    "@" ~ (
+        (ea_replaces ~ name ~ (^"v" ~ version)?) |
+        (ea_changes ~ string_array)
+    )
+}
+
+// Pattern Declaration
+// Syntax: Pattern "Email" matches "^[a-z]+$"
+pattern_decl = {
+    ^"pattern" ~ name ~ ^"matches" ~ string_literal
+}
+
+// Role Declaration
+// Syntax: Role "Approver"
+// Syntax: Role "Approver" in governance
+role_decl = {
+    ^"role" ~ name ~ (in_keyword ~ identifier)?
+}
+
+// Relation Declaration
+// Syntax:
+// Relation "Payment"
+//   subject: "Payer"
+//   predicate: "pays"
+//   object: "Payee"
+//   via: flow "Money"
+relation_decl = {
+    ^"relation" ~ name ~
+    ^"subject" ~ ":" ~ string_literal ~
+    ^"predicate" ~ ":" ~ string_literal ~
+    ^"object" ~ ":" ~ string_literal ~
+    (^"via" ~ ":" ~ ^"flow" ~ string_literal)?
+}
+
+// Concept Change Declaration
+// Syntax:
+// ConceptChange "Vendor_v2_migration"
+//   @from_version v2.0.0
+//   @to_version v2.1.0
+//   @migration_policy mandatory
+//   @breaking_change true
+concept_change_decl = {
+    ^"ConceptChange" ~ name ~ concept_change_annotation*
+}
+
+concept_change_annotation = {
+    "@" ~ (
+        (cc_from_version ~ ^"v" ~ version) |
+        (cc_to_version ~ ^"v" ~ version) |
+        (cc_migration_policy ~ identifier) |
+        (cc_breaking_change ~ boolean)
+    )
+}
+
+cc_from_version = { ^"from_version" }
+cc_to_version = { ^"to_version" }
+cc_migration_policy = { ^"migration_policy" }
+cc_breaking_change = { ^"breaking_change" }
+
+// Instance Declaration
+// Syntax:
+// Instance vendor_123 of "Vendor" {
+//   name: "Acme Corp",
+//   credit_limit: 50_000 "USD"
+// }
+instance_decl = {
+    ^"instance" ~ identifier ~ ^"of" ~ string_literal ~ instance_body?
+}
+
+instance_body = {
+    "{" ~ (instance_field ~ ","?)* ~ "}"
+}
+
+instance_field = {
+    identifier ~ ":" ~ expression
+}
+
+// Dimension Declaration
+// Syntax: Dimension "Currency"
+dimension_decl = {
+    ^"dimension" ~ string_literal
+}
+
+// Unit Declaration
+// Syntax: Unit "USD" of "Currency" factor 1 base "USD"
+unit_decl = {
+    ^"unit" ~ string_literal ~ ^"of" ~ string_literal ~ ^"factor" ~ number ~ ^"base" ~ string_literal
+}
+
+// Policy Declaration
+// Syntax: Policy name as: expression
+// Syntax: Policy name v1.0.0 as: expression
+// Syntax: Policy name per Constraint Obligation priority 5 as: expression
+policy_decl = {
+    ^"policy" ~ identifier ~ (^"per" ~ policy_kind ~ policy_modality ~ ^"priority" ~ number)? ~ policy_annotation* ~ (^"v" ~ version)? ~ ^"as" ~ ":" ~ expression
+}
+
+policy_kind = { ^"Constraint" | ^"Derivation" | ^"Obligation" }
+
+policy_modality = { ^"Obligation" | ^"Prohibition" | ^"Permission" }
+
+policy_annotation = {
+    "@" ~ policy_annotation_name ~ (string_literal | string_array)
+}
+
+policy_annotation_name = {
+    ^"rationale" | ^"tags"
+}
+
+string_array = { "[" ~ string_literal ~ ("," ~ string_literal)* ~ "]" }
+
+// Semantic Version
+version = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
+
+// Expressions
+expression = { or_expr }
+
+or_expr = { and_expr ~ (^"or" ~ and_expr)* }
+
+and_expr = { not_expr ~ (^"and" ~ not_expr)* }
+
+not_expr = { (^"not" ~ not_expr) | comparison_expr }
+
+comparison_expr = { additive_expr ~ (comparison_op ~ additive_expr)? }
+
+comparison_op = {
+    ">=" | "<=" | "!=" | "=" | ">" | "<" |
+    ^"contains" | ^"startswith" | ^"endswith" | ^"matches" |
+    ^"before" | ^"after" | ^"during" | ^"has_role"
+}
+
+additive_expr = { multiplicative_expr ~ ((add_op ~ multiplicative_expr)*) }
+
+add_op = { "+" | "-" }
+
+multiplicative_expr = { unary_expr ~ ((mul_op ~ unary_expr)*) }
+
+mul_op = { "*" | "/" }
+
+unary_expr = { ("-" ~ unary_expr) | cast_expr }
+
+cast_expr = { primary_expr ~ (^"as" ~ string_literal)? }
+
+primary_expr = {
+    "(" ~ expression ~ ")" |
+    group_by_expr |
+    member_access |
+    aggregation_expr |
+    quantified_expr |
+    instance_reference |
+    literal |
+    identifier
+}
+
+// Group By Expression
+// Syntax: group_by(f in flows: f.to.name) { sum(f.quantity) > 10 }
+group_by_expr = {
+    ^"group_by" ~ "(" ~ identifier ~ ^"in" ~ collection ~ (^"where" ~ expression)? ~ ":" ~ expression ~ ")" ~ "{" ~ expression ~ "}"
+}
+
+// Aggregation expressions
+// Syntax: count(flows)
+// Syntax: sum(flows.quantity)
+// Syntax: count(flows where resource = "Camera")
+// Syntax: sum(f in flows where f.resource = "Money": f.quantity as "USD")
+aggregation_expr = {
+    aggregate_fn ~ "(" ~ (aggregation_comprehension | aggregation_simple) ~ ")"
+}
+
+aggregation_comprehension = {
+    identifier ~ ^"in" ~ collection ~ window_clause? ~ (^"where" ~ expression)? ~ ":" ~ expression
+}
+
+window_clause = {
+    ^"over" ~ ^"last" ~ number ~ string_literal
+}
+
+aggregation_simple = {
+    (collection | identifier) ~ ("." ~ identifier)?
+}
+
+aggregate_fn = {
+    ^"count" | ^"sum" | ^"min" | ^"max" | ^"avg"
+}
+
+// Quantified expressions
+// Syntax: forall x in Collection: (condition)
+// Syntax: exists x in Collection: (condition)
+quantified_expr = {
+    quantifier ~ identifier ~ ^"in" ~ collection ~ ":" ~ "(" ~ expression ~ ")"
+}
+
+quantifier = { ^"exists_unique" | ^"forall" | ^"exists" }
+
+collection = {
+    ^"flows" | ^"entities" | ^"resources" | ^"instances" | ^"relations"
+}
+
+// Member access (e.g., Flow.quantity, Entity.name)
+member_access = { identifier ~ "." ~ identifier }
+
+// Literals
+literal = { time_literal | multiline_string | string_literal | interval_literal | quantity_literal | number | boolean }
+
+// Time literal (ISO 8601 timestamp with required timezone)
+// Syntax: "2025-12-31T23:59:59Z" or "2025-12-31T23:59:59+05:00"
+// Note: Timezone is required to ensure unambiguous temporal comparisons
+time_literal = @{ "\"" ~ ASCII_DIGIT{4} ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} ~ "T" ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} ~ ("Z" | (("+" | "-") ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2})) ~ "\"" }
+
+// Interval literal (function call syntax)
+// Syntax: interval("09:00", "17:00")
+interval_literal = { ^"interval" ~ "(" ~ string_literal ~ "," ~ string_literal ~ ")" }
+
+// Quantity literal with unit suffix
+// Syntax: 1_500 "USD"
+// Syntax: 100.5 "kg"
+quantity_literal = { number ~ string_literal }
+
+// Name can be either a multiline string or regular string literal
+name = { multiline_string | string_literal }
+
+// Multi-line string with triple quotes
+multiline_string = @{ "\"\"\"" ~ (!"\"\"\"" ~ ANY)* ~ "\"\"\"" }
+
+// String literal with escape sequences
+string_literal = @{ "\"" ~ string_content* ~ "\"" }
+
+string_content = @{
+    escape_sequence |
+    (!"\"" ~ !"\\" ~ ANY)
+}
+
+escape_sequence = @{
+    "\\\\" |                                    // Backslash
+    "\\\"" |                                    // Quote
+    "\\n" |                                     // Newline
+    "\\r" |                                     // Carriage return
+    "\\t" |                                     // Tab
+    ("\\u{" ~ ASCII_HEX_DIGIT{1,6} ~ "}")      // Unicode codepoint
+}
+
+number = @{ "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
+
+boolean = { ^"true" | ^"false" }
+
+// Instance reference (e.g., @vendor_123)
+instance_reference = @{ "@" ~ identifier }
+
+// Identifier (Unicode support - letters, numbers, underscore)
+// Must start with letter (including Unicode) or underscore
+identifier = @{ (LETTER | "_") ~ (LETTER | NUMBER | "_")* }
+
+// Metric Declaration
+// Syntax: Metric "name" as: expression
+metric_decl = {
+    ^"metric" ~ name ~ ^"as" ~ ":" ~ expression ~ metric_annotation*
+}
+
+metric_annotation = {
+    "@" ~ (
+        (ma_refresh_interval ~ number ~ string_literal) |
+        (ma_unit ~ string_literal) |
+        (ma_threshold ~ number) |
+        (ma_severity ~ string_literal) |
+        (ma_target ~ number) |
+        (ma_window ~ number ~ string_literal)
+    )
+}
+
+ma_refresh_interval = { ^"refresh_interval" }
+ma_unit = { ^"unit" }
+ma_threshold = { ^"threshold" }
+ma_severity = { ^"severity" }
+ma_target = { ^"target" }
+ma_window = { ^"window" }
+
+// Mapping Declaration
+mapping_decl = {
+    ^"Mapping" ~ string_literal ~ ^"for" ~ target_format ~ "{" ~ mapping_rule* ~ "}"
+}
+
+target_format = { ^"calm" | ^"kg" | ^"sbvr" | ^"protobuf" | ^"proto" }
+
+mapping_rule = {
+    primitive_type ~ string_literal ~ "->" ~ target_structure
+}
+
+primitive_type = { ^"Entity" | ^"Resource" | ^"Flow" | ^"Policy" | ^"Instance" }
+
+target_structure = {
+    identifier ~ "{" ~ (mapping_field ~ ","?)* ~ "}"
+}
+
+mapping_field = {
+    identifier ~ ":" ~ (string_literal | object_literal | boolean)
+}
+
+object_literal = {
+    "{" ~ (string_literal ~ ":" ~ (string_literal | boolean | number) ~ ","?)* ~ "}"
+}
+
+// Projection Override
+projection_decl = {
+    ^"Projection" ~ string_literal ~ ^"for" ~ target_format ~ "{" ~ projection_rule* ~ "}"
+}
+
+projection_rule = {
+    primitive_type ~ string_literal ~ "{" ~ (projection_field ~ ","?)* ~ "}"
+}
+
+projection_field = {
+    identifier ~ ":" ~ (string_literal | property_mapping)
+}
+
+property_mapping = {
+    "{" ~ (string_literal ~ "->" ~ string_literal ~ ","?)* ~ "}"
+}
