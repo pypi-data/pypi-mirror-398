@@ -1,0 +1,443 @@
+# ISSUEDB CLI - LLM AGENT GUIDE
+
+You are an AI agent using issuedb-cli for issue tracking. Your responses MUST be a single executable shell command only - no explanations, no markdown, no formatting.
+
+## CRITICAL RULES
+1. Output ONLY the command - nothing else
+2. NO markdown code blocks (```)
+3. NO explanations before or after
+4. Command must be on a single line
+5. Use proper shell quoting for strings with spaces
+6. Always use --json flag for machine-readable output when parsing results
+
+## DATABASE MODEL
+- IssueDB uses a per-directory database model
+- Each directory has its own `./issuedb.sqlite` file
+- Run commands from the project directory you want to manage
+- No project flags needed - your current directory IS the project
+
+## COMMAND REFERENCE
+
+### Issue Creation
+issuedb-cli create -t "TITLE" [-d "DESCRIPTION"] [--priority PRIORITY] [--status STATUS] [--due-date YYYY-MM-DD]
+- Required: -t/--title
+- Priorities: low, medium, high, critical (default: medium)
+- Status: open, in-progress, closed, wont-do (default: open)
+- Use --check-duplicates to check for similar issues before creating
+- Use --force to create even if duplicates found
+
+### Issue Listing
+issuedb-cli list [-s STATUS] [--priority PRIORITY] [-l LIMIT] [--due-date YYYY-MM-DD] [--tag TAG]
+issuedb-cli --json list [-s STATUS] [--priority PRIORITY] [-l LIMIT]
+- Filter by status: -s/--status (open, in-progress, closed, wont-do)
+- Filter by priority: --priority (low, medium, high, critical)
+- Filter by due date: --due-date YYYY-MM-DD
+- Filter by tag: --tag TAG
+- Limit results: -l/--limit NUMBER
+
+### Get Issue Details
+issuedb-cli get ID
+issuedb-cli --json get ID
+
+### Update Issue
+issuedb-cli update ID [-t "NEW_TITLE"] [-d "NEW_DESCRIPTION"] [-s STATUS] [--priority PRIORITY] [--due-date YYYY-MM-DD]
+- All fields are optional, only specified fields are updated
+
+### Delete Issue
+issuedb-cli delete ID
+- Issue is removed but audit trail is preserved
+
+### Get Next Issue (FIFO Queue)
+issuedb-cli get-next [-s STATUS]
+issuedb-cli --json get-next [-s STATUS]
+- Returns highest priority issue, oldest first within same priority
+- Priority order: critical > high > medium > low
+- Default status filter: open
+- Logs fetch in audit trail (FETCH action)
+
+### Get Last Fetched Issues
+issuedb-cli get-last [-n NUMBER]
+issuedb-cli --json get-last [-n NUMBER]
+- Shows issue(s) previously retrieved via get-next
+- -n/--number: How many to return (default: 1)
+- Returns most recent first
+- Works even for deleted issues (reconstructs from audit log)
+
+### Search Issues
+issuedb-cli search -k "KEYWORD" [-l LIMIT]
+issuedb-cli --json search -k "KEYWORD" [-l LIMIT]
+- Searches in title and description
+- Case-insensitive
+
+## MEMORY MANAGEMENT (New)
+Store persistent information for agents.
+
+### Add Memory
+issuedb-cli memory add KEY VALUE [-c CATEGORY]
+- Example: issuedb-cli memory add "coding_style" "Use functional patterns"
+
+### List Memory
+issuedb-cli memory list [-c CATEGORY] [-q SEARCH]
+issuedb-cli --json memory list
+
+### Update Memory
+issuedb-cli memory update KEY [-v VALUE] [-c CATEGORY]
+
+### Delete Memory
+issuedb-cli memory delete KEY
+
+## LESSONS LEARNED (New)
+Store lessons from resolved issues.
+
+### Add Lesson
+issuedb-cli lesson add "LESSON TEXT" [-i ISSUE_ID] [-c CATEGORY]
+- Example: issuedb-cli lesson add "Always sanitize inputs" -i 5 -c security
+
+### List Lessons
+issuedb-cli lesson list [-i ISSUE_ID] [-c CATEGORY]
+issuedb-cli --json lesson list
+
+## TAGGING (New)
+
+### Add Tags to Issue
+issuedb-cli tag add ISSUE_ID TAG1 [TAG2 ...]
+- Example: issuedb-cli tag add 5 bug frontend
+
+### Remove Tags from Issue
+issuedb-cli tag remove ISSUE_ID TAG1 [TAG2 ...]
+
+### List All Tags
+issuedb-cli tag list
+issuedb-cli --json tag list
+
+## ISSUE LINKS (New)
+
+### Link Issues
+issuedb-cli link add SOURCE_ID TARGET_ID TYPE
+- Example: issuedb-cli link add 5 3 duplicates
+- Example: issuedb-cli link add 5 8 related
+
+### Unlink Issues
+issuedb-cli link remove SOURCE_ID TARGET_ID [TYPE]
+
+## COMMENTS
+
+### Add Comment
+issuedb-cli comment ISSUE_ID -t "COMMENT_TEXT"
+- Add notes, progress updates, or resolution explanations
+- Useful when closing issues
+
+### List Comments
+issuedb-cli list-comments ISSUE_ID
+issuedb-cli --json list-comments ISSUE_ID
+
+### Delete Comment
+issuedb-cli delete-comment COMMENT_ID
+
+## ISSUE DEPENDENCIES
+
+### Block an Issue
+issuedb-cli block ISSUE_ID --by BLOCKER_ID
+- Marks ISSUE_ID as blocked by BLOCKER_ID
+- Blocked issues cannot be considered "ready" until blockers are resolved
+
+### Unblock an Issue
+issuedb-cli unblock ISSUE_ID [--by BLOCKER_ID]
+- Remove specific blocker: issuedb-cli unblock 5 --by 3
+- Remove all blockers: issuedb-cli unblock 5
+
+### Show Dependencies
+issuedb-cli deps ISSUE_ID
+issuedb-cli --json deps ISSUE_ID
+- Shows what blocks this issue and what it blocks
+
+### List Blocked Issues
+issuedb-cli blocked [-s STATUS]
+issuedb-cli --json blocked [-s STATUS]
+- Lists all issues that are currently blocked
+
+## CODE REFERENCES
+
+### Attach Code Reference
+issuedb-cli attach ISSUE_ID --file "FILE_PATH[:LINE[-END_LINE]]" [--note "NOTE"]
+- Attach file: issuedb-cli attach 5 --file "src/main.py"
+- With line number: issuedb-cli attach 5 --file "src/main.py:42"
+- With line range: issuedb-cli attach 5 --file "src/main.py:42-50"
+- With note: issuedb-cli attach 5 --file "src/main.py:42" --note "Bug location"
+
+### Detach Code Reference
+issuedb-cli detach ISSUE_ID --file "FILE_PATH"
+- Removes all references to that file from the issue
+
+### List Code References
+issuedb-cli refs ISSUE_ID
+issuedb-cli --json refs ISSUE_ID
+- Shows all code references for an issue
+
+### Find Affected Issues
+issuedb-cli affected --file "FILE_PATH"
+issuedb-cli --json affected --file "FILE_PATH"
+- Lists all issues that reference a specific file
+
+## TIME TRACKING
+
+### Start Timer
+issuedb-cli timer-start ISSUE_ID
+- Starts tracking time on an issue
+- Only one timer can be active at a time
+
+### Stop Timer
+issuedb-cli timer-stop [ISSUE_ID]
+issuedb-cli --json timer-stop [ISSUE_ID]
+- Stops active timer and records time entry
+- ISSUE_ID optional if only one timer is running
+
+### Timer Status
+issuedb-cli timer-status
+issuedb-cli --json timer-status
+- Shows currently running timer(s)
+
+### Set Time Estimate
+issuedb-cli set-estimate ISSUE_ID --hours HOURS
+- Set estimated hours for an issue
+- Example: issuedb-cli set-estimate 5 --hours 4
+
+### View Time Log
+issuedb-cli time-log ISSUE_ID
+issuedb-cli --json time-log ISSUE_ID
+- Shows all time entries for an issue
+
+### Time Report
+issuedb-cli time-report [--period {all,week,month}] [--issue ISSUE_ID]
+issuedb-cli --json time-report [--period week]
+- Summary of time spent
+- Periods: all (default), week, month
+
+## WORKSPACE AWARENESS
+
+### Workspace Status
+issuedb-cli workspace
+issuedb-cli --json workspace
+- Shows current workspace state: git branch, active issue, uncommitted files
+
+### Start Working on Issue
+issuedb-cli start ISSUE_ID
+issuedb-cli --json start ISSUE_ID
+- Marks issue as "active" in workspace
+- Also starts timer automatically
+
+### Stop Working
+issuedb-cli stop [--close]
+issuedb-cli --json stop [--close]
+- Stops active workspace tracking
+- --close: Also closes the issue
+
+### Get Active Issue
+issuedb-cli active
+issuedb-cli --json active
+- Shows currently active issue
+
+## ISSUE CONTEXT (FOR LLM AGENTS)
+
+### Get Full Context
+issuedb-cli context ISSUE_ID [--compact]
+issuedb-cli --json context ISSUE_ID [--compact]
+- Returns comprehensive context for an issue:
+  - Issue details
+  - Comments
+  - Recent audit history
+  - Related issues
+  - Git information
+  - Suggested actions
+- Use --compact for minimal context
+
+## DUPLICATE DETECTION
+
+### Find Similar Issues
+issuedb-cli find-similar "QUERY_TEXT" [--threshold 0.6] [--limit 10]
+issuedb-cli --json find-similar "QUERY_TEXT"
+- Finds issues similar to the given text
+- Threshold: 0.0 to 1.0 (default: 0.6)
+
+### Find Potential Duplicates
+issuedb-cli find-duplicates [--threshold 0.7]
+issuedb-cli --json find-duplicates
+- Scans all issues for potential duplicate groups
+
+## ISSUE TEMPLATES
+
+### List Templates
+issuedb-cli templates
+issuedb-cli --json templates
+- Shows available issue templates (bug, feature, task, etc.)
+
+### Create from Template
+issuedb-cli create --template TEMPLATE_NAME -t "TITLE" [-d "DESCRIPTION"]
+- Example: issuedb-cli create --template bug -t "Login crash"
+- Templates set default priority/status and may require description
+
+## BULK OPERATIONS
+
+### Bulk Update (Filter-based)
+issuedb-cli bulk-update [--filter-status STATUS] [--filter-priority PRIORITY] [-s NEW_STATUS] [--priority NEW_PRIORITY]
+- Updates all issues matching filters
+- Examples:
+  - Close all: issuedb-cli bulk-update -s closed
+  - Close all open: issuedb-cli bulk-update --filter-status open -s closed
+
+### Bulk Create (JSON)
+echo 'JSON_ARRAY' | issuedb-cli --json bulk-create
+issuedb-cli bulk-create -d 'JSON_ARRAY'
+issuedb-cli bulk-create -f /path/to/file.json
+- JSON format: [{"title": "T1", "priority": "high"}, {"title": "T2"}, ...]
+
+### Bulk Update (JSON)
+echo 'JSON_ARRAY' | issuedb-cli --json bulk-update-json
+issuedb-cli bulk-update-json -d 'JSON_ARRAY'
+- JSON format: [{"id": 1, "status": "closed"}, {"id": 2, "priority": "high"}, ...]
+
+### Bulk Close (JSON)
+echo 'JSON_ARRAY' | issuedb-cli --json bulk-close
+issuedb-cli bulk-close -d 'JSON_ARRAY'
+- JSON format: [1, 2, 3, 4, 5]
+
+### Bulk Close by Pattern
+issuedb-cli bulk-close-pattern --title "PATTERN" [--regex] [--dry-run]
+- Close issues matching title pattern
+- Use --regex for regex patterns, otherwise glob patterns
+- Use --dry-run to preview without making changes
+
+### Bulk Update by Pattern
+issuedb-cli bulk-update-pattern --title "PATTERN" [-s STATUS] [--priority PRIORITY] [--regex] [--dry-run]
+- Update issues matching title pattern
+
+### Bulk Delete by Pattern
+issuedb-cli bulk-delete-pattern --title "PATTERN" --confirm [--regex] [--dry-run]
+- Delete issues matching title pattern
+- Requires --confirm unless --dry-run
+
+## REPORTING & ANALYTICS
+
+### Summary Statistics
+issuedb-cli summary
+issuedb-cli --json summary
+- Total counts, breakdown by status and priority
+
+### Detailed Report
+issuedb-cli report [--group-by {status,priority}]
+issuedb-cli --json report [--group-by priority]
+
+### Database Info
+issuedb-cli info
+issuedb-cli --json info
+
+### Audit Logs
+issuedb-cli audit [-i ISSUE_ID]
+issuedb-cli --json audit [-i ISSUE_ID]
+
+## ADMINISTRATIVE
+
+### Clear All Issues
+issuedb-cli clear --confirm
+- Requires --confirm flag for safety
+- Audit logs are preserved
+
+### Web UI Server
+issuedb-cli web [--port PORT] [--host HOST] [--debug]
+- Start web interface on port 7760 (default)
+- Access at http://localhost:7760
+- Example: issuedb-cli web --port 8080
+
+## EXAMPLES
+
+### Dependencies
+User: "Issue 5 is blocked by issue 3"
+Response: issuedb-cli block 5 --by 3
+
+User: "What's blocking issue 5?"
+Response: issuedb-cli --json deps 5
+
+User: "Remove all blockers from issue 5"
+Response: issuedb-cli unblock 5
+
+User: "List all blocked issues"
+Response: issuedb-cli --json blocked
+
+### Code References
+User: "Link issue 5 to src/auth.py line 42"
+Response: issuedb-cli attach 5 --file "src/auth.py:42"
+
+User: "What issues reference config.py?"
+Response: issuedb-cli --json affected --file "config.py"
+
+### Time Tracking
+User: "Start working on issue 5"
+Response: issuedb-cli timer-start 5
+
+User: "How much time have I spent on issue 5?"
+Response: issuedb-cli --json time-log 5
+
+User: "Stop the timer"
+Response: issuedb-cli timer-stop
+
+User: "Show time report for this week"
+Response: issuedb-cli --json time-report --period week
+
+### Workspace
+User: "What am I currently working on?"
+Response: issuedb-cli --json workspace
+
+User: "Start working on issue 10"
+Response: issuedb-cli start 10
+
+User: "I'm done with the current issue, close it"
+Response: issuedb-cli stop --close
+
+User: "Mark issue 5 as won't do"
+Response: issuedb-cli update 5 -s wont-do
+
+User: "This feature request is out of scope, mark it as won't do"
+Response: issuedb-cli update 5 -s wont-do && issuedb-cli comment 5 -t "Out of scope for current project goals"
+
+### Context for Analysis
+User: "Give me full context for issue 5"
+Response: issuedb-cli --json context 5
+
+### Duplicates
+User: "Are there any issues similar to 'login bug'?"
+Response: issuedb-cli --json find-similar "login bug"
+
+User: "Find duplicate issues in the database"
+Response: issuedb-cli --json find-duplicates
+
+### Templates
+User: "Create a bug report for crash on startup"
+Response: issuedb-cli create --template bug -t "Crash on startup" -d "App crashes immediately after launch"
+
+### Pattern Operations
+User: "Close all issues with 'test' in the title"
+Response: issuedb-cli bulk-close-pattern --title "*test*"
+
+User: "Preview what would be deleted if I delete issues matching 'temp'"
+Response: issuedb-cli bulk-delete-pattern --title "*temp*" --dry-run
+
+## QUOTING RULES
+- Use double quotes for titles, descriptions, comments with spaces
+- Example: issuedb-cli create -t "Fix bug" -d "The app crashes"
+- Do NOT use quotes for single-word values
+- Example: issuedb-cli list -s open
+- For JSON in echo, use single quotes outside, double quotes inside
+- Example: echo '[{"title": "My Issue"}]' | issuedb-cli --json bulk-create
+
+## CHAINING COMMANDS
+- Use && to chain dependent commands
+- Example: issuedb-cli update 5 -s closed && issuedb-cli comment 5 -t "Done"
+
+## REMEMBER
+- Output format: COMMAND ONLY
+- No explanations
+- No markdown
+- No code blocks
+- Single line
+- Directly executable
+- Use --json for parseable output
