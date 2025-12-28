@@ -1,0 +1,127 @@
+[project]
+name = "slurmq"
+version = "0.0.3" # x-release-please-version
+description = "Quota monitoring and management for Slurm."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "Dedalus Labs", email = "oss@dedaluslabs.ai" }]
+keywords = ["slurm", "hpc", "gpu", "quota", "monitoring"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Clustering",
+    "Topic :: System :: Monitoring",
+]
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.0",
+    "textual>=0.50",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "tomli-w>=1.0",
+    "pandas>=2.0",
+    "tabulate>=0.9",
+    "platformdirs>=4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+    "ty>=0.0.6",
+    "pre-commit>=4.0",
+]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.25",
+    "mkdocs-llmstxt>=0.2",
+    "mkdocs-git-revision-date-localized-plugin>=1.2",
+    "pymdown-extensions>=10.0",
+]
+
+[project.scripts]
+slurmq = "slurmq.cli.main:run"
+
+[project.urls]
+Homepage = "https://github.com/dedalus-labs/slurmq"
+Documentation = "https://dedalus-labs.github.io/slurmq"
+Repository = "https://github.com/dedalus-labs/slurmq.git"
+Issues = "https://github.com/dedalus-labs/slurmq/issues"
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 119
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = true
+skip-magic-trailing-comma = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # Formatter conflicts (technical requirement, cannot fix)
+    "COM812", # missing-trailing-comma
+    "ISC001", # single-line-implicit-string-concatenation
+
+    # Docstring style conflicts (must pick one)
+    "D203", # one-blank-line-before-class (conflicts with D211)
+    "D213", # multi-line-summary-second-line (conflicts with D212)
+
+    # Security
+    "S101", # assert - intentional in tests
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Pydantic interface requires these unused params
+"src/slurmq/core/config.py" = ["ARG002", "ARG003"]
+# Typer.Option() requires bool default as first positional arg for explicit flag names
+# CLI: Typer API requires boolean defaults, lazy imports for fast startup
+"src/slurmq/cli/**/*.py" = ["FBT003", "PLC0415"]
+# Tests: relaxed linting for test code
+"tests/**/*.py" = [
+    "ANN",     # Type annotations not required in tests
+    "ARG001",
+    "ARG002",  # Mock signatures, fixtures have unused params
+    "BLE001",
+    "S110",    # try-except-pass used in command construction tests
+    "SIM105",  # Exception handling patterns in tests
+    "EM102",
+    "TRY003",  # Inline error messages fine in tests
+    "ERA001",  # Format comments explaining test data
+    "PLC0415", # Lazy imports for patching
+    "PLR2004", # Magic values in test data
+    "SLF001",  # Private member access for testing internals
+    "TC002",
+    "TC003",   # Typing imports
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["slurmq"]
+force-sort-within-sections = true
+lines-after-imports = 2
+split-on-trailing-comma = false
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.pylint]
+max-args = 8
