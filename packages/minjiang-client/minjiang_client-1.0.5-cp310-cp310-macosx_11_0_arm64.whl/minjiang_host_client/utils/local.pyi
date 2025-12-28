@@ -1,0 +1,6 @@
+from _typeshed import Incomplete
+
+__MINJIANG_HOST_CACHE_DIR__: Incomplete
+
+def set_cache_dir(cache_dir: str = None): ...
+def get_cache_dir(): ...
