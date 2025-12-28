@@ -1,0 +1,34 @@
+image: archlinux
+triggers:
+  - action: email
+    condition: failure
+    to: Dmitriy Morozov <dmitriy@mrzv.org>
+packages:
+  - cmake
+  - python
+  - boost
+  - python-pip
+  - python-numpy
+  - python-scipy
+  - python-matplotlib
+  - python-pytest
+  - python-sphinx
+sources:
+  - https://github.com/mrzv/dionysus
+tasks:
+  - pip-install: |
+      sudo pip install nb2plots
+  - configure: |
+      cd dionysus
+      mkdir build
+      cd build
+      cmake ..
+  - build: |
+      cd dionysus/build
+      make
+  - test: |
+      export PYTHONPATH=~/dionysus/build/bindings/python
+      cd dionysus/tests
+      pytest --ignore test_issue39.py
+      cd ../doc
+      make doctest
