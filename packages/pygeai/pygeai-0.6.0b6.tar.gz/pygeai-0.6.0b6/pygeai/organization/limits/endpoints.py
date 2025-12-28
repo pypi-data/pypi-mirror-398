@@ -1,0 +1,15 @@
+SET_ORGANIZATION_USAGE_LIMIT_V2 = "v2/usageLimits/organizations/{organization}/limits"	# POST -> Defines a new usage limit for an organization
+GET_ORGANIZATION_LATEST_USAGE_LIMIT_V2 = "v2/usageLimits/organizations/{organization}/limits/latest"	 # GET -> Retrieves the latest usage limit defined for the organization
+GET_ALL_ORGANIZATION_USAGE_LIMITS_V2 = "v2/usageLimits/organizations/{organization}/limits"	# GET -> Retrieves all usage limits defined for the organization
+DELETE_ORGANIZATION_USAGE_LIMIT_V2 = "v2/usageLimits/organizations/{organization}/limits/{id}"	# DELETE -> Deletes a usage limit for the organization
+SET_ORGANIZATION_HARD_LIMIT_V2 = "v2/usageLimits/organizations/{organization}/limits/{id}/hardLimit"	# PUT -> Modifies the hardLimit of an active usage limit for the organization
+SET_ORGANIZATION_SOFT_LIMIT_V2 = "v2/usageLimits/organizations/{organization}/limits/{id}/softLimit"	 # PUT -> Modifies the softLimit of an active usage limit for the organization
+SET_ORGANIZATION_RENEWAL_STATUS_V2 = "v2/usageLimits/organizations/{organization}/limits/{id}/renewalStatus"	 # PUT -> Modifies the renewalStatus of an active usage limit for the organization
+SET_PROJECT_USAGE_LIMIT_V2 = "v2/usageLimits/organizations/{organization}/projects/{project}/limits"	 # POST -> Defines a new usage limit for a project
+GET_ALL_PROJECT_USAGE_LIMIT_V2 = "v2/usageLimits/organizations/{organization}/projects/{project}/limits"	 # GET -> Retrieves all usage limits for a project
+GET_LATEST_PROJECT_USAGE_LIMIT_V2 = "v2/usageLimits/organizations/{organization}/projects/{project}/limits/latest"	 # GET -> Retrieves the latest usage limit defined for a project
+GET_PROJECT_ACTIVE_USAGE_LIMIT_V2 = "v2/usageLimits/organizations/{organization}/projects/{project}/limits/active"	 # GET -> Retrieves the active usage limit for a project
+DELETE_PROJECT_USAGE_LIMIT_V2 = "v2/usageLimits/organizations/{organization}/projects/{project}/limits/{id}"    # DELETE -> Deletes an active usage limit for a project
+SET_PROJECT_HARD_LIMIT_V2 = "v2/usageLimits/organizations/{organization}/projects/{project}/limits/{id}/hardLimit"  # PUT -> Modifies the hardLimit for an active usage limit for a project
+SET_PROJECT_SOFT_LIMIT_V2 = "v2/usageLimits/organizations/{organization}/projects/{project}/limits/{id}/softLimit"  # PUT -> Modifies the softLimit for an active usage limit for a project
+SET_PROJECT_RENEWAL_STATUS_V2 = "v2/usageLimits/organizations/{organization}/projects/{project}/limits/{id}/renewalStatus"  # PUT -> Modifies the renewalStatus for an active usage limit for a project

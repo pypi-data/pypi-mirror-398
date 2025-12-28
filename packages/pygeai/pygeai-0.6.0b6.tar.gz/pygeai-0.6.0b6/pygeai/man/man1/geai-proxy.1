@@ -1,0 +1,246 @@
+.TH GEAI-PROXY 1 "2024-06-01" "pygeai" "GEAI Proxy Manual"
+.SH NAME
+geai-proxy \- proxy service for managing Model Context Protocol (MCP) servers with GEAI
+.SH SYNOPSIS
+.B geai-proxy
+[\fIOPTIONS\fR] \fICONFIG_FILE\fR
+.SH DESCRIPTION
+The GEAI Proxy is a Python-based tool that acts as an intermediary between the GEAI API and various tool servers. It manages the registration, execution, and result handling of tool operations through a proxy service.
+.PP
+To install:
+.nf
+pip install pygeai
+.fi
+.SH CONFIGURATION
+The GEAI Proxy requires two distinct types of configuration:
+
+.SS 1. MCP Servers Configuration
+This section declares the Model Context Protocol (MCP) servers that this proxy will link with GEAI. The configuration follows the Claude Desktop standard format and supports multiple servers in one file.
+.TP
+.B Configuration File Format
+The configuration file should be in JSON format with the following structure:
+.nf
+{
+  "mcpServers": {
+    "serverName1": {
+      "command": "command-to-launch-server",
+      "args": ["arg1", "arg2", ...]
+    },
+    "serverName2": {
+      "command": "command-to-launch-server",
+      "args": ["arg1", "arg2", ...]
+    }
+  }
+}
+.fi
+.TP
+.B Example: Puppeteer Server
+.nf
+{
+  "mcpServers": {
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+    }
+  }
+}
+.fi
+.TP
+.B Example: Filesystem Server
+.nf
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "~/mcp-shared-folder"]
+    }
+  }
+}
+.fi
+.TP
+.B Example: HTTP+SSE Server
+.nf
+{
+  "mcpServers": {
+    "markitdown": {
+      "uri": "http://localhost:5000/sse"
+    }
+  }
+}
+.fi
+.TP
+.B Example: Multiple Servers Combined
+.nf
+{
+  "mcpServers": {
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "~/mcp-shared-folder"]
+    },
+    "markitdown": {
+      "uri": "http://localhost:5000/sse"
+    },
+    "custom-server": {
+      "command": "python",
+      "args": ["path/to/your/custom_mcp_server.py"]
+    }
+  }
+}
+.fi
+
+.SH PUBLIC TOOL REGISTRATION
+Tools provided by both MCP and A2A servers can be published to GEAI under a public namespace
+by including the \fBpublic_prefix\fR field in their configuration entry.
+
+This allows tools to be registered under a well-defined global identifier, making them
+discoverable and shareable across proxies and clients.
+
+.SS MCP SERVER EXAMPLE WITH PUBLIC PREFIX
+The following configuration registers all tools from the \fBpuppeteer\fR MCP server under
+the public prefix \fIcom.globant.puppeteer\fR:
+
+.nf
+{
+  "mcpServers": {
+    "public_prefix": "com.globant.puppeteer",
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+    }
+  }
+}
+.fi
+
+.SS A2A SERVER EXAMPLE WITH PUBLIC PREFIX
+The following configuration registers the tools provided by the \fBhello-world\fR A2A agent
+under the prefix \fIcom.genexus.a2a.sampleagent\fR:
+
+.nf
+{
+  "a2aServers": {
+    "hello-world": {
+      "public_prefix": "com.genexus.a2a.sampleagent",
+      "url": "http://localhost:9999",
+      "headers": {
+        "Authorization": "Bearer fh84ff...."
+      }
+    }
+  }
+}
+.fi
+
+.SS RESULTING TOOL IDENTIFIERS
+When this prefix is set, all tools will be published using it. For example, a tool named
+\fBtranslate_text\fR would be available as:
+
+.nf
+com.genexus.a2a.sampleagent.translate_text
+.fi
+
+.SS 2. Proxy Authentication Configuration
+This section establishes the connection between the proxy and GEAI and manages user aliases.
+.TP
+.B Automatic Configuration (First Run)
+.nf
+geai-proxy sample-mcp-config.json --alias myalias
+.fi
+.TP
+.B Manual Configuration (Reconfiguration)
+.nf
+geai-proxy --configure --alias myalias
+.fi
+
+During interactive setup, the CLI will prompt you for each required setting:
+.nf
+# Configuring GEAI proxy settings...
+Generated new proxy ID: 37bae96b-bc99-4110-bb61-b912b28f9e32
+-> Insert proxy ID (UUID) (Current: 37bae96b-bc99-4110-bb61-b912b28f9e32, Leave empty to keep):
+-> Insert proxy API key:
+-> Insert proxy base URL:
+-> Insert proxy name:
+-> Insert proxy description:
+.fi
+
+.SH PROXY CONFIGURATION PARAMETERS
+During interactive setup, the following parameters are requested:
+
+.TP
+\fBproxy ID (UUID)\fR
+A unique identifier for this proxy instance. If left empty, the automatically generated UUID
+will be used.
+
+.TP
+\fBproxy API key\fR
+The API key used to authenticate the proxy with the GEAI backend. This must be an API token
+generated in GEAI for a specific project.
+
+.TP
+\fBproxy base URL\fR
+The base URL of the GEAI installation this proxy will connect to.
+For example: \fIhttps://api.beta.saia.ai\fR
+
+.TP
+\fBproxy name\fR
+A human-readable name assigned to this instance of \fBgeai-proxy\fR. This name is stored under the configured alias.
+
+.TP
+\fBproxy description\fR
+An optional description to help identify this proxy instance, especially when multiple proxies are used under different aliases.
+
+.SS Environment Variables
+The above configuration parameters can also be set using environment variables:
+
+.TP
+\fBGEAI_API_KEY\fR
+.TP
+\fBGEAI_API_BASE_URL\fR
+.TP
+\fBPROXY_ID\fR
+.TP
+\fBPROXY_NAME\fR
+.TP
+\fBPROXY_DESCRIPTION\fR
+
+These environment variables override or represent the configuration of the \fBdefault alias\fR. Therefore, they are only taken into account if the proxy is invoked with \fB\-\-alias default\fR. When using a different alias, these variables are ignored.
+
+.SH USAGE
+To start the proxy server with a specific configuration and alias:
+.nf
+geai-proxy sample-mcp-config.json --alias myalias
+.fi
+.PP
+Command Line Arguments:
+.TP
+.B config_file
+Path to the MCP servers configuration file (JSON format).
+.TP
+.B --alias ALIAS
+Alias for the proxy settings.
+.TP
+.B --configure
+Reconfigure proxy authentication settings.
+.SH FILES
+.I pygeai/proxy/sample-mcp-config.json
+Sample configuration file for MCP servers.
+.SH SEE ALSO
+.BR pygeai (1)
+.SH THIRD-PARTY COMPONENTS
+This software includes code from the \fBa2a-python\fR project developed by Google LLC, which is licensed under the Apache License, Version 2.0.
+
+Only the vendored component located in \fIpygeai/vendor/a2a/\fR is subject to the Apache License. The rest of this software is licensed under the MIT License.
+
+For full license details, see:
+.IP \[bu] 
+https://github.com/google/a2a-python
+.IP \[bu] 
+pygeai/vendor/a2a/LICENSE
+
+.SH AUTHOR
+Written by the GEAI development team.
+.SH COPYRIGHT
+Copyright \(co 2025 GEAI development team.
+This is free software; see the source for copying conditions. There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 

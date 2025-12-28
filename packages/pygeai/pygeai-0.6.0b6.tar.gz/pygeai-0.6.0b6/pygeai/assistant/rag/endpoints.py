@@ -1,0 +1,11 @@
+GET_ASSISTANTS_FROM_PROJECT_V1 = "v1/search/profiles"           # GET - Gets all RAG assistans from a project
+GET_ASSISTANT_V1 = "v1/search/profile/{name}"                   # GET -	Gets a specific RAG assistant
+CREATE_ASSISTANT_V1 = "v1/search/profile"                       # POST - Creates a new RAG assistant
+UPDATE_ASSISTANT_V1 = "v1/search/profile/{name}"                # PUT - Updates a RAG assistant
+DELETE_ASSISTANT_V1 = "v1/search/profile/{name}"                # DELETE - Deletes a RAG assistant
+GET_DOCUMENTS_V1 = "v1/search/profile/{name}/documents"         # GET - Gets documents for a RAG assistant
+DELETE_ALL_DOCUMENTS_V1 = "v1/search/profile/{name}/documents"  # DELETE - Deletes all documents for a RAG assistant
+RETRIEVE_DOCUMENT_V1 = "v1/search/profile/{name}/document/{id}"  # GET - Retrieves Document information
+UPLOAD_DOCUMENT_V1 = "v1/search/profile/{name}/document"        # POST - Uploads a Document
+DELETE_DOCUMENT_V1 = "v1/search/profile/{name}/document/{id}"   # DELETE - Deletes a Document
+EXECUTE_QUERY_V1 = "v1/search/execute"                          # POST - Executes a query against the defined RAG assistant

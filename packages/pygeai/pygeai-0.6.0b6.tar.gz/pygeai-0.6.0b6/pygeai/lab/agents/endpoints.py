@@ -1,0 +1,10 @@
+CREATE_AGENT_V2 = "v2/agents"  # POST -> Create agent
+LIST_AGENTS_V2 = "v2/agents"  # GET -> List agents
+GET_AGENT_V2 = "v2/agents/{agentId}"  # GET -> Get agent data
+CREATE_SHARING_LINK_V2 = "v2/agents/{agentId}/sharing-token"  # GET -> Create sharing link
+PUBLISH_AGENT_REVISION_V2 = "v2/agents/{agentId}/publish-revision"  # POST -> Publish Agent revision
+DELETE_AGENT_V2 = "v2/agents/{agentId}"  # DEL -> Delete agent
+UPDATE_AGENT_V2 = "v2/agents/{agentId}"  # PUT -> Update agent
+UPSERT_AGENT_V2 = "v2/agents/{agentId}/upsert"  # PUT -> Update or Insert agent
+EXPORT_AGENT_V2 = "v2/agents/{agentId}/export"  # GET -> Export agent
+IMPORT_AGENT_V2 = "v2/agents/import"  # POST -> Import agent

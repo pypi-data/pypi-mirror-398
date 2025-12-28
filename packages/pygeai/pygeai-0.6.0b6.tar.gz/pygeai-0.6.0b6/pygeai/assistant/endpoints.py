@@ -1,0 +1,9 @@
+GET_ASSISTANT_DATA_V1 = "v1/assistant/{id}"                          # GET - Gets assistant data
+CREATE_ASSISTANT_V1 = "v1/assistant"                                 # POST - Creates a new assistant
+UPDATE_ASSISTANT_V1 = "v1/assistant/{id}"                            # PUT -	Updates an assistant
+DELETE_ASSISTANT_V1 = "v1/assistant/{id}"                            # DELETE - Deletes an assistant
+BEGIN_CONVERSATION_V1 = "v1/assistant/text/begin"                    # POST - Begins a text conversation with the Globant Enterprise AI Assistant
+SEND_TEXT_PROMPT_V1 = "v1/assistant/text"                            # POST - Sends a text prompt to the Globant Enterprise AI Assistant
+SEND_CHAT_REQUEST_V1 = "v1/assistant/chat"                           # POST - Sends a chat request to the Globant Enterprise AI Assistant
+GET_REQUEST_STATUS_V1 = "v1/assistant/request/{id}/status"           # GET - Retrieves the status of a request
+CANCEL_REQUEST_V1 = "v1/assistant/request/{id}/cancel"               # POST - Cancels a request
