@@ -1,0 +1,78 @@
+Metadata-Version: 2.4
+Name: cross-compile-tool
+Version: 0.1.0
+Summary: A generic fast cross-compilation tool using Docker and Sysroots
+Author-email: Benjamin Tan <tan.benjaminkx@gmail.com>
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
+# cross-compile-tool
+
+A blazing fast, generic cross-compilation utility for C++ and ROS 2. It uses Docker to generate an ARM64 sysroot and standard native tools (GCC/Ninja) for compilation.
+
+## Prerequisites
+- **Docker**: For building the sysroot (only runs when needed).
+- **Cross Compiler**: `sudo apt install g++-aarch64-linux-gnu`
+
+## Installation
+```bash
+# Recommended: Install in a virtual environment
+pip install .
+```
+
+## Usage
+
+The tool uses subcommands: `build` (for compiling) and `sysroot` (for environment management).
+
+### 1. Build (The Daily Driver)
+Compiles your code. It automatically builds the sysroot if it's missing.
+
+```bash
+# Basic usage (compiles current directory)
+cross-compile-tool build
+```
+
+**Common Options:**
+- `--clean`: Wipe build directory before compiling.
+- `--build-tool [colcon|cmake]`: Force a specific build tool (default: `auto`).
+- `--build-dir`: Customize output directory (default: `build_arm64`).
+
+### 2. Sysroot (Environment Management)
+Explicitly manage the Docker-based sysroot. Use this when you update your dependencies.
+
+**Step 1:** Create `apt_packages.txt` in your project root:
+```text
+libfmt-dev
+ros-humble-ros-base
+```
+
+**Step 2:** Rebuild the sysroot:
+```bash
+cross-compile-tool sysroot --rebuild --packages-file apt_packages.txt
+```
+
+**Features:**
+- **Robustness**: Uses a temporary build context, keeping your source tree clean.
+- **Staleness Check**: Tracks `apt_packages.txt` using hashes. The `build` command will warn you if your sysroot is out of date.
+- **Optional Python**: Automatically detects Python in the sysroot. If missing, it disables Python support in the toolchain (safe for pure C++).
+
+## Advanced: CI / Dev Workflow
+The tool includes a built-in development environment (Docker).
+
+1.  **Build the Dev Image**:
+    ```bash
+    # Default uses ros:humble. You can specify another base image.
+    cross-compile-tool build-dev --tag my-ci-image --base-image ros:humble
+    ```
+
+2.  **Run with Auto-Mounting**:
+    The build command above outputs the exact run command you need. It handles the `HOST_WORKSPACE` mapping automatically for Docker-in-Docker support.
+
+    ```bash
+    docker run -it --rm \
+      -v /var/run/docker.sock:/var/run/docker.sock \
+      -v $(pwd):/ws \
+      -e HOST_WORKSPACE=$(pwd) \
+      my-ci-image \
+      bash -c "pip install . && cross-compile-tool build"
+    ```
