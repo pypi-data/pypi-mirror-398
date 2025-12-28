@@ -1,0 +1,185 @@
+project_id = "{{ project_id }}"
+region = "{{ region }}"
+zone = "{{ zone }}"
+
+# Control variables for module behavior
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+enable_{{ stage_name }}_{{ tool.name }} = true
+  {% endfor %}
+{% endfor %}
+
+# Dynamic parameter assignment from YAML config
+{%- set defined = [
+  "project_id", "region", "zone", "create_service", "create_bucket", "service_name", "vm_name", "machine_type", "disk_size_gb", "disk_type", "image_family", "artifact_bucket", "backend_store_uri", "image", "allow_public_access", "mlflow_port", "fastapi_port", "fastapi_app_source", "enable_https", "service_account_email", "network", "subnetwork", "allow_http_https", "use_postgres", "cloudsql_instance_annotation", "tags", "metadata", "startup_script", "feast_port", "registry_type", "online_store_type", "offline_store_type", "bigquery_dataset", "create_bigquery_dataset", "sample_data", "feast_database_name", "feast_database_user", "feast_separate_database", "enable_grafana", "grafana_port", "grafana_admin_user", "grafana_admin_password"
+] -%}
+{%- set seen = [] -%}
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% for key, value in tool.params.items() %}
+      {% if key not in seen %}
+        {%- set _ = seen.append(key) -%}
+        {% if key in ["create_service", "create_bucket", "create_artifact_bucket", "allow_public_access", "allow_http_https", "enable_https", "use_postgres", "create_bigquery_dataset", "sample_data", "enable_grafana", "airflow_separate_database"] %}
+{{ key }} = {{ "true" if value else "false" }}
+        {% elif key in ["disk_size_gb", "mlflow_port", "fastapi_port", "feast_port", "grafana_port", "airflow_port", "airflow_worker_port", "airflow_flower_port", "airflow_parallelism", "airflow_dag_concurrency", "airflow_max_active_runs_per_dag"] %}
+{{ key }} = {{ value }}
+        {% elif key == "tags" %}
+{{ key }} = {{ value }}
+        {% elif key == "metadata" %}
+{{ key }} = {{ value }}
+        {% else %}
+{{ key }} = "{{ value }}"
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+{% endfor %}
+
+# Set defaults only if not already set in YAML config
+{% if "create_service" not in seen %}
+create_service = true
+{% endif %}
+{% if "create_bucket" not in seen %}
+create_bucket = false
+{% endif %}
+
+# create_artifact_bucket is handled by dynamic parameter assignment from YAML
+{% if "service_name" not in seen %}
+service_name = "mlflow-server"
+{% endif %}
+{% if "vm_name" not in seen %}
+vm_name = "mlflow-vm"
+{% endif %}
+{% if "machine_type" not in seen %}
+machine_type = "e2-medium"
+{% endif %}
+{% if "disk_size_gb" not in seen %}
+disk_size_gb = 30
+{% endif %}
+{% if "disk_type" not in seen %}
+disk_type = "pd-balanced"
+{% endif %}
+{% if "image_family" not in seen %}
+image_family = "debian-cloud/debian-12"
+{% endif %}
+{% if "artifact_bucket" not in seen %}
+artifact_bucket = ""
+{% endif %}
+{% if "backend_store_uri" not in seen %}
+backend_store_uri = ""
+{% endif %}
+{% if "image" not in seen %}
+image = ""
+{% endif %}
+{% if "allow_public_access" not in seen %}
+allow_public_access = true
+{% endif %}
+{% if "mlflow_port" not in seen %}
+mlflow_port = 5000
+{% endif %}
+{% if "fastapi_port" not in seen %}
+fastapi_port = 8000
+{% endif %}
+{% if "fastapi_app_source" not in seen %}
+fastapi_app_source = "template"
+{% endif %}
+{% if "enable_https" not in seen %}
+enable_https = false
+{% endif %}
+{% if "service_account_email" not in seen %}
+service_account_email = ""
+{% endif %}
+{% if "network" not in seen %}
+network = "default"
+{% endif %}
+{% if "subnetwork" not in seen %}
+subnetwork = ""
+{% endif %}
+{% if "allow_http_https" not in seen %}
+allow_http_https = true
+{% endif %}
+{% if "use_postgres" not in seen %}
+use_postgres = false
+{% endif %}
+{% if "cloudsql_instance_annotation" not in seen %}
+cloudsql_instance_annotation = ""
+{% endif %}
+{% if "feast_port" not in seen %}
+feast_port = 6566
+{% endif %}
+{% if "registry_type" not in seen %}
+registry_type = "file"
+{% endif %}
+{% if "online_store_type" not in seen %}
+online_store_type = "sqlite"
+{% endif %}
+{% if "offline_store_type" not in seen %}
+offline_store_type = "bigquery"
+{% endif %}
+{% if "bigquery_dataset" not in seen %}
+bigquery_dataset = "feast_offline_store"
+{% endif %}
+{% if "create_bigquery_dataset" not in seen %}
+create_bigquery_dataset = true
+{% endif %}
+{% if "sample_data" not in seen %}
+sample_data = false
+{% endif %}
+{% if "tags" not in seen %}
+tags = ["mlflow-server", "http-server", "https-server"]
+{% endif %}
+{% if "metadata" not in seen %}
+metadata = {}
+{% endif %}
+{% if "startup_script" not in seen %}
+startup_script = ""
+{% endif %}
+{% if "feast_database_name" not in seen %}
+feast_database_name = "feast"
+{% endif %}
+{% if "feast_database_user" not in seen %}
+feast_database_user = "feast"
+{% endif %}
+{% if "feast_separate_database" not in seen %}
+feast_separate_database = true
+{% endif %}
+
+{% if "airflow_port" not in seen %}
+airflow_port = 8080
+{% endif %}
+{% if "airflow_worker_port" not in seen %}
+airflow_worker_port = 8793
+{% endif %}
+{% if "airflow_flower_port" not in seen %}
+airflow_flower_port = 5555
+{% endif %}
+{% if "airflow_database_name" not in seen %}
+airflow_database_name = "airflow"
+{% endif %}
+{% if "airflow_database_user" not in seen %}
+airflow_database_user = "airflow"
+{% endif %}
+{% if "airflow_separate_database" not in seen %}
+airflow_separate_database = true
+{% endif %}
+{% if "airflow_admin_user" not in seen %}
+airflow_admin_user = "admin"
+{% endif %}
+{% if "airflow_admin_password" not in seen %}
+airflow_admin_password = "admin"
+{% endif %}
+{% if "airflow_executor" not in seen %}
+airflow_executor = "LocalExecutor"
+{% endif %}
+{% if "airflow_parallelism" not in seen %}
+airflow_parallelism = 4
+{% endif %}
+{% if "airflow_dag_concurrency" not in seen %}
+airflow_dag_concurrency = 2
+{% endif %}
+{% if "airflow_max_active_runs_per_dag" not in seen %}
+airflow_max_active_runs_per_dag = 2
+{% endif %}
+{% if "airflow_webserver_workers" not in seen %}
+airflow_webserver_workers = 2
+{% endif %}

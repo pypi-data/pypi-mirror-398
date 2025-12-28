@@ -1,0 +1,406 @@
+{% extends "gcp/cloud_run/base_main.tf.j2" %}
+
+{% set flags = namespace(needs_postgres=false) %}
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% if tool.name == "mlflow" and tool.params.get("backend_store_uri", "") == "postgresql" %}
+      {% set flags.needs_postgres = true %}
+    {% endif %}
+    {% if tool.name == "feast" and tool.params.get("backend_store_uri", "") == "postgresql" %}
+      {% set flags.needs_postgres = true %}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+
+{% block artifact_bucket %}
+{% if create_artifact_bucket %}
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% if tool.name == "mlflow" and tool.params.get("artifact_bucket") %}
+resource "google_storage_bucket" "{{ stage_name }}_mlflow_artifact" {
+  name          = var.artifact_bucket
+  location      = var.region
+  force_destroy = true
+
+  labels = {
+    component  = "mlflow-artifacts"
+    managed-by = "terraform"
+    stage      = "{{ stage_name }}"
+  }
+}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block postgres %}
+# Detect if any stage needs PostgreSQL for mlflow or feast
+{% if flags.needs_postgres %}
+module "cloud_sql_postgres" {
+  source = "./modules/cloud_sql_postgres"
+  project_id      = var.project_id
+  region          = var.region
+  db_instance_name = "mlflow-postgres-{{ project_id }}"
+  db_name         = "mlflow"
+  db_user         = "mlflow"
+}
+
+
+{% endif %}
+{% endblock %}
+
+{% block module %}
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% if tool.name == "mlflow" %}
+module "{{ stage_name }}_mlflow" {
+  source = "./modules/mlflow/cloud/gcp/cloud_run"
+  count  = var.enable_{{ stage_name }}_mlflow{% if stage_name in ["experiment_tracking", "model_serving"] %} && var.{{ stage_name }}_mlflow_service_name != ""{% endif %} ? 1 : 0
+  project_id = var.project_id
+  region     = var.region
+  create_service = {% if stage_name == "experiment_tracking" %}true{% else %}false{% endif %}
+  allow_public_access = var.allow_public_access
+  cpu_limit = var.cpu_limit
+  memory_limit = var.memory_limit
+  cpu_request = var.cpu_request
+  memory_request = var.memory_request
+  max_scale = var.max_scale
+  container_concurrency = var.container_concurrency
+  artifact_bucket = {% if create_artifact_bucket and tool.params.get("artifact_bucket") %}google_storage_bucket.{{ stage_name }}_mlflow_artifact.name{% else %}var.artifact_bucket{% endif %}
+  {% if flags.needs_postgres %}
+  backend_store_uri = module.cloud_sql_postgres.connection_string
+  cloudsql_instance_annotation = module.cloud_sql_postgres.instance_connection_name
+  {% else %}
+  backend_store_uri = "{{ tool.params.get('backend_store_uri', 'sqlite:///mlflow.db') }}"
+  cloudsql_instance_annotation = ""
+  {% endif %}
+  use_postgres = {{ "true" if flags.needs_postgres else "false" }}
+  {% if flags.needs_postgres %}
+  depends_on = [module.cloud_sql_postgres]
+  {% endif %}
+  {% for key, value in tool.params.items() %}
+    {%- set resource_params = ["cpu_limit", "memory_limit", "cpu_request", "memory_request", "max_scale", "container_concurrency"] -%}
+    {% if key == "image" %}
+      image = var.{{ stage_name }}_mlflow_image != "" ? var.{{ stage_name }}_mlflow_image : var.global_image
+    {% elif key == "artifact_bucket" %}
+      # Skip - already handled above
+    {% elif key == "service_name" and stage_name in ["experiment_tracking", "model_serving", "feature_store"] %}
+      # Skip - handled separately below
+    {% elif key not in resource_params and key != "create_artifact_bucket" and key != "backend_store_uri" and key != "use_postgres" %}
+      {{ key }} = var.{{ key }}
+    {% endif %}
+  {% endfor %}
+  {% if stage_name in ["experiment_tracking", "model_serving"] %}
+  service_name = var.{{ stage_name }}_mlflow_service_name
+  {% endif %}
+}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+
+# Optional: FastAPI model serving module, only if present in stack
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% if stage_name == "model_serving" and tool.name == "fastapi" %}
+module "{{ stage_name }}_{{ tool.name }}" {
+  source              = "./modules/{{ tool.name }}/cloud/gcp/cloud_run"
+  count               = var.enable_{{ stage_name }}_{{ tool.name }} && var.{{ stage_name }}_{{ tool.name }}_service_name != "" ? 1 : 0
+  project_id          = var.project_id
+  region              = var.region
+  service_name        = var.{{ stage_name }}_{{ tool.name }}_service_name
+  image               = var.{{ stage_name }}_{{ tool.name }}_image
+  mlflow_tracking_uri = (
+    length(module.experiment_tracking_mlflow) > 0 ?
+    module.experiment_tracking_mlflow[0].service_url : ""
+  )
+  mlflow_artifact_bucket = (
+    length(module.experiment_tracking_mlflow) > 0 ?
+    module.experiment_tracking_mlflow[0].bucket_name : var.artifact_bucket
+  )
+  model_uri           = var.model_uri
+  cpu_limit           = var.cpu_limit
+  memory_limit        = var.memory_limit
+  allow_public_access = var.allow_public_access
+  {% if flags.needs_postgres %}
+  backend_store_uri   = module.cloud_sql_postgres.connection_string
+  # IMPORTANT: Provide a dedicated metrics database connection for the app
+  # so prediction metrics are not written to the MLflow database.
+  db_connection_string = module.cloud_sql_postgres.metrics_connection_string_cloud_sql
+  use_postgres        = true
+  cloudsql_instance_annotation = module.cloud_sql_postgres.instance_connection_name
+  {% else %}
+  backend_store_uri   = "{{ tool.params.get('backend_store_uri', 'sqlite:///mlflow.db') }}"
+  db_connection_string = ""
+  use_postgres        = false
+  cloudsql_instance_annotation = ""
+  {% endif %}
+  # Feast connection - check if feast exists in stack
+  {% set feast_exists = namespace(value=false) %}
+  {% for check_stage in stack %}
+    {% for check_stage_name, check_tool in check_stage.items() %}
+      {% if check_stage_name == "feature_store" and check_tool.name == "feast" %}
+        {% set feast_exists.value = true %}
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+  feast_service_url = {{ 'length(module.feature_store_feast) > 0 ? module.feature_store_feast[0].service_url : ""' if feast_exists.value else '""' }}
+  enable_feast_connection = {{ 'true' if feast_exists.value else 'false' }}
+  {% if feast_exists.value %}
+  depends_on = [module.feature_store_feast]
+  {% endif %}
+}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+
+# Optional: Feast feature store module, only if present in stack
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% if stage_name == "feature_store" and tool.name == "feast" %}
+module "{{ stage_name }}_{{ tool.name }}" {
+  source              = "./modules/{{ tool.name }}/cloud/gcp/cloud_run"
+  count               = var.enable_{{ stage_name }}_{{ tool.name }} && var.{{ stage_name }}_{{ tool.name }}_service_name != "" ? 1 : 0
+  project_id          = var.project_id
+  region              = var.region
+  service_name        = var.{{ stage_name }}_{{ tool.name }}_service_name
+  image               = var.{{ stage_name }}_{{ tool.name }}_image
+  cpu_limit           = var.cpu_limit
+  memory_limit        = var.memory_limit
+  allow_public_access = var.allow_public_access
+  create_service      = true
+  artifact_bucket     = {% if create_artifact_bucket %}google_storage_bucket.artifact_tracking_mlflow_artifact.name{% else %}var.artifact_bucket{% endif %}
+  {% if flags.needs_postgres %}
+  backend_store_uri   = module.cloud_sql_postgres.feast_connection_string_cloud_sql
+  use_postgres        = true
+  cloudsql_instance_annotation = module.cloud_sql_postgres.instance_connection_name
+  postgres_host       = module.cloud_sql_postgres.postgres_host
+  postgres_port       = module.cloud_sql_postgres.postgres_port
+  postgres_database   = module.cloud_sql_postgres.postgres_database
+  postgres_user       = module.cloud_sql_postgres.postgres_user
+  postgres_password   = module.cloud_sql_postgres.postgres_password
+  {% else %}
+  backend_store_uri   = "{{ tool.params.get('backend_store_uri', 'sqlite:///feast.db') }}"
+  use_postgres        = false
+  cloudsql_instance_annotation = ""
+  postgres_host       = ""
+  postgres_port       = ""
+  postgres_database   = ""
+  postgres_user       = ""
+  postgres_password   = ""
+  {% endif %}
+  offline_store       = "{{ tool.params.get('offline_store', 'file') }}"
+  bigquery_project    = "{{ tool.params.get('bigquery_project', '') }}"
+  bigquery_dataset    = "{{ tool.params.get('bigquery_dataset', 'feast_offline_store') }}"
+}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+
+# Workflow orchestration for multiple cron jobs (offline_scoring, drift_monitoring)
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% if stage_name == "workflow_orchestration" and tool.name == "cron" %}
+module "{{ stage_name }}_{{ tool.name }}" {
+  source = "./modules/cron/cloud/gcp/cloud_run"
+  
+  project_id = var.project_id
+  region     = var.region
+  
+  jobs = [
+    {% for job in tool.params.jobs %}
+    {
+      service_name     = "{{ job.service_name }}"
+      image           = "{{ job.image }}"
+      cron_schedule   = "{{ job.cron_schedule }}"
+      {% if job.get("bigquery_dataset") %}
+      bigquery_dataset = "{{ job.bigquery_dataset }}"
+      {% endif %}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ]
+  
+  # MLflow configuration - connect to experiment tracking
+  mlflow_tracking_uri = length(module.experiment_tracking_mlflow) > 0 ? module.experiment_tracking_mlflow[0].service_url : ""
+  
+  # Database and Feast configuration
+  {% if flags.needs_postgres %}
+  database_url = module.cloud_sql_postgres.metrics_connection_string_cloud_sql
+  cloud_sql_connection_name = module.cloud_sql_postgres.instance_connection_name
+  feast_online_store_host = module.cloud_sql_postgres.postgres_host
+  feast_online_store_port = module.cloud_sql_postgres.postgres_port
+  feast_online_store_database = module.cloud_sql_postgres.postgres_database
+  feast_online_store_user = module.cloud_sql_postgres.postgres_user
+  feast_online_store_password = module.cloud_sql_postgres.postgres_password
+  feast_registry_path = module.cloud_sql_postgres.feast_connection_string
+  {% endif %}
+  
+  # Grafana configuration for drift monitoring - check if grafana exists in stack
+  {% set has_grafana = false %}
+  {% for s in stack %}
+    {% for sn, t in s.items() %}
+      {% if sn == "model_monitoring" and t.name == "grafana" %}
+        {% set has_grafana = true %}
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+  {% if has_grafana %}
+  grafana_url = length(module.model_monitoring_grafana) > 0 ? module.model_monitoring_grafana[0].service_url : ""
+  {% endif %}
+  
+  depends_on = [
+    {% if flags.needs_postgres %}module.cloud_sql_postgres,{% endif %}
+    module.experiment_tracking_mlflow,
+    module.feature_store_feast{% if has_grafana %},
+    module.model_monitoring_grafana{% endif %}
+  ]
+}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+
+
+# Optional: Grafana monitoring module, only if present in stack
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% if stage_name == "model_monitoring" and tool.name == "grafana" %}
+module "{{ stage_name }}_{{ tool.name }}" {
+  source              = "./modules/{{ tool.name }}/cloud/gcp/cloud_run"
+  count               = var.enable_{{ stage_name }}_{{ tool.name }} && var.{{ stage_name }}_{{ tool.name }}_service_name != "" ? 1 : 0
+  project_id          = var.project_id
+  region              = var.region
+  service_name        = var.{{ stage_name }}_{{ tool.name }}_service_name
+  image               = var.{{ stage_name }}_{{ tool.name }}_image
+  cpu_limit           = var.cpu_limit
+  memory_limit        = var.memory_limit
+  allow_public_access = var.allow_public_access
+  {% if flags.needs_postgres %}
+  metrics_connection_string = module.cloud_sql_postgres.grafana_connection_string_cloud_sql
+  use_metrics_database = true
+  cloudsql_instance_annotation = module.cloud_sql_postgres.instance_connection_name
+  depends_on = [module.cloud_sql_postgres]
+  {% else %}
+  metrics_connection_string = ""
+  use_metrics_database = false
+  cloudsql_instance_annotation = ""
+  {% endif %}
+}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+{% endblock %}
+
+{% block outputs %}
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% if tool.name == "mlflow" %}
+output "{{ stage_name }}_mlflow_url" {
+  value = var.enable_{{ stage_name }}_mlflow && length(module.{{ stage_name }}_mlflow) > 0 ? module.{{ stage_name }}_mlflow[0].service_url : ""
+}
+output "{{ stage_name }}_mlflow_bucket" {
+  value = var.enable_{{ stage_name }}_mlflow && length(module.{{ stage_name }}_mlflow) > 0 ? module.{{ stage_name }}_mlflow[0].bucket_name : ""
+}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+{% if create_artifact_bucket %}
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% if tool.name == "mlflow" and tool.params.get("artifact_bucket") %}
+output "{{ stage_name }}_mlflow_artifact_bucket" {
+  value = google_storage_bucket.{{ stage_name }}_mlflow_artifact.name
+}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+{% endif %}
+{% if flags.needs_postgres %}
+output "instance_connection_name" {
+  value = module.cloud_sql_postgres.instance_connection_name
+}
+output "postgresql_credentials" {
+  value = module.cloud_sql_postgres.postgresql_credentials
+  sensitive = true
+}
+{% endif %}
+
+# Output for Grafana if present
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% if stage_name == "model_monitoring" and tool.name == "grafana" %}
+output "{{ stage_name }}_{{ tool.name }}_url" {
+  value = length(module.{{ stage_name }}_{{ tool.name }}) > 0 ? module.{{ stage_name }}_{{ tool.name }}[0].service_url : ""
+}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+
+# Output for FastAPI model serving if present
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% if stage_name == "model_serving" and tool.name == "fastapi" %}
+output "{{ stage_name }}_{{ tool.name }}_url" {
+  value = length(module.{{ stage_name }}_{{ tool.name }}) > 0 ? module.{{ stage_name }}_{{ tool.name }}[0].service_url : ""
+}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+
+# Output for Feast feature store if present
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% if stage_name == "feature_store" and tool.name == "feast" %}
+output "{{ stage_name }}_{{ tool.name }}_url" {
+  value = length(module.{{ stage_name }}_{{ tool.name }}) > 0 ? module.{{ stage_name }}_{{ tool.name }}[0].service_url : ""
+}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+
+# Output for Workflow orchestration (cron jobs) if present
+{% for stage in stack %}
+  {% for stage_name, tool in stage.items() %}
+    {% if stage_name == "workflow_orchestration" and tool.name == "cron" %}
+output "{{ stage_name }}_{{ tool.name }}_job_names" {
+  value = module.{{ stage_name }}_{{ tool.name }}.job_names
+}
+
+output "{{ stage_name }}_{{ tool.name }}_scheduler_jobs" {
+  value = module.{{ stage_name }}_{{ tool.name }}.scheduler_job_names
+}
+
+output "{{ stage_name }}_{{ tool.name }}_jobs_summary" {
+  value = module.{{ stage_name }}_{{ tool.name }}.jobs_summary
+}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+
+{# Auto-teardown module #}
+{% if teardown_config and teardown_config.get("enabled", false) %}
+module "teardown" {
+  source = "./modules/teardown/cloud/gcp"
+  
+  project_id     = var.project_id
+  region         = var.region
+  workspace_name = "{{ stack_name }}"
+  
+  schedule = "{{ teardown_cron_schedule }}"
+  
+  time_zone = "{{ teardown_config.get('time_zone', 'UTC') }}"
+  terraform_state_bucket = var.terraform_state_bucket
+  terraform_files_bucket = var.terraform_files_bucket
+}
+
+output "teardown_scheduler_job" {
+  value       = module.teardown.scheduler_job_name
+  description = "Name of the Cloud Scheduler job for auto-teardown"
+}
+
+output "teardown_scheduled_at" {
+  value       = "{{ teardown_scheduled_timestamp }}"
+  description = "Unix timestamp when teardown is scheduled"
+}
+{% endif %}
+
+{% endblock %} 
