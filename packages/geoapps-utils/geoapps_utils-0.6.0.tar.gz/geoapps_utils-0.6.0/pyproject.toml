@@ -1,0 +1,213 @@
+[build-system]
+requires = [
+  "poetry-core>=1.8.0",
+  "poetry-dynamic-versioning>=1.9.1,<2.0",
+  # list dependencies to work with PIP_NO_DEPS=1
+  "MarkupSafe>=2.0",
+  "dunamai>=1.25,<2.0",
+  "jinja2>=3.0,<4.0",
+  "packaging>=24.0",
+  "tomlkit>=0.13",
+]
+build-backend = "poetry_dynamic_versioning.backend"
+
+[project]
+name = "geoapps-utils"
+requires-python = '>=3.10,<4.0'
+
+description = "Utility functions to build applications supported by Mira Geoscience"
+license = "MIT"
+license-files = [
+    "LICENSE",
+    "THIRD_PARTY_SOFTWARE.rst",
+]
+keywords = ["geology", "geophysics", "data", "interoperability"]
+readme = "package.rst"
+dynamic = ["dependencies", "classifiers"]
+authors = [{name = "Mira Geoscience", email = "support@mirageoscience.com"}]
+maintainers = [{name = "Dominique Fournier", email = "dominiquef@mirageoscience.com"}]
+version = "0.6.0"
+
+[project.urls]
+homepage = "https://www.mirageoscience.com/mining-industry-software/python-integration/"
+repository = "https://github.com/MiraGeoscience/geoapps-utils"
+#documentation = "https://mirageoscience-geoapps-utils.readthedocs-hosted.com/"
+
+[tool.poetry]
+requires-poetry = '>=2.0,<3.0'
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Operating System :: MacOS",
+    "Natural Language :: English",
+]
+
+packages = [
+     { include = "geoapps_utils" },
+     { include = "geoapps_utils-assets" },
+]
+
+include = [
+    { path = "geoapps_utils/_version.py", format = ["sdist", "wheel"] },
+]
+
+exclude = [] # files to exclude from packaging
+
+
+[tool.poetry.dependencies]
+matplotlib = "~3.8.4"  # also in simpeg
+numpy = "~1.26.0"
+pydantic = "~2.11"
+scipy = "~1.14.0"
+
+## pip dependencies from Git repositories
+#----------------------------------------
+geoh5py = {version = ">=0.12.0rc2, <0.13.dev", source = "pypi", allow-prereleases = true}
+#geoh5py = {git = "https://github.com/MiraGeoscience/geoh5py.git", rev = "develop"}
+
+
+## about pip dependencies
+# to be specified to work with conda-lock
+# - from PyPI: my_package = { version = "1.2.3", source = "pypi" }
+# - from URL: !!! no actual lock, as tag or branch can move and installation will fetch current !!!
+#   - for a tag:    my_package = { url = "https://github.com/ORGANISATION/REPO/archive/refs/tags/TAG.tar.gz" }
+#   - for a branch: my_package = { url = "https://github.com/ORGANISATION/REPO/archive/refs/heads/BRANCH.tar.gz" }
+# - to actually lock on a revision: my_package = { git = "https://github.com/ORGANISATION/REPO.git", rev = "GIT_REV" }
+#   (where rev value is a tag, a branch name or a commit hash). Can also use ``branch`` or ``tag`` instead of ``rev``
+
+[tool.poetry.group.dev.dependencies]
+Pygments = "*"
+pylint = "*"
+pytest = "*"
+pytest-cov = "*"
+pyyaml = '*'
+packaging = '*'
+
+
+[[tool.poetry.source]]
+name = "public"
+url = "https://mirageoscienceltd.jfrog.io/artifactory/api/pypi/public-pypi-dev/simple"
+priority = "supplemental"
+
+
+[[tool.poetry.source]]
+name = "test"
+url = "https://mirageoscienceltd.jfrog.io/artifactory/api/pypi/test-pypi/simple"
+priority = "supplemental"
+
+[tool.conda-lock]
+platforms = ['win-64', 'linux-64']
+channels = ['conda-forge']
+
+[tool.conda-lock.dependencies]
+## indirect dependencies, forcing them here for installation through Conda not pip
+#---------------------------------------------------------------------------------
+Pillow = ">=10.3.0, <10.4.dev"  # from geoh5py
+h5py = ">=3.2.1, <4.0.dev"  # from geoh5py
+
+[tool.poetry.requires-plugins]
+poetry-dynamic-versioning = { version = ">=1.9.1,<2.0.0", extras = ["plugin"] }
+
+[tool.poetry-dynamic-versioning]
+bump = true
+enable = false
+fix-shallow-repository = true
+strict = true
+style = "pep440"
+vcs = "git"
+
+[tool.poetry-dynamic-versioning.substitution]
+files = ["geoapps_utils/_version.py", "recipe.yaml"]
+patterns = [
+    { value = '''(^__version__\s*(?::.*?)?=\s*['"])[^'"]*(['"])''', mode = "str" },
+    { value = '''(^\s*version\s*(?::.*?)?:\s*['"])[^'"]*(['"])''', mode = "str" },
+]
+
+[tool.poetry-dynamic-versioning.files."geoapps_utils/_version.py"]
+persistent-substitution = true
+initial-content = """
+  # Version placeholder that will be replaced during substitution
+  __version__ = "0.0.0"
+"""
+
+[tool.poetry-dynamic-versioning.files."recipe.yaml"]
+persistent-substitution = true
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+ignore = [
+    "B028",  # no-explicit-stacklevel for warnings.warn()
+    "E501",  # line-too-long - code is reformatted (do not care about comments and docstring)
+    "F401",  # unsused-import - covered by pycln
+    "RUF005",  # collection-literal-concatenation - wrong suggestion with numpy arrays
+    "RUF012", # TODO
+    "UP038", # TODO
+]
+select = [
+    "A",  # flake8-builtins
+    "B",  # flake8-bugbear
+    "B006",  # Do not use mutable data structures for argument defaults
+    "B9",  # flake8-bugbear opiniated warnings
+    "BLE",  # flake8-blind-except
+    "C4",  # flake8-comprehensions
+    "C9",  # mccabe
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "I",  # isort
+    "RUF",  # ruff rules
+    "TID", # flake8-tidy-imports
+    "UP",  # pyupgrade
+    "W",  # pycodestyle warnings
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 18
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+
+[tool.ruff.format]
+# default formatting is just fine
+
+[tool.mypy]
+warn_unused_configs = true
+ignore_missing_imports = true
+scripts_are_modules = true
+show_error_context = true
+show_column_numbers = true
+check_untyped_defs = true
+
+plugins = [
+    "numpy.typing.mypy_plugin",
+    "pydantic.mypy"
+]
+
+[tool.pytest.ini_options]
+
+[tool.coverage.run]
+branch = true
+source = ["geoapps_utils"]
+omit = []
+
+[tool.coverage.report]
+exclude_lines = [
+    "raise NotImplementedError",
+    "pass",
+    "if TYPE_CHECKING",
+    "pragma: no cover"
+]
+
+fail_under = 75
+
+[tool.coverage.html]
+skip_empty = true
+skip_covered = true
