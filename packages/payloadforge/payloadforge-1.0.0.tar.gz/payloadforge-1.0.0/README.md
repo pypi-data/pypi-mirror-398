@@ -1,0 +1,375 @@
+# 🔧 PayloadForge
+
+<p align="center">
+  <strong>A toolkit for generating safe cybersecurity payloads for ethical testing and research</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.8+-blue.svg" alt="Python 3.8+">
+  <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License">
+  <img src="https://img.shields.io/badge/ethical-use%20only-red.svg" alt="Ethical Use Only">
+</p>
+
+---
+
+> ⚠️ **ETHICAL USE ONLY**: This toolkit is designed exclusively for authorized security testing, educational purposes, and research. Never use against systems without explicit written permission.
+
+---
+
+## 📌 Overview
+
+PayloadForge is a Python library and CLI tool designed for security professionals and students to generate proof-of-concept payloads for vulnerability testing. It emphasizes **ethical use** with built-in safety mechanisms.
+
+### Key Features
+
+- 🎯 **XSS Payloads** - Basic, DOM-based, event handlers, polyglot
+- 💉 **SQL Injection** - MySQL, MSSQL, PostgreSQL templates
+- 🔧 **SSTI Templates** - Jinja2, Twig, Smarty, Velocity
+- 🖥️ **Command Injection** - Linux & Windows payloads
+- 🔐 **Encoding Utilities** - URL, HTML, Unicode, Base64
+- ✨ **Obfuscation** - WAF bypass techniques
+- 🧙 **Interactive Wizard** - Step-by-step payload building
+
+---
+
+## 🚀 Installation
+
+### Via pip (Recommended)
+
+```bash
+pip install payloadforge
+```
+
+### From Source
+
+```bash
+git clone https://github.com/payloadforge/payloadforge.git
+cd payloadforge
+pip install -e .
+```
+
+### Development Installation
+
+```bash
+pip install -e ".[dev]"
+```
+
+---
+
+## 💻 CLI Usage
+
+### XSS Payloads
+
+```bash
+# Basic reflection XSS
+payloadforge --xss basic
+
+# DOM-based XSS
+payloadforge --xss dom
+
+# Event handler XSS
+payloadforge --xss event
+
+# Polyglot (works in multiple contexts)
+payloadforge --xss polyglot
+
+# All XSS types
+payloadforge --xss all
+```
+
+### SQL Injection
+
+```bash
+# Error-based MySQL
+payloadforge --sqli error mysql
+
+# Time-based blind MSSQL
+payloadforge --sqli time mssql
+
+# Union-based PostgreSQL
+payloadforge --sqli union postgres
+
+# Boolean-based blind
+payloadforge --sqli boolean mysql
+```
+
+### SSTI (Server-Side Template Injection)
+
+```bash
+# Jinja2 (Python)
+payloadforge --ssti jinja2
+
+# Twig (PHP)
+payloadforge --ssti twig
+
+# Smarty (PHP)
+payloadforge --ssti smarty
+
+# Velocity (Java)
+payloadforge --ssti velocity
+```
+
+### Command Injection
+
+```bash
+# Linux commands
+payloadforge --cmd linux
+
+# Windows commands
+payloadforge --cmd windows
+
+# With encoding
+payloadforge --cmd linux --encode=url
+payloadforge --cmd windows --encode=base64
+```
+
+### Encoding Utilities
+
+```bash
+# URL encoding
+payloadforge encode --url "<script>alert()</script>"
+
+# HTML entity encoding
+payloadforge encode --html "<img src=x>"
+
+# Base64 encoding
+payloadforge encode --base64 "whoami"
+
+# Unicode escape
+payloadforge encode --unicode "alert"
+
+# Decoding
+payloadforge encode --url --decode "%3Cscript%3E"
+```
+
+### Interactive Wizard
+
+```bash
+# Start interactive wizard
+payloadforge wizard
+
+# Wizard for specific type
+payloadforge wizard --type xss
+payloadforge wizard --type sqli
+```
+
+### Additional Options
+
+```bash
+# Limit number of payloads
+payloadforge --xss basic --count 5
+
+# Enable action logging
+payloadforge --xss basic --log
+
+# Show all categories
+payloadforge list-all
+
+# Show disclaimer
+payloadforge --disclaimer
+```
+
+---
+
+## 📚 Library Usage
+
+### XSS Generator
+
+```python
+from payloadforge.generators.xss import XSSGenerator
+
+# Generate basic XSS payloads
+payloads = XSSGenerator.generate_basic()
+for payload in payloads:
+    print(payload)
+
+# Generate with encoding
+encoded = XSSGenerator.with_encoding(payloads, "url")
+
+# Generate all types
+all_payloads = XSSGenerator.generate_all()
+```
+
+### SQL Injection Generator
+
+```python
+from payloadforge.generators.sqli import SQLiGenerator
+
+# Error-based MySQL
+payloads = SQLiGenerator.generate_error_based("mysql")
+
+# Time-based blind
+time_payloads = SQLiGenerator.generate_time_based("mssql")
+
+# With obfuscation
+obfuscated = SQLiGenerator.obfuscate(payloads, "case")
+```
+
+### SSTI Generator
+
+```python
+from payloadforge.generators.ssti import SSTIGenerator
+
+# Jinja2 payloads
+jinja2 = SSTIGenerator.generate_jinja2()
+
+# Safe detection only
+safe = SSTIGenerator.generate_jinja2(safe_only=True)
+
+# All engines
+all_ssti = SSTIGenerator.generate_all()
+```
+
+### Command Injection Generator
+
+```python
+from payloadforge.generators.cmdi import CMDiGenerator
+
+# Linux payloads
+linux = CMDiGenerator.generate_linux()
+
+# Windows payloads
+windows = CMDiGenerator.generate_windows()
+
+# With encoding
+encoded = CMDiGenerator.with_encoding(linux, "base64")
+```
+
+### Encoding Utilities
+
+```python
+from payloadforge.encoders import url, html, unicode, base64_enc
+
+# URL encoding
+encoded = url.encode("<script>alert()</script>")
+decoded = url.decode(encoded)
+
+# HTML entities
+html_encoded = html.encode_hex("<script>")
+
+# Unicode escape
+unicode_escaped = unicode.encode_escape("alert")
+
+# Base64 with command wrapper
+linux_cmd = base64_enc.encode_command_linux("id")
+```
+
+---
+
+## 📁 Project Structure
+
+```
+payloadforge/
+├── payloadforge/
+│   ├── __init__.py         # Package init with version
+│   ├── cli.py              # CLI entry point
+│   ├── disclaimer.py       # Ethical use disclaimer
+│   ├── logger.py           # Opt-in action logging
+│   ├── generators/
+│   │   ├── xss.py          # XSS payloads
+│   │   ├── sqli.py         # SQL injection payloads
+│   │   ├── ssti.py         # SSTI payloads
+│   │   └── cmdi.py         # Command injection payloads
+│   ├── encoders/
+│   │   ├── url.py          # URL encoding
+│   │   ├── html.py         # HTML entity encoding
+│   │   ├── unicode.py      # Unicode encoding
+│   │   └── base64_enc.py   # Base64 encoding
+│   └── utils/
+│       └── obfuscation.py  # Obfuscation utilities
+├── tests/                   # Unit tests
+├── examples/                # Usage examples
+├── pyproject.toml          # Package configuration
+├── LICENSE                  # MIT License
+└── README.md               # This file
+```
+
+---
+
+## 🧪 Running Tests
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=payloadforge
+
+# Run specific test
+pytest tests/test_xss.py -v
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please follow these guidelines:
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
+
+### Contribution Guidelines
+
+- Follow PEP 8 style guidelines
+- Add tests for new features
+- Update documentation as needed
+- Ensure all tests pass before submitting
+- Include ethical use disclaimers in new modules
+
+---
+
+## ⚠️ Responsible Usage Disclaimer
+
+**PayloadForge is intended solely for:**
+
+- ✅ Authorized penetration testing with written permission
+- ✅ Educational purposes and security research
+- ✅ Capture The Flag (CTF) competitions
+- ✅ Testing your own systems and applications
+
+**Prohibited uses:**
+
+- ❌ Unauthorized access or testing of systems you don't own
+- ❌ Malicious exploitation or attacks
+- ❌ Any illegal activities
+
+**By using this software, you agree to:**
+
+- Obtain proper authorization before testing any systems
+- Accept full responsibility for your actions
+- Use this tool ethically and legally
+
+The authors and contributors are **not responsible** for any misuse of this software.
+
+---
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🔮 Future Roadmap
+
+- [ ] Plugin system for custom payloads
+- [ ] YAML configuration support
+- [ ] API mode for educational portals
+- [ ] More template engine support
+- [ ] Payload mutation/fuzzing
+- [ ] Integration with Burp Suite
+
+---
+
+<p align="center">
+  <strong>Made with ❤️ for the security community</strong>
+</p>
+
+<p align="center">
+  <em>Remember: With great power comes great responsibility. Test ethically!</em>
+</p>
