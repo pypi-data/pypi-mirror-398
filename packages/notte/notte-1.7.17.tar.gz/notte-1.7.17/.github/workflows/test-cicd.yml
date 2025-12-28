@@ -1,0 +1,142 @@
+name: pytest cicd
+
+on:
+  push:
+    branches:
+      - main
+  # NOTE: pull_request trigger is commented out because we use pull_request_target instead.
+  # pull_request_target runs in the base repo context with access to secrets, which is
+  # needed for external contributors. If you need to test workflow changes locally,
+  # you can temporarily uncomment the pull_request trigger below, but remember to
+  # comment it out again before merging to avoid duplicate workflows.
+  # pull_request:
+  #    branches:
+  #      - main
+  pull_request_target:
+     types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run CI on (e.g., <external-contributor>:main)'
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CACHE_TYPE: "pip"
+  NOTTE_API_KEY: ${{ secrets.NOTTE_API_KEY }}
+  NOTTE_VAULT_TEST_EMAIL: ${{ secrets.NOTTE_VAULT_TEST_EMAIL }}
+  NOTTE_VAULT_TEST_PASSWORD: ${{ secrets.NOTTE_VAULT_TEST_PASSWORD }}
+  DISABLE_TELEMETRY: "true"
+  PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
+
+permissions:
+  pull-requests: write
+
+jobs:
+  tests:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code (manual trigger)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+        # NOTE: The ref parameter is commented out because workflow_dispatch
+        # currently always uses the default branch. If you need to checkout a
+        # specific branch from the input, uncomment the line below.
+        # with:
+        #   ref: ${{ github.event.inputs.branch }}
+
+      - name: Checkout code (PR or push)
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+            ref: ${{ github.event.pull_request.head.sha }}
+
+      - id: 'auth'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: ${{ secrets.VERTEX_AI }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+            enable-cache: true
+            cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+          cache: ${{ env.CACHE_TYPE }}
+
+      - name: Cache patchright
+        id: cache-patchright
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.playwright-browsers
+          key: ${{ runner.os }}-patchright-${{ hashFiles('**/uv.lock') }}-v2
+          restore-keys: |
+            ${{ runner.os }}-patchright-${{ hashFiles('**/uv.lock') }}-
+            ${{ runner.os }}-patchright-
+
+      - name: Verify browser cache
+        run: |
+          echo "Browser cache path: $PLAYWRIGHT_BROWSERS_PATH"
+          if [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
+            echo "Cache directory exists"
+            ls -la "$PLAYWRIGHT_BROWSERS_PATH"
+          else
+            echo "Cache directory doesn't exist yet (will be created during install)"
+          fi
+
+      - name: Cache pre-commit
+        id: cache-pre-commit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: ${{ runner.os }}-pre-commit-${{ hashFiles('.pre-commit-config.yaml', '**/pyproject.toml') }}-v1
+          restore-keys: |
+            ${{ runner.os }}-pre-commit-
+
+      - name: Install dependencies
+        run: uv sync --dev --all-extras
+
+      - name: Install patchright
+        if: steps.cache-patchright.outputs.cache-hit != 'true'
+        run: |
+          echo "Cache miss - installing patchright"
+          uv run patchright install --with-deps chromium --no-shell
+
+      - name: Install pre-commit
+        if: steps.cache-pre-commit.outputs.cache-hit != 'true'
+        run: uv run pre-commit install --install-hooks
+
+      - name: Run pre-commit
+        run: uv run --active pre-commit run --all-files
+
+      - name: Verify environment variables
+        run: |
+          if [ -z "$NOTTE_API_KEY" ]; then
+            echo "NOTTE_API_KEY is not set. Consider triggering the workflow manually if this is a PR from an external contributor."
+            exit 1
+          fi
+          if [ -z "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+            echo "GOOGLE_APPLICATION_CREDENTIALS is not set"
+            exit 1
+          fi
+          echo "Environment variables are set"
+
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          uv run pytest -n logical tests --ignore=tests/integration/test_webvoyager_resolution.py --ignore=tests/integration/test_e2e.py --ignore=tests/examples/test_examples.py --ignore=tests/examples/test_readme.py --durations=10 --junitxml=pytest.xml --cov-report=term-missing:skip-covered --cov=packages | tee pytest-coverage.txt
+
+      - name: Pytest coverage comment
+        if: ${{ always() && github.ref != 'refs/heads/main' }}
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-coverage-path: ./pytest-coverage.txt
+          junitxml-path: ./pytest.xml

@@ -1,0 +1,79 @@
+---
+title: "execute"
+description: "Executes an action on the current session page"
+---
+
+
+
+This method allows you to interact with web elements by performing various actions
+like clicking, filling forms, navigating, scrolling, and more. You can provide
+actions either as structured action objects or by specifying action parameters directly.
+
+```python
+from notte_sdk import actions
+
+# Execute an action from observe() results
+obs = session.observe()
+action = obs.space.first()  # Get first available action
+result = session.execute(action)
+
+# Execute a click action by element ID (use `obs.space.description` to checkout elements IDs)
+result = session.execute(type="click", id="B1")
+
+# Execute a form fill action
+result = session.execute(type="fill", id="I1", value="user@example.com")
+
+# Execute browser navigation
+result = session.execute(type="goto", url="https://example.com")
+```
+
+**Action Types:**
+
+**Browser Actions** (always available):
+- `goto`: Navigate to a URL
+- `go_back`: Go back to previous page
+- `go_forward`: Go forward to next page
+- `reload`: Reload current page
+- `scroll_up`/`scroll_down`: Scroll the page
+- `wait`: Wait for specified milliseconds
+- `press_key`: Press keyboard keys
+
+**Interaction Actions** (require element ID from observe):
+- `click`: Click on an element
+- `fill`: Fill input fields with text
+- `upload_file`: upload files to file inputs
+- etc.
+
+**Using Playwright Selectors:**
+
+Instead of element IDs, you can use Playwright selectors to target elements:
+
+```python
+session.execute(type="fill", selector="internal:text="Email"", value="test@example.com")
+```
+
+This syntax also supports Xpath (e.g. `xpath=/html/body/div[3]/div/button[1]`) or CSS selectors (e.g. `css=button.submit`).
+> Note that we strongly advice to use selectors over IDs for workflows automation because IDs are dependent on the page structure and can change over time.
+
+
+
+
+## Parameters
+
+<ParamField path="action" type="UnionType[BaseAction, None]" default="None">
+</ParamField>
+
+<ParamField path="raise_on_failure" type="UnionType[bool, None]" default="None">
+  If true, will raise if we could not execute the action
+</ParamField>
+
+<ParamField path="kwargs" type="Any" required>
+</ParamField>
+
+## Returns
+
+[`ExecutionResult`](/sdk-reference/misc/executionresult): Result containing execution details, any errors,         and the updated session state.
+
+## Raises
+
+- `Exception`: If raise_on_failure is True and the action execution fails.

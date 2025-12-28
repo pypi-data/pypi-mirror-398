@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CACHE_TYPE: "pip"
+  DISABLE_TELEMETRY: "true"
+
+jobs:
+  build:
+    if: startsWith(github.ref, 'refs/tags/v')
+    name: Build python dist
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+            enable-cache: true
+            cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+            python-version-file: ".python-version"
+            cache: ${{ env.CACHE_TYPE }}
+
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Build and Publish to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
+        run: bash build.sh ${{ github.ref_name }} publish
+
+      - name: Wait for PyPI indexing
+        run: |
+          echo "Waiting for PyPI to index packages..."
+          sleep 180  # Wait 3 minutes for PyPI indexing
+
+      - name: Install the package from PyPI
+        run: |
+          uv venv pypi
+          source pypi/bin/activate
+
+          # Retry installation with exponential backoff
+          max_attempts=3
+          attempt=1
+          wait_time=60
+
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts: Installing notte==${{ github.ref_name }}..."
+            if uv pip install notte==${{ github.ref_name }}; then
+              echo "Installation successful!"
+              break
+            fi
+
+            if [ $attempt -lt $max_attempts ]; then
+              echo "Installation failed, waiting ${wait_time}s before retry..."
+              sleep $wait_time
+              wait_time=$((wait_time * 2))  # Exponential backoff
+            else
+              echo "All installation attempts failed"
+              exit 1
+            fi
+            attempt=$((attempt + 1))
+          done
+
+          uv pip show notte
+          uv pip show notte-core
+          uv pip show notte-sdk
+          uv pip show notte-browser
+          uv pip show notte-agent
