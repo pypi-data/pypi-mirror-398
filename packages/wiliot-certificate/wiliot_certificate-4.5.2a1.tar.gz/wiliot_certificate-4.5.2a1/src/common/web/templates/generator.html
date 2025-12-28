@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <!-- Required meta tags -->
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{{ app }}</title>
+        <link rel="icon" href="https://www.wiliot.com/favicon.ico" type="image/x-icon" />
+        <!-- Bootstrap CSS -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+        <style>
+            #card-body {
+                height: 550px;
+                overflow:auto;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+        {% include 'menu.html' %}
+        <h1 style="color:#00AB83">{{ title }}</h1>
+        <hr>
+        <form class="form-horizontal" id="form" action="">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="filter_category" class="form-label"><strong>Filter by Type:</strong></label>
+                    <select class="form-select" id="filter_category" name="filter_category" onchange="applyFilters()">
+                        <option value="">All Types</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if cat == filter_category or (not filter_category and cat == 'Module') %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="filter_version" class="form-label"><strong>Filter by API Version:</strong></label>
+                    <select class="form-select" id="filter_version" name="filter_version" onchange="applyFilters()">
+                        <option value="">All Versions</option>
+                        {% for ver in api_versions %}
+                        <option value="{{ ver }}" {% if ver == filter_version or (not filter_version and ver|int == API_VERSION_LATEST) %}selected{% endif %}>V{{ ver }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <hr>
+            <div id="builder_form">
+                {% for n in pkt_types_list %}
+                        <div class="form-check form-check-inline pkt-radio" 
+                             data-category="{{ pkt_metadata.get(n, {}).get('category', 'Other') }}" 
+                             data-version="{{ pkt_metadata.get(n, {}).get('api_version', '') }}">
+                            <input class="form-check-input" type="radio" name="radios" value="{{ n }}" id="radio_{{ n }}" 
+                                   {% if n == wanted_pkt_type %}checked{% endif %} onclick="show();">
+                            <label class="form-check-label" for="radio_{{ n }}">{{ n }}</label>
+                        </div>
+                {% endfor %}
+                {% for n,p in pkt_types.items() %}
+                    <div id="{{ n }}_form" style="display: none;">
+                        <hr>
+                        {% for k,v in p.__dict__.items() %}
+                            <div class="row">
+                                <label for="{{ n }}_{{ k }}" class="col-sm-2">{{ k }}:</label>
+                                {% set field_name = n + '_' + k %}
+                                {% set saved_value = form_values.get(field_name, '') %}
+                                {% if saved_value %}
+                                    {% set display_value = saved_value %}
+                                {% elif k == 'brg_mac' or k == 'pkt_size' or k == 'ad_type' or k == 'uuid_msb' or k == 'uuid_lsb' or k == 'group_id' %}
+                                    {% set display_value = '0x' + ('%0x' % v).upper() %}
+                                {% else %}
+                                    {% set display_value = v %}
+                                {% endif %}
+                                <input type="text" class="col-sm-4" name="{{ n }}_{{ k }}" value="{{ display_value }}">
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            </div>
+            <hr>
+            <div class="row">
+                <button type="submit" class="btn btn-primary col-sm-12">Build Packet</button>
+            </div>
+        </form>
+        <br>
+        <br>
+        <div class="card">
+            <div class="card-header">
+                Output
+            </div>
+            <div class="card-body" id="card-body">
+                <samp>{{ output | safe }}</samp>
+            </div>
+        </div>
+        <br>
+        <br>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+        <script>
+            var pktMetadata = {{ pkt_metadata | tojson | safe }};
+            
+            function applyFilters() {
+                const categoryFilter = document.getElementById('filter_category').value;
+                const versionFilter = document.getElementById('filter_version').value;
+                const radioContainers = document.querySelectorAll('.pkt-radio');
+                radioContainers.forEach(function(container) {
+                    const category = container.getAttribute('data-category');
+                    const version = container.getAttribute('data-version');
+                    const radio = container.querySelector('input[type="radio"]');
+                    let show = true;
+                    // Filter by category
+                    if (categoryFilter && category !== categoryFilter) {
+                        show = false;
+                    }
+                    // Filter by version
+                    if (versionFilter && version !== versionFilter) {
+                        show = false;
+                    }
+                    // Show/hide the container
+                    if (show) {
+                        container.style.display = 'inline-block';
+                    } else {
+                        container.style.display = 'none';
+                        // Uncheck if hidden
+                        if (radio.checked) {
+                            radio.checked = false;
+                        }
+                    }
+                });
+            }
+            
+            const form = document.getElementById('form');
+            const group_id_brg2gw = {{ GROUP_ID_BRG2GW }};
+            const group_id_gw2brg = {{ GROUP_ID_GW2BRG }};
+            const group_id_side_info_sensor = {{ GROUP_ID_SIDE_INFO_SENSOR }};
+            const group_id_side_info = {{ GROUP_ID_SIDE_INFO }};
+            const group_id_signal_indicator = {{ GROUP_ID_SIGNAL_INDICATOR }};
+            const group_id_unified_v0 = {{ GROUP_ID_UNIFIED_PKT_V0 }};
+            const group_id_unified_v1 = {{ GROUP_ID_UNIFIED_PKT_V1 }};
+            const group_id_unified_v2 = {{ GROUP_ID_UNIFIED_PKT_V2 }};
+            const group_id_unified_ext_v0 = {{ GROUP_ID_BLE5_EXTENDED_V0 }};
+            const group_id_unified_ext_v1 = {{ GROUP_ID_BLE5_EXTENDED_V1 }};
+            var pktTypes = {{ pkt_types_list | tojson | safe }};
+            
+            function showPktForm(pktType) {
+                // Hide all packet forms
+                pktTypes.forEach(function(type) {
+                    var formEl = document.getElementById(type + "_form");
+                    if (formEl) formEl.style.display = 'none';
+                });
+                
+                // Show appropriate header and packet form
+                if (pktType && pktType.includes("Unified")) {
+                    document.getElementById("Hdr_form").style.display = 'none';
+                    document.getElementById("DataHdr_form").style.display = 'block';
+                    var default_value = 0;
+                    if (pktType.includes("V0")) {
+                        default_value = pktType.includes("Ext") ? group_id_unified_ext_v0 : group_id_unified_v0;
+                    } else if (pktType.includes("V1")) {
+                        default_value = pktType.includes("Ext") ? group_id_unified_ext_v1 : group_id_unified_v1;
+                    } else if (pktType.includes("V2")) {
+                        default_value = group_id_unified_v2;
+                    }
+                    if (form.elements.DataHdr_group_id_major) {
+                        form.elements.DataHdr_group_id_major.value = "0x" + default_value.toString(16).toUpperCase();
+                    }
+                } else {
+                    document.getElementById("Hdr_form").style.display = 'block';
+                    document.getElementById("DataHdr_form").style.display = 'none';
+                    var default_value = 0;
+                    if (pktType && pktType.includes("Brg2Gw")) {
+                        default_value = group_id_brg2gw;
+                    } else if (pktType && pktType.includes("Gw2Brg")) {
+                        default_value = group_id_gw2brg;
+                    } else if (pktType && pktType.includes("SignalIndicator")) {
+                        default_value = group_id_signal_indicator;
+                    } else if (pktType && pktType.includes("SideInfoSensor")) {
+                        default_value = group_id_side_info_sensor;
+                    } else if (pktType && pktType.includes("SideInfo")) {
+                        default_value = group_id_side_info;
+                    }
+                    if (form.elements.Hdr_group_id) {
+                        form.elements.Hdr_group_id.value = "0x" + default_value.toString(16).toUpperCase();
+                    }
+                }
+                
+                // Show the selected packet form
+                if (pktType) {
+                    var pktForm = document.getElementById(pktType + "_form");
+                    if (pktForm) pktForm.style.display = 'block';
+                }
+            }
+            
+            function show() {
+                // Set up click handlers
+                var radios = document.getElementsByName("radios");
+                for (var i = 0; i < radios.length; i++) {
+                    radios[i].onclick = function() {
+                        showPktForm(this.value);
+                    };
+                }
+                
+                // Show form for checked radio (if any)
+                for (var i = 0; i < radios.length; i++) {
+                    if (radios[i].checked) {
+                        showPktForm(radios[i].value);
+                        break;
+                    }
+                }
+            }
+            applyFilters(); // Apply filters on page load
+            show(); // Initialize form display (will show selected packet form if one is checked)
+        </script>
+    </body>
+</html>
