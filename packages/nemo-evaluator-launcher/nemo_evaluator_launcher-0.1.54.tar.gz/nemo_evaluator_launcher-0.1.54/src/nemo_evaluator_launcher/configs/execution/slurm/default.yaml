@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Each slurm cluster has its own flavour, below we provide some defaults that might meet one's needs.
+type: slurm              # Executor is chosen based on this field
+hostname: ???            # SLURM headnode (login) hostname (required)
+username: ${oc.env:USER} # Defaults to $USER env var
+account: ???             # SLURM account allocation (required)
+output_dir: ???          # Absolute path accessible on compute nodes (required)
+partition: batch
+num_nodes: 1
+ntasks_per_node: 1
+gres: gpu:8
+walltime: 01:00:00
+subproject: nemo-evaluator-launcher
+sbatch_comment: null  # Optional comment for SLURM job (translates to #SBATCH --comment='...')
+
+# Deployment-specific SLURM configuration
+deployment:
+  n_tasks: 1             # Number of tasks for deployment srun (default: 1, for multi-instance set to num_nodes)
+
+env_vars:
+  deployment: {}
+  evaluation: {}
+mounts:
+  deployment: {}
+  evaluation: {}
+  mount_home: true
+
+proxy:
+  type: haproxy
+  image: haproxy:latest
+  config:
+    haproxy_port: 5009
+    health_check_path: /health
+    health_check_status: 200
