@@ -1,0 +1,307 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class UpdateFunctionAsyncInvokeConfigRequestBody:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'max_async_event_age_in_seconds': 'int',
+        'max_async_retry_attempts': 'int',
+        'destination_config': 'FuncAsyncDestinationConfig',
+        'enable_async_status_log': 'bool',
+        'log_group_id': 'str',
+        'log_stream_id': 'str',
+        'log_group_name': 'str',
+        'log_stream_name': 'str'
+    }
+
+    attribute_map = {
+        'max_async_event_age_in_seconds': 'max_async_event_age_in_seconds',
+        'max_async_retry_attempts': 'max_async_retry_attempts',
+        'destination_config': 'destination_config',
+        'enable_async_status_log': 'enable_async_status_log',
+        'log_group_id': 'log_group_id',
+        'log_stream_id': 'log_stream_id',
+        'log_group_name': 'log_group_name',
+        'log_stream_name': 'log_stream_name'
+    }
+
+    def __init__(self, max_async_event_age_in_seconds=None, max_async_retry_attempts=None, destination_config=None, enable_async_status_log=None, log_group_id=None, log_stream_id=None, log_group_name=None, log_stream_name=None):
+        r"""UpdateFunctionAsyncInvokeConfigRequestBody
+
+        The model defined in huaweicloud sdk
+
+        :param max_async_event_age_in_seconds: 消息最大存活时长，取值范围[1，86400]，单位：秒，默认值为3600。
+        :type max_async_event_age_in_seconds: int
+        :param max_async_retry_attempts: 异步调用失败后的最大重试次数，默认值为1。取值范围[0，3]。
+        :type max_async_retry_attempts: int
+        :param destination_config: 
+        :type destination_config: :class:`huaweicloudsdkfunctiongraph.v2.FuncAsyncDestinationConfig`
+        :param enable_async_status_log: 开启异步调用状态持久化
+        :type enable_async_status_log: bool
+        :param log_group_id: 自定义日志查询组id。
+        :type log_group_id: str
+        :param log_stream_id: 自定义日志查询流id。
+        :type log_stream_id: str
+        :param log_group_name: 自定义日志查询组名称。
+        :type log_group_name: str
+        :param log_stream_name: 自定义日志查询流名称。
+        :type log_stream_name: str
+        """
+        
+        
+
+        self._max_async_event_age_in_seconds = None
+        self._max_async_retry_attempts = None
+        self._destination_config = None
+        self._enable_async_status_log = None
+        self._log_group_id = None
+        self._log_stream_id = None
+        self._log_group_name = None
+        self._log_stream_name = None
+        self.discriminator = None
+
+        if max_async_event_age_in_seconds is not None:
+            self.max_async_event_age_in_seconds = max_async_event_age_in_seconds
+        if max_async_retry_attempts is not None:
+            self.max_async_retry_attempts = max_async_retry_attempts
+        if destination_config is not None:
+            self.destination_config = destination_config
+        if enable_async_status_log is not None:
+            self.enable_async_status_log = enable_async_status_log
+        if log_group_id is not None:
+            self.log_group_id = log_group_id
+        if log_stream_id is not None:
+            self.log_stream_id = log_stream_id
+        if log_group_name is not None:
+            self.log_group_name = log_group_name
+        if log_stream_name is not None:
+            self.log_stream_name = log_stream_name
+
+    @property
+    def max_async_event_age_in_seconds(self):
+        r"""Gets the max_async_event_age_in_seconds of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        消息最大存活时长，取值范围[1，86400]，单位：秒，默认值为3600。
+
+        :return: The max_async_event_age_in_seconds of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :rtype: int
+        """
+        return self._max_async_event_age_in_seconds
+
+    @max_async_event_age_in_seconds.setter
+    def max_async_event_age_in_seconds(self, max_async_event_age_in_seconds):
+        r"""Sets the max_async_event_age_in_seconds of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        消息最大存活时长，取值范围[1，86400]，单位：秒，默认值为3600。
+
+        :param max_async_event_age_in_seconds: The max_async_event_age_in_seconds of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :type max_async_event_age_in_seconds: int
+        """
+        self._max_async_event_age_in_seconds = max_async_event_age_in_seconds
+
+    @property
+    def max_async_retry_attempts(self):
+        r"""Gets the max_async_retry_attempts of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        异步调用失败后的最大重试次数，默认值为1。取值范围[0，3]。
+
+        :return: The max_async_retry_attempts of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :rtype: int
+        """
+        return self._max_async_retry_attempts
+
+    @max_async_retry_attempts.setter
+    def max_async_retry_attempts(self, max_async_retry_attempts):
+        r"""Sets the max_async_retry_attempts of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        异步调用失败后的最大重试次数，默认值为1。取值范围[0，3]。
+
+        :param max_async_retry_attempts: The max_async_retry_attempts of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :type max_async_retry_attempts: int
+        """
+        self._max_async_retry_attempts = max_async_retry_attempts
+
+    @property
+    def destination_config(self):
+        r"""Gets the destination_config of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        :return: The destination_config of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :rtype: :class:`huaweicloudsdkfunctiongraph.v2.FuncAsyncDestinationConfig`
+        """
+        return self._destination_config
+
+    @destination_config.setter
+    def destination_config(self, destination_config):
+        r"""Sets the destination_config of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        :param destination_config: The destination_config of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :type destination_config: :class:`huaweicloudsdkfunctiongraph.v2.FuncAsyncDestinationConfig`
+        """
+        self._destination_config = destination_config
+
+    @property
+    def enable_async_status_log(self):
+        r"""Gets the enable_async_status_log of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        开启异步调用状态持久化
+
+        :return: The enable_async_status_log of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :rtype: bool
+        """
+        return self._enable_async_status_log
+
+    @enable_async_status_log.setter
+    def enable_async_status_log(self, enable_async_status_log):
+        r"""Sets the enable_async_status_log of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        开启异步调用状态持久化
+
+        :param enable_async_status_log: The enable_async_status_log of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :type enable_async_status_log: bool
+        """
+        self._enable_async_status_log = enable_async_status_log
+
+    @property
+    def log_group_id(self):
+        r"""Gets the log_group_id of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        自定义日志查询组id。
+
+        :return: The log_group_id of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :rtype: str
+        """
+        return self._log_group_id
+
+    @log_group_id.setter
+    def log_group_id(self, log_group_id):
+        r"""Sets the log_group_id of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        自定义日志查询组id。
+
+        :param log_group_id: The log_group_id of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :type log_group_id: str
+        """
+        self._log_group_id = log_group_id
+
+    @property
+    def log_stream_id(self):
+        r"""Gets the log_stream_id of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        自定义日志查询流id。
+
+        :return: The log_stream_id of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :rtype: str
+        """
+        return self._log_stream_id
+
+    @log_stream_id.setter
+    def log_stream_id(self, log_stream_id):
+        r"""Sets the log_stream_id of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        自定义日志查询流id。
+
+        :param log_stream_id: The log_stream_id of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :type log_stream_id: str
+        """
+        self._log_stream_id = log_stream_id
+
+    @property
+    def log_group_name(self):
+        r"""Gets the log_group_name of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        自定义日志查询组名称。
+
+        :return: The log_group_name of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :rtype: str
+        """
+        return self._log_group_name
+
+    @log_group_name.setter
+    def log_group_name(self, log_group_name):
+        r"""Sets the log_group_name of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        自定义日志查询组名称。
+
+        :param log_group_name: The log_group_name of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :type log_group_name: str
+        """
+        self._log_group_name = log_group_name
+
+    @property
+    def log_stream_name(self):
+        r"""Gets the log_stream_name of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        自定义日志查询流名称。
+
+        :return: The log_stream_name of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :rtype: str
+        """
+        return self._log_stream_name
+
+    @log_stream_name.setter
+    def log_stream_name(self, log_stream_name):
+        r"""Sets the log_stream_name of this UpdateFunctionAsyncInvokeConfigRequestBody.
+
+        自定义日志查询流名称。
+
+        :param log_stream_name: The log_stream_name of this UpdateFunctionAsyncInvokeConfigRequestBody.
+        :type log_stream_name: str
+        """
+        self._log_stream_name = log_stream_name
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, UpdateFunctionAsyncInvokeConfigRequestBody):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
