@@ -1,0 +1,51 @@
+name: Test and Coverage
+
+on:
+  push:
+    branches:
+      - 'release/*'
+      - 'main'
+      - 'develop'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: List repository files
+        run: |
+          ls -la
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Execute test
+        run: pytest --cov-report=xml:coverage.xml
+
+      - name: Push coverage to SonarQube
+        if: github.ref != 'refs/heads/develop'
+        uses: sonarsource/sonarqube-scan-action@v5
+        with:
+          args: >
+            -Dsonar.projectName=esbm-dis-dfts-pyeqx-opentelemetry
+            -Dsonar.projectKey=esbm-dis-dfts-pyeqx-opentelemetry
+            -Dsonar.projectVersion=${{ github.ref_name }}
+            -Dsonar.sources=dags
+            -Dsonar.python.coverage.reportPaths=coverage.xml
+            -Dsonar.qualitygate.wait=true # ใช้ Quality Gates ถ้าไม่ผ่าน workflows จะ failed
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
