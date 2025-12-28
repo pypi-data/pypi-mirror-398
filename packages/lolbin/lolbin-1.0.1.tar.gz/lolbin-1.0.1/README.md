@@ -1,0 +1,164 @@
+# lolbin
+
+A command-line interface tool for managing pastes on [paste.lol](http://paste.lol), a service of omg.lol.
+
+**WARNING**: Remember that every past on paste.lol is **public**.
+If you have the URL of the paste, you can fetch it without authentication.
+
+You can access every listed paste of someone on the web at "https://paste.lol/<username>".
+Mines are here: <https://paste.lol/ache>.
+
+
+## Features
+
+- **Create/Update Paste** - Allows you to create or update a paste with a specified title and content.
+- **List Pastes** - Lists all your pastes along with their titles and the time they were last modified.
+- **Show Paste** - Displays the content of a specific paste by its title.
+- **Delete Paste** - Deletes a specific paste by its title.
+- **Help Message** - Provides usage instructions for the tool.
+- **Debug Mode** - Prints the action to be performed, the paste name, username, and bearer token (but does not actually perform the action).
+
+# Installation
+
+To install the tool, you can use pip:
+
+```shell
+$ pip install lolbin
+```
+
+But the recommanded way is via [pipx](https://github.com/pypa/pipx):
+```shell
+$ pipx install lolbin
+```
+
+Or with [uv](https://github.com/astral-sh/uv):
+```shell
+$ uv run lolbin
+```
+
+On Arch Linux, there is a package on the AUR, so use your prefered AUR packages manager, mine is [yay](https://github.com/Jguer/yay):
+```shell
+$ yay -S lolbin
+```
+
+## Configuration
+
+To configure the tool, create a file `~/.config/lolbin/config.toml` with the following content:
+
+```toml
+username = "your_username"
+bearer_token = "your_bearer_token"
+```
+
+You can obtain a bearer token by logging in to the <omg.lol> website, in [you account](https://home.omg.lol/account), at the end of the page, section 'API Key'.
+
+If you don't want to store you API token inside a config file, you can call external command to retrieve it from you secret manager.
+
+With the backtick syntax for command substitution:
+
+```toml
+username = "your_username"
+bearer_token = "`bws secret get XXXXXX` | jq .key --raw-output"
+```
+
+Or with the dollard based one:
+
+```toml
+username = "your_username"
+bearer_token = "$ pass api.omg.lol/token_lolbin"
+```
+
+
+## Example of Use
+
+1. To create/update a paste:
+    ```shell
+    $ echo "My awesome content" | lolbin --paste my_awesome_paste
+    ```
+    If you want to paste content from a file, use the `--file` flag:
+    ```shell
+    $ echo "My awesome content" > my_content.txt
+    $ lolbin --paste --file my_content.txt my_awesome_paste
+    ```
+
+    The `--past` part is optional, as lolbin can deduct the action from the input.
+
+    ```shell
+    $ cat my_content.txt | lolbin --paste my_awesome_paste
+    ```
+
+    For obvious reasons, by default a past is private (aka non-listed, remember *every past is exposed on the public web*), to make it public (aka listed in the paste.lol jargon) use the "--public" (or "-P") option.
+    ```shell
+    $ echo "This is public !" | lolbin public-message -P
+    ```
+
+    I know that "-P" can be confused with "private", the idea is that, by default it's private so you don't need a private option.
+    If you find it confusing, you can also use the paste.lol jargon with "--listed" (and "-L").
+
+
+2. To list your pastes:
+    ```shell
+    $ lolbin --list
+     - my_awesome_paste (10s ago)
+    ```
+
+    List is the default action so you can also ommit the `--list`.
+
+    Also, by default, it only list all the paste, so the private one too (aka non-listed).
+    To list only the public paste (aka listed in the paste.lol jargon), use the "--public" option (or "-P", or "--listed" and "-L").
+
+    It's conveniant to remember that "-l" is for private and "-L" will list every paste.
+
+    ```shell
+    $ lolbin -l
+     - my_awesome_listed_paste (30s ago)
+     - my-awesome-private-paste (1min ago)
+    $ lolbin -L
+     - my_awesome_listed_paste (33s ago)
+    ```
+
+3. To show the content of a specific paste:
+    ```shell
+    $ lolbin --show my_awesome_paste
+    My awesome content
+    ```
+
+    As with the `--paste` option, lolbin can deduct the action without the `--show` option.
+
+    ```shell
+    $ lolbin my_awesome_paste
+    My awesome content
+    ```
+
+4. To delete a specific paste:
+    ```shell
+    $ lolbin --delete my_awesome_paste
+    ```
+
+    Or use the `-d` short option.
+
+5. To edit a specific paste:
+    ```shell
+    $ lolbin --edit my_awesome_paste
+    ```
+
+    The editor will be opened with the content of the paste. The content will be replaced with the edited content.
+    The editor is determined by the `EDITOR` environment variable. If it is not set, the vim is used.
+
+6. For help:
+    ```shell
+    $ lolbin --help
+    ```
+
+7. To run in debug mode, use the `--debug` flag with any command:
+    ```shell
+    $ lolbin --debug --list
+    ```
+
+    It will not do anything.
+
+## Requirements
+
+- Python 3.10 or higher
+- requests library
+- tomli library
