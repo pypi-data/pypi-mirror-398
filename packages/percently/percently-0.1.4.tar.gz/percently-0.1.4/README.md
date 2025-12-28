@@ -1,0 +1,108 @@
+<div align="center">
+  <h1>percently</h1>
+  <p><strong>Fast percentile calculator written in Rust — shipped as a Python package.</strong></p>
+
+  <p>
+    <a href="https://github.com/4thel00z/percently/actions/workflows/CI.yml">
+      <img alt="CI" src="https://github.com/4thel00z/percently/actions/workflows/CI.yml/badge.svg" />
+    </a>
+    <a href="https://pypi.org/project/percently/">
+      <img alt="PyPI" src="https://img.shields.io/pypi/v/percently" />
+    </a>
+    <a href="https://pypi.org/project/percently/">
+      <img alt="Python versions" src="https://img.shields.io/pypi/pyversions/percently" />
+    </a>
+    <a href="LICENSE">
+      <img alt="License" src="https://img.shields.io/github/license/4thel00z/percently" />
+    </a>
+    <img alt="Rust" src="https://img.shields.io/badge/Rust-2021-000000?logo=rust" />
+    <img alt="maturin" src="https://img.shields.io/badge/built%20with-maturin-2A2A2A" />
+  </p>
+</div>
+
+## Motivation
+
+When you’re processing load test timings (or any latency distribution), you typically want buckets like p50/p95/p99 quickly. `percently` provides a small, fast Rust implementation exposed to Python.
+
+## Features
+
+- **Fast**: Rust core
+- **Simple API**: one call to compute a percentile
+- **Python-friendly**: works with regular lists/iterables of floats
+
+## Installation
+
+Using `uv`:
+
+```bash
+uv add percently
+```
+
+Using `pip`:
+
+```bash
+pip install percently
+```
+
+## 🧮 Usage
+
+```python
+import percently
+
+data = [10.5, 22.0, 18.7, 19.2, 30.1, 25.3]
+
+# Calculate the 95th percentile (f64)
+p95 = percently.percentile(data, 95)
+print(f"95th percentile: {p95:.2f}")
+```
+
+### Streaming (iterative) percentile estimates
+
+If you have a generator/iterable and want **running percentile estimates** without loading all values into memory, use `stream`.
+
+```python
+import percently
+
+def timings():
+    for i in range(1, 1_000_001):
+        yield float(i % 10_000) / 10_000.0
+
+# Yield an updated p95 estimate every 1000 samples (approximate, bounded memory)
+for est in percently.stream(timings(), 95, every=1000):
+    last = est
+
+print("final approx p95:", last)
+```
+
+Notes:
+- `stream(..., 0, ...)` yields the running **min** (exact)
+- `stream(..., 100, ...)` yields the running **max** (exact)
+- All values must be finite floats (no NaN/inf)
+
+## Development
+
+Build/install locally (editable) with `maturin`:
+
+```bash
+uv sync
+uv run maturin develop
+```
+
+## Releasing
+
+This repo is configured for **signed** release commits/tags and tag-based publishing:
+- Create a signed tag (e.g. `0.1.4`)
+- GitHub Actions (tag-triggered) builds wheels/sdist and publishes to PyPI
+
+Recommended (cargo-style) tool: `cargo-release`
+
+```bash
+cargo install cargo-release
+
+# Patch release: bumps Cargo.toml version, commits (signed), creates signed tag, pushes
+cargo release patch --execute
+```
+
+## License
+
+MIT — see `LICENSE`.
