@@ -1,0 +1,522 @@
+Metadata-Version: 2.4
+Name: nell-scb-lib
+Version: 1.7.0
+Summary: Nellika SCB Payment Integration - Hardened C Module (Commercial License Required)
+Home-page: https://nellika.co.th
+Author: Danny G.
+Author-email: "Danny G." <danny.g@nellika.co.th>
+Maintainer: Nellika Consulting Services
+Maintainer-email: Nellika Consulting Services <support@nellika.co.th>
+License: Proprietary - Commercial License Required
+Project-URL: Homepage, https://nellika.co.th
+Keywords: scb,promptpay,qr,payment,thailand,banking,nellika
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: Other/Proprietary License
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Programming Language :: C
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Office/Business :: Financial
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: maintainer
+Dynamic: requires-python
+
+# nell-scb-lib
+
+Python C extension for SCB (Siam Commercial Bank) payment integration with PromptPay QR code generation.
+
+## ⚠️ IMPORTANT LICENSING INFORMATION
+
+**This software is subject to commercial licensing terms and usage fees.**
+
+- This library requires a valid commercial license for production use
+- Usage telemetry data is collected and transmitted to Nellika Consulting Services Ltd.
+- By installing and using this library, you agree to the collection and transmission of usage telemetry
+- For licensing inquiries and pricing information, please contact: **sales@nellika.co.th**
+
+**Copyright © 2024 Nellika Consulting Services Ltd. All rights reserved.**
+
+---
+
+## Overview
+
+`nell-scb-lib` is a high-performance C extension module providing SCB payment integration for Python applications. It handles OAuth token management, QR code generation, and payment status checking through SCB's official API.
+
+## Installation
+
+```bash
+pip install nell-scb-lib
+```
+
+**Supported Platforms:**
+- Linux x86_64 (manylinux_2_31+)
+- macOS ARM64 (Apple Silicon M1/M2/M3/M4)
+- Python 3.9 through 3.14
+
+## Telemetry & Privacy
+
+This library collects the following telemetry data:
+- License key usage and validation events
+- API operation counts (QR creation, token refresh, payment checks)
+- Error rates and types
+- Library version and platform information
+- **No sensitive data** (API keys, secrets, transaction details, or customer information) is collected
+
+Telemetry helps us:
+- Monitor license compliance
+- Improve library stability and performance
+- Provide better support to our customers
+
+**By using this library, you consent to this data collection.**
+
+For questions about data collection or to request data deletion, contact: privacy@nellika.co.th
+
+---
+
+## Quick Start
+
+```python
+import nell_scb_lib
+
+# Create QR payment (database-driven, recommended)
+result = nell_scb_lib.create_qr_by_bank_account(
+    bank_account_id=1,
+    amount=250.75,
+    ref1="P00001",      # Invoice number (max 20 chars)
+    ref2="CUST001",     # Customer code (max 12 chars)
+    ref3="SCB"          # Optional reference
+)
+
+if result['status']['code'] == 1000:
+    qr_image = result['data']['qrImage']  # Base64 PNG
+    qr_raw = result['data']['qrRawData']  # PromptPay string
+    print(f"QR created: {result['data']['transactionId']}")
+```
+
+## Environment Variables
+
+Required for database-driven methods:
+
+```bash
+export PGDATABASE=your_database
+export PGHOST=localhost
+export PGPORT=5432
+export PGUSER=odoo
+export PGPASSWORD=your_password  # optional
+```
+
+## API Reference
+
+### High-Level API (Recommended)
+
+#### `create_qr_for_invoice(invoice_id, company_id, config_id, reference, amount, bank_account_id)`
+
+**Smart Intent Caching** - Create SCB QR code for invoices with automatic caching. Returns cached QR if intent already exists (prevents duplicate API calls).
+
+**Parameters:**
+- `invoice_id` (int): Invoice ID from `account.move`
+- `company_id` (int): Company ID
+- `config_id` (int): SCB API configuration ID
+- `reference` (str): Payment reference (e.g. "I202500096")
+- `amount` (float): Payment amount in THB
+- `bank_account_id` (str): Bank account ID from `res.partner.bank`
+
+**Returns:** `dict` - Intent data with QR
+```python
+{
+    "intent_id": 35,
+    "reference": "I202500096",
+    "amount": 11.77,
+    "qr_payload": "00020101021230...",
+    "qr_image_base64": "iVBORw0KGgoAAAANSUhEUgAA...",
+    "transaction_id": "202512047YrL0GYH1tAUC0t",
+    "status": "pending",
+    "channel": "invoice"
+}
+```
+
+**Example:**
+```python
+import nell_scb_lib
+
+result = nell_scb_lib.create_qr_for_invoice(
+    invoice_id=118,
+    company_id=1,
+    config_id=1,
+    reference="I202500096",
+    amount=11.77,
+    bank_account_id="1"
+)
+print(f"Intent: {result['intent_id']}, QR: {result['qr_payload'][:50]}...")
+```
+
+---
+
+#### `create_qr_by_bank_account(bank_account_id, amount, ref1, ref2, ref3="SCB")`
+
+Create SCB QR payment code using bank account ID. Automatically fetches configuration from database and manages token refresh.
+
+**Parameters:**
+- `bank_account_id` (str/int): Bank account ID from `res.partner.bank`
+- `amount` (float): Payment amount in THB
+- `ref1` (str): Reference 1, max 20 characters
+- `ref2` (str): Reference 2, max 12 characters  
+- `ref3` (str, optional): Reference 3, defaults to "SCB"
+
+**Returns:** `dict` - SCB API response
+```python
+{
+    "status": {"code": 1000, "description": "Success"},
+    "data": {
+        "qrRawData": "00020101021230...",
+        "qrImage": "iVBORw0KGgoAAAANSUhEUgAA...",
+        "transactionId": "..."
+    }
+}
+```
+
+**Example:**
+```python
+result = nell_scb_lib.create_qr_by_bank_account(
+    bank_account_id=1,
+    amount=250.75,
+    ref1="P00001",
+    ref2="CUST001"
+)
+```
+
+---
+
+### Mid-Level API
+
+#### `create_qr_full(api_key, access_token, qr_create_url, biller_id, amount, ref1, ref2, ref3="SCB")`
+
+Create SCB QR code with explicit parameters (requires manual token management).
+
+**Parameters:**
+- `api_key` (str): SCB API key
+- `access_token` (str): Valid OAuth token
+- `qr_create_url` (str): SCB QR endpoint URL
+- `biller_id` (str): PromptPay biller ID
+- `amount` (float): Payment amount in THB
+- `ref1` (str): Reference 1, max 20 characters
+- `ref2` (str): Reference 2, max 12 characters
+- `ref3` (str, optional): Reference 3, defaults to "SCB"
+
+**Returns:** `dict` - SCB API response
+
+**Example:**
+```python
+# Step 1: Get access token using config ID
+token_resp = nell_scb_lib.refresh_token(config_id=1)
+access_token = token_resp['data']['accessToken']
+
+# Step 2: Create QR
+result = nell_scb_lib.create_qr_full(
+    api_key="your_api_key",
+    access_token=access_token,
+    qr_create_url="https://api.scb/...",
+    biller_id="894547854396914",
+    amount=100.50,
+    ref1="P00001",
+    ref2="TEST"
+)
+```
+
+---
+
+#### `refresh_token(config_id)`
+
+Refresh SCB OAuth access token using config ID. Automatically fetches API credentials from database and determines token URL based on environment.
+
+**Parameters:**
+- `config_id` (int): SCB API configuration ID from `scb_api_config` table
+
+**Returns:** `dict` - Token response
+```python
+{
+    "status": {"code": 1000, "description": "Success"},
+    "data": {
+        "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "expiresIn": 1800,
+        "tokenType": "Bearer"
+    }
+}
+```
+
+**Example:**
+```python
+result = nell_scb_lib.refresh_token(config_id=1)
+if result['status']['code'] == 1000:
+    token = result['data']['accessToken']
+```
+
+---
+
+#### `payment_inquiry(config_id, transaction_ref=None, biller_id=None, reference1=None, reference2=None, amount=None, transaction_date=None)`
+
+Check SCB payment status via payment inquiry API. Supports both Tag 31 (transaction ID) and Tag 30 (reference) inquiry modes.
+
+**Parameters:**
+- `config_id` (int): SCB API configuration ID
+- `transaction_ref` (str, optional): Transaction reference for Tag 31 inquiry
+- `biller_id` (str, optional): PromptPay biller ID for Tag 30 inquiry
+- `reference1` (str, optional): Reference 1 for Tag 30 inquiry
+- `reference2` (str, optional): Reference 2 for Tag 30 inquiry
+- `amount` (str, optional): Payment amount for Tag 30 inquiry
+- `transaction_date` (str, optional): Transaction date (YYYY-MM-DD)
+
+**Returns:** `dict` - Payment inquiry response
+```python
+{
+    "status": {"code": 1000, "description": "Success"},
+    "data": {
+        "paymentStatus": "PAID",
+        "transactionId": "202512143idG583rgs8s5ps",
+        "amount": "100.00",
+        "billPaymentRef1": "P00001"
+    }
+}
+```
+
+**Example:**
+```python
+# Tag 31 inquiry (by transaction ID)
+result = nell_scb_lib.payment_inquiry(
+    config_id=1,
+    transaction_ref="202512143idG583rgs8s5ps"
+)
+
+# Tag 30 inquiry (by reference)
+result = nell_scb_lib.payment_inquiry(
+    config_id=1,
+    biller_id="010555555555555",
+    reference1="P00001",
+    amount="100.00"
+)
+```
+
+---
+
+### Low-Level API (Legacy)
+
+#### `create_qr(config_id, amount, reference, channel="ecomm")`
+
+**Deprecated** - Use `create_qr_by_bank_account()` or `create_qr_for_invoice()` instead.
+
+Create QR code using config ID from database.
+
+**Parameters:**
+- `config_id` (str): SCB API configuration ID
+- `amount` (float): Payment amount
+- `reference` (str): Payment reference
+- `channel` (str, optional): Payment channel ("pos", "ecomm", "invoice")
+
+**Returns:** `str` - JSON string (not dict)
+
+---
+
+#### `check_payment(reference)`
+
+**Deprecated** - Use `payment_inquiry()` instead for better control and error handling.
+
+Check SCB payment status by reference.
+
+**Parameters:**
+- `reference` (str): Payment reference to check
+
+**Returns:** `str` - JSON string (not dict)
+
+---
+
+#### `version()`
+
+Get module version string.
+
+**Returns:** `str` - Version (e.g., "1.7.0")
+
+---
+
+## Database Schema Requirements
+
+For database-driven methods, these tables are required:
+
+**`res_partner_bank`:**
+- Column: `scb_biller_id` (VARCHAR) - PromptPay biller ID
+
+**`scb_api_config`:**
+- Columns: `api_key`, `api_secret`, `environment`, `token_url`, `qr_create_url`, `payment_inquiry_url`
+- Must have active configuration record
+
+## Error Handling (v1.2.0+)
+
+**All functions return dicts with `status` and `data` keys. Check `status.code` to determine success/failure.**
+
+```python
+result = nell_scb_lib.create_qr_by_bank_account(
+    bank_account_id=1,
+    amount=250.75,
+    ref1="P00001",
+    ref2="CUST001"
+)
+
+if result['status']['code'] == 1000:
+    # Success - use the data
+    qr_image = result['data']['qrImage']
+    transaction_id = result['data']['transactionId']
+    print(f"QR created: {transaction_id}")
+else:
+    # Error - check the code and description
+    error_code = result['status']['code']
+    error_msg = result['status']['description']
+    print(f"Error {error_code}: {error_msg}")
+    
+    # Handle specific errors
+    if error_code == 5114:
+        print("Incorrect biller ID - check your bank account configuration")
+    elif error_code in [9001, 9002]:
+        print("Database connection issue - check environment variables")
+    elif error_code == 9003:
+        print("SCB configuration not found for this bank account")
+```
+
+## Response Status Codes
+
+### Success Codes (1xxx)
+- `1000`: Success
+
+### SCB API Errors (5xxx)
+These are errors returned directly from SCB's API:
+- `5114`: Incorrect biller ID - verify PromptPay biller ID in database
+- Other 5xxx codes: See SCB API documentation
+
+### System Errors (9xxx)
+
+**Database Errors (90xx):**
+- `9001`: Database environment variables not configured
+- `9002`: Failed to connect to database
+- `9003`: No SCB configuration found for bank account
+- `9004`: Invalid SCB API configuration (missing required fields)
+
+**Network Errors (91xx):**
+- `9101`: Network error connecting to SCB token endpoint
+- `9102`: Network error connecting to SCB QR endpoint
+- `9103`: HTTP error from SCB API (see description for details)
+
+**Authentication Errors (93xx):**
+- `9301`: Failed to refresh SCB access token
+- `9302`: Token refresh failed with HTTP error
+
+**Always check the status code:**
+```python
+if result['status']['code'] == 1000:
+    # Process successful response
+    qr_data = result['data']
+else:
+    # Handle error - log or display to user
+    error_code = result['status']['code']
+    error_msg = result['status']['description']
+    
+    # Example: Raise user-friendly error in Odoo
+    if error_code in [5114, 9003, 9004]:
+        # Configuration error - show to admin
+        raise UserError(f"SCB Configuration Error: {error_msg}")
+    else:
+        # System error - log it
+        _logger.error(f"SCB API error {error_code}: {error_msg}")
+```
+
+## Best Practices
+
+1. **Use High-Level API**: 
+   - Invoices: Use `create_qr_for_invoice()` for automatic caching
+   - POS/Ecommerce: Use `create_qr_by_bank_account()`
+   - Avoid legacy `create_qr()` and `check_payment()`
+
+2. **Validate References**: Keep ref1 ≤ 20 chars, ref2 ≤ 12 chars
+
+3. **Check Status Codes**: Always verify `status.code == 1000` before using data
+
+4. **Payment Status**: Use `payment_inquiry()` for checking payment status:
+   - Better error handling
+   - Supports both Tag 30 and Tag 31 inquiry
+   - Automatic token refresh and retry on 401
+
+5. **Handle Errors**: Check status codes and handle errors gracefully
+
+6. **Environment Setup**: Configure PostgreSQL environment variables before use
+
+## Features
+
+- ✅ Native C implementation for high performance
+- ✅ **Smart Intent Caching** for invoices (prevents duplicate QR codes)
+- ✅ Automatic OAuth token management with retry on 401
+- ✅ Database-driven configuration (PostgreSQL)
+- ✅ PromptPay QR code generation
+- ✅ Payment inquiry API (Tag 30 and Tag 31)
+- ✅ Thread-safe operations
+- ✅ Secure API communication (libcurl + OpenSSL)
+- ✅ Built-in license management
+- ✅ Usage telemetry for compliance and support
+
+## Changelog
+
+See [CHANGELOG.md](https://github.com/Nellika-odoo-infrastructure/nell_scb_lib/blob/main/CHANGELOG.md) for detailed version history.
+
+### Latest Releases
+
+**v1.6.0** (2024-12-24)
+- 🔴 **BREAKING**: `refresh_token()` signature changed to use `config_id` instead of raw credentials
+- Enhanced security: API URLs and credentials now hidden from Python code
+- Consistency: All C library functions use same pattern (IDs, not credentials)
+- Simplified usage: `refresh_token(config_id=1)` instead of passing api_key, api_secret, token_url
+- Migration: Old code using 3 parameters needs update to pass single config_id
+
+**v1.3.0** (2024-12-03)
+- 🆕 **Payment Inquiry API**: New `payment_inquiry()` function for checking payment status
+- Support for both Tag 30 and Tag 31 inquiry modes
+- Automatic token caching and refresh for payment inquiry
+- URL computation centralized in C library based on environment
+
+**v1.2.4** (2024-12-02)
+- ⚡ **PERFORMANCE**: Automatic token caching in database
+- Reduces token refresh API calls by ~95% (~30/day instead of ~100+/day)
+- Token management now completely abstracted in C library
+- Faster QR generation (no auth overhead when token is cached)
+
+**v1.2.3** (2024-12-02)
+- 🔴 **CRITICAL FIX**: Corrected SCB config selection when multiple configs exist
+- Fixed "Incorrect biller Id" errors (SCB 5114)
+- Added detailed logging for Bank ID, Config ID, Biller ID
+
+[View Full Changelog →](https://github.com/Nellika-odoo-infrastructure/nell_scb_lib/blob/main/CHANGELOG.md)
+
+---
+
+## Support & Contact
+
+- **Sales & Licensing**: sales@nellika.co.th
+- **Technical Support**: support@nellika.co.th
+- **Privacy Inquiries**: privacy@nellika.co.th
+- **Website**: https://nellika.co.th
+
+## Legal
+
+**Copyright © 2024 Nellika Consulting Services Ltd. All rights reserved.**
+
+This software is proprietary and confidential. Unauthorized copying, distribution, or use of this software, via any medium, is strictly prohibited without prior written permission from Nellika Consulting Services Ltd.
+
+For licensing terms and conditions, please contact sales@nellika.co.th
