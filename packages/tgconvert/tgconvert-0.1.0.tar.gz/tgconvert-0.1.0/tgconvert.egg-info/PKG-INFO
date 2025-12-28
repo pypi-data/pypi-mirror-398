@@ -1,0 +1,324 @@
+Metadata-Version: 2.4
+Name: tgconvert
+Version: 0.1.0
+Summary: Universal Telegram session converter supporting multiple formats (tdata, Telethon, Pyrogram, auth_key)
+Author: tgconvert
+License: MIT
+Project-URL: Telegram, https://t.me/squirrel82
+Keywords: telegram,session,converter,tdata,telethon,pyrogram
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Communications :: Chat
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: cryptography>=41.0.0
+Requires-Dist: tgcrypto>=1.2.5
+Requires-Dist: opentele>=1.15.1
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Requires-Dist: black>=23.0; extra == "dev"
+Requires-Dist: flake8>=6.0; extra == "dev"
+Dynamic: license-file
+
+# tgconvert
+
+🔄 **Universal Telegram Session Converter**
+
+[![Python Version](https://img.shields.io/pypi/pyversions/tgconvert)](https://pypi.org/project/tgconvert/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Библиотека для конвертации сессий Telegram между различными форматами. Поддерживает все популярные форматы: Telethon, Pyrogram, Telegram Desktop (tdata), и строковый формат auth_key.
+
+## 🎯 Особенности
+
+- ✅ **Поддержка всех форматов**: Telethon, Pyrogram, tdata, auth_key
+- ✅ **Автоопределение формата**: Не нужно указывать входной формат
+- ✅ **Собственные парсеры**: Не использует существующие библиотеки
+- ✅ **CLI и API**: Используйте как библиотеку или из командной строки
+- ✅ **Криптография**: Полная поддержка шифрования tdata
+- ✅ **Простота использования**: Всего несколько строк кода
+
+## 📦 Установка
+
+```bash
+pip install tgconvert
+```
+
+### Зависимости
+
+tgconvert автоматически установит необходимые зависимости:
+- `cryptography` - для шифрования
+- `tgcrypto` - для Telegram криптографии  
+- `opentele` - для корректной работы с форматом tdata
+
+Или из исходников:
+
+```bash
+git clone https://github.com/yourusername/tgconvert
+cd tgconvert
+pip install -e .
+```
+
+## 🚀 Быстрый старт
+
+### CLI (Командная строка)
+
+```bash
+# Конвертировать Telethon → Pyrogram
+tgconvert -i session.session -o output.session -if telethon -of pyrogram
+
+# Автоопределение формата
+tgconvert -i session.session -o output.session -of pyrogram
+
+# Конвертировать в tdata
+tgconvert -i session.session -o ./tdata/ -of tdata
+
+# Конвертировать в auth_key строку
+tgconvert -i session.session -o authkey.txt -of authkey
+
+# Получить информацию о сессии
+tgconvert -i session.session --info
+
+# Список поддерживаемых форматов
+tgconvert --list-formats
+```
+
+### Python API
+
+```python
+from tgconvert import SessionConverter
+
+# Создать конвертер
+converter = SessionConverter()
+
+# Простая конвертация (автоопределение формата)
+converter.convert(
+    input_path="session.session",
+    output_path="output.session",
+    output_format="pyrogram"
+)
+
+# Конвертация с явным указанием форматов
+converter.convert(
+    input_path="session.session",
+    output_path="./tdata/",
+    input_format="telethon",
+    output_format="tdata"
+)
+
+# Получить информацию о сессии
+info = converter.get_info("session.session")
+print(f"DC ID: {info['dc_id']}")
+print(f"User ID: {info['user_id']}")
+
+# Загрузить и сохранить вручную
+session_data = converter.load("session.session")
+converter.save(session_data, "new_session.session", "pyrogram")
+```
+
+## 📋 Поддерживаемые форматы
+
+| Формат | Описание | Расширение | Чтение | Запись |
+|--------|----------|------------|--------|--------|
+| `telethon` | Telethon SQLite сессии | `.session` | ✅ | ✅ |
+| `pyrogram` | Pyrogram SQLite сессии | `.session` | ✅ | ✅ |
+| `tdata` | Telegram Desktop | `tdata/` (папка) | ✅ | ✅* |
+| `authkey` | Строковый формат | `.txt` или строка | ✅ | ✅ |
+
+\* **Tdata запись:** Для создания полностью рабочей tdata структуры библиотека копирует существующую tdata-папку как шаблон (из `accs/tdata` или `%APPDATA%/Telegram Desktop/tdata`) и модифицирует auth_key. Это обеспечивает 100% совместимость с Telegram Desktop.
+
+### Формат auth_key
+
+Строковый формат: `<auth_key_hex>:<dc_id>`
+
+Пример:
+```
+a1b2c3d4e5f6...256_hex_bytes...:2
+```
+
+## 🔧 Продвинутое использование
+
+### Работа с SessionData
+
+```python
+from tgconvert import SessionConverter, SessionData
+
+converter = SessionConverter()
+
+# Загрузить сессию
+session_data = converter.load("session.session")
+
+# Доступ к данным
+print(f"Auth Key: {session_data.auth_key.hex()}")
+print(f"DC ID: {session_data.dc_id}")
+print(f"User ID: {session_data.user_id}")
+
+# Изменить данные
+session_data.dc_id = 2
+session_data.user_id = 123456789
+
+# Сохранить в разных форматах
+converter.save(session_data, "telethon.session", "telethon")
+converter.save(session_data, "pyrogram.session", "pyrogram")
+converter.save(session_data, "tdata/", "tdata")
+converter.save(session_data, "authkey.txt", "authkey")
+```
+
+### Создание сессии из auth_key
+
+```python
+from tgconvert import SessionData, SessionConverter
+
+# Создать SessionData вручную
+session_data = SessionData(
+    auth_key=bytes.fromhex("a1b2c3..."),
+    dc_id=2,
+    user_id=123456789
+)
+
+# Сохранить в любом формате
+converter = SessionConverter()
+converter.save(session_data, "new_session.session", "telethon")
+```
+
+## 🔐 Безопасность
+
+- ⚠️ **Никогда не делитесь сессиями**: Они дают полный доступ к аккаунту
+- 🔒 **Храните безопасно**: Используйте шифрование для хранения
+- 🚫 **Не коммитьте**: Добавьте `*.session` и `tdata/` в `.gitignore`
+
+## 📚 Примеры использования
+
+### Пакетная конвертация
+
+```python
+import os
+from tgconvert import SessionConverter
+
+converter = SessionConverter()
+
+# Конвертировать все .session файлы в tdata
+for file in os.listdir("."):
+    if file.endswith(".session"):
+        output_dir = f"tdata_{file[:-8]}"
+        converter.convert(file, output_dir, output_format="tdata")
+        print(f"Converted {file} -> {output_dir}")
+```
+
+### Миграция между библиотеками
+
+```python
+from tgconvert import SessionConverter
+
+# Переход с Telethon на Pyrogram
+converter = SessionConverter()
+
+# Конвертировать все сессии
+sessions = ["user1.session", "user2.session", "bot.session"]
+
+for session in sessions:
+    new_name = f"pyrogram_{session}"
+    converter.convert(
+        input_path=session,
+        output_path=new_name,
+        input_format="telethon",
+        output_format="pyrogram"
+    )
+    print(f"✓ Migrated {session}")
+```
+
+## 🛠️ Разработка
+
+### Установка для разработки
+
+```bash
+git clone https://github.com/yourusername/tgconvert
+cd tgconvert
+pip install -e ".[dev]"
+```
+
+### Запуск тестов
+
+```bash
+pytest tests/
+```
+
+### Форматирование кода
+
+```bash
+black tgconvert/
+```
+
+## 🧪 Тестирование
+
+### Быстрый запуск всех тестов
+
+```powershell
+# Windows PowerShell
+.\run_all_tests.ps1
+```
+
+### Отдельные тесты
+
+```powershell
+# Юнит-тесты
+C:\Users\kinug\Documents\Projects\tgconvert\.venv\Scripts\python.exe -m pytest tests/ -v
+
+# Ручное тестирование
+C:\Users\kinug\Documents\Projects\tgconvert\.venv\Scripts\python.exe manual_test.py
+
+# Финальная проверка
+C:\Users\kinug\Documents\Projects\tgconvert\.venv\Scripts\python.exe pre_publish_check.py
+```
+
+Подробное руководство: [TESTING_GUIDE.md](TESTING_GUIDE.md)
+
+## 📖 Публикация на PyPI
+
+Подробная инструкция по публикации вашей библиотеки на PyPI:
+- **Полное руководство**: [PYPI_GUIDE.md](PYPI_GUIDE.md)
+- **Быстрая инструкция**: [PUBLISH_NOW.md](PUBLISH_NOW.md)
+- **Тестирование**: [TESTING_GUIDE.md](TESTING_GUIDE.md)
+
+## 🤝 Вклад
+
+Contributions приветствуются! Пожалуйста:
+
+1. Fork репозиторий
+2. Создайте feature branch (`git checkout -b feature/amazing`)
+3. Commit изменения (`git commit -m 'Add amazing feature'`)
+4. Push в branch (`git push origin feature/amazing`)
+5. Откройте Pull Request
+
+## 📄 Лицензия
+
+Этот проект распространяется под лицензией MIT. См. файл [LICENSE](LICENSE) для подробностей.
+
+## ⚠️ Дисклеймер
+
+Эта библиотека предназначена только для легального использования. Автор не несет ответственности за любое неправомерное использование. Всегда соблюдайте [Terms of Service](https://telegram.org/tos) Telegram.
+
+## 🔗 Ссылки
+
+- **GitHub**: https://github.com/yourusername/tgconvert
+- **PyPI**: https://pypi.org/project/tgconvert/
+- **Issues**: https://github.com/yourusername/tgconvert/issues
+- **Telegram API**: https://core.telegram.org/api
+
+## 📮 Контакты
+
+Если у вас есть вопросы или предложения, создайте Issue на GitHub.
+
+---
+
+Сделано с ❤️ для сообщества Telegram
