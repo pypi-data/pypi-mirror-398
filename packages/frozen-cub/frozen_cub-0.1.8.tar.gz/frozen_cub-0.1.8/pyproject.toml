@@ -1,0 +1,123 @@
+[project]
+name = "frozen-cub"
+description = "A set of C and Python implementations of immutable, hashable, and performant frozen objects."
+dynamic = ["version"]
+authors = [{name = "chaz", email = "bright.lid5647@fastmail.com"}]
+readme = "README.md"
+requires-python = ">=3.12"
+keywords = []
+dependencies = []
+
+[project.scripts]
+frozen-cub = "frozen_cub._internal.cli:main"
+
+[tool.uv]
+default-groups = ["maintain", "ci"]
+
+
+[dependency-groups]
+maintain = [
+    "build>=1.2",
+    "git-changelog>=2.5",
+    "yore>=0.3.3",
+    "griffe>=1.7.3",
+    "hatchling>=1.28.0",
+    "twine>=6.2.0",
+    "cython>=3.2.3",
+    "rich>=14.2.0",
+]
+ci = [
+    "ruff>=0.4",
+    "pytest>=8.2",
+    "pytest-cov>=5.0",
+    "pytest-randomly>=3.15",
+    "pytest-xdist>=3.6",
+    "pyright>=1.1",
+    "types-markdown>=3.6",
+    "types-pyyaml>=6.0",
+    "nox>=2025.5.1",
+]
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "standard"
+include = ["src"]
+exclude = ["**/__pycache__", "**/*.pyx", "**/*.pxd"]
+venvPath = "."
+venv = ".venv"
+reportMissingImports = true
+reportMissingTypeStubs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+addopts = "-v -s"
+asyncio_mode = "auto"
+markers = [
+    "visual: marks tests as visual verification tests (deselect with '-m \"not visual\"')"
+]
+filterwarnings = [
+    "ignore::PendingDeprecationWarning",
+    "ignore::ImportWarning",
+    "ignore::ResourceWarning",
+    "ignore::UserWarning",
+]
+
+[build-system]
+requires = [
+    "hatchling",
+    "uv-dynamic-versioning",
+    "cython>=3.0.11",
+    "setuptools",
+]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "semver"
+metadata = false
+fallback_version = "0.0.1"
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+name = "frozen_cub"
+annotate = true
+lib_files = [".so", ".pyd"]
+compiler_directives = { language_level = "3", embedsignature = true, boundscheck = false, wraparound = false }
+extra_compile_args = ["-O3", "-ffast-math"]
+extra_link_args = ["-Wl,-w", "-O3"]
+# extra_compile_args_windows = ["/O2", "/fp:fast"]
+# extra_link_args_windows = ["/IGNORE:4099", "/OPT:REF", "/OPT:ICF"]
+# include_dirs = ["/opt/homebrew/include"]
+# library_dirs = ["/opt/homebrew/lib"]
+# libraries []
+output = "src/frozen_cub/_internal/_version.py"
+template = '''
+__version__ = "{{ version }}"
+__commit_id__ = "{{ commit }}"
+__version_tuple__ = ({{ major }}, {{ minor }}, {{ patch }})
+
+'''
+
+[tool.hatch.build]
+packages = ["src/frozen_cub"]
+
+[tool.hatch.build.targets.wheel]
+artifacts = [
+    "**/*.so",
+    "**/*.pyd",
+]
+
+[tool.hatch.build.targets.sdist]
+artifacts = [
+    "**/*.so",
+    "**/*.pyd",
+]
+include = [
+    "src/**/*.pyx",
+    "src/**/*.pxd",
+    "src/**/*.c",
+]
