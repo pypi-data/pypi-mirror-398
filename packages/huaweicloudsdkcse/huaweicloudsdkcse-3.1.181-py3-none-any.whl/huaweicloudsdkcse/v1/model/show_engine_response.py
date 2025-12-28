@@ -1,0 +1,738 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.sdk_response import SdkResponse
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ShowEngineResponse(SdkResponse):
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'id': 'str',
+        'name': 'str',
+        'description': 'str',
+        'auth_type': 'str',
+        'flavor': 'str',
+        'payment': 'str',
+        'version': 'str',
+        'latest_version': 'str',
+        'status': 'str',
+        'be_default': 'bool',
+        'create_user': 'str',
+        'create_time': 'int',
+        'cce_spec': 'Spec',
+        'external_entrypoint': 'EngineExternalEntrypoint',
+        'reference': 'EngineReference',
+        'latest_job_id': 'int',
+        'enterprise_project_id': 'str',
+        'enterprise_project_name': 'str',
+        'engine_additional_actions': 'list[str]',
+        'spec_type': 'str',
+        'type': 'str',
+        'project_id': 'str',
+        'vm_ids': 'list[str]'
+    }
+
+    attribute_map = {
+        'id': 'id',
+        'name': 'name',
+        'description': 'description',
+        'auth_type': 'authType',
+        'flavor': 'flavor',
+        'payment': 'payment',
+        'version': 'version',
+        'latest_version': 'latestVersion',
+        'status': 'status',
+        'be_default': 'beDefault',
+        'create_user': 'createUser',
+        'create_time': 'createTime',
+        'cce_spec': 'cceSpec',
+        'external_entrypoint': 'externalEntrypoint',
+        'reference': 'reference',
+        'latest_job_id': 'latestJobId',
+        'enterprise_project_id': 'enterpriseProjectId',
+        'enterprise_project_name': 'enterpriseProjectName',
+        'engine_additional_actions': 'engineAdditionalActions',
+        'spec_type': 'specType',
+        'type': 'type',
+        'project_id': 'projectId',
+        'vm_ids': 'vmIds'
+    }
+
+    def __init__(self, id=None, name=None, description=None, auth_type=None, flavor=None, payment=None, version=None, latest_version=None, status=None, be_default=None, create_user=None, create_time=None, cce_spec=None, external_entrypoint=None, reference=None, latest_job_id=None, enterprise_project_id=None, enterprise_project_name=None, engine_additional_actions=None, spec_type=None, type=None, project_id=None, vm_ids=None):
+        r"""ShowEngineResponse
+
+        The model defined in huaweicloud sdk
+
+        :param id: 微服务引擎ID
+        :type id: str
+        :param name: 微服务引擎名称
+        :type name: str
+        :param description: 微服务引擎描述
+        :type description: str
+        :param auth_type: 微服务引擎认证类型
+        :type auth_type: str
+        :param flavor: 微服务引擎规格
+        :type flavor: str
+        :param payment: 微服务引擎计费方式
+        :type payment: str
+        :param version: 微服务引擎当前版本
+        :type version: str
+        :param latest_version: 微服务引擎最新版本
+        :type latest_version: str
+        :param status: 微服务引擎状态
+        :type status: str
+        :param be_default: engine 是否是默认引擎
+        :type be_default: bool
+        :param create_user: 微服务引擎创建者
+        :type create_user: str
+        :param create_time: 微服务引擎创建时间
+        :type create_time: int
+        :param cce_spec: 
+        :type cce_spec: :class:`huaweicloudsdkcse.v1.Spec`
+        :param external_entrypoint: 
+        :type external_entrypoint: :class:`huaweicloudsdkcse.v1.EngineExternalEntrypoint`
+        :param reference: 
+        :type reference: :class:`huaweicloudsdkcse.v1.EngineReference`
+        :param latest_job_id: 微服务引擎最近的任务ID
+        :type latest_job_id: int
+        :param enterprise_project_id: 微服务引擎所属企业项目ID
+        :type enterprise_project_id: str
+        :param enterprise_project_name: 微服务引擎所属企业项目名称
+        :type enterprise_project_name: str
+        :param engine_additional_actions: 微服务引擎允许的附加操作
+        :type engine_additional_actions: list[str]
+        :param spec_type: 微服务引擎应用部署类型
+        :type spec_type: str
+        :param type: 微服务引擎类型，CSE表示专享版，NACOS表示注册配置中心，MICROGATEWAY表示网关
+        :type type: str
+        :param project_id: 微服务引擎所属项目ID
+        :type project_id: str
+        :param vm_ids: 当前引擎在资源租户侧使用的虚拟机 id 列表
+        :type vm_ids: list[str]
+        """
+        
+        super().__init__()
+
+        self._id = None
+        self._name = None
+        self._description = None
+        self._auth_type = None
+        self._flavor = None
+        self._payment = None
+        self._version = None
+        self._latest_version = None
+        self._status = None
+        self._be_default = None
+        self._create_user = None
+        self._create_time = None
+        self._cce_spec = None
+        self._external_entrypoint = None
+        self._reference = None
+        self._latest_job_id = None
+        self._enterprise_project_id = None
+        self._enterprise_project_name = None
+        self._engine_additional_actions = None
+        self._spec_type = None
+        self._type = None
+        self._project_id = None
+        self._vm_ids = None
+        self.discriminator = None
+
+        if id is not None:
+            self.id = id
+        if name is not None:
+            self.name = name
+        if description is not None:
+            self.description = description
+        if auth_type is not None:
+            self.auth_type = auth_type
+        if flavor is not None:
+            self.flavor = flavor
+        if payment is not None:
+            self.payment = payment
+        if version is not None:
+            self.version = version
+        if latest_version is not None:
+            self.latest_version = latest_version
+        if status is not None:
+            self.status = status
+        if be_default is not None:
+            self.be_default = be_default
+        if create_user is not None:
+            self.create_user = create_user
+        if create_time is not None:
+            self.create_time = create_time
+        if cce_spec is not None:
+            self.cce_spec = cce_spec
+        if external_entrypoint is not None:
+            self.external_entrypoint = external_entrypoint
+        if reference is not None:
+            self.reference = reference
+        if latest_job_id is not None:
+            self.latest_job_id = latest_job_id
+        if enterprise_project_id is not None:
+            self.enterprise_project_id = enterprise_project_id
+        if enterprise_project_name is not None:
+            self.enterprise_project_name = enterprise_project_name
+        if engine_additional_actions is not None:
+            self.engine_additional_actions = engine_additional_actions
+        if spec_type is not None:
+            self.spec_type = spec_type
+        if type is not None:
+            self.type = type
+        if project_id is not None:
+            self.project_id = project_id
+        if vm_ids is not None:
+            self.vm_ids = vm_ids
+
+    @property
+    def id(self):
+        r"""Gets the id of this ShowEngineResponse.
+
+        微服务引擎ID
+
+        :return: The id of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._id
+
+    @id.setter
+    def id(self, id):
+        r"""Sets the id of this ShowEngineResponse.
+
+        微服务引擎ID
+
+        :param id: The id of this ShowEngineResponse.
+        :type id: str
+        """
+        self._id = id
+
+    @property
+    def name(self):
+        r"""Gets the name of this ShowEngineResponse.
+
+        微服务引擎名称
+
+        :return: The name of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        r"""Sets the name of this ShowEngineResponse.
+
+        微服务引擎名称
+
+        :param name: The name of this ShowEngineResponse.
+        :type name: str
+        """
+        self._name = name
+
+    @property
+    def description(self):
+        r"""Gets the description of this ShowEngineResponse.
+
+        微服务引擎描述
+
+        :return: The description of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._description
+
+    @description.setter
+    def description(self, description):
+        r"""Sets the description of this ShowEngineResponse.
+
+        微服务引擎描述
+
+        :param description: The description of this ShowEngineResponse.
+        :type description: str
+        """
+        self._description = description
+
+    @property
+    def auth_type(self):
+        r"""Gets the auth_type of this ShowEngineResponse.
+
+        微服务引擎认证类型
+
+        :return: The auth_type of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._auth_type
+
+    @auth_type.setter
+    def auth_type(self, auth_type):
+        r"""Sets the auth_type of this ShowEngineResponse.
+
+        微服务引擎认证类型
+
+        :param auth_type: The auth_type of this ShowEngineResponse.
+        :type auth_type: str
+        """
+        self._auth_type = auth_type
+
+    @property
+    def flavor(self):
+        r"""Gets the flavor of this ShowEngineResponse.
+
+        微服务引擎规格
+
+        :return: The flavor of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._flavor
+
+    @flavor.setter
+    def flavor(self, flavor):
+        r"""Sets the flavor of this ShowEngineResponse.
+
+        微服务引擎规格
+
+        :param flavor: The flavor of this ShowEngineResponse.
+        :type flavor: str
+        """
+        self._flavor = flavor
+
+    @property
+    def payment(self):
+        r"""Gets the payment of this ShowEngineResponse.
+
+        微服务引擎计费方式
+
+        :return: The payment of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._payment
+
+    @payment.setter
+    def payment(self, payment):
+        r"""Sets the payment of this ShowEngineResponse.
+
+        微服务引擎计费方式
+
+        :param payment: The payment of this ShowEngineResponse.
+        :type payment: str
+        """
+        self._payment = payment
+
+    @property
+    def version(self):
+        r"""Gets the version of this ShowEngineResponse.
+
+        微服务引擎当前版本
+
+        :return: The version of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._version
+
+    @version.setter
+    def version(self, version):
+        r"""Sets the version of this ShowEngineResponse.
+
+        微服务引擎当前版本
+
+        :param version: The version of this ShowEngineResponse.
+        :type version: str
+        """
+        self._version = version
+
+    @property
+    def latest_version(self):
+        r"""Gets the latest_version of this ShowEngineResponse.
+
+        微服务引擎最新版本
+
+        :return: The latest_version of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._latest_version
+
+    @latest_version.setter
+    def latest_version(self, latest_version):
+        r"""Sets the latest_version of this ShowEngineResponse.
+
+        微服务引擎最新版本
+
+        :param latest_version: The latest_version of this ShowEngineResponse.
+        :type latest_version: str
+        """
+        self._latest_version = latest_version
+
+    @property
+    def status(self):
+        r"""Gets the status of this ShowEngineResponse.
+
+        微服务引擎状态
+
+        :return: The status of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        r"""Sets the status of this ShowEngineResponse.
+
+        微服务引擎状态
+
+        :param status: The status of this ShowEngineResponse.
+        :type status: str
+        """
+        self._status = status
+
+    @property
+    def be_default(self):
+        r"""Gets the be_default of this ShowEngineResponse.
+
+        engine 是否是默认引擎
+
+        :return: The be_default of this ShowEngineResponse.
+        :rtype: bool
+        """
+        return self._be_default
+
+    @be_default.setter
+    def be_default(self, be_default):
+        r"""Sets the be_default of this ShowEngineResponse.
+
+        engine 是否是默认引擎
+
+        :param be_default: The be_default of this ShowEngineResponse.
+        :type be_default: bool
+        """
+        self._be_default = be_default
+
+    @property
+    def create_user(self):
+        r"""Gets the create_user of this ShowEngineResponse.
+
+        微服务引擎创建者
+
+        :return: The create_user of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._create_user
+
+    @create_user.setter
+    def create_user(self, create_user):
+        r"""Sets the create_user of this ShowEngineResponse.
+
+        微服务引擎创建者
+
+        :param create_user: The create_user of this ShowEngineResponse.
+        :type create_user: str
+        """
+        self._create_user = create_user
+
+    @property
+    def create_time(self):
+        r"""Gets the create_time of this ShowEngineResponse.
+
+        微服务引擎创建时间
+
+        :return: The create_time of this ShowEngineResponse.
+        :rtype: int
+        """
+        return self._create_time
+
+    @create_time.setter
+    def create_time(self, create_time):
+        r"""Sets the create_time of this ShowEngineResponse.
+
+        微服务引擎创建时间
+
+        :param create_time: The create_time of this ShowEngineResponse.
+        :type create_time: int
+        """
+        self._create_time = create_time
+
+    @property
+    def cce_spec(self):
+        r"""Gets the cce_spec of this ShowEngineResponse.
+
+        :return: The cce_spec of this ShowEngineResponse.
+        :rtype: :class:`huaweicloudsdkcse.v1.Spec`
+        """
+        return self._cce_spec
+
+    @cce_spec.setter
+    def cce_spec(self, cce_spec):
+        r"""Sets the cce_spec of this ShowEngineResponse.
+
+        :param cce_spec: The cce_spec of this ShowEngineResponse.
+        :type cce_spec: :class:`huaweicloudsdkcse.v1.Spec`
+        """
+        self._cce_spec = cce_spec
+
+    @property
+    def external_entrypoint(self):
+        r"""Gets the external_entrypoint of this ShowEngineResponse.
+
+        :return: The external_entrypoint of this ShowEngineResponse.
+        :rtype: :class:`huaweicloudsdkcse.v1.EngineExternalEntrypoint`
+        """
+        return self._external_entrypoint
+
+    @external_entrypoint.setter
+    def external_entrypoint(self, external_entrypoint):
+        r"""Sets the external_entrypoint of this ShowEngineResponse.
+
+        :param external_entrypoint: The external_entrypoint of this ShowEngineResponse.
+        :type external_entrypoint: :class:`huaweicloudsdkcse.v1.EngineExternalEntrypoint`
+        """
+        self._external_entrypoint = external_entrypoint
+
+    @property
+    def reference(self):
+        r"""Gets the reference of this ShowEngineResponse.
+
+        :return: The reference of this ShowEngineResponse.
+        :rtype: :class:`huaweicloudsdkcse.v1.EngineReference`
+        """
+        return self._reference
+
+    @reference.setter
+    def reference(self, reference):
+        r"""Sets the reference of this ShowEngineResponse.
+
+        :param reference: The reference of this ShowEngineResponse.
+        :type reference: :class:`huaweicloudsdkcse.v1.EngineReference`
+        """
+        self._reference = reference
+
+    @property
+    def latest_job_id(self):
+        r"""Gets the latest_job_id of this ShowEngineResponse.
+
+        微服务引擎最近的任务ID
+
+        :return: The latest_job_id of this ShowEngineResponse.
+        :rtype: int
+        """
+        return self._latest_job_id
+
+    @latest_job_id.setter
+    def latest_job_id(self, latest_job_id):
+        r"""Sets the latest_job_id of this ShowEngineResponse.
+
+        微服务引擎最近的任务ID
+
+        :param latest_job_id: The latest_job_id of this ShowEngineResponse.
+        :type latest_job_id: int
+        """
+        self._latest_job_id = latest_job_id
+
+    @property
+    def enterprise_project_id(self):
+        r"""Gets the enterprise_project_id of this ShowEngineResponse.
+
+        微服务引擎所属企业项目ID
+
+        :return: The enterprise_project_id of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._enterprise_project_id
+
+    @enterprise_project_id.setter
+    def enterprise_project_id(self, enterprise_project_id):
+        r"""Sets the enterprise_project_id of this ShowEngineResponse.
+
+        微服务引擎所属企业项目ID
+
+        :param enterprise_project_id: The enterprise_project_id of this ShowEngineResponse.
+        :type enterprise_project_id: str
+        """
+        self._enterprise_project_id = enterprise_project_id
+
+    @property
+    def enterprise_project_name(self):
+        r"""Gets the enterprise_project_name of this ShowEngineResponse.
+
+        微服务引擎所属企业项目名称
+
+        :return: The enterprise_project_name of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._enterprise_project_name
+
+    @enterprise_project_name.setter
+    def enterprise_project_name(self, enterprise_project_name):
+        r"""Sets the enterprise_project_name of this ShowEngineResponse.
+
+        微服务引擎所属企业项目名称
+
+        :param enterprise_project_name: The enterprise_project_name of this ShowEngineResponse.
+        :type enterprise_project_name: str
+        """
+        self._enterprise_project_name = enterprise_project_name
+
+    @property
+    def engine_additional_actions(self):
+        r"""Gets the engine_additional_actions of this ShowEngineResponse.
+
+        微服务引擎允许的附加操作
+
+        :return: The engine_additional_actions of this ShowEngineResponse.
+        :rtype: list[str]
+        """
+        return self._engine_additional_actions
+
+    @engine_additional_actions.setter
+    def engine_additional_actions(self, engine_additional_actions):
+        r"""Sets the engine_additional_actions of this ShowEngineResponse.
+
+        微服务引擎允许的附加操作
+
+        :param engine_additional_actions: The engine_additional_actions of this ShowEngineResponse.
+        :type engine_additional_actions: list[str]
+        """
+        self._engine_additional_actions = engine_additional_actions
+
+    @property
+    def spec_type(self):
+        r"""Gets the spec_type of this ShowEngineResponse.
+
+        微服务引擎应用部署类型
+
+        :return: The spec_type of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._spec_type
+
+    @spec_type.setter
+    def spec_type(self, spec_type):
+        r"""Sets the spec_type of this ShowEngineResponse.
+
+        微服务引擎应用部署类型
+
+        :param spec_type: The spec_type of this ShowEngineResponse.
+        :type spec_type: str
+        """
+        self._spec_type = spec_type
+
+    @property
+    def type(self):
+        r"""Gets the type of this ShowEngineResponse.
+
+        微服务引擎类型，CSE表示专享版，NACOS表示注册配置中心，MICROGATEWAY表示网关
+
+        :return: The type of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._type
+
+    @type.setter
+    def type(self, type):
+        r"""Sets the type of this ShowEngineResponse.
+
+        微服务引擎类型，CSE表示专享版，NACOS表示注册配置中心，MICROGATEWAY表示网关
+
+        :param type: The type of this ShowEngineResponse.
+        :type type: str
+        """
+        self._type = type
+
+    @property
+    def project_id(self):
+        r"""Gets the project_id of this ShowEngineResponse.
+
+        微服务引擎所属项目ID
+
+        :return: The project_id of this ShowEngineResponse.
+        :rtype: str
+        """
+        return self._project_id
+
+    @project_id.setter
+    def project_id(self, project_id):
+        r"""Sets the project_id of this ShowEngineResponse.
+
+        微服务引擎所属项目ID
+
+        :param project_id: The project_id of this ShowEngineResponse.
+        :type project_id: str
+        """
+        self._project_id = project_id
+
+    @property
+    def vm_ids(self):
+        r"""Gets the vm_ids of this ShowEngineResponse.
+
+        当前引擎在资源租户侧使用的虚拟机 id 列表
+
+        :return: The vm_ids of this ShowEngineResponse.
+        :rtype: list[str]
+        """
+        return self._vm_ids
+
+    @vm_ids.setter
+    def vm_ids(self, vm_ids):
+        r"""Sets the vm_ids of this ShowEngineResponse.
+
+        当前引擎在资源租户侧使用的虚拟机 id 列表
+
+        :param vm_ids: The vm_ids of this ShowEngineResponse.
+        :type vm_ids: list[str]
+        """
+        self._vm_ids = vm_ids
+
+    def to_dict(self):
+        import warnings
+        warnings.warn("ShowEngineResponse.to_dict() is deprecated and no longer maintained, "
+                      "use to_json_object() to get the response content.", DeprecationWarning)
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ShowEngineResponse):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
