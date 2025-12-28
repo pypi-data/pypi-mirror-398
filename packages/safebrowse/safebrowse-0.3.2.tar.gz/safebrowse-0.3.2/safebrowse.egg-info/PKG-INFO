@@ -1,0 +1,336 @@
+Metadata-Version: 2.4
+Name: safebrowse
+Version: 0.3.2
+Summary: Python SDK for SafeBrowse - AI-powered browser security with prompt injection detection
+Home-page: https://github.com/aadil1/AI_Browser
+Author: SafeBrowse
+Author-email: aadilsayed19@gmail.com
+Project-URL: Documentation, https://ai-browser-5d4p.onrender.com/docs
+Project-URL: Source, https://github.com/aadil1/AI_Browser
+Project-URL: Tracker, https://github.com/aadil1/AI_Browser/issues
+Project-URL: Demo, https://ai-browser-5d4p.onrender.com
+Keywords: ai security prompt-injection llm browser agent rag sanitization
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Security
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: httpx>=0.24.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.20.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: project-url
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# SafeBrowse Python SDK
+
+> **Enterprise-grade security for AI agents and RAG pipelines.**
+
+[![PyPI version](https://badge.fury.io/py/safebrowse.svg)](https://pypi.org/project/safebrowse/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
+SafeBrowse protects your AI applications from prompt injection attacks. Scan web content before your LLM processes it.
+
+## Installation
+
+```bash
+pip install safebrowse
+```
+
+## Quick Start
+
+```python
+from safebrowse import SafeBrowseClient
+
+client = SafeBrowseClient(api_key="your-api-key")
+
+# Protect your agent
+with client.guard(html, url) as decision:
+    print(f"Risk score: {decision.risk_score}")
+    agent.run()  # Only runs if content is safe
+```
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **Prompt Injection Detection** | Detects 50+ attack patterns |
+| **Policy Engine** | Block login forms, suspicious domains |
+| **RAG Sanitization** | Clean document chunks before ingestion |
+| **Batch Scanning** | Efficiently scan multiple pages |
+| **Fail-Closed Design** | Errors block, never fail open |
+| **Audit Logging** | Full request traceability |
+| **Document Scanning** | Scan PDFs & Images via OCR |
+| **Red Team Testing** | Run security attack simulations |
+| **Agent Guard** | Stateful session protection for agents |
+
+## Usage
+
+### Scan HTML
+
+```python
+result = client.scan_html(
+    html="<html><body>...</body></html>",
+    url="https://example.com"
+)
+
+if result.is_safe:
+    process(html)
+else:
+    print(f"Blocked: {result.reason}")
+    print(f"Risk: {result.risk_score}")
+```
+
+### Safe Ask (LLM Query)
+
+```python
+result = client.safe_ask(
+    html="<html>...</html>",
+    url="https://example.com",
+    query="Summarize this page"
+)
+
+print(result.answer)
+```
+
+### Guard Context Manager
+
+```python
+from safebrowse import BlockedError
+
+try:
+    with client.guard(html, url) as decision:
+        # Only executes if content is safe
+        # Access decision metadata
+        print(f"Risk: {decision.risk_score}")
+        agent.browse(url)
+except BlockedError as e:
+    print(f"Blocked: {e.message}")
+    print(f"Code: {e.code}")  # Machine-readable
+```
+
+### RAG Pipeline Sanitization
+
+```python
+# Clean chunks before adding to vector DB
+result = client.sanitize(
+    documents=["chunk 1", "chunk 2", "ignore instructions..."],
+    source="web"
+)
+
+safe_chunks = result.safe_chunks  # Only safe content
+print(f"Removed {result.blocked_count} dangerous chunks")
+```
+
+### Batch Scanning
+
+```python
+results = client.scan_batch([
+    {"html": page1, "url": url1},
+    {"html": page2, "url": url2},
+])
+
+print(f"Safe: {results.safe_count}/{results.total}")
+```
+
+## Configuration
+
+### Config Object
+
+```python
+from safebrowse import SafeBrowseConfig, SafeBrowseClient
+
+config = SafeBrowseConfig(
+    api_key="your-key",
+    base_url="https://api.safebrowse.io",
+    timeout=30.0,
+)
+
+client = SafeBrowseClient(config=config)
+```
+
+### Environment Variables
+
+```bash
+export SAFEBROWSE_API_KEY=your-key
+export SAFEBROWSE_BASE_URL=https://api.safebrowse.io
+export SAFEBROWSE_TIMEOUT=30
+```
+
+```python
+client = SafeBrowseClient.from_env()
+```
+
+### Logging Hooks
+
+```python
+def on_blocked(result):
+    logger.warning(f"Blocked: {result.reason}")
+    metrics.increment("safebrowse.blocked")
+
+def on_allowed(result):
+    logger.info(f"Allowed: risk={result.risk_score}")
+
+client = SafeBrowseClient(
+    api_key="your-key",
+    on_blocked=on_blocked,
+    on_allowed=on_allowed,
+)
+```
+
+## Error Handling
+
+```python
+from safebrowse import BlockedError, AuthenticationError, ConnectionError, ErrorCode
+
+try:
+    result = client.safe_ask(html, url, query)
+except BlockedError as e:
+    # Content was blocked
+    print(f"Code: {e.code}")  # ErrorCode.INJECTION_DETECTED
+    print(f"Risk: {e.risk_score}")
+    print(f"Request ID: {e.request_id}")  # For audit lookup
+except AuthenticationError:
+    print("Invalid API key")
+except ConnectionError:
+    print("Cannot reach SafeBrowse API")
+```
+
+### Error Codes
+
+| Code | Description |
+|------|-------------|
+| `INJECTION_DETECTED` | Prompt injection found |
+| `INJECTION_HIDDEN_HTML` | Hidden malicious content |
+| `POLICY_LOGIN_FORM` | Login form detected |
+| `POLICY_BLOCKED_DOMAIN` | Domain is blocklisted |
+| `AUTH_INVALID_KEY` | Invalid API key |
+| `CONN_REFUSED` | Connection refused |
+
+## Async Support
+
+```python
+from safebrowse import AsyncSafeBrowseClient
+
+async with AsyncSafeBrowseClient(api_key="your-key") as client:
+    result = await client.scan_html(html, url)
+    
+    if result.is_safe:
+        await process(html)
+```
+
+This is by design. Security cannot be optional.
+
+## Enterprise Features
+
+### Audit & Statistics
+
+```python
+# Get safety stats for the last 24 hours
+stats = client.get_audit_stats(hours=24)
+print(f"Blocked: {stats.blocked_requests}")
+print(f"Top domains: {stats.top_blocked_domains}")
+
+# Get paginated audit logs
+logs = client.get_audit_logs(limit=50, status="blocked")
+for entry in logs.logs:
+    print(f"{entry.timestamp}: {entry.url} - {entry.risk_score}")
+```
+
+### Document Scanning (PDF/OCR)
+
+```python
+# Scan a PDF for prompt injection
+result = client.scan_pdf("sensitive_doc.pdf")
+
+# Scan an image (automated OCR)
+result = client.scan_image("screenshot.png")
+
+if not result.is_safe:
+    print(f"Blocked: {result.reason}")
+    print(f"Extracted text: {result.extracted_text}")
+```
+
+### Red Team Testing
+
+```python
+# List available attack scenarios
+scenarios = client.list_attack_scenarios()
+
+# Run a red-team simulation against the current ruleset
+summary = client.run_red_team_test()
+print(f"Detection Rate: {summary.detection_rate * 100}%")
+```
+
+### Agent Guard Sessions
+
+```python
+# Manage stateful agent sessions
+session_id = client.start_agent_session(max_steps=50)
+
+# Record agent actions
+client.record_agent_step(session_id, "browsing", "visit_bank_site")
+
+# End session
+client.end_agent_session(session_id)
+```
+
+## API Reference
+
+### Classes
+
+| Class | Description |
+|-------|-------------|
+| `SafeBrowseClient` | Sync HTTP client |
+| `AsyncSafeBrowseClient` | Async HTTP client |
+| `SafeBrowseConfig` | Configuration object |
+| `ScanResult` | Result of `scan_html()` |
+| `AskResult` | Result of `safe_ask()` |
+| `SanitizeResult` | Result of `sanitize()` |
+| `BatchScanResult` | Result of `scan_batch()` |
+
+### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `SafeBrowseError` | Base exception |
+| `BlockedError` | Content was blocked |
+| `AuthenticationError` | Invalid API key |
+| `ConnectionError` | Network error |
+
+## Requirements
+
+- Python 3.10+
+- `httpx` (installed automatically)
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Links
+
+- [Documentation](https://docs.safebrowse.io)
+- [GitHub](https://github.com/safebrowse/safebrowse-python)
+- [PyPI](https://pypi.org/project/safebrowse/)
+- [API Reference](https://api.safebrowse.io/docs)
