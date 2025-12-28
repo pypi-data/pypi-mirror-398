@@ -1,0 +1,141 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.sdk_response import SdkResponse
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class ShowJobExeListNewResponse(SdkResponse):
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'total_record': 'int',
+        'job_list': 'list[JobQueryBean]'
+    }
+
+    attribute_map = {
+        'total_record': 'total_record',
+        'job_list': 'job_list'
+    }
+
+    def __init__(self, total_record=None, job_list=None):
+        r"""ShowJobExeListNewResponse
+
+        The model defined in huaweicloud sdk
+
+        :param total_record: 总记录数
+        :type total_record: int
+        :param job_list: 作业列表。
+        :type job_list: list[:class:`huaweicloudsdkmrs.v2.JobQueryBean`]
+        """
+        
+        super().__init__()
+
+        self._total_record = None
+        self._job_list = None
+        self.discriminator = None
+
+        if total_record is not None:
+            self.total_record = total_record
+        if job_list is not None:
+            self.job_list = job_list
+
+    @property
+    def total_record(self):
+        r"""Gets the total_record of this ShowJobExeListNewResponse.
+
+        总记录数
+
+        :return: The total_record of this ShowJobExeListNewResponse.
+        :rtype: int
+        """
+        return self._total_record
+
+    @total_record.setter
+    def total_record(self, total_record):
+        r"""Sets the total_record of this ShowJobExeListNewResponse.
+
+        总记录数
+
+        :param total_record: The total_record of this ShowJobExeListNewResponse.
+        :type total_record: int
+        """
+        self._total_record = total_record
+
+    @property
+    def job_list(self):
+        r"""Gets the job_list of this ShowJobExeListNewResponse.
+
+        作业列表。
+
+        :return: The job_list of this ShowJobExeListNewResponse.
+        :rtype: list[:class:`huaweicloudsdkmrs.v2.JobQueryBean`]
+        """
+        return self._job_list
+
+    @job_list.setter
+    def job_list(self, job_list):
+        r"""Sets the job_list of this ShowJobExeListNewResponse.
+
+        作业列表。
+
+        :param job_list: The job_list of this ShowJobExeListNewResponse.
+        :type job_list: list[:class:`huaweicloudsdkmrs.v2.JobQueryBean`]
+        """
+        self._job_list = job_list
+
+    def to_dict(self):
+        import warnings
+        warnings.warn("ShowJobExeListNewResponse.to_dict() is deprecated and no longer maintained, "
+                      "use to_json_object() to get the response content.", DeprecationWarning)
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, ShowJobExeListNewResponse):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
