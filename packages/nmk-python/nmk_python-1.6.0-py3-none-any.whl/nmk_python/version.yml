@@ -1,0 +1,29 @@
+config:
+    # The python version itself
+    pythonVersion:
+        __resolver__: nmk_python.version.PythonVersionResolver
+
+    # Python version stamp file
+    pythonVersionStamp: ${outputDir}/.pythonversion
+
+    # Python supported versions range (min-max)
+    pythonMinVersion: "3.10"
+    pythonMaxVersion: "3.14"
+    pythonSupportedVersions:
+        __resolver__: nmk_python.version.PythonSupportedVersionsResolver
+
+tasks:
+    # To refresh python version stamp file
+    py.version:
+        description: Refresh python version
+        emoji: ":snake:.:label: "
+        input: ${gitVersionStamp}
+        output: ${pythonVersionStamp}
+        params:
+            version: ${pythonVersion}
+        silent: true
+        builder: nmk_python.version.PythonVersionRefresh
+        deps:
+            - git.version
+        appendToDeps: setup
+        if: ${pythonSrcFiles}   # Only if python source files are found

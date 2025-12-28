@@ -1,0 +1,155 @@
+config:
+
+    # Python package name (to be configured at project level)
+    pythonPackage: ${projectName}
+    pythonModule:
+        __resolver__: nmk_python.build.PythonModuleResolver
+
+    # Python artifacts directory
+    pythonArtifacts: ${outputDir}/artifacts
+
+    # Python build directory
+    pythonBuildDir: ${outputDir}/python
+
+    # Target platform for python project
+    pythonPackagePlatform: any
+
+    # Python source distribution + wheel artifacts
+    pythonWheel: ${pythonArtifacts}/${pythonModule}-${pythonVersion}-py3-none-${pythonPackagePlatform}.whl
+
+    # Add project file fragment for build config
+    pythonProjectFileFragments:
+        - ${BASEDIR}/templates/build.toml.jinja
+
+    # Python optional deps (named groups of python package optional dependencies)
+    pythonPackageOptionalRequirements: {}
+
+    # Derived list of python dependencies from the dependency groups
+    pythonPackageOptionalRequirementsList:
+        __resolver__: nmk_python.build.PythonOptionalDepsResolver
+        params:
+            groups: ${pythonPackageOptionalRequirements}
+    pythonProjectFileItems:
+        project:
+            optional-dependencies: ${pythonPackageOptionalRequirements}
+
+    # Python package dependencies
+    pythonPackageRequirements: []
+
+    # Also install in venv all dependencies
+    venvPkgDeps:
+        - ${pythonPackageRequirements}
+        - ${pythonPackageOptionalRequirementsList}
+
+    # Extra (external) resources to be bundled in built python wheel
+    pythonExtraResources: {}
+
+    # Python editable install stamp
+    pythonEditableStamp: ${outputDir}/.pyeditable
+
+    # Python files to be ignored
+    gitIgnoredFiles:
+        - .eggs/
+        - "*.egg-info/"
+        - "*.pyc"
+        - __pycache__
+
+    # Additional github publish step: publish on pypi.org
+    githubPublishSteps:
+        - name: Publish package on pypi.org
+          uses: pypa/gh-action-pypi-publish@v1.13.0
+          with:
+            user: __token__
+            password: ${{ secrets.pypi_password }}
+            packages_dir: ${r!pythonArtifacts}
+
+    # Wheel install arguments
+    pythonWheelInstallArgs:
+        - --force-reinstall # force reinstall because otherwise install will be skipped if version didn't changed
+        - --no-deps         # but skip dependencies to avoid reinstalling everything (deps are already installed by py.venv task)
+
+    # Editable install arguments
+    pythonEditableInstallArgs:
+        - --no-deps             # skip dependencies to avoid reinstalling everything
+        - --no-build-isolation  # disable dependencies install when building for "editable" mode
+
+    # Type checking mode for Pyright; may be off, basic, standard, strict
+    pythonTypeCheckingMode: strict
+
+    # Excluded modules for wheel build
+    pythonBuildExcludedModules: []
+
+tasks:
+
+    # Python editable install
+    py.editable:
+        description: Install python editable package
+        emoji: ":snake:.:house:"
+        deps:
+            - py.project
+            - py.format
+            - py.analyze
+        appendToDeps: build
+        if: ${pythonSrcFiles}   # Only if python source files are found
+        output:
+            - ${pythonEditableStamp}
+        input:
+            - ${pythonProjectFile}
+        builder: nmk_python.build.EditableBuilder
+        params:
+            pip_args:
+                - ${pythonEditableInstallArgs}
+
+    # Python wheel build
+    py.build:
+        description: Build python wheel
+        emoji: ":snake:.:hammer:"
+        deps:
+            - py.project
+            - py.format
+            - py.analyze
+        appendToDeps: package
+        if: ${pythonSrcFiles}   # Only if python source files are found
+        output:
+            - ${pythonWheel}
+        input:
+            - ${pythonSrcFiles}
+            - ${pythonProjectFile}
+        builder: nmk_python.build.PackageBuilder
+        params:
+            project_file: ${pythonProjectFile}
+            version_file: ${pythonVersionStamp}
+            source_dirs: ${pythonSrcFolders}
+            artifacts_dir: ${pythonArtifacts}
+            build_dir: ${pythonBuildDir}
+            extra_resources: ${pythonExtraResources}
+
+    # Python wheel install
+    py.install:
+        description: Install python wheel
+        emoji: ":snake:.:inbox_tray:"
+        deps:
+            - py.build
+        appendToDeps: install
+        if: ${pythonSrcFiles}   # Only if python source files are found
+        input: ${pythonWheel}
+        output: 
+            - ${ROOTDIR}/${venvName}
+            - ${venvState}
+        builder: nmk_python.build.Installer
+        params:
+            name: ${pythonPackage}
+            pip_args:
+                - ${pythonWheelInstallArgs}
+            to_remove: ${pythonEditableStamp}
+
+    # Python module clean
+    py.uninstall:
+        description: Uninstall python package
+        emoji: ":broom:.:snake:"
+        appendToDeps:
+            - clean
+        builder: nmk_python.build.Uninstaller
+        params:
+            name: ${pythonPackage}
+        if: ${pythonSrcFiles}   # Only if python source files are found

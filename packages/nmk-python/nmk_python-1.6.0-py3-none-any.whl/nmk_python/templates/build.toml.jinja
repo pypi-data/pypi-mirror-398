@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "{{ pythonPackage }}"
+dynamic = ["version"]
+authors = [
+    {name="{{ projectAuthor }}"},
+]
+maintainers = [
+    {name="{{ projectAuthor }}"},
+]
+readme = {file = "README.md", content-type = "text/markdown"}
+requires-python = ">={{ pythonMinVersion }}"
+classifiers = [{% for ver in pythonSupportedVersions %}
+    "Programming Language :: Python :: {{ ver }}",{% endfor %}
+]
+dependencies = [{% for req in pythonPackageRequirements %}
+    "{{ req }}",{% endfor %}
+]
+
+[tool.setuptools.packages.find]
+where = [{% for path in pythonSrcFolders %}"{{path}}",{% endfor %}]
+exclude = [{% for module in pythonBuildExcludedModules %}{% if loop.index > 1 %},{% endif %}"{{module}}"{% endfor %}]
+namespaces = false
+
+[tool.setuptools.package-data]
+"*" = ["*"]
+
+[tool.setuptools.dynamic.version]
+file = "{{ pythonVersionStamp }}"
+
+[tool.distutils.bdist_wheel]
+plat-name = "{{ pythonPackagePlatform }}"
+
+[tool.pyright]
+include = {{ pythonSrcFolders }}
+typeCheckingMode = "{{ pythonTypeCheckingMode }}"
+reportMissingTypeStubs = false

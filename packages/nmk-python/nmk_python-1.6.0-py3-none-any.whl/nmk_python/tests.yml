@@ -1,0 +1,56 @@
+config:
+    # Tests related project config
+    pythonProjectFileFragments:
+        - ${BASEDIR}/templates/pytest.toml.jinja
+
+    # Coverage outputs
+    pythonCoverageHtmlReport: ${outputDir}/coverage-report
+    pythonCoverageXmlReport: ${outputDir}/coverage.xml
+    pythonCoverageFile: ${outputDir}/.coverage
+
+    # Python test output folder
+    pythonTestOutput: ${outputDir}/tests
+
+    # Pytest extra args (not generated in project file)
+    pytestExtraArgs:
+        numprocesses: auto
+        cov-fail-under: 100
+        dist: loadgroup
+        show-capture: "no"
+
+    # Ignore pytest cache
+    gitIgnoredFiles:
+        - .pytest_cache/
+
+    # Additional github build step: upload coverage report on codecov
+    githubBuildSteps:
+        - name: Upload coverage information
+          uses: codecov/codecov-action@v4.3.1
+          with:
+            files: ${r!pythonCoverageXmlReport}
+          env:
+            CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          __if__: ${pythonFoundSrcFiles}
+
+    # Ignore test module from wheel build (+ submodules)
+    pythonBuildExcludedModules:
+        - ${pythonTestPackage}*
+
+tasks:
+
+    # Python tests (through pytest)
+    py.tests:
+        description: Run python tests
+        emoji: ":snake:.:crossed_fingers:"
+        deps:
+            - py.editable
+        appendToDeps: tests
+        output:
+            - ${pythonCoverageHtmlReport}
+            - ${pythonCoverageXmlReport}
+            - ${pythonCoverageFile}
+            - ${pythonTestOutput}
+        if: ${pythonTestSrcFiles}   # Only if python test source files are found
+        builder: nmk_python.tests.PytestBuilder
+        params:
+            pytest_args: ${pytestExtraArgs}
