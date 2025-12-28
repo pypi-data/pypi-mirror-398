@@ -1,0 +1,313 @@
+# FontSearch
+
+A cross-platform Python library for discovering and analyzing system fonts with minimal dependencies.
+
+## Features
+
+- **Cross-platform**: Works on Windows, macOS, and Linux
+- **Minimal dependencies**: Core functionality uses only Python standard library
+- **Advanced filtering**: Filter by text support, font types, random sampling
+- **Font analysis**: Optional advanced features with fonttools
+- **CLI interface**: Command-line tool for quick font discovery
+- **GUI interface**: Graphical font viewer with advanced features
+- **Internationalization**: Support for 10 major languages (5.2B+ speakers)
+- **Ligature controls**: OpenType ligature support (contextual & historical) with Pillow
+- **Easy integration**: Simple API for use in other projects
+- **Clean output**: Suppresses fonttools warnings for professional usage
+
+## Installation
+
+### Basic installation (no dependencies)
+```bash
+pip install fontsearch
+```
+
+### Full installation (with fonttools for advanced features)
+```bash
+pip install fontsearch[full]
+```
+
+### GUI installation (with GUI support and ligatures)
+```bash
+pip install fontsearch[gui]
+```
+
+### Complete installation (all features including ligatures)
+```bash
+pip install fontsearch[all]
+```
+
+## Quick Start
+
+### Python API
+
+```python
+import fontsearch
+
+# Get all installed fonts
+fonts = fontsearch.get_fonts()
+print(f"Found {len(fonts)} fonts")
+
+# Get detailed font information
+font_info = fontsearch.find_fonts()
+for font in font_info[:5]:
+    print(f"{font.name} ({font.font_type.name if font.font_type else 'Unknown'})")
+    print(f"  Path: {font.path}")
+
+# Find fonts supporting specific text (requires fonttools)
+emoji_fonts = fontsearch.find_fonts(text="🌷😀")
+print(f"Fonts supporting emojis: {len(emoji_fonts)}")
+
+# Filter by font type
+from fontsearch import FontType
+ttf_fonts = fontsearch.find_fonts(types=[FontType.TTF])
+print(f"TrueType fonts: {len(ttf_fonts)}")
+
+# Get random sample
+random_fonts = fontsearch.find_fonts(random_order=True, max_results=10)
+print("10 random fonts:")
+for font in random_fonts:
+    print(f"  {font.name}")
+
+# Advanced filtering
+german_fonts = fontsearch.find_fonts(
+    text="äöü ß",
+    types=[FontType.TTF, FontType.OTF],
+    max_results=20
+)
+```
+
+### GUI Widget Component
+
+FontSearch includes a reusable tkinter widget that can be embedded in other applications:
+
+```python
+import tkinter as tk
+from fontsearch import FontPickerWidget
+
+def on_font_selected(font_name):
+    print(f"Selected font: {font_name}")
+
+root = tk.Tk()
+root.title("My App with FontSearch")
+
+# Embed FontSearch widget
+font_picker = FontPickerWidget(
+    root,
+    width=600,
+    height=400,
+    on_font_selected=on_font_selected,
+    show_language_selector=True,
+    show_ligature_controls=True
+)
+font_picker.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+root.mainloop()
+```
+
+**Widget Features:**
+- 🎨 **Embeddable component** for any tkinter application
+- 🌍 **10 language support** with automatic detection
+- 🔤 **Ligature controls** for advanced typography
+- 🎯 **Font selection callbacks** for integration
+- ⚙️ **Configurable UI elements** (show/hide controls)
+- 📱 **Responsive design** with proper scaling
+
+See `WIDGET_INTEGRATION_GUIDE.md` for complete integration examples.
+
+### Command Line Interface
+
+```bash
+# List all fonts
+fontsearch
+
+# Launch graphical user interface
+fontsearch --gui
+
+# Launch advanced GUI with SVG support
+fontsearch --gui-advanced
+
+# Launch internationalized GUI (10 languages)
+fontsearch --gui-i18n
+
+# Find fonts supporting emojis
+fontsearch --text "🌷😀"
+
+# Only TrueType and OpenType fonts
+fontsearch --types TTF,OTF
+
+# 10 random fonts with paths
+fontsearch --random --max 10 --paths
+
+# German character support
+fontsearch --text "äöü ß" --paths
+```
+
+## API Reference
+
+### Core Functions
+
+#### `get_fonts() -> List[str]`
+Returns a list of all installed font names.
+
+#### `get_font_files() -> Dict[str, Path]`
+Returns a dictionary mapping font names to their file paths.
+
+#### `find_fonts(text=None, types=None, random_order=False, max_results=None) -> List[FontInfo]`
+Advanced font search with filtering options.
+
+**Parameters:**
+- `text` (str, optional): Filter fonts that support these characters. Requires fonttools.
+- `types` (List[FontType], optional): Filter by font file types (TTF, OTF, etc.).
+- `random_order` (bool): Return results in random order.
+- `max_results` (int, optional): Maximum number of results to return.
+
+**Returns:** List of `FontInfo` objects.
+
+#### `check_font_supports_text(font_path: Path, text: str) -> bool`
+Check if a font file supports all characters in the given text. Requires fonttools.
+
+### Data Classes
+
+#### `FontInfo`
+```python
+@dataclass
+class FontInfo:
+    name: str              # Font display name
+    path: Path             # Path to font file
+    font_type: FontType    # Font file type (TTF, OTF, etc.)
+```
+
+#### `FontType` (Enum)
+- `FontType.TTF` - TrueType fonts (.ttf)
+- `FontType.OTF` - OpenType fonts (.otf)
+- `FontType.TTC` - TrueType collections (.ttc)
+- `FontType.WOFF` - Web fonts (.woff)
+- `FontType.WOFF2` - Web fonts v2 (.woff2)
+
+## Examples
+
+### Find fonts for multilingual text
+```python
+import fontsearch
+
+# Find fonts supporting multiple languages
+multilingual_text = "Hello 你好 مرحبا Здравствуйте"
+fonts = fontsearch.find_fonts(text=multilingual_text)
+
+print(f"Fonts supporting multilingual text: {len(fonts)}")
+for font in fonts:
+    print(f"  {font.name}")
+```
+
+### Analyze font distribution by type
+```python
+import fontsearch
+from collections import Counter
+
+fonts = fontsearch.find_fonts()
+type_counts = Counter(font.font_type.name if font.font_type else 'Unknown' 
+                     for font in fonts)
+
+print("Font distribution by type:")
+for font_type, count in type_counts.most_common():
+    print(f"  {font_type}: {count}")
+```
+
+### Random font sampler
+```python
+import fontsearch
+
+def get_random_font_sample(n=5):
+    """Get a random sample of fonts."""
+    return fontsearch.find_fonts(random_order=True, max_results=n)
+
+# Get 5 random fonts
+sample = get_random_font_sample(5)
+for font in sample:
+    print(f"{font.name} - {font.path}")
+```
+
+### GUI Integration
+```python
+import fontsearch
+
+# Perfect for GUI font selectors
+all_fonts = fontsearch.find_fonts()
+font_names = [font.name for font in all_fonts]
+
+# Real-time filtering for search-as-you-type
+def filter_fonts(search_text):
+    return fontsearch.find_fonts(text=search_text, max_results=20)
+
+# Font categorization
+ttf_fonts = fontsearch.find_fonts(types=[fontsearch.FontType.TTF])
+```
+
+### GUI Interface
+
+FontSearch includes a graphical user interface for interactive font browsing:
+
+```bash
+# Launch GUI from command line
+fontsearch --gui
+
+# Or run directly
+python -m fontsearch.gui
+```
+
+**GUI Features:**
+- Interactive font browsing with pagination
+- Real-time text filtering
+- Font type filtering
+- Ligature controls (contextual and historical)
+- Font preview with custom text
+- Professional interface with clean output
+
+## Dependencies
+
+### Core (no dependencies)
+The core functionality works with Python standard library only:
+- Font discovery on Windows (via registry)
+- Font discovery on macOS (via system directories)  
+- Font discovery on Linux (via fontconfig or directory scanning)
+- Basic filtering and sorting
+
+### Optional (fonttools)
+Advanced features require fonttools:
+```bash
+pip install fonttools
+```
+
+Features enabled with fonttools:
+- Text support checking (`check_font_supports_text`)
+- Character coverage analysis
+- Advanced font metadata reading
+
+## Platform Support
+
+- **Windows**: Uses Windows Registry and system font directories
+- **macOS**: Uses system font directories and system_profiler
+- **Linux**: Uses fontconfig (fc-list) with fallback to directory scanning
+
+## License
+
+GNU Lesser General Public License v3.0 (LGPL-3.0) - see LICENSE file for details.
+
+## Author
+
+**Michel Weinachter** - Initial developer and maintainer
+
+## Contributing
+
+Contributions welcome! Please see CONTRIBUTING.md for guidelines.
+
+## Changelog
+
+### 1.0.0
+- Initial release
+- Cross-platform font discovery
+- Advanced filtering API
+- CLI interface
+- Minimal dependencies design
+- Warning suppression for clean output
