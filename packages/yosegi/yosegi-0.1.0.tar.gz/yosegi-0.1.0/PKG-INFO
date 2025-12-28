@@ -1,0 +1,220 @@
+Metadata-Version: 2.3
+Name: yosegi
+Version: 0.1.0
+Summary: Pyramid (Geo)Parquet Generator
+Requires-Dist: duckdb>=1.4.3
+Requires-Dist: pandas>=2.3.3
+Requires-Python: >=3.14
+Description-Content-Type: text/markdown
+
+# Yosegi - Pyramid (Geo)Parquet Generator
+
+Yosegi is a tool to generate Pyramid (Geo)Parquet files - optimized for streaming large geospatial datasets.
+
+## Usage
+
+```bash
+uv sync
+uv run main.py input.parquet output.pyramid.parquet # GeoParquet
+uv run main.py input.shp output.pyramid.parquet # you can use GDAL/OGR formats
+```
+
+```
+# other options are available
+# uv run main.py -h
+
+Yosegi: Pyramid Parquet Generator
+
+positional arguments:
+  input_file            Path to the input file
+  output_file           Path to the output file
+
+options:
+  -h, --help            show this help message and exit
+  --minzoom MINZOOM     Minimum zoom level (default: 0)
+  --maxzoom MAXZOOM     Maximum zoom level (default: 16)
+  --base-resolution BASE_RESOLUTION
+                        Base resolution (default: 2.5)
+  --geometry-column GEOMETRY_COLUMN
+                        Geometry column name (optional)
+  --parquet-row-group-size PARQUET_ROW_GROUP_SIZE
+                        Parquet row group size (default: 10240)
+  --parquet-partition-by-zoomlevel
+                        Enable Parquet partitioning by zoomlevel (default: False)
+```
+
+## Overview of Pyramid (Geo)Parquet
+
+### Concept
+
+- Pre-calculate which features are visible at each zoomlevel.
+- Pre-calculate quadkey for each feature.
+- Sort features by zoomlevel and quadkey.
+
+**By these steps, generate Pyramid-structure in a single Parquet file, just like GeoTIFF pyramid.**
+
+- Like GeoTIFF, overview of entire data can be obtained quickly.
+- Unlike GeoTIFF, lower resolution data are not repeated because this is vector.
+
+#### QGIS: read Pyramid parquet on Amazon S3. Blue to Red means zoomlevel. Data: OvertureMaps
+
+<https://github.com/user-attachments/assets/4df86816-559d-4b34-b57a-2f3d4b8bd14c>
+
+#### QGIS: loading raw parquet (sorted only by spatially)
+
+<https://github.com/user-attachments/assets/4e7a61f2-eb78-4658-a55f-8de31e2796c9>
+
+*Well sorted spatially but it takes too much time to obtain overview of entire dataset.*
+
+#### Browser(DeckGL + DuckDB): load that parquet and render with [GeoArrowScatterPlotLayer](https://github.com/geoarrow/deck.gl-layers)
+
+<https://github.com/user-attachments/assets/26e2f662-474b-4d11-ab56-f73587ef8b2e>
+
+### Table Structure
+
+Original:
+
+```planetext
+┌──────────────────────┬──────────────────────┬───┬──────────────────────┬─────────┬─────────┐
+│          id          │       geometry       │ … │       filename       │  theme  │  type   │
+│       varchar        │       geometry       │   │       varchar        │ varchar │ varchar │
+├──────────────────────┼──────────────────────┼───┼──────────────────────┼─────────┼─────────┤
+│ 5e1da825-ef9b-45dd…  │ POINT (122.309211 …  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ 0c8ef190-3302-457d…  │ POINT (122.23393 4…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ 6030866d-d428-4411…  │ POINT (122.164515 …  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ e59b1a93-383d-4d4b…  │ POINT (122.40588 4…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ 993b4cb1-1dce-45c5…  │ POINT (122.8591 45…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ 193eb59f-2cbf-49aa…  │ POINT (122.572 45.…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ a74d5f2e-751a-4297…  │ POINT (123.188563 …  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ fd94035d-26db-4b79…  │ POINT (123.164364 …  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ a46dcdef-e802-4928…  │ POINT (122.8753426…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ 025180d0-1100-46ab…  │ POINT (122.857046 …  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ 09d95c3e-99d6-4ef2…  │ POINT (122.827855 …  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ 97b500b4-d540-4a08…  │ POINT (122.8279423…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│          ·           │          ·           │ · │          ·           │   ·     │   ·     │
+│          ·           │          ·           │ · │          ·           │   ·     │   ·     │
+│          ·           │          ·           │ · │          ·           │   ·     │   ·     │
+│ ec9469f0-bb92-490e…  │ POINT (122.34375 2…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ 16ef1bd2-aeba-473c…  │ POINT (137.3721886…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ 462ff6d1-f1af-4100…  │ POINT (137.2338562…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ de4288c0-93b2-4a78…  │ POINT (138.3370972…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ a44ef5e9-ead6-45c3…  │ POINT (140.770368 …  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ c220f122-a7d7-4991…  │ POINT (144.6288514…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ 3ee9fcf8-6684-4d01…  │ POINT (144.8833333…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ a901c450-3c83-4ffb…  │ POINT (144.1404963…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ 3d8e1e58-a107-4ba0…  │ POINT (147.5786018…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ f3c402dc-3f8b-4b87…  │ POINT (146.5937114…  │ … │ s3://overturemaps-…  │ places  │ place   │
+│ 083f2b74-163a-4427…  │ POINT (149.2461111…  │ … │ s3://overturemaps-…  │ places  │ place   │
+├──────────────────────┴──────────────────────┴───┴──────────────────────┴─────────┴─────────┤
+│ 3252680 rows (3.25 million rows, 40 shown)                            19 columns (5 shown) │
+└────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+Pyramid structure:
+
+```planetext
+┌──────────────────────┬──────────────────────┬───┬─────────┬───────────┬──────────────────────┐
+│          id          │       geometry       │ … │  type   │ zoomlevel │       quadkey        │
+│       varchar        │       geometry       │   │ varchar │   int32   │       varchar        │
+├──────────────────────┼──────────────────────┼───┼─────────┼───────────┼──────────────────────┤
+│ 5e1da825-ef9b-45dd…  │ POINT (122.309211 …  │ … │ place   │         0 │ 130321321133100110…  │
+│ 8eb4aa8c-81fb-4a9b…  │ POINT (122.2922402…  │ … │ place   │         0 │ 130323323113231010…  │
+│ bcbc7afb-55ab-4614…  │ POINT (123.873895 …  │ … │ place   │         0 │ 130330222223231232…  │
+│ b1f4848b-9662-4690…  │ POINT (126.288473 …  │ … │ place   │         0 │ 130330233120333022…  │
+│ 9e72a270-b2c4-4fa0…  │ POINT (128.76348 4…  │ … │ place   │         0 │ 130330331203002232…  │
+│ 041af844-b7d1-431a…  │ POINT (131.86278 4…  │ … │ place   │         0 │ 130331233100212033…  │
+│ 1610195b-60c7-4e64…  │ POINT (133.9324379…  │ … │ place   │         0 │ 130331332231132130…  │
+│ a8a3a395-e059-4bcb…  │ POINT (124.6211111…  │ … │ place   │         0 │ 130332021221133210…  │
+│ 486df792-8613-4d45…  │ POINT (128.58908 4…  │ … │ place   │         0 │ 130332130331020231…  │
+│ 633b120a-4a12-4719…  │ POINT (125.0461 41…  │ … │ place   │         0 │ 130332223310103331…  │
+│ 87a6cd83-87b9-4290…  │ POINT (128.6755512…  │ … │ place   │         0 │ 130332333200002230…  │
+│ 0a44b995-d7d1-46b7…  │ POINT (128.8258357…  │ … │ place   │         0 │ 130332333203310220…  │
+│ 55a1aedc-4636-45cb…  │ POINT (130.95233 4…  │ … │ place   │         0 │ 130333032023111100…  │
+│ 2304c1ee-c5be-4316…  │ POINT (132.2290564…  │ … │ place   │         0 │ 130333120222031312…  │
+│ 16553fd2-ced3-42ca…  │ POINT (141.182556 …  │ … │ place   │         0 │ 131221222332030323…  │
+│ 084fafe9-995c-4442…  │ POINT (141.289157 …  │ … │ place   │         0 │ 131221222333300033…  │
+│ b0e52fe2-81e4-43b3…  │ POINT (136.3333333…  │ … │ place   │         0 │ 131222001111223012…  │
+│ 99aea4bb-0ce8-457d…  │ POINT (135.2861111…  │ … │ place   │         0 │ 131222020213032020…  │
+│ 70d00889-6e9f-4ced…  │ POINT (138.6965131…  │ … │ place   │         0 │ 131222321010222033…  │
+│ 2ad92be8-f3f7-4252…  │ POINT (140.6376992…  │ … │ place   │         0 │ 131223022200203023…  │
+│          ·           │          ·           │ · │   ·     │         · │          ·           │
+│          ·           │          ·           │ · │   ·     │         · │          ·           │
+│          ·           │          ·           │ · │   ·     │         · │          ·           │
+│ 9df90671-893f-4eef…  │ POINT (142.2133026…  │ … │ place   │        16 │ 133021232232220102…  │
+│ 077e4ee4-ef79-47ed…  │ POINT (142.213372 …  │ … │ place   │        16 │ 133021232232220102…  │
+│ 106e9793-4d86-45a4…  │ POINT (142.2134436…  │ … │ place   │        16 │ 133021232232220102…  │
+│ 2e6fe019-9d7f-44e9…  │ POINT (142.2134482…  │ … │ place   │        16 │ 133021232232220102…  │
+│ 7a2c6d46-21b1-4890…  │ POINT (142.2134436…  │ … │ place   │        16 │ 133021232232220102…  │
+│ 6a945985-22c8-4878…  │ POINT (142.2134401…  │ … │ place   │        16 │ 133021232232220102…  │
+│ 03cabf3e-da29-4f2c…  │ POINT (142.2134436…  │ … │ place   │        16 │ 133021232232220102…  │
+│ d44b8317-61fa-4d38…  │ POINT (142.2134436…  │ … │ place   │        16 │ 133021232232220102…  │
+│ 8478dc5f-41cd-4bfd…  │ POINT (142.213444 …  │ … │ place   │        16 │ 133021232232220102…  │
+│ 7ae2a2e0-3c39-4899…  │ POINT (138.515625 …  │ … │ place   │        16 │ 133022321222222222…  │
+│ 7c9bdaa3-c9dc-49b4…  │ POINT (142.1574032…  │ … │ place   │        16 │ 133023010203031233…  │
+│ a05bdfc6-002f-4674…  │ POINT (142.1603083…  │ … │ place   │        16 │ 133023010203031301…  │
+│ 820ac51f-3c10-4632…  │ POINT (142.1603296…  │ … │ place   │        16 │ 133023010203031301…  │
+│ 82eb8087-8f15-4e08…  │ POINT (142.1603517…  │ … │ place   │        16 │ 133023010203031310…  │
+│ 228260e9-34c3-4b50…  │ POINT (142.1603606…  │ … │ place   │        16 │ 133023010203031310…  │
+│ 3fd3ec70-8b17-4115…  │ POINT (142.1603727…  │ … │ place   │        16 │ 133023010203031310…  │
+│ 5e188374-8cc9-4709…  │ POINT (141.317 24.8) │ … │ place   │        16 │ 133023022311310313…  │
+│ c9d7e4e5-fa43-43f7…  │ POINT (141.317 24.8) │ … │ place   │        16 │ 133023022311310313…  │
+│ 16af51c8-40c3-48d6…  │ POINT (141.317 24.8) │ … │ place   │        16 │ 133023022311310313…  │
+│ 4fa488a0-601b-43a7…  │ POINT (141.317 24.8) │ … │ place   │        16 │ 133023022311310313…  │
+├──────────────────────┴──────────────────────┴───┴─────────┴───────────┴──────────────────────┤
+│ 3252680 rows (3.25 million rows, 40 shown)                              21 columns (5 shown) │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+As you can see:
+
+- Sorted by zoomlevel. Then, rows of one zoomlevel are stored sequentially.
+- Within each zoomlevel, sorted by quadkey. Then, spatially close features are stored sequentially in each resolution and this is efficient for reading tile-based area of interest.
+
+Then, we can obtain features in area of interest like below:
+
+```sql
+-- DuckDB example: retrieve all features in one tile
+SELECT * FROM 'example.pyramid.parquet'
+  WHERE zoomlevel <= 10
+    AND quadkey LIKE '133002110%'
+```
+
+## Demo
+
+<https://dmsd2c92bdh54.cloudfront.net/index.html>
+
+- DeckGL + GeoArrowScatterPlotLayer + DuckDB
+  - Query Parquet with DuckDB and pass results to GeoArrowScatterPlotLayer
+
+## Benefits
+
+- Single Parquet can be used for storing data and streaming.
+- We can get overview of entire data quickly much faster than by only ordinary spatial sort like quadkey or Hilbert curve.
+- Thanks to very efficient pushdown filtering by zoomlevel and quadkey, we can read partial content of large Parquet file quickly.
+
+## How calculate zoomlevel?
+
+Density based clustering approach is used. Generally, at lower zoom we don't need to show all features. By this approach, only essential features for visualization are kept at lower zoomlevels. Repeating this process from minzoom to maxzoom, we can get which features are visible at each zoomlevel.
+
+## Why quadkey?
+
+- Hilbert curve is great for spatial locality but hierarchical query with tile index is not efficient. Querying quadkey with `LIKE` is more efficient for tile-based filtering.
+- Index generated by `ST_Hilbert` function of DuckDB is not consistent, values depends on bbox ([detail](https://duckdb.org/docs/stable/core_extensions/spatial/functions#description-57)).
+
+## Why not Tile?
+
+- Since creating a tileset exclusively for streaming is painful, it is better to support streaming directly from one original file.
+- Contents of lower zoom tiles are wasted when higher zoom levels are shown. Then same feature repeatedly appears in larger zoom levels.
+- MapboxVectorTiles is lossy format.
+
+## Why not FlatGeobuf?
+
+- FlatGeobuf is also oriented to single file storage and streaming. However it has no pyramid structure, then:
+  - Overview of entire data cannot be obtained quickly.
+  - Tile-based area of interest query is not efficient (in the case of high density dataset, too many features may include in one tile.)
+
+## References
+
+- <https://medium.com/radiant-earth-insights/using-duckdbs-hilbert-function-with-geop-8ebc9137fb8a>
+- <https://medium.com/radiant-earth-insights/the-admin-partitioned-geoparquet-distribution-59f0ca1c6d96>
+- <https://github.com/felt/tippecanoe>
