@@ -1,0 +1,80 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bazinga-cli"
+version = "1.2.1"
+description = "BAZINGA CLI - A sophisticated multi-agent orchestration system for Claude Code"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Mehdi C", email = "mehdic@users.noreply.github.com"},
+]
+keywords = ["claude", "ai", "multi-agent", "orchestration", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "httpx[socks]>=0.25.0",
+    "platformdirs>=3.0.0",
+    "pyyaml>=6.0.0",  # For API contract validation (OpenAPI YAML parsing)
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-timeout>=2.1.0",
+    "pytest-mock>=3.11.0",
+]
+# Note: Dashboard v2 uses Next.js (npm), not Python packages
+
+[project.urls]
+Homepage = "https://github.com/mehdic/bazinga"
+Repository = "https://github.com/mehdic/bazinga"
+Documentation = "https://github.com/mehdic/bazinga#readme"
+Issues = "https://github.com/mehdic/bazinga/issues"
+
+[project.scripts]
+bazinga = "bazinga_cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bazinga_cli"]
+# Exclude symlinks that exist for dev mode (they would cause duplicates)
+exclude = [
+    "bazinga/templates",
+    "bazinga/config",
+]
+
+# Force-include bazinga config files as package data
+# These are gitignored (for runtime state) but needed for distribution
+# CLI checks package directory first, then falls back to shared-data
+# Note: workflow/ is source of truth for state machine configs (dev: bazinga/config symlink)
+[tool.hatch.build.targets.wheel.force-include]
+"bazinga/model_selection.json" = "bazinga_cli/bazinga/model_selection.json"
+"bazinga/challenge_levels.json" = "bazinga_cli/bazinga/challenge_levels.json"
+"bazinga/skills_config.json" = "bazinga_cli/bazinga/skills_config.json"
+"templates" = "bazinga_cli/templates"
+"workflow" = "bazinga_cli/bazinga/config"  # workflow/ -> bazinga/config in clients
+# Note: hooks are included via packages = ["src/bazinga_cli"], no need to force-include
+
+[tool.hatch.build.targets.wheel.shared-data]
+"agents" = "share/bazinga_cli/agents"
+"scripts" = "share/bazinga_cli/scripts"
+"bazinga/scripts" = "share/bazinga_cli/bazinga/scripts"
+".claude/commands" = "share/bazinga_cli/.claude/commands"
+".claude/templates" = "share/bazinga_cli/.claude/templates"
+"config" = "share/bazinga_cli/config"
+".claude/skills" = "share/bazinga_cli/.claude/skills"
+"dashboard-v2" = "share/bazinga_cli/dashboard-v2"
+"mini-dashboard" = "share/bazinga_cli/mini-dashboard"

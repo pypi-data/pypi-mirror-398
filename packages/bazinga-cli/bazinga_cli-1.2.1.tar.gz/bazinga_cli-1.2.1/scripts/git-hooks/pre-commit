@@ -1,0 +1,63 @@
+#!/bin/bash
+#
+# Pre-commit hook for BAZINGA development
+#
+# Handles:
+# 1. Orchestrator agent → slash command rebuilding
+# 2. Agent source files → developer.md and senior_software_engineer.md rebuilding
+
+# Get list of staged files
+STAGED_FILES=$(git diff --cached --name-only)
+
+# =============================================================================
+# 1. Orchestrator Agent → Slash Commands
+# =============================================================================
+if echo "$STAGED_FILES" | grep -q "^agents/orchestrator\.md$"; then
+    echo "🔨 Detected changes to agents/orchestrator.md"
+
+    # Validate references before building
+    echo "   Validating §line and §Step references..."
+    if ! ./scripts/validate-orchestrator-references.sh; then
+        echo ""
+        echo "❌ COMMIT BLOCKED: Broken references in agents/orchestrator.md"
+        echo ""
+        echo "Fix the broken references and try again."
+        exit 1
+    fi
+
+    echo "   Rebuilding slash commands..."
+
+    # Run build script
+    if ! ./scripts/build-slash-commands.sh; then
+        echo "❌ ERROR: Failed to build slash commands"
+        exit 1
+    fi
+
+    # Stage the generated file
+    git add .claude/commands/bazinga.orchestrate.md
+
+    echo "   ✅ Slash command rebuilt and staged"
+fi
+
+# =============================================================================
+# 2. Agent Source Files → Developer & Senior Agent Files
+# =============================================================================
+if echo "$STAGED_FILES" | grep -q "^agents/_sources/"; then
+    echo "🔨 Detected changes to agents/_sources/"
+
+    echo "   Rebuilding agent files..."
+
+    # Run build script
+    if ! ./scripts/build-agent-files.sh; then
+        echo "❌ ERROR: Failed to build agent files"
+        exit 1
+    fi
+
+    # Stage the generated files
+    git add agents/developer.md agents/senior_software_engineer.md
+
+    echo "   ✅ Agent files rebuilt and staged"
+fi
+
+# Allow commit to proceed
+exit 0
