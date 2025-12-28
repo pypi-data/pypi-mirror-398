@@ -1,0 +1,177 @@
+name: pumaguard
+icon: pumaguard-logo-4-512-512.png
+base: core24
+adopt-info: pumaguard
+license: Apache-2.0
+source-code: https://github.com/PEEC-Nature-Youth-Group/pumaguard
+website: https://pumaguard.rtfd.io/
+grade: stable
+confinement: strict
+contact: nicolasbock@gmail.com
+
+summary: PumaGuard is a machine-learning based Puma mitigation solution
+description: |
+  The goal of this project is to accurately classify images based on the
+  presence of mountain lions. This can have applications in wildlife
+  monitoring, research, and conservation efforts. The model is trained on a
+  labeled dataset and validated using a separate set of images.
+
+plugs:
+  tensorflow:
+    interface: content
+    target: $SNAP/pumaguard-tensorflow
+    default-provider: pumaguard-tensorflow
+
+environment:
+  TF_CPP_MIN_LOG_LEVEL: 3 # or any of {'0', '1', '2'}
+  # TF_ENABLE_ONEDNN_OPTS: 0
+  PUMAGUARD_MODEL_PATH: $SNAP/lib/python3.12/site-packages/pumaguard-models
+  PUMAGUARD_SOUND_PATH: $SNAP/lib/python3.12/site-packages/pumaguard-sounds
+  MPLCONFIGDIR: $SNAP_USER_DATA/matplotlib
+  PYTHONPATH: "$SNAP/pumaguard-tensorflow/lib/python3.12/site-packages:$SNAP/pumaguard-tensorflow/usr/lib/python3/dist-packages:$SNAP/lib/python3.12/site-packages"
+  LD_LIBRARY_PATH: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR:$SNAP/pumaguard-tensorflow/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR:$SNAP_LIBRARY_PATH"
+  MPG123_MODDIR: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/mpg123"
+  YOLO_CONFIG_DIR: "$SNAP_USER_DATA"
+
+layout:
+  /usr/share/alsa:
+    symlink: $SNAP/usr/share/alsa
+
+apps:
+  pumaguard:
+    command: bin/snapcraft-preload $SNAP/bin/python3 $SNAP/bin/pumaguard
+    completer: bin/bash-completions.sh
+    plugs:
+      - alsa
+      - audio-playback
+      - home
+      - network
+      - opengl
+      - pulseaudio
+      - removable-media
+      - x11
+  vsftpd:
+    command: usr/sbin/vsftpd $SNAP/etc/vsftpd.conf
+    daemon: simple
+    plugs:
+      - network-bind
+  mpg123:
+    command: usr/bin/mpg123.bin
+    plugs:
+      - alsa
+      - audio-playback
+      - home
+      - network
+      - opengl
+      - pulseaudio
+      - x11
+  playsound:
+    command: bin/playsound
+    plugs:
+      - alsa
+      - audio-playback
+      - home
+      - network
+      - opengl
+      - pulseaudio
+      - x11
+
+parts:
+  snapcraft-preload:
+    source: https://github.com/sergiusens/snapcraft-preload.git
+    plugin: cmake
+    cmake-parameters:
+      - -DCMAKE_INSTALL_PREFIX=/
+    build-packages:
+      - on amd64:
+          - gcc-multilib
+          - g++-multilib
+
+  pumaguard:
+    plugin: uv
+    source: .
+    build-snaps:
+      - astral-uv
+    override-pull: |
+      set -e -u -x
+      uv --version
+      pip list --verbose
+      craftctl default
+      VERSION=$(git describe --tags 2> /dev/null | sed --regexp-extended 's/^v([0-9]+)(-([0-9]+))?.*/\1.post\3/; s/.post$//') || VERSION='undefined'
+      if [[ ${VERSION} == undefined ]] && [[ -f version ]]; then
+        VERSION=$(cat version)
+      fi
+      craftctl set version="v${VERSION}"
+    build-packages:
+      - git
+      - python3-pip
+    override-build: |
+      craftctl default
+      install --mode 0755 pumaguard/completions/pumaguard-completions.sh ${CRAFT_PART_INSTALL}/bin/bash-completions.sh
+    stage-packages:
+      - libgl1
+    # stage:
+    #   - bin
+    #   - lib/python3.12/site-packages/pumaguard*
+    #   - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/*
+
+  inotify:
+    plugin: nil
+    stage-packages:
+      - inotify-tools
+
+  lsof:
+    plugin: nil
+    stage-packages:
+      - lsof
+
+  ftp:
+    plugin: nil
+    override-build: |
+      craftctl default
+      cat <<EOF > vsftpd.conf
+      # Basic options
+      listen=YES
+      anonymous_enable=NO           # Disable anonymous login
+      local_enable=YES              # Allow local users to log in
+      write_enable=YES              # Allow write commands (for uploads)
+      local_umask=022               # Set default file permissions for uploaded files (owner rw, group r, others r)
+      dirmessage_enable=YES         # Enable displaying a message when entering a directory
+      use_localtime=YES             # Use the server's local time
+      xferlog_enable=YES            # Enable logging of file transfers
+      connect_from_port_20_only=YES # Use port 20 for data connections (more secure)
+
+      # Security options
+      pasv_enable=YES          # Enable passive mode (often needed for clients behind NAT)
+      pasv_min_port=10000      # Set a range of ports for passive connections
+      pasv_max_port=10100
+      port_enable=NO           # Disable active mode (less secure for clients behind NAT)
+      allow_writeable_chroot=YES # Required for allowing writes in the chroot directory (use with caution)
+
+      # User restrictions
+      chroot_local_user=YES    # Jail local users to their home directory (more secure)
+      # If you want to allow a specific user to write outside their home directory,
+      # you can uncomment the following line and add the username:
+      # chroot_list_enable=YES
+      # chroot_list_file=/etc/vsftpd.chroot_list
+
+      # TLS/SSL settings (highly recommended for secure transfers)
+      ssl_enable=YES
+      ssl_tlsv1_2=YES          # Only allow TLS v1.2 and above
+      ssl_sslv2=NO
+      ssl_sslv3=NO
+      require_ssl_cert=NO      # Don't require client certificates (usually not needed for this use case)
+      rsa_cert_file=/etc/ssl/certs/vsftpd.pem # Path to your SSL certificate
+      rsa_private_key_file=/etc/ssl/private/vsftpd.key # Path to your private key
+      EOF
+      install --mode 0644 vsftpd.conf ${CRAFT_PART_INSTALL}/etc/vsftpd.conf
+    stage-packages:
+      - vsftpd
+
+  sound:
+    plugin: nil
+    stage-packages:
+      - mpg123
+    override-build: |
+      craftctl default
+      ln --symbolic mpg123.bin ${CRAFT_PART_INSTALL}/usr/bin/mpg123
