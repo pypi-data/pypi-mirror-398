@@ -1,0 +1,260 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/tal-liberio/dossier-tools/schema/v1.0.0",
+  "title": "Dossier Schema",
+  "description": "JSON Schema for Dossier frontmatter metadata",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "name",
+    "title",
+    "version",
+    "status",
+    "objective",
+    "checksum",
+    "authors"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Version of the Dossier Schema specification being used",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "const": "1.0.0"
+    },
+    "name": {
+      "type": "string",
+      "description": "Dossier slug identifier (lowercase, alphanumeric, hyphens)",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "minLength": 2,
+      "maxLength": 100
+    },
+    "title": {
+      "type": "string",
+      "description": "Human-readable title of the Dossier",
+      "minLength": 3,
+      "maxLength": 200
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version of this specific Dossier",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.-]+)?(\\+[a-zA-Z0-9.-]+)?$"
+    },
+    "status": {
+      "type": "string",
+      "description": "Lifecycle status of this Dossier",
+      "enum": ["draft", "stable", "deprecated", "experimental"]
+    },
+    "objective": {
+      "type": "string",
+      "description": "Clear, single-purpose statement describing what this Dossier accomplishes",
+      "minLength": 10,
+      "maxLength": 500
+    },
+    "checksum": {
+      "type": "object",
+      "description": "Content integrity hash - verifies dossier body hasn't been tampered with",
+      "required": ["algorithm", "hash"],
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "description": "Hash algorithm used",
+          "const": "sha256"
+        },
+        "hash": {
+          "type": "string",
+          "description": "SHA256 hash of dossier body content (after frontmatter)",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "authors": {
+      "type": "array",
+      "description": "Authors or maintainers of this Dossier",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Author name"
+          },
+          "email": {
+            "type": "string",
+            "description": "Author email",
+            "format": "email"
+          },
+          "url": {
+            "type": "string",
+            "description": "Author URL",
+            "format": "uri"
+          }
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "description": "Cryptographic signature for authenticity verification",
+      "required": ["algorithm", "signed_by"],
+      "oneOf": [
+        {
+          "description": "AWS KMS signature",
+          "required": ["algorithm", "key_id", "signature", "signed_by"],
+          "properties": {
+            "algorithm": {
+              "type": "string",
+              "const": "ecdsa-sha256",
+              "description": "ECDSA signature with SHA256 (AWS KMS)"
+            },
+            "key_id": {
+              "type": "string",
+              "description": "AWS KMS key identifier"
+            },
+            "signature": {
+              "type": "string",
+              "description": "Base64-encoded ECDSA signature (DER format)",
+              "pattern": "^[A-Za-z0-9+/]+=*$"
+            },
+            "public_key": {
+              "type": "string",
+              "description": "Base64-encoded DER public key from AWS KMS"
+            },
+            "signed_by": {
+              "type": "string",
+              "description": "Signer identity"
+            },
+            "timestamp": {
+              "type": "string",
+              "description": "When the signature was created (ISO 8601 format)",
+              "format": "date-time"
+            }
+          }
+        },
+        {
+          "description": "Ed25519 signature",
+          "required": ["algorithm", "public_key", "signature", "signed_by"],
+          "properties": {
+            "algorithm": {
+              "type": "string",
+              "const": "ed25519",
+              "description": "Ed25519 signature"
+            },
+            "public_key": {
+              "type": "string",
+              "description": "Ed25519 public key (base64 encoded)"
+            },
+            "signature": {
+              "type": "string",
+              "description": "Ed25519 signature (base64 encoded)"
+            },
+            "key_id": {
+              "type": "string",
+              "description": "Human-readable key identifier"
+            },
+            "signed_by": {
+              "type": "string",
+              "description": "Signer identity"
+            },
+            "timestamp": {
+              "type": "string",
+              "description": "When the signature was created (ISO 8601 format)",
+              "format": "date-time"
+            }
+          }
+        }
+      ]
+    },
+    "last_updated": {
+      "type": "string",
+      "description": "ISO 8601 date when the Dossier was last updated",
+      "format": "date"
+    },
+    "category": {
+      "type": "array",
+      "description": "Categories for organizing and discovering Dossiers. Common values: devops, deployment, security, testing, development, infrastructure, database, monitoring, ci-cd, migration, backup, maintenance",
+      "items": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 50
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "examples": [
+        ["devops", "deployment"],
+        ["security", "infrastructure"]
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "description": "Free-form tags for searchability",
+      "items": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 50
+      },
+      "uniqueItems": true
+    },
+    "estimated_duration": {
+      "type": "object",
+      "description": "Estimated time to complete this Dossier",
+      "properties": {
+        "min_minutes": {
+          "type": "number",
+          "description": "Minimum estimated duration in minutes",
+          "minimum": 0
+        },
+        "max_minutes": {
+          "type": "number",
+          "description": "Maximum estimated duration in minutes",
+          "minimum": 0
+        }
+      }
+    },
+    "risk_level": {
+      "type": "string",
+      "description": "Risk assessment of executing this Dossier",
+      "enum": ["low", "medium", "high", "critical"]
+    },
+    "risk_factors": {
+      "type": "array",
+      "description": "Specific risk factors this dossier involves. Common values: modifies_files, deletes_files, modifies_cloud_resources, requires_credentials, network_access, executes_external_code, database_operations, system_configuration",
+      "items": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 100
+      },
+      "uniqueItems": true,
+      "examples": [
+        ["modifies_files", "network_access"],
+        ["database_operations", "requires_credentials"]
+      ]
+    },
+    "requires_approval": {
+      "type": "boolean",
+      "description": "Whether user approval is required before execution",
+      "default": true
+    },
+    "destructive_operations": {
+      "type": "array",
+      "description": "Human-readable list of potentially destructive operations",
+      "items": {
+        "type": "string",
+        "minLength": 10
+      }
+    },
+    "license": {
+      "type": "string",
+      "description": "License identifier (SPDX format recommended)"
+    },
+    "homepage": {
+      "type": "string",
+      "description": "URL to Dossier homepage or documentation",
+      "format": "uri"
+    },
+    "custom": {
+      "type": "object",
+      "description": "Custom metadata fields",
+      "additionalProperties": true
+    }
+  }
+}
