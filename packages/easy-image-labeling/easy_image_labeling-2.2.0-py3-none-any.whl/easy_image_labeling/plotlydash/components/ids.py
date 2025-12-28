@@ -1,0 +1,8 @@
+LAYOUT = "layout"
+REGENERATE_BUTTON = "regenerate-button"
+DATA_STORE = "data-store"
+DATASET_DROPDOWN = "dataset-dropdown"
+TIME_INTERVAL_DROPDOWN = "time-interval-radio-button"
+PIE_CHART = "pie-chart"
+PROGRESS_CHART = "progress-chart"
+SIDEBAR = "sidebar"

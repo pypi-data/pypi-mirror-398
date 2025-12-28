@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block header %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <h1>{% block title %}Upload your dataset{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+{% if create_new_dataset %}
+<h2>Upload Folder</h2>
+{% else %}
+<h2>Upload Images to add to dataset "{{ dataset }}"</h2>
+{% endif %}
+
+{% from "_formhelpers.html" import render_field_errors %}
+{% if create_new_dataset %}
+<form method="POST" enctype="multipart/form-data" action="{{ url_for('config.upload_folder') }}">
+{{ render_field_errors(form.dataset_name) }}
+{% else %}
+<form method="POST" enctype="multipart/form-data" action="{{ url_for('config.add_images_to_dataset', dataset=dataset) }}">
+{% endif %}
+    {{ form.hidden_tag() }}
+    {{ render_field_errors(form.files) }}
+
+    <input type="file" id="fileInput" name="files" multiple webkitdirectory>    
+    <ul id="fileList"></ul>
+    {% if create_new_dataset %}
+        <p><b>Name your dataset</b></p>
+        {{ form.dataset_name }}<br><br>
+    {% endif %}
+    {{ form.submit }}
+</form>
+
+<script>
+    document.getElementById("fileInput").addEventListener("change", function(event) {
+        let fileList = document.getElementById("fileList");
+        fileList.innerHTML = "";  // Clear list
+        
+        for (let file of event.target.files) {
+            let listItem = document.createElement("li");
+            listItem.textContent = file.webkitRelativePath;  // Show folder structure
+            fileList.appendChild(listItem);
+        }
+    });
+</script>
+{% endblock %}
